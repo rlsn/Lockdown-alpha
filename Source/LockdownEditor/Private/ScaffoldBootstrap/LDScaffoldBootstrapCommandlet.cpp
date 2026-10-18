@@ -9,7 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
-#include "EngineUtils.h"
+#include "Engine/Level.h"
 #include "FileHelpers.h"
 #include "GameFramework/PlayerStart.h"
 #include "InputAction.h"
@@ -191,7 +191,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
             if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(MapFile), true)) { return 5; }
             if (!UEditorLoadingAndSavingUtils::SaveMap(World, Path)) { return 5; }
         }
-        else { World = LoadObject<UWorld>(nullptr, *(Path + TEXT(".") + Name)); }
+        else
+        {
+            // Initialize the saved editor world so scene-component world transforms are valid.
+            const FString MapFile = FPackageName::LongPackageNameToFilename(Path, FPackageName::GetMapPackageExtension());
+            World = UEditorLoadingAndSavingUtils::LoadMap(MapFile);
+        }
         if (!HasSignature(World, Signature)) { UE_LOG(LogTemp, Error, TEXT("Missing/stale map %s"), *Path); return 5; }
         int32 FoundCount = 0;
         for (const TSharedPtr<FJsonValue>& Value : *Geometry)
@@ -203,15 +208,25 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
             double Pitch = 0;
             Item->TryGetNumberField(TEXT("pitch"), Pitch);
             int32 Matches = 0;
-            for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+            if (!World->PersistentLevel) { return 5; }
+            // A package-loaded world has no initialized level collection for TActorIterator.
+            // Inspect its serialized persistent actors so Validate also works in a fresh process.
+            for (AActor* SavedActor : World->PersistentLevel->Actors)
             {
-                if (It->GetActorLabel() != Item->GetStringField(TEXT("label"))) { continue; }
-                const UStaticMesh* Mesh = It->GetStaticMeshComponent()->GetStaticMesh();
-                if (!It->GetActorLocation().Equals(Location, 0.1) || !It->GetActorScale3D().Equals(Size / 100.0, 0.001)
-                    || !It->GetActorRotation().Equals(FRotator(Pitch, 0, 0), 0.01) || !Mesh || Mesh->GetName() != Item->GetStringField(TEXT("mesh"))) { return 5; }
+                const AStaticMeshActor* Actor = Cast<AStaticMeshActor>(SavedActor);
+                if (!Actor || Actor->GetActorLabel() != Item->GetStringField(TEXT("label"))) { continue; }
+                const UStaticMesh* Mesh = Actor->GetStaticMeshComponent()->GetStaticMesh();
+                if (!Actor->GetActorLocation().Equals(Location, 0.1) || !Actor->GetActorScale3D().Equals(Size / 100.0, 0.001)
+                    || !Actor->GetActorRotation().Equals(FRotator(Pitch, 0, 0), 0.01) || !Mesh || Mesh->GetName() != Item->GetStringField(TEXT("mesh")))
+                {
+                    UE_LOG(LogTemp, Error, TEXT("Geometry mismatch in %s for %s: location %s expected %s; scale %s expected %s; rotation %s; mesh %s"),
+                        *Path, *Actor->GetActorLabel(), *Actor->GetActorLocation().ToString(), *Location.ToString(),
+                        *Actor->GetActorScale3D().ToString(), *(Size / 100.0).ToString(), *Actor->GetActorRotation().ToString(), *GetNameSafe(Mesh));
+                    return 5;
+                }
                 ++Matches;
             }
-            if (Matches != 1) { UE_LOG(LogTemp, Error, TEXT("Missing or duplicated generated geometry")); return 5; }
+            if (Matches != 1) { UE_LOG(LogTemp, Error, TEXT("Expected one %s in %s, found %d"), *Item->GetStringField(TEXT("label")), *Path, Matches); return 5; }
             FoundCount += Matches;
         }
         UE_LOG(LogTemp, Display, TEXT("Validated %s: %d generated meshes"), *Path, FoundCount);

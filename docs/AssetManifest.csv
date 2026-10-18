@@ -1,9 +1,9 @@
-Path,Purpose,Origin,LicenceOrOwnedStatus,Generated,CurrentStatus
-/Game/Lockdown/Generated/Maps/L_Frontend,Frontend map foundation,Original layout and Unreal engine primitives,Original project data with engine-content references,Yes,Planned - bootstrap source only
-/Game/Lockdown/Generated/Maps/L_MigrationSandbox,Migration world foundation,Original layout and Unreal engine primitives,Original project data with engine-content references,Yes,Planned - bootstrap source only
-/Game/Lockdown/Generated/Maps/L_FunctionalTests,Functional test world foundation,Original layout and Unreal engine primitives,Original project data with engine-content references,Yes,Planned - bootstrap source only
-/Game/Lockdown/Generated/Data/DA_PrototypeTuning,Audited converted tuning,Project-owned source derived from baseline rules,Project owned,Yes,Planned - bootstrap source only
-/Game/Lockdown/Generated/Input/IA_*,Ten Enhanced Input actions,Original project source,Project owned,Yes,Planned - bindings incomplete until B32
-/Game/Lockdown/Generated/Input/IMC_Gameplay,Initial gameplay context,Original project source,Project owned,Yes,Planned - Move/Aim mappings pending B32
-/Engine/BasicShapes/Cube,Floor walls ramp and plateau,Installed Unreal engine,Engine-provided reference,No,Referenced by generator source
-/Engine/BasicShapes/Cylinder,Opaque tree placeholders,Installed Unreal engine,Engine-provided reference,No,Referenced by generator source
+"Path","Purpose","Origin","LicenceOrOwnedStatus","Generated","CurrentStatus"
+"/Game/Lockdown/Generated/Maps/L_Frontend","Frontend map foundation","Original layout and Unreal engine primitives","Original project data with engine-content references","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Game/Lockdown/Generated/Maps/L_MigrationSandbox","Migration world foundation","Original layout and Unreal engine primitives","Original project data with engine-content references","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Game/Lockdown/Generated/Maps/L_FunctionalTests","Functional test world foundation","Original layout and Unreal engine primitives","Original project data with engine-content references","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Game/Lockdown/Generated/Data/DA_PrototypeTuning","Audited converted tuning","Project-owned source derived from baseline rules","Project owned","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Game/Lockdown/Generated/Input/IA_*","Ten Enhanced Input actions","Original project source","Project owned","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Game/Lockdown/Generated/Input/IMC_Gameplay","Initial gameplay context","Original project source","Project owned","Yes","Generated - fresh-process validation passed; gameplay bindings pending"
+"/Engine/BasicShapes/Cube","Floor walls ramp and plateau","Installed Unreal engine","Engine-provided reference","No","Referenced by generator source"
+"/Engine/BasicShapes/Cylinder","Opaque tree placeholders","Installed Unreal engine","Engine-provided reference","No","Referenced by generator source"

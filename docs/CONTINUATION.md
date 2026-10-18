@@ -1,6 +1,32 @@
 # Continuation checkpoint — 18 October 2026
 
-**Current gate: B31 Editor build blocked by missing .NET Framework SDK. The earlier compiler ban is resolved.**
+**Current gate: B31 native build and foundation assets verified. Gameplay implementation is next.**
+
+## Current verified state
+
+Editor builds pass with x64 MSVC **14.44.35229**, Windows SDK **10.0.26100.0**
+and Framework SDK **4.8**. Both native DLL build IDs match the engine (55116800).
+The missing editor DLL link was fixed by adding InputCore to its module dependencies.
+
+Native rules: **4 tests passed**. Unreal saved **15 genuine packages** (three map
+foundations, tuning, ten input actions and a partial context). Two fresh-process
+Validate runs passed; all 15 asset hashes remained unchanged. Fresh-map loading
+now initializes transforms before geometry validation. The editor-only AllToolsets
+GameFeatures dependency has its required asset-manager rule, with NeverCook policy.
+
+Evidence: Artifacts/20261018-122731-543-BuildEditor/BuildEditor.log and
+Artifacts/20261018-122600-292-Automation/Report/index.json, plus the two successful
+Bootstrap-Validate logs after 12:27. The editor was launched again after validation.
+
+Next: finish B31/B32 native UI, movement/aim mappings, controller, humanoid
+presentation, navigation and eight residents. Complete U04 requires those assets;
+the foundation maps are not a finished playable demo. Then follow B33–B36.
+No additional installation is currently required for the verified Editor build.
+
+The user's association is now `5.8`; this machine's engine path is resolved through
+ignored local settings. User association/configuration changes were preserved.
+
+## Historical blocked checkpoint (resolved)
 
 Latest retry after the owner's Build Tools update: x64 compilers 14.51.36260 and
 14.44.35229 are detected and neither is banned. The editor was closed cleanly

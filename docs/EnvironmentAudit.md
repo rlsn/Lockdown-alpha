@@ -1,5 +1,27 @@
 # Environment audit
 
+## Build restored
+
+The owner installed .NET Framework SDK **4.8**. Preflight now validates its header
+and x64 library. The Editor target builds successfully with x64 MSVC
+**14.44.35229** (selected automatically by UBT) and Windows SDK **10.0.26100.0**.
+The native rule suite reports **4 succeeded, 0 failed, 0 not run**.
+
+The first link attempt exposed a missing direct InputCore dependency in the
+editor bootstrap module. Adding that dependency resolved the missing DLLs; both
+DLL manifests now match the installed engine build ID **55116800**.
+
+The owner's project association changed to `5.8`, and this machine no longer had
+a matching registry entry. An ignored `Config/Local/Environment.json` was created
+with the verified installed engine root; no absolute engine path is committed.
+The user's association change and generated Visual Studio configuration are retained.
+
+UBT reports that Visual Studio IDE integration is unavailable because the Visual
+Studio SDK is absent. This is a nonfatal editor-integration warning; builds and
+the rule suite succeed without another installation.
+
+The missing-SDK/compiler reports below are historical.
+
 ## Latest toolchain retry
 
 After the owner's Build Tools update on 18 October 2026, x64 cl.exe product

@@ -4,9 +4,9 @@ Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
-**Current checkpoint: B30 audit recorded; B31 source foundation in progress.
-Editor compilation is blocked by a missing .NET Framework SDK. This is not a
-playable Unreal port.** See [continuation](docs/CONTINUATION.md).
+**Current checkpoint: B30 audit recorded; B31 native modules build and all four
+rule tests pass. This is not yet a playable Unreal port.** See
+[continuation](docs/CONTINUATION.md).
 
 ## Setup
 
@@ -15,7 +15,7 @@ playable Unreal port.** See [continuation](docs/CONTINUATION.md).
    now provides x64 14.51.36260 and 14.44.35229; the earlier compiler ban is resolved.
    Windows SDK 10.0.26100.0 is now detected. In Visual Studio Installer > Modify >
    Individual components, also install **.NET Framework 4.8 SDK**
-   (`Microsoft.Net.Component.4.8.SDK`), currently missing. This is distinct from
+   (`Microsoft.Net.Component.4.8.SDK`). This is distinct from
    the modern .NET SDK/runtime and the .NET Framework targeting pack.
 3. Run `git lfs install` before checking out binary assets.
 4. Resolve the engine through the project's local association, or set
@@ -34,8 +34,8 @@ playable Unreal port.** See [continuation](docs/CONTINUATION.md).
 ./Scripts/OpenEditor.ps1
 ```
 
-These are the continuation commands, **not completed build evidence**. Only
-preflight, failed build and prerequisite guards have run so far. PowerShell 7 is
+Preflight, Editor build and the four native rule tests now pass on the audited
+machine. See docs/TestReport.md for the remaining stage gates. PowerShell 7 is
 the tested script host. Per-run output and local machine paths go to ignored
 `Artifacts/`. Scripts fail if the discovered engine differs from the lock.
 

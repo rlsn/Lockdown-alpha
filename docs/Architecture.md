@@ -1,8 +1,8 @@
 # Foundation architecture and boundaries
 
 This checkpoint contains source for the initial build and bootstrap gate only.
-None of the native source has compiled because the toolchain was rejected before
-C++/UHT execution. This file distinguishes supplied code from future stages.
+Native modules now compile/link successfully and the four rule tests pass.
+This file distinguishes the initial foundation from future gameplay stages.
 
 ## Supplied
 
@@ -11,7 +11,7 @@ C++/UHT execution. This file distinguishes supplied code from future stages.
 - `LockdownEditor` owns the asset bootstrap commandlet and UnrealEd dependency.
   Runtime code does not reference UnrealEd or package-save APIs.
 - Four `Lockdown.Rules` automation cases cover conversion, death arithmetic,
-  objective deadline/access boundaries and view ordering. They have not run.
+  objective deadline/access boundaries and view ordering. All four pass.
 - Bootstrap source reads `Config/BootstrapLayout.json`, saves real packages through
   Unreal APIs and checks generated signatures/geometry. It creates three map
   foundations, tuning, ten input actions and a partial mapping context. It does

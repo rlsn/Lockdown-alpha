@@ -18,10 +18,10 @@
     "observedCompilerVersion": "14.51.36260",
     "otherAvailableCompilerVersions": ["14.44.35229"],
     "compilerBanResolved": true,
-    "selectedBuildCompilerVersion": null,
+    "selectedBuildCompilerVersion": "14.44.35229",
     "observedWindowsSdk": "10.0.26100.0",
-    "netFrameworkSdk": "Missing; install Microsoft.Net.Component.4.8.SDK",
-    "verifiedBuild": false
+    "netFrameworkSdk": "4.8",
+    "verifiedBuild": true
   },
   "plugins": {
     "runtime": ["EnhancedInput"],

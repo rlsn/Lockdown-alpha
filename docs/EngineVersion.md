@@ -11,9 +11,10 @@ and `EngineIncludeOrderVersion.Unreal5_8` from the installed engine's rules.
 
 Updated compiler inventory: x64 MSVC **14.51.36260** and **14.44.35229**, neither
 banned. The former 14.50.35721 compiler is no longer present. Windows SDK:
-**10.0.26100.0**. UBT progressed past the former compiler blocker but now fails
-while finding the **.NET Framework SDK** for SwarmInterface. Actual compiler
-selection is not yet logged. **No tested C++ toolchain has passed a build yet.**
+**10.0.26100.0**; .NET Framework SDK **4.8** is now installed and validated.
+**Editor build passed**, using UBT-selected x64 MSVC **14.44.35229** and Windows SDK
+10.0.26100.0. Both project DLLs have build ID **55116800**, matching the installed
+UnrealEditor module manifest. The four native rule automation tests also pass.
 
 `Lockdown.uproject` retains the owner's local engine association identifier.
 Another machine should associate it with its own installation of exactly the
