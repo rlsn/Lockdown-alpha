@@ -17,8 +17,16 @@ try {
 $objects=& git -C $root rev-parse --git-path lfs/objects
 if(-not [IO.Path]::IsPathRooted($objects)){$objects=Join-Path $root $objects}
 $targetLfs=Join-Path $checkout '.git/lfs'
-New-Item -ItemType Directory -Path $targetLfs -Force | Out-Null
-Copy-Item -LiteralPath $objects -Destination $targetLfs -Recurse
+$targetObjects=Join-Path $targetLfs 'objects'
+# Git LFS may already have created the empty objects directory during clone.
+# Copy files by relative path so both an empty and an existing cache hydrate safely.
+foreach($object in Get-ChildItem -LiteralPath $objects -Recurse -File){
+    $destination=Join-Path $targetObjects ([IO.Path]::GetRelativePath($objects,$object.FullName))
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Copy-Item -LiteralPath $object.FullName -Destination $destination -Force
+}
+& git -C $checkout lfs fsck
+if($LASTEXITCODE -ne 0){throw 'Local LFS object verification failed'}
 & git -C $checkout lfs checkout
 if($LASTEXITCODE -ne 0){throw 'Local LFS hydration failed'}
 if((& git -C $checkout status --porcelain)){throw 'Clone is not clean after LFS hydration'}
