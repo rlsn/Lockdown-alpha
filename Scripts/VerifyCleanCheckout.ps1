@@ -12,7 +12,7 @@ try {
     & git clone --no-hardlinks -- $root $checkout
     if($LASTEXITCODE -ne 0){throw 'Local clone failed'}
 } finally {$env:GIT_LFS_SKIP_SMUDGE=$previousSmudge}
-# There is no hosting remote. Hydrate binary content from the audited local LFS
+# This lane deliberately hydrates binary content from the audited local LFS
 # object cache; this verifies checkout/build reproducibility, not remote LFS delivery.
 $objects=& git -C $root rev-parse --git-path lfs/objects
 if(-not [IO.Path]::IsPathRooted($objects)){$objects=Join-Path $root $objects}
@@ -36,5 +36,5 @@ foreach($script in @('Preflight','BuildEditor','BuildGame','BootstrapAssets','Ru
     & (Join-Path $checkout "Scripts/$script.ps1") @arguments
 }
 if((& git -C $checkout status --porcelain)){throw 'Verification modified tracked checkout files'}
-@{revision=(& git -C $checkout rev-parse HEAD);clean=$true;lfs='Hydrated from local source object cache; no remote configured';checks=@('Preflight','Editor build','Game build','Bootstrap Validate','8 rule tests');checkout=$checkout} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'Result.json')
+@{revision=(& git -C $checkout rev-parse HEAD);clean=$true;lfs='Hydrated from local source object cache; remote Git/LFS delivery not tested';checks=@('Preflight','Editor build','Game build','Bootstrap Validate','8 rule tests');checkout=$checkout} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'Result.json')
 Write-Host "Clean local clone verification passed. Evidence: $output"

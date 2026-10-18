@@ -20,6 +20,8 @@ Artifact names retain the host's 18 October timestamps.
 | Final-source objective regression | Main53 / ExactDeadline3 / LateClaim3 / NoClaim4 / Withdraw5 passed, including finished-room PreLogin rejection | 20261019-002233-409-ObjectiveCheck/*.json |
 | Final-package reset regression |84 passed; ten reloads | 20261019-002233-386-Packaged-ResetCheck/Reset.json |
 | Final-package Seal regression,150ms +/-25ms, rendered720p A | Server15 / A19 / B20 passed | 20261019-002233-388-Packaged-ObjectiveNetwork-150-25/Seal/{Server,A,B}.json |
+| Fresh local clone at2e5ce4c | Passed: LFS fsck/23 assets, preflight, cold Editor and Game builds, Bootstrap Validate,8 rules; checkout remains clean | 20261019-002952-019-CleanCheckout/{Result,VerificationContext}.json; Checkout/Artifacts/ |
+| Final editor/MCP smoke | Sandbox reopened;67 toolsets; StartPIE/playing/StopPIE/idle assertions passed | B36-MCP/{Initialize,Toolsets,IsPIERunning,StartPIE,Playing,StopPIE,Idle}.json |
 
 The measured package was 20261018-175244-066-PackageWin64. On Ryzen9 7945HX,
 RTX4060 Laptop (driver32.0.16.1742),15.69GiB RAM, DX12 SM6 High at100% screen
@@ -77,6 +79,28 @@ IoStore/pak runtime delivery. Normal runtime needs no editor or cook server.
 One exploratory editor soak ran alongside a build and exceeded250ms p95 on one
 client; it is not certified performance evidence. The clean measurement lane
 uses one rendered client and no concurrent build/test workload.
+
+Fresh-checkout attempts exposed two issues that were fixed before acceptance:
+the LFS helper tried to recreate an existing empty object directory, and Windows
+CRLF conversion changed the bootstrap layout's text signature. The helper now
+copies immutable object files into their relative paths and runs git lfs fsck;
+.gitattributes pins Config/BootstrapLayout.json to LF. No asset regeneration was
+used to hide the signature failure. Failed attempts remain under
+20261019-002416-123-CleanCheckout and20261019-002444-204-CleanCheckout.
+The successful clone at2e5ce4c copied no project Binaries/Intermediate files.
+It uses this machine's installed engine and shared engine caches. Local LFS
+hydration verifies a fresh checkout, not a remote Git/LFS transfer. The clone's
+rule report is Checkout/Artifacts/20261019-003332-678-Automation/Report/index.json
+under the successful CleanCheckout directory.
+The original result's no-remote metadata label was incorrect: a GitHub origin is
+configured. VerificationContext.json records that correction without overwriting
+the original evidence. The helper's label is corrected for subsequent runs.
+
+The final package's original manifest retains its actual precommit revision and
+dirty flag. VerifiedCheckpoint.json separately binds all67 source/config hashes
+and seven archived payload hashes to committed checkpoint bdcefcb. Later changes
+pin checkout newlines, correct verification metadata and document results;
+compiled content is unchanged.
 
 ## Historical B35 verification
 
@@ -321,7 +345,7 @@ both were fixed and both native targets rebuilt before standalone review.
 | U37 | Passed measured small slice |1080p60-second render sample and600-second activity;60FPS median,16.83ms frame p95,0.864ms authority combined p95; capacity deferred |
 | U38 | Passed measured lane |100/150ms functional lanes;600-second150ms+/-25ms soak,893/896 receipts,249.60/241.13ms p95; narrow A margin, WAN/loss unverified |
 | U39 | Passed automated world-reload lane | Ten packaged non-seamless reloads,84 checks; old actors/state/commands/receipts/views rejected;11 clean observations |
-| U40 | Partial | Runnable package, scripts, manifest, ledger and measured report supplied; human sign-off, source-engine Server and remote delivery remain conditional |
+| U40 | Passed engineering handoff | Runnable package, hashes, ledger/report and fresh local clone builds/validation/8 rules supplied; human usability, source-engine Server and remote delivery remain explicit limitations |
 
 Packaged dedicated server: **Conditional not available** in this checkpoint; only
 an installed engine is identified and no compatible source-build lane is established.

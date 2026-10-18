@@ -1,8 +1,18 @@
 # Continuation checkpoint - 19 October 2026
 
-Current stage: B36 package and engineering verification. See B36_CHECKPOINT.md
+Completed: B36 package and engineering verification. See B36_CHECKPOINT.md
 and TestReport.md for exact package paths, measured results and remaining gates.
 Human usability review remains distinct from scripted engineering checks.
+Main implementation f6cd2ba, LFS helper bdcefcb and checkout-signature fix2e5ce4c
+are committed. The fresh local clone at2e5ce4c passed both cold builds,23 asset
+validation and eight rules, and remained clean. Evidence is
+Artifacts/20261019-002952-019-CleanCheckout/Result.json. The final runnable archive
+is Artifacts/20261019-001732-992-PackageWin64/Archive/Windows; the measured
+600-second soak and final-source regressions are itemized in TestReport.md.
+The main editor reopened on the sandbox; direct HTTP MCP discovered67 toolsets
+and passed play/stop with positive playing/idle assertions. It is left open and
+idle. The GitHub origin is configured, but this phase tested local clone/LFS
+hydration only and did not publish commits or certify remote delivery.
 
 ## Current architecture
 
@@ -28,7 +38,7 @@ seven-part body and status marker render all roles; effects stay inside views.
 
 ## Next stage
 
-Finish any open engineering gate recorded in TestReport.md, then conduct B37's
+Conduct B37's
 human comparison of movement, aim, threat warning, fog and interaction feedback
 at720p/1080p before expanding gameplay. The installed-engine packaged topology is
 a headless listen authority plus two remote clients. A dedicated Server target

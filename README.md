@@ -69,8 +69,8 @@ for ten minutes with one rendered 1080p client. See the report for actual result
 A packaged dedicated server remains conditional on a compatible source engine.
 
 `VerifyCleanCheckout.ps1` checks a committed local clone with assets hydrated from
-the local LFS cache, both native builds, asset validation and rule tests. No hosting
-remote is configured, so remote Git/LFS distribution is not certified.
+the local LFS cache, both native builds, asset validation and rule tests. A GitHub
+origin is configured; this local test does not certify remote Git/LFS distribution.
 
 ## Baseline
 

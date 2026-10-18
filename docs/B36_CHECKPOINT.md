@@ -69,7 +69,10 @@ frame caps, process topology and duration are saved beside the reports.
 VerifyCleanCheckout.ps1 requires a committed checkpoint, makes a separate local
 clone, hydrates LFS assets from the local object cache, and runs preflight, both
 native builds, asset validation and rule tests without copied project binaries.
-There is no hosting remote, so this does not certify remote Git/LFS delivery.
+A GitHub origin is configured; this local lane does not certify remote Git/LFS delivery.
+The bootstrap layout is pinned to LF in .gitattributes because its saved package
+signature hashes the layout text. The first built clone exposed Windows newline
+conversion; the corrected fresh clone preserves the existing signature and assets.
 
 ## Acceptance boundary
 

@@ -1,5 +1,15 @@
 # Unreal MCP connection test
 
+## B36 follow-up - 19 October 2026
+
+After packaging, final-source regressions and the clean-clone build/test checks,
+the main editor reopened on L_MigrationSandbox. Direct HTTP initialization and
+discovery returned67 toolsets. IsPIERunning was false, StartPIE completed, a second
+state query confirmed play, StopPIE completed and the final state was idle.
+No asset/map edits were made. Local evidence: Artifacts/B36-MCP/.
+Native chat registration remains absent; the working path is the existing
+session-based HTTP transport. The editor is left open for review.
+
 ## B35 follow-up
 
 After both native targets and objective checks passed, the normal editor reopened
