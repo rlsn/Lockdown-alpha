@@ -9,6 +9,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Combat/LDCombatDirector.h"
+#include "Objectives/LDObjectiveDirector.h"
+#include "Objectives/LDObjectiveRules.h"
 
 ALDWard::ALDWard()
 {
@@ -57,6 +59,8 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
 {
     TArray<FLDSightSource> Sources;
     if (bPublicSensor) { Sources.Add({PublicPosition(),600,1}); }
+    const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const double Now=Mode->RuleTime();
+    if(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Now)){Sources.Add({LDObjective::Position(LDObjective::Heart),360,1});}
     if (PC && PC->OwnerState.bActive)
     {
         if (const ALDCharacter* Body = Cast<ALDCharacter>(PC->GetPawn()))
@@ -65,7 +69,7 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
     for (const auto& Weak : Wards)
     {
         const ALDWard* Ward=Weak.Get();
-        if (Ward && Ward->Controller==PC && Ward->Hp>0 && Ward->ExpiresAt>GetWorld()->GetTimeSeconds())
+        if (Ward && Ward->Controller==PC && Ward->Hp>0 && Ward->ExpiresAt>Now)
         { Sources.Add({Ward->GetActorLocation(),560,LevelAt(Ward->GetActorLocation())}); }
     }
     return Sources;
@@ -117,6 +121,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     FLDOwnerState* State=Mode ? Mode->StateFor(PC) : nullptr;
     const APawn* Body=PC ? PC->GetPawn() : nullptr;
+    if(Mode&&(Mode->IsFinished()||(Mode->Objectives&&Mode->Objectives->HasChannel(PC)))){Reason=TEXT("Ward blocked during an interaction or after results.");return false;}
     if (!State || !Body || !State->bActive || !State->WardCharges) { Reason=TEXT("No ward charge or active body."); return false; }
     if(GetWorld()->GetTimeSeconds()<State->ProtectedUntil||(State->ActionCue&15)){Reason=TEXT("Ward blocked during protection or a combat action.");return false;}
     if (!LDVision::InWorld(Desired) || FVector::DistSquared2D(Desired,Body->GetActorLocation())>96*96) { Reason=TEXT("Place within 96 cm of your body."); return false; }
@@ -141,10 +146,11 @@ void ALDVisionDirector::Tick(float Delta)
 {
     Super::Tick(Delta);
     const double Now=GetWorld()->GetTimeSeconds();
+    const double RuleNow=GetWorld()->GetAuthGameMode<ALDGameMode>()->RuleTime();
     for (int32 Index=Wards.Num()-1;Index>=0;--Index)
     {
         ALDWard* Ward=Wards[Index].Get();
-        if (!Ward || Ward->Hp<=0 || Now>=Ward->ExpiresAt)
+        if (!Ward || Ward->Hp<=0 || RuleNow>=Ward->ExpiresAt)
         { if (Ward) { Ward->Destroy(); } Wards.RemoveAtSwap(Index); }
     }
     if (Now<NextSample) { return; }
@@ -171,6 +177,7 @@ void ALDVisionDirector::Sample(bool bPublish)
     }
     for (auto Weak : Wards) { if (Weak.IsValid()) { Entities.Add(Weak.Get()); } }
     for(TActorIterator<ALDCorpse> It(GetWorld());It;++It){Entities.Add(*It);}
+    for(TActorIterator<ALDSeal> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for (auto& Pair : Observers)
     {
         ALDPlayerController* PC=Pair.Key.Get(); FObserver& Observer=Pair.Value;
@@ -179,7 +186,9 @@ void ALDVisionDirector::Sample(bool bPublish)
         FLDWorldView View;
         View.Generation=Generation; View.Revision=Revision+1; View.AuthoritySeconds=GetWorld()->GetTimeSeconds();
         View.BodySources=(PC->GetPawn() && PC->OwnerState.bActive) ? 1 : 0;
-        View.PublicSources=bPublicSensor ? 1 : 0; View.WardSources=uint8(Sources.Num()-View.BodySources-View.PublicSources);
+        const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        View.PublicSources=uint8(bPublicSensor?1:0)+uint8(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Mode->RuleTime())?1:0);
+        View.WardSources=uint8(Sources.Num()-View.BodySources-View.PublicSources);
         View.Current.SetNumZeroed(LDVision::MaskBytes);
         for (const auto& Source : Sources)
         {
@@ -207,9 +216,10 @@ void ALDVisionDirector::Sample(bool bPublish)
             if (const ALDCharacter* Body=Cast<ALDCharacter>(Actor))
             {
                 Record.Presentation=Body->PresentationKey%4;
-                if(const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Record.ActionCue=Mode->Combat->CueFor(Body);Record.ExposedUntil=float(Mode->Combat->ExposedFor(Body));}}
+                if(Mode->Combat){Record.ActionCue=Mode->Combat->CueFor(Body);Record.ExposedUntil=float(Mode->Combat->ExposedFor(Body));}
             }
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
+            else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else { Record.Kind=ELDObservedKind::Ward; }
             View.Entities.Add(Record); Visible.Add(Id);
         }

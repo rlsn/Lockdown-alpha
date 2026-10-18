@@ -7,6 +7,8 @@
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Core/LDGroundQueries.h"
+#include "Objectives/LDObjectiveDirector.h"
 
 ALDCorpse::ALDCorpse()
 {
@@ -66,18 +68,7 @@ bool ALDCombatDirector::LegalTarget(ALDCharacter* Source,AActor* Target,double R
     if(ALDPlayerController* PC=Cast<ALDPlayerController>(Source->GetController()))
     {if(!Mode->Vision->CanSee(PC,To)){return false;}}
     else if(!Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To)){return false;}
-    if(GetWorld()->LineTraceTestByChannel(FVector(From.X,From.Y,120),FVector(To.X,To.Y,120),ECC_GameTraceChannel2)){return false;}
-    // Floor continuity admits ramps but rejects a strike through a vertical cliff.
-    const int32 Steps=FMath::Max(1,FMath::CeilToInt(FVector::Dist2D(From,To)/14));
-    double Previous=0;
-    for(int32 I=0;I<=Steps;++I)
-    {
-        const FVector P=FMath::Lerp(From,To,double(I)/Steps); FHitResult Hit;
-        if(!GetWorld()->LineTraceSingleByChannel(Hit,FVector(P.X,P.Y,600),FVector(P.X,P.Y,-100),ECC_GameTraceChannel1)
-            ||Hit.ImpactNormal.Z<FMath::Cos(FMath::DegreesToRadians(40.)) ||(I&&FMath::Abs(Hit.ImpactPoint.Z-Previous)>35)){return false;}
-        Previous=Hit.ImpactPoint.Z;
-    }
-    return true;
+    return LDGround::ClearSegment(GetWorld(),From,To);
 }
 AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin) const
 {
@@ -109,6 +100,7 @@ bool ALDCombatDirector::Request(ALDPlayerController* PC,uint8 Action,const FVect
 bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVector& Direction,FString& Result)
 {
     auto* S=StateFor(Body); const double Now=GetWorld()->GetTimeSeconds();
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsFinished()){Result=TEXT("Demo finished.");return false;}
     if(!S||S->Hp<=0||Now<S->ProtectionUntil||Direction.ContainsNaN()||Direction.SizeSquared2D()<UE_SMALL_NUMBER||FMath::Abs(Direction.Z)>.001||Action>2)
     {Result=TEXT("Action unavailable.");return false;}
     auto* Move=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
@@ -148,6 +140,8 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
     }
     Move->bCombatWalkOnly=S->Action==2||S->Action==3;
     S->QuietSince=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);Sync(Body,*S);
+    if(auto* PC=Cast<ALDPlayerController>(Body->GetController()))
+    {if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives.Get()){O->Interrupt(PC,Now);}}
     return true;
 }
 void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
@@ -167,6 +161,7 @@ void ALDCombatDirector::Sample(double Now)
 {
     struct FImpact{ALDCharacter* Source;AActor* Target;int32 Damage;};TArray<FImpact> Impacts;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(Mode->IsFinished()){return;}
     Intents.StableSort([](const FIntent& A,const FIntent& B){return A.Action>B.Action;});
     TSet<ALDPlayerController*> Accepted;
     for(const auto& Intent:Intents)
@@ -213,6 +208,7 @@ void ALDCombatDirector::Sample(double Now)
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
         T->Hp=FMath::Max(0,T->Hp-Hit.Damage);T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
+        if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}}
         const FVector Bearing=Hit.Source->GetActorLocation()-Victim->GetActorLocation();
         T->IncomingSector=uint8(FMath::RoundToInt(FRotator::ClampAxis(Bearing.Rotation().Yaw)/45))%8;
         if((T->Action==1||T->Action==2)&&T->ImpactAt>Now+1.e-6)
@@ -225,6 +221,7 @@ void ALDCombatDirector::Sample(double Now)
     for(int32 I=Residents.Num()-1;I>=0;--I)
     {if(Now>=Residents[I].At){GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);Residents.RemoveAtSwap(I);}}
     Mode->ReturnDueContenders(Now);
+    if(Mode->Objectives){Mode->Objectives->Sample(Now);}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 {

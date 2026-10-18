@@ -1,5 +1,14 @@
 # Unreal MCP connection test
 
+## B35 follow-up
+
+After both native targets and objective checks passed, the normal editor reopened
+on L_MigrationSandbox with All Saved. Direct HTTP initialization and discovery
+returned 67 toolsets. IsPIERunning returned false; StartPIE completed after
+BeginPlay/warmup and StopPIE completed successfully. The editor was left open,
+idle and saved. Local evidence: Artifacts/B35-MCP/. Native chat tool registration
+is still absent; this uses the existing session-based HTTP transport.
+
 ## B34 follow-up
 
 After the B34 cold builds and runtime checks, the normal editor reopened on

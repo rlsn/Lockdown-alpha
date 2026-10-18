@@ -1,7 +1,8 @@
 # Runtime architecture and boundaries
 
 B32 supplies native movement; B33 adds private observation; B34 adds combat and
-life. See B33_CHECKPOINT.md and B34_CHECKPOINT.md for boundaries and evidence.
+life; B35 adds courier, Seal and Heart transactions. See the corresponding
+checkpoint documents for boundaries and evidence.
 
 ## Implemented
 
@@ -25,7 +26,7 @@ life. See B33_CHECKPOINT.md and B34_CHECKPOINT.md for boundaries and evidence.
   and AI controllers do not replicate. B33 supplies owner relays, neutral proxies,
   source union, explored fog and a private ward.
 
-Seven rule cases cover spatial/death/objective arithmetic, view ordering, bounded
+Eight rule cases cover spatial/death/objective arithmetic, held/deadline boundaries, view ordering, bounded
 serialization, privacy schema and combat geometry. Separate non-shipping probes
 exercise movement/navigation, combat physics and restricted-client network flows.
 
@@ -59,5 +60,27 @@ combat. Dash uses a server root-motion source in Character Movement. The control
 replicates only private self state and revisioned reliable life/warning receipts.
 Corpses remain server-only and enter views as neutral presentation records.
 
+ALDObjectiveDirector runs inside the combat sample after impacts, deaths and
+returns. It commits queued interactions and work before claim/deadline evaluation.
+Held tokens refresh at 10 Hz, expire after 250 ms, and cannot be revived by a late
+refresh after release. Movement intent, physical movement, legal combat and damage
+reset progress. Courier contracts and balances live only in the owner record;
+bounded retry receipts prevent repeated rewards.
+
+ALDSeal is server-only with one immutable item identity and dropped/carried/consumed
+states. Only a currently visible dropped pose enters connection-scoped observations.
+Pickup resolves that observed ID again on authority. Same-sample transactions use
+an independent private shuffle. Death/logout drops the item on validated navigation
+ground; its lifetime is independent of the corpse. Broad district notices contain
+no carrier identity or coordinates. Native client-local landmarks describe public
+Guild, West station and Heart locations without opening canonical actor channels.
+
+GameState publishes defence flags, aggregate claim state, district notices and one
+terminal receipt. Exact work, inventory, confirmed progress and winner-self state
+remain private. A held claim contributes shared Heart sight, with two-second linger.
+Completion is checked after damage and before the twelve-minute deadline; scheduled
+completion must be at or before that deadline. Results freeze competitive activity
+and source-rule time until leaving the world. Complete rematch cleanup is B36.
+
 No GAS, online account service, custom Replication Graph or second fog/filter
-framework was introduced. B35 transactions are the next implementation gate.
+framework was introduced. B36 packaging and complete acceptance are next.

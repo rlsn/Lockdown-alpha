@@ -1,7 +1,74 @@
-# B34 verification - 18 October 2026
+# B35 verification - 18 October 2026
+
+Representative objectives pass the automated slice checks below. This remains an
+uncooked migration demo; B36 packaging, complete reset/isolation, human review and
+broader performance acceptance are still open.
+
+| Check | Result | Evidence under Artifacts/ |
+| --- | --- | --- |
+| Editor build | Passed | 20261018-171343-461-BuildEditor/BuildEditor.log |
+| Separate Game target | Passed | 20261018-171705-266-BuildGame/BuildGame.log |
+| Native rule/schema cases | 8 passed | 20261018-170846-068-Automation/Report/index.json |
+| Objective world scenarios | Main 52 / ExactDeadline 3 / LateClaim 3 / NoClaim 4 / Withdraw 5 passed | 20261018-171148-370-ObjectiveCheck/*.json |
+| Movement regression | 7 passed; all eight residents moved | 20261018-170955-033-MovementCheck/Movement.json |
+| Combat world regression | 48 passed | 20261018-170955-043-CombatCheck/Combat.json |
+| Restricted-view regression | Server 12 / A 29 / B 27 passed; max payload 789 / 688 bytes | 20261018-171148-370-ViewNetworkCheck/{Server,A,B}.json |
+| Objective Assault, configured 100 ms RTT +/-25 ms jitter | Server 15 / A 21 / B 18 passed | 20261018-171410-577-ObjectiveNetwork-100-25/Assault/{Server,A,B}.json |
+| Objective Seal, configured 100 ms RTT +/-25 ms jitter | Server 15 / A 19 / B 20 passed | 20261018-171410-577-ObjectiveNetwork-100-25/Seal/{Server,A,B}.json |
+| Objective Seal, configured 150 ms RTT +/-25 ms jitter, rendered 1080p B | Server 15 / A 21 / B 18 passed | 20261018-171410-593-ObjectiveNetwork-150-25/Seal/{Server,A,B}.json |
+| Combat network regression, configured 150 ms RTT +/-25 ms jitter | Server 9 / A 16 / B 19 passed | 20261018-171549-933-CombatNetwork-150-25/{Server,A,B}.json |
+| Bootstrap Validate | Passed; all 23 package hashes unchanged | 20261018-171834-501-Bootstrap-Validate/Bootstrap.log; B35-AssetHashes.json |
+| Editor reopen / MCP play smoke test | Sandbox loaded, All Saved; 67 toolsets; StartPIE/StopPIE passed | B35-MCP/; docs/MCP_TEST_REPORT.md |
+
+The world cases exercise real actors with an injected authority clock: exact work
+timings/rewards, replay, cooldown/repetition/level two, movement/release/stale-hold
+resets, all fifteen closed defence masks, Seal access, protection/stale life,
+completion-batch damage before delivery/claim, corpse-independent inventory, logout
+cleanup, scheduled deadline boundaries and one terminal receipt. They do not
+replace natural-time network checks or a human playtest.
+
+The objective network lanes use a separate authority and two owning clients.
+Actual RPCs collect/deliver, race for one observed item, kill its carrier, steal the
+drop, wait for natural corpse expiry and return/protection, contest and finish a
+ten-second claim. They audit restricted actor registries, private contract/reward/
+inventory and pointer-free public aggregate facts. Diagnostic setup uses fixed
+poses, one seeded item, flags, lethal HP and a deliberate authority pause to queue
+two pickups in the same batch. This is not profession or tower-combat parity.
+
+Measured hold expiry was 282.1 / 282.3 / 280.4 ms after the last server refresh in
+the three lanes: 250 ms plus the 20 Hz sampling/frame allowance. Both clients lost
+the temporary shared Heart source after its two-second linger and publication/
+transport delay. Runtime expiry was not extended for network delay.
+
+Echo medians A/B were 133.0/140.6 ms (100 ms Assault), 133.4/132.9 ms (100 ms Seal)
+and 183.1/199.3 ms (150 ms Seal), with 114 echo samples per client. Recorded objective
+acknowledgement p95 values range 466.1-532.9 ms over 3-10 requests per client and
+include the deliberately delayed simultaneous-pickup fixture. These observations
+do not pass or certify the normal-play 250 ms p95 gate; a separate representative
+measurement without that fixture pause remains B36. Combat regression p95 was
+232.7/216.0 ms over six action receipts each at measured 182.8/183.0 ms echo RTT.
+
+Live Computer Use review at 1080p showed carried inventory, native Guild/Heart
+markers, fog/minimap, confirmed claim progress and the consumed-Seal winning state.
+At 720p, native Host travel, the HUD, separate fixture panel, one-item seed feedback
+and a defence flag update were reviewed without clipping. The seed/flag clicks
+were logged in 20261018-171520-610-Standalone/Standalone.log. Computer Use snapshots
+were inspected live; no screenshot-readback instrumentation was added to gameplay.
+Complete human recognition/readability acceptance remains open.
+
+Initial attempts exposed two probe errors: the hidden-item fixture was still
+legitimately inside lingering Heart sight, and delayed phase transitions were
+confused with the next hold's expiry / checked source loss before transport could
+arrive. The probes now isolate the new token and allow publication/transport for
+the client source check. A real drop query also treated the dying pawn as blocked
+ground; it now queries static-world objects and the valid-ground death/logout
+lanes no longer use fallback. Failed attempts are retained locally and excluded
+from the passing evidence above.
+
+## Historical B34 verification
 
 Combat/life implementation passes the checks below. Full v0.3 acceptance remains
-open for B35 transactions and B36 delivery, human review and broader measurements.
+open at that checkpoint for B35 transactions and B36 delivery, human review and broader measurements.
 
 | Check | Result | Evidence under Artifacts/ |
 | --- | --- | --- |
@@ -152,12 +219,12 @@ both were fixed and both native targets rebuilt before standalone review.
 | U15 | Passed | Native DeathCost test verifies exact arithmetic and boundaries; runtime life loop is separate |
 | U16 | Passed for slice | One private ceiling loss receipt; duplicate death cannot charge or delay twice |
 | U17 | Passed for slice | Natural return creates fresh pawn/life/observation, full HP, four-second protection; old-life commands rejected |
-| U18 | Not run | Native connection lifecycle pending |
-| U19 | Not run | Objective-only runtime end conditions pending |
-| U20 | Not run | Native courier pending |
-| U21 | Not run | Native Seal transaction pending |
-| U22 | Not run | Access helper supplied; real channel/request path pending |
-| U23 | Not run | Deadline predicate supplied; actual channels pending |
+| U18 | Partial | Natural network return and stale hold expiry measured; native Logout removes holds/queued work and drops item without a winner; abrupt transport disconnect/resume policy remains B36 |
+| U19 | Passed for slice | One/zero active contenders do not win; deadline without a legal scheduled claim returns No claim |
+| U20 | Passed automated slice | Actual remote courier loop, private stages, completion damage, exact reward and duplicate/cooldown checks |
+| U21 | Passed automated slice | One seeded item, simultaneous real pickup RPCs, death/drop/theft, corpse independence and stale-life rejection |
+| U22 | Passed automated slice | All fifteen closed defence masks reject ordinary access; actual carrier bypass and all-clear Assault both win through remote holds |
+| U23 | Passed automated slice | Ten-second claim, contest regardless access, movement/release/range/stale/damage resets, completion-batch ordering and deadline boundaries |
 | U24 | Passed for B33 | Explicit plateau level; low into/across blocked; high down-ramp allowed; walls and trees block both levels |
 | U25 | Passed for B33 | Generated aim/vision collision and elevation tags validated; actual world trace tests pass |
 | U26 | Passed for B33 | Body, private ward and public source union verified on two restricted clients |
@@ -169,10 +236,10 @@ both were fixed and both native targets rebuilt before standalone review.
 | U32 | Passed for B34 waiting | Real unpossession removes body source; owned ward remains; waiting camera keeps fog; public source checked in B33 |
 | U33 | Passed for slice | Real placement/charge/private sight/lifetime/expiry and single nearest-strike ward destruction |
 | U34 | Passed for B33 | Eight authority residents navigate; neutral shared proxies/schema and restricted-client registry audits pass |
-| U35 | Not run | Fixture authority/label UI pending |
+| U35 | Passed for slice | Labelled host-only seed and four toggles reviewed in native UI; non-shipping scaffold/authority guards and logged setup; no remote fixture RPC |
 | U36 | Not run | Uncooked local Host/Join passed; packaged clients and two-remote-client privacy tests pending |
 | U37 | Not run | No native performance measurement |
-| U38 | Partial | 100/150 ms configured RTT with +/-25 ms jitter; measured echo and six combat receipts per client; broader/cooked/transaction samples pending |
+| U38 | Partial | Combat and objective flows at 100/150 ms configured RTT with jitter; echoes and receipts measured separately; objective tail includes deliberate fixture pause; normal-play p95/cooked distribution pending |
 | U39 | Not run | No native reset/isolation test |
 | U40 | Not run | Partial checkpoint documentation supplied; full delivery incomplete |
 
@@ -180,7 +247,7 @@ Packaged dedicated server: **Conditional not available** in this checkpoint; onl
 an installed engine is identified and no compatible source-build lane is established.
 
 
-Required next evidence: B35 transactions and B36 package, human review and broader performance gates.
+Required next evidence: B36 package, reset/isolation, human review and broader performance gates.
 
 ## Standalone rendered review
 

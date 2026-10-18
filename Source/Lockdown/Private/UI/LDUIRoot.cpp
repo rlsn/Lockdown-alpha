@@ -18,6 +18,9 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Rendering/DrawElements.h"
 #include "GameFramework/GameStateBase.h"
+#include "Framework/LDGameMode.h"
+#include "Objectives/LDObjectiveRules.h"
+#include "Components/ProgressBar.h"
 
 TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 {
@@ -61,7 +64,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             Slot->SetPadding(FMargin(0,7));
         };
         Row(Text(TEXT("PROJECT LOCKDOWN"), 28));
-        Row(Text(TEXT("Combat and private vision checkpoint\nRead warnings, break attacks, survive and return."), 16));
+        Row(Text(TEXT("Unreal migration demo\nWork, survive, recover a Seal and claim the Heart."), 16));
         auto Button = [this, &Text, &Row](const TCHAR* Label)
         {
             UButton* Result = WidgetTree->ConstructWidget<UButton>();
@@ -95,14 +98,48 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         {
             Button(TEXT("Resume"))->OnClicked.AddDynamic(this, &ULDUIRoot::Resume);
             Button(TEXT("Return to menu"))->OnClicked.AddDynamic(this, &ULDUIRoot::Leave);
-            if (GetOwningPlayer()->HasAuthority()) { Button(TEXT("Fixture: toggle public sensor"))->OnClicked.AddDynamic(this, &ULDUIRoot::ToggleSensor); }
+            if (GetOwningPlayer()->HasAuthority()) { Button(TEXT("Authority fixtures (setup only)"))->OnClicked.AddDynamic(this, &ULDUIRoot::Fixtures); }
         }
-        Row(Text(TEXT("WASD move · Shift sprint · Mouse aim\nClick attack · Q assassination · Space dash\nF ward · Wheel zoom · Escape / H menu"), 15));
+        Row(Text(TEXT("WASD move · Shift sprint · Mouse aim\nClick attack · Q assassination · Space dash\nE interact / hold · F ward · Wheel zoom\nEscape / H menu"), 15));
         Feedback = Text(TEXT(""), 14);
         Row(Feedback);
         Button(TEXT("Exit"))->OnClicked.AddDynamic(this, &ULDUIRoot::Exit);
         bMenuOpen = bFrontend;
         MenuPanel->SetVisibility(bFrontend ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+        if(!bFrontend)
+        {
+            UBorder* ObjectivePanel=WidgetTree->ConstructWidget<UBorder>();ObjectivePanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.94f));ObjectivePanel->SetPadding(FMargin(16,10));
+            UVerticalBox* Information=WidgetTree->ConstructWidget<UVerticalBox>();ObjectivePanel->SetContent(Information);
+            ObjectiveInfo=Text(TEXT("E interacts with nearby public sites."),16);Information->AddChildToVerticalBox(ObjectiveInfo);
+            ChannelProgress=WidgetTree->ConstructWidget<UProgressBar>();ChannelProgress->SetFillColorAndOpacity(FLinearColor(.75f,.65f,.22f));
+            auto* ProgressSlot=Information->AddChildToVerticalBox(ChannelProgress);ProgressSlot->SetPadding(FMargin(0,6));
+            Information->AddChildToVerticalBox(Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14));
+            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,150));
+            // HUD panels do not capture clicks intended for the game world.
+            ObjectivePanel->SetVisibility(ESlateVisibility::HitTestInvisible);
+        }
+        if(!bFrontend&&GetOwningPlayer()->HasAuthority())
+        {
+            FixturePanel=WidgetTree->ConstructWidget<UBorder>();FixturePanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.99f));FixturePanel->SetPadding(FMargin(28));
+            UVerticalBox* Items=WidgetTree->ConstructWidget<UVerticalBox>();FixturePanel->SetContent(Items);
+            auto* FixtureSlot=Canvas->AddChildToCanvas(FixturePanel);FixtureSlot->SetAnchors(FAnchors(.5f,.5f));FixtureSlot->SetAlignment(FVector2D(.5));FixtureSlot->SetSize(FVector2D(560,650));
+            Items->AddChildToVerticalBox(Text(TEXT("AUTHORITY FIXTURES"),24));
+            Items->AddChildToVerticalBox(Text(TEXT("Setup only. Tower combat and Seal crafting are deferred. Pickup, ownership, theft and claims are real."),15));
+            auto FixtureButton=[&](const TCHAR* Caption,UTextBlock** OutLabel=nullptr)
+            {
+                auto* Control=WidgetTree->ConstructWidget<UButton>();auto Style=Control->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.055f,.12f,.12f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.1f,.24f,.23f));Style.NormalPadding=FMargin(12,9);Control->SetStyle(Style);
+                auto* Label=Text(Caption,17);Control->SetContent(Label);Items->AddChildToVerticalBox(Control)->SetPadding(FMargin(0,6));if(OutLabel){*OutLabel=Label;}return Control;
+            };
+            FixtureButton(TEXT("Toggle shared public sensor"))->OnClicked.AddDynamic(this,&ULDUIRoot::ToggleSensor);
+            UTextBlock* Label=nullptr;
+            FixtureButton(TEXT("West defence"),&Label)->OnClicked.AddDynamic(this,&ULDUIRoot::DefenceWest);DefenceLabels.Add(Label);
+            FixtureButton(TEXT("East defence"),&Label)->OnClicked.AddDynamic(this,&ULDUIRoot::DefenceEast);DefenceLabels.Add(Label);
+            FixtureButton(TEXT("South defence"),&Label)->OnClicked.AddDynamic(this,&ULDUIRoot::DefenceSouth);DefenceLabels.Add(Label);
+            FixtureButton(TEXT("Central defence"),&Label)->OnClicked.AddDynamic(this,&ULDUIRoot::DefenceCentral);DefenceLabels.Add(Label);
+            FixtureButton(TEXT("Seed one dropped Seal at Guild"))->OnClicked.AddDynamic(this,&ULDUIRoot::SeedSeal);
+            FixtureButton(TEXT("Back"))->OnClicked.AddDynamic(this,&ULDUIRoot::FixtureBack);
+            FixturePanel->SetVisibility(ESlateVisibility::Collapsed);
+        }
     }
     return Super::RebuildWidget();
 }
@@ -127,9 +164,29 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
                 :(Now<O.DamageUntil?FString::Printf(TEXT("HIT · Anonymous incoming sector %d/8 (world +X=0, toward +Y)"),O.IncomingSector):PC->IntentFeedback));
         Status->SetColorAndOpacity(Now<O.WarningUntil?FLinearColor(1,.35f,.2f):FLinearColor(.88f,.9f,.82f));
-        Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · %s\nClick attack %.1fs · Q assassination %.1fs · Space dash %.1fs · Esc / H help\n%s · Sight %s · Sources: body %d / ward %d / shared %d\n%s\nWASD move · Shift sprint · Mouse aim · F ward within 96 cm · Wheel zoom"),
-            O.bActive?TEXT("Combat and private vision"):TEXT("Waiting for return"),FMath::Max(0.,O.BasicReadyAt-Now),FMath::Max(0.,O.AssassinReadyAt-Now),FMath::Max(0.,O.DashReadyAt-Now),
-            *Life,Relay&&!Relay->IsStale()?TEXT("fresh"):TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,*Danger)));
+        const auto* GS=GetWorld()->GetGameState<ALDGameState>();
+        FString Public=TEXT("Heart unavailable");
+        if(GS)
+        {
+            const TCHAR* Route=GS->ClaimRoute==LDObjective::Assault?TEXT("Assault"):(GS->ClaimRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Mixed"));
+            Public=GS->EndReason?(GS->EndReason==2?TEXT("No claim · Demo finished"):FString::Printf(TEXT("Heart claimed · Route %s · Demo finished"),GS->WinningRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Assault")))
+                :(GS->bClaimActive?FString::Printf(TEXT("Heart %s · %s · %.1f / 10s"),GS->bContested?TEXT("CONTESTED"):TEXT("claim active"),Route,GS->ClaimProgress)
+                    :FString::Printf(TEXT("Heart %s · Defences W:%d E:%d S:%d C:%d · Time left %.0fs"),GS->DefensiveFlags?TEXT("locked"):TEXT("ordinary access open"),!!(GS->DefensiveFlags&1),!!(GS->DefensiveFlags&2),!!(GS->DefensiveFlags&4),!!(GS->DefensiveFlags&8),FMath::Max(0.,GS->MatchDeadline-Now)));
+            if(GS->SealNoticeSerial){Public+=FString::Printf(TEXT(" · Seal %s: %s"),GS->SealNoticeKind==1?TEXT("fixture seed"):GS->SealNoticeKind==2?TEXT("dropped"):TEXT("district"),LDObjective::DistrictName(GS->SealNoticeDistrict));}
+            const TCHAR* Names[]={TEXT("West"),TEXT("East"),TEXT("South"),TEXT("Central")};
+            for(int32 I=0;I<DefenceLabels.Num();++I){DefenceLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s defence: %s (fixture toggle)"),Names[I],GS->DefensiveFlags&(1<<I)?TEXT("ACTIVE"):TEXT("CLEARED"))));}
+        }
+        Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · MIGRATION DEMO · %s\nGold %lld · XP %lld (level %d) · Seal %s · Sight %s: body %d / ward %d / shared %d\nAttack %.1fs · Q %.1fs · Dash %.1fs · %s\n%s"),
+            *Life,O.Gold,O.Xp,LDRules::LevelFromXp(O.Xp),O.SealId.IsValid()?TEXT("carried"):TEXT("none"),Relay&&!Relay->IsStale()?TEXT("fresh"):TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,
+            FMath::Max(0.,O.BasicReadyAt-Now),FMath::Max(0.,O.AssassinReadyAt-Now),FMath::Max(0.,O.DashReadyAt-Now),*Public,*Danger)));
+        if(ObjectiveInfo)
+        {
+            const TCHAR* Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
+            FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):TEXT("Claiming"),O.ChannelProgress,O.ChannelKind==3?10.:3.):TEXT("Hold progress resets on interruption.");
+            if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
+            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Commissions %d\n%s"),*PC->ContextPrompt(),Stage,O.Commissions,*Progress)));
+            ChannelProgress->SetPercent(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0);
+        }
         if (!PC->IntentFeedback.IsEmpty()) { Feedback->SetText(FText::FromString(PC->IntentFeedback)); }
     }
 }
@@ -150,15 +207,25 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
         Box(Origin+FVector2D((I%60)*4,(39-I/60)*4),FVector2D(4),Current ? FLinearColor(.42f,.55f,.5f,1) : (LDVision::Bit(View.Explored,I) ? FLinearColor(.12f,.17f,.16f,1) : FLinearColor(.008f,.012f,.012f,1)));
     }
     for (const auto& Entity : View.Entities)
-    { Box(Origin+FVector2D((Entity.Position.X+2400)/20,(1600-Entity.Position.Y)/20)-FVector2D(2),FVector2D(4),FLinearColor(.9f,.9f,.7f)); }
+    { Box(Origin+FVector2D((Entity.Position.X+2400)/20,(1600-Entity.Position.Y)/20)-FVector2D(2),FVector2D(4),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.1f):FLinearColor(.9f,.9f,.7f)); }
+    for(uint8 Site=1;Site<=3;++Site)
+    {const FVector P=LDObjective::Position(Site);const FVector2D At=Origin+FVector2D((P.X+2400)/20,(1600-P.Y)/20);Box(At-FVector2D(3),FVector2D(6),FLinearColor(.25f,.7f,.9f));FSlateDrawElement::MakeText(Elements,Result+2,Geometry.ToPaintGeometry(FVector2D(30,16),FSlateLayoutTransform(At+FVector2D(4,-8))),FString(Site==1?TEXT("G"):Site==2?TEXT("W"):TEXT("H")),FCoreStyle::GetDefaultFontStyle("Bold",12),ESlateDrawEffect::None,FLinearColor::White);}
     if (const APawn* Pawn=PC->GetPawn()) { const FVector P=Pawn->GetActorLocation(); Box(Origin+FVector2D((P.X+2400)/20,(1600-P.Y)/20)-FVector2D(3),FVector2D(6),FLinearColor::White); }
-    return Result+1;
+    return Result+2;
 }
 void ULDUIRoot::ToggleSensor() { CastChecked<ALDPlayerController>(GetOwningPlayer())->TogglePublicSensorFixture(); }
+void ULDUIRoot::Fixtures(){if(FixturePanel){MenuPanel->SetVisibility(ESlateVisibility::Collapsed);FixturePanel->SetVisibility(ESlateVisibility::Visible);}}
+void ULDUIRoot::FixtureBack(){if(FixturePanel){FixturePanel->SetVisibility(ESlateVisibility::Collapsed);MenuPanel->SetVisibility(ESlateVisibility::Visible);}}
+void ULDUIRoot::SeedSeal(){CastChecked<ALDPlayerController>(GetOwningPlayer())->SeedSealFixture();}
+void ULDUIRoot::DefenceWest(){CastChecked<ALDPlayerController>(GetOwningPlayer())->ToggleDefenceFixture(0);}
+void ULDUIRoot::DefenceEast(){CastChecked<ALDPlayerController>(GetOwningPlayer())->ToggleDefenceFixture(1);}
+void ULDUIRoot::DefenceSouth(){CastChecked<ALDPlayerController>(GetOwningPlayer())->ToggleDefenceFixture(2);}
+void ULDUIRoot::DefenceCentral(){CastChecked<ALDPlayerController>(GetOwningPlayer())->ToggleDefenceFixture(3);}
 
 void ULDUIRoot::ToggleMenu()
 {
     if (CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend()) { return; }
+    if(FixturePanel&&FixturePanel->GetVisibility()==ESlateVisibility::Visible){FixtureBack();return;}
     bMenuOpen = !bMenuOpen;
     MenuPanel->SetVisibility(bMenuOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
     CastChecked<ALDPlayerController>(GetOwningPlayer())->SetMenuOpen(bMenuOpen);

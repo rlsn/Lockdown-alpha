@@ -16,10 +16,27 @@
 #include "Core/LDRules.h"
 #include "Tests/LDCombatProbe.h"
 #include "Tests/LDCombatNetworkProbe.h"
+#include "Objectives/LDObjectiveDirector.h"
+#include "Objectives/LDObjectiveRules.h"
+#include "Tests/LDObjectiveProbe.h"
+#include "Tests/LDObjectiveNetworkProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{ Super::GetLifetimeReplicatedProps(OutLifetimeProps); DOREPLIFETIME(ALDGameState,bPublicSensorActive); }
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);DOREPLIFETIME(ALDGameState,bPublicSensorActive);
+    DOREPLIFETIME(ALDGameState,DefensiveFlags);DOREPLIFETIME(ALDGameState,bClaimActive);DOREPLIFETIME(ALDGameState,bContested);
+    DOREPLIFETIME(ALDGameState,ClaimRoute);DOREPLIFETIME(ALDGameState,ClaimProgress);DOREPLIFETIME(ALDGameState,MatchDeadline);
+    DOREPLIFETIME(ALDGameState,EndReason);DOREPLIFETIME(ALDGameState,WinningRoute);DOREPLIFETIME(ALDGameState,MatchEndedAt);
+    DOREPLIFETIME(ALDGameState,ResultReceipt);DOREPLIFETIME(ALDGameState,ResultSerial);DOREPLIFETIME(ALDGameState,SealNoticeSerial);
+    DOREPLIFETIME(ALDGameState,SealNoticeKind);DOREPLIFETIME(ALDGameState,SealNoticeDistrict);
+}
+void ALDGameState::BeginPlay()
+{
+    Super::BeginPlay();
+    if(GetNetMode()==NM_DedicatedServer||GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))){return;}
+    for(uint8 Site=1;Site<=3;++Site){if(auto* Landmark=GetWorld()->SpawnActor<ALDObjectiveSite>()){Landmark->Configure(Site);}}
+}
 ALDGameMode::ALDGameMode()
 {
     DefaultPawnClass = ALDCharacter::StaticClass();
@@ -58,6 +75,7 @@ void ALDGameMode::StartPlay()
     Vision=GetWorld()->SpawnActor<ALDVisionDirector>();
     Vision->AddTickPrerequisiteActor(Combat);
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
+    Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get())) { SyncOwner(PC); Vision->Register(PC); } }
     if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
@@ -75,6 +93,8 @@ void ALDGameMode::StartPlay()
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatProbe"))){GetWorld()->SpawnActor<ALDCombatProbe>();}
     if (bScaffoldProfile && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { GetWorld()->SpawnActor<ALDViewNetworkProbe>(); }
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){GetWorld()->SpawnActor<ALDCombatNetworkProbe>();}
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveProbe"))){GetWorld()->SpawnActor<ALDObjectiveProbe>();}
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))){GetWorld()->SpawnActor<ALDObjectiveNetworkProbe>();}
 #endif
 }
 
@@ -90,7 +110,10 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
-    { if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC); }
+    {
+        if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),RuleTime());}
+        if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
+    }
     Super::Logout(Exiting);
 }
 FLDOwnerState* ALDGameMode::StateFor(ALDPlayerController* PC)
@@ -104,7 +127,8 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
-    if (!State || !State->bActive) { return; }
+    if (!State || !State->bActive || IsFinished()) { return; }
+    if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),Now);}
     const auto Cost=LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;
     State->bActive=false; State->Hp=0; State->WardCharges=0;
@@ -138,6 +162,7 @@ FVector ALDGameMode::ReturnSpawn(ALDPlayerController* PC)
 }
 void ALDGameMode::ReturnDueContenders(double Now)
 {
+    if(IsFinished()){return;}
     for(auto& Pair:Contenders)
     {
         FLDOwnerState& State=Pair.Value.State; ALDPlayerController* PC=Pair.Key.Get();
@@ -151,3 +176,7 @@ void ALDGameMode::ReturnDueContenders(double Now)
         UE_LOG(LogTemp,Display,TEXT("LD_RETURN_RECEIPT life=%u protection=%.3f"),State.Life,State.ProtectedUntil);
     }
 }
+bool ALDGameMode::IsFinished() const
+{const auto* GS=GetGameState<ALDGameState>();return GS&&GS->EndReason!=0;}
+double ALDGameMode::RuleTime() const
+{const auto* GS=GetGameState<ALDGameState>();return GS&&GS->EndReason?GS->MatchEndedAt:GetWorld()->GetTimeSeconds();}

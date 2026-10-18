@@ -4,7 +4,7 @@
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal };
 USTRUCT()
 struct FLDObservedEntity
 {
@@ -61,6 +61,17 @@ struct FLDOwnerState
     UPROPERTY() float ExposedUntil = 0;
     UPROPERTY() uint8 IncomingSector = 0;
     UPROPERTY() uint8 ActionCue = 0;
+    UPROPERTY() uint8 ContractStage = 0; // 0 none, 1 collect, 2 deliver
+    UPROPERTY() FGuid ContractId;
+    UPROPERTY() int32 Commissions = 0;
+    UPROPERTY() uint32 DeliverySerial = 0;
+    UPROPERTY() float WorkReadyAt = 0;
+    UPROPERTY() FGuid SealId;
+    UPROPERTY() uint8 ChannelKind = 0;
+    UPROPERTY() uint8 ChannelRoute = 0;
+    UPROPERTY() float ChannelStartedAt = 0;
+    UPROPERTY() float ChannelProgress = 0;
+    UPROPERTY() bool bWinner = false;
 };
 
 namespace LDVision

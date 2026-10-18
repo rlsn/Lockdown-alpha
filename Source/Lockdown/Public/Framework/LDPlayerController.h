@@ -27,6 +27,15 @@ public:
     class ALDWorldViewRelay* LocalView() const;
     FString IntentFeedback;
     void TogglePublicSensorFixture();
+    void ToggleDefenceFixture(uint8 Index);
+    void SeedSealFixture();
+    FString ContextPrompt() const;
+    bool ChooseContext(uint8& Target,FGuid& Observed) const;
+    UFUNCTION(Server,Reliable) void ServerContextRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed);
+    UFUNCTION(Server,Unreliable) void ServerContextHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
+    UFUNCTION(Server,Reliable) void ServerContextRelease(uint32 Match,uint32 Life,uint32 Token);
+    UFUNCTION(Client,Reliable) void ClientTransactionResult(const FLDOwnerState& State,uint32 Request,const FString& Result);
+    void CompleteContextRequest(uint32 Request,const FString& Result);
     UFUNCTION(Server,Reliable) void ServerPlaceWard(uint32 Match, uint32 Life, uint32 Request, FVector_NetQuantize10 Position);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request, const FString& Reason);
     UFUNCTION(Client,Reliable) void ClientProbePhase(uint8 Phase);
@@ -54,6 +63,12 @@ private:
     void Assassinate();
     void Dash();
     void CombatAction(uint8 Action);
+    void InteractStarted();
+    void InteractStopped();
+    bool bInteractHeld=false;
+    uint32 ContextToken=0,HoldSequence=0,LastContextRequest=0;
+    double LastHoldSent=-1000,LastHoldReceived=-1000,ContextRateAt=-1,ContextTokens=2;
+    TMap<uint32,FString> ContextReceipts;
     FLDOwnerState LatestOwner;
     uint32 LastCombatRequest=0;
     double LastCombatAt=-1,CombatTokens=3;

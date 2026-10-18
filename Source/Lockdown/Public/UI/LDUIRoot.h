@@ -6,6 +6,7 @@
 class UBorder;
 class UTextBlock;
 class UEditableTextBox;
+class UProgressBar;
 UCLASS()
 class LOCKDOWN_API ULDUIRoot : public UUserWidget
 {
@@ -23,10 +24,21 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UEditableTextBox> Address;
+    UPROPERTY() TObjectPtr<UTextBlock> ObjectiveInfo;
+    UPROPERTY() TObjectPtr<UProgressBar> ChannelProgress;
+    UPROPERTY() TObjectPtr<UBorder> FixturePanel;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DefenceLabels;
     UFUNCTION() void Host();
     UFUNCTION() void Join();
     UFUNCTION() void Resume();
     UFUNCTION() void Leave();
     UFUNCTION() void Exit();
     UFUNCTION() void ToggleSensor();
+    UFUNCTION() void Fixtures();
+    UFUNCTION() void FixtureBack();
+    UFUNCTION() void SeedSeal();
+    UFUNCTION() void DefenceWest();
+    UFUNCTION() void DefenceEast();
+    UFUNCTION() void DefenceSouth();
+    UFUNCTION() void DefenceCentral();
 };

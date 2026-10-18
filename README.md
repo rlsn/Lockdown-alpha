@@ -4,11 +4,11 @@ Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
-**Current checkpoint: B34 combat and life. Native attacks, compatible dash,
-warned assassination, private damage/death receipts and scheduled returns build
-on owner-only observation and fog.** See [checkpoint](docs/B34_CHECKPOINT.md),
+**Current checkpoint: B35 representative interactions. Courier collection and
+paid delivery, real Seal carry/drop/theft and both ten-second Heart claim routes
+build on native combat, life, owner-only observation and fog.** See [checkpoint](docs/B35_CHECKPOINT.md),
 [tests](docs/TestReport.md) and [continuation](docs/CONTINUATION.md).
-Courier, Seal and Heart are next.
+Packaging, reset/isolation and full acceptance remain B36.
 
 ## Setup
 
@@ -38,6 +38,8 @@ Courier, Seal and Heart are next.
 ./Scripts/RunViewNetworkCheck.ps1
 ./Scripts/RunCombatCheck.ps1
 ./Scripts/RunCombatNetworkCheck.ps1 -RoundTripMs 150 -JitterMs 25
+./Scripts/RunObjectiveCheck.ps1
+./Scripts/RunObjectiveNetworkCheck.ps1 -RoundTripMs 150 -JitterMs 25
 ./Scripts/OpenEditor.ps1
 ```
 
@@ -49,7 +51,7 @@ the tested script host. Per-run output and local machine paths go to ignored
 The generator saves 23 packages: three maps, tuning, eleven input actions, a
 13-key context, four surface materials, fog material/texture and a native UI wrapper.
 The sandbox supports camera-relative movement, sprint, aim, zoom, eight residents,
-private ward sight, shared tower sight, explored fog and the combat/life loop. Host and direct-address
+private ward sight, shared tower/Heart sight, explored fog, combat/life and objective transactions. Host and direct-address
 Join use native UI. See [play guide](docs/DemoGuide.md). Default generation creates
 missing assets and validates existing ones; `-Mode Validate` writes no assets;
 `-Mode Regenerate` explicitly replaces generated packages under

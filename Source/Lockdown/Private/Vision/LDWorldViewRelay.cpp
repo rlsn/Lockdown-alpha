@@ -31,10 +31,12 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
         Palette=Entity.Presentation; Body->ApplyPalette(Palette);
         UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
         UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
-        Instance->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
+        Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
     }
     Body->SetVisibility(Entity.Kind==ELDObservedKind::Body,true);
-    WardMesh->SetVisibility(Entity.Kind==ELDObservedKind::Ward);
+    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body);
+    if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
+    {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}
     bFirst=false;
 }
 void ALDObservedEntityProxy::Tick(float Delta)
