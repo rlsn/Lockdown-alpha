@@ -1,0 +1,57 @@
+# Unreal generated output (including project plugins)
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Local build, cook, package and test output
+/Artifacts/
+/TestResults/
+/PackagedBuilds/
+*.log
+
+# Generated IDE projects and caches
+.vs/
+.idea/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln.docstates
+*.code-workspace
+.vscode/*
+!.vscode/mcp.json
+
+# Keep shared MCP configuration; exclude assistant session data
+.codex/sessions/
+.codex/log/
+.codex/tmp/
+.cursor/*
+!.cursor/mcp.json
+.gemini/*
+!.gemini/settings.json
+
+# Machine-specific engine/toolchain settings and credentials
+/Config/Local/
+*.local.ini
+*.local.json
+*.local.toml
+.env
+.env.*
+!.env.example
+
+# OS and editor temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.bak
+*~
+
+# Source, Config, Content, Build resources, docs and .uproject stay tracked.
+# In particular, never ignore .uasset, .umap, or World Partition external actors.
