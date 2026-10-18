@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatorVersion": "b32.2",
+  "generatorVersion": "b33.1",
   "profile": "MigrationScaffold",
   "geometry": [
     { "label": "Ground", "mesh": "Cube", "location": [0, 0, -20], "size": [4800, 3200, 40] },
@@ -10,6 +10,7 @@
     { "label": "CoverEast", "mesh": "Cube", "location": [1650, 550, 150], "size": [50, 500, 300] },
     { "label": "TreeWest", "mesh": "Cylinder", "location": [-1200, 500, 200], "size": [120, 120, 400] },
     { "label": "TreeEast", "mesh": "Cylinder", "location": [1550, -950, 200], "size": [120, 120, 400] },
+    { "label": "PublicSensorBase", "mesh": "Cylinder", "location": [1200, 1000, 80], "size": [100, 100, 160] },
     { "label": "BoundaryNorth", "mesh": "Cube", "location": [0, 1625, 100], "size": [4900, 50, 200] },
     { "label": "BoundarySouth", "mesh": "Cube", "location": [0, -1625, 100], "size": [4900, 50, 200] },
     { "label": "BoundaryWest", "mesh": "Cube", "location": [-2425, 0, 100], "size": [50, 3200, 200] },

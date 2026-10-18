@@ -1,50 +1,44 @@
 # Continuation checkpoint - 18 October 2026
 
-**Current stage: B32 playable movement foundation; B33 filtered observation next.**
+Current stage: B33 observation foundation. See B33_CHECKPOINT.md and TestReport.md
+for implementation boundaries and the latest executed evidence. B34 combat/life
+is next, after confirming the B33 checks on the current build.
 
-## Verified implementation
+## Current architecture
 
-- Cold Editor and separate Game target builds pass with x64 MSVC 14.44.35229,
-  Windows SDK 10.0.26100.0 and Framework SDK 4.8. Engine: 5.8.3 CL58210709.
-- Four native rule cases and seven standalone world movement checks pass:
-  180 cm/s walking, 300 cm/s diagonal sprint, wall blocking, ramp traversal,
-  cliff rejection, eight authority-spawned residents and all eight navigating.
-- Bootstrap saves 21 real packages. Validate checks signatures, saved geometry,
-  13 input mappings and actual navigation brush size without saving packages.
-- Native movement prediction carries sprint through saved moves. Camera-relative
-  input, walkable-ground aim, zoom, a shared humanoid, frontend and speed HUD exist.
-- Canonical characters and PlayerState channels are owner-only. Residents are
-  server-only. Remote proxies and full privacy evidence are pending B33.
+Server-only contender records and vision director; owner-only canonical body,
+PlayerState, private controller state and relay; nonreplicated role-neutral
+observed proxies. Sight unions body, owned wards and a shared public sensor.
+Full views replace state, reliable concealment is revisioned, and a 250 ms
+receive gap clears dynamic proxies. Fog and minimap distinguish current,
+explored and unknown cells. Camera adds no source.
 
-See TestReport.md, B32_CHECKPOINT.md and DemoGuide.md. Logs remain in ignored
-Artifacts/. The checkpoint does not establish full v0.3 acceptance.
+Six native rule/view tests, the movement probe and the three-process network
+probe are the repeatable checks. Generated content has 23 real packages and
+12 authored meshes per map. Validate also checks sight/aim collision and the
+plateau's logical-elevation tag. OpenStandalone.ps1 provides an interactive
+uncooked game window; the normal editor retains MCP plugins.
 
-## Next work
+## Next stage
 
-Follow B33 in v03/06_PORT_SLICE_AND_BUILD_PLAN.md before broader gameplay:
-server contender records and owner state, sanitized world-view relays, neutral
-remote proxies, source union, explored fog, private wards, public tower sensors,
-view revisions, concealment and recovery. Prove information separation with two
-remote clients and a separate authority world. Owner-only flags alone are not proof.
+B34: basic attack, compatible dash, warned assassination, simultaneous damage,
+death, retained loss/return/protection and fresh body identity. Resolve observed
+IDs through the requesting connection and recheck authority sight/range. Carry
+match/life generations in requests. Route secondary effects through the same
+view boundary; do not multicast canonical body references or private stats.
+Attack-driven ward destruction is part of this work. Then B35 courier/Seal/Heart
+transactions and B36 cooked independent-client, delay and performance evidence.
 
-B34 adds combat, dash, assassination, damage batches, death and return; B35 adds
-courier/Seal/Heart transactions; B36 supplies cooked independent-client,
-performance, delay and delivery evidence.
+## Workflow
 
-## Workflow and local state
+Close the editor for reflected/native changes. BuildEditor.ps1 and BuildGame.ps1
+verify separate targets. RunTests.ps1, RunMovementCheck.ps1 and
+RunViewNetworkCheck.ps1 write ignored local evidence. Keep a runnable checkpoint.
+Validate does not write packages; Regenerate is explicit. Hand-authored assets
+belong outside /Game/Lockdown/Generated/. The web baseline stays unmodified at
+74d3d3e884bf4d8130e1596148b45e50a409039c.
 
-Close the editor for native changes. Run BuildEditor.ps1 and BuildGame.ps1.
-For generator changes bump BootstrapLayout.json's version, explicitly Regenerate,
-then Validate and compare hashes. Run RunMovementCheck.ps1 for world/collision/
-navigation changes and RunTests.ps1 for rule changes. No further installation is
-needed for the verified local build. Normal editor MCP remains enabled;
-standalone -game tests disable its editor-only Python toolsets.
-
-The web baseline remains clean at 74d3d3e884bf4d8130e1596148b45e50a409039c.
-Its 89 tests and TypeScript typecheck passed. BaselineSnapshot.json records the
-actual exported constants/map and source hashes.
-
-The owner's local EngineAssociation=5.8 change in Lockdown.uproject and generated
-.vsconfig are separate from the implementation commit. Preserve them. Ignored
-Config/Local/Environment.json resolves this machine's engine path; do not commit
-an absolute engine path or implicitly stage the owner's unrelated configuration.
+The owner's EngineAssociation=5.8 and normalized .vsconfig are committed in
+77305e0. The generated config was corrected to the tested MSVC14.44/SDK26100/
+FrameworkSDK4.8 prerequisites, removing the earlier banned 14.50 recommendation.
+Ignored Config/Local/Environment.json contains this machine's engine path.

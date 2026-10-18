@@ -10,6 +10,7 @@ class LOCKDOWN_API ULDGameInstance : public UGameInstance
     GENERATED_BODY()
 public:
     FString ConnectionMessage;
+    uint32 AuthorityGeneration = 0;
     virtual void Init() override;
     virtual void Shutdown() override;
 private:

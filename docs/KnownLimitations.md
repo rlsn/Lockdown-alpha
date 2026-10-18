@@ -1,21 +1,22 @@
 # Known limitations
 
-- B32 is a playable movement checkpoint. Combat, dash, assassination, death/return,
-  courier, ward placement, Seal and Heart transactions are not implemented.
-  Their input assets exist but have no runtime handlers yet.
-- Host/Join UI exists. Canonical bodies are owner-only; residents do not replicate.
-  Remote crowds, sanitized relays, fog, elevation sight, source union and
-  independent-client privacy evidence are pending B33. This is not complete
-  multiplayer gameplay.
-- Four rule tests and seven movement checks pass. Most U01-U40 gates remain
-  not run or partial. See TestReport.md. Human usability, delayed-network,
-  resolution and performance reviews remain required.
-- Game target builds; cooking and independent packaged clients have not run.
-  Dedicated packaging is conditional on a compatible source-engine lane;
-  only an installed engine is configured here.
-- Standalone -game runs disable editor MCP plugins whose Python toolsets require
-  an editor world. Normal editor MCP remains enabled.
-- Commandlet map loading can emit navigation teardown warnings; runtime navigation
-  is tested separately and all eight residents moved in the probe.
-- The v0.2 repository is unmodified. Full population, balance, room-code discovery
-  and authenticated resume parity are not claimed.
+- B33 establishes private observation for the small uncooked slice. Combat, dash,
+  assassination, death/return, courier, Seal and Heart transactions remain B34/B35.
+- Wards have real placement, charge, HP, source, expiry and removal state. Basic
+  attack integration, including damaging wards, comes with B34 combat.
+- Sensor sight is real; its acquisition/destruction toggle is explicitly a local
+  authority fixture, not tower progression parity.
+- Network evidence uses a separate authority world and two clients. Missing-view
+  and reordered-message scenarios exercise the receiver with publication pauses
+  and previously received packets; they are not measured engine packet-loss/latency
+  or capacity benchmarks. Serialized payload bytes exclude transport framing.
+- Native fog/minimap and humanoids need the complete human readability review
+  at both target resolutions with combat cues and interactions present.
+- Cooking/packaging, independent packaged clients, performance, delayed gameplay,
+  complete reset/isolation and full acceptance remain B36. Dedicated packaging
+  still requires a compatible source-engine lane; only an installed engine is set up.
+- Standalone -game processes disable editor Python MCP toolsets; the normal editor
+  keeps them enabled. Commandlet map loading can emit navigation teardown warnings;
+  runtime navigation is checked independently.
+- Full population, economy/balance, room-code discovery and authenticated resume
+  parity are deferred. The original web repository remains unmodified.

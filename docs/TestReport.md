@@ -1,6 +1,50 @@
+# B33 verification - 18 October 2026
+
+The current checkpoint adds private observation. It does not certify full v0.3.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Editor build | Passed | Artifacts/20261018-133514-262-BuildEditor/BuildEditor.log |
+| Game target build | Passed without editor dependencies | Artifacts/20261018-133526-702-BuildGame/BuildGame.log |
+| Native rules / wire schema | 6 passed, 0 failed | Artifacts/20261018-132614-781-Automation/Report/index.json |
+| Generated content | 23 packages; b33.1; 12 geometry actors per map | Artifacts/20261018-132524-068-Bootstrap-Regenerate/Bootstrap.log |
+| Validate | Passed; aim/vision channels and elevation tag; all 23 hashes unchanged | Artifacts/20261018-133637-660-Bootstrap-Validate/Bootstrap.log |
+| Movement regression | All 7 checks passed; all 8 residents moved | Artifacts/20261018-133706-409-MovementCheck/Movement.json |
+| Separate authority plus 2 clients | Server 12, client A 29, client B 27 checks; 0 failures | Artifacts/20261018-133637-600-ViewNetworkCheck/Server.json, A.json, B.json |
+| Serialized view payload | Maximum A=856 bytes; B=721 bytes, excluding transport framing | Same client JSON reports |
+
+Each of nine phases audited actual restricted-client actors: one owned canonical
+character, PlayerState, controller and relay; no resident, foreign canonical body,
+foreign owner state, ward, AI controller or vision director. Received neutral
+records were captured separately for each client. Ward sight benefited its owner;
+public sight benefited both; loss removed dynamic records while retaining explored
+terrain. Per-connection opaque IDs reject cross-owner and newly hidden lookups.
+
+The scenario exercised reappearance, a delayed old full view, delayed concealment,
+a publication pause exceeding 250 ms, recovery, waiting-state sources and camera
+invariance. Missing views are simulated by withholding full publication; reordering
+uses previously received messages passed through the actual receiver. This is not
+an engine packet-loss, measured latency or performance benchmark. Ward expiry was
+shortened by an authority fixture after validating its real 60-second initial
+lifetime. No server-role identity table is shipped in the normal map.
+
+The first network attempt timed out because engine-generated nicknames replaced
+requested URL names. The fixture now identifies each test connection through an
+owning-controller handshake, enabled only by the non-shipping diagnostic flag.
+Production observed records contain no diagnostic identity, object references,
+private stats or human/NPC role fields.
+
+The first-publication source-loss rule is enforced by rebuilding permitted records
+from current sources before sending; the scenario inspects authority outgoing data
+after the transition and the resulting restricted views. No zero-latency client
+concealment claim is made. Six rule/schema tests also cover bounded serialization,
+round trips, world-cell boundaries and revision ordering.
+
+## Historical B32 evidence and current acceptance table
+
 # Checkpoint verification
 
-18 October 2026, Asia/Shanghai. Scope: B30 audit, B31 foundation and B32 playable
+18 October 2026, Asia/Shanghai. Historical scope: B30 audit, B31 foundation and B32 playable
 movement checkpoint. This report does not certify the complete v0.3 release.
 
 Compiler/SDK blockers are resolved. Editor and separate Game target builds pass
@@ -45,7 +89,7 @@ both were fixed and both native targets rebuilt before standalone review.
 | U10 | Partial | Shared humanoid, facing and native UI render; combat cues, fog and full resolution review pending |
 | U11 | Not run | Native combat pending |
 | U12 | Not run | Native assassination pending |
-| U13 | Not run | Native request authority pending |
+| U13 | Partial | Ward/aim intents bind the owning connection and match/life; observed-ID cross-owner and hidden lookup rejected; combat requests follow B34 |
 | U14 | Not run | Native batched impacts pending |
 | U15 | Passed | Native DeathCost test verifies exact arithmetic and boundaries; runtime life loop is separate |
 | U16 | Not run | Exact loss helper supplied; owner-private runtime pending |
@@ -56,17 +100,17 @@ both were fixed and both native targets rebuilt before standalone review.
 | U21 | Not run | Native Seal transaction pending |
 | U22 | Not run | Access helper supplied; real channel/request path pending |
 | U23 | Not run | Deadline predicate supplied; actual channels pending |
-| U24 | Not run | Native logical elevation/vision pending |
-| U25 | Not run | Trace channels defined; world geometry/visibility tests pending |
-| U26 | Not run | Native source union pending |
-| U27 | Not run | Owner relay payload pending |
-| U28 | Not run | Restricted-client actor audit pending |
-| U29 | Not run | Concealment runtime pending |
-| U30 | Not run | Ordering helper/cases supplied; transport/proxy timeout tests pending |
-| U31 | Not run | Native secondary cue filtering pending |
-| U32 | Not run | Native waiting view pending |
-| U33 | Not run | Ward tuning supplied; runtime pending |
-| U34 | Partial | Eight authority residents spawned; all eight navigate; shared visual component; restricted-client proxies pending B33 |
+| U24 | Passed for B33 | Explicit plateau level; low into/across blocked; high down-ramp allowed; walls and trees block both levels |
+| U25 | Passed for B33 | Generated aim/vision collision and elevation tags validated; actual world trace tests pass |
+| U26 | Passed for B33 | Body, private ward and public source union verified on two restricted clients |
+| U27 | Passed for B33 | Owner-only bounded relay; pointer-free approved schema; per-client received records captured |
+| U28 | Passed for uncooked topology | Nine actor-registry audits per client against a separate authority; no foreign canonical/state/AI/ward channels |
+| U29 | Passed for B33 | Public source loss removes remote records and proxies; explored terrain persists |
+| U30 | Passed for B33 | Older full/concealment ignored; 250ms receive gap clears proxies; fresh full snapshot recovers |
+| U31 | Partial | Proxy destruction removes its parts/shadows; attack/trail/sound cues do not exist yet |
+| U32 | Passed for B33 waiting fixture | Inactive body gives no source; expired ward removed; legitimate public sight remains |
+| U33 | Partial | Real ward, legal placement, one charge, private sight, lifetime/expiry tested; attack damage integration pending B34 |
+| U34 | Passed for B33 | Eight authority residents navigate; neutral shared proxies/schema and restricted-client registry audits pass |
 | U35 | Not run | Fixture authority/label UI pending |
 | U36 | Not run | Uncooked local Host/Join passed; packaged clients and two-remote-client privacy tests pending |
 | U37 | Not run | No native performance measurement |
@@ -78,8 +122,7 @@ Packaged dedicated server: **Conditional not available** in this checkpoint; onl
 an installed engine is identified and no compatible source-build lane is established.
 
 
-Required next evidence: B33 filtered views and restricted-client audits before combat,
-then remaining life/objective/package/performance gates.
+Required next evidence: B34 combat/life, B35 transactions and B36 package/delay/performance gates.
 
 ## Standalone rendered review
 
@@ -102,3 +145,23 @@ Failure-720p.png; Artifacts/20261018-130758-265-Standalone/Standalone.log and
 Joined-720p.png. This is local uncooked entry/leave evidence. It does not establish
 U28 private views, U36 packaged clients, full U09 focus-loss behavior, U10 combat/
 fog readability at both target resolutions, or network performance under delay.
+
+## B33 rendered review
+
+A separate interactive 1280x720 game window showed the native frontend, readable
+source/freshness HUD, fog material and minimap after shader compilation. F on
+out-of-range ground displayed rejection; F on nearby clear ground placed the
+ward, consumed the single charge and changed the private-source count to one.
+The labelled host fixture changed the shared source from one to zero; explored
+cells stayed dim while fresh sight contracted. No material compilation errors
+were found in that run.
+
+Evidence: Artifacts/20261018-133727-028-Standalone/Standalone.log,
+VisionWard-720p.png and PublicOff-720p.png. These are automated rendered checks,
+not a human usability acceptance or combat/readability test.
+
+A second interactive review at 1920x1080 also showed the source HUD, humanoids,
+current/unknown fog and distant public/body sight regions on the minimap without
+clipping. Evidence: Artifacts/20261018-134056-815-Vision1080/Vision-1080p.png and
+Standalone.log. Full human usability and later combat/interaction readability
+acceptance remain pending. Both review processes were closed normally.

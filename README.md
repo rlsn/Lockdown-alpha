@@ -4,10 +4,10 @@ Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
-**Current checkpoint: B32 playable movement foundation. Editor and Game builds,
-four native rule tests and seven world movement checks pass. Full v0.3 gameplay
-and private multiplayer views remain in progress.** See
-[continuation](docs/CONTINUATION.md).
+**Current checkpoint: B33 private observation foundation. Native movement,
+owner-only relays, neutral proxies, body/ward/public sight and fog are implemented.**
+See [checkpoint](docs/B33_CHECKPOINT.md), [tests](docs/TestReport.md) and
+[continuation](docs/CONTINUATION.md). Combat, life and objectives follow next.
 
 ## Setup
 
@@ -34,6 +34,7 @@ and private multiplayer views remain in progress.** See
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
 ./Scripts/RunMovementCheck.ps1
+./Scripts/RunViewNetworkCheck.ps1
 ./Scripts/OpenEditor.ps1
 ```
 
@@ -42,12 +43,11 @@ machine. See docs/TestReport.md for the remaining stage gates. PowerShell 7 is
 the tested script host. Per-run output and local machine paths go to ignored
 `Artifacts/`. Scripts fail if the discovered engine differs from the lock.
 
-The generator saves 21 packages: three maps, tuning, eleven input actions, a
-13-key context, four materials and a native UI wrapper. The sandbox supports
-camera-relative movement, sprint, cursor aim, zoom and eight wandering residents.
-The frontend provides Host and direct-address Join. Filtered remote views, combat,
-life and objectives are pending. See [play guide](docs/DemoGuide.md) and
-[movement evidence](docs/B32_CHECKPOINT.md). Default generation creates
+The generator saves 23 packages: three maps, tuning, eleven input actions, a
+13-key context, four surface materials, fog material/texture and a native UI wrapper.
+The sandbox supports camera-relative movement, sprint, aim, zoom, eight residents,
+private ward sight, shared tower sight and explored fog. Host and direct-address
+Join use native UI. See [play guide](docs/DemoGuide.md). Default generation creates
 missing assets and validates existing ones; `-Mode Validate` writes no assets;
 `-Mode Regenerate` explicitly replaces generated packages under
 `/Game/Lockdown/Generated/`. Keep hand-authored assets outside that directory.

@@ -8,6 +8,7 @@
 #include "AIController.h"
 #include "NavigationSystem.h"
 #include "Net/UnrealNetwork.h"
+#include "Framework/LDPlayerController.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -67,6 +68,8 @@ void ALDCharacter::Tick(float Delta)
 {
     Super::Tick(Delta);
     Body->Animate(GetVelocity(), Delta);
+    if (const ALDPlayerController* PC=Cast<ALDPlayerController>(GetController()))
+    { if (PC->IsLocalController()) { Body->SetVisibility(PC->OwnerState.bActive,true); } }
 }
 
 void ALDCharacter::SetSprint(bool bSprint) { CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->bWantsSprint = bSprint; }

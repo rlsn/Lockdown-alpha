@@ -8,13 +8,20 @@
 #include "NavigationSystem.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "EngineUtils.h"
+#include "Vision/LDVisionDirector.h"
+#include "Framework/LDGameInstance.h"
+#include "Net/UnrealNetwork.h"
+#include "Tests/LDViewNetworkProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
+void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{ Super::GetLifetimeReplicatedProps(OutLifetimeProps); DOREPLIFETIME(ALDGameState,bPublicSensorActive); }
 ALDGameMode::ALDGameMode()
 {
     DefaultPawnClass = ALDCharacter::StaticClass();
     PlayerControllerClass = ALDPlayerController::StaticClass();
     PlayerStateClass = ALDPlayerState::StaticClass();
+    GameStateClass = ALDGameState::StaticClass();
     SpawnRandom.Initialize(int32(FPlatformTime::Cycles()));
 }
 
@@ -42,6 +49,10 @@ void ALDGameMode::StartPlay()
 {
     Super::StartPlay();
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
+    Vision=GetWorld()->SpawnActor<ALDVisionDirector>();
+    Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
+    for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
+    { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get())) { SyncOwner(PC); Vision->Register(PC); } }
     if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
     {
         for (TActorIterator<ANavMeshBoundsVolume> It(GetWorld()); It; ++It) { Nav->OnNavigationBoundsUpdated(*It); }
@@ -54,5 +65,29 @@ void ALDGameMode::StartPlay()
     }
 #if !UE_BUILD_SHIPPING
     if (FParse::Param(FCommandLine::Get(), TEXT("LDMovementProbe"))) { GetWorld()->SpawnActor<ALDMovementProbe>(); }
+    if (bScaffoldProfile && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { GetWorld()->SpawnActor<ALDViewNetworkProbe>(); }
 #endif
+}
+
+void ALDGameMode::PostLogin(APlayerController* NewPlayer)
+{
+    Super::PostLogin(NewPlayer);
+    if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
+    {
+        FLDContenderRecord Record; Record.Session=FGuid::NewGuid();
+        Contenders.Add(PC,Record); SyncOwner(PC); if (Vision) { Vision->Register(PC); }
+    }
+}
+void ALDGameMode::Logout(AController* Exiting)
+{
+    if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
+    { if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC); }
+    Super::Logout(Exiting);
+}
+FLDOwnerState* ALDGameMode::StateFor(ALDPlayerController* PC)
+{ FLDContenderRecord* Record=Contenders.Find(PC); return Record ? &Record->State : nullptr; }
+void ALDGameMode::SyncOwner(ALDPlayerController* PC)
+{
+    if (FLDOwnerState* State=StateFor(PC))
+    { State->Match=Vision ? Vision->Generation : 0; PC->OwnerState=*State; PC->ForceNetUpdate(); }
 }

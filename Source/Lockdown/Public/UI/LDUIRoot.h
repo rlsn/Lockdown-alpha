@@ -16,6 +16,7 @@ protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry, float Delta) override;
     virtual FReply NativeOnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
+    virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
     bool bMenuOpen = false;
     UPROPERTY() TObjectPtr<UBorder> MenuPanel;
@@ -27,4 +28,5 @@ private:
     UFUNCTION() void Resume();
     UFUNCTION() void Leave();
     UFUNCTION() void Exit();
+    UFUNCTION() void ToggleSensor();
 };

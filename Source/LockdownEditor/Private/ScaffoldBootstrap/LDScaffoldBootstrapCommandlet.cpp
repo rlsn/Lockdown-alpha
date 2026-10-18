@@ -20,6 +20,13 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionWorldPosition.h"
+#include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialExpressionAdd.h"
+#include "Materials/MaterialExpressionTextureSampleParameter2D.h"
+#include "Materials/MaterialExpressionSceneTexture.h"
+#include "Engine/Texture2D.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavigationSystem.h"
 #include "Builders/CubeBuilder.h"
@@ -149,6 +156,48 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         }
         if (!HasSignature(LoadObject<UMaterial>(nullptr, *(Path + TEXT(".") + Entry.Key)), Signature)) { UE_LOG(LogTemp,Error,TEXT("Missing/stale material %s"),*Path); return 3; }
     }
+    const FString TexturePath=FString(GeneratedRoot)+TEXT("Materials/T_FogClosed");
+    if (bRegenerate || (!bValidate && !Exists(TexturePath)))
+    {
+        UPackage* Package=EditablePackage(TexturePath);
+        UTexture2D* Texture=FindObject<UTexture2D>(Package,TEXT("T_FogClosed"));
+        if (!Texture) { Texture=NewObject<UTexture2D>(Package,TEXT("T_FogClosed"),RF_Public|RF_Standalone); }
+        TArray<FColor> Pixels; Pixels.Init(FColor::Black,60*40);
+        Texture->Source.Init(60,40,1,1,TSF_BGRA8,reinterpret_cast<const uint8*>(Pixels.GetData()));
+        Texture->SRGB=false; Texture->CompressionSettings=TC_VectorDisplacementmap; Texture->Filter=TF_Nearest;
+        Texture->MipGenSettings=TMGS_NoMipmaps; Texture->AddressX=TA_Clamp; Texture->AddressY=TA_Clamp;
+        Texture->PostEditChange();
+        if (!SaveAsset(Texture,TexturePath,Signature)) { return 3; }
+    }
+    UTexture2D* Closed=LoadObject<UTexture2D>(nullptr,*(TexturePath+TEXT(".T_FogClosed")));
+    if (!HasSignature(Closed,Signature)) { return 3; }
+    const FString FogPath=FString(GeneratedRoot)+TEXT("Materials/M_Fog");
+    if (bRegenerate || (!bValidate && !Exists(FogPath)))
+    {
+        UPackage* Package=EditablePackage(FogPath);
+        UMaterial* Fog=FindObject<UMaterial>(Package,TEXT("M_Fog"));
+        if (!Fog) { Fog=NewObject<UMaterial>(Package,TEXT("M_Fog"),RF_Public|RF_Standalone); }
+        Fog->MaterialDomain=MD_PostProcess;
+        Fog->GetExpressionCollection()=FMaterialExpressionCollection();
+        auto Add=[Fog](UMaterialExpression* Expression){Fog->GetExpressionCollection().AddExpression(Expression);};
+        auto* World=NewObject<UMaterialExpressionWorldPosition>(Fog); Add(World);
+        auto* XY=NewObject<UMaterialExpressionComponentMask>(Fog); XY->R=true; XY->G=true; XY->Input.Expression=World; Add(XY);
+        auto* Scale=NewObject<UMaterialExpressionVectorParameter>(Fog); Scale->ParameterName=TEXT("WorldScale"); Scale->DefaultValue=FLinearColor(1.f/4800,1.f/3200,0,0); Add(Scale);
+        auto* ScaleXY=NewObject<UMaterialExpressionComponentMask>(Fog); ScaleXY->R=true; ScaleXY->G=true; ScaleXY->Input.Expression=Scale; Add(ScaleXY);
+        auto* UV=NewObject<UMaterialExpressionMultiply>(Fog); UV->A.Expression=XY; UV->B.Expression=ScaleXY; Add(UV);
+        auto* Offset=NewObject<UMaterialExpressionAdd>(Fog); Offset->A.Expression=UV; Offset->ConstB=.5f; Add(Offset);
+        auto* Mask=NewObject<UMaterialExpressionTextureSampleParameter2D>(Fog); Mask->ParameterName=TEXT("FogMask"); Mask->Texture=Closed; Mask->SamplerType=SAMPLERTYPE_LinearColor; Mask->Coordinates.Expression=Offset; Add(Mask);
+        auto* Red=NewObject<UMaterialExpressionComponentMask>(Fog); Red->R=true; Red->Input.Expression=Mask; Add(Red);
+        auto* Factor=NewObject<UMaterialExpressionMultiply>(Fog); Factor->A.Expression=Red; Factor->ConstB=.96f; Add(Factor);
+        auto* Floor=NewObject<UMaterialExpressionAdd>(Fog); Floor->A.Expression=Factor; Floor->ConstB=.04f; Add(Floor);
+        auto* Scene=NewObject<UMaterialExpressionSceneTexture>(Fog); Scene->SceneTextureId=PPI_PostProcessInput0; Add(Scene);
+        auto* Result=NewObject<UMaterialExpressionMultiply>(Fog); Result->A.Expression=Scene; Result->B.Expression=Floor; Add(Result);
+        Fog->GetExpressionInputForProperty(MP_EmissiveColor)->Expression=Result;
+        Fog->PostEditChange();
+        if (!SaveAsset(Fog,FogPath,Signature)) { return 3; }
+    }
+    UMaterial* Fog=LoadObject<UMaterial>(nullptr,*(FogPath+TEXT(".M_Fog")));
+    if (!HasSignature(Fog,Signature) || Fog->MaterialDomain!=MD_PostProcess) { return 3; }
     const FString WidgetPath = FString(GeneratedRoot) + TEXT("UI/WBP_UIRoot");
     if (bRegenerate || (!bValidate && !Exists(WidgetPath)))
     {
@@ -258,6 +307,8 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
                 Actor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
                 Actor->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
                 Actor->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+                if (Item->GetStringField(TEXT("label"))==TEXT("Plateau")) { Actor->GetStaticMeshComponent()->ComponentTags.Add(TEXT("LDHighGround")); }
+                if (Item->GetStringField(TEXT("label"))==TEXT("PublicSensorBase")) { Actor->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Ignore); }
                 if (Item->GetStringField(TEXT("label")) == TEXT("Ground") || Item->GetStringField(TEXT("label")) == TEXT("Ramp") || Item->GetStringField(TEXT("label")) == TEXT("Plateau"))
                 {
                     Actor->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
@@ -338,6 +389,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
                 const AStaticMeshActor* Actor = Cast<AStaticMeshActor>(SavedActor);
                 if (!Actor || Actor->GetActorLabel() != Item->GetStringField(TEXT("label"))) { continue; }
                 const UStaticMesh* Mesh = Actor->GetStaticMeshComponent()->GetStaticMesh();
+                const FString Label=Item->GetStringField(TEXT("label"));
+                const bool bGround=Label==TEXT("Ground") || Label==TEXT("Ramp") || Label==TEXT("Plateau");
+                if (Actor->GetStaticMeshComponent()->GetCollisionResponseToChannel(ECC_GameTraceChannel1)!=(bGround ? ECR_Block : ECR_Ignore)
+                    || Actor->GetStaticMeshComponent()->GetCollisionResponseToChannel(ECC_GameTraceChannel2)!=((bGround || Label==TEXT("PublicSensorBase")) ? ECR_Ignore : ECR_Block)
+                    || Actor->GetStaticMeshComponent()->ComponentHasTag(TEXT("LDHighGround"))!=(Label==TEXT("Plateau")))
+                { UE_LOG(LogTemp,Error,TEXT("Aim/vision collision or elevation tag mismatch in %s for %s"),*Path,*Label); return 5; }
                 if (!Actor->GetActorLocation().Equals(Location, 0.1) || !Actor->GetActorScale3D().Equals(Size / 100.0, 0.001)
                     || !Actor->GetActorRotation().Equals(FRotator(Pitch, 0, 0), 0.01) || !Mesh || Mesh->GetName() != Item->GetStringField(TEXT("mesh")))
                 {

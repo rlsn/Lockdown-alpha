@@ -1,7 +1,7 @@
 # Runtime architecture and boundaries
 
-B32 supplies a native movement sandbox and frontend. The complete v0.3
-multiplayer information architecture is the next gate.
+B32 supplies native movement; B33 adds private observation. See B33_CHECKPOINT.md
+for the wire format, source policy and executed privacy evidence.
 
 ## Implemented
 
@@ -22,7 +22,8 @@ multiplayer information architecture is the next gate.
   wrapper. Game startup is L_Frontend; editor startup is L_MigrationSandbox.
   ULDGameInstance handles travel/network failures and returns to the frontend.
 - Canonical characters and PlayerState channels are owner-only. Resident bodies
-  and AI controllers do not replicate. Remote relays/proxies remain pending.
+  and AI controllers do not replicate. B33 supplies owner relays, neutral proxies,
+  source union, explored fog and a private ward.
 
 Four rule cases cover conversion, death arithmetic, objective boundaries and
 view ordering. A non-shipping command-line probe drives actual Character Movement
@@ -31,7 +32,7 @@ rendering performance or real network latency.
 
 ## Generated content
 
-BootstrapLayout.json defines 21 saved packages under /Game/Lockdown/Generated/.
+BootstrapLayout.json defines 23 saved packages under /Game/Lockdown/Generated/.
 The bootstrap constructs a real brush model and collision body for navigation.
 Validate checks signatures, input count, saved meshes/transforms and bounds size
 without writing packages. Generate fills absent packages; explicit Regenerate
@@ -42,10 +43,15 @@ LDGroundAim and LDVision separate walkable aim surfaces and opaque blockers.
 The controller rejects steep aim normals. Collision channels alone do not
 implement logical elevation or visibility policy.
 
-## Next dependency gate
+## B33 observation and next gate
 
-B33 adds contender records, owner state, sanitized owner relays and neutral local
-proxies, then source union, explored fog, ward/tower sensors and view recovery.
-Two restricted clients must receive different legal information without hidden
-canonical bodies or owner mappings. Combat waits for that gate. No GAS, account
-service, online subsystem or unrelated framework was added.
+ALDVisionDirector samples after physics and constructs each connection's permitted
+view. ALDWorldViewRelay sends bounded full views and reliable concealment.
+ALDObservedEntityProxy is local and nonreplicated. LDViewTypes contains the
+approved pointer-free wire schema. Owner resources stay on the owning controller;
+public sensor availability stays on GameState. The postprocess mask and minimap
+use received current/explored cells. Canonical meshes on a listen host are hidden
+except its own body, so the host also renders observed crowd proxies.
+
+B34 adds combat/life through these existing boundaries. No GAS, online account
+service, custom Replication Graph or second fog/filter framework was introduced.
