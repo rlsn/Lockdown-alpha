@@ -1,8 +1,9 @@
 # Known limitations
 
-- First Editor build failed before C++ compilation: MSVC 14.50.35721 is banned by
-  installed Unreal 5.8.3. Required manual toolchain update is documented in
-  EnvironmentAudit.md and CONTINUATION.md.
+- Latest Editor build failed before C++ compilation with exit 8 / RulesError:
+  .NET Framework SDK is missing for SwarmInterface. Install the .NET Framework
+  4.8 SDK component in Visual Studio Installer. The earlier MSVC compiler ban
+  is resolved by the owner's update. See EnvironmentAudit.md and CONTINUATION.md.
 - Native module/UHT syntax, bootstrap save/load and native automation are unverified.
   Local source/API review and PowerShell parsing are not compilation evidence.
 - No generated binary assets exist yet. Bootstrap source covers B31 foundations

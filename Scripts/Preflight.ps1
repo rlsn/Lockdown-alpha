@@ -34,6 +34,27 @@ $sdks = @(Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'Include') -Directory -
     (Test-Path -LiteralPath (Join-Path $sdkRoot "Lib/$($_.Name)/um/x64/kernel32.lib")) -and
     (Test-Path -LiteralPath (Join-Path $sdkRoot "bin/$($_.Name)/x64/rc.exe"))
 } | Select-Object -ExpandProperty Name)
+$netFxSdks = @(foreach ($registryRoot in @(
+    'HKCU:\SOFTWARE\Microsoft\Microsoft SDKs\NETFXSDK',
+    'HKLM:\SOFTWARE\Microsoft\Microsoft SDKs\NETFXSDK',
+    'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\NETFXSDK',
+    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\NETFXSDK'
+)) {
+    if (-not (Test-Path -LiteralPath $registryRoot)) { continue }
+    foreach ($entry in Get-ChildItem -LiteralPath $registryRoot) {
+        $sdkVersion = $null
+        if (-not [version]::TryParse($entry.PSChildName, [ref]$sdkVersion)) { continue }
+        $folderProperty = (Get-ItemProperty -LiteralPath $entry.PSPath).PSObject.Properties['KitsInstallationFolder']
+        if (-not $folderProperty -or -not $folderProperty.Value) { continue }
+        $sdkFolder = $folderProperty.Value
+        [pscustomobject]@{
+            Version=$sdkVersion.ToString()
+            Path=$sdkFolder
+            HeaderPresent=(Test-Path -LiteralPath (Join-Path $sdkFolder 'Include/um/mscoree.h'))
+            X64LibraryPresent=(Test-Path -LiteralPath (Join-Path $sdkFolder 'Lib/um/x64/mscoree.lib'))
+        }
+    }
+})
 $report = [ordered]@{
     timestamp = (Get-Date -Format o)
     engineRoot = $engine
@@ -46,6 +67,7 @@ $report = [ordered]@{
     disk = Get-Volume -FilePath (Get-LDProjectRoot) | Select-Object SizeRemaining, Size
     compilers = $compilers
     windowsSdks = $sdks
+    netFxSdks = $netFxSdks
     missingEngineTools = $missing
     buildVerified = $false
 }
@@ -57,4 +79,7 @@ if (@($compilers | Where-Object { -not $_.Banned -and $_.MeetsMinimum }).Count -
     throw 'No supported MSVC compiler found. Use the pinned engine Windows_SDK.json rules; preferred 14.50 requires 14.50.35723 or newer. Update through Visual Studio Installer, then rerun.'
 }
 if (@($sdks | Where-Object { [version]$_ -ge [version]$sdkRules.MinVersion -and [version]$_ -le [version]$sdkRules.MaxVersion }).Count -eq 0) { throw 'No complete supported Windows SDK found.' }
+if (@($netFxSdks | Where-Object { [version]$_.Version -ge [version]'4.6' -and $_.HeaderPresent -and $_.X64LibraryPresent }).Count -eq 0) {
+    throw 'Missing .NET Framework SDK for Unreal SwarmInterface. In Visual Studio Installer > Modify > Individual components, install .NET Framework 4.8 SDK (Microsoft.Net.Component.4.8.SDK). The .NET runtime and targeting pack alone do not provide this SDK.'
+}
 Write-Host 'Discovery passed. A cold Editor build is still required.'

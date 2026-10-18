@@ -15,8 +15,12 @@
   "toolchain": {
     "preferredFamily": "MSVC 14.50",
     "minimumUnbannedVersionInPreferredFamily": "14.50.35723",
-    "observedCompilerVersion": "14.50.35721",
-    "observedWindowsSdk": "10.0.22621.0",
+    "observedCompilerVersion": "14.51.36260",
+    "otherAvailableCompilerVersions": ["14.44.35229"],
+    "compilerBanResolved": true,
+    "selectedBuildCompilerVersion": null,
+    "observedWindowsSdk": "10.0.26100.0",
+    "netFrameworkSdk": "Missing; install Microsoft.Net.Component.4.8.SDK",
     "verifiedBuild": false
   },
   "plugins": {

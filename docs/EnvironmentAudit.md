@@ -1,5 +1,33 @@
 # Environment audit
 
+## Latest toolchain retry
+
+After the owner's Build Tools update on 18 October 2026, x64 cl.exe product
+versions **14.51.36260** and **14.44.35229** are installed. Neither matches the
+engine ban list. UBT now discovers Windows SDK **10.0.26100.0** and progresses
+past the former compiler error. Its actual compiler selection has not yet logged.
+
+The editor was closed normally from its All Saved state. The cold build now fails
+with exit **8 / RulesError**: `Could not find NetFxSDK install dir`, referenced by
+UnrealEd's SwarmInterface module. All four registry locations used by UBT and the
+standard NETFXSDK directory were checked; no SDK installation was found. The
+Visual Studio SDK component query also returned no matching installation.
+
+Required component: **.NET Framework 4.8 SDK**,
+`Microsoft.Net.Component.4.8.SDK`, under Visual Studio Installer > Build Tools 2026
+> Modify > Individual components. Microsoft's
+[Build Tools component reference](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-build-tools?view=visualstudio)
+lists this SDK separately from targeting packs and modern .NET SDKs.
+
+`Scripts/Preflight.ps1` now validates the registered Framework SDK's `mscoree.h`
+and x64 `mscoree.lib`, so it reports this before invoking UBT. No engine checks
+were bypassed and no software was installed automatically. Build evidence:
+`Artifacts/20261018-115536-001-BuildEditor/BuildEditor.log`.
+
+The original inventory and compiler-failure record below are historical.
+
+## Original audit
+
 Observed 18 October 2026, Asia/Shanghai. Local inventory was collected with
 `Scripts/Preflight.ps1`, engine files, registry association and `vswhere`.
 Absolute engine and compiler locations are retained only in ignored
@@ -51,7 +79,7 @@ Official branch requirements were cross-checked against Epic's
 For patch-level compiler acceptance, the installed 5.8.3 UBT rules and actual
 failed invocation above are the controlling evidence.
 
-## Required next action
+## Original next action (compiler update now completed)
 
 Update the existing Build Tools 2026 C++ toolset through Visual Studio Installer
 to MSVC **14.50.35723 or later within the 14.50 family**. Then rerun preflight and

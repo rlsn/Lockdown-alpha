@@ -9,9 +9,11 @@ existing-project exception. Runtime module: `Lockdown`; editor module:
 `LockdownEditor`. Target defaults are explicitly pinned to `BuildSettingsVersion.V7`
 and `EngineIncludeOrderVersion.Unreal5_8` from the installed engine's rules.
 
-Compiler observed: MSVC **14.50.35721**, rejected by the engine. Intended preferred
-family: **14.50**, fixed patch **14.50.35723 or later**. Windows SDK:
-**10.0.22621.0**. **No tested C++ toolchain has passed a build yet.**
+Updated compiler inventory: x64 MSVC **14.51.36260** and **14.44.35229**, neither
+banned. The former 14.50.35721 compiler is no longer present. Windows SDK:
+**10.0.26100.0**. UBT progressed past the former compiler blocker but now fails
+while finding the **.NET Framework SDK** for SwarmInterface. Actual compiler
+selection is not yet logged. **No tested C++ toolchain has passed a build yet.**
 
 `Lockdown.uproject` retains the owner's local engine association identifier.
 Another machine should associate it with its own installation of exactly the

@@ -1,6 +1,14 @@
 # Continuation checkpoint — 18 October 2026
 
-**Current gate: B31 Editor build blocked by an engine-banned compiler.**
+**Current gate: B31 Editor build blocked by missing .NET Framework SDK. The earlier compiler ban is resolved.**
+
+Latest retry after the owner's Build Tools update: x64 compilers 14.51.36260 and
+14.44.35229 are detected and neither is banned. The editor was closed cleanly
+without a save prompt; the cold UBT invocation now exits **8 / RulesError** while
+instantiating `SwarmInterface`, before compiling project C++. It cannot locate
+NetFxSDK. Registry discovery and the standard SDK directories confirm it is absent.
+Actual selected compiler is not yet reported by UBT; do not infer it from the
+owner's x86 `cl` shell or the available compiler inventory.
 
 ## Completed work
 
@@ -17,14 +25,14 @@
 
 ## External action
 
-Use Visual Studio Installer to update the existing Build Tools 2026 MSVC C++
-toolset to **14.50.35723 or newer within the 14.50 family**. Installed cl.exe is
-14.50.35721. Unreal's local Windows_SDK.json explicitly bans it. Do not edit that
-ban or change engine version. No automatic installer operation was performed.
+In Visual Studio Installer, choose Build Tools 2026 > Modify > Individual
+components and install **.NET Framework 4.8 SDK** (`Microsoft.Net.Component.4.8.SDK`).
+No installer operation was performed automatically. Compiler reinstallation is
+not currently needed. Do not alter engine dependency checks or the engine version.
 
-The project now declares C++ modules with no built DLLs. The current editor was
-left running; a future reopen needs the successful native build. Save any wanted
-Untitled level work before closing it for the cold build.
+The project declares C++ modules with no built DLLs. The editor is currently closed;
+a future reopen needs the successful native build. The last observed editor state
+was All Saved and exit produced no save/discard prompt.
 
 ## Resume procedure
 

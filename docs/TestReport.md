@@ -3,6 +3,13 @@
 18 October 2026, Asia/Shanghai. Scope: B30 audit and initial B31 source preparation.
 This report does **not** certify a playable migration scaffold.
 
+Latest retry after the owner's toolchain update: compiler ban **resolved**;
+available x64 compilers 14.51.36260 and 14.44.35229. Cold build **failed**, exit
+**8 / RulesError**, because SwarmInterface cannot find .NET Framework SDK.
+Current evidence: `Artifacts/20261018-115536-001-BuildEditor/BuildEditor.log`.
+Preflight now checks the Framework SDK registry/header/library. Bootstrap/native
+tests remain Not run. The original execution table below records the prior attempt.
+
 ## Executed
 
 | Check | Result | Evidence |
@@ -25,7 +32,7 @@ comparison found no baseline working-tree changes.
 | ID | Status | Observation |
 | --- | --- | --- |
 | U01 | Passed | Actual baseline/environment audited, missing compiler dependency identified |
-| U02 | Failed | Engine lock supplied; first Editor build rejected MSVC before C++ compilation |
+| U02 | Failed | Compiler ban resolved; latest cold build exits 8 because SwarmInterface cannot find .NET Framework SDK |
 | U03 | Not run | Runtime/editor dependency separation inspected in source; runtime build still required |
 | U04 | Not run | Bootstrap source supplied; no real packages generated yet |
 | U05 | Not run | No cook/package |

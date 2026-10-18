@@ -5,15 +5,18 @@ authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
 **Current checkpoint: B30 audit recorded; B31 source foundation in progress.
-Editor compilation is blocked by the installed MSVC toolchain. This is not a
+Editor compilation is blocked by a missing .NET Framework SDK. This is not a
 playable Unreal port.** See [continuation](docs/CONTINUATION.md).
 
 ## Setup
 
 1. Install/associate Unreal **5.8.3 CL 58210709**. Do not upgrade the project.
-2. In Visual Studio Installer, update the existing Build Tools 2026 C++ toolset
-   to **MSVC 14.50.35723 or later in the 14.50 family**. The observed binary is
-   14.50.35721, which this engine explicitly bans. Keep Windows SDK 10.0.22621.0.
+2. Install an MSVC version accepted by the pinned engine. The owner's update
+   now provides x64 14.51.36260 and 14.44.35229; the earlier compiler ban is resolved.
+   Windows SDK 10.0.26100.0 is now detected. In Visual Studio Installer > Modify >
+   Individual components, also install **.NET Framework 4.8 SDK**
+   (`Microsoft.Net.Component.4.8.SDK`), currently missing. This is distinct from
+   the modern .NET SDK/runtime and the .NET Framework targeting pack.
 3. Run `git lfs install` before checking out binary assets.
 4. Resolve the engine through the project's local association, or set
    `$env:LD_UE_ROOT` in the current PowerShell session. Alternatively create
