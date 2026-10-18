@@ -4,8 +4,9 @@ Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
-**Current checkpoint: B30 audit recorded; B31 native modules build and all four
-rule tests pass. This is not yet a playable Unreal port.** See
+**Current checkpoint: B32 playable movement foundation. Editor and Game builds,
+four native rule tests and seven world movement checks pass. Full v0.3 gameplay
+and private multiplayer views remain in progress.** See
 [continuation](docs/CONTINUATION.md).
 
 ## Setup
@@ -28,20 +29,25 @@ rule tests pass. This is not yet a playable Unreal port.** See
 ```powershell
 ./Scripts/Preflight.ps1
 ./Scripts/BuildEditor.ps1
+./Scripts/BuildGame.ps1
 ./Scripts/BootstrapAssets.ps1
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
+./Scripts/RunMovementCheck.ps1
 ./Scripts/OpenEditor.ps1
 ```
 
-Preflight, Editor build and the four native rule tests now pass on the audited
+Preflight, both builds, native rule tests and movement checks pass on the audited
 machine. See docs/TestReport.md for the remaining stage gates. PowerShell 7 is
 the tested script host. Per-run output and local machine paths go to ignored
 `Artifacts/`. Scripts fail if the discovered engine differs from the lock.
 
-The initial generator source creates foundation maps, tuning and input actions.
-Movement mappings, native UI, characters, authority, fog and networking are still
-pending. It does not generate the complete v0.3 demo. Default generation creates
+The generator saves 21 packages: three maps, tuning, eleven input actions, a
+13-key context, four materials and a native UI wrapper. The sandbox supports
+camera-relative movement, sprint, cursor aim, zoom and eight wandering residents.
+The frontend provides Host and direct-address Join. Filtered remote views, combat,
+life and objectives are pending. See [play guide](docs/DemoGuide.md) and
+[movement evidence](docs/B32_CHECKPOINT.md). Default generation creates
 missing assets and validates existing ones; `-Mode Validate` writes no assets;
 `-Mode Regenerate` explicitly replaces generated packages under
 `/Game/Lockdown/Generated/`. Keep hand-authored assets outside that directory.

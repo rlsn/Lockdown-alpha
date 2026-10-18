@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatorVersion": "b31.1",
+  "generatorVersion": "b32.2",
   "profile": "MigrationScaffold",
   "geometry": [
     { "label": "Ground", "mesh": "Cube", "location": [0, 0, -20], "size": [4800, 3200, 40] },

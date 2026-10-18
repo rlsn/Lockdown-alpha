@@ -1,17 +1,21 @@
 # Known limitations
 
-- Compiler and Framework SDK blockers are resolved. Native modules build with
-  x64 MSVC 14.44.35229 and all four native rule tests pass. Full gameplay gates
-  remain pending; a working native build does not establish migration acceptance.
-- Generated binary assets cover B31 foundations only. Move/Aim actions exist in
-  the generator, but their actual mappings and
-  controller bindings are pending B32. No functioning frontend/UI is claimed.
-- No native character, networking, fog renderer, life loop, combat, economy or
-  Heart interactions have been implemented. No playable game/package is delivered.
-- RunTwoClients.ps1 is pending the actual host/join/server implementation. A launcher
-  around an empty map would not satisfy the network acceptance cases.
-- Most native U01–U40 gameplay gates remain not run; see TestReport.md.
-  Dedicated packaging remains conditional.
-- The web baseline remains intact. Fresh browser recording, integration reruns,
-  native visual comparison, delayed-network testing and human usability review
-  are pending.
+- B32 is a playable movement checkpoint. Combat, dash, assassination, death/return,
+  courier, ward placement, Seal and Heart transactions are not implemented.
+  Their input assets exist but have no runtime handlers yet.
+- Host/Join UI exists. Canonical bodies are owner-only; residents do not replicate.
+  Remote crowds, sanitized relays, fog, elevation sight, source union and
+  independent-client privacy evidence are pending B33. This is not complete
+  multiplayer gameplay.
+- Four rule tests and seven movement checks pass. Most U01-U40 gates remain
+  not run or partial. See TestReport.md. Human usability, delayed-network,
+  resolution and performance reviews remain required.
+- Game target builds; cooking and independent packaged clients have not run.
+  Dedicated packaging is conditional on a compatible source-engine lane;
+  only an installed engine is configured here.
+- Standalone -game runs disable editor MCP plugins whose Python toolsets require
+  an editor world. Normal editor MCP remains enabled.
+- Commandlet map loading can emit navigation teardown warnings; runtime navigation
+  is tested separately and all eight residents moved in the probe.
+- The v0.2 repository is unmodified. Full population, balance, room-code discovery
+  and authenticated resume parity are not claimed.

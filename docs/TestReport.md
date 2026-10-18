@@ -1,38 +1,33 @@
 # Checkpoint verification
 
-18 October 2026, Asia/Shanghai. Scope: B30 audit and initial B31 source preparation.
-This report does **not** certify a playable migration scaffold.
+18 October 2026, Asia/Shanghai. Scope: B30 audit, B31 foundation and B32 playable
+movement checkpoint. This report does not certify the complete v0.3 release.
 
-Compiler and SDK prerequisites are resolved. Cold Editor build now **passes**
-with x64 MSVC 14.44.35229 and Windows SDK 10.0.26100.0. The missing editor DLL was
-caused by a missing direct InputCore link dependency, now fixed. Both project
-DLL build IDs match the engine manifest (55116800).
-
-The native rule suite reports **4 succeeded, 0 failed, 0 not run, 0 in process**.
-Bootstrap saved 15 real packages; two fresh-process Validate runs passed with all
-file hashes unchanged. Fresh map loading and initialized world transforms are now
-used to validate saved geometry. The AllToolsets GameFeatures dependency's missing
-asset-manager rule was fixed with an editor-only NeverCook entry.
+Compiler/SDK blockers are resolved. Editor and separate Game target builds pass
+with x64 MSVC 14.44.35229, Windows SDK 10.0.26100.0 and Framework SDK 4.8.
+The four native rule cases pass. Seven standalone world movement checks pass.
 
 ## Executed
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Web baseline unit suite | Passed — 3 files, 89 tests | `Artifacts/BaselineVerification/UnitTests.log` |
-| Web baseline TypeScript typecheck | Passed — exit 0 | `Artifacts/BaselineVerification/Typecheck.log` |
-| Baseline export | Passed — actual C/MAP imported from pinned clean checkout | `Config/BaselineSnapshot.json`, `Artifacts/*-BaselineExport/Export.log` |
-| PowerShell syntax | Passed — all supplied .ps1 files parsed | PowerShell Language.Parser inspection |
-| Native prerequisite discovery | Passed — compiler, Windows SDK and Framework SDK 4.8 found | `Artifacts/20261018-122214-031-Preflight/Environment.json` |
-| Editor build | Passed — MSVC 14.44.35229, matching DLL build IDs | `Artifacts/20261018-122731-543-BuildEditor/BuildEditor.log` |
-| Native rules | Passed — all 4 cases | `Artifacts/20261018-122600-292-Automation/Report/index.json` |
-| Foundation assets | Passed — 15 real saved packages; three maps each have 11 geometry actors | `Content/Lockdown/Generated` |
-| Validate idempotency | Passed — two fresh processes; 15 hashes unchanged | Successful `Artifacts/*-Bootstrap-Validate/Bootstrap.log` runs after 12:27 |
-| Bootstrap Validate prerequisite guard | Passed — correctly refuses missing native DLLs | `Scripts/Common.ps1`; no content written |
-| MCP read-only editor queries | Passed — 67 toolsets, camera/visible actors/PIE state | `docs/MCP_TEST_REPORT.md` |
+| Web baseline unit suite | Passed, 89 tests | Artifacts/BaselineVerification/UnitTests.log |
+| Web baseline typecheck | Passed | Artifacts/BaselineVerification/Typecheck.log |
+| Baseline export | Pinned clean checkout, actual C/MAP | Config/BaselineSnapshot.json |
+| Native prerequisites | Compiler and both SDKs detected | Artifacts/20261018-122214-031-Preflight/Environment.json |
+| Editor build | Passed after UI/lighting review fixes | Artifacts/20261018-130509-791-BuildEditor/BuildEditor.log |
+| Game target build | Passed without editor module | Artifacts/20261018-130522-546-BuildGame/BuildGame.log |
+| Native rules | 4 succeeded, 0 failed/not run/in process | Artifacts/20261018-125418-743-Automation/Report/index.json |
+| Bootstrap Regenerate | 21 genuine saved packages; b32.2 | Artifacts/20261018-130107-554-Bootstrap-Regenerate/Bootstrap.log |
+| Bootstrap Validate | Passed, all 21 hashes unchanged | Artifacts/20261018-130305-545-Bootstrap-Validate/Bootstrap.log |
+| World movement | 7 checks; walk/sprint, wall, ramp, cliff, crowd spawn/navigation | Artifacts/20261018-130327-166-MovementCheck/Movement.json |
+| Editor MCP | Connected, level load and PIE Start/Stop succeed | docs/MCP_TEST_REPORT.md; live review 18 October |
+| Rendered entry | Frontend and Host-to-sandbox travel work in PIE | B32 UI review; standalone evidence below |
 
-Logs are local ignored artifacts, not committed credentials or machine paths.
-The original baseline unit suite was rerun once to capture its output. Source
-comparison found no baseline working-tree changes.
+Logs are local ignored artifacts. Validate map loading can report RecastNavMesh
+teardown warnings; the independent runtime probe verifies navigation. Initial
+visual review found low-contrast buttons and equal forward-light priorities;
+both were fixed and both native targets rebuilt before standalone review.
 
 ## Native acceptance gates
 
@@ -40,14 +35,14 @@ comparison found no baseline working-tree changes.
 | --- | --- | --- |
 | U01 | Passed | Actual baseline/environment audited, missing compiler dependency identified |
 | U02 | Passed | Editor target builds with the pinned engine; no Live Coding; module build IDs match |
-| U03 | Not run | Runtime/editor dependency separation inspected in source; runtime build still required |
-| U04 | Not run | Foundation packages saved/validated twice; complete UI and movement assets still pending |
+| U03 | Passed | Separate Lockdown Game target builds without editor dependencies |
+| U04 | Passed for B32 | 21 saved packages; signatures, mappings, brush size and geometry validated; all hashes unchanged |
 | U05 | Not run | No cook/package |
-| U06 | Not run | Native frontend pending |
-| U07 | Not run | Native SpatialConversion test passed; actual movement speed tests pending |
-| U08 | Not run | Authored ramp layout only; movement/dash tests pending |
-| U09 | Not run | Controller/input implementation pending |
-| U10 | Not run | Humanoid/native UI and rendered review pending |
+| U06 | Passed for uncooked entry | Standalone UI Host, second-process Join, timeout feedback and client Return to menu verified |
+| U07 | Passed | SpatialConversion plus actual CMC world checks: 180 cm/s walk and 300 cm/s diagonal sprint |
+| U08 | Partial | Ramp traversal and cliff blocking pass in world; dash deferred to B34 |
+| U09 | Partial | Native camera-relative input, walkable-ground aim, menu suppression and input flush implemented; full focus/network/vision evidence pending |
+| U10 | Partial | Shared humanoid, facing and native UI render; combat cues, fog and full resolution review pending |
 | U11 | Not run | Native combat pending |
 | U12 | Not run | Native assassination pending |
 | U13 | Not run | Native request authority pending |
@@ -71,9 +66,9 @@ comparison found no baseline working-tree changes.
 | U31 | Not run | Native secondary cue filtering pending |
 | U32 | Not run | Native waiting view pending |
 | U33 | Not run | Ward tuning supplied; runtime pending |
-| U34 | Not run | Native residents/navigation pending |
+| U34 | Partial | Eight authority residents spawned; all eight navigate; shared visual component; restricted-client proxies pending B33 |
 | U35 | Not run | Fixture authority/label UI pending |
-| U36 | Not run | Native independent processes pending |
+| U36 | Not run | Uncooked local Host/Join passed; packaged clients and two-remote-client privacy tests pending |
 | U37 | Not run | No native performance measurement |
 | U38 | Not run | No native delay measurement |
 | U39 | Not run | No native reset/isolation test |
@@ -82,6 +77,28 @@ comparison found no baseline working-tree changes.
 Packaged dedicated server: **Conditional not available** in this checkpoint; only
 an installed engine is identified and no compatible source-build lane is established.
 
-Required next evidence: B32 rendered movement/input, human-shaped presentation,
-native frontend and UI assets, then the remaining authority/network/package gates.
-Foundation geometry and pure rule tests cannot promote those gameplay gates to Passed.
+
+Required next evidence: B33 filtered views and restricted-client audits before combat,
+then remaining life/objective/package/performance gates.
+
+## Standalone rendered review
+
+At 1280x720, the native frontend, shared humanoid, actual speed HUD and menu
+rendered in a separate uncooked game process. Host entered the sandbox; H opened
+the menu, Escape resumed, and the wheel changed camera distance and cursor facing.
+A second independent local process joined 127.0.0.1:7777 using the UI; the host
+logged Join succeeded and the client completed map travel with its owned character.
+The client's Return to menu closed its network connection and reopened L_Frontend.
+
+An unavailable-host test initially exposed a dropped failure message: Unreal
+supplies a null world for pending connections. The handler now resolves the
+pending driver's owning world context and rejects another instance's context.
+After rebuilding both targets, the repeated 20-second timeout displayed a short
+ConnectionTimeout message on the frontend. Failure text does not expose raw
+network-driver internals in the product UI.
+
+Evidence: Artifacts/20261018-130556-611-RenderedMovement/Standalone.log and
+Failure-720p.png; Artifacts/20261018-130758-265-Standalone/Standalone.log and
+Joined-720p.png. This is local uncooked entry/leave evidence. It does not establish
+U28 private views, U36 packaged clients, full U09 focus-loss behavior, U10 combat/
+fog readability at both target resolutions, or network performance under delay.

@@ -95,3 +95,15 @@ There are no binary assets to exercise an LFS upload/download round trip yet.
 
 Repository initialization and the first commit are local. No remote was supplied,
 so no hosting repository was created and nothing was pushed.
+
+## B32 editor and play-flow follow-up
+
+18 October 2026: direct HTTP MCP loaded L_Frontend, confirmed PIE idle, started
+PlayMode_InViewPort after BeginPlay, and stopped PIE successfully. Host travel
+from the rendered native frontend opened the movement sandbox. Project content
+now includes real generated maps, input, materials and UI; the Blueprint-only
+and empty-content observations below apply only to the initial test.
+
+Normal editor launches retain AllToolsets/ModelContextProtocol. Standalone -game
+runs disable those editor Python toolsets for that process; they require editor
+classes unavailable in a game world. See TestReport.md for standalone UI evidence.
