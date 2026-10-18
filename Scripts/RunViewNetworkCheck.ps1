@@ -1,17 +1,17 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateRange(1024,65000)][int]$Port=7787)
+param([string]$EngineRoot,[string]$PackageRoot,[ValidateRange(1024,65000)][int]$Port=7787)
 . (Join-Path $PSScriptRoot 'Common.ps1')
-$engine=Resolve-LDEngine $EngineRoot
-Assert-LDEditorModules
-$output=New-LDArtifactDirectory 'ViewNetworkCheck'
-$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$editor=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
+if($PackageRoot){$package=Resolve-LDPackage $PackageRoot;$editor=$package.Binary;$project='';$lane='Packaged-'}
+else{$engine=Resolve-LDEngine $EngineRoot;Assert-LDEditorModules;$editor=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe';$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject';$lane=''}
+$output=New-LDArtifactDirectory "$($lane)ViewNetworkCheck"
 $ownedProcesses=@()
 try {
     foreach($role in @('Server','A','B')) {
         $world=if($role -eq 'Server'){'/Game/Lockdown/Generated/Maps/L_MigrationSandbox'}else{"127.0.0.1:$Port`?Name=Probe$role"}
         $mode=if($role -eq 'Server'){'-server'}else{'-game'}
+        if($PackageRoot -and $role -eq 'Server'){$world+='?listen';$mode='-game -LDRemoteAuthority'}
         $arguments='"{0}" {1} {2} -port={3} -nullrhi -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="t.MaxFPS 60" -LDViewProbe -LDProbeRole={4} -LDProbeReportDir="{5}" -abslog="{6}"' -f $project,$world,$mode,$Port,$role,$output,(Join-Path $output "$role.log")
+        if($PackageRoot){$arguments=$arguments.Substring(3)}
         $ownedProcesses+=Start-Process -FilePath $editor -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }

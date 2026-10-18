@@ -10,6 +10,13 @@ uses uncooked content and the editor runtime at 1280x720, disables editor-only
 MCP toolsets for that process and saves a local log under Artifacts/. It is not
 a packaged build.
 
+For the cooked build, run Scripts/PackageWin64.ps1, then
+Scripts/OpenPackaged.ps1 -PackageRoot '<reported archive>' -Resolution 720p
+(or 1080p). The archive also contains Windows/Lockdown.exe. Open two independent
+processes and use the same Host/Join buttons. The packaged build needs neither
+the editor nor an MCP/Zen cook server at runtime. No separate Server target is
+included. See B36_CHECKPOINT.md for the diagnostic two-remote-client topology.
+
 The game startup map is L_Frontend. Choose **Host gameplay demo** to enter the
 sandbox as a listen server. Join accepts a host name or IPv4 address with optional
 port (1-65535). Default: 127.0.0.1:7777. Private remote views and fog are implemented for this small slice; cooked-client
@@ -112,7 +119,8 @@ around Heart, lingering two seconds after interruption.
 One result ends competitive play. Only a Seal-route win consumes the item. Having
 the last living body never awards victory; the twelve-minute deadline without a
 valid claim produces No claim. Return to menu and host again for a fresh world;
-an in-world reset and full isolation verification remain B36.
+the ordinary fresh-world flow is Return to menu followed by Host gameplay demo.
+The B36 reset probe additionally verifies ten actual reloads and stale generations.
 
 Run Scripts/RunObjectiveCheck.ps1 and Scripts/RunObjectiveNetworkCheck.ps1.
 The network runner supports -Scenario Assault or Seal (default both),

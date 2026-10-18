@@ -59,3 +59,15 @@ function Assert-LDEditorModules {
         }
     }
 }
+
+function Resolve-LDPackage {
+    param([Parameter(Mandatory)][string]$PackageRoot)
+    $root = (Resolve-Path -LiteralPath $PackageRoot).Path
+    # Accept the archive's Windows folder or its parent, never a workspace executable.
+    if (Test-Path -LiteralPath (Join-Path $root 'Windows/Lockdown/Binaries/Win64/Lockdown.exe')) { $root = Join-Path $root 'Windows' }
+    $binary = Join-Path $root 'Lockdown/Binaries/Win64/Lockdown.exe'
+    if (-not (Test-Path -LiteralPath $binary)) { throw "No packaged runtime executable: $binary" }
+    $paks = @(Get-ChildItem -LiteralPath (Join-Path $root 'Lockdown/Content/Paks') -File -Filter '*.pak')
+    if (-not $paks.Count) { throw "No cooked pak found in $root" }
+    [pscustomobject]@{ Root=$root; Binary=$binary }
+}

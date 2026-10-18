@@ -25,11 +25,12 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Tests/LDObjectiveNetworkProbe.h"
+#include "Tests/LDSoakProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"));}
 }
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
@@ -50,12 +51,17 @@ void ALDPlayerController::BeginPlay()
     RootUI->AddToViewport();
     SetMenuOpen(IsFrontend());
 #if !UE_BUILD_SHIPPING
+    if(GetNetMode()==NM_Client)
+    {
     if (!IsFrontend() && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe")))
     { FActorSpawnParameters Params; Params.Owner=this; GetWorld()->SpawnActor<ALDViewNetworkProbe>(ALDViewNetworkProbe::StaticClass(),FTransform::Identity,Params); }
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDCombatNetworkProbe>(ALDCombatNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDObjectiveNetworkProbe>(ALDObjectiveNetworkProbe::StaticClass(),FTransform::Identity,Params);}
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDSoakProbe>(ALDSoakProbe::StaticClass(),FTransform::Identity,Params);}
+    }
 #endif
 }
 
@@ -353,8 +359,9 @@ void ALDPlayerController::PlayerTick(float Delta)
         LastHoldSent=GetWorld()->GetTimeSeconds();const APawn* Body=GetPawn();
         ServerContextHold(OwnerState.Match,OwnerState.Life,ContextToken,++HoldSequence,Body&&!Body->GetLastMovementInputVector().IsNearlyZero());
     }
-    if(const auto* GS=GetWorld()->GetGameState<ALDGameState>();GS&&GS->EndReason)
-    {if(IsLocalController()){bInteractHeld=false;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}return;}
+    const auto* PublicState=GetWorld()->GetGameState<ALDGameState>();const bool bFinished=PublicState&&PublicState->EndReason;
+    if(bFinished)
+    {if(IsLocalController()){bInteractHeld=false;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}}
     if(IsLocalController()&&!IsFrontend())
     {
         if(ALDCharacter* Active=Cast<ALDCharacter>(GetPawn()))
@@ -378,7 +385,7 @@ void ALDPlayerController::PlayerTick(float Delta)
             SetViewTarget(WaitingCamera);
         }
     }
-    if (!IsLocalController() || bControlsSuppressed || !OwnerState.bActive) { return; }
+    if (bFinished || !IsLocalController() || bControlsSuppressed || !OwnerState.bActive) { return; }
     ALDCharacter* Body = Cast<ALDCharacter>(GetPawn());
     if (!Body) { return; }
     FHitResult Hit;

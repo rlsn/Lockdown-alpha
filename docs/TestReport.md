@@ -1,4 +1,84 @@
-# B35 verification - 18 October 2026
+# B36 verification - 19 October 2026
+
+The Windows Development package and the engineering checks below are implemented.
+The ten-minute packaged soak passed; its measurements are recorded below.
+Human usability acceptance and a source-engine dedicated Server target remain open.
+Artifact names retain the host's 18 October timestamps.
+
+| Check | Result | Evidence under Artifacts/ |
+| --- | --- | --- |
+| Final build/cook/stage/archive | Passed; Win64 Development, both targets; file-backed cook, IoStore/pak | 20261019-001732-992-PackageWin64/Package.log; PackageManifest.json |
+| Packaged native UI | Host720p, independent Join1080p, Return to menu passed | 20261018-173817-126-Packaged-Interactive/Game.log; 20261018-173900-822-Packaged-Interactive/Game.log; B36-UI/ |
+| Two packaged restricted clients | Server12 / A29 / B27 passed | 20261018-174507-903-Packaged-ViewNetworkCheck/{Server,A,B}.json |
+| Packaged objectives,100ms configured RTT +/-25ms jitter | Assault15/21/18; Seal15/21/18 passed | 20261018-174507-908-Packaged-ObjectiveNetwork-100-25/{Assault,Seal}/{Server,A,B}.json |
+| Packaged combat,150ms configured RTT +/-25ms jitter | Server9 / A16 / B19 passed | 20261018-174840-706-Packaged-CombatNetwork-150-25/{Server,A,B}.json |
+| Ten world restarts in packaged process | 84 passed;11 clean-world observations | 20261018-175648-214-Packaged-ResetCheck/Reset.json |
+| Native combat/movement regression |48 /7 passed | 20261018-175648-230-CombatCheck/Combat.json; 20261018-175648-231-MovementCheck/Movement.json |
+| Native rules/schema |8 passed | 20261018-173818-197-Automation/Report/index.json |
+| Packaged Seal,150ms configured RTT +/-25ms jitter, rendered720p A | Server15 / A19 / B20 passed | 20261018-175648-207-Packaged-ObjectiveNetwork-150-25/Seal/{Server,A,B}.json |
+| Ten-minute packaged soak | All three processes passed; no concurrent build/test | 20261018-175841-491-Packaged-Soak-600-150-25/{Environment,Server,A,B}.json |
+| Final-source objective regression | Main53 / ExactDeadline3 / LateClaim3 / NoClaim4 / Withdraw5 passed, including finished-room PreLogin rejection | 20261019-002233-409-ObjectiveCheck/*.json |
+| Final-package reset regression |84 passed; ten reloads | 20261019-002233-386-Packaged-ResetCheck/Reset.json |
+| Final-package Seal regression,150ms +/-25ms, rendered720p A | Server15 / A19 / B20 passed | 20261019-002233-388-Packaged-ObjectiveNetwork-150-25/Seal/{Server,A,B}.json |
+
+The measured package was 20261018-175244-066-PackageWin64. On Ryzen9 7945HX,
+RTX4060 Laptop (driver32.0.16.1742),15.69GiB RAM, DX12 SM6 High at100% screen
+percentage, client A rendered1920x1080 with a60FPS cap. B and authority used
+NullRHI at120FPS. After ten seconds warmup, the next60 seconds supplied3600
+rendered frame samples; gameplay/network activity continued600 seconds with eight
+residents, movement, attacks, rejected contextual requests, deaths and returns.
+
+| Measurement | Authority | Rendered A | NullRHI B |
+| --- | --- | --- | --- |
+| Frame median / p95 | — |60.00FPS /16.83ms | Not a rendering measurement |
+| Rule / view / combined p95 |0.050 /0.835 /0.864ms (11,999 samples) | — | — |
+| Action receipts / p95 | — |893 /249.60ms |896 /241.13ms |
+| Echo median / p95 | — |199.54 /249.73ms |182.98 /224.64ms |
+| Snapshot age p95 | — |65.35ms |18.95ms |
+| Full-view serialized payload | — |7.06KiB/s |6.07KiB/s |
+| All native inbound / outbound | — |8.65 /5.46KiB/s |7.88 /5.74KiB/s |
+| Autonomous corrections / maximum | — |6 /35.99cm |0 /0cm |
+| Actual body path, excluding pawn replacement jumps | — |103,736cm |100,285cm |
+| Actor bounds |68–69 |37–38 |34–38 |
+| Late-half memory spread |1.83MiB |6.02MiB |0.13MiB |
+
+Every measured action received an acknowledgement, including rejections. A's
+249.60ms p95 passes250ms with a narrow margin; this is one small-slice run on
+emulated local transport, not a WAN or capacity guarantee. Snapshot age uses the
+replicated GameState clock, not synchronized one-way latency. Total native inbound
+traffic includes relay, other replication and framing. Combined authority work
+adds vision work to the most recent combat/objective sample; it is not the entire
+engine frame. Normal GC was used throughout this soak.
+
+Subsequent source changes fix dead-at-result text, preserve the waiting camera
+while suppressing finished input, reject new connections to finished rooms, and
+make diagnostic readiness timeouts independent of measurement duration. They do
+not change the measured active rules/render path. The final package and regression
+evidence are recorded below; the600-second numbers belong to the package above.
+
+The network authority is a separate headless packaged **listen** world with a
+nonparticipating local connection and two remote packaged clients. It is not a
+dedicated Server target. Uncooked runs still support the editor-server topology.
+The first Game -server attempt did not enter dedicated mode and timed out; those
+logs are excluded from passing evidence. Native Host/Join and leave were also
+operated through the actual packaged UMG buttons at720p/1080p.
+
+The reset lane alternates real pending returns and terminal claims, with dirty
+work, resources, receipts, item ownership, sources, exploration and fixture state.
+It checks default populations/state, old actor destruction and rejection of old
+commands, owner receipts and views after every travel. GC is requested every ten
+frames in this cleanup lane; the soak uses normal GC. The listed packaged run's
+last-six working-set samples ranged337.65-341.25MiB. This is ten world reloads in one
+GameInstance, not ten complete OS process boots or a remote-rejoin test.
+
+An initial cook passed, but Zen staging could not read the local store after three
+launch attempts. File-backed cooked output resolved staging while preserving
+IoStore/pak runtime delivery. Normal runtime needs no editor or cook server.
+One exploratory editor soak ran alongside a build and exceeded250ms p95 on one
+client; it is not certified performance evidence. The clean measurement lane
+uses one rendered client and no concurrent build/test workload.
+
+## Historical B35 verification
 
 Representative objectives pass the automated slice checks below. This remains an
 uncooked migration demo; B36 packaging, complete reset/isolation, human review and
@@ -205,13 +285,13 @@ both were fixed and both native targets rebuilt before standalone review.
 | U01 | Passed | Actual baseline/environment audited, missing compiler dependency identified |
 | U02 | Passed | Editor target builds with the pinned engine; no Live Coding; module build IDs match |
 | U03 | Passed | Separate Lockdown Game target builds without editor dependencies |
-| U04 | Passed for B32 | 21 saved packages; signatures, mappings, brush size and geometry validated; all hashes unchanged |
-| U05 | Not run | No cook/package |
-| U06 | Passed for uncooked entry | Standalone UI Host, second-process Join, timeout feedback and client Return to menu verified |
+| U04 | Passed |23 saved generated packages; signatures, input mappings, fog, collision, geometry and elevation validated without rewriting |
+| U05 | Passed | Win64 Development build/cook/stage/archive; native Game runtime with IoStore/pak |
+| U06 | Passed for local entry | Native packaged Host720p, independent Join1080p and Return to menu verified; uncooked timeout feedback also reviewed |
 | U07 | Passed | SpatialConversion plus actual CMC world checks: 180 cm/s walk and 300 cm/s diagonal sprint |
 | U08 | Passed for slice | Native walk/dash wall, tree, ramp and ledge checks; remote root-motion dash reconciles |
-| U09 | Partial | Native camera-relative input, walkable-ground aim, menu suppression and input flush implemented; full focus/network/vision evidence pending |
-| U10 | Partial | Shared humanoid, facing and native UI render; combat cues, fog and full resolution review pending |
+| U09 | Partial | Camera-relative input, aim, menu suppression and delayed CMC tested; human feel and full focus-loss acceptance remain |
+| U10 | Partial | Packaged720p/1080p HUD/fog/receipts inspected; human warning recognition and readability acceptance remain |
 | U11 | Passed automated slice | Basic combat works through two remote owning controllers, including delayed transport; human playtest remains |
 | U12 | Passed automated slice | Warning, rear/range/turn/sprint/history checks, damage interruption and dash cancellation verified |
 | U13 | Passed for implemented intents | Connection, match/life, bounded planar arguments, rate/priority and cached duplicates; stale life and hidden/cross-owner observed lookup rejected |
@@ -229,7 +309,7 @@ both were fixed and both native targets rebuilt before standalone review.
 | U25 | Passed for B33 | Generated aim/vision collision and elevation tags validated; actual world trace tests pass |
 | U26 | Passed for B33 | Body, private ward and public source union verified on two restricted clients |
 | U27 | Passed for B33 | Owner-only bounded relay; pointer-free approved schema; per-client received records captured |
-| U28 | Passed for uncooked topology | Nine actor-registry audits per client against a separate authority; no foreign canonical/state/AI/ward channels |
+| U28 | Passed for slice | Packaged two-remote-client view/combat/objective audits and periodic ten-minute restricted registry checks pass |
 | U29 | Passed for B33 | Public source loss removes remote records and proxies; explored terrain persists |
 | U30 | Passed for B33 | Older full/concealment ignored; 250ms receive gap clears proxies; fresh full snapshot recovers |
 | U31 | Passed implemented cues | Role-neutral action/marker/corpse cues use permitted records; private warning has no attacker coordinates; no independent spatial combat sounds/trails |
@@ -237,17 +317,17 @@ both were fixed and both native targets rebuilt before standalone review.
 | U33 | Passed for slice | Real placement/charge/private sight/lifetime/expiry and single nearest-strike ward destruction |
 | U34 | Passed for B33 | Eight authority residents navigate; neutral shared proxies/schema and restricted-client registry audits pass |
 | U35 | Passed for slice | Labelled host-only seed and four toggles reviewed in native UI; non-shipping scaffold/authority guards and logged setup; no remote fixture RPC |
-| U36 | Not run | Uncooked local Host/Join passed; packaged clients and two-remote-client privacy tests pending |
-| U37 | Not run | No native performance measurement |
-| U38 | Partial | Combat and objective flows at 100/150 ms configured RTT with jitter; echoes and receipts measured separately; objective tail includes deliberate fixture pause; normal-play p95/cooked distribution pending |
-| U39 | Not run | No native reset/isolation test |
-| U40 | Not run | Partial checkpoint documentation supplied; full delivery incomplete |
+| U36 | Passed for installed-engine topology | Independent packaged Game clients plus headless listen authority; restricted view/combat/objective checks pass |
+| U37 | Passed measured small slice |1080p60-second render sample and600-second activity;60FPS median,16.83ms frame p95,0.864ms authority combined p95; capacity deferred |
+| U38 | Passed measured lane |100/150ms functional lanes;600-second150ms+/-25ms soak,893/896 receipts,249.60/241.13ms p95; narrow A margin, WAN/loss unverified |
+| U39 | Passed automated world-reload lane | Ten packaged non-seamless reloads,84 checks; old actors/state/commands/receipts/views rejected;11 clean observations |
+| U40 | Partial | Runnable package, scripts, manifest, ledger and measured report supplied; human sign-off, source-engine Server and remote delivery remain conditional |
 
 Packaged dedicated server: **Conditional not available** in this checkpoint; only
 an installed engine is identified and no compatible source-build lane is established.
 
 
-Required next evidence: B36 package, reset/isolation, human review and broader performance gates.
+Required next evidence: human movement/aim/warning/fog/interaction comparison at720p/1080p. WAN/loss, full population, remote Git/LFS delivery and source-engine Server remain outside the verified lane.
 
 ## Standalone rendered review
 

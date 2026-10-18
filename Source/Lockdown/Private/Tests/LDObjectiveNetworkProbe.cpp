@@ -192,7 +192,7 @@ void ALDObjectiveNetworkProbe::Tick(float Delta)
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
     if(FPlatformTime::Seconds()-Started>140){Check(false,TEXT("Objective network scenario timed out"));Finish();return;}
-    if(GetNetMode()==NM_DedicatedServer){ServerTick();}else if(GetNetMode()==NM_Client){ClientTick();}
+    if(GetNetMode()!=NM_Client){ServerTick();}else{ClientTick();}
 #endif
 }
 void ALDObjectiveNetworkProbe::Finish()

@@ -43,6 +43,8 @@ public:
     bool bPublicationEnabled = true;
     uint32 Generation = 1;
     TArray<FLDSightSource> SourcesFor(ALDPlayerController* Controller) const;
+    double LastSampleMs=0;
+    uint64 SampleSerial=0;
     static FVector PublicPosition() { return FVector(1200,1000,0); }
 private:
     struct FObserver

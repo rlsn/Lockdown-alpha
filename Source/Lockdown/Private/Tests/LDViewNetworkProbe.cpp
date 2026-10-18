@@ -184,7 +184,7 @@ void ALDViewNetworkProbe::Tick(float Delta)
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
     if(FPlatformTime::Seconds()-Started>55){Check(false,TEXT("Probe timed out before complete network evidence"));Finish();return;}
-    if(GetNetMode()==NM_DedicatedServer){ServerTick();} else if(GetNetMode()==NM_Client){ClientTick();}
+    if(GetNetMode()!=NM_Client){ServerTick();} else {ClientTick();}
 #endif
 }
 void ALDViewNetworkProbe::Finish()

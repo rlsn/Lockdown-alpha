@@ -138,7 +138,9 @@ void ALDObjectiveProbe::Run()
     Check(GS->EndReason==1&&GS->WinningRoute==LDObjective::SealRoute&&GS->ResultSerial==1&&PC->OwnerState.bWinner,TEXT("Uninterrupted ten-second claim commits one winning receipt"));
     Check(Item->State==2&&!PC->OwnerState.SealId.IsValid(),TEXT("Seal-route victory consumes exactly the winning item"));
     const auto Receipt=GS->ResultReceipt;Director->Sample(Now+100);Check(GS->ResultReceipt==Receipt&&GS->ResultSerial==1,TEXT("Later samples cannot replace terminal result"));
-    Check(!C->RequestBody(Cast<ALDCharacter>(PC->GetPawn()),0,FVector::ForwardVector,Reason),TEXT("Competitive combat is rejected after result"));Finish();
+    Check(!C->RequestBody(Cast<ALDCharacter>(PC->GetPawn()),0,FVector::ForwardVector,Reason),TEXT("Competitive combat is rejected after result"));
+    FString JoinError;Mode->PreLogin(TEXT(""),TEXT("127.0.0.1"),FUniqueNetIdRepl(),JoinError);
+    Check(JoinError==TEXT("Demo finished. Host a new run.")&&GS->ResultReceipt==Receipt,TEXT("Finished rooms reject new connections before a fresh pawn can bypass the freeze"));Finish();
 }
 void ALDObjectiveProbe::Tick(float Delta)
 {

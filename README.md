@@ -4,11 +4,11 @@ Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); release scope and gates
 live in [docs/v03](docs/v03/README.md).
 
-**Current checkpoint: B35 representative interactions. Courier collection and
-paid delivery, real Seal carry/drop/theft and both ten-second Heart claim routes
-build on native combat, life, owner-only observation and fog.** See [checkpoint](docs/B35_CHECKPOINT.md),
+**Current checkpoint: B36 packaging and verification. The Windows Development
+package includes courier work, Seal theft, Heart claims, combat/life and private
+observation.** See [checkpoint](docs/B36_CHECKPOINT.md),
 [tests](docs/TestReport.md) and [continuation](docs/CONTINUATION.md).
-Packaging, reset/isolation and full acceptance remain B36.
+Human usability acceptance and conditional dedicated-server delivery remain separate.
 
 ## Setup
 
@@ -40,6 +40,8 @@ Packaging, reset/isolation and full acceptance remain B36.
 ./Scripts/RunCombatNetworkCheck.ps1 -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunObjectiveCheck.ps1
 ./Scripts/RunObjectiveNetworkCheck.ps1 -RoundTripMs 150 -JitterMs 25
+./Scripts/RunResetCheck.ps1
+./Scripts/PackageWin64.ps1
 ./Scripts/OpenEditor.ps1
 ```
 
@@ -57,10 +59,18 @@ missing assets and validates existing ones; `-Mode Validate` writes no assets;
 `-Mode Regenerate` explicitly replaces generated packages under
 `/Game/Lockdown/Generated/`. Keep hand-authored assets outside that directory.
 
-After runtime implementation and bootstrap validation, `PackageWin64.ps1` will
-invoke BuildCookRun and retain a separate Development archive for each run.
-Packaging has not run. A packaged dedicated server is conditional on a compatible
-source-engine build; the installed-engine lane is not claimed to support it.
+`PackageWin64.ps1` runs BuildCookRun and retains a separate Development archive
+and source/payload hash manifest for each run. It uses file-backed cooked output
+and IoStore/pak containers. Open the archive with `OpenPackaged.ps1 -PackageRoot
+'<archive>'`; the three network runners also accept `-PackageRoot`. Their packaged
+server is a headless listen authority with two remote clients, not a dedicated
+Server target. `RunSoakCheck.ps1 -PackageRoot '<archive>'` measures the small slice
+for ten minutes with one rendered 1080p client. See the report for actual results.
+A packaged dedicated server remains conditional on a compatible source engine.
+
+`VerifyCleanCheckout.ps1` checks a committed local clone with assets hydrated from
+the local LFS cache, both native builds, asset validation and rule tests. No hosting
+remote is configured, so remote Git/LFS distribution is not certified.
 
 ## Baseline
 

@@ -1,11 +1,9 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateSet('All','Assault','Seal')][string]$Scenario='All',[ValidateRange(1024,65000)][int]$Port=7791,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[switch]$Rendered,[ValidateSet('A','B')][string]$RenderRole='A')
+param([string]$EngineRoot,[string]$PackageRoot,[ValidateSet('All','Assault','Seal')][string]$Scenario='All',[ValidateRange(1024,65000)][int]$Port=7791,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[switch]$Rendered,[ValidateSet('A','B')][string]$RenderRole='A')
 . (Join-Path $PSScriptRoot 'Common.ps1')
-$engine=Resolve-LDEngine $EngineRoot
-Assert-LDEditorModules
-$output=New-LDArtifactDirectory "ObjectiveNetwork-$RoundTripMs-$JitterMs"
-$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$editor=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe'
+if($PackageRoot){$package=Resolve-LDPackage $PackageRoot;$editor=$package.Binary;$project='';$lane='Packaged-'}
+else{$engine=Resolve-LDEngine $EngineRoot;Assert-LDEditorModules;$editor=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe';$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject';$lane=''}
+$output=New-LDArtifactDirectory "$($lane)ObjectiveNetwork-$RoundTripMs-$JitterMs"
 $minimum=[Math]::Max(0,[int]($RoundTripMs/2)-$JitterMs)
 $maximum=[int]($RoundTripMs/2)+$JitterMs
 $scenarios=if($Scenario -eq 'All'){@('Assault','Seal')}else{@($Scenario)}
@@ -17,8 +15,10 @@ foreach($testCase in $scenarios) {
         foreach($role in @('Server','A','B')) {
             $world=if($role -eq 'Server'){'/Game/Lockdown/Generated/Maps/L_MigrationSandbox'}else{"127.0.0.1:$Port`?Name=Objective$role"}
             $mode=if($role -eq 'Server'){'-server'}else{'-game'}
+            if($PackageRoot -and $role -eq 'Server'){$world+='?listen';$mode='-game -LDRemoteAuthority'}
             $surface=if($Rendered -and $role -eq $RenderRole){if($role -eq 'A'){'-windowed -ResX=1280 -ResY=720'}else{'-windowed -ResX=1920 -ResY=1080'}}else{'-nullrhi -unattended'}
             $arguments='"{0}" {1} {2} -port={3} {4} -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="t.MaxFPS 60" -LDObjectiveNetProbe -LDObjectiveScenario={5} -PktLagMin={6} -PktLagMax={7} -LDExpectedRTT={8} -LDProbeRole={9} -LDProbeReportDir="{10}" -abslog="{11}"' -f $project,$world,$mode,$Port,$surface,$testCase,$minimum,$maximum,$RoundTripMs,$role,$directory,(Join-Path $directory "$role.log")
+            if($PackageRoot){$arguments=$arguments.Substring(3)}
             $style=if($Rendered -and $role -eq $RenderRole){'Normal'}else{'Hidden'}
             $ownedProcesses+=Start-Process -FilePath $editor -ArgumentList $arguments -WindowStyle $style -PassThru
             if($role -eq 'Server'){Start-Sleep -Seconds 3}

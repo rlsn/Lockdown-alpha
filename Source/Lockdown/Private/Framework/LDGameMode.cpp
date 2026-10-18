@@ -20,6 +20,8 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Tests/LDObjectiveProbe.h"
 #include "Tests/LDObjectiveNetworkProbe.h"
+#include "Tests/LDResetProbe.h"
+#include "Tests/LDSoakProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -62,6 +64,11 @@ FVector ALDGameMode::TakeSpawn()
 
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
+#if !UE_BUILD_SHIPPING
+    // A packaged Game target uses a headless listen world for the two-remote-client
+    // topology. Its local connection is diagnostic infrastructure, not a contender.
+    if(bScaffoldProfile&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+#endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
 }
@@ -77,7 +84,7 @@ void ALDGameMode::StartPlay()
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
-    { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get())) { SyncOwner(PC); Vision->Register(PC); } }
+    { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get());PC&&StateFor(PC)) { SyncOwner(PC); Vision->Register(PC); } }
     if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
     {
         for (TActorIterator<ANavMeshBoundsVolume> It(GetWorld()); It; ++It) { Nav->OnNavigationBoundsUpdated(*It); }
@@ -95,7 +102,15 @@ void ALDGameMode::StartPlay()
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){GetWorld()->SpawnActor<ALDCombatNetworkProbe>();}
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveProbe"))){GetWorld()->SpawnActor<ALDObjectiveProbe>();}
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))){GetWorld()->SpawnActor<ALDObjectiveNetworkProbe>();}
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDResetProbe"))){GetWorld()->SpawnActor<ALDResetProbe>();}
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))){GetWorld()->SpawnActor<ALDSoakProbe>();}
 #endif
+}
+
+void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage)
+{
+    Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
+    if(IsFinished()){ErrorMessage=TEXT("Demo finished. Host a new run.");}
 }
 
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)
@@ -103,6 +118,9 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     Super::PostLogin(NewPlayer);
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
+#if !UE_BUILD_SHIPPING
+        if(bScaffoldProfile&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+#endif
         FLDContenderRecord Record; Record.Session=FGuid::NewGuid();
         Contenders.Add(PC,Record); SyncOwner(PC); if (Vision) { Vision->Register(PC); }
     }

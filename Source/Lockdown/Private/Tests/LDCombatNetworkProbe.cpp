@@ -163,7 +163,7 @@ void ALDCombatNetworkProbe::Tick(float Delta)
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
     if(FPlatformTime::Seconds()-Started>75){Check(false,TEXT("Combat network probe timed out"));Finish();return;}
-    if(GetNetMode()==NM_DedicatedServer){ServerTick();}else if(GetNetMode()==NM_Client){ClientTick();}
+    if(GetNetMode()!=NM_Client){ServerTick();}else{ClientTick();}
 #endif
 }
 void ALDCombatNetworkProbe::Finish()

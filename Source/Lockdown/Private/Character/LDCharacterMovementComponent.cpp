@@ -1,6 +1,13 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/RootMotionSource.h"
+#include "Components/SceneComponent.h"
+
+void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
+{
+    ++CorrectionCount;if(!bBaseRelativePosition&&UpdatedComponent){MaxCorrectionCm=FMath::Max(MaxCorrectionCm,FVector::Distance(UpdatedComponent->GetComponentLocation(),NewLocation));}
+    Super::OnClientCorrectionReceived(ClientData,TimeStamp,NewLocation,NewVelocity,NewBase,NewBaseBoneName,bHasBase,bBaseRelativePosition,ServerMovementMode,ServerGravityDirection);
+}
 
 namespace
 {

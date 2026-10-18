@@ -158,7 +158,7 @@ void ALDVisionDirector::Tick(float Delta)
     NextSample=Now+.05;
     const bool bPublish=Now>=NextPublish;
     if (bPublish) { NextPublish=Now+.1; }
-    Sample(bPublish && bPublicationEnabled);
+    const double Begin=FPlatformTime::Seconds();Sample(bPublish && bPublicationEnabled);LastSampleMs=(FPlatformTime::Seconds()-Begin)*1000;++SampleSerial;
 }
 void ALDVisionDirector::Sample(bool bPublish)
 {

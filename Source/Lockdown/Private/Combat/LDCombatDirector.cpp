@@ -238,6 +238,6 @@ void ALDCombatDirector::Tick(float Delta)
     if(Now>=NextSample)
     {
         if(NextSample>0&&Now-NextSample>.1){UE_LOG(LogTemp,Warning,TEXT("LD authority combat sample late by %.3fs; sampling current pose once"),Now-NextSample);}
-        NextSample=Now+.05;Sample(Now);
+        NextSample=Now+.05;const double Begin=FPlatformTime::Seconds();Sample(Now);LastSampleMs=(FPlatformTime::Seconds()-Begin)*1000;++SampleSerial;
     }
 }

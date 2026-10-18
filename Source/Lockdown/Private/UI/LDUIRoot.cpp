@@ -155,16 +155,16 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
     {
         const ALDCharacter* Body=Cast<ALDCharacter>(PC->GetPawn());
         const auto& O=PC->OwnerState;
+        const auto* GS=GetWorld()->GetGameState<ALDGameState>();
         const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
         const ALDWorldViewRelay* Relay=PC->LocalView();
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
         FString Life=O.bActive?FString::Printf(TEXT("HP %d/100 · Speed %.0f · Ward %d"),O.Hp,Body?Body->GetVelocity().Size2D():0,O.WardCharges)
-            :FString::Printf(TEXT("DEAD · Lost %lld gold · Return in %.1fs · Owned wards and shared sight only"),O.LastLostGold,FMath::Max(0.,O.ReturnAt-Now));
+            :(GS&&GS->EndReason?FString::Printf(TEXT("DEAD · Lost %lld gold · Demo finished"),O.LastLostGold):FString::Printf(TEXT("DEAD · Lost %lld gold · Return in %.1fs · Owned wards and shared sight only"),O.LastLostGold,FMath::Max(0.,O.ReturnAt-Now)));
         FString Danger=Now<O.WarningUntil?TEXT("DANGER: ASSASSINATION · Turn, escape, dash or deal damage!")
             :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
                 :(Now<O.DamageUntil?FString::Printf(TEXT("HIT · Anonymous incoming sector %d/8 (world +X=0, toward +Y)"),O.IncomingSector):PC->IntentFeedback));
         Status->SetColorAndOpacity(Now<O.WarningUntil?FLinearColor(1,.35f,.2f):FLinearColor(.88f,.9f,.82f));
-        const auto* GS=GetWorld()->GetGameState<ALDGameState>();
         FString Public=TEXT("Heart unavailable");
         if(GS)
         {

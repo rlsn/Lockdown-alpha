@@ -1,7 +1,8 @@
-# Continuation checkpoint - 18 October 2026
+# Continuation checkpoint - 19 October 2026
 
-Current stage: B35 representative interactions. See B35_CHECKPOINT.md and
-TestReport.md for implementation boundaries and executed evidence. B36 is next.
+Current stage: B36 package and engineering verification. See B36_CHECKPOINT.md
+and TestReport.md for exact package paths, measured results and remaining gates.
+Human usability review remains distinct from scripted engineering checks.
 
 ## Current architecture
 
@@ -27,11 +28,12 @@ seven-part body and status marker render all roles; effects stay inside views.
 
 ## Next stage
 
-B36: cook a Windows Development game, run independent packaged clients, verify
-fresh-world/reset isolation, broaden delay/performance evidence and complete human
-readability review. Installed-engine dedicated packaging remains conditional on
-a compatible source-engine lane. Keep full profession/crafting, tower progression,
-population and economy outside the claimed migrated slice.
+Finish any open engineering gate recorded in TestReport.md, then conduct B37's
+human comparison of movement, aim, threat warning, fog and interaction feedback
+at720p/1080p before expanding gameplay. The installed-engine packaged topology is
+a headless listen authority plus two remote clients. A dedicated Server target
+remains conditional on a compatible source engine. Full profession/crafting,
+tower progression, population and economy remain outside the migrated slice.
 
 B35 transactions run after damage/deaths and before claims/deadline. Acquisition
 and defence changes are labelled local-authority fixtures; pickup/drop/theft are
@@ -53,6 +55,12 @@ Their small action samples do not establish a performance distribution. The obje
 arbitration fixture pauses one sample deliberately; exclude that setup from any
 future normal-play latency certification. Do not run builds alongside runtime
 probes: engine startup's platform validation also needs the UBT mutex.
+The network runners accept -PackageRoot for cooked clients/authority. Use
+RunResetCheck.ps1 for ten world reloads, RunSoakCheck.ps1 for the ten-minute small
+slice measurement, and VerifyCleanCheckout.ps1 on a committed tree for a fresh local
+clone/build/asset/rule check. Do not run builds or other game tests during the
+certified soak. Package manifests retain source and payload hashes. File-backed
+cook output avoids the observed Zen staging failure while retaining IoStore/pak.
 Keep a runnable checkpoint.
 Validate does not write packages; Regenerate is explicit. Hand-authored assets
 belong outside /Game/Lockdown/Generated/. The web baseline stays unmodified at

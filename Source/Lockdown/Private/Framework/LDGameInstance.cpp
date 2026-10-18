@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "Tests/LDResetProbe.h"
 
 void ULDGameInstance::Init()
 {

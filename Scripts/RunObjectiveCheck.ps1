@@ -11,7 +11,7 @@ foreach($scenario in @('Main','ExactDeadline','LateClaim','NoClaim','Withdraw'))
     if(-not $process.WaitForExit($TimeoutSeconds*1000)){$process.Kill();throw "Objective $scenario timed out: $output"}
     if($process.ExitCode -ne 0 -or -not(Test-Path -LiteralPath $reportPath)){throw "Objective $scenario failed or omitted report: $output"}
     $report=Get-Content -LiteralPath $reportPath -Raw|ConvertFrom-Json
-    $required=if($scenario -eq 'Main'){52}elseif($scenario -eq 'Withdraw'){5}else{3}
+    $required=if($scenario -eq 'Main'){53}elseif($scenario -eq 'Withdraw'){5}else{3}
     if($report.failures -ne 0 -or @($report.checks).Count -lt $required){$report.checks|Write-Host;throw "Objective $scenario evidence failed or incomplete: $reportPath"}
     Write-Host "$scenario passed $(@($report.checks).Count) checks"
 }

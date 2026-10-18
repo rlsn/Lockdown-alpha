@@ -45,6 +45,8 @@ public:
     uint8 CueFor(const ALDCharacter* Body) const;
     double ExposedFor(const ALDCharacter* Body) const;
     void Sample(double Now);
+    double LastSampleMs=0;
+    uint64 SampleSerial=0;
 private:
     struct FResidentReturn { double At; FVector Home; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
