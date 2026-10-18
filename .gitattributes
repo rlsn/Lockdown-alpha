@@ -1,3 +1,6 @@
 # Store Unreal binary packages through Git LFS as content is added.
 *.uasset filter=lfs diff=lfs merge=lfs -text
 *.umap filter=lfs diff=lfs merge=lfs -text
+
+# Generated package signatures hash this layout text; keep checkout bytes stable.
+/Config/BootstrapLayout.json text eol=lf
