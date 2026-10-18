@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generatorVersion": "b31.1",
+  "profile": "MigrationScaffold",
+  "geometry": [
+    { "label": "Ground", "mesh": "Cube", "location": [0, 0, -20], "size": [4800, 3200, 40] },
+    { "label": "Plateau", "mesh": "Cube", "location": [1000, -400, 90], "size": [800, 800, 220] },
+    { "label": "Ramp", "mesh": "Cube", "location": [400, -400, 90], "size": [447.2136, 300, 20], "pitch": 26.565051 },
+    { "label": "CoverWest", "mesh": "Cube", "location": [-900, -450, 150], "size": [400, 50, 300] },
+    { "label": "CoverEast", "mesh": "Cube", "location": [1650, 550, 150], "size": [50, 500, 300] },
+    { "label": "TreeWest", "mesh": "Cylinder", "location": [-1200, 500, 200], "size": [120, 120, 400] },
+    { "label": "TreeEast", "mesh": "Cylinder", "location": [1550, -950, 200], "size": [120, 120, 400] },
+    { "label": "BoundaryNorth", "mesh": "Cube", "location": [0, 1625, 100], "size": [4900, 50, 200] },
+    { "label": "BoundarySouth", "mesh": "Cube", "location": [0, -1625, 100], "size": [4900, 50, 200] },
+    { "label": "BoundaryWest", "mesh": "Cube", "location": [-2425, 0, 100], "size": [50, 3200, 200] },
+    { "label": "BoundaryEast", "mesh": "Cube", "location": [2425, 0, 100], "size": [50, 3200, 200] }
+  ]
+}

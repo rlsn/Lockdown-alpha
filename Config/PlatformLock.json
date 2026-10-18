@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "project": "Lockdown",
+  "engine": {
+    "major": 5,
+    "minor": 8,
+    "patch": 3,
+    "changelist": 58210709,
+    "distribution": "Epic installed build",
+    "branch": "++UE5+Release-5.8"
+  },
+  "target": "Win64",
+  "configuration": "Development",
+  "baselineRevision": "74d3d3e",
+  "toolchain": {
+    "preferredFamily": "MSVC 14.50",
+    "minimumUnbannedVersionInPreferredFamily": "14.50.35723",
+    "observedCompilerVersion": "14.50.35721",
+    "observedWindowsSdk": "10.0.22621.0",
+    "verifiedBuild": false
+  },
+  "plugins": {
+    "runtime": ["EnhancedInput"],
+    "editor": ["ModelingToolsEditorMode", "ModelContextProtocol", "AllToolsets"]
+  },
+  "dedicatedServer": "Conditional: installed engine; source-build lane not validated"
+}

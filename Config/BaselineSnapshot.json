@@ -1,0 +1,737 @@
+{
+  "schemaVersion": 1,
+  "baselineRevision": "74d3d3e884bf4d8130e1596148b45e50a409039c",
+  "constants": {
+    "version": "0.2.0-proposal.1",
+    "protocol": 2,
+    "tickMs": 50,
+    "snapshotEvery": 2,
+    "width": 2400,
+    "height": 1600,
+    "radius": 14,
+    "cell": 40,
+    "sight": 360,
+    "disturbance": 300,
+    "panicRange": 220,
+    "walk": 90,
+    "sprint": 150,
+    "inputExpiry": 5,
+    "exposure": 80,
+    "quiet": 20,
+    "alert": 80,
+    "basicWindup": 3,
+    "basicCadence": 15,
+    "basicReach": 48,
+    "basicCone": 40,
+    "basicDamage": 20,
+    "assassinateWindup": 10,
+    "recovery": 5,
+    "assassinateReach": 56,
+    "assassinateCone": 30,
+    "rearCone": 60,
+    "assassinateDamage": 60,
+    "assassinateCooldown": 360,
+    "patienceCooldown": 300,
+    "dashDuration": 4,
+    "dashDistance": 180,
+    "dashCooldown": 140,
+    "recoveryCooldown": 120,
+    "healDuration": 20,
+    "healAmount": 30,
+    "medkitCost": 30,
+    "purchaseCap": 2,
+    "shopRange": 60,
+    "killerHp": 100,
+    "civilianHp": 40,
+    "killers": 8,
+    "civilians": 24,
+    "creditWindow": 120,
+    "civilianXp": 0,
+    "civilianGold": 0,
+    "killerXp": 40,
+    "killerGold": 30,
+    "thresholds": [
+      30,
+      80
+    ],
+    "deadline": 14400,
+    "showdown": 9600,
+    "protection": 80,
+    "corpseDuration": 400,
+    "wardRadius": 280,
+    "wardDuration": 1200,
+    "wardCost": 25,
+    "wardCap": 2,
+    "wardPurchaseCap": 8,
+    "wardCooldown": 20,
+    "towerRadius": 300,
+    "towerReach": 240,
+    "towerDamage": 12,
+    "towerWindup": 6,
+    "towerCadence": 20,
+    "towerReaction": 10,
+    "claimDuration": 200,
+    "claimRange": 60,
+    "contestRange": 120,
+    "heartSight": 180,
+    "heartLinger": 40,
+    "workDuration": 60,
+    "workCooldown": 400,
+    "craftDuration": 80,
+    "sealCost": 150,
+    "pickupRange": 40,
+    "fountainRadius": 80,
+    "fountainQuiet": 100,
+    "fountainHeal": 12,
+    "publicExposure": 240,
+    "campReturn": 1500,
+    "campBuff": 900,
+    "campReset": 160,
+    "marketInterval": 1800,
+    "repeatReward": 1800,
+    "respawnReward": 200,
+    "reconnectSeconds": 10,
+    "countdownMs": 5000,
+    "aiInterval": 5,
+    "reaction": 5,
+    "panicDuration": 60,
+    "maxIds": 4096
+  },
+  "map": {
+    "version": "plaza-2",
+    "walls": [
+      {
+        "x": 240,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      }
+    ],
+    "trees": [
+      {
+        "x": 600,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 680,
+        "y": 440,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 1760,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 2000,
+        "y": 480,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 920,
+        "y": 1200,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 1400,
+        "y": 1360,
+        "w": 80,
+        "h": 40
+      }
+    ],
+    "heights": [
+      {
+        "x": 640,
+        "y": 560,
+        "w": 160,
+        "h": 160
+      },
+      {
+        "x": 1600,
+        "y": 560,
+        "w": 160,
+        "h": 160
+      },
+      {
+        "x": 1000,
+        "y": 1440,
+        "w": 160,
+        "h": 120
+      }
+    ],
+    "ramps": [
+      {
+        "x": 680,
+        "y": 680,
+        "w": 80,
+        "h": 80
+      },
+      {
+        "x": 1640,
+        "y": 680,
+        "w": 80,
+        "h": 80
+      },
+      {
+        "x": 1040,
+        "y": 1400,
+        "w": 80,
+        "h": 80
+      }
+    ],
+    "towers": [
+      {
+        "id": "outer-west",
+        "x": 500,
+        "y": 400,
+        "hp": 360,
+        "central": false
+      },
+      {
+        "id": "outer-east",
+        "x": 1900,
+        "y": 400,
+        "hp": 360,
+        "central": false
+      },
+      {
+        "id": "outer-south",
+        "x": 1200,
+        "y": 1300,
+        "hp": 360,
+        "central": false
+      },
+      {
+        "id": "central",
+        "x": 1200,
+        "y": 600,
+        "hp": 600,
+        "central": true
+      }
+    ],
+    "blockers": [
+      {
+        "x": 240,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 600,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 680,
+        "y": 440,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 1760,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 2000,
+        "y": 480,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 920,
+        "y": 1200,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 1400,
+        "y": 1360,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 476,
+        "y": 376,
+        "w": 48,
+        "h": 48
+      },
+      {
+        "x": 1876,
+        "y": 376,
+        "w": 48,
+        "h": 48
+      },
+      {
+        "x": 1176,
+        "y": 1276,
+        "w": 48,
+        "h": 48
+      },
+      {
+        "x": 1176,
+        "y": 576,
+        "w": 48,
+        "h": 48
+      }
+    ],
+    "sightBlockers": [
+      {
+        "x": 240,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 240,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 240,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 580,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 240,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 480,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1340,
+        "w": 180,
+        "h": 20
+      },
+      {
+        "x": 1640,
+        "y": 1000,
+        "w": 20,
+        "h": 100
+      },
+      {
+        "x": 1640,
+        "y": 1240,
+        "w": 20,
+        "h": 120
+      },
+      {
+        "x": 600,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 680,
+        "y": 440,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 1760,
+        "y": 280,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 2000,
+        "y": 480,
+        "w": 80,
+        "h": 40
+      },
+      {
+        "x": 920,
+        "y": 1200,
+        "w": 40,
+        "h": 80
+      },
+      {
+        "x": 1400,
+        "y": 1360,
+        "w": 80,
+        "h": 40
+      }
+    ],
+    "shops": [
+      {
+        "id": "shop-west",
+        "x": 800,
+        "y": 800
+      },
+      {
+        "id": "shop-east",
+        "x": 1600,
+        "y": 800
+      }
+    ],
+    "fountains": [
+      {
+        "id": "fountain-west",
+        "x": 650,
+        "y": 800
+      },
+      {
+        "id": "fountain-east",
+        "x": 1750,
+        "y": 800
+      }
+    ],
+    "guild": {
+      "id": "guild",
+      "x": 1000,
+      "y": 750
+    },
+    "stations": [
+      {
+        "id": "work-west",
+        "x": 560,
+        "y": 400
+      },
+      {
+        "id": "work-east",
+        "x": 1840,
+        "y": 400
+      },
+      {
+        "id": "work-south",
+        "x": 1260,
+        "y": 1300
+      }
+    ],
+    "camps": [
+      {
+        "id": "camp-west",
+        "x": 450,
+        "y": 1100
+      },
+      {
+        "id": "camp-east",
+        "x": 1950,
+        "y": 1100
+      },
+      {
+        "id": "camp-north",
+        "x": 1200,
+        "y": 200
+      }
+    ],
+    "pads": [
+      {
+        "x": 300,
+        "y": 800
+      },
+      {
+        "x": 2100,
+        "y": 800
+      },
+      {
+        "x": 650,
+        "y": 1350
+      },
+      {
+        "x": 1750,
+        "y": 1390
+      }
+    ],
+    "centre": {
+      "x": 1200,
+      "y": 800
+    },
+    "spawns": [
+      {
+        "x": 400,
+        "y": 400
+      },
+      {
+        "x": 1200,
+        "y": 400
+      },
+      {
+        "x": 2000,
+        "y": 400
+      },
+      {
+        "x": 400,
+        "y": 800
+      },
+      {
+        "x": 2000,
+        "y": 800
+      },
+      {
+        "x": 400,
+        "y": 1200
+      },
+      {
+        "x": 1200,
+        "y": 1200
+      },
+      {
+        "x": 2000,
+        "y": 1200
+      }
+    ]
+  },
+  "conversion": {
+    "centimetresPerPixel": 2,
+    "originPixel": [
+      1200,
+      800
+    ],
+    "invertY": true,
+    "visionLevelHeightCm": 200
+  },
+  "sourceHashes": {
+    "packages/shared/config.ts": "46beb3105c77399303b2f85b94ff6951fcc63e2293dc5a5a7745939d62b6a4aa",
+    "packages/shared/map.ts": "97f6d07d553c4558741f0080bf05e4013c87c7d98f4a63b7299eb893d924d6df",
+    "packages/simulation/life.ts": "f89d532e68c469c4da2d3db6a6022ae63efc4240c61ca922ef5395c1b904ea77",
+    "packages/simulation/vision.ts": "b75dcc6a6d755ba0c0d3d2927f60d2eac91e4de93ef4c6eb2b3c6b1a0c907241",
+    "packages/simulation/objectives.ts": "7d47167608bdac605c85f30550b87aade6f60e606a1a1e986865853b74e3b7b1",
+    "packages/simulation/match.ts": "b0794e0ec6967b2c8f41562b12dcea91c6c714292b09501f05b50741e388211b"
+  }
+}

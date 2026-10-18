@@ -2,7 +2,19 @@
 	"FileVersion": 3,
 	"EngineAssociation": "{0FFF2E36-4EA4-C724-DF09-D3862F0A5FF0}",
 	"Category": "",
-	"Description": "",
+	"Description": "Project Lockdown v0.3 Unreal migration scaffold",
+	"Modules": [
+		{
+			"Name": "Lockdown",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "LockdownEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",
@@ -13,6 +25,16 @@
 		},
 		{
 			"Name": "ModelContextProtocol",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "AllToolsets",
+			"Enabled": true,
+			"TargetAllowList": ["Editor"]
+		},
+		{
+			"Name": "EnhancedInput",
 			"Enabled": true
 		}
 	]

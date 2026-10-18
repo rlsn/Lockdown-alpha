@@ -1,5 +1,22 @@
 # Unreal MCP connection test
 
+## Follow-up after AllToolsets restart
+
+Retested on 18 October 2026 after the owner enabled AllToolsets and restarted
+Unreal. Discovery now returns **67 toolsets**, including native editor state,
+scene/actor/assets, Blueprint/material tools, Slate inspection and automation.
+Read-only `EditorAppToolset.IsPIERunning` returned false; `GetCameraTransform`
+returned the live viewport pose; `GetVisibleActors` returned 131 actor references
+from the temporary Untitled world. No scene or asset changes were made.
+
+Direct MCP HTTP access is confirmed. Native tool registration in this chat is
+still absent; calls use the session-based HTTP transport. The one-toolset limit
+in the initial report below is historical and resolved by restarting the editor.
+Later B31 source work converted the project declaration to C++ modules; the
+Blueprint-only observation below describes the earlier connection test.
+
+## Initial connection test
+
 Test date: 18 October 2026 (Asia/Shanghai).
 
 ## Result
