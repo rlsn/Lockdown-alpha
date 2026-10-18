@@ -1,7 +1,7 @@
 # Runtime architecture and boundaries
 
-B32 supplies native movement; B33 adds private observation. See B33_CHECKPOINT.md
-for the wire format, source policy and executed privacy evidence.
+B32 supplies native movement; B33 adds private observation; B34 adds combat and
+life. See B33_CHECKPOINT.md and B34_CHECKPOINT.md for boundaries and evidence.
 
 ## Implemented
 
@@ -11,7 +11,7 @@ for the wire format, source policy and executed privacy evidence.
 - LockdownEditor owns bootstrap and package-save APIs; UnrealEd/UMGEditor stay
   in editor dependencies.
 - ALDCharacter uses a 28 cm radius, 90 cm half-height capsule and a shared
-  seven-part humanoid. ULDCharacterMovementComponent carries sprint through
+  seven-part humanoid plus a role-neutral status marker. ULDCharacterMovementComponent carries sprint through
   saved moves and a compressed flag. Walk/sprint speeds are 180/300 cm/s.
 - ALDPlayerController handles camera-relative input, finite yaw intent and
   walkable LDGroundAim traces. Menu/focus changes clear movement and sprint.
@@ -25,10 +25,9 @@ for the wire format, source policy and executed privacy evidence.
   and AI controllers do not replicate. B33 supplies owner relays, neutral proxies,
   source union, explored fog and a private ward.
 
-Four rule cases cover conversion, death arithmetic, objective boundaries and
-view ordering. A non-shipping command-line probe drives actual Character Movement
-against saved collision, ramps and asynchronous navigation. It does not measure
-rendering performance or real network latency.
+Seven rule cases cover spatial/death/objective arithmetic, view ordering, bounded
+serialization, privacy schema and combat geometry. Separate non-shipping probes
+exercise movement/navigation, combat physics and restricted-client network flows.
 
 ## Generated content
 
@@ -43,7 +42,7 @@ LDGroundAim and LDVision separate walkable aim surfaces and opaque blockers.
 The controller rejects steep aim normals. Collision channels alone do not
 implement logical elevation or visibility policy.
 
-## B33 observation and next gate
+## Observation and combat
 
 ALDVisionDirector samples after physics and constructs each connection's permitted
 view. ALDWorldViewRelay sends bounded full views and reliable concealment.
@@ -53,5 +52,12 @@ public sensor availability stays on GameState. The postprocess mask and minimap
 use received current/explored cells. Canonical meshes on a listen host are hidden
 except its own body, so the host also renders observed crowd proxies.
 
-B34 adds combat/life through these existing boundaries. No GAS, online account
-service, custom Replication Graph or second fog/filter framework was introduced.
+ALDCombatDirector owns private body combat state, a bounded priority intent queue,
+due impact collection, simultaneous damage and resident returns. ALDGameMode owns
+persistent contender records and one-time death/return receipts. Vision ticks after
+combat. Dash uses a server root-motion source in Character Movement. The controller
+replicates only private self state and revisioned reliable life/warning receipts.
+Corpses remain server-only and enter views as neutral presentation records.
+
+No GAS, online account service, custom Replication Graph or second fog/filter
+framework was introduced. B35 transactions are the next implementation gate.

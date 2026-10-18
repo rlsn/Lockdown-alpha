@@ -8,6 +8,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "Combat/LDCombatDirector.h"
 
 ALDWard::ALDWard()
 {
@@ -117,6 +118,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     FLDOwnerState* State=Mode ? Mode->StateFor(PC) : nullptr;
     const APawn* Body=PC ? PC->GetPawn() : nullptr;
     if (!State || !Body || !State->bActive || !State->WardCharges) { Reason=TEXT("No ward charge or active body."); return false; }
+    if(GetWorld()->GetTimeSeconds()<State->ProtectedUntil||(State->ActionCue&15)){Reason=TEXT("Ward blocked during protection or a combat action.");return false;}
     if (!LDVision::InWorld(Desired) || FVector::DistSquared2D(Desired,Body->GetActorLocation())>96*96) { Reason=TEXT("Place within 96 cm of your body."); return false; }
     int32 Active=0;
     for (const auto& Weak : Wards) { if (Weak.IsValid() && Weak->Controller==PC && Weak->Hp>0 && Weak->ExpiresAt>GetWorld()->GetTimeSeconds()) { ++Active; } }
@@ -168,6 +170,7 @@ void ALDVisionDirector::Sample(bool bPublish)
         }
     }
     for (auto Weak : Wards) { if (Weak.IsValid()) { Entities.Add(Weak.Get()); } }
+    for(TActorIterator<ALDCorpse> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
     {
         ALDPlayerController* PC=Pair.Key.Get(); FObserver& Observer=Pair.Value;
@@ -201,7 +204,12 @@ void ALDVisionDirector::Sample(bool bPublish)
             FLDObservedEntity Record; Record.Id=Id; Record.Position=Position;
             Record.Facing=uint16(FRotator::ClampAxis(Actor->GetActorRotation().Yaw)/360.0*65535);
             Record.Speed=uint16(FMath::Clamp(Actor->GetVelocity().Size2D(),0.,1000.));
-            if (const ALDCharacter* Body=Cast<ALDCharacter>(Actor)) { Record.Presentation=Body->PresentationKey%4; }
+            if (const ALDCharacter* Body=Cast<ALDCharacter>(Actor))
+            {
+                Record.Presentation=Body->PresentationKey%4;
+                if(const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Record.ActionCue=Mode->Combat->CueFor(Body);Record.ExposedUntil=float(Mode->Combat->ExposedFor(Body));}}
+            }
+            else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
             else { Record.Kind=ELDObservedKind::Ward; }
             View.Entities.Add(Record); Visible.Add(Id);
         }

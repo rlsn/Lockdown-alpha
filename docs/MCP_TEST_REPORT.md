@@ -1,5 +1,13 @@
 # Unreal MCP connection test
 
+## B34 follow-up
+
+After the B34 cold builds and runtime checks, the normal editor reopened on
+L_MigrationSandbox with All Saved. Direct HTTP initialization, 67-toolset discovery,
+EditorAppToolset.IsPIERunning=false and GetCameraTransform succeeded again.
+The editor viewport was framed to a map overview through SetCameraTransform;
+no map or asset package was changed. Local evidence: Artifacts/B34-MCP/.
+
 ## Follow-up after AllToolsets restart
 
 Retested on 18 October 2026 after the owner enabled AllToolsets and restarted

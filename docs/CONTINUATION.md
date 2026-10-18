@@ -1,8 +1,7 @@
 # Continuation checkpoint - 18 October 2026
 
-Current stage: B33 observation foundation. See B33_CHECKPOINT.md and TestReport.md
-for implementation boundaries and the latest executed evidence. B34 combat/life
-is next, after confirming the B33 checks on the current build.
+Current stage: B34 combat and life. See B34_CHECKPOINT.md and TestReport.md for
+implementation boundaries and executed evidence. B35 transactions are next.
 
 ## Current architecture
 
@@ -13,27 +12,37 @@ Full views replace state, reliable concealment is revisioned, and a 250 ms
 receive gap clears dynamic proxies. Fog and minimap distinguish current,
 explored and unknown cells. Camera adds no source.
 
-Six native rule/view tests, the movement probe and the three-process network
-probe are the repeatable checks. Generated content has 23 real packages and
+Seven native rule/view/combat tests, movement and combat world probes, and the
+three-process view/combat network probes are repeatable checks. Generated content has 23 real packages and
 12 authored meshes per map. Validate also checks sight/aim collision and the
 plateau's logical-elevation tag. OpenStandalone.ps1 provides an interactive
 uncooked game window; the normal editor retains MCP plugins.
 
+Combat samples after movement, before vision. It owns due impact batches and
+resident returns. GameMode owns contender loss/return receipts. Dash is a server
+Character Movement root-motion source. Waiting uses a local fog camera; return
+replaces pawn and life identity. Private state has a revision guard. The same
+seven-part body and status marker render all roles; effects stay inside views.
+
 ## Next stage
 
-B34: basic attack, compatible dash, warned assassination, simultaneous damage,
-death, retained loss/return/protection and fresh body identity. Resolve observed
-IDs through the requesting connection and recheck authority sight/range. Carry
-match/life generations in requests. Route secondary effects through the same
-view boundary; do not multicast canonical body references or private stats.
-Attack-driven ward destruction is part of this work. Then B35 courier/Seal/Heart
-transactions and B36 cooked independent-client, delay and performance evidence.
+B35: courier collection/delivery with acknowledged reward, real Seal carry/drop/
+pickup ownership, access predicate, ten-second Heart claim and one terminal result.
+Acquisition and defence changes remain labelled local-authority fixtures. Commit
+noncombat transactions after damage/deaths and before claim/deadline evaluation.
+Use connection-scoped observed/public IDs and match/life/request generations.
+Never multicast canonical references or private stats. Then B36 cooked independent
+clients, complete reset/isolation, broader delay/performance and human readability.
 
 ## Workflow
 
 Close the editor for reflected/native changes. BuildEditor.ps1 and BuildGame.ps1
 verify separate targets. RunTests.ps1, RunMovementCheck.ps1 and
-RunViewNetworkCheck.ps1 write ignored local evidence. Keep a runnable checkpoint.
+RunViewNetworkCheck.ps1, RunCombatCheck.ps1 and RunCombatNetworkCheck.ps1 write
+ignored local evidence. The combat network runner supports 100/150 ms configured
+RTT, +/-25 ms one-way jitter, measured echoes/receipts and an optional rendered client.
+Its six action samples per client do not establish a performance distribution.
+Keep a runnable checkpoint.
 Validate does not write packages; Regenerate is explicit. Hand-authored assets
 belong outside /Game/Lockdown/Generated/. The web baseline stays unmodified at
 74d3d3e884bf4d8130e1596148b45e50a409039c.

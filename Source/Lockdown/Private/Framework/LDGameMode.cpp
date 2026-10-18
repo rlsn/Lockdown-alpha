@@ -12,6 +12,10 @@
 #include "Framework/LDGameInstance.h"
 #include "Net/UnrealNetwork.h"
 #include "Tests/LDViewNetworkProbe.h"
+#include "Combat/LDCombatDirector.h"
+#include "Core/LDRules.h"
+#include "Tests/LDCombatProbe.h"
+#include "Tests/LDCombatNetworkProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -49,7 +53,10 @@ void ALDGameMode::StartPlay()
 {
     Super::StartPlay();
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
+    MatchStartedAt=GetWorld()->GetTimeSeconds();
+    Combat=GetWorld()->SpawnActor<ALDCombatDirector>();
     Vision=GetWorld()->SpawnActor<ALDVisionDirector>();
+    Vision->AddTickPrerequisiteActor(Combat);
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get())) { SyncOwner(PC); Vision->Register(PC); } }
@@ -65,7 +72,9 @@ void ALDGameMode::StartPlay()
     }
 #if !UE_BUILD_SHIPPING
     if (FParse::Param(FCommandLine::Get(), TEXT("LDMovementProbe"))) { GetWorld()->SpawnActor<ALDMovementProbe>(); }
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatProbe"))){GetWorld()->SpawnActor<ALDCombatProbe>();}
     if (bScaffoldProfile && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { GetWorld()->SpawnActor<ALDViewNetworkProbe>(); }
+    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){GetWorld()->SpawnActor<ALDCombatNetworkProbe>();}
 #endif
 }
 
@@ -89,5 +98,56 @@ FLDOwnerState* ALDGameMode::StateFor(ALDPlayerController* PC)
 void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 {
     if (FLDOwnerState* State=StateFor(PC))
-    { State->Match=Vision ? Vision->Generation : 0; PC->OwnerState=*State; PC->ForceNetUpdate(); }
+    { State->Match=Vision ? Vision->Generation : 0; ++State->Revision; PC->OwnerState=*State; PC->ForceNetUpdate(); }
+}
+
+void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
+{
+    FLDOwnerState* State=StateFor(PC);
+    if (!State || !State->bActive) { return; }
+    const auto Cost=LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
+    State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;
+    State->bActive=false; State->Hp=0; State->WardCharges=0;
+    State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
+    ++State->DeathSerial;
+    PC->UnPossess(); SyncOwner(PC); PC->ClientLifeReceipt(*State);
+    UE_LOG(LogTemp,Display,TEXT("LD_DEATH_RECEIPT life=%u death=%u loss=%lld return=%.3f"),State->Life,State->DeathSerial,State->LastLostGold,State->ReturnAt);
+}
+FVector ALDGameMode::ReturnSpawn(ALDPlayerController* PC)
+{
+    const TArray<FVector> Candidates={{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
+        {-1800,0,100},{100,1000,100},{1000,1000,100},{1900,-500,100},{1900,1000,100},
+        {-600,600,100},{-1300,1000,100},{100,-900,100},{0,0,100},{-1900,-1000,100}};
+    TArray<FVector> Safe, Farthest;
+    double Best=-1;
+    for(const FVector& Point:Candidates)
+    {
+        FHitResult Ground;
+        if(!GetWorld()->LineTraceSingleByChannel(Ground,Point+FVector(0,0,500),Point-FVector(0,0,300),ECC_GameTraceChannel1)
+            ||Ground.ImpactNormal.Z<FMath::Cos(FMath::DegreesToRadians(40.))
+            ||GetWorld()->OverlapBlockingTestByChannel(Point,FQuat::Identity,ECC_WorldStatic,FCollisionShape::MakeCapsule(28,90))){continue;}
+        double Nearest=DBL_MAX;
+        for(const auto& Pair:Contenders)
+        { if(Pair.Key.IsValid() && Pair.Key.Get()!=PC && Pair.Value.State.bActive && Pair.Key->GetPawn()){Nearest=FMath::Min(Nearest,FVector::DistSquared2D(Point,Pair.Key->GetPawn()->GetActorLocation()));} }
+        if(Nearest>=440*440){Safe.Add(Point);}
+        if(Nearest>Best){Best=Nearest;Farthest.Reset();Farthest.Add(Point);}else if(Nearest==Best){Farthest.Add(Point);}
+    }
+    const auto& Pool=Safe.IsEmpty()?Farthest:Safe;
+    checkf(!Pool.IsEmpty(),TEXT("Authored return pool has no legal capsule position"));
+    return Pool[SpawnRandom.RandRange(0,Pool.Num()-1)];
+}
+void ALDGameMode::ReturnDueContenders(double Now)
+{
+    for(auto& Pair:Contenders)
+    {
+        FLDOwnerState& State=Pair.Value.State; ALDPlayerController* PC=Pair.Key.Get();
+        if(!PC || State.bActive || State.ReturnAt<=0 || Now<State.ReturnAt){continue;}
+        ++State.Life; State.bActive=true; State.Hp=100; State.ReturnAt=0; State.ProtectedUntil=float(Now+4);
+        State.WarningUntil=0; State.DamageUntil=0; State.ExposedUntil=0; State.ActionCue=0;
+        RestartPlayerAtTransform(PC,FTransform(FRotator::ZeroRotator,ReturnSpawn(PC)));
+        if(!PC->GetPawn()){State.bActive=false;State.ReturnAt=float(Now+.1);--State.Life;continue;}
+        if(auto* Body=Cast<ALDCharacter>(PC->GetPawn())){if(auto* S=Combat->StateFor(Body)){S->ProtectionUntil=State.ProtectedUntil;}}
+        SyncOwner(PC); PC->ClientLifeReceipt(State);
+        UE_LOG(LogTemp,Display,TEXT("LD_RETURN_RECEIPT life=%u protection=%.3f"),State.Life,State.ProtectedUntil);
+    }
 }

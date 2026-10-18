@@ -17,6 +17,7 @@
 #include "Styling/CoreStyle.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Rendering/DrawElements.h"
+#include "GameFramework/GameStateBase.h"
 
 TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 {
@@ -60,7 +61,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             Slot->SetPadding(FMargin(0,7));
         };
         Row(Text(TEXT("PROJECT LOCKDOWN"), 28));
-        Row(Text(TEXT("Private vision checkpoint\nExplore cover, raised paths and shared sight."), 16));
+        Row(Text(TEXT("Combat and private vision checkpoint\nRead warnings, break attacks, survive and return."), 16));
         auto Button = [this, &Text, &Row](const TCHAR* Label)
         {
             UButton* Result = WidgetTree->ConstructWidget<UButton>();
@@ -79,7 +80,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         };
         if (bFrontend)
         {
-            Button(TEXT("Host movement demo"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
+            Button(TEXT("Host gameplay demo"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
             Address = WidgetTree->ConstructWidget<UEditableTextBox>();
             Address->SetText(FText::FromString(TEXT("127.0.0.1:7777")));
             Address->SetHintText(FText::FromString(TEXT("Host address:port")));
@@ -96,7 +97,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             Button(TEXT("Return to menu"))->OnClicked.AddDynamic(this, &ULDUIRoot::Leave);
             if (GetOwningPlayer()->HasAuthority()) { Button(TEXT("Fixture: toggle public sensor"))->OnClicked.AddDynamic(this, &ULDUIRoot::ToggleSensor); }
         }
-        Row(Text(TEXT("WASD move  ·  Shift sprint  ·  Mouse aim\nF place ward within 96 cm  ·  Wheel zoom\nEscape / H menu"), 15));
+        Row(Text(TEXT("WASD move · Shift sprint · Mouse aim\nClick attack · Q assassination · Space dash\nF ward · Wheel zoom · Escape / H menu"), 15));
         Feedback = Text(TEXT(""), 14);
         Row(Feedback);
         Button(TEXT("Exit"))->OnClicked.AddDynamic(this, &ULDUIRoot::Exit);
@@ -113,14 +114,22 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
     {
         if (!Instance->ConnectionMessage.IsEmpty()) { Feedback->SetText(FText::FromString(Instance->ConnectionMessage)); }
     }
-    if (const ALDCharacter* Body = Cast<ALDCharacter>(GetOwningPlayerPawn()))
+    if (const ALDPlayerController* PC = Cast<ALDPlayerController>(GetOwningPlayer());PC&&!PC->IsFrontend())
     {
-        const ALDPlayerController* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+        const ALDCharacter* Body=Cast<ALDCharacter>(PC->GetPawn());
+        const auto& O=PC->OwnerState;
+        const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
         const ALDWorldViewRelay* Relay=PC->LocalView();
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
-        Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN  |  Unreal migration demo  |  Private vision\nWASD move  ·  Shift sprint  ·  Mouse aim  ·  F ward  ·  Wheel zoom  ·  Esc menu\nSpeed %.0f cm/s  |  Ward charges %d  |  Sight %s\nSources: body %d · private wards %d · shared tower %d  |  Map: light=visible, dim=explored, black=unseen\n%s"),
-            Body->GetVelocity().Size2D(),PC->OwnerState.WardCharges,Relay && !Relay->IsStale() ? TEXT("fresh") : TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,
-            PC->IntentFeedback.IsEmpty() ? TEXT("F: one private ward, within 96 cm; lasts 60 seconds.") : *PC->IntentFeedback)));
+        FString Life=O.bActive?FString::Printf(TEXT("HP %d/100 · Speed %.0f · Ward %d"),O.Hp,Body?Body->GetVelocity().Size2D():0,O.WardCharges)
+            :FString::Printf(TEXT("DEAD · Lost %lld gold · Return in %.1fs · Owned wards and shared sight only"),O.LastLostGold,FMath::Max(0.,O.ReturnAt-Now));
+        FString Danger=Now<O.WarningUntil?TEXT("DANGER: ASSASSINATION · Turn, escape, dash or deal damage!")
+            :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
+                :(Now<O.DamageUntil?FString::Printf(TEXT("HIT · Anonymous incoming sector %d/8 (world +X=0, toward +Y)"),O.IncomingSector):PC->IntentFeedback));
+        Status->SetColorAndOpacity(Now<O.WarningUntil?FLinearColor(1,.35f,.2f):FLinearColor(.88f,.9f,.82f));
+        Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · %s\nClick attack %.1fs · Q assassination %.1fs · Space dash %.1fs · Esc / H help\n%s · Sight %s · Sources: body %d / ward %d / shared %d\n%s\nWASD move · Shift sprint · Mouse aim · F ward within 96 cm · Wheel zoom"),
+            O.bActive?TEXT("Combat and private vision"):TEXT("Waiting for return"),FMath::Max(0.,O.BasicReadyAt-Now),FMath::Max(0.,O.AssassinReadyAt-Now),FMath::Max(0.,O.DashReadyAt-Now),
+            *Life,Relay&&!Relay->IsStale()?TEXT("fresh"):TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,*Danger)));
         if (!PC->IntentFeedback.IsEmpty()) { Feedback->SetText(FText::FromString(PC->IntentFeedback)); }
     }
 }

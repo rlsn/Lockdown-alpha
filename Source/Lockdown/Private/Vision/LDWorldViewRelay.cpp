@@ -24,6 +24,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
 {
     ObservedId=Entity.Id; Destination=Entity.Position;
     Facing=float(Entity.Facing)/65535*360; Speed=Entity.Speed;
+    Body->SetCue(Entity.ActionCue);
     if (bFirst || FVector::DistSquared(GetActorLocation(),Destination)>300*300) { SetActorLocation(Destination); }
     if (Palette!=Entity.Presentation)
     {
@@ -84,8 +85,9 @@ void ALDWorldViewRelay::ApplyConceal(uint32 Generation,uint64 Revision,const TAr
 void ALDWorldViewRelay::AttachFog()
 {
     ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwner());
-    ALDCharacter* Character=PC ? Cast<ALDCharacter>(PC->GetPawn()) : nullptr;
-    if (!PC || !PC->IsLocalController() || !Character || CameraOwner==Character) { return; }
+    AActor* Target=PC?PC->GetViewTarget():nullptr;
+    UCameraComponent* Camera=Target?Target->FindComponentByClass<UCameraComponent>():nullptr;
+    if (!PC || !PC->IsLocalController() || !Camera || CameraOwner==Target) { return; }
     if (!FogMaterial)
     {
         UMaterialInterface* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Fog.M_Fog"));
@@ -97,8 +99,8 @@ void ALDWorldViewRelay::AttachFog()
         FMemory::Memzero(Pixels,60*40*4); FogTexture->GetPlatformData()->Mips[0].BulkData.Unlock(); FogTexture->UpdateResource();
         FogMaterial=UMaterialInstanceDynamic::Create(Base,this); FogMaterial->SetTextureParameterValue(TEXT("FogMask"),FogTexture);
     }
-    Character->Camera->PostProcessSettings.WeightedBlendables.Array.Add(FWeightedBlendable(1,FogMaterial));
-    CameraOwner=Character; UploadFog();
+    Camera->PostProcessSettings.AddBlendable(FogMaterial,1);
+    CameraOwner=Target; UploadFog();
 }
 void ALDWorldViewRelay::UploadFog()
 {

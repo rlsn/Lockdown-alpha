@@ -48,12 +48,26 @@ struct FLDOwnerState
     UPROPERTY() int64 Xp = 0;
     UPROPERTY() uint8 WardCharges = 1;
     UPROPERTY() bool bActive = true;
+    UPROPERTY() uint32 Revision = 0;
+    UPROPERTY() uint32 DeathSerial = 0;
+    UPROPERTY() int64 LastLostGold = 0;
+    UPROPERTY() float ReturnAt = 0;
+    UPROPERTY() float ProtectedUntil = 0;
+    UPROPERTY() float BasicReadyAt = 0;
+    UPROPERTY() float AssassinReadyAt = 0;
+    UPROPERTY() float DashReadyAt = 0;
+    UPROPERTY() float WarningUntil = 0;
+    UPROPERTY() float DamageUntil = 0;
+    UPROPERTY() float ExposedUntil = 0;
+    UPROPERTY() uint8 IncomingSector = 0;
+    UPROPERTY() uint8 ActionCue = 0;
 };
 
 namespace LDVision
 {
     constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
-    constexpr int32 MaxEntities = 32;
+    // Eight contenders, eight residents, wards and short-lived corpse identities.
+    constexpr int32 MaxEntities = 64;
     inline bool InWorld(const FVector& P) { return !P.ContainsNaN() && P.X >= -2400 && P.X < 2400 && P.Y >= -1600 && P.Y < 1600; }
     inline int32 Cell(const FVector& P) { return InWorld(P) ? int32((P.Y+1600)/80)*Columns+int32((P.X+2400)/80) : INDEX_NONE; }
     inline FVector Centre(int32 Index) { return FVector(-2360+(Index%Columns)*80, -1560+(Index/Columns)*80,0); }

@@ -8,19 +8,20 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
 {
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere"));
-    const TCHAR* Names[] = {TEXT("Torso"), TEXT("Head"), TEXT("ArmLeft"), TEXT("ArmRight"), TEXT("LegLeft"), TEXT("LegRight"), TEXT("Facing")};
-    const FVector Positions[] = {{0,0,9}, {0,0,65}, {0,-25,6}, {0,25,6}, {0,-11,-53}, {0,11,-53}, {19,0,65}};
-    const FVector Scales[] = {{.34,.4,.58}, {.32,.3,.34}, {.16,.15,.55}, {.16,.15,.55}, {.18,.18,.65}, {.18,.18,.65}, {.12,.12,.12}};
-    for (int32 Index = 0; Index < 7; ++Index)
+    const TCHAR* Names[] = {TEXT("Torso"), TEXT("Head"), TEXT("ArmLeft"), TEXT("ArmRight"), TEXT("LegLeft"), TEXT("LegRight"), TEXT("Facing"),TEXT("StatusMarker")};
+    const FVector Positions[] = {{0,0,9}, {0,0,65}, {0,-25,6}, {0,25,6}, {0,-11,-53}, {0,11,-53}, {19,0,65},{0,0,-80}};
+    const FVector Scales[] = {{.34,.4,.58}, {.32,.3,.34}, {.16,.15,.55}, {.16,.15,.55}, {.18,.18,.65}, {.18,.18,.65}, {.12,.12,.12},{.8,.8,.08}};
+    for (int32 Index = 0; Index < 8; ++Index)
     {
         UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Names[Index]);
         Part->SetupAttachment(this);
-        Part->SetStaticMesh(Index == 1 ? Sphere.Object : Cube.Object);
+        Part->SetStaticMesh(Index == 1 || Index==7 ? Sphere.Object : Cube.Object);
         Part->SetRelativeLocation(Positions[Index]);
         Part->SetRelativeScale3D(Scales[Index]);
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetCanEverAffectNavigation(false);
         Parts.Add(Part);
+        if(Index==7){Part->SetVisibility(false);Part->SetCastShadow(false);}
     }
 }
 
@@ -56,4 +57,14 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     Parts[3]->SetRelativeRotation(FRotator(-Swing,0,0));
     Parts[4]->SetRelativeRotation(FRotator(-Swing,0,0));
     Parts[5]->SetRelativeRotation(FRotator(Swing,0,0));
+    const uint8 Action=Cue&15;
+    if(Action==1||Action==2||Action==3)
+    {Parts[2]->SetRelativeRotation(FRotator(Action==2?-120:-75,0,-15));Parts[3]->SetRelativeRotation(FRotator(-75,0,15));}
+    SetRelativeRotation(Action==5?FRotator(0,0,90):FRotator((Cue&32)?-15:0,0,0));
+    Parts[0]->SetRelativeRotation(FRotator(Action==4?-20:0,0,0));
+    // The same visible geometry cues apply to residents and contenders.
+    Parts[6]->SetRelativeScale3D((Cue&16)?FVector(.35):((Cue&64)?FVector(.22):FVector(.12)));
+    Parts[7]->SetVisibility(Action!=5&&(Cue&240)!=0&&IsVisible());
+    if(auto* Marker=Cast<UMaterialInstanceDynamic>(Parts[7]->GetMaterial(0)))
+    {Marker->SetVectorParameterValue(TEXT("Tint"),(Cue&16)?FLinearColor(1,.12f,.025f):((Cue&64)?FLinearColor(.8f,.95f,1):((Cue&32)?FLinearColor(1,.05f,.02f):FLinearColor(1,.55f,.05f))));}
 }

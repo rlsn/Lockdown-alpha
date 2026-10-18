@@ -1,5 +1,6 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/RootMotionSource.h"
 
 namespace
 {
@@ -39,7 +40,19 @@ namespace
 
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
-    return IsMovingOnGround() && bWantsSprint ? SprintSpeed : Super::GetMaxSpeed();
+    return IsMovingOnGround() && bWantsSprint && !bCombatWalkOnly ? SprintSpeed : Super::GetMaxSpeed();
+}
+
+bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction)
+{
+    if (!CharacterOwner || !CharacterOwner->HasAuthority() || !IsMovingOnGround() || Direction.ContainsNaN() || Direction.SizeSquared2D()<UE_SMALL_NUMBER) { return false; }
+    TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();
+    Dash->InstanceName=TEXT("LD_AuthorityDash"); Dash->Priority=500;
+    Dash->AccumulateMode=ERootMotionAccumulateMode::Override; Dash->bInLocalSpace=false;
+    Dash->Force=Direction.GetSafeNormal2D()*1800; Dash->Duration=.2f;
+    Dash->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;
+    Dash->FinishVelocityParams.SetVelocity=FVector::ZeroVector;
+    return ApplyRootMotionSource(Dash)!=uint16(ERootMotionSourceID::Invalid);
 }
 
 void ULDCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)

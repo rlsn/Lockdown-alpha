@@ -24,6 +24,7 @@ public:
 };
 
 class ALDVisionDirector;
+class ALDCombatDirector;
 class ALDPlayerController;
 struct FLDContenderRecord { FGuid Session; FLDOwnerState State; };
 
@@ -39,11 +40,16 @@ public:
     virtual void Logout(AController* Exiting) override;
     FLDOwnerState* StateFor(ALDPlayerController* Controller);
     void SyncOwner(ALDPlayerController* Controller);
+    void EndContenderLife(ALDPlayerController* Controller,double Now);
+    void ReturnDueContenders(double Now);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
+    UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
     TArray<FVector> SpawnPool;
     FRandomStream SpawnRandom;
+    double MatchStartedAt = 0;
     FVector TakeSpawn();
+    FVector ReturnSpawn(ALDPlayerController* Controller);
 };

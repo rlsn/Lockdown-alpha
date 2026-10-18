@@ -9,6 +9,8 @@
 #include "NavigationSystem.h"
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameMode.h"
+#include "Combat/LDCombatDirector.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -62,11 +64,14 @@ void ALDCharacter::BeginPlay()
     CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->SprintSpeed = Tuning->SprintSpeed;
     if (HasAuthority()) { PresentationKey = uint8(FMath::RandRange(0,3)); }
     OnRep_Presentation();
+    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Mode->Combat->Register(this);}}}
 }
 
 void ALDCharacter::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Body->SetCue(Mode->Combat->CueFor(this));}}}
+    else if(const auto* PC=Cast<ALDPlayerController>(GetController())){Body->SetCue(PC->OwnerState.ActionCue);}
     Body->Animate(GetVelocity(), Delta);
     if (const ALDPlayerController* PC=Cast<ALDPlayerController>(GetController()))
     { if (PC->IsLocalController()) { Body->SetVisibility(PC->OwnerState.bActive,true); } }

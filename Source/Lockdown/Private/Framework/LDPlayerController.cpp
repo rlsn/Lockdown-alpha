@@ -16,6 +16,12 @@
 #include "Tests/LDViewNetworkProbe.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Combat/LDCombatDirector.h"
+#include "Character/LDCharacterMovementComponent.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Tests/LDCombatNetworkProbe.h"
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
 
@@ -37,6 +43,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if (!IsFrontend() && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe")))
     { FActorSpawnParameters Params; Params.Owner=this; GetWorld()->SpawnActor<ALDViewNetworkProbe>(ALDViewNetworkProbe::StaticClass(),FTransform::Identity,Params); }
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDCombatNetworkProbe>(ALDCombatNetworkProbe::StaticClass(),FTransform::Identity,Params);}
 #endif
 }
 
@@ -56,7 +64,51 @@ void ALDPlayerController::SetupInputComponent()
     Input->BindAction(Action(TEXT("Menu")), ETriggerEvent::Started, this, &ALDPlayerController::ToggleMenu);
     Input->BindAction(Action(TEXT("Help")), ETriggerEvent::Started, this, &ALDPlayerController::ToggleMenu);
     Input->BindAction(Action(TEXT("Ward")), ETriggerEvent::Started, this, &ALDPlayerController::Ward);
+    Input->BindAction(Action(TEXT("Attack")),ETriggerEvent::Started,this,&ALDPlayerController::Attack);
+    Input->BindAction(Action(TEXT("Assassinate")),ETriggerEvent::Started,this,&ALDPlayerController::Assassinate);
+    Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Started,this,&ALDPlayerController::Dash);
 }
+
+void ALDPlayerController::OnRep_OwnerState()
+{
+    if(OwnerState.Match<LatestOwner.Match || (OwnerState.Match==LatestOwner.Match&&OwnerState.Revision<LatestOwner.Revision)){OwnerState=LatestOwner;return;}
+    LatestOwner=OwnerState;
+}
+void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& State)
+{
+    if(State.Match<OwnerState.Match || (State.Match==OwnerState.Match&&State.Revision<OwnerState.Revision)){return;}
+    OwnerState=State;OnRep_OwnerState();
+}
+void ALDPlayerController::Attack(){CombatAction(0);}
+void ALDPlayerController::Assassinate(){CombatAction(1);}
+void ALDPlayerController::Dash(){CombatAction(2);}
+void ALDPlayerController::CombatAction(uint8 Action)
+{
+    ALDCharacter* Body=Cast<ALDCharacter>(GetPawn());
+    if(bControlsSuppressed||!OwnerState.bActive||!Body){return;}
+    FVector Direction=Body->GetActorForwardVector();
+    if(Action==2){const FVector Move=Body->GetLastMovementInputVector();if(!Move.IsNearlyZero()){Direction=Move.GetSafeNormal2D();}}
+    IntentFeedback=TEXT("Action requested; awaiting authority.");
+    ServerCombatAction(OwnerState.Match,OwnerState.Life,++NextRequest,Action,Direction);
+}
+void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* State=Mode?Mode->StateFor(this):nullptr;
+    if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>2||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
+    {ClientIntentResult(Request,TEXT("Invalid action or stale life."));return;}
+    if(const FString* Cached=CombatReceipts.Find(Request)){ClientIntentResult(Request,*Cached);return;}
+    if(Request<LastCombatRequest){ClientIntentResult(Request,TEXT("Expired action request."));return;}
+    const double Now=GetWorld()->GetTimeSeconds();
+    CombatTokens=FMath::Min(3.,CombatTokens+FMath::Max(0.,Now-LastCombatAt)*12);LastCombatAt=Now;
+    if(CombatTokens<1){ClientIntentResult(Request,TEXT("Action rate limited."));return;}
+    --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
+    if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
+    CombatReceipts.Add(Request,LastCombatResult);
+    if(Mode->Combat){Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}
+    else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
+}
+void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Result)
+{CombatReceipts.Add(Request,Result);if(Request==LastCombatRequest){LastCombatResult=Result;}ClientIntentResult(Request,Result);}
 
 void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 { Super::GetLifetimeReplicatedProps(OutLifetimeProps); DOREPLIFETIME(ALDPlayerController,OwnerState); }
@@ -87,18 +139,36 @@ void ALDPlayerController::ServerPlaceWard_Implementation(uint32 Match,uint32 Lif
     if (Mode->Vision) { Mode->Vision->PlaceWard(this,Position,LastWardResult); }
     ClientIntentResult(Request,LastWardResult);
 }
-void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason) { IntentFeedback=Reason; }
+void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)
+{
+    IntentFeedback=Reason;
+#if !UE_BUILD_SHIPPING
+    if(double* Sent=ProbeRequests.Find(Request)){ProbeAckMs.Add((FPlatformTime::Seconds()-*Sent)*1000);ProbeRequests.Remove(Request);}
+#endif
+}
 void ALDPlayerController::ClientProbePhase_Implementation(uint8 Phase)
 {
 #if !UE_BUILD_SHIPPING
-    if (Phase<=9 && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { ProbePhase=Phase; }
+    if (Phase<=9 && (FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe")))) { ProbePhase=Phase; }
 #endif
 }
 void ALDPlayerController::ServerProbeHello_Implementation(uint8 ProbeIdentity)
 {
 #if !UE_BUILD_SHIPPING
     const ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if (Mode && Mode->bScaffoldProfile && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=2 && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { ProbeRole=ProbeIdentity; }
+    if (Mode && Mode->bScaffoldProfile && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=2 && (FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe")))) { ProbeRole=ProbeIdentity; }
+#endif
+}
+void ALDPlayerController::ServerProbePing_Implementation(double Sent)
+{
+#if !UE_BUILD_SHIPPING
+    if(FMath::IsFinite(Sent)&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){ClientProbePong(Sent);}
+#endif
+}
+void ALDPlayerController::ClientProbePong_Implementation(double Sent)
+{
+#if !UE_BUILD_SHIPPING
+    if(FMath::IsFinite(Sent)&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){ProbeRtts.Add((FPlatformTime::Seconds()-Sent)*1000);}
 #endif
 }
 void ALDPlayerController::TogglePublicSensorFixture()
@@ -167,6 +237,29 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
+    if(IsLocalController()&&!IsFrontend())
+    {
+        if(ALDCharacter* Active=Cast<ALDCharacter>(GetPawn()))
+        {
+            LastBodyPosition=Active->GetActorLocation();
+            if(WaitingCamera){SetViewTarget(Active);WaitingCamera->Destroy();WaitingCamera=nullptr;}
+            auto* Move=CastChecked<ULDCharacterMovementComponent>(Active->GetCharacterMovement());
+            Move->bCombatWalkOnly=(OwnerState.ActionCue&15)==2||(OwnerState.ActionCue&15)==3;
+            Move->bCanWalkOffLedges=(OwnerState.ActionCue&15)!=4;
+        }
+        else if(!OwnerState.bActive&&!WaitingCamera)
+        {
+            WaitingCamera=GetWorld()->SpawnActor<ACameraActor>();
+            const FRotator Rotation(-60,-45,0);
+            WaitingCamera->SetActorLocation(LastBodyPosition+FVector(0,0,20)-Rotation.Vector()*1400);
+            WaitingCamera->SetActorRotation(Rotation);
+            auto* Camera=WaitingCamera->GetCameraComponent();Camera->FieldOfView=55;
+            Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness=true;Camera->PostProcessSettings.AutoExposureMinBrightness=0;
+            Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness=true;Camera->PostProcessSettings.AutoExposureMaxBrightness=0;
+            Camera->PostProcessSettings.bOverride_MotionBlurAmount=true;Camera->PostProcessSettings.MotionBlurAmount=0;
+            SetViewTarget(WaitingCamera);
+        }
+    }
     if (!IsLocalController() || bControlsSuppressed || !OwnerState.bActive) { return; }
     ALDCharacter* Body = Cast<ALDCharacter>(GetPawn());
     if (!Body) { return; }

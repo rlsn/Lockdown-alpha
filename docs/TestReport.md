@@ -1,6 +1,64 @@
-# B33 verification - 18 October 2026
+# B34 verification - 18 October 2026
 
-The current checkpoint adds private observation. It does not certify full v0.3.
+Combat/life implementation passes the checks below. Full v0.3 acceptance remains
+open for B35 transactions and B36 delivery, human review and broader measurements.
+
+| Check | Result | Evidence under Artifacts/ |
+| --- | --- | --- |
+| Editor build | Passed | 20261018-162016-457-BuildEditor/BuildEditor.log |
+| Separate Game target | Passed | 20261018-162227-908-BuildGame/BuildGame.log |
+| Native rule/schema cases | 7 passed | 20261018-162227-890-Automation/Report/index.json |
+| Combat world scenario | 48 passed | 20261018-162423-494-CombatCheck/Combat.json |
+| Movement regression | 7 passed; all 8 residents moved | 20261018-162227-916-MovementCheck/Movement.json |
+| B33 restricted-view regression | Server 12 / A 29 / B 27 passed; max payload 789 / 722 bytes | 20261018-162423-525-ViewNetworkCheck/{Server,A,B}.json |
+| Combat network, rendered 1080p B | Server 9 / A 16 / B 19 passed | 20261018-162108-316-CombatNetwork-0-0/{Server,A,B}.json |
+| Configured 100 ms RTT, +/-25 ms one-way jitter | Server 9 / A 16 / B 19 passed | 20261018-161422-563-CombatNetwork-100-25/{Server,A,B}.json |
+| Configured 150 ms RTT, +/-25 ms one-way jitter | Server 9 / A 16 / B 19 passed | 20261018-161617-791-CombatNetwork-150-25/{Server,A,B}.json |
+| Bootstrap Validate | Passed; all 23 package hashes unchanged | 20261018-162423-570-Bootstrap-Validate/Bootstrap.log |
+| Reopened editor / MCP | Sandbox loaded, All Saved; 67 toolsets and editor state call succeed | B34-MCP/; docs/MCP_TEST_REPORT.md |
+
+The combat world scenario verifies committed basic aim, windup/cadence, one-target
+hits, assassination rear/range/turn/sprint/history checks, earlier versus same-batch
+damage, recovery expiry, priority, duplicate requests, ward damage, no resident
+reward, one-time loss, fresh return identity and protection. Its deadline cases
+drive the resolver with controlled times. Its dash cases use real Character
+Movement physics: open displacement 360.00 cm, wall/tree collision, ramp traversal
+and ledge blocking, including dash cancellation without cooldown refund.
+
+The network scenario uses actual controller RPCs, a separate authority and two
+restricted clients. It checks warning receipt before assassination damage,
+interruption, autonomous-owner dash reconciliation, private HP/loss, surviving
+owned ward sight while genuinely unpossessed, fog on the waiting camera, a natural
+20-second return, fresh observation/life identity, protection/stale-life rejection
+and fighting afterward. Every phase audits canonical body/state and server-only
+combat/ward/corpse actors. Test poses and state resets are labelled non-shipping
+fixtures; damage, requests, waits, return ownership and view filtering are real.
+
+Unreal's outgoing packet delay is configured on both endpoints: 25-75 ms for the
+100 ms lane and 50-100 ms for the 150 ms lane. Logs confirm settings. Echo median
+RTT was A/B 149.5/133.1 ms and 183.1/183.0 ms respectively (72 samples each).
+Echo p95 was 166.4/182.9 ms and 216.3/216.4 ms. Six scripted action receipts per
+client had p95 183.0/166.4 ms and 249.7/249.7 ms. Action and echo latency are separate
+measurements; the 150 ms lane has little remaining margin. This small functional
+sample does not certify the full acknowledgement distribution, snapshot latency,
+packet loss, capacity, cooked-client performance or later interaction latency.
+
+Live Computer Use review showed the active HUD/markers at 720p and the actual
+death countdown, 21-gold receipt, ward-only sight and corpse presentation at 1080p,
+without HUD clipping. The 1080p rendered scenario completed all functional checks.
+Human warning recognition and full combat/interaction readability remain pending.
+
+A diagnostic screenshot-readback attempt stalled both rendered clients for about
+30 seconds and invalidated that run (20261018-161731-223-CombatNetwork-0-0).
+That capture instrumentation was removed; the successful live lane renders one
+client at a time. An earlier harness exited clients before the authority's final
+assertion; a final phase notification fixed the shutdown ordering. One world probe
+timed out waiting for the concurrent Game build's global UBT validation lock; it
+passed after the build. These failed attempts are not counted as gameplay passes.
+
+## Historical B33 verification
+
+This checkpoint added private observation. It did not certify full v0.3.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
@@ -84,16 +142,16 @@ both were fixed and both native targets rebuilt before standalone review.
 | U05 | Not run | No cook/package |
 | U06 | Passed for uncooked entry | Standalone UI Host, second-process Join, timeout feedback and client Return to menu verified |
 | U07 | Passed | SpatialConversion plus actual CMC world checks: 180 cm/s walk and 300 cm/s diagonal sprint |
-| U08 | Partial | Ramp traversal and cliff blocking pass in world; dash deferred to B34 |
+| U08 | Passed for slice | Native walk/dash wall, tree, ramp and ledge checks; remote root-motion dash reconciles |
 | U09 | Partial | Native camera-relative input, walkable-ground aim, menu suppression and input flush implemented; full focus/network/vision evidence pending |
 | U10 | Partial | Shared humanoid, facing and native UI render; combat cues, fog and full resolution review pending |
-| U11 | Not run | Native combat pending |
-| U12 | Not run | Native assassination pending |
-| U13 | Partial | Ward/aim intents bind the owning connection and match/life; observed-ID cross-owner and hidden lookup rejected; combat requests follow B34 |
-| U14 | Not run | Native batched impacts pending |
+| U11 | Passed automated slice | Basic combat works through two remote owning controllers, including delayed transport; human playtest remains |
+| U12 | Passed automated slice | Warning, rear/range/turn/sprint/history checks, damage interruption and dash cancellation verified |
+| U13 | Passed for implemented intents | Connection, match/life, bounded planar arguments, rate/priority and cached duplicates; stale life and hidden/cross-owner observed lookup rejected |
+| U14 | Passed for slice | Simultaneous strikes and due assassination/counterhit survive same-batch damage; earlier damage interrupts |
 | U15 | Passed | Native DeathCost test verifies exact arithmetic and boundaries; runtime life loop is separate |
-| U16 | Not run | Exact loss helper supplied; owner-private runtime pending |
-| U17 | Not run | Native life replacement pending |
+| U16 | Passed for slice | One private ceiling loss receipt; duplicate death cannot charge or delay twice |
+| U17 | Passed for slice | Natural return creates fresh pawn/life/observation, full HP, four-second protection; old-life commands rejected |
 | U18 | Not run | Native connection lifecycle pending |
 | U19 | Not run | Objective-only runtime end conditions pending |
 | U20 | Not run | Native courier pending |
@@ -107,14 +165,14 @@ both were fixed and both native targets rebuilt before standalone review.
 | U28 | Passed for uncooked topology | Nine actor-registry audits per client against a separate authority; no foreign canonical/state/AI/ward channels |
 | U29 | Passed for B33 | Public source loss removes remote records and proxies; explored terrain persists |
 | U30 | Passed for B33 | Older full/concealment ignored; 250ms receive gap clears proxies; fresh full snapshot recovers |
-| U31 | Partial | Proxy destruction removes its parts/shadows; attack/trail/sound cues do not exist yet |
-| U32 | Passed for B33 waiting fixture | Inactive body gives no source; expired ward removed; legitimate public sight remains |
-| U33 | Partial | Real ward, legal placement, one charge, private sight, lifetime/expiry tested; attack damage integration pending B34 |
+| U31 | Passed implemented cues | Role-neutral action/marker/corpse cues use permitted records; private warning has no attacker coordinates; no independent spatial combat sounds/trails |
+| U32 | Passed for B34 waiting | Real unpossession removes body source; owned ward remains; waiting camera keeps fog; public source checked in B33 |
+| U33 | Passed for slice | Real placement/charge/private sight/lifetime/expiry and single nearest-strike ward destruction |
 | U34 | Passed for B33 | Eight authority residents navigate; neutral shared proxies/schema and restricted-client registry audits pass |
 | U35 | Not run | Fixture authority/label UI pending |
 | U36 | Not run | Uncooked local Host/Join passed; packaged clients and two-remote-client privacy tests pending |
 | U37 | Not run | No native performance measurement |
-| U38 | Not run | No native delay measurement |
+| U38 | Partial | 100/150 ms configured RTT with +/-25 ms jitter; measured echo and six combat receipts per client; broader/cooked/transaction samples pending |
 | U39 | Not run | No native reset/isolation test |
 | U40 | Not run | Partial checkpoint documentation supplied; full delivery incomplete |
 
@@ -122,7 +180,7 @@ Packaged dedicated server: **Conditional not available** in this checkpoint; onl
 an installed engine is identified and no compatible source-build lane is established.
 
 
-Required next evidence: B34 combat/life, B35 transactions and B36 package/delay/performance gates.
+Required next evidence: B35 transactions and B36 package, human review and broader performance gates.
 
 ## Standalone rendered review
 
