@@ -5,6 +5,8 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current execution changes and evidence: [B42 checkpoint](B42_IMPLEMENTATION.md).
+Its runtime commit is `4306e46`; the fresh local checkout passed both cold builds,
+24-asset validation and 12 native rules and stayed clean.
 
 ## Milestones
 

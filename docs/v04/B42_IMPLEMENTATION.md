@@ -2,6 +2,7 @@
 
 19 October 2026. This checkpoint implements the common execution boundary for
 the nine catalog skills. It does not complete B43–B47 or the full v0.4 release.
+Runtime checkpoint: `4306e46c122ab3c376f6c4c18d1a2a1a9f872918`.
 
 ## Runtime changes
 
@@ -93,6 +94,7 @@ CL 58210709. Results here are engineering evidence, not human acceptance.
 | Cooked B41 character regression | Passed, 24 checks | `20261019-232757-650-Packaged-DevelopmentCheck/Local.json` |
 | Cooked ten real world resets | Passed, 42 checks | `20261019-232627-788-Packaged-DevelopmentReset/Reset.json` |
 | Cooked 720p mixed hotbar | Captured and visually inspected; text fits | `20261019-232817-253-Packaged-Skills-DevelopmentUI-720/SkillsHUD.png` |
+| Fresh local checkout of `4306e46` | Passed: 24 LFS packages, preflight, cold Editor/Game builds, asset validation, 12 rules; checkout remained clean | `20261019-233118-362-CleanCheckout/Result.json` |
 
 The delayed-client cases check duplicate Spark commitment, a received pre-impact
 warning, held Patch completion/cancellation, a 380 cm Step, rank-three Step blocked
@@ -105,12 +107,13 @@ scheduling, not a claim that configured delay equals application RTT exactly.
 
 Runnable package: `Artifacts/20261019-232246-203-PackageWin64/Archive/Windows`.
 Its manifest truthfully records source revision `07d8a71` with `sourceDirty=true`;
-the source/payload hashes identify the actual B42 build. Clean-checkout
-verification will be recorded after execution. The normal 25-minute match, separate 90-minute soak,
+the source/payload hashes identify the actual B42 build. Fresh-checkout verification
+uses the installed engine/shared caches and locally hydrated LFS objects, without
+copying project binaries. The normal 25-minute match, separate 90-minute soak,
 four-human capacity, six human matches, dedicated Server target and remote Git/LFS
 delivery are not established by this checkpoint.
 
 `Artifacts/B42DocumentationAndProvenance.json` verifies 75 source/config hashes,
 seven packaged payload hashes, 66 Markdown files with no broken local links,
 39 feature rows, 48 acceptance rows, four unchanged frozen snapshots and 23
-checkpoint evidence paths.
+checkpoint evidence paths, plus the fresh-checkout result added after commit.

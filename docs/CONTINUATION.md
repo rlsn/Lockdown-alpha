@@ -7,6 +7,11 @@ The full v0.4 release remains in development. Read the
 [working feature ledger](v04/FeatureLedger.csv),
 [master revision 4](master/README.md) and [v0.4 package](v04/README.md).
 
+Runtime checkpoint: `4306e46`. A fresh local checkout passed cold Editor/Game
+builds, 24-asset validation and 12 native rules without modifying its checkout:
+`Artifacts/20261019-233118-362-CleanCheckout/Result.json`. Local LFS hydration and
+shared engine caches were used; remote Git/LFS distribution was not tested.
+
 ## Current implementation
 
 The saved `DA_CharacterCatalog` imports the checked JSON companion and validates
