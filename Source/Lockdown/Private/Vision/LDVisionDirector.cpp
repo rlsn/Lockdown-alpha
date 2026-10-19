@@ -121,7 +121,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     FLDOwnerState* State=Mode ? Mode->StateFor(PC) : nullptr;
     const APawn* Body=PC ? PC->GetPawn() : nullptr;
-    if(Mode&&(Mode->IsFinished()||(Mode->Objectives&&Mode->Objectives->HasChannel(PC)))){Reason=TEXT("Ward blocked during an interaction or after results.");return false;}
+    if(Mode&&(!Mode->IsPlaying()||(Mode->Objectives&&Mode->Objectives->HasChannel(PC)))){Reason=TEXT("Ward blocked in lobby, during an interaction or after results.");return false;}
     if (!State || !Body || !State->bActive || !State->WardCharges) { Reason=TEXT("No ward charge or active body."); return false; }
     if(GetWorld()->GetTimeSeconds()<State->ProtectedUntil||(State->ActionCue&15)){Reason=TEXT("Ward blocked during protection or a combat action.");return false;}
     if (!LDVision::InWorld(Desired) || FVector::DistSquared2D(Desired,Body->GetActorLocation())>96*96) { Reason=TEXT("Place within 96 cm of your body."); return false; }
@@ -133,7 +133,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
         || Hit.ImpactNormal.Z < FMath::Cos(FMath::DegreesToRadians(40.f))
         || LevelAt(Hit.ImpactPoint)!=LevelAt(Body->GetActorLocation())
         || !Ray({Body->GetActorLocation(),96,LevelAt(Body->GetActorLocation())},Hit.ImpactPoint)
-        || GetWorld()->OverlapBlockingTestByChannel(Hit.ImpactPoint+FVector(0,0,15),FQuat::Identity,ECC_WorldStatic,FCollisionShape::MakeSphere(12)))
+        || GetWorld()->OverlapAnyTestByObjectType(Hit.ImpactPoint+FVector(0,0,15),FQuat::Identity,FCollisionObjectQueryParams(ECC_WorldStatic),FCollisionShape::MakeSphere(12)))
     { Reason=TEXT("Ward needs clear, reachable ground on your level."); return false; }
     ALDWard* Ward=GetWorld()->SpawnActor<ALDWard>(Hit.ImpactPoint+FVector(0,0,15),FRotator::ZeroRotator);
     if (!Ward) { Reason=TEXT("Ward could not be placed."); return false; }

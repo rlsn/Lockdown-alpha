@@ -1,5 +1,6 @@
 #include "LDScaffoldBootstrapCommandlet.h"
 #include "Core/LDPrototypeTuning.h"
+#include "Development/LDCharacterBuild.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -227,6 +228,21 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     FString TuningError;
     if (!HasSignature(Tuning, Signature) || !Tuning->Validate(TuningError)) { UE_LOG(LogTemp, Error, TEXT("Missing/stale tuning: %s"), *TuningError); return 3; }
 
+    FString CharacterJson,CharacterError;
+    if (!FFileHelper::LoadFileToString(CharacterJson,*(FPaths::ProjectDir()/TEXT("docs/v04/data/prototype_rules.json")))) { return 3; }
+    ULDCharacterCatalog* ExpectedCatalog=NewObject<ULDCharacterCatalog>();
+    if (!ExpectedCatalog->Import(CharacterJson,CharacterError)) { UE_LOG(LogTemp,Error,TEXT("Invalid character source: %s"),*CharacterError); return 3; }
+    const FString CatalogPath=FString(GeneratedRoot)+TEXT("Data/DA_CharacterCatalog");
+    if (bRegenerate || (!bValidate && !Exists(CatalogPath)))
+    {
+        auto* Catalog=NewObject<ULDCharacterCatalog>(EditablePackage(CatalogPath),TEXT("DA_CharacterCatalog"),RF_Public|RF_Standalone);
+        if (!Catalog->Import(CharacterJson,CharacterError) || !SaveAsset(Catalog,CatalogPath,ExpectedCatalog->SourceChecksum)) { return 3; }
+    }
+    const auto* Catalog=ULDCharacterCatalog::Load();
+    if (!Catalog || !Catalog->Validate(CharacterError) || Catalog->SourceChecksum!=ExpectedCatalog->SourceChecksum || !HasSignature(const_cast<ULDCharacterCatalog*>(Catalog),ExpectedCatalog->SourceChecksum))
+    { UE_LOG(LogTemp,Error,TEXT("Missing/stale character catalog: %s"),*CharacterError); return 3; }
+    UE_LOG(LogTemp,Display,TEXT("LD_CHARACTER_CATALOG schema=%d sha256=%s"),Catalog->SchemaVersion,*Catalog->SourceChecksum);
+
     UInputMappingContext* Context = nullptr;
     const FString ContextPath = FString(GeneratedRoot) + TEXT("Input/IMC_Gameplay");
     const bool bWriteContext = bRegenerate || (!bValidate && !Exists(ContextPath));
@@ -410,6 +426,6 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         }
         UE_LOG(LogTemp, Display, TEXT("Validated %s: %d generated meshes"), *Path, FoundCount);
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_BOOTSTRAP_SUCCESS %s (B32 movement and native UI checkpoint)"), *Signature);
+    UE_LOG(LogTemp, Display, TEXT("LD_BOOTSTRAP_SUCCESS %s (migration geometry and v0.4 character catalog; 24 packages)"), *Signature);
     return 0;
 }

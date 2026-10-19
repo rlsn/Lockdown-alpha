@@ -1,0 +1,240 @@
+#include "Tests/LDDevelopmentProbe.h"
+#include "Development/LDCharacterBuild.h"
+#include "Framework/LDGameMode.h"
+#include "Framework/LDPlayerController.h"
+#include "Framework/LDGameInstance.h"
+#include "Character/LDCharacter.h"
+#include "Combat/LDCombatDirector.h"
+#include "Vision/LDWorldViewRelay.h"
+#include "Vision/LDVisionDirector.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "NavigationSystem.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "UnrealClient.h"
+#include "HAL/FileManager.h"
+#include "Kismet/GameplayStatics.h"
+
+ALDDevelopmentProbe::ALDDevelopmentProbe() { bReplicates=false; PrimaryActorTick.bCanEverTick=true; PrimaryActorTick.TickGroup=TG_PostUpdateWork; }
+void ALDDevelopmentProbe::BeginPlay()
+{
+    Super::BeginPlay(); Started=PhaseAt=FPlatformTime::Seconds();
+    FParse::Value(FCommandLine::Get(),TEXT("LDProbeRole="),Role);
+    if (Role.IsEmpty()) { Role=TEXT("Local"); }
+    if (GetNetMode()==NM_Client) { if (auto* PC=Cast<ALDPlayerController>(GetOwner())) { PC->ServerProbeHello(Role==TEXT("A")?1:2); } }
+}
+void ALDDevelopmentProbe::Check(bool Pass,const FString& Description)
+{
+    Checks.Add((Pass?TEXT("PASS "):TEXT("FAIL "))+Description); if (!Pass) { ++Failures; }
+    UE_LOG(LogTemp,Display,TEXT("LD_V04_PROBE %s"),*Checks.Last());
+}
+void ALDDevelopmentProbe::Tick(float Delta)
+{
+    Super::Tick(Delta);
+#if !UE_BUILD_SHIPPING
+    if (FPlatformTime::Seconds()-Started>70) { Check(false,TEXT("Probe timed out")); Finish(); return; }
+    if (Role==TEXT("Visual"))
+    {
+        FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
+        const FString Image=FPaths::Combine(Directory,TEXT("Lobby.png"));
+        if (!Phase && GetWorld()->GetTimeSeconds()>2)
+        {
+            auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
+            Phase=1; PhaseAt=FPlatformTime::Seconds();
+        }
+        else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
+        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,TEXT("Native lobby UI screenshot written")); Finish(); }
+    }
+    else if (Role==TEXT("Reset"))
+    {
+        if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); ResetCheck(); }
+    }
+    else if (GetNetMode()==NM_Client) { ClientTick(); }
+    else if (Role==TEXT("Local"))
+    {
+        if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); LocalCheck(); Finish(); }
+    }
+    else { ServerTick(); }
+#endif
+}
+void ALDDevelopmentProbe::LocalCheck()
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());
+    auto* State=Mode->StateFor(PC); auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());
+    FString Reason;
+    Check(Mode->IsDevelopmentProfile()&&!Mode->bScaffoldProfile&&Mode->CharacterCatalog(),TEXT("V04 profile loads saved catalog and disables migration fixtures"));
+    Check(!Public->bMatchStarted&&Public->LobbyCount==1&&Public->ReadyCount==0&&State->bLobbyHost&&!State->Gold&&!State->Xp&&!State->SealId.IsValid(),TEXT("Fresh private lobby has no fixture resources"));
+    Check(Body->GetCharacterMovement()->GetMaxSpeed()==0,TEXT("Native movement is locked before start"));
+    Check(!Mode->Combat->Request(PC,0,FVector::ForwardVector,Reason),TEXT("Authority blocks basic combat in lobby"));
+    Check(!Mode->StartDevelopmentMatch(PC,Reason),TEXT("Cannot start before Ready"));
+    const uint32 Revision=State->Build.Revision;
+    PC->ServerLobbyChoice(State->Match,State->Life,Revision+1,1,false);
+    Check(State->Build.ClassId==0,TEXT("Stale build revision cannot change class"));
+    Check(!Mode->SetLobbyChoice(PC,3,false,Reason)&&State->Build.ClassId==0,TEXT("Invalid class rejected without mutation"));
+    const uint8 Presentation=Body->PresentationKey;
+    PC->ServerLobbyChoice(State->Match,State->Life,Revision,1,false);
+    Check(State->Build.ClassId==1&&State->Hp==95&&State->MaxHp==95&&Body->PresentationKey==Presentation,TEXT("Private Rogue choice applies attributes without changing body appearance"));
+    PC->ServerLobbyChoice(State->Match,State->Life,State->Build.Revision,1,true);
+    PC->ServerStartLobby(State->Match,State->Life);
+    Check(Public->bMatchStarted&&Mode->IsPlaying()&&FMath::IsNearlyEqual(double(Public->MatchDeadline)-Mode->StartedAt(),1500.,.01),TEXT("Ready host starts one-human practice with a 1500-second deadline"));
+    PC->ServerLobbyChoice(State->Match,State->Life,State->Build.Revision,2,false);
+    Check(State->Build.ClassId==1&&State->bReady&&!Mode->StartDevelopmentMatch(PC,Reason),TEXT("Started roster cannot change class or restart timers"));
+    FString LoginError; Mode->PreLogin(TEXT(""),TEXT("127.0.0.1"),FUniqueNetIdRepl(),LoginError);
+    Check(LoginError.Contains(TEXT("Roster locked")),TEXT("New guest cannot reset finite budgets after start"));
+    Check(FMath::IsNearlyEqual(Body->GetCharacterMovement()->GetMaxSpeed(),183.6f,.01f),TEXT("Native walk speed derives from the private build"));
+    Body->SetSprint(true); Check(FMath::IsNearlyEqual(Body->GetCharacterMovement()->GetMaxSpeed(),306.f,.01f),TEXT("Native sprint derives from the same bounded factor")); Body->SetSprint(false);
+    Mode->AwardExperience(PC,420); const auto Capped=State->Build; Mode->AwardExperience(PC,50);
+    Check(State->Xp==420&&State->Build.Level==5&&State->Build.AttributePoints==8&&State->Build.SkillPoints==4&&State->Build.Revision==Capped.Revision,TEXT("Actual contender XP crosses all thresholds once and caps"));
+    // Allocation is a labelled helper fixture until the held preparation transaction is integrated.
+    auto Plan=LDDevelopment::PlanFrom(State->Build); Plan.Attributes[LDDevelopment::STR]+=3; Plan.Attributes[LDDevelopment::CON]+=2;
+    FLDCharacterBuild Prepared; Check(LDDevelopment::Prepare(State->Build,Plan,Prepared,Reason),TEXT("Helper fixture creates an affordable allocated build"));
+    State->Hp=50; State->Build=Prepared; Mode->RefreshBuild(PC);
+    Check(State->Hp==50&&State->MaxHp==105&&Mode->Combat->StateFor(Body)->Hp==50,TEXT("Maximum-HP recalculation does not heal current authority HP"));
+    const double Now=GetWorld()->GetTimeSeconds(); auto* Combat=Mode->Combat->StateFor(Body); Combat->ProtectionUntil=0; State->ProtectedUntil=0;
+    Body->SetActorLocation(FVector(-1700,-1000,92),false,nullptr,ETeleportType::TeleportPhysics);
+    auto* NearbyResident=GetWorld()->SpawnActor<ALDResident>(FVector(-1650,-1000,92),FRotator::ZeroRotator);
+    NearbyResident->GetCharacterMovement()->DisableMovement();
+    Check(Mode->Vision->PlaceWard(PC,FVector(-1650,-1000,0),Reason),TEXT("Nearby humanoid does not impersonate a static ward-ground blocker"));
+    if (NearbyResident->GetController()) { NearbyResident->GetController()->Destroy(); } NearbyResident->Destroy();
+    for (TActorIterator<ALDWard> It(GetWorld());It;++It) { It->Destroy(); }
+    // The melee contract selects the nearest legal target. Isolate the damage
+    // fixture so a randomly wandering resident cannot legitimately intercept it.
+    for (TActorIterator<ALDResident> It(GetWorld());It;++It)
+    { It->SetActorLocation(FVector(1800,1000,92),false,nullptr,ETeleportType::TeleportPhysics); It->GetCharacterMovement()->DisableMovement(); }
+    auto* Victim=GetWorld()->SpawnActor<ALDCharacter>(Body->GetActorLocation()+FVector(80,0,0),FRotator::ZeroRotator);
+    Victim->GetCharacterMovement()->DisableMovement(); Body->GetCharacterMovement()->DisableMovement();
+    Check(Mode->Combat->Request(PC,0,FVector::ForwardVector,Reason),TEXT("Real scaled melee commits through retained combat path"));
+    Mode->Combat->Sample(Now+.16);
+    const double VictimHP=Mode->Combat->StateFor(Victim)->Hp;
+    Check(FMath::IsNearlyEqual(VictimHP,78.5),FString::Printf(TEXT("Actual impact retains 21.5 fractional damage (victim HP %.2f)"),VictimHP)); Victim->Destroy();
+    Mode->Combat->StateFor(Body)->Action=0;
+    Check(!Mode->Combat->Request(PC,1,FVector::ForwardVector,Reason)&&!Mode->Combat->Request(PC,2,FVector::ForwardVector,Reason),TEXT("Legacy assassination and dash cannot bypass future equipped slots"));
+    State->Build.Cooldowns[int32(ELDSkill::Step)]=Now+100; State->Gold=101; Mode->SyncOwner(PC);
+    const auto Retained=State->Build; const uint32 OldLife=State->Life; const uint32 OldBody=Body->GetUniqueID();
+    Mode->EndContenderLife(PC,Now); Body->Destroy(); const double ReturnAt=State->ReturnAt;
+    Check(!State->bActive&&State->Gold==85&&State->LastLostGold==16&&FMath::IsNearlyEqual(ReturnAt-Now,26.,.01),TEXT("Death snapshots v0.4 level-five opening delay and ceiling gold loss"));
+    Mode->EndContenderLife(PC,Now+1); Check(State->Gold==85&&State->ReturnAt==ReturnAt,TEXT("Duplicate death cannot charge loss or extend return"));
+    Mode->ReturnDueContenders(ReturnAt+.01);
+    Check(PC->GetPawn()&&PC->GetPawn()->GetUniqueID()!=OldBody&&State->Life==OldLife+1&&State->Hp==105&&State->Build.Attributes==Retained.Attributes&&State->Build.Cooldowns==Retained.Cooldowns&&State->Build.Ranks==Retained.Ranks&&State->Build.Slots==Retained.Slots,TEXT("New body retains build, points, knowledge and absolute cooldowns with full derived HP"));
+    PC->ServerLobbyChoice(State->Match,OldLife,State->Build.Revision,0,false);
+    Check(State->Build.ClassId==1,TEXT("Old-life lobby request cannot restore a fresh character"));
+}
+void ALDDevelopmentProbe::ResetCheck()
+{
+    auto* Instance=GetGameInstance<ULDGameInstance>();
+    if (!Instance->DevelopmentResetEvidence) { Instance->DevelopmentResetEvidence=MakeShared<FLDDevelopmentResetEvidence>(); }
+    auto& Evidence=*Instance->DevelopmentResetEvidence;
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); auto* State=Mode->StateFor(PC);
+    const auto Start=LDDevelopment::StartingBuild(0,Mode->CharacterCatalog());
+    Check(State->Match>Evidence.Generation&&!Public->bMatchStarted&&Public->ReadyCount==0&&Public->LobbyCount==1&&State->bLobbyHost&&!State->bReady,TEXT("New world resets lobby, ownership and generation"));
+    Check(State->Build.ClassId==0&&State->Build.Attributes==Start.Attributes&&State->Build.Ranks==Start.Ranks&&State->Build.Slots==Start.Slots&&State->Build.Cooldowns==Start.Cooldowns&&!State->Build.Subclass&&!State->Build.AttributePoints&&!State->Build.SkillPoints&&State->Build.Level==1&&!State->Xp&&!State->Gold&&State->Hp==110&&State->MaxHp==110&&!State->DeathSerial,TEXT("New world clears all B41 build, currency and life fields"));
+    if (Evidence.Round)
+    {
+        Check(!Evidence.OldActors.ContainsByPredicate([](const auto& Actor){return Actor.IsValid();}),TEXT("Prior world actors are destroyed"));
+        PC->ClientLifeReceipt(Evidence.PreviousOwner);
+        PC->ServerLobbyChoice(Evidence.Generation,1,State->Build.Revision,2,true);
+        Check(PC->OwnerState.Match==State->Match&&State->Build.ClassId==0&&!State->bReady,TEXT("Old private receipt and lobby request cannot restore a prior build"));
+    }
+    Evidence.Checks.Append(Checks); Evidence.Failures+=Failures;
+    if (Evidence.Round==10) { Checks=Evidence.Checks; Failures=Evidence.Failures; Finish(); return; }
+    FString Reason; Mode->SetLobbyChoice(PC,1,true,Reason); Mode->StartDevelopmentMatch(PC,Reason); Mode->AwardExperience(PC,420);
+    State->Build.Cooldowns[int32(ELDSkill::Step)]=GetWorld()->GetTimeSeconds()+100;
+    State->Build.Subclass=3; State->Gold=101; Mode->SyncOwner(PC);
+    if (Evidence.Round%2==0) { Mode->EndContenderLife(PC,GetWorld()->GetTimeSeconds()); }
+    Evidence.Generation=State->Match; Evidence.PreviousOwner=PC->OwnerState;
+    Evidence.OldActors.Reset(); for (TActorIterator<AActor> It(GetWorld());It;++It) { Evidence.OldActors.Add(*It); }
+    ++Evidence.Round;
+    UGameplayStatics::OpenLevel(this,TEXT("/Game/Lockdown/Generated/Maps/L_MigrationSandbox"),true,TEXT("Profile=V04"));
+}
+void ALDDevelopmentProbe::Enter(int32 Next)
+{
+    Phase=Next; PhaseAt=FPlatformTime::Seconds(); A->ClientProbePhase(uint8(Next)); B->ClientProbePhase(uint8(Next));
+}
+void ALDDevelopmentProbe::ServerTick()
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    if (!Phase)
+    {
+        for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
+        { if (auto* PC=Cast<ALDPlayerController>(It->Get());PC&&PC->GetPawn()) { if (PC->ProbeRole==1) { A=PC; } if (PC->ProbeRole==2) { B=PC; } } }
+        if (A.IsValid()&&B.IsValid()) { Check(Public->LobbyCount==2&&!Public->bMatchStarted,TEXT("Separate authority has two lobby contenders")); Enter(1); }
+        return;
+    }
+    if (Phase==4) { if (FPlatformTime::Seconds()-PhaseAt>3) { Finish(); } return; }
+    if (!A.IsValid()||!B.IsValid()) { Check(false,TEXT("Client disconnected before completion")); Finish(); return; }
+    const double Elapsed=FPlatformTime::Seconds()-PhaseAt;
+    const auto* AS=Mode->StateFor(A.Get()); const auto* BS=Mode->StateFor(B.Get());
+    if (Phase==1 && AS->bReady&&BS->bReady)
+    {
+        Check(AS->Build.ClassId==1&&BS->Build.ClassId==2&&Public->ReadyCount==2,TEXT("Owning RPCs choose independent private classes and Ready"));
+        Check(!Public->bMatchStarted&&AS->Build.Attributes!=BS->Build.Attributes,TEXT("Choices alone do not start or merge builds")); Enter(2);
+    }
+    else if (Phase==2 && Public->bMatchStarted&&Elapsed>1.5)
+    {
+        Check(Mode->IsPlaying()&&Public->LobbyCount==2&&Public->ReadyCount==2,TEXT("Ready host starts exactly the locked two-contender roster"));
+        FString Error; Mode->PreLogin(TEXT(""),TEXT("127.0.0.1"),FUniqueNetIdRepl(),Error);
+        Check(Error.Contains(TEXT("Roster locked")),TEXT("Authority rejects fresh post-start guests"));
+        Mode->AwardExperience(A.Get(),60); Mode->AwardExperience(B.Get(),150); Enter(3);
+    }
+    else if (Phase==3&&Elapsed>2)
+    {
+        Check(AS->Build.Level==2&&BS->Build.Level==3&&AS->Build.AttributePoints==2&&BS->Build.AttributePoints==4,TEXT("Private growth receipts remain independent on authority"));
+        Enter(4);
+    }
+}
+void ALDDevelopmentProbe::ClientTick()
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwner()); if (!PC || !PC->OwnerState.Match) { return; }
+    if (FPlatformTime::Seconds()-LastPing>.2) { LastPing=FPlatformTime::Seconds(); PC->ServerProbePing(LastPing); }
+    if (PC->ProbePhase!=Phase) { Phase=PC->ProbePhase; PhaseAt=FPlatformTime::Seconds(); bChecked=false; }
+    const double Elapsed=FPlatformTime::Seconds()-PhaseAt;
+    const uint8 Class=Role==TEXT("A")?1:2;
+    if (Phase==1)
+    {
+        if (!bChoiceSent) { PC->ChooseLobbyClass(Class); bChoiceSent=true; }
+        if (!bReadySent&&PC->OwnerState.Build.ClassId==Class&&Elapsed>.4) { PC->ToggleLobbyReady(); bReadySent=true; }
+    }
+    if (Phase==2&&!bStartSent&&Elapsed>(PC->OwnerState.bLobbyHost?.8:.1)) { PC->StartLobby(); bStartSent=true; }
+    if (Phase==3&&!bChecked&&Elapsed>1)
+    {
+        bChecked=true; const auto& O=PC->OwnerState;
+        Check(O.bDevelopmentProfile&&O.Build.ClassId==Class&&O.Build.Level==(Class==1?2:3),TEXT("Owner receives own selected class and level"));
+        Check(O.Build.AttributePoints==(Class==1?2:4)&&O.Build.SkillPoints==(Class==1?1:2),TEXT("Owner receives exact private point awards"));
+        if (!O.bLobbyHost) { Check(PC->IntentFeedback.Contains(TEXT("Only the lobby host")),TEXT("Nonhost start RPC was rejected by authority")); }
+        int32 Bodies=0,Controllers=0,PlayerStates=0; bool Own=true;
+        for (TActorIterator<ALDCharacter> It(GetWorld());It;++It) { ++Bodies; Own&=*It==PC->GetPawn(); }
+        for (TActorIterator<ALDPlayerController> It(GetWorld());It;++It) { ++Controllers; Own&=*It==PC; }
+        for (TActorIterator<ALDPlayerState> It(GetWorld());It;++It) { ++PlayerStates; Own&=*It==PC->PlayerState; }
+        Check(Bodies==1&&Controllers==1&&PlayerStates==1&&Own,TEXT("Restricted native client has no opponent canonical body, controller or private build carrier"));
+        Check(PC->LocalView()&&PC->RootUI&&PC->GetPawn()->GetClass()==ALDCharacter::StaticClass(),TEXT("Selected class keeps native UI, filtered relay and the shared body class"));
+    }
+    if (Phase==4&&Elapsed>1) { Finish(); }
+}
+void ALDDevelopmentProbe::Finish()
+{
+    SetActorTickEnabled(false);
+    TSharedRef<FJsonObject> Report=MakeShared<FJsonObject>(); Report->SetNumberField(TEXT("failures"),Failures);
+    if (GetNetMode()==NM_Client)
+    {
+        const auto* PC=CastChecked<ALDPlayerController>(GetOwner()); auto RTTs=PC->ProbeRtts; RTTs.Sort();
+        const double Median=RTTs.IsEmpty()?0:RTTs[RTTs.Num()/2];
+        Check(RTTs.Num()>=8,TEXT("Independent native client received transport echo samples"));
+        Report->SetNumberField(TEXT("medianEchoRttMs"),Median); Report->SetNumberField(TEXT("echoSamples"),RTTs.Num()); Report->SetNumberField(TEXT("failures"),Failures);
+    }
+    Report->SetStringField(TEXT("profile"),TEXT("V04 B41 development; grants/teleports in local probe are fixtures"));
+    TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }
+    Report->SetArrayField(TEXT("checks"),Lines); FString Output,Path,Directory;
+    FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);
+    if (Path.IsEmpty()) { FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory); Path=FPaths::Combine(Directory,Role+TEXT(".json")); }
+    FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Output));
+    if (Path.IsEmpty()||!FFileHelper::SaveStringToFile(Output,*Path)) { ++Failures; }
+    FPlatformMisc::RequestExitWithStatus(false,Failures?1:0);
+}

@@ -17,6 +17,11 @@ public:
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
     void ClearControls();
+    void ChooseLobbyClass(uint8 ClassId);
+    void ToggleLobbyReady();
+    void StartLobby();
+    UFUNCTION(Server,Reliable) void ServerLobbyChoice(uint32 Match,uint32 Life,uint32 BuildRevision,uint8 ClassId,bool Ready);
+    UFUNCTION(Server,Reliable) void ServerStartLobby(uint32 Match,uint32 Life);
     bool IsFrontend() const;
     UPROPERTY(ReplicatedUsing=OnRep_OwnerState) FLDOwnerState OwnerState;
     UFUNCTION() void OnRep_OwnerState();

@@ -8,7 +8,8 @@ class ALDPlayerController;
 struct FLDBodyCombatState
 {
     FGuid Identity=FGuid::NewGuid();
-    int32 Hp=100;
+    double Hp=100;
+    double CommittedDamage=20;
     double LastDamage=-1000,LastDealt=-1000,QuietSince=0,ExposedUntil=0;
     double BasicReady=0,AssassinReady=0,DashReady=0,ProtectionUntil=0,HitUntil=0,WarningUntil=0;
     uint8 Action=0;

@@ -23,6 +23,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     GetCapsuleComponent()->InitCapsuleSize(28,90);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     GetCapsuleComponent()->SetCanEverAffectNavigation(false);
     UCharacterMovementComponent* Movement = GetCharacterMovement();
     Movement->MaxWalkSpeed = 180;

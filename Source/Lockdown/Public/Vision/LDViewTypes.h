@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
+#include "Development/LDCharacterBuild.h"
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
@@ -43,7 +44,12 @@ struct FLDOwnerState
     GENERATED_BODY()
     UPROPERTY() uint32 Match = 0;
     UPROPERTY() uint32 Life = 1;
-    UPROPERTY() int32 Hp = 100;
+    UPROPERTY() double Hp = 100;
+    UPROPERTY() double MaxHp = 100;
+    UPROPERTY() bool bDevelopmentProfile = false;
+    UPROPERTY() bool bReady = false;
+    UPROPERTY() bool bLobbyHost = false;
+    UPROPERTY() FLDCharacterBuild Build;
     UPROPERTY() int64 Gold = 0;
     UPROPERTY() int64 Xp = 0;
     UPROPERTY() uint8 WardCharges = 1;

@@ -33,11 +33,11 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDObservedEntity::StaticStruct());It;++It)
     { ++Count; TestTrue(TEXT("Only approved observed fields"),Allowed.Contains(It->GetFName())); TestNull(TEXT("No canonical UObject references"),CastField<FObjectPropertyBase>(*It)); }
     TestEqual(TEXT("Approved schema complete"),Count,8);
-    const TSet<FName> Public={TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict")};
+    const TSet<FName> Public={TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount")};
     int32 PublicCount=0;
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
     {++PublicCount;TestTrue(TEXT("Only approved public objective facts"),Public.Contains(It->GetFName()));TestNull(TEXT("No claimant/carrier canonical references"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Public schema complete"),PublicCount,15);
+    TestEqual(TEXT("Public schema complete"),PublicCount,19);
     TestEqual(TEXT("Lower world corner"),LDVision::Cell(FVector(-2400,-1600,0)),0);
     TestEqual(TEXT("Upper edge excluded"),LDVision::Cell(FVector(2400,1600,0)),INDEX_NONE);
     TestEqual(TEXT("Last interior cell"),LDVision::Cell(FVector(2399.9,1599.9,0)),2399);

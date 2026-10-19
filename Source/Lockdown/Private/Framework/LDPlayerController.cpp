@@ -26,14 +26,35 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Tests/LDObjectiveNetworkProbe.h"
 #include "Tests/LDSoakProbe.h"
+#include "Tests/LDDevelopmentProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"));}
 }
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
+
+void ALDPlayerController::ChooseLobbyClass(uint8 ClassId)
+{ ServerLobbyChoice(OwnerState.Match,OwnerState.Life,OwnerState.Build.Revision,ClassId,false); }
+void ALDPlayerController::ToggleLobbyReady()
+{ ServerLobbyChoice(OwnerState.Match,OwnerState.Life,OwnerState.Build.Revision,OwnerState.Build.ClassId,!OwnerState.bReady); }
+void ALDPlayerController::StartLobby() { ServerStartLobby(OwnerState.Match,OwnerState.Life); }
+void ALDPlayerController::ServerLobbyChoice_Implementation(uint32 Match,uint32 Life,uint32 BuildRevision,uint8 ClassId,bool Ready)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); const auto* State=Mode?Mode->StateFor(this):nullptr; FString Reason;
+    if (!State || State->Match!=Match || State->Life!=Life || State->Build.Revision!=BuildRevision) { Reason=TEXT("Stale lobby choice."); }
+    else { Mode->SetLobbyChoice(this,ClassId,Ready,Reason); }
+    ClientIntentResult(0,Reason);
+}
+void ALDPlayerController::ServerStartLobby_Implementation(uint32 Match,uint32 Life)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); const auto* State=Mode?Mode->StateFor(this):nullptr; FString Reason;
+    if (!State || State->Match!=Match || State->Life!=Life) { Reason=TEXT("Stale start request."); }
+    else { Mode->StartDevelopmentMatch(this,Reason); }
+    ClientIntentResult(0,Reason);
+}
 
 void ALDPlayerController::BeginPlay()
 {
@@ -53,6 +74,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDDevelopmentProbe>(ALDDevelopmentProbe::StaticClass(),FTransform::Identity,Params);}
     if (!IsFrontend() && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe")))
     { FActorSpawnParameters Params; Params.Owner=this; GetWorld()->SpawnActor<ALDViewNetworkProbe>(ALDViewNetworkProbe::StaticClass(),FTransform::Identity,Params); }
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe")))
@@ -154,13 +177,13 @@ FString ALDPlayerController::ContextPrompt() const
     if(!OwnerState.bActive){return TEXT("Waiting: owned ward and shared sight only.");}
     const double Now=GS?GS->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
     if(Now<OwnerState.ProtectedUntil){return TEXT("Return protection: gameplay actions locked.");}
-    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
+    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("Courier preview: approach Guild [G] or West station [W]. Skills and Seal crafting are not available yet."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
     if(Target==LDObjective::Heart)
-    {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture.");}
+    {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):(OwnerState.bDevelopmentProfile?TEXT("Heart locked. Seal crafting and conquest are not available in this preview."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture."));}
     if(Target==LDObjective::Guild)
     {
-        if(OwnerState.ContractStage==2){return TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +15 XP).");}
+        if(OwnerState.ContractStage==2){return OwnerState.bDevelopmentProfile?TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +45 XP)."):TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +15 XP).");}
         if(OwnerState.ContractStage==1){return TEXT("Courier active: collect at West station [W].");}
         if(Now<OwnerState.WorkReadyAt){return FString::Printf(TEXT("Courier acceptance ready in %.1fs."),OwnerState.WorkReadyAt-Now);}
         return TEXT("E: accept courier contract. Then hold E at West station [W] to collect.");
@@ -257,7 +280,7 @@ void ALDPlayerController::ServerProbeHello_Implementation(uint8 ProbeIdentity)
 {
 #if !UE_BUILD_SHIPPING
     const ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if (Mode && Mode->bScaffoldProfile && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=2 && LDNetworkProbeEnabled()) { ProbeRole=ProbeIdentity; }
+    if (Mode && (Mode->bScaffoldProfile||Mode->IsDevelopmentProfile()) && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=2 && LDNetworkProbeEnabled()) { ProbeRole=ProbeIdentity; }
 #endif
 }
 void ALDPlayerController::ServerProbePing_Implementation(double Sent)

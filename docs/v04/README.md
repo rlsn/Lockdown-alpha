@@ -5,8 +5,10 @@ Specification revision 1 • 19 October 2026 • Extends the Unreal v0.3 foundat
 **Repository integration:** this is the active release specification. Start with
 the [current handoff](../CONTINUATION.md), [baseline review](BASELINE_REVIEW.md)
 and [working feature ledger](FeatureLedger.csv) for actual repository status.
-The supplied specifications and blank templates below are design inputs;
-v0.4 runtime implementation and B40 prerequisite verification remain open.
+The supplied specifications and blank templates below are design inputs.
+[B40 baseline verification](B40_BASELINE_AUDIT.md) and the B41 character/lobby
+engineering checks have passed. See the [implementation record](IMPLEMENTATION_REPORT.md)
+for actual scope and evidence. The complete v0.4 release remains in development.
 
 Build the next playable step around classes, six attributes, learned skills and a single combat-and-utility loadout. Replace the fixed shared kit with player-directed development, add cross-class books and contrasting world interactions, and make the peaceful Seal route actually earnable without a diagnostic grant.
 

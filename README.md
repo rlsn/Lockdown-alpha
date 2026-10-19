@@ -1,19 +1,25 @@
-# Project Lockdown — v0.4 preparation
+# Project Lockdown — v0.4 development
 
 Windows-first Unreal 5.8.3 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); active release scope and
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current code baseline: v0.3 B36; v0.4 implementation has not started.** The
-existing Windows Development package includes courier work, Seal theft, Heart
-claims, combat/life and private observation. See the archived
-[checkpoint](docs/v03/implementation/B36_CHECKPOINT.md),
-[tests](docs/v03/implementation/TestReport.md) and
-[v0.4 baseline review](docs/v04/BASELINE_REVIEW.md). Next is B40 prerequisite
-verification, then class development, shared skill slots and earned peaceful
-acquisition. Human usability acceptance and conditional dedicated-server delivery
-remain open.
+**Current checkpoint: B41 character state and Ready lobby; B40 verified.** v0.4
+adds three private class starts, six attributes, five-level point awards, derived
+HP/damage/speed, retained development through death and a locked start roster.
+The Windows Development checkpoint builds, cooks and passes native and packaged
+authority/network/reset checks. See the
+[implementation record](docs/v04/IMPLEMENTATION_REPORT.md) for evidence and limits.
+Next is B42's equipped-skill execution path. Books, preparation, the connected
+region and earned Seal acquisition remain in development.
+
+Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
+start as the lobby host. One human is practice; the declared cap is 25 minutes.
+This preview retains migration-map geometry and courier work. Learned skills and
+Seal crafting are not yet available. Opening the sandbox without `?Profile=V04`
+selects the explicit legacy profile, documented in the
+[v0.3 implementation archive](docs/v03/implementation/README.md).
 
 ## Setup
 
@@ -39,6 +45,9 @@ remain open.
 ./Scripts/BootstrapAssets.ps1
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
+./Scripts/RunDevelopmentCheck.ps1
+./Scripts/RunDevelopmentCheck.ps1 -Network -RoundTripMs 150 -JitterMs 25
+./Scripts/RunDevelopmentCheck.ps1 -Reset
 ./Scripts/RunMovementCheck.ps1
 ./Scripts/RunViewNetworkCheck.ps1
 ./Scripts/RunCombatCheck.ps1
@@ -57,7 +66,7 @@ PowerShell 7 is
 the tested script host. Per-run output and local machine paths go to ignored
 `Artifacts/`. Scripts fail if the discovered engine differs from the lock.
 
-The generator saves 23 packages: three maps, tuning, eleven input actions, a
+The generator saves 24 packages: three maps, two data assets, eleven input actions, a
 13-key context, four surface materials, fog material/texture and a native UI wrapper.
 The sandbox supports camera-relative movement, sprint, aim, zoom, eight residents,
 private ward sight, shared tower/Heart sight, explored fog, combat/life and objective transactions. Host and direct-address

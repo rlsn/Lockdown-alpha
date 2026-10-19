@@ -70,7 +70,8 @@ void ALDResetProbe::Run()
     // Deliberately dirty every lifetime boundary before actual non-seamless travel.
     // Alternate a pending death/return with a real terminal claim, not a synthetic reset of fields.
     auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());Body->SetActorLocation(FVector(-1700,-1000,92));Body->GetCharacterMovement()->DisableMovement();FString Reason;
-    Check(Mode->Vision->PlaceWard(PC,FVector(-1650,-1000,0),Reason),TEXT("setup creates a real expiring ward"));
+    const bool Placed=Mode->Vision->PlaceWard(PC,FVector(-1650,-1000,0),Reason);
+    Check(Placed,TEXT("setup creates a real expiring ward: ")+Reason);
     Body->SetActorLocation(LDObjective::Position(LDObjective::Guild)+FVector(0,60,92));
     PC->ServerContextRequest(O.Match,O.Life,100,LDObjective::Guild,FGuid());Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
     auto* Item=Mode->Objectives->SeedFixtureSeal();Item->State=1;Item->Carrier=PC;auto* State=Mode->StateFor(PC);State->SealId=Item->Identity;State->Gold=101;State->Xp=80;State->Commissions=6;State->DeliverySerial=7;Mode->SyncOwner(PC);

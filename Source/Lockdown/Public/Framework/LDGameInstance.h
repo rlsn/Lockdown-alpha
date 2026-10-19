@@ -12,6 +12,7 @@ public:
     FString ConnectionMessage;
     uint32 AuthorityGeneration = 0;
     TSharedPtr<struct FLDResetEvidence> ResetEvidence;
+    TSharedPtr<struct FLDDevelopmentResetEvidence> DevelopmentResetEvidence;
     virtual void Init() override;
     virtual void Shutdown() override;
 private:

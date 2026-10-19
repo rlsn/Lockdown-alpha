@@ -1,5 +1,9 @@
 # v0.4 baseline review and implementation readiness
 
+Historical preparation review. [B40 baseline verification](B40_BASELINE_AUDIT.md)
+has since passed; track new implementation in the
+[implementation record](IMPLEMENTATION_REPORT.md) and working ledger.
+
 Reviewed 19 October 2026 against Unreal source checkpoint
 `4cc9cbde3e696eaef2f0defff1f0ddec48e5ba89`, the supplied master revision 4 and v0.4
 specification revision 1. This is preparation for B40, not B40 completion.

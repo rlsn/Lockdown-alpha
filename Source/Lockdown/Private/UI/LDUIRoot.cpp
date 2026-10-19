@@ -28,6 +28,8 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
     {
         SetIsFocusable(true);
         const bool bFrontend = CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend();
+        const auto* Authority=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        const bool bFixtureUI=GetOwningPlayer()->HasAuthority()&&Authority&&!Authority->IsDevelopmentProfile();
         UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>();
         WidgetTree->RootWidget = Canvas;
         auto Text = [this](const FString& Value, int32 Size)
@@ -41,6 +43,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             return Label;
         };
         UBorder* Header = WidgetTree->ConstructWidget<UBorder>();
+        HeaderPanel=Header;
         Header->SetBrushColor(FLinearColor(.025f,.045f,.045f,.92f));
         Header->SetPadding(FMargin(20,12));
         Status = Text(TEXT("LOCKDOWN  |  Unreal migration demo"), 18);
@@ -83,7 +86,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         };
         if (bFrontend)
         {
-            Button(TEXT("Host gameplay demo"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
+            Button(TEXT("Host v0.4 development lobby"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
             Address = WidgetTree->ConstructWidget<UEditableTextBox>();
             Address->SetText(FText::FromString(TEXT("127.0.0.1:7777")));
             Address->SetHintText(FText::FromString(TEXT("Host address:port")));
@@ -98,27 +101,54 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         {
             Button(TEXT("Resume"))->OnClicked.AddDynamic(this, &ULDUIRoot::Resume);
             Button(TEXT("Return to menu"))->OnClicked.AddDynamic(this, &ULDUIRoot::Leave);
-            if (GetOwningPlayer()->HasAuthority()) { Button(TEXT("Authority fixtures (setup only)"))->OnClicked.AddDynamic(this, &ULDUIRoot::Fixtures); }
+            if (bFixtureUI) { Button(TEXT("Authority fixtures (setup only)"))->OnClicked.AddDynamic(this, &ULDUIRoot::Fixtures); }
         }
-        Row(Text(TEXT("WASD move · Shift sprint · Mouse aim\nClick attack · Q assassination · Space dash\nE interact / hold · F ward · Wheel zoom\nEscape / H menu"), 15));
+        MenuHelp=Text(TEXT("WASD move · Shift sprint · Mouse aim\nClick attack · Q assassination · Space dash\nE interact / hold · F ward · Wheel zoom\nEscape / H menu"),15); Row(MenuHelp);
         Feedback = Text(TEXT(""), 14);
         Row(Feedback);
         Button(TEXT("Exit"))->OnClicked.AddDynamic(this, &ULDUIRoot::Exit);
         bMenuOpen = bFrontend;
         MenuPanel->SetVisibility(bFrontend ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+        if (!bFrontend)
+        {
+            LobbyPanel=WidgetTree->ConstructWidget<UBorder>();
+            LobbyPanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.99f)); LobbyPanel->SetPadding(FMargin(24));
+            auto* Choices=WidgetTree->ConstructWidget<UVerticalBox>(); LobbyPanel->SetContent(Choices);
+            auto* LobbyCanvasSlot=Canvas->AddChildToCanvas(LobbyPanel); LobbyCanvasSlot->SetAnchors(FAnchors(.5f,.5f)); LobbyCanvasSlot->SetAlignment(FVector2D(.5)); LobbyCanvasSlot->SetSize(FVector2D(720,660));
+            Choices->AddChildToVerticalBox(Text(TEXT("v0.4 · CHARACTER LOBBY"),26));
+            LobbyInfo=Text(TEXT("Choose a starting class, then Ready."),17); Choices->AddChildToVerticalBox(LobbyInfo);
+            auto Choice=[&](const TCHAR* Label)
+            {
+                auto* Control=WidgetTree->ConstructWidget<UButton>();
+                auto Style=Control->GetStyle(); Style.Normal.TintColor=FSlateColor(FLinearColor(.055f,.12f,.12f));
+                Style.Hovered.TintColor=FSlateColor(FLinearColor(.1f,.24f,.23f)); Style.Pressed.TintColor=FSlateColor(FLinearColor(.035f,.08f,.08f));
+                Style.Disabled.TintColor=FSlateColor(FLinearColor(.04f,.07f,.07f)); Style.NormalPadding=FMargin(12,8); Style.PressedPadding=FMargin(12,8); Control->SetStyle(Style);
+                auto* Caption=Text(Label,17); Caption->SetAutoWrapText(false); Caption->SetJustification(ETextJustify::Center); Control->SetContent(Caption);
+                Choices->AddChildToVerticalBox(Control)->SetPadding(FMargin(0,8)); return Control;
+            };
+            Choice(TEXT("Laborer · STR 12 / CON 12 · Heave + Patch"))->OnClicked.AddDynamic(this,&ULDUIRoot::Laborer);
+            Choice(TEXT("Rogue · DEX 12 / WIS 12 · Pickpocket + Survey"))->OnClicked.AddDynamic(this,&ULDUIRoot::Rogue);
+            Choice(TEXT("Scholar · INT 12 / CHA 12 · Spark + Analyze"))->OnClicked.AddDynamic(this,&ULDUIRoot::Scholar);
+            Choice(TEXT("Toggle Ready"))->OnClicked.AddDynamic(this,&ULDUIRoot::Ready);
+            LobbyStart=Choice(TEXT("Start match (host)")); LobbyStart->OnClicked.AddDynamic(this,&ULDUIRoot::StartMatch);
+            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nCharacter preview: starting skills cannot be activated yet."),14));
+            LobbyPanel->SetVisibility(ESlateVisibility::Collapsed);
+        }
         if(!bFrontend)
         {
             UBorder* ObjectivePanel=WidgetTree->ConstructWidget<UBorder>();ObjectivePanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.94f));ObjectivePanel->SetPadding(FMargin(16,10));
+            ActionPanel=ObjectivePanel;
             UVerticalBox* Information=WidgetTree->ConstructWidget<UVerticalBox>();ObjectivePanel->SetContent(Information);
             ObjectiveInfo=Text(TEXT("E interacts with nearby public sites."),16);Information->AddChildToVerticalBox(ObjectiveInfo);
             ChannelProgress=WidgetTree->ConstructWidget<UProgressBar>();ChannelProgress->SetFillColorAndOpacity(FLinearColor(.75f,.65f,.22f));
             auto* ProgressSlot=Information->AddChildToVerticalBox(ChannelProgress);ProgressSlot->SetPadding(FMargin(0,6));
-            Information->AddChildToVerticalBox(Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14));
+            ControlsInfo=Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14);
+            Information->AddChildToVerticalBox(ControlsInfo);
             auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,150));
             // HUD panels do not capture clicks intended for the game world.
             ObjectivePanel->SetVisibility(ESlateVisibility::HitTestInvisible);
         }
-        if(!bFrontend&&GetOwningPlayer()->HasAuthority())
+        if(!bFrontend&&bFixtureUI)
         {
             FixturePanel=WidgetTree->ConstructWidget<UBorder>();FixturePanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.99f));FixturePanel->SetPadding(FMargin(28));
             UVerticalBox* Items=WidgetTree->ConstructWidget<UVerticalBox>();FixturePanel->SetContent(Items);
@@ -156,10 +186,28 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         const ALDCharacter* Body=Cast<ALDCharacter>(PC->GetPawn());
         const auto& O=PC->OwnerState;
         const auto* GS=GetWorld()->GetGameState<ALDGameState>();
+        const bool Lobby=GS&&GS->bDevelopmentProfile&&!GS->bMatchStarted;
+        if (Lobby!=bInLobby && LobbyPanel)
+        {
+            bInLobby=Lobby;
+            LobbyPanel->SetVisibility(Lobby?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+            HeaderPanel->SetVisibility(Lobby?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            if (ActionPanel) { ActionPanel->SetVisibility(Lobby?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible); }
+            if (Lobby) { MenuPanel->SetVisibility(ESlateVisibility::Collapsed); bMenuOpen=false; }
+            const_cast<ALDPlayerController*>(PC)->SetMenuOpen(Lobby);
+        }
+        if (Lobby && LobbyInfo)
+        {
+            const auto& B=O.Build;
+            LobbyInfo->SetText(FText::FromString(FString::Printf(TEXT("Your class: %s · %s\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d\nReady %d / %d · Your choice is private\n%s"),
+                LDDevelopment::ClassName(B.ClassId),O.bReady?TEXT("READY"):TEXT("Not ready"),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],GS->ReadyCount,GS->LobbyCount,*PC->IntentFeedback)));
+            LobbyStart->SetIsEnabled(O.bLobbyHost&&GS->ReadyCount==GS->LobbyCount&&GS->LobbyCount>0);
+            LobbyStart->SetVisibility(O.bLobbyHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+        }
         const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
         const ALDWorldViewRelay* Relay=PC->LocalView();
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
-        FString Life=O.bActive?FString::Printf(TEXT("HP %d/100 · Speed %.0f · Ward %d"),O.Hp,Body?Body->GetVelocity().Size2D():0,O.WardCharges)
+        FString Life=O.bActive?FString::Printf(TEXT("HP %.2f/%.0f · Speed %.0f · Ward %d"),O.Hp,O.MaxHp,Body?Body->GetVelocity().Size2D():0,O.WardCharges)
             :(GS&&GS->EndReason?FString::Printf(TEXT("DEAD · Lost %lld gold · Demo finished"),O.LastLostGold):FString::Printf(TEXT("DEAD · Lost %lld gold · Return in %.1fs · Owned wards and shared sight only"),O.LastLostGold,FMath::Max(0.,O.ReturnAt-Now)));
         FString Danger=Now<O.WarningUntil?TEXT("DANGER: ASSASSINATION · Turn, escape, dash or deal damage!")
             :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
@@ -177,8 +225,19 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             for(int32 I=0;I<DefenceLabels.Num();++I){DefenceLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s defence: %s (fixture toggle)"),Names[I],GS->DefensiveFlags&(1<<I)?TEXT("ACTIVE"):TEXT("CLEARED"))));}
         }
         Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · MIGRATION DEMO · %s\nGold %lld · XP %lld (level %d) · Seal %s · Sight %s: body %d / ward %d / shared %d\nAttack %.1fs · Q %.1fs · Dash %.1fs · %s\n%s"),
-            *Life,O.Gold,O.Xp,LDRules::LevelFromXp(O.Xp),O.SealId.IsValid()?TEXT("carried"):TEXT("none"),Relay&&!Relay->IsStale()?TEXT("fresh"):TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,
+            *Life,O.Gold,O.Xp,O.bDevelopmentProfile?O.Build.Level:LDRules::LevelFromXp(O.Xp),O.SealId.IsValid()?TEXT("carried"):TEXT("none"),Relay&&!Relay->IsStale()?TEXT("fresh"):TEXT("STALE"),View.BodySources,View.WardSources,View.PublicSources,
             FMath::Max(0.,O.BasicReadyAt-Now),FMath::Max(0.,O.AssassinReadyAt-Now),FMath::Max(0.,O.DashReadyAt-Now),*Public,*Danger)));
+        if (O.bDevelopmentProfile && !Lobby)
+        {
+            const auto& B=O.Build;
+            Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · v0.4 DEVELOPMENT · %s\n%s · Level %d · XP %lld / 420 · Gold %lld · Attribute points %d · Skill points %d\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d · Basic %.2f damage\n%s · %s"),
+                *Life,LDDevelopment::ClassName(B.ClassId),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
+        }
+        if (O.bDevelopmentProfile)
+        {
+            const FText Controls=FText::FromString(TEXT("WASD move · Shift sprint · Mouse aim · Click attack · E courier / hold · F ward · Wheel zoom · H / Esc help\nLearned skill activation and Seal crafting are not available in this preview."));
+            if (ControlsInfo) { ControlsInfo->SetText(Controls); } MenuHelp->SetText(Controls);
+        }
         if(ObjectiveInfo)
         {
             const TCHAR* Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
@@ -196,7 +255,7 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
     const int32 Result=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const ALDWorldViewRelay* Relay=PC ? PC->LocalView() : nullptr;
-    if (!Relay || PC->IsFrontend()) { return Result; }
+    if (!Relay || PC->IsFrontend() || bInLobby) { return Result; }
     const FLDWorldView& View=Relay->LastView();
     const FVector2D Origin(Geometry.GetLocalSize().X-270,180);
     auto Box=[&](FVector2D At,FVector2D Size,FLinearColor Color)
@@ -224,6 +283,7 @@ void ULDUIRoot::DefenceCentral(){CastChecked<ALDPlayerController>(GetOwningPlaye
 
 void ULDUIRoot::ToggleMenu()
 {
+    if (bInLobby) { return; }
     if (CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend()) { return; }
     if(FixturePanel&&FixturePanel->GetVisibility()==ESlateVisibility::Visible){FixtureBack();return;}
     bMenuOpen = !bMenuOpen;
@@ -238,7 +298,7 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry, const FKeyEvent& Ev
 void ULDUIRoot::Host()
 {
     GetGameInstance<ULDGameInstance>()->ConnectionMessage.Reset();
-    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_MigrationSandbox"), true, TEXT("listen"));
+    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_MigrationSandbox"), true, TEXT("listen?Profile=V04"));
 }
 void ULDUIRoot::Join()
 {
@@ -259,3 +319,8 @@ void ULDUIRoot::Join()
 void ULDUIRoot::Resume() { if (bMenuOpen) { ToggleMenu(); } }
 void ULDUIRoot::Leave() { UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_Frontend")); }
 void ULDUIRoot::Exit() { UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false); }
+void ULDUIRoot::Laborer() { CastChecked<ALDPlayerController>(GetOwningPlayer())->ChooseLobbyClass(0); }
+void ULDUIRoot::Rogue() { CastChecked<ALDPlayerController>(GetOwningPlayer())->ChooseLobbyClass(1); }
+void ULDUIRoot::Scholar() { CastChecked<ALDPlayerController>(GetOwningPlayer())->ChooseLobbyClass(2); }
+void ULDUIRoot::Ready() { CastChecked<ALDPlayerController>(GetOwningPlayer())->ToggleLobbyReady(); }
+void ULDUIRoot::StartMatch() { CastChecked<ALDPlayerController>(GetOwningPlayer())->StartLobby(); }

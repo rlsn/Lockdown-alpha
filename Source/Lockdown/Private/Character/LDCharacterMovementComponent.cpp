@@ -2,6 +2,9 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/RootMotionSource.h"
 #include "Components/SceneComponent.h"
+#include "Framework/LDPlayerController.h"
+#include "Framework/LDGameMode.h"
+#include "Engine/World.h"
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
@@ -47,6 +50,12 @@ namespace
 
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
+    if (const auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;PC&&PC->OwnerState.bDevelopmentProfile)
+    {
+        const auto* Public=GetWorld()->GetGameState<ALDGameState>();
+        if (!Public || !Public->bMatchStarted || Public->EndReason || !PC->OwnerState.bActive) { return 0; }
+        return float((IsMovingOnGround()&&bWantsSprint&&!bCombatWalkOnly?300.:180.)*LDDevelopment::SpeedFactor(PC->OwnerState.Build));
+    }
     return IsMovingOnGround() && bWantsSprint && !bCombatWalkOnly ? SprintSpeed : Super::GetMaxSpeed();
 }
 

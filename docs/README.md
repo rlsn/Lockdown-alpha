@@ -1,7 +1,8 @@
 # Project Lockdown documentation
 
-Active release: **v0.4 preparation**. The runnable code is still the v0.3 B36
-migration slice; v0.4 gameplay has not been implemented.
+Active release: **v0.4 development**. B40 baseline verification has passed, and
+B41 adds private character state and a Ready lobby on the retained migration map.
+The complete class/skill/region/acquisition loop remains in development.
 
 | Start here | Purpose |
 | --- | --- |
@@ -9,6 +10,8 @@ migration slice; v0.4 gameplay has not been implemented.
 | [Master plan, revision 4](master/README.md) | Long-term design authority and current user decisions |
 | [v0.4 specification](v04/README.md) | Release scope, proposed tuning, B40–B47 and C01–C48 |
 | [v0.4 baseline review](v04/BASELINE_REVIEW.md) | Source inspection, existing evidence and migration risks |
+| [B40 audit](v04/B40_BASELINE_AUDIT.md) | Fresh build, native and packaged baseline results |
+| [v0.4 implementation record](v04/IMPLEMENTATION_REPORT.md) | Current implementation and verification boundary |
 | [v0.4 feature ledger](v04/FeatureLedger.csv) | Working inventory; baseline observations and open implementation work |
 | [v0.3 implementation archive](v03/implementation/README.md) | B32–B36 reports, tests, demo, audits and migration ledger |
 | [v0.3 specification](v03/README.md) | Historical migration requirements and frozen v0.2 references |

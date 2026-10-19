@@ -34,6 +34,10 @@ public:
     UPROPERTY(Replicated) uint32 SealNoticeSerial = 0;
     UPROPERTY(Replicated) uint8 SealNoticeKind = 0;
     UPROPERTY(Replicated) uint8 SealNoticeDistrict = 0;
+    UPROPERTY(Replicated) bool bDevelopmentProfile = false;
+    UPROPERTY(Replicated) bool bMatchStarted = true;
+    UPROPERTY(Replicated) uint8 LobbyCount = 0;
+    UPROPERTY(Replicated) uint8 ReadyCount = 0;
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 };
@@ -50,6 +54,7 @@ class LOCKDOWN_API ALDGameMode : public AGameModeBase
     GENERATED_BODY()
 public:
     ALDGameMode();
+    virtual void InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage) override;
     virtual void StartPlay() override;
     virtual void RestartPlayer(AController* NewPlayer) override;
     virtual void PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage) override;
@@ -59,6 +64,13 @@ public:
     void SyncOwner(ALDPlayerController* Controller);
     void EndContenderLife(ALDPlayerController* Controller,double Now);
     void ReturnDueContenders(double Now);
+    bool SetLobbyChoice(ALDPlayerController* Controller,uint8 ClassId,bool Ready,FString& Reason);
+    bool StartDevelopmentMatch(ALDPlayerController* Controller,FString& Reason);
+    void AwardExperience(ALDPlayerController* Controller,int64 Amount);
+    void RefreshBuild(ALDPlayerController* Controller,bool RestoreFullHP=false);
+    bool IsPlaying() const;
+    bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
+    const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
     bool IsFinished() const;
     double RuleTime() const;
     double StartedAt() const {return MatchStartedAt;}
@@ -67,6 +79,10 @@ public:
     UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
+    bool bDevelopmentProfile = false;
+    UPROPERTY() TObjectPtr<ULDCharacterCatalog> Catalog;
+    TWeakObjectPtr<ALDPlayerController> LobbyHost;
+    void UpdateLobby();
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
     TArray<FVector> SpawnPool;
     FRandomStream SpawnRandom;

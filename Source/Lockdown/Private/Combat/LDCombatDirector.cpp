@@ -32,6 +32,10 @@ void ALDCombatDirector::Register(ALDCharacter* Body)
     if(!Body || Bodies.Contains(Body)){return;}
     FLDBodyCombatState State;
     State.Hp=Body->IsA<ALDResident>()?40:100;
+    if (auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->IsDevelopmentProfile())
+    {
+        if (auto* PC=Cast<ALDPlayerController>(Body->GetController())) { if (auto* PrivateBuildState=Mode->StateFor(PC)) { State.Hp=PrivateBuildState->Hp; } }
+    }
     State.Home=Body->GetActorLocation(); State.QuietSince=GetWorld()->GetTimeSeconds();
     Bodies.Add(Body,State);
 }
@@ -100,7 +104,9 @@ bool ALDCombatDirector::Request(ALDPlayerController* PC,uint8 Action,const FVect
 bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVector& Direction,FString& Result)
 {
     auto* S=StateFor(Body); const double Now=GetWorld()->GetTimeSeconds();
-    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsFinished()){Result=TEXT("Demo finished.");return false;}
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(!Mode->IsPlaying()){Result=TEXT("Gameplay is unavailable in the lobby or after results.");return false;}
+    if(Mode->IsDevelopmentProfile()&&Action!=0){Result=TEXT("Use an equipped skill slot; legacy skill shortcuts are disabled in v0.4.");return false;}
     if(!S||S->Hp<=0||Now<S->ProtectionUntil||Direction.ContainsNaN()||Direction.SizeSquared2D()<UE_SMALL_NUMBER||FMath::Abs(Direction.Z)>.001||Action>2)
     {Result=TEXT("Action unavailable.");return false;}
     auto* Move=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
@@ -122,6 +128,9 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
         {
             if(Now<S->BasicReady){Result=TEXT("Attack cooling down.");return false;}
             S->Action=1;S->ImpactAt=Now+LDCombat::BasicWindup;S->BasicReady=Now+LDCombat::BasicCadence;
+            auto* PC=Cast<ALDPlayerController>(Body->GetController());
+            const auto* PrivateBuildState=PC?Mode->StateFor(PC):nullptr;
+            S->CommittedDamage=Mode->IsDevelopmentProfile()&&PrivateBuildState?LDDevelopment::BasicDamage(PrivateBuildState->Build):20;
             Result=TEXT("Attack committed.");
         }
         else
@@ -159,7 +168,7 @@ void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
 }
 void ALDCombatDirector::Sample(double Now)
 {
-    struct FImpact{ALDCharacter* Source;AActor* Target;int32 Damage;};TArray<FImpact> Impacts;
+    struct FImpact{ALDCharacter* Source;AActor* Target;double Damage;};TArray<FImpact> Impacts;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsFinished()){return;}
     Intents.StableSort([](const FIntent& A,const FIntent& B){return A.Action>B.Action;});
@@ -193,7 +202,7 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::IsRear(Body->GetActorLocation(),Victim->GetActorLocation(),Victim->GetActorForwardVector())
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
-            if(Target){Impacts.Add({Body,Target,bAssassin?60:20});}
+            if(Target){Impacts.Add({Body,Target,bAssassin?60:S.CommittedDamage});}
             S.Action=bAssassin?3:0;S.RecoveryUntil=Now+.25;S.Target.Reset();
         }
         Move->bCombatWalkOnly=S.Action==2||S.Action==3;
@@ -206,7 +215,7 @@ void ALDCombatDirector::Sample(double Now)
         {S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}
         if(auto* Ward=Cast<ALDWard>(Hit.Target)){Ward->Hp-=Hit.Damage;continue;}
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
-        T->Hp=FMath::Max(0,T->Hp-Hit.Damage);T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
+        T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
         if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}}
         const FVector Bearing=Hit.Source->GetActorLocation()-Victim->GetActorLocation();

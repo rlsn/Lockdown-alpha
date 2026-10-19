@@ -42,7 +42,7 @@ void ALDObjectiveDirector::BeginPlay()
 {
     Super::BeginPlay();check(HasAuthority());
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    auto* GS=GetWorld()->GetGameState<ALDGameState>();GS->MatchDeadline=float(Mode->StartedAt()+LDRules::MatchDeadlineSeconds);GS->ForceNetUpdate();
+    auto* GS=GetWorld()->GetGameState<ALDGameState>();GS->MatchDeadline=Mode->IsDevelopmentProfile()?0:float(Mode->StartedAt()+LDRules::MatchDeadlineSeconds);GS->ForceNetUpdate();
 }
 double ALDObjectiveDirector::Deadline() const{return GetWorld()->GetGameState<ALDGameState>()->MatchDeadline;}
 bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
@@ -50,7 +50,7 @@ bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     const auto* O=Mode->StateFor(PC);const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
-    return !Mode->IsFinished()&&O&&O->bActive&&Body&&Combat&&Combat->Hp>0&&Now>=Combat->ProtectionUntil&&Now>=O->ProtectedUntil;
+    return Mode->IsPlaying()&&O&&O->bActive&&Body&&Combat&&Combat->Hp>0&&Now>=Combat->ProtectionUntil&&Now>=O->ProtectedUntil;
 }
 bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range) const
 {
@@ -64,7 +64,7 @@ bool ALDObjectiveDirector::Stationary(ALDPlayerController* PC,const FLDInteracti
 }
 void ALDObjectiveDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint8 Target,FGuid Observed)
 {
-    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsFinished()){PC->CompleteContextRequest(RequestId,TEXT("Demo finished."));return;}
+    if(!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsPlaying()){PC->CompleteContextRequest(RequestId,TEXT("Interaction unavailable in lobby or after results."));return;}
     int32 Count=0;for(const auto& R:Requests){if(R.PC==PC){++Count;}}
     if(Count>=2){PC->CompleteContextRequest(RequestId,TEXT("Too many interaction requests."));return;}
     auto& S=Interactions.FindOrAdd(PC);
@@ -210,7 +210,7 @@ void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionS
 }
 void ALDObjectiveDirector::Sample(double Now)
 {
-    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(Mode->IsFinished()){return;}
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!Mode->IsPlaying()){return;}
     // Independent private RNG, so simultaneous recovery has no transport-order or role preference.
     for(int32 I=Requests.Num()-1;I>0;--I){Requests.Swap(I,Transactions.RandRange(0,I));}
     for(const auto& R:Requests){Request(R,Now);}Requests.Reset();
@@ -232,10 +232,10 @@ void ALDObjectiveDirector::Sample(double Now)
             if(LDObjective::DueBeforeDeadline(Now,S.Started,3,Deadline()))
             {
                 const bool Delivered=S.Channel==LDObjective::Deliver;
-                if(Delivered){O->Gold+=25;O->Xp+=15;++O->Commissions;++O->DeliverySerial;O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();}
+                if(Delivered){O->Gold+=25;Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();}
                 else{O->ContractStage=2;}
                 S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
-                PC->CompleteContextRequest(S.Token,Delivered?TEXT("Delivery confirmed: +25 gold, +15 XP."):TEXT("Package collected: return to Guild and hold E to deliver."));
+                PC->CompleteContextRequest(S.Token,Delivered?(Mode->IsDevelopmentProfile()?TEXT("Delivery confirmed: +25 gold, +45 XP."):TEXT("Delivery confirmed: +25 gold, +15 XP.")):TEXT("Package collected: return to Guild and hold E to deliver."));
                 UE_LOG(LogTemp,Display,TEXT("LD_COURIER_RECEIPT delivered=%d serial=%u gold=%lld xp=%lld"),Delivered,O->DeliverySerial,O->Gold,O->Xp);
             }
             else{UpdatePrivate(PC,S,Now);}

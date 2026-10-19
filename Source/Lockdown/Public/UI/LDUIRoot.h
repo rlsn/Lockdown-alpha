@@ -21,6 +21,10 @@ protected:
 private:
     bool bMenuOpen = false;
     UPROPERTY() TObjectPtr<UBorder> MenuPanel;
+    UPROPERTY() TObjectPtr<UBorder> HeaderPanel;
+    UPROPERTY() TObjectPtr<UBorder> ActionPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> ControlsInfo;
+    UPROPERTY() TObjectPtr<UTextBlock> MenuHelp;
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UEditableTextBox> Address;
@@ -28,6 +32,15 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> ChannelProgress;
     UPROPERTY() TObjectPtr<UBorder> FixturePanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> DefenceLabels;
+    UPROPERTY() TObjectPtr<UBorder> LobbyPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> LobbyInfo;
+    UPROPERTY() TObjectPtr<class UButton> LobbyStart;
+    bool bInLobby = false;
+    UFUNCTION() void Laborer();
+    UFUNCTION() void Rogue();
+    UFUNCTION() void Scholar();
+    UFUNCTION() void Ready();
+    UFUNCTION() void StartMatch();
     UFUNCTION() void Host();
     UFUNCTION() void Join();
     UFUNCTION() void Resume();

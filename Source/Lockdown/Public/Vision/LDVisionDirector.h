@@ -17,7 +17,7 @@ public:
     ALDWard();
     TWeakObjectPtr<ALDPlayerController> Controller;
     float ExpiresAt = 0;
-    int32 Hp = 20;
+    double Hp = 20;
     FGuid Identity;
 };
 
