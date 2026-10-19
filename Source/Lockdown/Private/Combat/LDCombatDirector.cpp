@@ -74,7 +74,7 @@ bool ALDCombatDirector::LegalTarget(ALDCharacter* Source,AActor* Target,double R
     else if(!Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To)){return false;}
     return LDGround::ClearSegment(GetWorld(),From,To);
 }
-AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin) const
+AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin,bool bBodiesOnly) const
 {
     AActor* Best=nullptr; double Distance=DBL_MAX; FGuid BestId;
     const double Now=GetWorld()->GetTimeSeconds();
@@ -91,7 +91,7 @@ AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVect
         if(D<Distance || (D==Distance && Id.ToString()<BestId.ToString())){Distance=D;Best=Target;BestId=Id;}
     };
     for(const auto& Pair:Bodies){if(Pair.Key.IsValid()){Consider(Pair.Key.Get(),Pair.Value.Identity);}}
-    if(!bAssassin){for(TActorIterator<ALDWard> It(GetWorld());It;++It){Consider(*It,It->Identity);}}
+    if(!bAssassin&&!bBodiesOnly){for(TActorIterator<ALDWard> It(GetWorld());It;++It){Consider(*It,It->Identity);}}
     return Best;
 }
 bool ALDCombatDirector::Request(ALDPlayerController* PC,uint8 Action,const FVector& Direction,FString& Result)
@@ -122,15 +122,16 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
     }
     else
     {
+        if(S->Action==7&&Action==0&&Now>=S->BasicReady){CancelSkill(Body,*S);}
         if(S->Action){Result=TEXT("Finish the current action first.");return false;}
         const FVector Aim=Direction.GetSafeNormal2D();
         if(Action==0)
         {
             if(Now<S->BasicReady){Result=TEXT("Attack cooling down.");return false;}
             S->Action=1;S->ImpactAt=Now+LDCombat::BasicWindup;S->BasicReady=Now+LDCombat::BasicCadence;
-            auto* PC=Cast<ALDPlayerController>(Body->GetController());
-            const auto* PrivateBuildState=PC?Mode->StateFor(PC):nullptr;
-            S->CommittedDamage=Mode->IsDevelopmentProfile()&&PrivateBuildState?LDDevelopment::BasicDamage(PrivateBuildState->Build):20;
+            const auto* Build=BuildFor(Body);
+            S->CommittedDamage=Mode->IsDevelopmentProfile()&&Build?LDDevelopment::BasicDamage(*Build):20;
+            S->Skill=ELDSkill::None;
             Result=TEXT("Attack committed.");
         }
         else
@@ -150,7 +151,7 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
     Move->bCombatWalkOnly=S->Action==2||S->Action==3;
     S->QuietSince=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);Sync(Body,*S);
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController()))
-    {if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives.Get()){O->Interrupt(PC,Now);}}
+    {if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives.Get()){O->Interrupt(PC,Now,Mode->IsDevelopmentProfile());}}
     return true;
 }
 void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
@@ -161,17 +162,31 @@ void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
     const uint8 Cue=CueFor(Body);
     if(O->Hp==S.Hp&&O->BasicReadyAt==float(S.BasicReady)&&O->AssassinReadyAt==float(S.AssassinReady)
         &&O->DashReadyAt==float(S.DashReady)&&O->WarningUntil==float(S.WarningUntil)&&O->DamageUntil==float(S.HitUntil)
-        &&O->ExposedUntil==float(S.ExposedUntil)&&O->ActionCue==Cue&&O->ProtectedUntil==float(S.ProtectionUntil)&&O->IncomingSector==S.IncomingSector){return;}
+        &&O->ExposedUntil==float(S.ExposedUntil)&&O->ActionCue==Cue&&O->ProtectedUntil==float(S.ProtectionUntil)&&O->IncomingSector==S.IncomingSector
+        &&O->ActiveSkill==(S.Action?S.Skill:ELDSkill::None)&&O->SkillEndsAt==(S.Action==4?S.DashUntil:S.Action?S.ImpactAt:0)){return;}
     O->Hp=S.Hp;O->BasicReadyAt=float(S.BasicReady);O->AssassinReadyAt=float(S.AssassinReady);O->DashReadyAt=float(S.DashReady);
     O->WarningUntil=float(S.WarningUntil);O->DamageUntil=float(S.HitUntil);O->ExposedUntil=float(S.ExposedUntil);
-    O->ActionCue=Cue;O->ProtectedUntil=float(S.ProtectionUntil);O->IncomingSector=S.IncomingSector;Mode->SyncOwner(PC);
+    O->ActionCue=Cue;O->ProtectedUntil=float(S.ProtectionUntil);O->IncomingSector=S.IncomingSector;
+    O->ActiveSkill=S.Action?S.Skill:ELDSkill::None;O->SkillEndsAt=S.Action==4?S.DashUntil:S.Action?S.ImpactAt:0;Mode->SyncOwner(PC);
 }
 void ALDCombatDirector::Sample(double Now)
 {
     struct FImpact{ALDCharacter* Source;AActor* Target;double Damage;};TArray<FImpact> Impacts;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(Mode->IsFinished()){return;}
-    Intents.StableSort([](const FIntent& A,const FIntent& B){return A.Action>B.Action;});
+    if(Mode->IsFinished())
+    {
+        if(Mode->IsDevelopmentProfile())
+        {for(auto& Pair:Bodies){if(auto* Body=Pair.Key.Get()){CancelSkill(Body,Pair.Value);Sync(Body,Pair.Value);}}}
+        for(const auto& Intent:Intents){if(auto* PC=Intent.Controller.Get()){PC->CompleteCombatRequest(Intent.Request,TEXT("Demo finished."));}}
+        Intents.Reset();return;
+    }
+    auto Priority=[&](const FIntent& I)
+    {
+        const auto* O=Mode->StateFor(I.Controller.Get());
+        if(I.Action>=3&&O&&O->Build.Slots.IsValidIndex(I.Action-3)) { return O->Build.Slots[I.Action-3]==ELDSkill::Step?2:1; }
+        return I.Action==2?2:1;
+    };
+    Intents.StableSort([&](const FIntent& A,const FIntent& B){return Priority(A)>Priority(B);});
     TSet<ALDPlayerController*> Accepted;
     for(const auto& Intent:Intents)
     {
@@ -179,7 +194,7 @@ void ALDCombatDirector::Sample(double Now)
         const auto* O=Mode->StateFor(PC);FString Reason;
         if(!O||O->Match!=Intent.Match||O->Life!=Intent.Life){Reason=TEXT("Stale queued life.");}
         else if(Accepted.Contains(PC)){Reason=TEXT("Superseded by a higher-priority action.");}
-        else if(Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
+        else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
         PC->CompleteCombatRequest(Intent.Request,Reason);
     }
     Intents.Reset();
@@ -189,12 +204,13 @@ void ALDCombatDirector::Sample(double Now)
         ALDCharacter* Body=Pair.Key.Get();auto& S=Pair.Value;if(!Body||S.Hp<=0){continue;}
         auto* Move=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
         if(Move->bWantsSprint||S.Action==4){S.QuietSince=Now;}
-        if(S.Action==4&&Now>=S.DashUntil){S.Action=0;Move->bCanWalkOffLedges=true;}
-        if(S.Action==3&&Now>=S.RecoveryUntil){S.Action=0;}
-        if((S.Action==1||S.Action==2)&&Now+1.e-6>=S.ImpactAt)
+        if(S.Action==4&&Now>=S.DashUntil){CancelSkill(Body,S);Move->bCanWalkOffLedges=true;}
+        if(S.Action==3&&Now>=S.RecoveryUntil){CancelSkill(Body,S);}
+        if((S.Action==1||S.Action==2||S.Action==6)&&Now+1.e-6>=S.ImpactAt)
         {
-            AActor* Target=nullptr;const bool bAssassin=S.Action==2;
-            if(!bAssassin){Target=Nearest(Body,96,S.CommittedAim,40,false);}
+            AActor* Target=nullptr;const bool bAssassin=S.Action==2,bSpark=S.Action==6;
+            if(bSpark){if(Cast<ALDCharacter>(S.Target.Get())&&LegalTarget(Body,S.Target.Get(),500,nullptr,0)){Target=S.Target.Get();}}
+            else if(!bAssassin){Target=Nearest(Body,96,S.CommittedAim,40,false);}
             else if(ALDCharacter* Victim=Cast<ALDCharacter>(S.Target.Get()))
             {
                 const auto* T=StateFor(Victim);
@@ -202,10 +218,10 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::IsRear(Body->GetActorLocation(),Victim->GetActorLocation(),Victim->GetActorForwardVector())
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
-            if(Target){Impacts.Add({Body,Target,bAssassin?60:S.CommittedDamage});}
-            S.Action=bAssassin?3:0;S.RecoveryUntil=Now+.25;S.Target.Reset();
+            if(Target){Impacts.Add({Body,Target,bAssassin&&S.Skill==ELDSkill::None?60:S.CommittedDamage});}
+            S.Action=bAssassin||bSpark?3:0;S.RecoveryUntil=Now+(bSpark?.35:.25);S.Target.Reset();
         }
-        Move->bCombatWalkOnly=S.Action==2||S.Action==3;
+        Move->bCombatWalkOnly=S.Action==2||S.Action==3||S.Action==6;
     }
     TSet<ALDCharacter*> Deaths;
     for(const auto& Hit:Impacts)
@@ -220,10 +236,12 @@ void ALDCombatDirector::Sample(double Now)
         if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}}
         const FVector Bearing=Hit.Source->GetActorLocation()-Victim->GetActorLocation();
         T->IncomingSector=uint8(FMath::RoundToInt(FRotator::ClampAxis(Bearing.Rotation().Yaw)/45))%8;
-        if((T->Action==1||T->Action==2)&&T->ImpactAt>Now+1.e-6)
-        {T->Action=0;T->Target.Reset();CastChecked<ULDCharacterMovementComponent>(Victim->GetCharacterMovement())->bCombatWalkOnly=false;}
+        if(T->Action==7||((T->Action==1||T->Action==2||T->Action==6)&&T->ImpactAt>Now+1.e-6))
+        {CancelSkill(Victim,*T);}
         if(T->Hp<=0){Deaths.Add(Victim);}
     }
+    // Damage wins against held completion, including a hit on the exact deadline.
+    CompleteSkillChannels(Now);
     for(auto& Pair:Bodies){if(Pair.Key.IsValid()){Sync(Pair.Key.Get(),Pair.Value);}}
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}

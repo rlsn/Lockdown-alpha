@@ -208,6 +208,33 @@ bool ULDCharacterCatalog::Validate(FString& Error) const
     for (int32 I=0;I<5;++I) { double Actual=0; if (!(*Levels)[I]->TryGetNumber(Actual)||Actual!=ExpectedLevels[I]) { Error=TEXT("Level thresholds differ from native rules."); return false; } }
     auto NumberIs=[](const TSharedPtr<FJsonObject>& Object,const TCHAR* Key,double Expected)
     { double Actual=0; return Object->TryGetNumberField(Key,Actual)&&Actual==Expected; };
+    const TArray<TSharedPtr<FJsonValue>>* Skills=nullptr;
+    if (!Root->TryGetArrayField(TEXT("skills"),Skills)||Skills->Num()!=LDDevelopment::SkillCount-1)
+    { Error=TEXT("Expected exactly nine active skill definitions."); return false; }
+    const TCHAR* FormulaKeys[]={TEXT(""),TEXT("distanceCm"),TEXT("damage"),TEXT("damage"),TEXT("heal"),TEXT("resolution"),TEXT("score"),TEXT("score"),TEXT("score"),TEXT("score")};
+    const TCHAR* SkillFormulas[]={TEXT(""),
+        TEXT("clamp(360 + 10 * (DEX - 10) + 20 * (R - 1), 300, 420)"),
+        TEXT("clamp(60 + 0.5 * (STR - 10) + 0.5 * (DEX - 10) + 4 * (R - 1), 50, 80)"),
+        TEXT("clamp(24 + 1.25 * (INT - 10) + 4 * (R - 1) + ChannelerBonus, 18, 45)"),
+        TEXT("clamp(25 + (WIS - 10) + 4 * (R - 1) + MedicBonus, 18, 40)"),TEXT("theft"),
+        TEXT("CHA + 2 * (R - 1) + EnvoyBonus"),TEXT("INT + 2 * (R - 1)"),TEXT("WIS + 2 * (R - 1) + WatcherBonus"),TEXT("STR + 2 * (R - 1) + HaulerBonus")};
+    TSet<ELDSkill> SkillIds;
+    for (const auto& Row:*Skills)
+    {
+        const auto Object=Row->AsObject(); FString Id,Input,Formula;
+        if (!Object.IsValid()||!Object->TryGetStringField(TEXT("id"),Id)) { Error=TEXT("Invalid skill row."); return false; }
+        const ELDSkill Skill=LDDevelopment::SkillFromName(Id);const uint8 Index=uint8(Skill);
+        if (!Index||SkillIds.Contains(Skill)||!NumberIs(Object,TEXT("cooldownSeconds"),LDDevelopment::Cooldown(Skill))
+            ||!Object->TryGetStringField(TEXT("input"),Input)||Input!=(Index<4?TEXT("press"):TEXT("hold"))
+            ||!Object->TryGetStringField(FormulaKeys[Index],Formula)||Formula!=SkillFormulas[Index])
+        { Error=TEXT("Skill formula, input or cooldown differs from native schema-one rules: ")+Id; return false; }
+        SkillIds.Add(Skill);
+        if ((Index>=4&&!NumberIs(Object,TEXT("channelSeconds"),LDDevelopment::ChannelSeconds(Skill)))
+            ||(Skill==ELDSkill::Step&&!NumberIs(Object,TEXT("travelSeconds"),.2))
+            ||(Skill==ELDSkill::Ambush&&(!NumberIs(Object,TEXT("windupSeconds"),.5)||!NumberIs(Object,TEXT("recoverySeconds"),.25)||!NumberIs(Object,TEXT("rangeCm"),112)||!NumberIs(Object,TEXT("aimTotalConeDegrees"),60)))
+            ||(Skill==ELDSkill::Spark&&(!NumberIs(Object,TEXT("windupSeconds"),.4)||!NumberIs(Object,TEXT("recoverySeconds"),.35)||!NumberIs(Object,TEXT("rangeCm"),500)||!NumberIs(Object,TEXT("aimTotalConeDegrees"),60)||!NumberIs(Object,TEXT("targets"),1))))
+        { Error=TEXT("Skill timing/target contract differs from native rules: ")+Id; return false; }
+    }
     const TSharedPtr<FJsonObject>* Integration=nullptr;
     if (!NumberIs(*Attributes,TEXT("minimum"),8) || !NumberIs(*Attributes,TEXT("maximum"),16) || !NumberIs(*Attributes,TEXT("startTotal"),60)
         || !NumberIs(*Progression,TEXT("xpCap"),420) || !NumberIs(*Progression,TEXT("attributePointsPerLevel"),2) || !NumberIs(*Progression,TEXT("skillPointsPerLevel"),1)

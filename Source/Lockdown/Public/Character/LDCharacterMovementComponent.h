@@ -11,7 +11,7 @@ public:
     bool bWantsSprint = false;
     float SprintSpeed = 300.0f;
     bool bCombatWalkOnly = false;
-    bool StartAuthorityDash(const FVector& Direction);
+    bool StartAuthorityDash(const FVector& Direction,double Distance=360);
     virtual float GetMaxSpeed() const override;
     virtual void UpdateFromCompressedFlags(uint8 Flags) override;
     virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;

@@ -60,6 +60,8 @@ struct FLDOwnerState
     UPROPERTY() float ReturnAt = 0;
     UPROPERTY() float ProtectedUntil = 0;
     UPROPERTY() float BasicReadyAt = 0;
+    UPROPERTY() ELDSkill ActiveSkill = ELDSkill::None;
+    UPROPERTY() double SkillEndsAt = 0;
     UPROPERTY() float AssassinReadyAt = 0;
     UPROPERTY() float DashReadyAt = 0;
     UPROPERTY() float WarningUntil = 0;

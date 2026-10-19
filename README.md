@@ -5,19 +5,23 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B41 character state and Ready lobby; B40 verified.** v0.4
+**Current checkpoint: B42 equipped skill execution; B40/B41 verified.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The Windows Development checkpoint builds, cooks and passes native and packaged
 authority/network/reset checks. See the
 [implementation record](docs/v04/IMPLEMENTATION_REPORT.md) for evidence and limits.
-Next is B42's equipped-skill execution path. Books, preparation, the connected
+The [B42 checkpoint](docs/v04/B42_IMPLEMENTATION.md) adds slots 1–4, a mixed
+hotbar, persistent cooldowns, Step/Ambush/Spark/Patch and held utility dispatch.
+Next is B43's preparation, books and subclass transactions. The connected
 region and earned Seal acquisition remain in development.
 
 Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
 start as the lobby host. One human is practice; the declared cap is 25 minutes.
-This preview retains migration-map geometry and courier work. Learned skills and
-Seal crafting are not yet available. Opening the sandbox without `?Profile=V04`
+This preview retains migration-map geometry and courier work. Press 1–4 for the
+equipped skill; hold utility keys. Q/Space require equipped Ambush/Step. Charter
+and theft outcomes, book learning, preparation and Seal crafting remain pending.
+Opening the sandbox without `?Profile=V04`
 selects the explicit legacy profile, documented in the
 [v0.3 implementation archive](docs/v03/implementation/README.md).
 

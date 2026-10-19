@@ -131,7 +131,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             Choice(TEXT("Scholar · INT 12 / CHA 12 · Spark + Analyze"))->OnClicked.AddDynamic(this,&ULDUIRoot::Scholar);
             Choice(TEXT("Toggle Ready"))->OnClicked.AddDynamic(this,&ULDUIRoot::Ready);
             LobbyStart=Choice(TEXT("Start match (host)")); LobbyStart->OnClicked.AddDynamic(this,&ULDUIRoot::StartMatch);
-            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nCharacter preview: starting skills cannot be activated yet."),14));
+            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nSkills use one shared loadout of four slots."),14));
             LobbyPanel->SetVisibility(ESlateVisibility::Collapsed);
         }
         if(!bFrontend)
@@ -144,7 +144,8 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             auto* ProgressSlot=Information->AddChildToVerticalBox(ChannelProgress);ProgressSlot->SetPadding(FMargin(0,6));
             ControlsInfo=Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14);
             Information->AddChildToVerticalBox(ControlsInfo);
-            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,150));
+            SkillBar=Text(TEXT(""),16);Information->AddChildToVerticalBox(SkillBar);
+            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,180));
             // HUD panels do not capture clicks intended for the game world.
             ObjectivePanel->SetVisibility(ESlateVisibility::HitTestInvisible);
         }
@@ -209,7 +210,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
         FString Life=O.bActive?FString::Printf(TEXT("HP %.2f/%.0f · Speed %.0f · Ward %d"),O.Hp,O.MaxHp,Body?Body->GetVelocity().Size2D():0,O.WardCharges)
             :(GS&&GS->EndReason?FString::Printf(TEXT("DEAD · Lost %lld gold · Demo finished"),O.LastLostGold):FString::Printf(TEXT("DEAD · Lost %lld gold · Return in %.1fs · Owned wards and shared sight only"),O.LastLostGold,FMath::Max(0.,O.ReturnAt-Now)));
-        FString Danger=Now<O.WarningUntil?TEXT("DANGER: ASSASSINATION · Turn, escape, dash or deal damage!")
+        FString Danger=Now<O.WarningUntil?TEXT("DANGER: INCOMING CAST · Turn, escape, Step or deal damage!")
             :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
                 :(Now<O.DamageUntil?FString::Printf(TEXT("HIT · Anonymous incoming sector %d/8 (world +X=0, toward +Y)"),O.IncomingSector):PC->IntentFeedback));
         Status->SetColorAndOpacity(Now<O.WarningUntil?FLinearColor(1,.35f,.2f):FLinearColor(.88f,.9f,.82f));
@@ -235,8 +236,17 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         }
         if (O.bDevelopmentProfile)
         {
-            const FText Controls=FText::FromString(TEXT("WASD move · Shift sprint · Mouse aim · Click attack · E courier / hold · F ward · Wheel zoom · H / Esc help\nLearned skill activation and Seal crafting are not available in this preview."));
+            const FText Controls=FText::FromString(TEXT("WASD · Shift sprint · Click attack · 1–4 skills (hold utilities) · Q / Space equipped Ambush / Step · E courier · F ward · H help"));
             if (ControlsInfo) { ControlsInfo->SetText(Controls); } MenuHelp->SetText(Controls);
+            FString Slots;
+            for(int32 I=0;I<LDDevelopment::SlotCount;++I)
+            {
+                const ELDSkill Skill=O.Build.Slots[I];const double Left=O.Build.Cooldowns[uint8(Skill)]-Now;
+                const FString Rank=Skill==ELDSkill::None?TEXT(""):FString::Printf(TEXT(" R%d"),LDDevelopment::Rank(O.Build,Skill));
+                const FString Ready=Skill==ELDSkill::None?TEXT(""):(Left>0?FString::Printf(TEXT(" %.1fs"),Left):(uint8(Skill)>=4?TEXT(" hold"):TEXT(" press")));
+                Slots+=FString::Printf(TEXT("[%d] %s%s%s   "),I+1,LDDevelopment::SkillName(Skill),*Rank,*Ready);
+            }
+            if(SkillBar){SkillBar->SetText(FText::FromString(Slots));}
         }
         if(ObjectiveInfo)
         {
@@ -244,7 +254,9 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):TEXT("Claiming"),O.ChannelProgress,O.ChannelKind==3?10.:3.):TEXT("Hold progress resets on interruption.");
             if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
             ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Commissions %d\n%s"),*PC->ContextPrompt(),Stage,O.Commissions,*Progress)));
-            ChannelProgress->SetPercent(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0);
+            if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
+            {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
+            ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0));
         }
         if (!PC->IntentFeedback.IsEmpty()) { Feedback->SetText(FText::FromString(PC->IntentFeedback)); }
     }

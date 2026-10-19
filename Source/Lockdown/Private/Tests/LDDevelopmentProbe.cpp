@@ -42,18 +42,31 @@ void ALDDevelopmentProbe::Tick(float Delta)
     if (Role==TEXT("Visual"))
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
-        const FString Image=FPaths::Combine(Directory,TEXT("Lobby.png"));
+        const bool SkillVisual=FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe"));
+        const FString Image=FPaths::Combine(Directory,SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
         if (!Phase && GetWorld()->GetTimeSeconds()>2)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
+            if(SkillVisual)
+            {
+                PC->ToggleLobbyReady();PC->StartLobby();auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);
+                O->Build.Ranks[1]=O->Build.Ranks[3]=O->Build.Ranks[4]=1;O->Build.Slots={ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Step,ELDSkill::Survey};++O->Build.Revision;Mode->SyncOwner(PC);
+            }
             Phase=1; PhaseAt=FPlatformTime::Seconds();
         }
         else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
-        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,TEXT("Native lobby UI screenshot written")); Finish(); }
+        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
     {
         if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); ResetCheck(); }
+    }
+    else if (FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe")))
+    {
+        if(GetNetMode()==NM_Client){SkillClientTick();}
+        else if(Role==TEXT("Skills"))
+        {if(GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)){SetActorTickEnabled(false);SkillCheck();Finish();}}
+        else{SkillServerTick();}
     }
     else if (GetNetMode()==NM_Client) { ClientTick(); }
     else if (Role==TEXT("Local"))
@@ -229,7 +242,7 @@ void ALDDevelopmentProbe::Finish()
         Check(RTTs.Num()>=8,TEXT("Independent native client received transport echo samples"));
         Report->SetNumberField(TEXT("medianEchoRttMs"),Median); Report->SetNumberField(TEXT("echoSamples"),RTTs.Num()); Report->SetNumberField(TEXT("failures"),Failures);
     }
-    Report->SetStringField(TEXT("profile"),TEXT("V04 B41 development; grants/teleports in local probe are fixtures"));
+    Report->SetStringField(TEXT("profile"),TEXT("V04 development; skill/build grants, task callbacks and teleports in probes are engineering fixtures"));
     TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }
     Report->SetArrayField(TEXT("checks"),Lines); FString Output,Path,Directory;
     FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);

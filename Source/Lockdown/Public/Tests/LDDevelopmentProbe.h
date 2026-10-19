@@ -29,10 +29,15 @@ private:
     TWeakObjectPtr<ALDPlayerController> A,B;
     double Started=0,PhaseAt=0;
     double LastPing=0;
+    double SkillRefreshAt=0;
     int32 Phase=0,Failures=0;
     bool bChoiceSent=false,bReadySent=false,bStartSent=false,bChecked=false;
+    bool bSawSkillWarning=false;
     void Check(bool Pass,const FString& Description);
     void LocalCheck();
+    void SkillCheck();
+    void SkillServerTick();
+    void SkillClientTick();
     void ResetCheck();
     void ServerTick();
     void ClientTick();

@@ -27,6 +27,9 @@ public:
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Server,Reliable) void ServerCombatAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction);
+    UFUNCTION(Server,Reliable) void ServerSkillAction(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction);
+    UFUNCTION(Server,Unreliable) void ServerSkillHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
+    UFUNCTION(Server,Reliable) void ServerSkillRelease(uint32 Match,uint32 Life,uint32 Token);
     void CompleteCombatRequest(uint32 Request,const FString& Result);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     class ALDWorldViewRelay* LocalView() const;
@@ -68,6 +71,14 @@ private:
     void Assassinate();
     void Dash();
     void CombatAction(uint8 Action);
+    void SkillStarted(uint8 Slot);
+    void SkillStopped(uint8 Slot);
+    void SkillAlias(ELDSkill Skill);
+    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0);
+    UPROPERTY() TObjectPtr<class UInputMappingContext> SkillInputContext;
+    uint32 SkillHoldToken=0,SkillHoldSequence=0;
+    uint8 HeldSkillSlot=255;
+    double LastSkillHoldSent=-1000;
     void InteractStarted();
     void InteractStopped();
     bool bInteractHeld=false;

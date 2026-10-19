@@ -24,6 +24,7 @@ private:
     UPROPERTY() TObjectPtr<UBorder> HeaderPanel;
     UPROPERTY() TObjectPtr<UBorder> ActionPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ControlsInfo;
+    UPROPERTY() TObjectPtr<UTextBlock> SkillBar;
     UPROPERTY() TObjectPtr<UTextBlock> MenuHelp;
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;

@@ -204,6 +204,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;
     State->bActive=false; State->Hp=0; State->WardCharges=0;
     State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
+    State->ActiveSkill=ELDSkill::None;State->SkillEndsAt=0;
     ++State->DeathSerial;
     PC->UnPossess(); SyncOwner(PC); PC->ClientLifeReceipt(*State);
     UE_LOG(LogTemp,Display,TEXT("LD_DEATH_RECEIPT life=%u death=%u loss=%lld return=%.3f"),State->Life,State->DeathSerial,State->LastLostGold,State->ReturnAt);
@@ -240,6 +241,7 @@ void ALDGameMode::ReturnDueContenders(double Now)
         if(!PC || State.bActive || State.ReturnAt<=0 || Now<State.ReturnAt){continue;}
         ++State.Life; State.bActive=true; State.Hp=bDevelopmentProfile?LDDevelopment::MaxHP(State.Build):100; State.ReturnAt=0; State.ProtectedUntil=float(Now+4);
         State.WarningUntil=0; State.DamageUntil=0; State.ExposedUntil=0; State.ActionCue=0;
+        State.ActiveSkill=ELDSkill::None;State.SkillEndsAt=0;
         RestartPlayerAtTransform(PC,FTransform(FRotator::ZeroRotator,ReturnSpawn(PC)));
         if(!PC->GetPawn()){State.bActive=false;State.ReturnAt=float(Now+.1);--State.Life;continue;}
         if (bDevelopmentProfile) { RefreshBuild(PC,true); }

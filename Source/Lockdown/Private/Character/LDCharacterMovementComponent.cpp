@@ -59,13 +59,13 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
     return IsMovingOnGround() && bWantsSprint && !bCombatWalkOnly ? SprintSpeed : Super::GetMaxSpeed();
 }
 
-bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction)
+bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction,double Distance)
 {
-    if (!CharacterOwner || !CharacterOwner->HasAuthority() || !IsMovingOnGround() || Direction.ContainsNaN() || Direction.SizeSquared2D()<UE_SMALL_NUMBER) { return false; }
+    if (!CharacterOwner || !CharacterOwner->HasAuthority() || !IsMovingOnGround() || Direction.ContainsNaN() || Direction.SizeSquared2D()<UE_SMALL_NUMBER || !FMath::IsFinite(Distance) || Distance<300 || Distance>420) { return false; }
     TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();
     Dash->InstanceName=TEXT("LD_AuthorityDash"); Dash->Priority=500;
     Dash->AccumulateMode=ERootMotionAccumulateMode::Override; Dash->bInLocalSpace=false;
-    Dash->Force=Direction.GetSafeNormal2D()*1800; Dash->Duration=.2f;
+    Dash->Force=Direction.GetSafeNormal2D()*float(Distance/.2); Dash->Duration=.2f;
     Dash->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;
     Dash->FinishVelocityParams.SetVelocity=FVector::ZeroVector;
     return ApplyRootMotionSource(Dash)!=uint16(ERootMotionSourceID::Invalid);

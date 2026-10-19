@@ -36,5 +36,5 @@ foreach($script in @('Preflight','BuildEditor','BuildGame','BootstrapAssets','Ru
     & (Join-Path $checkout "Scripts/$script.ps1") @arguments
 }
 if((& git -C $checkout status --porcelain)){throw 'Verification modified tracked checkout files'}
-@{revision=(& git -C $checkout rev-parse HEAD);clean=$true;lfs='Hydrated from local source object cache; remote Git/LFS delivery not tested';checks=@('Preflight','Editor build','Game build','Bootstrap Validate','11 rule tests');checkout=$checkout} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'Result.json')
+@{revision=(& git -C $checkout rev-parse HEAD);clean=$true;lfs='Hydrated from local source object cache; remote Git/LFS delivery not tested';checks=@('Preflight','Editor build','Game build','Bootstrap Validate','12 rule tests');checkout=$checkout} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'Result.json')
 Write-Host "Clean local clone verification passed. Evidence: $output"

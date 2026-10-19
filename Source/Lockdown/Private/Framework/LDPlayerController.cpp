@@ -110,11 +110,24 @@ void ALDPlayerController::SetupInputComponent()
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Started,this,&ALDPlayerController::InteractStarted);
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Completed,this,&ALDPlayerController::InteractStopped);
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Canceled,this,&ALDPlayerController::InteractStopped);
+    // A native context adds four slots without changing the frozen migration assets.
+    SkillInputContext=NewObject<UInputMappingContext>(this);
+    const FKey Keys[]={EKeys::One,EKeys::Two,EKeys::Three,EKeys::Four};
+    for(uint8 Slot=0;Slot<LDDevelopment::SlotCount;++Slot)
+    {
+        auto* SkillAction=NewObject<UInputAction>(SkillInputContext);
+        SkillInputContext->MapKey(SkillAction,Keys[Slot]);
+        Input->BindAction(SkillAction,ETriggerEvent::Started,this,&ALDPlayerController::SkillStarted,Slot);
+        Input->BindAction(SkillAction,ETriggerEvent::Completed,this,&ALDPlayerController::SkillStopped,Slot);
+        Input->BindAction(SkillAction,ETriggerEvent::Canceled,this,&ALDPlayerController::SkillStopped,Slot);
+    }
+    if(auto* Local=GetLocalPlayer()){Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>()->AddMappingContext(SkillInputContext,1);}
 }
 
 void ALDPlayerController::OnRep_OwnerState()
 {
     if(OwnerState.Match<LatestOwner.Match || (OwnerState.Match==LatestOwner.Match&&OwnerState.Revision<LatestOwner.Revision)){OwnerState=LatestOwner;return;}
+    if(IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||!OwnerState.bActive)){ClearControls();}
     LatestOwner=OwnerState;
 }
 void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& State)
@@ -123,8 +136,32 @@ void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& 
     OwnerState=State;OnRep_OwnerState();
 }
 void ALDPlayerController::Attack(){CombatAction(0);}
-void ALDPlayerController::Assassinate(){CombatAction(1);}
-void ALDPlayerController::Dash(){CombatAction(2);}
+void ALDPlayerController::Assassinate(){if(OwnerState.bDevelopmentProfile){SkillAlias(ELDSkill::Ambush);}else{CombatAction(1);}}
+void ALDPlayerController::Dash(){if(OwnerState.bDevelopmentProfile){SkillAlias(ELDSkill::Step);}else{CombatAction(2);}}
+void ALDPlayerController::SkillAlias(ELDSkill Skill)
+{
+    const int32 Slot=OwnerState.Build.Slots.Find(Skill);
+    if(Slot==INDEX_NONE){IntentFeedback=TEXT("Equip the skill before using this shortcut.");return;}
+    SkillStarted(uint8(Slot));
+}
+void ALDPlayerController::SkillStarted(uint8 Slot)
+{
+    auto* Body=Cast<ALDCharacter>(GetPawn());
+    if(bControlsSuppressed||!OwnerState.bDevelopmentProfile||!OwnerState.bActive||!Body||!OwnerState.Build.Slots.IsValidIndex(Slot)){return;}
+    const auto Skill=OwnerState.Build.Slots[Slot];
+    if(Skill==ELDSkill::None){IntentFeedback=TEXT("Empty skill slot.");return;}
+    if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
+    FVector Direction=Body->GetActorForwardVector();
+    if(Skill==ELDSkill::Step&&!Body->GetLastMovementInputVector().IsNearlyZero()){Direction=Body->GetLastMovementInputVector().GetSafeNormal2D();}
+    const uint32 Token=++NextRequest;
+    if(uint8(Skill)>=uint8(ELDSkill::Patch))
+    {HeldSkillSlot=Slot;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;InteractStopped();}
+    ServerSkillAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Direction);
+}
+void ALDPlayerController::SkillStopped(uint8 Slot)
+{
+    if(HeldSkillSlot==Slot){ServerSkillRelease(OwnerState.Match,OwnerState.Life,SkillHoldToken);HeldSkillSlot=255;SkillHoldToken=0;}
+}
 void ALDPlayerController::CombatAction(uint8 Action)
 {
     ALDCharacter* Body=Cast<ALDCharacter>(GetPawn());
@@ -135,9 +172,24 @@ void ALDPlayerController::CombatAction(uint8 Action)
     ServerCombatAction(OwnerState.Match,OwnerState.Life,++NextRequest,Action,Direction);
 }
 void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction)
+{if(Action<=2){EnqueueAction(Match,Life,Request,Action,Direction);}}
+void ALDPlayerController::ServerSkillAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction)
+{if(Slot<LDDevelopment::SlotCount){EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,BuildRevision);}}
+void ALDPlayerController::ServerSkillHold_Implementation(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
+    if(O&&O->Match==Match&&O->Life==Life&&Mode->Combat){Mode->Combat->RefreshSkillHold(Cast<ALDCharacter>(GetPawn()),Token,Sequence,Moving);}
+}
+void ALDPlayerController::ServerSkillRelease_Implementation(uint32 Match,uint32 Life,uint32 Token)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
+    if(O&&O->Match==Match&&O->Life==Life&&Mode->Combat){Mode->Combat->ReleaseSkillHold(this,Token);}
+}
+void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* State=Mode?Mode->StateFor(this):nullptr;
-    if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>2||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
+    if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>6||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1
+        ||(Action>=3&&(!State->bDevelopmentProfile||BuildRevision!=State->Build.Revision)))
     {ClientIntentResult(Request,TEXT("Invalid action or stale life."));return;}
     if(const FString* Cached=CombatReceipts.Find(Request)){ClientIntentResult(Request,*Cached);return;}
     if(Mode->IsFinished()){ClientIntentResult(Request,TEXT("Demo finished."));return;}
@@ -148,7 +200,7 @@ void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 
     --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
     if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
     CombatReceipts.Add(Request,LastCombatResult);
-    if(Mode->Combat){Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}
+    if(Mode->Combat){if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
     else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
 }
 void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Result)
@@ -177,7 +229,7 @@ FString ALDPlayerController::ContextPrompt() const
     if(!OwnerState.bActive){return TEXT("Waiting: owned ward and shared sight only.");}
     const double Now=GS?GS->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
     if(Now<OwnerState.ProtectedUntil){return TEXT("Return protection: gameplay actions locked.");}
-    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("Courier preview: approach Guild [G] or West station [W]. Skills and Seal crafting are not available yet."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
+    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. Hold utility keys. E: courier at Guild [G] / West [W]. Charter tasks and Seal crafting pending."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
     if(Target==LDObjective::Heart)
     {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):(OwnerState.bDevelopmentProfile?TEXT("Heart locked. Seal crafting and conquest are not available in this preview."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture."));}
@@ -192,6 +244,7 @@ FString ALDPlayerController::ContextPrompt() const
 }
 void ALDPlayerController::InteractStarted()
 {
+    if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     if(bControlsSuppressed||!OwnerState.bActive){return;}uint8 Target=0;FGuid Observed;
     if(!ChooseContext(Target,Observed)){IntentFeedback=ContextPrompt();return;}
     bInteractHeld=true;ContextToken=++NextRequest;HoldSequence=0;LastHoldSent=-1000;
@@ -339,6 +392,7 @@ void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->
 void ALDPlayerController::ClearControls()
 {
     InteractStopped();
+    if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     SprintStopped();
     if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn()))
     {
@@ -377,6 +431,11 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
+    if(IsLocalController()&&HeldSkillSlot!=255&&GetWorld()->GetTimeSeconds()-LastSkillHoldSent>=.1)
+    {
+        LastSkillHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();
+        ServerSkillHold(OwnerState.Match,OwnerState.Life,SkillHoldToken,++SkillHoldSequence,HeldBody&&!HeldBody->GetLastMovementInputVector().IsNearlyZero());
+    }
     if(IsLocalController()&&bInteractHeld&&GetWorld()->GetTimeSeconds()-LastHoldSent>=.1)
     {
         LastHoldSent=GetWorld()->GetTimeSeconds();const APawn* Body=GetPawn();
@@ -384,7 +443,7 @@ void ALDPlayerController::PlayerTick(float Delta)
     }
     const auto* PublicState=GetWorld()->GetGameState<ALDGameState>();const bool bFinished=PublicState&&PublicState->EndReason;
     if(bFinished)
-    {if(IsLocalController()){bInteractHeld=false;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}}
+    {if(IsLocalController()){bInteractHeld=false;if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}}
     if(IsLocalController()&&!IsFrontend())
     {
         if(ALDCharacter* Active=Cast<ALDCharacter>(GetPawn()))
@@ -392,7 +451,7 @@ void ALDPlayerController::PlayerTick(float Delta)
             LastBodyPosition=Active->GetActorLocation();
             if(WaitingCamera){SetViewTarget(Active);WaitingCamera->Destroy();WaitingCamera=nullptr;}
             auto* Move=CastChecked<ULDCharacterMovementComponent>(Active->GetCharacterMovement());
-            Move->bCombatWalkOnly=(OwnerState.ActionCue&15)==2||(OwnerState.ActionCue&15)==3;
+            Move->bCombatWalkOnly=(OwnerState.ActionCue&15)==2||(OwnerState.ActionCue&15)==3||(OwnerState.ActionCue&15)==6;
             Move->bCanWalkOffLedges=(OwnerState.ActionCue&15)!=4;
         }
         else if(!OwnerState.bActive&&!WaitingCamera)

@@ -1,7 +1,8 @@
 # Project Lockdown documentation
 
 Active release: **v0.4 development**. B40 baseline verification has passed, and
-B41 adds private character state and a Ready lobby on the retained migration map.
+B41 adds private character state and a Ready lobby; B42 adds equipped skill
+execution and a mixed hotbar on the retained migration map.
 The complete class/skill/region/acquisition loop remains in development.
 
 | Start here | Purpose |
@@ -11,6 +12,7 @@ The complete class/skill/region/acquisition loop remains in development.
 | [v0.4 specification](v04/README.md) | Release scope, proposed tuning, B40–B47 and C01–C48 |
 | [v0.4 baseline review](v04/BASELINE_REVIEW.md) | Source inspection, existing evidence and migration risks |
 | [B40 audit](v04/B40_BASELINE_AUDIT.md) | Fresh build, native and packaged baseline results |
+| [B42 execution](v04/B42_IMPLEMENTATION.md) | Equipped skills, held channels and checkpoint evidence |
 | [v0.4 implementation record](v04/IMPLEMENTATION_REPORT.md) | Current implementation and verification boundary |
 | [v0.4 feature ledger](v04/FeatureLedger.csv) | Working inventory; baseline observations and open implementation work |
 | [v0.3 implementation archive](v03/implementation/README.md) | B32–B36 reports, tests, demo, audits and migration ledger |
