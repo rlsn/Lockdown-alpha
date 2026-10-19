@@ -1,8 +1,10 @@
 # Runtime architecture and boundaries
 
 B32 supplies native movement; B33 adds private observation; B34 adds combat and
-life; B35 adds courier, Seal and Heart transactions. See the corresponding
-checkpoint documents for boundaries and evidence.
+life; B35 adds courier, Seal and Heart transactions; B36 packages and verifies
+the slice. This is the v0.3 architecture record. See the corresponding checkpoint
+documents for boundaries and evidence, and the
+[v0.4 baseline review](../../v04/BASELINE_REVIEW.md) for planned extensions.
 
 ## Implemented
 
@@ -80,7 +82,9 @@ terminal receipt. Exact work, inventory, confirmed progress and winner-self stat
 remain private. A held claim contributes shared Heart sight, with two-second linger.
 Completion is checked after damage and before the twelve-minute deadline; scheduled
 completion must be at or before that deadline. Results freeze competitive activity
-and source-rule time until leaving the world. Complete rematch cleanup is B36.
+and source-rule time until leaving the world. B36 implements and verifies complete
+world-reload cleanup; see B36_CHECKPOINT.md and TestReport.md.
 
 No GAS, online account service, custom Replication Graph or second fog/filter
-framework was introduced. B36 packaging and complete acceptance are next.
+framework was introduced. B36 packaging and engineering checks are recorded in
+TestReport.md; human usability acceptance remains pending.

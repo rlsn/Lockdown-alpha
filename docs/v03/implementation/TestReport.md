@@ -122,7 +122,7 @@ broader performance acceptance are still open.
 | Objective Seal, configured 150 ms RTT +/-25 ms jitter, rendered 1080p B | Server 15 / A 21 / B 18 passed | 20261018-171410-593-ObjectiveNetwork-150-25/Seal/{Server,A,B}.json |
 | Combat network regression, configured 150 ms RTT +/-25 ms jitter | Server 9 / A 16 / B 19 passed | 20261018-171549-933-CombatNetwork-150-25/{Server,A,B}.json |
 | Bootstrap Validate | Passed; all 23 package hashes unchanged | 20261018-171834-501-Bootstrap-Validate/Bootstrap.log; B35-AssetHashes.json |
-| Editor reopen / MCP play smoke test | Sandbox loaded, All Saved; 67 toolsets; StartPIE/StopPIE passed | B35-MCP/; docs/MCP_TEST_REPORT.md |
+| Editor reopen / MCP play smoke test | Sandbox loaded, All Saved; 67 toolsets; StartPIE/StopPIE passed | B35-MCP/; docs/v03/implementation/MCP_TEST_REPORT.md |
 
 The world cases exercise real actors with an injected authority clock: exact work
 timings/rewards, replay, cooldown/repetition/level two, movement/release/stale-hold
@@ -186,7 +186,7 @@ open at that checkpoint for B35 transactions and B36 delivery, human review and 
 | Configured 100 ms RTT, +/-25 ms one-way jitter | Server 9 / A 16 / B 19 passed | 20261018-161422-563-CombatNetwork-100-25/{Server,A,B}.json |
 | Configured 150 ms RTT, +/-25 ms one-way jitter | Server 9 / A 16 / B 19 passed | 20261018-161617-791-CombatNetwork-150-25/{Server,A,B}.json |
 | Bootstrap Validate | Passed; all 23 package hashes unchanged | 20261018-162423-570-Bootstrap-Validate/Bootstrap.log |
-| Reopened editor / MCP | Sandbox loaded, All Saved; 67 toolsets and editor state call succeed | B34-MCP/; docs/MCP_TEST_REPORT.md |
+| Reopened editor / MCP | Sandbox loaded, All Saved; 67 toolsets and editor state call succeed | B34-MCP/; docs/v03/implementation/MCP_TEST_REPORT.md |
 
 The combat world scenario verifies committed basic aim, windup/cadence, one-target
 hits, assassination rear/range/turn/sprint/history checks, earlier versus same-batch
@@ -294,7 +294,7 @@ The four native rule cases pass. Seven standalone world movement checks pass.
 | Bootstrap Regenerate | 21 genuine saved packages; b32.2 | Artifacts/20261018-130107-554-Bootstrap-Regenerate/Bootstrap.log |
 | Bootstrap Validate | Passed, all 21 hashes unchanged | Artifacts/20261018-130305-545-Bootstrap-Validate/Bootstrap.log |
 | World movement | 7 checks; walk/sprint, wall, ramp, cliff, crowd spawn/navigation | Artifacts/20261018-130327-166-MovementCheck/Movement.json |
-| Editor MCP | Connected, level load and PIE Start/Stop succeed | docs/MCP_TEST_REPORT.md; live review 18 October |
+| Editor MCP | Connected, level load and PIE Start/Stop succeed | docs/v03/implementation/MCP_TEST_REPORT.md; live review 18 October |
 | Rendered entry | Frontend and Host-to-sandbox travel work in PIE | B32 UI review; standalone evidence below |
 
 Logs are local ignored artifacts. Validate map loading can report RecastNavMesh

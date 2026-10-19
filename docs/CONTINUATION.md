@@ -1,82 +1,62 @@
-# Continuation checkpoint - 19 October 2026
+# Continuation — v0.4 preparation, 19 October 2026
 
-Completed: B36 package and engineering verification. See B36_CHECKPOINT.md
-and TestReport.md for exact package paths, measured results and remaining gates.
-Human usability review remains distinct from scripted engineering checks.
-Main implementation f6cd2ba, LFS helper bdcefcb and checkout-signature fix2e5ce4c
-are committed. The fresh local clone at2e5ce4c passed both cold builds,23 asset
-validation and eight rules, and remained clean. Evidence is
-Artifacts/20261019-002952-019-CleanCheckout/Result.json. The final runnable archive
-is Artifacts/20261019-001732-992-PackageWin64/Archive/Windows; the measured
-600-second soak and final-source regressions are itemized in TestReport.md.
-The main editor reopened on the sandbox; direct HTTP MCP discovered67 toolsets
-and passed play/stop with positive playing/idle assertions. It is left open and
-idle. The GitHub origin is configured, but this phase tested local clone/LFS
-hydration only and did not publish commits or certify remote delivery.
+The revision 4 master plan and v0.4 specification are the active design inputs.
+The code baseline is v0.3 checkpoint `4cc9cbde3e696eaef2f0defff1f0ddec48e5ba89`.
+This handoff organizes documentation and records a source review; no v0.4 runtime
+feature or acceptance check is claimed complete.
 
-## Current architecture
+## Read first
 
-Server-only contender records and vision director; owner-only canonical body,
-PlayerState, private controller state and relay; nonreplicated role-neutral
-observed proxies. Sight unions body, owned wards and a shared public sensor.
-Full views replace state, reliable concealment is revisioned, and a 250 ms
-receive gap clears dynamic proxies. Fog and minimap distinguish current,
-explored and unknown cells. Camera adds no source.
+1. [Master plan](master/README.md), then the complete [v0.4 package](v04/README.md).
+2. [Baseline review](v04/BASELINE_REVIEW.md) and [working feature ledger](v04/FeatureLedger.csv).
+3. [B36 evidence](v03/implementation/TestReport.md),
+   [migration gaps](v03/implementation/MigrationLedger.csv) and
+   [known limitations](v03/implementation/KnownLimitations.md).
 
-Eight native rule/view/combat/objective tests, movement/combat/objective world
-probes and three-process view/combat/objective network probes are repeatable checks.
-Generated content has 23 real packages and
-12 authored meshes per map. Validate also checks sight/aim collision and the
-plateau's logical-elevation tag. OpenStandalone.ps1 provides an interactive
-uncooked game window; the normal editor retains MCP plugins.
+The former top-level implementation reports now live together in
+[v03/implementation](v03/implementation/README.md). Its
+[old continuation](v03/implementation/CONTINUATION.md) is historical: the owner's
+move to v0.4 supersedes its instruction to stop gameplay expansion for B37 human
+review. Carry that pending review into the new acceptance record.
 
-Combat samples after movement, before vision. It owns due impact batches and
-resident returns. GameMode owns contender loss/return receipts. Dash is a server
-Character Movement root-motion source. Waiting uses a local fog camera; return
-replaces pawn and life identity. Private state has a revision guard. The same
-seven-part body and status marker render all roles; effects stay inside views.
+## Next implementation work
 
-## Next stage
+Finish **B40** before B41: record fresh cold Editor/Game builds, asset validation,
+native rules and relevant movement, private-view, combat, life and packaged-client
+regressions. Preflight passed during this preparation; these runtime checks were
+not rerun. Existing B36 logs remain prior evidence. Preserve the pinned Unreal
+5.8.3 CL 58210709 engine and the focused C++ architecture.
 
-Conduct B37's
-human comparison of movement, aim, threat warning, fog and interaction feedback
-at720p/1080p before expanding gameplay. The installed-engine packaged topology is
-a headless listen authority plus two remote clients. A dedicated Server target
-remains conditional on a compatible source engine. Full profession/crafting,
-tower progression, population and economy remain outside the migrated slice.
+Then follow B41–B47 in [build order](v04/07_BUILD_PLAN.md): private class/level state
+and lobby; one equipped-skill activation path; preparation, books and subclasses;
+checks and theft; connected region and bounded rewards; earned Seal; delivery.
+Use the working ledger rather than editing the blank template.
 
-B35 transactions run after damage/deaths and before claims/deadline. Acquisition
-and defence changes are labelled local-authority fixtures; pickup/drop/theft are
-real. One immutable Seal survives corpse cleanup. Courier contracts, receipt
-balances and carried inventory are private; public notices contain only district.
-Hold refresh is 10 Hz with 250 ms expiry. Route is fixed per claim attempt. Damage
-on a completion batch wins over completion; only scheduled claims <= deadline can
-win. One receipt freezes competitive activity. No survivor/kill-score winner.
+Address the inspected migration risks explicitly:
 
-## Workflow
+- Replace integer HP/damage consistently for fractional scaling across combat,
+  owner state, UI and tests.
+- Parameterize fog bounds, cell addressing, serialization limits and minimap
+  mapping for the larger region; both towns lie outside the current grid.
+- Gate every Step/Ambush/context entry point through the four-slot loadout.
+- Replace old XP/death/deadline rules, fixed work destination and diagnostic
+  acquisition with the declared v0.4 profile and normal earned route.
+- Add a Ready lobby and roster lock; current guest login creates a fresh record
+  and logout removes it. Authenticated resume is absent.
 
-Close the editor for reflected/native changes. BuildEditor.ps1 and BuildGame.ps1
-verify separate targets. RunTests.ps1, RunMovementCheck.ps1 and
-RunViewNetworkCheck.ps1, RunCombatCheck.ps1, RunCombatNetworkCheck.ps1,
-RunObjectiveCheck.ps1 and RunObjectiveNetworkCheck.ps1 write ignored local evidence.
-Combat/objective network runners support 100/150 ms configured
-RTT, +/-25 ms one-way jitter, measured echoes/receipts and an optional rendered client.
-Their small action samples do not establish a performance distribution. The objective
-arbitration fixture pauses one sample deliberately; exclude that setup from any
-future normal-play latency certification. Do not run builds alongside runtime
-probes: engine startup's platform validation also needs the UBT mutex.
-The network runners accept -PackageRoot for cooked clients/authority. Use
-RunResetCheck.ps1 for ten world reloads, RunSoakCheck.ps1 for the ten-minute small
-slice measurement, and VerifyCleanCheckout.ps1 on a committed tree for a fresh local
-clone/build/asset/rule check. Do not run builds or other game tests during the
-certified soak. Package manifests retain source and payload hashes. File-backed
-cook output avoids the observed Zen staging failure while retaining IoStore/pak.
-Keep a runnable checkpoint.
-Validate does not write packages; Regenerate is explicit. Hand-authored assets
-belong outside /Game/Lockdown/Generated/. The web baseline stays unmodified at
-74d3d3e884bf4d8130e1596148b45e50a409039c.
+## Evidence and workflow
 
-The owner's EngineAssociation=5.8 and normalized .vsconfig are committed in
-77305e0. The generated config was corrected to the tested MSVC14.44/SDK26100/
-FrameworkSDK4.8 prerequisites, removing the earlier banned 14.50 recommendation.
-Ignored Config/Local/Environment.json contains this machine's engine path.
+The normal v0.4 profile is 1–4 humans, five levels, four slots, nine skills, one
+city/two towns and a 25-minute cap. The 60–90 minute goal is future pacing work;
+the 90-minute harness soak is technical evidence only. Keep fixture grants out of
+normal progression demonstrations. Full conquest remains deferred and protected.
+
+Use the existing root `Scripts/` workflow. Close the editor for native/reflected
+changes. Run builds and engine probes sequentially; do not overlap other work
+with a measured soak. Bootstrap `Validate` writes no packages; `Regenerate`
+replaces generated assets explicitly. Keep hand-authored assets outside
+`/Game/Lockdown/Generated/` and the separate web baseline unmodified.
+
+Human usability, packaged dedicated-server delivery and remote Git/LFS transfer
+are still open or conditional. Record actual v0.4 checks as Passed, Failed,
+Not run or Conditional not available; prior v0.3 results are not v0.4 passes.

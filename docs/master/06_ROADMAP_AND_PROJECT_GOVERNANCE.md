@@ -1,52 +1,38 @@
 # Roadmap and project governance
 
-## Release sequence
+## Delivery sequence
 
-| Stage | Question | Scope | Evidence needed |
-| --- | --- | --- | --- |
-| v0.1 foundation | Can real multiplayer support crowd stealth and responsive combat? | Original one-kit server, movement, attacks, crowd, limited growth and short survival matches | Verify implementation rather than assuming the earlier documents were built |
-| v0.2 objective experiment | Can assault and peaceful progression compete for the Heart in a changing city? | Respawns, small tower network, one profession and artifact route, fog, wards, elevation, civilian and contender AI, one wild camp type | Both routes win under their prerequisites; no automatic survivor victory; public calm and wild risk are observable |
-| v0.3 Unreal migration and scaffold | Can the chosen native platform improve readability and support authority and vision correctly? | Pinned C++ project, 3D top down world, native input and UI, filtered multiplayer, real representative slice and a parity ledger | Cold build, cooked Windows package, two remote-client privacy checks and readable movement and interaction |
-| Post-scaffold parity and iteration | Can the native build reproduce the complete v0.2 loop? | Port deferred tower, profession, economy, AI and population systems before adding more routes | Both original routes work end to end under normal tuning, with migration differences recorded |
-| Squad prototype | Does cooperation preserve uncertainty and fair information? | Four-player groups, team sight, shared objective credit, team respawn and ownership decisions | Human squads complete objective matches without information leaks or unclear victory |
-| Alpha | Does the full match retain tension for 20–30 minutes? | Expanded tower network, limited distinct characters, deeper professions and measured POI content | Repeated human sessions support pacing and counterplay at declared population and delay |
-| Public readiness | Can the project operate a fair online game? | Matchmaking, moderation decisions, abuse limits, deployment, recovery, compatibility and budget | Measured capacity, operating costs, release criteria and ownership agreed |
-
-There are no promised dates or assigned staffing levels. The previously proposed v0.2 roster expansion was superseded by the objective experiment. The former v0.3 route expansion is now deferred behind the Unreal platform milestone and full-parity review. A new character or route does not resolve the current presentation and platform problem.
-
-## Development policy
-
-Retain the working parts of v0.1 and replace its incompatible match policies. Build an authoritative objective state machine before expanding content. Keep damage and counterplay stable while measuring the new strategy layer. Implement one peaceful profession and one alternate access artifact before attempting keys, wealth auctions, bosses or a crafting system.
-
-For the current platform milestone, preserve the completed web prototype for comparison and migrate behavior deliberately into Unreal. A representative scaffold slice can use documented fixtures, but those do not establish full profession, tower, economy or AI parity. Native movement and replication replace the old runtime mechanisms without changing the long term Grand Heart direction.
-
-Prefer explicit domain modules: life and respawn, vision, objective network, economy, profession and AI observations. Avoid an all-purpose quest language, ability editor or distributed backend at this stage. Keep proposed numerical tuning in one versioned configuration.
-
-## Risk register
-
-| Risk | Observation | First response |
+| Stage | Main purpose | Evidence |
 | --- | --- | --- |
-| Work becomes repetitive waiting | Workers report no route or spending decisions | Change destinations and exposure, then reassess profession variety |
-| Peaceful route is ornamental | It cannot win while defences remain, or always finishes much later | Verify the bypass contract and compare route time and risk |
-| Aggression dominates public life | Most residents are under attack and public routes offer no cover | Remove civilian incentives, adjust AI restraint and inspect surveillance coverage |
-| Tower destruction empties information | Players cannot navigate or contest the centre | Improve ward access, elevated routes and public objective signals |
-| Respawns remove stakes | Death scarcely delays progress | Adjust time, loss and dropped possessions using observed route timings |
-| Respawns remove participation | Early deaths create long idle periods | Reduce early penalty while preserving expensive late returns |
-| Wealth creates unavoidable kills | Progression collapses medium lethality | Cap burst and review item combinations before adding more content |
-| Objective never resolves | Repeated interruption yields frequent no-claim results | Review capture radius, access costs, return travel and late respawn duration |
-| AI decides outcomes invisibly | Bots know hidden inventory or change objectives without valid actions | Enforce observation boundaries and retain event traces |
-| Scope exceeds the experiment | Every proposed POI enters the same release | Hold the explicit v0.2 exclusions |
+| v0.1 and v0.2 | Historical web foundations and objective experiment | Inspect the actual implementation; user reports v0.2 complete |
+| v0.3 | Unreal migration and representative scaffold | Pinned build, native UI, geometry, authority, fog and packaged clients |
+| v0.4 | Class-based character building in a small connected region | Real allocation, learning, shared slots, checks, books and a nonfixture peaceful route |
+| Integration and parity | Port remaining world, economy and AI systems | End-to-end routes under normal rules, accurate ledger |
+| Long-session prototype | Develop the full 60–90 minute experience | Human pacing, recovery, acquisition and long-run technical evidence |
+| Squad experiment | Add eventual four-player groups | Team sight, ownership, progression and acquisition rules |
+| Public readiness | Operate a fair native game | Measured capacity, recovery, matchmaking, moderation and costs |
 
-## Ownership and change control
+No stage promises a date or staffing level. Hero-roster expansion is removed. The old requirement to finish every v0.2 port before changing character design is superseded by the user's new direction; preserve working foundations and inventory remaining parity honestly.
 
-The project owner decides creative direction and advancement. Developers own implementation, setup, verification and honest reports of limitations. Testers supply evidence; a single preference does not automatically become a requirement.
+## Development discipline
 
-Record decisions with ID, date, source, status, reason, affected documents and a review trigger. Separate direction changes from tuning. Tag test reports with build, map and configuration versions. When changing a rule, update its specification, implementation and acceptance case together.
+Audit the real v0.3 repository and tests before extending it. Do not assume the scaffold exists because its package was written. Repair necessary foundation gaps without rebuilding a working platform or upgrading the engine unnecessarily.
 
-The current master plan is revision 3. Preserve earlier gameplay and engineering documents as historical development context. Survivor victory, permanent elimination and the shrinking zone remain superseded; the web runtime is also superseded for new platform development. Do not edit synced project `sources/` files.
+Use versioned character, skill, interaction and world data. Keep legality and outcomes authoritative. A class is a starting preset, not a large new hero framework. Adopt ability infrastructure deliberately and avoid two parallel damage or cooldown systems.
 
-## Review criteria
+## Risks
 
-Engineering acceptance requires authoritative objective access, respawn and item ownership, filtered vision, valid transactions, repeatable multiplayer and a clean rematch. Human review separately asks whether calm and dangerous regions differ, peaceful growth feels viable, deaths have understandable costs and the final claim is contestable.
+| Risk | Review response |
+| --- | --- |
+| DEX or INT dominates | Review combined power, frequency and mobility rather than one coefficient |
+| Utility bypasses slots | Test hotbar, context menus, books, old keys and RPC entry points |
+| Random checks become repeated free rolls | Bind commit, costs, cooldown, target identity and RNG receipt |
+| XP comes from loops | Award meaningful completion receipts and limit repeat sources |
+| Appearance reveals a build | Audit replication, UI and proxy metadata |
+| Peaceful growth is only decorative | Require a zero-kill route under real acquisition rules |
+| Short testing is mistaken for long pacing | Separate compressed integration, technical soak and full-session human evidence |
+| Large world becomes empty travel | Measure journey decisions, service density and alternative paths |
 
-Advance only on evidence. If human testing is unavailable, finish the engineering handoff and mark the design review pending. Never present bot sessions as proof of human strategy or enjoyment.
+The owner decides creative scope and stage advancement. Developers own implementation and honest evidence; testers supply observations. Record decisions, tuning versions, source revision, actual checks and unresolved limitations. Mark Passed, Failed or Not run accurately.
+
+Human validation is separate from engineering acceptance. If people are unavailable, complete feasible engineering work and mark strategy and enjoyment pending. Do not invent participants or substitute AI completion for human evidence.

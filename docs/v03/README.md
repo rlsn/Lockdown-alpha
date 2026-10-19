@@ -2,6 +2,13 @@
 
 Specification revision 1 • 18 October 2026 • Target platform Windows desktop
 
+**Historical release specification.** Active work has moved to
+[v0.4](../v04/README.md). The implemented B32–B36 slice, actual test evidence,
+migration ledger and remaining limitations are indexed in
+[implementation/README.md](implementation/README.md). Read the
+[current continuation](../CONTINUATION.md) before starting new work. The original
+specification below describes its authored requirements, not current build status.
+
 Move Project Lockdown from its web prototype to an Unreal Engine C++ foundation with a three dimensional world and top down 2.5D play. Preserve the v0.2 game direction while proving a repeatable editor and packaged-build workflow, readable movement and interaction, native multiplayer authority, and fog that actually limits information.
 
 This release is a platform migration and scaffold, not a complete v0.2 feature port or a new gameplay expansion. A small working slice and a precise migration ledger are required. An empty project, a collection of uncompiled classes, or a visual scene without authoritative networking is insufficient.

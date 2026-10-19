@@ -1,14 +1,19 @@
-# Project Lockdown — Unreal migration
+# Project Lockdown — v0.4 preparation
 
-Windows-first Unreal 5.8.3 migration of the v0.2 Grand Heart prototype. Design
-authority lives in [docs/master](docs/master/README.md); release scope and gates
-live in [docs/v03](docs/v03/README.md).
+Windows-first Unreal 5.8.3 project extending the Grand Heart prototype. Design
+authority lives in [docs/master](docs/master/README.md); active release scope and
+gates live in [docs/v04](docs/v04/README.md). Start with the
+[documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B36 packaging and verification. The Windows Development
-package includes courier work, Seal theft, Heart claims, combat/life and private
-observation.** See [checkpoint](docs/B36_CHECKPOINT.md),
-[tests](docs/TestReport.md) and [continuation](docs/CONTINUATION.md).
-Human usability acceptance and conditional dedicated-server delivery remain separate.
+**Current code baseline: v0.3 B36; v0.4 implementation has not started.** The
+existing Windows Development package includes courier work, Seal theft, Heart
+claims, combat/life and private observation. See the archived
+[checkpoint](docs/v03/implementation/B36_CHECKPOINT.md),
+[tests](docs/v03/implementation/TestReport.md) and
+[v0.4 baseline review](docs/v04/BASELINE_REVIEW.md). Next is B40 prerequisite
+verification, then class development, shared skill slots and earned peaceful
+acquisition. Human usability acceptance and conditional dedicated-server delivery
+remain open.
 
 ## Setup
 
@@ -46,7 +51,9 @@ Human usability acceptance and conditional dedicated-server delivery remain sepa
 ```
 
 Preflight, both builds, native rule tests and movement checks pass on the audited
-machine. See docs/TestReport.md for the remaining stage gates. PowerShell 7 is
+machine in the archived v0.3 evidence. See the
+[test report](docs/v03/implementation/TestReport.md) for its remaining stage gates.
+PowerShell 7 is
 the tested script host. Per-run output and local machine paths go to ignored
 `Artifacts/`. Scripts fail if the discovered engine differs from the lock.
 
@@ -54,7 +61,8 @@ The generator saves 23 packages: three maps, tuning, eleven input actions, a
 13-key context, four surface materials, fog material/texture and a native UI wrapper.
 The sandbox supports camera-relative movement, sprint, aim, zoom, eight residents,
 private ward sight, shared tower/Heart sight, explored fog, combat/life and objective transactions. Host and direct-address
-Join use native UI. See [play guide](docs/DemoGuide.md). Default generation creates
+Join use native UI. See the [v0.3 play guide](docs/v03/implementation/DemoGuide.md).
+Default generation creates
 missing assets and validates existing ones; `-Mode Validate` writes no assets;
 `-Mode Regenerate` explicitly replaces generated packages under
 `/Game/Lockdown/Generated/`. Keep hand-authored assets outside that directory.
@@ -82,5 +90,6 @@ and map using its installed `tsx` dependency:
 ```
 
 The snapshot records the full Git revision and SHA-256 of the inspected source
-files. It requires a clean baseline checkout. See [baseline audit](docs/BaselineAudit.md)
-and [test report](docs/TestReport.md) for observed results.
+files. It requires a clean baseline checkout. See the
+[baseline audit](docs/v03/implementation/BaselineAudit.md) and
+[test report](docs/v03/implementation/TestReport.md) for observed results.

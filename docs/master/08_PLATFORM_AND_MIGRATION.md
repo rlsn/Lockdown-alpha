@@ -1,25 +1,15 @@
 # Platform and migration direction
 
-## Chosen platform
+Unreal remains the chosen platform. Native Windows desktop, a 3D world and controlled top down grounded movement are the working release direction. Browser accessibility was an original inspiration, not a current delivery requirement.
 
-The user selected Unreal and wants three dimensional or at least 2.5D presentation. v0.2 is reported complete and promising, but its graphics and UX obstruct serious evaluation. The new platform should make movement, depth, sight, threats and interactions easier to understand while retaining the gameplay hypotheses.
+v0.3 established the scaffold contract: pinned engine, real assets, native input and UI, authority, restricted observation and a representative slice. Its actual implementation status must be audited. A specification package is not build evidence.
 
-Unreal replaces the browser runtime for future development. The proposed first delivery is a native Windows desktop game with a controlled top down camera and grounded 3D movement. Low-friction access remains a product goal, but it no longer means that the client must run in a browser. No renewed engine-price comparison or licensing conclusion is part of this plan.
+v0.4 extends that foundation with data-driven character development and a small regional loop. Keep working movement, fog, transactions, life identity and packaging. Replace fixed-kit assumptions deliberately, including old global dash or assassination shortcuts that would bypass the new slot rules.
 
-## What remains the game
+Three dimensions do not implement fog, perception or hidden builds automatically. Geometric authorization, private progression, observed skill cues and replicated attributes need explicit tests.
 
-Grand Heart acquisition remains the only ordinary victory. Peaceful and aggressive access routes, costly respawns, shared surveillance, private wards, terrain advantage, crowd concealment and medium lethality remain intended systems. Migrating platforms does not authorize returning to permanent elimination or survivor victory.
+Use C++ for authoritative rules and focused native presentation tools for feedback. Keep the existing compatible engine version and chosen ability architecture unless a concrete reason justifies change. A full GAS migration is not an automatic prerequisite.
 
-Three dimensional visuals do not implement those rules automatically. Server information filtering, source-specific vision, high-ground policy and readable warnings still need explicit design and tests. A camera that sees over a tree must not expose an actor the server has not authorized.
+Local listen hosting remains useful for development. Restricted remote-client tests require a separate server world. A packaged dedicated server depends on compatible engine support and must be reported separately. Production operations, accounts, public matchmaking and deployment remain deferred.
 
-## The v0 3 milestone
-
-Create a reproducible Unreal C++ project with real saved assets, useful native UI, a readable 3D test world, ordinary networked movement and combat, filtered observation, and representative courier, item and claim transactions. Preserve the old build for comparison.
-
-This milestone is a scaffold with a working slice. Fixture-seeded Seals or diagnostic defensive states can test platform contracts without claiming full peaceful progression or assault parity. A completed migration ledger must identify the remaining systems. The next stage ports those systems before broader content or strategic conclusions.
-
-## Engineering and operating boundaries
-
-Prefer a small code-first core with deliberate Blueprint presentation. Pin the engine and toolchain, generate binary assets through Unreal, and verify a cooked Development package in addition to editor play. Prove restricted-client privacy against a separate server world rather than trusting a host-side dark overlay.
-
-Local listen hosting can support the scaffold workflow. A packaged dedicated server depends on compatible engine build support and must be reported separately. Public operations, accounts, matchmaking, monetization and production deployment remain deferred. The user has chosen the engine; implementation should now focus on an honest, reviewable foundation.
+Keep prior prototypes and decisions as reference. A ported feature needs real behavior and evidence; fixture, deferred and changed behavior must remain distinguishable.
