@@ -3,6 +3,8 @@
 Implementation started 19 October 2026 from `451fcb5`. This is an incremental
 development record, not acceptance of the complete v0.4 release.
 
+Runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
+
 ## Milestones
 
 - B40: baseline verification passed; see [actual evidence](B40_BASELINE_AUDIT.md).
@@ -80,12 +82,17 @@ records the actual source revision/dirty flag and source/payload hashes.
 | Legacy native objectives | Passed; Main 53 / ExactDeadline 3 / LateClaim 3 / NoClaim 4 / Withdraw 5 | `20261019-094546-482-ObjectiveCheck/*.json` |
 | Legacy private-view network | Passed; Server 12 / A 29 / B 27 | `20261019-094649-866-ViewNetworkCheck/{Server,A,B}.json` |
 | Legacy ten world resets | Passed; 84 checks | `20261019-094512-276-ResetCheck/Reset.json` |
+| Fresh local clone at `3a1f389` | Passed; 24 LFS assets, preflight, cold Editor/Game builds, Bootstrap Validate and 11 rules; checkout remained clean | `20261019-100904-002-CleanCheckout/Result.json`; logs under `Checkout/Artifacts/` |
 
 The packaged echo medians were 183.04/182.98 ms from 25 samples per remote client.
 This verifies actual emulated native transport, not WAN conditions or a 250 ms p95
 action-acknowledgement claim. Its authority is a headless listen world with a
 diagnostic local connection and two remote clients, not a packaged dedicated
 Server target or a four-human capacity measurement.
+
+The clean-clone check copied no project Binaries/Intermediate files. It reused
+this machine's installed engine/shared caches and hydrated assets from the local
+LFS object cache. It verifies local reproducibility, not remote Git/LFS delivery.
 
 Archive: `Artifacts/20261019-095301-110-PackageWin64/Archive/Windows`.
 All 72 current source/config files and seven archived payload files match that

@@ -6,6 +6,10 @@ complete. The full v0.4 release is still in development. Read the
 [working feature ledger](v04/FeatureLedger.csv),
 [master revision 4](master/README.md) and [v0.4 package](v04/README.md).
 
+Runtime checkpoint: `3a1f389`. Its fresh local clone passed both cold builds,
+24-asset validation and 11 native rules without modifying the checkout; evidence:
+`Artifacts/20261019-100904-002-CleanCheckout/Result.json`.
+
 ## Current implementation
 
 The saved `DA_CharacterCatalog` is generated from the versioned JSON companion.
