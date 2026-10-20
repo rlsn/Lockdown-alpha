@@ -5,6 +5,10 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current world-check and theft changes: [B44 checkpoint](B44_IMPLEMENTATION.md).
+B44 runtime checkpoint: `6356af102d54cf06ca05594fba2282dc20a7ee28`.
+A fresh local checkout passed cold Editor/Game builds, 24-asset validation and
+14 rules without modifying tracked files; the B44 record indexes the result and
+local cache/LFS boundary.
 Preparation and book history: [B43 checkpoint](B43_IMPLEMENTATION.md).
 The [B42 execution checkpoint](B42_IMPLEMENTATION.md) remains historical evidence
 for `4306e46`; its clean-checkout builds, 24 assets and 12 rules passed.

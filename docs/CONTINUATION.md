@@ -5,8 +5,12 @@ v0.4 release remains in development. Start with the [B44 checkpoint](v04/B44_IMP
 [implementation record](v04/IMPLEMENTATION_REPORT.md),
 [working feature ledger](v04/FeatureLedger.csv), [master revision 4](master/README.md)
 and [v0.4 specification](v04/README.md). The checkpoint indexes executed evidence
-and the current cooked archive. Previous B43 runtime: `f5da328`; its evidence
+and the current cooked archive. B44 runtime: `6356af1`. Previous B43 runtime:
+`f5da328`; its evidence
 remains historical in [B43](v04/B43_IMPLEMENTATION.md).
+Fresh checkout of `6356af1` passed cold Editor/Game builds, 24-asset validation
+and 14 native rules and remained clean:
+`Artifacts/20261020-114651-612-CleanCheckout/Result.json`.
 
 ## Current implementation
 

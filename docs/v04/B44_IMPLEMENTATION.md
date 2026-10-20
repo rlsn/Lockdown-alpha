@@ -4,6 +4,8 @@
 bounded theft transaction to the retained migration map. B45–B47 and complete
 v0.4 release acceptance remain separate work.
 
+Runtime checkpoint: `6356af102d54cf06ca05594fba2282dc20a7ee28`.
+
 ## Runtime changes
 
 Four visible services surround Guild: heavy goods (Heave), civic mechanism
@@ -84,6 +86,7 @@ CL 58210709. All listed runs completed without failed checks.
 | Final HUD and public markers | Cooked 720p / native 1080p captured and visually inspected | `20261020-114416-085-Packaged-WorldChecks-DevelopmentUI-720/WorldChecks.png`; `20261020-114425-874-WorldChecks-DevelopmentUI-1080/WorldChecks.png` |
 | Retained development / combat | 24 / 48 passed | `20261020-114450-962-DevelopmentCheck/Local.json`; `20261020-114504-839-CombatCheck/Combat.json` |
 | Retained objective scenarios | Main 53; exact deadline 3; late claim 3; no claim 4; withdrawal 5 passed | `20261020-114518-439-ObjectiveCheck/{Main,ExactDeadline,LateClaim,NoClaim,Withdraw}.json` |
+| Fresh local checkout at `6356af1` | 24 LFS assets; preflight; cold Editor/Game; asset validation; 14 rules passed; checkout clean | `20261020-114651-612-CleanCheckout/Result.json`; build/test logs under `Checkout/Artifacts/` |
 
 Current archive: `Artifacts/20261020-113958-922-PackageWin64/Archive/Windows`.
 Use its `Lockdown.exe`, Host, select a class, Ready and Start. Its manifest records
@@ -100,6 +103,9 @@ percentile. The authority is a headless listen world with a nonparticipating loc
 connection and two remote owners; a packaged dedicated Server target and
 four-human capacity remain unverified. The ordinary input case is automated
 practice, not a human match or an earned objective-route demonstration.
+The fresh checkout copied no project Binaries/Intermediate files. It reused the
+installed engine/shared caches and hydrated content from local LFS objects;
+remote Git/LFS distribution is a separate unverified delivery boundary.
 
 Intermediate failed runs remain in ignored Artifacts and do not count as passes.
 The first network fixture selected the Scholar's Spark slot instead of Analyze;
