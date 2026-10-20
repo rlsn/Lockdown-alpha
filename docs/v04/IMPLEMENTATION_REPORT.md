@@ -5,6 +5,11 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current earned acquisition changes: [B46 checkpoint](B46_IMPLEMENTATION.md).
+B46 runtime checkpoint: `1b69d6324045e35b93a31d4b1207060e430ae47b`.
+A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
+15 rules without tracked changes; the B46 record indexes the result and local
+engine/cache/LFS boundary. Full release, graphics profiling and human review
+remain B47.
 Region and progression history: [B45 checkpoint](B45_IMPLEMENTATION.md).
 B45 runtime checkpoint: `35b02b88ca20df207475af17901f0200d7a8d65f`.
 A fresh local checkout passed cold Editor/Game builds, 28-asset validation and

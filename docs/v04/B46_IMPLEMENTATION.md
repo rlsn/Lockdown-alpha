@@ -2,6 +2,7 @@
 
 20 October 2026. B46 is implemented and engineering-verified. Full v0.4 release
 acceptance remains B47.
+Runtime checkpoint: `1b69d6324045e35b93a31d4b1207060e430ae47b`.
 
 ## Runtime behavior
 
@@ -72,6 +73,7 @@ Evidence paths below are relative to repository-root Artifacts/. Engine: Unreal
 | Cooked ten-world reset | 95 passed | `20261020-234002-700-Packaged-Seal-Region-DevelopmentReset/Reset.json` |
 | Cooked HUD at 720p / 1080p | Captured and inspected; readable choice, readiness and retained slots | `20261020-234013-498-Packaged-Seal-Region-DevelopmentUI-720/Region.png`; `20261020-234023-257-Packaged-Seal-Region-DevelopmentUI-1080/Region.png` |
 | Cooked ordinary earned acquisition | 18 passed; 32044.64 cm native travel | `20261020-234032-006-Packaged-Seal-Region-Normal/Normal.json` |
+| Fresh local checkout at `1b69d63` | Preflight, cold Editor/Game builds, 28-asset validation and 15 rules passed; checkout clean | `20261020-234500-931-CleanCheckout/Result.json`; detailed logs under `Checkout/Artifacts/` |
 
 The authority and ordinary runs preceded later probe-only changes to the
 network phase bound/transition, schema negative tests and visual fixture setup;
@@ -90,6 +92,11 @@ samples. Native 150 ms setting medians were 183.09 / 183.00 ms; the 100 ms setti
 measured 133.02 / 133.13 ms. These samples do not measure action acknowledgements.
 Packaged authority is a headless listen world with a nonparticipating local
 connection and two actual remote owners, not a dedicated Server target.
+The fresh checkout copied no project Binaries/Intermediate files. It reused the
+installed engine/shared caches and hydrated all 28 assets from audited local LFS
+objects. This verifies local checkout/build reproducibility, not remote Git/LFS
+delivery. Its runtime source/config/scripts match this checkpoint; subsequent
+verification edits affect documentation only.
 
 The first adversarial run exposed immediate automatic restart after displacement;
 fabrication cancellation now ends its held transaction. Early network runs

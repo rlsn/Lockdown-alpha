@@ -9,6 +9,10 @@ Region/progression history is in [B45](v04/B45_IMPLEMENTATION.md); earlier books
 Charter checks and theft remain in their linked checkpoint records.
 Current cooked archive:
 `Artifacts/20261020-233727-804-PackageWin64/Archive/Windows`.
+Runtime checkpoint: `1b69d63`.
+Fresh local checkout passed cold Editor/Game builds, 28-asset validation and
+15 rules without tracked changes:
+`Artifacts/20261020-234500-931-CleanCheckout/Result.json`.
 
 ## Current playable loop
 
