@@ -28,6 +28,8 @@
 #include "Tests/LDDevelopmentProbe.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
+#include "Region/LDRegionDefinition.h"
+#include "Region/LDRegionDirector.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -40,12 +42,13 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
     DOREPLIFETIME(ALDGameState,SealNoticeKind);DOREPLIFETIME(ALDGameState,SealNoticeDistrict);
     DOREPLIFETIME(ALDGameState,bDevelopmentProfile);DOREPLIFETIME(ALDGameState,bMatchStarted);
     DOREPLIFETIME(ALDGameState,LobbyCount);DOREPLIFETIME(ALDGameState,ReadyCount);
+    DOREPLIFETIME(ALDGameState,PublicSensorOfflineUntil);DOREPLIFETIME(ALDGameState,PublicSensorLockoutUntil);
 }
 void ALDGameState::BeginPlay()
 {
     Super::BeginPlay();
     if(GetNetMode()==NM_DedicatedServer||GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))){return;}
-    for(uint8 Site=1;Site<=3;++Site){if(auto* Landmark=GetWorld()->SpawnActor<ALDObjectiveSite>()){Landmark->Configure(Site);}}
+    for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(8)}){if(Site>3&&!LDRegion::Definition(GetWorld())){continue;}if(auto* Landmark=GetWorld()->SpawnActor<ALDObjectiveSite>()){Landmark->Configure(Site);}}
 }
 ALDGameMode::ALDGameMode()
 {
@@ -59,7 +62,7 @@ ALDGameMode::ALDGameMode()
 void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage)
 {
     Super::InitGame(MapName,Options,ErrorMessage);
-    bDevelopmentProfile=UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04");
+    bDevelopmentProfile=UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"));
     if (bDevelopmentProfile)
     {
         bScaffoldProfile=false;
@@ -74,9 +77,10 @@ FVector ALDGameMode::TakeSpawn()
 {
     if (SpawnPool.IsEmpty())
     {
-        SpawnPool = {{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
+        if(const auto* Definition=LDRegion::Definition(GetWorld())){SpawnPool=Definition->Spawns;}
+        else{SpawnPool = {{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
             {-1800,0,100},{100,1000,100},{1000,1000,100},{1900,-500,100},{1900,1000,100},
-            {-600,600,100},{-1300,1000,100},{100,-900,100},{0,0,100},{-1900,-1000,100}};
+            {-600,600,100},{-1300,1000,100},{100,-900,100},{0,0,100},{-1900,-1000,100}};}
     }
     const int32 Index = SpawnRandom.RandRange(0,SpawnPool.Num()-1);
     const FVector Location = SpawnPool[Index];
@@ -109,6 +113,7 @@ void ALDGameMode::StartPlay()
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
     if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();WorldChecks=GetWorld()->SpawnActor<ALDWorldChecks>();}
+    if(bDevelopmentProfile&&LDRegion::Definition(GetWorld())){Region=GetWorld()->SpawnActor<ALDRegionDirector>();}
     if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get());PC&&StateFor(PC)) { SyncOwner(PC); Vision->Register(PC); } }
@@ -117,10 +122,12 @@ void ALDGameMode::StartPlay()
         for (TActorIterator<ANavMeshBoundsVolume> It(GetWorld()); It; ++It) { Nav->OnNavigationBoundsUpdated(*It); }
         Nav->GetDefaultNavDataInstance(FNavigationSystem::Create);
         Nav->Build();
+        if(Region){UE_LOG(LogTemp,Display,TEXT("LD_REGION_NAVIGATION bounds=%s"),*Nav->GetNavigableWorldBounds().ToString());}
     }
     for (int32 Index=0; Index<8; ++Index)
     {
-        GetWorld()->SpawnActor<ALDResident>(TakeSpawn(), FRotator::ZeroRotator);
+        const auto* Definition=LDRegion::Definition(GetWorld());auto* Resident=GetWorld()->SpawnActor<ALDResident>(Definition?Definition->Residents[Index]:TakeSpawn(),FRotator::ZeroRotator);
+        if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
     if (bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))) { GetWorld()->SpawnActor<ALDDevelopmentProbe>(); }
@@ -181,8 +188,8 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
-        if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild));}
-        if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),RuleTime());}
+        if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
+        if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
         if (LobbyHost==PC) { LobbyHost.Reset(); for (auto& Pair:Contenders) { if (Pair.Key.IsValid()) { LobbyHost=Pair.Key; Pair.Value.State.bLobbyHost=true; SyncOwner(Pair.Key.Get()); break; } } }
         if (bDevelopmentProfile) { UpdateLobby(); }
@@ -203,8 +210,8 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
-    if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild));}
-    if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),Now);}
+    if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
+    if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
         ? LDRules::FDeathCost{LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt),LDDevelopment::DeathLoss(State->Gold)}
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
@@ -218,9 +225,10 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 }
 FVector ALDGameMode::ReturnSpawn(ALDPlayerController* PC)
 {
-    const TArray<FVector> Candidates={{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
+    TArray<FVector> Candidates={{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
         {-1800,0,100},{100,1000,100},{1000,1000,100},{1900,-500,100},{1900,1000,100},
         {-600,600,100},{-1300,1000,100},{100,-900,100},{0,0,100},{-1900,-1000,100}};
+    if(const auto* Definition=LDRegion::Definition(GetWorld())){Candidates=Definition->Spawns;}
     TArray<FVector> Safe, Farthest;
     double Best=-1;
     for(const FVector& Point:Candidates)

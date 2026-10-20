@@ -1,0 +1,1216 @@
+{
+  "regions": [
+    {
+      "schema": 1,
+      "name": "Civic Reach",
+      "min": [
+        -6000,
+        -4000,
+        0
+      ],
+      "cellSize": 200,
+      "guild": [
+        -900,
+        -600,
+        0
+      ],
+      "heart": [
+        0,
+        0,
+        0
+      ],
+      "tower": [
+        900,
+        900,
+        0
+      ],
+      "control": [
+        900,
+        750,
+        0
+      ],
+      "sentinel": [
+        700,
+        2600,
+        92
+      ],
+      "trainedResident": 7,
+      "spawns": [
+        [
+          -900,
+          -1000,
+          100
+        ],
+        [
+          -1200,
+          -700,
+          100
+        ],
+        [
+          -600,
+          -1100,
+          100
+        ],
+        [
+          -1400,
+          -1100,
+          100
+        ],
+        [
+          -1400,
+          -600,
+          100
+        ],
+        [
+          -800,
+          -1400,
+          100
+        ]
+      ],
+      "residents": [
+        [
+          -1100,
+          -450,
+          100
+        ],
+        [
+          -500,
+          -700,
+          100
+        ],
+        [
+          -3400,
+          -1200,
+          100
+        ],
+        [
+          -3900,
+          -800,
+          100
+        ],
+        [
+          3400,
+          1200,
+          100
+        ],
+        [
+          3900,
+          1600,
+          100
+        ],
+        [
+          -200,
+          2900,
+          100
+        ],
+        [
+          -3600,
+          -700,
+          100
+        ]
+      ],
+      "nodes": [
+        {
+          "id": 17,
+          "name": "City",
+          "site": 0,
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "radius": 1200,
+          "visit": false
+        },
+        {
+          "id": 43,
+          "name": "WestTown",
+          "site": 2,
+          "position": [
+            -3600,
+            -1000,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 91,
+          "name": "EastTown",
+          "site": 6,
+          "position": [
+            3600,
+            1400,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 137,
+          "name": "WildCrossing",
+          "site": 0,
+          "position": [
+            0,
+            2600,
+            0
+          ],
+          "radius": 250,
+          "visit": true
+        }
+      ],
+      "routes": [
+        {
+          "from": 17,
+          "to": 43,
+          "covered": false,
+          "points": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              -1800,
+              -600,
+              0
+            ],
+            [
+              -2800,
+              -1000,
+              0
+            ],
+            [
+              -3600,
+              -1000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 43,
+          "covered": true,
+          "points": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              -700,
+              -1800,
+              0
+            ],
+            [
+              -3600,
+              -1800,
+              0
+            ],
+            [
+              -3600,
+              -1000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 91,
+          "covered": false,
+          "points": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              1800,
+              1400,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 91,
+          "covered": true,
+          "points": [
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              600,
+              -1600,
+              0
+            ],
+            [
+              4000,
+              -1600,
+              0
+            ],
+            [
+              4300,
+              700,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 43,
+          "to": 137,
+          "covered": true,
+          "points": [
+            [
+              -3600,
+              -1000,
+              0
+            ],
+            [
+              -4200,
+              2600,
+              0
+            ],
+            [
+              0,
+              2600,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 137,
+          "to": 91,
+          "covered": false,
+          "points": [
+            [
+              0,
+              2600,
+              0
+            ],
+            [
+              4200,
+              2600,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "name": "Ground",
+          "position": [
+            0,
+            0,
+            -20
+          ],
+          "size": [
+            12000,
+            8000,
+            40
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Plateau",
+          "position": [
+            1400,
+            -2100,
+            90
+          ],
+          "size": [
+            800,
+            800,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": true,
+          "pitch": 0
+        },
+        {
+          "name": "Ramp",
+          "position": [
+            800,
+            -2100,
+            90
+          ],
+          "size": [
+            447.2136,
+            300,
+            20
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 26.565051
+        },
+        {
+          "name": "CoveredWest",
+          "position": [
+            -2100,
+            -1530,
+            150
+          ],
+          "size": [
+            1600,
+            60,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "CoveredEast",
+          "position": [
+            2300,
+            -1330,
+            150
+          ],
+          "size": [
+            1900,
+            60,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree0",
+          "position": [
+            -2700,
+            -1450,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree1",
+          "position": [
+            -3200,
+            -1450,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree2",
+          "position": [
+            -4300,
+            1700,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree3",
+          "position": [
+            4400,
+            1900,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree4",
+          "position": [
+            2600,
+            1800,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree5",
+          "position": [
+            -1100,
+            1600,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PublicSensorBase",
+          "position": [
+            900,
+            900,
+            80
+          ],
+          "size": [
+            100,
+            100,
+            160
+          ],
+          "mesh": "Cylinder",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryNorth",
+          "position": [
+            0,
+            4025,
+            100
+          ],
+          "size": [
+            12100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundarySouth",
+          "position": [
+            0,
+            -4025,
+            100
+          ],
+          "size": [
+            12100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryWest",
+          "position": [
+            -6025,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            8000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryEast",
+          "position": [
+            6025,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            8000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        }
+      ],
+      "cityId": 17
+    },
+    {
+      "schema": 1,
+      "name": "Reflected Reach",
+      "min": [
+        -7500,
+        -5000,
+        0
+      ],
+      "cellSize": 250,
+      "guild": [
+        -1035.0,
+        690.0,
+        0
+      ],
+      "heart": [
+        0.0,
+        0.0,
+        0
+      ],
+      "tower": [
+        1035.0,
+        -1035.0,
+        0
+      ],
+      "control": [
+        1035.0,
+        -862.5,
+        0
+      ],
+      "sentinel": [
+        805.0,
+        -2990.0,
+        92
+      ],
+      "trainedResident": 7,
+      "spawns": [
+        [
+          -1035.0,
+          1150.0,
+          100
+        ],
+        [
+          -1380.0,
+          805.0,
+          100
+        ],
+        [
+          -690.0,
+          1265.0,
+          100
+        ],
+        [
+          -1610.0,
+          1265.0,
+          100
+        ],
+        [
+          -1610.0,
+          690.0,
+          100
+        ],
+        [
+          -920.0,
+          1610.0,
+          100
+        ]
+      ],
+      "residents": [
+        [
+          -1265.0,
+          517.5,
+          100
+        ],
+        [
+          -575.0,
+          805.0,
+          100
+        ],
+        [
+          -3910.0,
+          1380.0,
+          100
+        ],
+        [
+          -4485.0,
+          920.0,
+          100
+        ],
+        [
+          3910.0,
+          -1380.0,
+          100
+        ],
+        [
+          4485.0,
+          -1840.0,
+          100
+        ],
+        [
+          -230.0,
+          -3335.0,
+          100
+        ],
+        [
+          -4140.0,
+          805.0,
+          100
+        ]
+      ],
+      "nodes": [
+        {
+          "id": 119,
+          "name": "WildCrossing",
+          "site": 0,
+          "position": [
+            0.0,
+            -2990.0,
+            0
+          ],
+          "radius": 250,
+          "visit": true
+        },
+        {
+          "id": 54,
+          "name": "EastTown",
+          "site": 6,
+          "position": [
+            4140.0,
+            -1610.0,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 88,
+          "name": "City",
+          "site": 0,
+          "position": [
+            0.0,
+            0.0,
+            0
+          ],
+          "radius": 1200,
+          "visit": false
+        },
+        {
+          "id": 203,
+          "name": "WestTown",
+          "site": 2,
+          "position": [
+            -4140.0,
+            1150.0,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 222,
+          "name": "Outer Pass",
+          "site": 0,
+          "position": [
+            0,
+            4000,
+            0
+          ],
+          "radius": 150,
+          "visit": false
+        }
+      ],
+      "routes": [
+        {
+          "from": 88,
+          "to": 203,
+          "covered": false,
+          "points": [
+            [
+              0.0,
+              0.0,
+              0
+            ],
+            [
+              -2070.0,
+              690.0,
+              0
+            ],
+            [
+              -3220.0,
+              1150.0,
+              0
+            ],
+            [
+              -4140.0,
+              1150.0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 88,
+          "to": 203,
+          "covered": true,
+          "points": [
+            [
+              0.0,
+              0.0,
+              0
+            ],
+            [
+              -805.0,
+              2070.0,
+              0
+            ],
+            [
+              -4140.0,
+              2070.0,
+              0
+            ],
+            [
+              -4140.0,
+              1150.0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 88,
+          "to": 54,
+          "covered": false,
+          "points": [
+            [
+              0.0,
+              0.0,
+              0
+            ],
+            [
+              2070.0,
+              -1610.0,
+              0
+            ],
+            [
+              4140.0,
+              -1610.0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 88,
+          "to": 54,
+          "covered": true,
+          "points": [
+            [
+              0.0,
+              0.0,
+              0
+            ],
+            [
+              690.0,
+              1840.0,
+              0
+            ],
+            [
+              4600.0,
+              1840.0,
+              0
+            ],
+            [
+              4945.0,
+              -805.0,
+              0
+            ],
+            [
+              4140.0,
+              -1610.0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 119,
+          "to": 54,
+          "covered": false,
+          "points": [
+            [
+              0.0,
+              -2990.0,
+              0
+            ],
+            [
+              4830.0,
+              -2990.0,
+              0
+            ],
+            [
+              4140.0,
+              -1610.0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 203,
+          "to": 222,
+          "covered": true,
+          "points": [
+            [
+              -4140.0,
+              1150.0,
+              0
+            ],
+            [
+              -4800,
+              3500,
+              0
+            ],
+            [
+              0,
+              4000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 222,
+          "to": 54,
+          "covered": true,
+          "points": [
+            [
+              0,
+              4000,
+              0
+            ],
+            [
+              4800,
+              3500,
+              0
+            ],
+            [
+              4140.0,
+              -1610.0,
+              0
+            ]
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "name": "Ground",
+          "position": [
+            0.0,
+            0.0,
+            -20
+          ],
+          "size": [
+            15000,
+            10000,
+            40
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Plateau",
+          "position": [
+            1610.0,
+            2415.0,
+            90
+          ],
+          "size": [
+            919.9999999999999,
+            919.9999999999999,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": true,
+          "pitch": 0
+        },
+        {
+          "name": "Ramp",
+          "position": [
+            920.0,
+            2415.0,
+            90
+          ],
+          "size": [
+            501.5974481593781,
+            345.0,
+            20
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 23.498565675952097
+        },
+        {
+          "name": "CoveredWest",
+          "position": [
+            -2415.0,
+            1759.5,
+            150
+          ],
+          "size": [
+            1839.9999999999998,
+            69.0,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "CoveredEast",
+          "position": [
+            2645.0,
+            1529.5,
+            150
+          ],
+          "size": [
+            2185.0,
+            69.0,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree0",
+          "position": [
+            -3105.0,
+            1667.5,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree1",
+          "position": [
+            -3680.0,
+            1667.5,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree2",
+          "position": [
+            -4945.0,
+            -1955.0,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree3",
+          "position": [
+            5060.0,
+            -2185.0,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree4",
+          "position": [
+            2990.0,
+            -2070.0,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree5",
+          "position": [
+            -1265.0,
+            -1840.0,
+            200
+          ],
+          "size": [
+            138.0,
+            138.0,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PublicSensorBase",
+          "position": [
+            1035.0,
+            -1035.0,
+            80
+          ],
+          "size": [
+            114.99999999999999,
+            114.99999999999999,
+            160
+          ],
+          "mesh": "Cylinder",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryNorth",
+          "position": [
+            0,
+            5025,
+            100
+          ],
+          "size": [
+            15100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundarySouth",
+          "position": [
+            0,
+            -5025,
+            100
+          ],
+          "size": [
+            15100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryWest",
+          "position": [
+            -7525,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            10000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryEast",
+          "position": [
+            7525,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            10000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        }
+      ],
+      "cityId": 88
+    }
+  ]
+}

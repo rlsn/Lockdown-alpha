@@ -13,6 +13,8 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
 #include "Objectives/LDObjectiveRules.h"
+#include "Region/LDRegionDefinition.h"
+#include "Region/LDRegionDirector.h"
 
 ALDWard::ALDWard()
 {
@@ -42,9 +44,11 @@ uint8 ALDVisionDirector::LevelAt(const FVector& P) const
     { if (P.X >= Box.Min.X && P.X < Box.Max.X && P.Y >= Box.Min.Y && P.Y < Box.Max.Y) { return 1; } }
     return 0;
 }
+FLDVisionGrid ALDVisionDirector::Grid() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Grid:FLDVisionGrid();}
+FVector ALDVisionDirector::PublicLocation() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Tower:PublicPosition();}
 bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target) const
 {
-    if (!LDVision::InWorld(Target) || FVector::DistSquared2D(Source.Position,Target) > FMath::Square(Source.Radius)) { return false; }
+    if (!LDVision::InWorld(Target,Grid()) || FVector::DistSquared2D(Source.Position,Target) > FMath::Square(Source.Radius)) { return false; }
     const FVector From(Source.Position.X, Source.Position.Y,120), To(Target.X,Target.Y,120);
     if (!Source.Level)
     {
@@ -60,9 +64,9 @@ bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target)
 TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) const
 {
     TArray<FLDSightSource> Sources;
-    if (bPublicSensor) { Sources.Add({PublicPosition(),600,1}); }
+    if (bPublicSensor) { Sources.Add({PublicLocation(),600,1}); }
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const double Now=Mode->RuleTime();
-    if(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Now)){Sources.Add({LDObjective::Position(LDObjective::Heart),360,1});}
+    if(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Now)){Sources.Add({LDRegion::Site(GetWorld(),LDObjective::Heart),360,1});}
     if (PC && PC->OwnerState.bActive)
     {
         if (const ALDCharacter* Body = Cast<ALDCharacter>(PC->GetPawn()))
@@ -78,10 +82,10 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
 }
 bool ALDVisionDirector::CanSee(ALDPlayerController* PC, const FVector& Point) const
 {
-    const int32 Cell=LDVision::Cell(Point);
+    const int32 Cell=LDVision::Cell(Point,Grid());
     if (Cell==INDEX_NONE) { return false; }
     const auto Sources=SourcesFor(PC);
-    return Sources.ContainsByPredicate([&](const FLDSightSource& S){return Ray(S,LDVision::Centre(Cell));})
+    return Sources.ContainsByPredicate([&](const FLDSightSource& S){return Ray(S,LDVision::Centre(Cell,Grid()));})
         && Sources.ContainsByPredicate([&](const FLDSightSource& S){return Ray(S,Point);});
 }
 void ALDVisionDirector::Register(ALDPlayerController* PC)
@@ -111,11 +115,11 @@ AActor* ALDVisionDirector::ResolveObserved(ALDPlayerController* PC,const FGuid& 
     { if (Pair.Value==Id && Pair.Key.IsValid() && CanSee(PC,Pair.Key->GetActorLocation())) { return Pair.Key.Get(); } }
     return nullptr;
 }
-void ALDVisionDirector::SetPublicSensor(bool bActive)
+void ALDVisionDirector::SetPublicSensor(bool bActive,bool Fixture)
 {
     check(HasAuthority()); bPublicSensor=bActive;
     if (ALDGameState* State=GetWorld()->GetGameState<ALDGameState>()) { State->bPublicSensorActive=bActive; State->ForceNetUpdate(); }
-    UE_LOG(LogTemp,Display,TEXT("LD_FIXTURE public sensor=%d (acquisition/destruction fixture; shared sight is real)"),bActive);
+    UE_LOG(LogTemp,Display,TEXT("LD_PUBLIC_SIGHT active=%d fixture=%d"),bActive,Fixture);
     NextSample=0; NextPublish=0;
 }
 bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desired, FString& Reason)
@@ -126,7 +130,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     if(Mode&&(!Mode->IsPlaying()||(Mode->Objectives&&Mode->Objectives->HasChannel(PC)))){Reason=TEXT("Ward blocked in lobby, during an interaction or after results.");return false;}
     if (!State || !Body || !State->bActive || !State->WardCharges) { Reason=TEXT("No ward charge or active body."); return false; }
     if(GetWorld()->GetTimeSeconds()<State->ProtectedUntil||(State->ActionCue&15)){Reason=TEXT("Ward blocked during protection or a combat action.");return false;}
-    if (!LDVision::InWorld(Desired) || FVector::DistSquared2D(Desired,Body->GetActorLocation())>96*96) { Reason=TEXT("Place within 96 cm of your body."); return false; }
+    if (!LDVision::InWorld(Desired,Grid()) || FVector::DistSquared2D(Desired,Body->GetActorLocation())>96*96) { Reason=TEXT("Place within 96 cm of your body."); return false; }
     int32 Active=0;
     for (const auto& Weak : Wards) { if (Weak.IsValid() && Weak->Controller==PC && Weak->Hp>0 && Weak->ExpiresAt>GetWorld()->GetTimeSeconds()) { ++Active; } }
     if (Active>=2) { Reason=TEXT("Two wards are already active."); return false; }
@@ -182,12 +186,13 @@ void ALDVisionDirector::Sample(bool bPublish)
     for(TActorIterator<ALDSeal> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDCharterTask> It(GetWorld());It;++It){Entities.Add(*It);}
+    for(TActorIterator<ALDWatchControl> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
     {
         ALDPlayerController* PC=Pair.Key.Get(); FObserver& Observer=Pair.Value;
         if (!PC || !Observer.Relay.IsValid()) { continue; }
         const auto Sources=SourcesFor(PC);
-        FLDWorldView View;
+        FLDWorldView View;View.Grid=Grid();const auto G=View.Grid;
         View.Generation=Generation; View.Revision=Revision+1; View.AuthoritySeconds=GetWorld()->GetTimeSeconds();
         View.BodySources=(PC->GetPawn() && PC->OwnerState.bActive) ? 1 : 0;
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
@@ -196,12 +201,12 @@ void ALDVisionDirector::Sample(bool bPublish)
         View.Current.SetNumZeroed(LDVision::MaskBytes);
         for (const auto& Source : Sources)
         {
-            const int32 X0=FMath::Clamp(int32(FMath::FloorToDouble((Source.Position.X-Source.Radius+2400)/80)),0,59);
-            const int32 X1=FMath::Clamp(int32((Source.Position.X+Source.Radius+2400)/80),0,59);
-            const int32 Y0=FMath::Clamp(int32(FMath::FloorToDouble((Source.Position.Y-Source.Radius+1600)/80)),0,39);
-            const int32 Y1=FMath::Clamp(int32((Source.Position.Y+Source.Radius+1600)/80),0,39);
+            const int32 X0=FMath::Clamp(int32(FMath::FloorToDouble((Source.Position.X-Source.Radius-G.Min.X)/G.CellSize)),0,59);
+            const int32 X1=FMath::Clamp(int32((Source.Position.X+Source.Radius-G.Min.X)/G.CellSize),0,59);
+            const int32 Y0=FMath::Clamp(int32(FMath::FloorToDouble((Source.Position.Y-Source.Radius-G.Min.Y)/G.CellSize)),0,39);
+            const int32 Y1=FMath::Clamp(int32((Source.Position.Y+Source.Radius-G.Min.Y)/G.CellSize),0,39);
             for (int32 Y=Y0;Y<=Y1;++Y) { for (int32 X=X0;X<=X1;++X)
-            { const int32 I=Y*60+X; if (!LDVision::Bit(View.Current,I) && Ray(Source,LDVision::Centre(I))) { LDVision::Set(View.Current,I); } } }
+            { const int32 I=Y*60+X; if (!LDVision::Bit(View.Current,I) && Ray(Source,LDVision::Centre(I,G))) { LDVision::Set(View.Current,I); } } }
         }
         for (int32 I=0;I<LDVision::MaskBytes;++I) { Observer.Explored[I]|=View.Current[I]; }
         View.Explored=Observer.Explored;
@@ -209,7 +214,7 @@ void ALDVisionDirector::Sample(bool bPublish)
         for (AActor* Actor : Entities)
         {
             const FVector Position=Actor->GetActorLocation();
-            if (Actor==PC->GetPawn() || !LDVision::Bit(View.Current,LDVision::Cell(Position))
+            if (Actor==PC->GetPawn() || !LDVision::Bit(View.Current,LDVision::Cell(Position,G))
                 || !Sources.ContainsByPredicate([&](const FLDSightSource& S){return Ray(S,Position);})) { continue; }
             if (View.Entities.Num()>=LDVision::MaxEntities) { UE_LOG(LogTemp,Error,TEXT("LD view capacity exceeded")); break; }
             FGuid& Id=Observer.Ids.FindOrAdd(Actor);
@@ -219,12 +224,13 @@ void ALDVisionDirector::Sample(bool bPublish)
             Record.Speed=uint16(FMath::Clamp(Actor->GetVelocity().Size2D(),0.,1000.));
             if (const ALDCharacter* Body=Cast<ALDCharacter>(Actor))
             {
-                Record.Presentation=Body->PresentationKey%4;
+                Record.Presentation=Body->PresentationKey%4;if(Body->IsA<ALDWildSentinel>()){Record.Kind=ELDObservedKind::Sentinel;}
                 if(Mode->Combat){Record.ActionCue=Mode->Combat->CueFor(Body);Record.ExposedUntil=float(Mode->Combat->ExposedFor(Body));}
             }
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
+            else if(Actor->IsA<ALDWatchControl>()){Record.Kind=ELDObservedKind::WatchControl;}
             else if(const auto* Task=Cast<ALDCharterTask>(Actor)){Record.Kind=ELDObservedKind::Charter;Record.Presentation=Task->Service;}
             else { Record.Kind=ELDObservedKind::Ward; }
             View.Entities.Add(Record); Visible.Add(Id);

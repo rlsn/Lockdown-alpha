@@ -11,6 +11,7 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
+#include "Region/LDRegionDirector.h"
 
 ALDCorpse::ALDCorpse()
 {
@@ -82,6 +83,7 @@ AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVect
     const double Now=GetWorld()->GetTimeSeconds();
     auto Consider=[&](AActor* Target,FGuid Id)
     {
+        if(Source->IsA<ALDWildSentinel>()&&(!GetWorld()->GetAuthGameMode<ALDGameMode>()->Region||!GetWorld()->GetAuthGameMode<ALDGameMode>()->Region->SentinelCanTarget(Cast<ALDCharacter>(Target)))){return;}
         if(!LegalTarget(Source,Target,Reach,&Aim,Cone)){return;}
         if(bAssassin)
         {
@@ -131,9 +133,9 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
         if(Action==0)
         {
             if(Now<S->BasicReady){Result=TEXT("Attack cooling down.");return false;}
-            S->Action=1;S->ImpactAt=Now+LDCombat::BasicWindup;S->BasicReady=Now+LDCombat::BasicCadence;
+            S->Action=1;S->ImpactAt=Now+(Body->IsA<ALDWildSentinel>()?.3:LDCombat::BasicWindup);S->BasicReady=Now+(Body->IsA<ALDWildSentinel>()?1.2:LDCombat::BasicCadence);
             const auto* Build=BuildFor(Body);
-            S->CommittedDamage=Mode->IsDevelopmentProfile()&&Build?LDDevelopment::BasicDamage(*Build):20;
+            S->CommittedDamage=Body->IsA<ALDWildSentinel>()?12:Mode->IsDevelopmentProfile()&&Build?LDDevelopment::BasicDamage(*Build):20;
             S->Skill=ELDSkill::None;
             Result=TEXT("Attack committed.");
         }
@@ -227,14 +229,15 @@ void ALDCombatDirector::Sample(double Now)
         }
         Move->bCombatWalkOnly=S.Action==2||S.Action==3||S.Action==6;
     }
-    TSet<ALDCharacter*> Deaths;
+    TSet<ALDCharacter*> Deaths;TMap<ALDPlayerController*,double> SentinelDamage;
     for(const auto& Hit:Impacts)
     {
         auto* S=StateFor(Hit.Source);S->LastDealt=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);
-        if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicPosition(),600,1},Hit.Target->GetActorLocation()))
+        if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicLocation(),600,1},Hit.Target->GetActorLocation()))
         {S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}
         if(auto* Ward=Cast<ALDWard>(Hit.Target)){Ward->Hp-=Hit.Damage;continue;}
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
+        if(Victim->IsA<ALDWildSentinel>()){if(auto* PC=Cast<ALDPlayerController>(Hit.Source->GetController())){SentinelDamage.FindOrAdd(PC)+=Hit.Damage;}}
         T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
         if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Damage cancelled the transaction."));}}
@@ -244,6 +247,7 @@ void ALDCombatDirector::Sample(double Now)
         {CancelSkill(Victim,*T);}
         if(T->Hp<=0){Deaths.Add(Victim);}
     }
+    if(Mode->Region&&Mode->Region->SentinelBody()&&Deaths.Contains(Mode->Region->SentinelBody())){Mode->Region->SentinelDefeated(SentinelDamage,Now);}
     // Damage wins against held completion, including a hit on the exact deadline.
     CompleteSkillChannels(Now);
     if(Mode->Development){Mode->Development->Sample(Now);}
@@ -251,8 +255,9 @@ void ALDCombatDirector::Sample(double Now)
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}
     for(int32 I=Residents.Num()-1;I>=0;--I)
-    {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}Residents.RemoveAtSwap(I);}}
+    {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}if(Residents[I].HasBuild){RegisterNPCBuild(Returned,Residents[I].Build);StateFor(Returned)->Hp=LDDevelopment::MaxHP(Residents[I].Build);}Residents.RemoveAtSwap(I);}}
     Mode->ReturnDueContenders(Now);
+    if(Mode->Region){Mode->Region->Sample(Now);}
     if(Mode->Objectives){Mode->Objectives->Sample(Now);}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
@@ -260,7 +265,7 @@ void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
     auto* S=StateFor(Body);if(!S){return;}
     if(ALDCorpse* Corpse=GetWorld()->SpawnActor<ALDCorpse>(Body->GetActorLocation()-FVector(0,0,65),Body->GetActorRotation())){Corpse->Presentation=Body->PresentationKey;}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->EndContenderLife(PC,Now);}
-    else if(Body->IsA<ALDResident>()){auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks.Get();Residents.Add({Now+20,S->Home,W?W->WalletId(Body):FGuid()});}
+    else if(Body->IsA<ALDResident>()){if(auto* R=GetWorld()->GetAuthGameMode<ALDGameMode>()->Region.Get()){++R->PeacefulDeaths;}auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks.Get();Residents.Add({Now+20,S->Home,W?W->WalletId(Body):FGuid(),S->bHasNPCBuild,S->NPCBuild});}
     if(AController* Controller=Body->GetController()){Controller->UnPossess();if(!Controller->IsPlayerController()){Controller->Destroy();}}
     Body->Destroy();
 }

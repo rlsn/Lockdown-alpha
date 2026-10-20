@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Region/LDRegionDefinition.h"
 
 ALDCharterTask::ALDCharterTask(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
 ALDWorldChecks::ALDWorldChecks(){bReplicates=false;}
@@ -19,7 +20,8 @@ void ALDWorldChecks::BeginPlay()
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     for(uint8 I=0;I<4;++I)
     {
-        auto* Task=GetWorld()->SpawnActor<ALDCharterTask>(LDCharter::Position(I),FRotator::ZeroRotator);check(Task);Task->Service=I;
+        const FVector Point=LDRegion::Definition(GetWorld())?LDRegion::Site(GetWorld(),1)+(LDCharter::Position(I)-FVector(-400,100,0)):LDCharter::Position(I);
+        auto* Task=GetWorld()->SpawnActor<ALDCharterTask>(Point,FRotator::ZeroRotator);check(Task);Task->Service=I;
         Mode->Combat->RegisterSkillTask(Task,{LDCharter::Skill(I)},[this,Weak=TWeakObjectPtr<ALDCharterTask>(Task)](ALDCharacter* Source,ELDSkill Skill,const FLDCharacterBuild& Build,uint32 Token,ELDSkillTaskPhase Phase,FString& Result)
         {return UseCharter(Source,Weak.Get(),Build,Skill,Token,Phase,Result);});
     }

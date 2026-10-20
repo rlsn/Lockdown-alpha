@@ -24,6 +24,8 @@
 #include "UI/LDDevelopmentPanel.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Development/LDWorldChecks.h"
+#include "Region/LDRegionDefinition.h"
+#include "Region/LDRegionDirector.h"
 
 ALDDevelopmentProbe::ALDDevelopmentProbe() { bReplicates=false; PrimaryActorTick.bCanEverTick=true; PrimaryActorTick.TickGroup=TG_PostUpdateWork; }
 void ALDDevelopmentProbe::BeginPlay()
@@ -42,17 +44,19 @@ void ALDDevelopmentProbe::Tick(float Delta)
 {
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
-    if (FPlatformTime::Seconds()-Started>(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))?300:90)) { Check(false,TEXT("Probe timed out")); Finish(); return; }
+    if (FPlatformTime::Seconds()-Started>(FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))?620:FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))?300:150)) { Check(false,TEXT("Probe timed out")); Finish(); return; }
     if (Role==TEXT("Visual"))
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
         const bool SkillVisual=FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe"));
         const bool PrepVisual=FParse::Param(FCommandLine::Get(),TEXT("LDPreparationProbe"));
+        const bool RegionVisual=FParse::Param(FCommandLine::Get(),TEXT("LDRegionProbe"));
         const bool WorldVisual=FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckProbe"));
-        const FString Image=FPaths::Combine(Directory,WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
+        const FString Image=FPaths::Combine(Directory,RegionVisual?TEXT("Region.png"):WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
         if (!Phase && GetWorld()->GetTimeSeconds()>2)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
+            if(RegionVisual){PC->ToggleLobbyReady();PC->StartLobby();PC->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,210,92));GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;}
             if(WorldVisual){PC->ToggleLobbyReady();PC->StartLobby();PC->GetPawn()->SetActorLocation(LDCharter::Position(3)+FVector(0,50,92));GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;}
             if(SkillVisual)
             {
@@ -74,11 +78,18 @@ void ALDDevelopmentProbe::Tick(float Delta)
             Phase=3;PhaseAt=FPlatformTime::Seconds();
         }
         else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
-        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
+        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,RegionVisual?TEXT("Regional HUD/map captured (location fixture)"):WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
     {
         if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); ResetCheck(); }
+    }
+    else if(FParse::Param(FCommandLine::Get(),TEXT("LDRegionProbe")))
+    {
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))){RegionNormalTick();}
+        else if(GetNetMode()==NM_Client){RegionClientTick();}
+        else if(Role==TEXT("Region")){if(GetWorld()->GetTimeSeconds()>1&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)){SetActorTickEnabled(false);RegionCheck();Finish();}}
+        else{RegionServerTick();}
     }
     else if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckProbe")))
     {
@@ -184,6 +195,7 @@ void ALDDevelopmentProbe::ResetCheck()
     Check(State->Build.ClassId==0&&State->Build.Attributes==Start.Attributes&&State->Build.Ranks==Start.Ranks&&State->Build.Slots==Start.Slots&&State->Build.Cooldowns==Start.Cooldowns&&!State->Build.Subclass&&!State->Build.AttributePoints&&!State->Build.SkillPoints&&State->Build.Level==1&&!State->Xp&&!State->Gold&&State->Hp==110&&State->MaxHp==110&&!State->DeathSerial,TEXT("New world clears all B41 build, currency and life fields"));
     int32 BookActors=0;for(TActorIterator<ALDBook> It(GetWorld());It;++It){++BookActors;}Check(State->Books.IsEmpty()&&!State->DevelopmentKind&&!State->DevelopmentToken&&!State->DevelopmentEndsAt&&!BookActors&&Mode->Development->QueuedCount()==0,TEXT("New world clears unread books, physical instances, development channels and queued requests"));
     Check(!State->Witness.IsValid()&&!State->TheftReceipt.IsValid()&&!State->TheftOutcome&&!State->TheftAmount&&!State->TheftRetryAt&&!State->AlertUntil&&!State->TamperSerial&&Mode->WorldChecks->DrawCount()==0&&Mode->WorldChecks->WalletCount()==0,TEXT("New world clears Witness, theft receipts, retries, alerts, wallets and RNG domain"));
+    if(Mode->Region){Check(!State->PaidJobs&&!State->FirstCourierTown&&!State->ContractDestination&&State->VisitedRegions.IsEmpty()&&!State->PaidSentinels&&!State->SentinelReceipt.IsValid()&&!Public->PublicSensorOfflineUntil&&!Public->PublicSensorLockoutUntil&&Public->bPublicSensorActive&&Mode->Region->SentinelBody(),TEXT("New region world clears work/visit/encounter receipts and sabotage endpoints"));}
     if (Evidence.Round)
     {
         Check(!Evidence.OldActors.ContainsByPredicate([](const auto& Actor){return Actor.IsValid();}),TEXT("Prior world actors are destroyed"));
@@ -197,17 +209,18 @@ void ALDDevelopmentProbe::ResetCheck()
     State->Build.Cooldowns[int32(ELDSkill::Step)]=GetWorld()->GetTimeSeconds()+100;
     State->Build.Subclass=3; State->Gold=101; Mode->SyncOwner(PC);
     State->Witness=FGuid::NewGuid();State->TheftReceipt=FGuid::NewGuid();State->TheftOutcome=2;State->TheftRetryAt=State->AlertUntil=GetWorld()->GetTimeSeconds()+100;State->TamperSerial=1;Mode->WorldChecks->WalletId(Cast<ALDCharacter>(PC->GetPawn()));
-    auto* DirtyBody=CastChecked<ALDCharacter>(PC->GetPawn());DirtyBody->SetActorLocation(LDObjective::Position(1)+FVector(0,50,92));Mode->Combat->StateFor(DirtyBody)->ProtectionUntil=0;PC->BuyBook(ELDSkill::Spark);Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
+    auto* DirtyBody=CastChecked<ALDCharacter>(PC->GetPawn());DirtyBody->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,50,92));Mode->Combat->StateFor(DirtyBody)->ProtectionUntil=0;PC->BuyBook(ELDSkill::Spark);Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
     if(State->Books.Num()){PC->StartDevelopmentHold(2,State->Books[0].Id,FLDBuildPlan());Mode->Combat->Sample(GetWorld()->GetTimeSeconds());}
     PC->StopDevelopmentHold();DirtyBody->SetFacing(0);auto* Purse=GetWorld()->SpawnActor<ALDResident>(DirtyBody->GetActorLocation()+FVector(80,0,0),FRotator::ZeroRotator);Purse->SetActorTickEnabled(false);Purse->GetCharacterMovement()->DisableMovement();Purse->SetFacing(0);
     PC->ServerSkillAction(State->Match,State->Life,1000,State->Build.Revision,0,FVector::ForwardVector);Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
     GetWorld()->TimeSeconds+=1.01;Mode->Combat->RefreshSkillHold(DirtyBody,1000,1,false);Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
     const bool Dirty=Mode->WorldChecks->DrawCount()==1&&State->TheftReceipt.IsValid()&&State->TheftRetryAt>GetWorld()->GetTimeSeconds();Evidence.Checks.Add(Dirty?TEXT("PASS Prior world committed an actual theft draw, receipt and pair reservation before reset"):TEXT("FAIL Prior world failed to dirty theft domains before reset"));if(!Dirty){++Evidence.Failures;}
     if (Evidence.Round%2==0) { Mode->EndContenderLife(PC,GetWorld()->GetTimeSeconds()); }
+    if(Mode->Region){State->PaidJobs=8;State->FirstCourierTown=43;State->ContractDestination=91;State->VisitedRegions={43,91,137};State->PaidSentinels=2;State->SentinelReceipt=FGuid::NewGuid();Public->PublicSensorOfflineUntil=GetWorld()->GetTimeSeconds()+30;Public->PublicSensorLockoutUntil=GetWorld()->GetTimeSeconds()+60;Mode->Vision->SetPublicSensor(false,false);Evidence.Checks.Add(TEXT("PASS Regional reset fixture dirtied work/visit/encounter limits and public sabotage timers"));}
     Evidence.Generation=State->Match; Evidence.PreviousOwner=PC->OwnerState;
     Evidence.OldActors.Reset(); for (TActorIterator<AActor> It(GetWorld());It;++It) { Evidence.OldActors.Add(*It); }
     ++Evidence.Round;
-    UGameplayStatics::OpenLevel(this,TEXT("/Game/Lockdown/Generated/Maps/L_MigrationSandbox"),true,TEXT("Profile=V04"));
+    UGameplayStatics::OpenLevel(this,FName(*GetWorld()->GetOutermost()->GetName()),true,TEXT("Profile=V04"));
 }
 void ALDDevelopmentProbe::Enter(int32 Next)
 {
@@ -285,6 +298,8 @@ void ALDDevelopmentProbe::Finish()
         Report->SetNumberField(TEXT("medianEchoRttMs"),Median); Report->SetNumberField(TEXT("echoSamples"),RTTs.Num()); Report->SetNumberField(TEXT("failures"),Failures);
     }
     Report->SetStringField(TEXT("profile"),TEXT("V04 development; skill/build grants, task callbacks and teleports in probes are engineering fixtures"));
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDRegionProbe"))){Report->SetStringField(TEXT("profile"),TEXT("B45 engineering fixtures: grants, teleports, controlled authority deadlines and adversarial state; not ordinary progression or human evidence"));}
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B45 ordinary automated practice: native navigation/player input, original job/visit/Charter timers; no resource/build grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckProbe"))){Report->SetStringField(TEXT("profile"),TEXT("B44 engineering fixture: setup grants/teleports, controlled authority deadlines and private fixed-roll/balance injection; not normal progression or human evidence"));}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B43 normal-rule automated local practice; native travel and original job/book/preparation timers; no resource grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B44 ordinary automated practice: native player travel and actual equipped Survey Charter hold; no XP/gold/build grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}

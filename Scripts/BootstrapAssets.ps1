@@ -1,10 +1,12 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [ValidateSet('Generate','Validate','Regenerate')][string]$Mode='Generate')
+param([string]$EngineRoot, [ValidateSet('Generate','Validate','Regenerate')][string]$Mode='Generate',[switch]$RebuildRegionMaps)
 . (Join-Path $PSScriptRoot 'Common.ps1')
+if($RebuildRegionMaps -and $Mode -eq 'Validate'){throw 'Validate cannot rebuild region maps.'}
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
 $output = New-LDArtifactDirectory "Bootstrap-$Mode"
 $arguments = @((Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'), '-run=LDScaffoldBootstrap', '-unattended', '-nop4', '-nosound', '-nullrhi')
+if($RebuildRegionMaps){$arguments+='-RebuildRegionMaps'}
 if ($Mode -ne 'Generate') { $arguments += "-$Mode" }
 $logPath = Join-Path $output 'Bootstrap.log'
 Invoke-LDTool -Tool (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ToolArguments $arguments -LogPath $logPath

@@ -5,7 +5,15 @@
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel };
+USTRUCT()
+struct FLDVisionGrid
+{
+    GENERATED_BODY()
+    UPROPERTY() FVector2D Min=FVector2D(-2400,-1600);
+    UPROPERTY() float CellSize=80;
+    bool Valid() const {return !Min.ContainsNaN()&&FMath::IsFinite(CellSize)&&CellSize>=40&&CellSize<=500&&Min.X>=-20000&&Min.Y>=-20000&&Min.X+60*CellSize<=20000&&Min.Y+40*CellSize<=20000;}
+};
 USTRUCT()
 struct FLDObservedEntity
 {
@@ -33,6 +41,7 @@ struct FLDWorldView
     UPROPERTY() uint8 BodySources = 0;
     UPROPERTY() uint8 WardSources = 0;
     UPROPERTY() uint8 PublicSources = 0;
+    UPROPERTY() FLDVisionGrid Grid;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>
@@ -83,6 +92,12 @@ struct FLDOwnerState
     UPROPERTY() uint8 ContractStage = 0; // 0 none, 1 collect, 2 deliver
     UPROPERTY() FGuid ContractId;
     UPROPERTY() int32 Commissions = 0;
+    UPROPERTY() uint8 PaidJobs=0;
+    UPROPERTY() uint8 FirstCourierTown=0;
+    UPROPERTY() uint8 ContractDestination=0;
+    UPROPERTY() TArray<uint8> VisitedRegions;
+    UPROPERTY() uint8 PaidSentinels=0;
+    UPROPERTY() FGuid SentinelReceipt;
     UPROPERTY() uint32 DeliverySerial = 0;
     UPROPERTY() float WorkReadyAt = 0;
     UPROPERTY() FGuid SealId;
@@ -98,9 +113,9 @@ namespace LDVision
     constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
     // Eight contenders, eight residents, wards and short-lived corpse identities.
     constexpr int32 MaxEntities = 64;
-    inline bool InWorld(const FVector& P) { return !P.ContainsNaN() && P.X >= -2400 && P.X < 2400 && P.Y >= -1600 && P.Y < 1600; }
-    inline int32 Cell(const FVector& P) { return InWorld(P) ? int32((P.Y+1600)/80)*Columns+int32((P.X+2400)/80) : INDEX_NONE; }
-    inline FVector Centre(int32 Index) { return FVector(-2360+(Index%Columns)*80, -1560+(Index/Columns)*80,0); }
+    inline bool InWorld(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return G.Valid()&&!P.ContainsNaN()&&P.X>=G.Min.X&&P.X<G.Min.X+Columns*G.CellSize&&P.Y>=G.Min.Y&&P.Y<G.Min.Y+Rows*G.CellSize; }
+    inline int32 Cell(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return InWorld(P,G)?int32((P.Y-G.Min.Y)/G.CellSize)*Columns+int32((P.X-G.Min.X)/G.CellSize):INDEX_NONE; }
+    inline FVector Centre(int32 Index,const FLDVisionGrid& G=FLDVisionGrid()) { return FVector(G.Min.X+((Index%Columns)+.5)*G.CellSize,G.Min.Y+((Index/Columns)+.5)*G.CellSize,0); }
     inline bool Bit(const TArray<uint8>& Mask, int32 Index) { return Index >= 0 && Index < Cells && Mask.Num() == MaskBytes && (Mask[Index/8] & (1 << (Index%8))); }
     inline void Set(TArray<uint8>& Mask, int32 Index) { Mask[Index/8] |= 1 << (Index%8); }
 }

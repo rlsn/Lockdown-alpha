@@ -20,6 +20,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "Framework/LDGameMode.h"
 #include "Objectives/LDObjectiveRules.h"
+#include "Region/LDRegionDefinition.h"
 #include "Components/ProgressBar.h"
 #include "UI/LDDevelopmentPanel.h"
 
@@ -228,7 +229,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             Public=GS->EndReason?(GS->EndReason==2?TEXT("No claim · Demo finished"):FString::Printf(TEXT("Heart claimed · Route %s · Demo finished"),GS->WinningRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Assault")))
                 :(GS->bClaimActive?FString::Printf(TEXT("Heart %s · %s · %.1f / 10s"),GS->bContested?TEXT("CONTESTED"):TEXT("claim active"),Route,GS->ClaimProgress)
                     :FString::Printf(TEXT("Heart %s · Defences W:%d E:%d S:%d C:%d · Time left %.0fs"),GS->DefensiveFlags?TEXT("locked"):TEXT("ordinary access open"),!!(GS->DefensiveFlags&1),!!(GS->DefensiveFlags&2),!!(GS->DefensiveFlags&4),!!(GS->DefensiveFlags&8),FMath::Max(0.,GS->MatchDeadline-Now)));
-            if(GS->SealNoticeSerial){Public+=FString::Printf(TEXT(" · Seal %s: %s"),GS->SealNoticeKind==1?TEXT("fixture seed"):GS->SealNoticeKind==2?TEXT("dropped"):TEXT("district"),LDObjective::DistrictName(GS->SealNoticeDistrict));}
+            if(GS->SealNoticeSerial){Public+=FString::Printf(TEXT(" · Seal %s: %s"),GS->SealNoticeKind==1?TEXT("fixture seed"):GS->SealNoticeKind==2?TEXT("dropped"):TEXT("district"),*LDRegion::DistrictName(GetWorld(),GS->SealNoticeDistrict));}
             const TCHAR* Names[]={TEXT("West"),TEXT("East"),TEXT("South"),TEXT("Central")};
             for(int32 I=0;I<DefenceLabels.Num();++I){DefenceLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s defence: %s (fixture toggle)"),Names[I],GS->DefensiveFlags&(1<<I)?TEXT("ACTIVE"):TEXT("CLEARED"))));}
         }
@@ -237,6 +238,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             FMath::Max(0.,O.BasicReadyAt-Now),FMath::Max(0.,O.AssassinReadyAt-Now),FMath::Max(0.,O.DashReadyAt-Now),*Public,*Danger)));
         if (O.bDevelopmentProfile && !Lobby)
         {
+            if(LDRegion::Definition(GetWorld())&&GS&&!GS->bClaimActive&&!GS->EndReason){Public=FString::Printf(TEXT("Heart locked · Conquest deferred · %.0fs · Watch %s"),FMath::Max(0.,GS->MatchDeadline-Now),GS->bPublicSensorActive?TEXT("ON"):*FString::Printf(TEXT("OFF %.0fs"),FMath::Max(0.,GS->PublicSensorOfflineUntil-Now)));}
             const auto& B=O.Build;
             Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · v0.4 DEVELOPMENT · %s\n%s · Level %d · XP %lld / 420 · Gold %lld · Attribute points %d · Skill points %d\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d · Basic %.2f damage\n%s · %s"),
                 *Life,LDDevelopment::ClassName(B.ClassId),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
@@ -257,10 +259,11 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         }
         if(ObjectiveInfo)
         {
-            const TCHAR* Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
+            FString Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
+            if(const auto* D=LDRegion::Definition(GetWorld())){if(O.ContractStage==1){const auto* N=D->Node(O.ContractDestination);Stage=FString::Printf(TEXT("Collect at %s"),N?*N->Name:TEXT("assigned town"));}Stage+=FString::Printf(TEXT(" · Paid %d/8"),O.PaidJobs);}
             FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):TEXT("Claiming"),O.ChannelProgress,O.ChannelKind==3?10.:3.):TEXT("Hold progress resets on interruption.");
             if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
-            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Commissions %d · Charter Witness: %s\n%s"),*PC->ContextPrompt(),Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Progress)));
+            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Credits %d · Witness: %s\n%s"),*PC->ContextPrompt(),*Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Progress)));
             if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
             {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
             ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0));
@@ -277,6 +280,7 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
     if (!Relay || PC->IsFrontend() || bInLobby || (PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())) { return Result; }
     const FLDWorldView& View=Relay->LastView();
     const FVector2D Origin(Geometry.GetLocalSize().X-270,180);
+    auto MapPoint=[&](const FVector& P){return Origin+FVector2D((P.X-View.Grid.Min.X)/View.Grid.CellSize*4,(40-(P.Y-View.Grid.Min.Y)/View.Grid.CellSize)*4);};
     auto Box=[&](FVector2D At,FVector2D Size,FLinearColor Color)
     { FSlateDrawElement::MakeBox(Elements,Result+1,Geometry.ToPaintGeometry(Size,FSlateLayoutTransform(At)),FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")),ESlateDrawEffect::None,Color); };
     for (int32 I=0;I<LDVision::Cells;++I)
@@ -285,10 +289,10 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
         Box(Origin+FVector2D((I%60)*4,(39-I/60)*4),FVector2D(4),Current ? FLinearColor(.42f,.55f,.5f,1) : (LDVision::Bit(View.Explored,I) ? FLinearColor(.12f,.17f,.16f,1) : FLinearColor(.008f,.012f,.012f,1)));
     }
     for (const auto& Entity : View.Entities)
-    { Box(Origin+FVector2D((Entity.Position.X+2400)/20,(1600-Entity.Position.Y)/20)-FVector2D(2),FVector2D(4),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.1f):FLinearColor(.9f,.9f,.7f)); }
-    for(uint8 Site=1;Site<=3;++Site)
-    {const FVector P=LDObjective::Position(Site);const FVector2D At=Origin+FVector2D((P.X+2400)/20,(1600-P.Y)/20);Box(At-FVector2D(3),FVector2D(6),FLinearColor(.25f,.7f,.9f));FSlateDrawElement::MakeText(Elements,Result+2,Geometry.ToPaintGeometry(FVector2D(30,16),FSlateLayoutTransform(At+FVector2D(4,-8))),FString(Site==1?TEXT("G"):Site==2?TEXT("W"):TEXT("H")),FCoreStyle::GetDefaultFontStyle("Bold",12),ESlateDrawEffect::None,FLinearColor::White);}
-    if (const APawn* Pawn=PC->GetPawn()) { const FVector P=Pawn->GetActorLocation(); Box(Origin+FVector2D((P.X+2400)/20,(1600-P.Y)/20)-FVector2D(3),FVector2D(6),FLinearColor::White); }
+    { Box(MapPoint(Entity.Position)-FVector2D(2),FVector2D(4),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.1f):FLinearColor(.9f,.9f,.7f)); }
+    for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(7),uint8(8)})
+    {if(Site>3&&!LDRegion::Definition(GetWorld())){continue;}const FVector P=LDRegion::Site(GetWorld(),Site);const FVector2D At=MapPoint(P);Box(At-FVector2D(3),FVector2D(6),FLinearColor(.25f,.7f,.9f));FSlateDrawElement::MakeText(Elements,Result+2,Geometry.ToPaintGeometry(FVector2D(30,16),FSlateLayoutTransform(At+FVector2D(4,-8))),FString(Site==1?TEXT("G"):Site==2?TEXT("W"):Site==3?TEXT("H"):Site==6?TEXT("E"):Site==7?TEXT("T"):TEXT("X")),FCoreStyle::GetDefaultFontStyle("Bold",12),ESlateDrawEffect::None,FLinearColor::White);}
+    if (const APawn* Pawn=PC->GetPawn()) { const FVector P=Pawn->GetActorLocation(); Box(MapPoint(P)-FVector2D(3),FVector2D(6),FLinearColor::White); }
     return Result+2;
 }
 void ULDUIRoot::ToggleSensor() { CastChecked<ALDPlayerController>(GetOwningPlayer())->TogglePublicSensorFixture(); }
@@ -318,7 +322,7 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry, const FKeyEvent& Ev
 void ULDUIRoot::Host()
 {
     GetGameInstance<ULDGameInstance>()->ConnectionMessage.Reset();
-    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_MigrationSandbox"), true, TEXT("listen?Profile=V04"));
+    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_DevelopmentRegion"), true, TEXT("listen?Profile=V04"));
 }
 void ULDUIRoot::Join()
 {

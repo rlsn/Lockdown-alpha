@@ -68,7 +68,7 @@ public:
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
-    struct FResidentReturn { double At; FVector Home; FGuid Wallet; };
+    struct FResidentReturn { double At; FVector Home; FGuid Wallet;bool HasBuild=false;FLDCharacterBuild Build; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TArray<FResidentReturn> Residents;
     struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0; };

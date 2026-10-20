@@ -36,10 +36,12 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
         UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
         Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
     }
-    Body->SetVisibility(Entity.Kind==ELDObservedKind::Body,true);
-    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body);
-    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter);
-    TaskLabel->SetTextRenderColor(FColor(24, 24, 32));
+    Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel),true);
+    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel);
+    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel);
+    if(Entity.Kind==ELDObservedKind::WatchControl){TaskLabel->SetText(FText::FromString(TEXT("WATCH CONTROL\nAnalyze 14")));}
+    if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
+    TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
     if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}
@@ -69,7 +71,7 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View) 
 void ALDWorldViewRelay::ClientConceal_Implementation(uint32 Generation,uint64 Revision,const TArray<FGuid>& Removed) { ApplyConceal(Generation,Revision,Removed); }
 void ALDWorldViewRelay::ApplyFullView(const FLDWorldView& View)
 {
-    if (View.Current.Num()!=LDVision::MaskBytes || View.Explored.Num()!=LDVision::MaskBytes || View.Entities.Num()>LDVision::MaxEntities) { return; }
+    if (!View.Grid.Valid()||View.Current.Num()!=LDVision::MaskBytes || View.Explored.Num()!=LDVision::MaskBytes || View.Entities.Num()>LDVision::MaxEntities) { return; }
     const uint32 PreviousGeneration=Cursor.Generation;
     if (!Cursor.Accept(View.Generation,View.Revision)) { return; }
     if (PreviousGeneration!=View.Generation) { ClearProxies(); }
@@ -117,6 +119,7 @@ void ALDWorldViewRelay::AttachFog()
 void ALDWorldViewRelay::UploadFog()
 {
     if (!FogTexture || !FogTexture->GetResource()) { return; }
+    const auto& G=Received.Grid;FogMaterial->SetVectorParameterValue(TEXT("WorldScale"),FLinearColor(1.f/(60*G.CellSize),1.f/(40*G.CellSize),0,0));FogMaterial->SetVectorParameterValue(TEXT("WorldOffset"),FLinearColor(-G.Min.X/(60*G.CellSize),-G.Min.Y/(40*G.CellSize),0,0));
     uint8* Pixels=new uint8[LDVision::Cells*4];
     for (int32 I=0;I<LDVision::Cells;++I)
     {

@@ -1,4 +1,5 @@
 #include "LDScaffoldBootstrapCommandlet.h"
+#include "LDRegionBootstrap.h"
 #include "Core/LDPrototypeTuning.h"
 #include "Development/LDCharacterBuild.h"
 #include "Dom/JsonObject.h"
@@ -107,7 +108,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
 {
     const bool bValidate = FParse::Param(*Params, TEXT("Validate"));
     const bool bRegenerate = FParse::Param(*Params, TEXT("Regenerate"));
-    if (bValidate && bRegenerate) { UE_LOG(LogTemp, Error, TEXT("Choose Validate or Regenerate, not both")); return 1; }
+    if (bValidate && (bRegenerate || FParse::Param(*Params,TEXT("RebuildRegionMaps")))) { UE_LOG(LogTemp, Error, TEXT("Validate cannot regenerate assets or rebuild region maps")); return 1; }
     FString LayoutText;
     TSharedPtr<FJsonObject> Layout;
     if (!FFileHelper::LoadFileToString(LayoutText, *(FPaths::ProjectConfigDir() / TEXT("BootstrapLayout.json")))
@@ -173,7 +174,8 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     UTexture2D* Closed=LoadObject<UTexture2D>(nullptr,*(TexturePath+TEXT(".T_FogClosed")));
     if (!HasSignature(Closed,Signature)) { return 3; }
     const FString FogPath=FString(GeneratedRoot)+TEXT("Materials/M_Fog");
-    if (bRegenerate || (!bValidate && !Exists(FogPath)))
+    const FString FogSignature=Signature+TEXT(":b45-grid");
+    if (bRegenerate || (!bValidate && (!Exists(FogPath)||!HasSignature(LoadObject<UMaterial>(nullptr,*(FogPath+TEXT(".M_Fog"))),FogSignature))))
     {
         UPackage* Package=EditablePackage(FogPath);
         UMaterial* Fog=FindObject<UMaterial>(Package,TEXT("M_Fog"));
@@ -186,7 +188,9 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         auto* Scale=NewObject<UMaterialExpressionVectorParameter>(Fog); Scale->ParameterName=TEXT("WorldScale"); Scale->DefaultValue=FLinearColor(1.f/4800,1.f/3200,0,0); Add(Scale);
         auto* ScaleXY=NewObject<UMaterialExpressionComponentMask>(Fog); ScaleXY->R=true; ScaleXY->G=true; ScaleXY->Input.Expression=Scale; Add(ScaleXY);
         auto* UV=NewObject<UMaterialExpressionMultiply>(Fog); UV->A.Expression=XY; UV->B.Expression=ScaleXY; Add(UV);
-        auto* Offset=NewObject<UMaterialExpressionAdd>(Fog); Offset->A.Expression=UV; Offset->ConstB=.5f; Add(Offset);
+        auto* WorldOffset=NewObject<UMaterialExpressionVectorParameter>(Fog);WorldOffset->ParameterName=TEXT("WorldOffset");WorldOffset->DefaultValue=FLinearColor(.5f,.5f,0,0);Add(WorldOffset);
+        auto* OffsetXY=NewObject<UMaterialExpressionComponentMask>(Fog);OffsetXY->R=true;OffsetXY->G=true;OffsetXY->Input.Expression=WorldOffset;Add(OffsetXY);
+        auto* Offset=NewObject<UMaterialExpressionAdd>(Fog); Offset->A.Expression=UV;Offset->B.Expression=OffsetXY;Add(Offset);
         auto* Mask=NewObject<UMaterialExpressionTextureSampleParameter2D>(Fog); Mask->ParameterName=TEXT("FogMask"); Mask->Texture=Closed; Mask->SamplerType=SAMPLERTYPE_LinearColor; Mask->Coordinates.Expression=Offset; Add(Mask);
         auto* Red=NewObject<UMaterialExpressionComponentMask>(Fog); Red->R=true; Red->Input.Expression=Mask; Add(Red);
         auto* Factor=NewObject<UMaterialExpressionMultiply>(Fog); Factor->A.Expression=Red; Factor->ConstB=.96f; Add(Factor);
@@ -195,10 +199,10 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         auto* Result=NewObject<UMaterialExpressionMultiply>(Fog); Result->A.Expression=Scene; Result->B.Expression=Floor; Add(Result);
         Fog->GetExpressionInputForProperty(MP_EmissiveColor)->Expression=Result;
         Fog->PostEditChange();
-        if (!SaveAsset(Fog,FogPath,Signature)) { return 3; }
+        if (!SaveAsset(Fog,FogPath,FogSignature)) { return 3; }
     }
     UMaterial* Fog=LoadObject<UMaterial>(nullptr,*(FogPath+TEXT(".M_Fog")));
-    if (!HasSignature(Fog,Signature) || Fog->MaterialDomain!=MD_PostProcess) { return 3; }
+    if (!HasSignature(Fog,FogSignature) || Fog->MaterialDomain!=MD_PostProcess) { return 3; }
     const FString WidgetPath = FString(GeneratedRoot) + TEXT("UI/WBP_UIRoot");
     if (bRegenerate || (!bValidate && !Exists(WidgetPath)))
     {
@@ -426,6 +430,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         }
         UE_LOG(LogTemp, Display, TEXT("Validated %s: %d generated meshes"), *Path, FoundCount);
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_BOOTSTRAP_SUCCESS %s (migration geometry and v0.4 character catalog; 24 packages)"), *Signature);
+    if(!LDRegionBootstrap::Run(bValidate,bRegenerate,FParse::Param(*Params,TEXT("RebuildRegionMaps")))){return 6;}
+    UE_LOG(LogTemp,Display,TEXT("LD_BOOTSTRAP_SUCCESS %s (migration plus two regional topologies; 28 packages)"),*Signature);
     return 0;
 }

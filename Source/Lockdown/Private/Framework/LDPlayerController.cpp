@@ -29,6 +29,7 @@
 #include "Tests/LDDevelopmentProbe.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
+#include "Region/LDRegionDefinition.h"
 
 namespace
 {
@@ -227,8 +228,9 @@ bool ALDPlayerController::ChooseContext(uint8& Target,FGuid& Observed) const
         if(const auto* Relay=LocalView()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(P,E.Position);if(E.Kind==ELDObservedKind::Book&&(D<Distance||(D==Distance&&E.Id.ToString()<Closest.ToString()))){Distance=D;Closest=E.Id;}}}
         if(Closest.IsValid()){Target=5;Observed=Closest;return true;}
     }
-    if(FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Heart))<=120*120){Target=LDObjective::Heart;return true;}
-    const double Guild=FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Guild)),Station=FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Station));
+    if(FVector::DistSquared2D(P,LDRegion::Site(GetWorld(),LDObjective::Heart))<=120*120){Target=LDObjective::Heart;return true;}
+    const double Guild=FVector::DistSquared2D(P,LDRegion::Site(GetWorld(),LDObjective::Guild)),Station=FVector::DistSquared2D(P,LDRegion::Site(GetWorld(),LDObjective::Station));
+    if(LDRegion::Definition(GetWorld())&&FVector::DistSquared2D(P,LDRegion::Site(GetWorld(),6))<=120*120){Target=6;return true;}
     if(FMath::Min(Guild,Station)<=120*120){Target=Guild<=Station?LDObjective::Guild:LDObjective::Station;return true;}
     return false;
 }
@@ -242,9 +244,10 @@ FString ALDPlayerController::ContextPrompt() const
     if(OwnerState.bDevelopmentProfile&&GetPawn())
     {
         const FLDObservedEntity* NearestTask=nullptr;double Distance=120*120+1.;
-        if(const auto* Relay=LocalView();Relay&&!Relay->IsStale()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(GetPawn()->GetActorLocation(),E.Position);if(E.Kind==ELDObservedKind::Charter&&D<Distance){NearestTask=&E;Distance=D;}}}
+        if(const auto* Relay=LocalView();Relay&&!Relay->IsStale()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(GetPawn()->GetActorLocation(),E.Position);if((E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl)&&D<Distance){NearestTask=&E;Distance=D;}}}
         if(NearestTask)
         {
+            if(NearestTask->Kind==ELDObservedKind::WatchControl){const auto& B=OwnerState.Build;const int32 Slot=B.Slots.Find(ELDSkill::Analyze);return FString::Printf(TEXT("Watch control · Own Analyze %.0f / public 14 · %s · Hold 2s; offline 30s / global lock 60s."),LDDevelopment::SkillValue(B,ELDSkill::Analyze),Slot==INDEX_NONE?TEXT("Learn and equip at a station"):GS&&Now<GS->PublicSensorLockoutUntil?TEXT("Globally locked"):*FString::Printf(TEXT("Hold slot %d"),Slot+1));}
             const auto Skill=LDCharter::Skill(NearestTask->Presentation);const auto& Build=OwnerState.Build;const int32 Slot=Build.Slots.Find(Skill);
             if(OwnerState.Witness.IsValid()){return TEXT("Charter Witness recorded. E remains work/loot; no duplicate Charter reward.");}
             if(!LDDevelopment::Rank(Build,Skill)){return FString::Printf(TEXT("%s · %s threshold 12 · Unlearned. P: learn and prepare. E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill));}
@@ -259,10 +262,12 @@ FString ALDPlayerController::ContextPrompt() const
     if(Target==LDObjective::Guild)
     {
         if(OwnerState.ContractStage==2){return OwnerState.bDevelopmentProfile?TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +45 XP)."):TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +15 XP).");}
-        if(OwnerState.ContractStage==1){return TEXT("Courier active: collect at West station [W].");}
+        if(OwnerState.ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(OwnerState.ContractDestination);return FString::Printf(TEXT("Courier active: collect at %s."),N?*N->Name:TEXT("assigned town"));}return TEXT("Courier active: collect at West station [W].");}
+        if(LDRegion::Definition(GetWorld())&&OwnerState.PaidJobs>=8){return TEXT("Eight paid contracts completed. Unused credits remain available.");}
         if(Now<OwnerState.WorkReadyAt){return FString::Printf(TEXT("Courier acceptance ready in %.1fs."),OwnerState.WorkReadyAt-Now);}
-        return TEXT("E: accept courier contract. Then hold E at West station [W] to collect.");
+        return LDRegion::Definition(GetWorld())?TEXT("E: accept courier contract (eight paid per match; towns alternate)."):TEXT("E: accept courier contract. Then hold E at West station [W] to collect.");
     }
+    if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(OwnerState.ContractDestination);return OwnerState.ContractStage==1&&N&&N->Site==Target?TEXT("Hold E: collect assigned package for 3 seconds."):TEXT("Town station: preparation available; collect only at your assigned town.");}
     return OwnerState.ContractStage==1?TEXT("Hold E: collect courier package for 3 seconds."):TEXT("West station: accept a courier contract at Guild [G] first.");
 }
 void ALDPlayerController::InteractStarted()
@@ -281,7 +286,7 @@ void ALDPlayerController::InteractStopped()
 void ALDPlayerController::ServerContextRequest_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
-    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||Target>4||(Target==4)!=Observed.IsValid())
+    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||(Target>4&&!(Target==6&&Mode->Region))||(Target==4)!=Observed.IsValid())
     {ClientIntentResult(Request,TEXT("Invalid interaction or stale life."));return;}
     if(const auto* Receipt=ContextReceipts.Find(Request)){ClientTransactionResult(OwnerState,Request,*Receipt);return;}
     if(Mode->IsFinished()){ClientIntentResult(Request,TEXT("Demo finished."));return;}

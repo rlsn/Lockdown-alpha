@@ -11,6 +11,8 @@ engineering checks have passed. The [B42 execution checkpoint](B42_IMPLEMENTATIO
 adds equipped skill execution and the mixed hotbar. The [B43 checkpoint](B43_IMPLEMENTATION.md)
 adds private preparation, branching and books. The [B44 checkpoint](B44_IMPLEMENTATION.md)
 adds Charter alternatives, persistent purses and theft transactions.
+The [B45 checkpoint](B45_IMPLEMENTATION.md) adds the connected progression region,
+an alternate topology, shared NPC healing and actual surveillance disruption.
 See the [implementation record](IMPLEMENTATION_REPORT.md)
 for actual scope and evidence. The complete v0.4 release remains in development.
 

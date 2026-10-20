@@ -1,94 +1,113 @@
-# Continuation — B44 Charter and wallet checkpoint
+# Continuation — B45 region and progression checkpoint
 
-20 October 2026. B40–B44 are implemented and engineering-verified. The complete
-v0.4 release remains in development. Start with the [B44 checkpoint](v04/B44_IMPLEMENTATION.md),
+20 October 2026. B40–B45 are implemented and engineering-verified. Start with the
+[B45 checkpoint](v04/B45_IMPLEMENTATION.md),
 [implementation record](v04/IMPLEMENTATION_REPORT.md),
-[working feature ledger](v04/FeatureLedger.csv), [master revision 4](master/README.md)
-and [v0.4 specification](v04/README.md). The checkpoint indexes executed evidence
-and the current cooked archive. B44 runtime: `6356af1`. Previous B43 runtime:
-`f5da328`; its evidence
-remains historical in [B43](v04/B43_IMPLEMENTATION.md).
-Fresh checkout of `6356af1` passed cold Editor/Game builds, 24-asset validation
-and 14 native rules and remained clean:
-`Artifacts/20261020-114651-612-CleanCheckout/Result.json`.
+[feature ledger](v04/FeatureLedger.csv), [master revision 4](master/README.md) and
+[v0.4 specification](v04/README.md). Full v0.4 acceptance remains in development.
+Previous B44 runtime: `6356af1`; its historical evidence is in
+[B44](v04/B44_IMPLEMENTATION.md).
 
 ## Current implementation
 
-Frontend Host uses `?Profile=V04`. A private class/Ready lobby starts a locked
-1–4 contender roster and a 1500-second deadline; one contender is practice.
-Normal play starts without fixture gold, XP, Seal, book or Witness. Opening the
-map without this option selects the explicit legacy regression profile.
+Frontend Host launches `L_DevelopmentRegion`. Opening either regional map also
+selects v0.4 automatically. The private class/Ready lobby locks 1–4 contenders and
+starts a 1500-second deadline; one is practice. There are no normal fixture gold,
+XP, books, Witness or Seal grants. The migration map remains a diagnostic surface;
+opening it without `?Profile=V04` selects the historical legacy profile.
 
-The saved `DA_CharacterCatalog` validates native class/progression, nine skills,
-books, preparation and Witness/theft tuning. Owner-only state carries attributes,
-points, ranks, four slots, permanent subclass, revision and absolute cooldowns.
-Death retains development and Witness, drops unread books, charges bounded gold
-loss and returns a new protected body. Derived HP changes never heal.
+The saved main region has City, two towns and WildCrossing, with public/covered
+routes and an outer-to-outer path. The five-node alternate changes identities,
+node order, edges and bounds. Both use saved public definition assets; runtime
+never reads Config JSON. Fog origin/cell size travel in each bounded view, so
+sight, wire pose validation, fog and minimap use the same envelope. Masks remain
+60 × 40 and entity capacity 64. The observed entity allowlist remains eight fields;
+public objective state adds only watch offline/lockout endpoints.
 
-Slots 1–4 and Q/Space aliases use the shared revision-checked skill queue.
-Accepted actions snapshot the source. Basic attacks, Step, Ambush, Spark, Patch
-and held utility share arbitration; damage wins over completion. P opens the
-private ghost preview/library. Hold E two seconds at Guild or West after six
-quiet seconds to commit an armed revision-checked preparation plan. Books cost
-40 gold, have unique physical ownership and four unread spaces; three-second
-stationary reads teach rank one without XP/SP/auto-equipment/cooldown reset.
+Retained private builds include class, attributes, points, learned ranks, four
+slots, permanent subclass, revision and absolute cooldowns. Slots/Q/Space share
+execution, snapshots and damage-before-completion arbitration. P opens private
+preparation/books. Guild and both town stations commit armed plans after a
+stationary two-second hold and six quiet seconds. Guild books cost 40, have unique
+ownership and four unread spaces; three-second reading teaches rank one without
+XP/SP/auto-equipment/cooldown reset. Death retains development/Witness, drops
+unread books, charges bounded gold loss and returns a protected city body.
 
-B44 registers four Charter services around Guild: Heave, Analyze, Parley or
-Survey at public threshold 12. An equipped valid hold grants one private permanent
-Witness, no gold or XP. Own score/equipment/cooldown is previewed; insufficient
-scores reject before cooldown. E remains basic work/loot.
+Four equipped Charter alternatives surround Guild at public 12; one completion
+grants a permanent private Witness, no XP/gold. Stable humanoid wallets retain
+balances through body return. Accepted Pickpocket reserves a 20-second skill
+cooldown and 90-second pair retry; a valid stationary one-second completion draws
+once from private Theft. Transfer is at most twelve existing gold. Failure extends
+Alert 30 seconds and exposure four seconds. Cancellation/replay never rerolls.
 
-All humanoids use private stable wallets. Residents start with 36; contenders
-use actual gold. Death/return does not refill purses. Pickpocket acceptance
-reserves its 20-second cooldown and stable 90-second pair retry. A valid
-stationary one-second completion draws once from private Theft, using snapshot
-source and current target WIS/Alert. Success atomically transfers at most 12
-existing gold. Failure extends target Alert 30 seconds and source exposure four
-seconds. Cancelled/invalid/replayed requests never reroll; outcomes/receipts and
-victim tamper cues stay private. Retry/Alert/receipts survive body replacement.
-No seed, wallet ID, target DC or purse value enters public observations.
+Regional courier work assigns a seeded first town, then alternates destinations.
+Collection and delivery each hold three seconds; delivery pays 25 gold, 45 XP and
+one credit, with a 20-second acceptance delay. Eight paid deliveries is a retained
+match budget separate from spendable commission credits. Death cancels the active
+job and preserves both counts. Three first visits award 25 XP each through actual
+eligible ground traversal; camera/ward/placement/protection/respawn cannot pay.
 
-## Next: B45
+Eight peaceful residents use local navigation. One authored resident autonomously
+uses actual equipped rank-one Patch when injured. Build/cooldowns and wallet carry
+through its return. A visibly hostile WildCrossing sentinel uses 100 HP, 12 damage,
+96 cm melee, 300 ms windup and 1200 ms cadence; it acquires visible unprotected
+contenders within 500 cm, leashes at 600, resets HP after six quiet targetless
+seconds and returns after 60 seconds. Greatest direct damage on the lethal batch
+wins credit, with opaque-ID ties and no payout to a dead finisher. Each contender
+gets at most two rewards of 45 XP/25 gold. Its wallet also survives return.
 
-Implement the configurable connected region, authored routes and stations,
-alternating-town work with eight paid receipts, first visits, sentinel and bounded
-combat XP, authored trained NPC using the shared build/skill/wallet path, and real
-equipped Analyze watchtower disruption. Separate paid-contract counts from
-spendable credits. B44 task positions are temporary native public definitions;
-move configuration with the region rather than duplicating reward paths.
+Actual equipped Analyze at public 14 holds two seconds at the watch control to
+disable public sight for 30 seconds, apply a global 60-second lockout and expose
+the source four seconds. Accepted cancellations/race losses retain skill cooldown.
+The first resulting view removes the source; restoration uses its fixed endpoint.
+Heart defence flags remain protected.
 
-Parameterize region, fog bounds/encoding and minimap together: proposed towns
-are outside the current grid. Preserve the 64-entity observation bound. B43 found
-no cooked AI route; ordinary player probes use swept clear-segment native
-movement. Validate authored cooked NPC navigation explicitly in B45. Existing
-courier rewards/geography do not establish the final eight-job budget.
+## Next: B46
 
-B46 supplies earned atomic fabrication and normal zero-kill acquisition. Keep
-normal conquest protected. B47 supplies complete release checks, 25-minute normal
-play, separate 90-minute soak and human review. Do not call checkpoint engineering
-tests human acceptance or full 60–90 minute pacing.
+Implement earned atomic Seal fabrication at Guild: retained Witness, four unused
+credits, 100 gold, empty Seal carry slot and one craft per contender per match.
+Use the existing stationary held objective transaction, with four-second duration,
+final revalidation and damage-first interruption. Create the unique item before
+charging so creation failure cannot spend resources. Witness and paid-job budget
+remain separate from consumed credits. Make the Guild's work/fabrication choice
+clear when both are available.
+
+Keep Seal ownership/drop/recovery independent of the crafter's Witness. Verify a
+zero-kill normal contender earns four jobs, crafts and claims through the real
+10-second Heart path while central defences remain protected; another contender
+must recover an earned dropped Seal. No fixture grant counts as earned acquisition.
+Retain fixed deadline ordering, 240 cm contest and one terminal receipt.
+
+B47 remains full release engineering/human review, ordinary 25-minute play and a
+separate 90-minute technical soak. Four-human capacity, dedicated packaging,
+remote Git/LFS delivery, human strategy/usability and full 60–90 minute pacing
+remain pending/conditional.
+Native and cooked HUD captures show GPU-budget pressure on the 8 GB RTX 4060
+Laptop GPU. Rendering/profile work remains a B47 gate; functional headless passes
+do not establish graphics performance. Preserve this finding before human review.
 
 ## Evidence and workflow
 
-`Scripts/RunDevelopmentCheck.ps1 -WorldChecks` runs 56 authority cases;
-`-WorldChecks -Normal` travels and holds the preset Rogue's Survey through native
-input with no resource/build grants. `-WorldChecks -Network -RoundTripMs 150 -JitterMs 25`
-uses real remote owners; `-WorldChecks -CaptureUI -Height 720` or `1080` checks
-HUD/markers. `-PackageRoot` selects cooked execution. `-Preparation` retains 61
-cases, `-Skills` 62, and no selector 24. `-Reset` performs 74 checks across ten
-actual world reloads, dirtying actual theft draws, wallets, Witness, retry, Alert,
-books and channels. Fourteen native rules cover catalog contracts, arithmetic and
-unchanged eight-field observation/public-state allowlists. Injection is nonshipping,
-authority-only and requires the explicit WorldCheck probe flag. Delayed theft setup
-uses labelled grants/teleports and an authority-clock advance for the second retry.
+`Scripts/RunDevelopmentCheck.ps1 -Region` checks 93 authority cases;
+`-Region -Alternate` uses the five-node layout. `-Region -Normal` uses native
+navigation/movement and original timers for Witness, three visits, autonomous NPC
+healing and eight jobs, without grants. `-Region -Network -RoundTripMs 150 -JitterMs 25`
+uses real remote owners, races sabotage, delivers jobs and tests lethal-batch ties.
+`-Region -Reset` performs 95 checks across ten real reloads. `-Region -CaptureUI
+-Height 720` / `1080` captures the HUD. `-PackageRoot` selects cooked execution.
 
-Keep Unreal 5.8.3 CL 58210709 and focused C++. Close the editor for native/reflected
-changes and keep sources stable during builds. Run Unreal builds/probes sequentially.
-Bootstrap Validate writes no assets; Regenerate explicitly replaces generated
-content. Preserve frozen specifications, blank templates, hand-authored content
-outside `/Game/Lockdown/Generated/` and the separate web baseline.
+Retained selectors remain `-WorldChecks` (56), `-Preparation` (61), `-Skills` (62),
+no selector (24) and legacy `-Reset` (74). Fifteen native rules include region
+contracts and bounded grid serialization. Authority/network grants, teleports,
+build changes and deadline advances are explicitly labelled engineering fixtures.
+Ordinary automated practice is not human acceptance or a full-duration run.
 
-Packaged networking uses a headless listen authority with a nonparticipating
-diagnostic local connection, not a dedicated Server target. Fresh local checkout
-verification reuses the installed engine/shared caches and locally hydrated LFS
-objects; remote Git/LFS delivery remains unverified.
+Keep Unreal 5.8.3 CL 58210709. Close the editor for native/reflected changes and
+keep source stable during builds. Run Unreal builds/probes sequentially. Bootstrap
+Validate writes nothing; `-RebuildRegionMaps` rebuilds just the two owned region
+maps from validated saved definitions. Navigation uses a cook-safe noncolliding
+box envelope as well as editor BSP bounds. Preserve frozen specifications, blank
+templates, hand-authored assets outside `/Game/Lockdown/Generated/` and the separate
+web baseline. Packaged networking is headless listen authority plus two remote
+owners, not a dedicated target. Fresh local clones reuse installed engine/shared
+caches and local LFS objects; they do not establish remote delivery.

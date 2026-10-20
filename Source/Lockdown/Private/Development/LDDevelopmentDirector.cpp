@@ -7,6 +7,7 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDGroundQueries.h"
+#include "Region/LDRegionDefinition.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -21,8 +22,8 @@ bool ALDDevelopmentDirector::NearStation(ALDPlayerController* PC,bool GuildOnly)
 {
     const APawn* Body=PC?PC->GetPawn():nullptr;if(!Body){return false;}
     const FVector From=Body->GetActorLocation();
-    for(uint8 Site:{LDObjective::Guild,LDObjective::Station})
-    {if(GuildOnly&&Site!=LDObjective::Guild){continue;}const FVector To=LDObjective::Position(Site);if(FVector::DistSquared2D(From,To)<=120*120&&LDGround::ClearSegment(GetWorld(),From,To)){return true;}}
+    for(uint8 Site:{uint8(LDObjective::Guild),uint8(LDObjective::Station),uint8(6)})
+    {if(Site==6&&!LDRegion::Definition(GetWorld())){continue;}if(GuildOnly&&Site!=LDObjective::Guild){continue;}const FVector To=LDRegion::Site(GetWorld(),Site);if(FVector::DistSquared2D(From,To)<=120*120&&LDGround::ClearSegment(GetWorld(),From,To)){return true;}}
     return false;
 }
 bool ALDDevelopmentDirector::Stationary(ALDPlayerController* PC) const

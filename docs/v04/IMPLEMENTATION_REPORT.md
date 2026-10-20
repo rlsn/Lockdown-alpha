@@ -4,7 +4,8 @@ Implementation started 19 October 2026 from `451fcb5`. This is an incremental
 development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
-Current world-check and theft changes: [B44 checkpoint](B44_IMPLEMENTATION.md).
+Current region and progression changes: [B45 checkpoint](B45_IMPLEMENTATION.md).
+World-check and theft history: [B44 checkpoint](B44_IMPLEMENTATION.md).
 B44 runtime checkpoint: `6356af102d54cf06ca05594fba2282dc20a7ee28`.
 A fresh local checkout passed cold Editor/Game builds, 24-asset validation and
 14 rules without modifying tracked files; the B44 record indexes the result and
@@ -30,8 +31,12 @@ the B43 record indexes its result and local cache/LFS boundary.
 - B44: four equipped Charter alternatives, once-only private Witness, persistent
   humanoid wallets and transactional Pickpocket implemented. Its checkpoint
   indexes native/cooked tests, delayed clients, ordinary input and reset evidence.
-- B45–B47: not implemented or accepted. The connected region, bounded rewards,
-  authored NPCs, earned fabrication and full release verification remain open.
+- B45: connected region, four/five-node saved topologies, real bounded courier and
+  traversal rewards, lethal-batch sentinel credit, autonomous shared Patch NPC and
+  held watchtower sabotage implemented and engineering-verified;
+  its checkpoint indexes actual results and fixture boundaries.
+- B46–B47: not implemented or accepted. Earned fabrication and full release
+  verification remain open.
 
 ## Implemented foundation
 
@@ -71,11 +76,12 @@ as engineering fixtures. B43 separately verifies actual station allocation, book
 subclass choice and an ordinary courier-funded cross-class preparation run.
 Its authority/network setup grants remain fixtures, and its ordinary run is
 automated local practice. None demonstrates earned Heart acquisition.
-The new region, expanded fog bounds, authored trained NPC and real fabrication
-remain later milestone work. B44 wallet theft uses the shared humanoid capability;
-its adversarial setup and authority-clock adjustments are labelled fixtures.
-Current play still uses migration-map
-geometry and courier flow; it is a development checkpoint.
+The frontend now uses the saved regional map, with matching grid, fog and minimap
+bounds. The migration map is retained for historical regression fixtures. B45
+ordinary practice uses native travel, original timers, visits and eight paid jobs
+to reach level five without kills or resource grants. Other authority/network
+grants, positions and deadline advances remain labelled fixtures. Real earned
+fabrication remains B46; this is an incremental development checkpoint.
 
 Native rule tests cover starting budgets, derived and skill arithmetic, threshold/cap
 awards and rejected/cumulative build plans. World/network probes exercise the
@@ -149,7 +155,7 @@ excluded from passing results above.
 
 Passed rows cover the stated engineering case. Not run includes partial foundation
 evidence when its full v0.4 transaction/UI/scenario is still absent. Checkpoint
-tests do not establish acceptance of B45–B47. B42–B44 executed cases are indexed
+tests do not establish acceptance of B46–B47. B42–B45 executed cases are indexed
 separately and update only the applicable engineering rows below.
 
 | ID | Status | Evidence or remaining work |
@@ -177,32 +183,32 @@ separately and update only the applicable engineering rows below.
 | C21 | Passed | B42 locked one-body cast, fractional snapshot, range/sight/protection rechecks, subclass arithmetic and delayed private warning |
 | C22 | Passed | B42 capped snapshot healing, full-HP rejection, held refresh/release/staleness/movement and deadline damage ordering |
 | C23 | Passed | B44 four real alternatives; threshold/equipment guards; private once-only Witness; ordinary Survey hold; no gold/XP |
-| C24 | Not run | B44 Charter/theft range/sight/equipment checks pass; B45 real sabotage remains pending |
+| C24 | Passed | Shared equipment/range/sight authorization covers Spark, Charter, theft and real watch control; authored cover/elevation checks pass in both cooked layouts |
 | C25 | Passed | B44 rear/range/sight/protection/exposure and stationary channel guards; exact d20 enumeration and bounded math |
 | C26 | Passed | Private Theft stream; valid completion draws once; replay/invalid/cancelled requests draw nothing; snapshot source/current target |
 | C27 | Passed | Acceptance reserves 90-second stable wallet pair alongside 20-second skill cooldown; exact deadline and new-life retention |
 | C28 | Passed | Atomic min(12,current gold); concurrent depletion, empty purses, actual contender gold and no XP |
 | C29 | Passed | Failure retains funds; Alert 30 seconds and exposure four seconds; delayed private victim cue with no origin |
 | C30 | Passed | Resident starts with 36; actual combat death/return keeps depleted wallet; NPC source uses common capability |
-| C31 | Not run | Region graph, authored routes and alternate topology pending |
-| C32 | Not run | Traversal and first-visit receipts pending |
-| C33 | Not run | Preview pays 45 XP; alternating towns/eight-payment budget pending |
-| C34 | Not run | Sentinel encounter and bounded reward credit pending |
-| C35 | Not run | Normal peaceful level-five route needs region, visits and work budgets |
-| C36 | Not run | Real Analyze sabotage pending |
+| C31 | Passed | Four-node main and five-node alternate; changed IDs/order/edges/bounds; real public/covered/outer route queries pass cooked; cook-safe navigation envelope |
+| C32 | Passed | Native traversal earns three once-only 25 XP visits; placement/teleport baseline rejects; region-ID receipts retain through lives and clear on reset |
+| C33 | Passed | Eight paid deliveries; seeded alternating destinations; original 3-second holds and 20-second acceptance delay; once-only rewards; paid budget separate from credits |
+| C34 | Passed | Actual 12-damage/300 ms/1200 ms sentinel, leash/reset/60-second return; live greatest-damage credit and opaque ties; two-reward cap; dead finisher gets nothing |
+| C35 | Passed | Ordinary native and cooked practice earn Witness, three visits and eight jobs to reach level five with 200 gold/eight credits and no kills or resource/build grants |
+| C36 | Passed | Real equipped Analyze 14; 30-second offline/60-second global lockout/four-second exposure; delayed race, first-view invalidation and fixed restoration; defence flags retained |
 | C37 | Not run | Earned fabrication pending; normal fixtures disabled |
 | C38 | Not run | Normal zero-kill earned acquisition pending |
 | C39 | Not run | Legacy recovery retained; earned-drop scenario pending |
 | C40 | Not run | Delay/loss arithmetic and death/duplicate return pass; new withdrawal case pending |
 | C41 | Passed | Retained life/build/cooldown/knowledge and physical-drop checks plus B44 Witness, stable wallet, retry and Alert retention; old-life requests reject |
-| C42 | Not run | B44 owner-only Witness/outcome/Alert and server-only wallet/DC/seed; unchanged eight-field schema and delayed clients pass; complete B45 domain audit pending |
-| C43 | Not run | B42 NPC Patch and B44 NPC-source theft fixtures use shared slot/rank/channel/cooldown/wallet rules; authored trained NPC remains B45 |
-| C44 | Not run | Ten B44 resets dirty real theft draws/receipts and clear wallet/Witness/retry/Alert alongside books/builds; authenticated resume remains deferred |
-| C45 | Not run | B44 builds/assets/cooked clients supplement retained delivery evidence; full V04 scenarios pending |
-| C46 | Not run | B44 Witness and success/failure theft pass at native 100/150 ms and cooked 150 ms; full region/acquisition scenarios pending |
-| C47 | Not run | Ten B44 resets pass; normal 25-minute and separate 90-minute cases pending |
+| C42 | Not run | B45 owner-only rewards/visits/destinations and eight-field observations pass delayed clients; public grid/watch endpoints are bounded; full earned-item audit remains B46–B47 |
+| C43 | Passed | Authored resident navigates and autonomously uses actual learned/equipped/ranked Patch after a nonlethal hit; common interruption/cooldown path; real return retains build/wallet |
+| C44 | Not run | Ten B45 resets clear real theft plus dirty work/visit/sentinel/sabotage domains; roster lock retained; final crafted-item reset domain remains B46; authenticated resume is not retained |
+| C45 | Not run | B45 native/cooked authority and two-client region cases pass with 28 assets; full acquisition/delivery and rendering-performance acceptance remain open |
+| C46 | Not run | B44 theft/skill/book cases and B45 remote region/sabotage/lethal-credit cases pass; full acquisition semantics remain B46–B47 |
+| C47 | Not run | Ten B45 resets pass; normal 25-minute and separate 90-minute cases pending; native/cooked captures expose GPU-budget pressure |
 | C48 | Not run | Honest checkpoint ledger/report supplied; full release/human evidence pending |
 
 No human matches, build-diversity study, normal earned acquisition, long-session
 pacing or 90-minute stability run occurred. Dedicated packaging and remote Git/LFS
-distribution remain conditional/unverified. Next implementation milestone: B45.
+distribution remain conditional/unverified. Next implementation milestone: B46.

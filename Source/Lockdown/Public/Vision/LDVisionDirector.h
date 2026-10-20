@@ -34,7 +34,9 @@ public:
     bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason);
     bool Ray(const FLDSightSource& Source, const FVector& Target) const;
     uint8 LevelAt(const FVector& Position) const;
-    void SetPublicSensor(bool bActive);
+    void SetPublicSensor(bool bActive,bool Fixture=true);
+    FLDVisionGrid Grid() const;
+    FVector PublicLocation() const;
     bool IsPublicSensorActive() const { return bPublicSensor; }
     bool CanSee(ALDPlayerController* Controller, const FVector& Point) const;
     ALDWorldViewRelay* RelayFor(ALDPlayerController* Controller) const;

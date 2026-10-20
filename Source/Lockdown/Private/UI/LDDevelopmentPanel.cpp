@@ -3,6 +3,7 @@
 #include "Framework/LDGameMode.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Objectives/LDObjectiveRules.h"
+#include "Region/LDRegionDefinition.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
@@ -38,7 +39,7 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.5));Frame->SetAlignment(FVector2D(.5));Frame->SetSize(FVector2D(1160,970));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Heading=Text(TEXT("CHARACTER · PREPARATION & BOOKS"),24);AddRow(Main,Heading);
-        AddRow(Main,Text(TEXT("Preview freely. Preparation: Apply, then hold E for 2 seconds at Guild or West station. Six quiet seconds required."),15));
+        AddRow(Main,Text(TEXT("Preview freely. Preparation: Apply, then hold E for 2 seconds at Guild or a town station. Six quiet seconds required."),15));
         auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Main,Columns);
         auto* Left=WidgetTree->ConstructWidget<UVerticalBox>();auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* LS=Columns->AddChildToHorizontalBox(Left);LS->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LS->SetPadding(FMargin(0,0,20,0));
@@ -145,7 +146,7 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     if(O.DevelopmentKind){Confirm=FString::Printf(TEXT("%s · %.1fs remaining · Release E or lose focus to cancel."),O.DevelopmentKind==2?TEXT("Reading"):TEXT("Preparing"),FMath::Max(0.,O.DevelopmentEndsAt-Now));}
     HoldInfo->SetText(FText::FromString(Confirm));BookInfo->SetText(FText::FromString(FString::Printf(TEXT("%d / 4 unread · learned library is separate"),O.Books.Num())));
     for(int32 I=0;I<4;++I){const bool Present=O.Books.IsValidIndex(I);BookLabels[I]->SetText(FText::FromString(Present?FString::Printf(TEXT("%s%s · unread"),SelectedBook==O.Books[I].Id?TEXT("› "):TEXT(""),LDDevelopment::SkillName(O.Books[I].Skill)):TEXT("Empty space")));ReadButtons[I]->SetIsEnabled(Present&&!bHolding);}
-    const bool AtGuild=PC->GetPawn()&&FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),LDObjective::Position(LDObjective::Guild))<=120*120;
+    const bool AtGuild=PC->GetPawn()&&FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Guild))<=120*120;
     for(auto W:BuyButtons){W->SetIsEnabled(AtGuild&&O.Gold>=40&&O.Books.Num()<4&&!bHolding&&!O.DevelopmentKind);}
     Feedback->SetText(FText::FromString(PC->IntentFeedback));
 }

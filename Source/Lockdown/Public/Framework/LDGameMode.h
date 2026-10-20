@@ -38,6 +38,8 @@ public:
     UPROPERTY(Replicated) bool bMatchStarted = true;
     UPROPERTY(Replicated) uint8 LobbyCount = 0;
     UPROPERTY(Replicated) uint8 ReadyCount = 0;
+    UPROPERTY(Replicated) float PublicSensorOfflineUntil=0;
+    UPROPERTY(Replicated) float PublicSensorLockoutUntil=0;
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 };
@@ -47,6 +49,7 @@ class ALDCombatDirector;
 class ALDObjectiveDirector;
 class ALDDevelopmentDirector;
 class ALDWorldChecks;
+class ALDRegionDirector;
 class ALDPlayerController;
 struct FLDContenderRecord { FGuid Session; FLDOwnerState State; };
 
@@ -82,6 +85,7 @@ public:
     UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;
     UPROPERTY() TObjectPtr<ALDDevelopmentDirector> Development;
     UPROPERTY() TObjectPtr<ALDWorldChecks> WorldChecks;
+    UPROPERTY() TObjectPtr<ALDRegionDirector> Region;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

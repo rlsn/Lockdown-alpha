@@ -11,6 +11,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Combat/LDCombatDirector.h"
+#include "Region/LDRegionDirector.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -100,6 +101,7 @@ void ALDResident::Tick(float Delta)
 {
     Super::Tick(Delta);
     if (!HasAuthority()) { return; }
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(Mode&&Mode->Region&&Mode->Region->UpdateResident(this)){return;}
     if (GetVelocity().Size2D() > 5) { SetFacing(GetVelocity().Rotation().Yaw); }
     NextDecision -= Delta;
     if (NextDecision > 0) { return; }
@@ -110,7 +112,7 @@ void ALDResident::Tick(float Delta)
         if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
         {
             FNavLocation Destination;
-            if (Nav->GetRandomReachablePointInRadius(GetActorLocation(), 650, Destination)) { AI->MoveToLocation(Destination.Location, 35); }
+            if (Nav->GetRandomReachablePointInRadius(Mode&&Mode->Region&&Mode->Combat->StateFor(this)?Mode->Combat->StateFor(this)->Home:GetActorLocation(),Mode&&Mode->Region?250:650,Destination)) { AI->MoveToLocation(Destination.Location, 35); }
         }
     }
 }

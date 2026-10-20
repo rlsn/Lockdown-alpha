@@ -5,6 +5,7 @@
 #include "LDDevelopmentProbe.generated.h"
 
 class ALDPlayerController;
+class ALDCharacter;
 
 struct FLDDevelopmentResetEvidence
 {
@@ -42,6 +43,14 @@ private:
     void PreparationServerTick();
     void PreparationClientTick();
     void PreparationNormalTick();
+    void RegionCheck();
+    void RegionNormalTick();
+    void RegionServerTick();
+    void RegionClientTick();
+    TWeakObjectPtr<ALDCharacter> RegionNPC;
+    FVector RegionNPCStart=FVector::ZeroVector;
+    double RegionNPCHp=0;
+    bool RegionSawNPCTravel=false;
     void WorldCheck();
     void WorldServerTick();
     void WorldClientTick();

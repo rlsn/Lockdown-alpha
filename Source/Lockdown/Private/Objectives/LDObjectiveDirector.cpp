@@ -2,6 +2,7 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Core/LDGroundQueries.h"
 #include "Core/LDRules.h"
+#include "Region/LDRegionDefinition.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -31,9 +32,9 @@ ALDObjectiveSite::ALDObjectiveSite()
 }
 void ALDObjectiveSite::Configure(uint8 Site)
 {
-    SetActorLocation(LDObjective::Position(Site));
+    SetActorLocation(LDRegion::Site(GetWorld(),Site));
     Marker->SetRelativeLocation(FVector(0,0,8));Marker->SetRelativeScale3D(Site==LDObjective::Heart?FVector(1.5,1.5,.16):FVector(.9,.9,.16));
-    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD"):Site==LDObjective::Station?TEXT("WEST STATION"):TEXT("HEART")));
+    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD"):Site==LDObjective::Heart?TEXT("HEART"):*LDRegion::SiteName(GetWorld(),Site)));
     auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if(Base){auto* Material=UMaterialInstanceDynamic::Create(Base,this);Material->SetVectorParameterValue(TEXT("Tint"),Site==LDObjective::Heart?FLinearColor(.65f,.14f,.12f):FLinearColor(.18f,.36f,.5f));Marker->SetMaterial(0,Material);}
 }
@@ -54,7 +55,7 @@ bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
 }
 bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range) const
 {
-    const APawn* Body=PC?PC->GetPawn():nullptr;const FVector P=LDObjective::Position(Site);
+    const APawn* Body=PC?PC->GetPawn():nullptr;const FVector P=LDRegion::Site(GetWorld(),Site);
     return Body&&FVector::DistSquared2D(Body->GetActorLocation(),P)<=Range*Range&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),P);
 }
 bool ALDObjectiveDirector::Stationary(ALDPlayerController* PC,const FLDInteractionState& S) const
@@ -109,7 +110,7 @@ void ALDObjectiveDirector::Drop(ALDPlayerController* PC,const FVector& Point)
     if(ALDSeal* Item=CarriedBy(PC))
     {
         FNavLocation NavPoint;auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-        FVector DropPoint=LDObjective::SeedPosition();bool Placed=false;
+        FVector DropPoint=LDRegion::Site(GetWorld(),LDObjective::Guild)+FVector(80,0,16);bool Placed=false;
         if(Nav&&Nav->ProjectPointToNavigation(Point,NavPoint,FVector(240,240,400)))
         {
             FHitResult Ground;
@@ -119,14 +120,14 @@ void ALDObjectiveDirector::Drop(ALDPlayerController* PC,const FVector& Point)
             {DropPoint=Ground.ImpactPoint+FVector(0,0,16);Placed=true;}
         }
         if(!Placed){UE_LOG(LogTemp,Warning,TEXT("LD Seal drop used Guild workbench fallback"));}
-        Item->Carrier.Reset();Item->State=0;Item->SetActorLocation(DropPoint);Item->District=LDObjective::District(DropPoint);Announce(Item,2);
+        Item->Carrier.Reset();Item->State=0;Item->SetActorLocation(DropPoint);Item->District=LDRegion::District(GetWorld(),DropPoint);Announce(Item,2);
     }
     if(O){O->SealId.Invalidate();}
 }
 void ALDObjectiveDirector::EndLife(ALDPlayerController* PC,const FVector& Point,double Now)
 {
     Interrupt(PC,Now,true);Drop(PC,Point);
-    if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->ContractStage=0;O->ContractId.Invalidate();}
+    if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
 }
 void ALDObjectiveDirector::Withdraw(ALDPlayerController* PC,const FVector& Point,double Now)
 {if(!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsFinished()){EndLife(PC,Point,Now);}Interactions.Remove(PC);Requests.RemoveAll([&](const FRequest& R){return R.PC==PC;});}
@@ -137,7 +138,7 @@ ALDSeal* ALDObjectiveDirector::SeedFixtureSeal()
     if(Mode->bScaffoldProfile&&!Mode->IsFinished()&&!bSeeded)
     {
         auto* Item=GetWorld()->SpawnActor<ALDSeal>(LDObjective::SeedPosition(),FRotator::ZeroRotator);
-        if(Item){bSeeded=true;Item->Identity=FGuid::NewGuid();Item->District=LDObjective::District(Item->GetActorLocation());Announce(Item,1);UE_LOG(LogTemp,Display,TEXT("LD_FIXTURE one Seal seeded at Guild (acquisition only; ownership transactions are real)"));}
+        if(Item){bSeeded=true;Item->Identity=FGuid::NewGuid();Item->District=LDRegion::District(GetWorld(),Item->GetActorLocation());Announce(Item,1);UE_LOG(LogTemp,Display,TEXT("LD_FIXTURE one Seal seeded at Guild (acquisition only; ownership transactions are real)"));}
         return Item;
     }
 #endif
@@ -168,17 +169,20 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         if(O->SealId.IsValid()){Reason=TEXT("Seal carry slot full.");}
         else if(!Item||Item->State!=0){Reason=TEXT("Seal already taken or no longer visible.");}
         else if(FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())>80*80||!LDGround::ClearSegment(GetWorld(),PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())){Reason=TEXT("Seal needs visible clear ground within 80 cm.");}
-        else{Item->State=1;Item->Carrier=PC;Item->District=LDObjective::District(PC->GetPawn()->GetActorLocation());O->SealId=Item->Identity;Reason=TEXT("Seal pickup confirmed.");Mode->SyncOwner(PC);}
+        else{Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),PC->GetPawn()->GetActorLocation());O->SealId=Item->Identity;Reason=TEXT("Seal pickup confirmed.");Mode->SyncOwner(PC);}
         S.bHeld=false;
     }
-    else if(R.Target<LDObjective::Guild||R.Target>LDObjective::Heart||!Near(PC,R.Target)){Reason=TEXT("Approach the public site within 120 cm on clear ground.");}
+    else if(R.Target<LDObjective::Guild||(R.Target>LDObjective::Heart&&!(R.Target==6&&LDRegion::Definition(GetWorld())))||!Near(PC,R.Target)){Reason=TEXT("Approach the public site within 120 cm on clear ground.");}
     else
     {
         S.Target=R.Target;
         if(R.Target==LDObjective::Guild&&O->ContractStage==0)
         {
-            if(Now<O->WorkReadyAt){Reason=TEXT("Courier acceptance cooling down.");}
-            else{O->ContractId=FGuid::NewGuid();O->ContractStage=1;Mode->SyncOwner(PC);Reason=TEXT("Courier accepted: hold E at West station to collect.");}
+            if(LDRegion::Definition(GetWorld())&&O->PaidJobs>=8){Reason=TEXT("All eight paid courier contracts completed for this match.");}
+            else if(Now<O->WorkReadyAt){Reason=TEXT("Courier acceptance cooling down.");}
+            else{O->ContractId=FGuid::NewGuid();O->ContractStage=1;
+                if(const auto* D=LDRegion::Definition(GetWorld())){const auto Towns=D->Towns();if(!O->FirstCourierTown){O->FirstCourierTown=Towns[Transactions.RandRange(0,1)];}O->ContractDestination=Towns[(Towns.IndexOfByKey(O->FirstCourierTown)+O->PaidJobs)%Towns.Num()];}
+                Mode->SyncOwner(PC);Reason=TEXT("Courier accepted: hold E at your private assigned town to collect.");}
         }
         else
         {
@@ -194,7 +198,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     if(!S.bHeld||!LDObjective::FreshHold(Now,S.LastHold)||S.LastInterrupt>=Now-1.e-6||!Stationary(PC,S)||!Near(PC,S.Target)||!Eligible(PC,Now)){return;}
     const auto* Combat=Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));if(Combat->Action||Combat->LastDamage>=Now-1.e-6){return;}
     uint8 Kind=0,Route=0;
-    if(S.Target==LDObjective::Station&&O->ContractStage==1){Kind=LDObjective::Collect;}
+    if(O->ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(O->ContractDestination);if(N&&N->Site==S.Target){Kind=LDObjective::Collect;}}else if(S.Target==LDObjective::Station){Kind=LDObjective::Collect;}}
     if(S.Target==LDObjective::Guild&&O->ContractStage==2){Kind=LDObjective::Deliver;}
     if(S.Target==LDObjective::Heart)
     {const auto* GS=GetWorld()->GetGameState<ALDGameState>();Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);if(Route){Kind=LDObjective::Claim;}}
@@ -228,11 +232,11 @@ void ALDObjectiveDirector::Sample(double Now)
         if(S.Channel==LDObjective::Collect||S.Channel==LDObjective::Deliver)
         {
             const bool Correct=S.Contract.IsValid()&&O->ContractId==S.Contract&&O->ContractStage==(S.Channel==LDObjective::Collect?1:2);
-            if(!Correct){ClearChannel(PC,S);continue;}
+            if(!Correct||(LDRegion::Definition(GetWorld())&&O->PaidJobs>=8)){ClearChannel(PC,S);continue;}
             if(LDObjective::DueBeforeDeadline(Now,S.Started,3,Deadline()))
             {
                 const bool Delivered=S.Channel==LDObjective::Deliver;
-                if(Delivered){O->Gold+=25;Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();}
+                if(Delivered){O->Gold+=25;Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;if(LDRegion::Definition(GetWorld())){++O->PaidJobs;}O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
                 else{O->ContractStage=2;}
                 S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
                 PC->CompleteContextRequest(S.Token,Delivered?(Mode->IsDevelopmentProfile()?TEXT("Delivery confirmed: +25 gold, +45 XP."):TEXT("Delivery confirmed: +25 gold, +15 XP.")):TEXT("Package collected: return to Guild and hold E to deliver."));
@@ -244,7 +248,7 @@ void ALDObjectiveDirector::Sample(double Now)
         if((S.Route==LDObjective::SealRoute&&!CarriedBy(PC))||(S.Route==LDObjective::Assault&&GS->DefensiveFlags)){ClearChannel(PC,S);continue;}
         bool IsContested=false;
         for(FConstPlayerControllerIterator Other=GetWorld()->GetPlayerControllerIterator();Other;++Other)
-        {auto* Opponent=Cast<ALDPlayerController>(Other->Get());if(Opponent!=PC&&Eligible(Opponent,Now)&&FVector::DistSquared2D(Opponent->GetPawn()->GetActorLocation(),LDObjective::Position(LDObjective::Heart))<=240*240){IsContested=true;break;}}
+        {auto* Opponent=Cast<ALDPlayerController>(Other->Get());if(Opponent!=PC&&Eligible(Opponent,Now)&&FVector::DistSquared2D(Opponent->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=240*240){IsContested=true;break;}}
         if(IsContested||S.bContested){S.Started=Now;S.bContested=IsContested;}
         Active=true;Contested|=IsContested;Routes|=S.Route;HeartSensorUntil=Now+2;
         PublicProgress=FMath::Max(PublicProgress,Now-S.Started);UpdatePrivate(PC,S,Now);
@@ -254,7 +258,7 @@ void ALDObjectiveDirector::Sample(double Now)
     for(TActorIterator<ALDSeal> It(GetWorld());It;++It)
     {
         if(It->State!=1||!It->Carrier.IsValid()||!It->Carrier->GetPawn()){continue;}
-        const uint8 District=LDObjective::District(It->Carrier->GetPawn()->GetActorLocation());if(District!=It->District){It->District=District;Announce(*It,3);}
+        const uint8 District=LDRegion::District(GetWorld(),It->Carrier->GetPawn()->GetActorLocation());if(District!=It->District){It->District=District;Announce(*It,3);}
     }
     // Completion is evaluated before the deadline, but only scheduled completions <= deadline may win.
     if(Now>=Deadline()){Finish(nullptr,0,Now);}
