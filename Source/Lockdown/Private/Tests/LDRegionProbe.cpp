@@ -6,6 +6,9 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
+#include "Objectives/LDObjectiveRules.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
 #include "Vision/LDVisionDirector.h"
@@ -107,6 +110,7 @@ void ALDDevelopmentProbe::RegionCheck()
 }
 void ALDDevelopmentProbe::RegionNormalTick()
 {
+    const bool SealRun=FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"));
     auto* W=GetWorld();auto* M=W->GetAuthGameMode<ALDGameMode>();const auto* D=LDRegion::Definition(W);auto* PC=Cast<ALDPlayerController>(W->GetFirstPlayerController());if(!PC||!PC->GetPawn()||!M->Region){return;}auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());auto* O=M->StateFor(PC);const double Now=W->GetTimeSeconds();FString Why;
     if(!Phase)
     {
@@ -126,7 +130,7 @@ void ALDDevelopmentProbe::RegionNormalTick()
         if(NormalPathIndex<NormalPath.Num()){Body->SetSprint(true);Body->AddMovementInput((NormalPath[NormalPathIndex]-Body->GetActorLocation()).GetSafeNormal2D());}return false;
     };
     if(Phase==1&&Move(D->Guild+FVector(0,210,92),20)&&Now>=O->ProtectedUntil){Check(LDDevelopment::SkillValue(O->Build,ELDSkill::Survey)==12&&O->Build.Level==1,TEXT("Unmodified Rogue reaches the regional Charter through native movement"));PC->SetSkillHeld(1,true);NormalHoldAt=Now;Phase=2;}
-    else if(Phase==2&&O->Witness.IsValid()){PC->SetSkillHeld(1,false);Check(Now-NormalHoldAt>=1&&!O->Gold&&!O->Xp,TEXT("Real starting Survey hold earns Witness without XP or gold"));NormalDeliveries=0;Phase=3;}
+    else if(Phase==2&&O->Witness.IsValid()){PC->SetSkillHeld(1,false);Check(Now-NormalHoldAt>=1&&!O->Gold&&!O->Xp,TEXT("Real starting Survey hold earns Witness without XP or gold"));NormalDeliveries=0;OriginalDeadline=M->Objectives->Deadline();Phase=SealRun?6:3;}
     else if(Phase==3)
     {
         TArray<const FLDRegionNode*> Visits;for(const auto& N:D->Nodes){if(N.Visit){Visits.Add(&N);}}
@@ -146,6 +150,7 @@ void ALDDevelopmentProbe::RegionNormalTick()
     }
     else if(Phase==6)
     {
+        if(SealRun&&NormalDeliveries==4){Check(O->PaidJobs==4&&O->Commissions==4&&O->Gold==100&&!O->FabricationReceipt.IsValid()&&!O->SealId.IsValid(),TEXT("Four ordinary paid jobs earn fabrication resources without automatically crafting"));PC->SetFabricationHeld(true);NormalHoldAt=Now;Phase=11;return;}
         if(NormalDeliveries==8){Check(O->PaidJobs==8&&O->Commissions==8&&O->Gold==200,TEXT("Eight ordinary paid jobs retain separate paid count and unused credits"));Check(O->Xp==420&&O->Build.Level==5&&!O->DeathSerial&&M->Region->PeacefulDeaths==0&&O->VisitedRegions.Num()==3,TEXT("Eight deliveries plus three native visits reach level five without a kill"));Check(NormalTravel>40000&&M->WorldChecks->DrawCount()==0,TEXT("Ordinary regional circuit uses native travel and never draws Theft RNG"));Finish();return;}
         if(!Move(D->Guild+FVector(0,50,92),20)||Now<O->WorkReadyAt){return;}
         if(!bChecked){PC->SetInteractionHeld(true);bChecked=true;}
@@ -154,7 +159,17 @@ void ALDDevelopmentProbe::RegionNormalTick()
     else if(Phase==7){const auto* N=D->Node(O->ContractDestination);if(N&&Move(N->Position+FVector(0,50,92),20)){PC->SetInteractionHeld(true);NormalHoldAt=Now;Phase=8;}}
     else if(Phase==8&&O->ContractStage==2){PC->SetInteractionHeld(false);Check(Now-NormalHoldAt>=3,TEXT("Ordinary assigned-town collection uses the original three-second hold"));NormalPath.Reset();Phase=9;}
     else if(Phase==9&&Move(D->Guild+FVector(0,50,92),20)){PC->SetInteractionHeld(true);NormalHoldAt=Now;Phase=10;}
-    else if(Phase==10&&O->ContractStage==0){PC->SetInteractionHeld(false);++NormalDeliveries;Check(Now-NormalHoldAt>=3&&O->PaidJobs==NormalDeliveries&&O->Gold==25*NormalDeliveries&&O->Xp==FMath::Min(420,75+45*NormalDeliveries),TEXT("Ordinary delivery pays exact bounded rewards after the original hold"));Phase=6;bChecked=false;}
+    else if(Phase==10&&O->ContractStage==0){PC->SetInteractionHeld(false);++NormalDeliveries;Check(Now-NormalHoldAt>=3&&O->PaidJobs==NormalDeliveries&&O->Gold==25*NormalDeliveries&&O->Xp==FMath::Min(420,(SealRun?25*O->VisitedRegions.Num():75)+45*NormalDeliveries),TEXT("Ordinary delivery pays exact bounded rewards after the original hold"));Phase=6;bChecked=false;}
+    else if(SealRun&&Phase==11&&O->FabricationReceipt.IsValid())
+    {PC->SetFabricationHeld(false);ProbeSeal=O->SealId;ProbeCraft=O->FabricationReceipt;Check(Now-NormalHoldAt>=4&&ProbeSeal.IsValid()&&!O->Gold&&!O->Commissions&&O->PaidJobs==4&&O->Witness.IsValid(),TEXT("Ordinary four-second fabrication consumes exact earned costs and retains Witness and paid budget"));Phase=12;}
+    else if(SealRun&&Phase==12&&Move(D->Heart+FVector(0,50,92),20))
+    {PC->SetInteractionHeld(true);NormalHoldAt=Now;Check(W->GetGameState<ALDGameState>()->DefensiveFlags==15,TEXT("Earned carrier approaches the still-protected normal Heart"));Phase=13;}
+    else if(SealRun&&Phase==13&&M->IsFinished())
+    {
+        PC->SetInteractionHeld(false);const auto* G=W->GetGameState<ALDGameState>();Check(Now-NormalHoldAt>=10&&G->EndReason==1&&G->WinningRoute==LDObjective::SealRoute&&O->bWinner&&G->ResultSerial==1&&G->ResultReceipt.IsValid(),TEXT("Actual ten-second earned Seal claim wins once through protected central defences"));
+        Check(!O->SealId.IsValid()&&O->FabricationReceipt==ProbeCraft&&O->Witness.IsValid(),TEXT("Victory consumes the earned item but retains private accomplishments"));
+        Check(M->Objectives->Deadline()==OriginalDeadline&&Now<=OriginalDeadline&&!O->DeathSerial&&M->Region->PeacefulDeaths==0&&M->WorldChecks->DrawCount()==0&&NormalTravel>20000,TEXT("Zero-kill ordinary circuit preserves the original deadline and uses native travel without Theft draws"));Finish();
+    }
 }
 void ALDDevelopmentProbe::RegionServerTick()
 {

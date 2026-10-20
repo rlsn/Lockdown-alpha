@@ -2,10 +2,14 @@
 #include "CoreMinimal.h"
 namespace LDObjective
 {
-    enum : uint8 { Guild=1,Station=2,Heart=3,Seal=4 };
-    enum : uint8 { NoChannel=0,Collect=1,Deliver=2,Claim=3 };
+    enum : uint8 { Guild=1,Station=2,Heart=3,Seal=4,Fabricator=9 };
+    enum : uint8 { NoChannel=0,Collect=1,Deliver=2,Claim=3,Fabricate=4 };
     enum : uint8 { NoRoute=0,Assault=1,SealRoute=2,Mixed=3 };
     constexpr double WorkSeconds=3,ClaimSeconds=10,HoldExpiry=.25,WorkCooldown=20;
+    constexpr double FabricateSeconds=4;
+    inline bool CanFabricate(bool Witness,int32 Credits,int64 Gold,bool Crafted,bool Carrying)
+    {return Witness&&Credits>=4&&Gold>=100&&!Crafted&&!Carrying;}
+    inline double Duration(uint8 Kind){return Kind==Claim?ClaimSeconds:Kind==Fabricate?FabricateSeconds:WorkSeconds;}
     constexpr double InteractRange=120,PickupRange=80,ContestRange=240,HeartSight=360;
     inline FVector Position(uint8 Site)
     {return Site==Guild?FVector(-400,100,0):(Site==Station?FVector(-1280,800,0):FVector::ZeroVector);}

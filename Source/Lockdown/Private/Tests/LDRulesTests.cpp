@@ -1,5 +1,7 @@
 #include "Core/LDRules.h"
 #include "Misc/AutomationTest.h"
+#include "Objectives/LDObjectiveRules.h"
+#include "Development/LDCharacterBuild.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDConversionTest, "Lockdown.Rules.SpatialConversion",
@@ -34,6 +36,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDObjectiveTest, "Lockdown.Rules.ObjectiveBoun
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDObjectiveTest::RunTest(const FString& Parameters)
 {
+    const auto* Catalog=ULDCharacterCatalog::Load();auto* Changed=NewObject<ULDCharacterCatalog>();FString Error;
+    if(!TestNotNull(TEXT("Saved fabrication schema"),Catalog)){return false;}
+    TestFalse(TEXT("Rehashed changed fabrication price rejected"),Changed->Import(Catalog->SourceJson.Replace(TEXT("\"goldCost\": 100"),TEXT("\"goldCost\": 1")),Error));
+    TestFalse(TEXT("Rehashed normal seeded Seal rejected"),Changed->Import(Catalog->SourceJson.Replace(TEXT("\"normalSeeded\": false"),TEXT("\"normalSeeded\": true")),Error));
+    TestTrue(TEXT("Exact fabrication resources suffice"),LDObjective::CanFabricate(true,4,100,false,false));
+    TestFalse(TEXT("Witness required for fabrication"),LDObjective::CanFabricate(false,4,100,false,false));
+    TestFalse(TEXT("Credits cannot be borrowed"),LDObjective::CanFabricate(true,3,100,false,false));
+    TestFalse(TEXT("Gold cannot be borrowed"),LDObjective::CanFabricate(true,4,99,false,false));
+    TestFalse(TEXT("Prior craft cannot repeat"),LDObjective::CanFabricate(true,8,200,true,false));
+    TestFalse(TEXT("Capacity one is independent of resources"),LDObjective::CanFabricate(true,8,200,false,true));
     for (uint8 Flags = 0; Flags < 16; ++Flags)
     {
         TestEqual(TEXT("Ordinary route requires every defence down"), LDRules::HasHeartAccess(false, Flags), Flags == 0);

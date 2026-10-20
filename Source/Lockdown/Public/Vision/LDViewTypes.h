@@ -101,6 +101,8 @@ struct FLDOwnerState
     UPROPERTY() uint32 DeliverySerial = 0;
     UPROPERTY() float WorkReadyAt = 0;
     UPROPERTY() FGuid SealId;
+    // Private once-per-match receipt; survives death, dropping and consuming the item.
+    UPROPERTY() FGuid FabricationReceipt;
     UPROPERTY() uint8 ChannelKind = 0;
     UPROPERTY() uint8 ChannelRoute = 0;
     UPROPERTY() float ChannelStartedAt = 0;

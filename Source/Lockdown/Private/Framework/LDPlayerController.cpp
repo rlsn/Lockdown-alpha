@@ -254,11 +254,11 @@ FString ALDPlayerController::ContextPrompt() const
             return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
         }
     }
-    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: hold equipped utility skills. Charter services surround Guild. Pickpocket: visible humanoid rear, 100 cm. E work/loot; P build/books. Seal crafting pending."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
+    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. E work/loot; P build/books. Guild: Shift+E fabricates a Seal (Witness, 4 credits, 100 gold). Conquest unavailable."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
     if(Target==5){return TEXT("E: pick up visible unread book within 80 cm. P: inventory and reading.");}
     if(Target==LDObjective::Heart)
-    {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):(OwnerState.bDevelopmentProfile?TEXT("Heart locked. Seal crafting and conquest are not available in this preview."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture."));}
+    {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):(OwnerState.bDevelopmentProfile?TEXT("Heart locked: earn or recover a Concord Seal. Conquest port unavailable."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture."));}
     if(Target==LDObjective::Guild)
     {
         if(OwnerState.ContractStage==2){return OwnerState.bDevelopmentProfile?TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +45 XP)."):TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +15 XP).");}
@@ -271,10 +271,16 @@ FString ALDPlayerController::ContextPrompt() const
     return OwnerState.ContractStage==1?TEXT("Hold E: collect courier package for 3 seconds."):TEXT("West station: accept a courier contract at Guild [G] first.");
 }
 void ALDPlayerController::InteractStarted()
+{StartInteraction(IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift));}
+void ALDPlayerController::SetFabricationHeld(bool Held)
+{if(Held){StartInteraction(true);}else{InteractStopped();}}
+void ALDPlayerController::StartInteraction(bool Fabricate)
 {
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     if(bControlsSuppressed||!OwnerState.bActive){return;}uint8 Target=0;FGuid Observed;
     if(!ChooseContext(Target,Observed)){IntentFeedback=ContextPrompt();return;}
+    if(Fabricate&&OwnerState.bDevelopmentProfile&&LDRegion::Definition(GetWorld())&&FVector::DistSquared2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),1))<=120*120)
+    {Target=LDObjective::Fabricator;Observed.Invalidate();}
     bInteractHeld=true;ContextToken=++NextRequest;HoldSequence=0;LastHoldSent=-1000;
     if(Target==5){bInteractHeld=false;ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,ContextToken,LDDevelopmentTransaction::PickUp,ELDSkill::None,Observed,FLDBuildPlan());return;}
     ServerContextRequest(OwnerState.Match,OwnerState.Life,ContextToken,Target,Observed);
@@ -286,7 +292,7 @@ void ALDPlayerController::InteractStopped()
 void ALDPlayerController::ServerContextRequest_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
-    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||(Target>4&&!(Target==6&&Mode->Region))||(Target==4)!=Observed.IsValid())
+    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||(Target>4&&!((Target==6||Target==LDObjective::Fabricator)&&Mode->Region))||(Target==4)!=Observed.IsValid())
     {ClientIntentResult(Request,TEXT("Invalid interaction or stale life."));return;}
     if(const auto* Receipt=ContextReceipts.Find(Request)){ClientTransactionResult(OwnerState,Request,*Receipt);return;}
     if(Mode->IsFinished()){ClientIntentResult(Request,TEXT("Demo finished."));return;}
@@ -355,7 +361,7 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
 void ALDPlayerController::ClientProbePhase_Implementation(uint8 Phase)
 {
 #if !UE_BUILD_SHIPPING
-    if (Phase<=16 && LDNetworkProbeEnabled()) { ProbePhase=Phase; }
+    if (Phase<=(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"))?25:16) && LDNetworkProbeEnabled()) { ProbePhase=Phase; }
 #endif
 }
 void ALDPlayerController::ServerProbeHello_Implementation(uint8 ProbeIdentity)

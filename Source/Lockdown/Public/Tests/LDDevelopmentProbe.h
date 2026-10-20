@@ -47,6 +47,11 @@ private:
     void RegionNormalTick();
     void RegionServerTick();
     void RegionClientTick();
+    void SealCheck();
+    void SealServerTick();
+    void SealClientTick();
+    FGuid ProbeSeal,ProbeCraft;
+    double OriginalDeadline=0;
     TWeakObjectPtr<ALDCharacter> RegionNPC;
     FVector RegionNPCStart=FVector::ZeroVector;
     double RegionNPCHp=0;

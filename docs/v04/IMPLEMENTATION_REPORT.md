@@ -4,7 +4,8 @@ Implementation started 19 October 2026 from `451fcb5`. This is an incremental
 development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
-Current region and progression changes: [B45 checkpoint](B45_IMPLEMENTATION.md).
+Current earned acquisition changes: [B46 checkpoint](B46_IMPLEMENTATION.md).
+Region and progression history: [B45 checkpoint](B45_IMPLEMENTATION.md).
 B45 runtime checkpoint: `35b02b88ca20df207475af17901f0200d7a8d65f`.
 A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
 15 rules without tracked changes; the B45 record indexes its local-cache/LFS
@@ -39,8 +40,10 @@ the B43 record indexes its result and local cache/LFS boundary.
   traversal rewards, lethal-batch sentinel credit, autonomous shared Patch NPC and
   held watchtower sabotage implemented and engineering-verified;
   its checkpoint indexes actual results and fixture boundaries.
-- B46–B47: not implemented or accepted. Earned fabrication and full release
-  verification remain open.
+- B46: earned atomic fabrication, once-per-match private receipt, explicit Guild
+  work/fabrication choice and independent recovery through the real Heart path.
+  Its checkpoint indexes verification and ordinary/network fixture boundaries.
+- B47: full release verification and human acceptance remain open.
 
 ## Implemented foundation
 
@@ -84,8 +87,11 @@ The frontend now uses the saved regional map, with matching grid, fog and minima
 bounds. The migration map is retained for historical regression fixtures. B45
 ordinary practice uses native travel, original timers, visits and eight paid jobs
 to reach level five without kills or resource grants. Other authority/network
-grants, positions and deadline advances remain labelled fixtures. Real earned
-fabrication remains B46; this is an incremental development checkpoint.
+grants, positions and deadline advances remain labelled fixtures. B46 ordinary
+practice earns Witness, four jobs and a Seal, then claims the protected Heart
+using native travel and original timers without grants or clock advances. Its
+network case earns two separate Seals through actual transactions with declared
+travel/cooldown fixtures, then tests death drops and recovery without Witness.
 
 Native rule tests cover starting budgets, derived and skill arithmetic, threshold/cap
 awards and rejected/cumulative build plans. World/network probes exercise the
@@ -159,7 +165,7 @@ excluded from passing results above.
 
 Passed rows cover the stated engineering case. Not run includes partial foundation
 evidence when its full v0.4 transaction/UI/scenario is still absent. Checkpoint
-tests do not establish acceptance of B46–B47. B42–B45 executed cases are indexed
+tests do not establish full B47 acceptance. B42–B46 executed cases are indexed
 separately and update only the applicable engineering rows below.
 
 | ID | Status | Evidence or remaining work |
@@ -200,19 +206,19 @@ separately and update only the applicable engineering rows below.
 | C34 | Passed | Actual 12-damage/300 ms/1200 ms sentinel, leash/reset/60-second return; live greatest-damage credit and opaque ties; two-reward cap; dead finisher gets nothing |
 | C35 | Passed | Ordinary native and cooked practice earn Witness, three visits and eight jobs to reach level five with 200 gold/eight credits and no kills or resource/build grants |
 | C36 | Passed | Real equipped Analyze 14; 30-second offline/60-second global lockout/four-second exposure; delayed race, first-view invalidation and fixed restoration; defence flags retained |
-| C37 | Not run | Earned fabrication pending; normal fixtures disabled |
-| C38 | Not run | Normal zero-kill earned acquisition pending |
-| C39 | Not run | Legacy recovery retained; earned-drop scenario pending |
+| C37 | Passed | B46 atomic four-second fabrication; exact costs; interruption, creation failure, final revalidation, replay and retained once-only receipt; no normal seed |
+| C38 | Passed | B46 ordinary starting Survey plus four real paid jobs, native travel and earned Seal win through the original ten-second protected Heart; no grants |
+| C39 | Passed | B46 two remote contenders earn separate Seals; death drops, full carry rejection, recovery without Witness, contest and winning-item-only consumption |
 | C40 | Not run | Delay/loss arithmetic and death/duplicate return pass; new withdrawal case pending |
 | C41 | Passed | Retained life/build/cooldown/knowledge and physical-drop checks plus B44 Witness, stable wallet, retry and Alert retention; old-life requests reject |
-| C42 | Not run | B45 owner-only rewards/visits/destinations and eight-field observations pass delayed clients; public grid/watch endpoints are bounded; full earned-item audit remains B46–B47 |
+| C42 | Not run | B46 craft receipt and ownership remain owner-only with unchanged public/observed allowlists; remote canonical-item exclusion passes; complete release privacy audit remains B47 |
 | C43 | Passed | Authored resident navigates and autonomously uses actual learned/equipped/ranked Patch after a nonlethal hit; common interruption/cooldown path; real return retains build/wallet |
-| C44 | Not run | Ten B45 resets clear real theft plus dirty work/visit/sentinel/sabotage domains; roster lock retained; final crafted-item reset domain remains B46; authenticated resume is not retained |
-| C45 | Not run | B45 native/cooked authority and two-client region cases pass with 28 assets; full acquisition/delivery and rendering-performance acceptance remain open |
-| C46 | Not run | B44 theft/skill/book cases and B45 remote region/sabotage/lethal-credit cases pass; full acquisition semantics remain B46–B47 |
-| C47 | Not run | Ten B45 resets pass; normal 25-minute and separate 90-minute cases pending; native/cooked captures expose GPU-budget pressure |
+| C44 | Not run | Ten B46 resets include dirty fabrication receipts and physical Seals alongside earlier private domains; roster lock retained; full release review remains B47; authenticated resume is not retained |
+| C45 | Not run | B46 native/cooked acquisition and delayed-client cases pass with 28 assets; full delivery and rendering-performance acceptance remain open |
+| C46 | Not run | B46 delayed owning clients exercise earned fabrication, replay, independent items, death, recovery, contest and final receipt; full release/network review remains B47 |
+| C47 | Not run | Ten B46 resets pass; normal 25-minute and separate 90-minute cases pending; prior B45 captures expose GPU-budget pressure; full profiling remains open |
 | C48 | Not run | Honest checkpoint ledger/report supplied; full release/human evidence pending |
 
-No human matches, build-diversity study, normal earned acquisition, long-session
+No human matches, build-diversity study, full-duration stability session, long-session
 pacing or 90-minute stability run occurred. Dedicated packaging and remote Git/LFS
-distribution remain conditional/unverified. Next implementation milestone: B46.
+distribution remain conditional/unverified. Next milestone: B47 release verification.

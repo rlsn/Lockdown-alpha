@@ -147,7 +147,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             ControlsInfo=Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14);
             Information->AddChildToVerticalBox(ControlsInfo);
             SkillBar=Text(TEXT(""),16);Information->AddChildToVerticalBox(SkillBar);
-            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,180));
+            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,230));
             // HUD panels do not capture clicks intended for the game world.
             ObjectivePanel->SetVisibility(ESlateVisibility::HitTestInvisible);
         }
@@ -261,12 +261,13 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         {
             FString Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
             if(const auto* D=LDRegion::Definition(GetWorld())){if(O.ContractStage==1){const auto* N=D->Node(O.ContractDestination);Stage=FString::Printf(TEXT("Collect at %s"),N?*N->Name:TEXT("assigned town"));}Stage+=FString::Printf(TEXT(" · Paid %d/8"),O.PaidJobs);}
-            FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):TEXT("Claiming"),O.ChannelProgress,O.ChannelKind==3?10.:3.):TEXT("Hold progress resets on interruption.");
+            FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):O.ChannelKind==4?TEXT("Fabricating"):TEXT("Claiming"),O.ChannelProgress,LDObjective::Duration(O.ChannelKind)):TEXT("Hold progress resets on interruption.");
             if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
-            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Credits %d · Witness: %s\n%s"),*PC->ContextPrompt(),*Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Progress)));
+            const FString Craft=O.bDevelopmentProfile&&LDRegion::Definition(GetWorld())?FString::Printf(TEXT("\nGuild: E courier · Shift+E Seal (4s; 4 credits, 100 gold, Witness) · %s"),O.FabricationReceipt.IsValid()?TEXT("craft used"):O.SealId.IsValid()?TEXT("slot full"):LDObjective::CanFabricate(O.Witness.IsValid(),O.Commissions,O.Gold,false,false)?TEXT("ready"):TEXT("requirements missing")):TEXT("");
+            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Credits %d · Witness: %s%s\n%s"),*PC->ContextPrompt(),*Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Craft,*Progress)));
             if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
             {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
-            ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0));
+            ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/float(LDObjective::Duration(O.ChannelKind)),0.f,1.f):0));
         }
         if (!PC->IntentFeedback.IsEmpty()) { Feedback->SetText(FText::FromString(PC->IntentFeedback)); }
     }

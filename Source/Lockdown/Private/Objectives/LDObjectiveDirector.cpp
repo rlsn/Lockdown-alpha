@@ -17,6 +17,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 ALDSeal::ALDSeal(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
 ALDObjectiveSite::ALDObjectiveSite()
@@ -55,8 +57,20 @@ bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
 }
 bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range) const
 {
+    if(Site==LDObjective::Fabricator){Site=LDObjective::Guild;}
     const APawn* Body=PC?PC->GetPawn():nullptr;const FVector P=LDRegion::Site(GetWorld(),Site);
     return Body&&FVector::DistSquared2D(Body->GetActorLocation(),P)<=Range*Range&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),P);
+}
+bool ALDObjectiveDirector::CanFabricate(ALDPlayerController* PC) const
+{
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
+    return M->Region&&O&&LDObjective::CanFabricate(O->Witness.IsValid(),O->Commissions,O->Gold,O->FabricationReceipt.IsValid(),O->SealId.IsValid()||CarriedBy(PC));
+}
+void ALDObjectiveDirector::FailNextFabricationForProbe()
+{
+#if !UE_BUILD_SHIPPING
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"))){bFailFabrication=true;}
+#endif
 }
 bool ALDObjectiveDirector::Stationary(ALDPlayerController* PC,const FLDInteractionState& S) const
 {
@@ -88,6 +102,7 @@ bool ALDObjectiveDirector::HasChannel(ALDPlayerController* PC) const
 {const auto* S=Interactions.Find(PC);return S&&S->Channel!=LDObjective::NoChannel;}
 void ALDObjectiveDirector::ClearChannel(ALDPlayerController* PC,FLDInteractionState& S)
 {
+    if(S.Channel==LDObjective::Fabricate){S.bHeld=false;}
     const bool Had=S.Channel!=0;S.Channel=0;S.Route=0;S.Started=0;S.bContested=false;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* O=Mode->StateFor(PC))
     {if(O->ChannelKind||O->ChannelProgress){O->ChannelKind=0;O->ChannelRoute=0;O->ChannelProgress=0;O->ChannelStartedAt=0;Mode->SyncOwner(PC);}}
@@ -172,7 +187,8 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         else{Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),PC->GetPawn()->GetActorLocation());O->SealId=Item->Identity;Reason=TEXT("Seal pickup confirmed.");Mode->SyncOwner(PC);}
         S.bHeld=false;
     }
-    else if(R.Target<LDObjective::Guild||(R.Target>LDObjective::Heart&&!(R.Target==6&&LDRegion::Definition(GetWorld())))||!Near(PC,R.Target)){Reason=TEXT("Approach the public site within 120 cm on clear ground.");}
+    else if(R.Target<LDObjective::Guild||(R.Target>LDObjective::Heart&&!((R.Target==6||R.Target==LDObjective::Fabricator)&&LDRegion::Definition(GetWorld())))||!Near(PC,R.Target)){Reason=TEXT("Approach the public site within 120 cm on clear ground.");}
+    else if(R.Target==LDObjective::Fabricator&&!CanFabricate(PC)){S.bHeld=false;Reason=TEXT("Fabrication needs Witness, 4 unused credits, 100 gold, an empty Seal slot and no prior craft this match.");}
     else
     {
         S.Target=R.Target;
@@ -198,6 +214,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     if(!S.bHeld||!LDObjective::FreshHold(Now,S.LastHold)||S.LastInterrupt>=Now-1.e-6||!Stationary(PC,S)||!Near(PC,S.Target)||!Eligible(PC,Now)){return;}
     const auto* Combat=Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));if(Combat->Action||Combat->LastDamage>=Now-1.e-6){return;}
     uint8 Kind=0,Route=0;
+    if(S.Target==LDObjective::Fabricator&&CanFabricate(PC)){Kind=LDObjective::Fabricate;}
     if(O->ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(O->ContractDestination);if(N&&N->Site==S.Target){Kind=LDObjective::Collect;}}else if(S.Target==LDObjective::Station){Kind=LDObjective::Collect;}}
     if(S.Target==LDObjective::Guild&&O->ContractStage==2){Kind=LDObjective::Deliver;}
     if(S.Target==LDObjective::Heart)
@@ -208,7 +225,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
 void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionState& S,double Now)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);if(!O){return;}
-    const float Progress=S.Channel?float(FMath::Clamp(Now-S.Started,0.,S.Channel==LDObjective::Claim?10.:3.)):0;
+    const float Progress=S.Channel?float(FMath::Clamp(Now-S.Started,0.,LDObjective::Duration(S.Channel))):0;
     if(O->ChannelKind!=S.Channel||O->ChannelRoute!=S.Route||O->ChannelStartedAt!=float(S.Started)||O->ChannelProgress!=Progress)
     {O->ChannelKind=S.Channel;O->ChannelRoute=S.Route;O->ChannelStartedAt=float(S.Started);O->ChannelProgress=Progress;Mode->SyncOwner(PC);}
 }
@@ -229,6 +246,27 @@ void ALDObjectiveDirector::Sample(double Now)
         if(!LDObjective::FreshHold(Now,S.LastHold)){S.bHeld=false;}
         if(!S.Channel&&Valid){BeginChannel(PC,S,Now);}
         if(!S.Channel){continue;}
+        if(S.Channel==LDObjective::Fabricate)
+        {
+            if(!CanFabricate(PC)){ClearChannel(PC,S);S.bHeld=false;continue;}
+            if(LDObjective::DueBeforeDeadline(Now,S.Started,LDObjective::FabricateSeconds,Deadline()))
+            {
+                // Materialize first. No resource or receipt is changed if creation fails.
+                ALDSeal* Item=nullptr;
+                if(!bFailFabrication){Item=GetWorld()->SpawnActor<ALDSeal>(Body->GetActorLocation(),FRotator::ZeroRotator);}
+                bFailFabrication=false;
+                if(Item)
+                {
+                    Item->Identity=FGuid::NewGuid();Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),Body->GetActorLocation());
+                    O->Gold-=100;O->Commissions-=4;O->SealId=Item->Identity;O->FabricationReceipt=FGuid::NewGuid();Announce(Item,1);
+                    UE_LOG(LogTemp,Display,TEXT("LD_FABRICATION_RECEIPT gold=%lld credits=%d paid=%u"),O->Gold,O->Commissions,O->PaidJobs);
+                }
+                S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
+                PC->CompleteContextRequest(S.Token,Item?TEXT("Concord Seal fabricated: 4 credits and 100 gold spent. Witness retained."):TEXT("Seal creation failed. No resources spent; retry fabrication."));
+            }
+            else{UpdatePrivate(PC,S,Now);}
+            continue;
+        }
         if(S.Channel==LDObjective::Collect||S.Channel==LDObjective::Deliver)
         {
             const bool Correct=S.Contract.IsValid()&&O->ContractId==S.Contract&&O->ContractStage==(S.Channel==LDObjective::Collect?1:2);

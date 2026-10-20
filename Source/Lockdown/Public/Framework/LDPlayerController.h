@@ -25,6 +25,7 @@ public:
     void StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan);
     void StopDevelopmentHold();
     void SetInteractionHeld(bool Held);
+    void SetFabricationHeld(bool Held);
     void SetSkillHeld(uint8 Slot,bool Held);
     void PressBasicAttack(){Attack();}
     UFUNCTION(Server,Reliable) void ServerDevelopmentRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan);
@@ -94,6 +95,7 @@ private:
     uint32 DevelopmentHoldToken=0,DevelopmentHoldSequence=0;
     double LastDevelopmentHoldSent=-1000;
     void InteractStarted();
+    void StartInteraction(bool Fabricate);
     void InteractStopped();
     bool bInteractHeld=false;
     uint32 ContextToken=0,HoldSequence=0,LastContextRequest=0;

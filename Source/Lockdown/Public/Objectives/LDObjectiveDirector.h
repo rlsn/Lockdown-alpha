@@ -61,7 +61,9 @@ public:
     const FLDInteractionState* StateFor(ALDPlayerController* PC) const {return Interactions.Find(PC);}
     double Deadline() const;
     int32 QueuedRequestCount() const {return Requests.Num();}
+    void FailNextFabricationForProbe();
 private:
+    bool bFailFabrication=false;
     struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;uint8 Target;FGuid Observed;};
     TArray<FRequest> Requests;
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDInteractionState> Interactions;
@@ -69,6 +71,7 @@ private:
     bool bSeeded=false;
     double HeartSensorUntil=0;
     bool Eligible(ALDPlayerController* PC,double Now) const;
+    bool CanFabricate(ALDPlayerController* PC) const;
     bool Near(ALDPlayerController* PC,uint8 Site,double Range=120) const;
     bool Stationary(ALDPlayerController* PC,const FLDInteractionState& S) const;
     void Request(const FRequest& R,double Now);

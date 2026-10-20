@@ -5,7 +5,7 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B45 connected progression region; B40–B44 verified.** v0.4
+**Current checkpoint: B46 earned Seal acquisition; B40–B45 verified.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The checkpoint passes native and cooked authority, network, ordinary-input and reset checks.
@@ -19,7 +19,9 @@ The [B44 checkpoint](docs/v04/B44_IMPLEMENTATION.md) adds four Charter alternati
 a retained private Witness, persistent humanoid purses and once-only Pickpocket
 transfers. The [B45 checkpoint](docs/v04/B45_IMPLEMENTATION.md) adds two saved
 regional topologies, bounded courier/visit/sentinel rewards, an autonomous Patch
-NPC and actual watchtower sabotage. Next is B46's earned Seal acquisition.
+NPC and actual watchtower sabotage. The [B46 checkpoint](docs/v04/B46_IMPLEMENTATION.md)
+adds atomic earned fabrication and recovery through the real Heart route.
+Next is B47 release verification and human review.
 
 Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
 start as the lobby host. One human is practice; the declared cap is 25 minutes.
@@ -30,7 +32,11 @@ shows your own score. Hold equipped Pickpocket behind an eligible humanoid.
 Each match allows eight paid jobs with alternating towns. Three first visits
 award XP through body traversal. Towns support preparation; the Guild sells books.
 The marked wilderness sentinel is hostile. Equipped Analyze at score 14 can
-disable watchtower sight temporarily. Seal crafting remains pending.
+disable watchtower sight temporarily. At Guild, E keeps courier work available;
+hold Shift+E for four seconds to fabricate a Seal with Witness, four unused
+credits and 100 gold, once per contender per match. A recovered Seal needs no
+Witness. Carry it to Heart and hold E for ten uncontested seconds to claim.
+The normal conquest port remains unavailable.
 Opening the sandbox without `?Profile=V04`
 selects the explicit legacy profile, documented in the
 [v0.3 implementation archive](docs/v03/implementation/README.md).

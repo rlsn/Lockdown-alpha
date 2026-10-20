@@ -247,6 +247,11 @@ bool ULDCharacterCatalog::Validate(FString& Error) const
     {Error=TEXT("Regional reward/encounter/sabotage tuning differs from native schema one.");return false;}
     for(const auto& Entry:TArray<TPair<TSharedPtr<FJsonObject>,FString>>{{*Courier,TEXT("oneActive")},{*Courier,TEXT("deathCancelsActive")},{*Courier,TEXT("paidCountSurvivesDeath")},{*RegionWorld,TEXT("firstVisitRequiresTraversal")}}){bool Value=false;if(!Entry.Key->TryGetBoolField(Entry.Value,Value)||!Value){Error=TEXT("Invalid regional receipt flag.");return false;}}
     for(const auto& Entry:TArray<TPair<TSharedPtr<FJsonObject>,FString>>{{*Sentinel,TEXT("targetsResidents")},{*Sabotage,TEXT("changesHeartDefence")}}){bool Value=true;if(!Entry.Key->TryGetBoolField(Entry.Value,Value)||Value){Error=TEXT("Invalid encounter target/defence flag.");return false;}}
+    const TSharedPtr<FJsonObject>* Seal=nullptr;FString CraftLocation;
+    if(!Root->TryGetObjectField(TEXT("seal"),Seal)||!NumberIs(*Seal,TEXT("commissionCreditCost"),4)||!NumberIs(*Seal,TEXT("goldCost"),100)||!NumberIs(*Seal,TEXT("channelSeconds"),4)||!NumberIs(*Seal,TEXT("maxCraftsPerContender"),1)||!NumberIs(*Seal,TEXT("carryCapacity"),1)||!(*Seal)->TryGetStringField(TEXT("location"),CraftLocation)||CraftLocation!=TEXT("Guild"))
+    {Error=TEXT("Seal fabrication tuning differs from native schema one.");return false;}
+    for(const auto& Entry:TArray<TPair<FString,bool>>{{TEXT("requiresWitness"),true},{TEXT("dropOnDeath"),true},{TEXT("pickupRequiresWitness"),false},{TEXT("assemblyConsumesSkillSlot"),false},{TEXT("normalSeeded"),false}})
+    {bool Value=false;if(!(*Seal)->TryGetBoolField(Entry.Key,Value)||Value!=Entry.Value){Error=TEXT("Invalid Seal fabrication flag.");return false;}}
     const TSharedPtr<FJsonObject>* Books=nullptr;const TSharedPtr<FJsonObject>* Preparation=nullptr;const TArray<TSharedPtr<FJsonValue>>* Stock=nullptr;
     if(!Root->TryGetObjectField(TEXT("books"),Books)||!Root->TryGetObjectField(TEXT("preparation"),Preparation)
         ||!NumberIs(*Books,TEXT("priceGold"),40)||!NumberIs(*Books,TEXT("unreadCapacity"),4)||!NumberIs(*Books,TEXT("readChannelSeconds"),3)
