@@ -7,6 +7,10 @@
 [v0.4 specification](v04/README.md). Full v0.4 acceptance remains in development.
 Previous B44 runtime: `6356af1`; its historical evidence is in
 [B44](v04/B44_IMPLEMENTATION.md).
+B45 runtime checkpoint: `35b02b8`. Current cooked archive:
+`Artifacts/20261020-185834-018-PackageWin64/Archive/Windows`.
+Fresh checkout passed cold Editor/Game builds, 28-asset validation and 15 rules,
+without tracked changes: `Artifacts/20261020-190153-021-CleanCheckout/Result.json`.
 
 ## Current implementation
 

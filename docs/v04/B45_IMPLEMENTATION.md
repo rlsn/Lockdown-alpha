@@ -2,6 +2,7 @@
 
 20 October 2026. B45 is implemented and engineering-verified.
 B46 earned fabrication and B47 full-release acceptance remain separate work.
+Runtime checkpoint: `35b02b88ca20df207475af17901f0200d7a8d65f`.
 
 ## Region and presentation
 
@@ -84,7 +85,7 @@ CL 58210709. Listed test reports have zero failed checks.
 | --- | --- | --- |
 | Final Editor build | Passed | `20261020-185740-446-BuildEditor/BuildEditor.log` |
 | Region-only map rebuild | Passed; other generated content retained | `20261020-183146-432-Bootstrap-Generate/Bootstrap.log` |
-| Saved assets | Validate passed; 28 packages | `20261020-183235-163-Bootstrap-Validate/Bootstrap.log` |
+| Saved assets | Validate passed; 28 packages | `20261020-185808-735-Bootstrap-Validate/Bootstrap.log` |
 | Final game build/cook/stage/archive | Win64 Development passed | `20261020-185834-018-PackageWin64/Package.log` |
 | Native rules | 15 passed | `20261020-180825-339-Automation/Report/index.json` |
 | Final native region authority | 93 passed | `20261020-183218-509-Region-DevelopmentCheck/Region.json` |
@@ -103,6 +104,7 @@ CL 58210709. Listed test reports have zero failed checks.
 | Retained native combat | 48 passed | `20261020-184636-288-CombatCheck/Combat.json` |
 | Retained native development | 24 passed | `20261020-184958-700-DevelopmentCheck/Local.json` |
 | Retained objective scenarios | Main 53; exact deadline 3; late claim 3; no claim 4; withdrawal 5 passed | `20261020-184658-954-ObjectiveCheck/{Main,ExactDeadline,LateClaim,NoClaim,Withdraw}.json` |
+| Fresh local checkout at `35b02b8` | 28 LFS assets; preflight; cold Editor/Game builds; asset validation; 15 rules passed; checkout clean | `20261020-190153-021-CleanCheckout/Result.json`; logs under `Checkout/Artifacts/` |
 
 Current archive: `Artifacts/20261020-185834-018-PackageWin64/Archive/Windows`.
 Open its `Lockdown.exe`, Host, choose class, Ready and Start. The archive manifest
@@ -120,6 +122,13 @@ This verifies emulated native transport, not WAN conditions or a measured action
 acknowledgement percentile. Authority is a headless listen world with a
 nonparticipating local connection and two remote owners, not a dedicated Server
 target or a four-human capacity measurement.
+All 97 current source/config files and seven runtime payloads match the current
+manifest. Documentation/provenance checks cover 69 Markdown pages, local links,
+39 feature rows, 48 acceptance rows and four frozen predecessor snapshots:
+`Artifacts/B45DocumentationAndProvenance.json`.
+The fresh checkout copied no project Binaries/Intermediate files. It reused the
+installed engine/shared caches and hydrated assets from local LFS objects; remote
+Git/LFS delivery remains a separate unverified boundary.
 
 ## Repairs and remaining limits
 

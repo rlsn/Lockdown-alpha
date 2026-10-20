@@ -5,6 +5,10 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current region and progression changes: [B45 checkpoint](B45_IMPLEMENTATION.md).
+B45 runtime checkpoint: `35b02b88ca20df207475af17901f0200d7a8d65f`.
+A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
+15 rules without tracked changes; the B45 record indexes its local-cache/LFS
+boundary and the outstanding rendering-performance issue.
 World-check and theft history: [B44 checkpoint](B44_IMPLEMENTATION.md).
 B44 runtime checkpoint: `6356af102d54cf06ca05594fba2282dc20a7ee28`.
 A fresh local checkout passed cold Editor/Game builds, 24-asset validation and
