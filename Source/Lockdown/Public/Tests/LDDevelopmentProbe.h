@@ -38,6 +38,15 @@ private:
     void SkillCheck();
     void SkillServerTick();
     void SkillClientTick();
+    void PreparationCheck();
+    void PreparationServerTick();
+    void PreparationClientTick();
+    void PreparationNormalTick();
+    TArray<FVector> NormalPath;
+    int32 NormalPathIndex=0,NormalDeliveries=0;
+    double NormalHoldAt=0;
+    double NormalTravel=0;
+    FVector NormalLastPosition=FVector::ZeroVector;
     void ResetCheck();
     void ServerTick();
     void ClientTick();

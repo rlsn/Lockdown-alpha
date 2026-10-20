@@ -27,6 +27,7 @@
 #include "Tests/LDObjectiveNetworkProbe.h"
 #include "Tests/LDSoakProbe.h"
 #include "Tests/LDDevelopmentProbe.h"
+#include "Development/LDDevelopmentDirector.h"
 
 namespace
 {
@@ -121,6 +122,8 @@ void ALDPlayerController::SetupInputComponent()
         Input->BindAction(SkillAction,ETriggerEvent::Completed,this,&ALDPlayerController::SkillStopped,Slot);
         Input->BindAction(SkillAction,ETriggerEvent::Canceled,this,&ALDPlayerController::SkillStopped,Slot);
     }
+    auto* DevelopmentAction=NewObject<UInputAction>(SkillInputContext);SkillInputContext->MapKey(DevelopmentAction,EKeys::P);
+    Input->BindAction(DevelopmentAction,ETriggerEvent::Started,this,&ALDPlayerController::ToggleDevelopmentPanel);
     if(auto* Local=GetLocalPlayer()){Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>()->AddMappingContext(SkillInputContext,1);}
 }
 
@@ -217,6 +220,12 @@ bool ALDPlayerController::ChooseContext(uint8& Target,FGuid& Observed) const
         if(Closest.IsValid()){Target=LDObjective::Seal;Observed=Closest;return true;}
     }
     Observed.Invalidate();
+    if(OwnerState.bDevelopmentProfile)
+    {
+        double Distance=80*80+1.;FGuid Closest;
+        if(const auto* Relay=LocalView()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(P,E.Position);if(E.Kind==ELDObservedKind::Book&&(D<Distance||(D==Distance&&E.Id.ToString()<Closest.ToString()))){Distance=D;Closest=E.Id;}}}
+        if(Closest.IsValid()){Target=5;Observed=Closest;return true;}
+    }
     if(FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Heart))<=120*120){Target=LDObjective::Heart;return true;}
     const double Guild=FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Guild)),Station=FVector::DistSquared2D(P,LDObjective::Position(LDObjective::Station));
     if(FMath::Min(Guild,Station)<=120*120){Target=Guild<=Station?LDObjective::Guild:LDObjective::Station;return true;}
@@ -231,6 +240,7 @@ FString ALDPlayerController::ContextPrompt() const
     if(Now<OwnerState.ProtectedUntil){return TEXT("Return protection: gameplay actions locked.");}
     uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. Hold utility keys. E: courier at Guild [G] / West [W]. Charter tasks and Seal crafting pending."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
+    if(Target==5){return TEXT("E: pick up visible unread book within 80 cm. P: inventory and reading.");}
     if(Target==LDObjective::Heart)
     {return GS&&LDRules::HasHeartAccess(OwnerState.SealId.IsValid(),GS->DefensiveFlags)?TEXT("Hold E: claim Heart for 10 seconds. Other unprotected contenders contest within 240 cm."):(OwnerState.bDevelopmentProfile?TEXT("Heart locked. Seal crafting and conquest are not available in this preview."):TEXT("Heart locked: carry a Seal or clear all four defences through the labelled fixture."));}
     if(Target==LDObjective::Guild)
@@ -248,6 +258,7 @@ void ALDPlayerController::InteractStarted()
     if(bControlsSuppressed||!OwnerState.bActive){return;}uint8 Target=0;FGuid Observed;
     if(!ChooseContext(Target,Observed)){IntentFeedback=ContextPrompt();return;}
     bInteractHeld=true;ContextToken=++NextRequest;HoldSequence=0;LastHoldSent=-1000;
+    if(Target==5){bInteractHeld=false;ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,ContextToken,LDDevelopmentTransaction::PickUp,ELDSkill::None,Observed,FLDBuildPlan());return;}
     ServerContextRequest(OwnerState.Match,OwnerState.Life,ContextToken,Target,Observed);
 }
 void ALDPlayerController::InteractStopped()
@@ -392,6 +403,7 @@ void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->
 void ALDPlayerController::ClearControls()
 {
     InteractStopped();
+    StopDevelopmentHold();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     SprintStopped();
     if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn()))
@@ -431,6 +443,11 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
+    if(IsLocalController()&&DevelopmentHoldToken&&GetWorld()->GetTimeSeconds()-LastDevelopmentHoldSent>=.1)
+    {
+        LastDevelopmentHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();
+        ServerDevelopmentHold(OwnerState.Match,OwnerState.Life,DevelopmentHoldToken,++DevelopmentHoldSequence,HeldBody&&!HeldBody->GetLastMovementInputVector().IsNearlyZero());
+    }
     if(IsLocalController()&&HeldSkillSlot!=255&&GetWorld()->GetTimeSeconds()-LastSkillHoldSent>=.1)
     {
         LastSkillHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();
@@ -443,7 +460,7 @@ void ALDPlayerController::PlayerTick(float Delta)
     }
     const auto* PublicState=GetWorld()->GetGameState<ALDGameState>();const bool bFinished=PublicState&&PublicState->EndReason;
     if(bFinished)
-    {if(IsLocalController()){bInteractHeld=false;if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}}
+    {if(IsLocalController()){bInteractHeld=false;StopDevelopmentHold();if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->GetCharacterMovement()->DisableMovement();}}}
     if(IsLocalController()&&!IsFrontend())
     {
         if(ALDCharacter* Active=Cast<ALDCharacter>(GetPawn()))

@@ -4,9 +4,9 @@ Implementation started 19 October 2026 from `451fcb5`. This is an incremental
 development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
-Current execution changes and evidence: [B42 checkpoint](B42_IMPLEMENTATION.md).
-Its runtime commit is `4306e46`; the fresh local checkout passed both cold builds,
-24-asset validation and 12 native rules and stayed clean.
+Current preparation and book changes: [B43 checkpoint](B43_IMPLEMENTATION.md).
+The [B42 execution checkpoint](B42_IMPLEMENTATION.md) remains historical evidence
+for `4306e46`; its clean-checkout builds, 24 assets and 12 rules passed.
 
 ## Milestones
 
@@ -15,8 +15,12 @@ Its runtime commit is `4306e46`; the fresh local checkout passed both cold build
 - B42: equipped execution, native scaled Step, Ambush, Spark, Patch, held utility
   dispatch, private cooldowns and mixed hotbar implemented. Utility rewards and
   wallets remain B44; the trained NPC content remains B45.
-- B43–B47: not implemented or accepted. Preparation arithmetic exists as a tested
-  helper, but the held station transaction and UI remain B43 work.
+- B43: private ghost preview, atomic held station commit, class/rank spending,
+  permanent subclass choice and unique physical books implemented. An automated
+  ordinary courier-funded Rogue learns Spark and prepares a mixed four-slot build.
+  See its checkpoint record for native/cooked evidence and fixture boundaries.
+- B44–B47: not implemented or accepted. Charter services, wallets/theft, the
+  connected region, earned fabrication and full release verification remain open.
 
 ## Implemented foundation
 
@@ -51,10 +55,11 @@ execution path. The legacy profile retains its explicit fixed-kit regressions.
 
 ## Verification boundary
 
-The development probe labels its XP grants, allocated-build helper and teleports
-as test fixtures. They do not demonstrate normal progression, station allocation,
-books, subclass selection or earned Heart acquisition. B42 adds mixed skill
-activation and capability fixtures; see its separate report for their boundaries.
+The B41/B42 probes label grants, helper builds, teleports and capability callbacks
+as engineering fixtures. B43 separately verifies actual station allocation, books,
+subclass choice and an ordinary courier-funded cross-class preparation run.
+Its authority/network setup grants remain fixtures, and its ordinary run is
+automated local practice. None demonstrates earned Heart acquisition.
 The new region, expanded fog bounds, shared trained NPC, wallet theft and real
 fabrication remain later milestone work. Current play still uses migration-map
 geometry and courier flow; it is a development checkpoint.
@@ -131,7 +136,7 @@ excluded from passing results above.
 
 Passed rows cover the stated engineering case. Not run includes partial foundation
 evidence when its full v0.4 transaction/UI/scenario is still absent. Checkpoint
-tests do not establish acceptance of B43–B47. B42's executed cases are indexed
+tests do not establish acceptance of B44–B47. B42/B43 executed cases are indexed
 separately and update only the applicable engineering rows below.
 
 | ID | Status | Evidence or remaining work |
@@ -140,19 +145,19 @@ separately and update only the applicable engineering rows below.
 | C02 | Passed | Class lobby, shared body type and private presets; no hero or primary-growth fields |
 | C03 | Passed | Saved catalog, equal-budget native start tests and class-choice transactions |
 | C04 | Passed | Threshold/cap tests, actual contender XP and independent client point awards |
-| C05 | Not run | Pure plan validates spends; held allocation transaction/UI remains B43 |
+| C05 | Passed | B43 authority/UI preview and atomic held spends; rejected overspend/caps/stale plans |
 | C06 | Passed | Exact derived values and actual fractional authority impact |
-| C07 | Not run | World recalculation does not heal; full rank/subclass/preparation flows pending |
-| C08 | Not run | Class-learning helper exists; actual learning transaction pending |
-| C09 | Not run | Cumulative rank costs tested as helpers; actual purchase pending |
-| C10 | Not run | Subclass state/helpers exist; selection and all effects need integration |
-| C11 | Not run | Mixed four-slot hotbar and activation implemented; normal library/learning UI remains B43 |
+| C07 | Passed | B43 held recalculation and ordinary HP 95-to-100 maximum change preserve current 95 |
+| C08 | Passed | B43 held class-list learning; cross-class book learning and subsequent SP ranking |
+| C09 | Passed | Actual cumulative learning/rank purchases and insufficient two-point rank-three rejection |
+| C10 | Passed | Level/class/permanence/no-free-skill transaction cases; all six effect formulas in native rules; human diversity pending |
+| C11 | Passed | Private learned-library/equipment UI; six known skills and four distinct shared slots; B42 activation guards |
 | C12 | Passed | B42 slot/revision checks, shared queue, rejected legacy/context bypasses and common NPC entry path |
-| C13 | Not run | Held preparation station transaction/UI pending |
-| C14 | Not run | B42 accepted cooldown survives actual cast interruption/death/new body and helper swaps; real preparation transaction remains B43 |
-| C15 | Not run | Book purchase/inventory pending |
-| C16 | Not run | Real cross-class reading pending |
-| C17 | Not run | Physical book read/drop lifecycle pending |
+| C13 | Passed | B43 two-second Guild/West transactions; release/stale/movement/damage/revision/range/action guards; ordinary panel commit |
+| C14 | Passed | B42 cast/death/new-body retention plus B43 actual recent Step swap and rank/reading plans preserve absolute endpoints |
+| C15 | Passed | B43 forty-gold purchase; unique instance; capacity/funds/stock/duplicate rejection; delayed owning RPCs |
+| C16 | Passed | Ordinary courier-funded Rogue reads Spark at rank one; no auto-equip/SP/XP; known book retained |
+| C17 | Passed | Actual three-second read; deadline damage, ownership loss and release preserve book; death drops and opaque pickup; idempotent withdrawal drop |
 | C18 | Passed | STR-scaled real melee and retained cadence/geometry regression path |
 | C19 | Passed | B42 bounded DEX/rank math, real remote 380 cm travel and rank-three wall collision; retained native ramp/ledge/tree checks |
 | C20 | Passed | B42 scaled fractional Ambush, warning/exposure, rear/target-history counterplay and interruption |
@@ -176,15 +181,15 @@ separately and update only the applicable engineering rows below.
 | C38 | Not run | Normal zero-kill earned acquisition pending |
 | C39 | Not run | Legacy recovery retained; earned-drop scenario pending |
 | C40 | Not run | Delay/loss arithmetic and death/duplicate return pass; new withdrawal case pending |
-| C41 | Not run | B41 retained-state/new-life probe passes; acquired rank/book/subclass flows need B43 |
-| C42 | Not run | B42 private skill/cue/schema and remote actor checks pass; future wallet/DC/book domains remain B43–B45 |
+| C41 | Passed | Retained B41/B42 life/build/cooldown checks plus B43 acquired knowledge, physical drops and stale old-life book requests |
+| C42 | Not run | B41–B43 builds/skills/books use owner-only state; eight-field schema and delayed clients pass; future wallet/DC domains remain B44–B45 |
 | C43 | Not run | B42 trained-build NPC Patch fixture passes shared slot/rank/channel/cooldown rules; authored trained NPC remains B45 |
-| C44 | Not run | Lobby lock and ten B41 resets pass; inventory/wallet/receipt domains pending |
-| C45 | Not run | B41 builds/assets/cooked clients pass; full V04 delivery scenarios pending |
-| C46 | Not run | B42 native 100/150 ms skill cases pass; point/book spends and random theft cases remain B43–B44 |
-| C47 | Not run | Ten B41 resets pass; normal 25-minute and separate 90-minute cases pending |
+| C44 | Not run | Lobby lock and ten B43 resets cover books/channels/queues; future wallet/receipt domains and authenticated resume remain pending/deferred |
+| C45 | Not run | B43 builds/assets/cooked clients supplement retained delivery evidence; full V04 scenarios pending |
+| C46 | Not run | B42 skill and B43 book/point cases pass at native 100/150 ms and cooked 150 ms; random theft cases remain B44 |
+| C47 | Not run | Ten B43 resets pass; normal 25-minute and separate 90-minute cases pending |
 | C48 | Not run | Honest checkpoint ledger/report supplied; full release/human evidence pending |
 
 No human matches, build-diversity study, normal earned acquisition, long-session
 pacing or 90-minute stability run occurred. Dedicated packaging and remote Git/LFS
-distribution remain conditional/unverified. Next implementation milestone: B43.
+distribution remain conditional/unverified. Next implementation milestone: B44.

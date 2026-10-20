@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$PackageRoot,[switch]$Network,[switch]$Skills,[switch]$Reset,[switch]$CaptureUI,[ValidateSet(720,1080)][int]$Height=720,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[ValidateRange(1024,65000)][int]$Port=7795)
+param([string]$EngineRoot,[string]$PackageRoot,[switch]$Network,[switch]$Skills,[switch]$Preparation,[switch]$Normal,[switch]$Reset,[switch]$CaptureUI,[ValidateSet(720,1080)][int]$Height=720,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[ValidateRange(1024,65000)][int]$Port=7795)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 if ($PackageRoot) {
     $package=Resolve-LDPackage $PackageRoot; $binary=$package.Binary; $project=''; $lane='Packaged-'
@@ -10,8 +10,10 @@ if ($PackageRoot) {
 if(([int][bool]$Network+[int][bool]$Reset+[int][bool]$CaptureUI) -gt 1){throw 'Choose Network, Reset or CaptureUI.'}
 $name=if($Network){"DevelopmentNetwork-$RoundTripMs-$JitterMs"}elseif($CaptureUI){"DevelopmentUI-$Height"}elseif($Reset){'DevelopmentReset'}else{'DevelopmentCheck'}
 if($Skills){if($Reset){throw 'Skills supports local, Network or CaptureUI verification.'};$name="Skills-$name"}
+if($Preparation){if($Skills -or $Reset){throw 'Preparation supports local, Network, Normal or CaptureUI.'};$name="Preparation-$name"}
+if($Normal){if(-not $Preparation -or $Network -or $CaptureUI -or $Reset){throw 'Normal requires Preparation alone.'};$name='Preparation-Normal'}
 $output=New-LDArtifactDirectory "$lane$name"
-$roles=if($Network){@('Server','A','B')}elseif($CaptureUI){@('Visual')}elseif($Skills){@('Skills')}elseif($Reset){@('Reset')}else{@('Local')}
+$roles=if($Network){@('Server','A','B')}elseif($CaptureUI){@('Visual')}elseif($Normal){@('Normal')}elseif($Preparation){@('Preparation')}elseif($Skills){@('Skills')}elseif($Reset){@('Reset')}else{@('Local')}
 $minimum=[Math]::Max(0,[int]($RoundTripMs/2)-$JitterMs); $maximum=[int]($RoundTripMs/2)+$JitterMs
 $ownedProcesses=@()
 try {
@@ -22,18 +24,20 @@ try {
         $surface=if($CaptureUI){'-windowed -ResX={0} -ResY={1} -unattended' -f ([int]($Height*16/9)),$Height}else{'-nullrhi -unattended'}
         $arguments='"{0}" {1} {2} -port={3} {4} -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="t.MaxFPS 60" -LDDevelopmentProbe -PktLagMin={5} -PktLagMax={6} -LDProbeRole={7} -LDProbeReportDir="{8}" -abslog="{9}"' -f $project,$world,$mode,$Port,$surface,$minimum,$maximum,$role,$output,(Join-Path $output "$role.log")
         if($Skills){$arguments+=' -LDSkillProbe'}
+        if($Preparation){$arguments+=' -LDPreparationProbe'}
+        if($Normal){$arguments+=' -LDPreparationNormal'}
         if($PackageRoot){$arguments=$arguments.Substring(3)}
         $ownedProcesses+=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }
-    $deadline=(Get-Date).AddSeconds(100)
+    $deadline=(Get-Date).AddSeconds($(if($Normal){400}else{130}))
     while(@($ownedProcesses|Where-Object{-not $_.HasExited}).Count -and (Get-Date) -lt $deadline){Start-Sleep -Milliseconds 500}
     foreach($process in $ownedProcesses){if(-not $process.HasExited){throw "Development probe timed out: $output"};if($process.ExitCode -ne 0){throw "Development probe failed ($($process.ExitCode)): $output"}}
     foreach($role in $roles) {
         $path=Join-Path $output "$role.json"
         if(-not(Test-Path -LiteralPath $path)){throw "Missing $role report: $output"}
         $report=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
-        $required=if($role -eq 'Skills'){62}elseif($role -eq 'Local'){24}elseif($role -eq 'Server'){if($Skills){8}else{6}}elseif($role -eq 'Visual'){1}elseif($role -eq 'Reset'){42}elseif($Skills -and $role -eq 'B'){6}else{5}
+        $required=if($role -eq 'Preparation'){61}elseif($role -eq 'Normal'){14}elseif($role -eq 'Skills'){62}elseif($role -eq 'Local'){24}elseif($role -eq 'Server'){if($Preparation){9}elseif($Skills){8}else{6}}elseif($role -eq 'Visual'){1}elseif($role -eq 'Reset'){53}elseif($Preparation -or ($Skills -and $role -eq 'B')){6}else{5}
         if($report.failures -ne 0 -or @($report.checks).Count -lt $required){$report.checks|Write-Host;throw "Failed or incomplete development evidence: $path"}
         Write-Host "$role passed $(@($report.checks).Count) checks"
     }

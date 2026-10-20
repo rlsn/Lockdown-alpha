@@ -26,6 +26,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameSession.h"
 #include "Tests/LDDevelopmentProbe.h"
+#include "Development/LDDevelopmentDirector.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -106,6 +107,7 @@ void ALDGameMode::StartPlay()
     Vision->AddTickPrerequisiteActor(Combat);
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
+    if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();}
     if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get());PC&&StateFor(PC)) { SyncOwner(PC); Vision->Register(PC); } }
@@ -178,6 +180,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
+        if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),RuleTime());}
         if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
         if (LobbyHost==PC) { LobbyHost.Reset(); for (auto& Pair:Contenders) { if (Pair.Key.IsValid()) { LobbyHost=Pair.Key; Pair.Value.State.bLobbyHost=true; SyncOwner(Pair.Key.Get()); break; } } }
@@ -197,6 +200,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
+    if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDObjective::Position(LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
         ? LDRules::FDeathCost{LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt),LDDevelopment::DeathLoss(State->Gold)}

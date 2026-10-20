@@ -20,6 +20,9 @@
 #include "UnrealClient.h"
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "UI/LDDevelopmentPanel.h"
+#include "Objectives/LDObjectiveRules.h"
 
 ALDDevelopmentProbe::ALDDevelopmentProbe() { bReplicates=false; PrimaryActorTick.bCanEverTick=true; PrimaryActorTick.TickGroup=TG_PostUpdateWork; }
 void ALDDevelopmentProbe::BeginPlay()
@@ -38,12 +41,13 @@ void ALDDevelopmentProbe::Tick(float Delta)
 {
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
-    if (FPlatformTime::Seconds()-Started>70) { Check(false,TEXT("Probe timed out")); Finish(); return; }
+    if (FPlatformTime::Seconds()-Started>(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))?300:90)) { Check(false,TEXT("Probe timed out")); Finish(); return; }
     if (Role==TEXT("Visual"))
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
         const bool SkillVisual=FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe"));
-        const FString Image=FPaths::Combine(Directory,SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
+        const bool PrepVisual=FParse::Param(FCommandLine::Get(),TEXT("LDPreparationProbe"));
+        const FString Image=FPaths::Combine(Directory,PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
         if (!Phase && GetWorld()->GetTimeSeconds()>2)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
@@ -52,14 +56,33 @@ void ALDDevelopmentProbe::Tick(float Delta)
                 PC->ToggleLobbyReady();PC->StartLobby();auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);
                 O->Build.Ranks[1]=O->Build.Ranks[3]=O->Build.Ranks[4]=1;O->Build.Slots={ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Step,ELDSkill::Survey};++O->Build.Revision;Mode->SyncOwner(PC);
             }
+            if(PrepVisual)
+            {
+                PC->ToggleLobbyReady();PC->StartLobby();auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);
+                Mode->AwardExperience(PC,270);O->Gold=160;PC->GetPawn()->SetActorLocation(LDObjective::Position(LDObjective::Guild)+FVector(0,50,92));Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;Mode->SyncOwner(PC);
+                PC->BuyBook(ELDSkill::Spark);PC->BuyBook(ELDSkill::Patch);
+            }
             Phase=1; PhaseAt=FPlatformTime::Seconds();
         }
-        else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
-        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
+        else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&PrepVisual)
+        {
+            auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());PC->ToggleDevelopmentPanel();
+            if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Choose(1,3);PC->DevelopmentUI->Choose(1,2);PC->DevelopmentUI->Choose(2,1);PC->DevelopmentUI->Choose(3,2);PC->DevelopmentUI->Choose(6,1);PC->DevelopmentUI->Choose(7,1);}
+            Phase=3;PhaseAt=FPlatformTime::Seconds();
+        }
+        else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
+        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
     {
         if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); ResetCheck(); }
+    }
+    else if(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationProbe")))
+    {
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))){PreparationNormalTick();}
+        else if(GetNetMode()==NM_Client){PreparationClientTick();}
+        else if(Role==TEXT("Preparation")){if(GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)){SetActorTickEnabled(false);PreparationCheck();Finish();}}
+        else{PreparationServerTick();}
     }
     else if (FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe")))
     {
@@ -149,6 +172,7 @@ void ALDDevelopmentProbe::ResetCheck()
     const auto Start=LDDevelopment::StartingBuild(0,Mode->CharacterCatalog());
     Check(State->Match>Evidence.Generation&&!Public->bMatchStarted&&Public->ReadyCount==0&&Public->LobbyCount==1&&State->bLobbyHost&&!State->bReady,TEXT("New world resets lobby, ownership and generation"));
     Check(State->Build.ClassId==0&&State->Build.Attributes==Start.Attributes&&State->Build.Ranks==Start.Ranks&&State->Build.Slots==Start.Slots&&State->Build.Cooldowns==Start.Cooldowns&&!State->Build.Subclass&&!State->Build.AttributePoints&&!State->Build.SkillPoints&&State->Build.Level==1&&!State->Xp&&!State->Gold&&State->Hp==110&&State->MaxHp==110&&!State->DeathSerial,TEXT("New world clears all B41 build, currency and life fields"));
+    int32 BookActors=0;for(TActorIterator<ALDBook> It(GetWorld());It;++It){++BookActors;}Check(State->Books.IsEmpty()&&!State->DevelopmentKind&&!State->DevelopmentToken&&!State->DevelopmentEndsAt&&!BookActors&&Mode->Development->QueuedCount()==0,TEXT("New world clears unread books, physical instances, development channels and queued requests"));
     if (Evidence.Round)
     {
         Check(!Evidence.OldActors.ContainsByPredicate([](const auto& Actor){return Actor.IsValid();}),TEXT("Prior world actors are destroyed"));
@@ -161,6 +185,8 @@ void ALDDevelopmentProbe::ResetCheck()
     FString Reason; Mode->SetLobbyChoice(PC,1,true,Reason); Mode->StartDevelopmentMatch(PC,Reason); Mode->AwardExperience(PC,420);
     State->Build.Cooldowns[int32(ELDSkill::Step)]=GetWorld()->GetTimeSeconds()+100;
     State->Build.Subclass=3; State->Gold=101; Mode->SyncOwner(PC);
+    auto* DirtyBody=CastChecked<ALDCharacter>(PC->GetPawn());DirtyBody->SetActorLocation(LDObjective::Position(1)+FVector(0,50,92));Mode->Combat->StateFor(DirtyBody)->ProtectionUntil=0;PC->BuyBook(ELDSkill::Spark);Mode->Combat->Sample(GetWorld()->GetTimeSeconds());
+    if(State->Books.Num()){PC->StartDevelopmentHold(2,State->Books[0].Id,FLDBuildPlan());Mode->Combat->Sample(GetWorld()->GetTimeSeconds());}
     if (Evidence.Round%2==0) { Mode->EndContenderLife(PC,GetWorld()->GetTimeSeconds()); }
     Evidence.Generation=State->Match; Evidence.PreviousOwner=PC->OwnerState;
     Evidence.OldActors.Reset(); for (TActorIterator<AActor> It(GetWorld());It;++It) { Evidence.OldActors.Add(*It); }
@@ -243,6 +269,7 @@ void ALDDevelopmentProbe::Finish()
         Report->SetNumberField(TEXT("medianEchoRttMs"),Median); Report->SetNumberField(TEXT("echoSamples"),RTTs.Num()); Report->SetNumberField(TEXT("failures"),Failures);
     }
     Report->SetStringField(TEXT("profile"),TEXT("V04 development; skill/build grants, task callbacks and teleports in probes are engineering fixtures"));
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B43 normal-rule automated local practice; native travel and original job/book/preparation timers; no resource grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }
     Report->SetArrayField(TEXT("checks"),Lines); FString Output,Path,Directory;
     FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);

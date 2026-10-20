@@ -21,6 +21,9 @@ bool FLDViewPayloadTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Sanitized dropped Seal kind round trips"),Read.Entities[0].Kind==ELDObservedKind::Seal);
     TestTrue(TEXT("Quantized pose preserved"),FVector(Read.Entities[0].Position).Equals(Entity.Position,.11));
     TestTrue(TEXT("Masks survive full replacement"),Read.Current==View.Current);
+    View.Entities[0].Kind=ELDObservedKind::Book;FNetBitWriter BookWriter(nullptr,65536);View.NetSerialize(BookWriter,nullptr,bOk);
+    FNetBitReader BookReader(nullptr,BookWriter.GetData(),BookWriter.GetNumBits());FLDWorldView BookRead;BookRead.NetSerialize(BookReader,nullptr,bOk);
+    TestTrue(TEXT("Generic book kind round trips without extra fields"),bOk&&BookRead.Entities[0].Kind==ELDObservedKind::Book);
     View.Entities.Add(Entity); FNetBitWriter Oversized(nullptr,65536); View.NetSerialize(Oversized,nullptr,bOk);
     TestFalse(TEXT("Pathological view count rejected"),bOk);
     return true;

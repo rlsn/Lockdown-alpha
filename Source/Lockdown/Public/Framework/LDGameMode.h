@@ -45,6 +45,7 @@ public:
 class ALDVisionDirector;
 class ALDCombatDirector;
 class ALDObjectiveDirector;
+class ALDDevelopmentDirector;
 class ALDPlayerController;
 struct FLDContenderRecord { FGuid Session; FLDOwnerState State; };
 
@@ -77,6 +78,7 @@ public:
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;
+    UPROPERTY() TObjectPtr<ALDDevelopmentDirector> Development;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

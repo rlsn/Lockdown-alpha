@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "Core/LDGroundQueries.h"
 #include "Objectives/LDObjectiveDirector.h"
+#include "Development/LDDevelopmentDirector.h"
 
 ALDCorpse::ALDCorpse()
 {
@@ -122,7 +123,8 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
     }
     else
     {
-        if(S->Action==7&&Action==0&&Now>=S->BasicReady){CancelSkill(Body,*S);}
+        if((S->Action==7||S->Action==8)&&Action==0&&Now>=S->BasicReady)
+        {if(S->Action==8){if(auto* PC=Cast<ALDPlayerController>(Body->GetController());PC&&Mode->Development){Mode->Development->Cancel(PC,TEXT("Interrupted by attack."));}}CancelSkill(Body,*S);}
         if(S->Action){Result=TEXT("Finish the current action first.");return false;}
         const FVector Aim=Direction.GetSafeNormal2D();
         if(Action==0)
@@ -175,6 +177,7 @@ void ALDCombatDirector::Sample(double Now)
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsFinished())
     {
+        if(Mode->Development){Mode->Development->Sample(Now);}
         if(Mode->IsDevelopmentProfile())
         {for(auto& Pair:Bodies){if(auto* Body=Pair.Key.Get()){CancelSkill(Body,Pair.Value);Sync(Body,Pair.Value);}}}
         for(const auto& Intent:Intents){if(auto* PC=Intent.Controller.Get()){PC->CompleteCombatRequest(Intent.Request,TEXT("Demo finished."));}}
@@ -233,7 +236,7 @@ void ALDCombatDirector::Sample(double Now)
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
         T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
-        if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}}
+        if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Damage cancelled the transaction."));}}
         const FVector Bearing=Hit.Source->GetActorLocation()-Victim->GetActorLocation();
         T->IncomingSector=uint8(FMath::RoundToInt(FRotator::ClampAxis(Bearing.Rotation().Yaw)/45))%8;
         if(T->Action==7||((T->Action==1||T->Action==2||T->Action==6)&&T->ImpactAt>Now+1.e-6))
@@ -242,6 +245,7 @@ void ALDCombatDirector::Sample(double Now)
     }
     // Damage wins against held completion, including a hit on the exact deadline.
     CompleteSkillChannels(Now);
+    if(Mode->Development){Mode->Development->Sample(Now);}
     for(auto& Pair:Bodies){if(Pair.Key.IsValid()){Sync(Pair.Key.Get(),Pair.Value);}}
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}

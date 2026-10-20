@@ -14,6 +14,21 @@ FLDCharacterBuild::FLDCharacterBuild()
     Cooldowns.Init(0, LDDevelopment::SkillCount);
 }
 
+bool FLDBuildPlan::NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success)
+{
+    uint8 Present=ExpectedRevision||Attributes.Num()||Ranks.Num()||Slots.Num()||Subclass?1:0;
+    Ar.SerializeBits(&Present,1);Success=true;
+    if(!Present){if(Ar.IsLoading()){*this=FLDBuildPlan();}return true;}
+    if(Ar.IsLoading()){Attributes.SetNum(6);Ranks.SetNum(LDDevelopment::SkillCount);Slots.SetNum(4);}
+    if(Attributes.Num()!=6||Ranks.Num()!=LDDevelopment::SkillCount||Slots.Num()!=4){Success=false;Ar.SetError();return false;}
+    Ar<<ExpectedRevision;
+    for(auto& Value:Attributes){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(Ar.IsSaving()&&(Value<0||Value>31)){Success=false;}Ar.SerializeBits(&Wire,5);if(Ar.IsLoading()){Value=Wire;}}
+    for(auto& Value:Ranks){uint8 Wire=Ar.IsLoading()?0:Value;if(Ar.IsSaving()&&Value>3){Success=false;}Ar.SerializeBits(&Wire,2);if(Ar.IsLoading()){Value=Wire;}}
+    for(auto& Value:Slots){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(Ar.IsSaving()&&Wire>15){Success=false;}Ar.SerializeBits(&Wire,4);if(Ar.IsLoading()){Value=ELDSkill(Wire);}}
+    uint8 SubclassWire=Ar.IsLoading()?0:Subclass;if(Ar.IsSaving()&&Subclass>7){Success=false;}Ar.SerializeBits(&SubclassWire,3);if(Ar.IsLoading()){Subclass=SubclassWire;}
+    Success&=!Ar.IsError();if(!Success){Ar.SetError();}return Success;
+}
+
 namespace LDDevelopment
 {
     const TCHAR* SkillName(ELDSkill Skill)
@@ -208,6 +223,15 @@ bool ULDCharacterCatalog::Validate(FString& Error) const
     for (int32 I=0;I<5;++I) { double Actual=0; if (!(*Levels)[I]->TryGetNumber(Actual)||Actual!=ExpectedLevels[I]) { Error=TEXT("Level thresholds differ from native rules."); return false; } }
     auto NumberIs=[](const TSharedPtr<FJsonObject>& Object,const TCHAR* Key,double Expected)
     { double Actual=0; return Object->TryGetNumberField(Key,Actual)&&Actual==Expected; };
+    const TSharedPtr<FJsonObject>* Books=nullptr;const TSharedPtr<FJsonObject>* Preparation=nullptr;const TArray<TSharedPtr<FJsonValue>>* Stock=nullptr;
+    if(!Root->TryGetObjectField(TEXT("books"),Books)||!Root->TryGetObjectField(TEXT("preparation"),Preparation)
+        ||!NumberIs(*Books,TEXT("priceGold"),40)||!NumberIs(*Books,TEXT("unreadCapacity"),4)||!NumberIs(*Books,TEXT("readChannelSeconds"),3)
+        ||!NumberIs(*Books,TEXT("quietSeconds"),6)||!NumberIs(*Books,TEXT("taughtRank"),1)||!NumberIs(*Books,TEXT("skillPointCost"),0)
+        ||!NumberIs(*Preparation,TEXT("rangeCm"),120)||!NumberIs(*Preparation,TEXT("channelSeconds"),2)||!NumberIs(*Preparation,TEXT("quietSeconds"),6)
+        ||!(*Books)->TryGetArrayField(TEXT("skills"),Stock)||Stock->Num()!=4)
+    {Error=TEXT("Book/preparation tuning differs from native schema-one rules.");return false;}
+    TSet<FString> ExpectedStock={TEXT("Step"),TEXT("Spark"),TEXT("Patch"),TEXT("Parley")};
+    for(const auto& Entry:*Stock){const FString Name=Entry->AsString();if(!ExpectedStock.Remove(Name)){Error=TEXT("Invalid book stock.");return false;}}
     const TArray<TSharedPtr<FJsonValue>>* Skills=nullptr;
     if (!Root->TryGetArrayField(TEXT("skills"),Skills)||Skills->Num()!=LDDevelopment::SkillCount-1)
     { Error=TEXT("Expected exactly nine active skill definitions."); return false; }

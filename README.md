@@ -5,7 +5,7 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B42 equipped skill execution; B40/B41 verified.** v0.4
+**Current checkpoint: B43 preparation and books; B40–B42 verified.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The Windows Development checkpoint builds, cooks and passes native and packaged
@@ -13,8 +13,10 @@ authority/network/reset checks. See the
 [implementation record](docs/v04/IMPLEMENTATION_REPORT.md) for evidence and limits.
 The [B42 checkpoint](docs/v04/B42_IMPLEMENTATION.md) adds slots 1–4, a mixed
 hotbar, persistent cooldowns, Step/Ambush/Spark/Patch and held utility dispatch.
-Next is B43's preparation, books and subclass transactions. The connected
-region and earned Seal acquisition remain in development.
+The [B43 checkpoint](docs/v04/B43_IMPLEMENTATION.md) adds held station commits,
+private previews, class learning, ranks, permanent subclasses and physical books.
+Next is B44's Charter services and wallet theft. The connected region and earned
+Seal acquisition remain in development.
 
 Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
 start as the lobby host. One human is practice; the declared cap is 25 minutes.
@@ -52,6 +54,9 @@ selects the explicit legacy profile, documented in the
 ./Scripts/RunDevelopmentCheck.ps1
 ./Scripts/RunDevelopmentCheck.ps1 -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunDevelopmentCheck.ps1 -Reset
+./Scripts/RunDevelopmentCheck.ps1 -Preparation
+./Scripts/RunDevelopmentCheck.ps1 -Preparation -Normal
+./Scripts/RunDevelopmentCheck.ps1 -Preparation -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunMovementCheck.ps1
 ./Scripts/RunViewNetworkCheck.ps1
 ./Scripts/RunCombatCheck.ps1

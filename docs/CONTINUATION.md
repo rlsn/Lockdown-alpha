@@ -1,104 +1,101 @@
-# Continuation — B42 equipped execution checkpoint
+# Continuation — B43 preparation and book checkpoint
 
-19 October 2026. B40/B41 are complete. B42 equipped execution is implemented and
-engineering-verified; see its [checkpoint record](v04/B42_IMPLEMENTATION.md).
-The full v0.4 release remains in development. Read the
+20 October 2026. B40–B43 are implemented and engineering-verified. The full v0.4
+release remains in development. Read the [B43 checkpoint](v04/B43_IMPLEMENTATION.md),
 [implementation record](v04/IMPLEMENTATION_REPORT.md),
 [working feature ledger](v04/FeatureLedger.csv),
 [master revision 4](master/README.md) and [v0.4 package](v04/README.md).
-
-Runtime checkpoint: `4306e46`. A fresh local checkout passed cold Editor/Game
-builds, 24-asset validation and 12 native rules without modifying its checkout:
-`Artifacts/20261019-233118-362-CleanCheckout/Result.json`. Local LFS hydration and
-shared engine caches were used; remote Git/LFS distribution was not tested.
+The checkpoint report indexes the current build, package and executed evidence.
 
 ## Current implementation
 
-The saved `DA_CharacterCatalog` imports the checked JSON companion and validates
-all nine native skill formulas/timings. `FLDCharacterBuild` is retained private
-contender state: class, six attributes, level, points, ranks, four slots, subclass,
-build revision and absolute cooldown endpoints. DEX derives native speed; STR
-snapshots basic damage. HP/damage preserve fractions; recalculation never heals.
-Death retains the build and applies the new delay/15 percent loss, then returns a
-new body/life at full derived HP with four-second protection.
+The saved `DA_CharacterCatalog` validates the native class/progression, nine skill,
+book and preparation contracts. Retained private build state contains class, six
+attributes, level, points, learned ranks, four slots, subclass, revision and
+absolute cooldown endpoints. Derived HP changes never heal. Death retains the
+build and knowledge, drops unread books, charges the bounded gold loss, then
+returns a new body/life at full derived HP with four-second protection.
 
 Frontend Host uses `?Profile=V04`. Private class/Ready/host RPCs start a locked
-1–4 contender roster; one is practice. The 1500-second timer starts then. Gameplay
-is blocked in the lobby. Public state contains only profile/start/aggregate counts.
-The explicit legacy profile opens the sandbox without the option for regressions.
-Normal v0.4 has no fixture gold, XP, Seal, book or Witness.
+1–4 contender roster; one is practice. The 1500-second deadline starts then.
+Gameplay is blocked in the lobby and during protection. Normal v0.4 has no fixture
+gold, XP, Seal, book or Witness. Opening the map without this option selects the
+explicit legacy profile used by retained regressions.
 
-Slots 1–4 resolve against the owner build revision at the authority sample.
-Q/Space alias equipped Ambush/Step slots. A mixed hotbar shows rank, cooldown and
-press/hold use. Raw legacy actions and E's existing protocol cannot bypass this.
-`LDSkillExecution.cpp` supplies source snapshots, native scaled Step, retained
-Ambush counterplay, locked single-body Spark, held self-Patch and utility dispatch.
-Every accepted skill starts its cooldown by persistent contender and SkillId.
+B42 slots 1–4 and Q/Space aliases resolve equipped skills against the current
+build revision. Accepted actions snapshot the source and persist their SkillId
+cooldown. Basic attacks, Step, Ambush, Spark, held Patch and utility capabilities
+share arbitration. Damage wins over held completion. Raw/context bypasses reject.
+Utility capabilities have read-only Validate, reservation Accept and once-only
+Commit stages. No production Charter or wallet capabilities are registered yet.
 
-Held skills cancel on release/stale input, movement, damage, menu/focus clearing
-or death. Combat key release does not cancel a committed cast. Damage wins over
-held completion. Existing objective work cannot complete in parallel. Private
-active-skill UI state clears at death/return/results. NPC builds use the same equipped
-path; shared Patch is covered by a fixture, not authored NPC content yet.
+P opens the private B43 panel. Local edits show a ghost preview; Apply only arms.
+Hold E for two seconds at Guild or West within 120 cm and geometric sight after
+six quiet seconds to commit the complete expected-revision plan atomically.
+Release/focus loss, stale input, movement, damage, death, source changes or lost
+range/sight cancel. Class learning/rank costs are cumulative; unused points and
+empty slots are valid. Level-four subclass choice is free, class-bound and
+permanent, with no extra skill or slot. The library scrolls independently so the
+confirmation controls remain visible.
 
-Utility target capabilities have Validate/Accept/Commit stages and a request token.
-Validate is read-only; Accept can reserve a retry window; completion rechecks
-range/sight/source/target and uses the source snapshot. No production Charter or
-wallet capability is registered. Mock callbacks prove dispatch, not rewards/RNG.
-The public observation schema still contains exactly eight approved fields.
+Guild sells Step/Spark/Patch/Parley books for 40 gold with four unread spaces.
+Physical instances carry unique IDs, taught skill and owned/dropped state. Read
+anywhere for three stationary seconds after six quiet seconds: consume once,
+teach rank one, no SP/XP/auto-equip/upgrade/cooldown reset. Known books are retained.
+Death/withdrawal drops unread books; opaque filtered book observations support
+current visibility/range/sight/capacity-checked pickups. Public proxies reveal no
+book skill, class, inventory or build. Observations retain exactly eight fields.
 
-## Next: B43
+## Next: B44
 
-Implement preparation with separate Learned/Equipped sections and a local ghost
-preview. Apply arms a proposed `FLDBuildPlan`; a stationary two-second E hold at
-an authorized station commits atomically after six quiet seconds. Recheck owner,
-life, build revision, range, sight, budgets, release/stale input and source action
-state at completion. Reject without spending; retain current absolute cooldowns.
-Offer cumulative class-learning/rank costs and a permanent free level-four
-subclass choice through this transaction. Unused points and empty slots are valid.
+Implement the four actual Charter alternatives using the shared equipped utility
+capability path and public task thresholds, with one retained Witness receipt.
+Show own scores without leaking a secret target DC. Register persistent humanoid
+wallet capabilities independent of body replacement and NPC/human identity.
 
-Implement real unique physical books: Guild sale for 40 gold, four unread capacity,
-owned or dropped state, a stationary three-second read after six quiet seconds,
-once-only consumption and rank-one teaching. Known skills reject with the book
-retained. Reading does not auto-equip or upgrade. Death drops unread books and
-retains knowledge. A new dropped-book observation kind must preserve the
-approved public fields and receive filtering/receipt tests.
+Implement Pickpocket rear/range/sight/protection/exposure eligibility, one server
+d20 draw on valid completion, atomic transfer of at most 12 existing gold,
+bounded receipts and stable 90-second source/target retry windows alongside the
+20-second SkillId cooldown. Accept should reserve the pair window; cancelled,
+invalid or duplicate requests must not draw or reroll. Failure applies 30-second
+Alert and four-second exposure without leaking an unauthorized origin. Test
+concurrent depletion, empty purses, life changes and role-neutral validation.
 
-Demonstrate normal cross-class book learning and two different builds from one
-start. Test overspend/stale/duplicate/interrupted commits and a recently used
-skill remaining on cooldown after swaps/rank changes. Preserve B42's boundary for
-every new contextual entry point. Use existing public sites until the B45 region;
-keep test grants explicitly gated outside normal play.
-
-B44 still requires real Charter services, stable wallets, pair retries, the RNG
-stream, receipts and theft consequences. B45 adds region/rewards/actual trained
-NPC/sabotage; B46 adds earned fabrication. For B45, replace fixed site/district
-helpers and parameterize fog bounds, encoding limits and minimap mapping together.
-The proposed towns are outside the current grid. Separate paid-contract counts
-from spendable credits. Full conquest remains deferred and protected.
+B45 still adds the connected region, bounded paid jobs/visits/sentinel rewards,
+trained NPC and real sabotage. Existing courier rewards and geography are preview
+behavior; the ordinary B43 demonstration does not certify the final eight-job
+budget. Parameterize region, fog bounds/encoding and minimap together; proposed
+towns are outside the current grid. The current 64-entity observation bound remains.
+The cooked ordinary-run probe found no AI route and uses swept clear-segment
+steering with native player movement; revalidate cooked NPC navigation in B45.
+B46 adds earned fabrication. Keep normal conquest protected and future routes
+accurately deferred. Separate paid-contract counts from spendable credits.
 
 ## Evidence and workflow
 
-The B42 report indexes the current package and executed evidence. There are still
-24 saved packages; migration input assets were not overwritten. Twelve native
-rules, 62 authority skill checks and two real remote clients at configured
-100/150 ms RTT with jitter pass. Retained combat/objective checks and reviewed
-720p/1080p mixed-hotbar captures pass. B41 results remain historical.
-
-Use `Scripts/RunDevelopmentCheck.ps1 -Skills`, adding `-Network -RoundTripMs 150
--JitterMs 25` for delayed skill checks or `-CaptureUI -Height 720` / `1080` for the
-mixed hotbar. `-PackageRoot` selects a cooked build. Without `-Skills`, the retained
-B41 local/lobby/network/reset checks remain available. Packaged network tests use
-a labelled headless listen authority and nonparticipating diagnostic connection.
-They do not certify a dedicated Server target or four-human capacity.
+Use `Scripts/RunDevelopmentCheck.ps1 -Preparation` for authority transactions,
+`-Preparation -Normal` for native travel and the courier-funded demonstration,
+`-Preparation -Network -RoundTripMs 150 -JitterMs 25` for real remote owning RPCs,
+and `-Preparation -CaptureUI -Height 720` / `1080` for the panel. `-PackageRoot`
+selects a cooked archive. `-Skills` retains the 62 B42 cases; no selector retains
+the 24 B41 cases. `-Reset` now dirties and clears books/channels as well as builds
+across ten real world reloads. Thirteen native rules include bounded draft wire
+serialization and the unchanged eight-field observation/public-state allowlists.
 
 Keep Unreal 5.8.3 CL 58210709 and focused C++. Close the editor for native/reflected
-changes; keep sources stable during builds. Run builds/probes sequentially and
-keep measured soaks separate. Bootstrap Validate writes no assets; Regenerate
-replaces generated content explicitly. Preserve the separate web baseline and
-hand-authored assets outside `/Game/Lockdown/Generated/`.
+changes; keep sources stable during builds. Run Unreal builds/probes sequentially.
+Bootstrap Validate writes no assets; Regenerate explicitly replaces generated
+content. Preserve frozen specifications, blank templates, hand-authored assets
+outside `/Game/Lockdown/Generated/` and the separate web baseline.
 
-Human usability, normal 25-minute play, a separate 90-minute soak, six human
-matches, dedicated packaging, authenticated resume and remote Git/LFS delivery
-remain pending/conditional. These checkpoint tests do not establish full release
-acceptance or 60–90 minute human pacing.
+Engineering probes label grants, teleports, controlled clocks and adversarial
+fixtures. The ordinary B43 run uses real rewards/native travel/original timers;
+it is automated local practice, not human acceptance. Packaged network checks use
+a headless listen authority with a nonparticipating diagnostic local connection,
+not a dedicated Server target. Fresh local checkout verification reuses the
+installed engine/shared caches and locally hydrated LFS objects.
+
+Human usability/diversity, normal 25-minute play, a separate 90-minute soak,
+six human matches, four-human capacity, dedicated packaging, authenticated resume
+and remote Git/LFS delivery remain pending/conditional. These checkpoints do not
+establish full v0.4 acceptance or 60–90 minute human pacing.

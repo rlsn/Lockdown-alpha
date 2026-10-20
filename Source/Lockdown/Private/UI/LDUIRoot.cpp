@@ -21,6 +21,7 @@
 #include "Framework/LDGameMode.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Components/ProgressBar.h"
+#include "UI/LDDevelopmentPanel.h"
 
 TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 {
@@ -205,6 +206,11 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             LobbyStart->SetIsEnabled(O.bLobbyHost&&GS->ReadyCount==GS->LobbyCount&&GS->LobbyCount>0);
             LobbyStart->SetVisibility(O.bLobbyHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
         }
+        if(!Lobby)
+        {
+            const bool Overlay=PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen();HeaderPanel->SetVisibility(Overlay?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            if(ActionPanel){ActionPanel->SetVisibility(Overlay?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
+        }
         const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
         const ALDWorldViewRelay* Relay=PC->LocalView();
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
@@ -236,7 +242,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         }
         if (O.bDevelopmentProfile)
         {
-            const FText Controls=FText::FromString(TEXT("WASD · Shift sprint · Click attack · 1–4 skills (hold utilities) · Q / Space equipped Ambush / Step · E courier · F ward · H help"));
+            const FText Controls=FText::FromString(TEXT("WASD · Shift · Click attack · 1–4 skills (hold utility) · Q/Space equipped aliases · P build/books · E work/loot · F ward · H help"));
             if (ControlsInfo) { ControlsInfo->SetText(Controls); } MenuHelp->SetText(Controls);
             FString Slots;
             for(int32 I=0;I<LDDevelopment::SlotCount;++I)
@@ -267,7 +273,7 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
     const int32 Result=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const ALDWorldViewRelay* Relay=PC ? PC->LocalView() : nullptr;
-    if (!Relay || PC->IsFrontend() || bInLobby) { return Result; }
+    if (!Relay || PC->IsFrontend() || bInLobby || (PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())) { return Result; }
     const FLDWorldView& View=Relay->LastView();
     const FVector2D Origin(Geometry.GetLocalSize().X-270,180);
     auto Box=[&](FVector2D At,FVector2D Size,FLinearColor Color)
@@ -295,6 +301,7 @@ void ULDUIRoot::DefenceCentral(){CastChecked<ALDPlayerController>(GetOwningPlaye
 
 void ULDUIRoot::ToggleMenu()
 {
+    if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();return;}
     if (bInLobby) { return; }
     if (CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend()) { return; }
     if(FixturePanel&&FixturePanel->GetVisibility()==ESlateVisibility::Visible){FixtureBack();return;}

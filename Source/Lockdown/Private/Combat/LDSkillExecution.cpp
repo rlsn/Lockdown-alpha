@@ -7,6 +7,7 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDGroundQueries.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Engine/World.h"
 
 FLDCharacterBuild* ALDCombatDirector::BuildFor(ALDCharacter* Body)
@@ -142,7 +143,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     }
     if (!Held) { S->QuietSince=Now; S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4); }
     Move->bCombatWalkOnly=S->Action==2||S->Action==6;
-    if (PC) { if (Mode->Objectives) { Mode->Objectives->Interrupt(PC,Now,true); } Mode->SyncOwner(PC); }
+    if (PC) { if (Mode->Objectives) { Mode->Objectives->Interrupt(PC,Now,true); }if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Interrupted by skill."));} Mode->SyncOwner(PC); }
     Sync(Body,*S); Result=FString::Printf(TEXT("%s accepted%s."),LDDevelopment::SkillName(Skill),Held?TEXT("; keep holding the slot key"):TEXT("")); return true;
 }
 void ALDCombatDirector::CompleteSkillChannels(double Now)

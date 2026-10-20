@@ -58,7 +58,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     Parts[4]->SetRelativeRotation(FRotator(-Swing,0,0));
     Parts[5]->SetRelativeRotation(FRotator(Swing,0,0));
     const uint8 Action=Cue&15;
-    if(Action==1||Action==2||Action==3||Action==6||Action==7)
+    if(Action==1||Action==2||Action==3||Action==6||Action==7||Action==8)
     {Parts[2]->SetRelativeRotation(FRotator(Action==2?-120:-75,0,-15));Parts[3]->SetRelativeRotation(FRotator(-75,0,15));}
     SetRelativeRotation(Action==5?FRotator(0,0,90):FRotator((Cue&32)?-15:0,0,0));
     Parts[0]->SetRelativeRotation(FRotator(Action==4?-20:0,0,0));

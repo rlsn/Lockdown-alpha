@@ -34,6 +34,17 @@ struct LOCKDOWN_API FLDBuildPlan
     UPROPERTY() TArray<uint8> Ranks;
     UPROPERTY() TArray<ELDSkill> Slots;
     UPROPERTY() uint8 Subclass = 0;
+    bool NetSerialize(FArchive& Ar,class UPackageMap* Map,bool& Success);
+};
+template<> struct TStructOpsTypeTraits<FLDBuildPlan> : TStructOpsTypeTraitsBase2<FLDBuildPlan>
+{enum {WithNetSerializer=true};};
+
+USTRUCT()
+struct LOCKDOWN_API FLDOwnedBook
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Id;
+    UPROPERTY() ELDSkill Skill=ELDSkill::None;
 };
 
 USTRUCT()

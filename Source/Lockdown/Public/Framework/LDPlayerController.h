@@ -20,6 +20,16 @@ public:
     void ChooseLobbyClass(uint8 ClassId);
     void ToggleLobbyReady();
     void StartLobby();
+    void ToggleDevelopmentPanel();
+    void BuyBook(ELDSkill Skill);
+    void StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan);
+    void StopDevelopmentHold();
+    void SetInteractionHeld(bool Held);
+    UFUNCTION(Server,Reliable) void ServerDevelopmentRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan);
+    UFUNCTION(Server,Unreliable) void ServerDevelopmentHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
+    UFUNCTION(Server,Reliable) void ServerDevelopmentRelease(uint32 Match,uint32 Life,uint32 Token);
+    UFUNCTION(Client,Reliable) void ClientDevelopmentResult(const FLDOwnerState& State,uint32 Request,const FString& Result);
+    UPROPERTY() TObjectPtr<class ULDDevelopmentPanel> DevelopmentUI;
     UFUNCTION(Server,Reliable) void ServerLobbyChoice(uint32 Match,uint32 Life,uint32 BuildRevision,uint8 ClassId,bool Ready);
     UFUNCTION(Server,Reliable) void ServerStartLobby(uint32 Match,uint32 Life);
     bool IsFrontend() const;
@@ -79,6 +89,8 @@ private:
     uint32 SkillHoldToken=0,SkillHoldSequence=0;
     uint8 HeldSkillSlot=255;
     double LastSkillHoldSent=-1000;
+    uint32 DevelopmentHoldToken=0,DevelopmentHoldSequence=0;
+    double LastDevelopmentHoldSent=-1000;
     void InteractStarted();
     void InteractStopped();
     bool bInteractHeld=false;
