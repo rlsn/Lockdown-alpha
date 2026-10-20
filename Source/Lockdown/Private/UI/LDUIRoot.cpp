@@ -219,6 +219,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         FString Danger=Now<O.WarningUntil?TEXT("DANGER: INCOMING CAST · Turn, escape, Step or deal damage!")
             :(Now<O.ProtectedUntil?FString::Printf(TEXT("Return protection %.1fs · Gameplay actions locked"),O.ProtectedUntil-Now)
                 :(Now<O.DamageUntil?FString::Printf(TEXT("HIT · Anonymous incoming sector %d/8 (world +X=0, toward +Y)"),O.IncomingSector):PC->IntentFeedback));
+        if(Now<O.AlertUntil){Danger+=FString::Printf(TEXT(" · Purse Alert %.1fs"),O.AlertUntil-Now);}
         Status->SetColorAndOpacity(Now<O.WarningUntil?FLinearColor(1,.35f,.2f):FLinearColor(.88f,.9f,.82f));
         FString Public=TEXT("Heart unavailable");
         if(GS)
@@ -259,7 +260,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             const TCHAR* Stage=O.ContractStage==1?TEXT("Collect at West station [W]"):O.ContractStage==2?TEXT("Deliver at Guild [G]"):TEXT("No active contract");
             FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):TEXT("Claiming"),O.ChannelProgress,O.ChannelKind==3?10.:3.):TEXT("Hold progress resets on interruption.");
             if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
-            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Commissions %d\n%s"),*PC->ContextPrompt(),Stage,O.Commissions,*Progress)));
+            ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Commissions %d · Charter Witness: %s\n%s"),*PC->ContextPrompt(),Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Progress)));
             if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
             {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
             ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/(O.ChannelKind==3?10.f:3.f),0.f,1.f):0));

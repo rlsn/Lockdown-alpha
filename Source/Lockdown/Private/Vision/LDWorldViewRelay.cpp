@@ -8,6 +8,8 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/TextRenderComponent.h"
+#include "Development/LDWorldChecks.h"
 
 ALDObservedEntityProxy::ALDObservedEntityProxy()
 {
@@ -19,6 +21,7 @@ ALDObservedEntityProxy::ALDObservedEntityProxy()
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere"));
     WardMesh->SetStaticMesh(Sphere.Object); WardMesh->SetRelativeScale3D(FVector(.24));
     WardMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision); WardMesh->SetCanEverAffectNavigation(false);
+    TaskLabel=CreateDefaultSubobject<UTextRenderComponent>(TEXT("PublicTaskLabel"));TaskLabel->SetupAttachment(RootComponent);TaskLabel->SetWorldSize(24);TaskLabel->SetRelativeLocation(FVector(0,0,65));TaskLabel->SetRelativeRotation(FRotator(0,135,0));TaskLabel->SetHorizontalAlignment(EHTA_Center);TaskLabel->SetVisibility(false);TaskLabel->SetCanEverAffectNavigation(false);
 }
 void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
 {
@@ -35,10 +38,15 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     }
     Body->SetVisibility(Entity.Kind==ELDObservedKind::Body,true);
     WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body);
+    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter);
+    TaskLabel->SetTextRenderColor(FColor(24, 24, 32));
+    if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Book)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.24,.34,.08));}
+    if(bFirst&&Entity.Kind==ELDObservedKind::Charter)
+    {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(FVector(.5,.5,.35));}
     bFirst=false;
 }
 void ALDObservedEntityProxy::Tick(float Delta)

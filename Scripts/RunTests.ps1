@@ -16,7 +16,7 @@ if ($process.ExitCode -ne 0) { throw "Automation process failed: $($process.Exit
 $indexPath = Join-Path $reportPath 'index.json'
 if (-not (Test-Path -LiteralPath $indexPath)) { throw "No automation report generated: $output" }
 $report = Get-Content -LiteralPath $indexPath -Raw | ConvertFrom-Json
-if ($report.failed -gt 0 -or $report.notRun -gt 0 -or $report.inProcess -gt 0 -or $report.succeeded -lt 13) {
-    throw "Automation report has failures, incomplete tests, or fewer than the thirteen expected rule tests: $indexPath"
+if ($report.failed -gt 0 -or $report.notRun -gt 0 -or $report.inProcess -gt 0 -or $report.succeeded -lt 14) {
+    throw "Automation report has failures, incomplete tests, or fewer than the fourteen expected rule tests: $indexPath"
 }
 Write-Host "Automation passed: $($report.succeeded) tests. Evidence: $output"

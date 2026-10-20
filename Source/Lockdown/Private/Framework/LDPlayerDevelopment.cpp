@@ -15,6 +15,7 @@ void ALDPlayerController::ToggleDevelopmentPanel()
 void ALDPlayerController::BuyBook(ELDSkill Skill)
 {StopDevelopmentHold();ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
 void ALDPlayerController::SetInteractionHeld(bool Held){if(Held){InteractStarted();}else{InteractStopped();}}
+void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)
 {
     ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;

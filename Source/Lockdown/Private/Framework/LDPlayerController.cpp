@@ -28,6 +28,7 @@
 #include "Tests/LDSoakProbe.h"
 #include "Tests/LDDevelopmentProbe.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDWorldChecks.h"
 
 namespace
 {
@@ -238,7 +239,19 @@ FString ALDPlayerController::ContextPrompt() const
     if(!OwnerState.bActive){return TEXT("Waiting: owned ward and shared sight only.");}
     const double Now=GS?GS->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
     if(Now<OwnerState.ProtectedUntil){return TEXT("Return protection: gameplay actions locked.");}
-    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. Hold utility keys. E: courier at Guild [G] / West [W]. Charter tasks and Seal crafting pending."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
+    if(OwnerState.bDevelopmentProfile&&GetPawn())
+    {
+        const FLDObservedEntity* NearestTask=nullptr;double Distance=120*120+1.;
+        if(const auto* Relay=LocalView();Relay&&!Relay->IsStale()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(GetPawn()->GetActorLocation(),E.Position);if(E.Kind==ELDObservedKind::Charter&&D<Distance){NearestTask=&E;Distance=D;}}}
+        if(NearestTask)
+        {
+            const auto Skill=LDCharter::Skill(NearestTask->Presentation);const auto& Build=OwnerState.Build;const int32 Slot=Build.Slots.Find(Skill);
+            if(OwnerState.Witness.IsValid()){return TEXT("Charter Witness recorded. E remains work/loot; no duplicate Charter reward.");}
+            if(!LDDevelopment::Rank(Build,Skill)){return FString::Printf(TEXT("%s · %s threshold 12 · Unlearned. P: learn and prepare. E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill));}
+            return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
+        }
+    }
+    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: hold equipped utility skills. Charter services surround Guild. Pickpocket: visible humanoid rear, 100 cm. E work/loot; P build/books. Seal crafting pending."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
     if(Target==5){return TEXT("E: pick up visible unread book within 80 cm. P: inventory and reading.");}
     if(Target==LDObjective::Heart)

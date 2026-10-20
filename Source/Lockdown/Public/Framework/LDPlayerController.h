@@ -25,6 +25,7 @@ public:
     void StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan);
     void StopDevelopmentHold();
     void SetInteractionHeld(bool Held);
+    void SetSkillHeld(uint8 Slot,bool Held);
     UFUNCTION(Server,Reliable) void ServerDevelopmentRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan);
     UFUNCTION(Server,Unreliable) void ServerDevelopmentHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
     UFUNCTION(Server,Reliable) void ServerDevelopmentRelease(uint32 Match,uint32 Life,uint32 Token);

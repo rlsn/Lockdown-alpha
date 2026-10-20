@@ -10,6 +10,7 @@
 #include "Core/LDGroundQueries.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDWorldChecks.h"
 
 ALDCorpse::ALDCorpse()
 {
@@ -250,7 +251,7 @@ void ALDCombatDirector::Sample(double Now)
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}
     for(int32 I=Residents.Num()-1;I>=0;--I)
-    {if(Now>=Residents[I].At){GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);Residents.RemoveAtSwap(I);}}
+    {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}Residents.RemoveAtSwap(I);}}
     Mode->ReturnDueContenders(Now);
     if(Mode->Objectives){Mode->Objectives->Sample(Now);}
 }
@@ -259,7 +260,7 @@ void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
     auto* S=StateFor(Body);if(!S){return;}
     if(ALDCorpse* Corpse=GetWorld()->SpawnActor<ALDCorpse>(Body->GetActorLocation()-FVector(0,0,65),Body->GetActorRotation())){Corpse->Presentation=Body->PresentationKey;}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->EndContenderLife(PC,Now);}
-    else if(Body->IsA<ALDResident>()){Residents.Add({Now+20,S->Home});}
+    else if(Body->IsA<ALDResident>()){auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks.Get();Residents.Add({Now+20,S->Home,W?W->WalletId(Body):FGuid()});}
     if(AController* Controller=Body->GetController()){Controller->UnPossess();if(!Controller->IsPlayerController()){Controller->Destroy();}}
     Body->Destroy();
 }

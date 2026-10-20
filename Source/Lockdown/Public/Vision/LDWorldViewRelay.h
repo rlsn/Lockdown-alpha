@@ -6,6 +6,7 @@
 #include "LDWorldViewRelay.generated.h"
 class ULDHumanoidVisualComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 class UTexture2D;
 class UMaterialInstanceDynamic;
 
@@ -21,6 +22,7 @@ public:
 private:
     UPROPERTY() TObjectPtr<ULDHumanoidVisualComponent> Body;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> WardMesh;
+    UPROPERTY() TObjectPtr<UTextRenderComponent> TaskLabel;
     FVector Destination = FVector::ZeroVector;
     float Facing = 0, Speed = 0;
     uint8 Palette = 255;

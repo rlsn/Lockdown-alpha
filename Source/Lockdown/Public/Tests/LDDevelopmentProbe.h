@@ -42,6 +42,10 @@ private:
     void PreparationServerTick();
     void PreparationClientTick();
     void PreparationNormalTick();
+    void WorldCheck();
+    void WorldServerTick();
+    void WorldClientTick();
+    void WorldNormalTick();
     TArray<FVector> NormalPath;
     int32 NormalPathIndex=0,NormalDeliveries=0;
     double NormalHoldAt=0;

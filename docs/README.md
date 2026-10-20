@@ -2,8 +2,8 @@
 
 Active release: **v0.4 development**. B40 baseline verification has passed, and
 B41 adds private character state and a Ready lobby; B42 adds equipped skill
-execution and a mixed hotbar; B43 adds preparation, subclasses and physical books
-on the retained migration map.
+execution and a mixed hotbar; B43 adds preparation, subclasses and physical books;
+B44 adds Charter Witness checks and persistent wallet theft on the migration map.
 The complete class/skill/region/acquisition loop remains in development.
 
 | Start here | Purpose |
@@ -15,6 +15,7 @@ The complete class/skill/region/acquisition loop remains in development.
 | [B40 audit](v04/B40_BASELINE_AUDIT.md) | Fresh build, native and packaged baseline results |
 | [B42 execution](v04/B42_IMPLEMENTATION.md) | Equipped skills, held channels and checkpoint evidence |
 | [B43 preparation](v04/B43_IMPLEMENTATION.md) | Private build preview, held commits, books and checkpoint evidence |
+| [B44 world checks](v04/B44_IMPLEMENTATION.md) | Charter alternatives, persistent purses, theft and checkpoint evidence |
 | [v0.4 implementation record](v04/IMPLEMENTATION_REPORT.md) | Current implementation and verification boundary |
 | [v0.4 feature ledger](v04/FeatureLedger.csv) | Working inventory; baseline observations and open implementation work |
 | [v0.3 implementation archive](v03/implementation/README.md) | B32–B36 reports, tests, demo, audits and migration ledger |

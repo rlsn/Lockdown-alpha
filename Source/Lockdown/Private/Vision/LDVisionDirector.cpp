@@ -11,6 +11,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDWorldChecks.h"
 #include "Objectives/LDObjectiveRules.h"
 
 ALDWard::ALDWard()
@@ -180,6 +181,7 @@ void ALDVisionDirector::Sample(bool bPublish)
     for(TActorIterator<ALDCorpse> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDSeal> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
+    for(TActorIterator<ALDCharterTask> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
     {
         ALDPlayerController* PC=Pair.Key.Get(); FObserver& Observer=Pair.Value;
@@ -223,6 +225,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
+            else if(const auto* Task=Cast<ALDCharterTask>(Actor)){Record.Kind=ELDObservedKind::Charter;Record.Presentation=Task->Service;}
             else { Record.Kind=ELDObservedKind::Ward; }
             View.Entities.Add(Record); Visible.Add(Id);
         }

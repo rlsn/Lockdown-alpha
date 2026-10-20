@@ -24,6 +24,7 @@ bool FLDViewPayloadTest::RunTest(const FString& Parameters)
     View.Entities[0].Kind=ELDObservedKind::Book;FNetBitWriter BookWriter(nullptr,65536);View.NetSerialize(BookWriter,nullptr,bOk);
     FNetBitReader BookReader(nullptr,BookWriter.GetData(),BookWriter.GetNumBits());FLDWorldView BookRead;BookRead.NetSerialize(BookReader,nullptr,bOk);
     TestTrue(TEXT("Generic book kind round trips without extra fields"),bOk&&BookRead.Entities[0].Kind==ELDObservedKind::Book);
+    View.Entities[0].Kind=ELDObservedKind::Charter;View.Entities[0].Presentation=3;FNetBitWriter TaskWriter(nullptr,65536);View.NetSerialize(TaskWriter,nullptr,bOk);FNetBitReader TaskReader(nullptr,TaskWriter.GetData(),TaskWriter.GetNumBits());FLDWorldView TaskRead;TaskRead.NetSerialize(TaskReader,nullptr,bOk);TestTrue(TEXT("Public Charter kind fits the unchanged schema"),bOk&&TaskRead.Entities[0].Kind==ELDObservedKind::Charter&&TaskRead.Entities[0].Presentation==3);
     View.Entities.Add(Entity); FNetBitWriter Oversized(nullptr,65536); View.NetSerialize(Oversized,nullptr,bOk);
     TestFalse(TEXT("Pathological view count rejected"),bOk);
     return true;

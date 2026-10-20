@@ -27,6 +27,7 @@
 #include "GameFramework/GameSession.h"
 #include "Tests/LDDevelopmentProbe.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDWorldChecks.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -107,7 +108,7 @@ void ALDGameMode::StartPlay()
     Vision->AddTickPrerequisiteActor(Combat);
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
-    if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();}
+    if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();WorldChecks=GetWorld()->SpawnActor<ALDWorldChecks>();}
     if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get());PC&&StateFor(PC)) { SyncOwner(PC); Vision->Register(PC); } }
@@ -190,6 +191,8 @@ void ALDGameMode::Logout(AController* Exiting)
 }
 FLDOwnerState* ALDGameMode::StateFor(ALDPlayerController* PC)
 { FLDContenderRecord* Record=Contenders.Find(PC); return Record ? &Record->State : nullptr; }
+FGuid ALDGameMode::ContenderId(ALDPlayerController* PC) const
+{const auto* Record=Contenders.Find(PC);return Record?Record->Session:FGuid();}
 void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 {
     if (FLDOwnerState* State=StateFor(PC))

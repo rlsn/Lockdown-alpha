@@ -46,6 +46,7 @@ class ALDVisionDirector;
 class ALDCombatDirector;
 class ALDObjectiveDirector;
 class ALDDevelopmentDirector;
+class ALDWorldChecks;
 class ALDPlayerController;
 struct FLDContenderRecord { FGuid Session; FLDOwnerState State; };
 
@@ -62,6 +63,7 @@ public:
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
     FLDOwnerState* StateFor(ALDPlayerController* Controller);
+    FGuid ContenderId(ALDPlayerController* Controller) const;
     void SyncOwner(ALDPlayerController* Controller);
     void EndContenderLife(ALDPlayerController* Controller,double Now);
     void ReturnDueContenders(double Now);
@@ -79,6 +81,7 @@ public:
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;
     UPROPERTY() TObjectPtr<ALDDevelopmentDirector> Development;
+    UPROPERTY() TObjectPtr<ALDWorldChecks> WorldChecks;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

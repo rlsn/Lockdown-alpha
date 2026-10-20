@@ -59,6 +59,7 @@ public:
     // Commit runs once after damage and final validation, using the source snapshot.
     using FSkillTask = TFunction<bool(ALDCharacter*,ELDSkill,const FLDCharacterBuild&,uint32,ELDSkillTaskPhase,FString&)>;
     void RegisterSkillTask(AActor* Target,const TSet<ELDSkill>& Skills,FSkillTask Task);
+    bool HasSkillTask(AActor* Target) const {return SkillTasks.Contains(Target);}
     FLDBodyCombatState* StateFor(ALDCharacter* Body) { return Bodies.Find(Body); }
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const { return Bodies.Find(const_cast<ALDCharacter*>(Body)); }
     uint8 CueFor(const ALDCharacter* Body) const;
@@ -67,7 +68,7 @@ public:
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
-    struct FResidentReturn { double At; FVector Home; };
+    struct FResidentReturn { double At; FVector Home; FGuid Wallet; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TArray<FResidentReturn> Residents;
     struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0; };

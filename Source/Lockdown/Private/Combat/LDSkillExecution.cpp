@@ -8,6 +8,7 @@
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDGroundQueries.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDWorldChecks.h"
 #include "Engine/World.h"
 
 FLDCharacterBuild* ALDCombatDirector::BuildFor(ALDCharacter* Body)
@@ -59,6 +60,7 @@ void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 L
 }
 void ALDCombatDirector::CancelSkill(ALDCharacter* Body,FLDBodyCombatState& S)
 {
+    if(S.Action==7&&S.Skill==ELDSkill::Pickpocket){if(auto* D=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks.Get()){D->CancelAttempt(Body,S.SkillToken);}}
     S.Action=0; S.Skill=ELDSkill::None; S.Target.Reset(); S.SkillToken=0;
     CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement())->bCombatWalkOnly=false;
 }
@@ -112,6 +114,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     }
     else if (Held&&Skill!=ELDSkill::Patch)
     {
+        if(Mode->WorldChecks){Mode->WorldChecks->EnsureTargets();}
         double Distance=DBL_MAX; FGuid BestId;
         for (auto& Pair:SkillTasks)
         {

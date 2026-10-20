@@ -223,6 +223,22 @@ bool ULDCharacterCatalog::Validate(FString& Error) const
     for (int32 I=0;I<5;++I) { double Actual=0; if (!(*Levels)[I]->TryGetNumber(Actual)||Actual!=ExpectedLevels[I]) { Error=TEXT("Level thresholds differ from native rules."); return false; } }
     auto NumberIs=[](const TSharedPtr<FJsonObject>& Object,const TCHAR* Key,double Expected)
     { double Actual=0; return Object->TryGetNumberField(Key,Actual)&&Actual==Expected; };
+    const TSharedPtr<FJsonObject>* Witness=nullptr;const TSharedPtr<FJsonObject>* Theft=nullptr;const TArray<TSharedPtr<FJsonValue>>* Alternatives=nullptr;
+    if(!Root->TryGetObjectField(TEXT("witness"),Witness)||!Root->TryGetObjectField(TEXT("theft"),Theft)
+        ||!NumberIs(*Witness,TEXT("threshold"),12)||!NumberIs(*Witness,TEXT("rangeCm"),120)||!NumberIs(*Witness,TEXT("receiptsPerContender"),1)||!NumberIs(*Witness,TEXT("xp"),0)||!NumberIs(*Witness,TEXT("gold"),0)
+        ||!(*Witness)->TryGetArrayField(TEXT("alternatives"),Alternatives)||Alternatives->Num()!=4
+        ||!NumberIs(*Theft,TEXT("rangeCm"),100)||!NumberIs(*Theft,TEXT("rearTotalSectorDegrees"),120)||!NumberIs(*Theft,TEXT("pairWindowSeconds"),90)
+        ||!NumberIs(*Theft,TEXT("channelSeconds"),1)||!NumberIs(*Theft,TEXT("skillCooldownSeconds"),20)||!NumberIs(*Theft,TEXT("transferGoldMaximum"),12)
+        ||!NumberIs(*Theft,TEXT("failureAlertSeconds"),30)||!NumberIs(*Theft,TEXT("failureExposureSeconds"),4)||!NumberIs(*Theft,TEXT("residentInitialGold"),36)||!NumberIs(*Theft,TEXT("xp"),0))
+    {Error=TEXT("Witness/theft tuning differs from native schema-one rules.");return false;}
+    TSet<FString> ExpectedAlternatives={TEXT("Heave"),TEXT("Analyze"),TEXT("Parley"),TEXT("Survey")};for(const auto& A:*Alternatives){if(!ExpectedAlternatives.Remove(A->AsString())){Error=TEXT("Invalid Charter alternative.");return false;}}
+    for(const TCHAR* Key:{TEXT("requiresEquipped"),TEXT("rejectInsufficientScoreBeforeCooldown")}){bool Value=false;if(!(*Witness)->TryGetBoolField(Key,Value)||!Value){Error=TEXT("Invalid Charter activation flag.");return false;}}
+    for(const auto& Item:TArray<TPair<FString,bool>>{{TEXT("requiresBodyLOS"),true},{TEXT("targetMustBeUnexposed"),true},{TEXT("reservePairAtAcceptedStart"),true},{TEXT("naturalRollOverrides"),false},{TEXT("drawOnInvalidOrPreview"),false},{TEXT("refillWalletOnRespawn"),false}})
+    {bool Value=false;if(!(*Theft)->TryGetBoolField(Item.Key,Value)||Value!=Item.Value){Error=TEXT("Invalid theft commitment flag.");return false;}}
+    const TArray<TSharedPtr<FJsonValue>>* Rolls=nullptr;FString Bonus,Difficulty;
+    if(!(*Theft)->TryGetArrayField(TEXT("rollInclusive"),Rolls)||Rolls->Num()!=2||(*Rolls)[0]->AsNumber()!=1||(*Rolls)[1]->AsNumber()!=20||!NumberIs(*Theft,TEXT("drawsPerValidCompletion"),1)
+        ||!(*Theft)->TryGetStringField(TEXT("attackerBonus"),Bonus)||Bonus!=TEXT("floor((DEX - 10) / 2) + R + (Cutpurse ? 1 : 0)")||!(*Theft)->TryGetStringField(TEXT("difficulty"),Difficulty)||Difficulty!=TEXT("12 + floor((targetWIS - 10) / 2) + (targetAlertActive ? 2 : 0)"))
+    {Error=TEXT("Invalid theft roll contract.");return false;}
     const TSharedPtr<FJsonObject>* Books=nullptr;const TSharedPtr<FJsonObject>* Preparation=nullptr;const TArray<TSharedPtr<FJsonValue>>* Stock=nullptr;
     if(!Root->TryGetObjectField(TEXT("books"),Books)||!Root->TryGetObjectField(TEXT("preparation"),Preparation)
         ||!NumberIs(*Books,TEXT("priceGold"),40)||!NumberIs(*Books,TEXT("unreadCapacity"),4)||!NumberIs(*Books,TEXT("readChannelSeconds"),3)

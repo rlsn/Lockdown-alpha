@@ -5,7 +5,7 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B43 preparation and books; B40–B42 verified.** v0.4
+**Current checkpoint: B44 Charter and wallet theft; B40–B43 verified.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The Windows Development checkpoint builds, cooks and passes native and packaged
@@ -15,14 +15,18 @@ The [B42 checkpoint](docs/v04/B42_IMPLEMENTATION.md) adds slots 1–4, a mixed
 hotbar, persistent cooldowns, Step/Ambush/Spark/Patch and held utility dispatch.
 The [B43 checkpoint](docs/v04/B43_IMPLEMENTATION.md) adds held station commits,
 private previews, class learning, ranks, permanent subclasses and physical books.
-Next is B44's Charter services and wallet theft. The connected region and earned
-Seal acquisition remain in development.
+The [B44 checkpoint](docs/v04/B44_IMPLEMENTATION.md) adds four Charter alternatives,
+a retained private Witness, persistent humanoid purses and once-only Pickpocket
+transfers. Next is B45's connected region, bounded rewards and authored NPCs.
+Earned Seal acquisition remains in development.
 
 Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
 start as the lobby host. One human is practice; the declared cap is 25 minutes.
 This preview retains migration-map geometry and courier work. Press 1–4 for the
-equipped skill; hold utility keys. Q/Space require equipped Ambush/Step. Charter
-and theft outcomes, book learning, preparation and Seal crafting remain pending.
+equipped skill; hold utility keys. Q/Space require equipped Ambush/Step. P opens
+preparation and books. Charter markers show the public skill threshold; the HUD
+shows your own score. Hold equipped Pickpocket behind an eligible humanoid.
+Seal crafting remains pending.
 Opening the sandbox without `?Profile=V04`
 selects the explicit legacy profile, documented in the
 [v0.3 implementation archive](docs/v03/implementation/README.md).
@@ -57,6 +61,9 @@ selects the explicit legacy profile, documented in the
 ./Scripts/RunDevelopmentCheck.ps1 -Preparation
 ./Scripts/RunDevelopmentCheck.ps1 -Preparation -Normal
 ./Scripts/RunDevelopmentCheck.ps1 -Preparation -Network -RoundTripMs 150 -JitterMs 25
+./Scripts/RunDevelopmentCheck.ps1 -WorldChecks
+./Scripts/RunDevelopmentCheck.ps1 -WorldChecks -Normal
+./Scripts/RunDevelopmentCheck.ps1 -WorldChecks -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunMovementCheck.ps1
 ./Scripts/RunViewNetworkCheck.ps1
 ./Scripts/RunCombatCheck.ps1

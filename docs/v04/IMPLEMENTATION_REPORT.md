@@ -4,7 +4,8 @@ Implementation started 19 October 2026 from `451fcb5`. This is an incremental
 development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
-Current preparation and book changes: [B43 checkpoint](B43_IMPLEMENTATION.md).
+Current world-check and theft changes: [B44 checkpoint](B44_IMPLEMENTATION.md).
+Preparation and book history: [B43 checkpoint](B43_IMPLEMENTATION.md).
 The [B42 execution checkpoint](B42_IMPLEMENTATION.md) remains historical evidence
 for `4306e46`; its clean-checkout builds, 24 assets and 12 rules passed.
 B43 runtime checkpoint: `f5da328`. A fresh local checkout passed cold Editor/Game
@@ -22,8 +23,11 @@ the B43 record indexes its result and local cache/LFS boundary.
   permanent subclass choice and unique physical books implemented. An automated
   ordinary courier-funded Rogue learns Spark and prepares a mixed four-slot build.
   See its checkpoint record for native/cooked evidence and fixture boundaries.
-- B44–B47: not implemented or accepted. Charter services, wallets/theft, the
-  connected region, earned fabrication and full release verification remain open.
+- B44: four equipped Charter alternatives, once-only private Witness, persistent
+  humanoid wallets and transactional Pickpocket implemented. Its checkpoint
+  indexes native/cooked tests, delayed clients, ordinary input and reset evidence.
+- B45–B47: not implemented or accepted. The connected region, bounded rewards,
+  authored NPCs, earned fabrication and full release verification remain open.
 
 ## Implemented foundation
 
@@ -63,8 +67,10 @@ as engineering fixtures. B43 separately verifies actual station allocation, book
 subclass choice and an ordinary courier-funded cross-class preparation run.
 Its authority/network setup grants remain fixtures, and its ordinary run is
 automated local practice. None demonstrates earned Heart acquisition.
-The new region, expanded fog bounds, shared trained NPC, wallet theft and real
-fabrication remain later milestone work. Current play still uses migration-map
+The new region, expanded fog bounds, authored trained NPC and real fabrication
+remain later milestone work. B44 wallet theft uses the shared humanoid capability;
+its adversarial setup and authority-clock adjustments are labelled fixtures.
+Current play still uses migration-map
 geometry and courier flow; it is a development checkpoint.
 
 Native rule tests cover starting budgets, derived and skill arithmetic, threshold/cap
@@ -139,7 +145,7 @@ excluded from passing results above.
 
 Passed rows cover the stated engineering case. Not run includes partial foundation
 evidence when its full v0.4 transaction/UI/scenario is still absent. Checkpoint
-tests do not establish acceptance of B44–B47. B42/B43 executed cases are indexed
+tests do not establish acceptance of B45–B47. B42–B44 executed cases are indexed
 separately and update only the applicable engineering rows below.
 
 | ID | Status | Evidence or remaining work |
@@ -166,14 +172,14 @@ separately and update only the applicable engineering rows below.
 | C20 | Passed | B42 scaled fractional Ambush, warning/exposure, rear/target-history counterplay and interruption |
 | C21 | Passed | B42 locked one-body cast, fractional snapshot, range/sight/protection rechecks, subclass arithmetic and delayed private warning |
 | C22 | Passed | B42 capped snapshot healing, full-HP rejection, held refresh/release/staleness/movement and deadline damage ordering |
-| C23 | Not run | Four Charter services and Witness pending |
-| C24 | Not run | Spark and utility dispatch geometry verified; real Charter/theft/sabotage targets remain B44–B45 |
-| C25 | Not run | Theft helper exists; B44 enumeration/transaction evidence pending |
-| C26 | Not run | One-draw theft RNG/receipt path pending |
-| C27 | Not run | Stable wallet-pair retry windows pending |
-| C28 | Not run | Atomic finite wallet transfer pending |
-| C29 | Not run | Theft Alert/exposure consequences pending |
-| C30 | Not run | Persistent resident wallets pending |
+| C23 | Passed | B44 four real alternatives; threshold/equipment guards; private once-only Witness; ordinary Survey hold; no gold/XP |
+| C24 | Not run | B44 Charter/theft range/sight/equipment checks pass; B45 real sabotage remains pending |
+| C25 | Passed | B44 rear/range/sight/protection/exposure and stationary channel guards; exact d20 enumeration and bounded math |
+| C26 | Passed | Private Theft stream; valid completion draws once; replay/invalid/cancelled requests draw nothing; snapshot source/current target |
+| C27 | Passed | Acceptance reserves 90-second stable wallet pair alongside 20-second skill cooldown; exact deadline and new-life retention |
+| C28 | Passed | Atomic min(12,current gold); concurrent depletion, empty purses, actual contender gold and no XP |
+| C29 | Passed | Failure retains funds; Alert 30 seconds and exposure four seconds; delayed private victim cue with no origin |
+| C30 | Passed | Resident starts with 36; actual combat death/return keeps depleted wallet; NPC source uses common capability |
 | C31 | Not run | Region graph, authored routes and alternate topology pending |
 | C32 | Not run | Traversal and first-visit receipts pending |
 | C33 | Not run | Preview pays 45 XP; alternating towns/eight-payment budget pending |
@@ -184,15 +190,15 @@ separately and update only the applicable engineering rows below.
 | C38 | Not run | Normal zero-kill earned acquisition pending |
 | C39 | Not run | Legacy recovery retained; earned-drop scenario pending |
 | C40 | Not run | Delay/loss arithmetic and death/duplicate return pass; new withdrawal case pending |
-| C41 | Passed | Retained B41/B42 life/build/cooldown checks plus B43 acquired knowledge, physical drops and stale old-life book requests |
-| C42 | Not run | B41–B43 builds/skills/books use owner-only state; eight-field schema and delayed clients pass; future wallet/DC domains remain B44–B45 |
-| C43 | Not run | B42 trained-build NPC Patch fixture passes shared slot/rank/channel/cooldown rules; authored trained NPC remains B45 |
-| C44 | Not run | Lobby lock and ten B43 resets cover books/channels/queues; future wallet/receipt domains and authenticated resume remain pending/deferred |
-| C45 | Not run | B43 builds/assets/cooked clients supplement retained delivery evidence; full V04 scenarios pending |
-| C46 | Not run | B42 skill and B43 book/point cases pass at native 100/150 ms and cooked 150 ms; random theft cases remain B44 |
-| C47 | Not run | Ten B43 resets pass; normal 25-minute and separate 90-minute cases pending |
+| C41 | Passed | Retained life/build/cooldown/knowledge and physical-drop checks plus B44 Witness, stable wallet, retry and Alert retention; old-life requests reject |
+| C42 | Not run | B44 owner-only Witness/outcome/Alert and server-only wallet/DC/seed; unchanged eight-field schema and delayed clients pass; complete B45 domain audit pending |
+| C43 | Not run | B42 NPC Patch and B44 NPC-source theft fixtures use shared slot/rank/channel/cooldown/wallet rules; authored trained NPC remains B45 |
+| C44 | Not run | Ten B44 resets dirty real theft draws/receipts and clear wallet/Witness/retry/Alert alongside books/builds; authenticated resume remains deferred |
+| C45 | Not run | B44 builds/assets/cooked clients supplement retained delivery evidence; full V04 scenarios pending |
+| C46 | Not run | B44 Witness and success/failure theft pass at native 100/150 ms and cooked 150 ms; full region/acquisition scenarios pending |
+| C47 | Not run | Ten B44 resets pass; normal 25-minute and separate 90-minute cases pending |
 | C48 | Not run | Honest checkpoint ledger/report supplied; full release/human evidence pending |
 
 No human matches, build-diversity study, normal earned acquisition, long-session
 pacing or 90-minute stability run occurred. Dedicated packaging and remote Git/LFS
-distribution remain conditional/unverified. Next implementation milestone: B44.
+distribution remain conditional/unverified. Next implementation milestone: B45.
