@@ -7,6 +7,9 @@ B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current preparation and book changes: [B43 checkpoint](B43_IMPLEMENTATION.md).
 The [B42 execution checkpoint](B42_IMPLEMENTATION.md) remains historical evidence
 for `4306e46`; its clean-checkout builds, 24 assets and 12 rules passed.
+B43 runtime checkpoint: `f5da328`. A fresh local checkout passed cold Editor/Game
+builds, 24-asset validation and 13 rules without modifying its tracked checkout;
+the B43 record indexes its result and local cache/LFS boundary.
 
 ## Milestones
 

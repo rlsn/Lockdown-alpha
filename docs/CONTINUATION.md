@@ -6,6 +6,9 @@ release remains in development. Read the [B43 checkpoint](v04/B43_IMPLEMENTATION
 [working feature ledger](v04/FeatureLedger.csv),
 [master revision 4](master/README.md) and [v0.4 package](v04/README.md).
 The checkpoint report indexes the current build, package and executed evidence.
+Runtime checkpoint: `f5da328`. Its fresh local checkout passed cold Editor/Game
+builds, 24-asset validation and 13 rules and stayed clean:
+`Artifacts/20261020-102145-187-CleanCheckout/Result.json`.
 
 ## Current implementation
 

@@ -2,6 +2,7 @@
 
 20 October 2026. This checkpoint adds the preparation and book lifecycle on the
 existing migration map. B44–B47 and full v0.4 acceptance remain separate work.
+Runtime checkpoint: `f5da328ea8fe3738f7a1919e5ca58d3a350fb88e`.
 
 ## Runtime changes
 
@@ -88,6 +89,7 @@ Artifacts and are excluded from passing evidence.
 | Cooked B42 skills / B41 state | Passed, 62 / 24 checks | `20261020-101917-659-Packaged-Skills-DevelopmentCheck/Skills.json`; `20261020-101920-260-Packaged-DevelopmentCheck/Local.json` |
 | Ten cooked world reloads | Passed, 53 checks | `20261020-101922-854-Packaged-DevelopmentReset/Reset.json` |
 | Cooked 720p panel | Captured and visually reviewed | `20261020-101933-560-Packaged-Preparation-DevelopmentUI-720/Preparation.png` |
+| Fresh local checkout of `f5da328` | Passed: preflight, 24 LFS packages, cold Editor/Game builds, saved-asset validation and 13 rules; checkout stayed clean | `20261020-102145-187-CleanCheckout/Result.json` |
 
 Network cases use real owner RPCs for duplicate purchases, held reading,
 interruption, complete preparation and stale/replayed plans. The foreign-book ID
@@ -113,6 +115,10 @@ with `sourceDirty=true`, 82 source/config hashes and seven payload hashes.
 `Artifacts/B43DocumentationAndProvenance.json` verifies these hashes, 67 Markdown
 files/local links, 39 feature rows, 48 acceptance rows and four unchanged frozen
 snapshots. No saved package or frozen specification was replaced.
+
+Fresh-checkout verification copied no project binaries or Intermediate directory.
+It reused the installed engine/shared caches and hydrated LFS from the local
+source object cache. It verifies local reproducibility, not remote Git/LFS delivery.
 
 ## Next milestone
 
