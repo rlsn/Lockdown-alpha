@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img">
+<title>01 / World HUD and selected-unit inspection</title>
+<rect x="0" y="0" width="1600" height="900" rx="8" fill="#101923" stroke="#101923"/>
+<text x="28" y="34" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="25">01 / World HUD and selected-unit inspection</text>
+<text x="28" y="62" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="15">PROJECT LOCKDOWN v0.5 | Proposed hierarchy reference; not an implemented game screen</text>
+<rect x="24" y="90" width="1552" height="548" rx="8" fill="#172631" stroke="#456076"/>
+<text x="50" y="126" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="19">World: currently authorized objects only</text>
+<rect x="570" y="104" width="465" height="56" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="590" y="139" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">12:40 / 25:00   |   Heart protected   |   No Seal</text>
+<rect x="50" y="156" width="290" height="108" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="68" y="183" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="17">Active work</text>
+<text x="68" y="212" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Collect at East Town</text>
+<text x="68" y="240" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="15">2 / 4 credits toward fabrication</text>
+<polyline points="350,500 500,450 620,470 780,340" fill="none" stroke="#64dfb6" stroke-width="4"/>
+<text x="430" y="526" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="15">Accepted destination; explored route segment</text>
+<rect x="760" y="300" width="100" height="72" rx="8" fill="#254b49" stroke="#64dfb6"/>
+<text x="781" y="342" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="19">Yours</text>
+<rect x="1130" y="320" width="96" height="72" rx="8" fill="#34465b" stroke="#ffd283"/>
+<text x="1143" y="363" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="16">Selected</text>
+<text x="915" y="441" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">Left-click: inspect only</text>
+<text x="915" y="471" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Right-click: approach; no automatic attack</text>
+<text x="915" y="501" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="18">A then click: explicit attack</text>
+<rect x="650" y="555" width="590" height="58" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="668" y="589" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Hold F: collection  1.2 / 3.0 s   |   Release to cancel</text>
+<rect x="24" y="660" width="270" height="214" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="42" y="690" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="18">Minimap</text>
+<rect x="43" y="706" width="146" height="118" rx="8" fill="#293c46" stroke="#456076"/>
+<rect x="66" y="726" width="73" height="58" rx="8" fill="#4a686d" stroke="#456076"/>
+<polyline points="52,807 108,754 170,739" fill="none" stroke="#64dfb6" stroke-width="2"/>
+<text x="200" y="735" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="14">View</text>
+<text x="200" y="759" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="14">Known</text>
+<text x="200" y="783" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="14">Fog</text>
+<text x="42" y="855" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="15">LMB pan / RMB move</text>
+<rect x="308" y="660" width="350" height="214" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="326" y="690" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="19">Inspector: observed stranger</text>
+<text x="326" y="719" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="16">HP / level: Unknown</text>
+<text x="326" y="747" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="16">Attributes / skills: Unknown</text>
+<text x="326" y="775" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="16">Inventory / gold: Unknown</text>
+<text x="326" y="803" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="16">Public cue: no visible effect</text>
+<text x="326" y="853" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="14">Selection never changes who you control</text>
+<rect x="672" y="660" width="904" height="214" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="690" y="690" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="18">YOURS   HP 98 / 110   |   Level 3: 230 / 270 XP   |   Gold 20</text>
+<rect x="692" y="708" width="122" height="69" rx="8" fill="#24453f" stroke="#64dfb6"/>
+<text x="704" y="734" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="16">Q</text>
+<text x="704" y="760" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Heave</text>
+<rect x="826" y="708" width="122" height="69" rx="8" fill="#24453f" stroke="#64dfb6"/>
+<text x="838" y="734" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="16">W</text>
+<text x="838" y="760" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Patch</text>
+<rect x="960" y="708" width="122" height="69" rx="8" fill="#24453f" stroke="#64dfb6"/>
+<text x="972" y="734" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="16">E</text>
+<text x="972" y="760" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Step</text>
+<rect x="1094" y="708" width="122" height="69" rx="8" fill="#24453f" stroke="#64dfb6"/>
+<text x="1106" y="734" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="16">R</text>
+<text x="1106" y="760" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Spark</text>
+<text x="1238" y="728" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="16">Skills: 4 / 4</text>
+<rect x="692" y="790" width="122" height="62" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="702" y="814" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="15">1</text>
+<text x="702" y="841" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Ward</text>
+<rect x="826" y="790" width="122" height="62" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="836" y="814" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="15">2</text>
+<text x="836" y="841" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Book</text>
+<rect x="960" y="790" width="122" height="62" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="970" y="814" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="15">3</text>
+<text x="970" y="841" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Empty</text>
+<rect x="1094" y="790" width="122" height="62" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="1104" y="814" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="15">4</text>
+<text x="1104" y="841" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Empty</text>
+<text x="1238" y="810" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="16">Items: references</text>
+<text x="1238" y="838" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="16">I Bag   P Develop</text>
+</svg>

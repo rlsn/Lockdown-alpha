@@ -25,3 +25,5 @@ Do not make a target's success or rejection an NPC-versus-human oracle. Common i
 All learned actives consume the same equipped budget, including contextual checks. Eligibility requires knowledge, legal rank, equipment, valid life and cooldown before a roll or effect. Basic talk and object use remain distinguishable from learned persuasion or analysis.
 
 Cooldowns belong to skill identity and persist through unequipping, swapping and death as specified. Books teach knowledge; they do not let a player repeatedly cast an unequipped active. UI labels must explain the difference.
+
+Selection, minimap inspection and trade follow the same information boundary. A selected body may show its observed silhouette and authorized cues while private fields read Unknown. It must not trigger a request for its full character sheet. A consensual trade reveals the offered items and amounts only, not either full inventory or wallet. Loss of sight clears selected dynamic information and target handles; a distant public source permits observation, not remote interaction.

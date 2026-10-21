@@ -1,11 +1,16 @@
-# Project Lockdown — v0.4 development
+# Project Lockdown — v0.5 preparation
 
 Windows-first Unreal 5.8.3 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); active release scope and
-gates live in [docs/v04](docs/v04/README.md). Start with the
+gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B47 recorded; full stress validation deferred by user.** v0.4
+**Current checkpoint: v0.5 baseline reviewed; B51 navigation implementation is next.**
+The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records actual source,
+adopted defaults, fresh packaged smoke checks and integration risks. v0.5 runtime
+changes have not started; the launch instructions below describe retained v0.4.
+
+**Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The checkpoint passes native and cooked authority, network, ordinary-input and reset checks.

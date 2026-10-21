@@ -1,94 +1,77 @@
-# Continuation — v0.4 B47 checkpoint closed
+# Continuation — v0.5 ready for implementation
 
-21 October 2026. The user requested wrap-up and movement to the next version,
-with stress validation deferred. No critical issue remains in completed checks.
-Start with the [B47 result](v04/B47_IMPLEMENTATION.md),
-[implementation record](v04/IMPLEMENTATION_REPORT.md),
-[feature ledger](v04/FeatureLedger.csv) and [human review guide](v04/B47_REVIEW_GUIDE.md).
-The [master plan](master/README.md) and [v0.4 specification](v04/README.md) remain
-the design record. Next-version feature scope has not yet been supplied.
+21 October 2026. The user supplied master plan revision 5 and the v0.5 UI/control
+specification and requested review, commit and preparation for implementation.
+The review is recorded in [B50 baseline review](v05/B50_BASELINE_REVIEW.md).
+No v0.5 runtime changes have started. Begin B51 native multiplayer navigation next.
 
-Runtime commit: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
-Cooked archive: `Artifacts/20261021-092725-233-PackageWin64/Archive/Windows`.
-All 99 source/configuration hashes and seven payload hashes match its manifest.
-The package was created from the preceding HEAD with these working changes;
-subsequent wrap-up changes affect documentation only.
+## Read first
 
-## Completed implementation and checks
+1. [Master plan revision 5](master/README.md), especially UI/controls and privacy.
+2. [v0.5 specification](v05/README.md), all chapters, JSON and wireframes.
+3. [Actual baseline and adopted defaults](v05/B50_BASELINE_REVIEW.md) and
+   [working feature ledger](v05/FeatureLedger.csv).
+4. [B50–B58 build plan](v05/08_BUILD_PLAN.md),
+   [U01–U56 acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md) and
+   [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
+5. [Archived B47 continuation](v04/CONTINUATION_B47.md) and
+   [B47 engineering evidence](v04/B47_IMPLEMENTATION.md).
 
-B40–B46 supply the locked private class lobby, six attributes, learned/ranked
-skills and four shared slots, held preparation, subclasses, books, Charter
-Witness, persistent purses/theft, connected city/two-town region, bounded work
-and XP, shared NPC healing, watch sabotage and earned Seal acquisition/recovery.
-Normal creation grants no fixture currency, progression or Seal. Guild E remains
-courier work; Shift+E selects four-second fabrication with Witness, four unused
-credits and 100 gold, once per contender. An earned/recovered Seal uses the real
-ten-second Heart channel while central defence stays protected.
+## Baseline and scope
 
-B47 corrects sampling drift to retain 20 Hz authority/sight and 10 Hz publication,
-fixes a variable-frame dash overshoot using Unreal's partial final movement tick,
-and lets the wrapped HUD panel size to its content. Default graphics quality and
-existing test thresholds remain unchanged.
+Handoff revision: `b8f003a6535079c98dd228cf45908eeff92f9411`.
+Runtime revision: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
+Keep Unreal 5.8.3 CL 58210709, native CharacterMovement, Enhanced Input, current
+UMG/Slate and the existing authority/filtered-view boundary. No engine or
+mandatory ability/UI framework migration.
 
-Editor/Game builds, 28-asset validation and Win64 cook passed. Fifteen native
-rules pass, including cadence and privacy allowlists. Final cooked checks pass
-for both regional layouts, skills, preparation, theft, fabrication, waiting
-withdrawal, ten resets, delayed owning clients, combat and restricted views.
-Native variable-frame combat passes 48 checks at a 360.18 cm open dash, including
-wall/ramp/ledge/tree collision. The B47 report indexes exact counts and artifacts.
+The v0.5 targets are right-click navigation, explicit attack/targeting, Q/W/E/R
+skills, F context, selected-unit inspection, anchored own commands, minimap,
+24-slot carried inventory, four item references, vendor buying and real consensual
+atomic peer exchange. Retain v0.4 gameplay, short normal profile and earned
+peaceful Heart route. No mana, new abilities, equipment economy or full conquest.
 
-Calibrated cooked graphics profiles retain default Epic/ray-tracing settings at
-actual 1080p output. Near-100/150 ms measured echo conditions pass the unchanged
-250 ms action-acknowledgement p95 target. Rendered median is about 60 FPS and
-active-frame p95 about 30 ms; driver-reported over-budget use is zero. Automatic
-internal screen percentage is retained. Short profiles do not establish long
-rendered durability or a root cause for historical B45 GPU-budget warnings.
+Adopt the supplied sprint defaults with audited baseline dispositions: retain
+250 ms stale-hold expiry; convert the actual one starting ward charge exactly;
+retain loss of unused charges on death with no respawn grant. Books and Seal
+still drop. See B50 for source anchors and the synchronized JSON contract.
 
-The ordinary 25-minute automated practice passed 37 checks in 1500.028 real
-seconds at its original deadline. It earned Witness, three visits, eight paid
-jobs, level five and one Seal with native travel and no grants or clock changes.
-It ended with one no-acquisition result, 100 gold, four unused credits and one
-unconsumed Seal. Actor range was 92–99; late memory spread 47.42 MiB. No kills,
-deaths or Theft draws occurred. This is one headless automated contender.
+## Fresh readiness checks
 
-## Deferred validation carried forward
+Preflight passed. All 99 source/configuration hashes and seven payload hashes
+match the retained B47 archive. The packaged regional smoke passed 93 checks.
+Exact commands and local artifacts are indexed in B50. These establish the
+unchanged v0.4 baseline, not v0.5 acceptance or human play. No new build/cook,
+full unrelated test suite or long soak was run for this documentation update.
 
-The separate 90-minute technical soak was stopped at user direction after its
-last 600.1-second audit and five successful forced lethal batches. No failure
-was logged in that observed interval, but final percentile checks did not run.
-It is not a 90-minute pass. Its deadline extension, real return timers, body/HP/
-action/impact fixtures and partial evidence are explicit in
-`Artifacts/20261021-100052-183-Packaged-V04-Soak-5400-150-25-Default/InterruptedByUser.json`.
-All three owned test processes were stopped.
+Archive: `Artifacts/20261021-092725-233-PackageWin64/Archive/Windows`.
+Existing launch/scripts still use the retained V04 profile and controls until
+implementation changes them; root README records that runtime behavior.
 
-A fresh cold checkout of B47 was not run during wrap-up. The prior B46 cold
-checkout remains historical evidence at its own source revision. Current warm
-Editor/Game builds and cooked runtime checks passed. Remote Git/LFS delivery and
-dedicated packaging remain conditional/unverified; authenticated resume is not
-retained. Actual human multiplayer, contrasting builds, risk, counterplay,
-usability and pacing remain unvalidated. The review guide supplies the original
-six-match/two-session process; no human observations were invented.
+## First implementation work
 
-The working ledger and C01–C48 table preserve these partial/deferred cases.
-Proceed with the user's next-version scope and carry these validation gaps
-forward explicitly; do not silently convert deferral into acceptance.
+Prove B51's native navigation adapter on two independent owning clients before
+building the full HUD. Add order/life identity, supersession, stop epochs,
+snapshot approach, path rejection/stall behavior, focus/liveness cancellation and
+camera controls. Preserve sprint, Step, geometry, collision and correction rules.
+Cursor-facing updates and existing generated/native input contexts are explicit
+migration points; do not let them compete with travel facing or the new bindings.
 
-## Reproduction
+Then follow B52 input → B53 HUD/privacy → B54 inventory → B55 vendor → B56 peer
+trade → B57 presentation → B58 verification. Keep templates blank and record real
+work in the working ledger and release reports. Run Unreal builds/probes
+sequentially with source stable; BuildEditor/BuildGame support MaxParallelActions 4
+on this 16 GB machine. Preserve authored assets, frozen references, the cook-safe
+navigation envelope and separate web baseline.
 
-Keep UE 5.8.3 CL 58210709. Run Unreal builds/probes sequentially with source stable.
-BuildEditor.ps1 and BuildGame.ps1 accept optional MaxParallelActions 4 on this
-16 GB machine. Asset Validate writes nothing; there are 28 generated packages.
-Preserve the frozen specifications/templates/references, cook-safe navigation
-envelope, authored assets and separate web baseline.
+## Deferred evidence
 
-RunDevelopmentCheck.ps1 -Session selects the real ordinary 25-minute session.
--ReleaseAudit selects the labelled death/withdrawal fixture. Existing -Region,
--Preparation, -WorldChecks, -Skills, -Seal, -Network and -Reset selectors remain.
--PackageRoot chooses the archive. RunSoakCheck.ps1 -V04 -LifeCycles -Headless
--Seconds 5400 -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 50 is the deferred
-technical profile. It extends only the deadline for that duration and explicitly
-injects lethal load fixtures. It does not validate ordinary or human pacing.
+The ordinary B47 25-minute run passed. The separate interrupted stress run remains
+deferred by user direction and is not a 90-minute pass. Do not automatically rerun
+it absent a new lifetime concern. A fresh B47 cold checkout, remote Git/LFS delivery
+and dedicated packaging remain unrun/conditional. B58 still requires a current
+cold build/cook, affected delayed clients, ten restarts and a normal session.
 
-Open the archive through Scripts/OpenPackaged.ps1 -Resolution 1080p for manual
-Host/Join review. See B47 for actual hardware, quality, transport, counts and
-failed intermediate results. Raw artifacts remain local and ignored by Git.
+Actual human multiplayer/usability, contrasting builds, counterplay and full
+60–90 minute pacing remain unvalidated. No human observations were invented.
+Preserve these gaps explicitly; archived v0.4 records remain historical evidence.

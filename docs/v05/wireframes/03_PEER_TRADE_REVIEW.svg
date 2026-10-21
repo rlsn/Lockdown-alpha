@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img">
+<title>03 / Peer trade: review the exact final exchange</title>
+<rect x="0" y="0" width="1600" height="900" rx="8" fill="#101923" stroke="#101923"/>
+<text x="28" y="34" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="25">03 / Peer trade: review the exact final exchange</text>
+<text x="28" y="62" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="15">PROJECT LOCKDOWN v0.5 | Proposed hierarchy reference; not an implemented game screen</text>
+<rect x="24" y="90" width="1552" height="784" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="50" y="127" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="25">Trade / Review exchange</text>
+<text x="1080" y="127" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="20">Both ready. Confirm separately.</text>
+<rect x="48" y="150" width="430" height="581" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="70" y="184" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="22">Your bag / Gold 100</text>
+<text x="70" y="221" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Only your full inventory is visible here</text>
+<rect x="70" y="245" width="172" height="100" rx="8" fill="#244039" stroke="#64dfb6"/>
+<text x="82" y="302" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Step book</text>
+<rect x="260" y="245" width="172" height="100" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="272" y="302" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Ward A</text>
+<rect x="70" y="367" width="172" height="100" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="82" y="424" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Parley book</text>
+<rect x="260" y="367" width="172" height="100" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="272" y="424" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Patch book</text>
+<rect x="70" y="489" width="172" height="100" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="82" y="546" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Empty</text>
+<rect x="260" y="489" width="172" height="100" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="272" y="546" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Empty</text>
+<text x="70" y="663" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Offered item is reserved, still owned.</text>
+<text x="70" y="700" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="17">No gold is protected from theft.</text>
+<rect x="500" y="150" width="504" height="581" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="524" y="185" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="24">You give</text>
+<text x="524" y="224" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">1 Step book</text>
+<text x="524" y="265" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">40 gold</text>
+<polyline points="524,295 978,295" fill="none" stroke="#456076" stroke-width="1"/>
+<text x="524" y="339" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="24">You receive</text>
+<text x="524" y="381" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">1 Concord Seal</text>
+<text x="524" y="422" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">5 gold</text>
+<text x="524" y="495" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="22">Your resulting gold: 65</text>
+<text x="524" y="537" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="17">Your final bag must fit 24 slots / one Seal.</text>
+<text x="524" y="596" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="19">Any change clears both approvals.</text>
+<text x="524" y="634" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Neither side transfers until both confirm.</text>
+<rect x="1026" y="150" width="522" height="581" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="1050" y="185" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="24">Other side gives</text>
+<text x="1050" y="225" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">Concord Seal  x1</text>
+<text x="1050" y="266" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">Gold offered: 5</text>
+<polyline points="1050,297 1525,297" fill="none" stroke="#456076" stroke-width="1"/>
+<text x="1050" y="339" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="21">Other bag / wallet / build: private</text>
+<text x="1050" y="390" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Only voluntary offer terms are shown.</text>
+<text x="1050" y="445" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="19">Your Ready: yes</text>
+<text x="1050" y="485" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="19">Their Ready: yes</text>
+<text x="1050" y="544" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="19">Your final confirmation: pending</text>
+<text x="1050" y="583" fill="#ffd283" font-family="Segoe UI,Arial,sans-serif" font-size="19">Their final confirmation: pending</text>
+<text x="1050" y="672" fill="#b2c7d7" font-family="Segoe UI,Arial,sans-serif" font-size="18">Edit returns both sides to offer review.</text>
+<rect x="48" y="752" width="1500" height="93" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="68" y="787" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="20">Exchange all items and gold once, or transfer nothing.</text>
+<rect x="830" y="769" width="172" height="55" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="857" y="805" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="19">Edit offer</text>
+<rect x="1020" y="769" width="172" height="55" rx="8" fill="#1b2b3a" stroke="#456076"/>
+<text x="1050" y="805" fill="#ecf2f7" font-family="Segoe UI,Arial,sans-serif" font-size="19">Cancel</text>
+<rect x="1210" y="769" width="312" height="55" rx="8" fill="#245346" stroke="#64dfb6"/>
+<text x="1250" y="805" fill="#64dfb6" font-family="Segoe UI,Arial,sans-serif" font-size="21">Confirm exchange</text>
+</svg>

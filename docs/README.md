@@ -1,19 +1,24 @@
 # Project Lockdown documentation
 
-Active release: **v0.4 development**. B40 baseline verification has passed, and
-B41 adds private character state and a Ready lobby; B42 adds equipped skill
-execution and a mixed hotbar; B43 adds preparation, subclasses and physical books;
-B44 adds Charter Witness checks and persistent wallet theft; B45 adds the connected
-regional map, bounded progression, autonomous healing NPC and watchtower sabotage.
-B46 adds earned Seal fabrication, independent recovery and the peaceful Heart win.
-B47 core checks and the ordinary 25-minute run are recorded. Full stress
-validation is deferred by user direction; human acceptance remains pending.
+Active release: **v0.5 UI and control sprint, preparation complete**. Master plan
+revision 5 and the v0.5 specification now define the next implementation. The
+baseline review records actual v0.4 source, adopted defaults and a fresh packaged
+93-check regional smoke pass. B51 native multiplayer navigation is next; no v0.5
+runtime behavior is implemented yet.
+
+Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
+Full stress validation is deferred by user direction; human acceptance, a fresh
+B47 cold checkout and conditional distribution/dedicated lanes remain open.
 
 | Start here | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Current handoff and next implementation steps |
-| [Master plan, revision 4](master/README.md) | Long-term design authority and current user decisions |
-| [v0.4 specification](v04/README.md) | Release scope, proposed tuning, B40–B47 and C01–C48 |
+| [Master plan, revision 5](master/README.md) | Long-term design authority and current user decisions |
+| [v0.5 specification](v05/README.md) | Active scope, B50–B58 and U01–U56 |
+| [v0.5 baseline review](v05/B50_BASELINE_REVIEW.md) | Actual source, fresh smoke, adopted defaults and integration risks |
+| [v0.5 feature ledger](v05/FeatureLedger.csv) | Working baseline and implementation status |
+| [v0.4 continuation archive](v04/CONTINUATION_B47.md) | Preserved B47 wrap-up and reproduction details |
+| [v0.4 specification](v04/README.md) | Retained gameplay contracts, B40–B47 and C01–C48 |
 | [v0.4 baseline review](v04/BASELINE_REVIEW.md) | Source inspection, existing evidence and migration risks |
 | [B40 audit](v04/B40_BASELINE_AUDIT.md) | Fresh build, native and packaged baseline results |
 | [B42 execution](v04/B42_IMPLEMENTATION.md) | Equipped skills, held channels and checkpoint evidence |
@@ -30,7 +35,7 @@ validation is deferred by user direction; human acceptance remains pending.
 
 Read the master plan for intent and the active release spec for implementation
 scope. Historical specifications, fixture demonstrations and old test results do
-not override v0.4 rules or establish its acceptance.
+not override the active v0.5 changes, its retained v0.4 gameplay or establish acceptance.
 
 Implementation reports belong under their release directory. Keep templates
 blank and separate from working ledgers and actual results. Local build, package,
