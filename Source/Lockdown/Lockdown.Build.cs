@@ -6,7 +6,7 @@ public class Lockdown : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "NavigationSystem", "AIModule", "NetCore" });
-        PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json" });
+        PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json", "RHI" });
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
     }
 }

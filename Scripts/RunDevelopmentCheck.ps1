@@ -1,7 +1,9 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$PackageRoot,[switch]$Network,[switch]$Skills,[switch]$Preparation,[switch]$WorldChecks,[switch]$Region,[switch]$Seal,[switch]$Alternate,[switch]$Normal,[switch]$Reset,[switch]$CaptureUI,[ValidateSet(720,1080)][int]$Height=720,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[ValidateRange(1024,65000)][int]$Port=7795)
+param([string]$EngineRoot,[string]$PackageRoot,[switch]$Network,[switch]$Skills,[switch]$Preparation,[switch]$WorldChecks,[switch]$Region,[switch]$Seal,[switch]$Session,[switch]$ReleaseAudit,[switch]$Alternate,[switch]$Normal,[switch]$Reset,[switch]$CaptureUI,[ValidateSet(720,1080)][int]$Height=720,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[ValidateRange(1024,65000)][int]$Port=7795)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 if($Seal){$Region=$true}
+if($Session){if($Seal -or $Network -or $Reset -or $CaptureUI -or $ReleaseAudit){throw 'Session is an independent ordinary 25-minute selector.'};$Region=$true;$Normal=$true}
+if($ReleaseAudit){if($Seal -or $Network -or $Reset -or $CaptureUI -or $Normal){throw 'ReleaseAudit is an independent local fixture selector.'};$Region=$true}
 if ($PackageRoot) {
     $package=Resolve-LDPackage $PackageRoot; $binary=$package.Binary; $project=''; $lane='Packaged-'
 } else {
@@ -18,6 +20,8 @@ if($WorldChecks){if($Skills -or $Preparation -or $Reset){throw 'WorldChecks supp
 if($Normal){if((-not $Preparation -and -not $WorldChecks -and -not $Region) -or $Network -or $CaptureUI -or $Reset){throw 'Normal requires Preparation, WorldChecks or Region alone.'};$name=if($Region){'Region-Normal'}elseif($WorldChecks){'WorldChecks-Normal'}else{'Preparation-Normal'}}
 if($Alternate){$name+='-Alternate'}
 if($Seal){$name="Seal-$name"}
+if($Session){$name="Session25m-$name"}
+if($ReleaseAudit){$name="ReleaseAudit-$name"}
 $output=New-LDArtifactDirectory "$lane$name"
 $roles=if($Network){@('Server','A','B')}elseif($CaptureUI){@('Visual')}elseif($Normal){@('Normal')}elseif($Region -and -not $Reset){@('Region')}elseif($WorldChecks){@('WorldChecks')}elseif($Preparation){@('Preparation')}elseif($Skills){@('Skills')}elseif($Reset){@('Reset')}else{@('Local')}
 $minimum=[Math]::Max(0,[int]($RoundTripMs/2)-$JitterMs); $maximum=[int]($RoundTripMs/2)+$JitterMs
@@ -34,12 +38,14 @@ try {
         if($WorldChecks){$arguments+=' -LDWorldCheckProbe'}
         if($Region){$arguments+=' -LDRegionProbe'}
         if($Seal){$arguments+=' -LDSealProbe'}
+        if($Session){$arguments+=' -LDReleaseSession'}
+        if($ReleaseAudit){$arguments+=' -LDReleaseAudit'}
         if($Normal){$arguments+=if($Region){' -LDRegionNormal'}elseif($WorldChecks){' -LDWorldCheckNormal'}else{' -LDPreparationNormal'}}
         if($PackageRoot){$arguments=$arguments.Substring(3)}
         $ownedProcesses+=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }
-    $deadline=(Get-Date).AddSeconds($(if($Normal -and $Region){650}elseif($Normal){400}else{180}))
+    $deadline=(Get-Date).AddSeconds($(if($Session){1650}elseif($Normal -and $Region){650}elseif($Normal){400}else{180}))
     while(@($ownedProcesses|Where-Object{-not $_.HasExited}).Count -and (Get-Date) -lt $deadline){Start-Sleep -Milliseconds 500}
     foreach($process in $ownedProcesses){if(-not $process.HasExited){throw "Development probe timed out: $output"};if($process.ExitCode -ne 0){throw "Development probe failed ($($process.ExitCode)): $output"}}
     foreach($role in $roles) {
@@ -48,6 +54,8 @@ try {
         $report=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
         $required=if($role -eq 'Region'){93}elseif($role -eq 'WorldChecks'){56}elseif($role -eq 'Preparation'){61}elseif($role -eq 'Normal'){if($Region){30}elseif($WorldChecks){7}else{14}}elseif($role -eq 'Skills'){62}elseif($role -eq 'Local'){24}elseif($role -eq 'Server'){if($Region){10}elseif($WorldChecks){7}elseif($Preparation){9}elseif($Skills){8}else{6}}elseif($role -eq 'Visual'){1}elseif($role -eq 'Reset'){if($Region){95}else{74}}elseif($Region -or $WorldChecks -or $Preparation -or ($Skills -and $role -eq 'B')){6}else{5}
         if($Seal -and -not $CaptureUI -and -not $Reset){$required=if($Network){if($role -eq 'Server'){21}elseif($role -eq 'B'){7}else{6}}elseif($Normal){18}else{27}}
+        if($Session){$required=37}
+        if($ReleaseAudit){$required=8}
         if($report.failures -ne 0 -or @($report.checks).Count -lt $required){$report.checks|Write-Host;throw "Failed or incomplete development evidence: $path"}
         Write-Host "$role passed $(@($report.checks).Count) checks"
     }

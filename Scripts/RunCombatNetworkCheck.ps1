@@ -1,12 +1,13 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$PackageRoot,[ValidateRange(1024,65000)][int]$Port=7789,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[switch]$Rendered,[ValidateSet('A','B')][string]$RenderRole='B')
+param([string]$EngineRoot,[string]$PackageRoot,[ValidateRange(1024,65000)][int]$Port=7789,[ValidateSet(0,100,150)][int]$RoundTripMs=0,[ValidateRange(0,25)][int]$JitterMs=0,[switch]$Rendered,[ValidateSet('A','B')][string]$RenderRole='B',[ValidateRange(-1,100)][int]$OneWayBaseMs=-1)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 if($PackageRoot){$package=Resolve-LDPackage $PackageRoot;$editor=$package.Binary;$project='';$lane='Packaged-'}
 else{$engine=Resolve-LDEngine $EngineRoot;Assert-LDEditorModules;$editor=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe';$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject';$lane=''}
 $output=New-LDArtifactDirectory "$($lane)CombatNetwork-$RoundTripMs-$JitterMs"
-$oneWay=[int]($RoundTripMs/2)
-$minimum=[Math]::Max(0,$oneWay-$JitterMs)
-$maximum=$oneWay+$JitterMs
+if($OneWayBaseMs -lt 0){$OneWayBaseMs=[int]($RoundTripMs/2)}
+$minimum=[Math]::Max(0,$OneWayBaseMs-$JitterMs)
+$maximum=$OneWayBaseMs+$JitterMs
+@{targetMeasuredRTT=$RoundTripMs;oneWayBaseMs=$OneWayBaseMs;jitterMs=$JitterMs;minimumLagMs=$minimum;maximumLagMs=$maximum;note='Actual RTT includes frame and transport processing; inspect measured client reports. Explicit calibration does not change acknowledgement thresholds.'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $output 'Transport.json')
 $ownedProcesses=@()
 try {
     foreach($role in @('Server','A','B')) {

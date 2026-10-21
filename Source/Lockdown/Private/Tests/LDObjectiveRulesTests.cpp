@@ -1,9 +1,14 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Misc/AutomationTest.h"
+#include "Core/LDRules.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDObjectiveTimingTest,"Lockdown.Rules.ObjectiveTiming",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDObjectiveTimingTest::RunTest(const FString& Parameters)
 {
+    double Due=0;int32 Samples=0;for(int32 Frame=0;Frame<620;++Frame){const double Now=Frame/62.;if(Now>=Due){++Samples;Due=LDRules::NextSample(Now,Due,.05);}}
+    TestTrue(TEXT("62FPS frame quantization retains twenty authority samples per second"),Samples>=199&&Samples<=201);
+    TestEqual(TEXT("A stalled tick skips old intervals without an immediate replay"),LDRules::NextSample(5.,1.,.05),5.05);
+    TestTrue(TEXT("A late ordinary frame retains the scheduled phase"),FMath::IsNearlyEqual(LDRules::NextSample(.064,.05,.05),.1));
     TestTrue(TEXT("Exact 250ms hold boundary"),LDObjective::FreshHold(10.25,10));
     TestFalse(TEXT("Expired hold"),LDObjective::FreshHold(10.2501,10));
     TestFalse(TEXT("Future refresh rejected"),LDObjective::FreshHold(10,11));

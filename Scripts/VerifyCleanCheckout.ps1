@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot)
+param([string]$EngineRoot,[ValidateRange(0,16)][int]$MaxParallelActions=0)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 $root=Get-LDProjectRoot
@@ -33,6 +33,7 @@ if((& git -C $checkout status --porcelain)){throw 'Clone is not clean after LFS 
 foreach($script in @('Preflight','BuildEditor','BuildGame','BootstrapAssets','RunTests')){
     $arguments=@{EngineRoot=$engine}
     if($script -eq 'BootstrapAssets'){$arguments.Mode='Validate'}
+    if($script -in @('BuildEditor','BuildGame')){$arguments.MaxParallelActions=$MaxParallelActions}
     & (Join-Path $checkout "Scripts/$script.ps1") @arguments
 }
 if((& git -C $checkout status --porcelain)){throw 'Verification modified tracked checkout files'}

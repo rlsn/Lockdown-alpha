@@ -56,6 +56,11 @@ namespace LDRules
         return bSeal || DefensiveFlags == 0;
     }
 
+    // Preserve phase across ordinary frame quantization; discard missed intervals after a stall.
+    // Callers still sample the current pose once, never historical catch-up batches.
+    inline double NextSample(double Now,double Due,double Period)
+    {return Due<=0||Now-Due>Period?Now+Period:Due+Period;}
+
     // Damage/death/contest/hold validation occurs before evaluating this predicate.
     inline bool CanCompleteClaim(double Now, double CompletionAt, bool bStillValid, bool bAlreadyFinished)
     {

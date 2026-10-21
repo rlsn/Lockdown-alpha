@@ -5,6 +5,8 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current earned acquisition changes: [B46 checkpoint](B46_IMPLEMENTATION.md).
+Current release verification: [B47 record](B47_IMPLEMENTATION.md), in progress;
+the [human review guide](B47_REVIEW_GUIDE.md) records the remaining review process.
 B46 runtime checkpoint: `1b69d6324045e35b93a31d4b1207060e430ae47b`.
 A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
 15 rules without tracked changes; the B46 record indexes the result and local
@@ -48,7 +50,8 @@ the B43 record indexes its result and local cache/LFS boundary.
 - B46: earned atomic fabrication, once-per-match private receipt, explicit Guild
   work/fabrication choice and independent recovery through the real Heart path.
   Its checkpoint indexes verification and ordinary/network fixture boundaries.
-- B47: full release verification and human acceptance remain open.
+- B47: release verification is in progress, including cadence/dash corrections,
+  cooked profiles and separate full-duration runs. Human acceptance remains open.
 
 ## Implemented foundation
 

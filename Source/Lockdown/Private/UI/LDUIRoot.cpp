@@ -22,6 +22,7 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Region/LDRegionDefinition.h"
 #include "Components/ProgressBar.h"
+#include "Components/SizeBox.h"
 #include "UI/LDDevelopmentPanel.h"
 
 TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
@@ -147,7 +148,9 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             ControlsInfo=Text(TEXT("WASD · Shift · Mouse aim · Click attack · Q assassination · Space dash · E hold · F ward · H / Esc help"),14);
             Information->AddChildToVerticalBox(ControlsInfo);
             SkillBar=Text(TEXT(""),16);Information->AddChildToVerticalBox(SkillBar);
-            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectivePanel);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetSize(FVector2D(960,230));
+            ObjectiveInfo->SetWrapTextAt(928);ControlsInfo->SetWrapTextAt(928);SkillBar->SetWrapTextAt(928);
+            auto* ObjectiveSize=WidgetTree->ConstructWidget<USizeBox>();ObjectiveSize->SetWidthOverride(960);ObjectiveSize->SetContent(ObjectivePanel);
+            auto* ObjectiveSlot=Canvas->AddChildToCanvas(ObjectiveSize);ObjectiveSlot->SetAnchors(FAnchors(0,1));ObjectiveSlot->SetAlignment(FVector2D(0,1));ObjectiveSlot->SetPosition(FVector2D(18,-18));ObjectiveSlot->SetAutoSize(true);
             // HUD panels do not capture clicks intended for the game world.
             ObjectivePanel->SetVisibility(ESlateVisibility::HitTestInvisible);
         }

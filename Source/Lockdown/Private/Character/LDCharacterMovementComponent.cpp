@@ -66,6 +66,8 @@ bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction,
     Dash->InstanceName=TEXT("LD_AuthorityDash"); Dash->Priority=500;
     Dash->AccumulateMode=ERootMotionAccumulateMode::Override; Dash->bInLocalSpace=false;
     Dash->Force=Direction.GetSafeNormal2D()*float(Distance/.2); Dash->Duration=.2f;
+    // A distance-bounded dash needs only the remaining fraction of its last movement tick.
+    Dash->Settings.UnSetFlag(ERootMotionSourceSettingsFlags::DisablePartialEndTick);
     Dash->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;
     Dash->FinishVelocityParams.SetVelocity=FVector::ZeroVector;
     return ApplyRootMotionSource(Dash)!=uint16(ERootMotionSourceID::Invalid);

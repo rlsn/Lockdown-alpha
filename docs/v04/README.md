@@ -15,6 +15,9 @@ The [B45 checkpoint](B45_IMPLEMENTATION.md) adds the connected progression regio
 an alternate topology, shared NPC healing and actual surveillance disruption.
 The [B46 checkpoint](B46_IMPLEMENTATION.md) adds earned atomic Seal fabrication,
 zero-kill acquisition and independent recovery through the real Heart path.
+The [B47 record](B47_IMPLEMENTATION.md) tracks final verification, performance and
+separate ordinary/technical duration runs. Human sessions remain pending; use
+the [review guide](B47_REVIEW_GUIDE.md) to record actual observations.
 See the [implementation record](IMPLEMENTATION_REPORT.md)
 for actual scope and evidence. The complete v0.4 release remains in development.
 

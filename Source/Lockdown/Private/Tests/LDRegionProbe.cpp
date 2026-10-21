@@ -111,13 +111,15 @@ void ALDDevelopmentProbe::RegionCheck()
 void ALDDevelopmentProbe::RegionNormalTick()
 {
     const bool SealRun=FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"));
+    const bool Session=FParse::Param(FCommandLine::Get(),TEXT("LDReleaseSession"));
     auto* W=GetWorld();auto* M=W->GetAuthGameMode<ALDGameMode>();const auto* D=LDRegion::Definition(W);auto* PC=Cast<ALDPlayerController>(W->GetFirstPlayerController());if(!PC||!PC->GetPawn()||!M->Region){return;}auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());auto* O=M->StateFor(PC);const double Now=W->GetTimeSeconds();FString Why;
     if(!Phase)
     {
         if(Now<1||UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)){return;}Check(!O->Gold&&!O->Xp&&!O->Witness.IsValid()&&O->VisitedRegions.IsEmpty()&&!O->PaidJobs,TEXT("Ordinary region starts with zero resources and no reward receipts"));M->SetLobbyChoice(PC,1,true,Why);M->StartDevelopmentMatch(PC,Why);PC->SetMenuOpen(false);NormalLastPosition=Body->GetActorLocation();
-        for(TActorIterator<ALDResident> It(W);It;++It){if(M->Combat->StateFor(*It)->bHasNPCBuild){RegionNPC=*It;RegionNPCStart=It->GetActorLocation();}}Check(RegionNPC.IsValid(),TEXT("Ordinary authored trained resident exists"));Phase=1;return;
+        for(TActorIterator<ALDResident> It(W);It;++It){if(M->Combat->StateFor(*It)->bHasNPCBuild){RegionNPC=*It;RegionNPCStart=It->GetActorLocation();}}Check(RegionNPC.IsValid(),TEXT("Ordinary authored trained resident exists"));if(Session){SessionStarted=FPlatformTime::Seconds();OriginalDeadline=M->Objectives->Deadline();}Phase=1;return;
     }
     NormalTravel+=FVector::Dist2D(NormalLastPosition,Body->GetActorLocation());NormalLastPosition=Body->GetActorLocation();if(RegionNPC.IsValid()&&FVector::DistSquared2D(RegionNPC->GetActorLocation(),RegionNPCStart)>100*100){RegionSawNPCTravel=true;}
+    if(Session){SessionAudit();if(M->IsFinished()){return;}}
     auto Stop=[&](){Body->SetSprint(false);Body->GetCharacterMovement()->StopMovementImmediately();return Body->GetLastMovementInputVector().IsNearlyZero();};
     auto Move=[&](FVector Goal,double Range)
     {
@@ -151,7 +153,7 @@ void ALDDevelopmentProbe::RegionNormalTick()
     else if(Phase==6)
     {
         if(SealRun&&NormalDeliveries==4){Check(O->PaidJobs==4&&O->Commissions==4&&O->Gold==100&&!O->FabricationReceipt.IsValid()&&!O->SealId.IsValid(),TEXT("Four ordinary paid jobs earn fabrication resources without automatically crafting"));PC->SetFabricationHeld(true);NormalHoldAt=Now;Phase=11;return;}
-        if(NormalDeliveries==8){Check(O->PaidJobs==8&&O->Commissions==8&&O->Gold==200,TEXT("Eight ordinary paid jobs retain separate paid count and unused credits"));Check(O->Xp==420&&O->Build.Level==5&&!O->DeathSerial&&M->Region->PeacefulDeaths==0&&O->VisitedRegions.Num()==3,TEXT("Eight deliveries plus three native visits reach level five without a kill"));Check(NormalTravel>40000&&M->WorldChecks->DrawCount()==0,TEXT("Ordinary regional circuit uses native travel and never draws Theft RNG"));Finish();return;}
+        if(NormalDeliveries==8){Check(O->PaidJobs==8&&O->Commissions==8&&O->Gold==200,TEXT("Eight ordinary paid jobs retain separate paid count and unused credits"));Check(O->Xp==420&&O->Build.Level==5&&!O->DeathSerial&&M->Region->PeacefulDeaths==0&&O->VisitedRegions.Num()==3,TEXT("Eight deliveries plus three native visits reach level five without a kill"));Check(NormalTravel>40000&&M->WorldChecks->DrawCount()==0,TEXT("Ordinary regional circuit uses native travel and never draws Theft RNG"));if(Session){PC->SetFabricationHeld(true);Phase=20;NormalHoldAt=Now;}else{Finish();}return;}
         if(!Move(D->Guild+FVector(0,50,92),20)||Now<O->WorkReadyAt){return;}
         if(!bChecked){PC->SetInteractionHeld(true);bChecked=true;}
         if(O->ContractStage==1){PC->SetInteractionHeld(false);NormalPath.Reset();bChecked=false;Phase=7;}
@@ -170,6 +172,10 @@ void ALDDevelopmentProbe::RegionNormalTick()
         Check(!O->SealId.IsValid()&&O->FabricationReceipt==ProbeCraft&&O->Witness.IsValid(),TEXT("Victory consumes the earned item but retains private accomplishments"));
         Check(M->Objectives->Deadline()==OriginalDeadline&&Now<=OriginalDeadline&&!O->DeathSerial&&M->Region->PeacefulDeaths==0&&M->WorldChecks->DrawCount()==0&&NormalTravel>20000,TEXT("Zero-kill ordinary circuit preserves the original deadline and uses native travel without Theft draws"));Finish();
     }
+    else if(Session&&Phase==20&&O->FabricationReceipt.IsValid())
+    {PC->SetFabricationHeld(false);ProbeSeal=O->SealId;ProbeCraft=O->FabricationReceipt;Check(Now-NormalHoldAt>=4&&ProbeSeal.IsValid()&&O->Gold==100&&O->Commissions==4&&O->PaidJobs==8,TEXT("Full-session contender fabricates from actual eight-job earnings once"));NormalDeliveries=0;Phase=21;}
+    else if(Session&&Phase==21)
+    {const auto Towns=D->Towns();const FVector Goal=NormalDeliveries%3==2?D->Guild:D->Node(Towns[NormalDeliveries%3])->Position;if(Move(Goal+FVector(0,50,92),20)){++NormalDeliveries;}}
 }
 void ALDDevelopmentProbe::RegionServerTick()
 {

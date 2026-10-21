@@ -50,6 +50,13 @@ private:
     void SealCheck();
     void SealServerTick();
     void SealClientTick();
+    void ReleaseAudit();
+    void SessionAudit();
+    double SessionStarted=0,SessionLastAudit=-1000;
+    uint64 SessionRuleSerial=0,SessionViewSerial=0;
+    int32 SessionActorMin=MAX_int32,SessionActorMax=0;
+    TArray<double> SessionMemory,SessionRules,SessionViews;
+    TArray<TSharedPtr<class FJsonValue>> SessionSamples;
     FGuid ProbeSeal,ProbeCraft;
     double OriginalDeadline=0;
     TWeakObjectPtr<ALDCharacter> RegionNPC;

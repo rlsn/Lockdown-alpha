@@ -20,7 +20,14 @@ private:
     double Seconds=600,FullBytes=0,NetInStart=0,NetOutStart=0;
     uint64 LastRule=0,LastView=0,LastReceived=0;
     uint32 Request=1000,Corrections=0;
-    double MaxCorrection=0,BodyPathCm=0;
+    double MaxCorrection=0,BodyPathCm=0,ActiveSeconds=0;
+    uint32 LifeA=0,LifeB=0;
+    bool bReadySent=false,bStartSent=false,bChoiceSent=false;
+    double OriginalDeadline=0;
+    double LastLifeFixture=0;
+    int32 LifeFixtures=0;
+    TArray<double> GpuFrames,ActiveFrames,FixtureCpu;
+    TArray<TSharedPtr<class FJsonValue>> Audits;
     bool bStarted=false,bMeasured=false,bEnding=false;
     int32 Failures=0,MinActors=MAX_int32,MaxActors=0;
     TArray<double> Frames,Rules,Views,Combined,SnapshotAges,Memory;

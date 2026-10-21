@@ -45,7 +45,7 @@ void ALDDevelopmentProbe::Tick(float Delta)
 {
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
-    if (FPlatformTime::Seconds()-Started>(FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))?620:FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))?300:150)) { Check(false,TEXT("Probe timed out")); Finish(); return; }
+    if (FPlatformTime::Seconds()-Started>(FParse::Param(FCommandLine::Get(),TEXT("LDReleaseSession"))?1620:FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))?620:FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))?300:150)) { Check(false,TEXT("Probe timed out")); Finish(); return; }
     if (Role==TEXT("Visual"))
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
@@ -87,6 +87,8 @@ void ALDDevelopmentProbe::Tick(float Delta)
     {
         if (GetWorld()->GetTimeSeconds()>.75&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)) { SetActorTickEnabled(false); ResetCheck(); }
     }
+    else if(FParse::Param(FCommandLine::Get(),TEXT("LDReleaseAudit")))
+    {if(GetWorld()->GetTimeSeconds()>1&&!UNavigationSystemV1::IsNavigationBeingBuiltOrLocked(this)){SetActorTickEnabled(false);ReleaseAudit();Finish();}}
     else if(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe")))
     {
         if(FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))){RegionNormalTick();}
@@ -315,6 +317,7 @@ void ALDDevelopmentProbe::Finish()
     if(FParse::Param(FCommandLine::Get(),TEXT("LDPreparationNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B43 normal-rule automated local practice; native travel and original job/book/preparation timers; no resource grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B44 ordinary automated practice: native player travel and actual equipped Survey Charter hold; no XP/gold/build grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"))){Report->SetStringField(TEXT("profile"),FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))?TEXT("B46 ordinary automated zero-kill acquisition: native travel, starting Survey, four paid jobs, fabrication and Heart; no grants, teleports, build overrides or clock advances"):TEXT("B46 engineering: adversarial balances, positions, clocks and creation failure; network acquisition uses real Witness/job/fabrication commits with travel and cooldown clock fixtures"));}
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDReleaseSession"))){Report->SetStringField(TEXT("profile"),TEXT("B47 ordinary automated 25-minute practice: original clock/deadline/rewards, native traversal, eight jobs, actual NPC healing and earned fabrication; no grants or teleports; not human evidence"));Report->SetNumberField(TEXT("wallSeconds"),FPlatformTime::Seconds()-SessionStarted);Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);Report->SetArrayField(TEXT("audits"),SessionSamples);Report->SetNumberField(TEXT("actorMin"),SessionActorMin);Report->SetNumberField(TEXT("actorMax"),SessionActorMax);}
     TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }
     Report->SetArrayField(TEXT("checks"),Lines); FString Output,Path,Directory;
     FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);

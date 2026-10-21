@@ -15,6 +15,7 @@
 #include "Objectives/LDObjectiveRules.h"
 #include "Region/LDRegionDefinition.h"
 #include "Region/LDRegionDirector.h"
+#include "Core/LDRules.h"
 
 ALDWard::ALDWard()
 {
@@ -161,9 +162,9 @@ void ALDVisionDirector::Tick(float Delta)
     }
     if (Now<NextSample) { return; }
     if (NextSample>0 && Now-NextSample>.1) { UE_LOG(LogTemp,Warning,TEXT("LD authority sight sample late by %.3fs; sampling current pose once"),Now-NextSample); }
-    NextSample=Now+.05;
+    NextSample=LDRules::NextSample(Now,NextSample,.05);
     const bool bPublish=Now>=NextPublish;
-    if (bPublish) { NextPublish=Now+.1; }
+    if (bPublish) { NextPublish=LDRules::NextSample(Now,NextPublish,.1); }
     const double Begin=FPlatformTime::Seconds();Sample(bPublish && bPublicationEnabled);LastSampleMs=(FPlatformTime::Seconds()-Begin)*1000;++SampleSerial;
 }
 void ALDVisionDirector::Sample(bool bPublish)

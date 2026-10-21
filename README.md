@@ -5,7 +5,7 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v04](docs/v04/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B46 earned Seal acquisition; B40–B45 verified.** v0.4
+**Current checkpoint: B47 release verification in progress; B40–B46 verified.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
 HP/damage/speed, retained development through death and a locked start roster.
 The checkpoint passes native and cooked authority, network, ordinary-input and reset checks.
@@ -21,7 +21,9 @@ transfers. The [B45 checkpoint](docs/v04/B45_IMPLEMENTATION.md) adds two saved
 regional topologies, bounded courier/visit/sentinel rewards, an autonomous Patch
 NPC and actual watchtower sabotage. The [B46 checkpoint](docs/v04/B46_IMPLEMENTATION.md)
 adds atomic earned fabrication and recovery through the real Heart route.
-Next is B47 release verification and human review.
+The [B47 record](docs/v04/B47_IMPLEMENTATION.md) tracks release verification,
+duration runs and corrected sampling/dash timing. Human review remains pending;
+use the [review guide](docs/v04/B47_REVIEW_GUIDE.md) for actual multiplayer sessions.
 
 Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
 start as the lobby host. One human is practice; the declared cap is 25 minutes.

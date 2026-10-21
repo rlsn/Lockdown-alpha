@@ -93,7 +93,7 @@ void ALDGameMode::RestartPlayer(AController* NewPlayer)
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe")))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
@@ -138,7 +138,7 @@ void ALDGameMode::StartPlay()
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveProbe"))){GetWorld()->SpawnActor<ALDObjectiveProbe>();}
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))){GetWorld()->SpawnActor<ALDObjectiveNetworkProbe>();}
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDResetProbe"))){GetWorld()->SpawnActor<ALDResetProbe>();}
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))){GetWorld()->SpawnActor<ALDSoakProbe>();}
+    if((bScaffoldProfile||bDevelopmentProfile)&&FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))){GetWorld()->SpawnActor<ALDSoakProbe>();}
 #endif
 }
 
@@ -160,7 +160,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe")))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
         // PreLogin can precede a start request or another completed admission.
         // Check again before creating any private record or fresh reward budget.
