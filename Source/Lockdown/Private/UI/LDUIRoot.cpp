@@ -24,6 +24,18 @@
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
 #include "UI/LDDevelopmentPanel.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Navigation/LDNavigationComponent.h"
+
+bool ULDUIRoot::PointerOverUI() const
+{
+    if(!FSlateApplication::IsInitialized()){return false;}
+    const FVector2D PointerPosition=FSlateApplication::Get().GetCursorPos();
+    for(const UWidget* W:{static_cast<UWidget*>(HeaderPanel.Get()),static_cast<UWidget*>(ActionPanel.Get()),static_cast<UWidget*>(MenuPanel.Get()),static_cast<UWidget*>(LobbyPanel.Get()),static_cast<UWidget*>(FixturePanel.Get())})
+    {if(W&&W->IsVisible()&&W->GetCachedGeometry().IsUnderLocation(PointerPosition)){return true;}}
+    const FVector2D Local=GetCachedGeometry().AbsoluteToLocal(PointerPosition);const FVector2D MapOrigin(GetCachedGeometry().GetLocalSize().X-270,180);
+    return Local.X>=MapOrigin.X&&Local.X<=MapOrigin.X+240&&Local.Y>=MapOrigin.Y&&Local.Y<=MapOrigin.Y+160;
+}
 
 TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 {
@@ -248,7 +260,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         }
         if (O.bDevelopmentProfile)
         {
-            const FText Controls=FText::FromString(TEXT("WASD · Shift · Click attack · 1–4 skills (hold utility) · Q/Space equipped aliases · P build/books · E work/loot · F ward · H help"));
+            const FText Controls=FText::FromString(PC->Navigation->Enabled()?TEXT("Navigation checkpoint · RMB move/approach · S stop · Shift sprint · Arrows/edge pan · Space recenter · Home follow · 1–4 skills · E context · P build · H help"):TEXT("WASD · Shift · Click attack · 1–4 skills (hold utility) · Q/Space equipped aliases · P build/books · E work/loot · F ward · H help"));
             if (ControlsInfo) { ControlsInfo->SetText(Controls); } MenuHelp->SetText(Controls);
             FString Slots;
             for(int32 I=0;I<LDDevelopment::SlotCount;++I)

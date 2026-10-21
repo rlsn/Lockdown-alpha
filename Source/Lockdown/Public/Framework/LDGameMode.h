@@ -35,6 +35,7 @@ public:
     UPROPERTY(Replicated) uint8 SealNoticeKind = 0;
     UPROPERTY(Replicated) uint8 SealNoticeDistrict = 0;
     UPROPERTY(Replicated) bool bDevelopmentProfile = false;
+    UPROPERTY(Replicated) bool bUIControlProfile = false;
     UPROPERTY(Replicated) bool bMatchStarted = true;
     UPROPERTY(Replicated) uint8 LobbyCount = 0;
     UPROPERTY(Replicated) uint8 ReadyCount = 0;
@@ -76,6 +77,7 @@ public:
     void RefreshBuild(ALDPlayerController* Controller,bool RestoreFullHP=false);
     bool IsPlaying() const;
     bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
+    bool IsUIControlProfile() const {return bUIControlProfile;}
     const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
     bool IsFinished() const;
     double RuleTime() const;
@@ -89,6 +91,7 @@ public:
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;
+    bool bUIControlProfile = false;
     UPROPERTY() TObjectPtr<ULDCharacterCatalog> Catalog;
     TWeakObjectPtr<ALDPlayerController> LobbyHost;
     void UpdateLobby();

@@ -1,10 +1,10 @@
 # Project Lockdown documentation
 
-Active release: **v0.5 UI and control sprint, preparation complete**. Master plan
+Active release: **v0.5 UI and control sprint, implementation underway**. Master plan
 revision 5 and the v0.5 specification now define the next implementation. The
 baseline review records actual v0.4 source, adopted defaults and a fresh packaged
-93-check regional smoke pass. B51 native multiplayer navigation is next; no v0.5
-runtime behavior is implemented yet.
+93-check regional smoke pass. B51 native multiplayer navigation now passes
+independent Editor and cooked client gates. B52 input and action modes are next.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
 Full stress validation is deferred by user direction; human acceptance, a fresh
@@ -16,6 +16,7 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | [Master plan, revision 5](master/README.md) | Long-term design authority and current user decisions |
 | [v0.5 specification](v05/README.md) | Active scope, B50–B58 and U01–U56 |
 | [v0.5 baseline review](v05/B50_BASELINE_REVIEW.md) | Actual source, fresh smoke, adopted defaults and integration risks |
+| [B51 navigation](v05/B51_IMPLEMENTATION.md) | Native/cooked client proof, operating steps and implementation limits |
 | [v0.5 feature ledger](v05/FeatureLedger.csv) | Working baseline and implementation status |
 | [v0.4 continuation archive](v04/CONTINUATION_B47.md) | Preserved B47 wrap-up and reproduction details |
 | [v0.4 specification](v04/README.md) | Retained gameplay contracts, B40–B47 and C01–C48 |

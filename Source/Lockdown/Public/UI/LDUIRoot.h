@@ -13,6 +13,7 @@ class LOCKDOWN_API ULDUIRoot : public UUserWidget
     GENERATED_BODY()
 public:
     void ToggleMenu();
+    bool PointerOverUI() const;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry, float Delta) override;

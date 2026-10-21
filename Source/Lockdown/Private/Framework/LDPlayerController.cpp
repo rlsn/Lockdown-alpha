@@ -30,12 +30,18 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
 #include "Region/LDRegionDefinition.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "Tests/LDNavigationProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"));}
 }
+
+ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
+bool ALDPlayerController::CanWorldCommand() const
+{const auto* G=GetWorld()->GetGameState<ALDGameState>();return !bControlsSuppressed&&OwnerState.bActive&&GetPawn()&&G&&G->bMatchStarted&&!G->EndReason;}
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
 
@@ -77,6 +83,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDNavigationProbe>(ALDNavigationProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDDevelopmentProbe>(ALDDevelopmentProbe::StaticClass(),FTransform::Identity,Params);}
     if (!IsFrontend() && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe")))
@@ -110,6 +118,8 @@ void ALDPlayerController::SetupInputComponent()
     Input->BindAction(Action(TEXT("Attack")),ETriggerEvent::Started,this,&ALDPlayerController::Attack);
     Input->BindAction(Action(TEXT("Assassinate")),ETriggerEvent::Started,this,&ALDPlayerController::Assassinate);
     Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Started,this,&ALDPlayerController::Dash);
+    Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Completed,this,&ALDPlayerController::RecenterEnded);
+    Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Canceled,this,&ALDPlayerController::RecenterEnded);
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Started,this,&ALDPlayerController::InteractStarted);
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Completed,this,&ALDPlayerController::InteractStopped);
     Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Canceled,this,&ALDPlayerController::InteractStopped);
@@ -126,6 +136,13 @@ void ALDPlayerController::SetupInputComponent()
     }
     auto* DevelopmentAction=NewObject<UInputAction>(SkillInputContext);SkillInputContext->MapKey(DevelopmentAction,EKeys::P);
     Input->BindAction(DevelopmentAction,ETriggerEvent::Started,this,&ALDPlayerController::ToggleDevelopmentPanel);
+    NavigationInputContext=NewObject<UInputMappingContext>(this);
+    auto* NavigateAction=NewObject<UInputAction>(NavigationInputContext);NavigationInputContext->MapKey(NavigateAction,EKeys::RightMouseButton);
+    Input->BindAction(NavigateAction,ETriggerEvent::Started,this,&ALDPlayerController::NavigateClick);
+    auto* StopAction=NewObject<UInputAction>(NavigationInputContext);NavigationInputContext->MapKey(StopAction,EKeys::S);
+    Input->BindAction(StopAction,ETriggerEvent::Started,this,&ALDPlayerController::StopOrder);
+    auto* FollowAction=NewObject<UInputAction>(NavigationInputContext);NavigationInputContext->MapKey(FollowAction,EKeys::Home);
+    Input->BindAction(FollowAction,ETriggerEvent::Started,this,&ALDPlayerController::CameraFollow);
     if(auto* Local=GetLocalPlayer()){Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>()->AddMappingContext(SkillInputContext,1);}
 }
 
@@ -142,7 +159,11 @@ void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& 
 }
 void ALDPlayerController::Attack(){CombatAction(0);}
 void ALDPlayerController::Assassinate(){if(OwnerState.bDevelopmentProfile){SkillAlias(ELDSkill::Ambush);}else{CombatAction(1);}}
-void ALDPlayerController::Dash(){if(OwnerState.bDevelopmentProfile){SkillAlias(ELDSkill::Step);}else{CombatAction(2);}}
+void ALDPlayerController::Dash(){if(Navigation->Enabled()){if(CanWorldCommand()){Navigation->Recenter(true);}return;}if(OwnerState.bDevelopmentProfile){SkillAlias(ELDSkill::Step);}else{CombatAction(2);}}
+void ALDPlayerController::RecenterEnded(){Navigation->Recenter(false);}
+void ALDPlayerController::NavigateClick(){if(Navigation->Enabled()){Navigation->ClickMove();}}
+void ALDPlayerController::StopOrder(){if(Navigation->Enabled()&&CanWorldCommand()){Navigation->Stop();CancelInterruptibleHolds();}}
+void ALDPlayerController::CameraFollow(){if(Navigation->Enabled()&&CanWorldCommand()){Navigation->ToggleFollow();}}
 void ALDPlayerController::SkillAlias(ELDSkill Skill)
 {
     const int32 Slot=OwnerState.Build.Slots.Find(Skill);
@@ -159,6 +180,7 @@ void ALDPlayerController::SkillStarted(uint8 Slot)
     FVector Direction=Body->GetActorForwardVector();
     if(Skill==ELDSkill::Step&&!Body->GetLastMovementInputVector().IsNearlyZero()){Direction=Body->GetLastMovementInputVector().GetSafeNormal2D();}
     const uint32 Token=++NextRequest;
+    if(uint8(Skill)>=uint8(ELDSkill::Patch)){Navigation->Stop();}
     if(uint8(Skill)>=uint8(ELDSkill::Patch))
     {HeldSkillSlot=Slot;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;InteractStopped();}
     ServerSkillAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Direction);
@@ -276,6 +298,7 @@ void ALDPlayerController::SetFabricationHeld(bool Held)
 {if(Held){StartInteraction(true);}else{InteractStopped();}}
 void ALDPlayerController::StartInteraction(bool Fabricate)
 {
+    Navigation->Stop();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     if(bControlsSuppressed||!OwnerState.bActive){return;}uint8 Target=0;FGuid Observed;
     if(!ChooseContext(Target,Observed)){IntentFeedback=ContextPrompt();return;}
@@ -361,7 +384,7 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
 void ALDPlayerController::ClientProbePhase_Implementation(uint8 Phase)
 {
 #if !UE_BUILD_SHIPPING
-    if (Phase<=(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"))?25:16) && LDNetworkProbeEnabled()) { ProbePhase=Phase; }
+    if (Phase<=64 && LDNetworkProbeEnabled()) { ProbePhase=Phase; }
 #endif
 }
 void ALDPlayerController::ServerProbeHello_Implementation(uint8 ProbeIdentity)
@@ -409,6 +432,7 @@ void ALDPlayerController::SeedSealFixture()
 
 void ALDPlayerController::Move(const FInputActionValue& Value)
 {
+    if(Navigation->Enabled()){return;}
     if (bControlsSuppressed || !OwnerState.bActive || (GetWorld()->GetGameState<ALDGameState>()&&GetWorld()->GetGameState<ALDGameState>()->EndReason)) { return; }
     if (APawn* ControlledPawn = GetPawn())
     {
@@ -424,16 +448,22 @@ void ALDPlayerController::SprintStopped() { if (ALDCharacter* Body = Cast<ALDCha
 void ALDPlayerController::Zoom(const FInputActionValue& Value) { if (!bControlsSuppressed) { if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->Zoom(Value.Get<float>()); } } }
 void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->ToggleMenu(); } }
 
-void ALDPlayerController::ClearControls()
+void ALDPlayerController::CancelInterruptibleHolds()
 {
     InteractStopped();
     StopDevelopmentHold();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
+}
+void ALDPlayerController::ClearControls()
+{
+    Navigation->Stop();Navigation->Recenter(false);
+    CancelInterruptibleHolds();
     SprintStopped();
     if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn()))
     {
         Body->ConsumeMovementInputVector();
-        Body->GetCharacterMovement()->StopMovementImmediately();
+        auto* Movement=Body->GetCharacterMovement();
+        if(Navigation->Enabled()&&Movement->IsFalling()){Movement->Velocity.X=Movement->Velocity.Y=0;}else{Movement->StopMovementImmediately();}
     }
 }
 
@@ -467,6 +497,15 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
+    if(IsLocalController()&&NavigationInputContext&&bNavigationContextActive!=Navigation->Enabled())
+    {
+        if(auto* Local=GetLocalPlayer())
+        {
+            auto* Input=Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+            bNavigationContextActive=Navigation->Enabled();
+            if(bNavigationContextActive){Input->AddMappingContext(NavigationInputContext,2);}else{Input->RemoveMappingContext(NavigationInputContext);}
+        }
+    }
     if(IsLocalController()&&DevelopmentHoldToken&&GetWorld()->GetTimeSeconds()-LastDevelopmentHoldSent>=.1)
     {
         LastDevelopmentHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();
@@ -511,6 +550,7 @@ void ALDPlayerController::PlayerTick(float Delta)
     if (bFinished || !IsLocalController() || bControlsSuppressed || !OwnerState.bActive) { return; }
     ALDCharacter* Body = Cast<ALDCharacter>(GetPawn());
     if (!Body) { return; }
+    if(Navigation->Enabled()){return;}
     FHitResult Hit;
     if (GetHitResultUnderCursor(ECC_GameTraceChannel1, false, Hit) && Hit.ImpactNormal.Z >= FMath::Cos(FMath::DegreesToRadians(40.0)))
     {

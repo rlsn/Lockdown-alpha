@@ -2,6 +2,9 @@
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Tests/LDMovementProbe.h"
+#include "Tests/LDNavigationProbe.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "Region/LDRegionNavBounds.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Engine/World.h"
@@ -41,12 +44,30 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
     DOREPLIFETIME(ALDGameState,ResultReceipt);DOREPLIFETIME(ALDGameState,ResultSerial);DOREPLIFETIME(ALDGameState,SealNoticeSerial);
     DOREPLIFETIME(ALDGameState,SealNoticeKind);DOREPLIFETIME(ALDGameState,SealNoticeDistrict);
     DOREPLIFETIME(ALDGameState,bDevelopmentProfile);DOREPLIFETIME(ALDGameState,bMatchStarted);
+    DOREPLIFETIME(ALDGameState,bUIControlProfile);
     DOREPLIFETIME(ALDGameState,LobbyCount);DOREPLIFETIME(ALDGameState,ReadyCount);
     DOREPLIFETIME(ALDGameState,PublicSensorOfflineUntil);DOREPLIFETIME(ALDGameState,PublicSensorLockoutUntil);
 }
 void ALDGameState::BeginPlay()
 {
     Super::BeginPlay();
+    // The historical sandbox's BSP-only bounds disappear in a cook. Reuse the
+    // established noncolliding envelope, on both authority and owning clients,
+    // without modifying its frozen saved map or rebuilding valid Editor bounds.
+    if(GetWorld()->GetMapName().Contains(TEXT("L_MigrationSandbox")))
+    {
+        bool HasBounds=false;
+        for(TActorIterator<ANavMeshBoundsVolume> It(GetWorld());It;++It)
+        {const FVector Size=It->GetComponentsBoundingBox(true).GetSize();HasBounds|=Size.X>100&&Size.Y>100&&Size.Z>100;}
+        if(!HasBounds)
+        {
+            auto* Bounds=GetWorld()->SpawnActor<ALDRegionNavBounds>(FVector(0,0,200),FRotator::ZeroRotator);
+            Bounds->Configure(FVector(4800,3200,800));
+            if(auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+            {Nav->OnNavigationBoundsUpdated(Bounds);Nav->GetDefaultNavDataInstance(FNavigationSystem::Create);Nav->Build();}
+            UE_LOG(LogTemp,Display,TEXT("LD_SANDBOX_COOKED_NAV_ENVELOPE %s"),*Bounds->GetComponentsBoundingBox(true).GetSize().ToString());
+        }
+    }
     if(GetNetMode()==NM_DedicatedServer||GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))){return;}
     for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(8)}){if(Site>3&&!LDRegion::Definition(GetWorld())){continue;}if(auto* Landmark=GetWorld()->SpawnActor<ALDObjectiveSite>()){Landmark->Configure(Site);}}
 }
@@ -62,7 +83,8 @@ ALDGameMode::ALDGameMode()
 void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage)
 {
     Super::InitGame(MapName,Options,ErrorMessage);
-    bDevelopmentProfile=UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"));
+    bUIControlProfile=UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V05");
+    bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"));
     if (bDevelopmentProfile)
     {
         bScaffoldProfile=false;
@@ -70,7 +92,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
         Catalog=ULDCharacterCatalog::Load(); FString Error;
         if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bUIControlProfile?TEXT("V05 navigation checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
 }
 
 FVector ALDGameMode::TakeSpawn()
@@ -93,7 +115,7 @@ void ALDGameMode::RestartPlayer(AController* NewPlayer)
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe")))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe")))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
@@ -107,6 +129,7 @@ void ALDGameMode::StartPlay()
     MatchStartedAt=GetWorld()->GetTimeSeconds();
     auto* Public=GetGameState<ALDGameState>();
     Public->bDevelopmentProfile=bDevelopmentProfile; Public->bMatchStarted=!bDevelopmentProfile;
+    Public->bUIControlProfile=bUIControlProfile;
     Combat=GetWorld()->SpawnActor<ALDCombatDirector>();
     Vision=GetWorld()->SpawnActor<ALDVisionDirector>();
     Vision->AddTickPrerequisiteActor(Combat);
@@ -130,6 +153,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))){GetWorld()->SpawnActor<ALDNavigationProbe>();}
     if (bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))) { GetWorld()->SpawnActor<ALDDevelopmentProbe>(); }
     if (FParse::Param(FCommandLine::Get(), TEXT("LDMovementProbe"))) { GetWorld()->SpawnActor<ALDMovementProbe>(); }
     if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatProbe"))){GetWorld()->SpawnActor<ALDCombatProbe>();}
@@ -160,7 +184,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe")))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe")))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
         // PreLogin can precede a start request or another completed admission.
         // Check again before creating any private record or fresh reward budget.
@@ -217,6 +241,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;
     State->bActive=false; State->Hp=0; State->WardCharges=0;
+    if(PC->Navigation){PC->Navigation->ResetLife();}
     State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
     State->ActiveSkill=ELDSkill::None;State->SkillEndsAt=0;
     ++State->DeathSerial;

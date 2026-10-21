@@ -1,14 +1,18 @@
-# Project Lockdown — v0.5 preparation
+# Project Lockdown — v0.5 implementation
 
 Windows-first Unreal 5.8.3 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); active release scope and
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.5 baseline reviewed; B51 navigation implementation is next.**
+**Current checkpoint: B51 native navigation verified; B52 input migration is next.**
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records actual source,
-adopted defaults, fresh packaged smoke checks and integration risks. v0.5 runtime
-changes have not started; the launch instructions below describe retained v0.4.
+adopted defaults, fresh packaged smoke checks and integration risks. The
+[B51 implementation](docs/v05/B51_IMPLEMENTATION.md) supplies validated native
+navigation, cancellation and camera controls with independent Editor/cooked
+clients. Use `Scripts/OpenStandalone.ps1 -NavigationCheckpoint` to review it.
+The ordinary frontend and launch instructions below still describe retained v0.4
+until the coherent B52 input migration; the full v0.5 sprint is not yet delivered.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived

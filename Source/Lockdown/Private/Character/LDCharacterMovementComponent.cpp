@@ -8,7 +8,7 @@
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
-    ++CorrectionCount;if(!bBaseRelativePosition&&UpdatedComponent){MaxCorrectionCm=FMath::Max(MaxCorrectionCm,FVector::Distance(UpdatedComponent->GetComponentLocation(),NewLocation));}
+    ++CorrectionCount;if(!bBaseRelativePosition&&UpdatedComponent){LastCorrectionCm=FVector::Distance(UpdatedComponent->GetComponentLocation(),NewLocation);MaxCorrectionCm=FMath::Max(MaxCorrectionCm,LastCorrectionCm);}
     Super::OnClientCorrectionReceived(ClientData,TimeStamp,NewLocation,NewVelocity,NewBase,NewBaseBoneName,bHasBase,bBaseRelativePosition,ServerMovementMode,ServerGravityDirection);
 }
 
@@ -19,7 +19,8 @@ namespace
     public:
         using Super = FSavedMove_Character;
         bool bSavedSprint = false;
-        virtual void Clear() override { Super::Clear(); bSavedSprint = false; }
+        FLDMoveIdentity Navigation;
+        virtual void Clear() override { Super::Clear(); bSavedSprint = false;Navigation={}; }
         virtual uint8 GetCompressedFlags() const override
         {
             return Super::GetCompressedFlags() | (bSavedSprint ? FLAG_Custom_0 : 0);
@@ -27,12 +28,14 @@ namespace
         virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* Character, float MaxDelta) const override
         {
             return bSavedSprint == static_cast<const FLDSavedMove*>(NewMove.Get())->bSavedSprint
+                &&Navigation==static_cast<const FLDSavedMove*>(NewMove.Get())->Navigation
                 && Super::CanCombineWith(NewMove, Character, MaxDelta);
         }
         virtual void SetMoveFor(ACharacter* Character, float Delta, const FVector& Accel, FNetworkPredictionData_Client_Character& Data) override
         {
             Super::SetMoveFor(Character, Delta, Accel, Data);
             bSavedSprint = CastChecked<ULDCharacterMovementComponent>(Character->GetCharacterMovement())->bWantsSprint;
+            if(const auto* PC=Cast<ALDPlayerController>(Character->GetController())){Navigation=PC->Navigation->LocalIdentity();}
         }
         virtual void PrepMoveFor(ACharacter* Character) override
         {
@@ -46,6 +49,37 @@ namespace
         explicit FLDClientPrediction(const UCharacterMovementComponent& Movement) : FNetworkPredictionData_Client_Character(Movement) {}
         virtual FSavedMovePtr AllocateNewMove() override { return FSavedMovePtr(new FLDSavedMove()); }
     };
+}
+
+ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);}
+void FLDNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move,ENetworkMoveType Type)
+{FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move,Type);Navigation=static_cast<const FLDSavedMove&>(Move).Navigation;}
+bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchive& Ar,UPackageMap* Map,ENetworkMoveType Type)
+{
+    const bool Valid=FCharacterNetworkMoveData::Serialize(Movement,Ar,Map,Type);
+    Ar.SerializeIntPacked(Navigation.Match);Ar.SerializeIntPacked(Navigation.Life);
+    Ar.SerializeIntPacked(Navigation.Order);Ar.SerializeIntPacked(Navigation.Epoch);
+    return Valid&&!Ar.IsError();
+}
+void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,uint8 Flags,const FVector& Accel)
+{
+    FVector Applied=Accel;
+    auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;
+    if(PC&&PC->Navigation->Enabled())
+    {
+        const auto* Data=static_cast<const FLDNetworkMoveData*>(GetCurrentNetworkMoveData());
+        const bool Legal=Data&&(CharacterOwner->HasAuthority()?PC->Navigation->AuthorizesMove(Data->Navigation):Data->Navigation==PC->Navigation->LocalIdentity());
+        if(!Legal)
+        {
+            Applied=FVector::ZeroVector;
+            if(!Accel.IsNearlyZero()){++PC->Navigation->RejectedMoves;}
+            // Reject stale horizontal steering without resetting native gravity or committed root motion.
+            if(IsFalling()){Velocity.X=Velocity.Y=0;}else if(!HasRootMotionSources()){StopMovementImmediately();}
+        }
+        if(CharacterOwner->HasAuthority()&&!Applied.IsNearlyZero()&&(PC->OwnerState.ActionCue&15)==0)
+        {CharacterOwner->SetActorRotation(FRotator(0,Applied.Rotation().Yaw,0));}
+    }
+    Super::MoveAutonomous(TimeStamp,Delta,Flags,Applied);
 }
 
 float ULDCharacterMovementComponent::GetMaxSpeed() const

@@ -4,13 +4,14 @@ Specification revision 1 • 21 October 2026 • Extends the delivered v0.4 Unre
 
 Make the existing game consistent to operate: right-click navigation, left-click inspection, an anchored own command bar, a fog-aware minimap, a larger inventory, quick-item references and actual vendor and peer trade. Preserve the class, skill, growth, sight and Grand Heart systems.
 
-The actual v0.4 Unreal source, assets and B47 evidence are present in this repository. The [baseline review](B50_BASELINE_REVIEW.md) records the inspected revision, fresh packaged smoke check and adopted implementation defaults. This specification and its wireframes describe the target; v0.5 runtime implementation has not started. Follow the [current continuation](../CONTINUATION.md) and [working feature ledger](FeatureLedger.csv).
+The actual v0.4 Unreal source, assets and B47 evidence are present in this repository. The [baseline review](B50_BASELINE_REVIEW.md) records the inspected revision and adopted defaults. [B51 navigation](B51_IMPLEMENTATION.md) is implemented with independent native/cooked client evidence; B52–B58 remain in progress or pending. This specification and its wireframes describe the complete target. Follow the [current continuation](../CONTINUATION.md) and [working feature ledger](FeatureLedger.csv).
 
 ## Reading order
 
 | File | Purpose |
 | --- | --- |
 | [B50_BASELINE_REVIEW.md](B50_BASELINE_REVIEW.md) | Actual baseline, review findings, adopted defaults and first implementation gate |
+| [B51_IMPLEMENTATION.md](B51_IMPLEMENTATION.md) | Native navigation adapter, cooked proof, corrections and review boundary |
 | [FeatureLedger.csv](FeatureLedger.csv) | Working baseline and implementation status; templates remain separate |
 | [01_SCOPE_AND_MIGRATION.md](01_SCOPE_AND_MIGRATION.md) | Sprint boundary and explicit replacements |
 | [02_INPUT_NAVIGATION_AND_CAMERA.md](02_INPUT_NAVIGATION_AND_CAMERA.md) | Complete controls, orders, focus and cancellation |

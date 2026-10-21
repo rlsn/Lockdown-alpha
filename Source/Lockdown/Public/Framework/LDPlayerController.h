@@ -11,12 +11,17 @@ class LOCKDOWN_API ALDPlayerController : public APlayerController
 {
     GENERATED_BODY()
 public:
+    ALDPlayerController();
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
     void ClearControls();
+    void CancelInterruptibleHolds();
+    bool CanWorldCommand() const;
+    bool NavigationBindingsActive() const {return bNavigationContextActive;}
+    UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
     void ChooseLobbyClass(uint8 ClassId);
     void ToggleLobbyReady();
     void StartLobby();
@@ -83,12 +88,18 @@ private:
     void Attack();
     void Assassinate();
     void Dash();
+    void RecenterEnded();
+    void NavigateClick();
+    void StopOrder();
+    void CameraFollow();
     void CombatAction(uint8 Action);
     void SkillStarted(uint8 Slot);
     void SkillStopped(uint8 Slot);
     void SkillAlias(ELDSkill Skill);
     void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0);
     UPROPERTY() TObjectPtr<class UInputMappingContext> SkillInputContext;
+    UPROPERTY() TObjectPtr<class UInputMappingContext> NavigationInputContext;
+    bool bNavigationContextActive=false;
     uint32 SkillHoldToken=0,SkillHoldSequence=0;
     uint8 HeldSkillSlot=255;
     double LastSkillHoldSent=-1000;
