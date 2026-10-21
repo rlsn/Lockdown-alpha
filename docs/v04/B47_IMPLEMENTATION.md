@@ -1,10 +1,11 @@
 # B47 — Release engineering and review
 
-21 October 2026. Verification is in progress. This record distinguishes ordinary
-automated practice, technical fixtures, measured performance and human review.
-Do not treat an unfinished duration run or an unavailable human session as a pass.
+21 October 2026. Core implementation and completed checks are recorded. At the
+user's direction, the stress run was stopped and full stress validation deferred
+to the next version. No critical issue remains in the completed checks. This
+record distinguishes ordinary practice, fixtures and outstanding validation.
 
-## Changes under verification
+## Implemented changes
 
 Authority and sight sampling previously scheduled the next interval from the
 actual late frame. At the cooked game's frame cadence, that reduced the intended
@@ -71,8 +72,12 @@ texture memory and Windows per-process GPU counters are retained where available
 
 Current archive: `Artifacts/20261021-092725-233-PackageWin64/Archive/Windows`.
 The Development Win64 manifest records 99 source/configuration files and seven
-payload hashes. Packaging occurred from `7088e6d` with B47 working changes;
-committed-source provenance and cold-checkout verification remain pending.
+payload hashes. Runtime checkpoint: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
+Packaging occurred from `7088e6d` with B47 working changes; all 99 current
+source/configuration files and seven payloads match the manifest's SHA-256
+records. Final edits affect documentation only. A fresh B47 cold checkout was
+not run during wrap-up; B46's prior cold-checkout result remains historical
+evidence, not a cold build of this revision.
 The toolchain is UE 5.8.3 CL 58210709, MSVC 14.44.35229 and Windows SDK
 10.0.26100.0. The catalog hash is
 `6b0e3a6ac94830536e29afc428f0b865dbba7db1b7e1167e4823db4ce6954e5c`.
@@ -116,7 +121,8 @@ independent automated remote owners, eight residents and a headless listen
 authority with a nonparticipating local connection. It is not a dedicated target,
 WAN test, four-human capacity measurement or human multiplayer session.
 
-Each short profile measures 60 seconds after ten seconds of warmup. A renders
+Each short profile measures 60 seconds after ten seconds of warmup in the Guild
+load scene. A renders
 an actual 1920 x 1080 offscreen viewport; B and authority use NullRHI. The project
 retains default Epic settings and ray tracing. The only Default-profile console
 command is t.MaxFPS 60 on rendered A; headless roles request 120 and the authority
@@ -166,11 +172,63 @@ recorded: these short passes establish neither a GPU-memory root cause nor
   timing but exposed the 387.02 cm dash overshoot. Enabling partial final ticks
   corrected the actual runtime; distance tolerances remain unchanged.
 
-## Duration evidence in progress
+## Ordinary 25-minute result
 
-The ordinary session is `20261021-093549-000-Packaged-Session25m-Region-Normal`.
-Its full deadline result and the separate 5400-second technical soak are pending.
-No pass is inferred from elapsed setup time or accelerated clocks.
+`20261021-093549-000-Packaged-Session25m-Region-Normal` passed all 37 checks in
+1500.028 wall-clock seconds. It used the original clock/deadline/rewards and
+native movement with no grants, teleports or build overrides. Starting Survey
+earned Witness; three visits and eight actual deliveries reached 420 XP/level
+five; a nonlethal hit triggered the trained NPC's autonomous Patch. Four-second
+fabrication spent the actual earnings. Native travel totalled 395830 cm.
+
+The original deadline committed one no-acquisition result and retained one
+unconsumed earned Seal, the private craft receipt, eight delivery receipts,
+100 gold and four unused credits. There were zero deaths, peaceful NPC kills
+or Theft draws. This route deliberately did not claim Heart; B46 retains the
+ordinary earned winning-route evidence.
+
+Twenty-six audits recorded 92–99 actors and 326.42–374.46 MiB process memory.
+Late-half memory spread was 47.42 MiB, below the unchanged 128 MiB target.
+Final rule/view p95 values were 0.049/0.304 ms, with their sum below 10 ms.
+This was one automated headless practice contender, not human multiplayer or a
+rendered 25-minute performance test.
+
+## Technical stress run deferred by user
+
+`20261021-100052-183-Packaged-V04-Soak-5400-150-25-Default` was stopped at
+10:11:25 local time on 21 October 2026 at the user's request to wrap up and move
+to the next version. The last complete authority audit measured 600.1 seconds;
+five forced lethal batches passed, in addition to an ordinary combat death.
+Actual ordinary returns and restricted-client privacy audits passed during
+the observed interval. The final audit showed authority/A/B actor counts
+102/58/65 and process memory 352.0/349.1/347.4 MiB. No LD_SOAK failure was logged.
+
+The three owned processes were verified against the archive path and stopped.
+`InterruptedByUser.json`, role logs, Environment.json, LifeFixture.json and
+process samples preserve the partial evidence and overrides. Stopping before
+Finish intentionally produced no final role reports; the runner's missing
+Server.json error records cancellation, not an independently observed gameplay
+failure. No final acknowledgement/frame/memory percentile result or 90-minute
+pass is claimed. The full 5400-second stress case remains deferred.
+
+The headless harness extended the deadline from 1503.901 to 5523.909 world
+seconds, retained real clocks and ordinary return rules, and used the declared
+initial/returned-body placement and lethal-combat fixtures. This partial run
+does not establish ordinary pacing, long rendered durability or RNG stress.
+
+## Delivery and next-version handoff
+
+The documentation/provenance audit checks 72 Markdown files, all local links,
+39 feature rows, 48 acceptance rows, four frozen predecessor snapshots and the
+package hashes: `Artifacts/B47DocumentationAndProvenance.json`. Specifications,
+blank templates and predecessor references remain unchanged. The working ledger
+and acceptance table preserve partial/deferred rows rather than treating the
+user's scope decision as a test pass.
+
+Carry forward full stress validation, a fresh cold B47 checkout and actual human
+review. Dedicated packaging, remote Git/LFS delivery, authenticated resume and
+full-session human pacing retain their existing conditional/deferred boundary.
+No next-version feature scope is inferred from closing this checkpoint.
 
 ## Release privacy audit
 

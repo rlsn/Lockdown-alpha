@@ -5,13 +5,16 @@ development record, not acceptance of the complete v0.4 release.
 
 B41 runtime checkpoint: `3a1f389a9adda2a827fc01cbbf88d44c19590bdd`.
 Current earned acquisition changes: [B46 checkpoint](B46_IMPLEMENTATION.md).
-Current release verification: [B47 record](B47_IMPLEMENTATION.md), in progress;
-the [human review guide](B47_REVIEW_GUIDE.md) records the remaining review process.
+Current checkpoint: [B47 record](B47_IMPLEMENTATION.md), core checks recorded.
+Runtime commit: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`. The ordinary 25-minute
+run passed. Full stress validation is deferred by user direction; a fresh B47
+cold checkout and actual human review remain pending for the next version.
+The [review guide](B47_REVIEW_GUIDE.md) records the human process.
 B46 runtime checkpoint: `1b69d6324045e35b93a31d4b1207060e430ae47b`.
 A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
 15 rules without tracked changes; the B46 record indexes the result and local
-engine/cache/LFS boundary. Full release, graphics profiling and human review
-remain B47.
+engine/cache/LFS boundary. That historical B46 checkout does not establish a
+fresh cold B47 build. B47 graphics and duration results are indexed separately.
 Region and progression history: [B45 checkpoint](B45_IMPLEMENTATION.md).
 B45 runtime checkpoint: `35b02b88ca20df207475af17901f0200d7a8d65f`.
 A fresh local checkout passed cold Editor/Game builds, 28-asset validation and
@@ -50,8 +53,10 @@ the B43 record indexes its result and local cache/LFS boundary.
 - B46: earned atomic fabrication, once-per-match private receipt, explicit Guild
   work/fabrication choice and independent recovery through the real Heart path.
   Its checkpoint indexes verification and ordinary/network fixture boundaries.
-- B47: release verification is in progress, including cadence/dash corrections,
-  cooked profiles and separate full-duration runs. Human acceptance remains open.
+- B47: sampling/dash timing and HUD sizing corrected; core native/cooked checks,
+  measured short graphics/transport profiles and ordinary 25-minute run pass.
+  Full stress validation was deferred by user direction after a partial soak;
+  fresh cold B47 checkout and actual human acceptance remain unrun.
 
 ## Implemented foundation
 
@@ -217,16 +222,19 @@ separately and update only the applicable engineering rows below.
 | C37 | Passed | B46 atomic four-second fabrication; exact costs; interruption, creation failure, final revalidation, replay and retained once-only receipt; no normal seed |
 | C38 | Passed | B46 ordinary starting Survey plus four real paid jobs, native travel and earned Seal win through the original ten-second protected Heart; no grants |
 | C39 | Passed | B46 two remote contenders earn separate Seals; death drops, full carry rejection, recovery without Witness, contest and winning-item-only consumption |
-| C40 | Not run | Delay/loss arithmetic and death/duplicate return pass; new withdrawal case pending |
+| C40 | Passed | B47 actual level-five death at 1200 seconds loses 16 of 101 gold and waits 46; duplicate waiting death and withdrawal do not charge/reset/respawn; retained level-one boundary tests |
 | C41 | Passed | Retained life/build/cooldown/knowledge and physical-drop checks plus B44 Witness, stable wallet, retry and Alert retention; old-life requests reject |
-| C42 | Not run | B46 craft receipt and ownership remain owner-only with unchanged public/observed allowlists; remote canonical-item exclusion passes; complete release privacy audit remains B47 |
+| C42 | Passed | B47 source/widget/effect audit plus 8-field observed and 21-field public allowlists; independent cooked clients expose no opponent canonical build/items; delayed conceal/old-revision/life checks pass |
 | C43 | Passed | Authored resident navigates and autonomously uses actual learned/equipped/ranked Patch after a nonlethal hit; common interruption/cooldown path; real return retains build/wallet |
-| C44 | Not run | Ten B46 resets include dirty fabrication receipts and physical Seals alongside earlier private domains; roster lock retained; full release review remains B47; authenticated resume is not retained |
-| C45 | Not run | B46 native/cooked acquisition and delayed-client cases pass with 28 assets; full delivery and rendering-performance acceptance remain open |
-| C46 | Not run | B46 delayed owning clients exercise earned fabrication, replay, independent items, death, recovery, contest and final receipt; full release/network review remains B47 |
-| C47 | Not run | Ten B46 resets pass; normal 25-minute and separate 90-minute cases pending; prior B45 captures expose GPU-budget pressure; full profiling remains open |
-| C48 | Not run | Honest checkpoint ledger/report supplied; full release/human evidence pending |
+| C44 | Passed | B47 waiting withdrawal/roster audit and ten regional resets pass; match-scoped builds, budgets, RNG and craft/item state clear; authenticated resume is not retained |
+| C45 | Partial | Current Editor/Game builds, 28 assets, Win64 cook and independent native/cooked remote clients pass; fresh cold B47 checkout not run during wrap-up; B46 cold checkout is historical; dedicated/remote delivery remain conditional |
+| C46 | Passed | B47 calibrated cooked actual echo medians 91.43/93.77 and 153.24/149.71 ms; action acknowledgement p95 166.05/157.99 and 202.93/200.42 ms; delayed skill/book/theft/Seal/private-view semantics pass |
+| C47 | Partial — deferred by user | Ordinary 1500.028-second run passes 37 checks with 26 audits; separate 90-minute harness stopped at user direction after 600.1-second audit and five forced lethal batches; final stress percentiles unrun |
+| C48 | Passed (reporting) | B47 ledger/report distinguish retained/new behavior, actual passes, failed intermediate runs, overrides and user-deferred stress; fresh cold B47 checkout and human validation remain explicitly unrun |
 
-No human matches, build-diversity study, full-duration stability session, long-session
-pacing or 90-minute stability run occurred. Dedicated packaging and remote Git/LFS
-distribution remain conditional/unverified. Next milestone: B47 release verification.
+The ordinary 25-minute automated session passed. The separate 90-minute technical
+stress run was stopped at user direction after about ten measured minutes and is
+deferred. No human matches or build-diversity/long-session pacing study occurred.
+Fresh cold B47 checkout, dedicated packaging and remote Git/LFS distribution remain
+unrun or conditional. Carry these gaps into the next version; no further feature
+scope is inferred from closing the v0.4 checkpoint.

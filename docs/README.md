@@ -6,7 +6,8 @@ execution and a mixed hotbar; B43 adds preparation, subclasses and physical book
 B44 adds Charter Witness checks and persistent wallet theft; B45 adds the connected
 regional map, bounded progression, autonomous healing NPC and watchtower sabotage.
 B46 adds earned Seal fabrication, independent recovery and the peaceful Heart win.
-B47 release verification is in progress. Human acceptance remains pending.
+B47 core checks and the ordinary 25-minute run are recorded. Full stress
+validation is deferred by user direction; human acceptance remains pending.
 
 | Start here | Purpose |
 | --- | --- |
