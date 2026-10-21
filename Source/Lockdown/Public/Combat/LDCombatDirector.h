@@ -50,8 +50,8 @@ public:
     void Queue(ALDPlayerController* Controller,uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction);
     bool Request(ALDPlayerController* Controller,uint8 Action,const FVector& Direction,FString& Result);
     bool RequestBody(ALDCharacter* Body,uint8 Action,const FVector& Direction,FString& Result);
-    void QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,const FVector& Direction);
-    bool RequestEquipped(ALDCharacter* Body,uint32 BuildRevision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result);
+    void QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,const FVector& Direction,FGuid Observed=FGuid());
+    bool RequestEquipped(ALDCharacter* Body,uint32 BuildRevision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget=nullptr);
     void RefreshSkillHold(ALDCharacter* Body,uint32 Token,uint32 Sequence,bool Moving);
     void ReleaseSkillHold(ALDPlayerController* PC,uint32 Token);
     bool RegisterNPCBuild(ALDCharacter* Body,const FLDCharacterBuild& Build);
@@ -71,7 +71,7 @@ private:
     struct FResidentReturn { double At; FVector Home; FGuid Wallet;bool HasBuild=false;FLDCharacterBuild Build; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TArray<FResidentReturn> Residents;
-    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0; };
+    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed; };
     TArray<FIntent> Intents;
     double NextSample=0;
     uint64 NextOrder=0;

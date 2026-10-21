@@ -49,11 +49,12 @@ void ALDDevelopmentProbe::Tick(float Delta)
     if (Role==TEXT("Visual"))
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
+        const bool ControlsVisual=FParse::Param(FCommandLine::Get(),TEXT("LDControlsVisual"));
         const bool SkillVisual=FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe"));
         const bool PrepVisual=FParse::Param(FCommandLine::Get(),TEXT("LDPreparationProbe"));
         const bool RegionVisual=FParse::Param(FCommandLine::Get(),TEXT("LDRegionProbe"));
         const bool WorldVisual=FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckProbe"));
-        const FString Image=FPaths::Combine(Directory,RegionVisual?TEXT("Region.png"):WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
+        const FString Image=FPaths::Combine(Directory,ControlsVisual?TEXT("Controls.png"):RegionVisual?TEXT("Region.png"):WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
         if (!Phase && GetWorld()->GetTimeSeconds()>2)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
@@ -74,6 +75,11 @@ void ALDDevelopmentProbe::Tick(float Delta)
             }
             Phase=1; PhaseAt=FPlatformTime::Seconds();
         }
+        else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&ControlsVisual)
+        {
+            auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());PC->ToggleControlsPanel();
+            Phase=3;PhaseAt=FPlatformTime::Seconds();
+        }
         else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&PrepVisual)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());PC->ToggleDevelopmentPanel();
@@ -81,7 +87,7 @@ void ALDDevelopmentProbe::Tick(float Delta)
             Phase=3;PhaseAt=FPlatformTime::Seconds();
         }
         else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
-        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,RegionVisual?TEXT("Regional HUD/map captured (location fixture)"):WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
+        else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,ControlsVisual?TEXT("Native controls/settings panel captured; UI engineering fixture, no human evidence"):RegionVisual?TEXT("Regional HUD/map captured (location fixture)"):WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
     {

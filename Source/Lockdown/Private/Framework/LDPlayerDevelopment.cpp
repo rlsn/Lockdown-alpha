@@ -3,6 +3,7 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "UI/LDDevelopmentPanel.h"
 #include "Engine/World.h"
+#include "Navigation/LDNavigationComponent.h"
 
 void ALDPlayerController::ToggleDevelopmentPanel()
 {
@@ -15,7 +16,7 @@ void ALDPlayerController::ToggleDevelopmentPanel()
 void ALDPlayerController::BuyBook(ELDSkill Skill)
 {StopDevelopmentHold();ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
 void ALDPlayerController::SetInteractionHeld(bool Held){if(Held){InteractStarted();}else{InteractStopped();}}
-void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
+void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Navigation->Enabled()){if(Held){ArmSkill(Slot,2);}else{EndSkillGesture(Slot,2);}return;}if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)
 {
     ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;

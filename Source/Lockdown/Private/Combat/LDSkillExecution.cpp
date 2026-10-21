@@ -51,12 +51,12 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
     if (auto* PC=Cast<ALDPlayerController>(Source->GetController())) { return Mode->Vision->CanSee(PC,To); }
     return Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To);
 }
-void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction)
+void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction,FGuid Observed)
 {
     if (Slot>=LDDevelopment::SlotCount) { PC->CompleteCombatRequest(RequestId,TEXT("Invalid skill slot.")); return; }
     int32 Count=0; for (const auto& Intent:Intents) { if (Intent.Controller==PC) { ++Count; } }
     if (Count>=3) { PC->CompleteCombatRequest(RequestId,TEXT("Too many queued actions.")); return; }
-    Intents.Add({PC,Match,Life,RequestId,uint8(3+Slot),Direction,Revision});
+    Intents.Add({PC,Match,Life,RequestId,uint8(3+Slot),Direction,Revision,Observed});
 }
 void ALDCombatDirector::CancelSkill(ALDCharacter* Body,FLDBodyCombatState& S)
 {
@@ -79,7 +79,7 @@ void ALDCombatDirector::ReleaseSkillHold(ALDPlayerController* PC,uint32 Token)
     if (auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
     { if (auto* S=StateFor(Body);S&&S->Action==7&&S->SkillToken<=Token) { CancelSkill(Body,*S); Sync(Body,*S); } }
 }
-bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result)
+bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* S=StateFor(Body); auto* Build=BuildFor(Body);
     const double Now=GetWorld()->GetTimeSeconds();
@@ -104,12 +104,15 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     if (Skill==ELDSkill::Ambush)
     {
         if (!LDCombat::Quiet(Now,S->QuietSince,S->ExposedUntil,Move->bWantsSprint,S->Action==4)) { Result=TEXT("Ambush needs quiet, unexposed preparation."); return false; }
-        Target=Nearest(Body,112,Aim,30,true);
+        Target=ExplicitTarget?ExplicitTarget:Nearest(Body,112,Aim,30,true);
+        const auto* Victim=Cast<ALDCharacter>(Target);const auto* State=Victim?StateFor(Victim):nullptr;
+        if(ExplicitTarget&&(!State||!LegalTarget(Body,Target,112,&Aim,30)||!LDCombat::IsRear(Body->GetActorLocation(),Victim->GetActorLocation(),Victim->GetActorForwardVector())||!LDCombat::TargetUnalert(Now,State->LastDamage,State->LastDealt))){Target=nullptr;}
         if (!Target) { Result=TEXT("No legal rear Ambush target."); return false; }
     }
     else if (Skill==ELDSkill::Spark)
     {
-        Target=Nearest(Body,500,Aim,30,false,true);
+        Target=ExplicitTarget?ExplicitTarget:Nearest(Body,500,Aim,30,false,true);
+        if(ExplicitTarget&&(!Cast<ALDCharacter>(Target)||!LegalTarget(Body,Target,500,&Aim,30))){Target=nullptr;}
         if (!Target) { Result=TEXT("No visible living Spark target."); return false; }
     }
     else if (Held&&Skill!=ELDSkill::Patch)
@@ -119,6 +122,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
         for (auto& Pair:SkillTasks)
         {
             AActor* Candidate=Pair.Key.Get(); auto& Task=Pair.Value;
+            if(ExplicitTarget&&Candidate!=ExplicitTarget){continue;}
             if (!Task.Skills.Contains(Skill)||!SkillTargetLegal(Body,Candidate,Skill)) { continue; }
             const double D=FVector::DistSquared2D(Body->GetActorLocation(),Candidate->GetActorLocation());
             if (D<Distance||(D==Distance&&Task.Identity.ToString()<BestId.ToString())) { Target=Candidate;Distance=D;BestId=Task.Identity; }
@@ -137,6 +141,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     else if (Skill==ELDSkill::Spark) { S->Action=6; S->ImpactAt=Now+.4; }
     else { S->Action=7; S->ImpactAt=Now+LDDevelopment::ChannelSeconds(Skill); }
     S->Skill=Skill; S->Snapshot=*Build; S->CommittedDamage=Value; S->Target=Target; S->CommittedAim=Aim; S->Order=++NextOrder;
+    if(Mode->IsUIControlProfile()&&!Held){Body->SetFacing(Aim.Rotation().Yaw);}
     S->SkillToken=Token; S->HoldSequence=0; S->LastSkillHold=Now; S->bHoldMoving=false; S->SkillAnchor=Body->GetActorLocation();
     Build->Cooldowns[uint8(Skill)]=Now+LDDevelopment::Cooldown(Skill);
     if (Target&&(Skill==ELDSkill::Spark||Skill==ELDSkill::Ambush))

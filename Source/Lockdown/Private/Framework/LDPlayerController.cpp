@@ -32,16 +32,19 @@
 #include "Region/LDRegionDefinition.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Tests/LDNavigationProbe.h"
+#include "Tests/LDInputProbe.h"
+#include "UI/LDControlSettings.h"
+#include "UI/LDControlsPanel.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
 bool ALDPlayerController::CanWorldCommand() const
-{const auto* G=GetWorld()->GetGameState<ALDGameState>();return !bControlsSuppressed&&OwnerState.bActive&&GetPawn()&&G&&G->bMatchStarted&&!G->EndReason;}
+{const auto* G=GetWorld()->GetGameState<ALDGameState>();return !bControlsSuppressed&&!bFreshInputRequired&&OwnerState.bActive&&GetPawn()&&G&&G->bMatchStarted&&!G->EndReason;}
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
 
@@ -69,6 +72,7 @@ void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();
     if (!IsLocalController()) { return; }
+    Controls=ULDControlSettings::Load();
     bShowMouseCursor = true;
     if (ULocalPlayer* Local = GetLocalPlayer())
     {
@@ -83,6 +87,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDInputProbe>(ALDInputProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDNavigationProbe>(ALDNavigationProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe")))
@@ -149,7 +155,7 @@ void ALDPlayerController::SetupInputComponent()
 void ALDPlayerController::OnRep_OwnerState()
 {
     if(OwnerState.Match<LatestOwner.Match || (OwnerState.Match==LatestOwner.Match&&OwnerState.Revision<LatestOwner.Revision)){OwnerState=LatestOwner;return;}
-    if(IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||!OwnerState.bActive)){ClearControls();}
+    if(IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||!OwnerState.bActive)){PendingAimRequest=0;Inspected.Invalidate();ClearControls();}
     LatestOwner=OwnerState;
 }
 void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& State)
@@ -199,9 +205,21 @@ void ALDPlayerController::CombatAction(uint8 Action)
     ServerCombatAction(OwnerState.Match,OwnerState.Life,++NextRequest,Action,Direction);
 }
 void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction)
-{if(Action<=2){EnqueueAction(Match,Life,Request,Action,Direction);}}
+{
+    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(M&&M->IsUIControlProfile()&&Action!=0){ClientIntentResult(Request,TEXT("Use an equipped skill slot"));return;}
+    if(Action<=2){EnqueueAction(Match,Life,Request,Action,Direction);}
+}
 void ALDPlayerController::ServerSkillAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction)
-{if(Slot<LDDevelopment::SlotCount){EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,BuildRevision);}}
+{
+    if(Slot>=LDDevelopment::SlotCount){return;}
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;
+    if(M&&M->IsUIControlProfile()&&O&&O->Build.Slots.IsValidIndex(Slot)&&O->Build.Slots[Slot]!=ELDSkill::Step&&O->Build.Slots[Slot]!=ELDSkill::Patch)
+    {ClientIntentResult(Request,TEXT("Choose an observed target"));return;}
+    EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,BuildRevision);
+}
+void ALDPlayerController::ServerSkillTargetAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint32 Revision,uint8 Slot,FVector_NetQuantizeNormal Direction,FGuid Observed)
+{if(Slot<LDDevelopment::SlotCount){EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,Revision,Observed);}}
 void ALDPlayerController::ServerSkillHold_Implementation(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
@@ -212,7 +230,7 @@ void ALDPlayerController::ServerSkillRelease_Implementation(uint32 Match,uint32 
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
     if(O&&O->Match==Match&&O->Life==Life&&Mode->Combat){Mode->Combat->ReleaseSkillHold(this,Token);}
 }
-void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision)
+void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision,FGuid Observed)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* State=Mode?Mode->StateFor(this):nullptr;
     if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>6||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1
@@ -227,11 +245,18 @@ void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,
     --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
     if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
     CombatReceipts.Add(Request,LastCombatResult);
-    if(Mode->Combat){if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
+    if(Mode->Combat){if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction,Observed);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
     else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
 }
 void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Result)
-{CombatReceipts.Add(Request,Result);if(Request==LastCombatRequest){LastCombatResult=Result;}ClientIntentResult(Request,Result);}
+{CombatReceipts.Add(Request,Result);if(Request==LastCombatRequest){LastCombatResult=Result;}ClientCombatResult(OwnerState,Request,Result,GetPawn()?GetPawn()->GetActorRotation().Yaw:0);}
+void ALDPlayerController::ClientCombatResult_Implementation(const FLDOwnerState& State,uint32 Request,const FString& Result,float Facing)
+{
+    ClientLifeReceipt_Implementation(State);
+    if(State.Match==OwnerState.Match&&State.Life==OwnerState.Life&&Request==PendingAimRequest)
+    {PendingAimRequest=0;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Facing);}}
+    ClientIntentResult_Implementation(Request,Result);
+}
 
 bool ALDPlayerController::ChooseContext(uint8& Target,FGuid& Observed) const
 {
@@ -256,7 +281,7 @@ bool ALDPlayerController::ChooseContext(uint8& Target,FGuid& Observed) const
     if(FMath::Min(Guild,Station)<=120*120){Target=Guild<=Station?LDObjective::Guild:LDObjective::Station;return true;}
     return false;
 }
-FString ALDPlayerController::ContextPrompt() const
+FString ALDPlayerController::LegacyContextPrompt() const
 {
     const auto* GS=GetWorld()->GetGameState<ALDGameState>();
     if(GS&&GS->EndReason){return GS->EndReason==2?TEXT("No claim. Demo finished."):(OwnerState.bWinner?TEXT("Heart claimed. You won."):TEXT("Heart claimed by another contender."));}
@@ -376,6 +401,7 @@ void ALDPlayerController::ServerPlaceWard_Implementation(uint32 Match,uint32 Lif
 }
 void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)
 {
+    if(Request==PendingAimRequest){PendingAimRequest=0;}
     IntentFeedback=Reason;
 #if !UE_BUILD_SHIPPING
     if(double* Sent=ProbeRequests.Find(Request)){ProbeAckMs.Add((FPlatformTime::Seconds()-*Sent)*1000);ProbeRequests.Remove(Request);}
@@ -456,6 +482,7 @@ void ALDPlayerController::CancelInterruptibleHolds()
 }
 void ALDPlayerController::ClearControls()
 {
+    CancelArmed();bPrimaryOwned=false;HeldObserved.Invalidate();
     Navigation->Stop();Navigation->Recenter(false);
     CancelInterruptibleHolds();
     SprintStopped();
@@ -467,10 +494,11 @@ void ALDPlayerController::ClearControls()
     }
 }
 
-void ALDPlayerController::FlushPressedKeys() { Super::FlushPressedKeys(); ClearControls(); }
+void ALDPlayerController::FlushPressedKeys() { Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {
+    if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}
     if (bControlsSuppressed != bOpen)
     {
         bControlsSuppressed = bOpen;
@@ -497,15 +525,7 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
-    if(IsLocalController()&&NavigationInputContext&&bNavigationContextActive!=Navigation->Enabled())
-    {
-        if(auto* Local=GetLocalPlayer())
-        {
-            auto* Input=Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
-            bNavigationContextActive=Navigation->Enabled();
-            if(bNavigationContextActive){Input->AddMappingContext(NavigationInputContext,2);}else{Input->RemoveMappingContext(NavigationInputContext);}
-        }
-    }
+    UpdateV05Inputs(Delta);
     if(IsLocalController()&&DevelopmentHoldToken&&GetWorld()->GetTimeSeconds()-LastDevelopmentHoldSent>=.1)
     {
         LastDevelopmentHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();
@@ -571,6 +591,7 @@ void ALDPlayerController::ServerSetAim_Implementation(uint32 Match,uint32 Life,f
     const double Now = GetWorld()->GetTimeSeconds();
     ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     const FLDOwnerState* State=Mode ? Mode->StateFor(this) : nullptr;
+    if(Mode&&Mode->IsUIControlProfile()){return;}
     if (!State || !State->bActive || Match!=State->Match || Life!=State->Life || !FMath::IsFinite(Yaw) || Now - LastAcceptedAimTime < .04) { return; }
     LastAcceptedAimTime = Now;
     if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->SetFacing(Yaw); }

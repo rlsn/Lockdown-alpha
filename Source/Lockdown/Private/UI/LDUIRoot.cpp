@@ -26,6 +26,8 @@
 #include "UI/LDDevelopmentPanel.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDControlSettings.h"
+#include "UI/LDControlsPanel.h"
 
 bool ULDUIRoot::PointerOverUI() const
 {
@@ -101,7 +103,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         };
         if (bFrontend)
         {
-            Button(TEXT("Host v0.4 development lobby"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
+            Button(TEXT("Host v0.5 controls checkpoint"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
             Address = WidgetTree->ConstructWidget<UEditableTextBox>();
             Address->SetText(FText::FromString(TEXT("127.0.0.1:7777")));
             Address->SetHintText(FText::FromString(TEXT("Host address:port")));
@@ -195,6 +197,8 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
 {
     Super::NativeTick(Geometry, Delta);
+    if(auto* InputOwner=Cast<ALDPlayerController>(GetOwningPlayer());InputOwner&&(InputOwner->IsFrontend()||InputOwner->Navigation->Enabled()))
+    {MenuHelp->SetText(FText::FromString(InputOwner->ControlSummary()));}
     if (const ULDGameInstance* Instance = GetGameInstance<ULDGameInstance>())
     {
         if (!Instance->ConnectionMessage.IsEmpty()) { Feedback->SetText(FText::FromString(Instance->ConnectionMessage)); }
@@ -255,12 +259,12 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         {
             if(LDRegion::Definition(GetWorld())&&GS&&!GS->bClaimActive&&!GS->EndReason){Public=FString::Printf(TEXT("Heart locked · Conquest deferred · %.0fs · Watch %s"),FMath::Max(0.,GS->MatchDeadline-Now),GS->bPublicSensorActive?TEXT("ON"):*FString::Printf(TEXT("OFF %.0fs"),FMath::Max(0.,GS->PublicSensorOfflineUntil-Now)));}
             const auto& B=O.Build;
-            Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · v0.4 DEVELOPMENT · %s\n%s · Level %d · XP %lld / 420 · Gold %lld · Attribute points %d · Skill points %d\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d · Basic %.2f damage\n%s · %s"),
-                *Life,LDDevelopment::ClassName(B.ClassId),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
+            Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · %s · %s\n%s · Level %d · XP %lld / 420 · Gold %lld · Attribute points %d · Skill points %d\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d · Basic %.2f damage\n%s · %s"),
+                PC->Navigation->Enabled()?TEXT("v0.5 INPUT CHECKPOINT"):TEXT("v0.4 DEVELOPMENT"),*Life,LDDevelopment::ClassName(B.ClassId),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
         }
         if (O.bDevelopmentProfile)
         {
-            const FText Controls=FText::FromString(PC->Navigation->Enabled()?TEXT("Navigation checkpoint · RMB move/approach · S stop · Shift sprint · Arrows/edge pan · Space recenter · Home follow · 1–4 skills · E context · P build · H help"):TEXT("WASD · Shift · Click attack · 1–4 skills (hold utility) · Q/Space equipped aliases · P build/books · E work/loot · F ward · H help"));
+            const FText Controls=FText::FromString(PC->Navigation->Enabled()?PC->ControlSummary():FString(TEXT("WASD · Shift · Click attack · 1–4 skills (hold utility) · Q/Space equipped aliases · P build/books · E work/loot · F ward · H help")));
             if (ControlsInfo) { ControlsInfo->SetText(Controls); } MenuHelp->SetText(Controls);
             FString Slots;
             for(int32 I=0;I<LDDevelopment::SlotCount;++I)
@@ -268,7 +272,8 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
                 const ELDSkill Skill=O.Build.Slots[I];const double Left=O.Build.Cooldowns[uint8(Skill)]-Now;
                 const FString Rank=Skill==ELDSkill::None?TEXT(""):FString::Printf(TEXT(" R%d"),LDDevelopment::Rank(O.Build,Skill));
                 const FString Ready=Skill==ELDSkill::None?TEXT(""):(Left>0?FString::Printf(TEXT(" %.1fs"),Left):(uint8(Skill)>=4?TEXT(" hold"):TEXT(" press")));
-                Slots+=FString::Printf(TEXT("[%d] %s%s%s   "),I+1,LDDevelopment::SkillName(Skill),*Rank,*Ready);
+                const FString SlotKey=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);
+                Slots+=FString::Printf(TEXT("[%s] %s%s%s   "),*SlotKey,LDDevelopment::SkillName(Skill),*Rank,*Ready);
             }
             if(SkillBar){SkillBar->SetText(FText::FromString(Slots));}
         }
@@ -278,7 +283,8 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             if(const auto* D=LDRegion::Definition(GetWorld())){if(O.ContractStage==1){const auto* N=D->Node(O.ContractDestination);Stage=FString::Printf(TEXT("Collect at %s"),N?*N->Name:TEXT("assigned town"));}Stage+=FString::Printf(TEXT(" · Paid %d/8"),O.PaidJobs);}
             FString Progress=O.ChannelKind?FString::Printf(TEXT("%s %.1f / %.0fs confirmed · Release E, move or take damage to cancel."),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):O.ChannelKind==4?TEXT("Fabricating"):TEXT("Claiming"),O.ChannelProgress,LDObjective::Duration(O.ChannelKind)):TEXT("Hold progress resets on interruption.");
             if(GS&&GS->bContested&&O.ChannelKind==3){Progress=TEXT("CONTESTED · Claim progress reset to zero.");}
-            const FString Craft=O.bDevelopmentProfile&&LDRegion::Definition(GetWorld())?FString::Printf(TEXT("\nGuild: E courier · Shift+E Seal (4s; 4 credits, 100 gold, Witness) · %s"),O.FabricationReceipt.IsValid()?TEXT("craft used"):O.SealId.IsValid()?TEXT("slot full"):LDObjective::CanFabricate(O.Witness.IsValid(),O.Commissions,O.Gold,false,false)?TEXT("ready"):TEXT("requirements missing")):TEXT("");
+            FString Craft=O.bDevelopmentProfile&&LDRegion::Definition(GetWorld())?FString::Printf(TEXT("\nGuild: E courier · Shift+E Seal (4s; 4 credits, 100 gold, Witness) · %s"),O.FabricationReceipt.IsValid()?TEXT("craft used"):O.SealId.IsValid()?TEXT("slot full"):LDObjective::CanFabricate(O.Witness.IsValid(),O.Commissions,O.Gold,false,false)?TEXT("ready"):TEXT("requirements missing")):TEXT("");
+            if(PC->Navigation->Enabled()){Progress.ReplaceInline(TEXT("Release E"),*(TEXT("Release ")+PC->BindingLabel(TEXT("Context"))));Craft.ReplaceInline(TEXT("Shift+E Seal"),TEXT("Character panel: Arm Seal"));Craft.ReplaceInline(TEXT("E courier"),*(PC->BindingLabel(TEXT("Context"))+TEXT(" courier")));}
             ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Credits %d · Witness: %s%s\n%s"),*PC->ContextPrompt(),*Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Craft,*Progress)));
             if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
             {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
@@ -322,6 +328,7 @@ void ULDUIRoot::DefenceCentral(){CastChecked<ALDPlayerController>(GetOwningPlaye
 
 void ULDUIRoot::ToggleMenu()
 {
+    if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->ControlsUI&&PC->ControlsUI->IsOpen()){PC->ControlsUI->Close();return;}
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();return;}
     if (bInLobby) { return; }
     if (CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend()) { return; }
@@ -332,13 +339,15 @@ void ULDUIRoot::ToggleMenu()
 }
 FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
 {
-    if (Event.GetKey() == EKeys::Escape) { ToggleMenu(); return FReply::Handled(); }
+    if (Event.GetKey() == EKeys::Escape)
+    {if(!Event.IsRepeat()){auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->Navigation->Enabled()||PC->IsFrontend()){PC->V05Back();}else{ToggleMenu();}}return FReply::Handled();}
     return Super::NativeOnKeyDown(Geometry, Event);
 }
+void ULDUIRoot::DismissMenu(){if(!CastChecked<ALDPlayerController>(GetOwningPlayer())->IsFrontend()){bMenuOpen=false;MenuPanel->SetVisibility(ESlateVisibility::Collapsed);if(FixturePanel){FixturePanel->SetVisibility(ESlateVisibility::Collapsed);}}}
 void ULDUIRoot::Host()
 {
     GetGameInstance<ULDGameInstance>()->ConnectionMessage.Reset();
-    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_DevelopmentRegion"), true, TEXT("listen?Profile=V04"));
+    UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_DevelopmentRegion"), true, TEXT("listen?Profile=V05"));
 }
 void ULDUIRoot::Join()
 {

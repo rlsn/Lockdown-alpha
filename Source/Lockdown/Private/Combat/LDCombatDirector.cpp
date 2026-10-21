@@ -155,6 +155,7 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
         S->CommittedAim=Aim;S->Order=++NextOrder;
     }
     Move->bCombatWalkOnly=S->Action==2||S->Action==3;
+    if(Mode->IsUIControlProfile()){Body->SetFacing(Direction.Rotation().Yaw);}
     S->QuietSince=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);Sync(Body,*S);
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController()))
     {if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives.Get()){O->Interrupt(PC,Now,Mode->IsDevelopmentProfile());}}
@@ -201,7 +202,13 @@ void ALDCombatDirector::Sample(double Now)
         const auto* O=Mode->StateFor(PC);FString Reason;
         if(!O||O->Match!=Intent.Match||O->Life!=Intent.Life){Reason=TEXT("Stale queued life.");}
         else if(Accepted.Contains(PC)){Reason=TEXT("Superseded by a higher-priority action.");}
-        else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
+        else
+        {
+            AActor* Target=Intent.Observed.IsValid()&&Mode->Vision?Mode->Vision->ResolveObserved(PC,Intent.Observed):nullptr;
+            const auto Skill=Intent.Action>=3&&O->Build.Slots.IsValidIndex(Intent.Action-3)?O->Build.Slots[Intent.Action-3]:ELDSkill::None;
+            if(Mode->IsUIControlProfile()&&Intent.Action>=3&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch&&!Target){Reason=TEXT("Target no longer visible");}
+            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
+        }
         PC->CompleteCombatRequest(Intent.Request,Reason);
     }
     Intents.Reset();

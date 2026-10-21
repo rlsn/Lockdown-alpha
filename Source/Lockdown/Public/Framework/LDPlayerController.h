@@ -21,6 +21,30 @@ public:
     void CancelInterruptibleHolds();
     bool CanWorldCommand() const;
     bool NavigationBindingsActive() const {return bNavigationContextActive;}
+    UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
+    UPROPERTY() TObjectPtr<class ULDControlsPanel> ControlsUI;
+    void RebuildV05Mappings();
+    void ToggleControlsPanel();
+    void V05Back();
+    FString BindingLabel(FName Action) const;
+    FString ControlSummary() const;
+    FKey BindingKey(FName Action) const;
+    FVector2D CameraPanAxis() const;
+    bool IsTargeting() const {return ArmedSkill>=0||bAttackArmed;}
+    void ArmSkill(uint8 Slot,uint8 Gesture=0);
+    void ArmAttack();
+    void ConfirmArmed(const FVector& Ground,FGuid Observed);
+    void EndSkillGesture(uint8 Slot,uint8 Gesture);
+    bool HasPendingAim() const {return PendingAimRequest!=0;}
+    void CancelArmed();
+    void Inspect(FGuid Observed);
+    FGuid ObservedUnderPointer() const;
+    bool ReadInspected(FLDObservedEntity& Out) const;
+    FGuid Inspected;
+    void ArmPreparation(const FLDBuildPlan& Plan);
+    void ArmRead(FGuid Book);
+    void ArmFabrication();
+    UFUNCTION(Server,Reliable) void ServerSkillTargetAction(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction,FGuid Observed);
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
     void ChooseLobbyClass(uint8 ClassId);
     void ToggleLobbyReady();
@@ -32,7 +56,7 @@ public:
     void SetInteractionHeld(bool Held);
     void SetFabricationHeld(bool Held);
     void SetSkillHeld(uint8 Slot,bool Held);
-    void PressBasicAttack(){Attack();}
+    void PressBasicAttack();
     UFUNCTION(Server,Reliable) void ServerDevelopmentRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan);
     UFUNCTION(Server,Unreliable) void ServerDevelopmentHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
     UFUNCTION(Server,Reliable) void ServerDevelopmentRelease(uint32 Match,uint32 Life,uint32 Token);
@@ -44,6 +68,7 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_OwnerState) FLDOwnerState OwnerState;
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
+    UFUNCTION(Client,Reliable) void ClientCombatResult(const FLDOwnerState& State,uint32 Request,const FString& Result,float Facing);
     UFUNCTION(Server,Reliable) void ServerCombatAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction);
     UFUNCTION(Server,Reliable) void ServerSkillAction(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction);
     UFUNCTION(Server,Unreliable) void ServerSkillHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
@@ -56,6 +81,7 @@ public:
     void ToggleDefenceFixture(uint8 Index);
     void SeedSealFixture();
     FString ContextPrompt() const;
+    FString LegacyContextPrompt() const;
     bool ChooseContext(uint8& Target,FGuid& Observed) const;
     UFUNCTION(Server,Reliable) void ServerContextRequest(uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed);
     UFUNCTION(Server,Unreliable) void ServerContextHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
@@ -76,6 +102,7 @@ public:
     void RecordProbeRequest(uint32 Request){ProbeRequests.Add(Request,FPlatformTime::Seconds());}
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
 private:
+    friend class ALDInputProbe;
     bool bControlsSuppressed = false;
     float AimSendTime = 0;
     double LastAcceptedAimTime = -1;
@@ -96,10 +123,26 @@ private:
     void SkillStarted(uint8 Slot);
     void SkillStopped(uint8 Slot);
     void SkillAlias(ELDSkill Skill);
-    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0);
+    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0,FGuid Observed=FGuid());
     UPROPERTY() TObjectPtr<class UInputMappingContext> SkillInputContext;
     UPROPERTY() TObjectPtr<class UInputMappingContext> NavigationInputContext;
     bool bNavigationContextActive=false;
+    void UpdateV05Inputs(float Delta);
+    void V05Pressed(FName Action);
+    void V05Released(FName Action);
+    void V05Zoom(const FInputActionValue& Value);
+    void ContextV05();
+    void BeginTargetSkill(uint8 Slot,FGuid Observed,const FVector& Aim,uint8 Gesture);
+    bool bFreshInputRequired=false,bPrimaryOwned=false,bAttackArmed=false,bDraftArmed=false,bFabricationArmed=false;
+    int32 ArmedSkill=-1;
+    uint8 HeldSkillGesture=0;
+    FGuid HeldObserved,ReadArmed;
+    FLDBuildPlan PreparedDraft;
+    uint32 InspectedGeneration=0;
+    double PreferenceSaveAt=0;
+    TWeakObjectPtr<APawn> PreferencesPawn;
+    TArray<uint32> V05BindingHandles;
+    uint32 PendingAimRequest=0;
     uint32 SkillHoldToken=0,SkillHoldSequence=0;
     uint8 HeldSkillSlot=255;
     double LastSkillHoldSent=-1000;

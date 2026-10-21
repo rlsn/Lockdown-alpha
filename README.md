@@ -5,14 +5,13 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 native navigation verified; B52 input migration is next.**
-The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records actual source,
-adopted defaults, fresh packaged smoke checks and integration risks. The
-[B51 implementation](docs/v05/B51_IMPLEMENTATION.md) supplies validated native
-navigation, cancellation and camera controls with independent Editor/cooked
-clients. Use `Scripts/OpenStandalone.ps1 -NavigationCheckpoint` to review it.
-The ordinary frontend and launch instructions below still describe retained v0.4
-until the coherent B52 input migration; the full v0.5 sprint is not yet delivered.
+**Current checkpoint: B51 navigation and B52 input/action modes implemented.**
+The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
+baseline and defaults. [B51](docs/v05/B51_IMPLEMENTATION.md) proves native
+multiplayer navigation; [B52](docs/v05/B52_IMPLEMENTATION.md) adds saved remapping,
+explicit targeting and fresh-input panel routing. The ordinary frontend now
+launches the v0.5 controls checkpoint. B53 HUD and B54–B58 inventory, vendor,
+peer exchange, presentation and complete release verification remain ahead.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
@@ -36,23 +35,25 @@ stress case was stopped at user direction; a fresh B47 cold checkout and human
 review remain pending for the next version. Use
 the [review guide](docs/v04/B47_REVIEW_GUIDE.md) for actual multiplayer sessions.
 
-Use the frontend's **Host v0.4 development lobby**, select a class, mark Ready and
-start as the lobby host. One human is practice; the declared cap is 25 minutes.
-The frontend launches the city/two-town regional map. Press 1–4 for the
-equipped skill; hold utility keys. Q/Space require equipped Ambush/Step. P opens
-preparation and books. Charter markers show the public skill threshold; the HUD
-shows your own score. Hold equipped Pickpocket behind an eligible humanoid.
-Each match allows eight paid jobs with alternating towns. Three first visits
-award XP through body traversal. Towns support preparation; the Guild sells books.
-The marked wilderness sentinel is hostile. Equipped Analyze at score 14 can
-disable watchtower sight temporarily. At Guild, E keeps courier work available;
-hold Shift+E for four seconds to fabricate a Seal with Witness, four unused
-credits and 100 gold, once per contender per match. A recovered Seal needs no
-Witness. Carry it to Heart and hold E for ten uncontested seconds to claim.
-The normal conquest port remains unavailable.
-Opening the sandbox without `?Profile=V04`
-selects the explicit legacy profile, documented in the
-[v0.3 implementation archive](docs/v03/implementation/README.md).
+Use **Host v0.5 controls checkpoint**, select a class, mark Ready and start as
+host. One human is practice; the retained cap is 25 minutes. Right-click moves or
+approaches, S stops, Shift sprints, left-click inspects, and A then world-click
+attacks. Q/W/E/R invoke equipped skill modes; hold the initiating key/button for
+channels. F performs context, P opens character/preparation and F1 opens saved
+controls. Arrows/edge pan, held Space, Home and the wheel control the camera.
+Apply closes the preview and requires a fresh F hold at a preparation station.
+The temporary character panel also arms book reading and Seal fabrication.
+
+The larger inventory, item shortcuts and peer trade are pending. Numeric 1–4
+report empty, I currently opens the retained books/development panel, and T is
+unavailable. The old HUD is temporary until B53. Retained gameplay still includes
+eight paid jobs, first visits, private Charter checks, the hostile sentinel,
+watchtower sabotage and earned Witness/Seal/Heart. Fabrication remains four
+seconds with Witness, four unused credits and 100 gold, once per contender;
+Heart requires a ten-second uncontested hold. Conquest remains deferred.
+
+Historical regression runners explicitly select `?Profile=V04`. An unqualified
+legacy sandbox retains the [v0.3 profile](docs/v03/implementation/README.md).
 
 ## Setup
 
@@ -78,6 +79,9 @@ selects the explicit legacy profile, documented in the
 ./Scripts/BootstrapAssets.ps1
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
+./Scripts/RunInputCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
+./Scripts/RunNavigationCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
+./Scripts/CaptureInputUI.ps1 -Controls
 ./Scripts/RunDevelopmentCheck.ps1
 ./Scripts/RunDevelopmentCheck.ps1 -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunDevelopmentCheck.ps1 -Reset

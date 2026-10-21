@@ -16,6 +16,7 @@
 #include "Misc/ScopeExit.h"
 #include "Framework/Application/SlateApplication.h"
 #include "UI/LDUIRoot.h"
+#include "UI/LDControlSettings.h"
 
 namespace
 {
@@ -215,7 +216,7 @@ void ULDNavigationComponent::ClientOrder_Implementation(FLDMoveIdentity Identity
 void ULDNavigationComponent::Face(const FVector& Direction)
 {
     auto* PC=Controller();auto* Body=Cast<ALDCharacter>(PC->GetPawn());
-    if(Body&&(PC->OwnerState.ActionCue&15)==0&&!Direction.IsNearlyZero()){Body->SetFacing(Direction.Rotation().Yaw);}
+    if(Body&&!PC->HasPendingAim()&&(PC->OwnerState.ActionCue&15)==0&&!Direction.IsNearlyZero()){Body->SetFacing(Direction.Rotation().Yaw);}
 }
 void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* Function)
 {
@@ -252,10 +253,10 @@ void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActo
     if(!PC->IsLocalController()){return;}
     if(SeenMatch!=PC->OwnerState.Match||SeenLife!=PC->OwnerState.Life){ResetLife();}
     if(Body!=LastPawn.Get())
-    {LastPawn=Body;if(Body){Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);bCameraInitialized=false;bFollowCamera=true;}}
+    {LastPawn=Body;if(Body){Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);bCameraInitialized=false;bFollowCamera=PC->Controls?PC->Controls->bStartFollowing:true;}}
     if(!PC->CanWorldCommand()) {if(bLocalActive||bFollowing){Stop();}TickCamera(Delta);return;}
     if(!FApp::IsUnattended()&&FSlateApplication::IsInitialized()&&!FSlateApplication::Get().IsActive())
-    {if(bHadFocus){PC->ClearControls();}bHadFocus=false;return;}
+    {if(bHadFocus){PC->FlushPressedKeys();}bHadFocus=false;return;}
     bHadFocus=true;
     if(bLocalActive&&Now-LastHeartbeatSent>=.5){LastHeartbeatSent=Now;ServerHeartbeat(Local,++HeartbeatSequence);}
     TickCamera(Delta);
@@ -282,14 +283,10 @@ void ULDNavigationComponent::ClickMove()
     auto* PC=Controller();FHitResult Ground;
     if(PC->RootUI&&PC->RootUI->PointerOverUI()){return;}
     if(!PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Ground)){return;}
-    // Hit-test only filtered records. Canonical remote actors are never queried by the cursor.
-    if(const auto* R=PC->LocalView();R&&!R->IsStale())
-    {
-        const FLDObservedEntity* Best=nullptr;double Distance=30*30;
-        for(const auto& E:R->LastView().Entities)
-        {const double D=FVector::DistSquared2D(E.Position,Ground.ImpactPoint);if(D<Distance){Best=&E;Distance=D;}}
-        if(Best){Navigate(Ground.ImpactPoint,Best->Id);return;}
-    }
+    // Share the filtered screen-space hit test with selection; ground under a
+    // projected head need not be near that body's feet in an angled camera.
+    const FGuid Observed=PC->ObservedUnderPointer();
+    if(Observed.IsValid()){Navigate(Ground.ImpactPoint,Observed);return;}
     for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(7),uint8(8)})
     {if(Site>3&&!LDRegion::Definition(GetWorld())){continue;}if(FVector::DistSquared2D(Ground.ImpactPoint,LDRegion::Site(GetWorld(),Site))<40*40){Navigate(Ground.ImpactPoint,FGuid(),Site);return;}}
     Navigate(Ground.ImpactPoint);
@@ -306,8 +303,8 @@ void ULDNavigationComponent::TickCamera(float Delta)
     if(!bCameraInitialized){CameraCentre=B->GetActorLocation();bCameraInitialized=true;}
     if(PC->CanWorldCommand())
     {
-        FVector2D Axis((PC->IsInputKeyDown(EKeys::Right)?1:0)-(PC->IsInputKeyDown(EKeys::Left)?1:0),(PC->IsInputKeyDown(EKeys::Up)?1:0)-(PC->IsInputKeyDown(EKeys::Down)?1:0));
-        if(bEdgePan&&!FApp::IsUnattended()&&(!PC->RootUI||!PC->RootUI->PointerOverUI()))
+        FVector2D Axis=PC->CameraPanAxis();
+        if(bEdgePan&&!PC->IsTargeting()&&!FApp::IsUnattended()&&(!PC->RootUI||!PC->RootUI->PointerOverUI()))
         {float X=0,Y=0;int32 W=0,H=0;PC->GetViewportSize(W,H);if(PC->GetMousePosition(X,Y)&&X>=0&&Y>=0&&X<W&&Y<H){Axis.X+=(X>=W-8?1:0)-(X<8?1:0);Axis.Y+=(Y<8?1:0)-(Y>=H-8?1:0);}}
         PanCamera(Axis.GetClampedToMaxSize(1),Delta);
     }

@@ -1,87 +1,88 @@
-# Continuation — v0.5 B51 navigation checkpoint
+# Continuation — v0.5 B52 input checkpoint
 
-21 October 2026. The user supplied master plan revision 5 and the v0.5 UI/control
-specification and requested review, commit and preparation for implementation.
-The user subsequently requested implementation. [B51 native navigation](v05/B51_IMPLEMENTATION.md)
-is implemented and verified in independent Editor and cooked clients. Continue
-with B52 input/action modes before expanding the full HUD.
+21 October 2026. The user requested review/commit of master revision 5 and the
+v0.5 specification, then requested implementation. B50 audit is complete;
+[B51 navigation](v05/B51_IMPLEMENTATION.md) and
+[B52 input/action modes](v05/B52_IMPLEMENTATION.md) are implemented. Continue
+with B53 HUD/selection/minimap, then B54–B58. Full v0.5 is not delivered.
 
 ## Read first
 
-1. [Master plan revision 5](master/README.md), especially UI/controls and privacy.
-2. [v0.5 specification](v05/README.md), all chapters, JSON and wireframes.
-3. [Actual baseline and adopted defaults](v05/B50_BASELINE_REVIEW.md) and
-   [working feature ledger](v05/FeatureLedger.csv), then the [B51 report](v05/B51_IMPLEMENTATION.md).
-4. [B50–B58 build plan](v05/08_BUILD_PLAN.md),
-   [U01–U56 acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md) and
-   [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
-5. [Archived B47 continuation](v04/CONTINUATION_B47.md) and
-   [B47 engineering evidence](v04/B47_IMPLEMENTATION.md).
+1. [Master plan](master/README.md) and [v0.5 spec](v05/README.md), all chapters,
+   JSON and wireframes.
+2. [B50 actual baseline/defaults](v05/B50_BASELINE_REVIEW.md),
+   [working ledger](v05/FeatureLedger.csv), B51 and B52 implementation reports.
+3. [Build plan](v05/08_BUILD_PLAN.md), [acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md)
+   and [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
+4. [B47 archive](v04/CONTINUATION_B47.md) and [B47 evidence](v04/B47_IMPLEMENTATION.md).
 
-## Baseline and scope
+## Baseline and invariants
 
-B50 predecessor handoff: `b8f003a6535079c98dd228cf45908eeff92f9411`.
-B47 predecessor runtime: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
-The B51 runtime checkpoint is the commit containing its implementation report.
-Keep Unreal 5.8.3 CL 58210709, native CharacterMovement, Enhanced Input, current
-UMG/Slate and the existing authority/filtered-view boundary. No engine or
-mandatory ability/UI framework migration.
+B47 runtime: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
+B50 preparation: `c222021`. B51: `607e2d8`. B52 is the commit containing its report.
+Keep Unreal 5.8.3 CL 58210709, native CharacterMovement, Enhanced Input, UMG/Slate
+and the existing authority/filtered-view boundary. No engine/framework migration.
 
-The v0.5 targets are right-click navigation, explicit attack/targeting, Q/W/E/R
-skills, F context, selected-unit inspection, anchored own commands, minimap,
-24-slot carried inventory, four item references, vendor buying and real consensual
-atomic peer exchange. Retain v0.4 gameplay, short normal profile and earned
-peaceful Heart route. No mana, new abilities, equipment economy or full conquest.
+Retain actual class starts, six attributes, level-five cap, four shared skill
+slots, 1500-second normal match and earned peaceful Heart route. No mana, new
+abilities, equipment economy or full conquest. Preserve 100 ms hold refresh and
+250 ms stale expiry. Convert exactly one starting ward to finite instances in B54;
+unused charges are lost on death, with no respawn grant. Books and Seal still drop.
+Learned state, Witness and credits remain outside inventory. Preserve the eight-field
+observed mask and 22-field public allowlist; new receipts contain only own state/facing.
 
-Adopt the supplied sprint defaults with audited baseline dispositions: retain
-250 ms stale-hold expiry; convert the actual one starting ward charge exactly;
-retain loss of unused charges on death with no respawn grant. Books and Seal
-still drop. See B50 for source anchors and the synchronized JSON contract.
+## Implemented checkpoint
 
-## Current implementation and evidence
+B51 uses validated owner steering through native CharacterMovement. Server and
+owner compute static paths independently. Saved moves carry match/life/order/epoch;
+old acknowledgements cannot revive stopped movement. Snapshot approach, bounded
+replan, liveness, ramps, sprint, Step, falling and new life have independent cooked
+proof. Preserve the sandbox cook-safe bounds fallback and saved regional envelopes.
 
-The selected adapter is validated owner steering through native CharacterMovement,
-with independent server path validation. No route or hidden actor pointer is
-streamed to the owner. Saved moves include match/life/order/epoch, and stale
-movement cannot revive a stopped route. Snapshot approaches, one-replan stalls,
-navigation liveness, native sprint/Step, focus, gravity and respawn are exercised.
+B52 installs a 26-command registry and removes legacy V05 contexts. Normal Host
+and implicit regional launch now use V05; explicit `Profile=V04` preserves historical
+regressions. Q/W/E/R arm equipped skills; A then world confirmation attacks; F is
+context; S stops; Space recenters. F1 offers saved rebinding, conflict rejection,
+reserved Escape and local preferences. Labels read live mappings. Exact skills
+resolve authorized observations; old unslotted/hover-facing RPC paths reject.
+Panels stop/release and require physical release before fresh input. Apply/Use
+close and arm a new context hold; the temporary character panel arms fabrication.
 
-Editor and cooked runs each pass Server 34 / A 17 / B 17. Measured cooked echo
-medians cover about 100 and 150 ms; initial acknowledgement p95 remains below
-250 ms. Retained rules (15), movement (7), variable-frame combat (48) and region
-(93) pass. The observed mask remains eight fields; the exact public allowlist adds
-only the profile boolean, making 22 fields. B51 records corrections, failed runs,
-fixture boundaries and the cooked sandbox navigation-envelope repair.
+B52 Editor evidence: 16 warning-free rules, variable-frame combat 48, region 93,
+and independent input Server 15 / A 19 / B 19 at measured echo 149.59/149.62 ms
+with configured 25 ms jitter. The B52 report records final package/cooked/capture
+proof and fixture boundaries. Cooked input passes 15/19/19 at measured ~100 and
+~150 ms; the navigation regression passes 34/17/17. Final archive:
+`Artifacts/20261021-163038-208-PackageWin64/Archive/Windows` (113 source/config
+and seven payload hashes match). These are engineering clients, not human acceptance.
 
-Final B51 archive: `Artifacts/20261021-152127-712-PackageWin64/Archive/Windows`.
-Its 103 source/configuration hashes and seven payload hashes match the checkpoint.
-The normal frontend still launches V04 until B52; explicitly review the V05
-navigation lobby with `Scripts/OpenStandalone.ps1 -NavigationCheckpoint`.
+Review with `Scripts/OpenStandalone.ps1`, Host the controls checkpoint and use F1.
+The old HUD is temporary. Numeric items report empty; I opens the retained books/
+development panel; T is unavailable. Saved text scale currently affects controls
+rows; final shared scaling/focus belongs to B57.
 
-## Next implementation work
+## Next work
 
-Implement B52's single mapping registry, rebinding/persistence, Q/W/E/R skills,
-1–4 item entry points, F holds, A-then-click attack, explicit targeting, gesture
-ownership and fresh input after panels/focus loss. Remove the old normal-profile
-contexts coherently, retain V04 for historical regressions and preserve the B51
-movement metadata. Integrate preparation Apply as close-and-arm followed by a
-fresh station hold; exact targeted skills must resolve authorized observed handles.
+B53: anchored own commands/status, selected-subject inspector, reticle/range/action
+states, three-state fog and minimap pan/drag/authored-surface right-click navigation.
+Use only own state plus filtered views. Other private fields remain Unknown/absent;
+map gestures never cast, select hidden units or increase body reach. Unify frontend,
+lobby, death and results. B54 adds the real 24-slot container and four identity
+references; B55 quoted vendor; B56 six-item per-side atomic consensual exchange
+with exposed gold, revisioned Ready and separate Confirm; B57 presentation; B58 verification.
 
-Then follow B52 input → B53 HUD/privacy → B54 inventory → B55 vendor → B56 peer
-trade → B57 presentation → B58 verification. Keep templates blank and record real
-work in the working ledger and release reports. Run Unreal builds/probes
-sequentially with source stable; BuildEditor/BuildGame support MaxParallelActions 4
-on this 16 GB machine. Preserve authored assets, frozen references, the cook-safe
-navigation envelope and separate web baseline.
+Keep templates blank and record actual results in working reports/ledger. Run
+Unreal builds and probes sequentially with source stable; use MaxParallelActions 4
+on this 16 GB machine. Preserve authored assets, frozen references/input assets,
+engine pin and separate web baseline. `RunInputCheck.ps1`, `RunNavigationCheck.ps1`
+and `CaptureInputUI.ps1` accept PackageRoot; `PackageWin64.ps1` records source/payload hashes.
 
 ## Deferred evidence
 
-The ordinary B47 25-minute run passed. The separate interrupted stress run remains
-deferred by user direction and is not a 90-minute pass. Do not automatically rerun
-it absent a new lifetime concern. A fresh B47 cold checkout, remote Git/LFS delivery
-and dedicated packaging remain unrun/conditional. B58 still requires a current
-cold build/cook, affected delayed clients, ten restarts and a normal session.
-
-Actual human multiplayer/usability, contrasting builds, counterplay and full
-60–90 minute pacing remain unvalidated. No human observations were invented.
-Preserve these gaps explicitly; archived v0.4 records remain historical evidence.
+B47's ordinary 25-minute session passed. The user stopped the separate stress run;
+it is not a 90-minute pass and must not automatically resume absent a new lifetime
+concern. Current cold checkout, affected ten restarts, normal v0.5 25-minute journey
+and zero-kill earned UI progression remain for B58. Remote Git/LFS delivery and
+source-engine dedicated packaging remain unverified/conditional. Cooked headless
+listen authority is labelled. Actual human multiplayer/usability, contrasting builds,
+counterplay and full 60–90 minute pacing remain unvalidated. No observations were invented.
