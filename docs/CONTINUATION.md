@@ -1,12 +1,13 @@
-# Continuation — v0.5 B54 inventory checkpoint
+# Continuation — v0.5 B55 quoted vendor checkpoint
 
 22 October 2026. The user requested review/commit of master revision 5 and the
 v0.5 specification, then requested implementation. B50 audit is complete;
 [B51 navigation](v05/B51_IMPLEMENTATION.md) and
 [B52 input/action modes](v05/B52_IMPLEMENTATION.md) and
 [B53 HUD/inspection/minimap](v05/B53_IMPLEMENTATION.md) and
-[B54 inventory/quick items](v05/B54_IMPLEMENTATION.md) are implemented. Continue
-with B55 vendor, then B56–B58. Full v0.5 is not delivered.
+[B54 inventory/quick items](v05/B54_IMPLEMENTATION.md) and
+[B55 quoted Guild vendor](v05/B55_IMPLEMENTATION.md) are implemented. Continue
+with B56 peer exchange, then B57–B58. Full v0.5 is not delivered.
 
 **22 October update:** The user explicitly approved adopting installed Unreal
 5.8.4 CL 58902052. The platform lock now names that build; its guard remains active.
@@ -18,7 +19,7 @@ the actual engine transition, failures corrected, current evidence and limits.
 1. [Master plan](master/README.md) and [v0.5 spec](v05/README.md), all chapters,
    JSON and wireframes.
 2. [B50 actual baseline/defaults](v05/B50_BASELINE_REVIEW.md),
-   [working ledger](v05/FeatureLedger.csv), B51–B54 implementation reports.
+   [working ledger](v05/FeatureLedger.csv), B51–B55 implementation reports.
 3. [Build plan](v05/08_BUILD_PLAN.md), [acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md)
    and [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
 4. [B47 archive](v04/CONTINUATION_B47.md) and [B47 evidence](v04/B47_IMPLEMENTATION.md).
@@ -27,7 +28,7 @@ the actual engine transition, failures corrected, current evidence and limits.
 
 B47 runtime: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
 B50 preparation: `c222021`. B51: `607e2d8`. B52: `9f4c58f`.
-B53: `b0af13e`. B54 is the commit containing its implementation report.
+B53: `b0af13e`. B54: `a6476b4`. B55 is the commit containing its implementation report.
 Keep the approved Unreal 5.8.4 CL 58902052 baseline, native CharacterMovement, Enhanced Input, UMG/Slate
 and the existing authority/filtered-view boundary. No engine/framework migration.
 
@@ -103,9 +104,9 @@ bounded envelope is now 128 entities to accommodate four full 24-item death drop
 the 96-dropped-world-item fixture fits within 8 KiB without granting return supplies.
 Read B54's report for the actual warm package, measured client echoes, byte sizes,
 native captures and fixture limits. Full traffic/UI performance remains B58.
-The current B54 archive is
-`Artifacts/20261022-104649-962-PackageWin64/Archive/Windows`; use it instead of the
-historical B52/B53 archives above. It contains 131 source/configuration hashes and
+The historical B54 archive is
+`Artifacts/20261022-104649-962-PackageWin64/Archive/Windows`; the B55 archive
+below is now current. The B54 archive contains 131 source/configuration hashes and
 seven payload hashes. `Artifacts/B54PackageProvenance.json` records the final audit. B54 has
 18 warning-free rules, 48 combat and 93 V04 regional checks. Cooked inventory passes
 59 / 25 / 25 at measured 115.62 / 99.30 and 148.99 / 149.10 ms; the final inventory
@@ -113,26 +114,69 @@ bases are 29 and 53 respectively, with 25 ms jitter. These are actual medians,
 not an assertion that both lower-lane clients measured 100 ms. Cooked navigation
 passes 34 / 20 / 20, HUD/input 26 / 37 / 37 and privacy 12 / 29 / 27. The report
 records their different actual RTTs. Final 720p/1080p, 125% text, active learning,
-named drop and dead-bag captures were visually inspected. B55 quote/earned vendor
-proof and full B57/B58 human, OS-scale, lifetime and performance gates remain.
+named drop and dead-bag captures were visually inspected. B55 adds the quote/earned vendor proof below; full B57/B58 human, OS-scale,
+lifetime and performance gates remain.
+
+B55 adds the Guild's four-book unlimited catalog above the own bag, with live
+catalog/session versions, an explicit one-item Buy and authority-owned receipts.
+Known books are labelled and can still be bought for trade. The old unquoted V05
+purchase path rejects; V04 retains its historical route. Stale prices require
+review and a separate Buy, never an automatic retry. Pending requests create no
+optimistic gold or item state. Authority creates/adopts one B54 physical book
+before a single debit; failed or replayed requests conserve inventory and gold.
+
+Leaving range/sight, positive damage, protection/action, life or match changes
+invalidate the server session before queued purchases. Dismissed panels cannot
+reopen from a delayed quote. Bag Use closes the shop and arms the existing fresh
+read gesture. Client receipt and eight-field observed/22-field public boundaries
+remain unchanged. The receipt discloses only public offers and the owner's state.
+
+The B55 client earns two ordinary courier contracts from zero gold through native
+navigation and actual F holds, then buys/reads one book for forty of its earned
+fifty gold. No grants, teleports, protection edits or timer changes occur in that
+segment; ordinary first-visit/courier awards remain active. Later 80-gold wallets,
+full bags, price changes, failure injection and combat/death setup are explicitly
+labelled engineering fixtures. No human task completion is claimed.
+
+The current B55 warm archive is
+`Artifacts/20261022-152659-513-PackageWin64/Archive/Windows`, superseding the
+historical archives above. All 137 Source/Config and seven payload hashes match;
+`Artifacts/B55PackageProvenance.json` binds the final audit to the B55 commit.
+Both Editor/Game targets and the cook passed. Native vendor checks pass
+23 / 19 / 14 at actual echo 170.55 / 169.87 ms. Both cooked vendor lanes pass
+23 / 19 / 14 at 108.24 / 108.23 ms (target 100, base 29) and
+149.59 / 149.56 ms (target 150, base 53), each with configured 25 ms jitter.
+B55 also passes 18 warning-free rules, 48 variable-frame combat and 93 retained
+V04 regional checks. Cooked inventory passes 59 / 25 / 25 at actual
+153.32 / 152.14 ms; HUD/input passes 26 / 37 / 37 at 153.89 / 152.94 ms;
+restricted-view privacy passes 12 / 29 / 27. Native and cooked 720p/1080p catalog,
+full-bag and stale-quote captures, including 125% text, were visually inspected.
+Read the B55 report for the artifact paths and actual engineering/human limits.
 
 ## Next work
 
-B55 adds the actual Guild catalog and own-bag vendor shell with a live quote/version,
-pending purchase, committed acknowledgement and failure states. Reuse B54 common
-capacity, physical book creation and forty-gold purchase; replace the retained direct
-purchase entry with the quote path. Verify normal earned money, stale quote, capacity,
-replay and loss of eligibility. B54's 1000-gold fixture is not earned vendor evidence.
-B56 adds six-item per-side atomic consensual exchange with exposed gold, revisioned
-Ready and a separate Confirm; B57 presentation; B58 complete verification. Preserve
-B54 item identities, revision distinction and no extra charge grants. Trade must use
-ALDItem Holder/reservations and keep legacy projections synchronized through Changed.
+B56 adds six-item per-side atomic consensual exchange with exposed gold,
+revisioned Ready and a separate Confirm. Read the exact invitation/privacy/timeout
+contract before implementing; T is still unavailable. B57 presentation and B58
+complete verification follow. Preserve B54 item identities and its distinction
+between container and item revisions. Use ALDItem Holder/reservations and keep
+legacy projections synchronized through Changed. Cancellation releases physical
+reservations without moving items or shielding gold. Consent is tied to both offers,
+items, life and capacity, and every accepted edit clears both sides' consent.
+
+B55 server session truth is held in VendorDirector, not the remote controller's
+client-only VendorQuote read model. B56 must explicitly invalidate the authoritative
+vendor session when entering exchange, then prevent vendor and trade commits from
+using the same resources. Add a small authority session/cancellation API as needed;
+do not infer server shop state from PC.VendorQuote. Preserve vendor quote/open token,
+no automatic price retry, pending receipt and create-before-debit conservation.
 
 Keep templates blank and record actual results in working reports/ledger. Run
 Unreal builds and probes sequentially with source stable; use MaxParallelActions 4
 on this 16 GB machine. Preserve authored assets, frozen references/input assets,
 engine pin and separate web baseline. `RunInputCheck.ps1`, `RunHUDCheck.ps1`,
-`RunNavigationCheck.ps1`, `RunInventoryCheck.ps1` and `CaptureInputUI.ps1` accept PackageRoot;
+`RunNavigationCheck.ps1`, `RunInventoryCheck.ps1`, `RunVendorCheck.ps1` and
+`CaptureInputUI.ps1` accept PackageRoot;
 `PackageWin64.ps1` records source/payload hashes. RunHUDCheck expects Server 26 /
 A 37 / B 37, including restricted canonical-actor and duplicate-receipt checks.
 RunNavigationCheck now expects 34 / 20 / 20, including unique observed candidates

@@ -13,6 +13,8 @@ public:
     void Refresh();void CancelDrag();bool IsDragging() const{return bPointerDown;}
     void Select(FGuid Id);void Use();void AskDrop();void ConfirmDrop();
     FString DetailText() const;
+    void SelectOffer(ELDSkill Skill);void BuyOffer();
+    FString VendorText() const;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E) override;
@@ -23,6 +25,15 @@ protected:
     virtual FReply NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E) override;
 private:
     friend class ALDInventoryProbe;
+    friend class ALDVendorProbe;
+    UPROPERTY() TObjectPtr<class UVerticalBox> CatalogPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> CatalogInfo;
+    UPROPERTY() TObjectPtr<ULDCommandButton> VendorBuy;
+    UPROPERTY() TObjectPtr<ULDCommandButton> VendorOpen;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> Offers;
+    ELDSkill SelectedOffer=ELDSkill::Spark;
+    uint32 DisplayedCatalogRevision=0;
+    int32 DisplayedPrice=0;
     UPROPERTY() TObjectPtr<UTextBlock> Heading;
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<UTextBlock> Detail;

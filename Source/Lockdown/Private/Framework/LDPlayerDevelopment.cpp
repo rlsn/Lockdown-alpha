@@ -17,7 +17,7 @@ void ALDPlayerController::ToggleDevelopmentPanel()
     if(DevelopmentUI->IsOpen()){DevelopmentUI->Close();}else{DevelopmentUI->Open();}
 }
 void ALDPlayerController::BuyBook(ELDSkill Skill)
-{StopDevelopmentHold();if(Navigation->Enabled()){InventoryCommand(LDInventory::Buy,FGuid(),uint8(Skill));return;}ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
+{StopDevelopmentHold();if(Navigation->Enabled()){OpenVendor();return;}ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
 void ALDPlayerController::SetInteractionHeld(bool Held){if(Navigation->Enabled()){if(Held&&CanWorldCommand()){ContextV05();}else if(!Held){V05Released(TEXT("Context"));}return;}if(Held){InteractStarted();}else{InteractStopped();}}
 void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Navigation->Enabled()){if(Held){ArmSkill(Slot,2);}else{EndSkillGesture(Slot,2);}return;}if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)

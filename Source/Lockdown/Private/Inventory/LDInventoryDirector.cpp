@@ -133,8 +133,6 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     }
     if(R.Command==LDInventory::Buy)
     {
-        const auto Skill=ELDSkill(R.Slot);if(!M->Development->NearStation(PC,true)||!LDDevelopmentTransaction::Sold(Skill)||O->Gold<40){Reject(TEXT("Buy at Guild for 40 gold"));return;}
-        if(!HasSpace(PC,ELDItemKind::Book)){Reject(TEXT("Inventory full"));return;}auto* Book=GetWorld()->SpawnActor<ALDBook>();if(!Book){Reject(TEXT("Book unavailable; nothing spent"));return;}Book->Skill=Skill;Book->State=0;
-        if(!Adopt(PC,Book)){Book->Destroy();Reject(TEXT("Inventory full"));return;}O->Gold-=40;M->SyncOwner(PC);Reply(PC,R.Id,TEXT("Purchased one unread book for 40 gold"));
+        Reject(TEXT("Open the Guild bookshop and confirm its current quote"));return;
     }
 }

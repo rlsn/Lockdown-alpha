@@ -93,6 +93,12 @@ void ALDDevelopmentProbe::Tick(float Delta)
                 if(HUDScene==TEXT("ItemReading")){PC->ClientLifeReceipt_Implementation(*O);PC->SetQuickItemHeld(1,true,0);}
                 if(HUDScene!=TEXT("QuickItems")&&HUDScene!=TEXT("ItemReading")){PC->ToggleInventoryPanel();if(HUDScene!=TEXT("InventoryDead")){PC->InventoryUI->Select(HUDScene==TEXT("DropConfirm")?O->SealId:O->Inventory.Items[1].Id);if(HUDScene==TEXT("DropConfirm")){PC->InventoryUI->AskDrop();}}}
             }
+            if(HUDScene.StartsWith(TEXT("Vendor")))
+            {
+                auto* O=M->StateFor(PC);PC->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,80,92),false,nullptr,ETeleportType::TeleportPhysics);M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;O->ProtectedUntil=0;O->Gold=80;O->Build.Ranks[uint8(ELDSkill::Spark)]=1;++O->Build.Revision;
+                while(O->Inventory.Items.Num()<(HUDScene==TEXT("VendorFull")?24:5)){auto* Book=GetWorld()->SpawnActor<ALDBook>();Book->Skill=ELDSkill::Patch;Book->State=0;check(M->Inventory->Adopt(PC,Book));}M->SyncOwner(PC);PC->ClientLifeReceipt_Implementation(*O);PC->OpenVendor();PC->InventoryUI->SelectOffer(ELDSkill::Spark);
+                if(HUDScene==TEXT("VendorFailed")){PC->BuyVendorBook(ELDSkill::Spark,0,40);}
+            }
             if(HUDScene==TEXT("Death")){M->EndContenderLife(PC,GetWorld()->GetTimeSeconds());}
             if(HUDScene==TEXT("Result")){GetWorld()->GetGameState<ALDGameState>()->MatchDeadline=float(GetWorld()->GetTimeSeconds()+.05);}
             Phase=3;PhaseAt=FPlatformTime::Seconds();
@@ -108,7 +114,7 @@ void ALDDevelopmentProbe::Tick(float Delta)
             if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Choose(1,3);PC->DevelopmentUI->Choose(1,2);PC->DevelopmentUI->Choose(2,1);PC->DevelopmentUI->Choose(3,2);PC->DevelopmentUI->Choose(6,1);PC->DevelopmentUI->Choose(7,1);}
             Phase=3;PhaseAt=FPlatformTime::Seconds();
         }
-        else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { if(HUDScene==TEXT("ItemReading")){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->OwnerState.DevelopmentKind==2&&PC->HeldInputLabel()==PC->BindingLabel(TEXT("Item2")),TEXT("Rendered reading uses the real active channel and initiating item mapping"));}FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
+        else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { if(HUDScene.StartsWith(TEXT("Vendor"))){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->VendorQuote.Offers.Num()==4&&PC->VendorIsOpen()&&PC->InventoryUI->VendorText().Contains(HUDScene==TEXT("VendorFailed")?TEXT("Quote changed"):TEXT("Already learned")),TEXT("Native vendor capture uses an active authority quote and actual own state"));}if(HUDScene==TEXT("ItemReading")){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->OwnerState.DevelopmentKind==2&&PC->HeldInputLabel()==PC->BindingLabel(TEXT("Item2")),TEXT("Rendered reading uses the real active channel and initiating item mapping"));}FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
         else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,ControlsVisual?TEXT("Native controls/settings panel captured; UI engineering fixture, no human evidence"):RegionVisual?TEXT("Regional HUD/map captured (location fixture)"):WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
@@ -348,7 +354,7 @@ void ALDDevelopmentProbe::Finish()
     if(FParse::Param(FCommandLine::Get(),TEXT("LDReleaseSession"))){Report->SetStringField(TEXT("profile"),TEXT("B47 ordinary automated 25-minute practice: original clock/deadline/rewards, native traversal, eight jobs, actual NPC healing and earned fabrication; no grants or teleports; not human evidence"));Report->SetNumberField(TEXT("wallSeconds"),FPlatformTime::Seconds()-SessionStarted);Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);Report->SetArrayField(TEXT("audits"),SessionSamples);Report->SetNumberField(TEXT("actorMin"),SessionActorMin);Report->SetNumberField(TEXT("actorMax"),SessionActorMax);}
     FString HUDScene;if(FParse::Value(FCommandLine::Get(),TEXT("LDHUDScene="),HUDScene))
     {
-        Report->SetStringField(TEXT("profile"),TEXT("B53/B54 native rendered UI; auto-start/location/selection/death/deadline fixtures; Inventory/QuickItems/ItemReading/DropConfirm additionally grant a full bag of books/Seal and 160 gold for layout only; not progression, human or OS-scale evidence"));Report->SetStringField(TEXT("scene"),HUDScene);
+        Report->SetStringField(TEXT("profile"),TEXT("B53/B54 native rendered UI; auto-start/location/selection/death/deadline fixtures; Vendor additionally grants 80 gold, known Spark and five/full bag for layout; Inventory/QuickItems/ItemReading/DropConfirm additionally grant a full bag of books/Seal and 160 gold for layout only; not progression, human or OS-scale evidence"));Report->SetStringField(TEXT("scene"),HUDScene);
         auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());int32 W=0,H=0;PC->GetViewportSize(W,H);Report->SetNumberField(TEXT("viewportWidth"),W);Report->SetNumberField(TEXT("viewportHeight"),H);Report->SetNumberField(TEXT("effectiveViewportScale"),UWidgetLayoutLibrary::GetViewportScale(this));Report->SetNumberField(TEXT("textScale"),PC->Controls?PC->Controls->TextScale:1);
     }
     TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }

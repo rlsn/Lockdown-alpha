@@ -5,6 +5,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Inventory/LDInventoryDirector.h"
+#include "Inventory/LDVendorDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
@@ -183,7 +184,7 @@ void ALDCombatDirector::Sample(double Now)
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsFinished())
     {
-        if(Mode->Inventory){Mode->Inventory->Sample(Now);}
+        if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}}
         if(Mode->Development){Mode->Development->Sample(Now);}
         if(Mode->IsDevelopmentProfile())
         {for(auto& Pair:Bodies){if(auto* Body=Pair.Key.Get()){CancelSkill(Body,Pair.Value);Sync(Body,Pair.Value);}}}
@@ -263,7 +264,7 @@ void ALDCombatDirector::Sample(double Now)
     if(Mode->Development&&!Mode->Inventory){Mode->Development->Sample(Now);}
     for(auto& Pair:Bodies){if(Pair.Key.IsValid()){Sync(Pair.Key.Get(),Pair.Value);}}
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
-    if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Development){Mode->Development->Sample(Now);}}
+    if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}if(Mode->Development){Mode->Development->Sample(Now);}}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}
     for(int32 I=Residents.Num()-1;I>=0;--I)
     {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}if(Residents[I].HasBuild){RegisterNPCBuild(Returned,Residents[I].Build);StateFor(Returned)->Hp=LDDevelopment::MaxHP(Residents[I].Build);}Residents.RemoveAtSwap(I);}}

@@ -79,9 +79,8 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open carried bag"),13,0));}
         for(uint8 I=0;I<4;++I)
         {auto* Label=Text(TEXT("Empty"),15);BookLabels.Add(Label);AddRow(Right,Label,2);auto* W=Button(TEXT("Use book"),9,I);ReadButtons.Add(W);AddRow(Right,W,3);}
-        AddRow(Right,Text(TEXT("GUILD BOOKSHOP · 40 gold each"),17));
-        const ELDSkill Stock[]={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};
-        for(auto Skill:Stock){auto* W=Button(FString::Printf(TEXT("Buy %s book · 40 gold"),LDDevelopment::SkillName(Skill)),10,uint8(Skill));BuyButtons.Add(W);AddRow(Right,W,3);}
+        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open Guild bookshop · current quote"),14,0));}
+        else{AddRow(Right,Text(TEXT("GUILD BOOKSHOP · 40 gold each"),17));const ELDSkill Stock[]={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};for(auto Skill:Stock){auto* W=Button(FString::Printf(TEXT("Buy %s book · 40 gold"),LDDevelopment::SkillName(Skill)),10,uint8(Skill));BuyButtons.Add(W);AddRow(Right,W,3);}}
         AddRow(Right,Text(TEXT("Read anywhere: stand still and hold the context key for 3 seconds after 6 quiet seconds. Reading consumes one book, teaches R1, and does not equip or upgrade. Known books are retained. Unread books drop on death."),14));
         if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Arm Seal fabrication"),12,0));}
         Feedback=Text(TEXT(""),15);AddRow(Right,Feedback);
@@ -100,6 +99,7 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;
     StopConfirm();
     if(Operation==11){Close();return;}
+    if(Operation==14){Close();PC->OpenVendor();return;}
     if(Operation==13){Close();PC->ToggleInventoryPanel();return;}
     if(!O.bActive){PC->IntentFeedback=TEXT("Read-only while waiting to return");return;}
     if(Operation==12){Close();PC->ArmFabrication();return;}

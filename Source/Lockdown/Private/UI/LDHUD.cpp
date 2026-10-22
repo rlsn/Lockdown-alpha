@@ -63,6 +63,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* Attack=Button(TEXT("Attack"),[PC](){PC->ArmAttack();});Commands.Add(TEXT("Attack"),Attack);Actions->AddChildToHorizontalBox(Attack);
         ContextButton=Button(TEXT(""),{});Hold(ContextButton,[PC](){PC->SetInteractionHeld(true);},[PC](){PC->SetInteractionHeld(false);});Actions->AddChildToHorizontalBox(ContextButton)->SetPadding(FMargin(4,0));
         auto* Stop=Button(TEXT("Stop"),[PC](){if(PC->CanWorldCommand()){PC->Navigation->Stop();PC->CancelInterruptibleHolds();PC->CancelArmed();}});Commands.Add(TEXT("Stop"),Stop);Actions->AddChildToHorizontalBox(Stop);
+        VendorButton=Button(TEXT("Guild books"),[PC](){PC->OpenVendor();});Actions->AddChildToHorizontalBox(VendorButton)->SetPadding(FMargin(4,0));
         auto* Help=Button(TEXT("Controls"),[PC](){PC->ToggleControlsPanel();});Commands.Add(TEXT("Help"),Help);Actions->AddChildToHorizontalBox(Help)->SetPadding(FMargin(4,0));
         ActionText=Text(TEXT(""),14);Actions->AddChildToHorizontalBox(ActionText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Progress=WidgetTree->ConstructWidget<UProgressBar>();Progress->SetFillColorAndOpacity(FLinearColor(.25f,.85f,.7f));Own->AddChildToVerticalBox(Progress);
@@ -99,6 +100,7 @@ void ULDHUD::RefreshReadModel()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Resources){return;}
     const auto& O=PC->OwnerState;const auto& B=O.Build;const double Now=GS->GetServerWorldTimeSeconds();
+    VendorButton->SetVisibility(PC->NearGuildVendor()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);VendorButton->SetIsEnabled(!PC->InventoryPending()&&O.bActive&&Now>=O.ProtectedUntil&&!GS->EndReason);
     const bool Playing=GS->bMatchStarted;const bool Overlay=(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())||(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
     Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Task->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Objective->SetVisibility(Playing?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     const float TextScale=PC->Controls?PC->Controls->TextScale:1;const float BandHeight=270.f+(TextScale>1?60:0);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));

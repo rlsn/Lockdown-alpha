@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Vision/LDViewTypes.h"
+#include "Inventory/LDVendorTypes.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -26,11 +27,25 @@ public:
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     UPROPERTY() TObjectPtr<class ULDInventoryPanel> InventoryUI;
     void ToggleInventoryPanel();
+    bool NearGuildVendor() const;
+    void OpenVendor();void CloseVendor();
+    bool VendorIsOpen() const{return bVendorOpening||VendorQuote.Session.IsValid();}
+    bool VendorPending() const{return VendorPendingRequest!=0;}
+    FLDVendorQuote VendorQuote;
+    FString VendorFeedback;
+    bool VendorNeedsReview=false;
+    void BuyVendorBook(ELDSkill Skill,uint32 CatalogRevision,int32 Price);
+    UFUNCTION(Server,Reliable) void ServerOpenVendor(uint32 Match,uint32 Life,uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerCloseVendor(uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerVendorBuy(uint32 Match,uint32 Life,uint32 Request,FGuid Session,uint32 CatalogRevision,int32 Price,uint32 InventoryRevision,ELDSkill Skill);
+    UFUNCTION(Client,Reliable) void ClientVendorQuote(const FLDOwnerState& State,const FLDVendorQuote& Quote);
+    UFUNCTION(Client,Reliable) void ClientVendorClosed(uint32 Token,const FString& Reason);
+    UFUNCTION(Client,Reliable) void ClientVendorResult(const FLDOwnerState& State,uint32 Request,const FLDVendorQuote& Quote,FGuid Item,const FString& Reason);
     void InventoryCommand(uint8 Command,FGuid Item=FGuid(),uint8 Slot=0,FVector Point=FVector::ZeroVector);
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
-    bool InventoryPending() const{return InventoryPendingRequest!=0;}
+    bool InventoryPending() const{return InventoryPendingRequest!=0||VendorPendingRequest!=0;}
     FGuid ArmedItem() const{return ArmedWard;}
     UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
     UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
@@ -125,6 +140,9 @@ private:
     uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;
     friend class ALDInventoryProbe;
+    friend class ALDVendorProbe;
+    uint32 VendorOpenToken=0,VendorPendingRequest=0;
+    bool bVendorOpening=false;
     bool bControlsSuppressed = false;
     float AimSendTime = 0;
     double LastAcceptedAimTime = -1;

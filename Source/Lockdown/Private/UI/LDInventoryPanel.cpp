@@ -33,6 +33,12 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
         auto SearchStyle=Search->GetWidgetStyle();SearchStyle.BackgroundImageNormal.TintColor=FSlateColor(FLinearColor(.04f,.08f,.11f));SearchStyle.BackgroundImageHovered.TintColor=SearchStyle.BackgroundImageNormal.TintColor;SearchStyle.BackgroundImageFocused.TintColor=SearchStyle.BackgroundImageNormal.TintColor;SearchStyle.ForegroundColor=FSlateColor(FLinearColor::White);Search->SetWidgetStyle(SearchStyle);
         const TCHAR* Labels[]={TEXT("All"),TEXT("Books"),TEXT("Wards"),TEXT("Objective")};for(uint8 I=0;I<4;++I){Tools->AddChildToHorizontalBox(Button(Labels[I],[this,I](){Filter(I);}))->SetPadding(FMargin(3,0));}
         SortButton=Button(TEXT("Sort"),[PC](){PC->InventoryCommand(LDInventory::Sort);});Tools->AddChildToHorizontalBox(SortButton);
+        VendorOpen=Button(TEXT("Guild books"),[PC](){PC->OpenVendor();});Tools->AddChildToHorizontalBox(VendorOpen)->SetPadding(FMargin(6,0));
+        CatalogPanel=WidgetTree->ConstructWidget<UVerticalBox>();All->AddChildToVerticalBox(CatalogPanel)->SetPadding(FMargin(0,4));
+        auto* CatalogRows=WidgetTree->ConstructWidget<UHorizontalBox>();CatalogPanel->AddChildToVerticalBox(CatalogRows);
+        for(auto Skill:{ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley}){auto* B=Button(TEXT(""),[this,Skill](){SelectOffer(Skill);});Offers.Add(B);CatalogRows->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
+        auto* QuoteRow=WidgetTree->ConstructWidget<UHorizontalBox>();CatalogPanel->AddChildToVerticalBox(QuoteRow)->SetPadding(FMargin(0,4));CatalogInfo=LDWidgets::Text(WidgetTree,TEXT(""),15);QuoteRow->AddChildToHorizontalBox(CatalogInfo)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));VendorBuy=Button(TEXT("Buy"),[this](){BuyOffer();});QuoteRow->AddChildToHorizontalBox(VendorBuy)->SetPadding(FMargin(8,0));
+
         auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();All->AddChildToVerticalBox(Body)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Body->AddChildToHorizontalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Grid=WidgetTree->ConstructWidget<UUniformGridPanel>();Grid->SetSlotPadding(FMargin(4));Scroll->AddChild(Grid);
         auto* RightSize=WidgetTree->ConstructWidget<USizeBox>();RightSize->SetWidthOverride(480);auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();auto* ActionsScroll=WidgetTree->ConstructWidget<UScrollBox>();ActionsScroll->AddChild(Right);RightSize->SetContent(ActionsScroll);Body->AddChildToHorizontalBox(RightSize)->SetPadding(FMargin(16,0,0,0));
         Detail=LDWidgets::Text(WidgetTree,TEXT("Choose one of your items"),18);Detail->SetWrapTextAt(460);auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->AddChild(Detail);auto* DetailSize=WidgetTree->ConstructWidget<USizeBox>();DetailSize->SetHeightOverride(96);DetailSize->SetContent(DetailScroll);Right->AddChildToVerticalBox(DetailSize);
@@ -50,7 +56,7 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
     return Super::RebuildWidget();
 }
 void ULDInventoryPanel::Open(){bOpen=true;bDirty=true;bConfirm=false;SetVisibility(ESlateVisibility::Visible);auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);SetKeyboardFocus();Refresh();}
-void ULDInventoryPanel::Close(){CancelDrag();bOpen=bConfirm=false;SetVisibility(ESlateVisibility::Collapsed);CastChecked<ALDPlayerController>(GetOwningPlayer())->SetMenuOpen(false);}
+void ULDInventoryPanel::Close(){CastChecked<ALDPlayerController>(GetOwningPlayer())->CloseVendor();CancelDrag();bOpen=bConfirm=false;SetVisibility(ESlateVisibility::Collapsed);CastChecked<ALDPlayerController>(GetOwningPlayer())->SetMenuOpen(false);}
 void ULDInventoryPanel::CancelDrag(){const bool Captured=bPointerDown;bPointerDown=bDragging=false;Dragged.Invalidate();if(Captured&&FSlateApplication::IsInitialized()){FSlateApplication::Get().ReleaseAllPointerCapture();}}
 void ULDInventoryPanel::Select(FGuid Id){Selected=Id;bDirty=true;}
 void ULDInventoryPanel::Filter(uint8 Kind){FilterKind=Kind;bDirty=true;}
@@ -78,6 +84,19 @@ void ULDInventoryPanel::Refresh()
     int32 W=0,H=0;PC->GetViewportSize(W,H);const uint8 Desired=W<=1280?4:6;bool Changed=Columns!=Desired||Cells.Num()!=I.Capacity;
     if(Changed){Columns=Desired;Grid->ClearChildren();Cells.Reset();for(uint8 N=0;N<I.Capacity;++N){auto* B=LDWidgets::Button(WidgetTree,TEXT(""),[this,PC,N](){const auto* Entry=PC->OwnerState.Inventory.Items.FindByPredicate([&](const auto& E){return E.Slot==N;});Select(Entry?Entry->Id:FGuid());});auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredWidth(150);Size->SetMinDesiredHeight(78);Size->SetContent(B);auto* CellSlot=Grid->AddChildToUniformGrid(Size,N/Columns,N%Columns);CellSlot->SetHorizontalAlignment(HAlign_Fill);CellSlot->SetVerticalAlignment(VAlign_Fill);Cells.Add(B);}bDirty=true;}
     const float Scale=PC->Controls?PC->Controls->TextScale:1;if(Scale!=AppliedScale){TArray<UWidget*> Widgets;WidgetTree->GetAllWidgets(Widgets);for(auto* Widget:Widgets){if(auto* T=Cast<UTextBlock>(Widget)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedScale);T->SetFont(Font);}}AppliedScale=Scale;bDirty=true;}
+
+    const bool Shop=PC->VendorIsOpen();CatalogPanel->SetVisibility(Shop?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    Heading->SetText(FText::FromString(Shop?TEXT("GUILD BOOKSHOP · YOUR CARRIED BAG"):TEXT("YOUR CARRIED BAG")));
+    VendorOpen->SetIsEnabled(PC->NearGuildVendor()&&!PC->InventoryPending()&&!bConfirm&&!Shop);
+    if(Shop)
+    {
+        const auto& Q=PC->VendorQuote;const auto* SelectedQuote=Q.Offers.FindByPredicate([&](const auto& Offer){return Offer.Skill==SelectedOffer;});
+        DisplayedCatalogRevision=Q.CatalogRevision;DisplayedPrice=SelectedQuote?SelectedQuote->Price:0;
+        for(int32 N=0;N<Offers.Num();++N){const bool Has=Q.Offers.IsValidIndex(N);CastChecked<UTextBlock>(Offers[N]->GetContent())->SetText(FText::FromString(Has?FString::Printf(TEXT("%s%s · %d gold"),Q.Offers[N].Skill==SelectedOffer?TEXT("› "):TEXT(""),LDDevelopment::SkillName(Q.Offers[N].Skill),Q.Offers[N].Price):TEXT("Opening catalog…")));Offers[N]->SetIsEnabled(Has&&!PC->VendorPending());}
+        const FString Preview=SelectedQuote?FString::Printf(TEXT("Book: %s · %s · Unlimited stock\nTeaches R1: hold 3s after 6 quiet seconds; does not equip or cast.\n%s"),LDDevelopment::SkillName(SelectedOffer),LDDevelopment::Rank(O.Build,SelectedOffer)?TEXT("Already learned · may buy for trade"):TEXT("Not learned"),*PC->VendorFeedback):PC->VendorFeedback;
+        CatalogInfo->SetText(FText::FromString(Preview+(I.Items.Num()>=I.Capacity?TEXT("\nInventory full · Free a bag slot before buying"):O.Gold<DisplayedPrice?TEXT("\nNot enough gold"):TEXT(""))));CastChecked<UTextBlock>(VendorBuy->GetContent())->SetText(FText::FromString(PC->VendorPending()?TEXT("Pending…"):PC->VendorNeedsReview?TEXT("Review new price"):FString::Printf(TEXT("Buy one · %d gold"),DisplayedPrice)));
+        VendorBuy->SetIsEnabled(SelectedQuote&&!PC->InventoryPending()&&I.Items.Num()<I.Capacity&&O.Gold>=DisplayedPrice);
+    }
     const bool Pending=PC->InventoryPending();const bool Active=O.bActive&&G->GetServerWorldTimeSeconds()>=O.ProtectedUntil&&!O.DevelopmentKind&&!O.ChannelKind&&!(O.ActionCue&15);
     Status->SetText(FText::FromString(FString::Printf(TEXT("%d / %d slots · Gold %lld (outside bag) · %s · Match continues"),I.Items.Num(),I.Capacity,O.Gold,Pending?TEXT("Pending authority"):O.bActive?TEXT("Alive"):TEXT("Waiting to return · organization only"))));
     Feedback->SetText(FText::FromString(PC->IntentFeedback));const auto* SelectedItem=I.Find(Selected);if(!SelectedItem&&Selected.IsValid()){Selected.Invalidate();bConfirm=false;bDirty=true;}
@@ -108,3 +127,7 @@ void ULDInventoryPanel::NativeOnMouseCaptureLost(const FCaptureLostEvent& E){Can
 void ULDInventoryPanel::NativeOnFocusLost(const FFocusEvent& E){CancelDrag();Super::NativeOnFocusLost(E);}
 FReply ULDInventoryPanel::NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E)
 {auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(E.GetKey()==EKeys::Escape){if(bConfirm){bConfirm=false;bDirty=true;}else{Close();}return FReply::Handled();}if(E.GetKey()==PC->BindingKey(TEXT("Inventory"))&&!Search->HasKeyboardFocus()){Close();return FReply::Handled();}return Super::NativeOnKeyDown(G,E);}
+
+void ULDInventoryPanel::SelectOffer(ELDSkill Skill){SelectedOffer=Skill;Refresh();}
+void ULDInventoryPanel::BuyOffer(){auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->VendorNeedsReview){PC->VendorNeedsReview=false;PC->VendorFeedback=TEXT("Price refreshed · Click Buy again to confirm the shown price");Refresh();return;}PC->BuyVendorBook(SelectedOffer,DisplayedCatalogRevision,DisplayedPrice);Refresh();}
+FString ULDInventoryPanel::VendorText() const{return CatalogInfo?CatalogInfo->GetText().ToString():FString();}

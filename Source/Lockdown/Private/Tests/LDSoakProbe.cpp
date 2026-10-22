@@ -102,8 +102,8 @@ void ALDSoakProbe::ServerTick(double Now)
         {
             const FVector Point=LDRegion::Site(GetWorld(),1)+FVector(0,-900,92);TB->SetActorLocation(Point-FVector(40,0,0));SB->SetActorLocation(Point+FVector(40,0,0));TB->GetCharacterMovement()->StopMovementImmediately();SB->GetCharacterMovement()->StopMovementImmediately();
             // Explicit technical load fixture: low HP, cleared attacker action/cadence and an immediate lethal batch. Never normal input or pacing evidence.
-            auto* TS=Mode->Combat->StateFor(TB);auto* SS=Mode->Combat->StateFor(SB);TS->Hp=1;SS->Action=0;SS->BasicReady=0;FString Why;const double Begin=FPlatformTime::Seconds();const bool Accepted=Mode->Combat->RequestBody(SB,0,-FVector::ForwardVector,Why);if(Accepted){SS->ImpactAt=RuleNow;Mode->Combat->Sample(RuleNow);}FixtureCpu.Add((FPlatformTime::Seconds()-Begin)*1000);
-            Check(Accepted&&!TO->bActive&&!Target->GetPawn(),TEXT("Labelled periodic lethal batch executes actual corpse/death/return path"));++LifeFixtures;LastLifeFixture=Now;if(Source->GetPawn()){Source->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(Source==A.Get()?-40:40,-450,92));}
+            auto* TS=Mode->Combat->StateFor(TB);auto* SS=Mode->Combat->StateFor(SB);TS->Hp=1;SS->Action=0;SS->BasicReady=0;FString Why;const double Begin=FPlatformTime::Seconds();const bool bAccepted=Mode->Combat->RequestBody(SB,0,-FVector::ForwardVector,Why);if(bAccepted){SS->ImpactAt=RuleNow;Mode->Combat->Sample(RuleNow);}FixtureCpu.Add((FPlatformTime::Seconds()-Begin)*1000);
+            Check(bAccepted&&!TO->bActive&&!Target->GetPawn(),TEXT("Labelled periodic lethal batch executes actual corpse/death/return path"));++LifeFixtures;LastLifeFixture=Now;if(Source->GetPawn()){Source->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(Source==A.Get()?-40:40,-450,92));}
         }
     }
     if(Mode->Combat->SampleSerial!=LastRule){LastRule=Mode->Combat->SampleSerial;Rules.Add(Mode->Combat->LastSampleMs);}

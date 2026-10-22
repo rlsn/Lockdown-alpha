@@ -5,15 +5,16 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 navigation through B54 inventory implemented.**
+**Current checkpoint: B51 navigation through B55 vendor implemented.**
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
 baseline and defaults. [B51](docs/v05/B51_IMPLEMENTATION.md) proves native
 multiplayer navigation; [B52](docs/v05/B52_IMPLEMENTATION.md) adds saved remapping,
 explicit targeting and fresh-input panel routing. [B53](docs/v05/B53_IMPLEMENTATION.md)
 adds the masked inspector, anchored own commands, interactive filtered minimap
 and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24-slot
-bag, finite ward instances and four real quick-item references. The ordinary
-frontend launches this v0.5 checkpoint. B55–B58 vendor, peer exchange, final presentation and complete release
+bag, finite ward instances and four real quick-item references. [B55](docs/v05/B55_IMPLEMENTATION.md)
+adds the quoted Guild bookshop beside your own bag. The ordinary
+frontend launches this v0.5 checkpoint. B56–B58 peer exchange, final presentation and complete release
 verification remain ahead.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
@@ -51,6 +52,8 @@ I/Bag opens your carried inventory. Assign owned books/ward charges to 1–4;
 hold a book shortcut to learn, or use it in the bag and make a fresh F hold.
 Ward Use arms placement; confirm nearby clear ground, or cancel without cost.
 Sorting preserves identity references. Drop requires explicit confirmation.
+At the Guild, **Guild books** opens the live catalog and bag. Buy one uses the
+shown quote and waits for the authority receipt; changed prices require review.
 Unused charges are lost on death and none are granted on return. T remains
 unavailable until B56. Minimap left-click/drag pans; right-click cancels an armed action
 first, then issues a ground move. Other selection shows Unknown private fields
