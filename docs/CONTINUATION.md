@@ -1,17 +1,23 @@
-# Continuation — v0.5 B52 input checkpoint
+# Continuation — v0.5 B53 HUD checkpoint
 
-21 October 2026. The user requested review/commit of master revision 5 and the
+22 October 2026. The user requested review/commit of master revision 5 and the
 v0.5 specification, then requested implementation. B50 audit is complete;
 [B51 navigation](v05/B51_IMPLEMENTATION.md) and
-[B52 input/action modes](v05/B52_IMPLEMENTATION.md) are implemented. Continue
-with B53 HUD/selection/minimap, then B54–B58. Full v0.5 is not delivered.
+[B52 input/action modes](v05/B52_IMPLEMENTATION.md) and
+[B53 HUD/inspection/minimap](v05/B53_IMPLEMENTATION.md) are implemented. Continue
+with B54 carried inventory, then B55–B58. Full v0.5 is not delivered.
+
+**22 October update:** The user explicitly approved adopting installed Unreal
+5.8.4 CL 58902052. The platform lock now names that build; its guard remains active.
+B47–B52 evidence retains its original 5.8.3 provenance. Read the B53 report for
+the actual engine transition, failures corrected, current evidence and limits.
 
 ## Read first
 
 1. [Master plan](master/README.md) and [v0.5 spec](v05/README.md), all chapters,
    JSON and wireframes.
 2. [B50 actual baseline/defaults](v05/B50_BASELINE_REVIEW.md),
-   [working ledger](v05/FeatureLedger.csv), B51 and B52 implementation reports.
+   [working ledger](v05/FeatureLedger.csv), B51–B53 implementation reports.
 3. [Build plan](v05/08_BUILD_PLAN.md), [acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md)
    and [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
 4. [B47 archive](v04/CONTINUATION_B47.md) and [B47 evidence](v04/B47_IMPLEMENTATION.md).
@@ -19,8 +25,9 @@ with B53 HUD/selection/minimap, then B54–B58. Full v0.5 is not delivered.
 ## Baseline and invariants
 
 B47 runtime: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
-B50 preparation: `c222021`. B51: `607e2d8`. B52 is the commit containing its report.
-Keep Unreal 5.8.3 CL 58210709, native CharacterMovement, Enhanced Input, UMG/Slate
+B50 preparation: `c222021`. B51: `607e2d8`. B52: `9f4c58f`.
+B53 is the commit containing its implementation report.
+Keep the approved Unreal 5.8.4 CL 58902052 baseline, native CharacterMovement, Enhanced Input, UMG/Slate
 and the existing authority/filtered-view boundary. No engine/framework migration.
 
 Retain actual class starts, six attributes, level-five cap, four shared skill
@@ -56,26 +63,51 @@ proof and fixture boundaries. Cooked input passes 15/19/19 at measured ~100 and
 `Artifacts/20261021-163038-208-PackageWin64/Archive/Windows` (113 source/config
 and seven payload hashes match). These are engineering clients, not human acceptance.
 
-Review with `Scripts/OpenStandalone.ps1`, Host the controls checkpoint and use F1.
-The old HUD is temporary. Numeric items report empty; I opens the retained books/
-development panel; T is unavailable. Saved text scale currently affects controls
-rows; final shared scaling/focus belongs to B57.
+B53 replaces the old V05 HUD with anchored own commands/status, a masked
+selected-subject inspector and a three-state filtered minimap. LMB/drag pans;
+RMB first cancels arming, then issues only an authored-surface ground order.
+Map sight never increases body reach. No observed/public fields were added;
+ward Presentation distinguishes own from observed foreign sources. Controller
+updates refresh the HUD without depending on painting. Duplicate nonzero request/
+result pairs are suppressed in a bounded local cache. Death allows read-only
+inspection; return clears targets and restores follow. Terminal UI follows the
+actual objective receipt, including No acquisition.
+
+Review with `Scripts/OpenStandalone.ps1`, Host private lobby and use F1. Numeric
+items report empty; I/Bag opens the retained books/development panel; T remains
+unavailable. Native default and 125% text captures are engineering evidence.
+Final shared scaling/focus and the full Windows display-scale matrix belong to B57.
+
+B53 uses approved UE 5.8.4: both targets and the cook passed; 17 warning-free rules,
+movement 7, variable-frame combat 48 and V04 region 93 passed. Cooked HUD/input
+passes Server 26 / A 37 / B 37 at measured 99.55/99.64 and 153.40/153.59 ms;
+the report records every actual RTT rather than assuming the target name.
+Cooked navigation passes 34/17/17; filtered-view privacy passes 12/29/27. Native
+720p/1080p and 125% text captures were inspected. Archive:
+`Artifacts/20261022-090127-479-PackageWin64/Archive/Windows`, with 121 source/config
+and seven payload hashes matching. All are engineering fixtures, not human acceptance.
 
 ## Next work
 
-B53: anchored own commands/status, selected-subject inspector, reticle/range/action
-states, three-state fog and minimap pan/drag/authored-surface right-click navigation.
-Use only own state plus filtered views. Other private fields remain Unknown/absent;
-map gestures never cast, select hidden units or increase body reach. Unify frontend,
-lobby, death and results. B54 adds the real 24-slot container and four identity
-references; B55 quoted vendor; B56 six-item per-side atomic consensual exchange
+B54 adds the real 24-slot container and four identity references. Preserve exact
+finite supply: migrate the single starting ward once, lose unused charge instances
+on death and grant none on return. Books/Seal keep their actual drop/learning rules;
+learned state, Witness, credits and gold stay outside the bag. Use current item
+identities and authoritative revisions; sorting must preserve quick references,
+and ownership/consumption must clear them. Both quick and bag entry points must
+reach the same real read/place/drop paths. Keep the inspector/commands split and
+the eight-field observation boundary. B55 adds quoted vendor; B56 six-item per-side atomic consensual exchange
 with exposed gold, revisioned Ready and separate Confirm; B57 presentation; B58 verification.
 
 Keep templates blank and record actual results in working reports/ledger. Run
 Unreal builds and probes sequentially with source stable; use MaxParallelActions 4
 on this 16 GB machine. Preserve authored assets, frozen references/input assets,
-engine pin and separate web baseline. `RunInputCheck.ps1`, `RunNavigationCheck.ps1`
-and `CaptureInputUI.ps1` accept PackageRoot; `PackageWin64.ps1` records source/payload hashes.
+engine pin and separate web baseline. `RunInputCheck.ps1`, `RunHUDCheck.ps1`,
+`RunNavigationCheck.ps1` and `CaptureInputUI.ps1` accept PackageRoot;
+`PackageWin64.ps1` records source/payload hashes. RunHUDCheck expects Server 26 /
+A 37 / B 37, including restricted canonical-actor and duplicate-receipt checks.
+The final near-150 ms HUD lane uses OneWayBaseMs 49 with JitterMs 25; the ~100 ms
+lane uses 30. Always record measured transport rather than assuming the target.
 
 ## Deferred evidence
 

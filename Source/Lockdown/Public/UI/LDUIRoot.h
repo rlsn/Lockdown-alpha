@@ -16,6 +16,7 @@ public:
     bool PointerOverUI() const;
     void DismissMenu();
     bool IsMenuOpen() const {return bMenuOpen;}
+    void ReturnToMenu(){Leave();}
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry, float Delta) override;

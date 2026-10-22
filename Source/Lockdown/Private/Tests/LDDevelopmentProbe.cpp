@@ -20,8 +20,10 @@
 #include "UnrealClient.h"
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "UI/LDDevelopmentPanel.h"
+#include "UI/LDControlSettings.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDWorldChecks.h"
@@ -50,15 +52,17 @@ void ALDDevelopmentProbe::Tick(float Delta)
     {
         FString Directory; FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);
         const bool ControlsVisual=FParse::Param(FCommandLine::Get(),TEXT("LDControlsVisual"));
+        FString HUDScene;FParse::Value(FCommandLine::Get(),TEXT("LDHUDScene="),HUDScene);
         const bool SkillVisual=FParse::Param(FCommandLine::Get(),TEXT("LDSkillProbe"));
         const bool PrepVisual=FParse::Param(FCommandLine::Get(),TEXT("LDPreparationProbe"));
         const bool RegionVisual=FParse::Param(FCommandLine::Get(),TEXT("LDRegionProbe"));
         const bool WorldVisual=FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckProbe"));
-        const FString Image=FPaths::Combine(Directory,ControlsVisual?TEXT("Controls.png"):RegionVisual?TEXT("Region.png"):WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
+        const FString Image=FPaths::Combine(Directory,!HUDScene.IsEmpty()?HUDScene+TEXT(".png"):ControlsVisual?TEXT("Controls.png"):RegionVisual?TEXT("Region.png"):WorldVisual?TEXT("WorldChecks.png"):PrepVisual?TEXT("Preparation.png"):SkillVisual?TEXT("SkillsHUD.png"):TEXT("Lobby.png"));
         if (!Phase && GetWorld()->GetTimeSeconds()>2)
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController()); PC->ChooseLobbyClass(1);
-            if(RegionVisual){PC->ToggleLobbyReady();PC->StartLobby();PC->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,210,92));GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;}
+            if(FParse::Param(FCommandLine::Get(),TEXT("LDHUDLargeText"))&&PC->Controls){PC->Controls->TextScale=1.25f;}
+            if(RegionVisual&&HUDScene!=TEXT("Lobby")){PC->ToggleLobbyReady();PC->StartLobby();PC->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,210,92));GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;}
             if(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe")))
             {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);O->Gold=100;O->Commissions=4;O->PaidJobs=4;O->Witness=FGuid::NewGuid();O->ProtectedUntil=0;PC->GetPawn()->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(0,50,92));M->SyncOwner(PC);PC->SetFabricationHeld(true);}
             if(WorldVisual){PC->ToggleLobbyReady();PC->StartLobby();PC->GetPawn()->SetActorLocation(LDCharter::Position(3)+FVector(0,50,92));GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;}
@@ -74,6 +78,14 @@ void ALDDevelopmentProbe::Tick(float Delta)
                 PC->BuyBook(ELDSkill::Spark);PC->BuyBook(ELDSkill::Patch);
             }
             Phase=1; PhaseAt=FPlatformTime::Seconds();
+        }
+        else if(Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&!HUDScene.IsEmpty()&&HUDScene!=TEXT("HUD")&&HUDScene!=TEXT("Controls")&&HUDScene!=TEXT("Lobby"))
+        {
+            auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
+            if(HUDScene==TEXT("Selected")){if(const auto* R=PC->LocalView()){const FLDObservedEntity* Best=nullptr;double Distance=DBL_MAX;for(const auto& V:R->LastView().Entities){const double Next=FVector::DistSquared2D(V.Position,PC->GetPawn()->GetActorLocation());if(V.Kind==ELDObservedKind::Body&&Next<Distance){Best=&V;Distance=Next;}}if(Best){PC->Inspect(Best->Id);}}}
+            if(HUDScene==TEXT("Death")){M->EndContenderLife(PC,GetWorld()->GetTimeSeconds());}
+            if(HUDScene==TEXT("Result")){GetWorld()->GetGameState<ALDGameState>()->MatchDeadline=float(GetWorld()->GetTimeSeconds()+.05);}
+            Phase=3;PhaseAt=FPlatformTime::Seconds();
         }
         else if (Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&ControlsVisual)
         {
@@ -324,6 +336,11 @@ void ALDDevelopmentProbe::Finish()
     if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldCheckNormal"))){Report->SetStringField(TEXT("profile"),TEXT("B44 ordinary automated practice: native player travel and actual equipped Survey Charter hold; no XP/gold/build grants"));Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDSealProbe"))){Report->SetStringField(TEXT("profile"),FParse::Param(FCommandLine::Get(),TEXT("LDRegionNormal"))?TEXT("B46 ordinary automated zero-kill acquisition: native travel, starting Survey, four paid jobs, fabrication and Heart; no grants, teleports, build overrides or clock advances"):TEXT("B46 engineering: adversarial balances, positions, clocks and creation failure; network acquisition uses real Witness/job/fabrication commits with travel and cooldown clock fixtures"));}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDReleaseSession"))){Report->SetStringField(TEXT("profile"),TEXT("B47 ordinary automated 25-minute practice: original clock/deadline/rewards, native traversal, eight jobs, actual NPC healing and earned fabrication; no grants or teleports; not human evidence"));Report->SetNumberField(TEXT("wallSeconds"),FPlatformTime::Seconds()-SessionStarted);Report->SetNumberField(TEXT("nativeTravelCm"),NormalTravel);Report->SetArrayField(TEXT("audits"),SessionSamples);Report->SetNumberField(TEXT("actorMin"),SessionActorMin);Report->SetNumberField(TEXT("actorMax"),SessionActorMax);}
+    FString HUDScene;if(FParse::Value(FCommandLine::Get(),TEXT("LDHUDScene="),HUDScene))
+    {
+        Report->SetStringField(TEXT("profile"),TEXT("B53 native rendered UI; auto-start, location, selection, death or terminal-deadline fixtures according to scene; not human or OS-scale acceptance"));Report->SetStringField(TEXT("scene"),HUDScene);
+        auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());int32 W=0,H=0;PC->GetViewportSize(W,H);Report->SetNumberField(TEXT("viewportWidth"),W);Report->SetNumberField(TEXT("viewportHeight"),H);Report->SetNumberField(TEXT("effectiveViewportScale"),UWidgetLayoutLibrary::GetViewportScale(this));Report->SetNumberField(TEXT("textScale"),PC->Controls?PC->Controls->TextScale:1);
+    }
     TArray<TSharedPtr<FJsonValue>> Lines; for (const auto& Line:Checks) { Lines.Add(MakeShared<FJsonValueString>(Line)); }
     Report->SetArrayField(TEXT("checks"),Lines); FString Output,Path,Directory;
     FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);

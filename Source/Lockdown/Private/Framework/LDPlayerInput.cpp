@@ -4,6 +4,8 @@
 #include "UI/LDControlsPanel.h"
 #include "UI/LDDevelopmentPanel.h"
 #include "UI/LDUIRoot.h"
+#include "UI/LDHUD.h"
+#include "UI/LDHUDModel.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Character/LDCharacter.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -38,6 +40,10 @@ namespace
 }
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
+double ALDPlayerController::ArmedRange() const
+{return bAttackArmed?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
+FString ALDPlayerController::HeldInputLabel() const
+{return HeldSkillGesture==1?BindingLabel(TEXT("Select")):HeldSkillGesture==2?TEXT("mouse button"):HeldSkillGesture==3?BindingLabel(TEXT("Context")):BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),HeldSkillSlot+1)));}
 FString ALDPlayerController::ControlSummary() const
 {
     auto K=[this](const TCHAR* A){return BindingLabel(FName(A));};
@@ -75,6 +81,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
     if(!IsLocalController()||(!Navigation->Enabled()&&!IsFrontend())){return;}
     if(!Controls){Controls=ULDControlSettings::Load();}
+    if(Navigation->Enabled()&&!IsFrontend()&&!HUDUI){HUDUI=CreateWidget<ULDHUD>(this);HUDUI->AddToViewport(30);}
     if(!bNavigationContextActive){RebuildV05Mappings();Navigation->bFollowCamera=Controls->bStartFollowing;}
     if(bFreshInputRequired)
     {
@@ -95,6 +102,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         const FKey Primary=BindingKey(TEXT("Select"));
         if(!PhysicalDown(this,Primary)){V05Released(TEXT("Select"));}
     }
+    if(HeldSkillGesture==2&&HeldSkillSlot!=255&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){SkillStopped(HeldSkillSlot);}
+    if(HUDUI){HUDUI->RefreshReadModel();}
 }
 void ALDPlayerController::CancelArmed()
 {ArmedSkill=-1;bAttackArmed=bDraftArmed=bFabricationArmed=false;ReadArmed.Invalidate();PreparedDraft=FLDBuildPlan();}
@@ -120,6 +129,7 @@ void ALDPlayerController::V05Pressed(FName Action)
 {
     if(Action==TEXT("Back")){V05Back();return;}
     if(Action==TEXT("Help")){ToggleControlsPanel();return;}
+    if(Action==TEXT("Development")&&!OwnerState.bActive){ToggleDevelopmentPanel();return;}
     if(!CanWorldCommand()){return;}
     const int32 Skill=Numbered(Action,TEXT("Skill"));if(Skill>=0){ArmSkill(uint8(Skill));return;}
     // Item entry points become real carried-instance references in B54.
@@ -131,7 +141,7 @@ void ALDPlayerController::V05Pressed(FName Action)
         if(GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
         {bPrimaryOwned=true;if(IsTargeting()){ConfirmArmed(Hit.ImpactPoint,Target);}else{Inspect(Target);}}
     }
-    else if(Action==TEXT("Navigate")){if(IsTargeting()||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{Navigation->ClickMove();}}
+    else if(Action==TEXT("Navigate")){if(RootUI&&RootUI->PointerOverUI()){return;}if(IsTargeting()||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{Navigation->ClickMove();}}
     else if(Action==TEXT("Attack")){ArmAttack();}
     else if(Action==TEXT("Context")){ContextV05();}
     else if(Action==TEXT("Stop")){StopOrder();CancelArmed();}
@@ -184,7 +194,7 @@ void ALDPlayerController::BeginTargetSkill(uint8 Slot,FGuid Target,const FVector
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
     if(uint8(Skill)>=uint8(ELDSkill::Patch)){Navigation->Stop();CancelInterruptibleHolds();}
     const uint32 Token=++NextRequest;
-    PendingAimRequest=Token;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Aim.Rotation().Yaw);}
+    PendingAimRequest=Token;PendingSkillSlot=Slot;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Aim.Rotation().Yaw);}
     if(uint8(Skill)>=uint8(ELDSkill::Patch)){HeldSkillSlot=Slot;HeldSkillGesture=Gesture;HeldObserved=Target;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
     ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);
 }
@@ -198,7 +208,7 @@ void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
         if(!E){IntentFeedback=TEXT("Target no longer visible");CancelArmed();return;}Point=E->Position;
     }
     const FVector Aim=(Point-GetPawn()->GetActorLocation()).GetSafeNormal2D();if(Aim.IsNearlyZero()){return;}
-    if(bAttackArmed){CancelArmed();PendingAimRequest=++NextRequest;CastChecked<ALDCharacter>(GetPawn())->SetFacing(Aim.Rotation().Yaw);ServerCombatAction(OwnerState.Match,OwnerState.Life,PendingAimRequest,0,Aim);}
+    if(bAttackArmed){CancelArmed();PendingAimRequest=++NextRequest;PendingSkillSlot=255;CastChecked<ALDCharacter>(GetPawn())->SetFacing(Aim.Rotation().Yaw);ServerCombatAction(OwnerState.Match,OwnerState.Life,PendingAimRequest,0,Aim);}
     else if(ArmedSkill>=0){const uint8 Slot=uint8(ArmedSkill);CancelArmed();BeginTargetSkill(Slot,Target,Aim,1);}
 }
 void ALDPlayerController::EndSkillGesture(uint8 Slot,uint8 Gesture){if(HeldSkillSlot==Slot&&HeldSkillGesture==Gesture){SkillStopped(Slot);}}

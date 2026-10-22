@@ -4,8 +4,8 @@
   "engine": {
     "major": 5,
     "minor": 8,
-    "patch": 3,
-    "changelist": 58210709,
+    "patch": 4,
+    "changelist": 58902052,
     "distribution": "Epic installed build",
     "branch": "++UE5+Release-5.8"
   },

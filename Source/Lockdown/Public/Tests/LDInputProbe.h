@@ -17,10 +17,12 @@ private:
     int32 Phase=0,Step=0,Failures=0;
     double Started=0,PhaseAt=0,LastPing=0;
     bool bChoice=false,bReady=false;
+    bool bHUD=false;
     TArray<FString> Checks;
     TWeakObjectPtr<ALDPlayerController> A,B;
     TArray<TWeakObjectPtr<ALDCharacter>> Far,Near;
     TArray<double> FarHp,NearHp;
+    TArray<FVector> HUDAnchors;
     FVector CameraAnchor=FVector::ZeroVector,BodyAnchor=FVector::ZeroVector;
     TArray<uint8> CameraMask;
     FGuid Target;
@@ -31,5 +33,7 @@ private:
     void Enter(int32 Next);
     void ServerTick();
     void ClientTick();
+    void HUDServerTick();
+    void HUDClientTick();
     void Finish();
 };

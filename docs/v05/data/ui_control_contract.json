@@ -25,6 +25,11 @@
       90
     ]
   },
+  "implementationEnvironment": {
+    "engine": "Unreal 5.8.4 CL 58902052",
+    "approvedByUserOn": "2026-10-22",
+    "historicalBaselineEngineUnchanged": true
+  },
   "controls": {
     "bindings": [
       {

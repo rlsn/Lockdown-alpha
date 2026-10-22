@@ -233,7 +233,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
             else if(Actor->IsA<ALDWatchControl>()){Record.Kind=ELDObservedKind::WatchControl;}
             else if(const auto* Task=Cast<ALDCharterTask>(Actor)){Record.Kind=ELDObservedKind::Charter;Record.Presentation=Task->Service;}
-            else { Record.Kind=ELDObservedKind::Ward; }
+            else { Record.Kind=ELDObservedKind::Ward;if(const auto* Ward=Cast<ALDWard>(Actor)){Record.Presentation=Ward->Controller==PC?1:0;} }
             View.Entities.Add(Record); Visible.Add(Id);
         }
         TArray<FGuid> Removed;

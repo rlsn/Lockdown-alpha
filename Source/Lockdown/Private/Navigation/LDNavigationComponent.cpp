@@ -17,6 +17,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
+#include "UI/LDHUD.h"
+#include "UI/LDMinimap.h"
 
 namespace
 {
@@ -253,7 +255,7 @@ void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActo
     if(!PC->IsLocalController()){return;}
     if(SeenMatch!=PC->OwnerState.Match||SeenLife!=PC->OwnerState.Life){ResetLife();}
     if(Body!=LastPawn.Get())
-    {LastPawn=Body;if(Body){Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);bCameraInitialized=false;bFollowCamera=PC->Controls?PC->Controls->bStartFollowing:true;}}
+    {LastPawn=Body;if(Body){Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);bCameraInitialized=false;bFollowCamera=PC->OwnerState.Life>1||!PC->Controls||PC->Controls->bStartFollowing;}}
     if(!PC->CanWorldCommand()) {if(bLocalActive||bFollowing){Stop();}TickCamera(Delta);return;}
     if(!FApp::IsUnattended()&&FSlateApplication::IsInitialized()&&!FSlateApplication::Get().IsActive())
     {if(bHadFocus){PC->FlushPressedKeys();}bHadFocus=false;return;}
@@ -304,7 +306,7 @@ void ULDNavigationComponent::TickCamera(float Delta)
     if(PC->CanWorldCommand())
     {
         FVector2D Axis=PC->CameraPanAxis();
-        if(bEdgePan&&!PC->IsTargeting()&&!FApp::IsUnattended()&&(!PC->RootUI||!PC->RootUI->PointerOverUI()))
+        if(bEdgePan&&!PC->HasArmedAction()&&(!PC->HUDUI||!PC->HUDUI->Minimap||!PC->HUDUI->Minimap->IsDragging())&&!FApp::IsUnattended()&&(!PC->RootUI||!PC->RootUI->PointerOverUI()))
         {float X=0,Y=0;int32 W=0,H=0;PC->GetViewportSize(W,H);if(PC->GetMousePosition(X,Y)&&X>=0&&Y>=0&&X<W&&Y<H){Axis.X+=(X>=W-8?1:0)-(X<8?1:0);Axis.Y+=(Y<8?1:0)-(Y>=H-8?1:0);}}
         PanCamera(Axis.GetClampedToMaxSize(1),Delta);
     }

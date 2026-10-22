@@ -99,6 +99,7 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;
     StopConfirm();
     if(Operation==11){Close();return;}
+    if(!O.bActive){PC->IntentFeedback=TEXT("Read-only while waiting to return");return;}
     if(Operation==12){Close();PC->ArmFabrication();return;}
     if(Operation==10){PC->BuyBook(ELDSkill(Index));return;}
     if(Operation==9)
@@ -123,7 +124,7 @@ void ULDDevelopmentPanel::StopConfirm(){if(bHolding){CastChecked<ALDPlayerContro
 void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);if(!bOpen||!Heading){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;
-    const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!O.bActive||!GS||!GS->bMatchStarted||GS->EndReason){Close();return;}
+    const auto* GS=GetWorld()->GetGameState<ALDGameState>();if((!O.bActive&&!PC->Navigation->Enabled())||!GS||!GS->bMatchStarted||GS->EndReason){Close();return;}
     if(Draft.ExpectedRevision!=O.Build.Revision){StopConfirm();ResetDraft();}
     const double Now=GS->GetServerWorldTimeSeconds();FLDCharacterBuild Candidate;FString Error;const bool Valid=LDDevelopment::Prepare(O.Build,Draft,Candidate,Error);
     FLDCharacterBuild Ghost=O.Build;Ghost.Attributes=Draft.Attributes;Ghost.Ranks=Draft.Ranks;Ghost.Slots=Draft.Slots;Ghost.Subclass=Draft.Subclass;
@@ -158,6 +159,12 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     for(int32 I=0;I<4;++I){const bool Present=O.Books.IsValidIndex(I);BookLabels[I]->SetText(FText::FromString(Present?FString::Printf(TEXT("%s%s · unread"),SelectedBook==O.Books[I].Id?TEXT("› "):TEXT(""),LDDevelopment::SkillName(O.Books[I].Skill)):TEXT("Empty space")));ReadButtons[I]->SetIsEnabled(Present&&!bHolding);}
     const bool AtGuild=PC->GetPawn()&&FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Guild))<=120*120;
     for(auto W:BuyButtons){W->SetIsEnabled(AtGuild&&O.Gold>=40&&O.Books.Num()<4&&!bHolding&&!O.DevelopmentKind);}
+    if(PC->Navigation->Enabled())
+    {
+        TArray<UWidget*> Widgets;WidgetTree->GetAllWidgets(Widgets);
+        for(auto* W:Widgets){if(auto* Button=Cast<ULDDevelopmentButton>(W))
+        {if(!O.bActive){Button->SetIsEnabled(Button->Operation==11);}else if(Button->Operation==1||Button->Operation==3||Button->Operation==4||Button->Operation==5||Button->Operation==11||Button->Operation==12){Button->SetIsEnabled(true);}}}
+    }
     Feedback->SetText(FText::FromString(PC->IntentFeedback));
 }
 FReply ULDDevelopmentPanel::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Event)

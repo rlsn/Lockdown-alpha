@@ -186,6 +186,7 @@ void ALDPlayerController::SkillStarted(uint8 Slot)
     FVector Direction=Body->GetActorForwardVector();
     if(Skill==ELDSkill::Step&&!Body->GetLastMovementInputVector().IsNearlyZero()){Direction=Body->GetLastMovementInputVector().GetSafeNormal2D();}
     const uint32 Token=++NextRequest;
+    if(Navigation->Enabled()){PendingAimRequest=Token;PendingSkillSlot=Slot;}
     if(uint8(Skill)>=uint8(ELDSkill::Patch)){Navigation->Stop();}
     if(uint8(Skill)>=uint8(ELDSkill::Patch))
     {HeldSkillSlot=Slot;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;InteractStopped();}
@@ -402,6 +403,13 @@ void ALDPlayerController::ServerPlaceWard_Implementation(uint32 Match,uint32 Lif
 void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)
 {
     if(Request==PendingAimRequest){PendingAimRequest=0;}
+    if(Request)
+    {
+        if(SeenIntentResults.ContainsByPredicate([&](const auto& Result){return Result.Key==Request&&Result.Value==Reason;})){return;}
+        if(SeenIntentResults.Num()>=128){SeenIntentResults.RemoveAt(0);}
+        SeenIntentResults.Emplace(Request,Reason);
+    }
+    ++IntentFeedbackSerial;
     IntentFeedback=Reason;
 #if !UE_BUILD_SHIPPING
     if(double* Sent=ProbeRequests.Find(Request)){ProbeAckMs.Add((FPlatformTime::Seconds()-*Sent)*1000);ProbeRequests.Remove(Request);}

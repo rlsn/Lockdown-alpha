@@ -1,17 +1,19 @@
 # Project Lockdown — v0.5 implementation
 
-Windows-first Unreal 5.8.3 project extending the Grand Heart prototype. Design
+Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); active release scope and
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 navigation and B52 input/action modes implemented.**
+**Current checkpoint: B51 navigation, B52 input and B53 HUD implemented.**
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
 baseline and defaults. [B51](docs/v05/B51_IMPLEMENTATION.md) proves native
 multiplayer navigation; [B52](docs/v05/B52_IMPLEMENTATION.md) adds saved remapping,
-explicit targeting and fresh-input panel routing. The ordinary frontend now
-launches the v0.5 controls checkpoint. B53 HUD and B54–B58 inventory, vendor,
-peer exchange, presentation and complete release verification remain ahead.
+explicit targeting and fresh-input panel routing. [B53](docs/v05/B53_IMPLEMENTATION.md)
+adds the masked inspector, anchored own commands, interactive filtered minimap
+and life/results presentation. The ordinary frontend launches this v0.5 checkpoint.
+B54–B58 inventory, vendor, peer exchange, final presentation and complete release
+verification remain ahead.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
@@ -35,7 +37,7 @@ stress case was stopped at user direction; a fresh B47 cold checkout and human
 review remain pending for the next version. Use
 the [review guide](docs/v04/B47_REVIEW_GUIDE.md) for actual multiplayer sessions.
 
-Use **Host v0.5 controls checkpoint**, select a class, mark Ready and start as
+Use **Host private lobby**, select a class, mark Ready and start as
 host. One human is practice; the retained cap is 25 minutes. Right-click moves or
 approaches, S stops, Shift sprints, left-click inspects, and A then world-click
 attacks. Q/W/E/R invoke equipped skill modes; hold the initiating key/button for
@@ -46,7 +48,9 @@ The temporary character panel also arms book reading and Seal fabrication.
 
 The larger inventory, item shortcuts and peer trade are pending. Numeric 1–4
 report empty, I currently opens the retained books/development panel, and T is
-unavailable. The old HUD is temporary until B53. Retained gameplay still includes
+unavailable. Minimap left-click/drag pans; right-click cancels an armed action
+first, then issues a ground move. Other selection shows Unknown private fields
+while commands remain yours. Retained gameplay still includes
 eight paid jobs, first visits, private Charter checks, the hostile sentinel,
 watchtower sabotage and earned Witness/Seal/Heart. Fabrication remains four
 seconds with Witness, four unused credits and 100 gold, once per contender;
@@ -57,7 +61,8 @@ legacy sandbox retains the [v0.3 profile](docs/v03/implementation/README.md).
 
 ## Setup
 
-1. Install/associate Unreal **5.8.3 CL 58210709**. Do not upgrade the project.
+1. Install/associate Unreal **5.8.4 CL 58902052**. This patch baseline was approved
+   by the user on 22 October 2026; preserve historical 5.8.3 evidence separately.
 2. Install an MSVC version accepted by the pinned engine. The owner's update
    now provides x64 14.51.36260 and 14.44.35229; the earlier compiler ban is resolved.
    Windows SDK 10.0.26100.0 is now detected. In Visual Studio Installer > Modify >
@@ -80,8 +85,11 @@ legacy sandbox retains the [v0.3 profile](docs/v03/implementation/README.md).
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
 ./Scripts/RunInputCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
+./Scripts/RunHUDCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 49
 ./Scripts/RunNavigationCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
 ./Scripts/CaptureInputUI.ps1 -Controls
+./Scripts/CaptureInputUI.ps1 -Scene Selected -Width 1920 -Height 1080
+./Scripts/CaptureInputUI.ps1 -Scene Selected -LargeText
 ./Scripts/RunDevelopmentCheck.ps1
 ./Scripts/RunDevelopmentCheck.ps1 -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunDevelopmentCheck.ps1 -Reset

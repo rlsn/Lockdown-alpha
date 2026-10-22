@@ -1,5 +1,14 @@
 #include "Core/LDGroundQueries.h"
 #include "Engine/World.h"
+bool LDGround::MapSurface(UWorld* World,const FVector& XY,FVector& Surface)
+{
+    if(!World||XY.ContainsNaN()){return false;}FHitResult Ground;
+    if(!World->LineTraceSingleByChannel(Ground,FVector(XY.X,XY.Y,1600),FVector(XY.X,XY.Y,-200),ECC_GameTraceChannel1)
+        ||Ground.ImpactNormal.Z<FMath::Cos(FMath::DegreesToRadians(40.))){return false;}
+    Surface=Ground.ImpactPoint;
+    // A wall/roof/tree cell is not an order to an unseen floor beneath it.
+    return !World->LineTraceTestByChannel(Surface+FVector(0,0,1400),Surface+FVector(0,0,2),ECC_GameTraceChannel2);
+}
 bool LDGround::ClearSegment(UWorld* World,const FVector& From,const FVector& To)
 {
     if(!World||From.ContainsNaN()||To.ContainsNaN()){return false;}

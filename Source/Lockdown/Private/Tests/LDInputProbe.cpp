@@ -25,7 +25,7 @@
 
 ALDInputProbe::ALDInputProbe(){bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
 void ALDInputProbe::BeginPlay()
-{Super::BeginPlay();Started=PhaseAt=FPlatformTime::Seconds();FParse::Value(FCommandLine::Get(),TEXT("LDProbeRole="),Role);if(GetNetMode()==NM_Client){CastChecked<ALDPlayerController>(GetOwner())->ServerProbeHello(Role==TEXT("A")?1:2);}}
+{Super::BeginPlay();Started=PhaseAt=FPlatformTime::Seconds();bHUD=FParse::Param(FCommandLine::Get(),TEXT("LDHUDProbe"));FParse::Value(FCommandLine::Get(),TEXT("LDProbeRole="),Role);if(GetNetMode()==NM_Client){CastChecked<ALDPlayerController>(GetOwner())->ServerProbeHello(Role==TEXT("A")?1:2);}}
 void ALDInputProbe::Key(FKey Input,bool Down)
 {CastChecked<ALDPlayerController>(GetOwner())->InputKey(FInputKeyEventArgs(nullptr,FInputDeviceId::CreateFromInternalId(0),Input,Down?IE_Pressed:IE_Released,Down?1.f:0.f,false,FPlatformTime::Cycles64()));}
 void ALDInputProbe::Check(bool Pass,const FString& Text)
@@ -49,6 +49,7 @@ void ALDInputProbe::ServerTick()
         if(A.IsValid()&&B.IsValid()){Check(G->bUIControlProfile&&G->LobbyCount==2,TEXT("Independent V05 input clients retain real private lobby"));Enter(1);}return;
     }
     const double E=FPlatformTime::Seconds()-PhaseAt;
+    if(bHUD&&Phase>=10){HUDServerTick();return;}
     if(Phase==10){if(E>4){Finish();}return;}
     if(!A.IsValid()||!B.IsValid()){Check(false,TEXT("Client disconnected before input checks completed"));Finish();return;}
     if(Phase==1&&G->bMatchStarted&&E>1.5)
@@ -93,6 +94,7 @@ void ALDInputProbe::ClientTick()
     auto* PC=Cast<ALDPlayerController>(GetOwner());if(!PC||!PC->OwnerState.Match){return;}
     if(FPlatformTime::Seconds()-LastPing>.25){LastPing=FPlatformTime::Seconds();PC->ServerProbePing(LastPing);}
     if(PC->ProbePhase!=Phase){Phase=PC->ProbePhase;PhaseAt=FPlatformTime::Seconds();Step=0;}
+    if(bHUD&&Phase>=10){HUDClientTick();return;}
     const double E=FPlatformTime::Seconds()-PhaseAt;auto* Body=Cast<ALDCharacter>(PC->GetPawn());if(!Body){return;}
     const double Y=Role==TEXT("A")?-1000:-500;
     auto FindTarget=[&](){if(const auto* R=PC->LocalView();R&&!R->IsStale()){for(const auto& V:R->LastView().Entities){if(V.Kind==ELDObservedKind::Body&&FVector::Dist2D(V.Position,FVector(-1400,Y,92))<20){return V.Id;}}}return FGuid();};
@@ -155,7 +157,7 @@ void ALDInputProbe::ClientTick()
 }
 void ALDInputProbe::Finish()
 {
-    SetActorTickEnabled(false);auto Report=MakeShared<FJsonObject>();Report->SetStringField(TEXT("profile"),TEXT("B52 engineering fixture: synthetic native key events and explicit observation/ray fixtures; setup positions, skills, HP, points and one cooldown reset are labelled; holds and authority timers remain real; not human evidence"));
+    SetActorTickEnabled(false);auto Report=MakeShared<FJsonObject>();Report->SetStringField(TEXT("profile"),bHUD?TEXT("B53 engineering fixture: B52 synthetic native keys and observation/ray fixtures plus direct minimap gestures, positions, skills, HP, points, one cooldown reset, 100-gold death balance and terminal deadline; ward consumption, death/return, holds and authority timers remain real; not human evidence"):TEXT("B52 engineering fixture: synthetic native key events and explicit observation/ray fixtures; setup positions, skills, HP, points and one cooldown reset are labelled; holds and authority timers remain real; not human evidence"));
     if(GetNetMode()==NM_Client){auto* PC=CastChecked<ALDPlayerController>(GetOwner());auto Echo=PC->ProbeRtts;Echo.Sort();Check(Echo.Num()>=8,TEXT("Independent native input client measured transport echo"));Report->SetNumberField(TEXT("medianEchoRttMs"),Echo.IsEmpty()?0:Echo[Echo.Num()/2]);}
     Report->SetNumberField(TEXT("failures"),Failures);TArray<TSharedPtr<FJsonValue>> Values;for(const auto& C:Checks){Values.Add(MakeShared<FJsonValueString>(C));}Report->SetArrayField(TEXT("checks"),Values);
     FString Directory,Output;FParse::Value(FCommandLine::Get(),TEXT("LDProbeReportDir="),Directory);FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Output));if(!FFileHelper::SaveStringToFile(Output,*FPaths::Combine(Directory,Role+TEXT(".json")))){++Failures;}FPlatformMisc::RequestExitWithStatus(false,Failures?1:0);

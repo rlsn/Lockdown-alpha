@@ -8,14 +8,14 @@
 void ALDPlayerController::ToggleDevelopmentPanel()
 {
     const auto* Public=GetWorld()->GetGameState<ALDGameState>();
-    if(!OwnerState.bDevelopmentProfile||!OwnerState.bActive||!Public||!Public->bMatchStarted||Public->EndReason){return;}
+    if(!OwnerState.bDevelopmentProfile||(!OwnerState.bActive&&!Navigation->Enabled())||!Public||!Public->bMatchStarted||Public->EndReason){return;}
     if(bControlsSuppressed&&(!DevelopmentUI||!DevelopmentUI->IsOpen())){return;}
     if(!DevelopmentUI){DevelopmentUI=CreateWidget<ULDDevelopmentPanel>(this);DevelopmentUI->AddToViewport(20);}
     if(DevelopmentUI->IsOpen()){DevelopmentUI->Close();}else{DevelopmentUI->Open();}
 }
 void ALDPlayerController::BuyBook(ELDSkill Skill)
 {StopDevelopmentHold();ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
-void ALDPlayerController::SetInteractionHeld(bool Held){if(Held){InteractStarted();}else{InteractStopped();}}
+void ALDPlayerController::SetInteractionHeld(bool Held){if(Navigation->Enabled()){if(Held&&CanWorldCommand()){ContextV05();}else if(!Held){V05Released(TEXT("Context"));}return;}if(Held){InteractStarted();}else{InteractStopped();}}
 void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Navigation->Enabled()){if(Held){ArmSkill(Slot,2);}else{EndSkillGesture(Slot,2);}return;}if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)
 {

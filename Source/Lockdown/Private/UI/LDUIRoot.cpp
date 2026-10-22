@@ -28,13 +28,17 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
+#include "UI/LDWidgets.h"
 
 bool ULDUIRoot::PointerOverUI() const
 {
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->Navigation->Enabled()&&PC->HUDUI&&PC->HUDUI->PointerOverUI()){return true;}
     if(!FSlateApplication::IsInitialized()){return false;}
     const FVector2D PointerPosition=FSlateApplication::Get().GetCursorPos();
     for(const UWidget* W:{static_cast<UWidget*>(HeaderPanel.Get()),static_cast<UWidget*>(ActionPanel.Get()),static_cast<UWidget*>(MenuPanel.Get()),static_cast<UWidget*>(LobbyPanel.Get()),static_cast<UWidget*>(FixturePanel.Get())})
     {if(W&&W->IsVisible()&&W->GetCachedGeometry().IsUnderLocation(PointerPosition)){return true;}}
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->Navigation->Enabled()){return false;}
     const FVector2D Local=GetCachedGeometry().AbsoluteToLocal(PointerPosition);const FVector2D MapOrigin(GetCachedGeometry().GetLocalSize().X-270,180);
     return Local.X>=MapOrigin.X&&Local.X<=MapOrigin.X+240&&Local.Y>=MapOrigin.Y&&Local.Y<=MapOrigin.Y+160;
 }
@@ -63,7 +67,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         HeaderPanel=Header;
         Header->SetBrushColor(FLinearColor(.025f,.045f,.045f,.92f));
         Header->SetPadding(FMargin(20,12));
-        Status = Text(TEXT("LOCKDOWN  |  Unreal migration demo"), 18);
+        Status = Text(TEXT("PROJECT LOCKDOWN"), 18);
         Header->SetContent(Status);
         UCanvasPanelSlot* HeaderSlot = Canvas->AddChildToCanvas(Header);
         HeaderSlot->SetAnchors(FAnchors(0,0,1,0));
@@ -84,7 +88,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             Slot->SetPadding(FMargin(0,7));
         };
         Row(Text(TEXT("PROJECT LOCKDOWN"), 28));
-        Row(Text(TEXT("Unreal migration demo\nWork, survive, recover a Seal and claim the Heart."), 16));
+        Row(Text(TEXT("Work, survive, recover a Seal and claim the Heart."), 16));
         auto Button = [this, &Text, &Row](const TCHAR* Label)
         {
             UButton* Result = WidgetTree->ConstructWidget<UButton>();
@@ -103,7 +107,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         };
         if (bFrontend)
         {
-            Button(TEXT("Host v0.5 controls checkpoint"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
+            Button(TEXT("Host private lobby"))->OnClicked.AddDynamic(this, &ULDUIRoot::Host);
             Address = WidgetTree->ConstructWidget<UEditableTextBox>();
             Address->SetText(FText::FromString(TEXT("127.0.0.1:7777")));
             Address->SetHintText(FText::FromString(TEXT("Host address:port")));
@@ -132,7 +136,7 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             LobbyPanel->SetBrushColor(FLinearColor(.025f,.045f,.045f,.99f)); LobbyPanel->SetPadding(FMargin(24));
             auto* Choices=WidgetTree->ConstructWidget<UVerticalBox>(); LobbyPanel->SetContent(Choices);
             auto* LobbyCanvasSlot=Canvas->AddChildToCanvas(LobbyPanel); LobbyCanvasSlot->SetAnchors(FAnchors(.5f,.5f)); LobbyCanvasSlot->SetAlignment(FVector2D(.5)); LobbyCanvasSlot->SetSize(FVector2D(720,660));
-            Choices->AddChildToVerticalBox(Text(TEXT("v0.4 · CHARACTER LOBBY"),26));
+            Choices->AddChildToVerticalBox(Text(TEXT("CHOOSE YOUR CHARACTER"),26));
             LobbyInfo=Text(TEXT("Choose a starting class, then Ready."),17); Choices->AddChildToVerticalBox(LobbyInfo);
             auto Choice=[&](const TCHAR* Label)
             {
@@ -231,6 +235,12 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             const bool Overlay=PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen();HeaderPanel->SetVisibility(Overlay?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
             if(ActionPanel){ActionPanel->SetVisibility(Overlay?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
         }
+        if(PC->Navigation->Enabled())
+        {
+            HeaderPanel->SetVisibility(ESlateVisibility::Collapsed);if(ActionPanel){ActionPanel->SetVisibility(ESlateVisibility::Collapsed);}
+            if(!PC->IntentFeedback.IsEmpty()){Feedback->SetText(FText::FromString(PC->IntentFeedback));}
+            return;
+        }
         const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
         const ALDWorldViewRelay* Relay=PC->LocalView();
         const FLDWorldView View=Relay ? Relay->LastView() : FLDWorldView();
@@ -298,6 +308,7 @@ int32 ULDUIRoot::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,co
 {
     const int32 Result=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(PC&&PC->Navigation->Enabled()){return Result;}
     const ALDWorldViewRelay* Relay=PC ? PC->LocalView() : nullptr;
     if (!Relay || PC->IsFrontend() || bInLobby || (PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())) { return Result; }
     const FLDWorldView& View=Relay->LastView();

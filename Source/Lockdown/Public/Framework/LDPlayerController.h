@@ -23,6 +23,7 @@ public:
     bool NavigationBindingsActive() const {return bNavigationContextActive;}
     UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
     UPROPERTY() TObjectPtr<class ULDControlsPanel> ControlsUI;
+    UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     void RebuildV05Mappings();
     void ToggleControlsPanel();
     void V05Back();
@@ -31,6 +32,11 @@ public:
     FKey BindingKey(FName Action) const;
     FVector2D CameraPanAxis() const;
     bool IsTargeting() const {return ArmedSkill>=0||bAttackArmed;}
+    bool HasArmedAction() const {return IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid();}
+    int32 ArmedSlot() const {return ArmedSkill;}
+    uint8 PendingSlot() const {return PendingAimRequest?PendingSkillSlot:255;}
+    double ArmedRange() const;
+    FString HeldInputLabel() const;
     void ArmSkill(uint8 Slot,uint8 Gesture=0);
     void ArmAttack();
     void ConfirmArmed(const FVector& Ground,FGuid Observed);
@@ -77,6 +83,7 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     class ALDWorldViewRelay* LocalView() const;
     FString IntentFeedback;
+    uint32 FeedbackSerial() const{return IntentFeedbackSerial;}
     void TogglePublicSensorFixture();
     void ToggleDefenceFixture(uint8 Index);
     void SeedSealFixture();
@@ -102,6 +109,8 @@ public:
     void RecordProbeRequest(uint32 Request){ProbeRequests.Add(Request,FPlatformTime::Seconds());}
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
 private:
+    TArray<TPair<uint32,FString>> SeenIntentResults;
+    uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;
     bool bControlsSuppressed = false;
     float AimSendTime = 0;
@@ -143,6 +152,7 @@ private:
     TWeakObjectPtr<APawn> PreferencesPawn;
     TArray<uint32> V05BindingHandles;
     uint32 PendingAimRequest=0;
+    uint8 PendingSkillSlot=255;
     uint32 SkillHoldToken=0,SkillHoldSequence=0;
     uint8 HeldSkillSlot=255;
     double LastSkillHoldSent=-1000;
