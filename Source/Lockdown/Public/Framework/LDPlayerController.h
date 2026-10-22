@@ -3,6 +3,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Inventory/LDVendorTypes.h"
+#include "Inventory/LDTradeTypes.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -27,6 +28,13 @@ public:
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     UPROPERTY() TObjectPtr<class ULDInventoryPanel> InventoryUI;
     void ToggleInventoryPanel();
+    FLDTradeView TradeView;
+    void OfferTrade();void CancelTrade();
+    bool TradePending() const{return TradePendingRequest!=0;}
+    void TradeCommand(uint8 Command,FGuid Item=FGuid(),int64 Gold=0);
+    UFUNCTION(Server,Reliable) void ServerTradeCommand(uint32 Match,uint32 Life,uint32 Request,uint8 Command,FGuid Session,uint32 Revision,const FString& Digest,FGuid Item,int64 Gold);
+    UFUNCTION(Client,Reliable) void ClientTradeUpdate(const FLDOwnerState& State,const FLDTradeView& View,uint32 Request);
+
     bool NearGuildVendor() const;
     void OpenVendor();void CloseVendor();
     bool VendorIsOpen() const{return bVendorOpening||VendorQuote.Session.IsValid();}
@@ -45,7 +53,7 @@ public:
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
-    bool InventoryPending() const{return InventoryPendingRequest!=0||VendorPendingRequest!=0;}
+    bool InventoryPending() const{return InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
     FGuid ArmedItem() const{return ArmedWard;}
     UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
     UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
@@ -141,6 +149,11 @@ private:
     friend class ALDInputProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
+    friend class ALDTradeProbe;
+    friend class ULDInventoryPanel;
+    uint32 TradePendingRequest=0,TradeSerial=0;
+    bool bApplyingTradeView=false,bTradeDismissed=false;
+    TArray<FGuid> SeenTradeCompletions;
     uint32 VendorOpenToken=0,VendorPendingRequest=0;
     bool bVendorOpening=false;
     bool bControlsSuppressed = false;

@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Tests/LDMovementProbe.h"
@@ -38,6 +39,7 @@
 #include "Inventory/LDVendorDirector.h"
 #include "Tests/LDInventoryProbe.h"
 #include "Tests/LDVendorProbe.h"
+#include "Tests/LDTradeProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -121,7 +123,7 @@ void ALDGameMode::RestartPlayer(AController* NewPlayer)
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
@@ -142,7 +144,7 @@ void ALDGameMode::StartPlay()
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
     if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();WorldChecks=GetWorld()->SpawnActor<ALDWorldChecks>();}
-    if(bUIControlProfile){Inventory=GetWorld()->SpawnActor<ALDInventoryDirector>();Vendor=GetWorld()->SpawnActor<ALDVendorDirector>();}
+    if(bUIControlProfile){Inventory=GetWorld()->SpawnActor<ALDInventoryDirector>();Vendor=GetWorld()->SpawnActor<ALDVendorDirector>();Trade=GetWorld()->SpawnActor<ALDTradeDirector>();}
     if(bDevelopmentProfile&&LDRegion::Definition(GetWorld())){Region=GetWorld()->SpawnActor<ALDRegionDirector>();}
     if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
@@ -160,6 +162,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){GetWorld()->SpawnActor<ALDVendorProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))){GetWorld()->SpawnActor<ALDInventoryProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))){GetWorld()->SpawnActor<ALDInputProbe>();}
@@ -194,7 +197,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
         // PreLogin can precede a start request or another completed admission.
         // Check again before creating any private record or fresh reward budget.
@@ -222,7 +225,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
-        if(Inventory){Inventory->EndLife(PC);}
+        if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
@@ -245,7 +248,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
-    if(Inventory){Inventory->EndLife(PC);}
+    if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile

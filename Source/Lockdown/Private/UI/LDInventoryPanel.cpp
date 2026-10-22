@@ -39,6 +39,7 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
         for(auto Skill:{ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley}){auto* B=Button(TEXT(""),[this,Skill](){SelectOffer(Skill);});Offers.Add(B);CatalogRows->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
         auto* QuoteRow=WidgetTree->ConstructWidget<UHorizontalBox>();CatalogPanel->AddChildToVerticalBox(QuoteRow)->SetPadding(FMargin(0,4));CatalogInfo=LDWidgets::Text(WidgetTree,TEXT(""),15);QuoteRow->AddChildToHorizontalBox(CatalogInfo)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));VendorBuy=Button(TEXT("Buy"),[this](){BuyOffer();});QuoteRow->AddChildToHorizontalBox(VendorBuy)->SetPadding(FMargin(8,0));
 
+        BuildTradePanel(All);
         auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();All->AddChildToVerticalBox(Body)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Body->AddChildToHorizontalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Grid=WidgetTree->ConstructWidget<UUniformGridPanel>();Grid->SetSlotPadding(FMargin(4));Scroll->AddChild(Grid);
         auto* RightSize=WidgetTree->ConstructWidget<USizeBox>();RightSize->SetWidthOverride(480);auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();auto* ActionsScroll=WidgetTree->ConstructWidget<UScrollBox>();ActionsScroll->AddChild(Right);RightSize->SetContent(ActionsScroll);Body->AddChildToHorizontalBox(RightSize)->SetPadding(FMargin(16,0,0,0));
         Detail=LDWidgets::Text(WidgetTree,TEXT("Choose one of your items"),18);Detail->SetWrapTextAt(460);auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->AddChild(Detail);auto* DetailSize=WidgetTree->ConstructWidget<USizeBox>();DetailSize->SetHeightOverride(96);DetailSize->SetContent(DetailScroll);Right->AddChildToVerticalBox(DetailSize);
@@ -56,7 +57,7 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
     return Super::RebuildWidget();
 }
 void ULDInventoryPanel::Open(){bOpen=true;bDirty=true;bConfirm=false;SetVisibility(ESlateVisibility::Visible);auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);SetKeyboardFocus();Refresh();}
-void ULDInventoryPanel::Close(){CastChecked<ALDPlayerController>(GetOwningPlayer())->CloseVendor();CancelDrag();bOpen=bConfirm=false;SetVisibility(ESlateVisibility::Collapsed);CastChecked<ALDPlayerController>(GetOwningPlayer())->SetMenuOpen(false);}
+void ULDInventoryPanel::Close(){CastChecked<ALDPlayerController>(GetOwningPlayer())->CancelTrade();CastChecked<ALDPlayerController>(GetOwningPlayer())->CloseVendor();CancelDrag();bOpen=bConfirm=false;if(!CastChecked<ALDPlayerController>(GetOwningPlayer())->TradeView.Active()){CastChecked<ALDPlayerController>(GetOwningPlayer())->TradeView=FLDTradeView();}SetVisibility(ESlateVisibility::Collapsed);CastChecked<ALDPlayerController>(GetOwningPlayer())->SetMenuOpen(false);}
 void ULDInventoryPanel::CancelDrag(){const bool Captured=bPointerDown;bPointerDown=bDragging=false;Dragged.Invalidate();if(Captured&&FSlateApplication::IsInitialized()){FSlateApplication::Get().ReleaseAllPointerCapture();}}
 void ULDInventoryPanel::Select(FGuid Id){Selected=Id;bDirty=true;}
 void ULDInventoryPanel::Filter(uint8 Kind){FilterKind=Kind;bDirty=true;}
@@ -85,8 +86,8 @@ void ULDInventoryPanel::Refresh()
     if(Changed){Columns=Desired;Grid->ClearChildren();Cells.Reset();for(uint8 N=0;N<I.Capacity;++N){auto* B=LDWidgets::Button(WidgetTree,TEXT(""),[this,PC,N](){const auto* Entry=PC->OwnerState.Inventory.Items.FindByPredicate([&](const auto& E){return E.Slot==N;});Select(Entry?Entry->Id:FGuid());});auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredWidth(150);Size->SetMinDesiredHeight(78);Size->SetContent(B);auto* CellSlot=Grid->AddChildToUniformGrid(Size,N/Columns,N%Columns);CellSlot->SetHorizontalAlignment(HAlign_Fill);CellSlot->SetVerticalAlignment(VAlign_Fill);Cells.Add(B);}bDirty=true;}
     const float Scale=PC->Controls?PC->Controls->TextScale:1;if(Scale!=AppliedScale){TArray<UWidget*> Widgets;WidgetTree->GetAllWidgets(Widgets);for(auto* Widget:Widgets){if(auto* T=Cast<UTextBlock>(Widget)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedScale);T->SetFont(Font);}}AppliedScale=Scale;bDirty=true;}
 
-    const bool Shop=PC->VendorIsOpen();CatalogPanel->SetVisibility(Shop?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    Heading->SetText(FText::FromString(Shop?TEXT("GUILD BOOKSHOP · YOUR CARRIED BAG"):TEXT("YOUR CARRIED BAG")));
+    RefreshTradePanel();const bool Shop=PC->VendorIsOpen();CatalogPanel->SetVisibility(Shop?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    Heading->SetText(FText::FromString(Shop?TEXT("GUILD BOOKSHOP · YOUR CARRIED BAG"):PC->TradeView.Session.IsValid()&&(PC->TradeView.Active()||PC->TradeView.Stage==ELDTradeStage::Committed)?TEXT("PEER EXCHANGE · YOUR CARRIED BAG"):TEXT("YOUR CARRIED BAG")));
     VendorOpen->SetIsEnabled(PC->NearGuildVendor()&&!PC->InventoryPending()&&!bConfirm&&!Shop);
     if(Shop)
     {
@@ -99,7 +100,7 @@ void ULDInventoryPanel::Refresh()
     }
     const bool Pending=PC->InventoryPending();const bool Active=O.bActive&&G->GetServerWorldTimeSeconds()>=O.ProtectedUntil&&!O.DevelopmentKind&&!O.ChannelKind&&!(O.ActionCue&15);
     Status->SetText(FText::FromString(FString::Printf(TEXT("%d / %d slots · Gold %lld (outside bag) · %s · Match continues"),I.Items.Num(),I.Capacity,O.Gold,Pending?TEXT("Pending authority"):O.bActive?TEXT("Alive"):TEXT("Waiting to return · organization only"))));
-    Feedback->SetText(FText::FromString(PC->IntentFeedback));const auto* SelectedItem=I.Find(Selected);if(!SelectedItem&&Selected.IsValid()){Selected.Invalidate();bConfirm=false;bDirty=true;}
+    Feedback->SetText(FText::FromString(PC->TradeView.Active()||PC->TradeView.Stage==ELDTradeStage::Committed?PC->TradeView.Message:PC->IntentFeedback));const auto* SelectedItem=I.Find(Selected);if(!SelectedItem&&Selected.IsValid()){Selected.Invalidate();bConfirm=false;bDirty=true;}
     const bool Usable=SelectedItem&&!SelectedItem->bReserved&&!Pending&&!bConfirm;
     UseButton->SetIsEnabled(Usable&&Active&&SelectedItem->Kind!=ELDItemKind::Seal);DropButton->SetIsEnabled(Usable&&Active);SortButton->SetIsEnabled(!Pending&&!bConfirm);
     for(auto B:Organizations){B->SetIsEnabled(Usable);}for(uint8 N=0;N<4;++N){Assignments[N]->SetIsEnabled(Usable&&SelectedItem->Kind!=ELDItemKind::Seal);CastChecked<UTextBlock>(Assignments[N]->GetContent())->SetText(FText::FromString(TEXT("Assign to ")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))));}

@@ -90,6 +90,7 @@ public:
     UPROPERTY() TObjectPtr<ALDRegionDirector> Region;
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
+    UPROPERTY() TObjectPtr<class ALDTradeDirector> Trade;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

@@ -53,6 +53,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         InspectActions->AddChildToHorizontalBox(Button(TEXT("Self"),[PC](){PC->Inspect({});}));
         auto* Character=Button(TEXT("Character"),[PC](){PC->ToggleDevelopmentPanel();});Commands.Add(TEXT("Development"),Character);InspectActions->AddChildToHorizontalBox(Character)->SetPadding(FMargin(4,0));
         auto* Bag=Button(TEXT("Bag"),[PC](){PC->ToggleInventoryPanel();});Commands.Add(TEXT("Inventory"),Bag);InspectActions->AddChildToHorizontalBox(Bag);
+        TradeButton=Button(TEXT("Offer trade"),[PC](){PC->OfferTrade();});InspectColumn->AddChildToVerticalBox(TradeButton);
         auto* Own=WidgetTree->ConstructWidget<UVerticalBox>();Bottom->AddChildToHorizontalBox(Own)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Resources=Text(TEXT(""),17);Own->AddChildToVerticalBox(Resources)->SetPadding(FMargin(0,0,0,4));
         auto* SkillRow=WidgetTree->ConstructWidget<UHorizontalBox>();Own->AddChildToVerticalBox(SkillRow);
@@ -105,7 +106,7 @@ void ULDHUD::RefreshReadModel()
     Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Task->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Objective->SetVisibility(Playing?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     const float TextScale=PC->Controls?PC->Controls->TextScale:1;const float BandHeight=270.f+(TextScale>1?60:0);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
     if(AppliedScale!=TextScale){const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);T->SetFont(Font);}}}
-    FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
+    FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);TradeButton->SetVisibility(Selected&&Subject.Kind==ELDObservedKind::Body?ESlateVisibility::Visible:ESlateVisibility::Collapsed);TradeButton->SetIsEnabled(O.bActive&&!GS->EndReason&&!PC->InventoryPending());CastChecked<UTextBlock>(TradeButton->GetContent())->SetText(FText::FromString(TEXT("Offer trade [")+PC->BindingLabel(TEXT("Trade"))+TEXT("]")));Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
     if(Selected&&PC->GetPawn())
     {
         double Reach=120;for(auto Skill:B.Slots){if(Skill!=ELDSkill::None&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch){Reach=FMath::Max(Reach,LDHUD::Range(Skill));}}

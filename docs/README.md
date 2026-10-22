@@ -8,7 +8,7 @@ independent Editor and cooked client gates. B52 now supplies saved mappings,
 explicit targeting and fresh-input panel routing. B53 adds the masked inspector,
 anchored own commands, filtered minimap controls and life/result panels. B54 adds
 the 24-slot bag, finite charge instances and four identity-based item shortcuts.
-B55 adds the quoted Guild catalog and uses the same own bag. B56 peer exchange is next. The approved current engine is 5.8.4 CL 58902052;
+B55 adds the quoted Guild catalog and uses the same own bag. B56 adds consensual atomic item/gold exchange. B57 shared presentation is next. The approved current engine is 5.8.4 CL 58902052;
 historical B47–B52 evidence retains its original 5.8.3 provenance.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
@@ -26,6 +26,7 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | [B53 HUD](v05/B53_IMPLEMENTATION.md) | Inspector, minimap, life/results and approved engine update |
 | [B54 inventory](v05/B54_IMPLEMENTATION.md) | Common physical items, bag, quick references and conservation evidence |
 | [B55 vendor](v05/B55_IMPLEMENTATION.md) | Current quote, earned purchase/read, receipt and eligibility evidence |
+| [B56 peer exchange](v05/B56_IMPLEMENTATION.md) | Invitations, reservations, two-stage consent, atomic transfer and race evidence |
 | [v0.5 feature ledger](v05/FeatureLedger.csv) | Working baseline and implementation status |
 | [v0.4 continuation archive](v04/CONTINUATION_B47.md) | Preserved B47 wrap-up and reproduction details |
 | [v0.4 specification](v04/README.md) | Retained gameplay contracts, B40–B47 and C01–C48 |

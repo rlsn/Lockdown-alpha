@@ -159,7 +159,7 @@ void ALDPlayerController::V05Pressed(FName Action)
     else if(Action==TEXT("Follow")){Navigation->ToggleFollow();}
     else if(Action==TEXT("Development")){ToggleDevelopmentPanel();}
     else if(Action==TEXT("Inventory")){ToggleInventoryPanel();}
-    else if(Action==TEXT("Trade")){IntentFeedback=TEXT("Unavailable");}
+    else if(Action==TEXT("Trade")){OfferTrade();}
 }
 void ALDPlayerController::V05Released(FName Action)
 {

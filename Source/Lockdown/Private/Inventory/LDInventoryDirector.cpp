@@ -1,4 +1,5 @@
 #include "Inventory/LDInventoryDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -123,13 +124,13 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     if(R.Command==LDInventory::Drop)
     {
         FVector Surface;const APawn* Body=PC->GetPawn();if(FVector::Dist2D(Body->GetActorLocation(),R.Point)>80||!LDGround::MapSurface(GetWorld(),R.Point,Surface)||!LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Surface)||!M->Vision->Ray({Body->GetActorLocation(),80,M->Vision->LevelAt(Body->GetActorLocation())},Surface)||GetWorld()->OverlapAnyTestByObjectType(Surface+FVector(0,0,16),FQuat::Identity,FCollisionObjectQueryParams(ECC_WorldStatic),FCollisionShape::MakeSphere(12))){Reject(TEXT("No legal drop ground within 80 cm"));return;}
-        if(auto* Seal=Cast<ALDSeal>(Item)){M->Objectives->AnnounceVoluntaryDrop(Seal,Surface+FVector(0,0,16));}else{Item->SetActorLocation(Surface+FVector(0,0,16));}
+        if(M->Trade){M->Trade->CancelFor(PC);}if(auto* Seal=Cast<ALDSeal>(Item)){M->Objectives->AnnounceVoluntaryDrop(Seal,Surface+FVector(0,0,16));}else{Item->SetActorLocation(Surface+FVector(0,0,16));}
         Remove(PC,Item,false);Reply(PC,R.Id,TEXT("Item dropped"));return;
     }
     if(R.Command==LDInventory::Pickup)
     {
         if(Item->State!=0||Item->Holder.IsValid()||!HasSpace(PC,Item->Kind)||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())>80||!LDGround::ClearSegment(GetWorld(),PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())||!M->Vision->Ray({PC->GetPawn()->GetActorLocation(),80,M->Vision->LevelAt(PC->GetPawn()->GetActorLocation())},Item->GetActorLocation())){Reject(TEXT("Inventory full or item no longer in reach"));return;}
-        if(!Adopt(PC,Item)){Reject(TEXT("Inventory full"));return;}Reply(PC,R.Id,TEXT("Item picked up"));return;
+        if(M->Trade){M->Trade->CancelFor(PC);}if(!Adopt(PC,Item)){Reject(TEXT("Inventory full"));return;}Reply(PC,R.Id,TEXT("Item picked up"));return;
     }
     if(R.Command==LDInventory::Buy)
     {

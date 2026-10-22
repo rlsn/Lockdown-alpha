@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Core/LDRules.h"
 #include "Combat/LDCombatRules.h"
 #include "Character/LDCharacter.h"
@@ -185,7 +186,7 @@ void ALDCombatDirector::Sample(double Now)
     if(Mode->IsFinished())
     {
         if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}}
-        if(Mode->Development){Mode->Development->Sample(Now);}
+        if(Mode->Development){Mode->Development->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
         if(Mode->IsDevelopmentProfile())
         {for(auto& Pair:Bodies){if(auto* Body=Pair.Key.Get()){CancelSkill(Body,Pair.Value);Sync(Body,Pair.Value);}}}
         for(const auto& Intent:Intents){if(auto* PC=Intent.Controller.Get()){PC->CompleteCombatRequest(Intent.Request,TEXT("Demo finished."));}}
@@ -210,7 +211,7 @@ void ALDCombatDirector::Sample(double Now)
             AActor* Target=Intent.Observed.IsValid()&&Mode->Vision?Mode->Vision->ResolveObserved(PC,Intent.Observed):nullptr;
             const auto Skill=Intent.Action>=3&&O->Build.Slots.IsValidIndex(Intent.Action-3)?O->Build.Slots[Intent.Action-3]:ELDSkill::None;
             if(Mode->IsUIControlProfile()&&Intent.Action>=3&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch&&!Target){Reason=TEXT("Target no longer visible");}
-            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
+            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);if(Mode->Trade){Mode->Trade->CancelFor(PC);}}
         }
         PC->CompleteCombatRequest(Intent.Request,Reason);
     }
@@ -270,7 +271,7 @@ void ALDCombatDirector::Sample(double Now)
     {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}if(Residents[I].HasBuild){RegisterNPCBuild(Returned,Residents[I].Build);StateFor(Returned)->Hp=LDDevelopment::MaxHP(Residents[I].Build);}Residents.RemoveAtSwap(I);}}
     Mode->ReturnDueContenders(Now);
     if(Mode->Region){Mode->Region->Sample(Now);}
-    if(Mode->Objectives){Mode->Objectives->Sample(Now);}
+    if(Mode->Objectives){Mode->Objectives->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 {

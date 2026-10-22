@@ -1,4 +1,5 @@
 #include "Objectives/LDObjectiveDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Core/LDGroundQueries.h"
 #include "Core/LDRules.h"
@@ -200,7 +201,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         {
             if(LDRegion::Definition(GetWorld())&&O->PaidJobs>=8){Reason=TEXT("All eight paid courier contracts completed for this match.");}
             else if(Now<O->WorkReadyAt){Reason=TEXT("Courier acceptance cooling down.");}
-            else{O->ContractId=FGuid::NewGuid();O->ContractStage=1;
+            else{if(Mode->Trade){Mode->Trade->CancelFor(PC);}O->ContractId=FGuid::NewGuid();O->ContractStage=1;
                 if(const auto* D=LDRegion::Definition(GetWorld())){const auto Towns=D->Towns();if(!O->FirstCourierTown){O->FirstCourierTown=Towns[Transactions.RandRange(0,1)];}O->ContractDestination=Towns[(Towns.IndexOfByKey(O->FirstCourierTown)+O->PaidJobs)%Towns.Num()];}
                 Mode->SyncOwner(PC);Reason=TEXT("Courier accepted: hold E at your private assigned town to collect.");}
         }
@@ -223,7 +224,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     if(S.Target==LDObjective::Guild&&O->ContractStage==2){Kind=LDObjective::Deliver;}
     if(S.Target==LDObjective::Heart)
     {const auto* GS=GetWorld()->GetGameState<ALDGameState>();Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);if(Route){Kind=LDObjective::Claim;}}
-    if(!Kind){return;}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;
+    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;
     UpdatePrivate(PC,S,Now);
 }
 void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionState& S,double Now)

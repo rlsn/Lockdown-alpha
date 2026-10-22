@@ -15,6 +15,9 @@ public:
     FString DetailText() const;
     void SelectOffer(ELDSkill Skill);void BuyOffer();
     FString VendorText() const;
+    FString TradeText() const;
+    void TradeSelected();void TradeGold(int64 Amount);void TradeReady();void TradeConfirm();
+
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E) override;
@@ -26,6 +29,25 @@ protected:
 private:
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
+    friend class ALDTradeProbe;
+    void BuildTradePanel(class UVerticalBox* All);
+    void RefreshTradePanel();
+    void SubmitTrade(uint8 Command,FGuid Item=FGuid(),int64 Amount=0);
+    TArray<FGuid> DisplayedTradeItems;
+    UPROPERTY() TObjectPtr<class UVerticalBox> TradePanel;
+    UPROPERTY() TObjectPtr<UTextBlock> TradeStatus;
+    UPROPERTY() TObjectPtr<UTextBlock> OwnTray;
+    UPROPERTY() TObjectPtr<UTextBlock> OtherTray;
+    UPROPERTY() TObjectPtr<UEditableTextBox> GoldInput;
+    UPROPERTY() TObjectPtr<ULDCommandButton> AddTradeButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> GoldTradeButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ReadyTradeButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ConfirmTradeButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> AcceptTradeButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CancelTradeButton;
+    uint32 DisplayedTradeRevision=0;
+    FString DisplayedTradeDigest;
+
     UPROPERTY() TObjectPtr<class UVerticalBox> CatalogPanel;
     UPROPERTY() TObjectPtr<UTextBlock> CatalogInfo;
     UPROPERTY() TObjectPtr<ULDCommandButton> VendorBuy;

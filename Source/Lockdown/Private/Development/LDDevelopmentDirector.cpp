@@ -1,4 +1,5 @@
 #include "Development/LDDevelopmentDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -112,7 +113,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     {FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
     {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::SkillCount||LDDevelopment::Rank(O->Build,Book->Skill)>0){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
-    S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
+    if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}
     O->DevelopmentKind=S.Kind;O->DevelopmentToken=S.Token;O->DevelopmentEndsAt=S.EndsAt;O->DevelopmentItem=Book?Book->Identity:FGuid();Mode->SyncOwner(PC);

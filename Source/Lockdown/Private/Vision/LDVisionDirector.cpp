@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -147,7 +148,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     { Reason=TEXT("Ward needs clear, reachable ground on your level."); return false; }
     ALDWard* Ward=GetWorld()->SpawnActor<ALDWard>(Hit.ImpactPoint+FVector(0,0,15),FRotator::ZeroRotator);
     if (!Ward) { Reason=TEXT("Ward could not be placed."); return false; }
-    Ward->Identity=FGuid::NewGuid(); Ward->Controller=PC; Ward->ExpiresAt=GetWorld()->GetTimeSeconds()+60;
+    if(Mode->Trade){Mode->Trade->CancelFor(PC);}Ward->Identity=FGuid::NewGuid(); Ward->Controller=PC; Ward->ExpiresAt=GetWorld()->GetTimeSeconds()+60;
     Wards.Add(Ward);if(Mode->Inventory){Mode->Inventory->Remove(PC,ChargeItem,true);}else{--State->WardCharges;Mode->SyncOwner(PC);}
     Reason=TEXT("Ward placed: private sight for 60 seconds.");
     return true;

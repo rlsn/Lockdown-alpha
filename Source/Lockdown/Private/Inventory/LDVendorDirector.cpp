@@ -1,4 +1,5 @@
 #include "Inventory/LDVendorDirector.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -33,6 +34,7 @@ void ALDVendorDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,ui
     if(!Token||Token<=C.ClosedThrough||Token<=C.Token){return;}
     C.Token=Token;C.Session.Invalidate();
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){PC->ClientVendorClosed(Token,TEXT("Approach the Guild within 120 cm, alive, unprotected and unoccupied"));return;}
+    if(M->Trade){M->Trade->CancelFor(PC);}
     C.Match=Match;C.Life=Life;C.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;C.Session=FGuid::NewGuid();C.SentRevision=CatalogRevision;C.SentPrice=BookPrice;
     PC->ClientVendorQuote(*O,Quote(PC,C));
 }
@@ -80,3 +82,5 @@ void ALDVendorDirector::FailNextCreationForProbe()
     if(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){bFailCreation=true;}
 #endif
 }
+
+void ALDVendorDirector::Invalidate(ALDPlayerController* PC){auto* C=Clients.Find(PC);if(C&&C->Session.IsValid()){C->Session.Invalidate();PC->ClientVendorClosed(C->Token,TEXT("Vendor closed: another service opened"));}}

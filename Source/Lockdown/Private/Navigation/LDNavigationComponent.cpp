@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
@@ -183,7 +184,7 @@ void ULDNavigationComponent::ProcessOrder()
 {
     bPending=false;NextQuery=GetWorld()->GetTimeSeconds()+.1;
     if(!ResolveOrder(ServerGoal,ServerAcceptance,ServerPoints)){EndServer(Rejected,TEXT("No walkable route"));return;}
-    bServerActive=true;LastResult=Accepted;bServerReplanned=false;
+    if(auto* TradeMode=GetWorld()->GetAuthGameMode<ALDGameMode>();TradeMode&&TradeMode->Trade){TradeMode->Trade->CancelFor(Controller());}bServerActive=true;LastResult=Accepted;bServerReplanned=false;
     ServerProgressAnchor=Controller()->GetPawn()->GetActorLocation();ServerLastProgress=GetWorld()->GetTimeSeconds();
     ServerBestProgress=AlongPath(ServerPoints,ServerProgressAnchor);
     ClientOrder(Server,Accepted,ServerGoal,ServerAcceptance,TEXT("Move accepted"));

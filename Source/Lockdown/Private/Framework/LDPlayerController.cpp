@@ -38,11 +38,12 @@
 #include "UI/LDInventoryPanel.h"
 #include "Tests/LDInventoryProbe.h"
 #include "Tests/LDVendorProbe.h"
+#include "Tests/LDTradeProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe")));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -90,6 +91,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTradeProbe>(ALDTradeProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDVendorProbe>(ALDVendorProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe")))
@@ -521,7 +524,7 @@ void ALDPlayerController::ClearControls()
     }
 }
 
-void ALDPlayerController::FlushPressedKeys() { CloseVendor();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
+void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {

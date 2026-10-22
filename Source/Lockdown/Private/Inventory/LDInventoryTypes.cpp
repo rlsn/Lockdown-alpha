@@ -13,5 +13,5 @@ bool LDInventory::Valid(const FLDInventory& I)
 {
     if(!I.Capacity||I.Items.Num()>I.Capacity||I.Quick.Num()!=4){return false;}TSet<FGuid> Ids,Refs;TSet<uint8> Slots;int32 Seals=0;
     for(const auto& Item:I.Items){if(!Item.Id.IsValid()||Ids.Contains(Item.Id)||Item.Slot>=I.Capacity||Slots.Contains(Item.Slot)){return false;}Ids.Add(Item.Id);Slots.Add(Item.Slot);Seals+=Item.Kind==ELDItemKind::Seal;}
-    for(auto Id:I.Quick){if(!Id.IsValid()){continue;}const auto* Item=I.Find(Id);if(!Item||Item->bReserved||Item->Kind==ELDItemKind::Seal||Refs.Contains(Id)){return false;}Refs.Add(Id);}return Seals<=1;
+    for(auto Id:I.Quick){if(!Id.IsValid()){continue;}const auto* Item=I.Find(Id);if(!Item||Item->Kind==ELDItemKind::Seal||Refs.Contains(Id)){return false;}Refs.Add(Id);}return Seals<=1;
 }
