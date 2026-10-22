@@ -31,7 +31,7 @@ public:
     virtual void Tick(float Delta) override;
     void Register(ALDPlayerController* Controller);
     void Unregister(ALDPlayerController* Controller);
-    bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason);
+    bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason,FGuid Charge=FGuid());
     bool Ray(const FLDSightSource& Source, const FVector& Target) const;
     uint8 LevelAt(const FVector& Position) const;
     void SetPublicSensor(bool bActive,bool Fixture=true);
@@ -49,6 +49,7 @@ public:
     uint64 SampleSerial=0;
     static FVector PublicPosition() { return FVector(1200,1000,0); }
 private:
+    friend class ALDInventoryProbe;
     struct FObserver
     {
         TWeakObjectPtr<ALDWorldViewRelay> Relay;

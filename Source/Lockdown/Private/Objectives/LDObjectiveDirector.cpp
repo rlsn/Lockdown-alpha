@@ -19,8 +19,9 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Inventory/LDInventoryDirector.h"
 
-ALDSeal::ALDSeal(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
+ALDSeal::ALDSeal(){Kind=ELDItemKind::Seal;}
 ALDObjectiveSite::ALDObjectiveSite()
 {
     bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -64,7 +65,7 @@ bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range)
 bool ALDObjectiveDirector::CanFabricate(ALDPlayerController* PC) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
-    return M->Region&&O&&LDObjective::CanFabricate(O->Witness.IsValid(),O->Commissions,O->Gold,O->FabricationReceipt.IsValid(),O->SealId.IsValid()||CarriedBy(PC));
+    return M->Region&&O&&(!M->Inventory||M->Inventory->HasSpace(PC,ELDItemKind::Seal))&&LDObjective::CanFabricate(O->Witness.IsValid(),O->Commissions,O->Gold,O->FabricationReceipt.IsValid(),O->SealId.IsValid()||CarriedBy(PC));
 }
 void ALDObjectiveDirector::FailNextFabricationForProbe()
 {
@@ -135,10 +136,12 @@ void ALDObjectiveDirector::Drop(ALDPlayerController* PC,const FVector& Point)
             {DropPoint=Ground.ImpactPoint+FVector(0,0,16);Placed=true;}
         }
         if(!Placed){UE_LOG(LogTemp,Warning,TEXT("LD Seal drop used Guild workbench fallback"));}
-        Item->Carrier.Reset();Item->State=0;Item->SetActorLocation(DropPoint);Item->District=LDRegion::District(GetWorld(),DropPoint);Announce(Item,2);
+        if(Mode->Inventory){Mode->Inventory->Remove(PC,Item,false);}Item->Carrier.Reset();Item->State=0;Item->SetActorLocation(DropPoint);Item->District=LDRegion::District(GetWorld(),DropPoint);Announce(Item,2);
     }
     if(O){O->SealId.Invalidate();}
 }
+void ALDObjectiveDirector::AnnounceVoluntaryDrop(ALDSeal* Item,const FVector& Point)
+{Item->Carrier.Reset();Item->SetActorLocation(Point);Item->District=LDRegion::District(GetWorld(),Point);Announce(Item,2);}
 void ALDObjectiveDirector::EndLife(ALDPlayerController* PC,const FVector& Point,double Now)
 {
     Interrupt(PC,Now,true);Drop(PC,Point);
@@ -180,6 +183,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
     else if(S.LastInterrupt>=Now-1.e-6){Reason=TEXT("Interrupted on this authority sample.");}
     else if(R.Target==LDObjective::Seal)
     {
+        if(Mode->Inventory){PC->CompleteContextRequest(R.Id,TEXT("Use the current item pickup action"));S.bHeld=false;return;}
         auto* Item=Cast<ALDSeal>(Mode->Vision->ResolveObserved(PC,R.Observed));
         if(O->SealId.IsValid()){Reason=TEXT("Seal carry slot full.");}
         else if(!Item||Item->State!=0){Reason=TEXT("Seal already taken or no longer visible.");}
@@ -257,7 +261,12 @@ void ALDObjectiveDirector::Sample(double Now)
                 bFailFabrication=false;
                 if(Item)
                 {
-                    Item->Identity=FGuid::NewGuid();Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),Body->GetActorLocation());
+                    Item->Identity=FGuid::NewGuid();
+                    if(Mode->Inventory&&!Mode->Inventory->Adopt(PC,Item)){Item->Destroy();Item=nullptr;}
+                }
+                if(Item)
+                {
+                    Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),Body->GetActorLocation());
                     O->Gold-=100;O->Commissions-=4;O->SealId=Item->Identity;O->FabricationReceipt=FGuid::NewGuid();Announce(Item,1);
                     UE_LOG(LogTemp,Display,TEXT("LD_FABRICATION_RECEIPT gold=%lld credits=%d paid=%u"),O->Gold,O->Commissions,O->PaidJobs);
                 }
@@ -305,7 +314,7 @@ void ALDObjectiveDirector::Finish(ALDPlayerController* Winner,uint8 Route,double
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(Mode->IsFinished()){return;}
     if(Winner&&Route==LDObjective::SealRoute)
-    {if(auto* Item=CarriedBy(Winner)){Item->State=2;Item->Carrier.Reset();}Mode->StateFor(Winner)->SealId.Invalidate();}
+    {if(auto* Item=CarriedBy(Winner)){if(Mode->Inventory){Mode->Inventory->Remove(Winner,Item,true);}else{Item->State=2;Item->Carrier.Reset();}}Mode->StateFor(Winner)->SealId.Invalidate();}
     GS->ResultReceipt=FGuid::NewGuid();++GS->ResultSerial;GS->WinningRoute=Route;GS->MatchEndedAt=float(Now);GS->EndReason=Winner?1:2;
     GS->ClaimProgress=Winner?10:0;GS->bClaimActive=false;GS->bContested=false;GS->ForceNetUpdate();
     for(auto& Pair:Interactions)

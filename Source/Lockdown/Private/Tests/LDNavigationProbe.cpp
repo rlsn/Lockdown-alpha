@@ -96,6 +96,8 @@ void ALDNavigationProbe::ServerTick()
     {
         for(auto PC:{A,B}){Check(!PC->Navigation->IsAuthorityActive(),TEXT("Wrong-floor and forged observed-handle requests cannot create movement"));}
         Place(FVector(-1700,-1000,92),FVector(-1700,-500,92));
+        // Keep ambient patrols from becoming a second authorized body at a scripted target point.
+        for(TActorIterator<ALDResident> It(GetWorld());It;++It){It->SetActorTickEnabled(false);if(It->GetController()){It->GetController()->Destroy();}It->GetCharacterMovement()->DisableMovement();if(const auto* State=M->Combat->StateFor(*It)){It->SetActorLocation(State->Home,false,nullptr,ETeleportType::TeleportPhysics);}}
         TargetA=GetWorld()->SpawnActor<ALDResident>(FVector(-1400,-1000,92),FRotator::ZeroRotator);
         TargetB=GetWorld()->SpawnActor<ALDResident>(FVector(-1400,-500,92),FRotator::ZeroRotator);
         for(auto T:{TargetA,TargetB}){T->SetActorTickEnabled(false);if(T->GetController()){T->GetController()->Destroy();}T->GetCharacterMovement()->DisableMovement();}
@@ -220,7 +222,7 @@ void ALDNavigationProbe::ClientTick()
     {
         const FVector Expected(Phase==8?-1150:-1400,First?-1000:-500,92);
         if(const auto* R=PC->LocalView();R&&!R->IsStale())
-        {for(const auto& X:R->LastView().Entities){if(X.Kind==(Phase==17?ELDObservedKind::Book:ELDObservedKind::Body)&&FVector::Dist2D(X.Position,Expected)<20){N->Navigate(X.Position,X.Id);bSent=true;break;}}}
+        {const auto Candidates=R->LastView().Entities.FilterByPredicate([&](const auto& X){return X.Kind==(Phase==17?ELDObservedKind::Book:ELDObservedKind::Body)&&FVector::Dist2D(X.Position,Expected)<20;});if(!Candidates.IsEmpty()){Check(Candidates.Num()==1,TEXT("Scripted approach has exactly one authorized candidate"));N->Navigate(Candidates[0].Position,Candidates[0].Id);bSent=true;}}
     }
     if(Phase==17&&!Step&&E>3.5){Check(bSent&&!N->IsFollowing(),TEXT("Observed pickup uses a reachable native endpoint with bounded arrival"));Step=1;}
     if(Phase==9&&!bSent&&E>.5)
@@ -256,7 +258,7 @@ void ALDNavigationProbe::ClientTick()
 void ALDNavigationProbe::Finish()
 {
     SetActorTickEnabled(false);auto Report=MakeShared<FJsonObject>();
-    Report->SetStringField(TEXT("profile"),TEXT("B51 independent-client engineering probe; setup positions/build/life termination are labelled fixtures; native movement and ordinary return timers remain real"));
+    Report->SetStringField(TEXT("profile"),TEXT("B51 independent-client engineering probe; setup positions/build/life termination and ambient residents held at authored homes are labelled fixtures; native movement and ordinary return timers remain real"));
     if(GetNetMode()==NM_Client)
     {
         const auto* PC=CastChecked<ALDPlayerController>(GetOwner());auto RTT=PC->ProbeRtts;RTT.Sort();

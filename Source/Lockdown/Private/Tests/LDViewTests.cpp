@@ -13,7 +13,7 @@ bool FLDViewPayloadTest::RunTest(const FString& Parameters)
     FLDObservedEntity Entity; Entity.Id=FGuid::NewGuid(); Entity.Position=FVector(-1500,-1000,92.1);Entity.Kind=ELDObservedKind::Seal;
     View.Entities.Init(Entity,LDVision::MaxEntities);
     FNetBitWriter Writer(nullptr,65536); bool bOk=true; View.NetSerialize(Writer,nullptr,bOk);
-    TestTrue(TEXT("Bounded maximum view serializes"),bOk && !Writer.IsError() && Writer.GetNumBytes()<4096);
+    TestTrue(TEXT("128-record bounded maximum view fits 8 KiB after carried-capacity expansion"),bOk && !Writer.IsError() && Writer.GetNumBytes()<8192);
     FNetBitReader Reader(nullptr,Writer.GetData(),Writer.GetNumBits()); FLDWorldView Read; Read.NetSerialize(Reader,nullptr,bOk);
     TestTrue(TEXT("Wire round trip succeeds"),bOk && !Reader.IsError());
     TestEqual(TEXT("Complete entity count"),Read.Entities.Num(),LDVision::MaxEntities);

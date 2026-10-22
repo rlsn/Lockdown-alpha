@@ -16,6 +16,7 @@
 #include "Region/LDRegionDefinition.h"
 #include "Region/LDRegionDirector.h"
 #include "Core/LDRules.h"
+#include "Inventory/LDInventoryDirector.h"
 
 ALDWard::ALDWard()
 {
@@ -123,11 +124,13 @@ void ALDVisionDirector::SetPublicSensor(bool bActive,bool Fixture)
     UE_LOG(LogTemp,Display,TEXT("LD_PUBLIC_SIGHT active=%d fixture=%d"),bActive,Fixture);
     NextSample=0; NextPublish=0;
 }
-bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desired, FString& Reason)
+bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desired, FString& Reason,FGuid Charge)
 {
     ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     FLDOwnerState* State=Mode ? Mode->StateFor(PC) : nullptr;
     const APawn* Body=PC ? PC->GetPawn() : nullptr;
+    ALDItem* ChargeItem=nullptr;
+    if(Mode&&Mode->Inventory&&State){if(!Charge.IsValid()){for(const auto& Item:State->Inventory.Items){if(Item.Kind==ELDItemKind::WardCharge&&!Item.bReserved){Charge=Item.Id;break;}}}ChargeItem=Mode->Inventory->Owned(PC,Charge);if(!ChargeItem||ChargeItem->Kind!=ELDItemKind::WardCharge||ChargeItem->bReserved){Reason=TEXT("No owned ward charge");return false;}}
     if(Mode&&(!Mode->IsPlaying()||(Mode->Objectives&&Mode->Objectives->HasChannel(PC)))){Reason=TEXT("Ward blocked in lobby, during an interaction or after results.");return false;}
     if (!State || !Body || !State->bActive || !State->WardCharges) { Reason=TEXT("No ward charge or active body."); return false; }
     if(GetWorld()->GetTimeSeconds()<State->ProtectedUntil||(State->ActionCue&15)){Reason=TEXT("Ward blocked during protection or a combat action.");return false;}
@@ -145,7 +148,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     ALDWard* Ward=GetWorld()->SpawnActor<ALDWard>(Hit.ImpactPoint+FVector(0,0,15),FRotator::ZeroRotator);
     if (!Ward) { Reason=TEXT("Ward could not be placed."); return false; }
     Ward->Identity=FGuid::NewGuid(); Ward->Controller=PC; Ward->ExpiresAt=GetWorld()->GetTimeSeconds()+60;
-    Wards.Add(Ward); --State->WardCharges; Mode->SyncOwner(PC);
+    Wards.Add(Ward);if(Mode->Inventory){Mode->Inventory->Remove(PC,ChargeItem,true);}else{--State->WardCharges;Mode->SyncOwner(PC);}
     Reason=TEXT("Ward placed: private sight for 60 seconds.");
     return true;
 }
@@ -186,6 +189,7 @@ void ALDVisionDirector::Sample(bool bPublish)
     for(TActorIterator<ALDCorpse> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDSeal> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
+    for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->Kind==ELDItemKind::WardCharge&&It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDCharterTask> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDWatchControl> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
@@ -231,6 +235,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
+            else if(const auto* Item=Cast<ALDItem>(Actor);Item&&Item->Kind==ELDItemKind::WardCharge){Record.Kind=ELDObservedKind::WardCharge;}
             else if(Actor->IsA<ALDWatchControl>()){Record.Kind=ELDObservedKind::WatchControl;}
             else if(const auto* Task=Cast<ALDCharterTask>(Actor)){Record.Kind=ELDObservedKind::Charter;Record.Presentation=Task->Service;}
             else { Record.Kind=ELDObservedKind::Ward;if(const auto* Ward=Cast<ALDWard>(Actor)){Record.Presentation=Ward->Controller==PC?1:0;} }

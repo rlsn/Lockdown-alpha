@@ -11,10 +11,11 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Inventory/LDInventoryDirector.h"
 
 bool LDDevelopmentTransaction::Sold(ELDSkill Skill)
 {return Skill==ELDSkill::Step||Skill==ELDSkill::Spark||Skill==ELDSkill::Patch||Skill==ELDSkill::Parley;}
-ALDBook::ALDBook(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
+ALDBook::ALDBook(){Kind=ELDItemKind::Book;State=1;}
 ALDDevelopmentDirector::ALDDevelopmentDirector(){bReplicates=false;}
 ALDBook* ALDDevelopmentDirector::OwnedBook(ALDPlayerController* PC,const FGuid& Id) const
 {for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==1&&It->Holder==PC&&It->Identity==Id){return *It;}}return nullptr;}
@@ -42,22 +43,22 @@ void ALDDevelopmentDirector::FinishRequest(ALDPlayerController* PC,uint32 Id,con
 {
     auto& S=States.FindOrAdd(PC);S.Receipts.Add(Id,Reason);
     while(S.Receipts.Num()>32){uint32 Oldest=MAX_uint32;for(const auto& Pair:S.Receipts){Oldest=FMath::Min(Oldest,Pair.Key);}S.Receipts.Remove(Oldest);}
-    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* O=Mode->StateFor(PC)){PC->ClientDevelopmentResult(*O,Id,Reason);}
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(Mode->Inventory&&Mode->Inventory->Complete(PC,Id,Reason)){return;}if(auto* O=Mode->StateFor(PC)){PC->ClientDevelopmentResult(*O,Id,Reason);}
 }
-void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan)
+void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan,uint32 InventoryRevision,uint32 ItemRevision)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);
     if(!HasAuthority()||!O||O->Match!=Match||O->Life!=Life||!Id||Kind<1||Kind>4
         ||(Kind==LDDevelopmentTransaction::Prepare&&(Plan.Attributes.Num()!=6||Plan.Ranks.Num()!=LDDevelopment::SkillCount||Plan.Slots.Num()!=4)))
-    {if(PC){PC->ClientIntentResult(Id,TEXT("Invalid development request or stale life."));}return;}
+    {if(PC){FinishRequest(PC,Id,TEXT("Invalid development request or stale life."));}return;}
     auto& S=States.FindOrAdd(PC);
     if(const auto* Receipt=S.Receipts.Find(Id)){PC->ClientDevelopmentResult(*O,Id,*Receipt);return;}
     if(Id<=S.LastRequest){PC->ClientIntentResult(Id,TEXT("Expired development request."));return;}
     const double Now=GetWorld()->GetTimeSeconds();S.Tokens=FMath::Min(3.,S.Tokens+FMath::Max(0.,Now-S.RateAt)*4);S.RateAt=Now;
     int32 Count=0;for(const auto& R:Requests){if(R.PC==PC){++Count;}}
-    if(S.Tokens<1||Count>=2){PC->ClientIntentResult(Id,TEXT("Development request rate limited."));return;}
+    if(S.Tokens<1||Count>=2){FinishRequest(PC,Id,TEXT("Development request rate limited."));return;}
     --S.Tokens;S.LastRequest=Id;S.Receipts.Add(Id,TEXT("Development request queued."));
-    Requests.Add({PC,Match,Life,Id,Kind,Skill,Item,Plan});
+    Requests.Add({PC,Match,Life,Id,Kind,Skill,Item,Plan,InventoryRevision,ItemRevision});
 }
 void ALDDevelopmentDirector::RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
 {
@@ -77,7 +78,7 @@ void ALDDevelopmentDirector::Cancel(ALDPlayerController* PC,const FString& Reaso
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* O=Mode->StateFor(PC))
     {
         if(auto* Body=Cast<ALDCharacter>(PC->GetPawn())){if(auto* Combat=Mode->Combat->StateFor(Body);Combat&&Combat->Action==8){Combat->Action=0;Combat->ImpactAt=0;O->ActionCue=Mode->Combat->CueFor(Body);O->SkillEndsAt=0;}}
-        O->DevelopmentKind=0;O->DevelopmentToken=0;O->DevelopmentEndsAt=0;Mode->SyncOwner(PC);
+        O->DevelopmentKind=0;O->DevelopmentToken=0;O->DevelopmentEndsAt=0;O->DevelopmentItem.Invalidate();Mode->SyncOwner(PC);
     }
     FinishRequest(PC,Token,Reason);
 }
@@ -86,6 +87,8 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     auto* PC=R.PC.Get();if(!PC){return;}auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);auto& S=States.FindChecked(PC);
     auto Reject=[&](const TCHAR* Why){FinishRequest(PC,R.Id,Why);};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||!Eligible(PC,Now,false)){Reject(TEXT("Development action unavailable or stale life."));return;}
+    if(Mode->Inventory&&R.Kind!=LDDevelopmentTransaction::Prepare)
+    {auto* Item=Mode->Inventory->Owned(PC,R.Item);if(R.Kind!=LDDevelopmentTransaction::Read||!Item||Item->Kind!=ELDItemKind::Book||Item->bReserved||Item->Revision!=R.ItemRevision||O->Inventory.Revision!=R.InventoryRevision){Reject(TEXT("Use a current owned inventory item"));return;}}
     auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());auto* Combat=Mode->Combat->StateFor(Body);
     if(S.Kind||Combat->Action||(Mode->Objectives&&Mode->Objectives->HasChannel(PC))||Combat->LastDamage>=Now-1.e-6){Reject(TEXT("Finish the current action first."));return;}
     if(R.Kind==LDDevelopmentTransaction::Buy)
@@ -112,7 +115,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}
-    O->DevelopmentKind=S.Kind;O->DevelopmentToken=S.Token;O->DevelopmentEndsAt=S.EndsAt;Mode->SyncOwner(PC);
+    O->DevelopmentKind=S.Kind;O->DevelopmentToken=S.Token;O->DevelopmentEndsAt=S.EndsAt;O->DevelopmentItem=Book?Book->Identity:FGuid();Mode->SyncOwner(PC);
     FinishRequest(PC,R.Id,Book?TEXT("Reading accepted; keep holding E for three seconds."):TEXT("Preparation accepted; keep holding E for two seconds."));
 }
 void ALDDevelopmentDirector::Sample(double Now)
@@ -124,7 +127,7 @@ void ALDDevelopmentDirector::Sample(double Now)
         const bool Common=O&&O->Match==S.Match&&O->Life==S.Life&&Eligible(PC,Now,true)&&Combat&&Combat->Action==8&&Stationary(PC)
             &&Now-S.LastHold<=.25&&S.Token>S.CancelledThrough&&FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)<=4;
         const bool Target=S.Kind==LDDevelopmentTransaction::Prepare?(NearStation(PC)&&O&&O->Build.Revision==S.Plan.ExpectedRevision)
-            :(S.Book.IsValid()&&S.Book->State==1&&S.Book->Holder==PC&&O&&LDDevelopment::Rank(O->Build,S.Book->Skill)==0);
+            :(S.Book.IsValid()&&S.Book->State==1&&S.Book->Holder==PC&&!S.Book->bReserved&&O&&LDDevelopment::Rank(O->Build,S.Book->Skill)==0);
         if(!Common||!Target){Cancel(PC,TEXT("Transaction interrupted or changed; nothing spent or consumed."));continue;}
         if(Now+1.e-6<S.EndsAt){continue;}
         if(S.Kind==LDDevelopmentTransaction::Prepare)
@@ -135,7 +138,7 @@ void ALDDevelopmentDirector::Sample(double Now)
         else
         {
             auto* Book=S.Book.Get();O->Build.Ranks[uint8(Book->Skill)]=1;++O->Build.Revision;
-            O->Books.RemoveAll([&](const FLDOwnedBook& Entry){return Entry.Id==Book->Identity;});Book->Holder.Reset();Book->Destroy();
+            if(Mode->Inventory){Mode->Inventory->Remove(PC,Book,true);}else{O->Books.RemoveAll([&](const FLDOwnedBook& Entry){return Entry.Id==Book->Identity;});Book->Holder.Reset();Book->Destroy();}
         }
         const bool Prepared=S.Kind==LDDevelopmentTransaction::Prepare;
         O->Hp=Combat->Hp;Mode->RefreshBuild(PC);
@@ -148,6 +151,7 @@ void ALDDevelopmentDirector::DropBooks(ALDPlayerController* PC,const FVector& Po
     Cancel(PC,TEXT("Life ended; unread books dropped."));
     FVector Point(FMath::Clamp(Position.X,-2320.,2320.),FMath::Clamp(Position.Y,-1520.,1520.),12);FHitResult Ground;
     if(GetWorld()->LineTraceSingleByChannel(Ground,Point+FVector(0,0,600),Point-FVector(0,0,100),ECC_GameTraceChannel1)){Point.Z=Ground.ImpactPoint.Z+12;}
-    for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==1&&It->Holder==PC){It->State=0;It->Holder.Reset();It->SetActorLocation(Point);}}
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->Inventory){FVector Surface;if(!LDGround::MapSurface(GetWorld(),Position,Surface)){const bool Valid=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Valid);}Point=Surface+FVector(0,0,12);}
+    for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==1&&It->Holder==PC){It->SetActorLocation(Point);if(auto* Inv=GetWorld()->GetAuthGameMode<ALDGameMode>()->Inventory.Get()){Inv->Remove(PC,*It,false);}else{It->State=0;It->Holder.Reset();}}}
     if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->Books.Reset();GetWorld()->GetAuthGameMode<ALDGameMode>()->SyncOwner(PC);}
 }

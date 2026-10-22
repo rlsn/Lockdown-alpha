@@ -24,6 +24,18 @@ public:
     UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
     UPROPERTY() TObjectPtr<class ULDControlsPanel> ControlsUI;
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
+    UPROPERTY() TObjectPtr<class ULDInventoryPanel> InventoryUI;
+    void ToggleInventoryPanel();
+    void InventoryCommand(uint8 Command,FGuid Item=FGuid(),uint8 Slot=0,FVector Point=FVector::ZeroVector);
+    void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
+    void ArmWard(FGuid Item);
+    void BeginPickup(FGuid Observed);
+    bool InventoryPending() const{return InventoryPendingRequest!=0;}
+    FGuid ArmedItem() const{return ArmedWard;}
+    UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
+    UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
+    UFUNCTION(Client,Reliable) void ClientPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed,uint32 InventoryRevision,uint32 ItemRevision);
+    UFUNCTION(Client,Reliable) void ClientInventoryResult(const FLDOwnerState& State,uint32 Request,const FString& Result);
     void RebuildV05Mappings();
     void ToggleControlsPanel();
     void V05Back();
@@ -31,7 +43,7 @@ public:
     FString ControlSummary() const;
     FKey BindingKey(FName Action) const;
     FVector2D CameraPanAxis() const;
-    bool IsTargeting() const {return ArmedSkill>=0||bAttackArmed;}
+    bool IsTargeting() const {return ArmedSkill>=0||bAttackArmed||ArmedWard.IsValid();}
     bool HasArmedAction() const {return IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid();}
     int32 ArmedSlot() const {return ArmedSkill;}
     uint8 PendingSlot() const {return PendingAimRequest?PendingSkillSlot:255;}
@@ -112,6 +124,7 @@ private:
     TArray<TPair<uint32,FString>> SeenIntentResults;
     uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;
+    friend class ALDInventoryProbe;
     bool bControlsSuppressed = false;
     float AimSendTime = 0;
     double LastAcceptedAimTime = -1;
@@ -146,6 +159,10 @@ private:
     int32 ArmedSkill=-1;
     uint8 HeldSkillGesture=0;
     FGuid HeldObserved,ReadArmed;
+    FGuid ArmedWard;
+    uint32 ArmedItemRevision=0,InventoryPendingRequest=0,PendingPickupToken=0;
+    int32 HeldQuickSlot=-1;
+    uint8 HeldQuickGesture=0;
     FLDBuildPlan PreparedDraft;
     uint32 InspectedGeneration=0;
     double PreferenceSaveAt=0;

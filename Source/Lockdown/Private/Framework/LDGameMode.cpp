@@ -34,6 +34,8 @@
 #include "Development/LDWorldChecks.h"
 #include "Region/LDRegionDefinition.h"
 #include "Region/LDRegionDirector.h"
+#include "Inventory/LDInventoryDirector.h"
+#include "Tests/LDInventoryProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -117,7 +119,7 @@ void ALDGameMode::RestartPlayer(AController* NewPlayer)
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe")))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
@@ -138,6 +140,7 @@ void ALDGameMode::StartPlay()
     Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
     Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
     if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();WorldChecks=GetWorld()->SpawnActor<ALDWorldChecks>();}
+    if(bUIControlProfile){Inventory=GetWorld()->SpawnActor<ALDInventoryDirector>();}
     if(bDevelopmentProfile&&LDRegion::Definition(GetWorld())){Region=GetWorld()->SpawnActor<ALDRegionDirector>();}
     if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
@@ -155,6 +158,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))){GetWorld()->SpawnActor<ALDInventoryProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))){GetWorld()->SpawnActor<ALDInputProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))){GetWorld()->SpawnActor<ALDNavigationProbe>();}
     if (bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))) { GetWorld()->SpawnActor<ALDDevelopmentProbe>(); }
@@ -187,7 +191,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe")))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
         // PreLogin can precede a start request or another completed admission.
         // Check again before creating any private record or fresh reward budget.
@@ -215,6 +219,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
+        if(Inventory){Inventory->EndLife(PC);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
@@ -237,6 +242,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
+    if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
@@ -339,6 +345,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
     {
         if (auto* Player=Pair.Key.Get())
         {
+            if(Inventory){Inventory->Initialize(Player);}
             RefreshBuild(Player,true); Pair.Value.State.ProtectedUntil=float(MatchStartedAt+4);
             if (auto* Body=Cast<ALDCharacter>(Player->GetPawn())) { if (auto* S=Combat->StateFor(Body)) { S->ProtectionUntil=MatchStartedAt+4; } }
             SyncOwner(Player);

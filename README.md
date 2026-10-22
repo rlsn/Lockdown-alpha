@@ -5,14 +5,15 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 navigation, B52 input and B53 HUD implemented.**
+**Current checkpoint: B51 navigation through B54 inventory implemented.**
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
 baseline and defaults. [B51](docs/v05/B51_IMPLEMENTATION.md) proves native
 multiplayer navigation; [B52](docs/v05/B52_IMPLEMENTATION.md) adds saved remapping,
 explicit targeting and fresh-input panel routing. [B53](docs/v05/B53_IMPLEMENTATION.md)
 adds the masked inspector, anchored own commands, interactive filtered minimap
-and life/results presentation. The ordinary frontend launches this v0.5 checkpoint.
-B54–B58 inventory, vendor, peer exchange, final presentation and complete release
+and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24-slot
+bag, finite ward instances and four real quick-item references. The ordinary
+frontend launches this v0.5 checkpoint. B55–B58 vendor, peer exchange, final presentation and complete release
 verification remain ahead.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
@@ -46,9 +47,12 @@ controls. Arrows/edge pan, held Space, Home and the wheel control the camera.
 Apply closes the preview and requires a fresh F hold at a preparation station.
 The temporary character panel also arms book reading and Seal fabrication.
 
-The larger inventory, item shortcuts and peer trade are pending. Numeric 1–4
-report empty, I currently opens the retained books/development panel, and T is
-unavailable. Minimap left-click/drag pans; right-click cancels an armed action
+I/Bag opens your carried inventory. Assign owned books/ward charges to 1–4;
+hold a book shortcut to learn, or use it in the bag and make a fresh F hold.
+Ward Use arms placement; confirm nearby clear ground, or cancel without cost.
+Sorting preserves identity references. Drop requires explicit confirmation.
+Unused charges are lost on death and none are granted on return. T remains
+unavailable until B56. Minimap left-click/drag pans; right-click cancels an armed action
 first, then issues a ground move. Other selection shows Unknown private fields
 while commands remain yours. Retained gameplay still includes
 eight paid jobs, first visits, private Charter checks, the hostile sentinel,
@@ -86,10 +90,13 @@ legacy sandbox retains the [v0.3 profile](docs/v03/implementation/README.md).
 ./Scripts/RunTests.ps1
 ./Scripts/RunInputCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
 ./Scripts/RunHUDCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 49
+./Scripts/RunInventoryCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 49
 ./Scripts/RunNavigationCheck.ps1 -Region -RoundTripMs 150 -JitterMs 25 -OneWayBaseMs 54
 ./Scripts/CaptureInputUI.ps1 -Controls
 ./Scripts/CaptureInputUI.ps1 -Scene Selected -Width 1920 -Height 1080
 ./Scripts/CaptureInputUI.ps1 -Scene Selected -LargeText
+./Scripts/CaptureInputUI.ps1 -Scene Inventory -Width 1920 -Height 1080
+./Scripts/CaptureInputUI.ps1 -Scene DropConfirm -LargeText
 ./Scripts/RunDevelopmentCheck.ps1
 ./Scripts/RunDevelopmentCheck.ps1 -Network -RoundTripMs 150 -JitterMs 25
 ./Scripts/RunDevelopmentCheck.ps1 -Reset

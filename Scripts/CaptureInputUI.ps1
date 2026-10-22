@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$PackageRoot,[switch]$Controls,[ValidateSet('HUD','Controls','Lobby','Selected','Death','Result')][string]$Scene='HUD',[switch]$LargeText,[ValidateRange(1280,2560)][int]$Width=1280,[ValidateRange(720,1440)][int]$Height=720)
+param([string]$EngineRoot,[string]$PackageRoot,[switch]$Controls,[ValidateSet('HUD','Controls','Lobby','Selected','Death','Result','Inventory','InventoryDead','QuickItems','ItemReading','DropConfirm')][string]$Scene='HUD',[switch]$LargeText,[ValidateRange(1280,2560)][int]$Width=1280,[ValidateRange(720,1440)][int]$Height=720)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 if($PackageRoot){$package=Resolve-LDPackage $PackageRoot;$binary=$package.Binary;$project='';$lane='Packaged-'}
 else{$engine=Resolve-LDEngine $EngineRoot;Assert-LDEditorModules;$binary=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor.exe';$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject';$lane=''}

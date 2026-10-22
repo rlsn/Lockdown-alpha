@@ -15,6 +15,7 @@ FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,dou
         FString Detail=(E->Kind==ELDObservedKind::Body||E->Kind==ELDObservedKind::Sentinel)?TEXT("HP / level / class: Unknown\nAttributes / skills / ranks: Unknown\nGold / inventory: Unknown\n")+Cue(E->ActionCue):TEXT("Visible public object\n");
         if(E->Kind==ELDObservedKind::Charter){Detail+=FString::Printf(TEXT("%s · Public threshold 12"),LDDevelopment::SkillName(LDCharter::Skill(E->Presentation)));}
         if(E->Kind==ELDObservedKind::WatchControl){Detail+=TEXT("Analyze · Public threshold 14");}
+        if(E->Kind==ELDObservedKind::WardCharge){return TEXT("DROPPED WARD CHARGE\nFinite physical item · Pick up within 80 cm");}
         if(E->ExposedUntil>Now){Detail+=TEXT(" · Exposed");}
         return FString(Label)+TEXT("\n")+Detail;
     }

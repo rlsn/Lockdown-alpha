@@ -29,6 +29,7 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
+#include "UI/LDInventoryPanel.h"
 #include "UI/LDWidgets.h"
 
 bool ULDUIRoot::PointerOverUI() const
@@ -339,6 +340,7 @@ void ULDUIRoot::DefenceCentral(){CastChecked<ALDPlayerController>(GetOwningPlaye
 
 void ULDUIRoot::ToggleMenu()
 {
+    if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->InventoryUI&&PC->InventoryUI->IsOpen()){PC->InventoryUI->Close();return;}
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->ControlsUI&&PC->ControlsUI->IsOpen()){PC->ControlsUI->Close();return;}
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();return;}
     if (bInLobby) { return; }

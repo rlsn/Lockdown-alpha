@@ -1,20 +1,20 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Inventory/LDInventoryTypes.h"
 #include "LDObjectiveDirector.generated.h"
 class ALDPlayerController;
 class ALDCharacter;
 
 UCLASS()
-class LOCKDOWN_API ALDSeal : public AActor
+class LOCKDOWN_API ALDSeal : public ALDItem
 {
     GENERATED_BODY()
 public:
     ALDSeal();
-    FGuid Identity;
     // Server-only immutable identity, ownership and state; only dropped poses enter observations.
-    uint8 State=0; // 0 dropped, 1 carried, 2 consumed
     uint8 District=0;
+    // Kept for the retained objective code; the shared Holder is authoritative in V05.
     TWeakObjectPtr<ALDPlayerController> Carrier;
 };
 
@@ -62,6 +62,7 @@ public:
     double Deadline() const;
     int32 QueuedRequestCount() const {return Requests.Num();}
     void FailNextFabricationForProbe();
+    void AnnounceVoluntaryDrop(ALDSeal* Item,const FVector& Point);
 private:
     bool bFailFabrication=false;
     struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;uint8 Target;FGuid Observed;};

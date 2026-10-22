@@ -35,11 +35,13 @@
 #include "Tests/LDInputProbe.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDInventoryPanel.h"
+#include "Tests/LDInventoryProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe")));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -87,6 +89,8 @@ void ALDPlayerController::BeginPlay()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe")))
+    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDInventoryProbe>(ALDInventoryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDInputProbe>(ALDInputProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe")))
@@ -273,7 +277,7 @@ bool ALDPlayerController::ChooseContext(uint8& Target,FGuid& Observed) const
     if(OwnerState.bDevelopmentProfile)
     {
         double Distance=80*80+1.;FGuid Closest;
-        if(const auto* Relay=LocalView()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(P,E.Position);if(E.Kind==ELDObservedKind::Book&&(D<Distance||(D==Distance&&E.Id.ToString()<Closest.ToString()))){Distance=D;Closest=E.Id;}}}
+        if(const auto* Relay=LocalView()){for(const auto& E:Relay->LastView().Entities){const double D=FVector::DistSquared2D(P,E.Position);if((E.Kind==ELDObservedKind::Book||(Navigation->Enabled()&&E.Kind==ELDObservedKind::WardCharge))&&(D<Distance||(D==Distance&&E.Id.ToString()<Closest.ToString()))){Distance=D;Closest=E.Id;}}}
         if(Closest.IsValid()){Target=5;Observed=Closest;return true;}
     }
     if(FVector::DistSquared2D(P,LDRegion::Site(GetWorld(),LDObjective::Heart))<=120*120){Target=LDObjective::Heart;return true;}
@@ -330,6 +334,7 @@ void ALDPlayerController::StartInteraction(bool Fabricate)
     if(!ChooseContext(Target,Observed)){IntentFeedback=ContextPrompt();return;}
     if(Fabricate&&OwnerState.bDevelopmentProfile&&LDRegion::Definition(GetWorld())&&FVector::DistSquared2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),1))<=120*120)
     {Target=LDObjective::Fabricator;Observed.Invalidate();}
+    if(Navigation->Enabled()&&(Target==5||Target==LDObjective::Seal)){BeginPickup(Observed);return;}
     bInteractHeld=true;ContextToken=++NextRequest;HoldSequence=0;LastHoldSent=-1000;
     if(Target==5){bInteractHeld=false;ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,ContextToken,LDDevelopmentTransaction::PickUp,ELDSkill::None,Observed,FLDBuildPlan());return;}
     ServerContextRequest(OwnerState.Match,OwnerState.Life,ContextToken,Target,Observed);
@@ -386,6 +391,7 @@ void ALDPlayerController::Ward()
 }
 void ALDPlayerController::ServerPlaceWard_Implementation(uint32 Match,uint32 Life,uint32 Request,FVector_NetQuantize10 Position)
 {
+    if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsUIControlProfile()){ClientIntentResult(Request,TEXT("Use an owned ward charge"));return;}
     const double Now=GetWorld()->GetTimeSeconds();
     if (Now-LastWardAt<.25) { return; }
     LastWardAt=Now;
@@ -402,6 +408,7 @@ void ALDPlayerController::ServerPlaceWard_Implementation(uint32 Match,uint32 Lif
 }
 void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)
 {
+    if(Request==InventoryPendingRequest){InventoryPendingRequest=0;}
     if(Request==PendingAimRequest){PendingAimRequest=0;}
     if(Request)
     {
@@ -411,6 +418,14 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
     }
     ++IntentFeedbackSerial;
     IntentFeedback=Reason;
+    if(Navigation->Enabled())
+    {
+        const FString Label=OwnerState.DevelopmentKind?HeldInputLabel():BindingLabel(TEXT("Context"));
+        IntentFeedback.ReplaceInline(TEXT("holding E"),*(TEXT("holding ")+Label));
+        IntentFeedback.ReplaceInline(TEXT("Hold E"),*(TEXT("Hold ")+Label));
+        IntentFeedback.ReplaceInline(TEXT("hold E"),*(TEXT("hold ")+Label));
+        IntentFeedback.ReplaceInline(TEXT("Release E"),*(TEXT("Release ")+Label));
+    }
 #if !UE_BUILD_SHIPPING
     if(double* Sent=ProbeRequests.Find(Request)){ProbeAckMs.Add((FPlatformTime::Seconds()-*Sent)*1000);ProbeRequests.Remove(Request);}
 #endif
@@ -490,6 +505,7 @@ void ALDPlayerController::CancelInterruptibleHolds()
 }
 void ALDPlayerController::ClearControls()
 {
+    PendingPickupToken=0;HeldQuickSlot=-1;if(InventoryUI){InventoryUI->CancelDrag();}
     CancelArmed();bPrimaryOwned=false;HeldObserved.Invalidate();
     Navigation->Stop();Navigation->Recenter(false);
     CancelInterruptibleHolds();

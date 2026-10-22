@@ -23,7 +23,7 @@ try {
     foreach($process in $ownedProcesses){if(-not $process.HasExited){throw "Navigation probe timed out: $output"};if($process.ExitCode -ne 0){throw "Navigation probe failed ($($process.ExitCode)): $output"}}
     foreach($role in @('Server','A','B')) {
         $report=Get-Content -LiteralPath (Join-Path $output "$role.json") -Raw|ConvertFrom-Json
-        $required=if($role -eq 'Server'){34}else{17}
+        $required=if($role -eq 'Server'){34}else{20}
         if($report.failures -ne 0 -or @($report.checks).Count -lt $required){throw "Failed or incomplete $role navigation evidence: $output"}
         Write-Host "$role passed $(@($report.checks).Count) checks"
     }

@@ -6,8 +6,9 @@ baseline review records actual v0.4 source, adopted defaults and a fresh package
 93-check regional smoke pass. B51 native multiplayer navigation now passes
 independent Editor and cooked client gates. B52 now supplies saved mappings,
 explicit targeting and fresh-input panel routing. B53 adds the masked inspector,
-anchored own commands, filtered minimap controls and life/result panels. B54
-carried inventory is next. The approved current engine is 5.8.4 CL 58902052;
+anchored own commands, filtered minimap controls and life/result panels. B54 adds
+the 24-slot bag, finite charge instances and four identity-based item shortcuts.
+B55 quoted vendor is next. The approved current engine is 5.8.4 CL 58902052;
 historical B47–B52 evidence retains its original 5.8.3 provenance.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
@@ -23,6 +24,7 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | [B51 navigation](v05/B51_IMPLEMENTATION.md) | Native/cooked client proof, operating steps and implementation limits |
 | [B52 input](v05/B52_IMPLEMENTATION.md) | Mapping, targeting, held-input evidence and checkpoint limitations |
 | [B53 HUD](v05/B53_IMPLEMENTATION.md) | Inspector, minimap, life/results and approved engine update |
+| [B54 inventory](v05/B54_IMPLEMENTATION.md) | Common physical items, bag, quick references and conservation evidence |
 | [v0.5 feature ledger](v05/FeatureLedger.csv) | Working baseline and implementation status |
 | [v0.4 continuation archive](v04/CONTINUATION_B47.md) | Preserved B47 wrap-up and reproduction details |
 | [v0.4 specification](v04/README.md) | Retained gameplay contracts, B40–B47 and C01–C48 |

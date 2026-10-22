@@ -2,10 +2,11 @@
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
 #include "Development/LDCharacterBuild.h"
+#include "Inventory/LDInventoryTypes.h"
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge };
 USTRUCT()
 struct FLDVisionGrid
 {
@@ -60,9 +61,11 @@ struct FLDOwnerState
     UPROPERTY() bool bLobbyHost = false;
     UPROPERTY() FLDCharacterBuild Build;
     UPROPERTY() TArray<FLDOwnedBook> Books;
+    UPROPERTY() FLDInventory Inventory;
     UPROPERTY() uint8 DevelopmentKind=0;
     UPROPERTY() uint32 DevelopmentToken=0;
     UPROPERTY() double DevelopmentEndsAt=0;
+    UPROPERTY() FGuid DevelopmentItem;
     UPROPERTY() FGuid Witness;
     UPROPERTY() FGuid TheftReceipt;
     UPROPERTY() uint8 TheftOutcome=0;
@@ -113,8 +116,9 @@ struct FLDOwnerState
 namespace LDVision
 {
     constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
-    // Eight contenders, eight residents, wards and short-lived corpse identities.
-    constexpr int32 MaxEntities = 64;
+    // Four full 24-slot death drops, bodies, wards and short-lived corpse identities.
+    // Still bounded by the existing uint8 count; the observed field mask is unchanged.
+    constexpr int32 MaxEntities = 128;
     inline bool InWorld(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return G.Valid()&&!P.ContainsNaN()&&P.X>=G.Min.X&&P.X<G.Min.X+Columns*G.CellSize&&P.Y>=G.Min.Y&&P.Y<G.Min.Y+Rows*G.CellSize; }
     inline int32 Cell(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return InWorld(P,G)?int32((P.Y-G.Min.Y)/G.CellSize)*Columns+int32((P.X-G.Min.X)/G.CellSize):INDEX_NONE; }
     inline FVector Centre(int32 Index,const FLDVisionGrid& G=FLDVisionGrid()) { return FVector(G.Min.X+((Index%Columns)+.5)*G.CellSize,G.Min.Y+((Index/Columns)+.5)*G.CellSize,0); }

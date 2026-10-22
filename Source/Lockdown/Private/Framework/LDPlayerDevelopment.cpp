@@ -4,31 +4,37 @@
 #include "UI/LDDevelopmentPanel.h"
 #include "Engine/World.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Inventory/LDInventoryDirector.h"
+#include "UI/LDInventoryPanel.h"
 
 void ALDPlayerController::ToggleDevelopmentPanel()
 {
     const auto* Public=GetWorld()->GetGameState<ALDGameState>();
     if(!OwnerState.bDevelopmentProfile||(!OwnerState.bActive&&!Navigation->Enabled())||!Public||!Public->bMatchStarted||Public->EndReason){return;}
     if(bControlsSuppressed&&(!DevelopmentUI||!DevelopmentUI->IsOpen())){return;}
+    if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}
     if(!DevelopmentUI){DevelopmentUI=CreateWidget<ULDDevelopmentPanel>(this);DevelopmentUI->AddToViewport(20);}
     if(DevelopmentUI->IsOpen()){DevelopmentUI->Close();}else{DevelopmentUI->Open();}
 }
 void ALDPlayerController::BuyBook(ELDSkill Skill)
-{StopDevelopmentHold();ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
+{StopDevelopmentHold();if(Navigation->Enabled()){InventoryCommand(LDInventory::Buy,FGuid(),uint8(Skill));return;}ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
 void ALDPlayerController::SetInteractionHeld(bool Held){if(Navigation->Enabled()){if(Held&&CanWorldCommand()){ContextV05();}else if(!Held){V05Released(TEXT("Context"));}return;}if(Held){InteractStarted();}else{InteractStopped();}}
 void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Navigation->Enabled()){if(Held){ArmSkill(Slot,2);}else{EndSkillGesture(Slot,2);}return;}if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)
 {
     ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;
+    if(Navigation->Enabled()&&Kind==LDDevelopmentTransaction::Read)
+    {const auto* Entry=OwnerState.Inventory.Find(Item);InventoryPendingRequest=DevelopmentHoldToken;ServerInventoryRequest(OwnerState.Match,OwnerState.Life,DevelopmentHoldToken,OwnerState.Inventory.Revision,LDInventory::Read,Item,Entry?Entry->Revision:0,0,FVector::ZeroVector);return;}
     ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,DevelopmentHoldToken,Kind,ELDSkill::None,Item,Plan);
 }
 void ALDPlayerController::StopDevelopmentHold()
 {
     const uint32 Token=FMath::Max(DevelopmentHoldToken,OwnerState.DevelopmentToken);
-    if(Token){ServerDevelopmentRelease(OwnerState.Match,OwnerState.Life,Token);}DevelopmentHoldToken=0;
+    if(Token){ServerDevelopmentRelease(OwnerState.Match,OwnerState.Life,Token);}DevelopmentHoldToken=0;HeldQuickSlot=-1;
 }
 void ALDPlayerController::ServerDevelopmentRequest_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan)
 {
+    if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Inventory&&Kind!=LDDevelopmentTransaction::Prepare){ClientIntentResult(Request,TEXT("Use the inventory item action"));return;}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(Mode&&Mode->Development){Mode->Development->Queue(this,Match,Life,Request,Kind,Skill,Item,Plan);}
     else{ClientIntentResult(Request,TEXT("Development transactions unavailable in this profile."));}
 }

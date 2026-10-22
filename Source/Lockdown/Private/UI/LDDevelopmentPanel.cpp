@@ -75,7 +75,8 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         ApplyButton=Button(TEXT("Apply preview · then hold E"),8,0);AddRow(Left,ApplyButton);
         HoldInfo=Text(TEXT(""),15);AddRow(Left,HoldInfo);
 
-        AddRow(Right,Text(TEXT("UNREAD BOOKS · 4 spaces"),18));BookInfo=Text(TEXT(""),15);AddRow(Right,BookInfo);
+        AddRow(Right,Text(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()?TEXT("BOOK PREVIEW · Open bag for all items"):TEXT("UNREAD BOOKS · 4 spaces"),18));BookInfo=Text(TEXT(""),15);AddRow(Right,BookInfo);
+        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open carried bag"),13,0));}
         for(uint8 I=0;I<4;++I)
         {auto* Label=Text(TEXT("Empty"),15);BookLabels.Add(Label);AddRow(Right,Label,2);auto* W=Button(TEXT("Use book"),9,I);ReadButtons.Add(W);AddRow(Right,W,3);}
         AddRow(Right,Text(TEXT("GUILD BOOKSHOP · 40 gold each"),17));
@@ -99,6 +100,7 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;
     StopConfirm();
     if(Operation==11){Close();return;}
+    if(Operation==13){Close();PC->ToggleInventoryPanel();return;}
     if(!O.bActive){PC->IntentFeedback=TEXT("Read-only while waiting to return");return;}
     if(Operation==12){Close();PC->ArmFabrication();return;}
     if(Operation==10){PC->BuyBook(ELDSkill(Index));return;}
@@ -154,16 +156,16 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     }
     FString Confirm=Armed==LDDevelopmentTransaction::Prepare?TEXT("Armed: hold E for 2s at a Preparation station."):Armed==LDDevelopmentTransaction::Read?TEXT("Book selected: hold E for 3s to read."):TEXT("Apply a preview or select an unread book, then hold E.");
     if(O.DevelopmentKind){Confirm=FString::Printf(TEXT("%s · %.1fs remaining · Release E or lose focus to cancel."),O.DevelopmentKind==2?TEXT("Reading"):TEXT("Preparing"),FMath::Max(0.,O.DevelopmentEndsAt-Now));}
-    HoldInfo->SetText(FText::FromString(Confirm));BookInfo->SetText(FText::FromString(FString::Printf(TEXT("%d / 4 unread · learned library is separate"),O.Books.Num())));
+    HoldInfo->SetText(FText::FromString(Confirm));BookInfo->SetText(FText::FromString(PC->Navigation->Enabled()?FString::Printf(TEXT("%d books · %d / %d carried slots · first four previewed here"),O.Books.Num(),O.Inventory.Items.Num(),O.Inventory.Capacity):FString::Printf(TEXT("%d / 4 unread · learned library is separate"),O.Books.Num())));
     if(PC->Navigation->Enabled()){HoldInfo->SetText(FText::FromString(TEXT("Apply or Use closes this panel and arms a fresh ")+PC->BindingLabel(TEXT("Context"))+TEXT(" hold. Closing alone spends nothing.")));}
     for(int32 I=0;I<4;++I){const bool Present=O.Books.IsValidIndex(I);BookLabels[I]->SetText(FText::FromString(Present?FString::Printf(TEXT("%s%s · unread"),SelectedBook==O.Books[I].Id?TEXT("› "):TEXT(""),LDDevelopment::SkillName(O.Books[I].Skill)):TEXT("Empty space")));ReadButtons[I]->SetIsEnabled(Present&&!bHolding);}
     const bool AtGuild=PC->GetPawn()&&FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Guild))<=120*120;
-    for(auto W:BuyButtons){W->SetIsEnabled(AtGuild&&O.Gold>=40&&O.Books.Num()<4&&!bHolding&&!O.DevelopmentKind);}
+    for(auto W:BuyButtons){W->SetIsEnabled(AtGuild&&O.Gold>=40&&(PC->Navigation->Enabled()?O.Inventory.Items.Num()<O.Inventory.Capacity:O.Books.Num()<4)&&!bHolding&&!O.DevelopmentKind&&!PC->InventoryPending());}
     if(PC->Navigation->Enabled())
     {
         TArray<UWidget*> Widgets;WidgetTree->GetAllWidgets(Widgets);
         for(auto* W:Widgets){if(auto* Button=Cast<ULDDevelopmentButton>(W))
-        {if(!O.bActive){Button->SetIsEnabled(Button->Operation==11);}else if(Button->Operation==1||Button->Operation==3||Button->Operation==4||Button->Operation==5||Button->Operation==11||Button->Operation==12){Button->SetIsEnabled(true);}}}
+        {if(!O.bActive){Button->SetIsEnabled(Button->Operation==11||Button->Operation==13);}else if(Button->Operation==1||Button->Operation==3||Button->Operation==4||Button->Operation==5||Button->Operation==11||Button->Operation==12||Button->Operation==13){Button->SetIsEnabled(true);}}}
     }
     Feedback->SetText(FText::FromString(PC->IntentFeedback));
 }

@@ -6,6 +6,7 @@
 #include "UI/LDUIRoot.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDInventoryPanel.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Character/LDCharacter.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -41,9 +42,12 @@ namespace
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
 double ALDPlayerController::ArmedRange() const
-{return bAttackArmed?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
+{return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
 FString ALDPlayerController::HeldInputLabel() const
-{return HeldSkillGesture==1?BindingLabel(TEXT("Select")):HeldSkillGesture==2?TEXT("mouse button"):HeldSkillGesture==3?BindingLabel(TEXT("Context")):BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),HeldSkillSlot+1)));}
+{
+    if(OwnerState.DevelopmentKind){return HeldQuickSlot>=0?(HeldQuickGesture==2?TEXT("mouse button"):BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1)))):BindingLabel(TEXT("Context"));}
+    return HeldSkillGesture==1?BindingLabel(TEXT("Select")):HeldSkillGesture==2?TEXT("mouse button"):HeldSkillGesture==3?BindingLabel(TEXT("Context")):BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),HeldSkillSlot+1)));
+}
 FString ALDPlayerController::ControlSummary() const
 {
     auto K=[this](const TCHAR* A){return BindingLabel(FName(A));};
@@ -103,12 +107,16 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         if(!PhysicalDown(this,Primary)){V05Released(TEXT("Select"));}
     }
     if(HeldSkillGesture==2&&HeldSkillSlot!=255&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){SkillStopped(HeldSkillSlot);}
+    if(HeldQuickSlot>=0&&HeldQuickGesture==2&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){StopDevelopmentHold();}
+    if(ArmedWard.IsValid()||ReadArmed.IsValid()){const auto* Item=OwnerState.Inventory.Find(ArmedWard.IsValid()?ArmedWard:ReadArmed);if(!Item||Item->bReserved||Item->Revision!=ArmedItemRevision){CancelArmed();IntentFeedback=TEXT("Item changed; choose it again");}}
+    if(InventoryUI){InventoryUI->Refresh();}
     if(HUDUI){HUDUI->RefreshReadModel();}
 }
 void ALDPlayerController::CancelArmed()
-{ArmedSkill=-1;bAttackArmed=bDraftArmed=bFabricationArmed=false;ReadArmed.Invalidate();PreparedDraft=FLDBuildPlan();}
+{ArmedSkill=-1;bAttackArmed=bDraftArmed=bFabricationArmed=false;ReadArmed.Invalidate();ArmedWard.Invalidate();PreparedDraft=FLDBuildPlan();}
 void ALDPlayerController::ToggleControlsPanel()
 {
+    if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}
     if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();return;}
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     if(RootUI){RootUI->DismissMenu();}
@@ -119,6 +127,7 @@ void ALDPlayerController::ToggleControlsPanel()
 void ALDPlayerController::V05Back()
 {
     if(IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid()){CancelArmed();return;}
+    if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();return;}
     if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();return;}
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();return;}
     if(RootUI&&RootUI->IsMenuOpen()){RootUI->ToggleMenu();return;}
@@ -130,10 +139,10 @@ void ALDPlayerController::V05Pressed(FName Action)
     if(Action==TEXT("Back")){V05Back();return;}
     if(Action==TEXT("Help")){ToggleControlsPanel();return;}
     if(Action==TEXT("Development")&&!OwnerState.bActive){ToggleDevelopmentPanel();return;}
+    if(Action==TEXT("Inventory")&&!OwnerState.bActive&&!bControlsSuppressed){ToggleInventoryPanel();return;}
     if(!CanWorldCommand()){return;}
     const int32 Skill=Numbered(Action,TEXT("Skill"));if(Skill>=0){ArmSkill(uint8(Skill));return;}
-    // Item entry points become real carried-instance references in B54.
-    const FString Name=Action.ToString();if(Name.StartsWith(TEXT("Item"))){IntentFeedback=TEXT("Quick item slot is empty");return;}
+    const int32 QuickSlot=Numbered(Action,TEXT("Item"));if(QuickSlot>=0){SetQuickItemHeld(uint8(QuickSlot),true);return;}
     if(Action==TEXT("Select"))
     {
         if(RootUI&&RootUI->PointerOverUI()){return;}
@@ -148,7 +157,8 @@ void ALDPlayerController::V05Pressed(FName Action)
     else if(Action==TEXT("Sprint")){SprintStarted();}
     else if(Action==TEXT("Recenter")){Navigation->Recenter(true);}
     else if(Action==TEXT("Follow")){Navigation->ToggleFollow();}
-    else if(Action==TEXT("Development")||Action==TEXT("Inventory")){ToggleDevelopmentPanel();}
+    else if(Action==TEXT("Development")){ToggleDevelopmentPanel();}
+    else if(Action==TEXT("Inventory")){ToggleInventoryPanel();}
     else if(Action==TEXT("Trade")){IntentFeedback=TEXT("Unavailable");}
 }
 void ALDPlayerController::V05Released(FName Action)
@@ -158,6 +168,7 @@ void ALDPlayerController::V05Released(FName Action)
     if(Action==TEXT("Select")){bPrimaryOwned=false;if(HeldSkillGesture==1&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
     if(Action==TEXT("Context")){InteractStopped();StopDevelopmentHold();if(HeldSkillGesture==3&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
     const int32 Slot=Numbered(Action,TEXT("Skill"));if(Slot>=0&&HeldSkillGesture==0){SkillStopped(uint8(Slot));}
+    const int32 QuickSlot=Numbered(Action,TEXT("Item"));if(QuickSlot>=0){SetQuickItemHeld(uint8(QuickSlot),false);}
 }
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 {if(CanWorldCommand()&&(!RootUI||!RootUI->PointerOverUI())){if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->Zoom(Value.Get<float>());Controls->Zoom=Body->CameraArm->TargetArmLength;PreferenceSaveAt=GetWorld()->GetTimeSeconds()+.5;}}}
@@ -201,6 +212,7 @@ void ALDPlayerController::BeginTargetSkill(uint8 Slot,FGuid Target,const FVector
 void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
 {
     if(!CanWorldCommand()||!GetPawn()){return;}
+    if(ArmedWard.IsValid()){const FGuid Item=ArmedWard;CancelArmed();InventoryCommand(LDInventory::Place,Item,0,Ground);return;}
     FVector Point=Ground;
     if(Target.IsValid())
     {
@@ -220,8 +232,9 @@ void ALDPlayerController::ArmPreparation(const FLDBuildPlan& Plan)
 }
 void ALDPlayerController::ArmRead(FGuid Book)
 {
+    const auto* Item=OwnerState.Inventory.Find(Book);if(Navigation->Enabled()&&(!Item||Item->Kind!=ELDItemKind::Book||Item->bReserved)){IntentFeedback=TEXT("Owned book unavailable");return;}const uint32 Revision=Item?Item->Revision:0;
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
-    CancelArmed();ReadArmed=Book;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" to read. Closing the panel spends nothing.");
+    CancelArmed();ReadArmed=Book;ArmedItemRevision=Revision;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" to read. Closing the panel spends nothing.");
 }
 void ALDPlayerController::ArmFabrication(){CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
 void ALDPlayerController::ContextV05()
@@ -229,6 +242,7 @@ void ALDPlayerController::ContextV05()
     if(bDraftArmed){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}
     if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
     if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
+    FLDObservedEntity Item;if(ReadInspected(Item)&&(Item.Kind==ELDObservedKind::Book||Item.Kind==ELDObservedKind::Seal||Item.Kind==ELDObservedKind::WardCharge)){BeginPickup(Item.Id);return;}
     FLDObservedEntity E;
     if(ReadInspected(E)&&(E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl))
     {

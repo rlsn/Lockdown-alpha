@@ -88,6 +88,7 @@ public:
     UPROPERTY() TObjectPtr<ALDDevelopmentDirector> Development;
     UPROPERTY() TObjectPtr<ALDWorldChecks> WorldChecks;
     UPROPERTY() TObjectPtr<ALDRegionDirector> Region;
+    UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;
