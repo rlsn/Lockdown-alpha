@@ -18,7 +18,7 @@ void ALDPlayerController::CloseVendor()
 {if(VendorIsOpen()){ServerCloseVendor(VendorOpenToken);}bVendorOpening=false;VendorNeedsReview=false;VendorQuote=FLDVendorQuote();}
 void ALDPlayerController::BuyVendorBook(ELDSkill Skill,uint32 Revision,int32 Price)
 {
-    if(InventoryPending()||!VendorQuote.Session.IsValid()){return;}VendorPendingRequest=++NextRequest;VendorFeedback=TEXT("Purchase pending authority…");
+    if(InventoryPending()||!VendorQuote.Session.IsValid()){return;}VendorPendingRequest=++NextRequest;VendorFeedback=TEXT("Purchase pending…");
     ServerVendorBuy(OwnerState.Match,OwnerState.Life,VendorPendingRequest,VendorQuote.Session,Revision,Price,OwnerState.Inventory.Revision,Skill);
 }
 void ALDPlayerController::ServerOpenVendor_Implementation(uint32 Match,uint32 Life,uint32 Token)
@@ -38,6 +38,6 @@ void ALDPlayerController::ClientVendorClosed_Implementation(uint32 Token,const F
 void ALDPlayerController::ClientVendorResult_Implementation(const FLDOwnerState& State,uint32 Request,const FLDVendorQuote& Quote,FGuid Item,const FString& Reason)
 {
     ClientLifeReceipt_Implementation(State);const bool Pending=Request==VendorPendingRequest;if(Pending){VendorPendingRequest=0;}
-    if(Pending&&VendorIsOpen()&&Quote.Token==VendorOpenToken&&Quote.Session==VendorQuote.Session){VendorQuote=Quote;VendorFeedback=Reason;if(Reason.Contains(TEXT("Quote changed"))){VendorNeedsReview=true;}if(Item.IsValid()&&InventoryUI){InventoryUI->Select(Item);}}
+    if(Pending&&VendorIsOpen()&&Quote.Token==VendorOpenToken&&Quote.Session==VendorQuote.Session){VendorQuote=Quote;VendorFeedback=Reason;if(Reason.Contains(TEXT("Catalog updated"))){VendorNeedsReview=true;}if(Item.IsValid()&&InventoryUI){InventoryUI->Select(Item);}}
     ClientIntentResult_Implementation(Request,Reason);if(InventoryUI){InventoryUI->Refresh();}
 }

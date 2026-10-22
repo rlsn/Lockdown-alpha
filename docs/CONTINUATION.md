@@ -1,4 +1,4 @@
-# Continuation — v0.5 B56 peer exchange checkpoint
+# Continuation — v0.5 B57 presentation checkpoint
 
 22 October 2026. The user requested review/commit of master revision 5 and the
 v0.5 specification, then requested implementation. B50 audit is complete;
@@ -7,8 +7,9 @@ v0.5 specification, then requested implementation. B50 audit is complete;
 [B53 HUD/inspection/minimap](v05/B53_IMPLEMENTATION.md) and
 [B54 inventory/quick items](v05/B54_IMPLEMENTATION.md) and
 [B55 quoted Guild vendor](v05/B55_IMPLEMENTATION.md) and
-[B56 peer exchange](v05/B56_IMPLEMENTATION.md) are implemented. Continue
-with B57 shared presentation, then B58 verification. Full v0.5 is not delivered.
+[B56 peer exchange](v05/B56_IMPLEMENTATION.md) and
+[B57 presentation](v05/B57_IMPLEMENTATION.md) are implemented. Continue with B58
+verification, including remaining OS-scale and human acceptance. Full v0.5 is not delivered.
 
 **22 October update:** The user explicitly approved adopting installed Unreal
 5.8.4 CL 58902052. The platform lock now names that build; its guard remains active.
@@ -20,7 +21,7 @@ the actual engine transition, failures corrected, current evidence and limits.
 1. [Master plan](master/README.md) and [v0.5 spec](v05/README.md), all chapters,
    JSON and wireframes.
 2. [B50 actual baseline/defaults](v05/B50_BASELINE_REVIEW.md),
-   [working ledger](v05/FeatureLedger.csv), B51–B56 implementation reports.
+   [working ledger](v05/FeatureLedger.csv), B51–B57 implementation reports.
 3. [Build plan](v05/08_BUILD_PLAN.md), [acceptance](v05/09_ACCEPTANCE_AND_USER_REVIEW.md)
    and [build handoff](v05/10_CODEX_BUILD_PROMPT.md).
 4. [B47 archive](v04/CONTINUATION_B47.md) and [B47 evidence](v04/B47_IMPLEMENTATION.md).
@@ -29,7 +30,7 @@ the actual engine transition, failures corrected, current evidence and limits.
 
 B47 runtime: `915f9e8e9b8fdc56febaf64703225dbea41d9dd5`.
 B50 preparation: `c222021`. B51: `607e2d8`. B52: `9f4c58f`.
-B53: `b0af13e`. B54: `a6476b4`. B55: `ccddfae`. B56 is the commit containing its implementation report.
+B53: `b0af13e`. B54: `a6476b4`. B55: `ccddfae`. B56: `6b71c80`. B57 is the commit containing its implementation report.
 Keep the approved Unreal 5.8.4 CL 58902052 baseline, native CharacterMovement, Enhanced Input, UMG/Slate
 and the existing authority/filtered-view boundary. No engine/framework migration.
 
@@ -79,7 +80,7 @@ actual objective receipt, including No acquisition.
 Review with `Scripts/OpenStandalone.ps1`, Host private lobby and use F1. I/Bag opens the own carried inventory. Digits 1–4 resolve owned references:
 hold a book shortcut to learn, or arm a ward and confirm ground. Bag Use on a book
 arms a fresh F hold. Drop requires the named modal. T remains unavailable. Native default and 125% text captures are engineering evidence.
-Final shared scaling/focus and the full Windows display-scale matrix belong to B57.
+B57 adds shared scaling/focus; the remaining on-screen Windows display-scale matrix is carried explicitly into B58.
 
 B53 uses approved UE 5.8.4: both targets and the cook passed; 17 warning-free rules,
 movement 7, variable-frame combat 48 and V04 region 93 passed. Cooked HUD/input
@@ -169,7 +170,7 @@ private life and physical availability versions are checked separately. The
 19-rule runner now requires the named TradePrivacy allowlist test; regenerating
 warm UBT discovery was necessary to include that newly added source file.
 
-The current B56 warm archive is
+The prior B56 warm archive is
 `Artifacts/20261022-164716-551-PackageWin64/Archive/Windows`, superseding the
 historical archives above. All 145 Source/Config and seven payload hashes match;
 `Artifacts/B56PackageProvenance.json` binds the final audit to the B56 commit.
@@ -190,19 +191,60 @@ inventory passes 59 / 25 / 25 at 149.36 / 149.10 ms; HUD/input passes
 passed. Read the B56 report for packet settings, fixture boundaries and actual
 engineering limits.
 
+## B57 verification checkpoint
+
+B57 adds the common panel/focus scope, native focus outline, nonpausing trade
+review sublayer, compact Skills/Items rows, contained inspector, fixed Character
+title/Close, larger-text reflow and plain feedback. It preserves exact displayed
+trade consent and authority ownership. Read [B57](v05/B57_IMPLEMENTATION.md) for
+the 250-logical-unit 1080p larger-text deviation, native key/geometry checks,
+full source/payload provenance, measured delays and remaining OS/human boundaries.
+
+Current archive: `Artifacts/20261022-220153-009-PackageWin64/Archive/Windows`.
+`Artifacts/B57PackageProvenance.json` verifies all 145 Source/Config files and
+seven runtime payloads against the B57 commit. Warm Editor/Game builds, 28-package
+asset validation and cook/stage/archive pass. Four retained validation warnings
+are documented; the cook has zero errors/warnings.
+
+Fourteen cooked scene captures at 720p/1080p/1440p, with 125% text where specified,
+pass geometry/focus checks and have been visually inspected. Three cooked trade
+endings pass 43/17/12 (death), 42/17/12 (terminal) and 41/17/11 (disconnect), with
+nine actual rendered trade images inspected. A final terminal capture run
+`20261022-224004-247-Packaged-Trade-100-10-Terminal-UI1920x1080` passes 42/17/12
+at measured 99.49/99.40 ms RTT (one-way base 35, jitter 10); its three images
+were also inspected. Other calibration results are retained without claiming
+that their nominal 100 ms target was achieved. Vendor 23/19/14, inventory 59/25/25,
+HUD/input 26/37/37 and all 19 named-rule tests pass. Packet targets are not measured
+RTTs; use the report's actual echo values and calibration evidence. Headless peer
+viewports are not UI evidence. Native text-character injection is not a substitute
+for physical keyboard/on-screen review.
+
+Minor remaining presentation observations: a long dead-overlay clock cue can wrap
+past its background at 720p/125% while its text stays readable; final trade review
+shows exact outgoing/incoming terms but no separate projected-wallet arithmetic
+line. Preserve these observations in B58's state/user sweep. The full Windows
+100%/150% on-screen matrix remains open; the queried desktop scale was 100%.
+
 ## Next work
 
-B57 unifies presentation, focus and accessibility over the implemented commands.
-Read the declared 720p/1080p at Windows 100/150% and 1440p at 100% matrix, with
-normal and 125% text. Native offscreen images are engineering evidence, never OS
-scaling or human acceptance. Reflow the lower HUD, keep own commands/status and
-critical warnings visible, and refine the existing shared bag/vendor/trade shell.
-Both trade directions and summary must remain visible; six-row trays and the own
-bag can scroll, while Confirm/Cancel must stay reachable. Add the full Review
-confirmation sublayer and deliberate Tab/Shift-Tab/Enter/Space focus traversal. Replace implementation
-jargon in ordinary player copy without weakening version checks.
-Preserve the distinction between Ready and final Confirm and require fresh physical
-input after a panel closes. Numeric fields must consume digits without world actions.
+B58 verifies the full current v0.5 journey. Read the B57 report first, retain valid
+unrelated results, and finish feasible cold build/cook/package, affected ten
+restarts, current normal 25-minute journey and UI/authority regressions. Complete
+the 720p/1080p Windows 100%/150% and 1440p 100% on-screen matrix with actual viewport,
+UMG scale and text scale recorded independently. Present offscreen renders are
+engineering evidence at a queried 100% primary monitor; they do not certify 150%
+window placement/pointer calibration or U55 human tasks. Obtain actual uncoached
+observations when participants are available; do not invent them or describe
+fixtures as earned progression. Do not resume the user-deferred 90-minute stress.
+
+B57's ULDPanel handles Tab/Shift-Tab, focus paint and Enter/Space. Its scope is the
+major panel or current confirmation sublayer; editable fields retain typing.
+Inventory owns the shared bag/vendor/trade shell. The final trade-review modal
+keeps both directions and summary above fixed Confirm/Back/Cancel. Own HP/life,
+clock and incoming warnings stay on the higher HUD layer. 720p uses a 180-screen-px
+band via measured UMG scale; 1080p uses 220 logical units, or 250 at 125% text.
+Character pins title/Close and scrolls content. Retain these fixes and actual
+geometry/traversal checks when broadening the state/resolution matrix.
 
 B56's TradeDirector owns the session truth. Widgets cache the displayed trade
 revision/digest for consent, and partner item handles are session-scoped random

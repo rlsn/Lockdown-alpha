@@ -5,7 +5,8 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v05](docs/v05/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 navigation through B56 peer exchange implemented.**
+**Current checkpoint: B51 navigation through B57 presentation implemented.**
+On-screen OS scaling and human acceptance remain open for B58.
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
 baseline and defaults. [B51](docs/v05/B51_IMPLEMENTATION.md) proves native
 multiplayer navigation; [B52](docs/v05/B52_IMPLEMENTATION.md) adds saved remapping,
@@ -15,8 +16,7 @@ and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24
 bag, finite ward instances and four real quick-item references. [B55](docs/v05/B55_IMPLEMENTATION.md)
 adds the quoted Guild bookshop beside your own bag. [B56](docs/v05/B56_IMPLEMENTATION.md)
 adds voluntary item/gold exchange with reservations, Ready and separate Confirm. The ordinary
-frontend launches this v0.5 checkpoint. B57–B58 final presentation and complete release
-verification remain ahead.
+frontend launches this v0.5 checkpoint. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. B58 release verification remains ahead.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived

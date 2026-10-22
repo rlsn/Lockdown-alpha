@@ -212,7 +212,7 @@ void ALDPlayerController::CombatAction(uint8 Action)
     if(bControlsSuppressed||!OwnerState.bActive||!Body){return;}
     FVector Direction=Body->GetActorForwardVector();
     if(Action==2){const FVector Move=Body->GetLastMovementInputVector();if(!Move.IsNearlyZero()){Direction=Move.GetSafeNormal2D();}}
-    IntentFeedback=TEXT("Action requested; awaiting authority.");
+    IntentFeedback=TEXT("Action pending…");
     ServerCombatAction(OwnerState.Match,OwnerState.Life,++NextRequest,Action,Direction);
 }
 void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Action,FVector_NetQuantizeNormal Direction)

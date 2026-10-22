@@ -52,13 +52,13 @@ void ALDVendorDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,u
     if(const auto* R=C.Receipts.Find(Id)){if(!R->bFinal){return;}PC->ClientVendorResult(*O,Id,Quote(PC,C),R->Item,R->Reason);return;}
     if(Id<=C.LastRequest){PC->ClientIntentResult(Id,TEXT("Expired purchase request"));return;}
     int32 Pending=0;for(const auto& R:Requests){Pending+=R.PC==PC;}if(!TakeToken(C)||Pending>=2){PC->ClientIntentResult(Id,TEXT("Vendor busy; try again"));return;}
-    C.LastRequest=Id;C.Receipts.Add(Id,{FGuid(),TEXT("Purchase pending authority"),false});Requests.Add({PC,Match,Life,Id,Session,Revision,Price,InventoryRevision,Skill});
+    C.LastRequest=Id;C.Receipts.Add(Id,{FGuid(),TEXT("Purchase pending"),false});Requests.Add({PC,Match,Life,Id,Session,Revision,Price,InventoryRevision,Skill});
 }
 void ALDVendorDirector::Request(const FRequest& R)
 {
     auto* PC=R.PC.Get();if(!PC){return;}auto& C=Clients.FindChecked(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Text){Reply(PC,R.Id,{FGuid(),Text});};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Session!=C.Session||!ValidSession(PC,C)){Reject(TEXT("Vendor closed; nothing spent"));return;}
-    if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Quote changed; review the refreshed price and click Buy again"));return;}
+    if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Catalog updated. Review the price and click Buy again"));return;}
     if(!LDDevelopmentTransaction::Sold(R.Skill)){Reject(TEXT("This book is not sold here"));return;}
     if(R.InventoryRevision!=O->Inventory.Revision){Reject(TEXT("Bag changed; review and click Buy again"));return;}
     if(!M->Inventory->HasSpace(PC,ELDItemKind::Book)){Reject(TEXT("Inventory full; nothing spent"));return;}

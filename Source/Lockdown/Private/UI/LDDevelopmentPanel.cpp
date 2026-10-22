@@ -1,4 +1,5 @@
 #include "UI/LDDevelopmentPanel.h"
+#include "UI/LDControlSettings.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -19,7 +20,7 @@
 #include "Engine/World.h"
 #include "Navigation/LDNavigationComponent.h"
 
-ULDDevelopmentButton::ULDDevelopmentButton(){InitIsFocusable(false);}
+ULDDevelopmentButton::ULDDevelopmentButton(){InitIsFocusable(true);}
 void ULDDevelopmentButton::Route(){if(Panel){Panel->Choose(Operation,Index);}}
 TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
 {
@@ -31,15 +32,15 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         auto Button=[&](const FString& Caption,uint8 Operation,uint8 Index)
         {
             auto* W=WidgetTree->ConstructWidget<ULDDevelopmentButton>();W->Panel=this;W->Operation=Operation;W->Index=Index;
-            auto Style=W->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.055f,.14f,.15f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.11f,.28f,.27f));Style.NormalPadding=FMargin(8,6);Style.PressedPadding=FMargin(8,6);W->SetStyle(Style);
+            auto Style=W->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.055f,.14f,.15f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.11f,.28f,.27f));Style.NormalPadding=FMargin(8,12);Style.PressedPadding=FMargin(8,12);W->SetStyle(Style);
             auto* Label=Text(Caption,14);Label->SetAutoWrapText(false);W->SetContent(Label);W->OnClicked.AddDynamic(W,&ULDDevelopmentButton::Route);return W;
         };
         auto AddRow=[](UVerticalBox* To,UWidget* W,float RowPadding=4.f){To->AddChildToVerticalBox(W)->SetPadding(FMargin(0,RowPadding));};
         auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Canvas;
-        auto* Border=WidgetTree->ConstructWidget<UBorder>();Border->SetBrushColor(FLinearColor(.018f,.035f,.04f,.995f));Border->SetPadding(FMargin(22));
-        auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.5));Frame->SetAlignment(FVector2D(.5));Frame->SetSize(FVector2D(1160,970));
-        auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
-        Heading=Text(TEXT("CHARACTER · PREPARATION & BOOKS"),24);AddRow(Main,Heading);
+        auto* Border=LDWidgets::Panel(WidgetTree,nullptr);
+        auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.04f,.14f,.96f,.96f));Frame->SetOffsets(FMargin(0));
+        auto* Shell=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Shell);auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();auto* Page=WidgetTree->ConstructWidget<UScrollBox>();Page->SetAlwaysShowScrollbar(true);Page->AddChild(Main);Shell->AddChildToVerticalBox(Page)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        Heading=Text(TEXT("CHARACTER · PREPARATION & BOOKS"),24);Shell->InsertChildAt(0,Heading);
         AddRow(Main,Text(TEXT("Preview freely. Preparation: Apply, then hold the context key for 2 seconds at Guild or a town station. Six quiet seconds required."),15));
         auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Main,Columns);
         auto* Left=WidgetTree->ConstructWidget<UVerticalBox>();auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -79,12 +80,12 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open carried bag"),13,0));}
         for(uint8 I=0;I<4;++I)
         {auto* Label=Text(TEXT("Empty"),15);BookLabels.Add(Label);AddRow(Right,Label,2);auto* W=Button(TEXT("Use book"),9,I);ReadButtons.Add(W);AddRow(Right,W,3);}
-        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open Guild bookshop · current quote"),14,0));}
+        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open Guild bookshop · current prices"),14,0));}
         else{AddRow(Right,Text(TEXT("GUILD BOOKSHOP · 40 gold each"),17));const ELDSkill Stock[]={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};for(auto Skill:Stock){auto* W=Button(FString::Printf(TEXT("Buy %s book · 40 gold"),LDDevelopment::SkillName(Skill)),10,uint8(Skill));BuyButtons.Add(W);AddRow(Right,W,3);}}
         AddRow(Right,Text(TEXT("Read anywhere: stand still and hold the context key for 3 seconds after 6 quiet seconds. Reading consumes one book, teaches R1, and does not equip or upgrade. Known books are retained. Unread books drop on death."),14));
         if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Arm Seal fabrication"),12,0));}
         Feedback=Text(TEXT(""),15);AddRow(Right,Feedback);
-        AddRow(Right,Button(TEXT("Close / Back"),11,0));
+        AddRow(Shell,Button(TEXT("Close / Back"),11,0));
     }
     return Super::RebuildWidget();
 }
@@ -126,6 +127,7 @@ void ULDDevelopmentPanel::StopConfirm(){if(bHolding){CastChecked<ALDPlayerContro
 void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);if(!bOpen||!Heading){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;
+    const float Scale=PC->Controls?PC->Controls->TextScale:1;if(Scale!=AppliedTextScale){TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;}
     const auto* GS=GetWorld()->GetGameState<ALDGameState>();if((!O.bActive&&!PC->Navigation->Enabled())||!GS||!GS->bMatchStarted||GS->EndReason){Close();return;}
     if(Draft.ExpectedRevision!=O.Build.Revision){StopConfirm();ResetDraft();}
     const double Now=GS->GetServerWorldTimeSeconds();FLDCharacterBuild Candidate;FString Error;const bool Valid=LDDevelopment::Prepare(O.Build,Draft,Candidate,Error);
@@ -133,7 +135,7 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::ClassName(O.Build.ClassId),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
     for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s %d → %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I])));}
-    for(int32 I=0;I<4;++I){const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%sSlot %d [%s]: %s"),SelectedSlot==I?TEXT("› "):TEXT(""),I+1,*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
+    for(int32 I=0;I<4;++I){const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
     for(uint8 I=1;I<LDDevelopment::SkillCount;++I)
     {
         const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
@@ -146,7 +148,7 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     }
     for(uint8 I=0;I<2;++I)
     {const uint8 Choice=O.Build.ClassId*2+1+I;const TCHAR* Effects[]={TEXT(""),TEXT("Heave +2"),TEXT("Patch +3"),TEXT("theft roll +1"),TEXT("Survey +2"),TEXT("Spark +3"),TEXT("Parley +2")};CastChecked<UTextBlock>(SubclassButtons[I]->GetContent())->SetText(FText::FromString(FString::Printf(TEXT("%s%s\n%s"),Draft.Subclass==Choice?TEXT("✓ "):TEXT(""),LDDevelopment::SubclassName(Choice),Effects[Choice])));SubclassButtons[I]->SetIsEnabled(O.Build.Level>=4&&(!O.Build.Subclass||O.Build.Subclass==Choice));}
-    PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("GHOST PREVIEW · HP %.0f → %.0f (current %.2f; no heal)\nWalk %.1f → %.1f · Sprint %.1f → %.1f · Basic %.2f → %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.Hp,180*LDDevelopment::SpeedFactor(O.Build),180*LDDevelopment::SpeedFactor(Ghost),300*LDDevelopment::SpeedFactor(O.Build),300*LDDevelopment::SpeedFactor(Ghost),LDDevelopment::BasicDamage(O.Build),LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After commit: %d attribute points / %d SP"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));
+    PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP %.0f → %.0f (current %.2f; no heal)\nWalk %.1f → %.1f · Sprint %.1f → %.1f · Basic %.2f → %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.Hp,180*LDDevelopment::SpeedFactor(O.Build),180*LDDevelopment::SpeedFactor(Ghost),300*LDDevelopment::SpeedFactor(O.Build),300*LDDevelopment::SpeedFactor(Ghost),LDDevelopment::BasicDamage(O.Build),LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After applying: %d attribute points / %d SP"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));
     ApplyButton->SetIsEnabled(Valid&&!bHolding);
     if(PC->Navigation->Enabled())
     {

@@ -1,11 +1,11 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "UI/LDWidgets.h"
 #include "LDControlsPanel.generated.h"
 class UTextBlock;
 class UVerticalBox;
 UCLASS()
-class LOCKDOWN_API ULDControlsPanel : public UUserWidget
+class LOCKDOWN_API ULDControlsPanel : public ULDPanel
 {
     GENERATED_BODY()
 public:
@@ -21,6 +21,7 @@ protected:
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
     bool bOpen=false;
+    float AppliedTextScale=1;
     FName Capture;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> Preferences;

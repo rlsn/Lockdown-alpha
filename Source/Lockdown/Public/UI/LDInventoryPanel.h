@@ -1,11 +1,11 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "UI/LDWidgets.h"
 #include "Inventory/LDInventoryTypes.h"
 #include "LDInventoryPanel.generated.h"
 class UTextBlock;class UEditableTextBox;class UUniformGridPanel;class ULDCommandButton;class UBorder;
 UCLASS()
-class LOCKDOWN_API ULDInventoryPanel:public UUserWidget
+class LOCKDOWN_API ULDInventoryPanel:public ULDPanel
 {
     GENERATED_BODY()
 public:
@@ -20,11 +20,13 @@ public:
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual UWidget* FocusScope() const override;
     virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E) override;
     virtual FReply NativeOnMouseMove(const FGeometry& G,const FPointerEvent& E) override;
     virtual FReply NativeOnMouseButtonUp(const FGeometry& G,const FPointerEvent& E) override;
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent& E) override;
     virtual void NativeOnFocusLost(const FFocusEvent& E) override;
+    virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual FReply NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E) override;
 private:
     friend class ALDInventoryProbe;
@@ -32,6 +34,20 @@ private:
     friend class ALDTradeProbe;
     void BuildTradePanel(class UVerticalBox* All);
     void RefreshTradePanel();
+    void BuildTradeReview(class UCanvasPanel* Canvas);
+    void ShowTradeReview();
+    bool bTradeReview=false;
+    uint32 ReviewedRevision=0;
+    FGuid ReviewedSession;
+    uint8 ReviewedStage=0;
+    UPROPERTY() TObjectPtr<UTextBlock> ReviewHint;
+    UPROPERTY() TObjectPtr<UBorder> TradeReview;
+    UPROPERTY() TObjectPtr<UTextBlock> ReviewSummary;
+    UPROPERTY() TObjectPtr<UTextBlock> ReviewOwn;
+    UPROPERTY() TObjectPtr<UTextBlock> ReviewOther;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewConfirm;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewCancel;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewBack;
     void SubmitTrade(uint8 Command,FGuid Item=FGuid(),int64 Amount=0);
     TArray<FGuid> DisplayedTradeItems;
     UPROPERTY() TObjectPtr<class UVerticalBox> TradePanel;

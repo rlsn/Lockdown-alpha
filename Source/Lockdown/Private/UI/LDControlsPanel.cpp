@@ -21,8 +21,8 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
     if(!Rows)
     {
         auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Canvas;
-        auto* Border=WidgetTree->ConstructWidget<UBorder>();Border->SetBrushColor(FLinearColor(.018f,.035f,.05f,.99f));Border->SetPadding(FMargin(20));
-        auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.12f,.06f,.88f,.94f));Frame->SetOffsets(FMargin(0));
+        auto* Border=LDWidgets::Panel(WidgetTree,nullptr);
+        auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.06f,.16f,.94f,.96f));Frame->SetOffsets(FMargin(0));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("CONTROLS & SETTINGS"),24));
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("The match continues. Inspecting changes no ownership. Arm an attack or skill, then confirm over the world. Release a held action to cancel.")))->SetPadding(FMargin(0,8));
@@ -42,7 +42,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
 void ULDControlsPanel::Populate()
 {
     if(!Rows){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());Rows->ClearChildren();
-    const int32 Size=FMath::RoundToInt(16*PC->Controls->TextScale);
+    const float Scale=PC->Controls->TextScale;const int32 Size=FMath::RoundToInt(16*Scale);TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;
     Preferences->SetText(FText::FromString(FString::Printf(TEXT("Edge pan: %s   Start in follow: %s   Text: %.0f%%   Saved zoom: %.0f cm"),PC->Controls->bEdgePan?TEXT("ON"):TEXT("OFF"),PC->Controls->bStartFollowing?TEXT("ON"):TEXT("OFF"),100*PC->Controls->TextScale,PC->Controls->Zoom)));
     for(const auto& B:ULDControlSettings::Defaults())
     {

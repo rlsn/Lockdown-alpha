@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "UI/LDWidgets.h"
 #include "Components/Button.h"
 #include "Development/LDCharacterBuild.h"
 #include "LDDevelopmentPanel.generated.h"
@@ -8,7 +8,7 @@ class ULDDevelopmentPanel;
 class UTextBlock;
 
 UCLASS()
-class LOCKDOWN_API ULDDevelopmentButton : public UButton
+class LOCKDOWN_API ULDDevelopmentButton : public ULDCommandButton
 {
     GENERATED_BODY()
 public:
@@ -19,7 +19,7 @@ public:
 };
 
 UCLASS()
-class LOCKDOWN_API ULDDevelopmentPanel : public UUserWidget
+class LOCKDOWN_API ULDDevelopmentPanel : public ULDPanel
 {
     GENERATED_BODY()
 public:
@@ -39,6 +39,7 @@ protected:
     virtual void NativeOnFocusLost(const FFocusEvent& Event) override;
 private:
     bool bOpen=false,bHolding=false;
+    float AppliedTextScale=1;
     uint8 SelectedSlot=0,Armed=0;
     FGuid SelectedBook;
     FLDBuildPlan Draft;

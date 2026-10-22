@@ -71,3 +71,22 @@ function Resolve-LDPackage {
     if (-not $paks.Count) { throw "No cooked pak found in $root" }
     [pscustomobject]@{ Root=$root; Binary=$binary }
 }
+
+# Read-only display metadata. An offscreen render does not exercise OS-scale window placement.
+function Get-LDDisplayEnvironment {
+    if(-not ('LDDisplayMetadata' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class LDDisplayMetadata {
+    [StructLayout(LayoutKind.Sequential)] public struct Point {public int X; public int Y;}
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromPoint(Point point, uint flags);
+    [DllImport("shcore.dll")] public static extern int GetScaleFactorForMonitor(IntPtr monitor, out int scale);
+}
+"@
+    }
+    $monitor=[LDDisplayMetadata]::MonitorFromPoint([LDDisplayMetadata+Point]::new(),1)
+    [int]$scale=0
+    $result=[LDDisplayMetadata]::GetScaleFactorForMonitor($monitor,[ref]$scale)
+    @{primaryMonitorScalePercent=$(if($result -eq 0){$scale}else{$null});scaleQueryResult=$result;method='Read-only primary monitor scale query; offscreen UI does not certify OS scaling/window placement'}
+}

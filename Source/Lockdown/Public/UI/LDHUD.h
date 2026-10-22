@@ -18,6 +18,7 @@ public:
     FString InspectionText() const;
     FString CommandText() const;
     FString TerminalText() const;
+    bool CommandLayoutFits() const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -25,6 +26,8 @@ protected:
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
+    UPROPERTY() TObjectPtr<class USizeBox> MapFrame;
+    UPROPERTY() TObjectPtr<class USizeBox> InspectFrame;
     UPROPERTY() TObjectPtr<UBorder> Band;
     UPROPERTY() TObjectPtr<UBorder> Task;
     UPROPERTY() TObjectPtr<UBorder> Objective;

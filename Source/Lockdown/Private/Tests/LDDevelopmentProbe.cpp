@@ -26,6 +26,13 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "UI/LDDevelopmentPanel.h"
 #include "UI/LDControlSettings.h"
+#include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
+#include "Components/TextBlock.h"
+#include "Components/ScrollBox.h"
+#include "Components/EditableTextBox.h"
+#include "Blueprint/WidgetTree.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDWorldChecks.h"
@@ -44,6 +51,22 @@ void ALDDevelopmentProbe::Check(bool Pass,const FString& Description)
 {
     Checks.Add((Pass?TEXT("PASS "):TEXT("FAIL "))+Description); if (!Pass) { ++Failures; }
     UE_LOG(LogTemp,Display,TEXT("LD_V04_PROBE %s"),*Checks.Last());
+}
+namespace
+{
+    void AuditPanelFocus(ULDPanel* Panel,TFunction<void(bool,const FString&)> Check)
+    {
+        if(!Panel||!Panel->IsVisible()){return;}auto Targets=Panel->PanelFocusTargets();
+        Check(Targets.Num()>=2,TEXT("Major panel exposes reachable enabled controls in one focus scope"));if(Targets.Num()<2){return;}
+        bool Sized=true;for(auto* W:Targets){const auto Cached=W->GetCachedGeometry().GetLocalSize();const auto Size=Cached.IsNearlyZero()?W->GetDesiredSize():Cached;Sized&=Size.X>=39.5&&Size.Y>=39.5;}Check(Sized,TEXT("Visible panel targets measure 40 by 40 logical units; unpainted scrolled controls request at least that size"));
+        auto Focused=[](const UWidget* W){return W->HasKeyboardFocus()||W->HasFocusedDescendants();};
+        auto Key=[](FKey K,bool Shift=false){FSlateApplication::Get().ProcessKeyDownEvent(FKeyEvent(K,FModifierKeysState(Shift,false,false,false,false,false,false,false,false),0,false,0,0));FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(K,FModifierKeysState(),0,false,0,0));};
+        Targets[0]->SetKeyboardFocus();bool Ordered=Focused(Targets[0]);
+        for(int32 I=1;I<=Targets.Num();++I){Key(EKeys::Tab);Ordered&=Focused(Targets[I%Targets.Num()]);}
+        Check(Ordered,TEXT("Native Slate Tab visits each visible enabled control and wraps within this panel"));
+        Key(EKeys::Tab,true);Check(Focused(Targets.Last()),TEXT("Native Slate Shift-Tab reverses and wraps in the same focus scope"));
+        Targets[0]->SetKeyboardFocus();TArray<UWidget*> All;Panel->WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* Scroll=Cast<UScrollBox>(W)){Scroll->ScrollWidgetIntoView(nullptr,false);Scroll->ScrollToStart();}}
+    }
 }
 void ALDDevelopmentProbe::Tick(float Delta)
 {
@@ -84,6 +107,7 @@ void ALDDevelopmentProbe::Tick(float Delta)
         else if(Phase==1&&FPlatformTime::Seconds()-PhaseAt>.6&&!HUDScene.IsEmpty()&&HUDScene!=TEXT("HUD")&&HUDScene!=TEXT("Controls")&&HUDScene!=TEXT("Lobby"))
         {
             auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
+            if(HUDScene==TEXT("Development")){PC->ToggleDevelopmentPanel();}
             if(HUDScene==TEXT("Selected")){if(const auto* R=PC->LocalView()){const FLDObservedEntity* Best=nullptr;double Distance=DBL_MAX;for(const auto& V:R->LastView().Entities){const double Next=FVector::DistSquared2D(V.Position,PC->GetPawn()->GetActorLocation());if(V.Kind==ELDObservedKind::Body&&Next<Distance){Best=&V;Distance=Next;}}if(Best){PC->Inspect(Best->Id);}}}
             if(HUDScene.StartsWith(TEXT("Inventory"))||HUDScene==TEXT("QuickItems")||HUDScene==TEXT("ItemReading")||HUDScene==TEXT("DropConfirm"))
             {
@@ -114,7 +138,11 @@ void ALDDevelopmentProbe::Tick(float Delta)
             if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Choose(1,3);PC->DevelopmentUI->Choose(1,2);PC->DevelopmentUI->Choose(2,1);PC->DevelopmentUI->Choose(3,2);PC->DevelopmentUI->Choose(6,1);PC->DevelopmentUI->Choose(7,1);}
             Phase=3;PhaseAt=FPlatformTime::Seconds();
         }
-        else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { if(HUDScene.StartsWith(TEXT("Vendor"))){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->VendorQuote.Offers.Num()==4&&PC->VendorIsOpen()&&PC->InventoryUI->VendorText().Contains(HUDScene==TEXT("VendorFailed")?TEXT("Quote changed"):TEXT("Already learned")),TEXT("Native vendor capture uses an active authority quote and actual own state"));}if(HUDScene==TEXT("ItemReading")){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->OwnerState.DevelopmentKind==2&&PC->HeldInputLabel()==PC->BindingLabel(TEXT("Item2")),TEXT("Rendered reading uses the real active channel and initiating item mapping"));}FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
+        else if ((Phase==1||Phase==3)&&FPlatformTime::Seconds()-PhaseAt>1) { if(HUDScene.StartsWith(TEXT("Vendor"))){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->VendorQuote.Offers.Num()==4&&PC->VendorIsOpen()&&PC->InventoryUI->VendorText().Contains(HUDScene==TEXT("VendorFailed")?TEXT("Catalog updated"):TEXT("Already learned")),TEXT("Native vendor capture uses an active authority quote and actual own state"));}if(HUDScene==TEXT("ItemReading")){const auto* PC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());Check(PC->OwnerState.DevelopmentKind==2&&PC->HeldInputLabel()==PC->BindingLabel(TEXT("Item2")),TEXT("Rendered reading uses the real active channel and initiating item mapping"));}auto* FocusPC=CastChecked<ALDPlayerController>(GetWorld()->GetFirstPlayerController());ULDPanel* Panel=FocusPC->InventoryUI&&FocusPC->InventoryUI->IsOpen()?static_cast<ULDPanel*>(FocusPC->InventoryUI.Get()):FocusPC->ControlsUI&&FocusPC->ControlsUI->IsOpen()?static_cast<ULDPanel*>(FocusPC->ControlsUI.Get()):FocusPC->DevelopmentUI&&FocusPC->DevelopmentUI->IsOpen()?static_cast<ULDPanel*>(FocusPC->DevelopmentUI.Get()):nullptr;
+            if(!Panel&&HUDScene!=TEXT("Lobby")&&HUDScene!=TEXT("Result")&&FocusPC->HUDUI){Check(FocusPC->HUDUI->CommandLayoutFits(),TEXT("Native own commands and hold progress fit the HUD band without overlapping action targets"));}
+            AuditPanelFocus(Panel,[this](bool Pass,const FString& Label){Check(Pass,Label);});
+            if(HUDScene==TEXT("Inventory")){auto* UI=FocusPC->InventoryUI.Get();auto Targets=UI->PanelFocusTargets();auto* Field=Targets.IsEmpty()?nullptr:Cast<UEditableTextBox>(Targets[0]);if(Field){Field->SetKeyboardFocus();FSlateApplication::Get().ProcessKeyDownEvent(FKeyEvent(FocusPC->BindingKey(TEXT("Inventory")),FModifierKeysState(),0,false,0,0));Check(UI->IsOpen(),TEXT("Inventory binding typed in a focused search field does not close the major panel"));FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(FocusPC->BindingKey(TEXT("Inventory")),FModifierKeysState(),0,false,0,0));FSlateApplication::Get().ProcessKeyDownEvent(FKeyEvent(EKeys::Escape,FModifierKeysState(),0,false,0,0));FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(EKeys::Escape,FModifierKeysState(),0,false,0,0));Check(!UI->IsOpen()&&FocusPC->ArmedSlot()==-1,TEXT("Native Escape closes the focused editable panel without arming world commands"));FocusPC->ToggleInventoryPanel();UI->MovePanelFocus();}}
+            FScreenshotRequest::RequestScreenshot(Image,true,false); Phase=2; PhaseAt=FPlatformTime::Seconds(); }
         else if (Phase==2&&FPlatformTime::Seconds()-PhaseAt>2) { Check(IFileManager::Get().FileSize(*Image)>0,ControlsVisual?TEXT("Native controls/settings panel captured; UI engineering fixture, no human evidence"):RegionVisual?TEXT("Regional HUD/map captured (location fixture)"):WorldVisual?TEXT("Native Charter/task HUD screenshot written (location fixture)"):PrepVisual?TEXT("Native preparation and book panel screenshot written (progression fixture)"):SkillVisual?TEXT("Native mixed hotbar UI screenshot written (loadout fixture)"):TEXT("Native lobby UI screenshot written")); Finish(); }
     }
     else if (Role==TEXT("Reset"))
