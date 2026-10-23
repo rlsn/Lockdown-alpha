@@ -20,9 +20,9 @@ Layer input predictably: focused text, modal, item drag, targeted action, minima
 
 A large carried inventory and a smaller quick-item bar are distinct. An owned item has one identity and location. Quick slots are references to carried usable items, not extra storage, bonus skill slots or copies. Consuming, trading, dropping or losing ownership clears the reference. Sorting changes presentation, not identity.
 
-Books teach knowledge through the real read action. Wards remain finite items. A Seal remains a unique objective item, not a reusable skill. Learned actives still require the common skill slots. Attribute points, learned skills, gold and objective receipts are not ordinary movable inventory icons.
+Books teach knowledge through the real read action. Wards remain finite items. Historical Seals are unique objective items; the v0.6 economic profile uses a bound registered Charter rather than a transferable Seal. Learned actives still require the common skill slots. Attribute points, learned skills, gold and objective receipts are not ordinary movable inventory icons.
 
-Exact capacities, stacking, encumbrance, equipment and death persistence are release rules. v0.5 proposes one item per 24 carried slots and four quick references, without equipment bonuses or stacks. Existing drop and knowledge-retention rules continue.
+Exact capacities, stacking, encumbrance, equipment and death persistence are release rules. v0.6 adds a weight limit, physical bank and public Charter controls to the v0.5 UI. v0.5 proposes one item per 24 carried slots and four quick references, without equipment bonuses or stacks. Existing drop and knowledge-retention rules continue.
 
 ## Trade and access
 
@@ -37,3 +37,5 @@ No trade grants XP or avoids item death rules. Full markets, auction houses, neg
 Use consistent names, verbs, icon states, progress, rejection reasons and mapping-driven key labels. Do not depend on colour or sound alone. Test 1280×720, 1920×1080, high display scaling and a larger text setting. Reflow panels instead of shrinking essential controls beyond legibility.
 
 Verify cold native builds and independent clients, payload privacy and atomic transactions, then observe uncoached people navigate, inspect, prepare, read, place, trade and claim. A static mockup demonstrates hierarchy; it does not establish a functioning game interface.
+
+Revision 6 permits visibly official noncontender traders, distinct from neutral peer-trade bodies. Their market stock and buy/sell quotes are deliberate public service information; hidden personal wallets and ordinary inventories remain private. Add structured market, recipe and procurement panels using the existing nonpausing UI, without branching dialogue or a new chat system.

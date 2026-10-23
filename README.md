@@ -1,11 +1,16 @@
-# Project Lockdown — v0.5 engineering handoff
+# Project Lockdown — v0.6 economy implementation
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); active release scope and
-gates live in [docs/v05](docs/v05/README.md). Start with the
+gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B51 navigation through B57 presentation implemented.**
+**Current checkpoint: v0.6 B60 baseline audited; B61 foundations next.**
+[B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the
+complete economy spec against the actual B57 runtime. The normal frontend
+remains the delivered v0.5 checkpoint while the economy is implemented.
+
+**Retained v0.5: B51 navigation through B57 presentation implemented.**
 [B58 handoff](docs/v05/B58_HANDOFF.md) records retained evidence and open acceptance.
 The user requested minimal verification before moving to the next version.
 The [B50 baseline review](docs/v05/B50_BASELINE_REVIEW.md) records the audited
@@ -17,7 +22,7 @@ and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24
 bag, finite ward instances and four real quick-item references. [B55](docs/v05/B55_IMPLEMENTATION.md)
 adds the quoted Guild bookshop beside your own bag. [B56](docs/v05/B56_IMPLEMENTATION.md)
 adds voluntary item/gold exchange with reservations, Ready and separate Confirm. The ordinary
-frontend launches this v0.5 checkpoint. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; next-version scope is pending.
+frontend launches this v0.5 checkpoint. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; v0.6 scope is now recorded in the B60 review.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived

@@ -6,7 +6,7 @@ Grand Heart acquisition remains the only ordinary winning outcome. Kill totals, 
 
 Conquest can dismantle defensive infrastructure and physically claim the Heart. Work and crafting, extraordinary wealth, unique keys, exploration and influence are candidate alternatives. They should use shared resources and ownership rules rather than isolated minigames.
 
-A source assistant proposed that not every alternative require a final physical capture in the capital, to avoid invalidating peaceful strategies through camping. Preserve that as a proposed long-term refinement, not an explicit user-approved detailed rule. Route-specific acquisition can still commit one authoritative Heart winner.
+A source assistant proposed that not every alternative require a final physical capture in the capital, to avoid invalidating peaceful strategies through camping. The newer economy source explicitly selects economic unlocking followed by a contest. Keep remote automatic economic wins outside the current direction; any later alternative needs a new decision. Route-specific acquisition can still commit one authoritative Heart winner.
 
 ## Towers and claims
 
@@ -25,3 +25,5 @@ Calculate a return deadline at death and show it; do not silently extend a displ
 Full matches target 60–90 minutes, with earlier wins possible. A cap without acquisition must produce a declared no-acquisition result rather than a hidden score winner. Early prototypes can use shorter profiles without claiming full pacing validation.
 
 All routes ultimately commit one unique winning receipt. If simultaneous route completions are possible, define and test a deterministic resolution policy before shipping that combination.
+
+The complete economic discussion proposes a registered Sovereign Charter purchased with wealth and distinct endorsements, then activated to open a publicly announced temporary contest where anyone can win. v0.6 adopts a compressed warning/opening and registration recovery after death. This explicitly replaces the earlier private carried-Seal access for its normal profile. The purchaser controls timing, not the outcome. The longer-source sample of 60 seconds warning/120 seconds opening is tuning, not a fixed final value.

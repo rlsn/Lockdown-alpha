@@ -6,8 +6,9 @@
 | --- | --- | --- |
 | v0.1 and v0.2 | Historical web foundations and objective experiment | Inspect the actual implementation; user reports v0.2 complete |
 | v0.3 | Unreal migration and representative scaffold | Pinned build, native UI, geometry, authority, fog and packaged clients |
-| v0.4, B47 checkpoint closed | Class-based character building in a small connected region | Recorded engineering delivery; human acceptance and deferred validation remain open |
-| v0.5 | Consistent UI and control | Click navigation, authorized selection, coherent HUD, inventory, quick items and real bounded trade |
+| v0.4, reported delivered | Class-based character building in a small connected region | Inspect actual delivery and existing evidence |
+| v0.5, reported delivered | Consistent UI and control | Click navigation, authorized selection, coherent HUD, inventory, quick items and real bounded trade |
+| v0.6 | Bounded regional economy | Real production, market stock/cash, public institutional demand, source/sink accounting and contested economic unlock |
 | Integration and parity | Port remaining world, economy and AI systems | End-to-end routes under normal rules, accurate ledger |
 | Long-session prototype | Develop the full 60–90 minute experience | Human pacing, recovery, acquisition and long-run technical evidence |
 | Squad experiment | Add eventual four-player groups | Team sight, ownership, progression and acquisition rules |
@@ -17,7 +18,7 @@ No stage promises a date or staffing level. Hero-roster expansion is removed. Th
 
 ## Development discipline
 
-Audit the actual delivered v0.4 repository and evidence before v0.5. The implementation and B47 evidence are present here; the [v0.5 baseline review](../v05/B50_BASELINE_REVIEW.md) records the current inspection and fresh packaged smoke check. Preserve working gameplay, document deviations and repair only prerequisites required by the sprint. Do not rebuild a working platform or upgrade the engine unnecessarily.
+Audit the actual delivered v0.5 repository and evidence before v0.6. The user reports delivery; this planning workspace has not independently run that game. Preserve working gameplay, document deviations and repair only prerequisites required by the sprint. Do not rebuild a working platform or upgrade the engine unnecessarily.
 
 Use versioned character, skill, interaction and world data. Keep legality and outcomes authoritative. A class is a starting preset, not a large new hero framework. Adopt ability infrastructure deliberately and avoid two parallel damage or cooldown systems.
 
@@ -40,3 +41,5 @@ Use versioned character, skill, interaction and world data. Keep legality and ou
 The owner decides creative scope and stage advancement. Developers own implementation and honest evidence; testers supply observations. Record decisions, tuning versions, source revision, actual checks and unresolved limitations. Mark Passed, Failed or Not run accurately.
 
 Human validation is separate from engineering acceptance. If people are unavailable, complete feasible engineering work and mark strategy and enjoyment pending. Do not invent participants or substitute AI completion for human evidence.
+
+Economic review measures real choices, margin after fees/travel/risk, shortages, stock monopolies, gold creation/destruction and access recovery. A profitable transport route is not inherently an exploit; unbounded minting, free refreshes and closed same-market profit loops are. Do not infer long-run macro balance from a 25-minute prototype.

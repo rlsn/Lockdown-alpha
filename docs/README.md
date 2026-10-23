@@ -1,15 +1,12 @@
 # Project Lockdown documentation
 
-Current baseline: **v0.5 engineering handoff; next-version scope pending**. Master plan
-revision 5 and the v0.5 specification now define the next implementation. The
-baseline review records actual v0.4 source, adopted defaults and a fresh packaged
-93-check regional smoke pass. B51 native multiplayer navigation now passes
-independent Editor and cooked client gates. B52 now supplies saved mappings,
-explicit targeting and fresh-input panel routing. B53 adds the masked inspector,
-anchored own commands, filtered minimap controls and life/result panels. B54 adds
-the 24-slot bag, finite charge instances and four identity-based item shortcuts.
-B55 adds the quoted Guild catalog and uses the same own bag. B56 adds consensual atomic item/gold exchange. B57 adds shared presentation, panel focus and a final trade-review layer. [B58 handoff](v05/B58_HANDOFF.md) records retained results and deferred acceptance under the user's minimal-verification direction. The approved current engine is 5.8.4 CL 58902052;
-historical B47–B52 evidence retains its original 5.8.3 provenance.
+Current work: **v0.6 B60 actual baseline audit complete; B61 foundations next**.
+Master revision 6 and the complete v0.6 spec define the economy sprint. The
+[B60 review](v06/B60_BASELINE_REVIEW.md) records source inspection, adopted values,
+accounting differences and retained evidence. The normal frontend remains B57.
+[B58 handoff](v05/B58_HANDOFF.md) preserves v0.5 evidence and deferred acceptance.
+The user requested brief targeted verification; no long runs are automatic.
+Keep UE 5.8.4 CL 58902052; historical reports retain their original provenance.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
 Full stress validation is deferred by user direction; human acceptance, a fresh
@@ -18,8 +15,11 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | Start here | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Current handoff and next implementation steps |
-| [Master plan, revision 5](master/README.md) | Long-term design authority and current user decisions |
-| [v0.5 specification](v05/README.md) | Active scope, B50–B58 and U01–U56 |
+| [Master plan, revision 6](master/README.md) | Long-term design authority and current user decisions |
+| [v0.6 specification](v06/README.md) | Active economy scope, B60–B67 and E01–E48 |
+| [B60 baseline review](v06/B60_BASELINE_REVIEW.md) | Actual B57 baseline, adopted values and integration requirements |
+| [v0.6 working ledger](v06/FeatureLedger.csv) | Current implementation and evidence status |
+| [v0.5 specification](v05/README.md) | Retained baseline, B50–B58 and U01–U56 |
 | [v0.5 baseline review](v05/B50_BASELINE_REVIEW.md) | Actual source, fresh smoke, adopted defaults and integration risks |
 | [B51 navigation](v05/B51_IMPLEMENTATION.md) | Native/cooked client proof, operating steps and implementation limits |
 | [B52 input](v05/B52_IMPLEMENTATION.md) | Mapping, targeting, held-input evidence and checkpoint limitations |
@@ -48,7 +48,7 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 
 Read the master plan for intent and the active release spec for implementation
 scope. Historical specifications, fixture demonstrations and old test results do
-not override the active v0.5 changes, its retained v0.4 gameplay or establish acceptance.
+not override the active v0.6 changes or establish acceptance.
 
 Implementation reports belong under their release directory. Keep templates
 blank and separate from working ledgers and actual results. Local build, package,

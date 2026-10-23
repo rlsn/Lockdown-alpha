@@ -11,7 +11,7 @@ Player and NPC characters should be representable through the same attributes, l
 | Wild threats | Defend bounded dangerous encounters | No |
 | Service characters | Contracts, training, trade and information | Normally no |
 
-Server categories must not become public role labels. No class or model should expose a complete build or identify a human. Observed action can provide legitimate evidence.
+Ordinary resident/contender categories must not become public role labels. Official service NPCs are an explicit exception: visibly identified institutional traders/workers may be known noncontenders. No class or model should expose a complete build or identify a human. Observed action can provide legitimate evidence.
 
 ## Civilian life
 
@@ -34,3 +34,5 @@ Professions can develop through transport, trade, medicine, investigation or cra
 Theft transfers an existing resource. Duplicate transactions and repetitive low-risk actions cannot print progress. Services, surveillance, geography, allies and later guards provide relative protection. City labels alone do not prove safety.
 
 Full faction, recruitment, law and reputation systems remain future work. Early releases should distinguish implemented economic transactions from presentation routines.
+
+Official traders and institutional consumers can have public service identities, catalogs and routines without pretending to be rival players. Do not extend that exception to private class/build disclosure or marking ordinary humans. v0.6 proposes noncombat, nonlootable official service bodies and structured commerce/work panels instead of branching dialogue or new player text chat. That protection is scoped to the marked services, not entire cities.

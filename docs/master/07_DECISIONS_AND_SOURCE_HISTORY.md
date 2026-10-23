@@ -6,7 +6,7 @@ Game Concept Brainstorm, conversation 6ad2e425-d87c-83ee-81fe-3cc094cb41f4, esta
 
 The revision 4 source is Compare Attribute Systems, conversation 6ad49766-693c-83e8-82aa-9a0fc9b775f7. All four available turns were inspected on 19 October 2026, including readable assistant material. One assistant response reaches the reader's 20000-character cap; do not treat it as an unbounded complete transcript.
 
-Earlier source assistant responses were unreadable references; that limit does not apply to all of this new conversation. The local sources folder remains read-only. No delivered game repository, engine build or game result was independently inspected during the original plan authoring.
+Earlier source assistant responses were unreadable references; that limit does not apply to all of this new conversation. The local sources folder remains read-only. No delivered game repository, engine build or game result was independently inspected in this documentation task.
 
 ## Current direction
 
@@ -45,4 +45,10 @@ Selecting a unit does not override the retained hidden-build rules. An authorize
 
 Revision 5 adopts the interface direction and labels detailed sprint choices as proposals: 24 inventory slots, four quick-item references, Q/W/E/R skills, 1–4 items, F interaction, bounded consent-based peer trade and no automatic attack on a neutral unit's right-click. These are not quoted user decisions. No extra spells, economy simulation or full-session pacing is implied.
 
-The package was subsequently integrated into the actual Unreal repository on 21 October 2026 at the user's request to prepare for v0.5. The [B50 baseline review](../v05/B50_BASELINE_REVIEW.md) records inspected source, fresh packaged smoke evidence and adopted defaults, including retained 250 ms hold expiry and charge loss on death. The earlier source-inspection limits describe plan authoring; they do not mean this repository lacks the delivered game. Revision 4 remains in Git at the B47 handoff `b8f003a`.
+## Revision 6 complete economy source
+
+Design Economic System (6adaaa8b-04ac-83e8-8f1b-12b7f9e80f5b) supplied three user turns through the connector on 23 October 2026. Its assistant placeholders initially prevented reading the full exchange. The user subsequently supplied all three assistant messages as text attachments and explicitly permitted adaptation to the prototype; all have now been read. The source limitation is resolved for this discussion.
+
+The complete replies develop hybrid shops/finite stock-and-cash markets, light chains, physical protected banks, unified weighted cargo, aggregate production/consumption, limited contracts and distinct endorsements, marked official services, imperfect distant information, and a registered Charter opening a public acquisition window. Equipment/escorts, 12–15 goods and 5–8 recipes are proposals; the user did not make every illustrative number a permanent requirement.
+
+v0.6 selects a smaller five-good/two-recipe prototype while retaining simple bank, hard weight cap, distinct endorsements, one shortage event and bounded supply/demand. It selects registered Charter recovery and a public 30/60 second opening; anyone can win. The old identical-certificate/private-Seal preliminary plan is superseded. Actual v0.5 delivery is user-reported; no build was independently inspected in this workspace.
