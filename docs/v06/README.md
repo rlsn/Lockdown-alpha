@@ -30,3 +30,12 @@ The complete assistant discussion is now included as source; see [source provena
 The normal profile remains 1–4 roster-locked humans, 25 minutes, level five, 24 carried instances, four shared skill slots and four item references if those defaults were delivered. Actual adopted v0.5 deviations must be recorded rather than overwritten silently. Full-game sessions still target 60–90 minutes.
 
 Success is real seed capital → supply/transport → two-step production → distinct commercial endorsements → registered Charter → public contested claim, with conservation evidence and no normal diagnostic grants. A player must also be able to choose regional trading or gathering instead of only repeating one recipe. Simple banking, cargo weight and a compressed public Charter opening are included. No dialogue, full auction, credit, equipment tree, engine migration or autonomous rival economy is required.
+
+## Repository implementation record
+
+The imported planning statements above describe specification authoring. Actual
+B57 source and retained evidence are audited in [B60](B60_BASELINE_REVIEW.md).
+[B61 cargo foundation](B61_CARGO_FOUNDATION.md) compiles goods/weight integration;
+banking, institutions and full receipt reconciliation remain next. The bounded
+rule launch timed out in editor startup; no new gameplay acceptance is claimed.
+Use the [working ledger](FeatureLedger.csv), keeping templates blank.

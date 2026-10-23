@@ -5,10 +5,14 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B60 baseline audited; B61 foundations next.**
+**Current checkpoint: v0.6 B60 audited; B61 cargo foundation implemented.**
+[B61 cargo report](docs/v06/B61_CARGO_FOUNDATION.md) records five physical goods,
+final weight checks and carry/drop integration. Editor compilation passed; the
+brief rule launch timed out during plugin startup. Banking/accounting and the
+remaining economy are still pending.
 [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the
 complete economy spec against the actual B57 runtime. The normal frontend
-remains the delivered v0.5 checkpoint while the economy is implemented.
+retains the v0.5 loop plus cargo foundations while the economy is implemented.
 
 **Retained v0.5: B51 navigation through B57 presentation implemented.**
 [B58 handoff](docs/v05/B58_HANDOFF.md) records retained evidence and open acceptance.

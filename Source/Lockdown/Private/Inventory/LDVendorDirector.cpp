@@ -61,7 +61,7 @@ void ALDVendorDirector::Request(const FRequest& R)
     if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Catalog updated. Review the price and click Buy again"));return;}
     if(!LDDevelopmentTransaction::Sold(R.Skill)){Reject(TEXT("This book is not sold here"));return;}
     if(R.InventoryRevision!=O->Inventory.Revision){Reject(TEXT("Bag changed; review and click Buy again"));return;}
-    if(!M->Inventory->HasSpace(PC,ELDItemKind::Book)){Reject(TEXT("Inventory full; nothing spent"));return;}
+    FString CapacityReason;if(!M->Inventory->HasSpace(PC,ELDItemKind::Book,&CapacityReason)){Reply(PC,R.Id,{FGuid(),CapacityReason+TEXT("; nothing spent")});return;}
     if(O->Gold<BookPrice){Reject(TEXT("Not enough gold; nothing spent"));return;}
     ALDBook* Book=bFailCreation?nullptr:GetWorld()->SpawnActor<ALDBook>();bFailCreation=false;if(!Book){Reject(TEXT("Book creation failed; nothing spent"));return;}Book->Skill=R.Skill;Book->State=0;
     if(!M->Inventory->Adopt(PC,Book)){Book->Destroy();Reject(TEXT("Inventory full; nothing spent"));return;}O->Gold-=BookPrice;M->SyncOwner(PC);Reply(PC,R.Id,{Book->Identity,FString::Printf(TEXT("Purchased one %s book for %d gold"),LDDevelopment::SkillName(R.Skill),BookPrice)});

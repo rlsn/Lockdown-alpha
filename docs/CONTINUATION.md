@@ -1,10 +1,11 @@
-# Continuation — v0.6 B60 audited; B61 foundations next
+# Continuation — v0.6 B61 cargo foundation; accounting next
 
 23 October 2026. The user directed: “avoid lengthy tests, keep verifications
 minimal” and said the project is moving onto the next version. Follow that
 constraint. The v0.5 engineering handoff is recorded; full release acceptance
 remains partial. The user supplied master revision 6 and the complete v0.6
 economy specifications on 23 October. B60 source/document audit is complete.
+B61 goods/cargo foundation is implemented and compiles; B61 remains partial.
 
 ## Read first
 
@@ -12,17 +13,31 @@ economy specifications on 23 October. B60 source/document audit is complete.
    [build plan](v06/07_BUILD_PLAN.md), [banking/cargo](v06/11_BANKING_AND_CARGO.md),
    [working ledger](v06/FeatureLedger.csv) and `v06/data/economy_rules.json`.
 2. [B58 handoff](v05/B58_HANDOFF.md): delivered behavior, retained evidence and open gates.
-2. [B57 report](v05/B57_IMPLEMENTATION.md) and [archived continuation](v05/CONTINUATION_B57.md): detailed implementation and evidence.
-3. [Working ledger](v05/FeatureLedger.csv), [master plan](master/README.md) and [v0.5 specification](v05/README.md).
-4. Complete v0.6 documents override earlier private-Seal/no-weight/no-bank clauses.
+3. [B57 report](v05/B57_IMPLEMENTATION.md) and [archived continuation](v05/CONTINUATION_B57.md): detailed implementation and evidence.
+4. [Working ledger](v05/FeatureLedger.csv), [master plan](master/README.md) and [v0.5 specification](v05/README.md).
+5. Complete v0.6 documents override earlier private-Seal/no-weight/no-bank clauses.
 
 ## Current implementation direction
 
-Start B61 goods/lineage, final cargo capacity, persistent bank/institutions/nodes
-and receipts/reconciliation. Then B62 supply/markets, B63 production/skill uses,
+Read [B61 cargo foundation](v06/B61_CARGO_FOUNDATION.md). Five goods append to
+physical kinds; native final slot/weight checks now cover adoption/pickup,
+vendor, both trade sides and preparation start/commit. Cargo drops on life end,
+uses generic filtered observation/pickup and cannot quick-use. Bag has weight and
+Cargo filter. Item origin/parent fields are server-only storage, not populated
+accounting. Native constants currently match proposed weights; runtime catalog
+integration remains open. No material supply or normal economy is enabled.
+
+Editor build passed: `Artifacts/20261023-102029-314-BuildEditor` (23 actions,
+304.62s, compile cap4). Bounded rule launch
+`Artifacts/20261023-131741-354-Automation` hit 60s during editor-plugin startup,
+before tests: no new rule passes, including CargoCapacity, are claimed. Do not
+repeat/extend testing automatically. Source/Config was frozen during both runs.
+
+Next finish B61 persistent bank/institutions/nodes, budget identities, versioned
+runtime catalog and receipts/reconciliation. Then B62 supply/markets, B63 production/skill uses,
 B64 scheduled routines/shortage, B65 distinct endorsements and registered
 public-window Charter, B66 native service UI, B67 scoped acceptance. The normal
-frontend stays the B57 checkpoint until the new economy is integrated.
+frontend retains the v0.5 loop plus the cargo foundation until the new economy is integrated.
 No new normal physical Seal, courier-credit fabrication or private bypass in
 the final v0.6 profile. Everyone may claim during its 30-warning/60-open window.
 Record unimplemented work honestly; B60 is an audit, not gameplay acceptance.
@@ -33,10 +48,11 @@ the existing Sentinel policy (774 with all nine purses), never silently omit it.
 Logout removes the contender and disallows late rejoin: retain admission policy
 and account explicitly for retired wallets; do not invent reconnect scope.
 
-## Starting baseline
+## Retained pre-economy baseline
 
-Runtime commit: `bd86a85e440e5699bbe91627d696296cd6518e9b` (B57).
-B58 changes only the handoff/index/ledger documentation. The warm Development
+Pre-economy runtime commit: `bd86a85e440e5699bbe91627d696296cd6518e9b` (B57).
+B58 changed only handoff/index/ledger documentation. This old package does not
+contain B61 cargo changes. The retained warm Development
 package remains `Artifacts/20261022-220153-009-PackageWin64/Archive/Windows`.
 A brief package audit on 23 October confirmed all 145 Source/Config files and
 seven runtime payload hashes. Existing JSON reports remain green: 19 rule tests;

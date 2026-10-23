@@ -30,16 +30,16 @@ void ALDInventoryDirector::Initialize(ALDPlayerController* PC)
 }
 ALDItem* ALDInventoryDirector::Owned(AActor* Container,FGuid Id) const
 {for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->State==1&&It->Holder==Container&&It->Identity==Id){return *It;}}return nullptr;}
-bool ALDInventoryDirector::HasSpace(ALDPlayerController* PC,ELDItemKind Kind) const
+bool ALDInventoryDirector::HasSpace(ALDPlayerController* PC,ELDItemKind Kind,FString* Reason) const
 {
-    const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);return O&&O->Inventory.Items.Num()<O->Inventory.Capacity&&(Kind!=ELDItemKind::Seal||!O->SealId.IsValid());
+    const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);return O&&LDInventory::Fits(O->Inventory,O->Build,{}, {Kind},Reason);
 }
 void ALDInventoryDirector::Changed(ALDPlayerController* PC)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);if(!O){return;}
     // Legacy own fields are compatibility projections, never a second V05 store.
     O->Books.Reset();O->WardCharges=0;O->SealId.Invalidate();
-    for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else{O->SealId=Item.Id;}}
+    for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else if(Item.Kind==ELDItemKind::Seal){O->SealId=Item.Id;}}
     check(LDInventory::Valid(O->Inventory));M->SyncOwner(PC);
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item)
@@ -58,7 +58,20 @@ void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Con
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
 {
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}const auto Items=O->Inventory.Items;
-    for(const auto& Entry:Items){if(auto* Item=Owned(PC,Entry.Id)){Item->bReserved=false;if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true);}}}
+    for(const auto& Entry:Items)
+    {
+        if(auto* Item=Owned(PC,Entry.Id))
+        {
+            Item->bReserved=false;
+            if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true);}
+            else if(LDInventory::Commodity(Item->Kind))
+            {
+                FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);
+                if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}
+                Item->SetActorLocation(Surface+FVector(0,0,12));Remove(PC,Item,false);
+            }
+        }
+    }
 }
 bool ALDInventoryDirector::Eligible(ALDPlayerController* PC,double Now) const
 {
@@ -129,7 +142,8 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     }
     if(R.Command==LDInventory::Pickup)
     {
-        if(Item->State!=0||Item->Holder.IsValid()||!HasSpace(PC,Item->Kind)||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())>80||!LDGround::ClearSegment(GetWorld(),PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())||!M->Vision->Ray({PC->GetPawn()->GetActorLocation(),80,M->Vision->LevelAt(PC->GetPawn()->GetActorLocation())},Item->GetActorLocation())){Reject(TEXT("Inventory full or item no longer in reach"));return;}
+        FString CapacityReason;if(!HasSpace(PC,Item->Kind,&CapacityReason)){Reply(PC,R.Id,CapacityReason);return;}
+        if(Item->State!=0||Item->Holder.IsValid()||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())>80||!LDGround::ClearSegment(GetWorld(),PC->GetPawn()->GetActorLocation(),Item->GetActorLocation())||!M->Vision->Ray({PC->GetPawn()->GetActorLocation(),80,M->Vision->LevelAt(PC->GetPawn()->GetActorLocation())},Item->GetActorLocation())){Reject(TEXT("Item no longer in reach"));return;}
         if(M->Trade){M->Trade->CancelFor(PC);}if(!Adopt(PC,Item)){Reject(TEXT("Inventory full"));return;}Reply(PC,R.Id,TEXT("Item picked up"));return;
     }
     if(R.Command==LDInventory::Buy)

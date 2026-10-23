@@ -150,7 +150,7 @@ bool ULDNavigationComponent::ResolveOrder(FVector& Goal,float& Acceptance,TArray
         const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;
         if(!E){return false;}
         Target=E->Position;
-        Acceptance=(E->Kind==ELDObservedKind::Book||E->Kind==ELDObservedKind::Seal)?64:100;
+        Acceptance=LDVision::PickupKind(E->Kind)?64:100;
     }
     else if(PendingSite)
     {

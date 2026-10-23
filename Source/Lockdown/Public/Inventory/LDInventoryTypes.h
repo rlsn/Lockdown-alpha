@@ -4,7 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "LDInventoryTypes.generated.h"
 
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal };
+// Append only: existing item and offered-item wire values remain stable.
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -43,11 +44,22 @@ public:
     uint8 State=0,Slot=0; // dropped, carried, consumed
     uint32 Revision=1;
     bool bReserved=false;
+    // Server-only causal metadata. Never serialize parents or origin to a peer.
+    FGuid OriginReceipt;
+    TArray<FGuid> ParentIds;
 };
 namespace LDInventory
 {
     enum ECommand:uint8 { Move=1,Sort,Bind,Unbind,Read,Place,Drop,Pickup,Buy };
     LOCKDOWN_API FString Name(ELDItemKind Kind,ELDSkill Skill);
+    LOCKDOWN_API bool QuickUsable(ELDItemKind Kind);
+    LOCKDOWN_API bool Commodity(ELDItemKind Kind);
+    LOCKDOWN_API int32 UnitWeight(ELDItemKind Kind); // -1 rejects unknown definitions
+    LOCKDOWN_API int32 Weight(const FLDInventory& Inventory);
+    LOCKDOWN_API int32 WeightCapacity(const FLDCharacterBuild& Build);
+    // Project the complete final bag. Reservations/quick references add no mass.
+    LOCKDOWN_API bool Fits(const FLDInventory& Inventory,const FLDCharacterBuild& Build,
+        const TArray<FGuid>& Outgoing,const TArray<ELDItemKind>& Incoming,FString* Reason=nullptr);
     LOCKDOWN_API bool BindQuick(FLDInventory& Inventory,FGuid Id,uint8 Slot,FString& Reason);
     LOCKDOWN_API void Remove(FLDInventory& Inventory,FGuid Id);
     LOCKDOWN_API bool Valid(const FLDInventory& Inventory);

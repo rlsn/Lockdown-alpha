@@ -35,7 +35,9 @@ bool ALDTradeDirector::Project(const FSession& S,int32 N) const
     int32 Seals=O->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Seal;}).Num();
     for(const auto& I:A.Items){auto* P=M->Inventory->Owned(A.PC.Get(),I.Id);const auto* Own=O->Inventory.Find(I.Id);if(!P||!Own||!P->bReserved||!Own->bReserved||P->Revision!=I.Revision||Own->Revision!=I.Revision||P->Kind!=I.Kind||P->Skill!=I.Skill){return false;}Seals-=I.Kind==ELDItemKind::Seal;}
     for(const auto& I:B.Items){Seals+=I.Kind==ELDItemKind::Seal;}
-    return O->Inventory.Items.Num()-A.Items.Num()+B.Items.Num()<=O->Inventory.Capacity&&Seals<=1;
+    TArray<FGuid> Outgoing;TArray<ELDItemKind> Incoming;
+    for(const auto& I:A.Items){Outgoing.Add(I.Id);}for(const auto& I:B.Items){Incoming.Add(I.Kind);}
+    return Seals<=1&&LDInventory::Fits(O->Inventory,O->Build,Outgoing,Incoming);
 }
 void ALDTradeDirector::Reserve(FSide& Side,const FOfferItem& Offered,bool Value)
 {

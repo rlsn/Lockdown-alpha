@@ -1,9 +1,11 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60 actual baseline audit complete; B61 foundations next**.
+Current work: **v0.6 B60 complete; B61 cargo foundation compiled, accounting next**.
 Master revision 6 and the complete v0.6 spec define the economy sprint. The
 [B60 review](v06/B60_BASELINE_REVIEW.md) records source inspection, adopted values,
-accounting differences and retained evidence. The normal frontend remains B57.
+accounting differences and retained evidence. The normal frontend retains the v0.5 loop plus cargo foundations.
+[B61 cargo report](v06/B61_CARGO_FOUNDATION.md) records implementation, passed
+Editor build and the 60-second rule-launch startup timeout (no test pass).
 [B58 handoff](v05/B58_HANDOFF.md) preserves v0.5 evidence and deferred acceptance.
 The user requested brief targeted verification; no long runs are automatic.
 Keep UE 5.8.4 CL 58902052; historical reports retain their original provenance.
@@ -18,6 +20,7 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | [Master plan, revision 6](master/README.md) | Long-term design authority and current user decisions |
 | [v0.6 specification](v06/README.md) | Active economy scope, B60–B67 and E01–E48 |
 | [B60 baseline review](v06/B60_BASELINE_REVIEW.md) | Actual B57 baseline, adopted values and integration requirements |
+| [B61 cargo foundation](v06/B61_CARGO_FOUNDATION.md) | Physical goods, final capacity, compiled integration and limits |
 | [v0.6 working ledger](v06/FeatureLedger.csv) | Current implementation and evidence status |
 | [v0.5 specification](v05/README.md) | Retained baseline, B50–B58 and U01–U56 |
 | [v0.5 baseline review](v05/B50_BASELINE_REVIEW.md) | Actual source, fresh smoke, adopted defaults and integration risks |

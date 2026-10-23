@@ -110,7 +110,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     if(R.Id<=S.CancelledThrough||!Eligible(PC,Now,true)||!Stationary(PC)){Reject(TEXT("Hold E while stationary after six seconds without damage dealt or taken."));return;}
     ALDBook* Book=nullptr;
     if(R.Kind==LDDevelopmentTransaction::Prepare)
-    {FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
+    {FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
     {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::SkillCount||LDDevelopment::Rank(O->Build,Book->Skill)>0){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
     if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
@@ -133,7 +133,7 @@ void ALDDevelopmentDirector::Sample(double Now)
         if(Now+1.e-6<S.EndsAt){continue;}
         if(S.Kind==LDDevelopmentTransaction::Prepare)
         {
-            FLDCharacterBuild Candidate;FString Why;if(!LDDevelopment::Prepare(O->Build,S.Plan,Candidate,Why)){Cancel(PC,Why);continue;}
+            FLDCharacterBuild Candidate;FString Why;if(!LDDevelopment::Prepare(O->Build,S.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){Cancel(PC,Why);continue;}
             O->Build=MoveTemp(Candidate);
         }
         else

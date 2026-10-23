@@ -16,6 +16,7 @@ FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,dou
         if(E->Kind==ELDObservedKind::Charter){Detail+=FString::Printf(TEXT("%s · Public threshold 12"),LDDevelopment::SkillName(LDCharter::Skill(E->Presentation)));}
         if(E->Kind==ELDObservedKind::WatchControl){Detail+=TEXT("Analyze · Public threshold 14");}
         if(E->Kind==ELDObservedKind::WardCharge){return TEXT("DROPPED WARD CHARGE\nFinite physical item · Pick up within 80 cm");}
+        if(E->Kind==ELDObservedKind::Cargo){return TEXT("DROPPED COMMERCIAL CARGO\nPhysical item · Pick up within 80 cm · Counts toward slots and weight");}
         if(E->ExposedUntil>Now){Detail+=TEXT(" · Exposed");}
         return FString(Label)+TEXT("\n")+Detail;
     }

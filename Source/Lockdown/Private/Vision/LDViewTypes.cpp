@@ -21,7 +21,7 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         uint8 Kind = uint8(Entity.Kind);
         Ar << Entity.Facing << Entity.Speed << Entity.Presentation << Kind << Entity.ActionCue << Entity.ExposedUntil;
         if (Ar.IsLoading()) { Entity.Kind = ELDObservedKind(Kind); }
-        bSuccess &= bPosition && Kind <= uint8(ELDObservedKind::WardCharge) && Entity.Presentation < 4
+        bSuccess &= bPosition && Kind <= uint8(ELDObservedKind::Cargo) && Entity.Presentation < 4
             && LDVision::InWorld(Entity.Position,Grid) && FMath::IsFinite(Entity.ExposedUntil);
     }
     bSuccess &= !Ar.IsError() && FMath::IsFinite(AuthoritySeconds) && BodySources <= 1 && WardSources <= 2 && PublicSources <= 4;

@@ -12,7 +12,7 @@ public:
     ALDInventoryDirector(){bReplicates=false;}
     UPROPERTY(Config) int32 Capacity=24;
     void Initialize(ALDPlayerController* PC);
-    bool HasSpace(ALDPlayerController* PC,ELDItemKind Kind) const;
+    bool HasSpace(ALDPlayerController* PC,ELDItemKind Kind,FString* Reason=nullptr) const;
     ALDItem* Owned(AActor* Container,FGuid Id) const;
     bool Adopt(ALDPlayerController* PC,ALDItem* Item);
     void Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume);

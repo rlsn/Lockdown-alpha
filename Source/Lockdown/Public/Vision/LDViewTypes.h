@@ -6,7 +6,7 @@
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo };
 USTRUCT()
 struct FLDVisionGrid
 {
@@ -115,6 +115,8 @@ struct FLDOwnerState
 
 namespace LDVision
 {
+    inline bool PickupKind(ELDObservedKind Kind)
+    {return Kind==ELDObservedKind::Book||Kind==ELDObservedKind::Seal||Kind==ELDObservedKind::WardCharge||Kind==ELDObservedKind::Cargo;}
     constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
     // Four full 24-slot death drops, bodies, wards and short-lived corpse identities.
     // Still bounded by the existing uint8 count; the observed field mask is unchanged.

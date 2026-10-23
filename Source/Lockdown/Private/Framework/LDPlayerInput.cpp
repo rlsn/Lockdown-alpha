@@ -242,7 +242,7 @@ void ALDPlayerController::ContextV05()
     if(bDraftArmed){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}
     if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
     if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
-    FLDObservedEntity Item;if(ReadInspected(Item)&&(Item.Kind==ELDObservedKind::Book||Item.Kind==ELDObservedKind::Seal||Item.Kind==ELDObservedKind::WardCharge)){BeginPickup(Item.Id);return;}
+    FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){BeginPickup(Item.Id);return;}
     FLDObservedEntity E;
     if(ReadInspected(E)&&(E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl))
     {
