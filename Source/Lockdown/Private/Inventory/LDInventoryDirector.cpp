@@ -47,6 +47,7 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
 {
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
     auto* Economy=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get();
+    if(Economy&&Item->Kind==ELDItemKind::Seal){return false;}
     if(Economy&&!Economy->Accounting().Item(Item->Identity)&&CreationCause.IsNone())
     {if(Economy->AllowDiagnosticItems()){CreationCause=TEXT("DiagnosticItemCreation");}else{return false;}}
     uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
@@ -112,6 +113,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     auto* PC=R.PC.Get();if(!PC){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Why){Reply(PC,R.Id,Why);};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||!M->IsPlaying()||O->Inventory.Revision!=R.InventoryRevision){Reject(TEXT("Inventory changed; review again"));return;}
     ALDItem* Item=R.Command==LDInventory::Pickup?Cast<ALDItem>(M->Vision->ResolveObserved(PC,R.Item)):Owned(PC,R.Item);
+    if(M->Economy&&Item&&Item->Kind==ELDItemKind::Seal){Reject(TEXT("Legacy Seals are disabled in the economy profile"));return;}
     if(R.Command!=LDInventory::Sort&&R.Command!=LDInventory::Buy&&(!Item||Item->Revision!=R.ItemRevision||Item->bReserved)){Reject(TEXT("Item changed or unavailable"));return;}
     if(R.Command<=LDInventory::Unbind)
     {

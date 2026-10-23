@@ -255,8 +255,8 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         FString Public=TEXT("Heart unavailable");
         if(GS)
         {
-            const TCHAR* Route=GS->ClaimRoute==LDObjective::Assault?TEXT("Assault"):(GS->ClaimRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Mixed"));
-            Public=GS->EndReason?(GS->EndReason==2?TEXT("No claim · Demo finished"):FString::Printf(TEXT("Heart claimed · Route %s · Demo finished"),GS->WinningRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Assault")))
+            const TCHAR* Route=GS->bUIControlProfile?TEXT("Public Charter"):GS->ClaimRoute==LDObjective::Assault?TEXT("Assault"):(GS->ClaimRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Mixed"));
+            Public=GS->EndReason?(GS->EndReason==2?TEXT("No claim · Demo finished"):FString::Printf(TEXT("Heart claimed · Route %s · Demo finished"),GS->bUIControlProfile?TEXT("Public Charter"):GS->WinningRoute==LDObjective::SealRoute?TEXT("Seal"):TEXT("Assault")))
                 :(GS->bClaimActive?FString::Printf(TEXT("Heart %s · %s · %.1f / 10s"),GS->bContested?TEXT("CONTESTED"):TEXT("claim active"),Route,GS->ClaimProgress)
                     :FString::Printf(TEXT("Heart %s · Defences W:%d E:%d S:%d C:%d · Time left %.0fs"),GS->DefensiveFlags?TEXT("locked"):TEXT("ordinary access open"),!!(GS->DefensiveFlags&1),!!(GS->DefensiveFlags&2),!!(GS->DefensiveFlags&4),!!(GS->DefensiveFlags&8),FMath::Max(0.,GS->MatchDeadline-Now)));
             if(GS->SealNoticeSerial){Public+=FString::Printf(TEXT(" · Seal %s: %s"),GS->SealNoticeKind==1?TEXT("fixture seed"):GS->SealNoticeKind==2?TEXT("dropped"):TEXT("district"),*LDRegion::DistrictName(GetWorld(),GS->SealNoticeDistrict));}
@@ -297,6 +297,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             FString Craft=O.bDevelopmentProfile&&LDRegion::Definition(GetWorld())?FString::Printf(TEXT("\nGuild: E courier · Shift+E Seal (4s; 4 credits, 100 gold, Witness) · %s"),O.FabricationReceipt.IsValid()?TEXT("craft used"):O.SealId.IsValid()?TEXT("slot full"):LDObjective::CanFabricate(O.Witness.IsValid(),O.Commissions,O.Gold,false,false)?TEXT("ready"):TEXT("requirements missing")):TEXT("");
             if(PC->Navigation->Enabled()){Progress.ReplaceInline(TEXT("Release E"),*(TEXT("Release ")+PC->BindingLabel(TEXT("Context"))));Craft.ReplaceInline(TEXT("Shift+E Seal"),TEXT("Character panel: Arm Seal"));Craft.ReplaceInline(TEXT("E courier"),*(PC->BindingLabel(TEXT("Context"))+TEXT(" courier")));}
             ObjectiveInfo->SetText(FText::FromString(FString::Printf(TEXT("%s\nCourier: %s · Credits %d · Witness: %s%s\n%s"),*PC->ContextPrompt(),*Stage,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("none"),*Craft,*Progress)));
+            if(GS&&GS->bUIControlProfile){ObjectiveInfo->SetText(FText::FromString(PC->ContextPrompt()+TEXT("\n")+Stage+TEXT("\n")+Progress));}
             if(O.ActiveSkill!=ELDSkill::None&&(O.ActionCue&15)==7)
             {Progress=FString::Printf(TEXT("Holding %s · %.1fs remaining · Release, move or damage cancels."),LDDevelopment::SkillName(O.ActiveSkill),FMath::Max(0.,O.SkillEndsAt-Now));ObjectiveInfo->SetText(FText::FromString(Progress));}
             ChannelProgress->SetPercent((O.ActionCue&15)==7?float(FMath::Clamp(1.-(O.SkillEndsAt-Now)/LDDevelopment::ChannelSeconds(O.ActiveSkill),0.,1.)):(O.ChannelKind?FMath::Clamp(O.ChannelProgress/float(LDObjective::Duration(O.ChannelKind)),0.f,1.f):0));

@@ -1,6 +1,11 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60–B64 complete; B65 procurement/Charter next**.
+Current work: **v0.6 B60–B65 complete at their engineering gates; B66 next**.
+[B65 implementation](v06/B65_IMPLEMENTATION.md) records bounded procurement,
+retained endorsements, registered Charter checkout and the public contest.
+The final build passed 23 rules, 56 authority and 39 earned-route checks, plus
+independent replay. The controlled route leaves15 gold/300 XP and a rival without
+Charter wins; rendered/native-input/remote/release acceptance remains open.
 [B64 implementation](v06/B64_IMPLEMENTATION.md) records 23 rules, 36 authority
 checks, eight actual native routes across both maps and independent ledger replay.
 Scheduled funded production/demand, protected routines and the shared shortage
@@ -15,7 +20,7 @@ Paid materials and actual finite regional commerce now have native controls.
 [B61 implementation](v06/B61_IMPLEMENTATION.md) records passed Editor builds,
 22 native rule tests, 30 standalone authority checks and independent receipt
 replay. Physical banking and live item/accounting foundations are integrated.
-The normal frontend retains v0.5 progression until the later public Charter work.
+The normal frontend now uses the registered Charter public-window route.
 See [current handoff](CONTINUATION.md) and the [working ledger](v06/FeatureLedger.csv).
 The user requested brief verification; no long runs are automatic. Keep the
 UE5.8.4 CL58902052 pin and preserve historical report provenance.

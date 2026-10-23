@@ -46,6 +46,10 @@ reserved crafting, native previews and equipped Survey/Analyze coupons; 23 rules
 producer/consumer opportunities, protected routines, a one-time shortage order
 and verified public/covered routes on both saved maps. The gate passed 23 rules,
 36 authority checks, eight native routes and independent replay.
-B65 procurement/endorsements/registered Charter is next.
+[B65 procurement/Charter](B65_IMPLEMENTATION.md) now connects both bounded orders,
+retained endorsements, explicit split checkout and public warning/open/close.
+The final build passed 23 rules, 56 authority checks, 39 controlled earned-route
+checks and independent replay. Actual earned resources leave15 gold/300 XP and
+a rival without a Charter wins. B66 native presentation integration is next.
 Native input/layout/network, normal progression and release acceptance remain open. Earlier partial reports are historical checkpoints, not current
 completion status. Use the [working ledger](FeatureLedger.csv).

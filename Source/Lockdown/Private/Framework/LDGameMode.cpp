@@ -47,6 +47,7 @@
 #include "Economy/LDProductionDirector.h"
 #include "Tests/LDProductionProbe.h"
 #include "Tests/LDInstitutionProbe.h"
+#include "Tests/LDCharterProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -60,7 +61,7 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
     DOREPLIFETIME(ALDGameState,bDevelopmentProfile);DOREPLIFETIME(ALDGameState,bMatchStarted);
     DOREPLIFETIME(ALDGameState,bUIControlProfile);
     DOREPLIFETIME(ALDGameState,EconomyNextTick);DOREPLIFETIME(ALDGameState,ShortagePhase);DOREPLIFETIME(ALDGameState,ShortageRemaining);
-    DOREPLIFETIME(ALDGameState,OutcropOne);DOREPLIFETIME(ALDGameState,OutcropTwo);
+    DOREPLIFETIME(ALDGameState,CoreOrdersRemaining);DOREPLIFETIME(ALDGameState,SupplyOrdersRemaining);DOREPLIFETIME(ALDGameState,CharterWindow);DOREPLIFETIME(ALDGameState,CharterPhase);DOREPLIFETIME(ALDGameState,CharterWarningAt);DOREPLIFETIME(ALDGameState,CharterOpenAt);DOREPLIFETIME(ALDGameState,CharterCloseAt);DOREPLIFETIME(ALDGameState,OutcropOne);DOREPLIFETIME(ALDGameState,OutcropTwo);
     DOREPLIFETIME(ALDGameState,LobbyCount);DOREPLIFETIME(ALDGameState,ReadyCount);
     DOREPLIFETIME(ALDGameState,PublicSensorOfflineUntil);DOREPLIFETIME(ALDGameState,PublicSensorLockoutUntil);
 }
@@ -173,6 +174,7 @@ void ALDGameMode::StartPlay()
 #if !UE_BUILD_SHIPPING
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))){GetWorld()->SpawnActor<ALDCharterProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))){GetWorld()->SpawnActor<ALDInstitutionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
@@ -269,6 +271,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
         ? LDRules::FDeathCost{LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt),LDDevelopment::DeathLoss(State->Gold)}
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;RecordEconomyGold(TEXT("DeathTax"),0,Cost.LostGold);
+    if(Economy&&State->CharterPurchase.IsValid()&&!State->CharterActivation.IsValid()){State->bCharterAwaitingRespawn=true;State->CharterReadyAt=0;}
     State->bActive=false; State->Hp=0; State->WardCharges=0;
     if(PC->Navigation){PC->Navigation->ResetLife();}
     State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
@@ -313,6 +316,7 @@ void ALDGameMode::ReturnDueContenders(double Now)
         State.ActiveSkill=ELDSkill::None;State.SkillEndsAt=0;
         RestartPlayerAtTransform(PC,FTransform(FRotator::ZeroRotator,ReturnSpawn(PC)));
         if(!PC->GetPawn()){State.bActive=false;State.ReturnAt=float(Now+.1);--State.Life;continue;}
+        if(State.bCharterAwaitingRespawn){State.CharterReadyAt=Now+30;State.bCharterAwaitingRespawn=false;}
         if (bDevelopmentProfile) { RefreshBuild(PC,true); }
         if(auto* Body=Cast<ALDCharacter>(PC->GetPawn())){if(auto* S=Combat->StateFor(Body)){S->ProtectionUntil=State.ProtectedUntil;}}
         SyncOwner(PC); PC->ClientLifeReceipt(State);
@@ -377,7 +381,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
             SyncOwner(Player);
         }
     }
-    if(Economy){Economy->SampleInstitutions(MatchStartedAt);FString EvidenceError;Economy->Export(TEXT("Endowment"),EvidenceError);}
+    if(Economy){Economy->SampleCharter(MatchStartedAt);Economy->SampleInstitutions(MatchStartedAt);FString EvidenceError;Economy->Export(TEXT("Endowment"),EvidenceError);}
     Public->ForceNetUpdate(); Reason=Contenders.Num()==1?TEXT("Practice started: one human; 25 minute cap."):TEXT("Integration match started. Roster locked.");
     UE_LOG(LogTemp,Display,TEXT("LD_V04_START humans=%d practice=%d deadline=%.3f catalog=%s"),Contenders.Num(),Contenders.Num()==1,Public->MatchDeadline,*Catalog->SourceChecksum);
     return true;

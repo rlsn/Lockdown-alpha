@@ -71,6 +71,14 @@ struct FLDOwnerState
     UPROPERTY() uint8 ProductionSite=0;
     UPROPERTY() double CouponUntil=0;
     UPROPERTY() double ProductionSeconds=0;
+    UPROPERTY() FGuid IndustrialEndorsement;
+    UPROPERTY() FGuid SupplyEndorsement;
+    UPROPERTY() uint8 CoreOrders=0;
+    UPROPERTY() uint8 SupplyOrders=0;
+    UPROPERTY() FGuid CharterPurchase;
+    UPROPERTY() FGuid CharterActivation;
+    UPROPERTY() double CharterReadyAt=0;
+    UPROPERTY() bool bCharterAwaitingRespawn=false;
     UPROPERTY() FGuid Witness;
     UPROPERTY() FGuid TheftReceipt;
     UPROPERTY() uint8 TheftOutcome=0;

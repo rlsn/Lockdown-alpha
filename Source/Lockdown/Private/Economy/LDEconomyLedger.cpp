@@ -9,7 +9,8 @@ namespace
     {if((B>0&&A>MAX_int64-B)||(B<0&&A<MIN_int64-B)){return false;}Out=A+B;return true;}
     bool Same(const LDEconomy::FTransaction& A,const LDEconomy::FTransaction& B)
     {
-        if(A.Id!=B.Id||A.Cause!=B.Cause||A.Mint!=B.Mint||A.Burn!=B.Burn||A.Budget!=B.Budget||A.Units!=B.Units||A.Gold.Num()!=B.Gold.Num()||A.Items.Num()!=B.Items.Num()){return false;}
+        if(A.Id!=B.Id||A.Cause!=B.Cause||A.Mint!=B.Mint||A.Burn!=B.Burn||A.Budget!=B.Budget||A.Units!=B.Units||A.Gold.Num()!=B.Gold.Num()||A.Items.Num()!=B.Items.Num()||A.Budgets.Num()!=B.Budgets.Num()){return false;}
+        for(int32 I=0;I<A.Budgets.Num();++I){if(A.Budgets[I].Id!=B.Budgets[I].Id||A.Budgets[I].Units!=B.Budgets[I].Units){return false;}}
         for(int32 I=0;I<A.Gold.Num();++I){const auto& X=A.Gold[I];const auto& Y=B.Gold[I];if(X.Account!=Y.Account||X.Expected!=Y.Expected||X.Delta!=Y.Delta){return false;}}
         for(int32 I=0;I<A.Items.Num();++I){const auto& X=A.Items[I];const auto& Y=B.Items[I];if(X.Id!=Y.Id||X.Op!=Y.Op||X.Kind!=Y.Kind||X.Expected!=Y.Expected||X.From!=Y.From||X.To!=Y.To||X.Parents!=Y.Parents){return false;}}
         return true;
@@ -40,6 +41,8 @@ bool LDEconomy::FLedger::Commit(const FTransaction& T,FString& Error)
     if(!Bounded(T.Mint)||!Bounded(T.Burn)||Mints>MaxBalance-T.Mint||Burns>MaxBalance-T.Burn||Start>MaxBalance-(Mints+T.Mint)){return Reject(TEXT("Invalid gold classification"));}
     if(T.Budget.IsNone()!= (T.Units==0)||T.Units<0){return Reject(TEXT("Invalid budget debit"));}
     if(!T.Budget.IsNone()){const auto* N=Budgets.Find(T.Budget);if(!N||*N<T.Units){return Reject(TEXT("Finite budget exhausted"));}}
+    TSet<FName> SeenBudgets;if(!T.Budget.IsNone()){SeenBudgets.Add(T.Budget);}
+    for(const auto& D:T.Budgets){const auto* N=Budgets.Find(D.Id);if(D.Id.IsNone()||D.Units<=0||SeenBudgets.Contains(D.Id)||!N||*N<D.Units){return Reject(TEXT("Invalid or exhausted additional budget"));}SeenBudgets.Add(D.Id);}
     TSet<FName> SeenAccounts;int64 Net=0;
     for(const auto& D:T.Gold)
     {
@@ -77,7 +80,7 @@ bool LDEconomy::FLedger::Commit(const FTransaction& T,FString& Error)
         if(D.Op==EItemOp::Create){FItem I;I.Kind=D.Kind;I.Location=D.To;I.Origin=T.Id;I.Parents=D.Parents;Items.Add(D.Id,MoveTemp(I));}
         else{auto& I=Items.FindChecked(D.Id);I.Location=D.To;I.Consumed=D.Op==EItemOp::Consume;++I.Revision;}
     }
-    if(!T.Budget.IsNone()){Budgets.FindChecked(T.Budget)-=T.Units;}Mints+=T.Mint;Burns+=T.Burn;
+    if(!T.Budget.IsNone()){Budgets.FindChecked(T.Budget)-=T.Units;}for(const auto& D:T.Budgets){Budgets.FindChecked(D.Id)-=D.Units;}Mints+=T.Mint;Burns+=T.Burn;
     FReceipt R;R.Transaction=T;R.Serial=uint64(Receipts.Num())+1;Receipts.Add(T.Id,MoveTemp(R));return true;
 }
 bool LDEconomy::FLedger::Reconcile(FString& Error) const
@@ -119,6 +122,7 @@ FString LDEconomy::FLedger::ExportJson(FName Event) const
     for(const auto* R:Ordered)
     {
         const auto& T=R->Transaction;auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),T.Id.ToString());O->SetStringField(TEXT("cause"),T.Cause.ToString());Number(O,TEXT("serial"),R->Serial);Number(O,TEXT("mint"),T.Mint);Number(O,TEXT("burn"),T.Burn);O->SetStringField(TEXT("budget"),T.Budget.ToString());O->SetNumberField(TEXT("units"),T.Units);
+        TArray<TSharedPtr<FJsonValue>> Debits;for(const auto& D:T.Budgets){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("units"),D.Units);Debits.Add(MakeShared<FJsonValueObject>(V));}O->SetArrayField(TEXT("additionalBudgets"),Debits);
         TArray<TSharedPtr<FJsonValue>> Gold,Transitions;
         for(const auto& D:T.Gold){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("account"),D.Account.ToString());Number(V,TEXT("delta"),D.Delta);V->SetNumberField(TEXT("expected"),D.Expected);Gold.Add(MakeShared<FJsonValueObject>(V));}
         for(const auto& D:T.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("op"),uint8(D.Op));V->SetNumberField(TEXT("kind"),uint8(D.Kind));V->SetNumberField(TEXT("expected"),D.Expected);V->SetStringField(TEXT("from"),D.From.ToString());V->SetStringField(TEXT("to"),D.To.ToString());TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:D.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}V->SetArrayField(TEXT("parents"),Parents);Transitions.Add(MakeShared<FJsonValueObject>(V));}

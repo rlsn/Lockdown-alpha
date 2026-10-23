@@ -35,9 +35,17 @@ public:
     bool ShortageActive(double Now) const;
     bool ShortageAvailable(double CompletionAt) const;
     bool CommitShortage(ALDPlayerController* PC,const FLDInventoryItem& Input,FString& Error);
+    static FName OrderBudget(FGuid Id,bool Core);
+    bool OrderAvailable(ALDPlayerController* PC,bool Core) const;
+    bool CommitOrder(ALDPlayerController* PC,bool Core,const TArray<FLDInventoryItem>& Inputs,FString& Error);
+    bool CommitCharterPurchase(ALDPlayerController* PC,int64 WalletShare,uint32 WR,uint32 BR,FString& Error);
+    bool CanActivateCharter(ALDPlayerController* PC,double CompletionAt) const;
+    bool ActivateCharter(ALDPlayerController* PC,FString& Error);
+    void SampleCharter(double Now);
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
+    friend class ALDCharterProbe;
     friend class ALDCommerceProbe;
     friend class ALDProductionProbe;
     friend class ALDInstitutionProbe;

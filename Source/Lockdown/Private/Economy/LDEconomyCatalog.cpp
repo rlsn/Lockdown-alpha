@@ -89,5 +89,18 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
         if(!J||!J->TryGetStringField(TEXT("market"),Market)||Market!=ExpectedMarket||!J->TryGetStringField(TEXT("good"),Good)||Good!=ExpectedGood||!Integer(J,TEXT("count"),1,1,N)
             ||(Producer&&!Integer(J,TEXT("goldBurn"),I==0?2:3,I==0?2:3,Rule.Cost))){return Reject(TEXT("Invalid funded producer/consumer row"));}C.Institutions.Add(Rule);
     }
+    TSharedPtr<FJsonObject> Contracts,Courier,Procurement,SupplyOrder,Charter,Inputs;
+    if(!Object(Root,TEXT("contracts"),Contracts)||!Object(Contracts,TEXT("courier"),Courier)||!Object(Contracts,TEXT("coreProcurement"),Procurement)||!Object(Contracts,TEXT("supply"),SupplyOrder)||!Object(Root,TEXT("charter"),Charter)) {return Reject(TEXT("Missing procurement/Charter rules"));}
+    for(const auto& Row:TArray<TSharedPtr<FJsonObject>>{Courier,Procurement,SupplyOrder})
+    {
+        const int32 Gold=Row==Courier?25:Row==Procurement?80:50,XP=Row==Courier?45:Row==Procurement?60:30,Limit=Row==Courier?8:Row==Procurement?3:1;
+        if(!Integer(Row,TEXT("gold"),Gold,Gold,N)||!Integer(Row,TEXT("xp"),XP,XP,N)||!Integer(Row,TEXT("perContender"),Limit,Limit,N)){return Reject(TEXT("Unsupported bounded reward"));}
+        if(Row==Courier){if(!Integer(Row,TEXT("legacyCredits"),0,0,N)){return Reject(TEXT("Legacy credits disabled"));}}
+        else if(!Integer(Row,TEXT("holdSeconds"),3,3,N)||!Object(Row,TEXT("inputs"),Inputs)||Inputs->Values.Num()!=1||!Integer(Inputs,Row==Procurement?TEXT("Core"):TEXT("Toolkit"),Row==Procurement?1:2,Row==Procurement?1:2,N)){return Reject(TEXT("Invalid exact procurement input"));}
+    }
+    for(const auto& Pair:TMap<FString,int32>{{TEXT("price"),100},{TEXT("purchaseLimit"),1},{TEXT("activationLimit"),1},{TEXT("activationHoldSeconds"),4},{TEXT("warningSeconds"),30},{TEXT("openSeconds"),60},{TEXT("claimSeconds"),10},{TEXT("claimRangeCm"),120},{TEXT("contestRangeCm"),240},{TEXT("maxConcurrentGlobal"),1}})
+    {if(!Integer(Charter,*Pair.Key,Pair.Value,Pair.Value,N)){return Reject(TEXT("Unsupported registered Charter timing/price"));}}
+    for(const auto& Pair:TMap<FString,bool>{{TEXT("requiresWitness"),true},{TEXT("physicalItem"),false},{TEXT("transferable"),false},{TEXT("everyoneEligible"),true},{TEXT("fullWindowBeforeDeadlineRequired"),true},{TEXT("claimCompletionAtCloseAllowed"),true},{TEXT("legacySealBypass"),false}})
+    {if(!Charter->TryGetBoolField(Pair.Key,Flag)||Flag!=Pair.Value){return Reject(TEXT("Unsupported Charter access policy"));}}
     C.Checksum=FMD5::HashAnsiString(*Json);*this=MoveTemp(C);return true;
 }

@@ -26,9 +26,10 @@ public:
     void Open(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token);
     void Close(ALDPlayerController* PC,uint32 Token);
     void Invalidate(ALDPlayerController* PC);
-    void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 Amount,bool Deposit,uint32 WR,uint32 BR);
+    void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 Amount,bool Deposit,uint32 WR,uint32 BR,bool Charter=false);
     void Sample(double Now);
 private:
+    friend class ALDCharterProbe;
     friend class ALDEconomyProbe;
     struct FClient
     {
@@ -37,7 +38,7 @@ private:
         double At=0,Tokens=4,Damage=-1,Dealt=-1;
         TMap<uint32,FString> Receipts;
     };
-    struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;FGuid Session;int64 Amount;bool Deposit;uint32 WR,BR;};
+    struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;FGuid Session;int64 Amount;bool Deposit;uint32 WR,BR;bool Charter=false;};
     TMap<TWeakObjectPtr<ALDPlayerController>,FClient> Clients;
     TArray<FRequest> Requests;
     bool TakeToken(FClient& C);

@@ -40,6 +40,13 @@ public:
     UPROPERTY(Replicated) float EconomyNextTick=0;
     UPROPERTY(Replicated) uint8 ShortagePhase=0;
     UPROPERTY(Replicated) uint8 ShortageRemaining=1;
+    UPROPERTY(Replicated) int32 CoreOrdersRemaining=0;
+    UPROPERTY(Replicated) int32 SupplyOrdersRemaining=0;
+    UPROPERTY(Replicated) FGuid CharterWindow;
+    UPROPERTY(Replicated) uint8 CharterPhase=0; // idle, warning, open, closed
+    UPROPERTY(Replicated) double CharterWarningAt=0;
+    UPROPERTY(Replicated) double CharterOpenAt=0;
+    UPROPERTY(Replicated) double CharterCloseAt=0;
     UPROPERTY(Replicated) uint8 OutcropOne=3;
     UPROPERTY(Replicated) uint8 OutcropTwo=3;
     UPROPERTY(Replicated) uint8 LobbyCount = 0;

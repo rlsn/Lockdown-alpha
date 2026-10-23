@@ -68,7 +68,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return (FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif
@@ -112,7 +112,7 @@ bool ALDEconomyDirector::Record(FName Cause,int64 Mint,int64 Burn,const TArray<F
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();TMap<FName,int64> Actual;M->EconomyWallets(Actual);if(M->WorldChecks){M->WorldChecks->EconomyWallets(Actual);}
     LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Cause;T.Mint=Mint;T.Burn=Burn;
     for(const auto& P:Actual){const auto* A=Ledger.Account(P.Key);if(!A){Error=TEXT("Unregistered wallet");return Fail();}if(A->Gold!=P.Value){T.Gold.Add({P.Key,A->Revision,P.Value-A->Gold});}}
-    const bool CanCreate=Cause==TEXT("CarriedEndowment")||Cause==TEXT("OfficialBookPurchase")||Cause==TEXT("LegacySealFee")||(Cause==TEXT("DiagnosticItemCreation")&&AllowDiagnosticItems());
+    const bool CanCreate=Cause==TEXT("CarriedEndowment")||Cause==TEXT("OfficialBookPurchase")||(Cause==TEXT("DiagnosticItemCreation")&&AllowDiagnosticItems());
     for(const auto& P:Physical)
     {
         const auto* Old=Ledger.Item(P.Key);const auto& I=P.Value;LDEconomy::FItemDelta D;D.Id=P.Key;D.Kind=I.Kind;D.To=I.Location;

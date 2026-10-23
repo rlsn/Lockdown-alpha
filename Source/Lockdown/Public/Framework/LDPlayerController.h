@@ -44,9 +44,11 @@ public:
     bool bBankOpening=false;
     bool BankIsOpen() const {return bBankOpening||BankView.Session.IsValid();}
     void OpenBank();void CloseBank();
+    void ConfirmCharter(int64 WalletShare,uint32 WR,uint32 BR);
     void ConfirmBank(int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision);
     UFUNCTION(Server,Reliable) void ServerBankOpen(uint32 Match,uint32 Life,uint32 Token);
     UFUNCTION(Server,Reliable) void ServerBankClose(uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerCharterPurchase(uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 WalletShare,uint32 WR,uint32 BR);
     UFUNCTION(Server,Reliable) void ServerBankCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision);
     UFUNCTION(Client,Reliable) void ClientBankView(const FLDOwnerState& State,const FLDBankView& View,uint32 Request,const FString& Reason);
     FLDCommerceView CommerceView;
@@ -177,6 +179,7 @@ public:
     void RecordProbeRequest(uint32 Request){ProbeRequests.Add(Request,FPlatformTime::Seconds());}
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
 private:
+    friend class ALDCharterProbe;
     void InitializeLocalUI();
     TArray<TPair<uint32,FString>> SeenIntentResults;
     uint32 IntentFeedbackSerial=0;

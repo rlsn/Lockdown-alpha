@@ -236,7 +236,7 @@ void ALDPlayerController::ArmRead(FGuid Book)
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     CancelArmed();ReadArmed=Book;ArmedItemRevision=Revision;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" to read. Closing the panel spends nothing.");
 }
-void ALDPlayerController::ArmFabrication(){CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
+void ALDPlayerController::ArmFabrication(){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){FLDProductionPlan P;P.Site=2;P.Recipe=8;P.InventoryRevision=OwnerState.Inventory.Revision;ArmProduction(P);return;}CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
 void ALDPlayerController::ContextV05()
 {
     if(bProductionArmed){StartProductionHold();return;}

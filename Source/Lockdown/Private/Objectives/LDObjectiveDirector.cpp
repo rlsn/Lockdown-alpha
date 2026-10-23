@@ -1,5 +1,8 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Economy/LDEconomyDirector.h"
+#include "Economy/LDProductionDirector.h"
+#include "Economy/LDBankDirector.h"
+#include "Economy/LDCommerceDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Core/LDGroundQueries.h"
@@ -39,7 +42,7 @@ void ALDObjectiveSite::Configure(uint8 Site)
 {
     SetActorLocation(LDRegion::Site(GetWorld(),Site));
     Marker->SetRelativeLocation(FVector(0,0,8));Marker->SetRelativeScale3D(Site==LDObjective::Heart?FVector(1.5,1.5,.16):FVector(.9,.9,.16));
-    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD / TREASURY / SUPPLY / CITY MARKET"):Site==LDObjective::Heart?TEXT("HEART"):*(LDRegion::SiteName(GetWorld(),Site)+((Site==2||Site==6)?TEXT(" / OFFICIAL MARKET"):TEXT("")))));
+    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD / TREASURY / CIVIC TERMINAL / CITY MARKET"):Site==LDObjective::Heart?TEXT("HEART"):*(LDRegion::SiteName(GetWorld(),Site)+((Site==2||Site==6)?TEXT(" / OFFICIAL MARKET"):TEXT("")))));
     auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if(Base){auto* Material=UMaterialInstanceDynamic::Create(Base,this);Material->SetVectorParameterValue(TEXT("Tint"),Site==LDObjective::Heart?FLinearColor(.65f,.14f,.12f):FLinearColor(.18f,.36f,.5f));Marker->SetMaterial(0,Material);}
 }
@@ -62,12 +65,13 @@ bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range)
 {
     if(Site==LDObjective::Fabricator){Site=LDObjective::Guild;}
     const APawn* Body=PC?PC->GetPawn():nullptr;const FVector P=LDRegion::Site(GetWorld(),Site);
-    return Body&&FVector::DistSquared2D(Body->GetActorLocation(),P)<=Range*Range&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),P);
+    return Body&&FVector::DistSquared2D(Body->GetActorLocation(),P)<=Range*Range&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),P)
+        &&(!GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy||GetWorld()->GetAuthGameMode<ALDGameMode>()->Vision->Ray({Body->GetActorLocation(),120,GetWorld()->GetAuthGameMode<ALDGameMode>()->Vision->LevelAt(Body->GetActorLocation())},P));
 }
 bool ALDObjectiveDirector::CanFabricate(ALDPlayerController* PC) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
-    return M->Region&&O&&(!M->Inventory||M->Inventory->HasSpace(PC,ELDItemKind::Seal))&&LDObjective::CanFabricate(O->Witness.IsValid(),O->Commissions,O->Gold,O->FabricationReceipt.IsValid(),O->SealId.IsValid()||CarriedBy(PC));
+    return !M->Economy&&M->Region&&O&&(!M->Inventory||M->Inventory->HasSpace(PC,ELDItemKind::Seal))&&LDObjective::CanFabricate(O->Witness.IsValid(),O->Commissions,O->Gold,O->FabricationReceipt.IsValid(),O->SealId.IsValid()||CarriedBy(PC));
 }
 void ALDObjectiveDirector::FailNextFabricationForProbe()
 {
@@ -78,7 +82,7 @@ void ALDObjectiveDirector::FailNextFabricationForProbe()
 bool ALDObjectiveDirector::Stationary(ALDPlayerController* PC,const FLDInteractionState& S) const
 {
     const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
-    return Body&&!S.bMoving&&Body->GetVelocity().SizeSquared2D()<9&&Body->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()<1;
+    return Body&&!S.bMoving&&Body->GetVelocity().SizeSquared2D()<9&&Body->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()<1&&Body->GetLastMovementInputVector().IsNearlyZero();
 }
 void ALDObjectiveDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint8 Target,FGuid Observed)
 {
@@ -93,7 +97,7 @@ void ALDObjectiveDirector::RefreshHold(ALDPlayerController* PC,uint32 Life,uint3
 {
     auto* S=Interactions.Find(PC);
     if(!S||!S->bHeld||S->Life!=Life||S->Token!=Token||Sequence<=S->HoldSequence||Token<=S->CancelledThrough){return;}
-    S->HoldSequence=Sequence;S->LastHold=Now;S->bMoving=Moving;
+    S->HoldSequence=Sequence;S->LastHold=Now;S->bMoving=Moving;if(Moving){Interrupt(PC,Now,true);}
 }
 void ALDObjectiveDirector::Release(ALDPlayerController* PC,uint32 Life,uint32 Token)
 {
@@ -155,7 +159,7 @@ ALDSeal* ALDObjectiveDirector::SeedFixtureSeal()
 {
 #if !UE_BUILD_SHIPPING
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(Mode->bScaffoldProfile&&!Mode->IsFinished()&&!bSeeded)
+    if(Mode->bScaffoldProfile&&!Mode->Economy&&!Mode->IsFinished()&&!bSeeded)
     {
         auto* Item=GetWorld()->SpawnActor<ALDSeal>(LDObjective::SeedPosition(),FRotator::ZeroRotator);
         if(Item){bSeeded=true;Item->Identity=FGuid::NewGuid();Item->District=LDRegion::District(GetWorld(),Item->GetActorLocation());Announce(Item,1);UE_LOG(LogTemp,Display,TEXT("LD_FIXTURE one Seal seeded at Guild (acquisition only; ownership transactions are real)"));}
@@ -168,7 +172,7 @@ bool ALDObjectiveDirector::SetDefencesFixture(uint8 Flags)
 {
 #if !UE_BUILD_SHIPPING
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(Mode->bScaffoldProfile&&!Mode->IsFinished()&&Flags<=15)
+    if(Mode->bScaffoldProfile&&!Mode->Economy&&!Mode->IsFinished()&&Flags<=15)
     {auto* GS=GetWorld()->GetGameState<ALDGameState>();GS->DefensiveFlags=Flags;GS->ForceNetUpdate();UE_LOG(LogTemp,Display,TEXT("LD_FIXTURE defensive flags=%u (access setup, not tower combat)"),Flags);return true;}
 #endif
     return false;
@@ -194,7 +198,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         S.bHeld=false;
     }
     else if(R.Target<LDObjective::Guild||(R.Target>LDObjective::Heart&&!((R.Target==6||R.Target==LDObjective::Fabricator)&&LDRegion::Definition(GetWorld())))||!Near(PC,R.Target)){Reason=TEXT("Approach the public site within 120 cm on clear ground.");}
-    else if(R.Target==LDObjective::Fabricator&&!CanFabricate(PC)){S.bHeld=false;Reason=TEXT("Fabrication needs Witness, 4 unused credits, 100 gold, an empty Seal slot and no prior craft this match.");}
+    else if(R.Target==LDObjective::Fabricator&&!CanFabricate(PC)){S.bHeld=false;Reason=Mode->Economy?TEXT("Legacy Seal fabrication disabled; use Treasury Charter checkout and City civic activation."):TEXT("Fabrication needs Witness, 4 unused credits, 100 gold, an empty Seal slot and no prior craft this match.");}
     else
     {
         S.Target=R.Target;
@@ -209,7 +213,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         else
         {
             BeginChannel(PC,S,Now);
-            Reason=S.Channel?TEXT("Hold accepted; server progress started."):(R.Target==LDObjective::Heart?TEXT("Heart locked: carry a Seal or clear all four defences."):TEXT("Follow your private courier stage."));
+            Reason=S.Channel?TEXT("Hold accepted; server progress started."):(R.Target==LDObjective::Heart?(Mode->Economy?TEXT("Heart protected: wait for a public Charter opening with 10 seconds remaining."):TEXT("Heart locked: carry a Seal or clear all four defences.")):TEXT("Follow your private courier stage."));
         }
     }
     PC->CompleteContextRequest(R.Id,Reason);
@@ -224,8 +228,10 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     if(O->ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(O->ContractDestination);if(N&&N->Site==S.Target){Kind=LDObjective::Collect;}}else if(S.Target==LDObjective::Station){Kind=LDObjective::Collect;}}
     if(S.Target==LDObjective::Guild&&O->ContractStage==2){Kind=LDObjective::Deliver;}
     if(S.Target==LDObjective::Heart)
-    {const auto* GS=GetWorld()->GetGameState<ALDGameState>();Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);if(Route){Kind=LDObjective::Claim;}}
-    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;
+    {const auto* GS=GetWorld()->GetGameState<ALDGameState>();
+        if(Mode->Economy){if(GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&Now+10<=GS->CharterCloseAt){Route=4;S.Window=GS->CharterWindow;S.WindowClose=GS->CharterCloseAt;}}
+        else{Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);}if(Route){Kind=LDObjective::Claim;}}
+    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;S.Body=Cast<ALDCharacter>(PC->GetPawn());S.Damage=Combat->LastDamage;
     UpdatePrivate(PC,S,Now);
 }
 void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionState& S,double Now)
@@ -247,7 +253,7 @@ void ALDObjectiveDirector::Sample(double Now)
         auto* PC=It.Key().Get();if(!PC){It.RemoveCurrent();continue;}auto& S=It.Value();auto* O=Mode->StateFor(PC);if(!O){continue;}
         const auto* Body=Cast<ALDCharacter>(PC->GetPawn());const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
         const bool Valid=Eligible(PC,Now)&&S.Life==O->Life&&S.bHeld&&LDObjective::FreshHold(Now,S.LastHold)
-            &&Stationary(PC,S)&&Near(PC,S.Target)&&Combat&&!Combat->Action&&Combat->LastDamage<Now-1.e-6&&S.LastInterrupt<Now-1.e-6;
+            &&Stationary(PC,S)&&Near(PC,S.Target)&&(!S.Channel||(S.Body.Get()==Body&&Combat&&Combat->LastDamage==S.Damage))&&Combat&&!Combat->Action&&Combat->LastDamage<Now-1.e-6&&S.LastInterrupt<Now-1.e-6;
         if(S.Channel&&(!Valid||FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)>4)){ClearChannel(PC,S);}
         if(!LDObjective::FreshHold(Now,S.LastHold)){S.bHeld=false;}
         if(!S.Channel&&Valid){BeginChannel(PC,S,Now);}
@@ -285,7 +291,7 @@ void ALDObjectiveDirector::Sample(double Now)
             if(LDObjective::DueBeforeDeadline(Now,S.Started,3,Deadline()))
             {
                 const bool Delivered=S.Channel==LDObjective::Deliver;
-                if(Delivered){O->Gold+=25;Mode->RecordEconomyGold(TEXT("CourierReward"),25);Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;if(LDRegion::Definition(GetWorld())){++O->PaidJobs;}O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
+                if(Delivered){O->Gold+=25;Mode->RecordEconomyGold(TEXT("CourierReward"),25);Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);if(!Mode->Economy){++O->Commissions;}++O->DeliverySerial;if(LDRegion::Definition(GetWorld())){++O->PaidJobs;}O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
                 else{O->ContractStage=2;}
                 S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
                 PC->CompleteContextRequest(S.Token,Delivered?(Mode->IsDevelopmentProfile()?TEXT("Delivery confirmed: +25 gold, +45 XP."):TEXT("Delivery confirmed: +25 gold, +15 XP.")):TEXT("Package collected: return to Guild and hold E to deliver."));
@@ -294,14 +300,16 @@ void ALDObjectiveDirector::Sample(double Now)
             else{UpdatePrivate(PC,S,Now);}
             continue;
         }
+        if(Mode->Economy&&(S.Route!=4||!S.Window.IsValid()||S.Started+10>S.WindowClose||(Now>=S.WindowClose&&Now+1.e-6<S.Started+10))){ClearChannel(PC,S);S.bHeld=false;continue;}
         if((S.Route==LDObjective::SealRoute&&!CarriedBy(PC))||(S.Route==LDObjective::Assault&&GS->DefensiveFlags)){ClearChannel(PC,S);continue;}
         bool IsContested=false;
         for(FConstPlayerControllerIterator Other=GetWorld()->GetPlayerControllerIterator();Other;++Other)
         {auto* Opponent=Cast<ALDPlayerController>(Other->Get());if(Opponent!=PC&&Eligible(Opponent,Now)&&FVector::DistSquared2D(Opponent->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=240*240){IsContested=true;break;}}
         if(IsContested||S.bContested){S.Started=Now;S.bContested=IsContested;}
+        if(Mode->Economy&&S.Started+10>S.WindowClose){ClearChannel(PC,S);S.bHeld=false;continue;}
         Active=true;Contested|=IsContested;Routes|=S.Route;HeartSensorUntil=Now+2;
         PublicProgress=FMath::Max(PublicProgress,Now-S.Started);UpdatePrivate(PC,S,Now);
-        if(!IsContested&&LDObjective::DueBeforeDeadline(Now,S.Started,10,Deadline())){Finish(PC,S.Route,Now);return;}
+        if(!IsContested&&LDObjective::DueBeforeDeadline(Now,S.Started,10,Deadline())){Finish(PC,S.Route,S.Started+10);return;}
     }
     GS->bClaimActive=Active;GS->bContested=Contested;GS->ClaimRoute=Routes;GS->ClaimProgress=Contested?0:float(FMath::Clamp(PublicProgress,0.,10.));GS->ForceNetUpdate();
     for(TActorIterator<ALDSeal> It(GetWorld());It;++It)
@@ -317,6 +325,8 @@ void ALDObjectiveDirector::Finish(ALDPlayerController* Winner,uint8 Route,double
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(Mode->IsFinished()){return;}
     if(Winner&&Route==LDObjective::SealRoute)
     {if(auto* Item=CarriedBy(Winner)){if(Mode->Inventory){Mode->Inventory->Remove(Winner,Item,true,TEXT("HeartSealConsumed"));}else{Item->State=2;Item->Carrier.Reset();}}Mode->StateFor(Winner)->SealId.Invalidate();}
+    // Close all pending service work before the final accounting export.
+    for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It){if(auto* PC=Cast<ALDPlayerController>(It->Get())){if(Mode->Production){Mode->Production->Cancel(PC);}if(Mode->Trade){Mode->Trade->CancelFor(PC);}if(Mode->Bank){Mode->Bank->Invalidate(PC);}if(Mode->Commerce){Mode->Commerce->Invalidate(PC);}}}
     GS->ResultReceipt=FGuid::NewGuid();++GS->ResultSerial;GS->WinningRoute=Route;GS->MatchEndedAt=float(Now);GS->EndReason=Winner?1:2;
     GS->ClaimProgress=Winner?10:0;GS->bClaimActive=false;GS->bContested=false;GS->ForceNetUpdate();
     for(auto& Pair:Interactions)

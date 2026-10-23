@@ -30,3 +30,11 @@ void ALDPlayerController::ClientBankView_Implementation(const FLDOwnerState& Sta
     {bBankOpening=false;BankView=View;BankFeedback=Reason;if(View.Match!=OwnerState.Match||View.Life!=OwnerState.Life){BankView.Session.Invalidate();}}
     ClientIntentResult_Implementation(Request,Reason);if(InventoryUI){InventoryUI->Refresh();}
 }
+
+void ALDPlayerController::ConfirmCharter(int64 WalletShare,uint32 WR,uint32 BR)
+{
+    if(InventoryPending()||!BankView.Session.IsValid()){return;}BankPending=++NextRequest;BankFeedback=TEXT("Charter purchase pending…");
+    ServerCharterPurchase(OwnerState.Match,OwnerState.Life,BankPending,BankView.Session,WalletShare,WR,BR);
+}
+void ALDPlayerController::ServerCharterPurchase_Implementation(uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 WalletShare,uint32 WR,uint32 BR)
+{if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Bank){M->Bank->Queue(this,Match,Life,Request,Session,WalletShare,false,WR,BR,true);}}

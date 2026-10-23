@@ -70,6 +70,11 @@ bool FLDEconomyAccountingTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Retirement is idempotent"),L.Retire(TEXT("Wallet")));
     TestEqual(TEXT("All banks/markets/retired/NPC gold reconciles"),L.TotalGold(),int64(303));
     TestTrue(TEXT("Full independent receipt replay reconciles"),L.Reconcile(Error));
+    FLedger Bounds;TestTrue(TEXT("Initialize independent dual bounds"),Bounds.Initialize(FGuid::NewGuid(),{{TEXT("W"),0}},{{TEXT("Global"),2},{TEXT("Owner"),1}},Error));
+    FTransaction Dual;Dual.Id=FGuid::NewGuid();Dual.Cause=TEXT("DualBound");Dual.Budget=TEXT("Global");Dual.Units=1;Dual.Budgets.Add({TEXT("Owner"),1});
+    TestTrue(TEXT("Both budgets debit in one receipt"),Bounds.Commit(Dual,Error));Dual.Id=FGuid::NewGuid();
+    TestFalse(TEXT("Exhausted owner rejects before global debit"),Bounds.Commit(Dual,Error));TestEqual(TEXT("Global remains one"),Bounds.Remaining(TEXT("Global")),1);
+    TestTrue(TEXT("Dual budgets replay"),Bounds.Reconcile(Error));
     AddInfo(Error);return true;
 }
 
@@ -105,6 +110,7 @@ bool FLDEconomyCatalogTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Coupon cannot stack"),C.Parse(Json.Replace(TEXT("\"stacking\": false"),TEXT("\"stacking\": true")),Error));
     TestFalse(TEXT("Institution opportunities cannot silently multiply"),C.Parse(Json.Replace(TEXT("1440"),TEXT("1500")),Error));
     TestFalse(TEXT("Shortage cannot outlive its endpoint"),C.Parse(Json.Replace(TEXT("\"end\": 780"),TEXT("\"end\": 900")),Error));
+    TestFalse(TEXT("Legacy bypass catalog rejected"),C.Parse(Json.Replace(TEXT("\"legacySealBypass\": false"),TEXT("\"legacySealBypass\": true")),Error));
     TestEqual(TEXT("Failed reload leaves live definitions intact"),C.Checksum,Checksum);
     return true;
 }
@@ -116,7 +122,7 @@ bool FLDEconomyPayloadTest::RunTest(const FString& Parameters)
     Fields(FLDCommerceOffer::StaticStruct(),{TEXT("Kind"),TEXT("Stock"),TEXT("Cap"),TEXT("Ask"),TEXT("Bid")});
     Fields(FLDCommerceView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("Revision"),TEXT("Service"),TEXT("Cash"),TEXT("QuotedAt"),TEXT("Offers")});
     Fields(FLDBankView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("WalletRevision"),TEXT("BankRevision"),TEXT("Wallet"),TEXT("Bank")});
-    for(FName N:{FName(TEXT("CraftCoupon")),FName(TEXT("CouponSite")),FName(TEXT("CouponUntil")),FName(TEXT("ProductionSite")),FName(TEXT("ProductionSeconds"))}){TestNotNull(TEXT("Private production owner field reflected"),FLDOwnerState::StaticStruct()->FindPropertyByName(N));}
+    for(FName N:{FName(TEXT("CraftCoupon")),FName(TEXT("CouponSite")),FName(TEXT("CouponUntil")),FName(TEXT("ProductionSite")),FName(TEXT("ProductionSeconds")),FName(TEXT("IndustrialEndorsement")),FName(TEXT("SupplyEndorsement")),FName(TEXT("CoreOrders")),FName(TEXT("SupplyOrders")),FName(TEXT("CharterPurchase")),FName(TEXT("CharterActivation")),FName(TEXT("CharterReadyAt")),FName(TEXT("bCharterAwaitingRespawn"))}){TestNotNull(TEXT("Private production owner field reflected"),FLDOwnerState::StaticStruct()->FindPropertyByName(N));}
     FLDProductionPlan Plan;Plan.Site=4;Plan.Recipe=2;Plan.RecipeRevision=7;Plan.InventoryRevision=19;Plan.BuildRevision=11;Plan.SkillSlot=3;Plan.Fee=4;Plan.Coupon=FGuid::NewGuid();FLDInventoryItem Item;Item.Id=FGuid::NewGuid();Item.Kind=ELDItemKind::Toolkit;Item.Revision=17;Plan.Inputs.Add(Item);
     TArray<uint8> Bytes;FMemoryWriter Writer(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Writer,&Plan,nullptr);FLDProductionPlan Read;FMemoryReader Reader(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Reader,&Read,nullptr);
     TestTrue(TEXT("Reflected production plan preserves exact fee, site, recipe, stamps, coupon and input revisions"),!Writer.IsError()&&!Reader.IsError()&&Read.Site==4&&Read.Recipe==2&&Read.RecipeRevision==7&&Read.InventoryRevision==19&&Read.BuildRevision==11&&Read.SkillSlot==3&&Read.Fee==4&&Read.Coupon==Plan.Coupon&&Read.Inputs.Num()==1&&Read.Inputs[0].Id==Item.Id&&Read.Inputs[0].Revision==17);

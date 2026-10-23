@@ -18,17 +18,18 @@ void ULDInventoryPanel::BuildBank(UVerticalBox* All)
     BankAmount=WidgetTree->ConstructWidget<UEditableTextBox>();BankAmount->SetHintText(FText::FromString(TEXT("Whole gold amount")));Row->AddChildToHorizontalBox(BankAmount)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     Row->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("Review deposit"),[this](){ReviewBank(true);}));
     Row->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("Review withdrawal"),[this](){ReviewBank(false);}));
-    BankConfirm=LDWidgets::Button(WidgetTree,TEXT("Confirm"),[this,PC](){if(bBankReviewed){PC->ConfirmBank(BankReviewedAmount,bBankDeposit,BankReviewedWallet,BankReviewedBalance);bBankReviewed=false;Refresh();}});Row->AddChildToHorizontalBox(BankConfirm);
+    BankPanel->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,TEXT("Review Sovereign Charter · enter wallet share 0–100; bank pays remainder"),[this](){ReviewBank(false,true);}));
+    BankConfirm=LDWidgets::Button(WidgetTree,TEXT("Confirm"),[this,PC](){if(bBankReviewed){if(bCharterReview){PC->ConfirmCharter(BankReviewedAmount,BankReviewedWallet,BankReviewedBalance);}else{PC->ConfirmBank(BankReviewedAmount,bBankDeposit,BankReviewedWallet,BankReviewedBalance);}bBankReviewed=false;Refresh();}});Row->AddChildToHorizontalBox(BankConfirm);
     Row->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("Close bank"),[this,PC](){PC->CloseBank();bBankReviewed=false;Refresh();}));
 }
-void ULDInventoryPanel::ReviewBank(bool Deposit)
+void ULDInventoryPanel::ReviewBank(bool Deposit,bool Charter)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());bBankReviewed=false;const FString Text=BankAmount->GetText().ToString();int64 Amount=0;
     if(Text.IsEmpty()||Text.Len()>19||PC->InventoryPending()||!PC->BankView.Session.IsValid()){return;}
     for(TCHAR C:Text){if(C<'0'||C>'9'||Amount>(MAX_int64-(C-'0'))/10){PC->BankFeedback=TEXT("Enter a positive whole gold amount");Refresh();return;}Amount=Amount*10+(C-'0');}
     const auto& Q=PC->BankView;const int64 Fee=Deposit?LDEconomy::DepositFee(Amount):0;
-    if(Amount<=0||Fee<0||(Deposit?(Amount<=Fee||Amount>Q.Wallet||Q.Bank>MAX_int64-(Amount-Fee)):(Amount>Q.Bank||Q.Wallet>MAX_int64-Amount))){PC->BankFeedback=TEXT("Invalid amount or insufficient funds");Refresh();return;}
-    BankReviewedAmount=Amount;bBankDeposit=Deposit;BankReviewedWallet=Q.WalletRevision;BankReviewedBalance=Q.BankRevision;BankReviewedSession=Q.Session;bBankReviewed=true;Refresh();BankConfirm->SetKeyboardFocus();
+    if(Charter?(Amount>100||Amount>Q.Wallet||100-Amount>Q.Bank||!PC->OwnerState.Witness.IsValid()||!PC->OwnerState.IndustrialEndorsement.IsValid()||!PC->OwnerState.SupplyEndorsement.IsValid()||PC->OwnerState.CharterPurchase.IsValid()):(Amount<=0||Fee<0||(Deposit?(Amount<=Fee||Amount>Q.Wallet||Q.Bank>MAX_int64-(Amount-Fee)):(Amount>Q.Bank||Q.Wallet>MAX_int64-Amount)))){PC->BankFeedback=TEXT("Invalid amount or insufficient funds");Refresh();return;}
+    bCharterReview=Charter;BankReviewedAmount=Amount;bBankDeposit=Deposit;BankReviewedWallet=Q.WalletRevision;BankReviewedBalance=Q.BankRevision;BankReviewedSession=Q.Session;bBankReviewed=true;Refresh();BankConfirm->SetKeyboardFocus();
 }
 void ULDInventoryPanel::RefreshBank()
 {
@@ -38,7 +39,7 @@ void ULDInventoryPanel::RefreshBank()
     if(!Open||Q.Session!=BankReviewedSession||Q.WalletRevision!=BankReviewedWallet||Q.BankRevision!=BankReviewedBalance){bBankReviewed=false;}
     int64 Entered=0;const FString Text=BankAmount->GetText().ToString();bool Valid=!Text.IsEmpty()&&Text.Len()<=19;if(Valid){for(TCHAR C:Text){if(C<'0'||C>'9'||Entered>(MAX_int64-(C-'0'))/10){Valid=false;break;}Entered=Entered*10+(C-'0');}}
     if(!Valid||Entered!=BankReviewedAmount){bBankReviewed=false;}
-    const FString Review=bBankReviewed?FString::Printf(TEXT("\nConfirm %s %lld · Fee %lld · %s %lld"),bBankDeposit?TEXT("deposit"):TEXT("withdrawal"),BankReviewedAmount,bBankDeposit?LDEconomy::DepositFee(BankReviewedAmount):0,bBankDeposit?TEXT("Bank receives"):TEXT("Wallet receives"),bBankDeposit?BankReviewedAmount-LDEconomy::DepositFee(BankReviewedAmount):BankReviewedAmount):TEXT("\nChoose an amount, review, then separately confirm.");
+    const FString Review=bBankReviewed&&bCharterReview?FString::Printf(TEXT("\nCONFIRM REGISTERED CHARTER · Wallet %lld + bank %lld = 100 gold burned. Bound registration; activate once at City. Activation needs a full 4+30+60 seconds before deadline; delay can forfeit it. No refund, item or automatic win."),BankReviewedAmount,100-BankReviewedAmount):bBankReviewed?FString::Printf(TEXT("\nConfirm %s %lld · Fee %lld · %s %lld"),bBankDeposit?TEXT("deposit"):TEXT("withdrawal"),BankReviewedAmount,bBankDeposit?LDEconomy::DepositFee(BankReviewedAmount):0,bBankDeposit?TEXT("Bank receives"):TEXT("Wallet receives"),bBankDeposit?BankReviewedAmount-LDEconomy::DepositFee(BankReviewedAmount):BankReviewedAmount):TEXT("\nChoose an amount, review, then separately confirm.");
     BankStatus->SetText(FText::FromString(FString::Printf(TEXT("CITY TREASURY · Wallet %lld · Protected bank %lld\nDeposit fee: ceil(2%%) · Withdrawals free · %s%s"),Q.Wallet,Q.Bank,*PC->BankFeedback,*Review)));
     BankConfirm->SetIsEnabled(bBankReviewed&&!PC->InventoryPending()&&!bConfirm&&!bTradeReview);
     BankAmount->SetIsEnabled(!PC->InventoryPending());

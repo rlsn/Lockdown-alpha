@@ -315,7 +315,9 @@ FString ALDPlayerController::LegacyContextPrompt() const
             return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
         }
     }
-    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. E work/loot; P build/books. Guild: Shift+E fabricates a Seal (Witness, 4 credits, 100 gold). Conquest unavailable."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
+    if(GS&&GS->bUIControlProfile&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
+    {return Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&GS->CharterWindow.IsValid()?TEXT("Hold context: public Heart claim 10s. All living unprotected contenders qualify; enemies within 240 cm contest."):TEXT("Heart protected. Treasury: Supply + Industrial + Witness + 100 gold; activate registered Charter at City.");}
+    uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return GS&&GS->bUIControlProfile?TEXT("Bag: paid supply, markets, exact production and procurement. Treasury: Supply + Industrial + Witness + 100 gold. City activation opens Heart for everyone."): OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. E work/loot; P build/books. Guild: Shift+E fabricates a Seal (Witness, 4 credits, 100 gold). Conquest unavailable."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
     if(Target==LDObjective::Seal){return TEXT("E: pick up visible Concord Seal within 80 cm.");}
     if(Target==5){return TEXT("E: pick up visible unread book within 80 cm. P: inventory and reading.");}
     if(Target==LDObjective::Heart)
@@ -324,7 +326,7 @@ FString ALDPlayerController::LegacyContextPrompt() const
     {
         if(OwnerState.ContractStage==2){return OwnerState.bDevelopmentProfile?TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +45 XP)."):TEXT("Hold E: deliver courier package for 3 seconds (+25 gold, +15 XP).");}
         if(OwnerState.ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(OwnerState.ContractDestination);return FString::Printf(TEXT("Courier active: collect at %s."),N?*N->Name:TEXT("assigned town"));}return TEXT("Courier active: collect at West station [W].");}
-        if(LDRegion::Definition(GetWorld())&&OwnerState.PaidJobs>=8){return TEXT("Eight paid contracts completed. Unused credits remain available.");}
+        if(LDRegion::Definition(GetWorld())&&OwnerState.PaidJobs>=8){return GS&&GS->bUIControlProfile?TEXT("Eight paid courier contracts completed for this match."):TEXT("Eight paid contracts completed. Unused credits remain available.");}
         if(Now<OwnerState.WorkReadyAt){return FString::Printf(TEXT("Courier acceptance ready in %.1fs."),OwnerState.WorkReadyAt-Now);}
         return LDRegion::Definition(GetWorld())?TEXT("E: accept courier contract (eight paid per match; towns alternate)."):TEXT("E: accept courier contract. Then hold E at West station [W] to collect.");
     }

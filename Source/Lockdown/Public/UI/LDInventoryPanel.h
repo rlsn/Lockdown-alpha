@@ -15,7 +15,7 @@ public:
     void BuildProduction(class UVerticalBox* All);void RefreshProduction();
     void ToggleProductionInput();void PreviewProduction(uint8 Recipe);void ArmProductionPreview();
     void BuildCommerce(class UVerticalBox* All);void RefreshCommerce();void CommerceAction(uint8 Command,ELDItemKind Kind);
-    void BuildBank(class UVerticalBox* All);void RefreshBank();void ReviewBank(bool Deposit);
+    void BuildBank(class UVerticalBox* All);void RefreshBank();void ReviewBank(bool Deposit,bool Charter=false);
     void Refresh();void CancelDrag();bool IsDragging() const{return bPointerDown;}
     void Select(FGuid Id);void Use();void AskDrop();void ConfirmDrop();
     FString DetailText() const;
@@ -35,6 +35,7 @@ protected:
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual FReply NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E) override;
 private:
+    friend class ALDCharterProbe;
     friend class ALDProductionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
@@ -56,7 +57,7 @@ private:
     UPROPERTY() TObjectPtr<UEditableTextBox> BankAmount;
     UPROPERTY() TObjectPtr<ULDCommandButton> BankOpenButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> BankConfirm;
-    bool bBankReviewed=false,bBankDeposit=true;
+    bool bBankReviewed=false,bBankDeposit=true,bCharterReview=false;
     int64 BankReviewedAmount=0;
     uint32 BankReviewedWallet=0,BankReviewedBalance=0;
     FGuid BankReviewedSession;

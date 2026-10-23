@@ -27,6 +27,7 @@ namespace LDEconomy
         FName From,To;
         TArray<FGuid> Parents;
     };
+    struct FBudgetDelta { FName Id; int32 Units=0; };
     struct FTransaction
     {
         FGuid Id;
@@ -37,6 +38,7 @@ namespace LDEconomy
         // Optional finite budget. Rewards and extraction share this one commit boundary.
         FName Budget;
         int32 Units=0;
+        TArray<FBudgetDelta> Budgets; // additional bounds validated and debited atomically
     };
     struct FReceipt { FTransaction Transaction; uint64 Serial=0; };
     class LOCKDOWN_API FLedger

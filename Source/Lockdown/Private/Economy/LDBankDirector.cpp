@@ -48,7 +48,7 @@ void ALDBankDirector::Reply(ALDPlayerController* PC,uint32 Id,const FString& Rea
     const FString Message=Reason;auto& C=Clients.FindOrAdd(PC);if(Id){C.Receipts.Add(Id,Message);while(C.Receipts.Num()>64){uint32 Old=MAX_uint32;for(const auto& P:C.Receipts){Old=FMath::Min(Old,P.Key);}C.Receipts.Remove(Old);}}
     if(const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){C.View=View(PC,C);PC->ClientBankView(*O,C.View,Id,Message);}
 }
-void ALDBankDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,int64 Amount,bool Deposit,uint32 WR,uint32 BR)
+void ALDBankDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,int64 Amount,bool Deposit,uint32 WR,uint32 BR,bool Charter)
 {
     auto& C=Clients.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
     if(!Id||!O||O->Match!=Match||O->Life!=Life){Reply(PC,Id,TEXT("Bank request has stale life"));return;}
@@ -57,7 +57,7 @@ void ALDBankDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uin
     if(Id<=C.LastRequest){Reply(PC,Id,TEXT("Expired bank request"));return;}
     C.LastRequest=Id;
     if(!TakeToken(C)||Requests.ContainsByPredicate([&](const auto& R){return R.PC==PC;})){Reply(PC,Id,TEXT("Bank busy; try again"));return;}
-    C.LastRequest=Id;Requests.Add({PC,Match,Life,Id,Session,Amount,Deposit,WR,BR});
+    C.LastRequest=Id;Requests.Add({PC,Match,Life,Id,Session,Amount,Deposit,WR,BR,Charter});
 }
 void ALDBankDirector::Sample(double Now)
 {
@@ -72,8 +72,8 @@ void ALDBankDirector::Sample(double Now)
     {
         auto* PC=R.PC.Get();if(!PC){continue;}const auto& C=Clients.FindChecked(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);FString Error;
         if(!O||O->Match!=R.Match||O->Life!=R.Life||C.View.Session!=R.Session||!Valid(PC,C)){Reply(PC,R.Id,TEXT("Treasury closed; nothing moved"));continue;}
-        if(!M->Economy->CommitBank(PC,R.Amount,R.Deposit,R.WR,R.BR,Error)){Reply(PC,R.Id,Error+TEXT(" · Review again"));continue;}
-        Reply(PC,R.Id,R.Deposit?TEXT("Deposit confirmed · Fee burned, bank credit protected"):TEXT("Withdrawal confirmed · Gold is now carried"));
+        if(!(R.Charter?M->Economy->CommitCharterPurchase(PC,R.Amount,R.WR,R.BR,Error):M->Economy->CommitBank(PC,R.Amount,R.Deposit,R.WR,R.BR,Error))){Reply(PC,R.Id,Error+TEXT(" · Review again"));continue;}
+        Reply(PC,R.Id,R.Charter?TEXT("Sovereign Charter registered · 100 gold burned · Activate at City civic terminal with a fresh 4s hold"):R.Deposit?TEXT("Deposit confirmed · Fee burned, bank credit protected"):TEXT("Withdrawal confirmed · Gold is now carried"));
     }
 }
 

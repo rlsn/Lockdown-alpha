@@ -38,6 +38,9 @@ struct FLDInteractionState
     double LastHold=-1000,Started=0,LastInterrupt=-1000;
     FVector Anchor=FVector::ZeroVector;
     FGuid Contract;
+    FGuid Window;
+    double WindowClose=0,Damage=-1000;
+    TWeakObjectPtr<ALDCharacter> Body;
 };
 
 UCLASS()

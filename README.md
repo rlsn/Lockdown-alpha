@@ -5,19 +5,17 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B64 institutions and shortage implemented and verified.**
-[B64 implementation](docs/v06/B64_IMPLEMENTATION.md) adds eight funded production/
-consumption opportunities, protected public routines, the East Toolkit shortage
-and one shared delivery order. Editor build, 23 rules, 36 authority checks,
-eight native routes across both maps and independent ledger replay passed.
-[B63 production](docs/v06/B63_IMPLEMENTATION.md) is committed as `46998d0`;
-[B62 commerce](docs/v06/B62_IMPLEMENTATION.md) as `76c0e2c`.
-B65 procurement/endorsements/registered Charter is next. Full release acceptance remains open.
-[B61](docs/v06/B61_IMPLEMENTATION.md) records retained cargo, physical banking,
-institutional state and accounting foundations.
-[B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the
-complete economy spec against the actual B57 runtime. The normal frontend
-retains the v0.5 loop plus cargo foundations while the economy is implemented.
+**Current checkpoint: v0.6 B65 procurement and registered Charter implemented and verified.**
+[B65 implementation](docs/v06/B65_IMPLEMENTATION.md) connects bounded Core/Supply
+orders, retained endorsements, explicit Treasury checkout and a public Heart
+opening for everyone. Editor build, 23 rules, 56 authority checks, 39 earned-route
+checks and independent ledger replay passed. The controlled earned route leaves
+15 gold and 300 XP; a rival without a Charter wins the public claim.
+B66 native presentation integration is next; full release acceptance remains open.
+[B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
+[B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
+record retained checkpoints. [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts
+master revision 6 and the complete economy spec against the actual B57 runtime.
 
 **Retained v0.5: B51 navigation through B57 presentation implemented.**
 [B58 handoff](docs/v05/B58_HANDOFF.md) records retained evidence and open acceptance.
@@ -31,7 +29,7 @@ and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24
 bag, finite ward instances and four real quick-item references. [B55](docs/v05/B55_IMPLEMENTATION.md)
 adds the quoted Guild bookshop beside your own bag. [B56](docs/v05/B56_IMPLEMENTATION.md)
 adds voluntary item/gold exchange with reservations, Ready and separate Confirm. The ordinary
-frontend launches this v0.5 checkpoint. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; v0.6 scope is now recorded in the B60 review.
+frontend now launches the v0.6 economy through B65. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; v0.6 scope is now recorded in the B60 review.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived
@@ -62,7 +60,7 @@ attacks. Q/W/E/R invoke equipped skill modes; hold the initiating key/button for
 channels. F performs context, P opens character/preparation and F1 opens saved
 controls. Arrows/edge pan, held Space, Home and the wheel control the camera.
 Apply closes the preview and requires a fresh F hold at a preparation station.
-The temporary character panel also arms book reading and Seal fabrication.
+The character panel also arms book reading and City Charter activation.
 
 I/Bag opens your carried inventory. Assign owned books/ward charges to 1–4;
 hold a book shortcut to learn, or use it in the bag and make a fresh F hold.

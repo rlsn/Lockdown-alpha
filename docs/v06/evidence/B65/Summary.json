@@ -1,0 +1,32 @@
+{
+  "milestone": "B65",
+  "baseRevision": "f21e7cebebdd6c8db9b954b3f62b2589c9b3194c",
+  "finalEditorBuild": "Artifacts/20261023-185449-131-BuildEditor",
+  "finalVerification": "Artifacts/20261023-185529-879-B65-Charter",
+  "rules": 23,
+  "authorityChecks": 56,
+  "journeyChecks": 39,
+  "authorityGold": {
+    "start": 450,
+    "diagnosticMint": 1000,
+    "procurementMint": 580,
+    "burned": 450,
+    "end": 1580,
+    "receipts": 38,
+    "items": 97
+  },
+  "journeyGold": {
+    "start": 450,
+    "minted": 205,
+    "burned": 178,
+    "end": 477,
+    "ownerWallet": 15,
+    "ownerXp": 300,
+    "receipts": 28,
+    "items": 103
+  },
+  "auditFailures": 0,
+  "scope": "Controlled two-owner native authority, clock/placement and legal ground-boundary samples; journey uses actual courier/Witness/commerce/crafting/orders with diagnostic items disabled and no seeded gold/items/XP/endorsements; no physical-input, remote, rendered-layout, cooked or human travel acceptance",
+  "priorAttempt": "Artifacts/20261023-185240-215-B65-Charter passed rules/authority; journey exact floating-point interval equality failed. Only probe equality tolerance and measured endpoint reporting changed before the final successful pass.",
+  "replay": "Python independently checks account/item revisions, dual quotas, exact parents/consumption, mints/burns and final balances. Retained B63/B64 ledgers also passed."
+}
