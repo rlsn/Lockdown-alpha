@@ -26,6 +26,7 @@ protected:
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
+    friend class ALDEconomyUIProbe;
     UPROPERTY() TObjectPtr<class USizeBox> MapFrame;
     UPROPERTY() TObjectPtr<class USizeBox> InspectFrame;
     UPROPERTY() TObjectPtr<UBorder> Band;

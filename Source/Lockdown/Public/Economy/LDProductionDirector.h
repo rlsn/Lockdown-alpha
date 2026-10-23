@@ -51,6 +51,7 @@ public:
     void Sample(double Now);
     AActor* Target(uint8 Site) const {return Targets.IsValidIndex(Site)?Targets[Site].Get():nullptr;}
 private:
+    friend class ALDEconomyUIProbe;
     friend class ALDCharterProbe;
     friend class ALDProductionProbe;
     friend class ALDInstitutionProbe;

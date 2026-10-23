@@ -10,6 +10,7 @@ void ALDPlayerController::OpenCommerce(uint8 Service)
 {
     if(InventoryPending()||!NearCommerce(Service)){IntentFeedback=TEXT("Approach the selected official service within 120 cm");return;}
     if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(!InventoryUI||!InventoryUI->IsOpen()){return;}
+    InventoryUI->ShowService(2);
     CloseCommerce();bCommerceOpening=true;CloseVendor();CloseBank();CancelTrade();ClearControls();SetMenuOpen(true);CommerceToken=++NextRequest;bCommerceOpening=true;CommerceNeedsReview=false;CommerceFeedback=TEXT("Opening local service…");ServerCommerceOpen(OwnerState.Match,OwnerState.Life,CommerceToken,Service);InventoryUI->Refresh();
 }
 void ALDPlayerController::CloseCommerce(){if(CommerceIsOpen()){ServerCommerceClose(CommerceToken);}bCommerceOpening=false;CommerceNeedsReview=false;CommerceView=FLDCommerceView();}
@@ -26,11 +27,15 @@ void ALDPlayerController::ServerCommerceCommit_Implementation(uint32 Match,uint3
 {if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Commerce){M->Commerce->Queue(this,Match,Life,Request,Session,Revision,Command,Kind,Item,ItemRevision,InventoryRevision,Price);}else{ClientCommerceView(OwnerState,FLDCommerceView(),Request,TEXT("Commerce unavailable"));}}
 void ALDPlayerController::ClientCommerceView_Implementation(const FLDOwnerState& State,const FLDCommerceView& View,uint32 Request,const FString& Reason)
 {
-    ClientLifeReceipt_Implementation(State);const bool Pending=Request&&Request==CommercePending;if(Pending){CommercePending=0;}
+    if(State.Match!=OwnerState.Match){LastCommerceQuotes.Reset();}
+    ClientLifeReceipt_Implementation(State);
+    if(View.Session.IsValid()&&(View.Match!=OwnerState.Match||View.Life!=OwnerState.Life)){return;}
+    const bool Pending=Request&&Request==CommercePending;if(Pending){CommercePending=0;}
     if(View.Token==CommerceToken&&CommerceIsOpen()&&InventoryUI&&InventoryUI->IsOpen())
     {
         if(CommerceView.Session==View.Session&&CommerceView.Revision!=View.Revision&&!Pending){CommerceNeedsReview=true;}
         bCommerceOpening=false;CommerceView=View;CommerceFeedback=Reason;
+        if(View.Session.IsValid()&&!View.Offers.IsEmpty()){auto Snapshot=View;Snapshot.Session.Invalidate();LastCommerceQuotes.Add(View.Service,Snapshot);}
         if(Reason.Contains(TEXT("Review"))){CommerceNeedsReview=true;}
         if(View.Match!=OwnerState.Match||View.Life!=OwnerState.Life){CommerceView.Session.Invalidate();}
     }

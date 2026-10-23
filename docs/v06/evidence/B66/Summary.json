@@ -1,0 +1,77 @@
+{
+  "milestone": "B66",
+  "baseRevision": "e719758da0817e71c04703ad041506d6c1239fc8",
+  "finalEditorBuild": "Artifacts/20261023-233047-421-BuildEditor",
+  "finalUIRun": "Artifacts/20261023-233109-122-B66-EconomyUI",
+  "finalRegression": "Artifacts/20261023-233344-289-B65-Charter",
+  "engine": "UE5.8.4 CL58902052",
+  "compileWorkerCap": 4,
+  "buildActions": 4,
+  "buildSeconds": 16.91,
+  "nativeUI": {
+    "Small": {
+      "resolution": "1280x720",
+      "textScale": 1,
+      "checks": 84,
+      "failures": 0
+    },
+    "Large": {
+      "resolution": "1280x720",
+      "textScale": 1.25,
+      "checks": 84,
+      "failures": 0
+    },
+    "Wide": {
+      "resolution": "1920x1080",
+      "textScale": 1,
+      "checks": 84,
+      "failures": 0
+    },
+    "captures": 39,
+    "retainedOriginalCaptures": 13
+  },
+  "regression": {
+    "rules": 23,
+    "authorityChecks": 56,
+    "earnedJourneyChecks": 39,
+    "failures": 0
+  },
+  "uiLedgerEach": {
+    "start": 450,
+    "labelledDiagnosticMint": 957,
+    "burned": 0,
+    "end": 1407,
+    "receipts": 14,
+    "accounts": 7,
+    "items": 93,
+    "auditFailures": 0
+  },
+  "authorityLedger": {
+    "start": 450,
+    "diagnosticMint": 1000,
+    "procurementMint": 580,
+    "burned": 450,
+    "end": 1580,
+    "receipts": 38,
+    "accounts": 7,
+    "items": 97,
+    "auditFailures": 0
+  },
+  "earnedJourneyLedger": {
+    "start": 450,
+    "minted": 205,
+    "burned": 178,
+    "end": 477,
+    "ownerWallet": 15,
+    "ownerXP": 300,
+    "receipts": 28,
+    "accounts": 7,
+    "items": 103,
+    "auditFailures": 0
+  },
+  "sourceFilesHashed": 189,
+  "scope": "Local native rendered UMG/Slate, actual Enhanced Input fresh remapped holds, two local owners, labelled diagnostic UI resources and progression/window setup. UI fixture is not an earned journey; separate B65 regression earns resources with diagnostic items disabled and controlled clock/placement/ground-boundary samples.",
+  "pending": "B67 remote clients/packet privacy/latency, current cook/package, normal timed economic approaches, restart/performance and human/physical-input/OS-scale acceptance.",
+  "inputFixtureCorrection": "Final native character8 events accompany Backspace key-down; earlier fixture-only key-down could not delete text. Final 84-check passes include text deletion and restored bag. Delayed shortcut leak fixed in runtime before the final successful build.",
+  "replay": "All three UI ledgers and both final regression ledgers independently replay account/item revisions, exact lineage, budgets and gold; zero audit failures."
+}

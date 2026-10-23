@@ -40,3 +40,27 @@ FVector2D LDHUD::MapPoint(const FVector& P,const FLDVisionGrid& G)
 {return FVector2D((P.X-G.Min.X)/(60*G.CellSize),1-(P.Y-G.Min.Y)/(40*G.CellSize));}
 FVector LDHUD::MapWorld(const FVector2D& P,const FLDVisionGrid& G)
 {return FVector(G.Min.X+FMath::Clamp(P.X,0.,.999999)*60*G.CellSize,G.Min.Y+(1-FMath::Clamp(P.Y,.000001,1.))*40*G.CellSize,0);}
+
+#include "Framework/LDGameMode.h"
+FString LDHUD::PublicOpening(const ALDGameState& G,double Now)
+{
+    if(G.EndReason){return G.EndReason==2?TEXT("No claim · match ended"):TEXT("Heart claimed · match ended");}
+    if(G.bClaimActive){return FString::Printf(TEXT("%s · %.1f/10s"),G.bContested?TEXT("CONTESTED"):TEXT("Public claim"),G.ClaimProgress);}
+    if(G.CharterWindow.IsValid()&&Now>=G.CharterOpenAt&&Now<G.CharterCloseAt){return FString::Printf(TEXT("HEART OPEN TO ALL · %.1fs left"),G.CharterCloseAt-Now);}
+    if(G.CharterWindow.IsValid()&&Now<G.CharterOpenAt){return FString::Printf(TEXT("PUBLIC WARNING · opens in %.1fs"),G.CharterOpenAt-Now);}
+    return TEXT("HEART PROTECTED · Charter opens public contest");
+}
+FString LDHUD::EconomyStep(const FLDOwnerState& O,const ALDGameState& G,double Now)
+{
+    if(G.EndReason){return O.bWinner?TEXT("You claimed the Heart"):TEXT("Match ended");}
+    if(!O.bActive){return TEXT("Waiting to return · progress and bank retained");}
+    if(G.CharterWindow.IsValid()&&Now>=G.CharterOpenAt&&Now<G.CharterCloseAt){return Now+10<=G.CharterCloseAt?TEXT("Heart: hold context 10s; no Charter required"):TEXT("Opening ends before a new 10s claim can finish");}
+    if(O.CharterActivation.IsValid()){return TEXT("Charter spent · anyone may win the public opening");}
+    if(O.CharterPurchase.IsValid())
+    {if(O.bCharterAwaitingRespawn){return TEXT("Return first; then 30s Charter recovery");}if(Now<O.CharterReadyAt){return FString::Printf(TEXT("Charter recovery · %.1fs left"),O.CharterReadyAt-Now);}if(G.CharterWindow.IsValid()&&Now<G.CharterCloseAt){return TEXT("Another opening is active; keep your registration");}if(Now+94>G.MatchDeadline){return TEXT("Too late to activate a full public opening");}return TEXT("City civic terminal: arm activation, then hold 4s");}
+    if(!O.SupplyEndorsement.IsValid()){return TEXT("West Supply: deliver 2 Toolkits · 50g / 30XP");}
+    if(!O.IndustrialEndorsement.IsValid()){return TEXT("City procurement: deliver 1 Core · 80g / 60XP");}
+    if(!O.Witness.IsValid()){return TEXT("Earn Witness with an equipped Charter-service skill");}
+    if(Now+94>G.MatchDeadline){return TEXT("Too late to purchase a full Charter opening");}
+    return TEXT("City Treasury: review Charter · 100g wallet/bank split");
+}

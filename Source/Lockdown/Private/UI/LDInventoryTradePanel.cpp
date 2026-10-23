@@ -5,6 +5,7 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/HorizontalBox.h"
+#include "Components/UniformGridPanel.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/EditableTextBox.h"
@@ -19,10 +20,10 @@ void ULDInventoryPanel::BuildTradePanel(UVerticalBox* All)
     TradeStatus=LDWidgets::Text(WidgetTree,TEXT(""),16);TradePanel->AddChildToVerticalBox(TradeStatus);
     auto* Trays=WidgetTree->ConstructWidget<UHorizontalBox>();TradePanel->AddChildToVerticalBox(Trays);
     for(int32 N=0;N<2;++N){UTextBlock* T=nullptr;auto* Scroll=LDWidgets::OfferTray(WidgetTree,T);if(N){OtherTray=T;}else{OwnTray=T;}auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetHeightOverride(126);Size->SetContent(Scroll);Trays->AddChildToHorizontalBox(Size)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
-    auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();TradePanel->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,6));
-    GoldInput=WidgetTree->ConstructWidget<UEditableTextBox>();GoldInput->SetText(FText::FromString(TEXT("0")));GoldInput->SetHintText(FText::FromString(TEXT("Your offered gold")));GoldInput->SetToolTipText(FText::FromString(TEXT("Whole gold amount; your real wallet remains exposed to theft and death")));auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(150);Size->SetContent(GoldInput);Actions->AddChildToHorizontalBox(Size);
-    auto Style=GoldInput->GetWidgetStyle();Style.BackgroundImageNormal.TintColor=FSlateColor(FLinearColor(.04f,.08f,.11f));Style.ForegroundColor=FSlateColor(FLinearColor::White);GoldInput->SetWidgetStyle(Style);
-    auto Button=[&](const TCHAR* Label,TFunction<void()> Action){auto* B=LDWidgets::Button(WidgetTree,Label,MoveTemp(Action));Actions->AddChildToHorizontalBox(B)->SetPadding(FMargin(4,0));return B;};
+    auto* Actions=WidgetTree->ConstructWidget<UUniformGridPanel>();Actions->SetSlotPadding(FMargin(3));TradePanel->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,6));
+    GoldInput=WidgetTree->ConstructWidget<UEditableTextBox>();GoldInput->SetText(FText::FromString(TEXT("0")));GoldInput->SetHintText(FText::FromString(TEXT("Your offered gold")));GoldInput->SetToolTipText(FText::FromString(TEXT("Whole gold amount; your real wallet remains exposed to theft and death")));auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(150);Size->SetContent(GoldInput);Actions->AddChildToUniformGrid(Size,0,0);
+    auto Style=GoldInput->GetWidgetStyle();Style.BackgroundImageNormal.TintColor=FSlateColor(FLinearColor(.04f,.08f,.11f));Style.BackgroundImageHovered.TintColor=Style.BackgroundImageNormal.TintColor;Style.BackgroundImageFocused.TintColor=Style.BackgroundImageNormal.TintColor;Style.ForegroundColor=FSlateColor(FLinearColor::White);GoldInput->SetWidgetStyle(Style);
+    int32 ActionIndex=1;auto Button=[&](const TCHAR* Label,TFunction<void()> Action){auto* B=LDWidgets::Button(WidgetTree,Label,MoveTemp(Action));Actions->AddChildToUniformGrid(B,ActionIndex/2,ActionIndex%2);++ActionIndex;return B;};
     GoldTradeButton=Button(TEXT("Set gold"),[this](){const FString Text=GoldInput->GetText().ToString();int64 Value=0;bool Digits=!Text.IsEmpty()&&Text.Len()<=10;for(auto C:Text){Digits&=C>=TEXT('0')&&C<=TEXT('9');}if(Digits&&LexTryParseString(Value,*Text)){TradeGold(Value);}else{auto* Owner=CastChecked<ALDPlayerController>(GetOwningPlayer());Owner->TradeView.Message=Owner->IntentFeedback=TEXT("Enter a whole nonnegative gold amount");Refresh();}});
     AddTradeButton=Button(TEXT("Add / Remove item"),[this](){TradeSelected();});
     AcceptTradeButton=Button(TEXT("Accept invitation"),[this](){SubmitTrade(LDTrade::Accept);});

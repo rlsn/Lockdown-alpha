@@ -50,6 +50,11 @@ and verified public/covered routes on both saved maps. The gate passed 23 rules,
 retained endorsements, explicit split checkout and public warning/open/close.
 The final build passed 23 rules, 56 authority checks, 39 controlled earned-route
 checks and independent replay. Actual earned resources leave15 gold/300 XP and
-a rival without a Charter wins. B66 native presentation integration is next.
-Native input/layout/network, normal progression and release acceptance remain open. Earlier partial reports are historical checkpoints, not current
+a rival without a Charter wins.
+[B66 native services](B66_IMPLEMENTATION.md) now unifies the bag/catalog/market/
+production/order/Treasury/trade shell and economy feedback. The final build passed
+84 native input/layout checks in each of 1280×720, 1280×720 with125% text and
+1920×1080, with39 rendered captures and independent replay. Regression passed
+23 rules,56 authority and39 earned-route checks. B67 remote clients, current
+cook/package, normal timed journeys and human/OS-scale acceptance remain open. Earlier partial reports are historical checkpoints, not current
 completion status. Use the [working ledger](FeatureLedger.csv).

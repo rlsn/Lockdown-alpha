@@ -1,11 +1,15 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60–B65 complete at their engineering gates; B66 next**.
+Current work: **v0.6 B60–B66 complete at their engineering gates; B67 next**.
+[B66 implementation](v06/B66_IMPLEMENTATION.md) records seven native service tabs,
+visited quote history, exact previews, private/public objective feedback and the
+editable-field shortcut fix. The final build passed 84 native checks in each of
+three rendered layouts (39 captures), plus independent replay. Regression passed
+23 rules, 56 authority and 39 earned-route checks. Remote clients, current package,
+normal sessions, OS scaling and human acceptance remain B67.
 [B65 implementation](v06/B65_IMPLEMENTATION.md) records bounded procurement,
-retained endorsements, registered Charter checkout and the public contest.
-The final build passed 23 rules, 56 authority and 39 earned-route checks, plus
-independent replay. The controlled route leaves15 gold/300 XP and a rival without
-Charter wins; rendered/native-input/remote/release acceptance remains open.
+retained endorsements, registered Charter checkout and the public contest. Its
+controlled earned route leaves15 gold/300 XP and a rival without Charter wins.
 [B64 implementation](v06/B64_IMPLEMENTATION.md) records 23 rules, 36 authority
 checks, eight actual native routes across both maps and independent ledger replay.
 Scheduled funded production/demand, protected routines and the shared shortage

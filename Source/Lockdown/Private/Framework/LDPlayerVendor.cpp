@@ -11,6 +11,7 @@ void ALDPlayerController::OpenVendor()
 {
     if(InventoryPending()||!NearGuildVendor()){IntentFeedback=TEXT("Approach the Guild bookshop within 120 cm");return;}
     if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(!InventoryUI||!InventoryUI->IsOpen()){return;}
+    InventoryUI->ShowService(1);
     CloseCommerce();CloseBank();TradeView=FLDTradeView();CloseVendor();ClearControls();SetMenuOpen(true);VendorOpenToken=++NextRequest;bVendorOpening=true;VendorNeedsReview=false;VendorFeedback=TEXT("Opening Guild catalog…");
     ServerOpenVendor(OwnerState.Match,OwnerState.Life,VendorOpenToken);InventoryUI->Refresh();
 }

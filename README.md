@@ -5,13 +5,15 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B65 procurement and registered Charter implemented and verified.**
-[B65 implementation](docs/v06/B65_IMPLEMENTATION.md) connects bounded Core/Supply
-orders, retained endorsements, explicit Treasury checkout and a public Heart
-opening for everyone. Editor build, 23 rules, 56 authority checks, 39 earned-route
-checks and independent ledger replay passed. The controlled earned route leaves
-15 gold and 300 XP; a rival without a Charter wins the public claim.
-B66 native presentation integration is next; full release acceptance remains open.
+**Current checkpoint: v0.6 B66 native economy services implemented and locally verified.**
+[B66 implementation](docs/v06/B66_IMPLEMENTATION.md) integrates the own-bag service
+tabs, visited quote history, exact production previews, Treasury review and public
+objective feedback. Editor build and 84 native input/layout checks in each of
+three rendered layouts passed, with 39 captures and independent ledger replay.
+Regression passed 23 rules, 56 authority checks and 39 earned-route checks.
+[B65](docs/v06/B65_IMPLEMENTATION.md) retains the actual earned route leaving
+15 gold/300 XP and a rival without a Charter winning the public claim.
+B67 remote clients, current package, normal sessions and human acceptance remain open.
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
 record retained checkpoints. [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts
@@ -29,7 +31,7 @@ and life/results presentation. [B54](docs/v05/B54_IMPLEMENTATION.md) adds the 24
 bag, finite ward instances and four real quick-item references. [B55](docs/v05/B55_IMPLEMENTATION.md)
 adds the quoted Guild bookshop beside your own bag. [B56](docs/v05/B56_IMPLEMENTATION.md)
 adds voluntary item/gold exchange with reservations, Ready and separate Confirm. The ordinary
-frontend now launches the v0.6 economy through B65. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; v0.6 scope is now recorded in the B60 review.
+frontend now launches the v0.6 economy through B66. [B57](docs/v05/B57_IMPLEMENTATION.md) adds shared panels, compact command rows and keyboard review/focus. Extended release verification is carried forward explicitly; v0.6 scope is now recorded in the B60 review.
 
 **Retained runtime: B47 recorded; full stress validation deferred by user.** v0.4
 adds three private class starts, six attributes, five-level point awards, derived

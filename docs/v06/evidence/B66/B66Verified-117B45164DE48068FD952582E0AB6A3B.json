@@ -1,0 +1,1977 @@
+{
+  "schemaVersion": 1,
+  "event": "B66Verified",
+  "match": "117B45164DE48068FD952582E0AB6A3B",
+  "start": "450",
+  "minted": "957",
+  "burned": "0",
+  "end": "1407",
+  "accounts": [
+    {
+      "id": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "gold": "594",
+      "endowment": "0",
+      "retired": false,
+      "revision": 3
+    },
+    {
+      "id": "Bank:3591127A4E9012ADDD73E8BBA5F1835D",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "gold": "343",
+      "endowment": "0",
+      "retired": false,
+      "revision": 4
+    },
+    {
+      "id": "Bank:53C19D044E67482B5A168D9885C93BA1",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "WestTown",
+      "gold": "150",
+      "endowment": "150",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "EastTown",
+      "gold": "150",
+      "endowment": "150",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "City",
+      "gold": "170",
+      "endowment": "150",
+      "retired": false,
+      "revision": 4
+    }
+  ],
+  "items": [
+    {
+      "id": "33AF5D834C322567BDB6BBA319FDF0B9",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "55C3E0514744DB1CCD34B993E45554C9",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "B3E15AB1460C083B9662C096E6E92A7E",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "0E8168A748F20DCB529B2688E751E9BF",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "3BE2CA8B4C9C8157397184AEF7527717",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "090B546A4603AEAE88AE768DA397E68A",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "BBEA93F84AA7761C74D79BA12A52B036",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EE091930445FA9A9666A19B4D75967F7",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "23E8A7B940CFC7163A4E9495E0DA8DE2",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "6C08FC944CFF2CA6E87E61BA6809E758",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "208CC3294784068D88FEDD894108420A",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EC4E00764578EC0B37C9F5A66A3ABF3D",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "06354F3E4633079A10A6D9A2B7C9C39E",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "5F760CCF4422238A1D22678C7B8327C5",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "2E55C78B4A11DDE9E7F650B659C8BC99",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "E68C4F13435CFE93A980459C164CF303",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "B0E072A34D224036B8B635A805D31C3C",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "030BB0D845F9FB26857BBA80BB2BB34D",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "84FAAFE54ED9EF7004016786085772C3",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EFB4514B4516A71FC3B93CBF2B8DC308",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "54F004444FB133E4E9BF519E14BEB58C",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "8F26B4D843CAD6023217069C44D56575",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "DBD132FE4F92AEF2411E1A96D634FE7C",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "F051DB32498B416067533CA3DD588063",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "4EB52F9B49FF199811E0B09D2471D627",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "C7C28B5C458DF932FEC5CFBEA2A0F07C",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D7147AB7459BF020D613D491484DDC8A",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EA4D83354B03F948F8045487C3FE807B",
+      "kind": 6,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D904CA514957301B5546A8B6F66AA9BD",
+      "kind": 6,
+      "location": "WestTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "4729646C42448AE8E97AA092B6DCE9C1",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "AFD84A484489406EAA1C6C81CFC6A084",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "4B5D26B84377C71DFAFA0BA4E0B2766E",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "12BB0BBD4454AA9A13A7B692BF305208",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EBC39A1F496ADED4285C15A9B0B75B18",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "DB25460941F33A9799292EAC9DB865CC",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "A1C3436642900730828B2DAD221B76EF",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "FE094BAA4074A529B2AC7B977D86BA37",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "9CFDC00A4E36AEFED6503194BBE4A49D",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "E6BB053D4470B38229EFCEB3456F5169",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D99C81DB492B707A7160A681568DF139",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "89E61BFC4405E8FABC73929361D75891",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "FFB6A36241310B0CA417339B60AD5E9E",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "5B73E00D4261BAD189DA89B1F82A4323",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "E4B8AA5A42A9495880397E803A612B1B",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "EA1FAA17483C84C41A6E37B7B520BA6D",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D67E3D704C31E90CF861999E2D323770",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "8919F9F2443E6F052B623998E44DBCF4",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "838DAC694856338D2320378B22D84A7C",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "ABB49B01496F069C247EF3AB6059739A",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "CEAEA63A48B3A455068071A1F2BDB2E0",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "AB4BB49247129379169E95BFCE2C33CF",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "CB551A4B4A8A918A88F6A8A971EA0814",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "04A7CEFE43E2F3D507F2CDA4F2AA6C19",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "4C3EF79545134CA5AB85B8B960CA8703",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "603BFB8C4901DE8266D558B34DF393AC",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "A28072CE4307F5AE83F9D0B1C394C244",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "F48177154163A5C2E70D0397C6C7C3E7",
+      "kind": 6,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "DFBE13364A7E065466A1B482961CDD1E",
+      "kind": 6,
+      "location": "EastTown",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "0957192D4295A4F717DB64953A1A8860",
+      "kind": 3,
+      "location": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "34A8FC7F42BCD3AC2A83E399E01B7198",
+      "kind": 3,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "0A5452C146BC2A13B48E11914B978ABA",
+      "kind": 3,
+      "location": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "0D6DF3564706900EFDE0DB8D84F99FEB",
+      "kind": 3,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "73399B2940B86895E3AB809B9D5C9F77",
+      "kind": 3,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "846D33C840601129124EF28C6E05D359",
+      "kind": 3,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "25B9323F4DCC34FD70CC0EBB544839AA",
+      "kind": 3,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "00580F3D4B674F8371900CB0FB8BAA9D",
+      "kind": 3,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "476F08044EE5862DB0A51F8ADA44A35B",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "2E3C92AD46DE1B0D164C64B71C770987",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "9ED0FF2344DBEB665CEDEB81DCAEF9E3",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "DD2865DB4CE1E2F7CAA075BF2AA31DAF",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "AAE408B1468975D0D45FB38ACABED4D5",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "BF4E1A204AB390B61CB56DB9077CA76A",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "E8574336480E63CD7CF59EA06C1A0286",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "75B43D954DE02D7FB48A4A94B0F523E4",
+      "kind": 4,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "4AF4AE344CCE36A753CFA7995B8F3626",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "31ACF0CF4B49FC59DC7708BB6656B70E",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "9E61E1F94A27321EF6165086585F271B",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "70B17F9248970552FB9925A9C7830373",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "E6476D99456703C7F53B00A18D946B46",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D0BEEA774B5E9CDA48EE7D98808AB5A1",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "2FA21BB648039D6013DD5D96A1FAC9EE",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "8CBFC74D4DBBE0994B7B86A0C7C7AF4C",
+      "kind": 5,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "BBC92AF442CACA2D665E28B3F71A3AD4",
+      "kind": 6,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "D2BC7CEF4E2473648ABB0FB5050A7E6E",
+      "kind": 6,
+      "location": "City",
+      "origin": "A8F921804A7C31C1E22CA19BBED73414",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "6DCA497544CCE32E4BA16CBD9AB154A3",
+      "kind": 1,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "3C14843A4E89FDFEF671D18A0F4F5A68",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "CBE0384A422EB1C0D2BA23BCB8E5D4DE",
+      "kind": 1,
+      "location": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "origin": "0682F0F34C77107E99344FABF3A10602",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "B402A05D4E8EECB1B306ED90663D1724",
+      "kind": 3,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "15889DFD431B486BEDA3B0B64394DCA9",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "C9D0BE7E4562C37641468D9E594A508B",
+      "kind": 3,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "FDA284BC4A70D07F3C07E095DEC0E6CF",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "198A19D14F375D4E4F66CAB097757150",
+      "kind": 4,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "30D5976E4F26D75428AD269FF5F3F248",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "862EFC714539AAAAF4AFC1AD834D60C7",
+      "kind": 5,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "60143CE84C2ACACF626B4B8998DA02F0",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "6374654E4213071C7C9C4CBE2CDC12BA",
+      "kind": 6,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "68DA04B144B67F001FBE55BD44A71121",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "7FC0945145EE8FC0A6DA7988641719A7",
+      "kind": 6,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "4288428B4A3446C8FE1F38B66BBAD679",
+      "consumed": false,
+      "parents": []
+    },
+    {
+      "id": "B03FAA6F4767F06EEAC0129310EC53B5",
+      "kind": 7,
+      "location": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "origin": "48E0FBD84DDBA31801895D999F56C9CD",
+      "consumed": false,
+      "parents": []
+    }
+  ],
+  "budgets": [
+    {
+      "id": "Courier:Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "Sentinel:Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "Core:Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Supply:Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "Courier:Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "Sentinel:Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "Core:Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Supply:Wallet:53C19D044E67482B5A168D9885C93BA1",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "CoreOrders",
+      "initial": 6,
+      "remaining": 6
+    },
+    {
+      "id": "SupplyOrders",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "ShortageOrder",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "ProducerWest",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "ProducerEast",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "Outcrop1",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Outcrop2",
+      "initial": 3,
+      "remaining": 3
+    }
+  ],
+  "receipts": [
+    {
+      "id": "A8F921804A7C31C1E22CA19BBED73414",
+      "cause": "MarketStockEndowment",
+      "serial": "1",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "33AF5D834C322567BDB6BBA319FDF0B9",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "55C3E0514744DB1CCD34B993E45554C9",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "B3E15AB1460C083B9662C096E6E92A7E",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "0E8168A748F20DCB529B2688E751E9BF",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "3BE2CA8B4C9C8157397184AEF7527717",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "090B546A4603AEAE88AE768DA397E68A",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "BBEA93F84AA7761C74D79BA12A52B036",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "EE091930445FA9A9666A19B4D75967F7",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "23E8A7B940CFC7163A4E9495E0DA8DE2",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "6C08FC944CFF2CA6E87E61BA6809E758",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "208CC3294784068D88FEDD894108420A",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "EC4E00764578EC0B37C9F5A66A3ABF3D",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "06354F3E4633079A10A6D9A2B7C9C39E",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "5F760CCF4422238A1D22678C7B8327C5",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "2E55C78B4A11DDE9E7F650B659C8BC99",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "E68C4F13435CFE93A980459C164CF303",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "B0E072A34D224036B8B635A805D31C3C",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "030BB0D845F9FB26857BBA80BB2BB34D",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "84FAAFE54ED9EF7004016786085772C3",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "EFB4514B4516A71FC3B93CBF2B8DC308",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "54F004444FB133E4E9BF519E14BEB58C",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "8F26B4D843CAD6023217069C44D56575",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "DBD132FE4F92AEF2411E1A96D634FE7C",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "F051DB32498B416067533CA3DD588063",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "4EB52F9B49FF199811E0B09D2471D627",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "C7C28B5C458DF932FEC5CFBEA2A0F07C",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "D7147AB7459BF020D613D491484DDC8A",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "EA4D83354B03F948F8045487C3FE807B",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "D904CA514957301B5546A8B6F66AA9BD",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "4729646C42448AE8E97AA092B6DCE9C1",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "AFD84A484489406EAA1C6C81CFC6A084",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "4B5D26B84377C71DFAFA0BA4E0B2766E",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "12BB0BBD4454AA9A13A7B692BF305208",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "EBC39A1F496ADED4285C15A9B0B75B18",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "DB25460941F33A9799292EAC9DB865CC",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "A1C3436642900730828B2DAD221B76EF",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "FE094BAA4074A529B2AC7B977D86BA37",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "9CFDC00A4E36AEFED6503194BBE4A49D",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "E6BB053D4470B38229EFCEB3456F5169",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "D99C81DB492B707A7160A681568DF139",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "89E61BFC4405E8FABC73929361D75891",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "FFB6A36241310B0CA417339B60AD5E9E",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "5B73E00D4261BAD189DA89B1F82A4323",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "E4B8AA5A42A9495880397E803A612B1B",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "EA1FAA17483C84C41A6E37B7B520BA6D",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "D67E3D704C31E90CF861999E2D323770",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "8919F9F2443E6F052B623998E44DBCF4",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "838DAC694856338D2320378B22D84A7C",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "ABB49B01496F069C247EF3AB6059739A",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "CEAEA63A48B3A455068071A1F2BDB2E0",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "AB4BB49247129379169E95BFCE2C33CF",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "CB551A4B4A8A918A88F6A8A971EA0814",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "04A7CEFE43E2F3D507F2CDA4F2AA6C19",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "4C3EF79545134CA5AB85B8B960CA8703",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "603BFB8C4901DE8266D558B34DF393AC",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "A28072CE4307F5AE83F9D0B1C394C244",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "F48177154163A5C2E70D0397C6C7C3E7",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "DFBE13364A7E065466A1B482961CDD1E",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "0957192D4295A4F717DB64953A1A8860",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "34A8FC7F42BCD3AC2A83E399E01B7198",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "0A5452C146BC2A13B48E11914B978ABA",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "0D6DF3564706900EFDE0DB8D84F99FEB",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "73399B2940B86895E3AB809B9D5C9F77",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "846D33C840601129124EF28C6E05D359",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "25B9323F4DCC34FD70CC0EBB544839AA",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "00580F3D4B674F8371900CB0FB8BAA9D",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "476F08044EE5862DB0A51F8ADA44A35B",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "2E3C92AD46DE1B0D164C64B71C770987",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "9ED0FF2344DBEB665CEDEB81DCAEF9E3",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "DD2865DB4CE1E2F7CAA075BF2AA31DAF",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "AAE408B1468975D0D45FB38ACABED4D5",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "BF4E1A204AB390B61CB56DB9077CA76A",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "E8574336480E63CD7CF59EA06C1A0286",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "75B43D954DE02D7FB48A4A94B0F523E4",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "4AF4AE344CCE36A753CFA7995B8F3626",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "31ACF0CF4B49FC59DC7708BB6656B70E",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "9E61E1F94A27321EF6165086585F271B",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "70B17F9248970552FB9925A9C7830373",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "E6476D99456703C7F53B00A18D946B46",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "D0BEEA774B5E9CDA48EE7D98808AB5A1",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "2FA21BB648039D6013DD5D96A1FAC9EE",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "8CBFC74D4DBBE0994B7B86A0C7C7AF4C",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "BBC92AF442CACA2D665E28B3F71A3AD4",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "D2BC7CEF4E2473648ABB0FB5050A7E6E",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "3C14843A4E89FDFEF671D18A0F4F5A68",
+      "cause": "CarriedEndowment",
+      "serial": "2",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "6DCA497544CCE32E4BA16CBD9AB154A3",
+          "op": 0,
+          "kind": 1,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "0682F0F34C77107E99344FABF3A10602",
+      "cause": "CarriedEndowment",
+      "serial": "3",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "CBE0384A422EB1C0D2BA23BCB8E5D4DE",
+          "op": 0,
+          "kind": 1,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "41F2324E4627C41A13E71FA3D29FA677",
+      "cause": "DiagnosticReward",
+      "serial": "4",
+      "mint": "957",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "delta": "600",
+          "expected": 1
+        },
+        {
+          "account": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "delta": "357",
+          "expected": 1
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "15889DFD431B486BEDA3B0B64394DCA9",
+      "cause": "DiagnosticItemCreation",
+      "serial": "5",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "B402A05D4E8EECB1B306ED90663D1724",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "FDA284BC4A70D07F3C07E095DEC0E6CF",
+      "cause": "DiagnosticItemCreation",
+      "serial": "6",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "C9D0BE7E4562C37641468D9E594A508B",
+          "op": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "30D5976E4F26D75428AD269FF5F3F248",
+      "cause": "DiagnosticItemCreation",
+      "serial": "7",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "198A19D14F375D4E4F66CAB097757150",
+          "op": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "60143CE84C2ACACF626B4B8998DA02F0",
+      "cause": "DiagnosticItemCreation",
+      "serial": "8",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "862EFC714539AAAAF4AFC1AD834D60C7",
+          "op": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "68DA04B144B67F001FBE55BD44A71121",
+      "cause": "DiagnosticItemCreation",
+      "serial": "9",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "6374654E4213071C7C9C4CBE2CDC12BA",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "4288428B4A3446C8FE1F38B66BBAD679",
+      "cause": "DiagnosticItemCreation",
+      "serial": "10",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "7FC0945145EE8FC0A6DA7988641719A7",
+          "op": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "48E0FBD84DDBA31801895D999F56C9CD",
+      "cause": "DiagnosticItemCreation",
+      "serial": "11",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "B03FAA6F4767F06EEAC0129310EC53B5",
+          "op": 0,
+          "kind": 7,
+          "expected": 0,
+          "from": "None",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "8D2136F441445B10D7CDC2B0CB2F4BEC",
+      "cause": "MarketBuy",
+      "serial": "12",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "delta": "-6",
+          "expected": 2
+        },
+        {
+          "account": "City",
+          "delta": "6",
+          "expected": 1
+        }
+      ],
+      "items": [
+        {
+          "id": "00580F3D4B674F8371900CB0FB8BAA9D",
+          "op": 1,
+          "kind": 3,
+          "expected": 1,
+          "from": "City",
+          "to": "Wallet:3591127A4E9012ADDD73E8BBA5F1835D",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "3939499E4B73A61E557E8393B1294258",
+      "cause": "MarketBuy",
+      "serial": "13",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "delta": "-7",
+          "expected": 2
+        },
+        {
+          "account": "City",
+          "delta": "7",
+          "expected": 2
+        }
+      ],
+      "items": [
+        {
+          "id": "0957192D4295A4F717DB64953A1A8860",
+          "op": 1,
+          "kind": 3,
+          "expected": 1,
+          "from": "City",
+          "to": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "426BE7964A0D09B3CA413DAE3920706E",
+      "cause": "MarketBuy",
+      "serial": "14",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "delta": "-7",
+          "expected": 3
+        },
+        {
+          "account": "City",
+          "delta": "7",
+          "expected": 3
+        }
+      ],
+      "items": [
+        {
+          "id": "0A5452C146BC2A13B48E11914B978ABA",
+          "op": 1,
+          "kind": 3,
+          "expected": 1,
+          "from": "City",
+          "to": "Wallet:53C19D044E67482B5A168D9885C93BA1",
+          "parents": []
+        }
+      ]
+    }
+  ],
+  "catalogChecksum": "474284eeac54d977b78300c46f2bfb86",
+  "catalogVersion": 1,
+  "auditFailures": 0
+}

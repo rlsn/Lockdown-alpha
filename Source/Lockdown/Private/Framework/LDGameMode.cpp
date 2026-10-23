@@ -48,6 +48,7 @@
 #include "Tests/LDProductionProbe.h"
 #include "Tests/LDInstitutionProbe.h"
 #include "Tests/LDCharterProbe.h"
+#include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -174,6 +175,7 @@ void ALDGameMode::StartPlay()
 #if !UE_BUILD_SHIPPING
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))){GetWorld()->SpawnActor<ALDEconomyUIProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))){GetWorld()->SpawnActor<ALDCharterProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))){GetWorld()->SpawnActor<ALDInstitutionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}

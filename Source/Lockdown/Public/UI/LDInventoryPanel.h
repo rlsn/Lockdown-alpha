@@ -12,6 +12,8 @@ class LOCKDOWN_API ULDInventoryPanel:public ULDPanel
     GENERATED_BODY()
 public:
     void Open();void Close();bool IsOpen() const{return bOpen;}
+    void ShowService(uint8 Tab);
+    void RefreshServices();
     void BuildProduction(class UVerticalBox* All);void RefreshProduction();
     void ToggleProductionInput();void PreviewProduction(uint8 Recipe);void ArmProductionPreview();
     void BuildCommerce(class UVerticalBox* All);void RefreshCommerce();void CommerceAction(uint8 Command,ELDItemKind Kind);
@@ -35,11 +37,19 @@ protected:
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual FReply NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E) override;
 private:
+    friend class ALDEconomyUIProbe;
     friend class ALDCharterProbe;
     friend class ALDProductionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;
+    uint8 ServiceTab=0;
+    UPROPERTY() TArray<TObjectPtr<class UVerticalBox>> Services;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ServiceTabs;
+    UPROPERTY() TObjectPtr<class USizeBox> ServiceWidth;
+    UPROPERTY() TObjectPtr<class UScrollBox> ServiceScroll;
+    UPROPERTY() TObjectPtr<UTextBlock> ServiceHint;
+    UPROPERTY() TObjectPtr<ULDCommandButton> CouponToggle;
     void BuildTradePanel(class UVerticalBox* All);
     void RefreshTradePanel();
     void BuildTradeReview(class UCanvasPanel* Canvas);
@@ -67,6 +77,8 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> CommerceLabels;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CommerceBuyButtons;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CommerceSellButtons;
+    uint32 QuoteMatch=0;
+    uint8 SelectedMarket=0;
     FLDCommerceView DisplayedCommerce;
     bool bTradeReview=false;
     uint32 ReviewedRevision=0;

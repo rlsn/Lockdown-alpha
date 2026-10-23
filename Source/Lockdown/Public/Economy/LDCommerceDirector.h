@@ -43,6 +43,7 @@ public:
     void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,FGuid Session,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price);
     void Sample(double Now);
 private:
+    friend class ALDEconomyUIProbe;
     friend class ALDCharterProbe;
     friend class ALDCommerceProbe;
     friend class ALDInstitutionProbe;

@@ -1,0 +1,15 @@
+{
+  "display": {
+    "scaleQueryResult": 0,
+    "method": "Read-only primary monitor scale query; offscreen UI does not certify OS scaling/window placement",
+    "primaryMonitorScalePercent": 100
+  },
+  "sourceDirty": true,
+  "sourceRevision": "e719758da0817e71c04703ad041506d6c1239fc8",
+  "scope": "Native offscreen UMG/Slate and actual Enhanced Input; two local owners; diagnostic resource/progression/public-window fixtures; no human, remote or OS-scale acceptance",
+  "lanes": [
+    "Small",
+    "Large",
+    "Wide"
+  ]
+}

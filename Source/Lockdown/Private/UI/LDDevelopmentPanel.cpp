@@ -83,7 +83,7 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Open Guild bookshop · current prices"),14,0));}
         else{AddRow(Right,Text(TEXT("GUILD BOOKSHOP · 40 gold each"),17));const ELDSkill Stock[]={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};for(auto Skill:Stock){auto* W=Button(FString::Printf(TEXT("Buy %s book · 40 gold"),LDDevelopment::SkillName(Skill)),10,uint8(Skill));BuyButtons.Add(W);AddRow(Right,W,3);}}
         AddRow(Right,Text(TEXT("Read anywhere: stand still and hold the context key for 3 seconds after 6 quiet seconds. Reading consumes one book, teaches R1, and does not equip or upgrade. Known books are retained. Unread books drop on death."),14));
-        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Arm City Charter activation"),12,0));}
+        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->Navigation->Enabled()){AddRow(Right,Button(TEXT("Review City Charter activation"),12,0));}
         Feedback=Text(TEXT(""),15);AddRow(Right,Feedback);
         AddRow(Shell,Button(TEXT("Close / Back"),11,0));
     }

@@ -6,6 +6,7 @@
 #include "UI/LDUIRoot.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
+#include "Objectives/LDObjectiveRules.h"
 #include "UI/LDInventoryPanel.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Character/LDCharacter.h"
@@ -236,7 +237,7 @@ void ALDPlayerController::ArmRead(FGuid Book)
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     CancelArmed();ReadArmed=Book;ArmedItemRevision=Revision;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" to read. Closing the panel spends nothing.");
 }
-void ALDPlayerController::ArmFabrication(){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){FLDProductionPlan P;P.Site=2;P.Recipe=8;P.InventoryRevision=OwnerState.Inventory.Revision;ArmProduction(P);return;}CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
+void ALDPlayerController::ArmFabrication(){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(InventoryUI){InventoryUI->PreviewProduction(8);}return;}CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
 void ALDPlayerController::ContextV05()
 {
     if(bProductionArmed){StartProductionHold();return;}
@@ -269,6 +270,7 @@ FString ALDPlayerController::ContextPrompt() const
     if(bDraftArmed){return TEXT("Preview armed. Hold ")+Context+TEXT(" at the station to apply; Escape cancels.");}
     if(ReadArmed.IsValid()){return TEXT("Book armed. Hold ")+Context+TEXT(" to learn; Escape cancels.");}
     if(bFabricationArmed){return TEXT("Fabrication armed. Hold ")+Context+TEXT(" at Guild; Escape cancels.");}
+    if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){uint8 Target=0;FGuid Observed;if(ChooseContext(Target,Observed)&&(Target==LDObjective::Guild||Target==LDObjective::Heart||OwnerState.ContractStage)){return Text+TEXT(" · Bag: services");}return LDHUD::EconomyStep(OwnerState,*G,G->GetServerWorldTimeSeconds())+TEXT(" · Bag: services");}
     for(uint8 Site=0;Site<5;++Site){if(NearProduction(Site)){return Site<2?TEXT("Hold ")+Context+TEXT(" 6s: ")+ALDProductionDirector::SiteName(Site)+TEXT(" · finite match charges · Bag: Survey preview"):ALDProductionDirector::SiteName(Site)+TEXT(" · Bag: choose exact inputs, preview, then arm Hold ")+Context;}}
     return Text;
 }

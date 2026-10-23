@@ -31,5 +31,5 @@ void ALDPlayerController::ClientTradeUpdate_Implementation(const FLDOwnerState& 
     }
     TradeView=View;if(!View.Active()){bTradeDismissed=false;}if(!View.Message.IsEmpty()){IntentFeedback=View.Message;}
     if((View.Stage==ELDTradeStage::Cancelled||View.Stage==ELDTradeStage::Expired)&&InventoryUI&&InventoryUI->IsOpen()&&!VendorIsOpen()&&!BankIsOpen()&&!CommerceIsOpen()){InventoryUI->Close();}
-    if(InventoryUI){InventoryUI->Refresh();}
+    if(InventoryUI){if(View.Active()||View.Stage==ELDTradeStage::Committed){InventoryUI->ShowService(6);}InventoryUI->Refresh();}
 }

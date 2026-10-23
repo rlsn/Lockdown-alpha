@@ -7,6 +7,7 @@ void ALDPlayerController::OpenBank()
 {
     if(InventoryPending()||!NearGuildVendor()){IntentFeedback=TEXT("Approach City Treasury at the Guild within 120 cm");return;}
     if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(!InventoryUI||!InventoryUI->IsOpen()){return;}
+    InventoryUI->ShowService(5);
     CloseBank();bBankOpening=true;CloseCommerce();CloseVendor();CancelTrade();ClearControls();SetMenuOpen(true);BankToken=++NextRequest;bBankOpening=true;BankFeedback=TEXT("Opening City Treasury…");
     ServerBankOpen(OwnerState.Match,OwnerState.Life,BankToken);InventoryUI->Refresh();
 }

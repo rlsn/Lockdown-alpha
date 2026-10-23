@@ -1,0 +1,102 @@
+{
+  "reports": [
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/Small/UI.json",
+      "sourceSha256": "1405052585173d9de4afe1e120900754356d60438ca293a64976571488b5110f",
+      "retained": "Small.json",
+      "retainedSha256": "6a239b6e228f1f00aaf21c60e9b4445bdc298855ed0b005da060c29124903c07",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/Large/UI.json",
+      "sourceSha256": "1405052585173d9de4afe1e120900754356d60438ca293a64976571488b5110f",
+      "retained": "Large.json",
+      "retainedSha256": "6a239b6e228f1f00aaf21c60e9b4445bdc298855ed0b005da060c29124903c07",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/Wide/UI.json",
+      "sourceSha256": "1405052585173d9de4afe1e120900754356d60438ca293a64976571488b5110f",
+      "retained": "Wide.json",
+      "retainedSha256": "6a239b6e228f1f00aaf21c60e9b4445bdc298855ed0b005da060c29124903c07",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/B66Verified-0CD2AB04409842CF2FF5C6AAD313FE55.json",
+      "sourceSha256": "12d0a0cfcae4f82351456a9b00f3420e964d8e7a813f23695989a0689ed76fbf",
+      "retained": "B66Verified-0CD2AB04409842CF2FF5C6AAD313FE55.json",
+      "retainedSha256": "aff4d7bf048591f02be3ce5f6fea63c1d7ead913c5e5b3d59aa28f86db2138e6",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/B66Verified-117B45164DE48068FD952582E0AB6A3B.json",
+      "sourceSha256": "15273c14058aa272eb6f3673e06c25fc75705ad2b1c77d77a2ba660d93cec83a",
+      "retained": "B66Verified-117B45164DE48068FD952582E0AB6A3B.json",
+      "retainedSha256": "b83b278289384ca4475aa5c82bbe8fce5eeeb2e60df274bd1e43afef4954a476",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/B66Verified-2118372E45820FA437409CAEA24E47CB.json",
+      "sourceSha256": "80ae4ae0b65b5afc25b7efae5df045e4c2a7d058436f6b3d94293ba5ed6ce1e6",
+      "retained": "B66Verified-2118372E45820FA437409CAEA24E47CB.json",
+      "retainedSha256": "801963140c1ecb040525734b487965c0129395f7a097238efc4e2540d2b9a2d6",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/Authority.json",
+      "sourceSha256": "fe3091900682b0582f3b2f769a95f36239088adf1f25f0d83940718301e108db",
+      "retained": "Authority.json",
+      "retainedSha256": "656d5c203a2d129a683511b03aee571e3e0c4516981e13bc800cdf5ba8ec4d75",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/Journey.json",
+      "sourceSha256": "8197fad194cfdc5cdd8defec0650a5157dbf4ebe186c22eee3d8e9decf3f72e1",
+      "retained": "Journey.json",
+      "retainedSha256": "4b582c4ccead3904212bf2445241987461f2aa1e27b637a50c33e9f4bec3124c",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/Rules/index.json",
+      "sourceSha256": "9592d1eaa482c0c9838993ff3293ec24091bc2aaeb9a9af26c6ef5e73227398b",
+      "retained": "Rules.json",
+      "retainedSha256": "d6965f2b3282ba8ba6a1df9c95ed7f5693c7e7390e2858ca3418614039311aca",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/B65Verified-03BFA447407BB80DE07CB7ABB061774F.json",
+      "sourceSha256": "e0d6e19939627f2110e20e8527984946439e039454d50831a7a94f057c7ee23a",
+      "retained": "AuthorityLedger.json",
+      "retainedSha256": "d25fabe6498935bd300dcb0bac6ba7edf6e97a87c327085a3027d54b628d22ed",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/B65JourneyVerified-D374FDAD4C0BD3902842E38C73EEF5D8.json",
+      "sourceSha256": "6763d8359275610f200933a4541aaffcd15ef4bb3e9951de1a38acc28c2ab38f",
+      "retained": "JourneyLedger.json",
+      "retainedSha256": "8235746aabb29a57c9d25fb64dbfd855c18e9b4b19574697775c642ea027d9ae",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233109-122-B66-EconomyUI/Summary.json",
+      "sourceSha256": "ea82841a5cc95e7f110e479bbe3fcaf0c6df167473b01f56cc4b690b5fa40098",
+      "retained": "UIRunnerSummary.json",
+      "retainedSha256": "ea82841a5cc95e7f110e479bbe3fcaf0c6df167473b01f56cc4b690b5fa40098",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233344-289-B65-Charter/Summary.json",
+      "sourceSha256": "e5c55abc6e454ccdf1b037607be9326c9d794b013933ec914e5297917af7f1aa",
+      "retained": "RegressionRunnerSummary.json",
+      "retainedSha256": "e5c55abc6e454ccdf1b037607be9326c9d794b013933ec914e5297917af7f1aa",
+      "transform": "UTF-8 JSON normalization; values unchanged"
+    },
+    {
+      "source": "Artifacts/20261023-233047-421-BuildEditor/BuildEditor.log",
+      "sourceSha256": "caca17a769537f63e9bcb702836c58bedf218657078ccdc4884fe99828963c51",
+      "retained": "BuildEditor.txt",
+      "retainedSha256": "bdc9a54101427accef9d473307ca848a04a4aa785f8c4fceea2dd906c5eb27c7",
+      "transform": "UTF-8 text normalization and trailing-whitespace removal; log messages unchanged"
+    }
+  ]
+}
