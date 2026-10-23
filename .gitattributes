@@ -6,4 +6,4 @@
 /Config/BootstrapLayout.json text eol=lf
 
 # Supplied discussion copies have published byte hashes; preserve their bytes.
-/docs/v06/reference-discussion/0*_ASSISTANT_MESSAGE.txt -text
+/docs/v06/reference-discussion/0*_ASSISTANT_MESSAGE.txt -text -whitespace
