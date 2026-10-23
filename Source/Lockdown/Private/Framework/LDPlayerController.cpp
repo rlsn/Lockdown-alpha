@@ -509,7 +509,7 @@ void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->
 void ALDPlayerController::CancelInterruptibleHolds()
 {
     InteractStopped();
-    StopDevelopmentHold();
+    StopDevelopmentHold();StopProductionHold();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
 }
 void ALDPlayerController::ClearControls()
@@ -560,6 +560,8 @@ void ALDPlayerController::PlayerTick(float Delta)
     Super::PlayerTick(Delta);
     InitializeLocalUI();
     UpdateV05Inputs(Delta);
+    if(IsLocalController()&&ProductionHoldToken&&GetWorld()->GetTimeSeconds()-LastProductionSent>=.1)
+    {LastProductionSent=GetWorld()->GetTimeSeconds();const APawn* B=GetPawn();ServerProductionHold(OwnerState.Match,OwnerState.Life,ProductionHoldToken,++ProductionSequence,B&&!B->GetLastMovementInputVector().IsNearlyZero());}
     if(IsLocalController()&&DevelopmentHoldToken&&GetWorld()->GetTimeSeconds()-LastDevelopmentHoldSent>=.1)
     {
         LastDevelopmentHoldSent=GetWorld()->GetTimeSeconds();const APawn* HeldBody=GetPawn();

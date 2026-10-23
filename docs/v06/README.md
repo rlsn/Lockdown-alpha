@@ -40,6 +40,8 @@ reconciliation and reset evidence. All 22 native rules and 30 standalone
 engineering checks passed; exported receipts also passed independent replay.
 [B62 commerce](B62_IMPLEMENTATION.md) now provides paid material supply and
 finite stock/cash Buy/Sell; 22 rules and 26 two-owner authority checks passed.
-B63 production/skills is next. Native UI/network/normal progression and release acceptance
-remain open. Earlier partial reports are historical checkpoints, not current
+[B63 production](B63_IMPLEMENTATION.md) now provides finite gather, exact-ID
+reserved crafting, native previews and equipped Survey/Analyze coupons; 23 rules,
+49 authority checks and independent replay passed. B64 schedules/geography is next.
+Native input/layout/network, normal progression and release acceptance remain open. Earlier partial reports are historical checkpoints, not current
 completion status. Use the [working ledger](FeatureLedger.csv).

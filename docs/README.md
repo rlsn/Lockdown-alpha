@@ -1,6 +1,10 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60–B62 complete; B63 production/skills next**.
+Current work: **v0.6 B60–B63 complete; B64 schedules/geography next**.
+[B63 implementation](v06/B63_IMPLEMENTATION.md) records passed Editor compilation,
+23 rules, 49 controlled authority checks and independent receipt replay. Finite
+outcrops, atomic crafting, shared reservations and equipped utility are integrated.
+Native layout/input, remote clients, normal journeys and package acceptance remain open.
 [B62 implementation](v06/B62_IMPLEMENTATION.md) records passed Editor compilation,
 22 native rules, 26 two-owner authority checks and independent journal replay.
 Paid materials and actual finite regional commerce now have native controls.

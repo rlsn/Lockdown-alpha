@@ -25,6 +25,8 @@ bool FLDViewPayloadTest::RunTest(const FString& Parameters)
     FNetBitReader BookReader(nullptr,BookWriter.GetData(),BookWriter.GetNumBits());FLDWorldView BookRead;BookRead.NetSerialize(BookReader,nullptr,bOk);
     TestTrue(TEXT("Generic book kind round trips without extra fields"),bOk&&BookRead.Entities[0].Kind==ELDObservedKind::Book);
     View.Entities[0].Kind=ELDObservedKind::Charter;View.Entities[0].Presentation=3;FNetBitWriter TaskWriter(nullptr,65536);View.NetSerialize(TaskWriter,nullptr,bOk);FNetBitReader TaskReader(nullptr,TaskWriter.GetData(),TaskWriter.GetNumBits());FLDWorldView TaskRead;TaskRead.NetSerialize(TaskReader,nullptr,bOk);TestTrue(TEXT("Public Charter kind fits the unchanged schema"),bOk&&TaskRead.Entities[0].Kind==ELDObservedKind::Charter&&TaskRead.Entities[0].Presentation==3);
+    View.Entities[0].Kind=ELDObservedKind::Production;View.Entities[0].Presentation=4;View.Entities[0].ActionCue=0;FNetBitWriter ProductionWriter(nullptr,65536);View.NetSerialize(ProductionWriter,nullptr,bOk);FNetBitReader ProductionReader(nullptr,ProductionWriter.GetData(),ProductionWriter.GetNumBits());FLDWorldView ProductionRead;ProductionRead.NetSerialize(ProductionReader,nullptr,bOk);TestTrue(TEXT("East workshop round trips within the unchanged eight-field tuple"),bOk&&ProductionRead.Entities[0].Kind==ELDObservedKind::Production&&ProductionRead.Entities[0].Presentation==4);
+    View.Entities[0].Presentation=5;FNetBitWriter InvalidSite(nullptr,65536);View.NetSerialize(InvalidSite,nullptr,bOk);TestFalse(TEXT("Unknown production site rejected"),bOk);View.Entities[0].Presentation=0;View.Entities[0].ActionCue=4;FNetBitWriter InvalidCharges(nullptr,65536);View.NetSerialize(InvalidCharges,nullptr,bOk);TestFalse(TEXT("Outcrop cue above finite budget rejected"),bOk);View.Entities[0].ActionCue=3;
     View.Entities.Add(Entity); FNetBitWriter Oversized(nullptr,65536); View.NetSerialize(Oversized,nullptr,bOk);
     TestFalse(TEXT("Pathological view count rejected"),bOk);
     return true;
@@ -37,11 +39,11 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDObservedEntity::StaticStruct());It;++It)
     { ++Count; TestTrue(TEXT("Only approved observed fields"),Allowed.Contains(It->GetFName())); TestNull(TEXT("No canonical UObject references"),CastField<FObjectPropertyBase>(*It)); }
     TestEqual(TEXT("Approved schema complete"),Count,8);
-    const TSet<FName> Public={TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil")};
+    const TSet<FName> Public={TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil"),TEXT("OutcropOne"),TEXT("OutcropTwo")};
     int32 PublicCount=0;
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
     {++PublicCount;TestTrue(TEXT("Only approved public objective facts"),Public.Contains(It->GetFName()));TestNull(TEXT("No claimant/carrier canonical references"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Public schema complete"),PublicCount,22);
+    TestEqual(TEXT("Public schema complete"),PublicCount,24);
     TestEqual(TEXT("Lower world corner"),LDVision::Cell(FVector(-2400,-1600,0)),0);
     TestEqual(TEXT("Upper edge excluded"),LDVision::Cell(FVector(2400,1600,0)),INDEX_NONE);
     TestEqual(TEXT("Last interior cell"),LDVision::Cell(FVector(2399.9,1599.9,0)),2399);

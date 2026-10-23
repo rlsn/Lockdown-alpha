@@ -113,7 +113,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     if(HUDUI){HUDUI->RefreshReadModel();}
 }
 void ALDPlayerController::CancelArmed()
-{ArmedSkill=-1;bAttackArmed=bDraftArmed=bFabricationArmed=false;ReadArmed.Invalidate();ArmedWard.Invalidate();PreparedDraft=FLDBuildPlan();}
+{bProductionArmed=false;ArmedSkill=-1;bAttackArmed=bDraftArmed=bFabricationArmed=false;ReadArmed.Invalidate();ArmedWard.Invalidate();PreparedDraft=FLDBuildPlan();}
 void ALDPlayerController::ToggleControlsPanel()
 {
     if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}
@@ -126,7 +126,7 @@ void ALDPlayerController::ToggleControlsPanel()
 }
 void ALDPlayerController::V05Back()
 {
-    if(IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid()){CancelArmed();return;}
+    if(IsTargeting()||bProductionArmed||bDraftArmed||bFabricationArmed||ReadArmed.IsValid()){CancelArmed();return;}
     if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();return;}
     if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();return;}
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();return;}
@@ -150,7 +150,7 @@ void ALDPlayerController::V05Pressed(FName Action)
         if(GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
         {bPrimaryOwned=true;if(IsTargeting()){ConfirmArmed(Hit.ImpactPoint,Target);}else{Inspect(Target);}}
     }
-    else if(Action==TEXT("Navigate")){if(RootUI&&RootUI->PointerOverUI()){return;}if(IsTargeting()||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{Navigation->ClickMove();}}
+    else if(Action==TEXT("Navigate")){if(RootUI&&RootUI->PointerOverUI()){return;}if(IsTargeting()||bProductionArmed||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{Navigation->ClickMove();}}
     else if(Action==TEXT("Attack")){ArmAttack();}
     else if(Action==TEXT("Context")){ContextV05();}
     else if(Action==TEXT("Stop")){StopOrder();CancelArmed();}
@@ -166,7 +166,7 @@ void ALDPlayerController::V05Released(FName Action)
     if(Action==TEXT("Sprint")){SprintStopped();}
     if(Action==TEXT("Recenter")){Navigation->Recenter(false);}
     if(Action==TEXT("Select")){bPrimaryOwned=false;if(HeldSkillGesture==1&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
-    if(Action==TEXT("Context")){InteractStopped();StopDevelopmentHold();if(HeldSkillGesture==3&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
+    if(Action==TEXT("Context")){InteractStopped();StopDevelopmentHold();StopProductionHold();if(HeldSkillGesture==3&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
     const int32 Slot=Numbered(Action,TEXT("Skill"));if(Slot>=0&&HeldSkillGesture==0){SkillStopped(uint8(Slot));}
     const int32 QuickSlot=Numbered(Action,TEXT("Item"));if(QuickSlot>=0){SetQuickItemHeld(uint8(QuickSlot),false);}
 }
@@ -239,17 +239,20 @@ void ALDPlayerController::ArmRead(FGuid Book)
 void ALDPlayerController::ArmFabrication(){CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
 void ALDPlayerController::ContextV05()
 {
+    if(bProductionArmed){StartProductionHold();return;}
     if(bDraftArmed){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}
     if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
     if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
     FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){BeginPickup(Item.Id);return;}
     FLDObservedEntity E;
+    if(ReadInspected(E)&&E.Kind==ELDObservedKind::Production){if(E.Presentation<2){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=E.Presentation;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();}else{ToggleInventoryPanel();}return;}
     if(ReadInspected(E)&&(E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl))
     {
         const auto Skill=E.Kind==ELDObservedKind::WatchControl?ELDSkill::Analyze:LDCharter::Skill(E.Presentation);const int32 Slot=OwnerState.Build.Slots.Find(Skill);
         if(Slot==INDEX_NONE){IntentFeedback=TEXT("Equip this skill at a preparation station");return;}
         BeginTargetSkill(uint8(Slot),E.Id,(FVector(E.Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D(),3);return;
     }
+    for(uint8 Site=0;Site<2;++Site){if(NearProduction(Site)){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=Site;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();return;}}
     StartInteraction(false);
 }
 FString ALDPlayerController::ContextPrompt() const
@@ -262,8 +265,10 @@ FString ALDPlayerController::ContextPrompt() const
     Text.ReplaceInline(TEXT("P:"),*(BindingLabel(TEXT("Development"))+TEXT(":")));Text.ReplaceInline(TEXT("P build"),*(BindingLabel(TEXT("Development"))+TEXT(" build")));
     for(int32 I=0;I<4;++I){Text.ReplaceInline(*FString::Printf(TEXT("slot %d"),I+1),*BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))));}
     Text.ReplaceInline(TEXT("1–4: equipped skills"),*(BindingLabel(TEXT("Skill1"))+TEXT("/")+BindingLabel(TEXT("Skill2"))+TEXT("/")+BindingLabel(TEXT("Skill3"))+TEXT("/")+BindingLabel(TEXT("Skill4"))+TEXT(": equipped skills")));
+    if(bProductionArmed){return TEXT("Production preview armed. Hold ")+Context+TEXT(" at ")+ALDProductionDirector::SiteName(ProductionPlan.Site);}
     if(bDraftArmed){return TEXT("Preview armed. Hold ")+Context+TEXT(" at the station to apply; Escape cancels.");}
     if(ReadArmed.IsValid()){return TEXT("Book armed. Hold ")+Context+TEXT(" to learn; Escape cancels.");}
     if(bFabricationArmed){return TEXT("Fabrication armed. Hold ")+Context+TEXT(" at Guild; Escape cancels.");}
+    for(uint8 Site=0;Site<5;++Site){if(NearProduction(Site)){return Site<2?TEXT("Hold ")+Context+TEXT(" 6s: ")+ALDProductionDirector::SiteName(Site)+TEXT(" · finite match charges · Bag: Survey preview"):ALDProductionDirector::SiteName(Site)+TEXT(" · Bag: choose exact inputs, preview, then arm Hold ")+Context;}}
     return Text;
 }

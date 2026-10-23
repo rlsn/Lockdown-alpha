@@ -51,5 +51,22 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
         for(int32 I=0;I<4;++I){TSharedPtr<FJsonObject> G;FMarketGood Row;Row.Kind=ELDItemKind(uint8(ELDItemKind::Fiber)+I);if(!Object(Stock,Names[I],G)||!Integer(G,TEXT("stock"),1,1000,Row.Target)||!Integer(G,TEXT("base"),1,1000000,Row.Base)){return Reject(TEXT("Invalid market stock/price"));}Row.Cap=FMath::Max(12,2*Row.Target);Def.Goods.Add(Row);}C.Markets.Add(MoveTemp(Def));
     }
     TSharedPtr<FJsonObject> Supply;if(!Object(Root,TEXT("officialSupply"),Supply)||!Integer(Supply,TEXT("Fiber"),1,1000000,C.FiberPrice)||!Integer(Supply,TEXT("Ore"),1,1000000,C.OrePrice)){return Reject(TEXT("Invalid official supply prices"));}
+    TSharedPtr<FJsonObject> Recipes,Toolkit,Core,TI,CI,Uses,Survey,Analyze;
+    int32 N=0;
+    if(!Object(Root,TEXT("recipes"),Recipes)||Recipes->Values.Num()!=2||!Object(Recipes,TEXT("Toolkit"),Toolkit)||!Object(Recipes,TEXT("Core"),Core)
+        ||!Object(Toolkit,TEXT("inputs"),TI)||TI->Values.Num()!=2||!Integer(TI,TEXT("Fiber"),2,2,N)||!Integer(TI,TEXT("Ore"),1,1,N)
+        ||!Object(Core,TEXT("inputs"),CI)||CI->Values.Num()!=2||!Integer(CI,TEXT("Toolkit"),2,2,N)||!Integer(CI,TEXT("Crystal"),1,1,N)
+        ||!Integer(Toolkit,TEXT("fee"),4,4,C.ToolkitFee)||!Integer(Toolkit,TEXT("seconds"),4,4,C.ToolkitSeconds)||!Integer(Toolkit,TEXT("outputCount"),1,1,N)
+        ||!Integer(Core,TEXT("fee"),6,6,C.CoreFee)||!Integer(Core,TEXT("seconds"),6,6,C.CoreSeconds)||!Integer(Core,TEXT("outputCount"),1,1,N)
+        ||!Integer(Gather,TEXT("basicSeconds"),6,6,C.GatherSeconds)||!Integer(Gather,TEXT("rangeCm"),120,120,C.Range)||!Integer(Gather,TEXT("xp"),0,0,N)
+        ||!Object(Root,TEXT("skillUses"),Uses)||!Object(Uses,TEXT("Survey"),Survey)||!Object(Uses,TEXT("Analyze"),Analyze)
+        ||!Integer(Survey,TEXT("scoreMin"),12,12,C.SurveyScore)||!Integer(Survey,TEXT("seconds"),1,1,N)
+        ||!Integer(Analyze,TEXT("scoreMin"),14,14,C.AnalyzeScore)||!Integer(Analyze,TEXT("seconds"),2,2,N)
+        ||!Integer(Analyze,TEXT("discount"),2,2,C.CouponDiscount)||!Integer(Analyze,TEXT("expiresSeconds"),30,30,C.CouponSeconds))
+    {return Reject(TEXT("Invalid production recipe, channel or skill terms"));}
+    bool Flag=false;FString GatherGood;
+    if(!Gather->TryGetStringField(TEXT("good"),GatherGood)||GatherGood!=TEXT("Crystal")||!Gather->TryGetBoolField(TEXT("resetOnRespawn"),Flag)||Flag
+        ||!Analyze->TryGetBoolField(TEXT("stacking"),Flag)||Flag||!Analyze->TryGetBoolField(TEXT("clearOnDeath"),Flag)||!Flag)
+    {return Reject(TEXT("Unsupported production reset/coupon policy"));}
     C.Checksum=FMD5::HashAnsiString(*Json);*this=MoveTemp(C);return true;
 }

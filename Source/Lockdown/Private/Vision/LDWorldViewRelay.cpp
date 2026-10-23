@@ -10,6 +10,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/TextRenderComponent.h"
 #include "Development/LDWorldChecks.h"
+#include "Economy/LDProductionDirector.h"
 
 ALDObservedEntityProxy::ALDObservedEntityProxy()
 {
@@ -31,14 +32,14 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     if (bFirst || FVector::DistSquared(GetActorLocation(),Destination)>300*300) { SetActorLocation(Destination); }
     if (Palette!=Entity.Presentation)
     {
-        Palette=Entity.Presentation; Body->ApplyPalette(Palette);
+        Palette=Entity.Presentation; Body->ApplyPalette(FMath::Min<uint8>(Palette,3));
         UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
         UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
         Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
     }
     Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel),true);
     WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel);
-    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel);
+    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::Production);
     if(Entity.Kind==ELDObservedKind::WatchControl){TaskLabel->SetText(FText::FromString(TEXT("WATCH CONTROL\nAnalyze 14")));}
     if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
     TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
@@ -49,6 +50,8 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.24,.34,.08));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Charter)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(FVector(.5,.5,.35));}
+    if(Entity.Kind==ELDObservedKind::Production)
+    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold F 6s / Survey 1s"),Entity.ActionCue):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
     bFirst=false;
 }
 void ALDObservedEntityProxy::Tick(float Delta)

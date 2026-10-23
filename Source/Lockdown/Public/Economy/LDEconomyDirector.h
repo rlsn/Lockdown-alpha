@@ -29,15 +29,17 @@ public:
     static FName MarketId(uint8 Service);
     FLDCommerceView CommerceQuote(uint8 Service) const;
     bool CommitCommerce(ALDPlayerController* PC,uint8 Service,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price,FGuid& Received,FString& Error);
+    bool CommitProduction(ALDPlayerController* PC,uint8 Site,uint8 Recipe,const TArray<FLDInventoryItem>& Inputs,int32 Fee,FGuid& Output,FString& Error);
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
     friend class ALDCommerceProbe;
+    friend class ALDProductionProbe;
     struct FPhysical {ELDItemKind Kind;FName Location;ALDItem* Actor=nullptr;};
     bool Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) const;
     TMap<uint8,uint32> MarketRevisions;
     TArray<ALDItem*> MarketItems(uint8 Service,ELDItemKind Kind) const;
-    bool bFailNextSupply=false;
+    bool bFailNextSupply=false,bFailNextProduction=false;
     bool Initialized=false;
     LDEconomy::FCatalog Catalog;
     LDEconomy::FLedger Ledger;

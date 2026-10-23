@@ -44,6 +44,8 @@
 #include "Tests/LDTradeProbe.h"
 #include "Tests/LDEconomyProbe.h"
 #include "Tests/LDCommerceProbe.h"
+#include "Economy/LDProductionDirector.h"
+#include "Tests/LDProductionProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -56,6 +58,7 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
     DOREPLIFETIME(ALDGameState,SealNoticeKind);DOREPLIFETIME(ALDGameState,SealNoticeDistrict);
     DOREPLIFETIME(ALDGameState,bDevelopmentProfile);DOREPLIFETIME(ALDGameState,bMatchStarted);
     DOREPLIFETIME(ALDGameState,bUIControlProfile);
+    DOREPLIFETIME(ALDGameState,OutcropOne);DOREPLIFETIME(ALDGameState,OutcropTwo);
     DOREPLIFETIME(ALDGameState,LobbyCount);DOREPLIFETIME(ALDGameState,ReadyCount);
     DOREPLIFETIME(ALDGameState,PublicSensorOfflineUntil);DOREPLIFETIME(ALDGameState,PublicSensorLockoutUntil);
 }
@@ -167,6 +170,7 @@ void ALDGameMode::StartPlay()
     }
 #if !UE_BUILD_SHIPPING
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){GetWorld()->SpawnActor<ALDVendorProbe>();}
@@ -231,7 +235,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
-        if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
+        if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if(Economy){Economy->Retire(PC);}
@@ -255,7 +259,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
-    if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
+    if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
@@ -357,7 +361,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
         Economy=GetWorld()->SpawnActor<ALDEconomyDirector>();
         if(!Economy||!Economy->Initialize(Reason)){if(Economy){Economy->Destroy();Economy=nullptr;}return false;}
     }
-    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();}
+    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();Production=GetWorld()->SpawnActor<ALDProductionDirector>();Production->Initialize();}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
     Public->MatchDeadline=float(MatchStartedAt+LDDevelopment::DeadlineSeconds);
     for (auto& Pair:Contenders)

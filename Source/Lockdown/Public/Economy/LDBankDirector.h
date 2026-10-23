@@ -8,8 +8,13 @@ struct FLDBankView
 {
     GENERATED_BODY()
     UPROPERTY() FGuid Session;
-    UPROPERTY() uint32 Token=0,Match=0,Life=0,WalletRevision=0,BankRevision=0;
-    UPROPERTY() int64 Wallet=0,Bank=0;
+    UPROPERTY() uint32 Token=0;
+    UPROPERTY() uint32 Match=0;
+    UPROPERTY() uint32 Life=0;
+    UPROPERTY() uint32 WalletRevision=0;
+    UPROPERTY() uint32 BankRevision=0;
+    UPROPERTY() int64 Wallet=0;
+    UPROPERTY() int64 Bank=0;
 };
 UCLASS()
 class LOCKDOWN_API ALDBankDirector:public AActor

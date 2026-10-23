@@ -3,6 +3,7 @@
 #include "UI/LDWidgets.h"
 #include "Inventory/LDInventoryTypes.h"
 #include "Economy/LDCommerceDirector.h"
+#include "Economy/LDProductionDirector.h"
 #include "LDInventoryPanel.generated.h"
 class UTextBlock;class UEditableTextBox;class UUniformGridPanel;class ULDCommandButton;class UBorder;
 UCLASS()
@@ -11,6 +12,8 @@ class LOCKDOWN_API ULDInventoryPanel:public ULDPanel
     GENERATED_BODY()
 public:
     void Open();void Close();bool IsOpen() const{return bOpen;}
+    void BuildProduction(class UVerticalBox* All);void RefreshProduction();
+    void ToggleProductionInput();void PreviewProduction(uint8 Recipe);void ArmProductionPreview();
     void BuildCommerce(class UVerticalBox* All);void RefreshCommerce();void CommerceAction(uint8 Command,ELDItemKind Kind);
     void BuildBank(class UVerticalBox* All);void RefreshBank();void ReviewBank(bool Deposit);
     void Refresh();void CancelDrag();bool IsDragging() const{return bPointerDown;}
@@ -32,6 +35,7 @@ protected:
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual FReply NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E) override;
 private:
+    friend class ALDProductionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;
@@ -39,6 +43,14 @@ private:
     void RefreshTradePanel();
     void BuildTradeReview(class UCanvasPanel* Canvas);
     void ShowTradeReview();
+    UPROPERTY() TObjectPtr<UTextBlock> ProductionStatus;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ProductionInput;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ProductionConfirm;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ProductionActions;
+    TArray<FGuid> ProductionInputs;
+    FLDProductionPlan DisplayedProduction;
+    uint8 ProductionRecipe=1;
+    bool bUseCoupon=true,bProductionPreview=false;
     UPROPERTY() TObjectPtr<class UVerticalBox> BankPanel;
     UPROPERTY() TObjectPtr<UTextBlock> BankStatus;
     UPROPERTY() TObjectPtr<UEditableTextBox> BankAmount;

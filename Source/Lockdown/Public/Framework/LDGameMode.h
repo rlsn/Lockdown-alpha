@@ -37,6 +37,8 @@ public:
     UPROPERTY(Replicated) bool bDevelopmentProfile = false;
     UPROPERTY(Replicated) bool bUIControlProfile = false;
     UPROPERTY(Replicated) bool bMatchStarted = true;
+    UPROPERTY(Replicated) uint8 OutcropOne=3;
+    UPROPERTY(Replicated) uint8 OutcropTwo=3;
     UPROPERTY(Replicated) uint8 LobbyCount = 0;
     UPROPERTY(Replicated) uint8 ReadyCount = 0;
     UPROPERTY(Replicated) float PublicSensorOfflineUntil=0;
@@ -97,6 +99,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
     UPROPERTY() TObjectPtr<class ALDBankDirector> Bank;
     UPROPERTY() TObjectPtr<class ALDCommerceDirector> Commerce;
+    UPROPERTY() TObjectPtr<class ALDProductionDirector> Production;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

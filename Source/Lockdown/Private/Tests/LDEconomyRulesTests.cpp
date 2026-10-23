@@ -1,5 +1,12 @@
 #include "Economy/LDEconomyLedger.h"
 #include "Economy/LDEconomyCatalog.h"
+#include "Economy/LDProductionDirector.h"
+#include "Economy/LDCommerceDirector.h"
+#include "Economy/LDBankDirector.h"
+#include "Vision/LDViewTypes.h"
+#include "UObject/UnrealType.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/MemoryReader.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -93,7 +100,24 @@ bool FLDEconomyCatalogTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Malformed JSON fails"),C.Parse(TEXT("{}"),Error));
     TestFalse(TEXT("Fractional stock fails closed"),C.Parse(Json.Replace(TEXT("\"stock\": 18"),TEXT("\"stock\": 18.5")),Error));
     TestFalse(TEXT("Unknown schema fails"),C.Parse(Json.Replace(TEXT("\"schemaVersion\": 1"),TEXT("\"schemaVersion\": 2")),Error));
+    TestFalse(TEXT("Recipe count cannot create extra outputs"),C.Parse(Json.Replace(TEXT("\"outputCount\": 1"),TEXT("\"outputCount\": 2")),Error));
+    TestFalse(TEXT("Gather budget cannot reset on respawn"),C.Parse(Json.Replace(TEXT("\"resetOnRespawn\": false"),TEXT("\"resetOnRespawn\": true")),Error));
+    TestFalse(TEXT("Coupon cannot stack"),C.Parse(Json.Replace(TEXT("\"stacking\": false"),TEXT("\"stacking\": true")),Error));
     TestEqual(TEXT("Failed reload leaves live definitions intact"),C.Checksum,Checksum);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyPayloadTest,"Lockdown.Rules.EconomyPayload",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDEconomyPayloadTest::RunTest(const FString& Parameters)
+{
+    auto Fields=[&](UStruct* Struct,const TArray<FName>& Names){int32 Count=0;for(TFieldIterator<FProperty> It(Struct,EFieldIteratorFlags::ExcludeSuper);It;++It){++Count;TestTrue(TEXT("Only intended economy payload fields"),Names.Contains(It->GetFName()));}TestEqual(TEXT("Complete reflected payload field count"),Count,Names.Num());for(FName Name:Names){TestNotNull(TEXT("Field participates in RPC/replication serialization"),Struct->FindPropertyByName(Name));}};
+    Fields(FLDProductionPlan::StaticStruct(),{TEXT("Site"),TEXT("Recipe"),TEXT("RecipeRevision"),TEXT("InventoryRevision"),TEXT("BuildRevision"),TEXT("SkillSlot"),TEXT("Fee"),TEXT("Coupon"),TEXT("Inputs")});
+    Fields(FLDCommerceOffer::StaticStruct(),{TEXT("Kind"),TEXT("Stock"),TEXT("Cap"),TEXT("Ask"),TEXT("Bid")});
+    Fields(FLDCommerceView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("Revision"),TEXT("Service"),TEXT("Cash"),TEXT("QuotedAt"),TEXT("Offers")});
+    Fields(FLDBankView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("WalletRevision"),TEXT("BankRevision"),TEXT("Wallet"),TEXT("Bank")});
+    for(FName N:{FName(TEXT("CraftCoupon")),FName(TEXT("CouponSite")),FName(TEXT("CouponUntil")),FName(TEXT("ProductionSite")),FName(TEXT("ProductionSeconds"))}){TestNotNull(TEXT("Private production owner field reflected"),FLDOwnerState::StaticStruct()->FindPropertyByName(N));}
+    FLDProductionPlan Plan;Plan.Site=4;Plan.Recipe=2;Plan.RecipeRevision=7;Plan.InventoryRevision=19;Plan.BuildRevision=11;Plan.SkillSlot=3;Plan.Fee=4;Plan.Coupon=FGuid::NewGuid();FLDInventoryItem Item;Item.Id=FGuid::NewGuid();Item.Kind=ELDItemKind::Toolkit;Item.Revision=17;Plan.Inputs.Add(Item);
+    TArray<uint8> Bytes;FMemoryWriter Writer(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Writer,&Plan,nullptr);FLDProductionPlan Read;FMemoryReader Reader(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Reader,&Read,nullptr);
+    TestTrue(TEXT("Reflected production plan preserves exact fee, site, recipe, stamps, coupon and input revisions"),!Writer.IsError()&&!Reader.IsError()&&Read.Site==4&&Read.Recipe==2&&Read.RecipeRevision==7&&Read.InventoryRevision==19&&Read.BuildRevision==11&&Read.SkillSlot==3&&Read.Fee==4&&Read.Coupon==Plan.Coupon&&Read.Inputs.Num()==1&&Read.Inputs[0].Id==Item.Id&&Read.Inputs[0].Revision==17);
     return true;
 }
 #endif

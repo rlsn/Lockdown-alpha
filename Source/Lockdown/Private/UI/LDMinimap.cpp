@@ -6,6 +6,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDRegionDefinition.h"
 #include "Core/LDGroundQueries.h"
+#include "Economy/LDProductionDirector.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
@@ -66,6 +67,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         const FString Label=Site==1?TEXT("G"):Site==2?TEXT("W"):Site==3?TEXT("H"):Site==6?TEXT("E"):Site==7?(State&&State->bPublicSensorActive?TEXT("T+"):TEXT("T−")):TEXT("X");
         Box(At-FVector2D(2),FVector2D(5),FLinearColor(.3f,.8f,1));FSlateDrawElement::MakeText(E,Base+3,G.ToPaintGeometry(FVector2D(24,14),FSlateLayoutTransform(At+FVector2D(3,-7))),Label,FCoreStyle::GetDefaultFontStyle("Bold",12),ESlateDrawEffect::None,FLinearColor::White);
     }
+    if(State&&State->bUIControlProfile)
+    {for(uint8 Site=0;Site<5;++Site){const FVector2D At=LDHUD::MapPoint(ALDProductionDirector::Position(GetWorld(),Site),Grid)*Size;const FString Label=Site<2?FString::Printf(TEXT("C%d:%d"),Site+1,Site?State->OutcropTwo:State->OutcropOne):TEXT("WS");Line({At+FVector2D(0,-4),At+FVector2D(4,0),At+FVector2D(0,4),At+FVector2D(-4,0),At+FVector2D(0,-4)},FLinearColor(.7f,.5f,1));FSlateDrawElement::MakeText(E,Base+3,G.ToPaintGeometry(FVector2D(40,14),FSlateLayoutTransform(At+FVector2D(3,7))),Label,FCoreStyle::GetDefaultFontStyle("Bold",10),ESlateDrawEffect::None,FLinearColor::White);}}
     if(PC->GetPawn()){Box(LDHUD::MapPoint(PC->GetPawn()->GetActorLocation(),Grid)*Size-FVector2D(3),FVector2D(6),FLinearColor(.3f,1,.8f));}
     // Actual camera's ground footprint, without querying any world actor.
     int32 W=0,H=0;PC->GetViewportSize(W,H);TArray<FVector2D> Footprint;

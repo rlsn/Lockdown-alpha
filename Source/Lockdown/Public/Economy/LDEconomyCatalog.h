@@ -13,6 +13,9 @@ namespace LDEconomy
         TArray<FMarketDefinition> Markets;
         int32 Nodes=0,Charges=0;
         int32 FiberPrice=0,OrePrice=0;
+        int32 GatherSeconds=0,Range=0,ToolkitFee=0,ToolkitSeconds=0,CoreFee=0,CoreSeconds=0;
+        int32 SurveyScore=0,AnalyzeScore=0,CouponDiscount=0,CouponSeconds=0;
+        uint32 RecipeRevision=1;
         // Decode to a candidate; a failed reload leaves the existing catalog intact.
         bool Parse(const FString& Json,FString& Error);
         bool Load(FString& Error);

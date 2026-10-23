@@ -67,7 +67,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif

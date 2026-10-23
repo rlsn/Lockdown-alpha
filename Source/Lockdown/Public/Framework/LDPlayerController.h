@@ -6,6 +6,7 @@
 #include "Inventory/LDTradeTypes.h"
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDCommerceDirector.h"
+#include "Economy/LDProductionDirector.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -60,6 +61,13 @@ public:
     UFUNCTION(Server,Reliable) void ServerCommerceClose(uint32 Token);
     UFUNCTION(Server,Reliable) void ServerCommerceCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price);
     UFUNCTION(Client,Reliable) void ClientCommerceView(const FLDOwnerState& State,const FLDCommerceView& View,uint32 Request,const FString& Reason);
+    bool NearProduction(uint8 Site) const;
+    void ArmProduction(const FLDProductionPlan& Plan);
+    void StartProductionHold();void StopProductionHold();
+    UFUNCTION(Server,Reliable) void ServerProductionRequest(uint32 Match,uint32 Life,uint32 Token,const FLDProductionPlan& Plan);
+    UFUNCTION(Server,Unreliable) void ServerProductionHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
+    UFUNCTION(Server,Reliable) void ServerProductionRelease(uint32 Match,uint32 Life,uint32 Token);
+    UFUNCTION(Client,Reliable) void ClientProductionResult(const FLDOwnerState& State,uint32 Token,const FString& Reason);
     bool NearGuildVendor() const;
     void OpenVendor();void CloseVendor();
     bool VendorIsOpen() const{return bVendorOpening||VendorQuote.Session.IsValid();}
@@ -92,7 +100,7 @@ public:
     FKey BindingKey(FName Action) const;
     FVector2D CameraPanAxis() const;
     bool IsTargeting() const {return ArmedSkill>=0||bAttackArmed||ArmedWard.IsValid();}
-    bool HasArmedAction() const {return IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid();}
+    bool HasArmedAction() const {return bProductionArmed||IsTargeting()||bDraftArmed||bFabricationArmed||ReadArmed.IsValid();}
     int32 ArmedSlot() const {return ArmedSkill;}
     uint8 PendingSlot() const {return PendingAimRequest?PendingSkillSlot:255;}
     double ArmedRange() const;
@@ -173,6 +181,7 @@ private:
     TArray<TPair<uint32,FString>> SeenIntentResults;
     uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;
+    friend class ALDProductionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;
@@ -230,6 +239,10 @@ private:
     uint32 SkillHoldToken=0,SkillHoldSequence=0;
     uint8 HeldSkillSlot=255;
     double LastSkillHoldSent=-1000;
+    FLDProductionPlan ProductionPlan;
+    bool bProductionArmed=false;
+    uint32 ProductionHoldToken=0,ProductionSequence=0;
+    double LastProductionSent=-1000;
     uint32 DevelopmentHoldToken=0,DevelopmentHoldSequence=0;
     double LastDevelopmentHoldSent=-1000;
     void InteractStarted();

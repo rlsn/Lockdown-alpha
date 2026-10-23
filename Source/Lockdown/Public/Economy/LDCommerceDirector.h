@@ -9,14 +9,20 @@ struct FLDCommerceOffer
 {
     GENERATED_BODY()
     UPROPERTY() ELDItemKind Kind=ELDItemKind::Fiber;
-    UPROPERTY() int32 Stock=0,Cap=0,Ask=0,Bid=0;
+    UPROPERTY() int32 Stock=0;
+    UPROPERTY() int32 Cap=0;
+    UPROPERTY() int32 Ask=0;
+    UPROPERTY() int32 Bid=0;
 };
 USTRUCT()
 struct FLDCommerceView
 {
     GENERATED_BODY()
     UPROPERTY() FGuid Session;
-    UPROPERTY() uint32 Token=0,Match=0,Life=0,Revision=0;
+    UPROPERTY() uint32 Token=0;
+    UPROPERTY() uint32 Match=0;
+    UPROPERTY() uint32 Life=0;
+    UPROPERTY() uint32 Revision=0;
     UPROPERTY() uint8 Service=0; // 0 official materials, 1 City, 2 West, 3 East
     UPROPERTY() int64 Cash=0;
     UPROPERTY() double QuotedAt=0;
