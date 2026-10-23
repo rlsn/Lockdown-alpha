@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "UI/LDWidgets.h"
 #include "Inventory/LDInventoryTypes.h"
+#include "Economy/LDCommerceDirector.h"
 #include "LDInventoryPanel.generated.h"
 class UTextBlock;class UEditableTextBox;class UUniformGridPanel;class ULDCommandButton;class UBorder;
 UCLASS()
@@ -10,6 +11,7 @@ class LOCKDOWN_API ULDInventoryPanel:public ULDPanel
     GENERATED_BODY()
 public:
     void Open();void Close();bool IsOpen() const{return bOpen;}
+    void BuildCommerce(class UVerticalBox* All);void RefreshCommerce();void CommerceAction(uint8 Command,ELDItemKind Kind);
     void BuildBank(class UVerticalBox* All);void RefreshBank();void ReviewBank(bool Deposit);
     void Refresh();void CancelDrag();bool IsDragging() const{return bPointerDown;}
     void Select(FGuid Id);void Use();void AskDrop();void ConfirmDrop();
@@ -46,6 +48,13 @@ private:
     int64 BankReviewedAmount=0;
     uint32 BankReviewedWallet=0,BankReviewedBalance=0;
     FGuid BankReviewedSession;
+    UPROPERTY() TObjectPtr<class UVerticalBox> CommercePanel;
+    UPROPERTY() TObjectPtr<UTextBlock> CommerceStatus;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CommerceOpenButtons;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> CommerceLabels;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CommerceBuyButtons;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> CommerceSellButtons;
+    FLDCommerceView DisplayedCommerce;
     bool bTradeReview=false;
     uint32 ReviewedRevision=0;
     FGuid ReviewedSession;

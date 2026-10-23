@@ -74,8 +74,11 @@ void ALDPlayerController::ServerStartLobby_Implementation(uint32 Match,uint32 Li
 
 void ALDPlayerController::BeginPlay()
 {
-    Super::BeginPlay();
-    if (!IsLocalController()) { return; }
+    Super::BeginPlay();InitializeLocalUI();
+}
+void ALDPlayerController::InitializeLocalUI()
+{
+    if (!IsLocalController()||!GetLocalPlayer()||RootUI) { return; }
     Controls=ULDControlSettings::Load();
     bShowMouseCursor = true;
     if (ULocalPlayer* Local = GetLocalPlayer())
@@ -86,7 +89,7 @@ void ALDPlayerController::BeginPlay()
     const TSubclassOf<ULDUIRoot> RootClass = LoadClass<ULDUIRoot>(nullptr,TEXT("/Game/Lockdown/Generated/UI/WBP_UIRoot.WBP_UIRoot_C"));
     checkf(RootClass,TEXT("Missing UI root; run asset bootstrap"));
     RootUI = CreateWidget<ULDUIRoot>(this, RootClass);
-    RootUI->AddToViewport();
+    if(!RootUI){return;}RootUI->AddToViewport();
     SetMenuOpen(IsFrontend());
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
@@ -524,7 +527,7 @@ void ALDPlayerController::ClearControls()
     }
 }
 
-void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();CloseBank();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
+void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();CloseBank();CloseCommerce();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {
@@ -555,6 +558,7 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
+    InitializeLocalUI();
     UpdateV05Inputs(Delta);
     if(IsLocalController()&&DevelopmentHoldToken&&GetWorld()->GetTimeSeconds()-LastDevelopmentHoldSent>=.1)
     {

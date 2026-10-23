@@ -3,6 +3,7 @@
 #include "GameFramework/Actor.h"
 #include "Economy/LDEconomyLedger.h"
 #include "Economy/LDEconomyCatalog.h"
+#include "Economy/LDCommerceDirector.h"
 #include "LDEconomyDirector.generated.h"
 class ALDPlayerController;
 
@@ -25,11 +26,18 @@ public:
     static FName Wallet(FGuid Id);
     static FName BankAccount(FGuid Id);
     bool CommitBank(ALDPlayerController* PC,int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision,FString& Error);
+    static FName MarketId(uint8 Service);
+    FLDCommerceView CommerceQuote(uint8 Service) const;
+    bool CommitCommerce(ALDPlayerController* PC,uint8 Service,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price,FGuid& Received,FString& Error);
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
+    friend class ALDCommerceProbe;
     struct FPhysical {ELDItemKind Kind;FName Location;ALDItem* Actor=nullptr;};
     bool Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) const;
+    TMap<uint8,uint32> MarketRevisions;
+    TArray<ALDItem*> MarketItems(uint8 Service,ELDItemKind Kind) const;
+    bool bFailNextSupply=false;
     bool Initialized=false;
     LDEconomy::FCatalog Catalog;
     LDEconomy::FLedger Ledger;

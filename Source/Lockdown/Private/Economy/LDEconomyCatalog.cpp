@@ -50,5 +50,6 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
         FMarketDefinition Def;Def.Id=Name;Def.Gold=Gold;
         for(int32 I=0;I<4;++I){TSharedPtr<FJsonObject> G;FMarketGood Row;Row.Kind=ELDItemKind(uint8(ELDItemKind::Fiber)+I);if(!Object(Stock,Names[I],G)||!Integer(G,TEXT("stock"),1,1000,Row.Target)||!Integer(G,TEXT("base"),1,1000000,Row.Base)){return Reject(TEXT("Invalid market stock/price"));}Row.Cap=FMath::Max(12,2*Row.Target);Def.Goods.Add(Row);}C.Markets.Add(MoveTemp(Def));
     }
+    TSharedPtr<FJsonObject> Supply;if(!Object(Root,TEXT("officialSupply"),Supply)||!Integer(Supply,TEXT("Fiber"),1,1000000,C.FiberPrice)||!Integer(Supply,TEXT("Ore"),1,1000000,C.OrePrice)){return Reject(TEXT("Invalid official supply prices"));}
     C.Checksum=FMD5::HashAnsiString(*Json);*this=MoveTemp(C);return true;
 }

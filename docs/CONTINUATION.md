@@ -1,4 +1,4 @@
-# Continuation — v0.6 B61 complete; B62 commerce next
+# Continuation — v0.6 B62 complete; B63 production/skills next
 
 23 October 2026. The user directed “avoid lengthy tests, keep verifications
 minimal,” then explicitly requested to finish, verify and commit B61. B61 is now
@@ -7,6 +7,39 @@ complete at its engineering gate. Full v0.6 release acceptance remains pending.
 Read [B61 implementation](v06/B61_IMPLEMENTATION.md), [working ledger](v06/FeatureLedger.csv),
 [B60 audit](v06/B60_BASELINE_REVIEW.md) and the complete [v0.6 specification](v06/README.md).
 Master revision 6 and complete v0.6 override prior bank/weight/Seal clauses.
+
+## Latest B62 checkpoint
+
+[B62 report](v06/B62_IMPLEMENTATION.md) is current. Source implements official
+Fiber4/Ore6 supply and native finite City/West/East Buy/Sell using actual B61
+stock/cash. Commerce sessions bind owner/match/life/locality and exact displayed
+quote/inventory/item revisions. Capacity/reservation/cash/stock checks precede
+ledger mutation; output allocation precedes payment. Transfers preserve origin;
+o market mint/burn, phantom restock or commerce XP is introduced. Market quote
+revision includes cash-only changes. Map landmarks identify official services.
+Bank/bookshop/trade/service close/focus and pending routing are integrated.
+
+Final Editor build passed at `Artifacts/20261023-144354-300-BuildEditor`
+(28 actions/144.21s). `Scripts/RunCommerceCheck.ps1 -TimeoutSeconds 120` passed
+at `Artifacts/20261023-144655-549-B62-Commerce`: **22 rules, 26 authority checks**,
+zero failures; independent export replay passed (450+4000-268=4182 gold; seven
+accounts, 143 item identities, 140 receipts, zero audit failures). Fixtures use
+two local owners on one authority, labelled diagnostic seed/reserve transfers
+and cleanup. They do not prove remote networking, human UI or normal earning.
+Portable evidence: `docs/v06/evidence/B62`. The first two-owner check exposed
+and now fixes local UI startup before player attachment; widgets initialize
+idempotently once a local player exists. Failed evidence is retained separately.
+
+B63 next: finite outcrops, two recipe channels/shared reservations, exact net
+capacity/fees/lineage and equipped Survey/Analyze uses. B64 adds scheduled
+institutions and shortage; no unannounced shortage modifier was enabled early.
+B65 still replaces legacy credits/physical Seal with distinct endorsements and
+registered public Charter. B66/B67 retain actual native input/layout/network,
+current cook/package, normal economy journeys and human acceptance. Keep checks
+brief and scoped; source/config freeze and compiler cap4 remain required.
+
+The user authorized committing B62 and proceeding with B63. B62 is committed
+as its own milestone (see Git history). B61 remains committed as `9bdc2bb`.
 
 ## Verified checkpoint
 
@@ -34,7 +67,7 @@ physical items, bag projections, metadata and actual wallets/banks/NPC purses.
 Named Endowment/MatchClose/Reset exports use unique match UUIDs. No routine
 restock, silent ledger repair, bank spending fallback or reconnect was added.
 
-B62 next: paid Fiber/Ore supply and regional Buy/Sell using the actual market
+Earlier B61 handoff: paid Fiber/Ore supply and regional Buy/Sell using the actual market
 instances/cash, bounded integer pricing and stale/racing quote rules. Continue
 with production/skills, schedules, distinct endorsements/public Charter, full
 UI and scoped release verification. The normal frontend retains legacy v0.5

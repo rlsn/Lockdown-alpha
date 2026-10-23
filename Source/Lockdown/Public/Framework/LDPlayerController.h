@@ -5,6 +5,7 @@
 #include "Inventory/LDVendorTypes.h"
 #include "Inventory/LDTradeTypes.h"
 #include "Economy/LDBankDirector.h"
+#include "Economy/LDCommerceDirector.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -47,6 +48,18 @@ public:
     UFUNCTION(Server,Reliable) void ServerBankClose(uint32 Token);
     UFUNCTION(Server,Reliable) void ServerBankCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision);
     UFUNCTION(Client,Reliable) void ClientBankView(const FLDOwnerState& State,const FLDBankView& View,uint32 Request,const FString& Reason);
+    FLDCommerceView CommerceView;
+    FString CommerceFeedback;
+    uint32 CommerceToken=0,CommercePending=0;
+    bool bCommerceOpening=false,CommerceNeedsReview=false;
+    bool CommerceIsOpen() const {return bCommerceOpening||CommerceView.Session.IsValid();}
+    bool NearCommerce(uint8 Service) const;
+    void OpenCommerce(uint8 Service);void CloseCommerce();
+    void SendCommerce(uint8 Command,ELDItemKind Kind,FGuid Item,uint32 Revision,int32 Price);
+    UFUNCTION(Server,Reliable) void ServerCommerceOpen(uint32 Match,uint32 Life,uint32 Token,uint8 Service);
+    UFUNCTION(Server,Reliable) void ServerCommerceClose(uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerCommerceCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price);
+    UFUNCTION(Client,Reliable) void ClientCommerceView(const FLDOwnerState& State,const FLDCommerceView& View,uint32 Request,const FString& Reason);
     bool NearGuildVendor() const;
     void OpenVendor();void CloseVendor();
     bool VendorIsOpen() const{return bVendorOpening||VendorQuote.Session.IsValid();}
@@ -65,7 +78,7 @@ public:
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
-    bool InventoryPending() const{return BankPending!=0||InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
+    bool InventoryPending() const{return CommercePending!=0||BankPending!=0||InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
     FGuid ArmedItem() const{return ArmedWard;}
     UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
     UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
@@ -156,6 +169,7 @@ public:
     void RecordProbeRequest(uint32 Request){ProbeRequests.Add(Request,FPlatformTime::Seconds());}
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
 private:
+    void InitializeLocalUI();
     TArray<TPair<uint32,FString>> SeenIntentResults;
     uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;

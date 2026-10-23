@@ -5,12 +5,14 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B61 complete and verified.**
-[B61 implementation](docs/v06/B61_IMPLEMENTATION.md) records goods/cargo,
-institutional cash/stock and budgets, physical banking, causal receipts,
-physical-world reconciliation and reset exports. Editor build, all 22 native
-rules, 30 standalone authority checks and independent receipt replay passed.
-B62 commerce is next; the complete v0.6 economy remains in development.
+**Current checkpoint: v0.6 B62 commerce implemented and verified.**
+[B62 implementation](docs/v06/B62_IMPLEMENTATION.md) adds paid Fiber/Ore supply,
+finite regional Buy/Sell, owner-bound quotes, native controls and atomic ledger
+transfers. Editor compilation, 22 native rules, 26 two-owner authority checks
+and independent replay passed. B63 production/skills is next; the complete
+v0.6 economy remains in development.
+[B61](docs/v06/B61_IMPLEMENTATION.md) records retained cargo, physical banking,
+institutional state and accounting foundations.
 [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the
 complete economy spec against the actual B57 runtime. The normal frontend
 retains the v0.5 loop plus cargo foundations while the economy is implemented.

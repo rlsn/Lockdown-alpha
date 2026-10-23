@@ -1,0 +1,96 @@
+{
+  "succeeded": 22,
+  "failed": 0,
+  "notRun": 0,
+  "inProcess": 0,
+  "tests": [
+    {
+      "name": "Lockdown.Rules.CargoCapacity",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.CharacterGrowth",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.CharacterPreparationPlan",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.CharacterStarts",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.CombatGeometry",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ControlMappings",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.DeathCost",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.EconomyAccounting",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.EconomyCatalog",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.HUDObservationBoundary",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.InventoryIdentity",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ObjectiveBoundaries",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ObjectiveTiming",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.PreparationWire",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.Region",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.SkillCatalog",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.SpatialConversion",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.TradePrivacy",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ViewOrdering",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ViewPayload",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.ViewPrivacySchema",
+      "state": "Success"
+    },
+    {
+      "name": "Lockdown.Rules.WorldChecks",
+      "state": "Success"
+    }
+  ]
+}

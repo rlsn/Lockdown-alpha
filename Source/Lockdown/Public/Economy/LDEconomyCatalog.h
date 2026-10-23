@@ -12,6 +12,7 @@ namespace LDEconomy
         FString Checksum;
         TArray<FMarketDefinition> Markets;
         int32 Nodes=0,Charges=0;
+        int32 FiberPrice=0,OrePrice=0;
         // Decode to a candidate; a failed reload leaves the existing catalog intact.
         bool Parse(const FString& Json,FString& Error);
         bool Load(FString& Error);

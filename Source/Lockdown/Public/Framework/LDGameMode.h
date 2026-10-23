@@ -96,6 +96,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDTradeDirector> Trade;
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
     UPROPERTY() TObjectPtr<class ALDBankDirector> Bank;
+    UPROPERTY() TObjectPtr<class ALDCommerceDirector> Commerce;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

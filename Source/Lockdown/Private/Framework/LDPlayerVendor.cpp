@@ -11,7 +11,7 @@ void ALDPlayerController::OpenVendor()
 {
     if(InventoryPending()||!NearGuildVendor()){IntentFeedback=TEXT("Approach the Guild bookshop within 120 cm");return;}
     if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(!InventoryUI||!InventoryUI->IsOpen()){return;}
-    CloseBank();TradeView=FLDTradeView();CloseVendor();ClearControls();SetMenuOpen(true);VendorOpenToken=++NextRequest;bVendorOpening=true;VendorNeedsReview=false;VendorFeedback=TEXT("Opening Guild catalog…");
+    CloseCommerce();CloseBank();TradeView=FLDTradeView();CloseVendor();ClearControls();SetMenuOpen(true);VendorOpenToken=++NextRequest;bVendorOpening=true;VendorNeedsReview=false;VendorFeedback=TEXT("Opening Guild catalog…");
     ServerOpenVendor(OwnerState.Match,OwnerState.Life,VendorOpenToken);InventoryUI->Refresh();
 }
 void ALDPlayerController::CloseVendor()
@@ -34,7 +34,7 @@ void ALDPlayerController::ClientVendorQuote_Implementation(const FLDOwnerState& 
     bVendorOpening=false;VendorQuote=Quote;VendorFeedback=TEXT("Live Guild quote · One book per purchase · Match continues");InventoryUI->Refresh();
 }
 void ALDPlayerController::ClientVendorClosed_Implementation(uint32 Token,const FString& Reason)
-{if(Token!=VendorOpenToken){return;}const bool WasOpen=VendorIsOpen();bVendorOpening=false;VendorNeedsReview=false;VendorQuote=FLDVendorQuote();VendorFeedback=IntentFeedback=Reason;if(WasOpen&&InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}}
+{if(Token!=VendorOpenToken){return;}const bool WasOpen=VendorIsOpen();bVendorOpening=false;VendorNeedsReview=false;VendorQuote=FLDVendorQuote();VendorFeedback=IntentFeedback=Reason;if(WasOpen&&InventoryUI&&InventoryUI->IsOpen()&&!BankIsOpen()&&!CommerceIsOpen()){InventoryUI->Close();}}
 void ALDPlayerController::ClientVendorResult_Implementation(const FLDOwnerState& State,uint32 Request,const FLDVendorQuote& Quote,FGuid Item,const FString& Reason)
 {
     ClientLifeReceipt_Implementation(State);const bool Pending=Request==VendorPendingRequest;if(Pending){VendorPendingRequest=0;}

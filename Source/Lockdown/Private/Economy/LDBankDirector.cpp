@@ -1,4 +1,5 @@
 #include "Economy/LDBankDirector.h"
+#include "Economy/LDCommerceDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -36,6 +37,7 @@ void ALDBankDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,uint
     auto& C=Clients.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
     if(!Token||Token<=C.LastToken||Token<=C.ClosedThrough){return;}C.LastToken=Token;C.View=FLDBankView();C.View.Token=Token;
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){Reply(PC,0,TEXT("Treasury requires 120 cm, body sight, alive/unprotected and six combat-quiet seconds"));return;}
+    if(M->Commerce){M->Commerce->Invalidate(PC);}
     if(M->Trade){M->Trade->CancelFor(PC);}if(M->Vendor){M->Vendor->Invalidate(PC);}
     const auto* S=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));C.Damage=S->LastDamage;C.Dealt=S->LastDealt;C.View.Match=Match;C.View.Life=Life;C.View.Session=FGuid::NewGuid();C.View=View(PC,C);Reply(PC,0,TEXT("City Treasury · Official protected service · Match continues"));
 }

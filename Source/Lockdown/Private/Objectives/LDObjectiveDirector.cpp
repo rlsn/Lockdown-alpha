@@ -39,7 +39,7 @@ void ALDObjectiveSite::Configure(uint8 Site)
 {
     SetActorLocation(LDRegion::Site(GetWorld(),Site));
     Marker->SetRelativeLocation(FVector(0,0,8));Marker->SetRelativeScale3D(Site==LDObjective::Heart?FVector(1.5,1.5,.16):FVector(.9,.9,.16));
-    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD / CITY TREASURY"):Site==LDObjective::Heart?TEXT("HEART"):*LDRegion::SiteName(GetWorld(),Site)));
+    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD / TREASURY / SUPPLY / CITY MARKET"):Site==LDObjective::Heart?TEXT("HEART"):*(LDRegion::SiteName(GetWorld(),Site)+((Site==2||Site==6)?TEXT(" / OFFICIAL MARKET"):TEXT("")))));
     auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if(Base){auto* Material=UMaterialInstanceDynamic::Create(Base,this);Material->SetVectorParameterValue(TEXT("Tint"),Site==LDObjective::Heart?FLinearColor(.65f,.14f,.12f):FLinearColor(.18f,.36f,.5f));Marker->SetMaterial(0,Material);}
 }

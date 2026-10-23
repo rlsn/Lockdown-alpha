@@ -38,6 +38,8 @@ Success is real seed capital → supply/transport → two-step production → di
 institution/node/budget state, physical banking, causal accounting, physical
 reconciliation and reset evidence. All 22 native rules and 30 standalone
 engineering checks passed; exported receipts also passed independent replay.
-B62 commerce is next. Native UI/network/normal progression and release acceptance
+[B62 commerce](B62_IMPLEMENTATION.md) now provides paid material supply and
+finite stock/cash Buy/Sell; 22 rules and 26 two-owner authority checks passed.
+B63 production/skills is next. Native UI/network/normal progression and release acceptance
 remain open. Earlier partial reports are historical checkpoints, not current
 completion status. Use the [working ledger](FeatureLedger.csv).

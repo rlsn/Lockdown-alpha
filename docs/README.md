@@ -1,6 +1,9 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60 and B61 complete; B62 commerce next**.
+Current work: **v0.6 B60–B62 complete; B63 production/skills next**.
+[B62 implementation](v06/B62_IMPLEMENTATION.md) records passed Editor compilation,
+22 native rules, 26 two-owner authority checks and independent journal replay.
+Paid materials and actual finite regional commerce now have native controls.
 [B61 implementation](v06/B61_IMPLEMENTATION.md) records passed Editor builds,
 22 native rule tests, 30 standalone authority checks and independent receipt
 replay. Physical banking and live item/accounting foundations are integrated.

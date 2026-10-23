@@ -38,7 +38,7 @@ bool ALDEconomyDirector::Initialize(FString& Error)
         LDEconomy::FItemDelta D;D.Id=Item->Identity;D.Op=LDEconomy::EItemOp::Create;D.Kind=Good.Kind;D.To=Market.Id;T.Items.Add(D);
     }}}
     if(!Candidate.Commit(T,Error)||!Candidate.Reconcile(Error)){Cleanup();return false;}
-    Catalog=MoveTemp(C);Ledger=MoveTemp(Candidate);InstitutionalItems=MoveTemp(Created);Initialized=true;
+    Catalog=MoveTemp(C);Ledger=MoveTemp(Candidate);for(uint8 Service=0;Service<4;++Service){MarketRevisions.Add(Service,1);}InstitutionalItems=MoveTemp(Created);Initialized=true;
     UE_LOG(LogTemp,Display,TEXT("LD_ECONOMY_INITIALIZED version=%d checksum=%s accountsGold=%lld institutionalItems=%d contenders=%d"),Catalog.Version,*Catalog.Checksum,Ledger.TotalGold(),InstitutionalItems.Num(),N);return true;
 }
 void ALDEconomyDirector::GoldChanged(FName Cause,int64 Mint,int64 Burn)
@@ -67,7 +67,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif

@@ -43,6 +43,7 @@
 #include "Tests/LDVendorProbe.h"
 #include "Tests/LDTradeProbe.h"
 #include "Tests/LDEconomyProbe.h"
+#include "Tests/LDCommerceProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -165,6 +166,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){GetWorld()->SpawnActor<ALDVendorProbe>();}
@@ -355,7 +357,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
         Economy=GetWorld()->SpawnActor<ALDEconomyDirector>();
         if(!Economy||!Economy->Initialize(Reason)){if(Economy){Economy->Destroy();Economy=nullptr;}return false;}
     }
-    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();}
+    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
     Public->MatchDeadline=float(MatchStartedAt+LDDevelopment::DeadlineSeconds);
     for (auto& Pair:Contenders)

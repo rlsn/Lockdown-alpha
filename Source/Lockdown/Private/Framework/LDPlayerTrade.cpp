@@ -27,9 +27,9 @@ void ALDPlayerController::ClientTradeUpdate_Implementation(const FLDOwnerState& 
     if(View.Stage==ELDTradeStage::Committed){if(SeenTradeCompletions.Contains(View.Session)&&TradeView.Session!=View.Session){IntentFeedback=View.Message;return;}SeenTradeCompletions.AddUnique(View.Session);while(SeenTradeCompletions.Num()>8){SeenTradeCompletions.RemoveAt(0);}}
     if(View.Active()||View.Stage==ELDTradeStage::Committed)
     {
-        if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}CloseVendor();CloseBank();
+        if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}CloseVendor();CloseBank();CloseCommerce();
     }
     TradeView=View;if(!View.Active()){bTradeDismissed=false;}if(!View.Message.IsEmpty()){IntentFeedback=View.Message;}
-    if((View.Stage==ELDTradeStage::Cancelled||View.Stage==ELDTradeStage::Expired)&&InventoryUI&&InventoryUI->IsOpen()&&!VendorIsOpen()&&!BankIsOpen()){InventoryUI->Close();}
+    if((View.Stage==ELDTradeStage::Cancelled||View.Stage==ELDTradeStage::Expired)&&InventoryUI&&InventoryUI->IsOpen()&&!VendorIsOpen()&&!BankIsOpen()&&!CommerceIsOpen()){InventoryUI->Close();}
     if(InventoryUI){InventoryUI->Refresh();}
 }
