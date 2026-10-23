@@ -10,6 +10,7 @@ class LOCKDOWN_API ULDInventoryPanel:public ULDPanel
     GENERATED_BODY()
 public:
     void Open();void Close();bool IsOpen() const{return bOpen;}
+    void BuildBank(class UVerticalBox* All);void RefreshBank();void ReviewBank(bool Deposit);
     void Refresh();void CancelDrag();bool IsDragging() const{return bPointerDown;}
     void Select(FGuid Id);void Use();void AskDrop();void ConfirmDrop();
     FString DetailText() const;
@@ -36,6 +37,15 @@ private:
     void RefreshTradePanel();
     void BuildTradeReview(class UCanvasPanel* Canvas);
     void ShowTradeReview();
+    UPROPERTY() TObjectPtr<class UVerticalBox> BankPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> BankStatus;
+    UPROPERTY() TObjectPtr<UEditableTextBox> BankAmount;
+    UPROPERTY() TObjectPtr<ULDCommandButton> BankOpenButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> BankConfirm;
+    bool bBankReviewed=false,bBankDeposit=true;
+    int64 BankReviewedAmount=0;
+    uint32 BankReviewedWallet=0,BankReviewedBalance=0;
+    FGuid BankReviewedSession;
     bool bTradeReview=false;
     uint32 ReviewedRevision=0;
     FGuid ReviewedSession;

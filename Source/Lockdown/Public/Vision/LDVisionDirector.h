@@ -19,6 +19,7 @@ public:
     float ExpiresAt = 0;
     double Hp = 20;
     FGuid Identity;
+    FGuid SourceCharge;
 };
 
 UCLASS()

@@ -34,6 +34,7 @@ public:
     virtual void BeginPlay() override;
     void EnsureTargets();
     FGuid WalletId(ALDCharacter* Body);
+    void EconomyWallets(TMap<FName,int64>& Out) const;
     void BindReturnedBody(ALDCharacter* Body,FGuid Wallet);
     void CancelAttempt(ALDCharacter* Source,uint32 Token);
     int64 Balance(ALDCharacter* Body);

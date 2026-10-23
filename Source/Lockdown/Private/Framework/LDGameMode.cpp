@@ -1,4 +1,6 @@
 #include "Framework/LDGameMode.h"
+#include "Economy/LDEconomyDirector.h"
+#include "Economy/LDBankDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -40,6 +42,7 @@
 #include "Tests/LDInventoryProbe.h"
 #include "Tests/LDVendorProbe.h"
 #include "Tests/LDTradeProbe.h"
+#include "Tests/LDEconomyProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -162,6 +165,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){GetWorld()->SpawnActor<ALDVendorProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))){GetWorld()->SpawnActor<ALDInventoryProbe>();}
@@ -228,6 +232,7 @@ void ALDGameMode::Logout(AController* Exiting)
         if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
+        if(Economy){Economy->Retire(PC);}
         if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
         if (LobbyHost==PC) { LobbyHost.Reset(); for (auto& Pair:Contenders) { if (Pair.Key.IsValid()) { LobbyHost=Pair.Key; Pair.Value.State.bLobbyHost=true; SyncOwner(Pair.Key.Get()); break; } } }
         if (bDevelopmentProfile) { UpdateLobby(); }
@@ -254,7 +259,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
     const auto Cost=bDevelopmentProfile
         ? LDRules::FDeathCost{LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt),LDDevelopment::DeathLoss(State->Gold)}
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
-    State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;
+    State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;RecordEconomyGold(TEXT("DeathTax"),0,Cost.LostGold);
     State->bActive=false; State->Hp=0; State->WardCharges=0;
     if(PC->Navigation){PC->Navigation->ResetLife();}
     State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
@@ -345,6 +350,12 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
     if (!bDevelopmentProfile || !PC || PC!=LobbyHost.Get() || !Public || Public->bMatchStarted || Contenders.Num()<1 || Contenders.Num()>4)
     { Reason=TEXT("Only the lobby host can start once."); return false; }
     for (const auto& Pair:Contenders) { if (!Pair.Value.State.bReady) { Reason=TEXT("Every connected contender must be Ready."); return false; } }
+    if(bUIControlProfile)
+    {
+        Economy=GetWorld()->SpawnActor<ALDEconomyDirector>();
+        if(!Economy||!Economy->Initialize(Reason)){if(Economy){Economy->Destroy();Economy=nullptr;}return false;}
+    }
+    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
     Public->MatchDeadline=float(MatchStartedAt+LDDevelopment::DeadlineSeconds);
     for (auto& Pair:Contenders)
@@ -357,6 +368,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
             SyncOwner(Player);
         }
     }
+    if(Economy){FString EvidenceError;Economy->Export(TEXT("Endowment"),EvidenceError);}
     Public->ForceNetUpdate(); Reason=Contenders.Num()==1?TEXT("Practice started: one human; 25 minute cap."):TEXT("Integration match started. Roster locked.");
     UE_LOG(LogTemp,Display,TEXT("LD_V04_START humans=%d practice=%d deadline=%.3f catalog=%s"),Contenders.Num(),Contenders.Num()==1,Public->MatchDeadline,*Catalog->SourceChecksum);
     return true;
@@ -382,3 +394,8 @@ void ALDGameMode::AwardExperience(ALDPlayerController* PC,int64 Amount)
     else { State->Xp+=Amount; }
     SyncOwner(PC);
 }
+
+void ALDGameMode::EconomyWallets(TMap<FName,int64>& Out) const
+{for(const auto& Pair:Contenders){Out.Add(ALDEconomyDirector::Wallet(Pair.Value.Session),Pair.Value.State.Gold);Out.Add(ALDEconomyDirector::BankAccount(Pair.Value.Session),Pair.Value.State.BankGold);}}
+void ALDGameMode::RecordEconomyGold(FName Cause,int64 Mint,int64 Burn)
+{if(Economy){Economy->GoldChanged(Cause,Mint,Burn);}}

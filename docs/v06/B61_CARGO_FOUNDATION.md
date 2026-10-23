@@ -1,5 +1,7 @@
 # B61 first slice — physical goods and cargo limits
 
+Historical checkpoint. [B61 completion and current verification](B61_IMPLEMENTATION.md) supersedes the pending status below.
+
 23 October 2026. B61 is **partial**. Goods/cargo source integration compiles;
 persistent banking, institutional records, transaction receipts and aggregate
 reconciliation are not implemented. B62–B67 have not started. This checkpoint

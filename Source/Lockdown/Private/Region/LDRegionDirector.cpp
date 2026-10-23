@@ -103,7 +103,7 @@ void ALDRegionDirector::SentinelDefeated(const TMap<ALDPlayerController*,double>
     {const auto* S=M->Combat->StateFor(P.Key?Cast<ALDCharacter>(P.Key->GetPawn()):nullptr);if(!S){continue;}if(P.Value>Most||(P.Value==Most&&S->Identity.ToString()<Best.ToString())){Most=P.Value;Best=S->Identity;Winner=P.Key;}}
     auto* O=M->StateFor(Winner);const auto* S=M->Combat->StateFor(Winner?Cast<ALDCharacter>(Winner->GetPawn()):nullptr);
     if(O&&O->bActive&&S&&S->Hp>0&&O->PaidSentinels<2&&O->SentinelReceipt!=Encounter)
-    {O->SentinelReceipt=Encounter;++O->PaidSentinels;O->Gold+=25;M->AwardExperience(Winner,45);M->SyncOwner(Winner);Winner->ClientIntentResult(0,TEXT("Sentinel reward: +25 gold, +45 XP (two paid defeats per match)."));}
+    {O->SentinelReceipt=Encounter;++O->PaidSentinels;O->Gold+=25;M->RecordEconomyGold(TEXT("SentinelReward"),25);M->AwardExperience(Winner,45);M->SyncOwner(Winner);Winner->ClientIntentResult(0,TEXT("Sentinel reward: +25 gold, +45 XP (two paid defeats per match)."));}
     UE_LOG(LogTemp,Display,TEXT("LD_SENTINEL_RECEIPT encounter=%s paid=%d return=%.3f"),*Encounter.ToString(),O?O->PaidSentinels:0,ReturnAt);
 }
 bool ALDRegionDirector::Sabotage(ALDCharacter* Source,const FLDCharacterBuild& Build,uint32 Token,ELDSkillTaskPhase Phase,FString& Result)

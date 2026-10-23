@@ -1,4 +1,5 @@
 #include "Inventory/LDVendorDirector.h"
+#include "Economy/LDBankDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Framework/LDGameMode.h"
@@ -34,6 +35,7 @@ void ALDVendorDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,ui
     if(!Token||Token<=C.ClosedThrough||Token<=C.Token){return;}
     C.Token=Token;C.Session.Invalidate();
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){PC->ClientVendorClosed(Token,TEXT("Approach the Guild within 120 cm, alive, unprotected and unoccupied"));return;}
+    if(M->Bank){M->Bank->Invalidate(PC);}
     if(M->Trade){M->Trade->CancelFor(PC);}
     C.Match=Match;C.Life=Life;C.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;C.Session=FGuid::NewGuid();C.SentRevision=CatalogRevision;C.SentPrice=BookPrice;
     PC->ClientVendorQuote(*O,Quote(PC,C));
@@ -64,7 +66,7 @@ void ALDVendorDirector::Request(const FRequest& R)
     FString CapacityReason;if(!M->Inventory->HasSpace(PC,ELDItemKind::Book,&CapacityReason)){Reply(PC,R.Id,{FGuid(),CapacityReason+TEXT("; nothing spent")});return;}
     if(O->Gold<BookPrice){Reject(TEXT("Not enough gold; nothing spent"));return;}
     ALDBook* Book=bFailCreation?nullptr:GetWorld()->SpawnActor<ALDBook>();bFailCreation=false;if(!Book){Reject(TEXT("Book creation failed; nothing spent"));return;}Book->Skill=R.Skill;Book->State=0;
-    if(!M->Inventory->Adopt(PC,Book)){Book->Destroy();Reject(TEXT("Inventory full; nothing spent"));return;}O->Gold-=BookPrice;M->SyncOwner(PC);Reply(PC,R.Id,{Book->Identity,FString::Printf(TEXT("Purchased one %s book for %d gold"),LDDevelopment::SkillName(R.Skill),BookPrice)});
+    if(!M->Inventory->Adopt(PC,Book,TEXT("OfficialBookPurchase"),false)){Book->Destroy();Reject(TEXT("Inventory full; nothing spent"));return;}O->Gold-=BookPrice;M->RecordEconomyGold(TEXT("OfficialBookPurchase"),0,BookPrice);M->SyncOwner(PC);Reply(PC,R.Id,{Book->Identity,FString::Printf(TEXT("Purchased one %s book for %d gold"),LDDevelopment::SkillName(R.Skill),BookPrice)});
 }
 void ALDVendorDirector::Sample(double Now)
 {

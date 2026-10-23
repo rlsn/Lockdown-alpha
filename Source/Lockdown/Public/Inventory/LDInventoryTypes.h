@@ -45,6 +45,7 @@ public:
     uint32 Revision=1;
     bool bReserved=false;
     // Server-only causal metadata. Never serialize parents or origin to a peer.
+    FName Institution; // persistent institution address; server-only
     FGuid OriginReceipt;
     TArray<FGuid> ParentIds;
 };

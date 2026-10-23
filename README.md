@@ -5,11 +5,12 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B60 audited; B61 cargo foundation implemented.**
-[B61 cargo report](docs/v06/B61_CARGO_FOUNDATION.md) records five physical goods,
-final weight checks and carry/drop integration. Editor compilation passed; the
-brief rule launch timed out during plugin startup. Banking/accounting and the
-remaining economy are still pending.
+**Current checkpoint: v0.6 B61 complete and verified.**
+[B61 implementation](docs/v06/B61_IMPLEMENTATION.md) records goods/cargo,
+institutional cash/stock and budgets, physical banking, causal receipts,
+physical-world reconciliation and reset exports. Editor build, all 22 native
+rules, 30 standalone authority checks and independent receipt replay passed.
+B62 commerce is next; the complete v0.6 economy remains in development.
 [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the
 complete economy spec against the actual B57 runtime. The normal frontend
 retains the v0.5 loop plus cargo foundations while the economy is implemented.

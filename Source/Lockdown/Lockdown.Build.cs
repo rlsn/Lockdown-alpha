@@ -8,5 +8,6 @@ public class Lockdown : ModuleRules
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "NavigationSystem", "AIModule", "NetCore" });
         PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json", "RHI" });
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/economy_rules.json", StagedFileType.UFS);
     }
 }

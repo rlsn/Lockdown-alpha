@@ -33,9 +33,11 @@ Success is real seed capital → supply/transport → two-step production → di
 
 ## Repository implementation record
 
-The imported planning statements above describe specification authoring. Actual
-B57 source and retained evidence are audited in [B60](B60_BASELINE_REVIEW.md).
-[B61 cargo foundation](B61_CARGO_FOUNDATION.md) compiles goods/weight integration;
-banking, institutions and full receipt reconciliation remain next. The bounded
-rule launch timed out in editor startup; no new gameplay acceptance is claimed.
-Use the [working ledger](FeatureLedger.csv), keeping templates blank.
+[B60](B60_BASELINE_REVIEW.md) audited the actual B57 source and retained evidence.
+[B61 is complete and verified](B61_IMPLEMENTATION.md): cargo, runtime catalog,
+institution/node/budget state, physical banking, causal accounting, physical
+reconciliation and reset evidence. All 22 native rules and 30 standalone
+engineering checks passed; exported receipts also passed independent replay.
+B62 commerce is next. Native UI/network/normal progression and release acceptance
+remain open. Earlier partial reports are historical checkpoints, not current
+completion status. Use the [working ledger](FeatureLedger.csv).

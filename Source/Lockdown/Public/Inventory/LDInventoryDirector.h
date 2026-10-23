@@ -14,8 +14,8 @@ public:
     void Initialize(ALDPlayerController* PC);
     bool HasSpace(ALDPlayerController* PC,ELDItemKind Kind,FString* Reason=nullptr) const;
     ALDItem* Owned(AActor* Container,FGuid Id) const;
-    bool Adopt(ALDPlayerController* PC,ALDItem* Item);
-    void Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume);
+    bool Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause=NAME_None,bool Journal=true);
+    void Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause=NAME_None);
     void Changed(ALDPlayerController* PC);
     void EndLife(ALDPlayerController* PC);
     void QuotePickup(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,FGuid Observed);

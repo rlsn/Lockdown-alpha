@@ -1,14 +1,13 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60 complete; B61 cargo foundation compiled, accounting next**.
-Master revision 6 and the complete v0.6 spec define the economy sprint. The
-[B60 review](v06/B60_BASELINE_REVIEW.md) records source inspection, adopted values,
-accounting differences and retained evidence. The normal frontend retains the v0.5 loop plus cargo foundations.
-[B61 cargo report](v06/B61_CARGO_FOUNDATION.md) records implementation, passed
-Editor build and the 60-second rule-launch startup timeout (no test pass).
-[B58 handoff](v05/B58_HANDOFF.md) preserves v0.5 evidence and deferred acceptance.
-The user requested brief targeted verification; no long runs are automatic.
-Keep UE 5.8.4 CL 58902052; historical reports retain their original provenance.
+Current work: **v0.6 B60 and B61 complete; B62 commerce next**.
+[B61 implementation](v06/B61_IMPLEMENTATION.md) records passed Editor builds,
+22 native rule tests, 30 standalone authority checks and independent receipt
+replay. Physical banking and live item/accounting foundations are integrated.
+The normal frontend retains v0.5 progression until the later public Charter work.
+See [current handoff](CONTINUATION.md) and the [working ledger](v06/FeatureLedger.csv).
+The user requested brief verification; no long runs are automatic. Keep the
+UE5.8.4 CL58902052 pin and preserve historical report provenance.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
 Full stress validation is deferred by user direction; human acceptance, a fresh

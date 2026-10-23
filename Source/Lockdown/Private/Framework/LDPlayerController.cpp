@@ -524,7 +524,7 @@ void ALDPlayerController::ClearControls()
     }
 }
 
-void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
+void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();CloseBank();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {

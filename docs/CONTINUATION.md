@@ -1,52 +1,54 @@
-# Continuation — v0.6 B61 cargo foundation; accounting next
+# Continuation — v0.6 B61 complete; B62 commerce next
 
-23 October 2026. The user directed: “avoid lengthy tests, keep verifications
-minimal” and said the project is moving onto the next version. Follow that
-constraint. The v0.5 engineering handoff is recorded; full release acceptance
-remains partial. The user supplied master revision 6 and the complete v0.6
-economy specifications on 23 October. B60 source/document audit is complete.
-B61 goods/cargo foundation is implemented and compiles; B61 remains partial.
+23 October 2026. The user directed “avoid lengthy tests, keep verifications
+minimal,” then explicitly requested to finish, verify and commit B61. B61 is now
+complete at its engineering gate. Full v0.6 release acceptance remains pending.
 
-## Read first
+Read [B61 implementation](v06/B61_IMPLEMENTATION.md), [working ledger](v06/FeatureLedger.csv),
+[B60 audit](v06/B60_BASELINE_REVIEW.md) and the complete [v0.6 specification](v06/README.md).
+Master revision 6 and complete v0.6 override prior bank/weight/Seal clauses.
 
-1. [B60 baseline review](v06/B60_BASELINE_REVIEW.md), [v0.6 scope](v06/README.md),
-   [build plan](v06/07_BUILD_PLAN.md), [banking/cargo](v06/11_BANKING_AND_CARGO.md),
-   [working ledger](v06/FeatureLedger.csv) and `v06/data/economy_rules.json`.
-2. [B58 handoff](v05/B58_HANDOFF.md): delivered behavior, retained evidence and open gates.
-3. [B57 report](v05/B57_IMPLEMENTATION.md) and [archived continuation](v05/CONTINUATION_B57.md): detailed implementation and evidence.
-4. [Working ledger](v05/FeatureLedger.csv), [master plan](master/README.md) and [v0.5 specification](v05/README.md).
-5. Complete v0.6 documents override earlier private-Seal/no-weight/no-bank clauses.
+## Verified checkpoint
 
-## Current implementation direction
+Final Editor build: `Artifacts/20261023-140853-466-BuildEditor` (5 actions/21.59s).
+`Scripts/RunEconomyCheck.ps1 -TimeoutSeconds 120` passed at
+`Artifacts/20261023-140934-748-B61-Economy`: **22 native rules, 30 standalone
+authority checks, zero failures**, including the formerly execution-pending
+CargoCapacity test. Independent replay passed Endowment/B61Verified/Reset
+exports. Portable copies live in `docs/v06/evidence/B61`. Final equation:
+486 endowed + 200 labelled diagnostic mint - 56 burned = 630; six accounts,
+87 unique items, 13 receipts, zero audit failures. These are engineering fixtures,
+not normal earnings, network/UMG input, human acceptance or a complete economy.
+No long session, cook/package or remote-client run was launched.
 
-Read [B61 cargo foundation](v06/B61_CARGO_FOUNDATION.md). Five goods append to
-physical kinds; native final slot/weight checks now cover adoption/pickup,
-vendor, both trade sides and preparation start/commit. Cargo drops on life end,
-uses generic filtered observation/pickup and cannot quick-use. Bag has weight and
-Cargo filter. Item origin/parent fields are server-only storage, not populated
-accounting. Native constants currently match proposed weights; runtime catalog
-integration remains open. No material supply or normal economy is enabled.
+## Implementation and next work
 
-Editor build passed: `Artifacts/20261023-102029-314-BuildEditor` (23 actions,
-304.62s, compile cap4). Bounded rule launch
-`Artifacts/20261023-131741-354-Automation` hit 60s during editor-plugin startup,
-before tests: no new rule passes, including CargoCapacity, are claimed. Do not
-repeat/extend testing automatically. Source/Config was frozen during both runs.
+LDEconomyDirector initializes institutions once from staged runtime JSON. It
+holds actual stock, institutional addresses, 450 market cash, node/global/per-
+contender budget identities and the causal ledger. BankGold lives on persistent
+owner state; Treasury shares the Guild service site, with private physical
+sessions and native explicit review/confirm. Bank commits serialize after death.
+Ledger audit hooks cover retained item/gold paths, including paid output in its
+payment receipt and charge-to-active-ward-to-expiry identity. Snapshot compares
+physical items, bag projections, metadata and actual wallets/banks/NPC purses.
+Named Endowment/MatchClose/Reset exports use unique match UUIDs. No routine
+restock, silent ledger repair, bank spending fallback or reconnect was added.
 
-Next finish B61 persistent bank/institutions/nodes, budget identities, versioned
-runtime catalog and receipts/reconciliation. Then B62 supply/markets, B63 production/skill uses,
-B64 scheduled routines/shortage, B65 distinct endorsements and registered
-public-window Charter, B66 native service UI, B67 scoped acceptance. The normal
-frontend retains the v0.5 loop plus the cargo foundation until the new economy is integrated.
-No new normal physical Seal, courier-credit fabrication or private bypass in
-the final v0.6 profile. Everyone may claim during its 30-warning/60-open window.
-Record unimplemented work honestly; B60 is an audit, not gameplay acceptance.
+B62 next: paid Fiber/Ore supply and regional Buy/Sell using the actual market
+instances/cash, bounded integer pricing and stale/racing quote rules. Continue
+with production/skills, schedules, distinct endorsements/public Charter, full
+UI and scoped release verification. The normal frontend retains legacy v0.5
+progression until B65; no final public contest or production route is claimed.
+Retained direct-grant engineering probes need labelled journaled fixture setup
+when extended; unclassified mutations intentionally fail reconciliation.
 
-Initial NPC gold is lazy: eight resident purses at 36 plus a possible Sentinel
-purse at 36. The spec's 738 including markets is illustrative; retain and count
-the existing Sentinel policy (774 with all nine purses), never silently omit it.
-Logout removes the contender and disallows late rejoin: retain admission policy
-and account explicitly for retired wallets; do not invent reconnect scope.
+Keep Unreal5.8.4 CL58902052, existing movement/input/UI and privacy allowlists.
+Unreal operations run sequentially, compile actions capped at four, and freeze
+Source/Config during each operation. Do not automatically rerun long suites or
+the user-deferred 90-minute stress. Human/layout/input/network/current-package
+acceptance remains explicitly pending in B66/B67. Earlier partial B61 reports
+and startup timeouts are historical; current results supersede their pending
+status, not their original logs.
 
 ## Retained pre-economy baseline
 

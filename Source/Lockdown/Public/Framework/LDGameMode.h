@@ -76,6 +76,9 @@ public:
     void AwardExperience(ALDPlayerController* Controller,int64 Amount);
     void RefreshBuild(ALDPlayerController* Controller,bool RestoreFullHP=false);
     bool IsPlaying() const;
+    void EconomyWallets(TMap<FName,int64>& Out) const;
+    int32 EconomyContenderCount() const {return Contenders.Num();}
+    void RecordEconomyGold(FName Cause,int64 Mint=0,int64 Burn=0);
     bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
     bool IsUIControlProfile() const {return bUIControlProfile;}
     const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
@@ -91,6 +94,8 @@ public:
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
     UPROPERTY() TObjectPtr<class ALDTradeDirector> Trade;
+    UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    UPROPERTY() TObjectPtr<class ALDBankDirector> Bank;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bDevelopmentProfile = false;

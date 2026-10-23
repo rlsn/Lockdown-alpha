@@ -1,4 +1,5 @@
 #include "Development/LDWorldChecks.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -45,7 +46,7 @@ FGuid ALDWorldChecks::WalletId(ALDCharacter* Body)
         auto& W=Wallets.FindOrAdd(Id);W.Human=true;W.Owner=PC;W.Gold=0;BodyWallets.Add(Body,Id);return Id;
     }
     if(const auto* Id=BodyWallets.Find(Body)){return *Id;}
-    const FGuid Id=FGuid::NewGuid();Wallets.Add(Id,FWallet());BodyWallets.Add(Body,Id);return Id;
+    const FGuid Id=FGuid::NewGuid();Wallets.Add(Id,FWallet());BodyWallets.Add(Body,Id);if(Mode->Economy){Mode->Economy->ResidentEndowment(Id,36);}return Id;
 }
 void ALDWorldChecks::BindReturnedBody(ALDCharacter* Body,FGuid Id)
 {if(HasAuthority()&&IsValid(Body)&&Wallets.Contains(Id)){BodyWallets.Add(Body,Id);}}
@@ -121,7 +122,7 @@ bool ALDWorldChecks::UseWallet(ALDCharacter* Source,ALDCharacter* Target,const F
     if(!Existing||Existing->SourceBody!=S->Identity||Existing->Source!=Source||Existing->Target!=Target||Existing->TargetWallet!=TargetId||S->Action!=7||S->SkillToken!=Token){return Reject();}
     auto& R=*Existing;R.Roll=Draw();R.Success=LDDevelopment::TheftSucceeds(R.Roll,Build.Attributes[LDDevelopment::DEX],LDDevelopment::Rank(Build,ELDSkill::Pickpocket),Build.Subclass==3,Wisdom(Target),Now<TW.Alert);R.Committed=true;
     R.Amount=R.Success?FMath::Min<int64>(12,Gold(TW)):0;
-    if(R.Success){const int64 SourceGold=Gold(SW),TargetGold=Gold(TW);SetGold(TW,TargetGold-R.Amount);SetGold(SW,SourceGold+R.Amount);}
+    if(R.Success){const int64 SourceGold=Gold(SW),TargetGold=Gold(TW);SetGold(TW,TargetGold-R.Amount);SetGold(SW,SourceGold+R.Amount);M->RecordEconomyGold(TEXT("PickpocketTransfer"));}
     else{TW.Alert=FMath::Max(TW.Alert,Now+30);S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
     R.Feedback=R.Success?FString::Printf(TEXT("Purse attempt succeeded: %lld gold transferred. Receipt %s."),R.Amount,*R.Id.ToString(EGuidFormats::Short)):FString::Printf(TEXT("Purse attempt failed; target alerted and you are exposed. Receipt %s."),*R.Id.ToString(EGuidFormats::Short));Result=R.Feedback;
     if(auto* PC=Cast<ALDPlayerController>(Source->GetController())){auto* O=M->StateFor(PC);O->TheftReceipt=R.Id;O->TheftOutcome=R.Success?1:2;O->TheftAmount=R.Amount;M->SyncOwner(PC);}
@@ -144,3 +145,6 @@ bool ALDWorldChecks::UseCharter(ALDCharacter* Source,ALDCharterTask* Task,const 
     }
     return true;
 }
+
+void ALDWorldChecks::EconomyWallets(TMap<FName,int64>& Out) const
+{for(const auto& Pair:Wallets){if(!Pair.Value.Human){Out.Add(ALDEconomyDirector::Wallet(Pair.Key),Pair.Value.Gold);}}}

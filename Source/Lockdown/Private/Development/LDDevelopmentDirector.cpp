@@ -96,7 +96,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     {
         if(!NearStation(PC,true)||!LDDevelopmentTransaction::Sold(R.Skill)||O->Gold<40||O->Books.Num()>=4){Reject(TEXT("Buy at Guild: 40 gold and an unread-book space required."));return;}
         auto* Book=GetWorld()->SpawnActor<ALDBook>();if(!Book){Reject(TEXT("Book unavailable; nothing spent."));return;}
-        Book->Skill=R.Skill;Book->Holder=PC;O->Gold-=40;FLDOwnedBook Entry;Entry.Id=Book->Identity;Entry.Skill=R.Skill;O->Books.Add(Entry);
+        Book->Skill=R.Skill;Book->Holder=PC;O->Gold-=40;Mode->RecordEconomyGold(TEXT("LegacyBookPurchase"),0,40);FLDOwnedBook Entry;Entry.Id=Book->Identity;Entry.Skill=R.Skill;O->Books.Add(Entry);
         Mode->SyncOwner(PC);FinishRequest(PC,R.Id,TEXT("Purchased one unread book for 40 gold. Select it and hold E to read."));return;
     }
     if(R.Kind==LDDevelopmentTransaction::PickUp)
@@ -139,7 +139,7 @@ void ALDDevelopmentDirector::Sample(double Now)
         else
         {
             auto* Book=S.Book.Get();O->Build.Ranks[uint8(Book->Skill)]=1;++O->Build.Revision;
-            if(Mode->Inventory){Mode->Inventory->Remove(PC,Book,true);}else{O->Books.RemoveAll([&](const FLDOwnedBook& Entry){return Entry.Id==Book->Identity;});Book->Holder.Reset();Book->Destroy();}
+            if(Mode->Inventory){Mode->Inventory->Remove(PC,Book,true,TEXT("BookRead"));}else{O->Books.RemoveAll([&](const FLDOwnedBook& Entry){return Entry.Id==Book->Identity;});Book->Holder.Reset();Book->Destroy();}
         }
         const bool Prepared=S.Kind==LDDevelopmentTransaction::Prepare;
         O->Hp=Combat->Hp;Mode->RefreshBuild(PC);

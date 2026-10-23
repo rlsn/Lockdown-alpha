@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDPlayerController.h"
@@ -104,7 +105,7 @@ void ALDVisionDirector::Unregister(ALDPlayerController* PC)
 {
     if (FObserver* Observer=Observers.Find(PC)) { if (Observer->Relay.IsValid()) { Observer->Relay->Destroy(); } }
     Observers.Remove(PC);
-    for (auto& Weak : Wards) { if (Weak.IsValid() && Weak->Controller==PC) { Weak->Destroy(); } }
+    for (auto& Weak : Wards) { if (Weak.IsValid() && Weak->Controller==PC) { const FGuid Source=Weak->SourceCharge;Weak->Destroy();if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(TEXT("WardOwnerDisconnect"),0,0,{Source})){++E->AuditFailures;}} } }
 }
 ALDWorldViewRelay* ALDVisionDirector::RelayFor(ALDPlayerController* PC) const
 { const FObserver* Observer=Observers.Find(PC); return Observer ? Observer->Relay.Get() : nullptr; }
@@ -148,8 +149,8 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
     { Reason=TEXT("Ward needs clear, reachable ground on your level."); return false; }
     ALDWard* Ward=GetWorld()->SpawnActor<ALDWard>(Hit.ImpactPoint+FVector(0,0,15),FRotator::ZeroRotator);
     if (!Ward) { Reason=TEXT("Ward could not be placed."); return false; }
-    if(Mode->Trade){Mode->Trade->CancelFor(PC);}Ward->Identity=FGuid::NewGuid(); Ward->Controller=PC; Ward->ExpiresAt=GetWorld()->GetTimeSeconds()+60;
-    Wards.Add(Ward);if(Mode->Inventory){Mode->Inventory->Remove(PC,ChargeItem,true);}else{--State->WardCharges;Mode->SyncOwner(PC);}
+    if(Mode->Trade){Mode->Trade->CancelFor(PC);}Ward->Identity=FGuid::NewGuid(); Ward->Controller=PC;Ward->SourceCharge=Charge; Ward->ExpiresAt=GetWorld()->GetTimeSeconds()+60;
+    Wards.Add(Ward);if(Mode->Inventory){Mode->Inventory->Remove(PC,ChargeItem,true,TEXT("WardPlacement"));}else{--State->WardCharges;Mode->SyncOwner(PC);}
     Reason=TEXT("Ward placed: private sight for 60 seconds.");
     return true;
 }
@@ -162,7 +163,7 @@ void ALDVisionDirector::Tick(float Delta)
     {
         ALDWard* Ward=Wards[Index].Get();
         if (!Ward || Ward->Hp<=0 || RuleNow>=Ward->ExpiresAt)
-        { if (Ward) { Ward->Destroy(); } Wards.RemoveAtSwap(Index); }
+        { if (Ward) { const FGuid Source=Ward->SourceCharge;Ward->Destroy();if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(TEXT("WardExpiry"),0,0,{Source})){++E->AuditFailures;}} } Wards.RemoveAtSwap(Index); }
     }
     if (Now<NextSample) { return; }
     if (NextSample>0 && Now-NextSample>.1) { UE_LOG(LogTemp,Warning,TEXT("LD authority sight sample late by %.3fs; sampling current pose once"),Now-NextSample); }

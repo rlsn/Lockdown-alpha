@@ -74,6 +74,7 @@ struct FLDOwnerState
     UPROPERTY() double AlertUntil=0;
     UPROPERTY() uint32 TamperSerial=0;
     UPROPERTY() int64 Gold = 0;
+    UPROPERTY() int64 BankGold = 0;
     UPROPERTY() int64 Xp = 0;
     UPROPERTY() uint8 WardCharges = 1;
     UPROPERTY() bool bActive = true;

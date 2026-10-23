@@ -1,4 +1,6 @@
 #include "Combat/LDCombatDirector.h"
+#include "Economy/LDBankDirector.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Core/LDRules.h"
 #include "Combat/LDCombatRules.h"
@@ -185,6 +187,7 @@ void ALDCombatDirector::Sample(double Now)
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsFinished())
     {
+        if(Mode->Bank){Mode->Bank->Sample(Now);}
         if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}}
         if(Mode->Development){Mode->Development->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
         if(Mode->IsDevelopmentProfile())
@@ -265,6 +268,7 @@ void ALDCombatDirector::Sample(double Now)
     if(Mode->Development&&!Mode->Inventory){Mode->Development->Sample(Now);}
     for(auto& Pair:Bodies){if(Pair.Key.IsValid()){Sync(Pair.Key.Get(),Pair.Value);}}
     for(ALDCharacter* Body:Deaths){Die(Body,Now);}
+    if(Mode->Bank){Mode->Bank->Sample(Now);}
     if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}if(Mode->Development){Mode->Development->Sample(Now);}}
     for(auto It=Bodies.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}
     for(int32 I=Residents.Num()-1;I>=0;--I)
@@ -272,6 +276,7 @@ void ALDCombatDirector::Sample(double Now)
     Mode->ReturnDueContenders(Now);
     if(Mode->Region){Mode->Region->Sample(Now);}
     if(Mode->Objectives){Mode->Objectives->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
+    if(Mode->Economy){FString Error;if(!Mode->Economy->Audit(Error)){++Mode->Economy->AuditFailures;UE_LOG(LogTemp,Error,TEXT("LD_ECONOMY_BATCH_AUDIT %s"),*Error);}}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 {

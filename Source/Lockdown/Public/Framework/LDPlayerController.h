@@ -4,6 +4,7 @@
 #include "Vision/LDViewTypes.h"
 #include "Inventory/LDVendorTypes.h"
 #include "Inventory/LDTradeTypes.h"
+#include "Economy/LDBankDirector.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -35,6 +36,17 @@ public:
     UFUNCTION(Server,Reliable) void ServerTradeCommand(uint32 Match,uint32 Life,uint32 Request,uint8 Command,FGuid Session,uint32 Revision,const FString& Digest,FGuid Item,int64 Gold);
     UFUNCTION(Client,Reliable) void ClientTradeUpdate(const FLDOwnerState& State,const FLDTradeView& View,uint32 Request);
 
+    FLDBankView BankView;
+    FString BankFeedback;
+    uint32 BankToken=0,BankPending=0;
+    bool bBankOpening=false;
+    bool BankIsOpen() const {return bBankOpening||BankView.Session.IsValid();}
+    void OpenBank();void CloseBank();
+    void ConfirmBank(int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision);
+    UFUNCTION(Server,Reliable) void ServerBankOpen(uint32 Match,uint32 Life,uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerBankClose(uint32 Token);
+    UFUNCTION(Server,Reliable) void ServerBankCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,int64 Amount,bool Deposit,uint32 WalletRevision,uint32 BankRevision);
+    UFUNCTION(Client,Reliable) void ClientBankView(const FLDOwnerState& State,const FLDBankView& View,uint32 Request,const FString& Reason);
     bool NearGuildVendor() const;
     void OpenVendor();void CloseVendor();
     bool VendorIsOpen() const{return bVendorOpening||VendorQuote.Session.IsValid();}
@@ -53,7 +65,7 @@ public:
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
-    bool InventoryPending() const{return InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
+    bool InventoryPending() const{return BankPending!=0||InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
     FGuid ArmedItem() const{return ArmedWard;}
     UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
     UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);

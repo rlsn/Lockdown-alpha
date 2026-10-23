@@ -1,4 +1,5 @@
 #include "Inventory/LDInventoryDirector.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -26,7 +27,7 @@ void ALDInventoryDirector::Initialize(ALDPlayerController* PC)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);if(!O||O->Inventory.bInitialized){return;}
     O->Inventory.bInitialized=true;O->Inventory.Capacity=uint8(FMath::Clamp(Capacity,1,64));const uint8 Charges=O->WardCharges;O->WardCharges=0;
-    for(uint8 I=0;I<Charges;++I){auto* Item=GetWorld()->SpawnActor<ALDItem>();check(Item);check(Adopt(PC,Item));}Changed(PC);
+    for(uint8 I=0;I<Charges;++I){auto* Item=GetWorld()->SpawnActor<ALDItem>();check(Item);const bool Adopted=Adopt(PC,Item,TEXT("CarriedEndowment"));check(Adopted);}Changed(PC);
 }
 ALDItem* ALDInventoryDirector::Owned(AActor* Container,FGuid Id) const
 {for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->State==1&&It->Holder==Container&&It->Identity==Id){return *It;}}return nullptr;}
@@ -42,18 +43,21 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
     for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else if(Item.Kind==ELDItemKind::Seal){O->SealId=Item.Id;}}
     check(LDInventory::Valid(O->Inventory));M->SyncOwner(PC);
 }
-bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item)
+bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
 {
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
+    auto* Economy=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get();
+    if(Economy&&!Economy->Accounting().Item(Item->Identity)&&CreationCause.IsNone())
+    {if(Economy->AllowDiagnosticItems()){CreationCause=TEXT("DiagnosticItemCreation");}else{return false;}}
     uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
     Item->Holder=PC;Item->State=1;Item->Slot=Slot;++Item->Revision;
     if(auto* Seal=Cast<ALDSeal>(Item)){Seal->Carrier=PC;}
-    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);return true;
+    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
 }
-void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume)
+void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
     if(!Item||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}
-    LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(Consume){Item->Destroy();}
+    LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(Cause.IsNone()?FName(Consume?TEXT("ItemConsumed"):TEXT("Drop")):Cause,0,0,Consume?TArray<FGuid>{Item->Identity}:TArray<FGuid>{})){++E->AuditFailures;}}if(Consume){Item->Destroy();}
 }
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
 {
@@ -63,7 +67,7 @@ void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
         if(auto* Item=Owned(PC,Entry.Id))
         {
             Item->bReserved=false;
-            if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true);}
+            if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true,TEXT("UnusedWardLoss"));}
             else if(LDInventory::Commodity(Item->Kind))
             {
                 FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);

@@ -1,4 +1,5 @@
 #include "Objectives/LDObjectiveDirector.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Core/LDGroundQueries.h"
@@ -38,7 +39,7 @@ void ALDObjectiveSite::Configure(uint8 Site)
 {
     SetActorLocation(LDRegion::Site(GetWorld(),Site));
     Marker->SetRelativeLocation(FVector(0,0,8));Marker->SetRelativeScale3D(Site==LDObjective::Heart?FVector(1.5,1.5,.16):FVector(.9,.9,.16));
-    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD"):Site==LDObjective::Heart?TEXT("HEART"):*LDRegion::SiteName(GetWorld(),Site)));
+    Label->SetText(FText::FromString(Site==LDObjective::Guild?TEXT("GUILD / CITY TREASURY"):Site==LDObjective::Heart?TEXT("HEART"):*LDRegion::SiteName(GetWorld(),Site)));
     auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if(Base){auto* Material=UMaterialInstanceDynamic::Create(Base,this);Material->SetVectorParameterValue(TEXT("Tint"),Site==LDObjective::Heart?FLinearColor(.65f,.14f,.12f):FLinearColor(.18f,.36f,.5f));Marker->SetMaterial(0,Material);}
 }
@@ -263,12 +264,12 @@ void ALDObjectiveDirector::Sample(double Now)
                 if(Item)
                 {
                     Item->Identity=FGuid::NewGuid();
-                    if(Mode->Inventory&&!Mode->Inventory->Adopt(PC,Item)){Item->Destroy();Item=nullptr;}
+                    if(Mode->Inventory&&!Mode->Inventory->Adopt(PC,Item,TEXT("LegacySealFee"),false)){Item->Destroy();Item=nullptr;}
                 }
                 if(Item)
                 {
                     Item->State=1;Item->Carrier=PC;Item->District=LDRegion::District(GetWorld(),Body->GetActorLocation());
-                    O->Gold-=100;O->Commissions-=4;O->SealId=Item->Identity;O->FabricationReceipt=FGuid::NewGuid();Announce(Item,1);
+                    O->Gold-=100;Mode->RecordEconomyGold(TEXT("LegacySealFee"),0,100);O->Commissions-=4;O->SealId=Item->Identity;O->FabricationReceipt=FGuid::NewGuid();Announce(Item,1);
                     UE_LOG(LogTemp,Display,TEXT("LD_FABRICATION_RECEIPT gold=%lld credits=%d paid=%u"),O->Gold,O->Commissions,O->PaidJobs);
                 }
                 S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
@@ -284,7 +285,7 @@ void ALDObjectiveDirector::Sample(double Now)
             if(LDObjective::DueBeforeDeadline(Now,S.Started,3,Deadline()))
             {
                 const bool Delivered=S.Channel==LDObjective::Deliver;
-                if(Delivered){O->Gold+=25;Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;if(LDRegion::Definition(GetWorld())){++O->PaidJobs;}O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
+                if(Delivered){O->Gold+=25;Mode->RecordEconomyGold(TEXT("CourierReward"),25);Mode->AwardExperience(PC,Mode->IsDevelopmentProfile()?45:15);++O->Commissions;++O->DeliverySerial;if(LDRegion::Definition(GetWorld())){++O->PaidJobs;}O->WorkReadyAt=float(Now+20);O->ContractStage=0;O->ContractId.Invalidate();O->ContractDestination=0;}
                 else{O->ContractStage=2;}
                 S.Channel=0;S.Route=0;S.Started=0;S.bHeld=false;UpdatePrivate(PC,S,Now);Mode->SyncOwner(PC);
                 PC->CompleteContextRequest(S.Token,Delivered?(Mode->IsDevelopmentProfile()?TEXT("Delivery confirmed: +25 gold, +45 XP."):TEXT("Delivery confirmed: +25 gold, +15 XP.")):TEXT("Package collected: return to Guild and hold E to deliver."));
@@ -315,12 +316,13 @@ void ALDObjectiveDirector::Finish(ALDPlayerController* Winner,uint8 Route,double
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(Mode->IsFinished()){return;}
     if(Winner&&Route==LDObjective::SealRoute)
-    {if(auto* Item=CarriedBy(Winner)){if(Mode->Inventory){Mode->Inventory->Remove(Winner,Item,true);}else{Item->State=2;Item->Carrier.Reset();}}Mode->StateFor(Winner)->SealId.Invalidate();}
+    {if(auto* Item=CarriedBy(Winner)){if(Mode->Inventory){Mode->Inventory->Remove(Winner,Item,true,TEXT("HeartSealConsumed"));}else{Item->State=2;Item->Carrier.Reset();}}Mode->StateFor(Winner)->SealId.Invalidate();}
     GS->ResultReceipt=FGuid::NewGuid();++GS->ResultSerial;GS->WinningRoute=Route;GS->MatchEndedAt=float(Now);GS->EndReason=Winner?1:2;
     GS->ClaimProgress=Winner?10:0;GS->bClaimActive=false;GS->bContested=false;GS->ForceNetUpdate();
     for(auto& Pair:Interactions)
     {if(auto* PC=Pair.Key.Get()){Pair.Value.bHeld=false;Pair.Value.Channel=0;auto* O=Mode->StateFor(PC);if(O){O->bWinner=PC==Winner;O->ChannelKind=0;O->ChannelProgress=0;Mode->SyncOwner(PC);PC->ClientLifeReceipt(*O);}}}
     for(TActorIterator<ALDCharacter> It(GetWorld());It;++It)
     {It->GetCharacterMovement()->DisableMovement();if(auto* AI=Cast<AAIController>(It->GetController())){AI->StopMovement();}}
+    if(Mode->Economy){FString Error;Mode->Economy->Export(TEXT("MatchClose"),Error);}
     UE_LOG(LogTemp,Display,TEXT("LD_OBJECTIVE_RESULT reason=%u route=%u serial=%u"),GS->EndReason,Route,GS->ResultSerial);
 }
