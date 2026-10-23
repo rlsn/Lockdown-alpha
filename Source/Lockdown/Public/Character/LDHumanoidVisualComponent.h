@@ -13,6 +13,7 @@ public:
     virtual void OnRegister() override;
     void ApplyPalette(uint8 Key);
     void Animate(const FVector& Velocity, float Delta);
+    void AnimateInstitutionWork(float Progress);
     void SetCue(uint8 Value){Cue=Value;}
 private:
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;

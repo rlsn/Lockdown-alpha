@@ -5,13 +5,14 @@ authority lives in [docs/master](docs/master/README.md); active release scope an
 gates live in [docs/v06](docs/v06/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B63 production implemented and verified.**
-[B63 implementation](docs/v06/B63_IMPLEMENTATION.md) adds finite outcrops,
-Toolkit/Core crafting with exact reserved inputs and causal lineage, equipped
-Survey/Analyze and native preview/fresh-hold controls. Editor compilation,
-23 rules, 49 authority checks and independent ledger replay passed.
-[B62 commerce](docs/v06/B62_IMPLEMENTATION.md) is committed as `76c0e2c`.
-B64 institutional schedules/geography is next; the full economy remains in development.
+**Current checkpoint: v0.6 B64 institutions and shortage implemented and verified.**
+[B64 implementation](docs/v06/B64_IMPLEMENTATION.md) adds eight funded production/
+consumption opportunities, protected public routines, the East Toolkit shortage
+and one shared delivery order. Editor build, 23 rules, 36 authority checks,
+eight native routes across both maps and independent ledger replay passed.
+[B63 production](docs/v06/B63_IMPLEMENTATION.md) is committed as `46998d0`;
+[B62 commerce](docs/v06/B62_IMPLEMENTATION.md) as `76c0e2c`.
+B65 procurement/endorsements/registered Charter is next. Full release acceptance remains open.
 [B61](docs/v06/B61_IMPLEMENTATION.md) records retained cargo, physical banking,
 institutional state and accounting foundations.
 [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts master revision 6 and the

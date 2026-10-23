@@ -30,11 +30,23 @@ public:
     FLDCommerceView CommerceQuote(uint8 Service) const;
     bool CommitCommerce(ALDPlayerController* PC,uint8 Service,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price,FGuid& Received,FString& Error);
     bool CommitProduction(ALDPlayerController* PC,uint8 Site,uint8 Recipe,const TArray<FLDInventoryItem>& Inputs,int32 Fee,FGuid& Output,FString& Error);
+    void SampleInstitutions(double Now);
+    void EnsureInstitutionSites();
+    bool ShortageActive(double Now) const;
+    bool ShortageAvailable(double CompletionAt) const;
+    bool CommitShortage(ALDPlayerController* PC,const FLDInventoryItem& Input,FString& Error);
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
     friend class ALDCommerceProbe;
     friend class ALDProductionProbe;
+    friend class ALDInstitutionProbe;
+    uint8 InstitutionCursor=0;
+    bool bScheduleClosed=false;
+    bool bFailNextInstitution=false;
+    FGuid ScheduleId;
+    uint8 ApplyInstitution(uint8 Row,int32 Tick,double Now,FString& Error);
+    UPROPERTY() TArray<TObjectPtr<class ALDInstitutionSite>> InstitutionSites;
     struct FPhysical {ELDItemKind Kind;FName Location;ALDItem* Actor=nullptr;};
     bool Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) const;
     TMap<uint8,uint32> MarketRevisions;

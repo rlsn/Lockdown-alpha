@@ -103,6 +103,8 @@ bool FLDEconomyCatalogTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Recipe count cannot create extra outputs"),C.Parse(Json.Replace(TEXT("\"outputCount\": 1"),TEXT("\"outputCount\": 2")),Error));
     TestFalse(TEXT("Gather budget cannot reset on respawn"),C.Parse(Json.Replace(TEXT("\"resetOnRespawn\": false"),TEXT("\"resetOnRespawn\": true")),Error));
     TestFalse(TEXT("Coupon cannot stack"),C.Parse(Json.Replace(TEXT("\"stacking\": false"),TEXT("\"stacking\": true")),Error));
+    TestFalse(TEXT("Institution opportunities cannot silently multiply"),C.Parse(Json.Replace(TEXT("1440"),TEXT("1500")),Error));
+    TestFalse(TEXT("Shortage cannot outlive its endpoint"),C.Parse(Json.Replace(TEXT("\"end\": 780"),TEXT("\"end\": 900")),Error));
     TestEqual(TEXT("Failed reload leaves live definitions intact"),C.Checksum,Checksum);
     return true;
 }

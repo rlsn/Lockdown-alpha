@@ -52,6 +52,7 @@ public:
     AActor* Target(uint8 Site) const {return Targets.IsValidIndex(Site)?Targets[Site].Get():nullptr;}
 private:
     friend class ALDProductionProbe;
+    friend class ALDInstitutionProbe;
     struct FState
     {
         FLDProductionPlan Plan;

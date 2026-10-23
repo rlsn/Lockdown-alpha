@@ -25,6 +25,7 @@ bool ALDEconomyDirector::Initialize(FString& Error)
     TMap<FName,int32> Budgets;const int32 N=M->EconomyContenderCount();
     for(const auto& P:Accounts){if(P.Key.ToString().StartsWith(TEXT("Wallet:"))){Budgets.Add(FName(*(TEXT("Courier:")+P.Key.ToString())),8);Budgets.Add(FName(*(TEXT("Sentinel:")+P.Key.ToString())),2);Budgets.Add(FName(*(TEXT("Core:")+P.Key.ToString())),3);Budgets.Add(FName(*(TEXT("Supply:")+P.Key.ToString())),1);}}
     Budgets.Add(TEXT("CoreOrders"),3*N);Budgets.Add(TEXT("SupplyOrders"),N);Budgets.Add(TEXT("ShortageOrder"),1);
+    Budgets.Add(TEXT("ProducerWest"),8);Budgets.Add(TEXT("ProducerEast"),8);
     for(int32 I=0;I<C.Nodes;++I){Budgets.Add(FName(*FString::Printf(TEXT("Outcrop%d"),I+1)),C.Charges);}
     for(const auto& Market:C.Markets){Accounts.Add(Market.Id,Market.Gold);}
     LDEconomy::FLedger Candidate;if(!Candidate.Initialize(FGuid::NewGuid(),Accounts,Budgets,Error)){return false;}
@@ -38,7 +39,7 @@ bool ALDEconomyDirector::Initialize(FString& Error)
         LDEconomy::FItemDelta D;D.Id=Item->Identity;D.Op=LDEconomy::EItemOp::Create;D.Kind=Good.Kind;D.To=Market.Id;T.Items.Add(D);
     }}}
     if(!Candidate.Commit(T,Error)||!Candidate.Reconcile(Error)){Cleanup();return false;}
-    Catalog=MoveTemp(C);Ledger=MoveTemp(Candidate);for(uint8 Service=0;Service<4;++Service){MarketRevisions.Add(Service,1);}InstitutionalItems=MoveTemp(Created);Initialized=true;
+    Catalog=MoveTemp(C);Ledger=MoveTemp(Candidate);for(uint8 Service=0;Service<4;++Service){MarketRevisions.Add(Service,1);}InstitutionalItems=MoveTemp(Created);Initialized=true;ScheduleId=FGuid::NewGuid();
     UE_LOG(LogTemp,Display,TEXT("LD_ECONOMY_INITIALIZED version=%d checksum=%s accountsGold=%lld institutionalItems=%d contenders=%d"),Catalog.Version,*Catalog.Checksum,Ledger.TotalGold(),InstitutionalItems.Num(),N);return true;
 }
 void ALDEconomyDirector::GoldChanged(FName Cause,int64 Mint,int64 Burn)
@@ -67,7 +68,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif

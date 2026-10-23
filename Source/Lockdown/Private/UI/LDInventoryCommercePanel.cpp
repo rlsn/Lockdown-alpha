@@ -1,6 +1,8 @@
 #include "UI/LDInventoryPanel.h"
 #include "UI/LDWidgets.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameMode.h"
+#include "Engine/World.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -27,6 +29,8 @@ void ULDInventoryPanel::RefreshCommerce()
     for(uint8 S=0;S<4;++S){CommerceOpenButtons[S]->SetIsEnabled(PC->NearCommerce(S)&&!Pending&&!bConfirm&&!bTradeReview&&(!PC->CommerceIsOpen()||Q.Service!=S));}
     CommercePanel->SetVisibility(PC->CommerceIsOpen()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     CommerceStatus->SetText(FText::FromString(FString::Printf(TEXT("%s · Official noncontender service · Reserve %lld · Quote time %.1f\n%s"),*ALDCommerceDirector::ServiceName(Q.Service),Q.Cash,Q.QuotedAt,*PC->CommerceFeedback)));
+    if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&Q.Session.IsValid())
+    {CommerceStatus->SetText(FText::FromString(CommerceStatus->GetText().ToString()+(G->EconomyNextTick>0?FString::Printf(TEXT("\nNext official work in %.1fs"),FMath::Max(0.,double(G->EconomyNextTick)-G->GetServerWorldTimeSeconds())):TEXT("\nOfficial routine finished"))+(Q.Service==3&&G->ShortagePhase==1?TEXT(" · Toolkit shortage 5/4; normal clamps"):TEXT(""))));}
     const auto* SelectedItem=PC->OwnerState.Inventory.Find(Selected);
     for(int32 N=0;N<4;++N)
     {

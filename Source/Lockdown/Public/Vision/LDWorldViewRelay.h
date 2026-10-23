@@ -27,6 +27,8 @@ private:
     float Facing = 0, Speed = 0;
     uint8 Palette = 255;
     bool bFirst = true;
+    bool bInstitution=false;
+    float InstitutionWorkUntil=0;
 };
 
 UCLASS()

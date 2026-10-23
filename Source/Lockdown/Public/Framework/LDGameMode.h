@@ -37,6 +37,9 @@ public:
     UPROPERTY(Replicated) bool bDevelopmentProfile = false;
     UPROPERTY(Replicated) bool bUIControlProfile = false;
     UPROPERTY(Replicated) bool bMatchStarted = true;
+    UPROPERTY(Replicated) float EconomyNextTick=0;
+    UPROPERTY(Replicated) uint8 ShortagePhase=0;
+    UPROPERTY(Replicated) uint8 ShortageRemaining=1;
     UPROPERTY(Replicated) uint8 OutcropOne=3;
     UPROPERTY(Replicated) uint8 OutcropTwo=3;
     UPROPERTY(Replicated) uint8 LobbyCount = 0;

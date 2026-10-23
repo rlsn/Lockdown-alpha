@@ -1,0 +1,8 @@
+{
+  "authorityChecks": 36,
+  "scope": "B64 controlled authority, native travel on both saved maps at 4x world time when full lane requested; no remote/human acceptance",
+  "dirty": true,
+  "authorityOnly": false,
+  "rules": 23,
+  "sourceRevision": "46998d0ffc53281aee727a393b8f8d4b8811187b"
+}

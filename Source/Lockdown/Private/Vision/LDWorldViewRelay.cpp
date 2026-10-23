@@ -11,6 +11,8 @@
 #include "Components/TextRenderComponent.h"
 #include "Development/LDWorldChecks.h"
 #include "Economy/LDProductionDirector.h"
+#include "Economy/LDInstitutionSite.h"
+#include "Framework/LDGameMode.h"
 
 ALDObservedEntityProxy::ALDObservedEntityProxy()
 {
@@ -28,7 +30,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
 {
     ObservedId=Entity.Id; Destination=Entity.Position;
     Facing=float(Entity.Facing)/65535*360; Speed=Entity.Speed;
-    Body->SetCue(Entity.ActionCue);
+    bInstitution=Entity.Kind==ELDObservedKind::Institution;InstitutionWorkUntil=bInstitution&&Entity.ActionCue==1?Entity.ExposedUntil:0;Body->SetCue(bInstitution?0:Entity.ActionCue);
     if (bFirst || FVector::DistSquared(GetActorLocation(),Destination)>300*300) { SetActorLocation(Destination); }
     if (Palette!=Entity.Presentation)
     {
@@ -37,9 +39,9 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
         UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
         Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
     }
-    Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel),true);
-    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel);
-    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::Production);
+    Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel||bInstitution),true);
+    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel&&!bInstitution);
+    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::Production||bInstitution);
     if(Entity.Kind==ELDObservedKind::WatchControl){TaskLabel->SetText(FText::FromString(TEXT("WATCH CONTROL\nAnalyze 14")));}
     if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
     TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
@@ -51,7 +53,8 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     if(bFirst&&Entity.Kind==ELDObservedKind::Charter)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(FVector(.5,.5,.35));}
     if(Entity.Kind==ELDObservedKind::Production)
-    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold F 6s / Survey 1s"),Entity.ActionCue):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
+    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold context 6s / Survey 1s"),Entity.ActionCue):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
+    if(bInstitution){TaskLabel->SetText(FText::FromString(ALDInstitutionSite::Name(Entity.Presentation)+TEXT("\nProtected noncontender · ")+ALDInstitutionSite::StatusName(Entity.ActionCue)+TEXT("\nEvery 180s, eight scheduled opportunities")));}
     bFirst=false;
 }
 void ALDObservedEntityProxy::Tick(float Delta)
@@ -59,6 +62,7 @@ void ALDObservedEntityProxy::Tick(float Delta)
     Super::Tick(Delta);
     SetActorLocation(FMath::VInterpTo(GetActorLocation(),Destination,Delta,18));
     SetActorRotation(FRotator(0,Facing,0)); Body->Animate(FVector(Speed,0,0),Delta);
+    if(bInstitution){const auto* G=GetWorld()->GetGameState<ALDGameState>();const double Now=G?G->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();if(Now<InstitutionWorkUntil){Body->AnimateInstitutionWork(float(1-(InstitutionWorkUntil-Now)/3));}}
 }
 
 ALDWorldViewRelay::ALDWorldViewRelay()

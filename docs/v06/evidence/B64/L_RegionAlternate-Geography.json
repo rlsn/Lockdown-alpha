@@ -1,0 +1,69 @@
+{
+  "failures": 0,
+  "checks": [
+    "PASS All authored public, covered and outer route segments have complete saved-map nav paths",
+    "PASS Reachable ground/body sight within 120 cm at Crystal outcrop 1",
+    "PASS Reachable ground/body sight within 120 cm at Crystal outcrop 2",
+    "PASS Reachable ground/body sight within 120 cm at City workshop",
+    "PASS Reachable ground/body sight within 120 cm at West workshop",
+    "PASS Reachable ground/body sight within 120 cm at East workshop",
+    "PASS Marked official routine stands on accessible settlement ground: Official City consumer · Toolkit",
+    "PASS Marked official routine stands on accessible settlement ground: Official West consumer · Fiber",
+    "PASS Marked official routine stands on accessible settlement ground: Official East consumer · Ore",
+    "PASS Marked official routine stands on accessible settlement ground: Official West producer · Fiber / 2 gold",
+    "PASS Marked official routine stands on accessible settlement ground: Official East producer · Ore / 3 gold",
+    "PASS Authored covered-route geometry blocks actual sight",
+    "PASS Both settlements retain public and covered economic route choices",
+    "PASS Actual CharacterMovement completed WestTown public route",
+    "PASS Actual CharacterMovement completed WestTown covered route",
+    "PASS Actual CharacterMovement completed EastTown public route",
+    "PASS Actual CharacterMovement completed EastTown covered route"
+  ],
+  "travel": [
+    {
+      "map": "Reflected Reach",
+      "destination": "WestTown",
+      "covered": false,
+      "authoritySeconds": 24.261518001556396,
+      "distanceCm": 4297.894184927045,
+      "publicWatchExposedSeconds": 0,
+      "sampledSeconds": 24.261518001556396,
+      "walkSpeedCmPerSecond": 178.1999969482422,
+      "timeDilation": 4
+    },
+    {
+      "map": "Reflected Reach",
+      "destination": "WestTown",
+      "covered": true,
+      "authoritySeconds": 35.907685205340385,
+      "distanceCm": 6371.865719332932,
+      "publicWatchExposedSeconds": 0,
+      "sampledSeconds": 35.907685205340385,
+      "walkSpeedCmPerSecond": 178.1999969482422,
+      "timeDilation": 4
+    },
+    {
+      "map": "Reflected Reach",
+      "destination": "EastTown",
+      "covered": false,
+      "authoritySeconds": 26.168842792510986,
+      "distanceCm": 4644.8231506893535,
+      "publicWatchExposedSeconds": 6.416857600212097,
+      "sampledSeconds": 26.168842792510986,
+      "walkSpeedCmPerSecond": 178.1999969482422,
+      "timeDilation": 4
+    },
+    {
+      "map": "Reflected Reach",
+      "destination": "EastTown",
+      "covered": true,
+      "authoritySeconds": 53.87996880710125,
+      "distanceCm": 9564.90353023261,
+      "publicWatchExposedSeconds": 0,
+      "sampledSeconds": 53.87996880710125,
+      "walkSpeedCmPerSecond": 178.1999969482422,
+      "timeDilation": 4
+    }
+  ],
+  "scope": "Saved map nav/sight and actual native click-navigation travel at 4x world time; endpoints placed between routes, no human route choice or remote input claim"
+}

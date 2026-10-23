@@ -1,75 +1,85 @@
-# Continuation — v0.6 B63 complete; B64 next
+# Continuation — v0.6 B64 complete; B65 next
 
-23 October 2026. The user authorized commits and proceeding with B63. Keep
-verification brief. B62 is committed as `76c0e2c`; B63 is now complete at its
-engineering gate and committed separately (see Git history). No push requested.
+23 October 2026. The user authorized continuing and commits. B64 is complete
+at its engineering gate and committed separately (see Git history). B63 is
+`46998d0`, B62 `76c0e2c`, B61 `9bdc2bb`. No push requested. Keep checks brief.
 
-Read [B63 implementation](v06/B63_IMPLEMENTATION.md), the
+Read [B64 implementation](v06/B64_IMPLEMENTATION.md), the
 [working ledger](v06/FeatureLedger.csv) and [v0.6 specification](v06/README.md).
-Master revision 6 and complete v0.6 override prior bank/weight/Seal clauses.
+Master revision 6 and complete v0.6 override old bank/weight/Seal clauses.
 
 ## Latest verified checkpoint
 
-B63 implements two finite WildCrossing outcrops, six-second basic gather,
-Toolkit/Core channels with exact reserved parents, fee burns/net capacity,
-output-first allocation and one causal transaction. Native bag controls select
-IDs, preview fees/final slots/weight and arm a fresh context hold. Existing
-learned/equipped Survey/Analyze dispatch provides faster extraction and one
-private workshop-bound two-gold/thirty-second coupon with normal cooldowns.
-Damage, stale hold, movement, life/body/access/input changes cancel safely;
-death releases before drops and clears coupons. No production gold/XP faucet.
-Visible production anchors use the unchanged eight-field observed tuple; two
-explicit public counters expose depletion. Coupons remain owner-private.
+Eight due ticks at 180,360,...,1440 fund West Fiber2/East Ore3 production from
+actual reserves before separate West Fiber/East Ore/City Toolkit consumption.
+Actual instances, deterministic oldest-origin choice, explicit empty/full/cash/
+allocation skips and eight-unit producer budgets prevent phantom restock/debt.
+Economy owns cursor/receipts; marker recreation does not reset it. Five protected
+public actors carry no combat body/purse. Sanitized Institution observations
+expose only routine address/status/work endpoint through the same eight fields;
+three-second local work animation cannot transact. A public next-tick countdown
+and shortage status extend the native UI; public GameState schema has 27 fields.
 
-Final Editor build passed at `Artifacts/20261023-151455-801-BuildEditor`
-(41 actions/191.88s). `Scripts/RunProductionCheck.ps1 -TimeoutSeconds 120` passed
-at `Artifacts/20261023-151835-702-B63-Production`: **23 rules, 49 authority checks,
-zero failures**. Independent export replay passed: **450 endowed + 2000 diagnostic
-mint - 165 burns = 2285 gold**, seven accounts, 156 identities, 136 receipts,
-zero audit failures. Successful recipes burn 16; actual death tax burns 149.
-Portable evidence and source manifest: `docs/v06/evidence/B63`.
+East Toolkit alone uses 5/4 before fixed clamps on [600,780), with quote revision
+changes at both endpoints. One shared exact-Toolkit three-second delivery reuses
+production reservations/fresh hold and atomically consumes the winning input,
+spends global ShortageOrder quota and mints 40 gold, then grants 20 XP. Losers
+retain input. Strict completion-before-780 is checked at start and commit.
+Filling the order does not end the premium. No legacy credit/endorsement/refill.
 
-The first verification passed all authority checks but caught a reflection
-mismatch: Unreal reflects only the first variable in a comma-separated
-UPROPERTY declaration. New production/public fields and affected B61 bank/B62
-commerce payloads now use separate declarations. EconomyPayload checks exact
-reflected fields and a serialized production-plan round trip. The earlier
-failed rule remains in `Artifacts/20261023-151233-124-B63-Production`.
+Final Editor build: `Artifacts/20261023-154440-754-BuildEditor` (4 actions/8.59s).
+Core: `Artifacts/20261023-153728-223-B64-Institutions`, **23 rules/36 authority
+checks, zero failures**; independent replay: **450 + 2000 diagnostic mint + 40
+shortage mint - 40 producer burns = 2450 gold**, 83 receipts, seven accounts,
+124 item identities, zero audit failures. Both producers used eight opportunities;
+City consumed its two Toolkits and skipped the six empty opportunities.
 
-Fixtures use two local owners on one authority, controlled clock, labelled
-item/gold/build setup, conserved wallet transfers and cleanup. They include a
-real basic hit at the craft deadline, actual contender death/respawn and native
-preview/arm methods. They do not prove physical keyboard/mouse behavior, remote
-latency, OS-scale layout, human travel choices, a cooked package or a normal
-zero-grant economy journey. No long session, stress or cook was launched.
+Final geography rerun: `Artifacts/20261023-154207-432-B64-Institutions`, **17 checks
+per map and eight actual click-navigation/CharacterMovement routes**. Routine
+positions use public saved metadata and stay 160 cm clear of resident starts.
+Both public/covered routes, all service/outcrop approaches and cover sight passed
+on both saved maps. Measured authority seconds at 4x world time: Civic West
+public/covered21.19/31.17, East22.73/46.79; Alternate West24.26/35.91,
+East26.17/53.88. East public routes had ~6.5s/~6.4s public-watch exposure versus
+zero for covered routes; West both zero. These are native diagnostic travel
+measurements, not human choices, sprint comparisons or remote input evidence.
+
+After core checks, only public marker placement, its geography clearance check
+and the market countdown wording/calculation changed. Final geography covers
+final placement; final build covers the countdown change. Exact provenance,
+normalized portable JSON and final source hashes: `docs/v06/evidence/B64`.
+Runner: `Scripts/RunInstitutionCheck.ps1 -TimeoutSeconds 120`; focused flags
+`-AuthorityOnly` / `-GeographyOnly`. Core fixtures use labelled diagnostic
+stock/item/gold setup, controlled clock and conserved cash transfers.
 
 ## Next implementation
 
-B64 adds funded institutional producer/consumer schedules, their marked routines,
-shortage and final placement on actual public-road/covered routes. Keep the
-existing v0.5 normal progression until B65 replaces credits/physical Seal with
-bounded procurement, distinct Supply/Industrial endorsements, registered Charter
-and a public contested opening. B66/B67 retain native layout/input/network,
-current package, normal journeys and human acceptance.
+B65 connects bounded Core procurement (80g/60XP; three each/3*N), one Supply
+order (two Toolkits,50g/30XP; one each/N), distinct retained endorsements,
+registered Charter checkout with explicit wallet/bank split and public
+warning/open/close claim for everyone. Remove normal courier-credit/four-credit
+physical Seal bypass, including direct requests. Preserve B64 shared shortage
+quota/window and B63 physical reservations/coupons. See complete 05 progression,
+06 transaction ordering and 11 banking override. Full normal zero-kill route
+must use actual earnings and inventories; no diagnostic substitute.
 
-Keep UE5.8.4 CL58902052. Preserve CharacterMovement, Enhanced Input, UMG/Slate,
-privacy allowlists and the existing four equipped slots. Run Unreal operations
-sequentially, cap compiler actions at four, and freeze Source/Config for each
-build/test. Do not automatically launch the user-deferred 90-minute stress.
+B66/B67 retain native input/layout/rendered work, independent remote clients,
+current cook/package, normal journeys, restart/performance and human acceptance.
+Keep UE5.8.4 CL58902052, CharacterMovement, Enhanced Input, UMG/Slate, four active
+skill slots and privacy allowlists. Unreal operations stay sequential, compile
+cap4, Source/Config frozen during each operation. No automatic long/stress run.
 
-## Retained evidence
+## Retained milestones
 
-[B62](v06/B62_IMPLEMENTATION.md): paid Fiber4/Ore6 and actual finite regional
-Buy/Sell; 22 rules, 26 authority checks, replay 450+4000-268=4182 gold. Final
-B62 evidence: `Artifacts/20261023-144655-549-B62-Commerce` and
-`docs/v06/evidence/B62`. B63 corrects the discovered payload reflection issue.
+[B63](v06/B63_IMPLEMENTATION.md): finite gather, exact reserved Toolkit/Core craft,
+lineage/fees/net capacity, native previews and equipped Survey/Analyze coupons;
+23 rules/49 authority checks and replay. B63 corrected individually reflected
+bank/commerce/production UPROPERTY fields; do not reintroduce comma declarations.
 
-[B61](v06/B61_IMPLEMENTATION.md), commit `9bdc2bb`: cargo, physical banking,
-actual institutions and causal accounting; 22 rules, 30 authority checks,
-independent replay. B61 evidence: `docs/v06/evidence/B61`.
-
-Pre-economy runtime B57: `bd86a85e440e5699bbe91627d696296cd6518e9b`.
-Retained package `Artifacts/20261022-220153-009-PackageWin64/Archive/Windows`
-predates B61-B63. Do not claim it contains the current economy. Earlier v0.5
-navigation/input/inventory/vendor/trade/HUD evidence remains in its milestone
-reports and [B58 handoff](v05/B58_HANDOFF.md); full release gates remain open.
+[B62](v06/B62_IMPLEMENTATION.md): paid Fiber4/Ore6 and finite native regional
+commerce; 22 rules/26 authority checks. [B61](v06/B61_IMPLEMENTATION.md): cargo,
+physical banking and causal ledger; 22 rules/30 checks. Evidence is under each
+`docs/v06/evidence/B6x` directory. The old package at
+`Artifacts/20261022-220153-009-PackageWin64/Archive/Windows` predates B61-B64;
+do not claim it contains this economy. Earlier baseline and human limitations
+remain in [B58](v05/B58_HANDOFF.md) and prior milestone reports.

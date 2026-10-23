@@ -68,3 +68,10 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     if(auto* Marker=Cast<UMaterialInstanceDynamic>(Parts[7]->GetMaterial(0)))
     {Marker->SetVectorParameterValue(TEXT("Tint"),(Cue&16)?FLinearColor(1,.12f,.025f):((Cue&64)?FLinearColor(.8f,.95f,1):((Cue&32)?FLinearColor(1,.05f,.02f):FLinearColor(1,.55f,.05f))));}
 }
+
+void ULDHumanoidVisualComponent::AnimateInstitutionWork(float Progress)
+{
+    const float Stroke=FMath::Sin(FMath::Clamp(Progress,0.f,1.f)*6*PI)*22;
+    Parts[2]->SetRelativeRotation(FRotator(-65+Stroke,0,-15));
+    Parts[3]->SetRelativeRotation(FRotator(-65-Stroke,0,15));
+}

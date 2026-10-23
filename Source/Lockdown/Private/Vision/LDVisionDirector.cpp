@@ -1,6 +1,7 @@
 #include "Vision/LDVisionDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDProductionDirector.h"
+#include "Economy/LDInstitutionSite.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDPlayerController.h"
@@ -194,6 +195,7 @@ void ALDVisionDirector::Sample(bool bPublish)
     for(TActorIterator<ALDBook> It(GetWorld());It;++It){if(It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDItem> It(GetWorld());It;++It){if((It->Kind==ELDItemKind::WardCharge||LDInventory::Commodity(It->Kind))&&It->State==0){Entities.Add(*It);}}
     for(TActorIterator<ALDCharterTask> It(GetWorld());It;++It){Entities.Add(*It);}
+    for(TActorIterator<ALDInstitutionSite> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDProductionSite> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDWatchControl> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
@@ -241,6 +243,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
             else if(const auto* Item=Cast<ALDItem>(Actor);Item&&Item->Kind==ELDItemKind::WardCharge){Record.Kind=ELDObservedKind::WardCharge;}
             else if(const auto* Cargo=Cast<ALDItem>(Actor);Cargo&&LDInventory::Commodity(Cargo->Kind)){Record.Kind=ELDObservedKind::Cargo;}
+            else if(const auto* Institution=Cast<ALDInstitutionSite>(Actor)){Record.Kind=ELDObservedKind::Institution;Record.Presentation=Institution->Site;Record.ActionCue=Institution->Status==1&&GetWorld()->GetTimeSeconds()>=Institution->WorkUntil?0:Institution->Status;Record.ExposedUntil=float(Institution->WorkUntil);}
             else if(const auto* Site=Cast<ALDProductionSite>(Actor)){Record.Kind=ELDObservedKind::Production;Record.Presentation=Site->Site;Record.ActionCue=Site->Site<2&&Mode->Economy?uint8(Mode->Economy->Accounting().Remaining(ALDProductionDirector::Budget(Site->Site))):0;}
             else if(Actor->IsA<ALDWatchControl>()){Record.Kind=ELDObservedKind::WatchControl;}
             else if(const auto* Task=Cast<ALDCharterTask>(Actor)){Record.Kind=ELDObservedKind::Charter;Record.Presentation=Task->Service;}

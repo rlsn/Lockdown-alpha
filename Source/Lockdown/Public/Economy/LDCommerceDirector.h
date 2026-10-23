@@ -44,6 +44,7 @@ public:
     void Sample(double Now);
 private:
     friend class ALDCommerceProbe;
+    friend class ALDInstitutionProbe;
     struct FClient {FLDCommerceView View;uint32 LastToken=0,ClosedThrough=0,LastRequest=0;double At=0,Tokens=4,Damage=-1,Dealt=-1;TMap<uint32,FString> Receipts;};
     struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;FGuid Session;uint32 QuoteRevision;uint8 Command;ELDItemKind Kind;FGuid Item;uint32 ItemRevision,InventoryRevision;int32 Price;};
     TMap<TWeakObjectPtr<ALDPlayerController>,FClient> Clients;

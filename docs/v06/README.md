@@ -42,6 +42,10 @@ engineering checks passed; exported receipts also passed independent replay.
 finite stock/cash Buy/Sell; 22 rules and 26 two-owner authority checks passed.
 [B63 production](B63_IMPLEMENTATION.md) now provides finite gather, exact-ID
 reserved crafting, native previews and equipped Survey/Analyze coupons; 23 rules,
-49 authority checks and independent replay passed. B64 schedules/geography is next.
+49 authority checks and independent replay passed. [B64 institutions/shortage](B64_IMPLEMENTATION.md) now provides eight funded
+producer/consumer opportunities, protected routines, a one-time shortage order
+and verified public/covered routes on both saved maps. The gate passed 23 rules,
+36 authority checks, eight native routes and independent replay.
+B65 procurement/endorsements/registered Charter is next.
 Native input/layout/network, normal progression and release acceptance remain open. Earlier partial reports are historical checkpoints, not current
 completion status. Use the [working ledger](FeatureLedger.csv).

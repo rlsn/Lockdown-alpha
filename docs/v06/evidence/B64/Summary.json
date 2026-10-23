@@ -1,0 +1,20 @@
+{
+  "milestone": "B64",
+  "rules": 23,
+  "authorityChecks": 36,
+  "geographyChecks": 34,
+  "nativeRoutes": 8,
+  "coreArtifact": "Artifacts/20261023-153728-223-B64-Institutions",
+  "finalGeographyArtifact": "Artifacts/20261023-154207-432-B64-Institutions",
+  "finalEditorBuild": "Artifacts/20261023-154440-754-BuildEditor",
+  "goldStart": 450,
+  "minted": 2040,
+  "burned": 40,
+  "goldEnd": 2450,
+  "auditFailures": 0,
+  "scope": "Controlled local authority and actual native movement at 4x world time on both saved maps; no remote input, rendered layout or human journey claim",
+  "postCoreChanges": [
+    "Public routine placement and its geography clearance check",
+    "Market routine countdown wording/calculation (compiled; no new transaction behavior)"
+  ]
+}

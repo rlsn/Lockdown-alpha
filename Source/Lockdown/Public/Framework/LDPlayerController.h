@@ -182,6 +182,7 @@ private:
     uint32 IntentFeedbackSerial=0;
     friend class ALDInputProbe;
     friend class ALDProductionProbe;
+    friend class ALDInstitutionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;

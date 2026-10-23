@@ -68,5 +68,26 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
     if(!Gather->TryGetStringField(TEXT("good"),GatherGood)||GatherGood!=TEXT("Crystal")||!Gather->TryGetBoolField(TEXT("resetOnRespawn"),Flag)||Flag
         ||!Analyze->TryGetBoolField(TEXT("stacking"),Flag)||Flag||!Analyze->TryGetBoolField(TEXT("clearOnDeath"),Flag)||!Flag)
     {return Reject(TEXT("Unsupported production reset/coupon policy"));}
+    TSharedPtr<FJsonObject> Ticks,Shortage,Bonus,BonusInputs;const TArray<TSharedPtr<FJsonValue>> *Times=nullptr,*Producers=nullptr,*Consumers=nullptr,*Ratio=nullptr;
+    if(!Object(Root,TEXT("npcTicks"),Ticks)||!Ticks->TryGetArrayField(TEXT("times"),Times)||Times->Num()!=8
+        ||!Ticks->TryGetArrayField(TEXT("production"),Producers)||Producers->Num()!=2||!Ticks->TryGetArrayField(TEXT("consumption"),Consumers)||Consumers->Num()!=3
+        ||!Object(Root,TEXT("shortage"),Shortage)||!Integer(Shortage,TEXT("start"),600,600,C.ShortageStart)||!Integer(Shortage,TEXT("end"),780,780,C.ShortageEnd)
+        ||!Shortage->TryGetArrayField(TEXT("priceRatio"),Ratio)||Ratio->Num()!=2||!Object(Shortage,TEXT("bonusOrder"),Bonus)||!Object(Bonus,TEXT("inputs"),BonusInputs)
+        ||BonusInputs->Values.Num()!=1||!Integer(BonusInputs,TEXT("Toolkit"),1,1,N)||!Integer(Bonus,TEXT("gold"),40,40,C.ShortageGold)||!Integer(Bonus,TEXT("xp"),20,20,C.ShortageXp)
+        ||!Integer(Bonus,TEXT("holdSeconds"),3,3,C.ShortageSeconds)||!Integer(Bonus,TEXT("globalLimit"),1,1,N)) {return Reject(TEXT("Invalid institution schedule/shortage"));}
+    for(int32 I=0;I<8;++I){double Time=0;if(!(*Times)[I]->TryGetNumber(Time)||Time!=180*(I+1)){return Reject(TEXT("Invalid scheduled tick identity"));}C.InstitutionTimes.Add(int32(Time));}
+    double Num=0,Den=0;FString Market,Good;
+    if(!(*Ratio)[0]->TryGetNumber(Num)||Num!=5||!(*Ratio)[1]->TryGetNumber(Den)||Den!=4||!Shortage->TryGetStringField(TEXT("market"),Market)||Market!=TEXT("EastTown")
+        ||!Shortage->TryGetStringField(TEXT("good"),Good)||Good!=TEXT("Toolkit")||!Bonus->TryGetBoolField(TEXT("completionStrictlyBeforeEnd"),Flag)||!Flag
+        ||!Bonus->HasField(TEXT("endorsement"))||!Bonus->Values[TEXT("endorsement")]->IsNull()){return Reject(TEXT("Invalid shortage price/expiry policy"));}C.ShortageNumerator=int32(Num);C.ShortageDenominator=int32(Den);
+    for(int32 I=0;I<5;++I)
+    {
+        const bool Producer=I<2;const int32 Index=Producer?I:I-2;const auto J=(Producer?(*Producers)[Index]:(*Consumers)[Index])->AsObject();
+        const TCHAR* ExpectedMarket=Producer?(I==0?TEXT("WestTown"):TEXT("EastTown")):(Index==0?TEXT("WestTown"):Index==1?TEXT("EastTown"):TEXT("City"));
+        const TCHAR* ExpectedGood=Producer?(I==0?TEXT("Fiber"):TEXT("Ore")):(Index==0?TEXT("Fiber"):Index==1?TEXT("Ore"):TEXT("Toolkit"));
+        FInstitutionRule Rule;Rule.Producer=Producer;Rule.Service=Producer?I+2:Index==2?1:Index+2;Rule.Kind=FCString::Strcmp(ExpectedGood,TEXT("Fiber"))==0?ELDItemKind::Fiber:FCString::Strcmp(ExpectedGood,TEXT("Ore"))==0?ELDItemKind::Ore:ELDItemKind::Toolkit;
+        if(!J||!J->TryGetStringField(TEXT("market"),Market)||Market!=ExpectedMarket||!J->TryGetStringField(TEXT("good"),Good)||Good!=ExpectedGood||!Integer(J,TEXT("count"),1,1,N)
+            ||(Producer&&!Integer(J,TEXT("goldBurn"),I==0?2:3,I==0?2:3,Rule.Cost))){return Reject(TEXT("Invalid funded producer/consumer row"));}C.Institutions.Add(Rule);
+    }
     C.Checksum=FMD5::HashAnsiString(*Json);*this=MoveTemp(C);return true;
 }

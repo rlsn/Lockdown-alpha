@@ -1,6 +1,7 @@
 #include "UI/LDHUDModel.h"
 #include "Development/LDWorldChecks.h"
 #include "Economy/LDProductionDirector.h"
+#include "Economy/LDInstitutionSite.h"
 
 FString LDHUD::Cue(uint8 Value)
 {
@@ -12,6 +13,7 @@ FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,dou
 {
     if(E)
     {
+        if(E->Kind==ELDObservedKind::Institution){return ALDInstitutionSite::Name(E->Presentation)+TEXT("\nProtected official noncontender\n")+ALDInstitutionSite::StatusName(E->ActionCue)+TEXT("\nFunded production, then real stock consumption at 180s intervals; eight opportunities. No private player data.");}
         if(E->Kind==ELDObservedKind::Production){return ALDProductionDirector::SiteName(E->Presentation)+(E->Presentation<2?FString::Printf(TEXT("\nPublic remaining charges %d/3\nHold context six seconds, or use equipped Survey score 12 in one second."),E->ActionCue):TEXT("\nSelect exact inputs in Bag, preview then close and arm a fresh context hold. Equipped Analyze score 14 plans one private coupon."));}
         const TCHAR* Label=E->Kind==ELDObservedKind::Body?TEXT("OBSERVED STRANGER"):E->Kind==ELDObservedKind::Sentinel?TEXT("HOSTILE SENTINEL"):E->Kind==ELDObservedKind::Ward?(E->Presentation==1?TEXT("YOUR WARD SOURCE"):TEXT("OBSERVED WARD")):E->Kind==ELDObservedKind::Seal?TEXT("DROPPED CONCORD SEAL"):E->Kind==ELDObservedKind::Book?TEXT("UNREAD BOOK"):E->Kind==ELDObservedKind::Charter?LDCharter::Name(E->Presentation):TEXT("WATCH CONTROL");
         FString Detail=(E->Kind==ELDObservedKind::Body||E->Kind==ELDObservedKind::Sentinel)?TEXT("HP / level / class: Unknown\nAttributes / skills / ranks: Unknown\nGold / inventory: Unknown\n")+Cue(E->ActionCue):TEXT("Visible public object\n");

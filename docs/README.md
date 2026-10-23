@@ -1,6 +1,10 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60–B63 complete; B64 schedules/geography next**.
+Current work: **v0.6 B60–B64 complete; B65 procurement/Charter next**.
+[B64 implementation](v06/B64_IMPLEMENTATION.md) records 23 rules, 36 authority
+checks, eight actual native routes across both maps and independent ledger replay.
+Scheduled funded production/demand, protected routines and the shared shortage
+order are integrated. Human/input/layout/network and package gates remain open.
 [B63 implementation](v06/B63_IMPLEMENTATION.md) records passed Editor compilation,
 23 rules, 49 controlled authority checks and independent receipt replay. Finite
 outcrops, atomic crafting, shared reservations and equipped utility are integrated.

@@ -13,7 +13,7 @@ void ALDPlayerController::ArmProduction(const FLDProductionPlan& Plan)
 void ALDPlayerController::StartProductionHold()
 {
     const auto Plan=ProductionPlan;ClearControls();const uint32 Token=++NextRequest;
-    if(Plan.Recipe>=3){HeldSkillSlot=Plan.SkillSlot;HeldSkillGesture=3;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
+    if(Plan.Recipe==3||Plan.Recipe==4){HeldSkillSlot=Plan.SkillSlot;HeldSkillGesture=3;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
     else{ProductionHoldToken=Token;ProductionSequence=0;LastProductionSent=-1000;}
     ServerProductionRequest(OwnerState.Match,OwnerState.Life,Token,Plan);
 }
