@@ -1,80 +1,61 @@
-# Continuation — v0.6 B66 complete; B67 next
+# Continuation — v0.6 closed; v0.7 B70 next
 
-23 October 2026. User authorization to continue and commit persists. B66 is
-complete at its local engineering gate; see the separate B66 commit in Git
-history. Base B65 `e719758`; B64 `f21e7ce`, B63 `46998d0`, B62 `76c0e2c`, B61
-`9bdc2bb`. No push requested. Keep verification brief; no automatic long/stress/
-cook/package runs. Read [B66 implementation](v06/B66_IMPLEMENTATION.md), the
-[working ledger](v06/FeatureLedger.csv) and [v0.6 specification](v06/README.md).
-Master revision6 and complete v0.6 override old bank/weight/physical-Seal clauses.
+24 October 2026. User requested B67 closeout, minimal verification, no lengthy
+tests, deferred human review and transition to v0.7. **B67 development closeout
+is complete with explicit verification deferrals.** Full release acceptance is
+not claimed. Frozen v0.6 runtime **`920c4ae` (B66)**; B67 changes documentation and
+evidence only. Prior commits: B65 `e719758`, B64 `f21e7ce`, B63 `46998d0`,
+B62 `76c0e2c`, B61 `9bdc2bb`. Permission to commit persists; no push requested.
 
-B66 unifies Items/Books/Markets/Craft/Orders/Treasury/Trade in the native bag
-shell, retaining visible owned cargo, slots/weight and wallet. Current service
-alone participates in keyboard focus. Responsive columns, scroll, readable
-wrapping and normal/125% text retain controls in the tested layouts. Exact craft
-inputs, fee/output/net capacity, equipped utility/coupon eligibility, procurement
-quota and distinct own progress are explicit. Treasury has amount review then
-separate confirmation naming wallet share plus protected-bank remainder=100.
-Cargo cannot be quick-used; existing drop/final peer-review modals remain.
+Start with [V07_TRANSITION](V07_TRANSITION.md), then
+[B67 closeout](v06/B67_CLOSEOUT.md), [E01–E48 matrix](v06/B67_ACCEPTANCE.md) and
+[working v0.6 ledger](v06/FeatureLedger.csv). Next milestone is **B70 audit and
+reconcile**, not a new B67 engine test pass. The handoff records actual defaults,
+code entry points, profiles/wire migration risks and inherited V06-D01–D08 gaps.
 
-Visited market quotes stay owner-local, timestamped READ ONLY snapshots after
-leaving. Distant rival stock/cash changes do not update them. Unvisited services
-show no fabricated prices; wrong match/life quotes cannot replace discovery.
-Official materials expose unlimited paid creation without fake Sell/reserve.
-Pending and changed quotes retain one-unit acknowledged transactions and a
-separate review gesture. No economy authority or replication schema moved into UI.
+The supplied [v0.7 package](v07/README.md) and [master revision7](master/README.md)
+are pre-existing user edits. Preserve them:13 tracked master files modified,
+two new master documents and untracked `docs/v07/`. B67 leaves these untouched
+and unstaged; [SuppliedSpecSnapshot](v06/evidence/B67/SuppliedSpecSnapshot.json)
+records their bytes. Do not absorb them into unrelated commits. v0.7 contract
+wins only for the new profile; historical `reference-v06` is design provenance,
+not delivered source or current runtime evidence.
 
-HUD/context distinguish public warning/opening/claim from private next steps,
-Supply/Industrial/Witness and Charter recovery/spent/deadline. Character activation
-opens the Orders review. Closing/arming spends nothing; first production request
-consumes the arm, and rejection/retry needs a new preview. Real mapped fresh K
-input starts the normal shared hold; release or a major panel cancels/reserves
-without spend. The native fixture caught a delayed editable-field shortcut leak:
-preview key-down now consumes Inventory/Context while Slate character events
-continue normal typing. Delayed tests cover actual 'ik', Backspace clearing,
-Tab/Shift-Tab, Enter, Escape and later Enhanced Input dispatch.
+B61–B66 implement the actual hybrid economy: paid finite commerce and source/
+sink accounting, unique cargo/capacity, bank, exact held production/coupons,
+bounded institutional ticks/shortage/orders, retained distinct endorsements,
+registered public Charter contest and unified native services/input/HUD.
+Normal source runtime is still `Profile=V05`:25min/level5/four skills/four quick
+references/24 carried instances/locked1–4 contenders. New35min/level15/five
+skills/three quick references/six gear bindings do not exist yet. All legacy
+starts currently total 60 attributes; v0.7 chooses 53. The old four-slot/four-bit
+skill serializer cannot simply accept the new catalog. Resolve profiles and
+wire/import adapters before mutating shared constants. Preserve old regression.
 
-Final build: `Artifacts/20261023-233047-421-BuildEditor`, four actions/16.91s.
-Final UI run: `Artifacts/20261023-233109-122-B66-EconomyUI`: **84 native checks each**
-in 1280×720, 1280×720 with 125% text, and 1920×1080; **39 unmodified native PNGs**, zero
-failures. Each independent replay:14 receipts,7 accounts,93 unique items,
-450+957 labelled diagnostic gold-0 burns=1407 total,zero authority audit failures.
-The fixture uses seven actual labelled cargo grants, actual purchases and peer
-offers, temporary own endorsement/Witness/public-window setup. It is not an earned
-journey. Source/Config stayed frozen for every Unreal operation, cap4 workers.
+Retained final engine evidence: build `Artifacts/20261023-233047-421-BuildEditor`;
+UI `Artifacts/20261023-233109-122-B66-EconomyUI`,84 checks per three layouts,
+39 PNGs; regression `Artifacts/20261023-233344-289-B65-Charter`,23 rules/56 authority/
+39 controlled earned-route checks. All passed with zero failures. The real earned
+resource chain leaves15g/300XP and a rival without Charter wins. Placement/time/
+visit-boundary samples are controlled. UI diagnostics are separately labelled.
+See [B66 report](v06/B66_IMPLEMENTATION.md) for exact scope.
 
-B65 regression on the same final source: `Artifacts/20261023-233344-289-B65-Charter`,
-**23 rules,56 authority and39 earned-route checks**, zero failures; both final
-ledgers passed independent replay through `Scripts/RunCharterCheck.ps1`.
-The [B66 report](v06/B66_IMPLEMENTATION.md) and [portable summary](v06/evidence/B66/Summary.json)
-record its final path/results. Rules retain the eight observed fields and34-field
-public GameState allowlist. Authority covers both order quotas, split checkout,
-actual repeated respawns, deadline/overlap, contest/closure/exact-close and final
-service freeze. Earned route disables diagnostic item grants: actual Heave Witness,
-three couriers, paid supplies/four Toolkit crafts, Supply, City Crystal12, Core
-craft/procurement and Treasury checkout leave15gold/300XP. A rival with no Charter
-wins the public opening. Clock/placement and legal traversal-boundary samples are
-controlled, not human input/travel acceptance. See [B65](v06/B65_IMPLEMENTATION.md)
-for exact authority, gold and lifecycle semantics.
+B67 minimal checks at `Artifacts/20261024-121555-B67-Closeout`:189 source hashes,
+14 retained report hashes and13 retained PNG hashes match;13 retained ledger
+files independently replay; v0.6 model229 quote states and v0.7 model931 assertions
+pass. No new engine/build/package/network/session/restart/human test was run.
+48 acceptance rows reconciled:1 document audit,27 local engineering,17 partial,
+3 wholly deferred. Portable evidence: `docs/v06/evidence/B67`.
 
-Portable reports/ledgers,189 source hashes,39 capture hashes, provenance and representative
-unmodified native screenshots live in `docs/v06/evidence/B66`. Rerun
-`Scripts/RunEconomyUICheck.ps1` (All or focused Small/Large/Wide), then
-`Scripts/RunCharterCheck.ps1` sequentially if new runtime changes justify it.
-The final complete pass follows corrections to fixture input/capture timing;
-Backspace requires Slate character8 in addition to key-down. Earlier failed
-attempts are not the final evidence. No runtime edits follow final build/checks.
+Human review is deferred. Independent clients/privacy/latency, current cold
+cook/package, normal one/four-player sessions, exhaustive concurrency, OS/physical
+input, restarts/performance and complete class Witness routes are named backlog,
+not automatic runs. The old `Artifacts/20261022-220153-009-PackageWin64/Archive/Windows`
+predates B61–B66. It is not a current release. No package was produced by B67.
 
-**B67 is next:** reconcile E01–E48 and affected baseline regressions; actual
-restricted remote clients/packet privacy/latency, current cook/package, normal
-economy approaches/timed journeys, restarts/performance and human/OS-scale review
-remain open. Local offscreen layouts do not certify OS scaling or physical input.
-Do not present the old `Artifacts/20261022-220153-009-PackageWin64/Archive/Windows`
-as current: it predates B61–B66. User requested no automatic long/stress runs.
-
-Keep UE5.8.4 CL58902052, CharacterMovement, Enhanced Input, UMG/Slate, four active
-skill slots and privacy allowlists. Each UPROPERTY needs its own declaration;
-comma declarations previously hid later fields from reflection. Unreal operations
-stay sequential and Source/Config frozen while they run. Retained B64 actual
-public/covered native navigation covers both saved maps; B63/B62/B61 ledgers and
-prior v0.5 evidence remain historical, with their original limits.
+Keep UE5.8.4 CL58902052, CharacterMovement/Enhanced Input/UMG, owner privacy,
+shared item reservations, authoritative pricing and causal receipts. Unreal work
+stays sequential; freeze Source/Config and cap compile workers4. Every UPROPERTY
+needs its own declaration. B70–B77 implements the staged v0.7 contract; B71–B73
+alone is partial. Keep unrun results honest and do not repeat long tests merely
+to start the next version.

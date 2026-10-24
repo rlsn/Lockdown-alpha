@@ -24,3 +24,11 @@ Unify catalog/market/workshop/procurement controls and objective hints with v0.5
 Run E01–E48, affected baseline regressions, real remote clients, normal economy scenarios and full ledger reconciliation. Gate: source/assets/data, runnable build where available, completed ledger/report, logs and actual human review or explicit pending evidence. Depends B66.
 
 The release is complete only with real supply/production/market demand and contested acquisition. A timer changing a price label is not an economy; a developer-seeded Seal is not economic progression.
+
+## Actual B67 disposition — 24 October 2026
+
+User directed minimal verification, no lengthy tests, deferred human review and
+transition to v0.7. B67 is closed as a development handoff with explicit acceptance
+deferrals, rather than a claim that every planned release gate above passed.
+See [B67 closeout](B67_CLOSEOUT.md), [48-row reconciliation](B67_ACCEPTANCE.md) and
+[next implementation handoff](../V07_TRANSITION.md). Runtime remains B66 `920c4ae`.

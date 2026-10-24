@@ -1,19 +1,24 @@
-# Project Lockdown — v0.6 economy implementation
+# Project Lockdown — v0.6 baseline / v0.7 transition
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
-authority lives in [docs/master](docs/master/README.md); active release scope and
-gates live in [docs/v06](docs/v06/README.md). Start with the
+authority lives in [docs/master](docs/master/README.md); the implemented economy
+baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 B66 native economy services implemented and locally verified.**
-[B66 implementation](docs/v06/B66_IMPLEMENTATION.md) integrates the own-bag service
-tabs, visited quote history, exact production previews, Treasury review and public
-objective feedback. Editor build and 84 native input/layout checks in each of
-three rendered layouts passed, with 39 captures and independent ledger replay.
-Regression passed 23 rules, 56 authority checks and 39 earned-route checks.
-[B65](docs/v06/B65_IMPLEMENTATION.md) retains the actual earned route leaving
-15 gold/300 XP and a rival without a Charter winning the public claim.
-B67 remote clients, current package, normal sessions and human acceptance remain open.
+**Current checkpoint: v0.6 closed at B67 with explicit verification deferrals.**
+[B67 closeout](docs/v06/B67_CLOSEOUT.md) freezes the implemented runtime at
+`920c4ae` (B66), reconciles all 48 acceptance rows and records the user’s direction
+to minimize testing, defer human review and move to v0.7. No new package or full
+release-acceptance pass is claimed. [v0.7 handoff](docs/V07_TRANSITION.md) prepares
+**B70 audit/reconciliation**, including profile, progression and wire-format changes.
+
+Minimal B67 checks passed:189 source hashes, retained report/capture integrity,
+13 retained ledger replays and both specification checkers. Existing engine results
+remain:23 rules,56 authority,39 controlled earned-route checks and84 native UI
+checks in each of three layouts. [B66 evidence](docs/v06/evidence/B66/Summary.json)
+records exact scope. The supplied v0.7/master specification edits remain untouched;
+v0.7 gameplay is not implemented yet. Extended technical and human checks are
+[explicitly deferred](docs/v06/B67_CLOSEOUT.md#deferred-verification-backlog).
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
 record retained checkpoints. [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts

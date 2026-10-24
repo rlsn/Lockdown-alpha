@@ -1,0 +1,10 @@
+{
+  "algorithm": "SHA-256",
+  "files": {
+    "Audit.json": "cde48ef560c827377082390a156940e6f7d9d19f22d4c764fe906a5d61780ce0",
+    "ReceiptReplay.txt": "d12e4ecc905958af509e538e9d7ff45bdb7d6895f900bab5f91ce6bd4c9f5e8e",
+    "SuppliedSpecSnapshot.json": "efab02dad73420aa1bb85dfe031fb1b55f4e8cf38edce9e83096486c2a162e2a",
+    "V06Model.txt": "fad4105eede9d48b61e54de36b23a1f65773647f06eeac823b2de3a926aad90e",
+    "V07Model.txt": "5722adf6912942c6a9430ecac9746dec57147ad406fbd459d718e15b50200564"
+  }
+}

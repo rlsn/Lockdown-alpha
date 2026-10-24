@@ -1,5 +1,9 @@
 # Acceptance and playtest
-Planned checks, not results. Use pure arithmetic for model checks, real authority for transactions, native clients for input/privacy, and humans for strategic choices. Preserve unaffected valid v0.5 evidence.
+These are the original planned checks, not their results. Final status is in
+[B67_ACCEPTANCE](B67_ACCEPTANCE.md) and [B67 closeout](B67_CLOSEOUT.md): the user
+closed v0.6 on 24 October 2026 with minimal verification and deferred human review/
+extended technical tests. The requirements below remain the historical contract;
+unrun tests are not passes. Use pure arithmetic for model checks, real authority for transactions, native clients for input/privacy, and humans for strategic choices. Preserve unaffected valid v0.5 evidence.
 
 | ID | Required evidence |
 | --- | --- |
@@ -47,7 +51,7 @@ Planned checks, not results. Use pure arithmetic for model checks, real authorit
 | E42 | Theft/death affect carried wallet only, bank protected after commit; no remote access/interest; split Treasury payment validated |
 | E43 | STR-based weight and slot limits validate every pickup/purchase/craft/trade/preparation; no double-counted reservations or free mass |
 | E44 | Supply order consumes two Toolkits/50 gold reward/30 XP and grants only its distinct endorsement, bounded once per contender/N global |
-| E45 | Shortage event600–780 reprices East Toolkit; one shared bonus order40 gold/20 XP, completion before expiry, no endorsement/refill |
+| E45 | Shortage event 600–780 reprices East Toolkit; one shared bonus order 40 gold/20 XP, completion before expiry, no endorsement/refill |
 | E46 | Charter death before use retains registration but delays until respawn+30; death after activation leaves opening active and spent |
 | E47 | Global window cannot overlap/extend; latest activation requires full window; endpoint tie/late sample gives no extra claim time |
 | E48 | A nonpurchaser without Charter wins an opened contest under normal rules; old Seal/private bypass is unavailable outside windows |

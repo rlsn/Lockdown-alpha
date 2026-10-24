@@ -1,12 +1,17 @@
 # Project Lockdown documentation
 
-Current work: **v0.6 B60–B66 complete at their engineering gates; B67 next**.
-[B66 implementation](v06/B66_IMPLEMENTATION.md) records seven native service tabs,
-visited quote history, exact previews, private/public objective feedback and the
-editable-field shortcut fix. The final build passed 84 native checks in each of
-three rendered layouts (39 captures), plus independent replay. Regression passed
-23 rules, 56 authority and 39 earned-route checks. Remote clients, current package,
-normal sessions, OS scaling and human acceptance remain B67.
+Current work: **v0.6 closed at B67 with verification deferrals; v0.7 B70 next**.
+[B67 closeout](v06/B67_CLOSEOUT.md) records the user’s minimal-verification and
+deferred-human-review direction. [Transition handoff](V07_TRANSITION.md) identifies
+the frozen runtime `920c4ae`, actual defaults, next migration work and inherited gaps.
+[E01–E48 reconciliation](v06/B67_ACCEPTANCE.md) has27 rows of local engineering
+evidence,17 partial rows,3 wholly deferred scenarios and1 document audit; no full
+release-acceptance claim. Minimal checks retained189 matching source hashes,
+13 successful ledger-file replays and passing v0.6/v0.7 document models.
+[B66 implementation](v06/B66_IMPLEMENTATION.md) retains actual build,23 rules,
+56 authority,39 earned-route and84 native UI checks per three layouts. No new
+Unreal/cook/package/network/session/human run was made for B67. Supplied master
+revision7 and v0.7 specification edits remain untouched and unstaged.
 [B65 implementation](v06/B65_IMPLEMENTATION.md) records bounded procurement,
 retained endorsements, registered Charter checkout and the public contest. Its
 controlled earned route leaves15 gold/300 XP and a rival without Charter wins.
@@ -26,7 +31,7 @@ Paid materials and actual finite regional commerce now have native controls.
 replay. Physical banking and live item/accounting foundations are integrated.
 The normal frontend now uses the registered Charter public-window route.
 See [current handoff](CONTINUATION.md) and the [working ledger](v06/FeatureLedger.csv).
-The user requested brief verification; no long runs are automatic. Keep the
+The user closed v0.6 with minimal verification and deferred human review; no long runs are automatic. Keep the
 UE5.8.4 CL58902052 pin and preserve historical report provenance.
 
 Retained runtime: v0.4 B47. Core checks and the ordinary 25-minute run are recorded.
@@ -36,8 +41,11 @@ B47 cold checkout and conditional distribution/dedicated lanes remain open.
 | Start here | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Current handoff and next implementation steps |
-| [Master plan, revision 6](master/README.md) | Long-term design authority and current user decisions |
-| [v0.6 specification](v06/README.md) | Active economy scope, B60–B67 and E01–E48 |
+| [Master plan, revision 7](master/README.md) | Long-term design authority and current user decisions |
+| [v0.7 transition](V07_TRANSITION.md) | B70 starting point, actual baseline, migration boundaries and deferred checks |
+| [v0.7 specification](v07/README.md) | Supplied next implementation contract, B70–B77; no delivered runtime claim |
+| [B67 closeout](v06/B67_CLOSEOUT.md) | Frozen v0.6 runtime, evidence audit, E01–E48 and user-directed deferrals |
+| [v0.6 specification](v06/README.md) | Frozen economy contract and implementation/evidence record |
 | [B60 baseline review](v06/B60_BASELINE_REVIEW.md) | Actual B57 baseline, adopted values and integration requirements |
 | [B61 cargo foundation](v06/B61_CARGO_FOUNDATION.md) | Physical goods, final capacity, compiled integration and limits |
 | [v0.6 working ledger](v06/FeatureLedger.csv) | Current implementation and evidence status |

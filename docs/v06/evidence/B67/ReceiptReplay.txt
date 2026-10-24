@@ -1,0 +1,13 @@
+PASS docs\v06\evidence\B61\B61Verified-91194001406D4662009319B93975A8D0.json: 13 receipts, 6 accounts, 87 unique items, 630 gold
+PASS docs\v06\evidence\B61\Endowment.json: 2 receipts, 5 accounts, 85 unique items, 450 gold
+PASS docs\v06\evidence\B61\Reset.json: 13 receipts, 6 accounts, 87 unique items, 630 gold
+PASS docs\v06\evidence\B62\Ledger.json: 140 receipts, 7 accounts, 143 unique items, 4182 gold
+PASS docs\v06\evidence\B63\Ledger.json: 136 receipts, 7 accounts, 156 unique items, 2285 gold
+PASS docs\v06\evidence\B64\Ledger.json: 83 receipts, 7 accounts, 124 unique items, 2450 gold
+PASS docs\v06\evidence\B65\AuthorityLedger.json: 38 receipts, 7 accounts, 97 unique items, 1580 gold
+PASS docs\v06\evidence\B65\JourneyLedger.json: 28 receipts, 7 accounts, 103 unique items, 477 gold
+PASS docs\v06\evidence\B66\AuthorityLedger.json: 38 receipts, 7 accounts, 97 unique items, 1580 gold
+PASS docs\v06\evidence\B66\B66Verified-0CD2AB04409842CF2FF5C6AAD313FE55.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold
+PASS docs\v06\evidence\B66\B66Verified-117B45164DE48068FD952582E0AB6A3B.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold
+PASS docs\v06\evidence\B66\B66Verified-2118372E45820FA437409CAEA24E47CB.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold
+PASS docs\v06\evidence\B66\JourneyLedger.json: 28 receipts, 7 accounts, 103 unique items, 477 gold

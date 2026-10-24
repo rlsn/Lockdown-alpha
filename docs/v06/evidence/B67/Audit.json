@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-24",
+  "baseRuntimeRevision": "920c4aede4fab1338bbec4fc728ebcee14f56407",
+  "scope": "Minimal B67 documentary closeout; no new Unreal build, native, network, package, full-session, performance or human test. Retains B66 engine results only because runtime inputs are unchanged.",
+  "sourceManifest": "docs/v06/evidence/B66/SourceManifest.json",
+  "sourceManifestSha256": "d07c4d64c056312f608e142c291abb90c7a8ce76322bd2682ff55d3ef4a745a9",
+  "sourceHashesMatched": 189,
+  "runtimeChanges": [],
+  "retainedReportHashesMatched": 14,
+  "retainedPNGHashesMatched": 13,
+  "captureProvenanceEntries": 39,
+  "ledgerReplays": [
+    {
+      "path": "docs/v06/evidence/B61/B61Verified-91194001406D4662009319B93975A8D0.json",
+      "sha256": "5ac0d38ba520feb27d1cbb9515ad9bf21e707480a54817bdb36ca58753fe37c6",
+      "result": "PASS docs\\v06\\evidence\\B61\\B61Verified-91194001406D4662009319B93975A8D0.json: 13 receipts, 6 accounts, 87 unique items, 630 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B61/Endowment.json",
+      "sha256": "34e5dc5048c93f83a85064e1abf6968067875fd9f180d3a2df2b8bbb8eae8c92",
+      "result": "PASS docs\\v06\\evidence\\B61\\Endowment.json: 2 receipts, 5 accounts, 85 unique items, 450 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B61/Reset.json",
+      "sha256": "f3081545a2cf36899fbbcd84cce47aa9a464c00de38ec4b61eafa93f74bc63e8",
+      "result": "PASS docs\\v06\\evidence\\B61\\Reset.json: 13 receipts, 6 accounts, 87 unique items, 630 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B62/Ledger.json",
+      "sha256": "a7a10af223ad8b1b5205e0d6f879087b5e134ad8ebe358cf24f6295cb7575e17",
+      "result": "PASS docs\\v06\\evidence\\B62\\Ledger.json: 140 receipts, 7 accounts, 143 unique items, 4182 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B63/Ledger.json",
+      "sha256": "1c8e22d8f7f681528793b4a3adeb4757f040a3077743f8cc8889a8d3c042d13f",
+      "result": "PASS docs\\v06\\evidence\\B63\\Ledger.json: 136 receipts, 7 accounts, 156 unique items, 2285 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B64/Ledger.json",
+      "sha256": "255ad0e98dab86a778b70fa4fbcbe9fa5984b58fea2acdec207bb1ebeddbb773",
+      "result": "PASS docs\\v06\\evidence\\B64\\Ledger.json: 83 receipts, 7 accounts, 124 unique items, 2450 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B65/AuthorityLedger.json",
+      "sha256": "ff65875e95b9c80dbd0adb6be5cf3684c1146b6d1699a7aafa31fc57c7a8a60f",
+      "result": "PASS docs\\v06\\evidence\\B65\\AuthorityLedger.json: 38 receipts, 7 accounts, 97 unique items, 1580 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B65/JourneyLedger.json",
+      "sha256": "81137f81cdddec0e2e13ff26902597f1d67d42860a012b21da71154d042ff21e",
+      "result": "PASS docs\\v06\\evidence\\B65\\JourneyLedger.json: 28 receipts, 7 accounts, 103 unique items, 477 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B66/AuthorityLedger.json",
+      "sha256": "d25fabe6498935bd300dcb0bac6ba7edf6e97a87c327085a3027d54b628d22ed",
+      "result": "PASS docs\\v06\\evidence\\B66\\AuthorityLedger.json: 38 receipts, 7 accounts, 97 unique items, 1580 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B66/B66Verified-0CD2AB04409842CF2FF5C6AAD313FE55.json",
+      "sha256": "aff4d7bf048591f02be3ce5f6fea63c1d7ead913c5e5b3d59aa28f86db2138e6",
+      "result": "PASS docs\\v06\\evidence\\B66\\B66Verified-0CD2AB04409842CF2FF5C6AAD313FE55.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B66/B66Verified-117B45164DE48068FD952582E0AB6A3B.json",
+      "sha256": "b83b278289384ca4475aa5c82bbe8fce5eeeb2e60df274bd1e43afef4954a476",
+      "result": "PASS docs\\v06\\evidence\\B66\\B66Verified-117B45164DE48068FD952582E0AB6A3B.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B66/B66Verified-2118372E45820FA437409CAEA24E47CB.json",
+      "sha256": "801963140c1ecb040525734b487965c0129395f7a097238efc4e2540d2b9a2d6",
+      "result": "PASS docs\\v06\\evidence\\B66\\B66Verified-2118372E45820FA437409CAEA24E47CB.json: 14 receipts, 7 accounts, 93 unique items, 1407 gold"
+    },
+    {
+      "path": "docs/v06/evidence/B66/JourneyLedger.json",
+      "sha256": "8235746aabb29a57c9d25fb64dbfd855c18e9b4b19574697775c642ea027d9ae",
+      "result": "PASS docs\\v06\\evidence\\B66\\JourneyLedger.json: 28 receipts, 7 accounts, 103 unique items, 477 gold"
+    }
+  ],
+  "newChecks": [
+    "v0.6 document-model checker",
+    "v0.7 specification checker",
+    "B66 physical source/report/capture integrity",
+    "All retained v0.6 causal-ledger independent replays"
+  ],
+  "retainedEngineEvidence": {
+    "build": "Artifacts/20261023-233047-421-BuildEditor",
+    "ui": "Artifacts/20261023-233109-122-B66-EconomyUI",
+    "regression": "Artifacts/20261023-233344-289-B65-Charter",
+    "rules": 23,
+    "authority": 56,
+    "earnedRoute": 39,
+    "uiChecksEachLayout": 84,
+    "layouts": 3
+  },
+  "userDirection": "Wrap v0.6, minimal verification, no lengthy tests, defer human review, prepare v0.7 transition.",
+  "preExistingSpecSnapshot": "SuppliedSpecSnapshot.json",
+  "artifactDirectory": "Artifacts/20261024-121555-B67-Closeout",
+  "acceptanceMatrix": {
+    "path": "docs/v06/B67_ACCEPTANCE.md",
+    "rows": 48,
+    "categories": {
+      "Deferred — not run": 3,
+      "Local engineering evidence retained": 27,
+      "Partial — scoped evidence retained": 17,
+      "Source/document audit retained": 1
+    },
+    "allAcceptancePassed": false
+  },
+  "disposition": "B67 development closeout; v0.6 runtime frozen at920c4ae; extended verification and human review deferred to transition backlog",
+  "closeoutDocumentHashes": {
+    "README.md": "7432e8ea32e2ed9c7a4c9760cf6179f890c9c06314fb34d0b36065e0365ec7f9",
+    "docs/README.md": "7a72c5e722c36e6eb8a0a243cbbc30f7b83ec4dcfcd62fe19b837e5d24a80c22",
+    "docs/CONTINUATION.md": "baca6cd6b0eb59ab148407a6b5b33bbcaa0d75ec5445173cc63125a2b0cc33a1",
+    "docs/V07_TRANSITION.md": "39a13ff9a6f21bb7f482d64e189782f62e2abc18adacf5ba4c80643fac094cd1",
+    "docs/v06/README.md": "a653e715dd7f34142dce62476dcf0678195d5066888ddcf92507ba3e5f3f842c",
+    "docs/v06/07_BUILD_PLAN.md": "e02778480a4d376a15682ebf046588dae2a335a55613c43760f139a2870bc250",
+    "docs/v06/08_ACCEPTANCE_AND_PLAYTEST.md": "d5aceb495b8a28bd5b05a23c3c35c12d8692f1806db7b7dce167e8faedbf318b",
+    "docs/v06/B67_CLOSEOUT.md": "4e7d9c9b5662cb4d3388e415188cd2c4d16120f8ed5f37bc1f51844cbd3c6ba7",
+    "docs/v06/B67_ACCEPTANCE.md": "4c880bbd53642a563d5f6bc8a73a8ef27f9928146c59dc6dbb0180d96e483a16",
+    "docs/v06/FeatureLedger.csv": "88b6e0f77e690638124619613f835d6232e465a603be6d4601026814fb5135d0"
+  },
+  "suppliedSpecFilesPreserved": 93,
+  "suppliedSpecSnapshotSha256": "efab02dad73420aa1bb85dfe031fb1b55f4e8cf38edce9e83096486c2a162e2a",
+  "checksAtCloseout": [
+    "48 unique E01-E48 rows and classification counts",
+    "Changed closeout markdown links resolve on disk",
+    "Pre-existing master/v07 specification physical bytes unchanged",
+    "B66 compiled source manifest remains exact"
+  ]
+}

@@ -3,7 +3,10 @@ Specification revision 1 • 23 October 2026
 
 Extend the user-reported delivered v0.5 Unreal game with a hybrid economy: stable official shops, finite regional markets, light production, visible institutional demand and a production-earned route to the contested Grand Heart.
 
-This is a proposed development contract, not a game build. Audit the actual delivered repository; no Unreal source or results were supplied in this workspace.
+This package originated as a document-only contract. Actual repository implementation
+and evidence are recorded below. On24 October2026 the user closed v0.6 at B67 with
+minimal verification and explicit extended-test/human-review deferrals; see
+[B67 closeout](B67_CLOSEOUT.md) and the [v0.7 handoff](../V07_TRANSITION.md).
 
 | Document | Purpose |
 | --- | --- |
@@ -53,8 +56,14 @@ checks and independent replay. Actual earned resources leave15 gold/300 XP and
 a rival without a Charter wins.
 [B66 native services](B66_IMPLEMENTATION.md) now unifies the bag/catalog/market/
 production/order/Treasury/trade shell and economy feedback. The final build passed
-84 native input/layout checks in each of 1280×720, 1280×720 with125% text and
-1920×1080, with39 rendered captures and independent replay. Regression passed
-23 rules,56 authority and39 earned-route checks. B67 remote clients, current
-cook/package, normal timed journeys and human/OS-scale acceptance remain open. Earlier partial reports are historical checkpoints, not current
-completion status. Use the [working ledger](FeatureLedger.csv).
+84 native input/layout checks in each of 1280×720, 1280×720 with 125% text and
+1920×1080, with 39 rendered captures and independent replay. Regression passed
+23 rules,56 authority and39 earned-route checks.
+[B67 closeout](B67_CLOSEOUT.md) now freezes runtime at `920c4ae`, reconciles
+[E01–E48](B67_ACCEPTANCE.md) and verifies retained source/evidence hashes plus
+13 ledger files and both document models. No new engine tests were launched.
+Independent clients/current cook/package, normal timed journeys, restart/performance,
+exhaustive races and human/OS-scale acceptance are explicitly deferred by the
+user’s minimal-verification transition direction. v0.6 development is closed;
+full release acceptance is not claimed. Next is [v0.7 B70](../V07_TRANSITION.md).
+Earlier partial reports are historical checkpoints. Use the [working ledger](FeatureLedger.csv).

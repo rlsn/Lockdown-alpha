@@ -1,0 +1,3 @@
+PASS: 229 configured quote states, both immediate roundtrip directions, prices, costs, budgets, bank, cargo and timing arithmetic.
+PASS: illustrative full-account gold trace: 738 + 205 minted - 178 burned = 765.
+Not run: Unreal build, authority implementation, network, normal progression and human playtests.
