@@ -25,6 +25,7 @@
 #include "Tests/LDCombatNetworkProbe.h"
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
+#include "Tests/LDLoadoutProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Tests/LDObjectiveNetworkProbe.h"
@@ -46,7 +47,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -97,6 +98,7 @@ void ALDPlayerController::InitializeLocalUI()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTacticalProbe>(ALDTacticalProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))
@@ -262,7 +264,7 @@ void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,
     const double Now=GetWorld()->GetTimeSeconds();
     CombatTokens=FMath::Min(3.,CombatTokens+FMath::Max(0.,Now-LastCombatAt)*12);LastCombatAt=Now;
     if(CombatTokens<1){ClientIntentResult(Request,TEXT("Action rate limited."));return;}
-    if(Mode->Objectives){Mode->Objectives->CancelClaimForAction(this,Now);}
+    if(Mode->Objectives){Mode->Objectives->CancelClaimForAction(this,Now);}if(Mode->IsTacticalProfile()&&Mode->Development){Mode->Development->Cancel(this,TEXT("Combat command cancelled preparation"));}
     --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
     if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
     CombatReceipts.Add(Request,LastCombatResult);

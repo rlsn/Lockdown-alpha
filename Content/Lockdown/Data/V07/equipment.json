@@ -1,0 +1,646 @@
+{
+  "schema_version": 7,
+  "milestone": "B73 equipment subset; sources B74",
+  "items": [
+    {
+      "id": "iron_halberd",
+      "name": "Iron Halberd",
+      "tier": 1,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "STR": 1
+      },
+      "weight": 6,
+      "official_price_gold": 24,
+      "passive": {
+        "weapon_damage": 50,
+        "reach_cm": 280,
+        "attack_interval_ms": 1450
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": true,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "iron_halberd",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "runic_staff",
+      "name": "Runic Staff",
+      "tier": 2,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "INT": 2
+      },
+      "weight": 3,
+      "official_price_gold": 48,
+      "passive": {
+        "weapon_damage": 30,
+        "reach_cm": 220,
+        "spell_percent": 5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "runic_staff",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "bastion_plate",
+      "name": "Bastion Plate",
+      "tier": 1,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "CON": 2
+      },
+      "weight": 8,
+      "official_price_gold": 28,
+      "passive": {
+        "armor": 18,
+        "movement_percent": -10
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "bastion_plate",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "archivist_robe",
+      "name": "Archivist Robe",
+      "tier": 2,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "INT": 1,
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 44,
+      "passive": {
+        "armor": 3,
+        "mp_regen_per_second": 0.5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "archivist_robe",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "merchant_harness",
+      "name": "Merchant Harness",
+      "tier": 1,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "CON": 1,
+        "CHA": 1
+      },
+      "weight": 3,
+      "official_price_gold": 24,
+      "passive": {
+        "armor": 4,
+        "capacity_bonus": 10
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "merchant_harness",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "pathfinder_boots",
+      "name": "Pathfinder Boots",
+      "tier": 1,
+      "equipment_slot": "feet",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 18,
+      "passive": {
+        "road_movement_percent": 12
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "pathfinder_boots",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "scholars_sigil",
+      "name": "Scholar\u2019s Sigil",
+      "tier": 3,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "INT": 1
+      },
+      "weight": 1,
+      "official_price_gold": null,
+      "passive": {
+        "potency_rank": 1,
+        "selected_school": "control",
+        "unique_family": "potency_rank"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "scholars_sigil",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "warding_eye",
+      "name": "Warding Eye",
+      "tier": 2,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "WIS": 1
+      },
+      "weight": 1,
+      "official_price_gold": 30,
+      "passive": {
+        "detector": true,
+        "radius_cm": 250,
+        "line_of_sight": true,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "warding_eye",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "weighted_satchel",
+      "name": "Weighted Satchel",
+      "tier": 1,
+      "equipment_slot": "charm",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 16,
+      "passive": {
+        "capacity_bonus": 10,
+        "unique_family": "satchel"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "weighted_satchel",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "simple_staff",
+      "name": "Simple Staff",
+      "tier": 1,
+      "equipment_slot": "weapon",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 18,
+      "passive": {
+        "weapon_damage": 32,
+        "reach_cm": 220
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "simple_staff",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "conduit_staff",
+      "name": "Conduit Staff",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "INT": 1
+      },
+      "weight": 3,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 34,
+        "cast_range_bonus_cm": 50,
+        "spell_percent": 5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "conduit_staff",
+      "active_mana_cost": 0
+    }
+  ],
+  "ability_gates": [
+    {
+      "id": "anchor_bash",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 10
+    },
+    {
+      "id": "brace_wall",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [
+        "barrier"
+      ],
+      "skill": 11
+    },
+    {
+      "id": "veil_step",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 12
+    },
+    {
+      "id": "hamstring",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [
+        "damage"
+      ],
+      "skill": 13
+    },
+    {
+      "id": "arc_bolt",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [
+        "damage"
+      ],
+      "skill": 14
+    },
+    {
+      "id": "counterpulse",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 15
+    },
+    {
+      "id": "farwatch_ward",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 16
+    },
+    {
+      "id": "wire_snare",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 17
+    },
+    {
+      "id": "ledger_mark",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 18
+    },
+    {
+      "id": "surety_shell",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [
+        "barrier"
+      ],
+      "skill": 19
+    },
+    {
+      "id": "false_trail",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 20
+    },
+    {
+      "id": "smoke_veil",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "skill": 21
+    },
+    {
+      "id": "purge_touch",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {}
+      ],
+      "potency_fields": [],
+      "skill": 22
+    },
+    {
+      "id": "seers_flare",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {
+          "WIS": 8
+        }
+      ],
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "skill": 23
+    },
+    {
+      "id": "ember_line",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {
+          "INT": 8
+        }
+      ],
+      "potency_fields": [
+        "damage"
+      ],
+      "skill": 24
+    },
+    {
+      "id": "grapple",
+      "circle": 1,
+      "school": "foundation",
+      "requirements_any": [
+        {
+          "STR": 8
+        },
+        {
+          "DEX": 8
+        }
+      ],
+      "potency_fields": [],
+      "skill": 25
+    },
+    {
+      "id": "null_seal",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "INT": 9
+        },
+        {
+          "CHA": 10
+        }
+      ],
+      "potency_fields": [],
+      "skill": 26
+    },
+    {
+      "id": "grounding_field",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "WIS": 9
+        }
+      ],
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "skill": 27
+    },
+    {
+      "id": "force_wave",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "STR": 9
+        },
+        {
+          "INT": 9
+        }
+      ],
+      "potency_fields": [],
+      "skill": 28
+    },
+    {
+      "id": "guard_swap",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "potency_fields": [],
+      "skill": 29
+    },
+    {
+      "id": "slipstream",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "DEX": 10
+        }
+      ],
+      "potency_fields": [],
+      "skill": 30
+    },
+    {
+      "id": "remedy_bind",
+      "circle": 2,
+      "school": "control",
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "potency_fields": [],
+      "skill": 31
+    },
+    {
+      "id": "break_sigil",
+      "circle": 3,
+      "school": "control",
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "potency_fields": [],
+      "skill": 32
+    },
+    {
+      "id": "arcane_prison",
+      "circle": 3,
+      "school": "control",
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "skill": 33
+    },
+    {
+      "id": "temporal_lock",
+      "circle": 4,
+      "school": "control",
+      "requirements_any": [
+        {
+          "INT": 13,
+          "WIS": 10
+        }
+      ],
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "skill": 34
+    },
+    {
+      "id": "sovereign_ward",
+      "circle": 4,
+      "school": "control",
+      "requirements_any": [
+        {
+          "CON": 12,
+          "WIS": 11
+        }
+      ],
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "skill": 35
+    },
+    {
+      "id": "grand_exchange",
+      "circle": 4,
+      "school": "control",
+      "requirements_any": [
+        {
+          "CHA": 13,
+          "DEX": 10
+        }
+      ],
+      "potency_fields": [],
+      "skill": 36
+    },
+    {
+      "id": "gate_weave",
+      "circle": 4,
+      "school": "control",
+      "requirements_any": [
+        {
+          "INT": 13,
+          "CHA": 10
+        }
+      ],
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "skill": 37
+    }
+  ]
+}

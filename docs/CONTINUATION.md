@@ -1,9 +1,9 @@
-# Continuation — B72 geometry/control; B73 next
+# Continuation — B73 tactical review build; B74 next
 
-24 October 2026. [B72 implementation](v07/B72_IMPLEMENTATION.md) records delivered
-behavior, normal sources, diagnostic-only source boundaries and verification.
-B71/B70 are historical checkpoints. The original93 adopted spec files remain
-byte-preserved. Do not recreate the deleted `V07_TRANSITION.md`.
+24 October 2026. Read [B73 implementation](v07/B73_IMPLEMENTATION.md) for exact
+build/gear/input/preparation/death scope and evidence. B70–B72 are historical
+checkpoints. Preserve all93 adopted spec files and the deletion of
+`V07_TRANSITION.md`; this is the active handoff.
 
 ## Play and reproduce
 
@@ -13,67 +13,75 @@ byte-preserved. Do not recreate the deleted `V07_TRANSITION.md`.
 ./Scripts/BuildEditor.ps1 -MaxParallelActions 4
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 python Scripts/SyncV07CombatData.py --check
+python Scripts/SyncV07EquipmentData.py --check
 ./Scripts/RunTests.ps1
+./Scripts/RunLoadoutCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunGeometryCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunTacticalCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunCharterCheck.ps1 -AuthorityOnly
 ```
 
-Unreal operations are sequential; freeze Source/Config during every operation.
-UE5.8.4 CL58902052, Win64 Development, MSVC14.44.35229/SDK10.0.26100.0,
-compile cap4. Every UPROPERTY has one declaration. No push requested.
+Run Unreal operations sequentially; freeze Source/Config during each. UE5.8.4
+CL58902052, Win64 Development, MSVC14.44.35229/SDK10.0.26100.0, compile cap4.
+Each UPROPERTY owns one declaration. Commit authorized; no push requested.
 
-Normal frontend remains V05. Explicit v07 opens the native regional lobby:
-choose a retained class, Ready and start. Earn gold through retained work. Guild
-books now include the four B71 spells plus Veil Step, Counterpulse, Farwatch Ward,
-Wire Snare, Smoke Veil and Seer's Flare,40g each. Quiet-read, then equip at a
-station. No free normal tactical kit. CircleII/III effects exist for the B72
-fixtures; correct trainer/archive sources and finite CircleIII stock are B74.
+Normal frontend still hosts V05. Explicit v07 opens the regional native lobby.
+Ten circleI spell books remain Guild40g; advanced spell sources and all eleven
+new passive gear supplies/assembly are B74. No free normal gear kit. Item effects
+are implemented for eleven passive gear definitions plus Null Bell; fourteen new
+spell effects are implemented; fourteen further effects remain B75. Unsupported
+definitions stay unavailable.
 
-Ground/cone spells arm a static ground click, including fog. Unit spells require
-current authorized observation. Purge/Remedy press-again selects self. Bag Items
-has current-life aid consent ON/OFF; external Remedy requires it. Null Bell
-remains8g at Official Supply with three usable quick references. Source JSON is
-now `Content/Lockdown/Data/V07/combat.json`; the old B71 file is historical.
-`SyncV07CombatData.py` updates current subset plus native checksum contract.
-Generate mode refreshes a stale tactical asset only; avoid baseline Regenerate.
+Books teach R1 through a quiet3s read, including while naturally ineligible.
+Station training/attributes/five skill slots commit after2s and use natural spell
+gates. Body/weapon/feet/charm bindings and three actual quick references require
+6 quiet seconds then a held2s button. Books are not combat references. Equipment
+stays in the same24-slot bag; two-hand reservation counts once. Bag previews show
+clipping/capacity and equipped state. V07 defaults Q/W/E/R/D and1/2/3, with separate
+migrated preference file; preserve legacy preferences. Source data/native assets
+must stay synchronized (`combat.json`, `equipment.json`, two native catalogs).
+Generate refreshes the tactical asset only if stale and creates/refreshes the
+new equipment asset; avoid baseline Regenerate.
 
-## Immediate B73 work
+V07 ordinary bound gear retains on death; spare gear/books/cargo/consumables drop.
+Respawn endpoint uses the selected level/time formula once; protection3s, full
+HP/MP, no supply grants and no cooldown reset. The current disconnect policy
+retires identities and drops retained gear to avoid orphan holders; it does not
+certify rejoin persistence. Future mandatory objective/relic drops remain tied
+to their future implemented definitions. Eight-field observations/34 public fields
+stay fixed; gear/build/inventory details remain owner-only.
 
-1. Read progression/equipment/input/death and data contracts against actual B72
-   code. Keep legacy/V05 adapters explicit.
-2. Complete natural/effective attributes, declared potency, six gear bindings,
-   two-hand conflicts, instance/weight/count semantics and stat clipping. Break
-   must query only explicitly tagged breakable passives. Natural gate OR/AND
-   checks already exist for delivered learning/casts; extend equipment/station
-   previews and full progression without using gear to satisfy natural gates.
-3. Migrate saved controls to Q/W/E/R/D and1/2/3, resolve conflicts and remove old
-   quick4 entry points. Current fifth slot has mouse activation; backing quick
-   array still has four legacy cells. Preserve compatible existing preferences.
-4. Finish death/retention/preparation and owner item/family endpoint persistence,
-   source cleanup and native UI evidence. Major-protection owner endpoint and
-   current-life consent are present. No new source may be advertised inert.
-5. B74 acquisition, B75 remaining14 ability/39 item definitions, B76 world/four
-   routes/exact late-event ordering and B77 integrated/human evidence remain.
+## Immediate B74 work
 
-## Evidence and constraints
+1. Read item/acquisition/recipe/quality/data contracts against B73 runtime.
+   Add paid sources for the eleven supported gear pieces and correct circleII/III
+   spell books at trainers/archive; enforce per-definition CircleIII stock2.
+   Use actual legal purchase sources and ledger burn/create transactions.
+2. Implement assembly/work orders/branches/quality on exact physical instances
+   and parent lineage. Equipped/reserved inputs must explicitly unbind first.
+   Physical `BindingMask` and `ReadyAt` now exist; preserve identity/endpoints on
+   upgrades/transfers and recalculate final count/weight/capacity before commit.
+   Do not increase primary bonuses through craftsmanship or grant craft XP.
+3. Capacity is natural STR plus bound bonuses; gear cannot qualify spell gates.
+   Keep selected quality, fee discount and new passive/active functionality honest.
+   Remaining28 item definitions and14 new spell effects belong to B75; do not
+   import them as usable until their effects and sources exist.
+4. Add normal purchase/branch/read/rank evidence. Existing B73 network evidence
+   uses diagnostic grants, XP/funding/quiet/placement/clock and is not that journey.
+5. B76 adds new world/four routes and exact scheduled ordering. Preserve the
+   working public Charter, v07 damage/proximity claim semantics and legacy V05
+   regression while extending common access/terminal ordering. B77 retains full
+   rendered/physical/OS-scale/privacy/network/normal session/human acceptance.
 
-`docs/v07/evidence/B72/Summary.json` pins final gates and source manifest.
-The new authority/two-client fixture uses real RPCs with diagnostic learned ranks,
-status/access/placement and a controlled collision wall. It is not a normal
-journey. V07 claims now survive ordinary damage/proximity; actual displacement,
-explicit interrupt and hard control cancel. Retained Charter access stays in
-place until B76. Do not claim four-route or exact stalled-tick/tie guarantees.
+## Evidence and boundaries
 
-Eight-field observations append a field presentation kind with no owner/source
-identity; ward-source count has an explicit bounded extension to8. Public
-GameState remains34 fields. MP/status/consent/protection endpoints are owner-only.
-Smoke and detection use shared wall/elevation/union geometry. Failed field
-allocation/owner limit spends nothing. Future targeting must recheck current
-observation, not just a cached handle.
+`docs/v07/evidence/B73/Summary.json` records final artifacts, source hashes,
+transport measurements, ledger replays and93 unchanged specs. FeatureLedger is a
+working scoped ledger; only the original source audit is Complete. B73 is the
+B71–B73 tactical review build, not full v0.7. B70 frozen source-check output is
+historical; do not rewrite it to match migrated runtime.
 
-[Working ledger](v07/FeatureLedger.csv) remains scoped partial. Inherited
-V06-D01–D08 stay open: broad100/150 network/privacy, cold package, normal1/4-player
-sessions, restarts/performance, human review, exhaustive races, physical/OS input
-and complete class Witness journeys. B70's frozen baseline source checker is
-historical; do not rewrite its report to match migrated source.
+Keep inherited V06-D01–D08 gaps visible: full100/150 network/privacy, cold package,
+normal1/4-player sessions, restarts/performance, human review, exhaustive races,
+physical/OS input and normal class Witness journeys. Reuse current native helpers,
+transaction authority and sanitized observations; do not build a replacement demo.

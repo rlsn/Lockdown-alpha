@@ -17,13 +17,16 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
     GENERATED_BODY()
 public:
     UPROPERTY() int32 Schema=1;
+    UPROPERTY() uint8 Profile=6;
     UPROPERTY() TMap<FName,FKey> Bindings;
     UPROPERTY() bool bEdgePan=true;
     UPROPERTY() bool bStartFollowing=true;
     UPROPERTY() float TextScale=1;
     UPROPERTY() float Zoom=1400;
-    static const TArray<FLDControlBinding>& Defaults();
-    static ULDControlSettings* Load(const FString& Slot=TEXT("LockdownLocalControlsV1"));
+    static const TArray<FLDControlBinding>& Defaults(bool Tactical=false);
+    const TArray<FLDControlBinding>& Definitions() const {return Defaults(Profile==7);}
+    bool MigrateTactical();
+    static ULDControlSettings* Load(const FString& Slot=TEXT("LockdownLocalControlsV1"),uint8 RequestedProfile=6);
     FKey Key(FName Action) const;
     FString Label(FName Action) const;
     bool Rebind(FName Action,FKey NewKey,FString& Error);

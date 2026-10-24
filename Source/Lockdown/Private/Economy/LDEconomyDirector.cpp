@@ -68,7 +68,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif
@@ -87,7 +87,7 @@ bool ALDEconomyDirector::Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) con
             else if(auto* PC=Cast<ALDPlayerController>(I->Holder.Get()))
             {
                 Location=Wallet(M->ContenderId(PC));const auto* O=M->StateFor(PC);const auto* Entry=O?O->Inventory.Find(I->Identity):nullptr;
-                if(!Entry||Entry->Kind!=I->Kind||Entry->Skill!=I->Skill||Entry->Slot!=I->Slot||Entry->Revision!=I->Revision||Entry->bReserved!=I->bReserved){Error=TEXT("Physical item differs from owner bag");return false;}
+                if(!Entry||Entry->Kind!=I->Kind||Entry->Skill!=I->Skill||Entry->Slot!=I->Slot||Entry->Revision!=I->Revision||Entry->bReserved!=I->bReserved||Entry->BindingMask!=I->BindingMask||Entry->ReadyAt!=I->ReadyAt){Error=TEXT("Physical item differs from owner bag");return false;}
             }
             else{Error=TEXT("Carried item has no persistent holder");return false;}
         }

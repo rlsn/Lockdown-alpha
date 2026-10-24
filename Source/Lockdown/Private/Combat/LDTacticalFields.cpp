@@ -17,6 +17,8 @@ bool ALDTacticalField::Active(int64 At) const
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Source.Get()):nullptr;
     return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&S&&S->Identity==SourceLife&&S->Hp>0&&(!bPlayerSource||(PlayerSource.IsValid()&&PlayerSource->GetPawn()==Source.Get()&&M->StateFor(PlayerSource.Get())&&M->StateFor(PlayerSource.Get())->bActive))&&ExpiresAt>At&&Hp>0;
 }
+bool ALDCombatDirector::QuietForPreparation(ALDCharacter* Body) const
+{const auto* S=StateFor(Body);if(!S||GetWorld()->GetTimeSeconds()-FMath::Max(S->LastDamage,S->LastDealt)<6){return false;}for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){if(It->Source.Get()==Body&&!It->IsActorBeingDestroyed()){return false;}}return true;}
 bool ALDCombatDirector::Concealed(const ALDCharacter* Body) const
 {const auto* S=StateFor(Body);return S&&S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
 void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;}}

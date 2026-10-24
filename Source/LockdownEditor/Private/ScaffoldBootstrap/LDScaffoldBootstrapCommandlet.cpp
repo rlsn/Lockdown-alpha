@@ -3,6 +3,7 @@
 #include "Core/LDPrototypeTuning.h"
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -253,6 +254,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     auto* ExpectedCombat=NewObject<ULDTacticalCatalog>();if(!ExpectedCombat->Import(CombatJson,CombatError)){UE_LOG(LogTemp,Error,TEXT("%s"),*CombatError);return 3;}
     const FString CombatPath=FString(GeneratedRoot)+TEXT("V07/DA_CombatCatalog");
     if(bRegenerate||(!bValidate&&(!Exists(CombatPath)||!ULDTacticalCatalog::Load()||ULDTacticalCatalog::Load()->Checksum!=ExpectedCombat->Checksum))){auto* Combat=NewObject<ULDTacticalCatalog>(EditablePackage(CombatPath),TEXT("DA_CombatCatalog"),RF_Public|RF_Standalone);if(!Combat->Import(CombatJson,CombatError)||!SaveAsset(Combat,CombatPath,ExpectedCombat->Checksum)){return 3;}}
+    FString GearJson,GearError;if(!FFileHelper::LoadFileToString(GearJson,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/equipment.json")))){return 3;}
+    auto* ExpectedGear=NewObject<ULDEquipmentCatalog>();if(!ExpectedGear->Import(GearJson,GearError)){UE_LOG(LogTemp,Error,TEXT("%s"),*GearError);return 3;}
+    const FString GearPath=TEXT("/Game/Lockdown/Generated/V07/DA_EquipmentCatalog");auto* ExistingGear=ULDEquipmentCatalog::Load();
+    if(bRegenerate||(!bValidate&&(!ExistingGear||!ExistingGear->Validate(GearError)||ExistingGear->Checksum!=ExpectedGear->Checksum)))
+    {auto* Gear=NewObject<ULDEquipmentCatalog>(EditablePackage(GearPath),TEXT("DA_EquipmentCatalog"),RF_Public|RF_Standalone);if(!Gear->Import(GearJson,GearError)||!SaveAsset(Gear,GearPath,ExpectedGear->Checksum)){return 3;}}
+    auto* Gear=ULDEquipmentCatalog::Load();if(!Gear||!Gear->Validate(GearError)||Gear->Checksum!=ExpectedGear->Checksum||!HasSignature(Gear,ExpectedGear->Checksum)){UE_LOG(LogTemp,Error,TEXT("Equipment catalog: %s"),*GearError);return 3;}
     const auto* Combat=ULDTacticalCatalog::Load();if(!Combat||!Combat->Validate(CombatError)||Combat->Checksum!=ExpectedCombat->Checksum||!HasSignature(const_cast<ULDTacticalCatalog*>(Combat),ExpectedCombat->Checksum)){UE_LOG(LogTemp,Error,TEXT("Missing/stale B71 catalog %s"),*CombatError);return 3;}
     UE_LOG(LogTemp,Display,TEXT("LD_B71_CATALOG schema=7 sha256=%s"),*Combat->Checksum);
     UInputMappingContext* Context = nullptr;

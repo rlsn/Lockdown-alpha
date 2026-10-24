@@ -1,5 +1,6 @@
 #include "Framework/LDGameMode.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Combat/LDTacticalRules.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -54,6 +55,7 @@
 #include "Tests/LDCharterProbe.h"
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
+#include "Tests/LDLoadoutProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
@@ -110,6 +112,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
     if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
     bTacticalProfile=Profile==TEXT("v07_integration");
+    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load();FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/equipment.json")))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
     if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load();if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/combat.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
     bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
@@ -182,6 +185,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
@@ -253,7 +257,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
-        if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
+        if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC,true);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if(Economy){Economy->Retire(PC);}
@@ -277,12 +281,12 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
-    if(bTacticalProfile){Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
+    if(bTacticalProfile){if(Development){Development->Cancel(PC,TEXT("Death cancelled preparation"));}Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
     if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
-        ? LDRules::FDeathCost{LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt),LDDevelopment::DeathLoss(State->Gold)}
+        ? LDRules::FDeathCost{(bTacticalProfile?LDDevelopment::TacticalDeathDelay(State->Build.Level,Now-MatchStartedAt):LDDevelopment::DeathDelay(State->Build.Level,Now-MatchStartedAt)),LDDevelopment::DeathLoss(State->Gold)}
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;RecordEconomyGold(TEXT("DeathTax"),0,Cost.LostGold);
     if(Economy&&State->CharterPurchase.IsValid()&&!State->CharterActivation.IsValid()){State->bCharterAwaitingRespawn=true;State->CharterReadyAt=0;}
@@ -325,7 +329,7 @@ void ALDGameMode::ReturnDueContenders(double Now)
     {
         FLDOwnerState& State=Pair.Value.State; ALDPlayerController* PC=Pair.Key.Get();
         if(!PC || State.bActive || State.ReturnAt<=0 || Now<State.ReturnAt){continue;}
-        ++State.Life; State.bActive=true; State.Hp=bDevelopmentProfile?LDDevelopment::MaxHP(State.Build):100; State.ReturnAt=0; State.ProtectedUntil=float(Now+4);
+        ++State.Life; State.bActive=true; State.Hp=bDevelopmentProfile?LDDevelopment::MaxHP(State.Build):100; State.ReturnAt=0;if(bTacticalProfile){State.StatusMask=0;State.Barrier=0;State.StatusFeedback.Reset();State.bAidConsent=false;} State.ProtectedUntil=float(Now+(bTacticalProfile?3:4));
         State.WarningUntil=0; State.DamageUntil=0; State.ExposedUntil=0; State.ActionCue=0;
         State.ActiveSkill=ELDSkill::None;State.SkillEndsAt=0;
         RestartPlayerAtTransform(PC,FTransform(FRotator::ZeroRotator,ReturnSpawn(PC)));
@@ -390,8 +394,8 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
         if (auto* Player=Pair.Key.Get())
         {
             if(Inventory){Inventory->Initialize(Player);}
-            RefreshBuild(Player,true); Pair.Value.State.ProtectedUntil=float(MatchStartedAt+4);
-            if (auto* Body=Cast<ALDCharacter>(Player->GetPawn())) { if (auto* S=Combat->StateFor(Body)) { S->ProtectionUntil=MatchStartedAt+4; } }
+            RefreshBuild(Player,true); Pair.Value.State.ProtectedUntil=float(MatchStartedAt+(bTacticalProfile?3:4));
+            if (auto* Body=Cast<ALDCharacter>(Player->GetPawn())) { if (auto* S=Combat->StateFor(Body)) { S->ProtectionUntil=MatchStartedAt+(bTacticalProfile?3:4); } }
             SyncOwner(Player);
         }
     }
@@ -404,6 +408,8 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
 void ALDGameMode::RefreshBuild(ALDPlayerController* PC,bool RestoreFullHP)
 {
     auto* State=StateFor(PC); if (!State || !bDevelopmentProfile) { return; }
+    if(bTacticalProfile&&!RestoreFullHP){if(const auto* Body=Cast<ALDCharacter>(PC->GetPawn())){if(const auto* S=Combat?Combat->StateFor(Body):nullptr){State->Hp=S->Hp;State->Mp=S->Tactical.MP;}}}
+    if(bTacticalProfile){State->Build.Gear=LDGear::Derive(State->Inventory);}
     State->MaxHp=LDDevelopment::MaxHP(State->Build);
     if(bTacticalProfile){State->MaxMp=LDTactical::MaxMP(State->Build);State->Mp=RestoreFullHP?State->MaxMp:FMath::Min(State->Mp,State->MaxMp);}
     State->Hp=RestoreFullHP?State->MaxHp:FMath::Min(State->Hp,State->MaxHp);
@@ -418,7 +424,7 @@ void ALDGameMode::RefreshBuild(ALDPlayerController* PC,bool RestoreFullHP)
 void ALDGameMode::AwardExperience(ALDPlayerController* PC,int64 Amount)
 {
     auto* State=StateFor(PC); if (!State || Amount<=0) { return; }
-    if (bDevelopmentProfile) { LDDevelopment::AwardXP(State->Build,State->Xp,Amount); }
+    if (bDevelopmentProfile) { LDDevelopment::AwardXP(State->Build,State->Xp,Amount);if(bTacticalProfile){RefreshBuild(PC);return;} }
     else { State->Xp+=Amount; }
     SyncOwner(PC);
 }

@@ -5,7 +5,7 @@
 #include "LDInventoryTypes.generated.h"
 
 // Append only: existing item and offered-item wire values remain stable.
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell };
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -16,17 +16,21 @@ struct FLDInventoryItem
     UPROPERTY() uint8 Slot=0;
     UPROPERTY() uint32 Revision=1;
     UPROPERTY() bool bReserved=false;
+    UPROPERTY() uint8 BindingMask=0;
+    UPROPERTY() int64 ReadyAt=0;
 };
 USTRUCT()
 struct FLDInventory
 {
     GENERATED_BODY()
     UPROPERTY() uint32 Revision=1;
+    UPROPERTY() uint8 RulesVersion=6;
+    UPROPERTY() TArray<FGuid> Bindings;
     UPROPERTY() uint8 Capacity=24;
     UPROPERTY() bool bInitialized=false;
     UPROPERTY() TArray<FLDInventoryItem> Items;
     UPROPERTY() TArray<FGuid> Quick;
-    FLDInventory(){Quick.SetNum(4);}
+    FLDInventory(){Quick.SetNum(4);Bindings.SetNum(6);}
     const FLDInventoryItem* Find(FGuid Id) const{return Items.FindByPredicate([&](const auto& I){return I.Id==Id;});}
 };
 // One server-only physical record for all supported carried and dropped items.
@@ -44,6 +48,8 @@ public:
     uint8 State=0,Slot=0; // dropped, carried, consumed
     uint32 Revision=1;
     bool bReserved=false;
+    uint8 BindingMask=0;
+    int64 ReadyAt=0;
     // Server-only causal metadata. Never serialize parents or origin to a peer.
     FName Institution; // persistent institution address; server-only
     FGuid OriginReceipt;
@@ -51,9 +57,9 @@ public:
 };
 namespace LDInventory
 {
-    enum ECommand:uint8 { Move=1,Sort,Bind,Unbind,Read,Place,Drop,Pickup,Buy,Use };
+    enum ECommand:uint8 { Move=1,Sort,Bind,Unbind,Read,Place,Drop,Pickup,Buy,Use,Equip,Unequip };
     LOCKDOWN_API FString Name(ELDItemKind Kind,ELDSkill Skill);
-    LOCKDOWN_API bool QuickUsable(ELDItemKind Kind);
+    LOCKDOWN_API bool QuickUsable(ELDItemKind Kind,uint8 Rules=6);
     LOCKDOWN_API bool Commodity(ELDItemKind Kind);
     LOCKDOWN_API int32 UnitWeight(ELDItemKind Kind); // -1 rejects unknown definitions
     LOCKDOWN_API int32 Weight(const FLDInventory& Inventory);

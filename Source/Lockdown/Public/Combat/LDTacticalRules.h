@@ -30,6 +30,6 @@ namespace LDTactical
     LOCKDOWN_API bool PassiveActive(const FState& S,bool Breakable,int64 At);
     LOCKDOWN_API float BodySight(const FState& S,int64 At);
     LOCKDOWN_API bool Block(FState& S,int64 At);
-    LOCKDOWN_API void Regenerate(double& HP,FState& S,double MaxHP,double MaxMP,int64 At);
+    LOCKDOWN_API void Regenerate(double& HP,FState& S,double MaxHP,double MaxMP,int64 At,int32 MPRegen=200);
     LOCKDOWN_API FString StatusText(const FState& S,int64 At);
 }

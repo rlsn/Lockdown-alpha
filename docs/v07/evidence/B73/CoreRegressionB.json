@@ -1,0 +1,21 @@
+{
+	"failures": 0,
+	"scope": "Controlled native B71 fixture; legal RPCs, diagnostic build/items/placement; not a normal earned route",
+	"checks": [
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Independent victim receives projectile damage",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Independent client transport echo measured",
+		"PASS Echo median 132.7ms"
+	]
+}

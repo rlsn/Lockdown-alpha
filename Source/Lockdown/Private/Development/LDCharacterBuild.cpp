@@ -1,5 +1,6 @@
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/SecureHash.h"
@@ -90,12 +91,12 @@ namespace LDDevelopment
             || B.Level<1 || B.Level>(B.RulesVersion==7?15:5) || (B.RulesVersion!=6&&B.RulesVersion!=7) || (B.RulesVersion==7&&B.CatalogDigest.Len()!=64) || B.AttributePoints<0 || B.SkillPoints<0 || B.Subclass>6 || !B.Revision || B.Ranks[0]) { return false; }
         for (int32 V : B.Attributes) { if (V<8 || V>16) { return false; } }
         for (int32 I=0; I<Count(B); ++I) { if (B.Ranks[I]>3 || !FMath::IsFinite(B.Cooldowns[I]) || B.Cooldowns[I]<0) { return false; } }
-        TSet<ELDSkill> Seen;
+        TSet<ELDSkill> Seen;int32 Capstones=0;
         for (ELDSkill Skill : B.Slots)
         {
             if (Skill==ELDSkill::None) { continue; }
-            if (uint8(Skill)>=Count(B) || !Implemented(Skill) || !B.Ranks[uint8(Skill)] || Seen.Contains(Skill)) { return false; }
-            Seen.Add(Skill);
+            if (uint8(Skill)>=Count(B) || !Implemented(Skill) || !B.Ranks[uint8(Skill)] || (B.RulesVersion==7&&!LDGear::NaturalGate(B,Skill)) || Seen.Contains(Skill)) { return false; }
+            Seen.Add(Skill);if(B.RulesVersion==7){const auto* C=ULDEquipmentCatalog::Load();const auto* G=C?C->Gate(Skill):nullptr;if(G&&G->Circle==4&&++Capstones>1){return false;}}
         }
         return !B.Subclass || (B.Level>=4 && (B.Subclass-1)/2 == B.ClassId);
     }
@@ -107,13 +108,15 @@ namespace LDDevelopment
     }
     int32 Rank(const FLDCharacterBuild& B, ELDSkill S) { return B.Ranks.IsValidIndex(uint8(S)) ? B.Ranks[uint8(S)] : 0; }
     bool Equipped(const FLDCharacterBuild& B, ELDSkill S) { return S!=ELDSkill::None && Rank(B,S)>0 && B.Slots.Contains(S); }
-    double MaxHP(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return 600.+25*(B.Attributes[CON]-8)+18*(B.Level-1);} return FMath::Clamp(100. + 5*(B.Attributes[CON]-10),75.,150.); }
-    double BasicDamage(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return 42.+2*FMath::Max(0,B.Attributes[STR]-8);} return FMath::Clamp(20. + .75*(B.Attributes[STR]-10),14.,28.); }
+    TArray<int32> Effective(const FLDCharacterBuild& B){TArray<int32> A=B.Attributes;if(B.RulesVersion==7&&A.Num()==6&&B.Gear.Primary.Num()==6){for(int32 I=0;I<6;++I){A[I]+=B.Gear.Primary[I];}}return A;}
+    double TacticalDeathDelay(int32 Level,double Elapsed){return FMath::Min(90.,8.+2*FMath::Clamp(Level,1,15)+FMath::FloorToDouble(FMath::Max(0.,Elapsed)/120));}
+    double MaxHP(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return 600.+25*(Effective(B)[CON]-8)+18*(B.Level-1);} return FMath::Clamp(100. + 5*(B.Attributes[CON]-10),75.,150.); }
+    double BasicDamage(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return B.Gear.WeaponBase+2*FMath::Max(0,Effective(B)[STR]-8);} return FMath::Clamp(20. + .75*(B.Attributes[STR]-10),14.,28.); }
     double SpeedFactor(const FLDCharacterBuild& B) { return FMath::Clamp(1. + .01*(B.Attributes[DEX]-10),.90,1.10); }
     double SkillValue(const FLDCharacterBuild& B, ELDSkill S)
     {
         const int32 R = Rank(B,S); if (!R) { return 0; }
-        const auto& A=B.Attributes;
+        const auto A=Effective(B);
         switch(S)
         {
         case ELDSkill::Step: return FMath::Clamp(360. + 10*(A[DEX]-10) + 20*(R-1),300.,420.);
@@ -172,7 +175,7 @@ namespace LDDevelopment
         {
             const int32 Old=B.Ranks[I], Next=P.Ranks[I];
             if (Next<Old || Next>3 || (Next&&!Implemented(ELDSkill(I))) || (B.RulesVersion==7&&Next>Old&&((Next>=2&&B.Level<3)||(Next>=3&&B.Level<6)))) { return Reject(TEXT("Invalid skill rank.")); }
-            if (!Old && Next && (B.Level<2 || !CanTrain(B.ClassId,ELDSkill(I)))) { return Reject(TEXT("Class learning is unavailable.")); }
+            if (!Old && Next && (B.RulesVersion==7 || B.Level<2 || !CanTrain(B.ClassId,ELDSkill(I)))) { return Reject(TEXT("Class learning is unavailable.")); }
             if (!Old && Next) { ++SkillCost; }
             for (int32 R=FMath::Max(1,Old); R<Next; ++R) { SkillCost+=R==1?1:2; }
         }
@@ -328,7 +331,7 @@ bool ULDCharacterCatalog::Validate(FString& Error) const
         const auto& C=Classes[I];
         if (C.Id!=LDDevelopment::ClassName(I) || C.Attributes!=Expected.Attributes || C.StartingSkills.Num()!=2
             || C.StartingSkills[0]!=Expected.Slots[0] || C.StartingSkills[1]!=Expected.Slots[1]) { Error=TEXT("Class preset differs from schema-one rules."); return false; }
-        TSet<ELDSkill> Seen;
+        TSet<ELDSkill> Seen;int32 Capstones=0;
         for (ELDSkill S:C.ClassLearning) { if (Seen.Contains(S) || !LDDevelopment::CanTrain(I,S)) { Error=TEXT("Invalid class learning reference."); return false; } Seen.Add(S); }
         for (uint8 S=1; S<LDDevelopment::SkillCount; ++S) { if (LDDevelopment::CanTrain(I,ELDSkill(S))!=Seen.Contains(ELDSkill(S))) { Error=TEXT("Missing class learning reference."); return false; } }
     }

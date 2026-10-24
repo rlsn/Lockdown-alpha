@@ -1,5 +1,6 @@
 #include "UI/LDHUDModel.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Development/LDWorldChecks.h"
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDInstitutionSite.h"
@@ -27,6 +28,7 @@ FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,dou
         return FString(Label)+TEXT("\n")+Detail;
     }
     const auto& B=Own.Build;
+    if(B.RulesVersion==7){const auto A=LDDevelopment::Effective(B);return FString::Printf(TEXT("YOUR CHARACTER · %s\nNatural STR %d DEX %d CON %d INT %d WIS %d CHA %d\nEffective STR %d DEX %d CON %d INT %d WIS %d CHA %d\nHP %.0f/%.0f · MP %.0f/%.0f\nBase move %.0f · Armor %.1f · Basic %.2f"),LDDevelopment::ClassName(B.ClassId),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],A[0],A[1],A[2],A[3],A[4],A[5],Own.Hp,Own.MaxHp,Own.Mp,Own.MaxMp,420.*(1+B.Gear.Movement/100.),2+.5*(A[2]-8)+B.Gear.Armor,LDDevelopment::BasicDamage(B));}
     return FString::Printf(TEXT("YOUR CHARACTER · %s\nSTR %d  DEX %d  CON %d\nINT %d  WIS %d  CHA %d\nWalk %.0f · Sprint %.0f · Basic %.2f\n%s"),LDDevelopment::ClassName(B.ClassId),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],180*LDDevelopment::SpeedFactor(B),300*LDDevelopment::SpeedFactor(B),LDDevelopment::BasicDamage(B),B.Subclass?LDDevelopment::SubclassName(B.Subclass):TEXT("No subclass"));
 }
 double LDHUD::Range(ELDSkill Skill)
@@ -37,7 +39,11 @@ FString LDHUD::Tooltip(const FLDCharacterBuild& B,ELDSkill Skill)
     if(uint8(Skill)>=10)
     {
         const auto* Catalog=ULDTacticalCatalog::Load();const auto* D=Catalog?Catalog->Find(Skill):nullptr;
-        return D?FString::Printf(TEXT("%s · Rank %d · %d MP\nWindup %dms · Range %dcm · Base cooldown %.1fs\nMP/CD commit at release; blocked or missed packets do not refund.\nStop, focus loss, movement or relevant control cancels before release with 400ms recovery."),LDDevelopment::SkillName(Skill),LDDevelopment::Rank(B,Skill),D->Mana,D->Windup,D->Range,D->Cooldown/1000.):TEXT("Not implemented in the current catalog");
+        if(!D){return TEXT("Not implemented in the current catalog");}
+        const int32 Trained=FMath::Clamp(LDDevelopment::Rank(B,Skill),1,3)-1;const int32 Value=LDGear::Magnitude(B,Skill,D->RankKey,D->Magnitudes);
+        const double Cooldown=(D->RankKey==TEXT("cooldown_ms")?D->Magnitudes[Trained]:D->Cooldown)/1000.;
+        const TCHAR* Field=D->RankKey==TEXT("damage")?TEXT("Damage"):D->RankKey==TEXT("barrier")?TEXT("Barrier"):D->RankKey==TEXT("radius_cm")?TEXT("Radius cm"):D->RankKey==TEXT("anchor_hp")?TEXT("Anchor HP"):D->RankKey==TEXT("stun_ms")?TEXT("Stun ms"):D->RankKey==TEXT("duration_ms")?TEXT("Duration ms"):TEXT("Cooldown ms");
+        return FString::Printf(TEXT("%s · Trained rank %d · %d MP\nWindup %dms · Range %dcm · Cooldown %.1fs\n%s: %d before eligible magnitude modifiers\nEquipment potency affects declared fields only.\nMP/CD commit at release; Stop or relevant control cancels before release."),LDDevelopment::SkillName(Skill),Trained+1,D->Mana,D->Windup,D->Range+(D->Range?B.Gear.CastRange:0),Cooldown,Field,Value);
     }
     const double Windup=Skill==ELDSkill::Spark?.4:Skill==ELDSkill::Ambush?.5:Skill==ELDSkill::Step?.2:LDDevelopment::ChannelSeconds(Skill);
     const TCHAR* Outcome=Skill==ELDSkill::Step?TEXT("Move in a confirmed direction; collision limits distance"):Skill==ELDSkill::Patch?TEXT("Hold to heal yourself; release cancels"):uint8(Skill)>=5?TEXT("Confirm an eligible observed task and hold; release cancels"):TEXT("Confirm one observed body; range and sight rechecked at impact");

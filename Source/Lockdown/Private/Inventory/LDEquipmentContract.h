@@ -1,0 +1,2 @@
+#pragma once
+#define LD_EQUIPMENT_SHA TEXT("aa44ec5524685cee55bcde016f06fd22ae584c61a5ccb739fabbd0f9eb256360")

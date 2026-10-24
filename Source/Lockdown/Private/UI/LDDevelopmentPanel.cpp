@@ -1,4 +1,6 @@
 #include "UI/LDDevelopmentPanel.h"
+#include "Inventory/LDEquipmentCatalog.h"
+#include "Combat/LDTacticalRules.h"
 #include "UI/LDControlSettings.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -114,7 +116,7 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     if(Operation==3&&Index<Draft.Slots.Num()){SelectedSlot=Index;}
     if(Operation==4){Draft.Slots[SelectedSlot]=ELDSkill::None;}
     if(Operation==5){ResetDraft();}
-    if(Operation==6&&Index>0&&Index<LDDevelopment::SkillCount){Draft.Slots[SelectedSlot]=ELDSkill(Index);}
+    if(Operation==6&&Index>0&&Index<LDDevelopment::Count(O.Build)){Draft.Slots[SelectedSlot]=ELDSkill(Index);}
     if(Operation==7){Draft.Subclass=Index==2?O.Build.Subclass:O.Build.ClassId*2+1+Index;}
 }
 void ULDDevelopmentPanel::StartConfirm()
@@ -134,22 +136,23 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     FLDCharacterBuild Ghost=O.Build;Ghost.Attributes=Draft.Attributes;Ghost.Ranks=Draft.Ranks;Ghost.Slots=Draft.Slots;Ghost.Subclass=Draft.Subclass;
     Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::ClassName(O.Build.ClassId),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
-    for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s %d → %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I])));}
+    for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])));}
     for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
     for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
     {
         if(!Draft.Ranks.IsValidIndex(I)){SkillLabels[I-1]->SetText(FText::FromString(TEXT("v07 only")));RankButtons[I-1]->SetIsEnabled(false);EquipButtons[I-1]->SetIsEnabled(false);continue;}
-        const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
+        const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.RulesVersion!=7&&O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
         auto ValueBuild=Ghost;if(!ValueBuild.Ranks[I]){ValueBuild.Ranks[I]=1;}
         const TCHAR* Kind=I<=3?TEXT("combat"):TEXT("utility");
         const FString OwnValue=Skill==ELDSkill::Pickpocket?FString::Printf(TEXT("Own roll 1–20 %+d"),FMath::FloorToInt((ValueBuild.Attributes[1]-10)/2.)+ValueBuild.Ranks[I]+(ValueBuild.Subclass==3?1:0)):FString::Printf(TEXT("Own preview %.2f"),LDDevelopment::SkillValue(ValueBuild,Skill));
-        SkillLabels[I-1]->SetText(FText::FromString(FString::Printf(TEXT("%s · %s R%d → %d · %s\n%s · CD %.0fs%s"),LDDevelopment::SkillName(Skill),Rank?TEXT("Learned"):TEXT("Unknown"),Rank,Draft.Ranks[I],Kind,*OwnValue,LDDevelopment::Cooldown(Skill),Rank?TEXT(""):LDDevelopment::CanTrain(O.Build.ClassId,Skill)?TEXT(" · class Lv2 / 1 SP"):TEXT(" · book only"))));
-        RankButtons[I-1]->SetIsEnabled(Trainable&&Draft.Ranks[I]<3);EquipButtons[I-1]->SetIsEnabled(Draft.Ranks[I]>0);
+        SkillLabels[I-1]->SetText(FText::FromString(FString::Printf(TEXT("%s · %s R%d → %d · %s\n%s · CD %.0fs%s"),LDDevelopment::SkillName(Skill),Rank?TEXT("Learned"):TEXT("Unknown"),Rank,Draft.Ranks[I],Kind,*OwnValue,LDDevelopment::Cooldown(Skill),Rank?TEXT(""):O.Build.RulesVersion==7?TEXT(" · book knowledge required; natural equip gate"):LDDevelopment::CanTrain(O.Build.ClassId,Skill)?TEXT(" · class Lv2 / 1 SP"):TEXT(" · book only"))));
+        RankButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Trainable&&Draft.Ranks[I]<3&&(O.Build.RulesVersion!=7||O.Build.Level>=(Draft.Ranks[I]==1?3:6)));EquipButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Draft.Ranks[I]>0&&(O.Build.RulesVersion!=7||LDGear::NaturalGate(Ghost,Skill)));
         CastChecked<UTextBlock>(RankButtons[I-1]->GetContent())->SetText(FText::FromString(Draft.Ranks[I]?FString::Printf(TEXT("R%d (%d SP)"),FMath::Min(3,int32(Draft.Ranks[I])+1),Draft.Ranks[I]==2?2:1):TEXT("Train (1 SP)")));
     }
     for(uint8 I=0;I<2;++I)
     {const uint8 Choice=O.Build.ClassId*2+1+I;const TCHAR* Effects[]={TEXT(""),TEXT("Heave +2"),TEXT("Patch +3"),TEXT("theft roll +1"),TEXT("Survey +2"),TEXT("Spark +3"),TEXT("Parley +2")};CastChecked<UTextBlock>(SubclassButtons[I]->GetContent())->SetText(FText::FromString(FString::Printf(TEXT("%s%s\n%s"),Draft.Subclass==Choice?TEXT("✓ "):TEXT(""),LDDevelopment::SubclassName(Choice),Effects[Choice])));SubclassButtons[I]->SetIsEnabled(O.Build.Level>=4&&(!O.Build.Subclass||O.Build.Subclass==Choice));}
     PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP %.0f → %.0f (current %.2f; no heal)\nWalk %.1f → %.1f · Sprint %.1f → %.1f · Basic %.2f → %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.Hp,180*LDDevelopment::SpeedFactor(O.Build),180*LDDevelopment::SpeedFactor(Ghost),300*LDDevelopment::SpeedFactor(O.Build),300*LDDevelopment::SpeedFactor(Ghost),LDDevelopment::BasicDamage(O.Build),LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After applying: %d attribute points / %d SP"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));
+    if(O.Build.RulesVersion==7){PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP max %.0f → %.0f · MP max %.0f → %.0f\nCurrent HP %.2f / MP %.2f will only clamp; increases do not refill.\nBase movement %.0f · Armor %.1f · Basic %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.MaxMp,LDTactical::MaxMP(Ghost),O.Hp,O.Mp,420.*(1+Ghost.Gear.Movement/100.),2+.5*(LDDevelopment::Effective(Ghost)[2]-8)+Ghost.Gear.Armor,LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After commit: %d attribute / %d mastery points"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));}
     ApplyButton->SetIsEnabled(Valid&&!bHolding);
     if(PC->Navigation->Enabled())
     {

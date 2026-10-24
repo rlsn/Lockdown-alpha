@@ -10,5 +10,6 @@ public class Lockdown : ModuleRules
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/economy_rules.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/combat.json", StagedFileType.UFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/equipment.json", StagedFileType.UFS);
     }
 }

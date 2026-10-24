@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Development/LDGearTypes.h"
 #include "LDCharacterBuild.generated.h"
 
 UENUM()
@@ -15,6 +16,7 @@ struct LOCKDOWN_API FLDCharacterBuild
     UPROPERTY() uint8 RulesVersion=6;
     UPROPERTY() FString CatalogDigest;
     UPROPERTY() uint8 ClassId = 0;
+    UPROPERTY() FLDGearStats Gear;
     UPROPERTY() TArray<int32> Attributes = {12,9,12,8,10,9}; // STR DEX CON INT WIS CHA
     UPROPERTY() int32 Level = 1;
     UPROPERTY() int32 AttributePoints = 0;
@@ -96,6 +98,8 @@ namespace LDDevelopment
     LOCKDOWN_API bool CanTrain(uint8 ClassId, ELDSkill Skill);
     LOCKDOWN_API int32 Rank(const FLDCharacterBuild& Build, ELDSkill Skill);
     LOCKDOWN_API bool Equipped(const FLDCharacterBuild& Build, ELDSkill Skill);
+    LOCKDOWN_API TArray<int32> Effective(const FLDCharacterBuild& B);
+    LOCKDOWN_API double TacticalDeathDelay(int32 Level,double Elapsed);
     LOCKDOWN_API double MaxHP(const FLDCharacterBuild& Build);
     LOCKDOWN_API double BasicDamage(const FLDCharacterBuild& Build);
     LOCKDOWN_API double SpeedFactor(const FLDCharacterBuild& Build);

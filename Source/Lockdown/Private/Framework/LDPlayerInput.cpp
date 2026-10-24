@@ -39,7 +39,7 @@ namespace
         return PC->IsInputKeyDown(Key);
     }
     int32 Numbered(FName Action,const TCHAR* Prefix)
-    {const FString Text=Action.ToString();const int32 Length=FCString::Strlen(Prefix);return Text.StartsWith(Prefix)&&Text.Len()==Length+1&&Text[Length]>=TEXT('1')&&Text[Length]<=TEXT('4')?Text[Length]-TEXT('1'):-1;}
+    {const FString Text=Action.ToString();const int32 Length=FCString::Strlen(Prefix);return Text.StartsWith(Prefix)&&Text.Len()==Length+1&&Text[Length]>=TEXT('1')&&Text[Length]<=TEXT('5')?Text[Length]-TEXT('1'):-1;}
 }
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
@@ -47,6 +47,7 @@ double ALDPlayerController::ArmedRange() const
 {if(OwnerState.Build.RulesVersion==7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
 FString ALDPlayerController::HeldInputLabel() const
 {
+    if(bLoadoutMouseHeld){return TEXT("equipment/quick button");}
     if(OwnerState.DevelopmentKind){return HeldQuickSlot>=0?(HeldQuickGesture==2?TEXT("mouse button"):BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1)))):BindingLabel(TEXT("Context"));}
     return HeldSkillGesture==1?BindingLabel(TEXT("Select")):HeldSkillGesture==2?TEXT("mouse button"):HeldSkillGesture==3?BindingLabel(TEXT("Context")):BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),HeldSkillSlot+1)));
 }
@@ -71,7 +72,7 @@ void ALDPlayerController::RebuildV05Mappings()
     if(NavigationInputContext){Subsystem->RemoveMappingContext(NavigationInputContext);}
     CancelInterruptibleHolds();CancelArmed();
     NavigationInputContext=NewObject<UInputMappingContext>(this);
-    for(const auto& B:ULDControlSettings::Defaults())
+    for(const auto& B:Controls->Definitions())
     {
         auto* Action=NewObject<UInputAction>(NavigationInputContext);Action->ValueType=B.Axis?EInputActionValueType::Axis1D:EInputActionValueType::Boolean;
         NavigationInputContext->MapKey(Action,Controls->Key(B.Action));
@@ -86,13 +87,14 @@ void ALDPlayerController::RebuildV05Mappings()
 void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
     if(!IsLocalController()||(!Navigation->Enabled()&&!IsFrontend())){return;}
-    if(!Controls){Controls=ULDControlSettings::Load();}
+    if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
+    if(Controls->Profile!=OwnerState.Build.RulesVersion&&!IsFrontend()){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);RebuildV05Mappings();}
     if(Navigation->Enabled()&&!IsFrontend()&&!HUDUI){HUDUI=CreateWidget<ULDHUD>(this);HUDUI->AddToViewport(30);}
     if(!bNavigationContextActive){RebuildV05Mappings();Navigation->bFollowCamera=Controls->bStartFollowing;}
     if(bFreshInputRequired)
     {
         bool Down=PhysicalDown(this,EKeys::LeftMouseButton)||PhysicalDown(this,EKeys::RightMouseButton);
-        for(const auto& B:ULDControlSettings::Defaults()){Down|=PhysicalDown(this,Controls->Key(B.Action));}
+        for(const auto& B:Controls->Definitions()){Down|=PhysicalDown(this,Controls->Key(B.Action));}
         if(!Down){bFreshInputRequired=false;}
     }
     if(GetPawn()!=PreferencesPawn.Get())
@@ -109,6 +111,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         if(!PhysicalDown(this,Primary)){V05Released(TEXT("Select"));}
     }
     if(HeldSkillGesture==2&&HeldSkillSlot!=255&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){SkillStopped(HeldSkillSlot);}
+    if(bLoadoutMouseHeld&&!FApp::IsUnattended()&&!PhysicalDown(this,BindingKey(TEXT("Select")))&&!PhysicalDown(this,EKeys::SpaceBar)&&!PhysicalDown(this,EKeys::Enter)){StopDevelopmentHold();}
     if(HeldQuickSlot>=0&&HeldQuickGesture==2&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){StopDevelopmentHold();}
     if(ArmedWard.IsValid()||ReadArmed.IsValid()){const auto* Item=OwnerState.Inventory.Find(ArmedWard.IsValid()?ArmedWard:ReadArmed);if(!Item||Item->bReserved||Item->Revision!=ArmedItemRevision){CancelArmed();IntentFeedback=TEXT("Item changed; choose it again");}}
     if(InventoryUI){InventoryUI->Refresh();}
@@ -122,7 +125,7 @@ void ALDPlayerController::ToggleControlsPanel()
     if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();return;}
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     if(RootUI){RootUI->DismissMenu();}
-    if(!Controls){Controls=ULDControlSettings::Load();}
+    if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
     if(!ControlsUI){ControlsUI=CreateWidget<ULDControlsPanel>(this);ControlsUI->AddToViewport(25);}
     ControlsUI->Open();
 }

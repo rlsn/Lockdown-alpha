@@ -4,7 +4,7 @@ namespace LDTactical
     int64 Milliseconds(double Seconds){return FMath::FloorToInt64(Seconds*1000.+.000001);}
     bool FState::Has(EStatus K,int64 At) const{return Statuses.ContainsByPredicate([&](const FStatus& S){return S.Kind==K&&S.Until>At;});}
     uint16 FState::Mask(int64 At) const{uint16 Result=0;for(const auto& S:Statuses){if(S.Until>At){Result|=1<<uint8(S.Kind);}}return Result;}
-    double MaxMP(const FLDCharacterBuild& B){return 180.+12*(B.Attributes[3]-8)+6*(B.Attributes[4]-8)+5*(B.Level-1);}
+    double MaxMP(const FLDCharacterBuild& B){return 180.+12*(LDDevelopment::Effective(B)[3]-8)+6*(LDDevelopment::Effective(B)[4]-8)+5*(B.Level-1);}
     bool Allows(const FState& S,EAction A,int64 At,FString* Why)
     {
         const TCHAR* Reason=nullptr;
@@ -44,12 +44,12 @@ namespace LDTactical
         const double Absorbed=FMath::Min(D,S.Barrier);S.Barrier-=Absorbed;D-=Absorbed;
         const double Lost=FMath::Min(HP,D);HP=FMath::Max(0.,HP-D);return FMath::Min(Contact,Absorbed+Lost);
     }
-    void Regenerate(double& HP,FState& S,double MaxHP,double MPMax,int64 At)
+    void Regenerate(double& HP,FState& S,double MaxHP,double MPMax,int64 At,int32 MPRegen)
     {
         if(S.LastRegen<0){S.LastRegen=At;return;}if(At<=S.LastRegen){return;}
         const int64 Elapsed=At-S.LastRegen;S.LastRegen=At;
-        const int64 H=Elapsed+S.HPRegenRemainder,P=2*Elapsed+S.MPRegenRemainder;S.HPRegenRemainder=H%10;S.MPRegenRemainder=P%10;
-        if(HP>0){HP=FMath::Min(MaxHP,HP+(H/10)/100.);S.MP=FMath::Min(MPMax,S.MP+(P/10)/100.);}
+        const int64 H=100*Elapsed+S.HPRegenRemainder,P=int64(MPRegen)*Elapsed+S.MPRegenRemainder;S.HPRegenRemainder=H%1000;S.MPRegenRemainder=P%1000;
+        if(HP>0){HP=FMath::Min(MaxHP,HP+(H/1000)/100.);S.MP=FMath::Min(MPMax,S.MP+(P/1000)/100.);}
         S.Statuses.RemoveAll([&](const FStatus& V){return V.Until<=At;});if(S.BarrierUntil<=At){S.Barrier=0;}
     }
     FString StatusText(const FState& S,int64 At)

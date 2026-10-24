@@ -17,7 +17,7 @@ public:
     bool Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause=NAME_None,bool Journal=true);
     void Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause=NAME_None);
     void Changed(ALDPlayerController* PC);
-    void EndLife(ALDPlayerController* PC);
+    void EndLife(ALDPlayerController* PC,bool Retiring=false);
     void QuotePickup(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
     void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector Point);
     void Sample(double Now);

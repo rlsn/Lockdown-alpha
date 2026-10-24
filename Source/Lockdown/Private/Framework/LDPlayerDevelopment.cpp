@@ -5,6 +5,8 @@
 #include "Engine/World.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Inventory/LDInventoryDirector.h"
+#include "Inventory/LDEquipmentCatalog.h"
+#include "Objectives/LDObjectiveDirector.h"
 #include "UI/LDInventoryPanel.h"
 
 void ALDPlayerController::ToggleDevelopmentPanel()
@@ -27,9 +29,21 @@ void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBu
     {const auto* Entry=OwnerState.Inventory.Find(Item);InventoryPendingRequest=DevelopmentHoldToken;ServerInventoryRequest(OwnerState.Match,OwnerState.Life,DevelopmentHoldToken,OwnerState.Inventory.Revision,LDInventory::Read,Item,Entry?Entry->Revision:0,0,FVector::ZeroVector);return;}
     ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,DevelopmentHoldToken,Kind,ELDSkill::None,Item,Plan);
 }
+void ALDPlayerController::StartLoadoutHold(uint8 Command,FGuid Item,uint8 Slot)
+{
+    if(OwnerState.Build.RulesVersion!=7||InventoryPending()){return;}const auto* Entry=OwnerState.Inventory.Find(Item);const auto* C=ULDEquipmentCatalog::Load();if(!Entry||!C){return;}const uint32 ItemRevision=Entry->Revision;
+    ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;bLoadoutMouseHeld=true;InventoryPendingRequest=DevelopmentHoldToken;
+    FLDLoadoutRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=DevelopmentHoldToken;R.InventoryRevision=OwnerState.Inventory.Revision;R.BuildRevision=OwnerState.Build.Revision;R.ItemRevision=ItemRevision;R.Item=Item;R.Command=Command;R.Binding=Slot;R.EquipmentDigest=C->Checksum;ServerLoadoutRequest(R);
+}
+void ALDPlayerController::ServerLoadoutRequest_Implementation(FLDLoadoutRequest R)
+{
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;const auto* C=ULDEquipmentCatalog::Load();
+    if(!O||!C||!M->IsTacticalProfile()||!M->IsPlaying()||R.Version!=1||R.Match!=O->Match||R.Life!=O->Life||R.BuildRevision!=O->Build.Revision||R.EquipmentDigest!=C->Checksum||R.Binding>=6||(R.Command!=LDInventory::Bind&&R.Command!=LDInventory::Unbind&&R.Command!=LDInventory::Equip&&R.Command!=LDInventory::Unequip)){ClientIntentResult(R.Token,TEXT("Invalid loadout schema, profile, revision or digest"));return;}
+    M->Objectives->CancelClaimForAction(this,GetWorld()->GetTimeSeconds());M->Development->QueueLoadout(this,R.Match,R.Life,R.Token,R.InventoryRevision,R.ItemRevision,R.Command,R.Item,R.Binding);
+}
 void ALDPlayerController::StopDevelopmentHold()
 {
-    const uint32 Token=FMath::Max(DevelopmentHoldToken,OwnerState.DevelopmentToken);
+    bLoadoutMouseHeld=false;const uint32 Token=FMath::Max(DevelopmentHoldToken,OwnerState.DevelopmentToken);
     if(Token){ServerDevelopmentRelease(OwnerState.Match,OwnerState.Life,Token);}DevelopmentHoldToken=0;HeldQuickSlot=-1;
 }
 void ALDPlayerController::ServerDevelopmentRequest_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan)

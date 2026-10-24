@@ -28,7 +28,7 @@ void ALDPlayerController::SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture)
     if(!Item){IntentFeedback=TEXT("Quick item slot is empty");return;}if(Item->bReserved){IntentFeedback=TEXT("Item reserved");return;}
     if(Item->Kind==ELDItemKind::NullBell){InventoryCommand(LDInventory::Use,Item->Id,Slot);return;}
     if(Item->Kind==ELDItemKind::WardCharge){ArmWard(Item->Id);return;}
-    if(Item->Kind!=ELDItemKind::Book){return;}const FGuid Id=Item->Id;StartDevelopmentHold(LDDevelopmentTransaction::Read,Id,FLDBuildPlan());HeldQuickSlot=Slot;HeldQuickGesture=Gesture;
+    if(OwnerState.Build.RulesVersion==7||Item->Kind!=ELDItemKind::Book){return;}const FGuid Id=Item->Id;StartDevelopmentHold(LDDevelopmentTransaction::Read,Id,FLDBuildPlan());HeldQuickSlot=Slot;HeldQuickGesture=Gesture;
 }
 void ALDPlayerController::ArmWard(FGuid Item)
 {

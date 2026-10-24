@@ -13,6 +13,7 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Core/LDGroundQueries.h"
 #include "Vision/LDVisionDirector.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
 
@@ -60,6 +61,7 @@ bool ALDCombatDirector::RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);const auto* D=M->TacticalCatalog?M->TacticalCatalog->Find(Skill):nullptr;
     const double Now=GetWorld()->GetTimeSeconds();
+    const int32 Range=D?D->Range+(D->Range?B?B->Gear.CastRange:0:0):0;
     auto Reject=[&](const TCHAR* Text){Why=Text;return false;};
     if(!D||!B||B->RulesVersion!=7||B->CatalogDigest!=M->TacticalCatalog->Checksum||!S||S->Hp<=0||!M->IsPlaying()||Now>M->GetGameState<ALDGameState>()->MatchDeadline||Now<S->ProtectionUntil||S->Action||Now<S->CoreRecoveryUntil||!Token||Token<=S->LastCoreToken||Token<=S->CancelledCoreThrough){return Reject(TEXT("Action busy, stale or unavailable in B71"));}
     if(!Allows(Body,LDTactical::EAction::Skill,&Why)){return false;}
@@ -67,8 +69,8 @@ bool ALDCombatDirector::RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32
     const bool Spatial=D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone;
     const bool Self=D->Target==ELDTacticalTarget::Self||(D->Target==ELDTacticalTarget::SelfOrUnit&&!Target);
     if(Spatial)
-    {FVector Surface;if(Point.ContainsNaN()||Point.GetAbsMax()>20000||!LDVision::InWorld(Point,M->Vision->Grid())||FVector::DistSquared2D(Point,Body->GetActorLocation())>FMath::Square(D->Range)||!LDGround::MapSurface(GetWorld(),Point,Surface)){return Reject(TEXT("Invalid ground placement"));}Point=Surface;Target=Body;}
-    else if(Self){Target=Body;}else if(!Cast<ALDCharacter>(Target)||!LegalTarget(Body,Target,D->Range,nullptr,0)){return Reject(TEXT("Choose a visible eligible body in range"));}
+    {FVector Surface;if(Point.ContainsNaN()||Point.GetAbsMax()>20000||!LDVision::InWorld(Point,M->Vision->Grid())||FVector::DistSquared2D(Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),Point,Surface)){return Reject(TEXT("Invalid ground placement"));}Point=Surface;Target=Body;}
+    else if(Self){Target=Body;}else if(!Cast<ALDCharacter>(Target)||!LegalTarget(Body,Target,Range,nullptr,0)){return Reject(TEXT("Choose a visible eligible body in range"));}
     const auto* TargetPC=Target?Cast<ALDPlayerController>(Cast<ALDCharacter>(Target)->GetController()):nullptr;
     const auto* Consent=TargetPC?M->StateFor(const_cast<ALDPlayerController*>(TargetPC)):nullptr;
     if(Skill==ELDSkill::RemedyBind&&Target!=Body&&(!Consent||!Consent->bAidConsent)){return Reject(TEXT("Aid consent required"));}
@@ -97,7 +99,7 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
     {
         auto* Body=P.Key.Get();auto& S=P.Value;if(!Body||S.Hp<=0){continue;}
         S.Tactical.Statuses.RemoveAll([&](const auto& V){return V.Until<=At;});if(S.Tactical.BarrierUntil<=At){S.Tactical.Barrier=0;}
-        if(const auto* B=BuildFor(Body);B&&B->RulesVersion==7){LDTactical::Regenerate(S.Hp,S.Tactical,LDDevelopment::MaxHP(*B),LDTactical::MaxMP(*B),At);}
+        if(const auto* B=BuildFor(Body);B&&B->RulesVersion==7){LDTactical::Regenerate(S.Hp,S.Tactical,LDDevelopment::MaxHP(*B),LDTactical::MaxMP(*B),At,200+B->Gear.MPRegen);}
         if(S.Action==9){Pending.Add(Body);}
     }
     Pending.Sort([&](const ALDCharacter& A,const ALDCharacter& B){const auto* X=StateFor(&A);const auto* Y=StateFor(&B);return X->CoreEndsAt!=Y->CoreEndsAt?X->CoreEndsAt<Y->CoreEndsAt:X->Order<Y->Order;});
@@ -122,19 +124,20 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
         else
         {
             const auto* D=M->TacticalCatalog->Find(S->Skill);auto* Victim=Cast<ALDCharacter>(S->Target.Get());auto* V=StateFor(Victim);
+            const int32 Range=D?D->Range+(D->Range?B->Gear.CastRange:0):0;
             const bool Spatial=D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone);
             FVector Surface;
-            const bool SpatialValid=!Spatial||(LDVision::InWorld(S->CorePoint,M->Vision->Grid())&&FVector::DistSquared2D(S->CorePoint,Body->GetActorLocation())<=FMath::Square(D->Range)&&LDGround::MapSurface(GetWorld(),S->CorePoint,Surface));
+            const bool SpatialValid=!Spatial||(LDVision::InWorld(S->CorePoint,M->Vision->Grid())&&FVector::DistSquared2D(S->CorePoint,Body->GetActorLocation())<=FMath::Square(Range)&&LDGround::MapSurface(GetWorld(),S->CorePoint,Surface));
             const auto* VPC=Victim?Cast<ALDPlayerController>(Victim->GetController()):nullptr;const auto* Consent=VPC?M->StateFor(const_cast<ALDPlayerController*>(VPC)):nullptr;
             const bool Aid=Victim==Body||(Consent&&Consent->bAidConsent);
             const int64 MajorReady=FMath::Max(S->Tactical.MajorReadyAt,PC?M->StateFor(PC)->MajorProtectionReadyAt:int64(0));
-            if(!D||!V||!SpatialValid||V->Identity!=S->CoreTargetLife||V->Hp<=0||(Victim!=Body&&!LegalTarget(Body,Victim,D->Range,nullptr,0))||S->Tactical.MP<D->Mana||B->Cooldowns[uint8(S->Skill)]>Now||!LDDevelopment::Equipped(*B,S->Skill)||!ULDTacticalCatalog::NaturalGate(*D,*B)||(S->Skill==ELDSkill::RemedyBind&&(!Aid||(Victim==Body&&At<MajorReady))))
+            if(!D||!V||!SpatialValid||V->Identity!=S->CoreTargetLife||V->Hp<=0||(Victim!=Body&&!LegalTarget(Body,Victim,Range,nullptr,0))||S->Tactical.MP<D->Mana||B->Cooldowns[uint8(S->Skill)]>Now||!LDDevelopment::Equipped(*B,S->Skill)||!ULDTacticalCatalog::NaturalGate(*D,*B)||(S->Skill==ELDSkill::RemedyBind&&(!Aid||(Victim==Body&&At<MajorReady))))
             {CancelTactical(Body,TEXT("Invalid release: range, sight, life, build or resources"));continue;}
             ALDArcProjectile* Projectile=nullptr;
             if(S->Skill==ELDSkill::ArcBolt)
             {Projectile=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(!Projectile){CancelTactical(Body,TEXT("Projectile allocation failed"));continue;}}
             const int32 Rank=FMath::Clamp(LDDevelopment::Rank(*B,S->Skill),1,3)-1;
-            const int32 Magnitude=D->Magnitudes[Rank];
+            const int32 Magnitude=LDGear::Magnitude(*B,S->Skill,D->RankKey,D->Magnitudes);
             ALDTacticalField* Field=nullptr;
             if(D->Target==ELDTacticalTarget::Ground)
             {
@@ -146,18 +149,17 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
                 Field->Source=Body;Field->PlayerSource=PC;Field->bPlayerSource=PC!=nullptr;Field->SourceLife=S->Identity;Field->Kind=Kind;Field->ArmedAt=At+(Kind==ELDTacticalField::Trap?1000:0);
                 Field->ExpiresAt=At+(Kind==ELDTacticalField::Ward?Magnitude:Kind==ELDTacticalField::Trap?45000:Kind==ELDTacticalField::Grounding?6000:5000);
                 Field->Radius=(D->RankKey==TEXT("radius_cm"))?Magnitude:D->Area;
-                if(S->Skill==ELDSkill::SmokeVeil||S->Skill==ELDSkill::SeersFlare){Field->Radius*=FMath::Min(1.25,1+.025*FMath::Max(0,B->Attributes[3]-8));}
-                Field->Hp=Kind==ELDTacticalField::Ward?40:Kind==ELDTacticalField::Trap?20:Kind==ELDTacticalField::Grounding?FMath::FloorToDouble(Magnitude*FMath::Min(1.25,1+.025*FMath::Max(0,B->Attributes[3]-8))):1;
+                Field->Hp=Kind==ELDTacticalField::Ward?40:Kind==ELDTacticalField::Trap?20:Kind==ELDTacticalField::Grounding?Magnitude:1;
             }
             S->Tactical.MP-=D->Mana;B->Cooldowns[uint8(S->Skill)]=Now+(D->RankKey==TEXT("cooldown_ms")?Magnitude:D->Cooldown)/1000.;
             if(S->Skill!=ELDSkill::VeilStep){BreakConcealment(Body);}
-            if(Projectile){Projectile->Source=Body;Projectile->CasterIdentity=S->Identity;Projectile->Victim=Victim;Projectile->VictimLife=V->Identity;Projectile->Endpoint=Victim->GetActorLocation();Projectile->AdvancedAt=At;Projectile->Amount=D->Magnitudes[Rank]*FMath::Min(1.25,1+.025*FMath::Max(0,B->Attributes[3]-8));Projectile->Token=Token;}
+            if(Projectile){Projectile->Source=Body;Projectile->CasterIdentity=S->Identity;Projectile->Victim=Victim;Projectile->VictimLife=V->Identity;Projectile->Endpoint=Victim->GetActorLocation();Projectile->AdvancedAt=At;Projectile->Amount=Magnitude*FMath::Min(1.25,1+.025*FMath::Max(0,LDDevelopment::Effective(*B)[3]-8));Projectile->Amount*=1+B->Gear.SpellPercent/100.;Projectile->Token=Token;}
             else if(S->Skill==ELDSkill::AnchorBash){Hits.Add({Body,Victim,45,LDTactical::EDamage::Physical,true,D->Magnitudes[Rank],Token});}
             else if(S->Skill==ELDSkill::PurgeTouch)
             {
                 if(Aid||!LDTactical::Block(V->Tactical,At)){LDTactical::Dispel(V->Tactical,false,!Aid);}
             }
-            else if(S->Skill==ELDSkill::SuretyShell){LDTactical::Barrier(S->Tactical,D->Magnitudes[Rank]*FMath::Min(1.25,1+.025*FMath::Max(0,B->Attributes[3]-8)),LDDevelopment::MaxHP(*B),At+3000,At);}
+            else if(S->Skill==ELDSkill::SuretyShell){LDTactical::Barrier(S->Tactical,Magnitude*FMath::Min(1.25,1+.025*FMath::Max(0,LDDevelopment::Effective(*B)[3]-8)),LDDevelopment::MaxHP(*B),At+3000,At);}
             else if(S->Skill==ELDSkill::VeilStep){S->Tactical.ConcealedUntil=At+Magnitude;S->ExposedUntil=0;}
             else if(S->Skill==ELDSkill::Counterpulse){FLDCombatHit H{Body,Victim,0,LDTactical::EDamage::Magical,true,0,Token};H.Interrupt=true;H.SilenceMS=1300;Hits.Add(H);}
             else if(S->Skill==ELDSkill::BreakSigil){FLDCombatHit H{Body,Victim,0,LDTactical::EDamage::Magical,true,0,Token};H.BreakMS=4000;Hits.Add(H);}

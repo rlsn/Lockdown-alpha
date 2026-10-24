@@ -105,7 +105,7 @@ void ALDTradeDirector::Request(const FRequest& R)
     if(S->Stage==ELDTradeStage::Invited){Reject();return;}
     bool Edited=false;
     if(R.Command==LDTrade::Add)
-    {auto* Item=M->Inventory->Owned(PC,R.Item);if(!Item||Item->bReserved||Side.Items.Num()>=6){Reject(TEXT("Choose an unreserved owned item; six per side maximum"));return;}FOfferItem I{Item->Identity,FGuid::NewGuid(),Item->Revision,Item->Kind,Item->Skill};Reserve(Side,I,true);I.Revision=Item->Revision;Side.Items.Add(I);Edited=true;}
+    {auto* Item=M->Inventory->Owned(PC,R.Item);if(!Item||Item->BindingMask||Item->bReserved||Side.Items.Num()>=6){Reject(TEXT("Choose an unreserved owned item; six per side maximum"));return;}FOfferItem I{Item->Identity,FGuid::NewGuid(),Item->Revision,Item->Kind,Item->Skill};Reserve(Side,I,true);I.Revision=Item->Revision;Side.Items.Add(I);Edited=true;}
     else if(R.Command==LDTrade::Remove)
     {const int32 Index=Side.Items.IndexOfByPredicate([&](const auto& I){return I.Id==R.Item;});if(Index<0){Reject();return;}Reserve(Side,Side.Items[Index],false);Side.Items.RemoveAt(Index);Edited=true;}
     else if(R.Command==LDTrade::Gold)
@@ -123,7 +123,7 @@ void ALDTradeDirector::Commit(FGuid Id)
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* A=M->StateFor(S->Sides[0].PC.Get());auto* B=M->StateFor(S->Sides[1].PC.Get());
     // All validation precedes mutation. No callbacks, tick or publication between sides.
     for(int32 N=0;N<2;++N){auto& Side=S->Sides[N];auto* O=M->StateFor(Side.PC.Get());for(const auto& I:Side.Items){LDInventory::Remove(O->Inventory,I.Id);}}
-    for(int32 N=0;N<2;++N){auto& Target=S->Sides[1-N];auto* O=M->StateFor(Target.PC.Get());for(const auto& I:S->Sides[N].Items){auto* P=M->Inventory->Owned(S->Sides[N].PC.Get(),I.Id);check(P);uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& E){return E.Slot==Slot;})){++Slot;}P->Holder=Target.PC;P->Slot=Slot;P->bReserved=false;++P->Revision;if(auto* Seal=Cast<ALDSeal>(P)){Seal->Carrier=Target.PC;}FLDInventoryItem E;E.Id=P->Identity;E.Kind=P->Kind;E.Skill=P->Skill;E.Slot=Slot;E.Revision=P->Revision;O->Inventory.Items.Add(E);}}
+    for(int32 N=0;N<2;++N){auto& Target=S->Sides[1-N];auto* O=M->StateFor(Target.PC.Get());for(const auto& I:S->Sides[N].Items){auto* P=M->Inventory->Owned(S->Sides[N].PC.Get(),I.Id);check(P);uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& E){return E.Slot==Slot;})){++Slot;}P->Holder=Target.PC;P->Slot=Slot;P->bReserved=false;++P->Revision;if(auto* Seal=Cast<ALDSeal>(P)){Seal->Carrier=Target.PC;}FLDInventoryItem E;E.Id=P->Identity;E.Kind=P->Kind;E.Skill=P->Skill;E.Slot=Slot;E.Revision=P->Revision;E.ReadyAt=P->ReadyAt;E.BindingMask=P->BindingMask;O->Inventory.Items.Add(E);}}
     const int64 GoldA=A->Gold-S->Sides[0].Gold+S->Sides[1].Gold,GoldB=B->Gold-S->Sides[1].Gold+S->Sides[0].Gold;A->Gold=GoldA;B->Gold=GoldB;M->RecordEconomyGold(TEXT("PeerTransfer"));++A->Inventory.Revision;++B->Inventory.Revision;
     M->Inventory->Changed(S->Sides[0].PC.Get());M->Inventory->Changed(S->Sides[1].PC.Get());UE_LOG(LogTemp,Display,TEXT("LD_TRADE_COMMIT session=%s revision=%u"),*Id.ToString(),S->Revision);Finish(Id,ELDTradeStage::Committed,TEXT("Completed · Exchange received"));
 }

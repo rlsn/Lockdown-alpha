@@ -131,6 +131,7 @@ public:
     bool RequestTacticalItem(ALDPlayerController* PC,FGuid Item,uint32 Token,FString& Why);
     void CancelTactical(ALDCharacter* Body,const FString& Why);
     void Sample(double Now);
+    bool QuietForPreparation(ALDCharacter* Body) const;
     bool Concealed(const ALDCharacter* Body) const;
     void BreakConcealment(ALDCharacter* Body);
     void ExplicitInterrupt(ALDCharacter* Body,double Now);

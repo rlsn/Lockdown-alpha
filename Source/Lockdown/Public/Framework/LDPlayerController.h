@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/LDTacticalRequest.h"
+#include "Inventory/LDLoadoutRequest.h"
 #include "GameFramework/PlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Inventory/LDVendorTypes.h"
@@ -133,6 +134,8 @@ public:
     void StartLobby();
     void ToggleDevelopmentPanel();
     void BuyBook(ELDSkill Skill);
+    void StartLoadoutHold(uint8 Command,FGuid Item,uint8 Slot=0);
+    UFUNCTION(Server,Reliable) void ServerLoadoutRequest(FLDLoadoutRequest Request);
     void StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan);
     void StopDevelopmentHold();
     void SetInteractionHeld(bool Held);
@@ -238,6 +241,7 @@ private:
     FGuid HeldObserved,ReadArmed;
     FGuid ArmedWard;
     uint32 ArmedItemRevision=0,InventoryPendingRequest=0,PendingPickupToken=0;
+    bool bLoadoutMouseHeld=false;
     int32 HeldQuickSlot=-1;
     uint8 HeldQuickGesture=0;
     FLDBuildPlan PreparedDraft;

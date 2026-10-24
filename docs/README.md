@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.7 B72 geometry/control slice; B73 next**.
-[B72 implementation](v07/B72_IMPLEMENTATION.md) records the actual runtime,
+Current checkpoint: **v0.7 B73 tactical review build; B74 next**.
+[B73 implementation](v07/B73_IMPLEMENTATION.md) records the actual runtime,
 normal acquisition, native verification and remaining scope. The default frontend
 still uses V05; an explicit v07 profile opens the partial combat build. Full
 v0.7 and inherited technical/human acceptance remain open.
@@ -9,7 +9,8 @@ v0.7 and inherited technical/human acceptance remain open.
 | Current reference | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Runnable commands, next work and constraints |
-| [B72 implementation](v07/B72_IMPLEMENTATION.md) | Delivered geometry/control, evidence and boundaries |
+| [B73 implementation](v07/B73_IMPLEMENTATION.md) | Build/gear/preparation/death, evidence and boundaries |
+| [B72 implementation](v07/B72_IMPLEMENTATION.md) | Historical geometry/control checkpoint |
 | [B71 implementation](v07/B71_IMPLEMENTATION.md) | Historical combat/MP checkpoint |
 | [B70 review](v07/B70_BASELINE_REVIEW.md) | Inspected source, adapters, evidence and dependencies |
 | [B70 adapter contract](v07/B70_ADAPTERS.json) | Adopted profile/wire/import/class decisions; historical adoption |

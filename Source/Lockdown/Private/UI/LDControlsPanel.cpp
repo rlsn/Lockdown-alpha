@@ -44,7 +44,7 @@ void ULDControlsPanel::Populate()
     if(!Rows){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());Rows->ClearChildren();
     const float Scale=PC->Controls->TextScale;const int32 Size=FMath::RoundToInt(16*Scale);TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;
     Preferences->SetText(FText::FromString(FString::Printf(TEXT("Edge pan: %s   Start in follow: %s   Text: %.0f%%   Saved zoom: %.0f cm"),PC->Controls->bEdgePan?TEXT("ON"):TEXT("OFF"),PC->Controls->bStartFollowing?TEXT("ON"):TEXT("OFF"),100*PC->Controls->TextScale,PC->Controls->Zoom)));
-    for(const auto& B:ULDControlSettings::Defaults())
+    for(const auto& B:PC->Controls->Definitions())
     {
         const FName Id=B.Action;auto* Button=LDWidgets::Button(WidgetTree,B.Label+TEXT("  [")+PC->Controls->Label(Id)+TEXT("]"),[this,Id](){Capture=Id;Feedback->SetText(FText::FromString(TEXT("Press a new key or mouse button. Escape cancels.")));});
         CastChecked<UTextBlock>(Button->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));Button->SetIsEnabled(Id!=TEXT("Back"));Rows->AddChildToVerticalBox(Button)->SetPadding(FMargin(0,3));

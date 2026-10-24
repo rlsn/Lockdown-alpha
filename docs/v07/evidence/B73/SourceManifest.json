@@ -1,0 +1,1171 @@
+{
+  "algorithm": "SHA-256",
+  "scope": "Final B73 Source/Config/Content/Scripts/project and checkout rules. Source/Config frozen during final native gate runs. Canonical LF text; raw hydrated native packages.",
+  "baseCommit": "e956db8",
+  "files": {
+    ".gitattributes": {
+      "sha256": "f5ebad538f2e9abba08c8f79910c5ab63d511114ea088e64ba515d0002294ad8",
+      "encoding": "LF-normalized text"
+    },
+    ".gitignore": {
+      "sha256": "c370e137554679bff58ce90e59c17808ca8e57cdc85781ebda8a0f403632d5b3",
+      "encoding": "LF-normalized text"
+    },
+    "Config/BaselineSnapshot.json": {
+      "sha256": "e8263e6e733890be0c5595c4311bc4a46b3edbed35e5a31ebfc4deb0bbe43337",
+      "encoding": "LF-normalized text"
+    },
+    "Config/BootstrapLayout.json": {
+      "sha256": "a4c80e41bdb69f51b1216faec5ca39dcca31eb75c5224aee964e0544e37c829c",
+      "encoding": "LF-normalized text"
+    },
+    "Config/DefaultEditor.ini": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "LF-normalized text"
+    },
+    "Config/DefaultEditorPerProjectUserSettings.ini": {
+      "sha256": "f91c698618d2162767854c3e2e0880a791463787e0e551e08765bcd27bf0eb68",
+      "encoding": "LF-normalized text"
+    },
+    "Config/DefaultEngine.ini": {
+      "sha256": "b6e997d41485b27c02a7370d548370d0951b83b8eb54da93793d18ffeb1ee2e4",
+      "encoding": "LF-normalized text"
+    },
+    "Config/DefaultGame.ini": {
+      "sha256": "14583198dd77077d7bc147a12b1de2060c1e3068716e790f36cb37b9c794fcd4",
+      "encoding": "LF-normalized text"
+    },
+    "Config/DefaultInput.ini": {
+      "sha256": "23fd45f2e153d0dfb95c8ee0b8506d825709038d75efb7f1dc27281f79123d68",
+      "encoding": "LF-normalized text"
+    },
+    "Config/PlatformLock.json": {
+      "sha256": "a03422e30cab4f9af5c8605a543ad1f84264063a487248b40fa861f4537167d8",
+      "encoding": "LF-normalized text"
+    },
+    "Config/RegionLayout.json": {
+      "sha256": "a970e3046954772e98b0c386f2900345032f5f9398129476b1a706d90dc59724",
+      "encoding": "LF-normalized text"
+    },
+    "Content/Lockdown/Data/V07/b71_combat.json": {
+      "sha256": "7af2adc9ee1872223a9d443c5b3e538a1e726fd231b8b4381c319daf2516f415",
+      "encoding": "LF-normalized text"
+    },
+    "Content/Lockdown/Data/V07/combat.json": {
+      "sha256": "f84e3a57c518dc877e06a8d33ef5ab6358ef51f24054c49acf5bb247b2cad3ce",
+      "encoding": "LF-normalized text"
+    },
+    "Content/Lockdown/Data/V07/equipment.json": {
+      "sha256": "aa44ec5524685cee55bcde016f06fd22ae584c61a5ccb739fabbd0f9eb256360",
+      "encoding": "LF-normalized text"
+    },
+    "Content/Lockdown/Data/economy_rules.json": {
+      "sha256": "d497f1417b2467680de16c7e9cb4df8b1c9d27fabf040a8b095bc02ef35b4ef3",
+      "encoding": "LF-normalized text"
+    },
+    "Content/Lockdown/Generated/Data/DA_AlternateRegion.uasset": {
+      "sha256": "45d1d3d923c9be9d1d1107a98a0751cc3a8bec1bc2a121d999a1e98fa9500dae",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Data/DA_CharacterCatalog.uasset": {
+      "sha256": "8810e68ed7d4270d68f98927894f3f26cc99010ceac147111097b38a6254caf7",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Data/DA_CivicRegion.uasset": {
+      "sha256": "530f0279952a6592c499cedb76a75f28e2432f55207512e0257657f1c063c158",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Data/DA_PrototypeTuning.uasset": {
+      "sha256": "3ef295b5e576eca96f677ff2b9878e69e444f6e1fb68f48cdc484216f1b0cb9f",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Aim.uasset": {
+      "sha256": "64c72e63244c9b9f2b5fcd52f159135f2c8c9fb665e375f4c18760c5331d1f17",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Assassinate.uasset": {
+      "sha256": "55dba2b24e6fe9e6c44b3947865fe009f270889051f824bb7d115e0189d8a142",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Attack.uasset": {
+      "sha256": "35a040721f85cf647f821e43eaa58251e9dbabea103f444f24d093aa0f52d96e",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Dash.uasset": {
+      "sha256": "9090972a3555ad28fce53b619a6227a0c2cb9e5859ec983c66e8c9258ab64275",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Help.uasset": {
+      "sha256": "89914352fc8ae70f3ac1abad7fc47d3ec8a3301cd5a0263bf1e129cd0aa25325",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Interact.uasset": {
+      "sha256": "5e77084ac285caf2f0cc78c80c2b9a66c54ccb4b6ad6aac8e7043cad4720500f",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Menu.uasset": {
+      "sha256": "9e0c5f55d58031ea336ff4587e9ef28e7012eab6ec820a1abe3079972cf6b615",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Move.uasset": {
+      "sha256": "b0f2468560e1a44c152dd7e2a322108e7cf41009222602dd5ffc6814fcc833db",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Sprint.uasset": {
+      "sha256": "10bfd1c6e6c28b59cc299c373dfed7c9e11a8db8ddfa2a7bde2e54417ff828a6",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Ward.uasset": {
+      "sha256": "0b79be9d27091c7b2edf361494a8851c46832cdfd4e22212bcb67d94965b28b1",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IA_Zoom.uasset": {
+      "sha256": "e27f41bbcdc32df88e1dc7214d83db36bc4473249e2a98a609f5939aeddf6014",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Input/IMC_Gameplay.uasset": {
+      "sha256": "b54a47c4cfda999728167be70a8f73105420e3e104d0b36a21086be7175cd6b3",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Maps/L_DevelopmentRegion.umap": {
+      "sha256": "123cf875d9a84c360e190a86b58e30e715b0f6f19fd33b39a9fe9b6b75e90745",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Maps/L_Frontend.umap": {
+      "sha256": "f840627693ffc1a3cb5a6c07b105afa08b0d51ce864784419801b165e91a3d30",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Maps/L_FunctionalTests.umap": {
+      "sha256": "edc07f25ce4691ca6a53b1d727b4d96b02ba7d2b676e3a284e21afded0ffb705",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Maps/L_MigrationSandbox.umap": {
+      "sha256": "b6958ca906151874a74ab8b1ac7b5e98ea6f4b8740e16e2eb15b1075f3c9271e",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Maps/L_RegionAlternate.umap": {
+      "sha256": "e724bb1388c0a2bf362c6b61f3f43ce2a78276f681ef445c4e4a15f583e2bb56",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/M_Character.uasset": {
+      "sha256": "536de41793b9a20613510a2f3feb83d0b449dd0707c62465ea2a7de31f6c05b2",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/M_Fog.uasset": {
+      "sha256": "00ba782cf2420672d3358544fbc7a5e9225b9e579b6690bd1ccca0cf3ae02b4a",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/M_Ground.uasset": {
+      "sha256": "e82ef288abbdecad41cc5f9ad81558d7a834ad4ecc1bed3683eb79f9086de0f4",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/M_Stone.uasset": {
+      "sha256": "17bfde17dede31df8344ed1df50e4ea8b13d4aec70020657dc2a01269ff8be27",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/M_Tree.uasset": {
+      "sha256": "d7fc288c161295bc0ef00acea8541719186e265e5a1bd44de2199c1f2b839b8e",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/Materials/T_FogClosed.uasset": {
+      "sha256": "5633c54bef73b5bda2224cfa200e6d67ec69b3a08eae5cbe91089e2193f074bf",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/UI/WBP_UIRoot.uasset": {
+      "sha256": "8459a6863b28e0007926c1f90996652637e1ef8238227cc3729d1dc2bd638207",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/V07/DA_CombatCatalog.uasset": {
+      "sha256": "443201d3fe403d023ea8505440b2a473319257fe60b421a1ea8977ab830cdcb0",
+      "encoding": "raw native bytes"
+    },
+    "Content/Lockdown/Generated/V07/DA_EquipmentCatalog.uasset": {
+      "sha256": "394f9360c11eb0b5db815df7bce5a624bfb490b2e81704c38bb4f289b85e12ba",
+      "encoding": "raw native bytes"
+    },
+    "Lockdown.uproject": {
+      "sha256": "b4d253d40d8e98af82bf1f56527f5bd033feb11008235371d2b990203982a7d0",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/BootstrapAssets.ps1": {
+      "sha256": "a9d84b04e3313cc83f11f4f6aa52cd2d0c490fe77a915997a530c243a3f0f50d",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/BuildEditor.ps1": {
+      "sha256": "bfe32c4a42f6b4261bfc64ff0b43496950efe2d98c43673dafdf63fa8a23f5be",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/BuildGame.ps1": {
+      "sha256": "cbce940d39a7c9d1fdb1f5b74ef627224b029f7d6bfdeae239f3638c5f9272eb",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/CaptureInputUI.ps1": {
+      "sha256": "5ff95b39ebc36f97e9aaaba8f12c5e86b314ecf256418c557abd2ee7abbfdcc2",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/CheckEconomyEvidence.py": {
+      "sha256": "8f44a9834897d5e2aaa6b6a5c0109b25de2bf17aa1226e267f74c2ad47867302",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/CheckV07Baseline.py": {
+      "sha256": "d3068f24a00f5a3f79ede0ae92d946e3c6fc87d129b298aee604b6c97fd3cfe5",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/Common.ps1": {
+      "sha256": "5bc07e1b742fcbc92730c388682d8c27ea53714064faef7e0ba808676bf2081b",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/ExportBaseline.mjs": {
+      "sha256": "6901e50c780fa53acfc9b28c3d32dbad1cc0d5ad1ebc61ff031174d718fc93a6",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/ExportBaseline.ps1": {
+      "sha256": "473b97ad075a0886e9b047274d4158398c4bfad3c34bf72b562e849846c65424",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/OpenEditor.ps1": {
+      "sha256": "f89f293ca970a7550c838ef65f5eee03984b395143cb341f013c564b3661d565",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/OpenPackaged.ps1": {
+      "sha256": "f7e3b400b76787b92247b453139e63568781b5e4cf0baf985ad54307819d760e",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/OpenStandalone.ps1": {
+      "sha256": "f774572b342602cf80e9d92c412faca8933df60075a1a2556eceed9f19c85032",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/PackageWin64.ps1": {
+      "sha256": "070648e88d01c5b6f5d7da620fdd0dae88047591f9fe0f9d3e84b290b82c4f8c",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/Preflight.ps1": {
+      "sha256": "000f3c7f280e81cd70d4d6ccf1e236b9803e1c17a3d00ef77a0168132fb27431",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunCharterCheck.ps1": {
+      "sha256": "015f9142d3e2230380910232526663935ea8f1827c593f2f54d3cfca25e5d5fb",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunCombatCheck.ps1": {
+      "sha256": "690cf2b63c735e6b11fcfc9bf3ccdd1af7a9fd9b909854b33feabd3aa53fb423",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunCombatNetworkCheck.ps1": {
+      "sha256": "2aa7c07c0920cceaabd1394ff3da846cf663339c17bbce56a10fa73875718855",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunCommerceCheck.ps1": {
+      "sha256": "fdba38dd9d736536cd6cf0167ef967443299c803827e6087efef61e287ca8079",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunDevelopmentCheck.ps1": {
+      "sha256": "83e23a80ba8f2ddbce17cbd62e7f2c8cfd69968cdd4e589041c1ff0a8e337606",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunEconomyCheck.ps1": {
+      "sha256": "82e81d60a306a4c1a4d23f68ace677193065591ca1bec712b08ab8d46cddb179",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunEconomyUICheck.ps1": {
+      "sha256": "cabe50b2e815ba4e7ab094533f6f4f9b5766e497d9a1b74d48410cbaa1288923",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunGeometryCheck.ps1": {
+      "sha256": "59c88a3d0274202205c39f647ed926cf97709ce258a776a18ebfd2e5d78fb946",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunHUDCheck.ps1": {
+      "sha256": "24c537c6822069e349a72fb9d9416ac4fbed22f0c0e0e8afecf1d8871192021d",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunInputCheck.ps1": {
+      "sha256": "06872963740f9021cd67b40a404a546b0750044fce8a0ca92efef756370b6994",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunInstitutionCheck.ps1": {
+      "sha256": "c9238c9108e8b7814865cfab05a1a809bdc286e5f98433fbc88f80a486155aa1",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunInventoryCheck.ps1": {
+      "sha256": "c0bfca3494e1c1d02b1a0be1b0ad8501820cbac16fd139ad757285683b204539",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunLoadoutCheck.ps1": {
+      "sha256": "82ae6c925add314ff3dd80639518aaded14a7ff26ad95afe89ec9d383aa3b30b",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunMovementCheck.ps1": {
+      "sha256": "bbdcffb67409f1fc81c2188b4534952a4dfa6897463039de71e1177165c27bd3",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunNavigationCheck.ps1": {
+      "sha256": "df73f301266ca0d2b7dd316c2d8a87818210d95f497e677e35110c782fedea5a",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunObjectiveCheck.ps1": {
+      "sha256": "e939a66cfce3d35fc52fc0d82bf021bc965214d0d57fff9cbcf49e4eb0059451",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunObjectiveNetworkCheck.ps1": {
+      "sha256": "47239b5ae85834f6e99b82cf3727f75c902b4820f63bb3e3082d78e6a111f1b3",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunProductionCheck.ps1": {
+      "sha256": "4f9b2c217b817271a1783de32780c3db175cd3baf87e1b3a1fa3b9b0fcb013c0",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunResetCheck.ps1": {
+      "sha256": "eab33971b8ce286d70617b530c3d1d4fe07cc943eb89b0faa06b3cb05e61df3e",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunSoakCheck.ps1": {
+      "sha256": "b43c5c45d465a7987497a8d5617c4821faf81922f69180ff9ce25de3341f04ab",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunTacticalCheck.ps1": {
+      "sha256": "3911431050549ff203be5056038cd57dd411655e3a67452a55a835f1c47087be",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunTests.ps1": {
+      "sha256": "bc011d14c0f5043d1a82e06cd2b3818f2da4ce03ffbd25a8ab81743ebff38586",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunTradeCheck.ps1": {
+      "sha256": "33b6a8165851b6677001309500129ec25f62647b6a68c8e1d7ff2063ae345444",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunVendorCheck.ps1": {
+      "sha256": "6b050f96c2250c1e1168fc39fb1a7b0adc1d6143136d07127f99b79908e8113d",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/RunViewNetworkCheck.ps1": {
+      "sha256": "72f0afdb7c6aa4f9f08380adbcfa278a5b4a50a5fe80130c64ecc8bff628789a",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/SyncV07CombatData.py": {
+      "sha256": "6c62467d1e9edc4ee3396c13adf7a653803bf845f2bf047c0c4067a2b596983f",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/SyncV07EquipmentData.py": {
+      "sha256": "422930aee5b89349ab7ddd5ad0ac910015b0721cdebd443c851472baa9c5afd8",
+      "encoding": "LF-normalized text"
+    },
+    "Scripts/VerifyCleanCheckout.ps1": {
+      "sha256": "f24639aaad32921a1df7aba20f05011112a5e3861c71e74b5b5bc7f02c0469e6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown.Target.cs": {
+      "sha256": "7709db79e03c297e8adb90267101871e1b26c7d6e5ee8f3351aba7e2a4d7f1ff",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Lockdown.Build.cs": {
+      "sha256": "95e9df06f59fb44e76c30e3e9bec5b18c5ecd7169e7be4cb6d52c3a77b040575",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Character/LDCharacter.cpp": {
+      "sha256": "a245af87173f36ca02b47e274a0bc4914cb5fb48714d8094fc6c2d381b016844",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp": {
+      "sha256": "873f3e2abfca397bb0f1915d6adfbe524fb322de8fb3f683c07d1dd59760df52",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Character/LDHumanoidVisualComponent.cpp": {
+      "sha256": "faaf65c553dea03c989278a7f49c10a76387cfd8055c29c26e33e778ed8880dd",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDCombatDirector.cpp": {
+      "sha256": "26e893a9e2155d938609cb7d759597febcaf0f09342148ac798b613e411c90c5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDSkillExecution.cpp": {
+      "sha256": "7dc275719c38e52fa172ab2f5704f4934944cdf35b03980b57e57d0d44f371be",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalCatalog.cpp": {
+      "sha256": "0b88f99c03898fef6d01c5e25932336889efcca65dc53da89bfbebe974811b74",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalContract.h": {
+      "sha256": "33a9f9059800591d59d8efbfc75381570a4e52afe35102f855737aa4087958dc",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalExecution.cpp": {
+      "sha256": "aa32b2a34df68ee484899118dd157cf14cbdbe59b2145f5643db652fb23e88ef",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalFields.cpp": {
+      "sha256": "66cb6e47cc1c479c067425673e9e6ec0620351d3850a8ef00971e054266988d3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalGeometry.cpp": {
+      "sha256": "52175d8e8ba7a2d92bbe0e82b3537c654c7d44056e439176384cea67bf81be0d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalRequest.cpp": {
+      "sha256": "a865c4a51377529b359583795fec532040689ddb122bdbcedeba6fffd6f0e1e9",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Combat/LDTacticalRules.cpp": {
+      "sha256": "1c74355a68eeccc8689a237062721ed4d7ccb1d97279ac52ecbd5c5d8be8144d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Core/LDGroundQueries.cpp": {
+      "sha256": "d24cdd5564c2e7e322d7e4fb871131a6d4202ceaf64dd88b6ba58b864c8689f0",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Core/LDPrototypeTuning.cpp": {
+      "sha256": "7e8212edadc64b36296c2eefd27c5fe2120b5b678bdda1193e2db59a5a7d4052",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Development/LDCharacterBuild.cpp": {
+      "sha256": "3f372862f7fdf637c958f2d4b62c170cb2d301d62f864a2b560132f1ee8b8725",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Development/LDDevelopmentDirector.cpp": {
+      "sha256": "bf8b7a5f64ae5273b17e384f429b25ccf370e7d8a3042db0e93a27471a230894",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Development/LDWorldChecks.cpp": {
+      "sha256": "6dfa2fdac32226d767b863976002a6a85b42e31751e55ed12db131e192c4be3e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDBankDirector.cpp": {
+      "sha256": "4996a3483d617aaaa7dab6eebaa70374eec502065b909d3dea27b110ecca8758",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDCommerceDirector.cpp": {
+      "sha256": "95818c0d86f9acb28f031237e32509b8dd8f9a2598cab93bed4693ca29abdb0e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyCatalog.cpp": {
+      "sha256": "6a2d3ee3e5e873b61cf881f4a5a37e22d5f0c78d0e6d66ef6721f39f69589ebb",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyCharter.cpp": {
+      "sha256": "7b3dcc831ee9391736fb917317db574d52a139c045ae9a411c340d1ec3973a46",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyCommerce.cpp": {
+      "sha256": "01a0ca0a5df0092e6d664f3f463df2c29ceaf9c895e87bcbf51c024c86556132",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyDirector.cpp": {
+      "sha256": "bd2c097862613055c52a912cefc04546bc85c755042e0693341e7dace2e2abe5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyInstitutions.cpp": {
+      "sha256": "372c4ad095ef47ef8174bb5e0ee93cf9ee4fd952f109435532ddf57320eec7a5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyLedger.cpp": {
+      "sha256": "9707701a3bd69696a70707b4c9ad76c8317260e0f2466e4811ad7f12ec25e439",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDEconomyProduction.cpp": {
+      "sha256": "ae0a91042d6adf92f090ec0beb2a814f1c868f70ae6e9bbf365ccaa15aa73f16",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDInstitutionSite.cpp": {
+      "sha256": "d28b26d490b9b97ec681c2c48a79c0cc6d36ca957483d805f2b5aa00cbb5066d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Economy/LDProductionDirector.cpp": {
+      "sha256": "c50a0339f99015aa1b2024f65dff32745e4fbadccad0111263175ef94618696a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDGameInstance.cpp": {
+      "sha256": "93d3fa4d165617820ff0a4144121e5c056faccef67c53e352b2a89d5fcaca6ec",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDGameMode.cpp": {
+      "sha256": "4e1bc68e9dde3586512659bfb1e0d6aed9f9d2750089477fed4a1406222a2bb3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerBank.cpp": {
+      "sha256": "838117e3c1744d9df5839c26d5acaf5d60aeca92108879fed091edbbf2448b0f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerCommerce.cpp": {
+      "sha256": "9bef7186e39c397eb31c57614b7818d26a77e5d75c3144bc6ce4db8684acde98",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerController.cpp": {
+      "sha256": "1613c4dbd7a39ea36574c17ac00ca22f39161cf8de94c80d6da0677553ff767d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerDevelopment.cpp": {
+      "sha256": "5e5dacce86cb6510dc44aeb5f699b303317ee98a482c5cca12c8a58e3e761cc7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerInput.cpp": {
+      "sha256": "4b3763d6b08f6ba6c5f02e3660957258016a3f583b3dca1693d99227490bc7e5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerInventory.cpp": {
+      "sha256": "cfff343c33fd3adab7f6e443a76f11e25ee47dada290c344b7639f9e147ac3cb",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerProduction.cpp": {
+      "sha256": "624e23d5ecf669d4bf0ce9c6466f3aa2b85a53a7ae7113fa5df434f4877e474a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerTrade.cpp": {
+      "sha256": "4f9e9e3fbc15cc197b471ca7a1aa5de646de60e1fb9689b3640a248b732633d2",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Framework/LDPlayerVendor.cpp": {
+      "sha256": "71a9c46e5b8fb1fd3f7e4c67721ea436f8c6ca9a557bbe519d5bbebb85fadeb3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp": {
+      "sha256": "142e84d89c727c7984acb68d3be21217742035a14162c2757530eecd4fc72182",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDEquipmentContract.h": {
+      "sha256": "373d22d00dee36ebbdefbbf3a9654e4a38a627e4ed0a471af6dd81ced47f08fa",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDGearRules.cpp": {
+      "sha256": "fbf349b2323b1011373290e5bd1c376c651a0dbf7724632f4749e45f5d3d6be3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDInventoryDirector.cpp": {
+      "sha256": "a41600d6b258854e976c728b1ddfcd471c5119cac36181ed8f4a36d69a2b64bc",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDInventoryTypes.cpp": {
+      "sha256": "ee57ccfe80322c49e8da3d0912455a30fd8960ca60e56906a61c6a2a12bd124d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDLoadoutRequest.cpp": {
+      "sha256": "eb423e85c479eb97ff848aa7b0b12f84594f38de6b46e34962244ef2cc9b754b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDTradeDirector.cpp": {
+      "sha256": "07b20d7ddfe1826b2708ea0f60e77b111c6a9ac7616b28e2f4fdcd519a059085",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Inventory/LDVendorDirector.cpp": {
+      "sha256": "cdf6aa83de910144d95e8fe4bb256540f55189bc76adb2c6e90a600c4e8d78cf",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/LockdownModule.cpp": {
+      "sha256": "077fc5cba080fb32ef2ff41f83aa2ee148d5a0acef2780969df644cc7ad4d0b7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp": {
+      "sha256": "c925f8e9cd8547c5910e503475837da6e9f73db1d4e314e08c3fb3e09e542355",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Objectives/LDObjectiveDirector.cpp": {
+      "sha256": "66e097bb4dbbca204e49948ceb59a0d5141617ba17f3008eeba6b63d02e3931d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Region/LDRegionDefinition.cpp": {
+      "sha256": "0410acf142a3e0b67a40b2ff4b85dae0676f9a0be9b1de0f75487cbdda9cd6d9",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Region/LDRegionDirector.cpp": {
+      "sha256": "38917273907e859ac0f16e5236493311e1fb211fd32930213aa5005d300bb69c",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Region/LDRegionNavBounds.cpp": {
+      "sha256": "364e112ae58a8314d2047faa5094168be0052dcf01050caa980599c58b7b6208",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCargoRulesTests.cpp": {
+      "sha256": "5475c71e8876c3b80596791168e39bc66bb6f7110efe6199f08abb4ec7bf060e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCharacterBuildTests.cpp": {
+      "sha256": "daf193b9ee2288b20d037404268e6dc76433187f2d305a13818acde66b10bbb6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCharterProbe.cpp": {
+      "sha256": "cf2cb810b6adf0ffad5b3cc9ff0fb97188072fcaf24850c0b0efd1fa89fa91d7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCombatNetworkProbe.cpp": {
+      "sha256": "73d2e404db6b187bc612ee3286b5168636e39e303737a58112b8c1f5162a9cc5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCombatProbe.cpp": {
+      "sha256": "907cb30bf27c1c51b02e0dcc49302d0abbb436faf9f7d408ed4cd16ca7186f44",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCombatRulesTests.cpp": {
+      "sha256": "7ecb666511a573ab0f26fefbd241a64dc6151bc036362b0cbe1c206c9d4a4389",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDCommerceProbe.cpp": {
+      "sha256": "e261cf489b6256809a631d9a7c56211c5b56db23cfffbb62b5f3d38ccd2498e7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDDevelopmentProbe.cpp": {
+      "sha256": "0a701fd3afd0f01a2eaef4c1fd41b07eb5b75b01d5dc1d84b1de14748073f3b7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDEconomyProbe.cpp": {
+      "sha256": "03bc45faefe7a3e3260530f04b759ad8cd235c096bc321a4bcb2c85d9cc155d3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp": {
+      "sha256": "6980223d6b079eccf65e3c381916759d72e9785d1c89da7779e33b7d9fdc03bb",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDEconomyUIProbe.cpp": {
+      "sha256": "25ac354816e9933d3fbeef79d0493aa2537969f3a49a46dbbad68b151e2d759f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDGeometryProbe.cpp": {
+      "sha256": "9283759c94e5ad3d9f51faa17e976a0f8d0765967b41a5b9dd3a1b499e76fbda",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDGeometryRulesTests.cpp": {
+      "sha256": "9c7b1549d34d7030bbcfb65ca9e71025e2f54f028e375be3f07429c06c69a02f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDHUDProbeExtension.cpp": {
+      "sha256": "6221006070822a19f035a2aad28e6b75e323043f04d88b66604d376a4989fa01",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDHUDRulesTests.cpp": {
+      "sha256": "ebac8c6ca9df8dbc5613156af07ade0724a6bbcad0528a605f6b25c4f59be379",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInputProbe.cpp": {
+      "sha256": "e75d5b2689330f090bb0e2d13df822ce046bd32693a0c78a0f798e06af3ddf20",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInputRulesTests.cpp": {
+      "sha256": "272b2cd15e04e57ba8a6f4bf31ba07c5519c61b17bec28324bc6caabda22e809",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInstitutionGeography.cpp": {
+      "sha256": "99a09c45445e1207ab9da43d914c04fbc2cf26aa60c53b84b2315c1cd597f90e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInstitutionProbe.cpp": {
+      "sha256": "7bc9401d6773fd482d8c31b2c3418375b1eef9a41093cdd39afe2aa4a8ac83ff",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInventoryProbe.cpp": {
+      "sha256": "0fc70ef3caf464070248f0c15ccf58854b9390c7b5ad8f8272b1668147e4efca",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp": {
+      "sha256": "d2ec954057f2913b372f7714bba6216e8b5648e18c1af55bb7f8ea5ad1c92168",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDLoadoutProbe.cpp": {
+      "sha256": "8a96240d7fcb202cef6279df9ab955ffd2c4dcb13a9fcc1449d6f0140fb74b86",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDLoadoutRulesTests.cpp": {
+      "sha256": "c179309e13836d314e43c5c85fc1f2424cec7aca571426cb26bb00c1d6b3a48b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDMovementProbe.cpp": {
+      "sha256": "c29a7f829096fa3080c8c45ff3bc7f00851b9196bd0c37efc0349946a2873d23",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDNavigationProbe.cpp": {
+      "sha256": "cf3ce7a7b5119130e90e660ccaad8bc6f99eaa354743d9dc671fc118a085b0cc",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDObjectiveNetworkProbe.cpp": {
+      "sha256": "76ea63d35130cbceca4ca40f6a7d00c726f66d16d6fcdc5bc316c33428d2f96d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDObjectiveProbe.cpp": {
+      "sha256": "f0671562f1383e5e52b4172b620621b4a0f85a4b575527d33c54c7aff42b529a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDObjectiveRulesTests.cpp": {
+      "sha256": "381892e238912cf460bbcce98ef02b7b21814a40eb7cd34cbb6ae6c86aaf566e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDPreparationProbe.cpp": {
+      "sha256": "675c2637e128b90a467e8727d992561b494c083a6224922fd661e048be67b883",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDPreparationRulesTests.cpp": {
+      "sha256": "e4d12ba935a04808bef8d1ea4e37ee135aaa69d7152373514aa2749bce19aa3b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDProductionProbe.cpp": {
+      "sha256": "5dac66321a213ad9fd39406a86dc95528b740aa1694e60ebc2fe78bb02462a71",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDRegionProbe.cpp": {
+      "sha256": "391b446daa0bae831a0298dc74a5a4b8838cc999225a3c50bc663887eae1af7b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDRegionRulesTests.cpp": {
+      "sha256": "0022ea98c60ddd1bf85db9a8dcc3f0d837fb8cf67008a067a27c185a61d675a9",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDReleaseProbe.cpp": {
+      "sha256": "2cb42eb008fed57f1ce6df3a88a74be2af9526b2d4488526205033eec2ac261e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDResetProbe.cpp": {
+      "sha256": "7860d939c06b2b5d494806d0b748bea3c750f069e87dbf4047e8d4c87becc755",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDRulesTests.cpp": {
+      "sha256": "1fc33004047b34b4ed6dc90b6177cf2cc90f3892fe76b15a323961cebe8eacd6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDSealProbe.cpp": {
+      "sha256": "c7749b755161ad563388e6f2341a0a9509248b1e068e7d25dbe140936bb92702",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDSkillProbe.cpp": {
+      "sha256": "c4a83edb9aedd0758214828119ea7f139b5c4be40645f138caf7778b135a6f96",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDSkillRulesTests.cpp": {
+      "sha256": "37136b85fbe46accb60a165b1c1052e9bd31144975704fe748ed44f25d317504",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDSoakProbe.cpp": {
+      "sha256": "22f0e433610823799b4afc5190343ad530cb16504d9fc9fe2fe8884b59f3b94f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDTacticalProbe.cpp": {
+      "sha256": "4b49cac5ac189096ad40206867c716ab952035faeb5bb3bab8063e09e2dfd824",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDTacticalRulesTests.cpp": {
+      "sha256": "aa409ef606caa53a6c12a67541182c5bb65035e30e2651f81c537649f15e871d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDTradeProbe.cpp": {
+      "sha256": "70492b4c5138104090954a316a9b7cd009cf66b111b808a7dc23d52e1e5e28bd",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDTradeRulesTests.cpp": {
+      "sha256": "d1334bf0ab111dba5e93d12d2a838d3723402aba2ba8e11825ffda746039d73b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDVendorProbe.cpp": {
+      "sha256": "22e47dec9dd42f3c16f72b15f4305defd1be85dcbac7f949d185fe020d919247",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDViewNetworkProbe.cpp": {
+      "sha256": "a420bd4d27d8f87e03b6d895f82ef81186ea60e1e74520f12ace7638a54b70b0",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDViewTests.cpp": {
+      "sha256": "eb6395ec92a27f186381cddeec023055ea69015c7b5d906af10d8364c65d3dca",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDWorldCheckProbe.cpp": {
+      "sha256": "21426bba86d9528eee37877a89ce538992dff000bc1cd46dba2f0b60c336b0cc",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Tests/LDWorldCheckRulesTests.cpp": {
+      "sha256": "3cd74964185bd3577751a3a4d2040944802652edee02374c5cf95060f942908f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDControlSettings.cpp": {
+      "sha256": "bf23d4c6f3153428fd8724625b3ff140163f06d509ca450cb60ce2420513f4e7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDControlsPanel.cpp": {
+      "sha256": "fe372217fae37543312be6356acc448a8ed69aa8e84f06a589f950179ce610c8",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDDevelopmentPanel.cpp": {
+      "sha256": "9a2c4bdf92b33b40713f76fda59219852e3250d7a376d24637f27acc97208fb1",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDHUD.cpp": {
+      "sha256": "432181c4cd03aa1e54b241604f10289eb6ef08d176534a6be8fdf07bd145de17",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDHUDModel.cpp": {
+      "sha256": "9f89e9d4300f15dff7fc48f482a8544c2095bc87912a3d9fa045bb6401a4991f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryBankPanel.cpp": {
+      "sha256": "e2be07bfd455668f843fee5a7645514833cae15655f7fb33261f92e30df2306d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryCommercePanel.cpp": {
+      "sha256": "7ce37242acf48795954af011eb757f13ba2dc465267a25df1c8d67e8c03e9f17",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryPanel.cpp": {
+      "sha256": "caf70eadfd4fed8c9b104855586091c0c9910ee37c9996cc6af31adfc48ee7e9",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryProductionPanel.cpp": {
+      "sha256": "aa7513652db7856bc2edc6b9e9571c89e5523d5c10ff0f791232d63d70a9e5aa",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryServices.cpp": {
+      "sha256": "f540309588488b7b14c2e7c8b8180685466ee324863b9b4fc386ab7ca62e2170",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDInventoryTradePanel.cpp": {
+      "sha256": "212503d026d5177043d73c301c359c24377d2ee809d79d9995d3506cf83687de",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDMinimap.cpp": {
+      "sha256": "a08dfca361f97121c1c9b47f8d7add3d34db95108e7933808b352ee053c19354",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDUIRoot.cpp": {
+      "sha256": "4a79e4a6a4d629d1db3dea0aef34ff9d9702e54dd2d8a8ccc08eaaecef19e661",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/UI/LDWidgets.cpp": {
+      "sha256": "3ce981afe7975f61fcd369c6207de4793f167d564e07b650088888ba6802158f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Vision/LDViewTypes.cpp": {
+      "sha256": "46ad347789ea4e697b330f1cdc6b195c49b258cae3479b92d4db12e32c505f99",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Vision/LDVisionDirector.cpp": {
+      "sha256": "df05071901cb8186f35920ff4b21f535eeb046ac3c9f35fb76839ed6f4610be4",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Private/Vision/LDWorldViewRelay.cpp": {
+      "sha256": "44e475fbf1386fe524361a675533a2bd893667fb391929ab52a0fcc7606ab46c",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Character/LDCharacter.h": {
+      "sha256": "ffcf96f19d0b06e8e133b75a4ac73765cf574285b4fa00b0d3628eb30656062e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Character/LDCharacterMovementComponent.h": {
+      "sha256": "de44f91d0a45ea0d8c2038c063e1cd31266a73b932e74e677d6a58e3f6098178",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Character/LDHumanoidVisualComponent.h": {
+      "sha256": "9c229ab77e94c75cf68dc4cac05599a2a096bf8fc1dded4a5306fbb2ef99c407",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDCombatDirector.h": {
+      "sha256": "27ae01881f017bc8ea258fea5c66d64b6c33e38e9ef5642f6f9f47d9cd823237",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDCombatRules.h": {
+      "sha256": "00e8f30d6bea3d8ec9e790adb1e95dbe8be8385fd3f775facb3e0eab2ed9d3d5",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDTacticalCatalog.h": {
+      "sha256": "a3569f59472a5fc89d155b9ce9d36b38a7dfe4b6bd06a8009ab08850dcce0ca6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDTacticalGeometry.h": {
+      "sha256": "9745c1c6249086acf29dfed243e6ba11fecfc9874a96e99111e985d2f797af45",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDTacticalRequest.h": {
+      "sha256": "c6fc9933c8eb2bc1838fabc02e4d54b184df9838146b31ebd890015f96fc1b27",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Combat/LDTacticalRules.h": {
+      "sha256": "9dc4d139f99e36072cc9dc2b19c856877240044a311661c223bcbb86cb0d7bdd",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Core/LDGroundQueries.h": {
+      "sha256": "011c6b697da6ec236be72522d4395fd2e78f6f967053a2473ab775a905055cd6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Core/LDPrototypeTuning.h": {
+      "sha256": "ce951cbb6f80adfaed98570290b8f83337218a16de3d7304ceaa789e76e2f569",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Core/LDRules.h": {
+      "sha256": "cd32008489fa3c7ff4a896ab6fcd7c0214b6fcda55da5270d9a508c0a73de4dd",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Development/LDCharacterBuild.h": {
+      "sha256": "89c844f8ebfeb2360453a8f50157ca9fbdb4da097a88eb1aebeaca90f2c1042c",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Development/LDDevelopmentDirector.h": {
+      "sha256": "a8e7c97b0b0d23418a8304106393af958255a33e7de8fb423fb0bf4ad1f58f33",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Development/LDGearTypes.h": {
+      "sha256": "85c29458b835b2e02c0f25e10c3170538269419fef345c573687689df1a8e031",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Development/LDWorldChecks.h": {
+      "sha256": "f18baac9c7129e3b247535ea78418a59ab890452cf3f3e6333fbf656963774f3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDBankDirector.h": {
+      "sha256": "dc9181475a766a1756e60c7b7296f66e86ca351872771c3e9abde6c7e4c502a9",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDCommerceDirector.h": {
+      "sha256": "dee15993f51d094a2898b826de4c73f4c722b50b735e1e1a49b22a31fe55e775",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDEconomyCatalog.h": {
+      "sha256": "69bb1cf804eaa8105c8752fb13dd5f9d5d35867972c4f7dad84b09d2a06a4391",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDEconomyDirector.h": {
+      "sha256": "13461f408cad276fad0c6a3ea1d71f26a258c63f315952193f98f5e9af7bcc77",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDEconomyLedger.h": {
+      "sha256": "3800ab5d8e7a41b17db802a9e2b0b37d9b6ee5e234c45370d13a0c22c70b1b7b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDInstitutionSite.h": {
+      "sha256": "90b18a75f04e6c0a524981286e97e0db92995a288ff5aa85101701e54fef3cf0",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Economy/LDProductionDirector.h": {
+      "sha256": "582067b48f99385ad513202c23fd6a607787be4a469b5ada6b3e95712edaed6a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Framework/LDGameInstance.h": {
+      "sha256": "2abbc37351b57be63a927935fbd800f26579581d6863f0e80c195658e7cece42",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Framework/LDGameMode.h": {
+      "sha256": "fd48b091bd888b63c8106b103c9db98d781898f3c05e43cd9ea7d4dc1bf19140",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Framework/LDPlayerController.h": {
+      "sha256": "f4e903c28aec5ad5dc6d70d349e28471d65940ea94bcd7f41c0e67882a8b592a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDEquipmentCatalog.h": {
+      "sha256": "80ec7578c7c05f043f75d687581fc6634da16868b12384826f92cdbf33d92bbe",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDInventoryDirector.h": {
+      "sha256": "dafd89f59b8ab7ea80a2618ea5160fa331f01c64c1cac610a7fb5ccdb150aa56",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDInventoryTypes.h": {
+      "sha256": "5a6c9c7b6067a927d413c3bb6b687a9455aede1726d80c9939593d18e235a0ae",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDLoadoutRequest.h": {
+      "sha256": "45217590d757a18436d93a69c9bfed47f9038505d665f2fe929ed7de827ce072",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDTradeDirector.h": {
+      "sha256": "8c46b1ebb96b6afc7dfc324863b57ad9099cb0e03995242ee7548a7a7e7b2cce",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDTradeTypes.h": {
+      "sha256": "31ea1d3a4c81211f99b4c27d757dcee98c2cac5ddba16e821921f52bafdc86a0",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDVendorDirector.h": {
+      "sha256": "f8c12040c665662e4eddb74691230c436bee4f8a2a26606e271b130815f2bb5d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Inventory/LDVendorTypes.h": {
+      "sha256": "b2fbf2cb40e9b0f7c7d2869ab8d875358b1290d6847a9d3978adb59d8791a60e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Navigation/LDNavigationComponent.h": {
+      "sha256": "48d247ee33b89ef603555e821bbc755485a36cf7efbc02b24b0588228a71deee",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Objectives/LDObjectiveDirector.h": {
+      "sha256": "a3d0f65ad556341633a6d517201f998dfa2f28d002e2e5b918c3f361f46d0aae",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Objectives/LDObjectiveRules.h": {
+      "sha256": "61b026317baca3d6c759ad18a1c9902c804d624dc9a1ac28e4c56737b8cb3513",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Region/LDRegionDefinition.h": {
+      "sha256": "fc37d63e124e78898b93f84ccef051127ef3a8019c079b335dd8f9081b8f52e7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Region/LDRegionDirector.h": {
+      "sha256": "42bf7886801f13db78942eb2cf208fdc2d8f02476c8c5e85000cbb9ffe8506cc",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Region/LDRegionNavBounds.h": {
+      "sha256": "3010352689a9130021c58ae37d94197a18cce2f9492803d687e698c41583c9b3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDCharterProbe.h": {
+      "sha256": "a41195908ffa8a23f6d2128eb90a1c474e032013c6dc67848f9dfb4b3ae06dc0",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDCombatNetworkProbe.h": {
+      "sha256": "0b13480e3fd62bde420d332f6c6879e1a5406f15089597416870d16499be00ba",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDCombatProbe.h": {
+      "sha256": "65914a57181a788b9bd41b434c7d6b018d2990c9adb4fc0ce67ef6f4f4046d0e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDCommerceProbe.h": {
+      "sha256": "d76ba45ef9942d4a303149ce8357deac403efdeab7bdc17045693e212f432b2b",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDDevelopmentProbe.h": {
+      "sha256": "f03715987906c70257dea8729d3d06415ff3efcbbeb8b53754fb69899c177a7e",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDEconomyProbe.h": {
+      "sha256": "41cf24b0c2d4b6a0be2b94dfa47e0eedd69af3c075a1d4950f190225e948ec16",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDEconomyUIProbe.h": {
+      "sha256": "d2919515a7a333e5126556699deab3431f43dffc17c929d89632565e8e7e7098",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDGeometryProbe.h": {
+      "sha256": "5d5dc7083d797843441dca312829ad7b62142e4626f23b60220e422800d8edbd",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDInputProbe.h": {
+      "sha256": "5127f9cae62944155b8928cb8707556ebf9c3769a8a54decc1c00c80192d4975",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDInstitutionProbe.h": {
+      "sha256": "abd0d3cc4d7135be24cfb12bb9f215ef6eb60aa9db7f7e440f3a63408ec16709",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDInventoryProbe.h": {
+      "sha256": "09f8f1b7c8729d6da6bc28e16becdd366863daa7296120842f6f3335bbb9c4da",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDLoadoutProbe.h": {
+      "sha256": "aab1770b8b960fe7d117fccc0cf95dbf7b941fa6d1afb5d73881e50b96341676",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDMovementProbe.h": {
+      "sha256": "71c2f58dc58a8e9065b583d87acb7951597bc3990a449723b1dc8610d99c00a1",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDNavigationProbe.h": {
+      "sha256": "085648aec5f5b38552ad1e4c718d0a8fc0e1672a53129b2cdfa9b6d59b7cd57c",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDObjectiveNetworkProbe.h": {
+      "sha256": "08f0ae4fd111af556dae3d9cdc4b37fac976fa9ab3474ee026081243a7c36308",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDObjectiveProbe.h": {
+      "sha256": "38b80ca4f2f8be12ff53f5b399565c6650730a93f13703fbf87aad1869e8bed7",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDProductionProbe.h": {
+      "sha256": "24da024000c3c3e427801ddfe56593d9d49c27e52c4d2e870dc125ed8d310f12",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDResetProbe.h": {
+      "sha256": "897eac0a8798d6a70fc3e676bdb44cfcf4e4c7bb214a8d6235b7e609477e9102",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDSoakProbe.h": {
+      "sha256": "73327c320e8f9fa285fd263eae2a466fec6d65a3ded8d8852fda7b491b4bc74a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDTacticalProbe.h": {
+      "sha256": "d57e651d5088a5c5755ef673c76cb834b2f5f1c7427236f3454030cb8890b45d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDTradeProbe.h": {
+      "sha256": "442992e56f0873ffe9f44019104b08c998b0e0a7fb8d3baf46590a2e0196c1e8",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDVendorProbe.h": {
+      "sha256": "82b2b046c8d0524d5380b22570a03df357ebf761869c36c5b22d2322bb876c2f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Tests/LDViewNetworkProbe.h": {
+      "sha256": "7079a515d369648ef2a4b10c6f642a6025cb774ddd8de7e43bc81ccf6d13544f",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDControlSettings.h": {
+      "sha256": "c875a04dbf7d9c79f212a24c3f3574f6b03b15b5474bdde3fad20319f1fb15d6",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDControlsPanel.h": {
+      "sha256": "3b87e0ed95c4cee2905ae62e2f093b4988d54e8753c537ee6b50d4ebc790ed25",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDDevelopmentPanel.h": {
+      "sha256": "3880f70459e972a2303b23a4f878a8842f0b6b7d0b12abae86cd10341075bac2",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDHUD.h": {
+      "sha256": "b36fbd886756b708984833eb479cee885e7c6d4e6fff10e152a6105f2f6034f3",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDHUDModel.h": {
+      "sha256": "ef61ff31811aa8417df865bb0948d250c85cb1347361571dc248bdff4746d234",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDInventoryPanel.h": {
+      "sha256": "5b12339a144cc2f4793ab7290f28fcbdffd2a195c8403a56f23140efd10785ae",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDMinimap.h": {
+      "sha256": "ceac0798571d2f4d2da87cb7da82db01b36bc3dd0aba4b555782d5194843ef05",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDUIRoot.h": {
+      "sha256": "33e9d407520a66b0e970ed3db7e1ef068f8b54a73e7714059a29d9b2a9f0a878",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/UI/LDWidgets.h": {
+      "sha256": "c5a004575a91919a0e80fdbdaac5a6a233980a58b081ac5840a7388ed86e53fa",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Vision/LDViewTypes.h": {
+      "sha256": "1247d5a86a4635e4af6c497c6a8778ed4f85378be4f92ddc039a0b7739147345",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Vision/LDVisionDirector.h": {
+      "sha256": "5e472cceb621c9b45449adb06f8efe3120bb1640f9c745fa55a1834199b25f38",
+      "encoding": "LF-normalized text"
+    },
+    "Source/Lockdown/Public/Vision/LDWorldViewRelay.h": {
+      "sha256": "958fd9cb78f3db5126c30d42918ef43ac8bd9f1686b2866c9b412e24af8fd25a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor.Target.cs": {
+      "sha256": "cacf016cdf5fd21bced8e4c98a45aedc72396303b34ddc4d37438c07ecbcea9a",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/LockdownEditor.Build.cs": {
+      "sha256": "5d61709983da9ba8facade16241988a2671d724f38a389e360b3f7b1c03c99ff",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/Private/LockdownEditorModule.cpp": {
+      "sha256": "850863e25d4389a51c5c6919cbc1478416e1430da77e0579bf9622cb686fec32",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/Private/ScaffoldBootstrap/LDRegionBootstrap.cpp": {
+      "sha256": "568555841947521975b19308fb89faeed008036b3552a8f0c704b85ea43ef986",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/Private/ScaffoldBootstrap/LDRegionBootstrap.h": {
+      "sha256": "737b749f373009fe25a96a20405bbb75501721282a6a1d5c5bc271aad4184992",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp": {
+      "sha256": "6df12815809731e45a3a8728ae1cccf61ac50cdea69ea6b14b4757cccc30487d",
+      "encoding": "LF-normalized text"
+    },
+    "Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.h": {
+      "sha256": "967156137b2c6bd49c1482418c9e8b2dcfa435e1511fe85541cd2aa4a84dca49",
+      "encoding": "LF-normalized text"
+    }
+  }
+}

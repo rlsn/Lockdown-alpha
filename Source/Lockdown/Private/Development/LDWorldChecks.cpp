@@ -66,8 +66,8 @@ double ALDWorldChecks::RetryAt(ALDCharacter* Source,ALDCharacter* Target)
 double ALDWorldChecks::AlertUntil(ALDCharacter* Target){const auto* W=Wallets.Find(WalletId(Target));return W?W->Alert:0;}
 int32 ALDWorldChecks::Wisdom(ALDCharacter* Body) const
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){if(auto* O=M->StateFor(PC)){return O->Build.Attributes[LDDevelopment::WIS];}}
-    const auto* S=M->Combat->StateFor(Body);return S&&S->bHasNPCBuild?S->NPCBuild.Attributes[LDDevelopment::WIS]:10;
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){if(auto* O=M->StateFor(PC)){return LDDevelopment::Effective(O->Build)[LDDevelopment::WIS];}}
+    const auto* S=M->Combat->StateFor(Body);return S&&S->bHasNPCBuild?LDDevelopment::Effective(S->NPCBuild)[LDDevelopment::WIS]:10;
 }
 bool ALDWorldChecks::LiveWallet(ALDCharacter* Body,const FWallet& W) const
 {
@@ -120,7 +120,7 @@ bool ALDWorldChecks::UseWallet(ALDCharacter* Source,ALDCharacter* Target,const F
         return true;
     }
     if(!Existing||Existing->SourceBody!=S->Identity||Existing->Source!=Source||Existing->Target!=Target||Existing->TargetWallet!=TargetId||S->Action!=7||S->SkillToken!=Token){return Reject();}
-    auto& R=*Existing;R.Roll=Draw();R.Success=LDDevelopment::TheftSucceeds(R.Roll,Build.Attributes[LDDevelopment::DEX],LDDevelopment::Rank(Build,ELDSkill::Pickpocket),Build.Subclass==3,Wisdom(Target),Now<TW.Alert);R.Committed=true;
+    auto& R=*Existing;R.Roll=Draw();R.Success=LDDevelopment::TheftSucceeds(R.Roll,LDDevelopment::Effective(Build)[LDDevelopment::DEX],LDDevelopment::Rank(Build,ELDSkill::Pickpocket),Build.Subclass==3,Wisdom(Target),Now<TW.Alert);R.Committed=true;
     R.Amount=R.Success?FMath::Min<int64>(12,Gold(TW)):0;
     if(R.Success){const int64 SourceGold=Gold(SW),TargetGold=Gold(TW);SetGold(TW,TargetGold-R.Amount);SetGold(SW,SourceGold+R.Amount);M->RecordEconomyGold(TEXT("PickpocketTransfer"));}
     else{TW.Alert=FMath::Max(TW.Alert,Now+30);S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}

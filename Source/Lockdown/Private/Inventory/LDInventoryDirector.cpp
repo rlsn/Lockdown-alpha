@@ -1,6 +1,7 @@
 #include "Inventory/LDInventoryDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -26,7 +27,7 @@ void ALDInventoryDirector::FailNextWardForProbe()
 void ALDInventoryDirector::Initialize(ALDPlayerController* PC)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);if(!O||O->Inventory.bInitialized){return;}
-    O->Inventory.bInitialized=true;O->Inventory.Capacity=uint8(FMath::Clamp(Capacity,1,64));const uint8 Charges=O->WardCharges;O->WardCharges=0;
+    O->Inventory.bInitialized=true;if(M->IsTacticalProfile()){O->Inventory.RulesVersion=7;O->Inventory.Quick.SetNum(3);}O->Inventory.Capacity=uint8(FMath::Clamp(Capacity,1,64));const uint8 Charges=O->WardCharges;O->WardCharges=0;
     for(uint8 I=0;I<Charges;++I){auto* Item=GetWorld()->SpawnActor<ALDItem>();check(Item);const bool Adopted=Adopt(PC,Item,TEXT("CarriedEndowment"));check(Adopted);}Changed(PC);
 }
 ALDItem* ALDInventoryDirector::Owned(AActor* Container,FGuid Id) const
@@ -45,7 +46,7 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
 {
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||(ULDEquipmentCatalog::Load()&&ULDEquipmentCatalog::Load()->Find(Item->Kind)&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile())||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
     auto* Economy=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get();
     if(Economy&&Item->Kind==ELDItemKind::Seal){return false;}
     if(Economy&&!Economy->Accounting().Item(Item->Identity)&&CreationCause.IsNone())
@@ -53,23 +54,23 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
     uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
     Item->Holder=PC;Item->State=1;Item->Slot=Slot;++Item->Revision;
     if(auto* Seal=Cast<ALDSeal>(Item)){Seal->Carrier=PC;}
-    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
+    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;Entry.BindingMask=Item->BindingMask;Entry.ReadyAt=Item->ReadyAt;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
 }
 void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
-    if(!Item||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}
+    if(!Item||Item->BindingMask||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}
     LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(Cause.IsNone()?FName(Consume?TEXT("ItemConsumed"):TEXT("Drop")):Cause,0,0,Consume?TArray<FGuid>{Item->Identity}:TArray<FGuid>{})){++E->AuditFailures;}}if(Consume){Item->Destroy();}
 }
-void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
+void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
 {
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}const auto Items=O->Inventory.Items;
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}const auto Items=O->Inventory.Items;
     for(const auto& Entry:Items)
     {
         if(auto* Item=Owned(PC,Entry.Id))
         {
             Item->bReserved=false;
-            if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true,TEXT("UnusedWardLoss"));}
-            else if(LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
+            if(Item->Kind==ELDItemKind::WardCharge&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Remove(PC,Item,true,TEXT("UnusedWardLoss"));}
+            else if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&!Item->BindingMask&&(Item->Kind==ELDItemKind::WardCharge||ULDEquipmentCatalog::Load()->Find(Item->Kind))||LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
             {
                 FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);
                 if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}
@@ -81,7 +82,7 @@ void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
 bool ALDInventoryDirector::Eligible(ALDPlayerController* PC,double Now) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);
-    return M->IsPlaying()&&O&&O->bActive&&PC->GetPawn()&&S&&S->Hp>0&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&!S->Action&&!M->Objectives->HasChannel(PC)&&!O->DevelopmentKind;
+    return M->IsPlaying()&&O&&O->bActive&&PC->GetPawn()&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(Cast<ALDCharacter>(PC->GetPawn())),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&!S->Action&&!M->Objectives->HasChannel(PC)&&!O->DevelopmentKind;
 }
 void ALDInventoryDirector::QuotePickup(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,FGuid Observed)
 {
@@ -101,6 +102,7 @@ bool ALDInventoryDirector::Complete(ALDPlayerController* PC,uint32 Id,const FStr
 void ALDInventoryDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint32 InvRev,uint8 Command,FGuid Item,uint32 ItemRev,uint8 Slot,FVector Point)
 {
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Match!=Match||O->Life!=Life||!Id||Command<1||Command>LDInventory::Use||Point.ContainsNaN()){PC->ClientIntentResult(Id,TEXT("Inventory action unavailable"));return;}
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&(Command==LDInventory::Use||Command==LDInventory::Place)){GetWorld()->GetAuthGameMode<ALDGameMode>()->Development->Cancel(PC,TEXT("Item action cancelled preparation"));}
     auto& C=Clients.FindOrAdd(PC);if(const auto* Receipt=C.Receipts.Find(Id)){PC->ClientInventoryResult(*O,Id,*Receipt);return;}
     if(Id<=C.Last){PC->ClientIntentResult(Id,TEXT("Expired inventory request"));return;}
     const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(8.,C.Tokens+FMath::Max(0.,Now-C.At)*8);C.At=Now;
@@ -116,6 +118,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     if(Item&&Item->Kind==ELDItemKind::NullBell&&!M->IsTacticalProfile()){Reject(TEXT("Tactical item requires v07 profile"));return;}
     if(M->Economy&&Item&&Item->Kind==ELDItemKind::Seal){Reject(TEXT("Legacy Seals are disabled in the economy profile"));return;}
     if(R.Command!=LDInventory::Sort&&R.Command!=LDInventory::Buy&&(!Item||Item->Revision!=R.ItemRevision||Item->bReserved)){Reject(TEXT("Item changed or unavailable"));return;}
+    if(M->IsTacticalProfile()&&(R.Command==LDInventory::Bind||R.Command==LDInventory::Unbind)){Reject(TEXT("Use the versioned quiet loadout hold"));return;}
     if(R.Command<=LDInventory::Unbind)
     {
         if(R.Command==LDInventory::Sort||R.Command==LDInventory::Move)
@@ -139,6 +142,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     }
     if(R.Command==LDInventory::Place)
     {
+        if(M->IsTacticalProfile()&&!O->Inventory.Quick.Contains(Item->Identity)){Reject(TEXT("Assign ward charge to a quick reference first"));return;}
         if(!M->Combat->Allows(Cast<ALDCharacter>(PC->GetPawn()),LDTactical::EAction::Item)){Reject(TEXT("Active item blocked by control"));return;}
         if(Item->Kind!=ELDItemKind::WardCharge){Reject(TEXT("Choose a ward charge"));return;}
         if(bFailWard){bFailWard=false;Reject(TEXT("Ward could not be placed; charge kept"));return;}
@@ -146,6 +150,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     }
     if(R.Command==LDInventory::Drop)
     {
+        if(Item->BindingMask){Reject(TEXT("Unbind equipment through a quiet hold before dropping"));return;}
         FVector Surface;const APawn* Body=PC->GetPawn();if(FVector::Dist2D(Body->GetActorLocation(),R.Point)>80||!LDGround::MapSurface(GetWorld(),R.Point,Surface)||!LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Surface)||!M->Vision->Ray({Body->GetActorLocation(),80,M->Vision->LevelAt(Body->GetActorLocation())},Surface)||GetWorld()->OverlapAnyTestByObjectType(Surface+FVector(0,0,16),FQuat::Identity,FCollisionObjectQueryParams(ECC_WorldStatic),FCollisionShape::MakeSphere(12))){Reject(TEXT("No legal drop ground within 80 cm"));return;}
         if(M->Trade){M->Trade->CancelFor(PC);}if(auto* Seal=Cast<ALDSeal>(Item)){M->Objectives->AnnounceVoluntaryDrop(Seal,Surface+FVector(0,0,16));}else{Item->SetActorLocation(Surface+FVector(0,0,16));}
         Remove(PC,Item,false);Reply(PC,R.Id,TEXT("Item dropped"));return;

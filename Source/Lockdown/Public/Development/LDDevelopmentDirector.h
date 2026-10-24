@@ -8,7 +8,7 @@ class ALDPlayerController;
 
 namespace LDDevelopmentTransaction
 {
-    constexpr uint8 Buy=1,Read=2,Prepare=3,PickUp=4;
+    constexpr uint8 Buy=1,Read=2,Prepare=3,PickUp=4,Loadout=9;
     constexpr int64 BookPrice=40;
     constexpr int32 BookCapacity=4;
     LOCKDOWN_API bool Sold(ELDSkill Skill);
@@ -30,6 +30,7 @@ class LOCKDOWN_API ALDDevelopmentDirector : public AActor
 public:
     ALDDevelopmentDirector();
     void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan,uint32 InventoryRevision=0,uint32 ItemRevision=0);
+    void QueueLoadout(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,uint32 InvRev,uint32 ItemRev,uint8 Command,FGuid Item,uint8 Slot);
     void RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
     void Release(ALDPlayerController* PC,uint32 Life,uint32 Token);
     void Cancel(ALDPlayerController* PC,const FString& Reason);
@@ -39,7 +40,7 @@ public:
     bool NearStation(ALDPlayerController* PC,bool GuildOnly=false) const;
     int32 QueuedCount() const {return Requests.Num();}
 private:
-    struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;uint8 Kind;ELDSkill Skill;FGuid Item;FLDBuildPlan Plan;uint32 InventoryRevision=0,ItemRevision=0;};
+    struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;uint8 Kind;ELDSkill Skill;FGuid Item;FLDBuildPlan Plan;uint32 InventoryRevision=0,ItemRevision=0;uint8 Command=0,Slot=0;};
     struct FState
     {
         uint32 LastRequest=0,CancelledThrough=0,Token=0,Life=0,Match=0,Sequence=0;
@@ -48,6 +49,9 @@ private:
         FVector Anchor=FVector::ZeroVector;
         TWeakObjectPtr<ALDBook> Book;
         FLDBuildPlan Plan;
+        FLDInventory Loadout;
+        uint32 InventoryRevision=0,BuildRevision=0;
+        uint8 Command=0;
         TMap<uint32,FString> Receipts;
     };
     TArray<FRequest> Requests;

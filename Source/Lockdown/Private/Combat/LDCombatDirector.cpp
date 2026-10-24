@@ -150,7 +150,7 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
         if(Action==0)
         {
             if(Now<S->BasicReady){Result=TEXT("Attack cooling down.");return false;}
-            S->Action=1;S->ImpactAt=Now+(Mode->IsTacticalProfile()?.3:Body->IsA<ALDWildSentinel>()?.3:LDCombat::BasicWindup);S->BasicReady=Now+(Mode->IsTacticalProfile()?1.2:Body->IsA<ALDWildSentinel>()?1.2:LDCombat::BasicCadence);
+            S->Action=1;S->ImpactAt=Now+(Mode->IsTacticalProfile()?.3:Body->IsA<ALDWildSentinel>()?.3:LDCombat::BasicWindup);S->BasicReady=Now+(Mode->IsTacticalProfile()?(BuildFor(Body)?BuildFor(Body)->Gear.Interval/1000.:1.2):Body->IsA<ALDWildSentinel>()?1.2:LDCombat::BasicCadence);
             const auto* Build=BuildFor(Body);
             S->CommittedDamage=Body->IsA<ALDWildSentinel>()?12:Mode->IsDevelopmentProfile()&&Build?LDDevelopment::BasicDamage(*Build):20;
             S->Skill=ELDSkill::None;
@@ -252,7 +252,7 @@ void ALDCombatDirector::Sample(double Now)
         {
             AActor* Target=nullptr;const bool bAssassin=S.Action==2,bSpark=S.Action==6;
             if(bSpark){if(Cast<ALDCharacter>(S.Target.Get())&&LegalTarget(Body,S.Target.Get(),500,nullptr,0)){Target=S.Target.Get();}}
-            else if(!bAssassin){Target=Nearest(Body,96,S.CommittedAim,40,false);}
+            else if(!bAssassin){Target=Nearest(Body,Mode->IsTacticalProfile()&&BuildFor(Body)?BuildFor(Body)->Gear.Reach:96,S.CommittedAim,40,false);}
             else if(ALDCharacter* Victim=Cast<ALDCharacter>(S.Target.Get()))
             {
                 const auto* T=StateFor(Victim);
@@ -269,7 +269,7 @@ void ALDCombatDirector::Sample(double Now)
     TSet<ALDCharacter*> Deaths;TMap<ALDPlayerController*,double> SentinelDamage;
     for(const auto& Hit:Impacts)
     {
-        auto* S=StateFor(Hit.Source);if(S){S->LastDealt=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
+        auto* S=StateFor(Hit.Source);if(S){if(!Mode->IsTacticalProfile()){S->LastDealt=Now;}S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
         if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicLocation(),600,1},Hit.Target->GetActorLocation()))
         {if(S){S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}}
         if(auto* Field=Cast<ALDTacticalField>(Hit.Target)){Field->Hp-=Hit.Damage;continue;}
@@ -280,14 +280,15 @@ void ALDCombatDirector::Sample(double Now)
         {
             const int64 At=LDTactical::Milliseconds(Now);
             if(Hit.Spell&&LDTactical::Block(T->Tactical,At)){UE_LOG(LogTemp,Display,TEXT("LD_B71_BLOCK token=%u"),Hit.Token);continue;}
-            const auto* B=BuildFor(Victim);const double Armor=B?2+.5*(B->Attributes[2]-8):2;
-            const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage,Hit.Kind,Armor,.15,At);
+            const auto* B=BuildFor(Victim);const double Armor=B?2+.5*(LDDevelopment::Effective(*B)[2]-8)+B->Gear.Armor:2;
+            const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage,Hit.Kind,Armor,B?.15+B->Gear.MagicResist:.15,At);
             if(Hit.Interrupt&&T->Hp>0){ExplicitInterrupt(Victim,Now);}
             if(Hit.SilenceMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Silence,At+Hit.SilenceMS,FGuid::NewGuid());}
             if(Hit.BreakMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Break,At+Hit.BreakMS,FGuid::NewGuid());}
             if(Hit.StunMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Stun,At+Hit.StunMS,FGuid::NewGuid());}
             UE_LOG(LogTemp,Display,TEXT("LD_B71_DAMAGE source=%s victim=%s token=%u kind=%u contact=%.2f hp=%.2f barrier=%.2f"),*(Hit.SourceIdentity.IsValid()?Hit.SourceIdentity:S?S->Identity:FGuid()).ToString(),*T->Identity.ToString(),Hit.Token,uint8(Hit.Kind),Contact,T->Hp,T->Tactical.Barrier);
             if(Contact<=0){continue;}
+            if(S){S->LastDealt=Now;}
             BreakConcealment(Victim);if(Hit.Source){BreakConcealment(Hit.Source);}
         }
         else{T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);}
