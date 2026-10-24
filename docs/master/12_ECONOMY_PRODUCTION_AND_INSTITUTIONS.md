@@ -1,31 +1,23 @@
-# Economy production and institutions
+# Economy, production and institutions
 
-## Hybrid institutions
+## Hybrid access
 
-Use stable official supply shops for predictable access to essentials and dynamic local markets for scarcity, transport and timing. Official traders are identifiable noncontenders; they do not reveal which ordinary bodies are human. Public institutions may expose catalogs/market reserves by rule. No dialogue system is required: structured buy, sell, recipe, work and claim actions are sufficient.
+Stable official supply provides predictable essentials; finite regional stock/cash creates scarcity, timing and transport margins. Marked nonwinning services expose only deliberate institution facts. Ordinary humans/NPCs remain masked. Structured work/trade panels suffice; no dialogue requirement.
 
-Official access does not eliminate risk or meaningful prices. A stable supplier may offer an unlimited catalog in exchange for gold while a regional market has finite stock and spending reserves. Declare each transaction a creation, destruction, transfer or transformation; do not count a transfer as new wealth.
+Official payments burn gold and create paid items; market sales/buys transfer existing gold/items with finite reserve/capacity and guarded bid/ask. No silent stock/cash reset. Physical banks protect committed deposits after fees; ordinary wallet theft/death risk remains. Treasury permits explicit wallet/bank split for registered Charter. No loans/interest/insurance introduced.
 
-## Integrated economic play
+## Light production and supply
 
-A character can earn seed capital, gather, buy, haul, refine, sell or meet an institutional demand. Travel, carried capacity, visibility, death/theft, skill preparation and contested goals provide opportunity cost. Cities support many professions rather than attribute-locked economies. Public roads and covered alternatives serve distinct risk choices.
+Few-input short chains support materials, gear assembly, specialized equipment and quality. Workshops/advanced forge/HeartForge create geography and cargo exposure, not a factory simulator. Existing Fiber/Ore/Crystal→Toolkit/Core production remains; new gear recipes consume those goods and selected tactical components. Profession/learned utility may improve a named task through real slots/cooldowns, never universal free crafting XP or percentage income snowball.
 
-Light recipes should have few inputs and readable fees, not a large factory simulation. Learned utility may improve particular tasks through the existing shared skill slots. Basic recipe use is distinct from free activation of a specialized skill. Economic growth rewards meaningful bounded accomplishments, not infinite buy/sell or craft/uncraft loops.
+Consumables, equipment, books and artifacts have multiple sources appropriate to scarcity. Basic counter-items are unlimited fixed-price paid supply so one buyer cannot corner all dispel/detection. Regional markets keep finite commodity scope; completed gear is available through work orders, peer trade or authored rare sources. No blanket automatic buyback for all generated equipment. Quality and assembly provide sinks even though equipped ordinary gear persists.
 
-## Macro sources and sinks
+## Source/sink discipline
 
-Explicit gold sources include finite match-endowed NPC/market balances and budgeted institutional rewards. Sources of items include starting endowments, gathered resources and paid official creation. Fees, consumed supplies, final institutional demand and death loss can be sinks. Crafting transforms inputs to outputs; a market sale, theft, peer exchange or death drop transfers ownership. Record cleanup explicitly so items never disappear outside the ledger.
+Every event is endowment, creation, consumption/transformation, burn or transfer. Count wallets+banks+institution reserves; transfers cancel in aggregate. Item counts include equipped/cache/world/dropped/reserved once. Recipes retain lineage; timed wards/leases have explicit lifecycle. Physical drops transfer, corpse cleanup cannot erase goods silently. Actor recreation/death/rejoin never repeats source grants.
 
-Track total gold across every wallet, not only players. Market liquidity is not a price multiplier and cannot be silently refilled. Local prices respond to stock/demand with bounded readable spreads. Buyback rules, production conversion and official supplies need cycle checks. Intended cross-region margins are part of play, with finite demand and risk.
+v0.6's bounded contracts/producers/consumers remain unchanged in v0.7. Camps/boss/towers add explicit limited rewards; max new combat gold642, giving reward bound540*N+682 with predecessor sources. PvP grants bounded XP but no newly minted gold. Full-session economic calibration remains pending. Measure actual margins after fees/travel/loss, stockouts, cash exhaustion, wealth concentration and first access timing.
 
-## Progress and acquisition
+## Progress and victory
 
-Economic accomplishments unlock Grand Heart acquisition, followed by a real contest. Wealth alone is not victory. Bound prerequisites, announce only authorized access facts, retain drop/interception opportunities and preserve one terminal acquisition receipt. Later routes must not bypass this choice accidentally.
-
-v0.6 proposes three local markets, three raw/two produced goods, two recipes, finite gathering and visible institutional consumption. Two distinct commercial endorsements and a registered Charter replace the courier-only/physical Seal unlock. The Charter schedules a public warning then an acquisition window for everyone, with persistent registration but a post-death delay before activation. These are small test defaults, not a final full-session model.
-
-## Evidence
-
-Measure stock/cash histories, money created/burned/transferred, material lineage, net margins, travel, failed transactions, shortages and access time. Require a normal zero-kill production-to-contest demonstration plus multiplayer competition for supply. Separate isolated fixtures, a technical soak and human evidence. Full 60–90 minute pacing, autonomous rival economies, auctions, credit, tax regimes and dialogue remain future work.
-
-Physical official banks protect committed deposits and can fund Treasury purchase, while physical cargo remains at risk. Unified inventory weight adds a logistics constraint without separate cargo bags. The prototype uses a hard weight cap beside existing slots; broader encumbrance, capacity upgrades, escorts, insurance and new equipment remain later work. Aggregate paid producers and consumers provide bounded supply/demand; distinguish their creation/destruction and cash movements explicitly.
+Economic play earns distinct Supply/Industrial endorsements and Witness, then registered Charter purchase/activation. This opens a PUBLIC contest, not private paid victory. Wealth can instead buy equipment, books, keys or artifact inputs; routes overlap economically. Keys/rare fragments/catalysts are physical contestable goods. Final victory is always contested Heart acquisition. v0.7 preserves a normal zero-kill economic route while giving all builds affordable disruption tools and meaningful slot opportunity costs.

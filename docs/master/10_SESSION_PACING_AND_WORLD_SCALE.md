@@ -1,21 +1,11 @@
-# Session pacing and world scale
+# Session pacing and scale
 
-## Full-match target
+The full target remains60–90 minutes to support varied growth and plans. Establishment/competition/convergence are soft aims, not mandatory minute gates. Work, knowledge, skill preparation, travel and markets must contain choices rather than grind. An exceptional early route may succeed; late warnings and infrastructure loss naturally draw contenders together.
 
-The user extended the intended session from roughly twenty minutes to 60–90 minutes. The change supports development, preparation and diverse strategies; it does not mean multiplying all old timers by three.
+Long-session validation needs activity density, recovery after loss, consumable availability, money/material circulation, progression access, time-to-contest and death downtime. A90 minute technical soak tests stability, not enjoyment. One compressed run cannot prove a balanced economy or every route's equal viability.
 
-Establishment, competition and convergence can guide pacing. The source's example bands of 0–20, 20–55 and 55–90 minutes are illustrative, not hard locks. A skillful acquisition may end earlier. Quiet play should still offer decisions, and a setback must permit a plausible pivot.
+v0.7 uses a35 minute/level 15 integration cap with 1–4locked contenders and the existing small City/West/East region plus authored POIs. Cap15 permits investment tests; normal expected levels must be measured and need not reach cap. Level 8vs14 combat fixtures are labelled, not claimed as normal progression. The separate frozen v0.6 regression remains25 minutes/level 5, without mixed resources.
 
-Long-session design must address reconnect, downtime, stalled progression, consumable supply, economic inflation and recovery. A ninety-minute technical soak tests stability, not whether people enjoy the pacing.
+Existing v0.6 institutional schedules/reward budgets are not automatically multiplied for longer integration time. New combat sources are bounded and explicitly accounted. Full-session resource cycles and respawn curves will need retuning with evidence. Late access must still provide an actual defendable warning/opening; compare warning time with measured travel rather than assuming all players can always respond.
 
-## World topology
-
-Four outer cities and one central city are an example configuration. Lesser towns, roads, wilderness and hidden places can vary. Region themes are economic and cultural, not class or attribute restrictions.
-
-Separate strategic graph data from spatial assets: nodes identify regions and services, edges identify routes and risk, and authored spaces implement traversal and sight. Multiple outer-to-outer paths reduce a compulsory capital choke. Both safe and dangerous journeys must serve real purposes.
-
-## Prototype limits
-
-v0.4 can use one city, two towns and connecting wilderness, a short integration profile and a low level cap. The package must name these reductions and demonstrate character development without claiming full world or duration validation.
-
-Test both real play and longer technical runs. A compressed profile cannot establish sixty-minute progression or recovery. A larger empty map cannot establish a richer world. Expand geography and duration after observing route choices, activity density, build differences and acquisition attempts.
+Future world layout may use four outer cities, a centre, towns, ruins and wilderness; themes are economic/cultural rather than exclusive stats. Multiple outer-to-outer links and flanks avoid universal central choke. Expand only after observing route usage, encounters, travel decisions and sight coverage. More empty terrain does not equal more strategy.

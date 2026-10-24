@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 1,
+  "package": "Project Lockdown v0.6",
+  "date": "2026-10-23",
+  "status": "Proposed specification; actual v0.5 deviations must be recorded",
+  "profile": {
+    "contendersMin": 1,
+    "contendersMax": 4,
+    "seconds": 1500,
+    "levelCap": 5,
+    "skillSlots": 4,
+    "inventorySlots": 24,
+    "quickReferences": 4
+  },
+  "goods": {
+    "Fiber": {
+      "weight": 1
+    },
+    "Ore": {
+      "weight": 3
+    },
+    "Crystal": {
+      "weight": 2
+    },
+    "Toolkit": {
+      "weight": 4
+    },
+    "Core": {
+      "weight": 6
+    }
+  },
+  "otherWeights": {
+    "book": 1,
+    "ward-charge": 1,
+    "legacySeal": 2
+  },
+  "weightCapacity": "60 + 2*(STR-10)",
+  "weightPolicy": "Hard final-state cap; no speed/stealth penalties; reject overcapacity preparation",
+  "officialSupply": {
+    "Fiber": 4,
+    "Ore": 6,
+    "StepBook": 40,
+    "SparkBook": 40,
+    "PatchBook": 40,
+    "ParleyBook": 40
+  },
+  "markets": {
+    "WestTown": {
+      "gold": 150,
+      "goods": {
+        "Fiber": {
+          "stock": 18,
+          "base": 4
+        },
+        "Ore": {
+          "stock": 6,
+          "base": 10
+        },
+        "Crystal": {
+          "stock": 3,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 2,
+          "base": 26
+        }
+      }
+    },
+    "EastTown": {
+      "gold": 150,
+      "goods": {
+        "Fiber": {
+          "stock": 6,
+          "base": 8
+        },
+        "Ore": {
+          "stock": 18,
+          "base": 6
+        },
+        "Crystal": {
+          "stock": 3,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 2,
+          "base": 26
+        }
+      }
+    },
+    "City": {
+      "gold": 150,
+      "goods": {
+        "Fiber": {
+          "stock": 8,
+          "base": 6
+        },
+        "Ore": {
+          "stock": 8,
+          "base": 8
+        },
+        "Crystal": {
+          "stock": 8,
+          "base": 12
+        },
+        "Toolkit": {
+          "stock": 2,
+          "base": 24
+        }
+      }
+    }
+  },
+  "pricing": {
+    "target": "initial stock",
+    "stockCap": "max(12,2*T)",
+    "ask": "clamp(ceil(B*(3*T-S)*eventNumerator/(2*T*eventDenominator)),ceil(B/2),ceil(3*B/2))",
+    "bid": "min(floor(7*ask(S)/10), max(0,ask(S+1)-1)) under same event ratio",
+    "normalEventRatio": [
+      1,
+      1
+    ],
+    "quoteRequired": true,
+    "unitTransactions": true
+  },
+  "recipes": {
+    "Toolkit": {
+      "inputs": {
+        "Fiber": 2,
+        "Ore": 1
+      },
+      "fee": 4,
+      "seconds": 4,
+      "outputCount": 1
+    },
+    "Core": {
+      "inputs": {
+        "Toolkit": 2,
+        "Crystal": 1
+      },
+      "fee": 6,
+      "seconds": 6,
+      "outputCount": 1
+    }
+  },
+  "gather": {
+    "nodes": 2,
+    "chargesPerNode": 3,
+    "good": "Crystal",
+    "basicSeconds": 6,
+    "rangeCm": 120,
+    "xp": 0,
+    "resetOnRespawn": false
+  },
+  "skillUses": {
+    "Survey": {
+      "scoreMin": 12,
+      "seconds": 1,
+      "effect": "one Crystal extraction using same charge/capacity rules"
+    },
+    "Analyze": {
+      "scoreMin": 14,
+      "seconds": 2,
+      "effect": "one workshop-bound coupon",
+      "discount": 2,
+      "expiresSeconds": 30,
+      "stacking": false,
+      "clearOnDeath": true
+    }
+  },
+  "npcTicks": {
+    "times": [
+      180,
+      360,
+      540,
+      720,
+      900,
+      1080,
+      1260,
+      1440
+    ],
+    "production": [
+      {
+        "market": "WestTown",
+        "good": "Fiber",
+        "count": 1,
+        "goldBurn": 2
+      },
+      {
+        "market": "EastTown",
+        "good": "Ore",
+        "count": 1,
+        "goldBurn": 3
+      }
+    ],
+    "consumption": [
+      {
+        "market": "WestTown",
+        "good": "Fiber",
+        "count": 1
+      },
+      {
+        "market": "EastTown",
+        "good": "Ore",
+        "count": 1
+      },
+      {
+        "market": "City",
+        "good": "Toolkit",
+        "count": 1
+      }
+    ],
+    "order": "bounded funded production then available consumption; skip without catch-up"
+  },
+  "contracts": {
+    "courier": {
+      "gold": 25,
+      "xp": 45,
+      "perContender": 8,
+      "legacyCredits": 0
+    },
+    "coreProcurement": {
+      "inputs": {
+        "Core": 1
+      },
+      "gold": 80,
+      "xp": 60,
+      "perContender": 3,
+      "global": "3*N",
+      "firstEndorsement": "Industrial",
+      "holdSeconds": 3
+    },
+    "supply": {
+      "inputs": {
+        "Toolkit": 2
+      },
+      "gold": 50,
+      "xp": 30,
+      "perContender": 1,
+      "global": "N",
+      "endorsement": "Supply",
+      "holdSeconds": 3
+    }
+  },
+  "shortage": {
+    "start": 600,
+    "end": 780,
+    "market": "EastTown",
+    "good": "Toolkit",
+    "priceRatio": [
+      5,
+      4
+    ],
+    "bonusOrder": {
+      "inputs": {
+        "Toolkit": 1
+      },
+      "gold": 40,
+      "xp": 20,
+      "globalLimit": 1,
+      "holdSeconds": 3,
+      "completionStrictlyBeforeEnd": true,
+      "endorsement": null
+    }
+  },
+  "bank": {
+    "location": "CityTreasury",
+    "rangeCm": 120,
+    "quietSeconds": 6,
+    "depositFee": "ceil(2*A/100)",
+    "depositCredit": "A-fee",
+    "rejectZeroCredit": true,
+    "withdrawFee": 0,
+    "interest": 0,
+    "deathOrTheftAffectsBank": false,
+    "treasurySplitDebit": true
+  },
+  "charter": {
+    "requiredEndorsements": [
+      "Supply",
+      "Industrial"
+    ],
+    "requiresWitness": true,
+    "price": 100,
+    "purchaseLimit": 1,
+    "activationLimit": 1,
+    "physicalItem": false,
+    "transferable": false,
+    "activationHoldSeconds": 4,
+    "warningSeconds": 30,
+    "openSeconds": 60,
+    "everyoneEligible": true,
+    "claimSeconds": 10,
+    "claimRangeCm": 120,
+    "contestRangeCm": 240,
+    "deathBeforeActivation": "ready at actual respawn completion +30 seconds",
+    "deathAfterActivation": "window continues, spent remains",
+    "maxConcurrentGlobal": 1,
+    "fullWindowBeforeDeadlineRequired": true,
+    "claimCompletionAtCloseAllowed": true,
+    "legacySealBypass": false
+  },
+  "accounting": {
+    "maxRewardMints": "540*N+40",
+    "initialMarketGold": 450,
+    "exampleResidentGold": 288,
+    "exampleTotalInitialGold": 738,
+    "maxProducerBurn": 40,
+    "goldIdentity": "end=start+minted-burned across wallets+banks+market reserves",
+    "itemIdentity": "end=start+created-consumed-explicitCleanup per definition across all locations"
+  },
+  "feasibility": {
+    "jobs": 3,
+    "jobGold": 75,
+    "supplyCost": 36,
+    "supplyReward": 50,
+    "firstCoreCost": 54,
+    "coreReward": 80,
+    "charterCost": 100,
+    "remainingGold": 15,
+    "xpBeforeVisits": 225,
+    "xpWithThreeVisits": 300
+  },
+  "deferred": [
+    "12–15 goods and 5–8 recipes",
+    "escorts/insurance",
+    "equipment production",
+    "encumbrance speed penalties",
+    "bag upgrades",
+    "full caravans",
+    "new law/guards",
+    "loans/interest",
+    "auction",
+    "full conquest",
+    "60–90 minute human balance"
+  ]
+}

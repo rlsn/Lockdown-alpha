@@ -1,45 +1,22 @@
-# Roadmap and project governance
+# Roadmap and governance
 
-## Delivery sequence
-
-| Stage | Main purpose | Evidence |
+| Stage | Purpose | Evidence |
 | --- | --- | --- |
-| v0.1 and v0.2 | Historical web foundations and objective experiment | Inspect the actual implementation; user reports v0.2 complete |
-| v0.3 | Unreal migration and representative scaffold | Pinned build, native UI, geometry, authority, fog and packaged clients |
-| v0.4, reported delivered | Class-based character building in a small connected region | Inspect actual delivery and existing evidence |
-| v0.5, reported delivered | Consistent UI and control | Click navigation, authorized selection, coherent HUD, inventory, quick items and real bounded trade |
-| v0.6 | Bounded regional economy | Real production, market stock/cash, public institutional demand, source/sink accounting and contested economic unlock |
-| Integration and parity | Port remaining world, economy and AI systems | End-to-end routes under normal rules, accurate ledger |
-| Long-session prototype | Develop the full 60–90 minute experience | Human pacing, recovery, acquisition and long-run technical evidence |
-| Squad experiment | Add eventual four-player groups | Team sight, ownership, progression and acquisition rules |
-| Public readiness | Operate a fair native game | Measured capacity, recovery, matchmaking, moderation and costs |
+|Historical v0.1/v0.2|Web foundation/objective experiments|User-reported delivery, not source inspected here|
+|v0.3|Unreal/native geometry/fog/authority scaffold|Actual pinned build/assets/clients|
+|v0.4/v0.5|Class growth then coherent native UI/navigation/inventory/trade|Audit reported delivery and preserved baseline|
+|v0.6|Bounded regional economy, banks/cargo/production/public Charter|Audit actual status, source/sink receipts and normal zero-kill route|
+|v0.7|Tactical combat/progression/acquisition/four-route integration|B70–B77 and C001–C055, full content behavior and normal route demos|
+|Long-session integration|World/AI/activity density and60–90 minute pacing|Human choices/recovery, real progression and measured performance|
+|Squad experiment|Eventual groups of four|Explicit team sight/ownership/consent/win rules|
+|Public readiness|Operate a fair native game|Capacity, recovery, matchmaking/moderation/operating evidence|
 
-No stage promises a date or staffing level. Hero-roster expansion is removed. The old requirement to finish every v0.2 port before changing character design is superseded by the user's new direction; preserve working foundations and inventory remaining parity honestly.
+No dates/staffing commitments. v0.7 is staged: baseline audit; combat/MP; geometry/control; build/gear; acquisition; complete catalog; world/four routes; integrated evidence. Core combat review is a milestone, not full release. New content is28 abilities and40 items plus inherited skills/materials/books, not a return to predefined hero expansion.
 
-## Development discipline
+Use the actual engine/ability framework and native movement. Keep one source of action legality, damage, item ownership, cooldowns and outcome. Version data and record adopted deviations. No assumed missing behavior or invented source access. A spec archive is not delivery evidence; model QA is not an Unreal pass.
 
-Audit the actual delivered v0.5 repository and evidence before v0.6. The user reports delivery; this planning workspace has not independently run that game. Preserve working gameplay, document deviations and repair only prerequisites required by the sprint. Do not rebuild a working platform or upgrade the engine unnecessarily.
+## Risks to measure
 
-Use versioned character, skill, interaction and world data. Keep legality and outcomes authoritative. A class is a starting preset, not a large new hero framework. Adopt ability infrastructure deliberately and avoid two parallel damage or cooldown systems.
+Raw scaling suppressing utility; long helpless control chains; backpack swapping bypassing slots; equipment points shortcutting natural gates; invulnerability chains; spell-block/dome confusion; hidden data via targeting/audio/VFX; economy material protection through unintended transformations; duplicate sources after respawn/rejoin; private access becoming uninterruptible; one route dominating; maps producing empty travel. Each has concrete v0.7 acceptance cases.
 
-## Risks
-
-| Risk | Review response |
-| --- | --- |
-| DEX or INT dominates | Review combined power, frequency and mobility rather than one coefficient |
-| Utility bypasses slots | Test hotbar, context menus, books, old keys and RPC entry points |
-| Random checks become repeated free rolls | Bind commit, costs, cooldown, target identity and RNG receipt |
-| XP comes from loops | Award meaningful completion receipts and limit repeat sources |
-| Appearance reveals a build | Audit replication, UI and proxy metadata |
-| Peaceful growth is only decorative | Require a zero-kill route under real acquisition rules |
-| Short testing is mistaken for long pacing | Separate compressed integration, technical soak and full-session human evidence |
-| Selection reveals a hidden build | Test every inspector, tooltip, minimap and trade payload against authorized views |
-| UI click also issues a world order | Test input routing, focus loss, held release, remapping and modal layers |
-| Item shortcuts duplicate ownership | Keep quick slots as references and trade as atomic inventory transactions |
-| Large world becomes empty travel | Measure journey decisions, service density and alternative paths |
-
-The owner decides creative scope and stage advancement. Developers own implementation and honest evidence; testers supply observations. Record decisions, tuning versions, source revision, actual checks and unresolved limitations. Mark Passed, Failed or Not run accurately.
-
-Human validation is separate from engineering acceptance. If people are unavailable, complete feasible engineering work and mark strategy and enjoyment pending. Do not invent participants or substitute AI completion for human evidence.
-
-Economic review measures real choices, margin after fees/travel/risk, shortages, stock monopolies, gold creation/destruction and access recovery. A profitable transport route is not inherently an exploit; unbounded minting, free refreshes and closed same-market profit loops are. Do not infer long-run macro balance from a 25-minute prototype.
+Developers supply source/assets/reproducible evidence and honest statuses. Humans judge comprehension/strategy/fun. If engine tools/participants are unavailable, complete feasible work and label remaining checks Not run. Tune after data rather than inferring full-session balance from a35 minute or technical soak. Creative scope changes remain owner decisions; routine implementation choices proceed within the authorized package.

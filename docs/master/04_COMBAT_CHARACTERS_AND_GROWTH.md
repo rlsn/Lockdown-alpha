@@ -1,42 +1,34 @@
-# Classes attributes skills and growth
+# Combat, characters and growth
 
-## Starting class and profession
+## Flexible starts and six attributes
 
-There are no predefined heroes. Class supplies a starting attribute distribution, competencies and learning opportunities. It does not assign a primary attribute, automatic growth or final build. Equal starting budgets are a proposed fairness rule.
+No predefined heroes or automatic primary-stat growth. STR/DEX/CON/INT/WIS/CHA support combat and noncombat capability; players allocate earned points freely. Classes provide starting distribution/training. Profession need not match class. Preserve delivered economic classes and skills rather than silently renaming them. Six proposed teaching kits—Vanguard, Infiltrator, Arcanist, Seeker, Broker, Trickster—offer two starter abilities each and equal-budget additional presets, never exclusive books.
 
-Profession describes activity and economic specialization. It need not be chosen at creation or use an independent XP tree. Class, profession, character level and skill rank must not be conflated.
-
-## Six attributes
-
-| Attribute | Capability direction | Main risk |
+| Attribute | Typical role | Constraint |
 | --- | --- | --- |
-| STR | Physical force, melee and demanding world interactions | Damage scaling erasing counterplay |
-| DEX | Precision, mobility, theft and execution | Becoming every build's best stat |
-| CON | HP, endurance and resilience | Immunity to mandatory channel interruption |
-| INT | Spell performance, analysis and technical craft | Multiplying power and frequency without limits |
-| WIS | Perception, investigation and support | Wall vision or universal passive revelation |
-| CHA | Negotiation, trade, influence and leadership | Compounding universal income multipliers |
+|STR|Physical impact, load, forcing interactions|No damage growth erasing utility|
+|DEX|Mobility, precision, stealth/theft|No universal best scaling for all builds|
+|CON|HP, durability and endurance|No automatic control/claim immunity|
+|INT|Spell magnitude, mana, craft/research|Bounded magnitude; no free frequency multiplication|
+|WIS|Detection, scouting, precision support|Geometric authorization still applies|
+|CHA|Deception, influence and commerce|No universal compounding income bonus|
 
-Players allocate earned points. Attribute range, caps and coefficients are release tuning. The initial source's 25 HP per CON and sight bonuses are examples, not adopted equations. Continuous bounded combat scaling and explicit environmental thresholds serve different purposes.
+Natural attributes are starting+permanently allocated; equipment/buffs contribute only effective stats. High-circle equip/cast gates use natural values. Learning knowledge may precede eligibility. Hard class locks on ordinary learned spells are avoided; investment, slot limits, resources and explicit exclusivity govern powerful synergies.
 
-## Skills
+## Knowledge, mastery and prepared actions
 
-Knowledge means an action was learned. Rank or proficiency describes its quality. Equipment means it is currently prepared. Model all three separately.
+Separate known skills, trained rank and equipped slot. Selected defaults: five active slots shared by ALL learned combat/utility actions; three item quick references; at most one Circle IV equipped. Skills from books/trainers/starts become permanent knowledge for the match. Books are not scroll casts, and duplicate books do not merge into ranks. Mastery spends earned development points at a station. Circle I–IV is intrinsic complexity, rank 1–3 is proficiency, variant is a future tactical alternative.
 
-One shared equipped-slot pool covers damage, healing, movement, theft, negotiation and investigation. There is no separate utility pool or free contextual use of an unequipped learned skill. Eight slots was an illustrative suggestion, not a final count.
+Rank improves magnitude, resource economy, radius or modest cooldown; hard-disable duration increases little. Gear may grant one bounded potency-only effective rank, capped3, never knowledge/gates/control duration/new rank mechanics. Learning a spell does not let an unslotted contextual action bypass the common budget.
 
-Walking, aiming, basic attack, ordinary interaction and inventory management can remain basic actions. Specialized learned actions consume slots. Define consumables separately so they cannot become reusable skill bypasses. Changing slots never resets cooldowns.
+## Equipment and tactical choices
 
-## Acquisition and specialization
+Six bindings: weapon,offhand,body,feet,two charms; two-handed weapons reserve offhand. Equipped gear provides attributes/secondary effects; active equipment additionally competes for the three quick slots with consumables. Tier describes function; Standard/Fine/Masterwork craftsmanship modestly improves eligible physical numbers, not mechanics. Ordinary gear cannot provide best damage, durability, movement, detection and escape at once.
 
-Class progression, books, trainers, artifacts and discoveries can teach skills. Universal books permit cross-class learning. Knowledge normally persists for the match; books are not automatically spell scrolls. Duplicate acquisition cannot silently improve rank or refund currency.
+Quiet committed gear/quick changes prevent an unrestricted backpack hotbar during fights. Skills/points/ranks require station preparation. Cooldowns persist through swaps/trade/assembly/death. Gear caps are readable; natural prerequisites cannot be bought by temporary equipment stacking.
 
-Optional subclasses can provide a commitment after play begins. Exact gates and the suggested level-20 cap remain proposals. Skill performance can depend on attributes, rank and context while keeping low-investment skills usable.
+## Growth and tactical combat
 
-## Growth and death
+Meaningful bounded work, procurement, exploration and combat grant shared XP. No craft/trade/bank/duplicate-book loops. Basic attack is sustained threat; stuns, silence, mute, dispels, displacement, smoke/detection, targeted block and timed defenses change fights. Offensive and defensive tools have distinct counters. Baseline MP and moderate HP/damage curves are concrete v0.7 choices, not assumptions about prior builds.
 
-Meaningful combat and noncombat accomplishments grant XP. Repeated sales, inspection, duplicated completions and empty-purse theft cannot generate unlimited progress.
-
-Death retains level, allocated attributes, learned skills and proficiency, while costing time, gold and carried valuables. Long sessions require recovery rather than erasing an hour's development.
-
-Medium lethality and assassination counterplay remain. Do not automatically shorten warnings or grant uninterruptible Heart claims through attributes. Crits and evasion remain possible future mechanics; the user explicitly permits a dice-based pickpocket check, not mandatory randomness everywhere.
+Retain development on death. Ordinary equipped gear persists; spare gear/materials/books/consumables and objective cargo remain vulnerable. Late downtime can remove a final opportunity without permanent character deletion. Exact numbers live in v0.7 and remain tuning targets.

@@ -7,3 +7,13 @@
 
 # Supplied discussion copies have published byte hashes; preserve their bytes.
 /docs/v06/reference-discussion/0*_ASSISTANT_MESSAGE.txt -text -whitespace
+
+# Adopted v0.7 specs and portable evidence publish physical-byte hashes.
+# Prevent core.autocrlf from changing those bytes on a fresh checkout.
+/docs/master/** -text whitespace=cr-at-eol
+/docs/v07/** -text whitespace=cr-at-eol
+# Verbatim source discussions retain their published formatting as well.
+/docs/v07/reference-discussion/** -whitespace
+/docs/v07/reference-v06/reference-discussion/** -whitespace
+# Preserve raw tool output, including engine-emitted trailing spaces.
+/docs/v07/evidence/B70/*.log -whitespace

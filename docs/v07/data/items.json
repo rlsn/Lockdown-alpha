@@ -1,0 +1,1125 @@
+{
+  "schema_version": 7,
+  "original_catalog_count": 34,
+  "assembly_additions": 5,
+  "objective_additions": 1,
+  "quality_multipliers": {
+    "standard": 1,
+    "fine": 1.07,
+    "masterwork": 1.14
+  },
+  "items": [
+    {
+      "id": "iron_halberd",
+      "name": "Iron Halberd",
+      "tier": 1,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "STR": 1
+      },
+      "weight": 6,
+      "official_price_gold": 24,
+      "passive": {
+        "weapon_damage": 50,
+        "reach_cm": 280,
+        "attack_interval_ms": 1450
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": true,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "iron_halberd",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "watchblade",
+      "name": "Watchblade",
+      "tier": 2,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "DEX": 1,
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 50,
+      "passive": {
+        "weapon_damage": 42,
+        "reach_cm": 220,
+        "trail_after_hits": 3,
+        "trail_ms": 2000,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "watchblade",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "runic_staff",
+      "name": "Runic Staff",
+      "tier": 2,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "INT": 2
+      },
+      "weight": 3,
+      "official_price_gold": 48,
+      "passive": {
+        "weapon_damage": 30,
+        "reach_cm": 220,
+        "spell_percent": 5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "runic_staff",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "surveyor_bow",
+      "name": "Surveyor Bow",
+      "tier": 2,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "DEX": 1,
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 50,
+      "passive": {
+        "weapon_damage": 36,
+        "attack_range_cm": 600,
+        "own_body_sight_bonus_cm": 50
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": true,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "surveyor_bow",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "oath_mace",
+      "name": "Oath Mace",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "STR": 1,
+        "CHA": 1
+      },
+      "weight": 5,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 48,
+        "reach_cm": 220,
+        "attack_interval_ms": 1450,
+        "barrier_damage_percent": 50,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "oath_mace",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "null_dagger",
+      "name": "Null Dagger",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "DEX": 1,
+        "INT": 1
+      },
+      "weight": 2,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 38,
+        "reach_cm": 200
+      },
+      "active": {
+        "op": "arm_next_hit",
+        "duration_ms": 4000,
+        "silence_ms": 1300,
+        "family": "null_weapon"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 55000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "null_weapon",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "bastion_plate",
+      "name": "Bastion Plate",
+      "tier": 1,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "CON": 2
+      },
+      "weight": 8,
+      "official_price_gold": 28,
+      "passive": {
+        "armor": 18,
+        "movement_percent": -10
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "bastion_plate",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "shade_mantle",
+      "name": "Shade Mantle",
+      "tier": 2,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "DEX": 1,
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 45,
+      "passive": {
+        "armor": 4,
+        "footstep_audible_range_percent": -20,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "shade_mantle",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "archivist_robe",
+      "name": "Archivist Robe",
+      "tier": 2,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "INT": 1,
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 44,
+      "passive": {
+        "armor": 3,
+        "mp_regen_per_second": 0.5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "archivist_robe",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "merchant_harness",
+      "name": "Merchant Harness",
+      "tier": 1,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "CON": 1,
+        "CHA": 1
+      },
+      "weight": 3,
+      "official_price_gold": 24,
+      "passive": {
+        "armor": 4,
+        "capacity_bonus": 10
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "merchant_harness",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "reflective_mail",
+      "name": "Reflective Mail",
+      "tier": 3,
+      "equipment_slot": "body",
+      "primary_stats": {
+        "CON": 1,
+        "INT": 1
+      },
+      "weight": 6,
+      "official_price_gold": null,
+      "passive": {
+        "armor": 8,
+        "magic_resist": 0.08
+      },
+      "active": {
+        "op": "reflect_next_projectile",
+        "duration_ms": 2500,
+        "charges": 1,
+        "family": "major_protection"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 65000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "pathfinder_boots",
+      "name": "Pathfinder Boots",
+      "tier": 1,
+      "equipment_slot": "feet",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 18,
+      "passive": {
+        "road_movement_percent": 12
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "pathfinder_boots",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "silent_soles",
+      "name": "Silent Soles",
+      "tier": 2,
+      "equipment_slot": "feet",
+      "primary_stats": {
+        "DEX": 1
+      },
+      "weight": 2,
+      "official_price_gold": 30,
+      "passive": {
+        "footstep_audible_range_percent": -20,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "silent_soles",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "cliffwalkers",
+      "name": "Cliffwalkers",
+      "tier": 2,
+      "equipment_slot": "feet",
+      "primary_stats": {
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": 32,
+      "passive": {
+        "authored_scramble_links": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "cliffwalkers",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "anchor_greaves",
+      "name": "Anchor Greaves",
+      "tier": 3,
+      "equipment_slot": "feet",
+      "primary_stats": {
+        "CON": 1
+      },
+      "weight": 4,
+      "official_price_gold": null,
+      "passive": {
+        "movement_percent": -5
+      },
+      "active": {
+        "op": "anchor",
+        "duration_ms": 1800,
+        "self_slow_percent": 30,
+        "family": "major_protection"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 45000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "scholars_sigil",
+      "name": "Scholar’s Sigil",
+      "tier": 3,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "INT": 1
+      },
+      "weight": 1,
+      "official_price_gold": null,
+      "passive": {
+        "potency_rank": 1,
+        "selected_school": "control",
+        "unique_family": "potency_rank"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "scholars_sigil",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "brokers_seal",
+      "name": "Broker’s Seal",
+      "tier": 2,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "CHA": 1
+      },
+      "weight": 1,
+      "official_price_gold": 30,
+      "passive": {
+        "discount_gold": 1,
+        "only_fees": [
+          "equipment_assembly",
+          "quality_upgrade"
+        ],
+        "min_fee": 1,
+        "unique_family": "fee_discount"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "brokers_seal",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "warding_eye",
+      "name": "Warding Eye",
+      "tier": 2,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "WIS": 1
+      },
+      "weight": 1,
+      "official_price_gold": 30,
+      "passive": {
+        "detector": true,
+        "radius_cm": 250,
+        "line_of_sight": true,
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "warding_eye",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "iron_oath",
+      "name": "Iron Oath",
+      "tier": 3,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "STR": 1
+      },
+      "weight": 2,
+      "official_price_gold": null,
+      "passive": {
+        "directional_barrier_percent": 10,
+        "unique_family": "directional_guard",
+        "breakable": true
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "iron_oath",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "weighted_satchel",
+      "name": "Weighted Satchel",
+      "tier": 1,
+      "equipment_slot": "charm",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 16,
+      "passive": {
+        "capacity_bonus": 10,
+        "unique_family": "satchel"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "weighted_satchel",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "null_bell",
+      "name": "Null Bell",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 8,
+      "passive": {},
+      "active": {
+        "op": "basic_dispel_self",
+        "family": "cleanse"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 12000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "cleanse",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "smoke_flask",
+      "name": "Smoke Flask",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 8,
+      "passive": {},
+      "active": {
+        "op": "smoke",
+        "range_cm": 450,
+        "radius_cm": 300,
+        "duration_ms": 5000,
+        "family": "smoke"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 12000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "smoke",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "seers_dust",
+      "name": "Seer’s Dust",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 8,
+      "passive": {},
+      "active": {
+        "op": "detector",
+        "radius_cm": 300,
+        "duration_ms": 6000,
+        "line_of_sight": true,
+        "family": "detection"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 12000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "detection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "healing_salve",
+      "name": "Healing Salve",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 6,
+      "passive": {},
+      "active": {
+        "op": "heal_over_time",
+        "total": 160,
+        "duration_ms": 8000,
+        "cancel_on_positive_damage": true,
+        "family": "recovery"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 15000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "recovery",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "mana_draught",
+      "name": "Mana Draught",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 6,
+      "passive": {},
+      "active": {
+        "op": "restore_mp",
+        "amount": 80,
+        "channel_ms": 1500,
+        "cancel_on_positive_damage": true,
+        "family": "mana"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 15000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "mana",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "ward_totem",
+      "name": "Ward Totem",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 8,
+      "passive": {},
+      "active": {
+        "op": "spawn_ward",
+        "range_cm": 350,
+        "vision_cm": 560,
+        "hp": 20,
+        "duration_ms": 60000,
+        "owner_limit": 2,
+        "family": "ward"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 12000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "ward",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "recall_token",
+      "name": "Recall Token",
+      "tier": 1,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 10,
+      "passive": {},
+      "active": {
+        "op": "recall",
+        "channel_ms": 4000,
+        "valid_destinations": [
+          "CityBank",
+          "WestTownService",
+          "EastTownService"
+        ],
+        "cancel_on_positive_damage": true,
+        "forbid_with_objective_cargo": true,
+        "family": "travel"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 20000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "travel",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "snare_mine",
+      "name": "Snare Mine",
+      "tier": 2,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 14,
+      "passive": {},
+      "active": {
+        "op": "spawn_trap",
+        "range_cm": 350,
+        "hp": 20,
+        "arm_ms": 1000,
+        "duration_ms": 45000,
+        "root_ms": 1500,
+        "radius_cm": 100,
+        "owner_limit": 2,
+        "family": "trap"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 15000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "trap",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "counterglyph",
+      "name": "Counterglyph",
+      "tier": 2,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 18,
+      "passive": {},
+      "active": {
+        "op": "targeted_mute",
+        "range_cm": 450,
+        "duration_ms": 1200,
+        "family": "mute"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 20000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "mute",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "mirror_sigil",
+      "name": "Mirror Sigil",
+      "tier": 2,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 16,
+      "passive": {},
+      "active": {
+        "op": "spell_block",
+        "duration_ms": 3000,
+        "charges": 1,
+        "family": "major_protection"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 20000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "purity_charm",
+      "name": "Purity Charm",
+      "tier": 2,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 16,
+      "passive": {},
+      "active": {
+        "op": "control_guard",
+        "duration_ms": 1500,
+        "charges": 1,
+        "family": "major_protection"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 20000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "aegis_flask",
+      "name": "Aegis Flask",
+      "tier": 2,
+      "equipment_slot": null,
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": 14,
+      "passive": {},
+      "active": {
+        "op": "barrier",
+        "amount": 160,
+        "duration_ms": 3000,
+        "family": "major_protection"
+      },
+      "consumable": true,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 20000,
+      "death_policy": "drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "grappling_chain",
+      "name": "Grappling Chain",
+      "tier": 2,
+      "equipment_slot": "charm",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 35,
+      "passive": {},
+      "active": {
+        "op": "terrain_grapple",
+        "range_cm": 500,
+        "distance_cm": 500,
+        "family": "grapple"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 38000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "grapple",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "blink_charm",
+      "name": "Blink Charm",
+      "tier": 3,
+      "equipment_slot": "charm",
+      "primary_stats": {},
+      "weight": 1,
+      "official_price_gold": null,
+      "passive": {},
+      "active": {
+        "op": "blink",
+        "distance_cm": 700,
+        "positive_direct_damage_lock_ms": 3000,
+        "family": "blink"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 55000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "blink",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "simple_staff",
+      "name": "Simple Staff",
+      "tier": 1,
+      "equipment_slot": "weapon",
+      "primary_stats": {},
+      "weight": 2,
+      "official_price_gold": 18,
+      "passive": {
+        "weapon_damage": 32,
+        "reach_cm": 220
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "simple_staff",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "conduit_staff",
+      "name": "Conduit Staff",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "INT": 1
+      },
+      "weight": 3,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 34,
+        "cast_range_bonus_cm": 50,
+        "spell_percent": 5
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "conduit_staff",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "null_staff",
+      "name": "Null Staff",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "WIS": 1
+      },
+      "weight": 3,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 34,
+        "reach_cm": 220
+      },
+      "active": {
+        "op": "basic_dispel",
+        "range_cm": 450,
+        "polarity": "self-negative;other-positive",
+        "family": "cleanse"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 35000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "cleanse",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "rift_staff",
+      "name": "Rift Staff",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "INT": 1,
+        "DEX": 1
+      },
+      "weight": 3,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 32,
+        "reach_cm": 220
+      },
+      "active": {
+        "op": "blink",
+        "distance_cm": 400,
+        "positive_direct_damage_lock_ms": 3000,
+        "family": "blink"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 45000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "blink",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "harpoon_halberd",
+      "name": "Harpoon Halberd",
+      "tier": 3,
+      "equipment_slot": "weapon",
+      "primary_stats": {
+        "STR": 1
+      },
+      "weight": 7,
+      "official_price_gold": null,
+      "passive": {
+        "weapon_damage": 50,
+        "reach_cm": 280,
+        "attack_interval_ms": 1450
+      },
+      "active": {
+        "op": "grapple",
+        "range_cm": 500,
+        "self_move_cm": 500,
+        "target_pull_cm": 180,
+        "family": "grapple"
+      },
+      "consumable": false,
+      "two_handed": true,
+      "quick_slot_required": true,
+      "cooldown_ms": 38000,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "grapple",
+      "active_mana_cost": 0
+    },
+    {
+      "id": "tower_relic",
+      "name": "Tower Relic",
+      "tier": 4,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "WIS": 1
+      },
+      "weight": 2,
+      "official_price_gold": null,
+      "passive": {
+        "armor": 4
+      },
+      "active": {
+        "op": "barrier",
+        "amount": 220,
+        "duration_ms": 3000,
+        "family": "major_protection"
+      },
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": true,
+      "cooldown_ms": 60000,
+      "death_policy": "always_drop",
+      "tradable": true,
+      "craftsmanship_eligible": false,
+      "default_quality": "standard",
+      "unique_family": "major_protection",
+      "active_mana_cost": 0
+    }
+  ]
+}

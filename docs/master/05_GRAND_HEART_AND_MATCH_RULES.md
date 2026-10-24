@@ -1,29 +1,26 @@
 # Grand Heart and match rules
 
-## One outcome and several approaches
+## Four routes, one contested acquisition
 
-Grand Heart acquisition remains the only ordinary winning outcome. Kill totals, wealth, level and last-living status are means, not automatic winners.
+Grand Heart acquisition is the only ordinary win. Kills, wealth, level and survival support plans but do not crown a winner.
 
-Conquest can dismantle defensive infrastructure and physically claim the Heart. Work and crafting, extraordinary wealth, unique keys, exploration and influence are candidate alternatives. They should use shared resources and ownership rules rather than isolated minigames.
+| Route | Progression | Access | Primary exposure |
+| --- | --- | --- | --- |
+|Siege|Destroy three Grand towers in current slice|Permanent global|Open benefit to rivals; infrastructure pressure|
+|Sovereign Charter|Distinct commercial endorsements, Witness and fee; registered activation|Temporary GLOBAL public contest|Irreversible spending, public timing; nonpurchaser can win|
+|Three ancient keys|Explore, buy, steal or recover three distinct portable keys|Temporary personal lease while carrying all|Cargo loss/theft/transfer and activation warning|
+|Heartbreaker|Acquire rare components and assemble at special forge|Temporary personal same-life lease on consuming artifact|Contested component chain, craft site and lost consumed investment on death|
 
-A source assistant proposed that not every alternative require a final physical capture in the capital, to avoid invalidating peaceful strategies through camping. The newer economy source explicitly selects economic unlocking followed by a contest. Keep remote automatic economic wins outside the current direction; any later alternative needs a new decision. Route-specific acquisition can still commit one authoritative Heart winner.
+All routes culminate in one physical ten-second claim. Keys/artifact work with towers intact and do not require conquest. The Charter remains the explicitly adopted public economic route; a later assistant's private-Charter example is superseded. No remote automatic wealth/crafting winner.
 
-## Towers and claims
+## Tactical claim rules
 
-Outer, regional and central defences remain meaningful, but their number is map-defined. Watchtowers can provide civic sight; grand towers can protect conquest access. Infrastructure loss can remove surveillance and change incentives without disabling every peaceful opportunity.
+The claimant holds within120 cm, breaks concealment and cannot freely attack/cast/use items while channeling. Predeployed wards, traps, barriers or timed dome can protect but do not grant unconditional immunity. Stun/hex, actual forced movement, explicit interrupt, death, self-cancel or authorization loss cancel. Ordinary nonlethal damage and enemy proximity alone do not. Silence/mute/root do not independently cancel the generic Heart interaction; Counterpulse cancels via explicit Interrupt. A low-level defender has useful responses without winning a damage race.
 
-A physical claim needs an explicit duration, contest, interruption and result rule. The existing ten-second prototype channel remains a useful test. It is not proof that every future route must end there.
+Public attempts expose objective timing/location, not private build or an unauthorized hidden approach coordinate. Multiple attempts may run; earliest legal scheduled completion wins, exact tie uses role-neutral start ordinal. Access is OR across routes, so another valid route may sustain authorization. Private access never prevents rivals physically approaching/interfering.
 
-Each alternate acquisition method needs an opportunity for information gathering and opposition. Contest need not always mean a direct duel or central capture. An economic or crafted route must not secretly require conquest first.
+Warnings/openings are concrete30/60 s integration tuning; completion must fit the inclusive end/deadline. Due combat/death can cancel a completion at the same instant. One server event order and unique terminal receipt govern every route. A cap without acquisition produces NoAcquisition, never hidden score/last-living victory.
 
-## Death and endings
+## Death and recovery
 
-Relevant NPCs and contenders respawn with costs. Retain character level, attributes, knowledge and proficiency. Carried resources can drop and gold can be lost. Penalties grow with progression and late pressure, but should not destroy a long-established build.
-
-Calculate a return deadline at death and show it; do not silently extend a displayed wait. Protection must not permit an invulnerable objective claim. Session withdrawal is not a winning route.
-
-Full matches target 60–90 minutes, with earlier wins possible. A cap without acquisition must produce a declared no-acquisition result rather than a hidden score winner. Early prototypes can use shorter profiles without claiming full pacing validation.
-
-All routes ultimately commit one unique winning receipt. If simultaneous route completions are possible, define and test a deterministic resolution policy before shipping that combination.
-
-The complete economic discussion proposes a registered Sovereign Charter purchased with wealth and distinct endorsements, then activated to open a publicly announced temporary contest where anyone can win. v0.6 adopts a compressed warning/opening and registration recovery after death. This explicitly replaces the earlier private carried-Seal access for its normal profile. The purchaser controls timing, not the outcome. The longer-source sample of 60 seconds warning/120 seconds opening is tuning, not a fixed final value.
+Retain progression, knowledge, trained ranks, ordinary equipped gear, protected bank and bound accomplishments. Physical keys/Heartbreaker/relics and carried trade property drop; time/wallet loss adds stakes. Compute respawn endpoint at death and display it without silent extension. Protection cannot enable a claim. Public Charter opening survives purchaser death; personal key/artifact leases do not. No normal permanent death or cross-match wealth persistence is introduced.

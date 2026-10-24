@@ -1,0 +1,241 @@
+{
+  "schema_version": 7,
+  "heart": {
+    "node": "CentralPrecinct",
+    "guard_towers": [
+      "GrandTowerA",
+      "GrandTowerB",
+      "GrandTowerC"
+    ]
+  },
+  "pois": [
+    {
+      "id": "City",
+      "services": [
+        "official_supply",
+        "bank",
+        "treasury",
+        "trainer_circle1",
+        "workshop",
+        "preparation"
+      ]
+    },
+    {
+      "id": "WestTown",
+      "services": [
+        "market",
+        "workshop",
+        "trainer_circle2",
+        "shrine",
+        "preparation"
+      ]
+    },
+    {
+      "id": "EastTown",
+      "services": [
+        "market",
+        "advanced_forge",
+        "trainer_circle2",
+        "archive_circle3",
+        "preparation"
+      ]
+    },
+    {
+      "id": "WildCrossing",
+      "services": [
+        "camp_a",
+        "outcrop_a",
+        "outcrop_b"
+      ]
+    },
+    {
+      "id": "RuinA",
+      "services": [
+        "key_a",
+        "catalyst_a",
+        "book_temporal_lock"
+      ]
+    },
+    {
+      "id": "RuinB",
+      "services": [
+        "key_b",
+        "catalyst_b",
+        "book_grand_exchange"
+      ]
+    },
+    {
+      "id": "RuinC",
+      "services": [
+        "key_c",
+        "catalyst_c",
+        "book_gate_weave"
+      ]
+    },
+    {
+      "id": "BossLair",
+      "services": [
+        "guardian_boss",
+        "heart_fragment",
+        "book_sovereign_ward"
+      ]
+    },
+    {
+      "id": "HeartForge",
+      "services": [
+        "heart_forge"
+      ]
+    },
+    {
+      "id": "CentralPrecinct",
+      "services": [
+        "heart",
+        "tower_a",
+        "tower_b",
+        "tower_c"
+      ]
+    }
+  ],
+  "required_edges": [
+    [
+      "City",
+      "WestTown"
+    ],
+    [
+      "City",
+      "EastTown"
+    ],
+    [
+      "WestTown",
+      "WildCrossing"
+    ],
+    [
+      "EastTown",
+      "WildCrossing"
+    ],
+    [
+      "WestTown",
+      "RuinA"
+    ],
+    [
+      "WildCrossing",
+      "RuinB"
+    ],
+    [
+      "EastTown",
+      "RuinC"
+    ],
+    [
+      "WildCrossing",
+      "BossLair"
+    ],
+    [
+      "EastTown",
+      "HeartForge"
+    ],
+    [
+      "HeartForge",
+      "CentralPrecinct"
+    ],
+    [
+      "City",
+      "CentralPrecinct"
+    ],
+    [
+      "RuinA",
+      "CentralPrecinct"
+    ],
+    [
+      "RuinC",
+      "CentralPrecinct"
+    ]
+  ],
+  "routes": {
+    "siege": {
+      "global": true,
+      "requires_towers_destroyed": 3,
+      "permanent": true
+    },
+    "charter": {
+      "global": true,
+      "retains_v06_registration": true,
+      "warning_ms": 30000,
+      "open_ms": 60000
+    },
+    "keys": {
+      "global": false,
+      "activation_hold_ms": 4000,
+      "warning_ms": 30000,
+      "open_ms": 60000,
+      "keys_required_continuously": [
+        "ancient_key_a",
+        "ancient_key_b",
+        "ancient_key_c"
+      ],
+      "consume_keys": false,
+      "reuse_cooldown_ms": 90000,
+      "activation_at": "HeartAntechamber"
+    },
+    "artifact": {
+      "global": false,
+      "activation_hold_ms": 6000,
+      "warning_ms": 30000,
+      "open_ms": 60000,
+      "consume_heartbreaker_on_commit": true,
+      "lease_persists_after_item_consumed": true,
+      "activation_at": "HeartAntechamber",
+      "death_cancels_private_lease": true
+    }
+  },
+  "ordinary_travel_objective_cargo": true,
+  "recall_or_gate_with_objective_cargo": false,
+  "tower": {
+    "hp": 1800,
+    "armor": 20,
+    "magic_resist": 0.25,
+    "attack_damage": 80,
+    "attack_interval_ms": 1500,
+    "attack_range_cm": 650,
+    "relic_last_hitter": true,
+    "respawn": false,
+    "all_damage_reduction_piercing": false
+  },
+  "boss": {
+    "hp": 2600,
+    "armor": 15,
+    "magic_resist": 0.2,
+    "attack_damage": 90,
+    "attack_interval_ms": 1400,
+    "telegraph_pulse_ms": 1500,
+    "pulse_interval_ms": 10000,
+    "pulse_magical_damage": 120,
+    "leash_cm": 1000,
+    "leash_restores_hp": true,
+    "reward_reset_on_leash": false
+  },
+  "camp": {
+    "count": 3,
+    "spawns_each": 12,
+    "earliest_spawn_gap_ms": 150000,
+    "living_units_max_each": 1,
+    "hp": 260,
+    "armor": 5,
+    "attack_damage": 35,
+    "attack_interval_ms": 1500,
+    "reward_eligibility": "one reward per authored spawn id; last valid damaging contender; no respawn body reset"
+  },
+  "shrine": {
+    "requires_quiet_s": 6,
+    "hold_ms": 4000,
+    "hp_restore_fraction": 1,
+    "mp_restore_fraction": 1,
+    "per_contender_cooldown_ms": 90000,
+    "gold_cost": 0,
+    "xp": 0
+  },
+  "key_pickup_channel_ms": 3000,
+  "key_pickup_requires_quiet_s": 6,
+  "ruin_cache_open_ms": 4000,
+  "ruin_cache_requires_quiet_s": 6,
+  "all_cache_contents_individually_owned": true
+}

@@ -1,0 +1,332 @@
+{
+  "schema_version": 7,
+  "materials": [
+    {
+      "id": "Fiber",
+      "weight": 1,
+      "source": "v06",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "Ore",
+      "weight": 3,
+      "source": "v06",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "Crystal",
+      "weight": 2,
+      "source": "v06",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "Toolkit",
+      "weight": 4,
+      "source": "v06",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "Core",
+      "weight": 6,
+      "source": "v06",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "arcane_catalyst",
+      "weight": 1,
+      "source": "three ruins, one fixed instance each; initial endowment, no respawn",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "heart_fragment",
+      "weight": 2,
+      "source": "one guardian boss; defeat reward creation; always drop",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "ancient_key_a",
+      "weight": 1,
+      "source": "ruin A fixed unique instance; never consumed in activation",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "ancient_key_b",
+      "weight": 1,
+      "source": "ruin B fixed unique instance; never consumed in activation",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "ancient_key_c",
+      "weight": 1,
+      "source": "ruin C fixed unique instance; never consumed in activation",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    },
+    {
+      "id": "heartbreaker",
+      "weight": 4,
+      "source": "special forge recipe; always drop, activation consumes",
+      "death_policy": "always_drop",
+      "tradable": true,
+      "quick_usable": false
+    }
+  ],
+  "recipes": [
+    {
+      "id": "assemble_harpoon_halberd",
+      "inputs": {
+        "iron_halberd": 1,
+        "grappling_chain": 1
+      },
+      "output": "harpoon_halberd",
+      "fee_gold": 8,
+      "station": "town_workshop",
+      "hold_ms": 4000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_conduit_staff",
+      "inputs": {
+        "simple_staff": 1,
+        "Crystal": 1,
+        "Toolkit": 1
+      },
+      "output": "conduit_staff",
+      "fee_gold": 8,
+      "station": "town_workshop",
+      "hold_ms": 4000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_null_staff",
+      "inputs": {
+        "simple_staff": 1,
+        "null_bell": 1,
+        "Toolkit": 1
+      },
+      "output": "null_staff",
+      "fee_gold": 8,
+      "station": "town_workshop",
+      "hold_ms": 4000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_rift_staff",
+      "inputs": {
+        "simple_staff": 1,
+        "grappling_chain": 1,
+        "arcane_catalyst": 1
+      },
+      "output": "rift_staff",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_oath_mace",
+      "inputs": {
+        "iron_halberd": 1,
+        "Toolkit": 1,
+        "Core": 1
+      },
+      "output": "oath_mace",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_null_dagger",
+      "inputs": {
+        "watchblade": 1,
+        "counterglyph": 1,
+        "Core": 1
+      },
+      "output": "null_dagger",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_reflective_mail",
+      "inputs": {
+        "bastion_plate": 1,
+        "mirror_sigil": 1,
+        "Core": 1
+      },
+      "output": "reflective_mail",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_anchor_greaves",
+      "inputs": {
+        "pathfinder_boots": 1,
+        "Ore": 1,
+        "Core": 1
+      },
+      "output": "anchor_greaves",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_scholars_sigil",
+      "inputs": {
+        "runic_staff": 1,
+        "Core": 1,
+        "arcane_catalyst": 1
+      },
+      "output": "scholars_sigil",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_iron_oath",
+      "inputs": {
+        "bastion_plate": 1,
+        "Core": 1
+      },
+      "output": "iron_oath",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_blink_charm",
+      "inputs": {
+        "grappling_chain": 1,
+        "Core": 1,
+        "arcane_catalyst": 1
+      },
+      "output": "blink_charm",
+      "fee_gold": 10,
+      "station": "advanced_forge",
+      "hold_ms": 6000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    },
+    {
+      "id": "assemble_heartbreaker",
+      "inputs": {
+        "Core": 2,
+        "arcane_catalyst": 1,
+        "heart_fragment": 1
+      },
+      "output": "heartbreaker",
+      "fee_gold": 20,
+      "station": "heart_forge",
+      "hold_ms": 8000,
+      "output_quality": "standard",
+      "requires_quiet_s": 6,
+      "disassembly": false
+    }
+  ],
+  "quality_upgrades": [
+    {
+      "from": "standard",
+      "to": "fine",
+      "inputs": {
+        "Toolkit": 1
+      },
+      "fee_gold": 6,
+      "station": "town_workshop",
+      "hold_ms": 4000
+    },
+    {
+      "from": "fine",
+      "to": "masterwork",
+      "inputs": {
+        "Toolkit": 1,
+        "Crystal": 1
+      },
+      "fee_gold": 12,
+      "station": "advanced_forge",
+      "hold_ms": 6000
+    }
+  ],
+  "book_sources": {
+    "circle1": {
+      "official_price_gold": 40,
+      "stock": "unlimited"
+    },
+    "circle2": {
+      "regional_trainer_price_gold": 60,
+      "stock": "unlimited"
+    },
+    "circle3": {
+      "regional_archive_price_gold": 90,
+      "stock_per_definition_global": 2
+    },
+    "circle4": {
+      "ruin_a": "temporal_lock",
+      "ruin_b": "grand_exchange",
+      "ruin_c": "gate_weave",
+      "boss": "sovereign_ward",
+      "stock_per_definition_global": 1
+    }
+  },
+  "book_read_ms": 3000,
+  "book_rank_on_learning": 1,
+  "duplicate_book_consumption": false,
+  "spell_variants_deferred": true,
+  "standard_recipes_public_from_start": true,
+  "portable_assembly_deferred": true,
+  "official_buyback_gear_or_books": false,
+  "regional_buyback_new_gear": false,
+  "equipment_work_orders": {
+    "catalog": "all non-T4 equipment with official_price_gold null",
+    "station": "advanced_forge",
+    "charge": "sum missing immediate official input prices plus one recipe fee; all nonofficial immediate inputs supplied by buyer",
+    "creates_output_by": "same atomic input purchase then recipe transform; no shortcut duplicate mint"
+  },
+  "no_new_gold_rewards_for_assembly": true
+}

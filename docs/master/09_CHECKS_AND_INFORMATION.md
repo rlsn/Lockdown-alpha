@@ -1,29 +1,19 @@
-# Skill checks and information
+# Checks, effects and information
 
-## Resolution categories
+## Resolution types
 
-Use reliable movement and control, continuous bounded scaling for competitive effects, and explicit thresholds for environmental actions. Selective probability can add risk to theft or social interactions. The user rejected a universal prohibition on dice, not the need for readable and fair mechanics.
+Reliable controls and bounded continuous combat scaling coexist with deterministic world thresholds and context-appropriate probability for theft. The user's permission for dice does not require random outcomes everywhere. New combat has no mandatory crit/evasion RNG; retained Pickpocket follows audited commitment/cost/retry/random receipt rules. No frame-based reroll or cancel-for-free favorable draw.
 
-A skill check can combine attributes, rank and situation. Define eligibility, preview, commitment, random draw if any, outcome, consequence and retry policy. Do not reroll from frame updates or let a cancelled preview consume a secret favorable result.
+## Effect vocabulary
 
-## Preparation and consequence
+Stun/hex stop skill and item responses; silence stops skills but leaves items; mute stops items but leaves skills; root stops voluntary movement/dash/blink/gate but not forced push; disarm stops basic attacks; break suppresses only tagged passives; blind restricts own sight; reveal is geometric location evidence, not identity. Strong/basic dispels, one-charge spell block, short control guard and projectile dome have distinct scopes. Barriers absorb damage without disabling control. Explicit Interrupt differs from silence, particularly on generic Heart interaction.
 
-A probabilistic attempt needs meaningful exposure, time or retry consequences. A failure can increase alertness or suspicion without automatically revealing a hidden actor's coordinates. A server-owned random domain with recorded receipts supports reproducible testing; its production seed must not be sent to clients.
-
-Random crits and evasion are possible later systems. Adding them is not necessary to demonstrate the user's theft idea. Currency transfer, item ownership and rank changes remain atomic regardless of resolution type.
+Same statuses do not add durations, major protections cannot become indefinite chains, and hard-disable mastery scales only modestly. Default DR is off for initial comparison; gather evidence before adopting a new protection mechanic. Every source/expiry/dispellability/geometry/counter must be authored and readable. Public structure categories explain boss/tower disable immunity.
 
 ## Hidden builds
 
-Appearance, visible tools and witnessed actions are legitimate evidence. Full class state, allocated attributes, ranks, learned library and equipped loadout remain private by default. Observed activation may reveal that particular used skill, never the entire library.
+Appearance and witnessed skill/equipment use are evidence. Exact opponent class, attributes, ranks, knowledge library, equipped loadout, HP/MP, wallet/bank and human ownership remain private by default. Generic inspector cannot request a full sheet. A future explicit investigation may authorize selected facts, never an accidental widget dump.
 
-Knowing an opponent's skills can be developed through explicit investigation in later releases. A generic inspect button cannot silently dump private data. Seeing a body does not authorize seeing through walls or receiving its hidden inventory.
+Filter before serialization across selection, hover/cursor, minimap, outlines, ability target handles, audio/VFX and logs. Seeing/revealing a body does not authorize wall vision or persistent identity. Smoke/detection obey geometry. Ledger trail cues exist only within authorized observations and may become stale; no live unseen tracker. Distant ward/public sight allows observation but not remote service range or invisible target steering.
 
-Do not make a target's success or rejection an NPC-versus-human oracle. Common interactions should use common capability rules where bodies look interchangeable. Private difficulty or exact purse value should not appear in a probability preview merely because the player hovered.
-
-## Slots and availability
-
-All learned actives consume the same equipped budget, including contextual checks. Eligibility requires knowledge, legal rank, equipment, valid life and cooldown before a roll or effect. Basic talk and object use remain distinguishable from learned persuasion or analysis.
-
-Cooldowns belong to skill identity and persist through unequipping, swapping and death as specified. Books teach knowledge; they do not let a player repeatedly cast an unequipped active. UI labels must explain the difference.
-
-Selection, minimap inspection and trade follow the same information boundary. A selected body may show its observed silhouette and authorized cues while private fields read Unknown. It must not trigger a request for its full character sheet. A consensual trade reveals the offered items and amounts only, not either full inventory or wallet. Loss of sight clears selected dynamic information and target handles; a distant public source permits observation, not remote interaction.
+Learned actives need knowledge, rank, slot, natural gates, life, status, resource and cooldown legality through every keyboard/context/RPC path. Books cannot become free unslotted combat actions. Cooldowns stay with identity/family through swapping, death, trade and assembly. Peer trade exposes voluntarily offered terms only; institution stock/reserve is deliberately public service data, not ordinary private purse.

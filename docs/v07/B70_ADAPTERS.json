@@ -1,0 +1,188 @@
+{
+  "schema_version": 7,
+  "date": "2026-10-24",
+  "status": "Adopted design; runtime implementation pending B71-B76",
+  "runtime_revision": "920c4aede4fab1338bbec4fc728ebcee14f56407",
+  "audit_head": "289501c124dd1a4d61ccf991404d956bd4dc2284",
+  "profiles": {
+    "v06_regression": {
+      "implementation": "existing V05; explicit alias pending B71",
+      "legacy_selector": "V05",
+      "seconds": 1500,
+      "level_cap": 5,
+      "skill_slots": 4,
+      "quick_slots": 4
+    },
+    "v07_integration": {
+      "implementation": "pending B71-B76; not launchable at B70",
+      "seconds": 2100,
+      "level_cap": 15,
+      "skill_slots": 5,
+      "quick_slots": 3
+    },
+    "selection": "InitGame only; unknown selectors reject; clean match reset; no live switch or saved state conversion"
+  },
+  "legacy_starts": [
+    {
+      "id": "Laborer",
+      "v06_attributes": {
+        "STR": 12,
+        "DEX": 9,
+        "CON": 12,
+        "INT": 8,
+        "WIS": 10,
+        "CHA": 9
+      },
+      "v07_attributes": {
+        "STR": 11,
+        "DEX": 8,
+        "CON": 10,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 8
+      },
+      "starting_skills": [
+        "Heave",
+        "Patch"
+      ],
+      "witness_attribute": "STR",
+      "rank1_witness_level": 2
+    },
+    {
+      "id": "Rogue",
+      "v06_attributes": {
+        "STR": 9,
+        "DEX": 12,
+        "CON": 9,
+        "INT": 10,
+        "WIS": 12,
+        "CHA": 8
+      },
+      "v07_attributes": {
+        "STR": 8,
+        "DEX": 11,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "starting_skills": [
+        "Pickpocket",
+        "Survey"
+      ],
+      "witness_attribute": "WIS",
+      "rank1_witness_level": 3
+    },
+    {
+      "id": "Scholar",
+      "v06_attributes": {
+        "STR": 8,
+        "DEX": 9,
+        "CON": 10,
+        "INT": 12,
+        "WIS": 9,
+        "CHA": 12
+      },
+      "v07_attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 11,
+        "WIS": 8,
+        "CHA": 10
+      },
+      "starting_skills": [
+        "Spark",
+        "Analyze"
+      ],
+      "witness_attribute": "INT",
+      "rank1_witness_level": 2
+    }
+  ],
+  "legacy_skill_adapter": {
+    "hp_cost": 0,
+    "mp_cost": 0,
+    "gold_cost": 0,
+    "economic_skills": [
+      "Pickpocket",
+      "Parley",
+      "Analyze",
+      "Survey",
+      "Heave"
+    ],
+    "scores": "Preserve natural-stat SkillValue/theft/Witness thresholds and subclass modifiers; no gear contribution to these legacy economic checks.",
+    "cooldowns": "Preserve per-identity endpoints and accepted channel-start costs for economic tasks; no refund on cancel.",
+    "combat": "Step/Ambush/Spark/Patch keep native legacy magnitude/rank formulas initially; Ambush physical, Spark magical, Patch heal. New v07 target/status/release rules apply; no extra INT multiplier or implicit rescale.",
+    "learning": "Preserve starters and legacy class-learning access; books cross-class; v07 rank level/cost gates; shared five slots; no innate shortcut."
+  },
+  "wire": {
+    "schema_version": 7,
+    "skill_id_bits": 16,
+    "max_skill_id": 37,
+    "rank_entries": 38,
+    "skill_slots": 5,
+    "required_header": [
+      "schema_version",
+      "profile_id",
+      "catalog_digest"
+    ],
+    "validation": "Bound shape/IDs before allocation; reject wrong profile/schema/digest. Keep legacy four-slot serializer for v06. Update request and owner projections together."
+  },
+  "ability_wire_ids": {
+    "none": 0,
+    "legacy_step": 1,
+    "legacy_ambush": 2,
+    "legacy_spark": 3,
+    "legacy_patch": 4,
+    "legacy_pickpocket": 5,
+    "legacy_parley": 6,
+    "legacy_analyze": 7,
+    "legacy_survey": 8,
+    "legacy_heave": 9,
+    "anchor_bash": 10,
+    "brace_wall": 11,
+    "veil_step": 12,
+    "hamstring": 13,
+    "arc_bolt": 14,
+    "counterpulse": 15,
+    "farwatch_ward": 16,
+    "wire_snare": 17,
+    "ledger_mark": 18,
+    "surety_shell": 19,
+    "false_trail": 20,
+    "smoke_veil": 21,
+    "purge_touch": 22,
+    "seers_flare": 23,
+    "ember_line": 24,
+    "grapple": 25,
+    "null_seal": 26,
+    "grounding_field": 27,
+    "force_wave": 28,
+    "guard_swap": 29,
+    "slipstream": 30,
+    "remedy_bind": 31,
+    "break_sigil": 32,
+    "arcane_prison": 33,
+    "temporal_lock": 34,
+    "sovereign_ward": 35,
+    "grand_exchange": 36,
+    "gate_weave": 37
+  },
+  "catalogs": {
+    "source": "docs/v07/data (adopted specification only)",
+    "staged_runtime": "Content/Lockdown/Data/V07 (pending)",
+    "generated_assets": "/Game/Lockdown/Generated/V07 (pending)",
+    "legacy": "Keep schema1 assets/economy unchanged in regression; adapt 1500s economy validation separately from fixed budget/tick schedules.",
+    "activation": "Strict schema/operation/reference/unit validation; unavailable operations block slice activation. Runtime never reads docs."
+  },
+  "death": "v07 drops unused wards/consumables as well as cargo; ordinary equipped gear retains; objectives always drop. v06 keeps unused-ward consumption and existing return/protection.",
+  "milestones": {
+    "B71": "profile/wire/import isolation, action/MP/damage/status core",
+    "B72": "geometry/control plus scheduled effects",
+    "B73": "normalized starts/mastery/slots/gear/input/death",
+    "B74": "acquisition/lineage/quality",
+    "B75": "full effects/catalog",
+    "B76": "world/routes/claim scheduled order",
+    "B77": "integrated release evidence"
+  }
+}

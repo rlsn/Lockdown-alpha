@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-24",
+  "scope": "B70 audit; local Editor rebuild and existing-asset Validate, not v07 gameplay acceptance",
+  "runtimeRevision": "920c4aede4fab1338bbec4fc728ebcee14f56407",
+  "build": {
+    "result": "Passed",
+    "command": "./Scripts/BuildEditor.ps1 -MaxParallelActions 4",
+    "artifact": "Artifacts/20261024-122959-594-BuildEditor",
+    "actions": 7,
+    "executionSeconds": 60.94,
+    "compiler": "MSVC 14.44.35229",
+    "windowsSdk": "10.0.26100.0",
+    "workersCap": 4
+  },
+  "bootstrap": {
+    "result": "Passed",
+    "command": "./Scripts/BootstrapAssets.ps1 -Mode Validate",
+    "artifact": "Artifacts/20261024-123115-994-Bootstrap-Validate",
+    "packages": 28,
+    "mode": "Validate (no writes)",
+    "reportedErrors": 0,
+    "reportedWarnings": 4,
+    "warning": "Existing RecastNavMesh/CrowdManager during map validation; not native movement acceptance."
+  },
+  "model": {
+    "result": "Passed",
+    "assertions": 931,
+    "runtimeEvidence": false
+  },
+  "notRun": [
+    "new gameplay tests",
+    "cold checkout",
+    "cook/package",
+    "independent clients/network/privacy",
+    "normal timed sessions",
+    "restart/performance",
+    "human review"
+  ],
+  "evidenceHashes": {
+    "AdoptedSpec.json": "636f2649835b83942394262793139c1497706ffd3d792046171fd260a242696c",
+    "Bootstrap.log": "3d764a7cb904b945b37c5db4dec16963fbbf12b0ee50d349405cea6b5584e41b",
+    "BuildEditor.log": "a5f2b481df6b3fc5c3fca27e7f18d76554df68787f821c4bf685ce24449a025a",
+    "EngineVersion.json": "80a6af0f427f373b43a1c373082acf2b3de07305d215a67c27f18272e6dff24f",
+    "InheritedAcceptance.csv": "1c07f90cfa4e107db9e3f7beb52ca740e2d8c73c8d575a00e6d1e60d4b3f221e",
+    "RuntimeInputs.json": "affd39f2da9c171087f37f2dcdbf0337379eba21dc80d6493aa9de280cdf6e3d",
+    "SpecModel.txt": "5722adf6912942c6a9430ecac9746dec57147ad406fbd459d718e15b50200564"
+  }
+}

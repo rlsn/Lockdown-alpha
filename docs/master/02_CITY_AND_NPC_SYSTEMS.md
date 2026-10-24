@@ -1,38 +1,16 @@
-# City and NPC systems
+# Cities and NPC systems
 
-## Shared capability model
-
-Player and NPC characters should be representable through the same attributes, learned skills, proficiency, appearance and profession concepts. Not every resident needs a full strategic progression simulation. Share legality and capability rules where relevant, then use simpler policies for ordinary life.
-
-| Population | Purpose | Grand Heart eligibility |
+| Population | Role | Can win? |
 | --- | --- | --- |
-| Residents | Work, travel, trade, rest, flee and maintain cover | No |
-| Autonomous contenders | Pursue resources, knowledge and acquisition routes | Yes |
-| Wild threats | Defend bounded dangerous encounters | No |
-| Service characters | Contracts, training, trade and information | Normally no |
+|Residents|Work, travel, trade, rest, flee; provide ordinary cover|No|
+|Autonomous contenders|Earn, learn, prepare, fight and pursue routes legally|Yes|
+|Wild threats|Bounded camp/boss encounters and material sources|No|
+|Official institutions|Clearly marked supplier, market, bank, trainer, workshop and procurement services|No|
 
-Ordinary resident/contender categories must not become public role labels. Official service NPCs are an explicit exception: visibly identified institutional traders/workers may be known noncontenders. No class or model should expose a complete build or identify a human. Observed action can provide legitimate evidence.
+Ordinary visually interchangeable bodies do not carry human/NPC or resident/contender labels. Appearance may suggest occupation, never full private capability. Official services are a narrow public exception: identifiable noncontenders, noncombat/nonlootable, institutional wallets/catalogs. Their protection does not make cities invulnerable safe zones. Surveillance is actual sight; a full guard/law simulation remains future work.
 
-## Civilian life
+Peaceful residents maintain routines and flee violence instead of everyone farming/fighting. Routine resident killing grants no fresh growth. Not every resident requires full strategic progression; relevant capabilities can share legality while policies stay simple. Contender NPCs must pay normal resource/slot/cooldown/prerequisite/death costs and may use only observed/owned/public information. Human status, unseen cargo, private spells and hidden wallet are never AI inputs.
 
-Residents need meaningful destinations and routines players can imitate. They flee violence rather than all becoming hostile. Respawning replenishes cover. Routine resident kills should not award growth.
+Economic institutions provide structured commerce/work panels rather than branching dialogue. Background production and consumption are explicit bounded ledger operations, with animations illustrating receipts, not hidden wallets or magically replenished stock. Full caravans, hiring guards, faction diplomacy and rich social reputation remain later systems.
 
-Work props and animations must not be human-only identifiers. A peaceful NPC can possess attributes or skills without becoming a competitive agent. Conversely, do not simulate a full economy solely to justify an animation.
-
-## Autonomous contenders
-
-AI contenders should earn resources, learn, prepare and suffer costs through legal rules. Policies may prefer work, exploration or infrastructure pressure. They can adapt only to information actually observed or publicly authorized.
-
-Private inventories, hidden builds, human ownership and unseen item positions must not drive choices. Reduced reaction and imperfect planning are acceptable difficulty controls; hidden knowledge is not.
-
-A passive-human test should show legal progress while preserving believable public calm. Scripted tower deletion or resource grants do not demonstrate a self-progressing world.
-
-## Economy and protection
-
-Professions can develop through transport, trade, medicine, investigation or craft. All can contribute to shared character XP without requiring a second level tree immediately. A Rogue can trade; a Scholar can transport goods.
-
-Theft transfers an existing resource. Duplicate transactions and repetitive low-risk actions cannot print progress. Services, surveillance, geography, allies and later guards provide relative protection. City labels alone do not prove safety.
-
-Full faction, recruitment, law and reputation systems remain future work. Early releases should distinguish implemented economic transactions from presentation routines.
-
-Official traders and institutional consumers can have public service identities, catalogs and routines without pretending to be rival players. Do not extend that exception to private class/build disclosure or marking ordinary humans. v0.6 proposes noncombat, nonlootable official service bodies and structured commerce/work panels instead of branching dialogue or new player text chat. That protection is scoped to the marked services, not entire cities.
+v0.7 preserves actual delivered populations and extends legal combat/route interactions. It does not require building a complete autonomous four-route strategist if absent in the baseline. Optional test opponents are labelled evidence of mechanics, not proof of an organically self-progressing world. Future AI route diversity should emerge from the same sources and risk choices as players.

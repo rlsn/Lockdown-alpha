@@ -1,0 +1,117 @@
+{
+  "schema_version": 7,
+  "legacy_classes_preserved": true,
+  "templates": [
+    {
+      "id": "vanguard",
+      "name": "Vanguard",
+      "attributes": {
+        "STR": 11,
+        "DEX": 8,
+        "CON": 10,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 8
+      },
+      "skills": [
+        "anchor_bash",
+        "brace_wall"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "infiltrator",
+      "name": "Infiltrator",
+      "attributes": {
+        "STR": 8,
+        "DEX": 11,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "veil_step",
+        "hamstring"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "arcanist",
+      "name": "Arcanist",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 11,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "arc_bolt",
+        "counterpulse"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "seeker",
+      "name": "Seeker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 11,
+        "CHA": 8
+      },
+      "skills": [
+        "farwatch_ward",
+        "wire_snare"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "broker",
+      "name": "Broker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 10,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "ledger_mark",
+        "surety_shell"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "trickster",
+      "name": "Trickster",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "false_trail",
+        "smoke_veil"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    }
+  ],
+  "class_locks": false,
+  "normal_new_template_gear_grants": false,
+  "legacy_skill_costs": "Retain adopted behavior; migration adapters required; no newly imposed MP costs on economic skills"
+}

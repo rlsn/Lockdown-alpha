@@ -1,0 +1,171 @@
+{
+  "scope": "B70 source/spec identity and proposed adapter arithmetic only; no gameplay execution",
+  "runtimeRevision": "920c4aede4fab1338bbec4fc728ebcee14f56407",
+  "sourceHashesMatched": 189,
+  "runtimeInputHashesMatched": 215,
+  "suppliedSpecHashesMatched": 93,
+  "runtimeChanges": [],
+  "workingLedger": {
+    "sourceBuildAuditComplete": 1,
+    "notRun": 54
+  },
+  "inheritedAcceptance": {
+    "Source/document audit retained": 1,
+    "Partial — scoped evidence retained": 17,
+    "Local engineering evidence retained": 27,
+    "Deferred — not run": 3
+  },
+  "legacyAdapterArithmetic": [
+    {
+      "class": "Laborer",
+      "rank1_witness_level": 2,
+      "xp": 75,
+      "attribute": "STR",
+      "allocated_points": 1,
+      "score": 12,
+      "starting_capacity": 62
+    },
+    {
+      "class": "Rogue",
+      "rank1_witness_level": 3,
+      "xp": 150,
+      "attribute": "WIS",
+      "allocated_points": 2,
+      "score": 12,
+      "starting_capacity": 56
+    },
+    {
+      "class": "Scholar",
+      "rank1_witness_level": 2,
+      "xp": 75,
+      "attribute": "INT",
+      "allocated_points": 1,
+      "score": 12,
+      "starting_capacity": 56
+    }
+  ],
+  "legacyScoreReachability": [
+    {
+      "class": "Laborer",
+      "check": "Heave",
+      "threshold": 12,
+      "rank1_attribute_level": 2,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Laborer",
+      "check": "Parley",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Laborer",
+      "check": "Analyze",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Laborer",
+      "check": "Survey",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Laborer",
+      "check": "Analyze coupon",
+      "threshold": 14,
+      "rank1_attribute_level": 7,
+      "rank2_attribute_level": 5,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Rogue",
+      "check": "Heave",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Rogue",
+      "check": "Parley",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Rogue",
+      "check": "Analyze",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Rogue",
+      "check": "Survey",
+      "threshold": 12,
+      "rank1_attribute_level": 3,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Rogue",
+      "check": "Analyze coupon",
+      "threshold": 14,
+      "rank1_attribute_level": 7,
+      "rank2_attribute_level": 5,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Scholar",
+      "check": "Heave",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Scholar",
+      "check": "Parley",
+      "threshold": 12,
+      "rank1_attribute_level": 3,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Scholar",
+      "check": "Analyze",
+      "threshold": 12,
+      "rank1_attribute_level": 2,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Scholar",
+      "check": "Survey",
+      "threshold": 12,
+      "rank1_attribute_level": 5,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    },
+    {
+      "class": "Scholar",
+      "check": "Analyze coupon",
+      "threshold": 14,
+      "rank1_attribute_level": 4,
+      "rank2_attribute_level": 3,
+      "scope": "arithmetic after legal learning/equip; not a journey"
+    }
+  ],
+  "wireIds": 38,
+  "result": "PASS"
+}

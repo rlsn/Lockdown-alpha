@@ -1,32 +1,26 @@
-# World vision and points of interest
+# World, vision and points of interest
 
-## Regional geography
+## Flexible topology
 
-The world is not locked to three districts. Four outer cities, a central city, wilderness and lesser towns are the user's example. Counts, themes and connections belong in map data. Trade, military, research or industrial themes must not create attribute-exclusive cities.
+Four outer cities, a central city, lesser towns and wilderness remain a candidate long-term map. Counts/themes are data, not attribute-exclusive districts. Outer-to-outer routes should avoid forcing every journey through the capital. Public roads are predictable and observed; covered shortcuts offer ambush/exploration opportunities. Region graph and actual spatial geometry are separate assets.
 
-Model settlements, wilderness, ruins and objectives as nodes linked by roads and alternatives. Outer settlements should connect without requiring every trip through the capital. Public roads can be safer and predictable; wilderness shortcuts trade protection for opportunity.
+The current authored City/WestTown/EastTown region may host the v0.7 systems without pretending to establish final world scale. Three ruins, three camps, a boss, forges, shrines and a central three-tower precinct create distinct destinations. Measure activity density/travel/alternate approaches before expanding acreage.
 
-An early authored region can contain one city and two towns. It does not certify final world scale. Procedural generation and world streaming should follow measured need, not the mere existence of a region graph.
-
-## Geometry and perception
-
-Geometric sight comes from source position, range, elevation, walls, trees and infrastructure. WIS and DEX cannot grant vision through a wall. Current sight, explored terrain and unseen space remain server-enforced.
-
-Perception concerns details within an observable environment: clues, tracks, traps and concealment evidence. A future suspicion model may connect WIS and DEX continuously. It must remain inside geometric authorization.
-
-| Source | Audience |
+| POI family | Decision supported |
 | --- | --- |
-| Body | Its contender and an explicitly authorized future squad |
-| Ward | Owner and authorized team |
-| Public watchtower | Everyone entitled to shared surveillance |
-| Objective sensor | The audience specified by its rule |
+|Official shops/banks/trainers|Reliable counter supply, protected savings, knowledge investment|
+|Regional markets/commissions|Local scarcity, finite cash, transport margins and economic endorsements|
+|Workshops/advanced forge/HeartForge|Branching equipment, quality specialization and vulnerable artifact construction|
+|Camps/ruins/boss|Risky growth, keys, catalysts, advanced books and contestable components|
+|Watch sources/wards|Route observation, counterwarding, scouting and concealment|
+|Shrines/fountains|Disengagement and staging, no invulnerable claim circle|
+|Grand towers|Permanent infrastructure/surveillance loss, relics, global siege progress|
+|Heart antechamber/precinct|Route activation warnings and final tactical confrontation|
 
-Source loss removes sight. Camera panning adds none. Seeing a body does not reveal its private attributes or skill list.
+## Sight and detection
 
-## World opportunities
+Geometry comes first: range, height, walls, trees, smoke and infrastructure determine visibility. Perception/attributes may improve details inside authorized space; never wall vision. Camera movement creates no observation. Revealing concealment exposes location within detector geometry, not persistent identity or human ownership.
 
-Guilds support work; trainers and book markets make knowledge valuable; preparation stations support loadout decisions. Watchtowers provide shared observation, while regional or grand towers can control territory and conquest access. Camps, ruins, bosses, fountains, rare shops and runes remain candidate opportunities. The Heart is the unique outcome.
+Body/ward sight is private to owner and explicitly authorized eventual team; public infrastructure exposes exactly its specified audience. Source loss removes sight. Smoke blocks ordinary sight and detectors across its boundary; ground attacks can still target unseen static space. Targeted casts normally need current observation at release. Effects/audio/minimap obey the same boundary as ordinary units.
 
-Towers need not all attack passersby. Infrastructure loss should change safety and information. Guard coordination, repair and restoration need their own later rules.
-
-Environmental problems can offer different solutions through attributes and equipped skills. Avoid an essential universal resource behind one exclusive class gate. Strong objectives should resist unprepared characters through their mechanics, with the Heart's defensive prerequisites a separate explicit route rule.
+Grand towers are not interchangeable with harmless public watchposts. Destroying a Grand tower removes its defined source and changes an approach while preserving viable economic play. Three destruction receipts open siege in v0.7; extra outer-tower gates are deferred. World objects have explicit public target categories rather than hidden immunity exceptions.

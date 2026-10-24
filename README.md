@@ -1,24 +1,25 @@
-# Project Lockdown — v0.6 baseline / v0.7 transition
+# Project Lockdown — v0.7 B70 audit complete
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
 baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: v0.6 closed at B67 with explicit verification deferrals.**
-[B67 closeout](docs/v06/B67_CLOSEOUT.md) freezes the implemented runtime at
-`920c4ae` (B66), reconciles all 48 acceptance rows and records the user’s direction
-to minimize testing, defer human review and move to v0.7. No new package or full
-release-acceptance pass is claimed. [v0.7 handoff](docs/V07_TRANSITION.md) prepares
-**B70 audit/reconciliation**, including profile, progression and wire-format changes.
+**Current checkpoint: B70 audit and reconciliation complete; B71 combat/MP next.**
+[B70 review](docs/v07/B70_BASELINE_REVIEW.md) records actual source/toolchain,
+adopts the supplied v0.7/master specification and chooses profile, wire, import
+and legacy-class adapters. Fresh pinned Editor rebuild and existing-asset Validate
+pass;931 specification assertions and frozen-input checks pass. The
+[working v0.7 ledger](docs/v07/FeatureLedger.csv) marks C001 audit complete and
+54 gameplay checks Not run.
 
-Minimal B67 checks passed:189 source hashes, retained report/capture integrity,
-13 retained ledger replays and both specification checkers. Existing engine results
-remain:23 rules,56 authority,39 controlled earned-route checks and84 native UI
-checks in each of three layouts. [B66 evidence](docs/v06/evidence/B66/Summary.json)
-records exact scope. The supplied v0.7/master specification edits remain untouched;
-v0.7 gameplay is not implemented yet. Extended technical and human checks are
-[explicitly deferred](docs/v06/B67_CLOSEOUT.md#deferred-verification-backlog).
+Playable runtime remains **v0.6 B66 `920c4ae`**, historically selected by
+`Profile=V05`. New v0.7 gameplay/selectors are pending. [B67 closeout](docs/v06/B67_CLOSEOUT.md)
+and the [B70 inherited matrix](docs/v07/evidence/B70/InheritedAcceptance.csv)
+preserve all48 acceptance classifications and named technical/human deferrals.
+No fresh package or full release acceptance is claimed. Use the
+[transition index](docs/V07_TRANSITION.md) and [continuation](docs/CONTINUATION.md)
+for the current state and next steps.
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
 record retained checkpoints. [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts
@@ -79,11 +80,16 @@ Unused charges are lost on death and none are granted on return. Select an obser
 edit their offers, press Ready, review both directions, then separately Confirm.
 Gold stays exposed to ordinary theft and death; Cancel releases reserved items. Minimap left-click/drag pans; right-click cancels an armed action
 first, then issues a ground move. Other selection shows Unknown private fields
-while commands remain yours. Retained gameplay still includes
-eight paid jobs, first visits, private Charter checks, the hostile sentinel,
-watchtower sabotage and earned Witness/Seal/Heart. Fabrication remains four
-seconds with Witness, four unused credits and 100 gold, once per contender;
-Heart requires a ten-second uncontested hold. Conquest remains deferred.
+while commands remain yours. Current economy gameplay includes eight paid jobs,
+first visits, Witness checks, finite gathering/crafting, regional markets,
+Treasury banking and bounded Supply/Industrial procurement. Earn Witness and
+both distinct endorsements, pay100 gold at Treasury with an explicit wallet/bank
+split, then activate the registered Charter at the City civic terminal with a
+fresh four-second hold. Its30-second warning/60-second public opening permits
+any eligible contender to win a ten-second Heart claim. Damage/movement and
+nearby opponents still interrupt or contest in this v0.6 runtime. Old Seal
+fabrication/private access is disabled in normal economy; new v0.7 siege,
+keys/artifact routes and control-based claim rules remain pending.
 
 Historical regression runners explicitly select `?Profile=V04`. An unqualified
 legacy sandbox retains the [v0.3 profile](docs/v03/implementation/README.md).
