@@ -53,7 +53,7 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
 }
 void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction,FGuid Observed)
 {
-    if (Slot>=LDDevelopment::SlotCount) { PC->CompleteCombatRequest(RequestId,TEXT("Invalid skill slot.")); return; }
+    if (const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);!O||Slot>=LDDevelopment::Slots(O->Build)) { PC->CompleteCombatRequest(RequestId,TEXT("Invalid skill slot.")); return; }
     int32 Count=0; for (const auto& Intent:Intents) { if (Intent.Controller==PC) { ++Count; } }
     if (Count>=3) { PC->CompleteCombatRequest(RequestId,TEXT("Too many queued actions.")); return; }
     Intents.Add({PC,Match,Life,RequestId,uint8(3+Slot),Direction,Revision,Observed});
@@ -84,13 +84,15 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* S=StateFor(Body); auto* Build=BuildFor(Body);
     const double Now=GetWorld()->GetTimeSeconds();
     if (!HasAuthority()||!Mode->IsDevelopmentProfile()||!Mode->IsPlaying()||!S||S->Hp<=0||Now<S->ProtectionUntil||!Build||!LDDevelopment::Valid(*Build)
-        ||Revision!=Build->Revision||Slot>=LDDevelopment::SlotCount||!Token||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
+        ||Revision!=Build->Revision||Slot>=LDDevelopment::Slots(*Build)||!Token||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
     { Result=TEXT("Invalid slot, build revision or life."); return false; }
     const ELDSkill Skill=Build->Slots[Slot];
+    if(Mode->IsTacticalProfile()&&uint8(Skill)>=10){return RequestTactical(Body,Skill,Token,ExplicitTarget,Result);}
+    if(!Allows(Body,Skill==ELDSkill::Step?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Result)){return false;}
     if (Skill==ELDSkill::None||!LDDevelopment::Equipped(*Build,Skill)||LDDevelopment::Rank(*Build,Skill)<1)
     { Result=TEXT("Equip a learned skill in this slot."); return false; }
     auto* PC=Cast<ALDPlayerController>(Body->GetController());
-    const bool Held=uint8(Skill)>=uint8(ELDSkill::Patch);
+    const bool Held=LDDevelopment::Held(Skill);
     if (Held&&PC&&Token<=ReleasedSkills.FindRef(PC)) { Result=TEXT("Released skill request."); return false; }
     if (Now<Build->Cooldowns[uint8(Skill)]) { Result=TEXT("Skill cooling down."); return false; }
     auto* Move=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
@@ -161,7 +163,7 @@ void ALDCombatDirector::CompleteSkillChannels(double Now)
     {
         auto* Body=Pair.Key.Get(); auto& S=Pair.Value; if (!Body||S.Action!=7) { continue; }
         auto* Move=Body->GetCharacterMovement(); auto* Build=BuildFor(Body);
-        const bool Valid=Mode->IsPlaying()&&Build&&S.Hp>0&&Now>=S.ProtectionUntil&&S.LastDamage<Now-1.e-6
+        const bool Valid=Mode->IsPlaying()&&Allows(Body,LDTactical::EAction::Skill)&&Build&&S.Hp>0&&Now>=S.ProtectionUntil&&S.LastDamage<Now-1.e-6
             &&Now-S.LastSkillHold<=.25&&!S.bHoldMoving&&Body->GetVelocity().SizeSquared2D()<=1&&Move->GetCurrentAcceleration().SizeSquared2D()<=1
             &&FVector::DistSquared2D(Body->GetActorLocation(),S.SkillAnchor)<=4
             &&(S.Skill==ELDSkill::Patch||SkillTargetLegal(Body,S.Target.Get(),S.Skill));

@@ -92,6 +92,8 @@ public:
     int32 EconomyContenderCount() const {return Contenders.Num();}
     void RecordEconomyGold(FName Cause,int64 Mint=0,int64 Burn=0);
     bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
+    bool IsTacticalProfile() const {return bTacticalProfile;}
+    UPROPERTY() TObjectPtr<class ULDTacticalCatalog> TacticalCatalog;
     bool IsUIControlProfile() const {return bUIControlProfile;}
     const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
     bool IsFinished() const;
@@ -112,6 +114,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDProductionDirector> Production;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
+    bool bTacticalProfile=false;
     bool bDevelopmentProfile = false;
     bool bUIControlProfile = false;
     UPROPERTY() TObjectPtr<ULDCharacterCatalog> Catalog;

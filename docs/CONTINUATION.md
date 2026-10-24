@@ -1,69 +1,61 @@
-# Continuation — B70 complete; B71 next
+# Continuation — B71 combat slice; B72 next
 
-24 October 2026. B70 audited source, adopted the supplied v0.7/master revision7
-without editing their original bytes, chose adapters and initialized the
-working ledger. **C001 source/build audit complete;54 gameplay checks Not run.**
-Read [B70 review](v07/B70_BASELINE_REVIEW.md) for inspected source/decisions and
-the [transition index](V07_TRANSITION.md) for the contract/evidence links.
+24 October 2026. Read [B71 implementation](v07/B71_IMPLEMENTATION.md) for exact
+delivered effects, verification and remaining boundaries. B70 baseline/adapters
+are historical audit records; B71 is the first runtime migration from that baseline.
 
-## Runnable baseline
-
-Runtime remains B66 **`920c4aede4fab1338bbec4fc728ebcee14f56407`**. B67 `289501c`
-closed v0.6 with verification deferrals. B70 adds audit/tooling/docs;
-new v07 gameplay/catalogs/selectors remain implementation work.
+## Play and reproduce
 
 ```powershell
-./Scripts/OpenStandalone.ps1
-./Scripts/OpenStandalone.ps1 -NavigationCheckpoint
+./Scripts/OpenStandalone.ps1 -Profile v07_integration
+./Scripts/OpenStandalone.ps1 -Profile v06_regression
 ```
 
-The first opens the frontend; the second directly opens the economy region with
-`Profile=V05`. Host a private lobby, choose a legacy class, Ready and start.
-Current rules:25 minutes, level5, four skills/four quick references,24 instances,
-1–4locked humans and registered public Charter. The older22 October package
-predates the economy implementation; no fresh package exists. Reserved
-`v06_regression`/`v07_integration` selectors are B71 work. Unknown profile strings
-can fall through regional map logic; do not launch v07 via an invented URL.
+The normal frontend still hosts V05. The explicit v07 launcher opens the region's
+native lobby: choose a legacy class, Ready and start. Earn gold through retained
+work; Guild40g books teach Arc Bolt, Anchor Bash, Purge Touch and Surety Shell.
+Read quietly, equip at a station. Official Supply sells Null Bell for8g; assign
+one of three quick references. No free normal tactical kit is granted.
 
-Fresh B70 [verification](v07/evidence/B70/Verification.json): pinned Editor build,
-7 actions/60.94s; existing-asset Validate,28 packages/0errors; spec model931
-assertions. [Audit](v07/evidence/B70/Audit.json):189 retained source hashes,
-215 runtime input hashes,93 supplied-spec hashes and48 inherited acceptance rows.
-Source/Config/Content/project unchanged from B66. No new gameplay pass is claimed.
+v07 now has a2100s deadline, normalized53-point legacy starts, level15 XP table,
+five shared skills and three usable item references. Slot5 has mouse activation;
+saved D/removed-quick4 preference migration remains B73. Four backing quick cells
+remain for legacy compatibility. Full equipment/death/preparation migration is
+still B73 work. Existing schema1 economy budgets/ticks do not expand with duration.
 
-## Immediate B71 work
+Fresh evidence and exact scope live in `docs/v07/evidence/B71/Summary.json`.
+The network fixture uses an authority/two independent clients with diagnostic
+build/items/placement and real RPCs; it is not a normal earned journey. No new
+cold package, normal session, physical/OS-scale or human acceptance is claimed.
 
-1. Read [00 decisions](v07/00_DECISIONS_AND_MIGRATION.md),
-   [02 action semantics](v07/02_COMBAT_RUNTIME_AND_EFFECTS.md),
-   [11 authority](v07/11_AUTHORITY_NETWORKING_AND_UI.md),
-   [16 import](v07/16_DATA_CONTRACT_AND_IMPORT.md) and
-   [B70 adapters](v07/B70_ADAPTERS.json). Follow the ordered decisions in the
-   [B70 review](v07/B70_BASELINE_REVIEW.md#adopted-implementation-decisions-and-dependency-order).
-2. Isolate profiles, request/owner serialization and Content catalogs before
-   shared formula changes. Preserve schema1 assets/economy/V05 regression.
-   New build shape supports38 skill IDs/five slots; validate schema/profile/
-   digest/bounds. Never mix contracts or switch during a live match.
-3. Extend the actual combat director/dispatcher with contender MP, accepted
-   windup/release, typed damage/barriers and core statuses/dispel/block. Start
-   Arc Bolt/Anchor Bash/Purge Touch/Null Bell. Preserve economic zero-MP costs,
-   score formulas, holds and persistent cooldowns.
-4. Run affected short authority/resource checks. B72 geometry/control,
-   B73 normalized development/gear/input/death, B74 acquisition, B75 full content,
-   B76 world/four routes and B77 integrated evidence follow. B71–B73 is partial.
+## Immediate B72 work
 
-## Verification and work discipline
+1. Read the [targeting/terrain contract](v07/03_TARGETING_VISION_AND_TERRAIN.md),
+   [effects](v07/02_COMBAT_RUNTIME_AND_EFFECTS.md),
+   [import contract](v07/16_DATA_CONTRACT_AND_IMPORT.md) and
+   [route semantics](v07/09_VICTORY_AND_MATCH_STATE.md).
+2. Extend the shared action/effect path with fog-safe ground/area targeting,
+   smoke/detection, trap/ward lifecycle, displacement and explicit interrupts.
+   Add break/blind/hex behavior and protection limits with native evidence.
+3. Integrate generic channel legality: damage/proximity alone must stop cancelling
+   v07 Heart claims; actual control/displacement/explicit interrupts do cancel.
+   Retained V05 behavior remains a separate regression. Full four-route/late-event
+   ordering is B76; do not claim its endpoint guarantees early.
+4. Continue B73 build/gear/input/death, B74 acquisition, B75 complete catalog,
+   B76 world/routes and B77 integrated evidence. Keep staged subset/import/native
+   asset checksums synchronized with adopted data; never activate inert entries.
 
-[Working ledger](v07/FeatureLedger.csv) tracks v07;
-[inherited matrix](v07/evidence/B70/InheritedAcceptance.csv) carries E01–E48
-without upgrading statuses. V06-D01–D08 stay open: independent clients/privacy/
-latency, cold package, normal sessions, restart/performance, human review,
+## Discipline and open evidence
+
+[Working ledger](v07/FeatureLedger.csv) records scoped progress. B70's frozen
+source checker intentionally no longer matches a migrated runtime; retain its
+historical report instead of rewriting its baseline. All93 adopted spec files
+remain byte-preserved. Inherited V06-D01–D08 stay named gaps: broad network/privacy,
+cold package, normal1/4-player sessions, restarts/performance, human review,
 exhaustive races, physical/OS input and complete class Witness journeys.
-B73 must exercise normalized scores natively; B70 arithmetic is not a normal
-journey. Do not repeat B61–B67 long runs merely to begin B71.
 
 Keep UE5.8.4 CL58902052, Win64 Development, MSVC14.44.35229/SDK10.0.26100.0.
-Unreal operations sequential, Source/Config frozen during each operation,
-build worker cap4. One UPROPERTY declaration per field. Extend privacy allowlists
-and wire bounds deliberately; no replicated opponent build or client-computed
-cost. Failed allocation spends nothing; combat/death precede noncombat/claims;
-terminal state stops later commitments. User authorized committing; no push.
+Unreal operations sequential, Source/Config frozen during each operation, build
+cap4. Every UPROPERTY has one field. Keep eight-field filtered observation and
+34-field public allowlist explicit; MP/status detail belongs only to owner state.
+Failed staged allocation spends nothing. Commit authorized; no push requested.

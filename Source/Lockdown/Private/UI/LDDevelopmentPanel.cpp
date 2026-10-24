@@ -53,15 +53,15 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();AttrRow->AddChildToHorizontalBox(Box)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
             auto* Label=Text(TEXT(""),13);Label->SetAutoWrapText(false);AttributeLabels.Add(Label);Box->AddChildToVerticalBox(Label);Box->AddChildToVerticalBox(Button(TEXT("+1"),1,I))->SetPadding(FMargin(0,3,6,0));
         }
-        AddRow(Left,Text(TEXT("EQUIPPED · Four shared slots · Click a slot, then Equip a learned skill"),16));
+        AddRow(Left,Text(TEXT("EQUIPPED · Shared skill slots · Click a slot, then Equip a learned skill"),16));
         auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Left,Slots);
-        for(uint8 I=0;I<4;++I){auto* W=Button(TEXT(""),3,I);SlotLabels.Add(CastChecked<UTextBlock>(W->GetContent()));Slots->AddChildToHorizontalBox(W)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
+        for(uint8 I=0;I<5;++I){auto* W=Button(TEXT(""),3,I);SlotLabels.Add(CastChecked<UTextBlock>(W->GetContent()));Slots->AddChildToHorizontalBox(W)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
         auto* Tools=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Left,Tools);Tools->AddChildToHorizontalBox(Button(TEXT("Clear selected slot"),4,0));Tools->AddChildToHorizontalBox(Button(TEXT("Reset preview"),5,0))->SetPadding(FMargin(10,0));
         AddRow(Left,Text(TEXT("LIBRARY · Scroll for all skills · Ranks cost 1 then 2 SP"),16));
         auto* LibrarySize=WidgetTree->ConstructWidget<USizeBox>();LibrarySize->SetHeightOverride(260);AddRow(Left,LibrarySize);
         auto* LibraryScroll=WidgetTree->ConstructWidget<UScrollBox>();LibraryScroll->SetAlwaysShowScrollbar(true);LibrarySize->SetContent(LibraryScroll);
         auto* LibraryRows=WidgetTree->ConstructWidget<UVerticalBox>();LibraryScroll->AddChild(LibraryRows);
-        for(uint8 I=1;I<LDDevelopment::SkillCount;++I)
+        for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
         {
             auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(LibraryRows,Row,2);
             auto* Label=Text(TEXT(""),14);SkillLabels.Add(Label);Row->AddChildToHorizontalBox(Label)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -111,7 +111,7 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     Armed=0;
     if(Operation==1&&Draft.Attributes.IsValidIndex(Index)){Draft.Attributes[Index]=FMath::Min(16,Draft.Attributes[Index]+1);}
     if(Operation==2&&Draft.Ranks.IsValidIndex(Index)){Draft.Ranks[Index]=FMath::Min(3,int32(Draft.Ranks[Index])+1);}
-    if(Operation==3&&Index<4){SelectedSlot=Index;}
+    if(Operation==3&&Index<Draft.Slots.Num()){SelectedSlot=Index;}
     if(Operation==4){Draft.Slots[SelectedSlot]=ELDSkill::None;}
     if(Operation==5){ResetDraft();}
     if(Operation==6&&Index>0&&Index<LDDevelopment::SkillCount){Draft.Slots[SelectedSlot]=ELDSkill(Index);}
@@ -135,9 +135,10 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::ClassName(O.Build.ClassId),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
     for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s %d → %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I])));}
-    for(int32 I=0;I<4;++I){const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
-    for(uint8 I=1;I<LDDevelopment::SkillCount;++I)
+    for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
+    for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
     {
+        if(!Draft.Ranks.IsValidIndex(I)){SkillLabels[I-1]->SetText(FText::FromString(TEXT("v07 only")));RankButtons[I-1]->SetIsEnabled(false);EquipButtons[I-1]->SetIsEnabled(false);continue;}
         const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
         auto ValueBuild=Ghost;if(!ValueBuild.Ranks[I]){ValueBuild.Ranks[I]=1;}
         const TCHAR* Kind=I<=3?TEXT("combat"):TEXT("utility");

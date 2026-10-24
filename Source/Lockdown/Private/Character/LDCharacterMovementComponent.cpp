@@ -4,6 +4,8 @@
 #include "Components/SceneComponent.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
+#include "Combat/LDCombatDirector.h"
+#include "Character/LDCharacter.h"
 #include "Engine/World.h"
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
@@ -88,6 +90,12 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
     {
         const auto* Public=GetWorld()->GetGameState<ALDGameState>();
         if (!Public || !Public->bMatchStarted || Public->EndReason || !PC->OwnerState.bActive) { return 0; }
+        if(PC->OwnerState.Build.RulesVersion==7)
+        {
+            const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr;
+            const uint16 Tags=S?S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):PC->OwnerState.StatusMask;if(Tags&((1<<0)|(1<<3))){return 0;}
+            return 420.f*((Tags&(1<<5))?.5f:1.f);
+        }
         return float((IsMovingOnGround()&&bWantsSprint&&!bCombatWalkOnly?300.:180.)*LDDevelopment::SpeedFactor(PC->OwnerState.Build));
     }
     return IsMovingOnGround() && bWantsSprint && !bCombatWalkOnly ? SprintSpeed : Super::GetMaxSpeed();
@@ -95,6 +103,7 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
 
 bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction,double Distance)
 {
+    if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Combat&&!M->Combat->Allows(Cast<ALDCharacter>(CharacterOwner),LDTactical::EAction::Dash)){return false;}
     if (!CharacterOwner || !CharacterOwner->HasAuthority() || !IsMovingOnGround() || Direction.ContainsNaN() || Direction.SizeSquared2D()<UE_SMALL_NUMBER || !FMath::IsFinite(Distance) || Distance<300 || Distance>420) { return false; }
     TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();
     Dash->InstanceName=TEXT("LD_AuthorityDash"); Dash->Priority=500;

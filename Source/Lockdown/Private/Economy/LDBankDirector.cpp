@@ -17,7 +17,7 @@ bool ALDBankDirector::Eligible(ALDPlayerController* PC) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=M&&M->Combat?M->Combat->StateFor(Body):nullptr;
     const double Now=GetWorld()->GetTimeSeconds();const FVector Site=LDRegion::Site(GetWorld(),1);const auto* G=GetWorld()->GetGameState<ALDGameState>();
-    return G&&G->MatchDeadline>Now&&M&&M->Economy&&M->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&Now>=S->LastDamage+6&&Now>=S->LastDealt+6&&!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)&&FVector::Dist2D(Body->GetActorLocation(),Site)<=120&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Site)&&M->Vision->Ray({Body->GetActorLocation(),120,M->Vision->LevelAt(Body->GetActorLocation())},Site);
+    return G&&G->MatchDeadline>Now&&M&&M->Economy&&M->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&Now>=S->LastDamage+6&&Now>=S->LastDealt+6&&!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)&&FVector::Dist2D(Body->GetActorLocation(),Site)<=120&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Site)&&M->Vision->Ray({Body->GetActorLocation(),120,M->Vision->LevelAt(Body->GetActorLocation())},Site);
 }
 bool ALDBankDirector::TakeToken(FClient& C)
 {const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(4.,C.Tokens+FMath::Max(0.,Now-C.At)*4);C.At=Now;if(C.Tokens<1){return false;}--C.Tokens;return true;}

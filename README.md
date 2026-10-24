@@ -1,25 +1,24 @@
-# Project Lockdown — v0.7 B70 audit complete
+# Project Lockdown — v0.7 B71 combat slice
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
 baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B70 audit and reconciliation complete; B71 combat/MP next.**
-[B70 review](docs/v07/B70_BASELINE_REVIEW.md) records actual source/toolchain,
-adopts the supplied v0.7/master specification and chooses profile, wire, import
-and legacy-class adapters. Fresh pinned Editor rebuild and existing-asset Validate
-pass;931 specification assertions and frozen-input checks pass. The
-[working v0.7 ledger](docs/v07/FeatureLedger.csv) marks C001 audit complete and
-54 gameplay checks Not run.
+**Current checkpoint: B71 combat core/MP slice; B72 next.**
+[B71 implementation](docs/v07/B71_IMPLEMENTATION.md) adds the isolated
+`v07_integration` profile, versioned data/requests, real MP, typed damage/barriers,
+core controls, Arc Bolt, Anchor Bash, Purge Touch, Surety Shell and Null Bell.
+This is partial v0.7; full geometry, equipment, catalogs and four routes follow.
+The [working ledger](docs/v07/FeatureLedger.csv) preserves each remaining gate.
 
-Playable runtime remains **v0.6 B66 `920c4ae`**, historically selected by
-`Profile=V05`. New v0.7 gameplay/selectors are pending. [B67 closeout](docs/v06/B67_CLOSEOUT.md)
-and the [B70 inherited matrix](docs/v07/evidence/B70/InheritedAcceptance.csv)
-preserve all48 acceptance classifications and named technical/human deferrals.
-No fresh package or full release acceptance is claimed. Use the
-[transition index](docs/V07_TRANSITION.md) and [continuation](docs/CONTINUATION.md)
-for the current state and next steps.
+The normal frontend still hosts the V05 economy; `v06_regression` is its explicit
+alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the B71
+lobby. The [B70 audit](docs/v07/B70_BASELINE_REVIEW.md) records the frozen
+predecessor and adopted specification; [current continuation](docs/CONTINUATION.md)
+records launch, evidence and next steps. Extended/human verification remains
+scoped deferred work. No fresh package or complete-release acceptance is claimed.
+
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
 record retained checkpoints. [B60 review](docs/v06/B60_BASELINE_REVIEW.md) adopts

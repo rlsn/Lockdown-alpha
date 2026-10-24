@@ -17,3 +17,5 @@
 /docs/v07/reference-v06/reference-discussion/** -whitespace
 # Preserve raw tool output, including engine-emitted trailing spaces.
 /docs/v07/evidence/B70/*.log -whitespace
+/docs/v07/evidence/B71/*.log -whitespace
+/Content/Lockdown/Data/V07/*.json text eol=lf

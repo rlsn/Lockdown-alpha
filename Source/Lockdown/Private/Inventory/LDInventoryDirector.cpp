@@ -69,7 +69,7 @@ void ALDInventoryDirector::EndLife(ALDPlayerController* PC)
         {
             Item->bReserved=false;
             if(Item->Kind==ELDItemKind::WardCharge){Remove(PC,Item,true,TEXT("UnusedWardLoss"));}
-            else if(LDInventory::Commodity(Item->Kind))
+            else if(LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
             {
                 FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);
                 if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}
@@ -100,7 +100,7 @@ bool ALDInventoryDirector::Complete(ALDPlayerController* PC,uint32 Id,const FStr
 {auto* C=Clients.Find(PC);if(!C||!C->Receipts.Contains(Id)){return false;}Reply(PC,Id,Reason);return true;}
 void ALDInventoryDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint32 InvRev,uint8 Command,FGuid Item,uint32 ItemRev,uint8 Slot,FVector Point)
 {
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Match!=Match||O->Life!=Life||!Id||Command<1||Command>LDInventory::Buy||Point.ContainsNaN()){PC->ClientIntentResult(Id,TEXT("Inventory action unavailable"));return;}
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Match!=Match||O->Life!=Life||!Id||Command<1||Command>LDInventory::Use||Point.ContainsNaN()){PC->ClientIntentResult(Id,TEXT("Inventory action unavailable"));return;}
     auto& C=Clients.FindOrAdd(PC);if(const auto* Receipt=C.Receipts.Find(Id)){PC->ClientInventoryResult(*O,Id,*Receipt);return;}
     if(Id<=C.Last){PC->ClientIntentResult(Id,TEXT("Expired inventory request"));return;}
     const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(8.,C.Tokens+FMath::Max(0.,Now-C.At)*8);C.At=Now;
@@ -113,6 +113,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     auto* PC=R.PC.Get();if(!PC){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Why){Reply(PC,R.Id,Why);};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||!M->IsPlaying()||O->Inventory.Revision!=R.InventoryRevision){Reject(TEXT("Inventory changed; review again"));return;}
     ALDItem* Item=R.Command==LDInventory::Pickup?Cast<ALDItem>(M->Vision->ResolveObserved(PC,R.Item)):Owned(PC,R.Item);
+    if(Item&&Item->Kind==ELDItemKind::NullBell&&!M->IsTacticalProfile()){Reject(TEXT("Tactical item requires v07 profile"));return;}
     if(M->Economy&&Item&&Item->Kind==ELDItemKind::Seal){Reject(TEXT("Legacy Seals are disabled in the economy profile"));return;}
     if(R.Command!=LDInventory::Sort&&R.Command!=LDInventory::Buy&&(!Item||Item->Revision!=R.ItemRevision||Item->bReserved)){Reject(TEXT("Item changed or unavailable"));return;}
     if(R.Command<=LDInventory::Unbind)
@@ -124,11 +125,13 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
             else{if(R.Slot>=O->Inventory.Capacity){Reject(TEXT("Invalid bag slot"));return;}const uint8 Before=Item->Slot;for(auto& Entry:O->Inventory.Items){if(Entry.Slot==R.Slot){Entry.Slot=Before;}else if(Entry.Id==R.Item){Entry.Slot=R.Slot;}}}
             for(const auto& Entry:O->Inventory.Items){if(auto* Physical=Owned(PC,Entry.Id)){Physical->Slot=Entry.Slot;}}++O->Inventory.Revision;
         }
-        else if(R.Command==LDInventory::Bind){FString Why;if(!LDInventory::BindQuick(O->Inventory,R.Item,R.Slot,Why)){Reply(PC,R.Id,Why);return;}}
+        else if(R.Command==LDInventory::Bind){if(M->IsTacticalProfile()&&R.Slot>=3){Reject(TEXT("v07 has three quick references"));return;}FString Why;if(!LDInventory::BindQuick(O->Inventory,R.Item,R.Slot,Why)){Reply(PC,R.Id,Why);return;}}
         else{for(auto& Ref:O->Inventory.Quick){if(Ref==R.Item){Ref.Invalidate();}}++O->Inventory.Revision;}
         Changed(PC);Reply(PC,R.Id,TEXT("Inventory organized"));return;
     }
     if(!Eligible(PC,Now)){Reject(TEXT("Item use unavailable while protected, waiting or occupied"));return;}
+    if(R.Command==LDInventory::Use)
+    {FString Why;M->Combat->RequestTacticalItem(PC,Item->Identity,R.Id,Why);Reply(PC,R.Id,Why);return;}
     if(R.Command==LDInventory::Read)
     {
         if(Item->Kind!=ELDItemKind::Book||LDDevelopment::Rank(O->Build,Item->Skill)){Reject(TEXT("Already learned; book kept"));return;}
@@ -136,6 +139,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     }
     if(R.Command==LDInventory::Place)
     {
+        if(!M->Combat->Allows(Cast<ALDCharacter>(PC->GetPawn()),LDTactical::EAction::Item)){Reject(TEXT("Active item blocked by control"));return;}
         if(Item->Kind!=ELDItemKind::WardCharge){Reject(TEXT("Choose a ward charge"));return;}
         if(bFailWard){bFailWard=false;Reject(TEXT("Ward could not be placed; charge kept"));return;}
         FString Why;if(M->Vision->PlaceWard(PC,R.Point,Why,Item->Identity)){Reply(PC,R.Id,Why);}else{Reply(PC,R.Id,Why);}return;

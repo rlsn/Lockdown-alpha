@@ -37,7 +37,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
         Palette=Entity.Presentation; Body->ApplyPalette(FMath::Min<uint8>(Palette,3));
         UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
         UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
-        Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
+        Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Projectile?FLinearColor(.12f,.5f,1):Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
     }
     Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel||bInstitution),true);
     WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel&&!bInstitution);
@@ -46,6 +46,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
     TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
     if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
+    if(Entity.Kind==ELDObservedKind::Projectile){WardMesh->SetRelativeScale3D(FVector(.15));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Book)

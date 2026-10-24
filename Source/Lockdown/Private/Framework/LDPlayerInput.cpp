@@ -177,8 +177,10 @@ void ALDPlayerController::ArmAttack(){if(CanWorldCommand()){CancelArmed();bAttac
 void ALDPlayerController::ArmSkill(uint8 Slot,uint8 Gesture)
 {
     if(!CanWorldCommand()||!OwnerState.Build.Slots.IsValidIndex(Slot)||OwnerState.Build.Slots[Slot]==ELDSkill::None){IntentFeedback=TEXT("Empty skill slot");return;}
+    const bool SelfPurge=OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch&&ArmedSkill==Slot;
     CancelArmed();
-    if(OwnerState.Build.Slots[Slot]==ELDSkill::Patch){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}
+    if(OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch&&!SelfPurge){ArmedSkill=Slot;IntentFeedback=TEXT("Purge Touch: confirm an observed body, or press this skill again to cleanse yourself");return;}
+    if(OwnerState.Build.Slots[Slot]==ELDSkill::Patch||OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::SuretyShell){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}
     ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose a visible target or direction. %s cancels."),LDDevelopment::SkillName(OwnerState.Build.Slots[Slot]),*BindingLabel(TEXT("Navigate")));
 }
 FGuid ALDPlayerController::ObservedUnderPointer() const
@@ -204,11 +206,11 @@ void ALDPlayerController::BeginTargetSkill(uint8 Slot,FGuid Target,const FVector
     const auto Skill=OwnerState.Build.Slots[Slot];
     if(Skill!=ELDSkill::Step&&!Target.IsValid()){IntentFeedback=TEXT("Choose an observed target");return;}
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
-    if(uint8(Skill)>=uint8(ELDSkill::Patch)){Navigation->Stop();CancelInterruptibleHolds();}
+    if(LDDevelopment::Held(Skill)){Navigation->Stop();CancelInterruptibleHolds();}
     const uint32 Token=++NextRequest;
     PendingAimRequest=Token;PendingSkillSlot=Slot;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Aim.Rotation().Yaw);}
-    if(uint8(Skill)>=uint8(ELDSkill::Patch)){HeldSkillSlot=Slot;HeldSkillGesture=Gesture;HeldObserved=Target;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
-    ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);
+    if(LDDevelopment::Held(Skill)){HeldSkillSlot=Slot;HeldSkillGesture=Gesture;HeldObserved=Target;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
+    if(OwnerState.Build.RulesVersion==7){Navigation->Stop();SendTacticalAction(Token,Slot,Aim,Target);}else{ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);}
 }
 void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
 {

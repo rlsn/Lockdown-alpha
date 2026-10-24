@@ -19,14 +19,14 @@ bool ALDVendorDirector::Eligible(ALDPlayerController* PC) const
 {
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?const_cast<ALDGameMode*>(M)->StateFor(PC):nullptr;const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=M&&M->Combat?M->Combat->StateFor(Body):nullptr;
     const FVector Site=LDRegion::Site(GetWorld(),1);const double Now=GetWorld()->GetTimeSeconds();
-    return BookPrice>0&&BookPrice<=1000000&&CatalogRevision&&M&&M->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)&&FVector::Dist2D(Body->GetActorLocation(),Site)<=120&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Site)&&M->Vision->Ray({Body->GetActorLocation(),120,M->Vision->LevelAt(Body->GetActorLocation())},Site);
+    return BookPrice>0&&BookPrice<=1000000&&CatalogRevision&&M&&M->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)&&FVector::Dist2D(Body->GetActorLocation(),Site)<=120&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Site)&&M->Vision->Ray({Body->GetActorLocation(),120,M->Vision->LevelAt(Body->GetActorLocation())},Site);
 }
 bool ALDVendorDirector::TakeToken(FClient& C)
 {const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(4.,C.Tokens+FMath::Max(0.,Now-C.At)*4);C.At=Now;if(C.Tokens<1){return false;}--C.Tokens;return true;}
 FLDVendorQuote ALDVendorDirector::Quote(ALDPlayerController* PC,const FClient& C) const
 {
     FLDVendorQuote Q;Q.Match=C.Match;Q.Life=C.Life;Q.Token=C.Token;Q.Session=C.Session;Q.CatalogRevision=CatalogRevision;
-    if(C.Session.IsValid()){for(auto Skill:{ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley}){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
+    if(C.Session.IsValid()){TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Skills.Append({ELDSkill::AnchorBash,ELDSkill::ArcBolt,ELDSkill::PurgeTouch,ELDSkill::SuretyShell});}for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
 }
 bool ALDVendorDirector::ValidSession(ALDPlayerController* PC,const FClient& C) const
 {const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=const_cast<ALDGameMode*>(M)->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);return C.Session.IsValid()&&O&&O->Match==C.Match&&O->Life==C.Life&&S&&S->LastDamage==C.Damage&&Eligible(PC);}
@@ -63,7 +63,7 @@ void ALDVendorDirector::Request(const FRequest& R)
     auto* PC=R.PC.Get();if(!PC){return;}auto& C=Clients.FindChecked(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Text){Reply(PC,R.Id,{FGuid(),Text});};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Session!=C.Session||!ValidSession(PC,C)){Reject(TEXT("Vendor closed; nothing spent"));return;}
     if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Catalog updated. Review the price and click Buy again"));return;}
-    if(!LDDevelopmentTransaction::Sold(R.Skill)){Reject(TEXT("This book is not sold here"));return;}
+    if(!LDDevelopmentTransaction::Sold(R.Skill)&&!(M->IsTacticalProfile()&&uint8(R.Skill)>=10&&LDDevelopment::Implemented(R.Skill))){Reject(TEXT("This book is not sold here"));return;}
     if(R.InventoryRevision!=O->Inventory.Revision){Reject(TEXT("Bag changed; review and click Buy again"));return;}
     FString CapacityReason;if(!M->Inventory->HasSpace(PC,ELDItemKind::Book,&CapacityReason)){Reply(PC,R.Id,{FGuid(),CapacityReason+TEXT("; nothing spent")});return;}
     if(O->Gold<BookPrice){Reject(TEXT("Not enough gold; nothing spent"));return;}

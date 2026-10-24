@@ -47,7 +47,7 @@ void ALDProductionDirector::Initialize()
 bool ALDProductionDirector::Eligible(ALDPlayerController* PC,uint8 Site,bool Quiet,bool AllowAction) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=M&&M->Combat?M->Combat->StateFor(B):nullptr;const auto* G=GetWorld()->GetGameState<ALDGameState>();const double Now=GetWorld()->GetTimeSeconds();const FVector To=Position(GetWorld(),Site);
-    return Site<5&&M&&M->Economy&&M->Vision&&M->IsPlaying()&&G&&Now<G->MatchDeadline&&O&&O->bActive&&S&&S->Hp>0&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil
+    return Site<5&&M&&M->Economy&&M->Vision&&M->IsPlaying()&&G&&Now<G->MatchDeadline&&O&&O->bActive&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(B),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil
         &&(AllowAction||(!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)))&&(!Quiet||Now-FMath::Max(S->LastDamage,S->LastDealt)>=6)
         &&Still(B)&&FVector::DistSquared2D(B->GetActorLocation(),To)<=FMath::Square(M->Economy->Rules().Range)&&LDGround::ClearSegment(GetWorld(),B->GetActorLocation(),To)
         &&M->Vision->Ray({B->GetActorLocation(),120,M->Vision->LevelAt(B->GetActorLocation())},To);

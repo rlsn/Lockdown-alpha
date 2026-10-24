@@ -37,7 +37,7 @@ bool ALDDevelopmentDirector::Eligible(ALDPlayerController* PC,double Now,bool Qu
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);
     const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=Mode->Combat->StateFor(Body);
-    return Mode->IsDevelopmentProfile()&&Mode->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&Now>=S->ProtectionUntil
+    return Mode->IsDevelopmentProfile()&&Mode->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&Mode->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=S->ProtectionUntil
         &&(!Quiet||Now-FMath::Max(S->LastDamage,S->LastDealt)>=6);
 }
 void ALDDevelopmentDirector::FinishRequest(ALDPlayerController* PC,uint32 Id,const FString& Reason)
@@ -50,7 +50,7 @@ void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 L
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);
     if(!HasAuthority()||!O||O->Match!=Match||O->Life!=Life||!Id||Kind<1||Kind>4
-        ||(Kind==LDDevelopmentTransaction::Prepare&&(Plan.Attributes.Num()!=6||Plan.Ranks.Num()!=LDDevelopment::SkillCount||Plan.Slots.Num()!=4)))
+        ||(Kind==LDDevelopmentTransaction::Prepare&&(Plan.Attributes.Num()!=6||Plan.RulesVersion!=O->Build.RulesVersion||Plan.CatalogDigest!=O->Build.CatalogDigest||Plan.Ranks.Num()!=LDDevelopment::Count(O->Build)||Plan.Slots.Num()!=LDDevelopment::Slots(O->Build))))
     {if(PC){FinishRequest(PC,Id,TEXT("Invalid development request or stale life."));}return;}
     auto& S=States.FindOrAdd(PC);
     if(const auto* Receipt=S.Receipts.Find(Id)){PC->ClientDevelopmentResult(*O,Id,*Receipt);return;}
@@ -110,9 +110,9 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     if(R.Id<=S.CancelledThrough||!Eligible(PC,Now,true)||!Stationary(PC)){Reject(TEXT("Hold E while stationary after six seconds without damage dealt or taken."));return;}
     ALDBook* Book=nullptr;
     if(R.Kind==LDDevelopmentTransaction::Prepare)
-    {FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
+    {if(!Mode->Combat->Allows(Body,LDTactical::EAction::Skill)){Reject(TEXT("Silence or hard control prevents skill preparation"));return;}FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
-    {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::SkillCount||LDDevelopment::Rank(O->Build,Book->Skill)>0){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
+    {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::Count(O->Build)||LDDevelopment::Rank(O->Build,Book->Skill)>0){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
     if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}

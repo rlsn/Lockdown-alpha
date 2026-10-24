@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Development/LDCharacterBuild.h"
+#include "Combat/LDTacticalRules.h"
 #include "LDCombatDirector.generated.h"
 class ALDCharacter;
 class ALDPlayerController;
@@ -27,6 +28,44 @@ struct FLDBodyCombatState
     uint32 SkillToken=0,HoldSequence=0;
     double LastSkillHold=-1000;
     FVector SkillAnchor=FVector::ZeroVector;
+    LDTactical::FState Tactical;
+    uint32 LastCoreToken=0;
+    uint32 CancelledCoreThrough=0;
+    int64 CoreEndsAt=0;
+    FGuid CoreTargetLife;
+    FGuid CoreItem;
+    uint32 CoreBuildRevision=0;
+    double CoreRecoveryUntil=0;
+    double NullBellReadyAt=0;
+};
+
+UCLASS()
+class LOCKDOWN_API ALDArcProjectile:public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDArcProjectile(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
+    FGuid Identity=FGuid::NewGuid();
+    TWeakObjectPtr<ALDCharacter> Source;
+    TWeakObjectPtr<ALDCharacter> Victim;
+    FGuid VictimLife;
+    FGuid CasterIdentity;
+    FVector Endpoint;
+    double Amount=0;
+    int64 AdvancedAt=0;
+    uint32 Token=0;
+};
+
+struct FLDCombatHit
+{
+    ALDCharacter* Source;
+    AActor* Target;
+    double Damage;
+    LDTactical::EDamage Kind=LDTactical::EDamage::Physical;
+    bool Spell=false;
+    int32 StunMS=0;
+    uint32 Token=0;
+    FGuid SourceIdentity;
 };
 
 UCLASS()
@@ -64,6 +103,10 @@ public:
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const { return Bodies.Find(const_cast<ALDCharacter*>(Body)); }
     uint8 CueFor(const ALDCharacter* Body) const;
     double ExposedFor(const ALDCharacter* Body) const;
+    bool Allows(ALDCharacter* Body,LDTactical::EAction Action,FString* Why=nullptr) const;
+    void ApplyStatus(ALDCharacter* Body,LDTactical::EStatus Status,int64 Until,FGuid Source);
+    bool RequestTacticalItem(ALDPlayerController* PC,FGuid Item,uint32 Token,FString& Why);
+    void CancelTactical(ALDCharacter* Body,const FString& Why);
     void Sample(double Now);
     double LastSampleMs=0;
     uint64 SampleSerial=0;
@@ -86,4 +129,6 @@ private:
     AActor* Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin,bool bBodiesOnly=false) const;
     void Die(ALDCharacter* Body,double Now);
     void Sync(ALDCharacter* Body,FLDBodyCombatState& State);
+    bool RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32 Token,AActor* Target,FString& Why);
+    void PrepareTactical(double Now,TArray<FLDCombatHit>& Hits);
 };

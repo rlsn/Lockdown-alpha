@@ -12,18 +12,19 @@ FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
     case ELDItemKind::Crystal:return TEXT("Crystal");
     case ELDItemKind::Toolkit:return TEXT("Toolkit");
     case ELDItemKind::Core:return TEXT("Core");
+    case ELDItemKind::NullBell:return TEXT("Null Bell");
     default:return TEXT("Unknown item");
     }
 }
 bool LDInventory::QuickUsable(ELDItemKind Kind)
-{return Kind==ELDItemKind::Book||Kind==ELDItemKind::WardCharge;}
+{return Kind==ELDItemKind::Book||Kind==ELDItemKind::WardCharge||Kind==ELDItemKind::NullBell;}
 bool LDInventory::Commodity(ELDItemKind Kind)
 {return Kind>=ELDItemKind::Fiber&&Kind<=ELDItemKind::Core;}
 int32 LDInventory::UnitWeight(ELDItemKind Kind)
 {
     switch(Kind)
     {
-    case ELDItemKind::Book:case ELDItemKind::WardCharge:case ELDItemKind::Fiber:return 1;
+    case ELDItemKind::NullBell:case ELDItemKind::Book:case ELDItemKind::WardCharge:case ELDItemKind::Fiber:return 1;
     case ELDItemKind::Seal:case ELDItemKind::Crystal:return 2;
     case ELDItemKind::Ore:return 3;
     case ELDItemKind::Toolkit:return 4;

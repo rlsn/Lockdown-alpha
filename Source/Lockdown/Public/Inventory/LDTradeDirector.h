@@ -16,6 +16,7 @@ public:
     bool HasSession(ALDPlayerController* PC) const;
 private:
     friend class ALDTradeProbe;
+    friend class ALDTacticalProbe;
     struct FOfferItem{FGuid Id,Handle;uint32 Revision;ELDItemKind Kind;ELDSkill Skill;};
     struct FSide{TWeakObjectPtr<ALDPlayerController> PC;TWeakObjectPtr<APawn> Body;uint32 Match=0,Life=0,Inventory=0;int64 Balance=0,Gold=0;TArray<FOfferItem> Items;bool Ready=false,Confirmed=false;};
     struct FSession{FGuid Id;FSide Sides[2];uint32 Revision=1;FString Digest;ELDTradeStage Stage=ELDTradeStage::Invited;double Started=0,Changed=0;};

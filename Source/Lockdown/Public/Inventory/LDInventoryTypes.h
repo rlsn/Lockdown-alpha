@@ -5,7 +5,7 @@
 #include "LDInventoryTypes.generated.h"
 
 // Append only: existing item and offered-item wire values remain stable.
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core };
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -51,7 +51,7 @@ public:
 };
 namespace LDInventory
 {
-    enum ECommand:uint8 { Move=1,Sort,Bind,Unbind,Read,Place,Drop,Pickup,Buy };
+    enum ECommand:uint8 { Move=1,Sort,Bind,Unbind,Read,Place,Drop,Pickup,Buy,Use };
     LOCKDOWN_API FString Name(ELDItemKind Kind,ELDSkill Skill);
     LOCKDOWN_API bool QuickUsable(ELDItemKind Kind);
     LOCKDOWN_API bool Commodity(ELDItemKind Kind);

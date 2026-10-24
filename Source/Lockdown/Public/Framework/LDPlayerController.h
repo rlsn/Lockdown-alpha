@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Combat/LDTacticalRequest.h"
 #include "GameFramework/PlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Inventory/LDVendorTypes.h"
@@ -22,6 +23,9 @@ public:
     virtual void PlayerTick(float Delta) override;
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
+    UFUNCTION(Server,Reliable) void ServerTacticalAction(FLDTacticalRequest Request);
+    void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target);
+    UFUNCTION(Server,Reliable) void ServerCancelTactical(uint32 Match,uint32 Life,uint32 Through);
     void ClearControls();
     void CancelInterruptibleHolds();
     bool CanWorldCommand() const;

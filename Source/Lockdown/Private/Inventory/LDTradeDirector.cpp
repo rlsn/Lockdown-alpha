@@ -19,7 +19,7 @@ bool ALDTradeDirector::PairEligible(ALDPlayerController* A,ALDPlayerController* 
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const double Now=GetWorld()->GetTimeSeconds();
     if(!A||!B||A==B||!M->IsPlaying()){return false;}
-    for(auto* PC:{A,B}){auto* O=M->StateFor(PC);auto* Body=Cast<ALDCharacter>(PC->GetPawn());const auto* C=M->Combat->StateFor(Body);if(!O||!O->bActive||!Body||!C||C->Hp<=0||Now<O->ProtectedUntil||Now<C->ProtectionUntil||C->Action||O->DevelopmentKind||M->Objectives->HasChannel(PC)||Now-FMath::Max(C->LastDamage,C->LastDealt)<6){return false;}}
+    for(auto* PC:{A,B}){auto* O=M->StateFor(PC);auto* Body=Cast<ALDCharacter>(PC->GetPawn());const auto* C=M->Combat->StateFor(Body);if(!O||!O->bActive||!Body||!C||C->Hp<=0||!M->Combat->Allows(Body,LDTactical::EAction::Service)||Now<O->ProtectedUntil||Now<C->ProtectionUntil||C->Action||O->DevelopmentKind||M->Objectives->HasChannel(PC)||Now-FMath::Max(C->LastDamage,C->LastDealt)<6){return false;}}
     if(FVector::Dist2D(A->GetPawn()->GetActorLocation(),B->GetPawn()->GetActorLocation())>120||!LDGround::ClearSegment(GetWorld(),A->GetPawn()->GetActorLocation(),B->GetPawn()->GetActorLocation())){return false;}
     for(auto* PC:{A,B}){APawn* Target=PC==A?B->GetPawn():A->GetPawn();const auto Pos=PC->GetPawn()->GetActorLocation();if(!M->Vision->Ray({Pos,120,M->Vision->LevelAt(Pos)},Target->GetActorLocation())){return false;}const auto* V=M->Vision->AuthorityViewFor(PC);bool Seen=false;if(V){for(const auto& E:V->Entities){if(M->Vision->ResolveObserved(PC,E.Id)==Target){Seen=true;break;}}}if(!Seen){return false;}}
     return true;

@@ -59,7 +59,7 @@ bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     const auto* O=Mode->StateFor(PC);const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
-    return Mode->IsPlaying()&&O&&O->bActive&&Body&&Combat&&Combat->Hp>0&&Now>=Combat->ProtectionUntil&&Now>=O->ProtectedUntil;
+    return Mode->IsPlaying()&&O&&O->bActive&&Body&&Combat&&Combat->Hp>0&&Mode->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=Combat->ProtectionUntil&&Now>=O->ProtectedUntil;
 }
 bool ALDObjectiveDirector::Near(ALDPlayerController* PC,uint8 Site,double Range) const
 {

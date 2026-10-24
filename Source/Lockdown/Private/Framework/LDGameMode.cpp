@@ -1,4 +1,8 @@
 #include "Framework/LDGameMode.h"
+#include "Combat/LDTacticalCatalog.h"
+#include "Combat/LDTacticalRules.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDBankDirector.h"
 #include "Inventory/LDTradeDirector.h"
@@ -48,6 +52,7 @@
 #include "Tests/LDProductionProbe.h"
 #include "Tests/LDInstitutionProbe.h"
 #include "Tests/LDCharterProbe.h"
+#include "Tests/LDTacticalProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
@@ -102,8 +107,11 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
 {
     Super::InitGame(MapName,Options,ErrorMessage);
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
-    bUIControlProfile=Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
-    bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"));
+    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
+    bTacticalProfile=Profile==TEXT("v07_integration");
+    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load();if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/b71_combat.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
+    bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
+    bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     if (bDevelopmentProfile)
     {
         bScaffoldProfile=false;
@@ -111,7 +119,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
         Catalog=ULDCharacterCatalog::Load(); FString Error;
         if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
 }
 
 FVector ALDGameMode::TakeSpawn()
@@ -173,6 +181,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))){GetWorld()->SpawnActor<ALDEconomyUIProbe>();}
@@ -229,7 +238,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
         if (bDevelopmentProfile)
         {
             Record.State.bDevelopmentProfile=true;
-            Record.State.Build=LDDevelopment::StartingBuild(0,Catalog);
+            Record.State.Build=bTacticalProfile?LDDevelopment::TacticalStart(0,TacticalCatalog->Checksum):LDDevelopment::StartingBuild(0,Catalog);
             Record.State.Hp=Record.State.MaxHp=LDDevelopment::MaxHP(Record.State.Build);
             if (!LobbyHost.IsValid()) { LobbyHost=PC; }
             Record.State.bLobbyHost=LobbyHost==PC;
@@ -266,6 +275,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
+    if(bTacticalProfile){Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
     if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
@@ -352,7 +362,7 @@ bool ALDGameMode::SetLobbyChoice(ALDPlayerController* PC,uint8 ClassId,bool Read
     if (State->Build.ClassId!=ClassId)
     {
         const uint32 Revision=State->Build.Revision+1;
-        State->Build=LDDevelopment::StartingBuild(ClassId,Catalog); State->Build.Revision=Revision;
+        State->Build=bTacticalProfile?LDDevelopment::TacticalStart(ClassId,TacticalCatalog->Checksum):LDDevelopment::StartingBuild(ClassId,Catalog); State->Build.Revision=Revision;
         State->Xp=0; RefreshBuild(PC,true);
     }
     State->bReady=Ready; SyncOwner(PC); UpdateLobby();
@@ -372,7 +382,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
     }
     if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();Production=GetWorld()->SpawnActor<ALDProductionDirector>();Production->Initialize();}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
-    Public->MatchDeadline=float(MatchStartedAt+LDDevelopment::DeadlineSeconds);
+    Public->MatchDeadline=float(MatchStartedAt+(bTacticalProfile?2100:LDDevelopment::DeadlineSeconds));
     for (auto& Pair:Contenders)
     {
         if (auto* Player=Pair.Key.Get())
@@ -393,11 +403,12 @@ void ALDGameMode::RefreshBuild(ALDPlayerController* PC,bool RestoreFullHP)
 {
     auto* State=StateFor(PC); if (!State || !bDevelopmentProfile) { return; }
     State->MaxHp=LDDevelopment::MaxHP(State->Build);
+    if(bTacticalProfile){State->MaxMp=LDTactical::MaxMP(State->Build);State->Mp=RestoreFullHP?State->MaxMp:FMath::Min(State->Mp,State->MaxMp);}
     State->Hp=RestoreFullHP?State->MaxHp:FMath::Min(State->Hp,State->MaxHp);
     if (auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
     {
         Body->GetCharacterMovement()->MaxWalkSpeed=float(180*LDDevelopment::SpeedFactor(State->Build));
-        if (Combat) { if (auto* S=Combat->StateFor(Body)) { S->Hp=State->Hp; } }
+        if (Combat) { if (auto* S=Combat->StateFor(Body)) { S->Hp=State->Hp;if(bTacticalProfile){S->NullBellReadyAt=State->NullBellReadyAt;S->Tactical.MP=State->Mp;S->Tactical.LastRegen=LDTactical::Milliseconds(RuleTime());} } }
     }
     SyncOwner(PC);
 }

@@ -1,0 +1,19 @@
+{
+  "schema": 7,
+  "implementedAbilities": [
+    "anchor_bash",
+    "arc_bolt",
+    "purge_touch",
+    "surety_shell"
+  ],
+  "implementedItems": [
+    "null_bell"
+  ],
+  "stagedCatalog": "Content/Lockdown/Data/V07/b71_combat.json",
+  "stagedSha256": "7af2adc9ee1872223a9d443c5b3e538a1e726fd231b8b4381c319daf2516f415",
+  "nativeAsset": "Content/Lockdown/Generated/V07/DA_CombatCatalog.uasset",
+  "nativeAssetSha256": "07606bd0754e1304a1cc88ac303492ebeabf13905e14c68334c2f38161215343",
+  "nativeSourceChecksumConfirmedByBootstrap": true,
+  "adoptedSpecHashesMatched": 93,
+  "scope": "B71 subset only; remaining catalogs cannot activate as implemented content"
+}

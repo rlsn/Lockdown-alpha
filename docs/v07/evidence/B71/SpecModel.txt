@@ -1,0 +1,2 @@
+PASS: 931 specification assertions; 28 abilities,40 items,12 recipes,55 planned game checks.
+No Unreal implementation, gameplay, networking or human test has been executed by this checker.

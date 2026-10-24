@@ -1,15 +1,15 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.7 B70 audit complete; B71 combat/MP next**.
-Playable source remains the v0.6 economy at `920c4ae` with explicit verification
-deferrals. B70 adopts the supplied specification, records migration decisions
-and passes the pinned Editor rebuild/existing-asset validation. C001 is complete
-as an audit;54 gameplay checks remain Not run.
+Current checkpoint: **v0.7 B71 combat core/MP slice; B72 next**.
+[B71 implementation](v07/B71_IMPLEMENTATION.md) records the actual runtime,
+normal acquisition, native verification and remaining scope. The default frontend
+still uses V05; an explicit v07 profile opens the partial combat build. Full
+v0.7 and inherited technical/human acceptance remain open.
 
 | Current reference | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Runnable commands, next work and constraints |
-| [Transition](V07_TRANSITION.md) | Compact transition index |
+| [B71 implementation](v07/B71_IMPLEMENTATION.md) | Delivered combat, evidence and boundaries |
 | [B70 review](v07/B70_BASELINE_REVIEW.md) | Inspected source, adapters, evidence and dependencies |
 | [B70 adapter contract](v07/B70_ADAPTERS.json) | Adopted profile/wire/import/class decisions; runtime pending |
 | [v0.7 specification](v07/README.md) | Normative complete release scope, B70–B77 |

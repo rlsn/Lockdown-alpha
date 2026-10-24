@@ -15,9 +15,9 @@ void ULDInventoryPanel::BuildCommerce(UVerticalBox* All)
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());auto* Open=WidgetTree->ConstructWidget<UUniformGridPanel>();Open->SetSlotPadding(FMargin(3));All->AddChildToVerticalBox(Open);
     for(uint8 S=0;S<4;++S){auto* B=LDWidgets::Button(WidgetTree,ALDCommerceDirector::ServiceName(S),[this,S](){CastChecked<ALDPlayerController>(GetOwningPlayer())->CloseCommerce();SelectedMarket=S;if(CastChecked<ALDPlayerController>(GetOwningPlayer())->NearCommerce(S)){CastChecked<ALDPlayerController>(GetOwningPlayer())->OpenCommerce(S);}Refresh();});CommerceOpenButtons.Add(B);CastChecked<UTextBlock>(B->GetContent())->SetAutoWrapText(true);Open->AddChildToUniformGrid(B,S/2,S%2);}
     CommercePanel=WidgetTree->ConstructWidget<UVerticalBox>();All->AddChildToVerticalBox(CommercePanel);CommerceStatus=LDWidgets::Text(WidgetTree,TEXT(""),14);CommercePanel->AddChildToVerticalBox(CommerceStatus);
-    for(int32 N=0;N<4;++N)
+    for(int32 N=0;N<5;++N)
     {
-        const auto Kind=ELDItemKind(uint8(ELDItemKind::Fiber)+N);auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();CommercePanel->AddChildToVerticalBox(Row);
+        const auto Kind=(N==4?ELDItemKind::NullBell:ELDItemKind(uint8(ELDItemKind::Fiber)+N));auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();CommercePanel->AddChildToVerticalBox(Row);
         auto* Label=LDWidgets::Text(WidgetTree,TEXT(""),14);CommerceLabels.Add(Label);Row->AddChildToHorizontalBox(Label)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Buy=LDWidgets::Button(WidgetTree,TEXT("Buy one"),[this,Kind](){CommerceAction(1,Kind);});CommerceBuyButtons.Add(Buy);Row->AddChildToHorizontalBox(Buy);
         auto* Sell=LDWidgets::Button(WidgetTree,TEXT("Sell selected"),[this,Kind](){CommerceAction(2,Kind);});CommerceSellButtons.Add(Sell);Row->AddChildToHorizontalBox(Sell);
@@ -36,9 +36,9 @@ void ULDInventoryPanel::RefreshCommerce()
     {CommerceStatus->SetText(FText::FromString(CommerceStatus->GetText().ToString()+(G->EconomyNextTick>0?FString::Printf(TEXT("\nNext official work in %.1fs"),FMath::Max(0.,double(G->EconomyNextTick)-G->GetServerWorldTimeSeconds())):TEXT("\nOfficial routine finished"))+(Q.Service==3&&G->ShortagePhase==1?TEXT(" · Toolkit shortage 5/4; normal clamps"):TEXT(""))));}
     CommercePanel->GetChildAt(CommercePanel->GetChildrenCount()-1)->SetVisibility(Live?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     const auto* SelectedItem=PC->OwnerState.Inventory.Find(Selected);
-    for(int32 N=0;N<4;++N)
+    for(int32 N=0;N<5;++N)
     {
-        const auto Kind=ELDItemKind(uint8(ELDItemKind::Fiber)+N);const auto* Offer=Q.Offers.FindByPredicate([&](const auto& F){return F.Kind==Kind;});const bool Visible=Offer!=nullptr;
+        const auto Kind=(N==4?ELDItemKind::NullBell:ELDItemKind(uint8(ELDItemKind::Fiber)+N));const auto* Offer=Q.Offers.FindByPredicate([&](const auto& F){return F.Kind==Kind;});const bool Visible=Offer!=nullptr;
         CommerceLabels[N]->GetParent()->SetVisibility(Visible?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(!Offer){continue;}
         const FString Stock=Offer->Stock<0?TEXT("Unlimited stock"):FString::Printf(TEXT("Stock %d/%d · Bid %d"),Offer->Stock,Offer->Cap,Offer->Bid);
         FString Capacity;const bool Fits=LDInventory::Fits(PC->OwnerState.Inventory,PC->OwnerState.Build,{}, {Kind},&Capacity);

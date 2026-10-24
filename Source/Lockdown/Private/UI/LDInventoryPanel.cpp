@@ -47,7 +47,7 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
         VendorOpen=Button(TEXT("Open Guild bookshop"),[PC](){PC->OpenVendor();});Services[1]->AddChildToVerticalBox(VendorOpen);
         CatalogPanel=WidgetTree->ConstructWidget<UVerticalBox>();Services[1]->AddChildToVerticalBox(CatalogPanel)->SetPadding(FMargin(0,4));
         auto* CatalogRows=WidgetTree->ConstructWidget<UUniformGridPanel>();CatalogRows->SetSlotPadding(FMargin(3));CatalogPanel->AddChildToVerticalBox(CatalogRows);
-        for(auto Skill:{ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley}){auto* B=Button(TEXT(""),[this,Skill](){SelectOffer(Skill);});Offers.Add(B);CatalogRows->AddChildToUniformGrid(B,(Offers.Num()-1)/2,(Offers.Num()-1)%2);}
+        for(auto Skill:{ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley,ELDSkill::AnchorBash,ELDSkill::ArcBolt,ELDSkill::PurgeTouch,ELDSkill::SuretyShell}){auto* B=Button(TEXT(""),[this,Skill](){SelectOffer(Skill);});Offers.Add(B);CatalogRows->AddChildToUniformGrid(B,(Offers.Num()-1)/2,(Offers.Num()-1)%2);}
         auto* QuoteRow=WidgetTree->ConstructWidget<UHorizontalBox>();CatalogPanel->AddChildToVerticalBox(QuoteRow)->SetPadding(FMargin(0,4));CatalogInfo=LDWidgets::Text(WidgetTree,TEXT(""),15);QuoteRow->AddChildToHorizontalBox(CatalogInfo)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));VendorBuy=Button(TEXT("Buy"),[this](){BuyOffer();});CatalogPanel->AddChildToVerticalBox(VendorBuy);
 
 
@@ -79,7 +79,7 @@ FString ULDInventoryPanel::DetailText() const{return Detail?Detail->GetText().To
 void ULDInventoryPanel::Use()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* Item=PC->OwnerState.Inventory.Find(Selected);if(!Item||Item->bReserved||PC->InventoryPending()){return;}const auto Kind=Item->Kind;const FGuid Id=Item->Id;
-    if(!LDInventory::QuickUsable(Kind)){return;}Close();if(Kind==ELDItemKind::Book){PC->ArmRead(Id);}else{PC->ArmWard(Id);}
+    if(!LDInventory::QuickUsable(Kind)){return;}Close();if(Kind==ELDItemKind::NullBell){PC->InventoryCommand(LDInventory::Use,Id);return;}if(Kind==ELDItemKind::Book){PC->ArmRead(Id);}else{PC->ArmWard(Id);}
 }
 void ULDInventoryPanel::AskDrop()
 {
@@ -107,7 +107,7 @@ void ULDInventoryPanel::Refresh()
     {
         const auto& Q=PC->VendorQuote;const auto* SelectedQuote=Q.Offers.FindByPredicate([&](const auto& Offer){return Offer.Skill==SelectedOffer;});
         DisplayedCatalogRevision=Q.CatalogRevision;DisplayedPrice=SelectedQuote?SelectedQuote->Price:0;
-        for(int32 N=0;N<Offers.Num();++N){const bool Has=Q.Offers.IsValidIndex(N);CastChecked<UTextBlock>(Offers[N]->GetContent())->SetText(FText::FromString(Has?FString::Printf(TEXT("%s%s · %dg"),Q.Offers[N].Skill==SelectedOffer?TEXT("› "):TEXT(""),LDDevelopment::SkillName(Q.Offers[N].Skill),Q.Offers[N].Price):TEXT("Opening catalog…")));Offers[N]->SetIsEnabled(Has&&!PC->VendorPending());}
+        for(int32 N=0;N<Offers.Num();++N){const bool Has=Q.Offers.IsValidIndex(N);CastChecked<UTextBlock>(Offers[N]->GetContent())->SetText(FText::FromString(Has?FString::Printf(TEXT("%s%s · %dg"),Q.Offers[N].Skill==SelectedOffer?TEXT("› "):TEXT(""),LDDevelopment::SkillName(Q.Offers[N].Skill),Q.Offers[N].Price):TEXT("Opening catalog…")));Offers[N]->SetVisibility(Has?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Offers[N]->SetIsEnabled(Has&&!PC->VendorPending());}
         const FString Preview=SelectedQuote?FString::Printf(TEXT("Book: %s · %s · Unlimited stock\nTeaches R1: hold 3s after 6 quiet seconds; does not equip or cast.\n%s"),LDDevelopment::SkillName(SelectedOffer),LDDevelopment::Rank(O.Build,SelectedOffer)?TEXT("Already learned · may buy for trade"):TEXT("Not learned"),*PC->VendorFeedback):PC->VendorFeedback;
         FString CapacityReason;const bool CanCarry=LDInventory::Fits(I,O.Build,{}, {ELDItemKind::Book},&CapacityReason);
         CatalogInfo->SetText(FText::FromString(Preview+(!CanCarry?TEXT("\n")+CapacityReason:O.Gold<DisplayedPrice?TEXT("\nNot enough gold"):TEXT(""))));CastChecked<UTextBlock>(VendorBuy->GetContent())->SetText(FText::FromString(PC->VendorPending()?TEXT("Pending…"):PC->VendorNeedsReview?TEXT("Review new price"):FString::Printf(TEXT("Buy · %dg"),DisplayedPrice)));
@@ -117,7 +117,7 @@ void ULDInventoryPanel::Refresh()
     Status->SetText(FText::FromString(FString::Printf(TEXT("%d/%d slots · %d/%d weight · Gold %lld · %s · Match continues"),I.Items.Num(),I.Capacity,LDInventory::Weight(I),LDInventory::WeightCapacity(O.Build),O.Gold,Pending?TEXT("Pending…"):O.bActive?TEXT("Alive"):TEXT("Waiting to return · organization only"))));
     Feedback->SetText(FText::FromString(PC->TradeView.Active()||PC->TradeView.Stage==ELDTradeStage::Committed?PC->TradeView.Message:PC->IntentFeedback));const auto* SelectedItem=I.Find(Selected);if(!SelectedItem&&Selected.IsValid()){Selected.Invalidate();bConfirm=false;bDirty=true;}
     const bool Usable=SelectedItem&&!SelectedItem->bReserved&&!Pending&&!bConfirm;
-    UseButton->SetIsEnabled(Usable&&Active&&LDInventory::QuickUsable(SelectedItem->Kind));DropButton->SetIsEnabled(Usable&&Active);SortButton->SetIsEnabled(!Pending&&!bConfirm);
+    UseButton->SetIsEnabled(Usable&&Active&&LDInventory::QuickUsable(SelectedItem->Kind)&&(SelectedItem->Kind!=ELDItemKind::NullBell||I.Quick.Contains(SelectedItem->Id)));DropButton->SetIsEnabled(Usable&&Active);SortButton->SetIsEnabled(!Pending&&!bConfirm);
     for(auto B:Organizations){B->SetIsEnabled(Usable);}for(uint8 N=0;N<4;++N){Assignments[N]->SetIsEnabled(Usable&&LDInventory::QuickUsable(SelectedItem->Kind));CastChecked<UTextBlock>(Assignments[N]->GetContent())->SetText(FText::FromString(TEXT("Assign to ")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))));}
     MainPanel->SetIsEnabled(!bConfirm&&!bTradeReview);ConfirmPanel->SetVisibility(bConfirm?ESlateVisibility::Visible:ESlateVisibility::Collapsed);ConfirmButton->SetIsEnabled(bConfirm&&Active&&!Pending&&I.Revision==DropInventoryRevision&&I.Find(DropItem)&&I.Find(DropItem)->Revision==DropItemRevision);if(bConfirm&&I.Find(DropItem)){ConfirmText->SetText(FText::FromString(TEXT("Drop ")+LDInventory::Name(I.Find(DropItem)->Kind,I.Find(DropItem)->Skill)+TEXT("? This removes it from your bag.")));}
     if(!bDirty&&SeenInventory==I.Revision){return;}SeenInventory=I.Revision;SeenOwner=O.Revision;bDirty=false;
