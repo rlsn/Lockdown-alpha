@@ -19,8 +19,8 @@ FLDGearStats LDGear::Derive(const FLDInventory& I)
     {
         const auto Id=I.Bindings[Slot];if(!Id.IsValid()||Seen.Contains(Id)){continue;}Seen.Add(Id);const auto* Item=I.Find(Id);const auto* D=Item?C->Find(Item->Kind):nullptr;if(!D){continue;}
         const auto& P=D->Stats;for(int32 A=0;A<6;++A){Requests[6*Slot+A]=P.Primary[A];}
-        if(Slot==0){S.WeaponBase=P.WeaponBase;S.Reach=P.Reach;S.Interval=P.Interval;}
-        S.Armor+=P.Armor;S.MagicResist+=P.MagicResist;S.Movement+=P.Movement;S.RoadMovement+=P.RoadMovement;S.MPRegen+=P.MPRegen;
+        if(Slot==0){S.WeaponBase=FMath::FloorToDouble(P.WeaponBase*(Item->Quality==2?114:Item->Quality==1?107:100)/100.);S.Reach=P.Reach;S.Interval=P.Interval;}
+        S.Armor+=FMath::FloorToDouble(P.Armor*(Item->Quality==2?114:Item->Quality==1?107:100)/100.);S.FeeDiscount=FMath::Max(S.FeeDiscount,P.FeeDiscount);S.MagicResist+=P.MagicResist;S.Movement+=P.Movement;S.RoadMovement+=P.RoadMovement;S.MPRegen+=P.MPRegen;
         if(Item->Kind==ELDItemKind::WeightedSatchel){Satchel=FMath::Max(Satchel,P.Capacity);}else{S.Capacity+=P.Capacity;}
         S.SpellPercent+=P.SpellPercent;S.CastRange=FMath::Max(S.CastRange,P.CastRange);S.ControlPotency=FMath::Min<int32>(1,S.ControlPotency+P.ControlPotency);S.Detector=FMath::Max(S.Detector,P.Detector);
     }

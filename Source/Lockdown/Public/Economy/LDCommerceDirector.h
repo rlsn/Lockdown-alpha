@@ -44,6 +44,7 @@ public:
     void Sample(double Now);
 private:
     friend class ALDEconomyUIProbe;
+    friend class ALDAcquisitionProbe;
     friend class ALDCharterProbe;
     friend class ALDCommerceProbe;
     friend class ALDInstitutionProbe;

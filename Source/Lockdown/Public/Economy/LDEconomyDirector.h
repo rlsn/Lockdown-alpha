@@ -45,6 +45,7 @@ public:
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
+    friend class ALDAcquisitionDirector;
     friend class ALDCharterProbe;
     friend class ALDCommerceProbe;
     friend class ALDProductionProbe;

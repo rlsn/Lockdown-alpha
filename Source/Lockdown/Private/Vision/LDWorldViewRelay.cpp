@@ -60,7 +60,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     if(bFirst&&Entity.Kind==ELDObservedKind::Charter)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(FVector(.5,.5,.35));}
     if(Entity.Kind==ELDObservedKind::Production)
-    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold context 6s / Survey 1s"),Entity.ActionCue):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
+    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold context 6s / Survey 1s"),Entity.ActionCue):Entity.Presentation>=6?TEXT("\nRuin cache · quiet open4s · Bag / Ruins"):Entity.Presentation==5?TEXT("\nHeartForge · exact scarce inputs / 8s"):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
     if(bInstitution){TaskLabel->SetText(FText::FromString(ALDInstitutionSite::Name(Entity.Presentation)+TEXT("\nProtected noncontender · ")+ALDInstitutionSite::StatusName(Entity.ActionCue)+TEXT("\nEvery 180s, eight scheduled opportunities")));}
     bFirst=false;
 }

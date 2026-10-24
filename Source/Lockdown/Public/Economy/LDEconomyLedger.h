@@ -15,15 +15,19 @@ namespace LDEconomy
         FGuid Origin;
         TArray<FGuid> Parents;
         bool Consumed=false;
+        uint8 Quality=0;
+        uint8 Skill=0;
     };
     struct FGoldDelta { FName Account; uint32 Expected=0; int64 Delta=0; };
-    enum class EItemOp:uint8 { Create, Transfer, Consume };
+    enum class EItemOp:uint8 { Create, Transfer, Consume, Quality, Transient };
     struct FItemDelta
     {
         FGuid Id;
         EItemOp Op=EItemOp::Transfer;
         ELDItemKind Kind=ELDItemKind::Fiber;
         uint32 Expected=0;
+        uint8 Quality=0;
+        uint8 Skill=0;
         FName From,To;
         TArray<FGuid> Parents;
     };

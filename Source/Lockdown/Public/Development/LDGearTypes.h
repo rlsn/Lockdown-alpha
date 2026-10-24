@@ -17,6 +17,7 @@ struct FLDGearStats
     UPROPERTY() int32 MPRegen=0;
     UPROPERTY() int32 Capacity=0;
     UPROPERTY() int32 SpellPercent=0;
+    UPROPERTY() int32 FeeDiscount=0;
     UPROPERTY() int32 CastRange=0;
     UPROPERTY() uint8 ControlPotency=0;
     UPROPERTY() int32 Detector=0;

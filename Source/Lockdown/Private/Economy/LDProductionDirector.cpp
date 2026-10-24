@@ -6,6 +6,8 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Inventory/LDInventoryDirector.h"
+#include "Inventory/LDAcquisitionDirector.h"
+#include "Inventory/LDAcquisitionCatalog.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDVendorDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -20,9 +22,10 @@ namespace
     bool Still(const ALDCharacter* B){return B&&B->GetVelocity().SizeSquared2D()<=1&&B->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()<=1&&B->GetLastMovementInputVector().IsNearlyZero();}
 }
 FVector ALDProductionDirector::Position(const UWorld* W,uint8 Site)
-{return Site<2?LDRegion::Site(W,8)+FVector(Site?160:-160,0,0):LDRegion::Site(W,Site==3?2:Site==4?6:1);}
+{if(Site>=6&&Site<9){const FVector Offsets[]={FVector(-1400,800,0),FVector(0,1050,0),FVector(1450,800,0)};return Offsets[Site-6];}if(Site==5){return LDRegion::Site(W,6)+FVector(-200,220,0);}
+    return Site<2?LDRegion::Site(W,8)+FVector(Site?160:-160,0,0):LDRegion::Site(W,Site==3?2:Site==4?6:1);}
 FString ALDProductionDirector::SiteName(uint8 Site)
-{const TCHAR* N[]={TEXT("Crystal outcrop 1"),TEXT("Crystal outcrop 2"),TEXT("City workshop"),TEXT("West workshop"),TEXT("East workshop")};return Site<5?N[Site]:TEXT("Unknown production site");}
+{const TCHAR* N[]={TEXT("Crystal outcrop 1"),TEXT("Crystal outcrop 2"),TEXT("City workshop"),TEXT("West workshop"),TEXT("East workshop"),TEXT("HeartForge"),TEXT("Ruin A cache"),TEXT("Ruin B cache"),TEXT("Ruin C cache")};return Site<9?N[Site]:TEXT("Unknown production site");}
 FName ALDProductionDirector::Budget(uint8 Site){return Site==0?FName(TEXT("Outcrop1")):Site==1?FName(TEXT("Outcrop2")):NAME_None;}
 ELDItemKind ALDProductionDirector::OutputKind(uint8 Recipe){return Recipe==1?ELDItemKind::Toolkit:Recipe==2?ELDItemKind::Core:ELDItemKind::Crystal;}
 bool ALDProductionDirector::RecipeInputs(uint8 Recipe,const TArray<FLDInventoryItem>& Inputs)
@@ -38,17 +41,17 @@ ALDProductionSite::ALDProductionSite(){bReplicates=false;RootComponent=CreateDef
 void ALDProductionDirector::Initialize()
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!Targets.IsEmpty()||!M||!M->Combat){return;}
-    for(uint8 Site=0;Site<5;++Site)
+    for(uint8 Site=0;Site<(M->IsTacticalProfile()?9:5);++Site)
     {
         auto* T=GetWorld()->SpawnActor<ALDProductionSite>();if(!T){return;}T->Site=Site;T->SetActorLocation(Position(GetWorld(),Site));Targets.Add(T);
-        M->Combat->RegisterSkillTask(T,{Site<2?ELDSkill::Survey:ELDSkill::Analyze},[this,Site](ALDCharacter* B,ELDSkill K,const FLDCharacterBuild& Build,uint32 Token,ELDSkillTaskPhase Phase,FString& Error){return SkillUse(B,Site,K,Build,Token,Phase,Error);});
+        if(Site>=5){continue;}M->Combat->RegisterSkillTask(T,{Site<2?ELDSkill::Survey:ELDSkill::Analyze},[this,Site](ALDCharacter* B,ELDSkill K,const FLDCharacterBuild& Build,uint32 Token,ELDSkillTaskPhase Phase,FString& Error){return SkillUse(B,Site,K,Build,Token,Phase,Error);});
     }
 }
 bool ALDProductionDirector::Eligible(ALDPlayerController* PC,uint8 Site,bool Quiet,bool AllowAction) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=M&&M->Combat?M->Combat->StateFor(B):nullptr;const auto* G=GetWorld()->GetGameState<ALDGameState>();const double Now=GetWorld()->GetTimeSeconds();const FVector To=Position(GetWorld(),Site);
-    return Site<5&&M&&M->Economy&&M->Vision&&M->IsPlaying()&&G&&Now<G->MatchDeadline&&O&&O->bActive&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(B),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil
-        &&(AllowAction||(!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)))&&(!Quiet||Now-FMath::Max(S->LastDamage,S->LastDealt)>=6)
+    return Site<(M&&M->IsTacticalProfile()?9:5)&&M&&M->Economy&&M->Vision&&M->IsPlaying()&&G&&Now<G->MatchDeadline&&O&&O->bActive&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(B),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil
+        &&(AllowAction||(!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)))&&(!Quiet||Now-FMath::Max(S->LastDamage,S->LastDealt)>=6&&(!M->IsTacticalProfile()||M->Combat->QuietForPreparation(const_cast<ALDCharacter*>(B))))
         &&Still(B)&&FVector::DistSquared2D(B->GetActorLocation(),To)<=FMath::Square(M->Economy->Rules().Range)&&LDGround::ClearSegment(GetWorld(),B->GetActorLocation(),To)
         &&M->Vision->Ray({B->GetActorLocation(),120,M->Vision->LevelAt(B->GetActorLocation())},To);
 }
@@ -60,7 +63,7 @@ void ALDProductionDirector::Reply(ALDPlayerController* PC,uint32 Token,const FSt
 void ALDProductionDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,const FLDProductionPlan& Plan)
 {
     if(!HasAuthority()||!PC){return;}auto& S=States.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
-    if(!Token||!O||O->Match!=Match||O->Life!=Life||Plan.Inputs.Num()>3){Reply(PC,Token,TEXT("Invalid production request or life"));return;}
+    if(!Token||!O||O->Match!=Match||O->Life!=Life||Plan.Inputs.Num()>4||Plan.CatalogDigest.Len()>64||Plan.Mode>1){Reply(PC,Token,TEXT("Invalid production request or life"));return;}
     if(const auto* R=S.Receipts.Find(Token)){Reply(PC,Token,*R);return;}if(Token<=S.LastRequest){return;}S.LastRequest=Token;
     const double Now=GetWorld()->GetTimeSeconds();S.Tokens=FMath::Min(3.,S.Tokens+FMath::Max(0.,Now-S.RateAt)*4);S.RateAt=Now;
     if(S.Tokens<1||Requests.FilterByPredicate([&](const auto& R){return R.PC==PC;}).Num()>=2){Reply(PC,Token,TEXT("Production request rate limited"));return;}--S.Tokens;
@@ -69,6 +72,7 @@ void ALDProductionDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Li
 bool ALDProductionDirector::Terms(ALDPlayerController* PC,const FLDProductionPlan& P,double Ends,bool Reserved,FString& Error) const
 {
     auto Reject=[&](const TCHAR* Why){Error=Why;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto& Rules=M->Economy->Rules();
+    if(P.Recipe>=20){return M->Acquisition&&M->Acquisition->Terms(PC,P,Reserved,Error);}
     if(!O||P.Site>4||(P.Recipe>2&&(P.Recipe<5||P.Recipe>8))||((P.Site<2)!=(P.Recipe==0))||P.RecipeRevision!=Rules.RecipeRevision||!RecipeInputs(P.Recipe,P.Inputs)){return Reject(TEXT("Recipe changed or wrong exact inputs"));}
     if(P.Recipe==5&&(P.Site!=4||P.Fee||P.Coupon.IsValid()||!M->Economy->ShortageAvailable(Ends)||O->Gold>MAX_int64-Rules.ShortageGold)){return Reject(TEXT("Shortage order unavailable, expired or wallet full"));}
     if(P.Recipe>=6&&(P.Fee||P.Coupon.IsValid()||P.Site!=(P.Recipe==7?3:2))){return Reject(TEXT("Wrong procurement or civic terminal terms"));}
@@ -94,7 +98,7 @@ void ALDProductionDirector::Reserve(ALDPlayerController* PC,FState& S,bool Value
 void ALDProductionDirector::Request(const FRequest& R,double Now)
 {
     auto* PC=R.PC.Get();if(!PC){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto& S=States.FindChecked(PC);FString Error;
-    if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Token<=S.Released||S.Active||!Eligible(PC,R.Plan.Site,R.Plan.Recipe==1||R.Plan.Recipe==2||R.Plan.Recipe>=6)){Reply(PC,R.Token,TEXT("Production unavailable, conflicting action or released hold"));return;}
+    if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Token<=S.Released||S.Active||!Eligible(PC,R.Plan.Site,R.Plan.Recipe>=20?(M->Acquisition&&M->Acquisition->Quiet(R.Plan)):(R.Plan.Recipe==1||R.Plan.Recipe==2||R.Plan.Recipe>=6))){Reply(PC,R.Token,TEXT("Production unavailable, conflicting action or released hold"));return;}
     if(R.Plan.Recipe==3||R.Plan.Recipe==4)
     {
         const ELDSkill Expected=R.Plan.Recipe==3?ELDSkill::Survey:ELDSkill::Analyze;
@@ -103,11 +107,12 @@ void ALDProductionDirector::Request(const FRequest& R,double Now)
         if(!M->Combat->RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),R.Plan.BuildRevision,R.Plan.SkillSlot,R.Token,Aim,Error,Target(R.Plan.Site))){Reply(PC,R.Token,Error);return;}
         Reply(PC,R.Token,Error);return;
     }
-    const auto& Rules=M->Economy->Rules();const double Ends=Now+(R.Plan.Recipe==8?4:R.Plan.Recipe>=6?3:R.Plan.Recipe==5?Rules.ShortageSeconds:R.Plan.Recipe==1?Rules.ToolkitSeconds:R.Plan.Recipe==2?Rules.CoreSeconds:Rules.GatherSeconds);
+    const auto& Rules=M->Economy->Rules();double ExtraSeconds=0;if(R.Plan.Recipe>=20){const auto* C=ULDAcquisitionCatalog::Load();if(!C){return;}ExtraSeconds=M->Acquisition?M->Acquisition->HoldSeconds(R.Plan):0;if(ExtraSeconds<=0){Reply(PC,R.Token,TEXT("Invalid acquisition recipe"));return;}}
+    const double Ends=Now+(R.Plan.Recipe>=20?ExtraSeconds:R.Plan.Recipe==8?4:R.Plan.Recipe>=6?3:R.Plan.Recipe==5?Rules.ShortageSeconds:R.Plan.Recipe==1?Rules.ToolkitSeconds:R.Plan.Recipe==2?Rules.CoreSeconds:Rules.GatherSeconds);
     if(!Terms(PC,R.Plan,Ends,false,Error)){Reply(PC,R.Token,Error);return;}
     if(M->Trade){M->Trade->CancelFor(PC);}if(M->Vendor){M->Vendor->Invalidate(PC);}if(M->Commerce){M->Commerce->Invalidate(PC);}if(M->Bank){M->Bank->Invalidate(PC);}
     S.Plan=R.Plan;S.Match=R.Match;S.Life=R.Life;S.Token=R.Token;S.Ends=Ends;S.LastHold=Now;S.Sequence=0;S.Anchor=PC->GetPawn()->GetActorLocation();S.Active=true;S.Body=Cast<ALDCharacter>(PC->GetPawn());
-    const auto* C=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));S.Damage=C->LastDamage;S.Dealt=C->LastDealt;Reserve(PC,S,true);
+    const auto* C=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));S.Damage=C->LastDamage;S.Dealt=C->LastDealt;Reserve(PC,S,true);if(S.Plan.Recipe>=20){S.Plan.InventoryRevision=O->Inventory.Revision;}
     auto* Combat=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));Combat->Action=8;Combat->ImpactAt=Ends;
     O->DevelopmentKind=R.Plan.Recipe>=6?7:R.Plan.Recipe==5?6:R.Plan.Recipe?5:4;O->DevelopmentToken=R.Token;O->DevelopmentEndsAt=Ends;O->ProductionSite=R.Plan.Site;O->ProductionSeconds=Ends-Now;
     Reply(PC,R.Token,TEXT("Production accepted; keep holding context. Release spends nothing"));
@@ -130,10 +135,10 @@ void ALDProductionDirector::Sample(double Now)
     for(auto& Pair:States){auto* PC=Pair.Key.Get();auto& S=Pair.Value;if(!PC){continue;}auto* O=M->StateFor(PC);
         if(O&&O->CraftCoupon.IsValid()&&Now>=O->CouponUntil){O->CraftCoupon.Invalidate();O->CouponUntil=0;M->SyncOwner(PC);}
         if(!S.Active){continue;}const auto* B=Cast<ALDCharacter>(PC->GetPawn());const auto* C=M->Combat->StateFor(B);FString Error;
-        if(!O||S.Body.Get()!=B||O->Match!=S.Match||O->Life!=S.Life||!Eligible(PC,S.Plan.Site,S.Plan.Recipe==1||S.Plan.Recipe==2||S.Plan.Recipe>=6,true)||!C||C->Action!=8||C->LastDamage!=S.Damage||C->LastDealt!=S.Dealt||Now-S.LastHold>.25||FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)>4||!Terms(PC,S.Plan,FMath::Max(Now,S.Ends),true,Error))
+        if(!O||S.Body.Get()!=B||O->Match!=S.Match||O->Life!=S.Life||!Eligible(PC,S.Plan.Site,S.Plan.Recipe>=20?(M->Acquisition&&M->Acquisition->Quiet(S.Plan)):(S.Plan.Recipe==1||S.Plan.Recipe==2||S.Plan.Recipe>=6),true)||!C||C->Action!=8||C->LastDamage!=S.Damage||C->LastDealt!=S.Dealt||Now-S.LastHold>.25||FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)>4||!Terms(PC,S.Plan,FMath::Max(Now,S.Ends),true,Error))
         {Cancel(PC,Error.IsEmpty()?TEXT("Production interrupted; nothing spent"):Error);continue;}
-        if(Now+1.e-6<S.Ends){continue;}FGuid Output;const bool Good=S.Plan.Recipe==8?M->Economy->ActivateCharter(PC,Error):(S.Plan.Recipe==6||S.Plan.Recipe==7)?M->Economy->CommitOrder(PC,S.Plan.Recipe==6,S.Plan.Inputs,Error):S.Plan.Recipe==5?M->Economy->CommitShortage(PC,S.Plan.Inputs[0],Error):M->Economy->CommitProduction(PC,S.Plan.Site,S.Plan.Recipe,S.Plan.Inputs,S.Plan.Fee,Output,Error);
-        Cancel(PC,Good?(S.Plan.Recipe>=6?TEXT("Civic transaction confirmed; private receipt retained"):S.Plan.Recipe==5?TEXT("Shortage delivery confirmed; +40 gold / +20 XP, no endorsement"):TEXT("Production completed; output owned, no XP")):Error);
+        if(Now+1.e-6<S.Ends){continue;}FGuid Output;const bool Good=S.Plan.Recipe>=20?M->Acquisition->Commit(PC,S.Plan,Error):S.Plan.Recipe==8?M->Economy->ActivateCharter(PC,Error):(S.Plan.Recipe==6||S.Plan.Recipe==7)?M->Economy->CommitOrder(PC,S.Plan.Recipe==6,S.Plan.Inputs,Error):S.Plan.Recipe==5?M->Economy->CommitShortage(PC,S.Plan.Inputs[0],Error):M->Economy->CommitProduction(PC,S.Plan.Site,S.Plan.Recipe,S.Plan.Inputs,S.Plan.Fee,Output,Error);
+        Cancel(PC,Good?(S.Plan.Recipe>=20?TEXT("Acquisition committed once; no XP, identity and cooldowns retained"):S.Plan.Recipe>=6?TEXT("Civic transaction confirmed; private receipt retained"):S.Plan.Recipe==5?TEXT("Shortage delivery confirmed; +40 gold / +20 XP, no endorsement"):TEXT("Production completed; output owned, no XP")):Error);
     }
     auto Pending=MoveTemp(Requests);Requests.Reset();for(const auto& R:Pending){Request(R,Now);}
     for(auto It=States.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}

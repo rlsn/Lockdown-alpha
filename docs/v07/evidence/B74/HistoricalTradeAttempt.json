@@ -1,0 +1,6 @@
+{
+  "artifact": "Artifacts/20261024-230202-785-Trade-100-10-Death",
+  "status": "Incompatible historical B56 fixture; not a B74 pass",
+  "cause": "RunTradeCheck V05 fixture tries to Adopt a legacy Seal; current economy intentionally rejects Seal adoption (LDTradeProbe.cpp line72). No product bypass was enabled.",
+  "replacementEvidence": "Final earned B74 journey performs actual Masterwork peer exchange and return exchange, checks physical quality and both completed receipts. Current V05 authority56 checks and strict37 rules pass."
+}

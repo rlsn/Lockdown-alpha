@@ -11,6 +11,7 @@ struct FLDTradeItem
     UPROPERTY() FGuid Handle;
     UPROPERTY() ELDItemKind Kind=ELDItemKind::Book;
     UPROPERTY() ELDSkill Skill=ELDSkill::None;
+    UPROPERTY() uint8 Quality=0;
 };
 // Own tray handles resolve only own inventory; partner handles are random per session.
 // Never serialize the partner's permanent inventory, body, wallet or contender IDs.

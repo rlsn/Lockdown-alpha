@@ -187,6 +187,37 @@
       "active_mana_cost": 0
     },
     {
+      "id": "brokers_seal",
+      "name": "Broker\u2019s Seal",
+      "tier": 2,
+      "equipment_slot": "charm",
+      "primary_stats": {
+        "CHA": 1
+      },
+      "weight": 1,
+      "official_price_gold": 30,
+      "passive": {
+        "discount_gold": 1,
+        "only_fees": [
+          "equipment_assembly",
+          "quality_upgrade"
+        ],
+        "min_fee": 1,
+        "unique_family": "fee_discount"
+      },
+      "active": null,
+      "consumable": false,
+      "two_handed": false,
+      "quick_slot_required": false,
+      "cooldown_ms": 0,
+      "death_policy": "retain_only_if_equipped",
+      "tradable": true,
+      "craftsmanship_eligible": true,
+      "default_quality": "standard",
+      "unique_family": "brokers_seal",
+      "active_mana_cost": 0
+    },
+    {
       "id": "warding_eye",
       "name": "Warding Eye",
       "tier": 2,

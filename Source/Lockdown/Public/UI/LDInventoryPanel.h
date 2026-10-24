@@ -14,6 +14,9 @@ public:
     void Open();void Close();bool IsOpen() const{return bOpen;}
     void ShowService(uint8 Tab);
     void RefreshServices();
+    void BuildAcquisition(class UVerticalBox* Supply,class UVerticalBox* Craft,class UVerticalBox* Ruins);
+    void RefreshAcquisition();
+    void PreviewAcquisition(uint8 Recipe,uint8 Mode=0,FGuid Target=FGuid());
     void BuildProduction(class UVerticalBox* All);void RefreshProduction();
     void ToggleProductionInput();void PreviewProduction(uint8 Recipe);void ArmProductionPreview();
     void BuildCommerce(class UVerticalBox* All);void RefreshCommerce();void CommerceAction(uint8 Command,ELDItemKind Kind);
@@ -44,6 +47,12 @@ private:
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;
     uint8 ServiceTab=0;
+    UPROPERTY() TObjectPtr<UTextBlock> AcquisitionStatus;
+    UPROPERTY() TObjectPtr<ULDCommandButton> AcquisitionConfirm;
+    UPROPERTY() TObjectPtr<UVerticalBox> CacheRows;
+    FLDProductionPlan AcquisitionPlan;
+    bool bAcquisitionPreview=false;
+    uint32 SeenCache=0;
     UPROPERTY() TArray<TObjectPtr<class UVerticalBox>> Services;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ServiceTabs;
     UPROPERTY() TObjectPtr<class USizeBox> ServiceWidth;

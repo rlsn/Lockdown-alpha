@@ -1,10 +1,12 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "UI/LDInventoryPanel.h"
+#include "Inventory/LDAcquisitionDirector.h"
+#include "Inventory/LDAcquisitionCatalog.h"
 #include "Core/LDGroundQueries.h"
 #include "Engine/World.h"
 bool ALDPlayerController::NearProduction(uint8 Site) const
-{return Site<5&&OwnerState.bActive&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),Site))<=120&&LDGround::ClearSegment(GetWorld(),GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),Site));}
+{return Site<9&&OwnerState.bActive&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),Site))<=120&&LDGround::ClearSegment(GetWorld(),GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),Site));}
 void ALDPlayerController::ArmProduction(const FLDProductionPlan& Plan)
 {
     const auto Copy=Plan;if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}CancelArmed();ProductionPlan=Copy;bProductionArmed=true;bFreshInputRequired=true;
@@ -31,3 +33,10 @@ void ALDPlayerController::ClientProductionResult_Implementation(const FLDOwnerSt
     if(ProductionHoldToken==Token&&State.DevelopmentToken!=Token){ProductionHoldToken=0;}
     if(SkillHoldToken==Token&&State.ActiveSkill==ELDSkill::None){HeldSkillSlot=255;SkillHoldToken=0;}
 }
+
+void ALDPlayerController::BuyAcquisition(uint8 Site,ELDItemKind Kind,ELDSkill Skill)
+{const auto* C=ULDAcquisitionCatalog::Load();if(C){FLDSupplyRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=++NextRequest;R.Site=Site;R.Kind=Kind;R.Skill=Skill;R.InventoryRevision=OwnerState.Inventory.Revision;R.Digest=C->Checksum;ServerAcquisitionPurchase(R);}}
+void ALDPlayerController::ServerAcquisitionPurchase_Implementation(const FLDSupplyRequest& R)
+{if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Acquisition){M->Acquisition->Purchase(this,R.Match,R.Life,R.Token,R.Site,R.Kind,R.Skill,R.InventoryRevision,R.Digest);}}
+void ALDPlayerController::ClientAcquisitionCache_Implementation(uint8 Site,const TArray<FLDInventoryItem>& Items)
+{CacheSite=Site;CacheItems=Items;}

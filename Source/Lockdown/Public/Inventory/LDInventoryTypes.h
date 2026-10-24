@@ -5,7 +5,7 @@
 #include "LDInventoryTypes.generated.h"
 
 // Append only: existing item and offered-item wire values remain stable.
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel };
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel, Watchblade, SurveyorBow, OathMace, NullDagger, ShadeMantle, ReflectiveMail, SilentSoles, Cliffwalkers, AnchorGreaves, BrokersSeal, IronOath, SmokeFlask, SeersDust, HealingSalve, ManaDraught, WardTotem, RecallToken, SnareMine, Counterglyph, MirrorSigil, PurityCharm, AegisFlask, GrapplingChain, BlinkCharm, NullStaff, RiftStaff, HarpoonHalberd, TowerRelic, ArcaneCatalyst, HeartFragment, AncientKeyA, AncientKeyB, AncientKeyC, Heartbreaker };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -18,6 +18,7 @@ struct FLDInventoryItem
     UPROPERTY() bool bReserved=false;
     UPROPERTY() uint8 BindingMask=0;
     UPROPERTY() int64 ReadyAt=0;
+    UPROPERTY() uint8 Quality=0;
 };
 USTRUCT()
 struct FLDInventory
@@ -50,6 +51,7 @@ public:
     bool bReserved=false;
     uint8 BindingMask=0;
     int64 ReadyAt=0;
+    uint8 Quality=0;
     // Server-only causal metadata. Never serialize parents or origin to a peer.
     FName Institution; // persistent institution address; server-only
     FGuid OriginReceipt;

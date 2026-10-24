@@ -25,6 +25,7 @@ bool ALDEconomyDirector::Initialize(FString& Error)
     TMap<FName,int32> Budgets;const int32 N=M->EconomyContenderCount();
     for(const auto& P:Accounts){if(P.Key.ToString().StartsWith(TEXT("Wallet:"))){Budgets.Add(FName(*(TEXT("Courier:")+P.Key.ToString())),8);Budgets.Add(FName(*(TEXT("Sentinel:")+P.Key.ToString())),2);Budgets.Add(FName(*(TEXT("Core:")+P.Key.ToString())),3);Budgets.Add(FName(*(TEXT("Supply:")+P.Key.ToString())),1);}}
     Budgets.Add(TEXT("CoreOrders"),3*N);Budgets.Add(TEXT("SupplyOrders"),N);Budgets.Add(TEXT("ShortageOrder"),1);
+    if(M->IsTacticalProfile()){for(int32 S=10;S<38;++S){Budgets.Add(FName(*FString::Printf(TEXT("B74Book%d"),S)),2);}for(int32 CacheIndex=6;CacheIndex<9;++CacheIndex){Budgets.Add(FName(*FString::Printf(TEXT("B74Cache%d"),CacheIndex)),1);}Budgets.Add(TEXT("B74Guardian"),1);Budgets.Add(TEXT("B74Endowment"),1);}
     Budgets.Add(TEXT("ProducerWest"),8);Budgets.Add(TEXT("ProducerEast"),8);
     for(int32 I=0;I<C.Nodes;++I){Budgets.Add(FName(*FString::Printf(TEXT("Outcrop%d"),I+1)),C.Charges);}
     for(const auto& Market:C.Markets){Accounts.Add(Market.Id,Market.Gold);}
@@ -68,7 +69,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif
@@ -87,7 +88,7 @@ bool ALDEconomyDirector::Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) con
             else if(auto* PC=Cast<ALDPlayerController>(I->Holder.Get()))
             {
                 Location=Wallet(M->ContenderId(PC));const auto* O=M->StateFor(PC);const auto* Entry=O?O->Inventory.Find(I->Identity):nullptr;
-                if(!Entry||Entry->Kind!=I->Kind||Entry->Skill!=I->Skill||Entry->Slot!=I->Slot||Entry->Revision!=I->Revision||Entry->bReserved!=I->bReserved||Entry->BindingMask!=I->BindingMask||Entry->ReadyAt!=I->ReadyAt){Error=TEXT("Physical item differs from owner bag");return false;}
+                if(!Entry||Entry->Kind!=I->Kind||Entry->Skill!=I->Skill||Entry->Slot!=I->Slot||Entry->Revision!=I->Revision||Entry->bReserved!=I->bReserved||Entry->BindingMask!=I->BindingMask||Entry->ReadyAt!=I->ReadyAt||Entry->Quality!=I->Quality){Error=TEXT("Physical item differs from owner bag");return false;}
             }
             else{Error=TEXT("Carried item has no persistent holder");return false;}
         }
@@ -116,7 +117,7 @@ bool ALDEconomyDirector::Record(FName Cause,int64 Mint,int64 Burn,const TArray<F
     for(const auto& P:Physical)
     {
         const auto* Old=Ledger.Item(P.Key);const auto& I=P.Value;LDEconomy::FItemDelta D;D.Id=P.Key;D.Kind=I.Kind;D.To=I.Location;
-        if(!Old){if(!CanCreate){Error=TEXT("Unclassified item creation");return Fail();}D.Op=LDEconomy::EItemOp::Create;if(I.Actor){D.Parents=I.Actor->ParentIds;}T.Items.Add(D);}
+        if(!Old){if(!CanCreate){Error=TEXT("Unclassified item creation");return Fail();}D.Op=LDEconomy::EItemOp::Create;if(I.Actor){D.Parents=I.Actor->ParentIds;D.Skill=uint8(I.Actor->Skill);D.Quality=I.Actor->Quality;}T.Items.Add(D);}
         else
         {
             if(Old->Consumed||Old->Kind!=I.Kind||(I.Actor&&(I.Actor->OriginReceipt!=Old->Origin||I.Actor->ParentIds!=Old->Parents))){Error=TEXT("Item resurrected or causal metadata changed");return Fail();}
@@ -137,7 +138,7 @@ bool ALDEconomyDirector::Audit(FString& Error) const
     if(!Initialized){Error=TEXT("Economy not initialized");return false;}if(!Ledger.Reconcile(Error)){return false;}
     TMap<FGuid,FPhysical> Physical;if(!Snapshot(Physical,Error)){return false;}
     int32 Live=0;for(const auto& P:Ledger.ItemRecords())
-    {if(!P.Value.Consumed){++Live;const auto* I=Physical.Find(P.Key);if(!I||I->Kind!=P.Value.Kind||I->Location!=P.Value.Location||(I->Actor&&(I->Actor->OriginReceipt!=P.Value.Origin||I->Actor->ParentIds!=P.Value.Parents))){Error=TEXT("Physical world/journal mismatch");return false;}}}
+    {if(!P.Value.Consumed){++Live;const auto* I=Physical.Find(P.Key);if(!I||I->Kind!=P.Value.Kind||I->Location!=P.Value.Location||(I->Actor&&(I->Actor->OriginReceipt!=P.Value.Origin||I->Actor->ParentIds!=P.Value.Parents||I->Actor->Quality!=P.Value.Quality||uint8(I->Actor->Skill)!=P.Value.Skill))){Error=TEXT("Physical world/journal mismatch");return false;}}}
     if(Live!=Physical.Num()){Error=TEXT("Unregistered physical item");return false;}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();TMap<FName,int64> Actual;M->EconomyWallets(Actual);if(M->WorldChecks){M->WorldChecks->EconomyWallets(Actual);}
     for(const auto& P:Actual){const auto* A=Ledger.Account(P.Key);if(!A||A->Gold!=P.Value){Error=TEXT("Actual balance/journal mismatch");return false;}}return true;

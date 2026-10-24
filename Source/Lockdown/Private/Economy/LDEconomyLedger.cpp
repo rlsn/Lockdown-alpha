@@ -12,7 +12,7 @@ namespace
         if(A.Id!=B.Id||A.Cause!=B.Cause||A.Mint!=B.Mint||A.Burn!=B.Burn||A.Budget!=B.Budget||A.Units!=B.Units||A.Gold.Num()!=B.Gold.Num()||A.Items.Num()!=B.Items.Num()||A.Budgets.Num()!=B.Budgets.Num()){return false;}
         for(int32 I=0;I<A.Budgets.Num();++I){if(A.Budgets[I].Id!=B.Budgets[I].Id||A.Budgets[I].Units!=B.Budgets[I].Units){return false;}}
         for(int32 I=0;I<A.Gold.Num();++I){const auto& X=A.Gold[I];const auto& Y=B.Gold[I];if(X.Account!=Y.Account||X.Expected!=Y.Expected||X.Delta!=Y.Delta){return false;}}
-        for(int32 I=0;I<A.Items.Num();++I){const auto& X=A.Items[I];const auto& Y=B.Items[I];if(X.Id!=Y.Id||X.Op!=Y.Op||X.Kind!=Y.Kind||X.Expected!=Y.Expected||X.From!=Y.From||X.To!=Y.To||X.Parents!=Y.Parents){return false;}}
+        for(int32 I=0;I<A.Items.Num();++I){const auto& X=A.Items[I];const auto& Y=B.Items[I];if(X.Id!=Y.Id||X.Op!=Y.Op||X.Kind!=Y.Kind||X.Expected!=Y.Expected||X.From!=Y.From||X.To!=Y.To||X.Parents!=Y.Parents||X.Quality!=Y.Quality||X.Skill!=Y.Skill){return false;}}
         return true;
     }
 }
@@ -55,21 +55,21 @@ bool LDEconomy::FLedger::Commit(const FTransaction& T,FString& Error)
     const int64 Total=TotalGold();
     int64 Final=0;if(Net!=T.Mint-T.Burn||Total<0||!Add(Total,Net,Final)||!Bounded(Final)){return Reject(TEXT("Gold deltas do not reconcile"));}
     TSet<FGuid> SeenItems,Consumed;
-    for(const auto& D:T.Items){if(D.Op==EItemOp::Consume){Consumed.Add(D.Id);}}
+    for(const auto& D:T.Items){if((D.Op==EItemOp::Consume||D.Op==EItemOp::Transient)){Consumed.Add(D.Id);}}
     for(const auto& D:T.Items)
     {
         if(!D.Id.IsValid()||SeenItems.Contains(D.Id)||LDInventory::UnitWeight(D.Kind)<0){return Reject(TEXT("Invalid or duplicate item transition"));}SeenItems.Add(D.Id);
         const auto* I=Items.Find(D.Id);
-        if(D.Op==EItemOp::Create)
+        if(D.Op==EItemOp::Create||D.Op==EItemOp::Transient)
         {
-            if(I||D.Expected||!D.From.IsNone()||D.To.IsNone()){return Reject(TEXT("Item creation identity already exists or invalid location"));}
+            if(D.Quality>2||(D.Op==EItemOp::Transient&&(!D.Parents.IsEmpty()||D.Quality||T.Cause!=TEXT("EquipmentWorkOrder")))||I||D.Expected||!D.From.IsNone()||D.To.IsNone()){return Reject(TEXT("Item creation identity already exists or invalid location"));}
             TSet<FGuid> Parents;
-            for(auto Parent:D.Parents){const auto* P=Items.Find(Parent);if(!P||P->Consumed||!Consumed.Contains(Parent)||Parents.Contains(Parent)){return Reject(TEXT("Output parents must be distinct inputs consumed in this receipt"));}Parents.Add(Parent);}
+            for(auto Parent:D.Parents){const auto* P=Items.Find(Parent);if((!P&&!T.Items.ContainsByPredicate([&](const auto& X){return X.Id==Parent&&X.Op==EItemOp::Transient;}))||(P&&P->Consumed)||!Consumed.Contains(Parent)||Parents.Contains(Parent)){return Reject(TEXT("Output parents must be distinct inputs consumed in this receipt"));}Parents.Add(Parent);}
         }
         else
         {
-            if((D.Op!=EItemOp::Transfer&&D.Op!=EItemOp::Consume)||!I||I->Consumed||I->Kind!=D.Kind||I->Location!=D.From||I->Revision!=D.Expected||I->Revision==MAX_uint32||!D.Parents.IsEmpty()){return Reject(TEXT("Item ownership or revision changed"));}
-            if(D.Op==EItemOp::Transfer?(D.To.IsNone()||D.To==D.From):!D.To.IsNone()){return Reject(TEXT("Invalid item destination"));}
+            if((D.Op!=EItemOp::Transfer&&D.Op!=EItemOp::Consume&&D.Op!=EItemOp::Quality)||!I||I->Consumed||I->Kind!=D.Kind||I->Location!=D.From||I->Revision!=D.Expected||I->Revision==MAX_uint32||!D.Parents.IsEmpty()){return Reject(TEXT("Item ownership or revision changed"));}
+            if(D.Op==EItemOp::Quality?(D.To!=D.From||D.Quality!=I->Quality+1||D.Quality>2):(D.Op==EItemOp::Transfer?(D.To.IsNone()||D.To==D.From):!D.To.IsNone())){return Reject(TEXT("Invalid item destination"));}
         }
     }
     // All validation completes before any mutation. Allocations of physical output
@@ -77,8 +77,8 @@ bool LDEconomy::FLedger::Commit(const FTransaction& T,FString& Error)
     for(const auto& D:T.Gold){auto& A=Accounts.FindChecked(D.Account);A.Gold+=D.Delta;++A.Revision;}
     for(const auto& D:T.Items)
     {
-        if(D.Op==EItemOp::Create){FItem I;I.Kind=D.Kind;I.Location=D.To;I.Origin=T.Id;I.Parents=D.Parents;Items.Add(D.Id,MoveTemp(I));}
-        else{auto& I=Items.FindChecked(D.Id);I.Location=D.To;I.Consumed=D.Op==EItemOp::Consume;++I.Revision;}
+        if(D.Op==EItemOp::Create||D.Op==EItemOp::Transient){FItem I;I.Kind=D.Kind;I.Location=D.To;I.Origin=T.Id;I.Parents=D.Parents;I.Quality=D.Quality;I.Skill=D.Skill;I.Consumed=D.Op==EItemOp::Transient;if(I.Consumed){I.Location=NAME_None;}Items.Add(D.Id,MoveTemp(I));}
+        else{auto& I=Items.FindChecked(D.Id);I.Location=D.To;I.Consumed=D.Op==EItemOp::Consume;if(D.Op==EItemOp::Quality){I.Quality=D.Quality;}++I.Revision;}
     }
     if(!T.Budget.IsNone()){Budgets.FindChecked(T.Budget)-=T.Units;}for(const auto& D:T.Budgets){Budgets.FindChecked(D.Id)-=D.Units;}Mints+=T.Mint;Burns+=T.Burn;
     FReceipt R;R.Transaction=T;R.Serial=uint64(Receipts.Num())+1;Receipts.Add(T.Id,MoveTemp(R));return true;
@@ -95,7 +95,7 @@ bool LDEconomy::FLedger::Reconcile(FString& Error) const
     for(const auto& P:Accounts){if(P.Value.Retired){Replay.Retire(P.Key);}const auto* A=Replay.Account(P.Key);if(!A||A->Gold!=P.Value.Gold||A->Revision!=P.Value.Revision||A->Retired!=P.Value.Retired){Error=TEXT("Account replay mismatch");return false;}}
     for(const auto& P:Budgets){if(Replay.Remaining(P.Key)!=P.Value){Error=TEXT("Finite budget replay mismatch");return false;}}
     if(TotalGold()<0||Start+Mints-Burns!=TotalGold()||Replay.TotalGold()!=TotalGold()||Replay.Mints!=Mints||Replay.Burns!=Burns||Replay.Items.Num()!=Items.Num()){Error=TEXT("Aggregate conservation mismatch");return false;}
-    for(const auto& P:Items){const auto* I=Replay.Items.Find(P.Key);const auto& J=P.Value;if(!I||I->Kind!=J.Kind||I->Location!=J.Location||I->Revision!=J.Revision||I->Origin!=J.Origin||I->Parents!=J.Parents||I->Consumed!=J.Consumed){Error=TEXT("Item lineage mismatch");return false;}}
+    for(const auto& P:Items){const auto* I=Replay.Items.Find(P.Key);const auto& J=P.Value;if(!I||I->Kind!=J.Kind||I->Location!=J.Location||I->Revision!=J.Revision||I->Origin!=J.Origin||I->Parents!=J.Parents||I->Consumed!=J.Consumed||I->Quality!=J.Quality||I->Skill!=J.Skill){Error=TEXT("Item lineage mismatch");return false;}}
     return true;
 }
 int64 LDEconomy::DepositFee(int64 Gross)
@@ -116,7 +116,7 @@ FString LDEconomy::FLedger::ExportJson(FName Event) const
     Number(Root,TEXT("start"),Start);Number(Root,TEXT("minted"),Mints);Number(Root,TEXT("burned"),Burns);Number(Root,TEXT("end"),TotalGold());
     TArray<TSharedPtr<FJsonValue>> AccountRows,ItemRows,BudgetRows,History;
     for(const auto& P:Accounts){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());Number(O,TEXT("gold"),P.Value.Gold);Number(O,TEXT("endowment"),InitialAccounts.FindRef(P.Key));O->SetBoolField(TEXT("retired"),P.Value.Retired);O->SetNumberField(TEXT("revision"),P.Value.Revision);AccountRows.Add(MakeShared<FJsonValueObject>(O));}
-    for(const auto& P:Items){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());O->SetNumberField(TEXT("kind"),uint8(P.Value.Kind));O->SetStringField(TEXT("location"),P.Value.Location.ToString());O->SetStringField(TEXT("origin"),P.Value.Origin.ToString());O->SetBoolField(TEXT("consumed"),P.Value.Consumed);TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:P.Value.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}O->SetArrayField(TEXT("parents"),Parents);ItemRows.Add(MakeShared<FJsonValueObject>(O));}
+    for(const auto& P:Items){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());O->SetNumberField(TEXT("kind"),uint8(P.Value.Kind));O->SetStringField(TEXT("location"),P.Value.Location.ToString());O->SetStringField(TEXT("origin"),P.Value.Origin.ToString());O->SetBoolField(TEXT("consumed"),P.Value.Consumed);O->SetNumberField(TEXT("quality"),P.Value.Quality);O->SetNumberField(TEXT("skill"),P.Value.Skill);TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:P.Value.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}O->SetArrayField(TEXT("parents"),Parents);ItemRows.Add(MakeShared<FJsonValueObject>(O));}
     for(const auto& P:Budgets){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());O->SetNumberField(TEXT("initial"),InitialBudgets.FindRef(P.Key));O->SetNumberField(TEXT("remaining"),P.Value);BudgetRows.Add(MakeShared<FJsonValueObject>(O));}
     TArray<const FReceipt*> Ordered;for(const auto& P:Receipts){Ordered.Add(&P.Value);}Ordered.Sort([](const FReceipt& A,const FReceipt& B){return A.Serial<B.Serial;});
     for(const auto* R:Ordered)
@@ -125,7 +125,7 @@ FString LDEconomy::FLedger::ExportJson(FName Event) const
         TArray<TSharedPtr<FJsonValue>> Debits;for(const auto& D:T.Budgets){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("units"),D.Units);Debits.Add(MakeShared<FJsonValueObject>(V));}O->SetArrayField(TEXT("additionalBudgets"),Debits);
         TArray<TSharedPtr<FJsonValue>> Gold,Transitions;
         for(const auto& D:T.Gold){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("account"),D.Account.ToString());Number(V,TEXT("delta"),D.Delta);V->SetNumberField(TEXT("expected"),D.Expected);Gold.Add(MakeShared<FJsonValueObject>(V));}
-        for(const auto& D:T.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("op"),uint8(D.Op));V->SetNumberField(TEXT("kind"),uint8(D.Kind));V->SetNumberField(TEXT("expected"),D.Expected);V->SetStringField(TEXT("from"),D.From.ToString());V->SetStringField(TEXT("to"),D.To.ToString());TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:D.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}V->SetArrayField(TEXT("parents"),Parents);Transitions.Add(MakeShared<FJsonValueObject>(V));}
+        for(const auto& D:T.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("op"),uint8(D.Op));V->SetNumberField(TEXT("quality"),D.Quality);V->SetNumberField(TEXT("skill"),D.Skill);V->SetNumberField(TEXT("kind"),uint8(D.Kind));V->SetNumberField(TEXT("expected"),D.Expected);V->SetStringField(TEXT("from"),D.From.ToString());V->SetStringField(TEXT("to"),D.To.ToString());TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:D.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}V->SetArrayField(TEXT("parents"),Parents);Transitions.Add(MakeShared<FJsonValueObject>(V));}
         O->SetArrayField(TEXT("gold"),Gold);O->SetArrayField(TEXT("items"),Transitions);History.Add(MakeShared<FJsonValueObject>(O));
     }
     Root->SetArrayField(TEXT("accounts"),AccountRows);Root->SetArrayField(TEXT("items"),ItemRows);Root->SetArrayField(TEXT("budgets"),BudgetRows);Root->SetArrayField(TEXT("receipts"),History);

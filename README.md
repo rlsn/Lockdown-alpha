@@ -1,16 +1,16 @@
-# Project Lockdown — v0.7 B73 tactical review build
+# Project Lockdown — v0.7 B74 acquisition build
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
 baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B73 build/gear/preparation; B74 next.**
-[B73 implementation](docs/v07/B73_IMPLEMENTATION.md) adds natural/effective
-attributes, eleven passive gear effects, six bindings, quiet loadout holds,
-five-skill/three-reference controls and death retention. Fourteen new spell effects
-remain from B71/B72. Normal gear supplies and advanced books are B74 work.
-This is the B71–B73 tactical review build; full v0.7 remains open in the
+**Current checkpoint: B74 acquisition and assembly; B75 next.**
+[B74 implementation](docs/v07/B74_IMPLEMENTATION.md) adds paid supplies, tiered
+book sources, twelve recipe projections, equipment work orders, deterministic
+quality and finite ruin caches. Twelve passive gear effects and Null Bell work;
+other acquired definitions are labelled cargo until their B75 effects arrive.
+Fourteen new spell effects remain from B71/B72. Full v0.7 remains open in the
 [working ledger](docs/v07/FeatureLedger.csv).
 
 The normal frontend still hosts the V05 economy; `v06_regression` is its explicit

@@ -46,7 +46,7 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
 {
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||(ULDEquipmentCatalog::Load()&&ULDEquipmentCatalog::Load()->Find(Item->Kind)&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile())||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||(uint8(Item->Kind)>=8&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile())||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
     auto* Economy=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get();
     if(Economy&&Item->Kind==ELDItemKind::Seal){return false;}
     if(Economy&&!Economy->Accounting().Item(Item->Identity)&&CreationCause.IsNone())
@@ -54,7 +54,7 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
     uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
     Item->Holder=PC;Item->State=1;Item->Slot=Slot;++Item->Revision;
     if(auto* Seal=Cast<ALDSeal>(Item)){Seal->Carrier=PC;}
-    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;Entry.BindingMask=Item->BindingMask;Entry.ReadyAt=Item->ReadyAt;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
+    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;Entry.BindingMask=Item->BindingMask;Entry.ReadyAt=Item->ReadyAt;Entry.Quality=Item->Quality;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
 }
 void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
@@ -70,7 +70,7 @@ void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
         {
             Item->bReserved=false;
             if(Item->Kind==ELDItemKind::WardCharge&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Remove(PC,Item,true,TEXT("UnusedWardLoss"));}
-            else if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&!Item->BindingMask&&(Item->Kind==ELDItemKind::WardCharge||ULDEquipmentCatalog::Load()->Find(Item->Kind))||LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
+            else if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&!Item->BindingMask&&(Item->Kind!=ELDItemKind::Book&&Item->Kind!=ELDItemKind::Seal)||LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
             {
                 FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);
                 if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}

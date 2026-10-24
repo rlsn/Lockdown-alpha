@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Inventory/LDSupplyRequest.h"
 #include "Combat/LDTacticalRequest.h"
 #include "Inventory/LDLoadoutRequest.h"
 #include "GameFramework/PlayerController.h"
@@ -71,6 +72,11 @@ public:
     UFUNCTION(Server,Reliable) void ServerCommerceCommit(uint32 Match,uint32 Life,uint32 Request,FGuid Session,uint32 QuoteRevision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price);
     UFUNCTION(Client,Reliable) void ClientCommerceView(const FLDOwnerState& State,const FLDCommerceView& View,uint32 Request,const FString& Reason);
     bool NearProduction(uint8 Site) const;
+    UFUNCTION(Server,Reliable) void ServerAcquisitionPurchase(const FLDSupplyRequest& Request);
+    UFUNCTION(Client,Reliable) void ClientAcquisitionCache(uint8 Site,const TArray<FLDInventoryItem>& Items);
+    TArray<FLDInventoryItem> CacheItems;
+    uint8 CacheSite=255;
+    void BuyAcquisition(uint8 Site,ELDItemKind Kind,ELDSkill Skill=ELDSkill::None);
     void ArmProduction(const FLDProductionPlan& Plan);
     void StartProductionHold();void StopProductionHold();
     UFUNCTION(Server,Reliable) void ServerProductionRequest(uint32 Match,uint32 Life,uint32 Token,const FLDProductionPlan& Plan);

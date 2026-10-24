@@ -11,6 +11,9 @@ USTRUCT()
 struct FLDProductionPlan
 {
     GENERATED_BODY()
+    UPROPERTY() FString CatalogDigest;
+    UPROPERTY() uint8 Mode=0; // equipment work order=1
+    UPROPERTY() FGuid Target;
     UPROPERTY() uint8 Site=0;
     UPROPERTY() uint8 Recipe=0; // sites: two outcrops, City/West/East workshops
     UPROPERTY() uint32 RecipeRevision=1;
@@ -20,7 +23,9 @@ struct FLDProductionPlan
     UPROPERTY() int32 Fee=0;
     UPROPERTY() FGuid Coupon;
     UPROPERTY() TArray<FLDInventoryItem> Inputs;
+    bool NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success);
 };
+template<>struct TStructOpsTypeTraits<FLDProductionPlan>:TStructOpsTypeTraitsBase2<FLDProductionPlan>{enum{WithNetSerializer=true};};
 // Server-only service anchor; observers receive only the existing sanitized view tuple.
 UCLASS()
 class LOCKDOWN_API ALDProductionSite:public AActor
@@ -52,6 +57,7 @@ public:
     AActor* Target(uint8 Site) const {return Targets.IsValidIndex(Site)?Targets[Site].Get():nullptr;}
 private:
     friend class ALDEconomyUIProbe;
+    friend class ALDAcquisitionProbe;
     friend class ALDCharterProbe;
     friend class ALDProductionProbe;
     friend class ALDInstitutionProbe;

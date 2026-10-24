@@ -1,5 +1,6 @@
 #include "UI/LDInventoryPanel.h"
 #include "Inventory/LDEquipmentCatalog.h"
+#include "Inventory/LDAcquisitionCatalog.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDControlSettings.h"
 #include "Framework/LDPlayerController.h"
@@ -38,13 +39,13 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
         const TCHAR* Labels[]={TEXT("All"),TEXT("Books"),TEXT("Wards"),TEXT("Objective"),TEXT("Cargo")};for(uint8 I=0;I<5;++I){if(I==3&&GetWorld()->GetGameState<ALDGameState>()->bUIControlProfile){continue;}Tools->AddChildToHorizontalBox(Button(Labels[I],[this,I](){Filter(I);}))->SetPadding(FMargin(3,0));}
         SortButton=Button(TEXT("Sort"),[PC](){PC->InventoryCommand(LDInventory::Sort);});Tools->AddChildToHorizontalBox(SortButton);
         auto* Tabs=WidgetTree->ConstructWidget<UHorizontalBox>();All->AddChildToVerticalBox(Tabs)->SetPadding(FMargin(0,4));
-        const TCHAR* Names[]={TEXT("Items"),TEXT("Books"),TEXT("Markets"),TEXT("Workshop"),TEXT("Orders"),TEXT("Treasury"),TEXT("Trade")};
-        for(uint8 Tab=0;Tab<7;++Tab){auto* B=Button(Names[Tab],[this,Tab](){ShowService(Tab);});ServiceTabs.Add(B);Tabs->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
+        const TCHAR* Names[]={TEXT("Items"),TEXT("Books"),TEXT("Markets"),TEXT("Workshop"),TEXT("Orders"),TEXT("Treasury"),TEXT("Trade"),TEXT("Supply"),TEXT("Gear craft"),TEXT("Ruins")};
+        for(uint8 Tab=0;Tab<10;++Tab){auto* B=Button(Names[Tab],[this,Tab](){ShowService(Tab);});ServiceTabs.Add(B);Tabs->AddChildToHorizontalBox(B)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
         auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();All->AddChildToVerticalBox(Body)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Body->AddChildToHorizontalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Grid=WidgetTree->ConstructWidget<UUniformGridPanel>();Grid->SetSlotPadding(FMargin(3));Scroll->AddChild(Grid);
         ServiceWidth=WidgetTree->ConstructWidget<USizeBox>();auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();ServiceScroll=WidgetTree->ConstructWidget<UScrollBox>();ServiceScroll->SetClipping(EWidgetClipping::ClipToBounds);ServiceScroll->AddChild(Right);ServiceWidth->SetContent(ServiceScroll);Body->AddChildToHorizontalBox(ServiceWidth)->SetPadding(FMargin(12,0,0,0));
         Detail=LDWidgets::Text(WidgetTree,TEXT("Choose one of your items"),18);Detail->SetAutoWrapText(true);auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->AddChild(Detail);auto* DetailSize=WidgetTree->ConstructWidget<USizeBox>();DetailSize->SetMaxDesiredHeight(92);DetailSize->SetContent(DetailScroll);Right->AddChildToVerticalBox(DetailSize);
-        for(uint8 Tab=0;Tab<7;++Tab){auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();Services.Add(Section);Right->AddChildToVerticalBox(Section);}
+        for(uint8 Tab=0;Tab<10;++Tab){auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();Services.Add(Section);Right->AddChildToVerticalBox(Section);}
         ServiceHint=LDWidgets::Text(WidgetTree,TEXT(""),14);Right->InsertChildAt(0,ServiceHint);
         VendorOpen=Button(TEXT("Open Guild bookshop"),[PC](){PC->OpenVendor();});Services[1]->AddChildToVerticalBox(VendorOpen);
         CatalogPanel=WidgetTree->ConstructWidget<UVerticalBox>();Services[1]->AddChildToVerticalBox(CatalogPanel)->SetPadding(FMargin(0,4));
@@ -53,7 +54,7 @@ TSharedRef<SWidget> ULDInventoryPanel::RebuildWidget()
         auto* QuoteRow=WidgetTree->ConstructWidget<UHorizontalBox>();CatalogPanel->AddChildToVerticalBox(QuoteRow)->SetPadding(FMargin(0,4));CatalogInfo=LDWidgets::Text(WidgetTree,TEXT(""),15);QuoteRow->AddChildToHorizontalBox(CatalogInfo)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));VendorBuy=Button(TEXT("Buy"),[this](){BuyOffer();});CatalogPanel->AddChildToVerticalBox(VendorBuy);
 
 
-        BuildCommerce(Services[2]);BuildProduction(Services[3]);BuildBank(Services[5]);BuildTradePanel(Services[6]);
+        BuildAcquisition(Services[7],Services[8],Services[9]);BuildCommerce(Services[2]);BuildProduction(Services[3]);BuildBank(Services[5]);BuildTradePanel(Services[6]);
         Services[6]->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("Select a visible nearby contender and offer trade from the inspector. Only offered items are shared."),14));
         AidButton=Button(TEXT("Aid consent"),[PC](){PC->ServerAidConsent(PC->OwnerState.Match,PC->OwnerState.Life,!PC->OwnerState.bAidConsent);});Services[0]->AddChildToVerticalBox(AidButton);
         UseButton=Button(TEXT("Use"),[this](){Use();});Services[0]->AddChildToVerticalBox(UseButton)->SetPadding(FMargin(0,8));
@@ -109,7 +110,7 @@ void ULDInventoryPanel::Refresh()
 
     AidButton->SetVisibility(O.Build.RulesVersion==7?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     CastChecked<UTextBlock>(AidButton->GetContent())->SetText(FText::FromString(O.bAidConsent?TEXT("Aid consent: ON · click to revoke"):TEXT("Aid consent: OFF · click to allow dispels")));
-    RefreshServices();RefreshProduction();RefreshCommerce();RefreshBank();RefreshTradePanel();const bool Shop=PC->VendorIsOpen();CatalogPanel->SetVisibility(Shop?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    RefreshServices();RefreshProduction();RefreshAcquisition();RefreshCommerce();RefreshBank();RefreshTradePanel();const bool Shop=PC->VendorIsOpen();CatalogPanel->SetVisibility(Shop?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     Heading->SetText(FText::FromString(PC->BankIsOpen()?TEXT("CITY TREASURY · YOUR BAG"):PC->CommerceIsOpen()?TEXT("LOCAL MARKET · YOUR BAG"):Shop?TEXT("GUILD BOOKSHOP · YOUR CARRIED BAG"):PC->TradeView.Session.IsValid()&&(PC->TradeView.Active()||PC->TradeView.Stage==ELDTradeStage::Committed)?TEXT("PEER EXCHANGE · YOUR CARRIED BAG"):TEXT("BAG & SERVICES")));
     VendorOpen->SetIsEnabled(PC->NearGuildVendor()&&!PC->InventoryPending()&&!bConfirm&&!Shop);
     if(Shop)
@@ -139,6 +140,8 @@ void ULDInventoryPanel::Refresh()
     for(uint8 N=0;N<4;++N){Quick[N]->SetVisibility(N<I.Quick.Num()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Assignments[N]->SetVisibility(N<I.Quick.Num()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(N>=I.Quick.Num()){continue;}const auto* Item=I.Find(I.Quick[N]);CastChecked<UTextBlock>(Quick[N]->GetContent())->SetText(FText::FromString(TEXT("ITEM [")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))+TEXT("]\n")+(Item?LDInventory::Name(Item->Kind,Item->Skill):TEXT("Empty"))));Quick[N]->SetIsEnabled(!Pending&&!bConfirm&&(!SelectedItem||(SelectedItem->Kind==ELDItemKind::Book||LDInventory::QuickUsable(SelectedItem->Kind,O.Build.RulesVersion))));}
     Detail->SetText(FText::FromString(SelectedItem?LDInventory::Name(SelectedItem->Kind,SelectedItem->Skill)+TEXT("\n")+(SelectedItem->Kind==ELDItemKind::Book?FString(TEXT("Teaches "))+LDDevelopment::SkillName(SelectedItem->Skill)+TEXT(" rank 1. Hold for 3 seconds after 6 quiet seconds. Does not equip or cast. Known books are kept."):SelectedItem->Kind==ELDItemKind::WardCharge?TEXT("One finite placement. Confirm ground within 96 cm; sight 560 cm for 60 seconds. Cancel/failure keeps this charge."):LDInventory::Commodity(SelectedItem->Kind)?TEXT("Commercial cargo. Trade, production or delivery input; drops on death. Cannot be quick-used."):TEXT("One per carrier. Carry to the Heart. Cannot be assigned or used as a reusable shortcut."))+TEXT("\n")+(SelectedItem->bReserved?TEXT("Reserved for a held order or exchange"):FString::Printf(TEXT("Owned · one item · Weight %d"),LDInventory::UnitWeight(SelectedItem->Kind))):TEXT("Choose one of your items.\nDrag between bag cells or onto an item shortcut. Drag outside cancels.\nUse/Assign/Unassign/Move/Drop also work with buttons.")));
     if(Definition&&SelectedItem){Detail->SetText(FText::FromString(Definition->Name+(SelectedItem->BindingMask?TEXT(" · EQUIPPED"):TEXT(" · UNBOUND"))+FString::Printf(TEXT("\nOne carried instance · Weight %d%s\nHold a binding button for 2s after 6 quiet seconds.\nEquipped ordinary gear retains on death; spare gear drops."),Definition->Weight,Definition->TwoHanded?TEXT(" · reserves weapon + offhand"):TEXT(""))));}
+    if(SelectedItem&&!Definition&&uint8(SelectedItem->Kind)>=20&&PC->OwnerState.Build.RulesVersion==7){const auto* C=ULDAcquisitionCatalog::Load();const auto* D=C?C->Find(SelectedItem->Kind):nullptr;Detail->SetText(FText::FromString(LDInventory::Name(SelectedItem->Kind,SelectedItem->Skill)+(D?FString::Printf(TEXT(" · Tier %d\nAcquisition/recipe cargo; combat effect/binding arrives in B75.\n"),D->Tier):TEXT("\nObjective/material cargo; drops on death. Access and guardian integration arrives in B76.\n"))));}
+    if(SelectedItem&&PC->OwnerState.Build.RulesVersion==7){Detail->SetText(FText::FromString(Detail->GetText().ToString()+FString::Printf(TEXT("\nQuality: %s · instance ready at %.1fs"),SelectedItem->Quality==2?TEXT("Masterwork"):SelectedItem->Quality==1?TEXT("Fine"):TEXT("Standard"),SelectedItem->ReadyAt/1000.)));}
     if(ServiceTab!=0){Detail->SetText(FText::FromString(SelectedItem?FString::Printf(TEXT("Selected: bag %d · %s · weight %d%s"),SelectedItem->Slot+1,*LDInventory::Name(SelectedItem->Kind,SelectedItem->Skill),LDInventory::UnitWeight(SelectedItem->Kind),SelectedItem->bReserved?TEXT(" · reserved"):TEXT("")):TEXT("Select your cargo in the bag")));}
     CastChecked<UTextBlock>(UseButton->GetContent())->SetText(FText::FromString(SelectedItem&&!(SelectedItem->Kind==ELDItemKind::Book||LDInventory::QuickUsable(SelectedItem->Kind,O.Build.RulesVersion))?TEXT("No quick use"):SelectedItem&&SelectedItem->Kind==ELDItemKind::Book?TEXT("Learn · hold after selecting"):TEXT("Use · select ward location")));
 }

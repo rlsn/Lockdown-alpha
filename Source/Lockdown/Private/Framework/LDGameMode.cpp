@@ -1,6 +1,8 @@
 #include "Framework/LDGameMode.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
+#include "Inventory/LDAcquisitionDirector.h"
+#include "Inventory/LDAcquisitionCatalog.h"
 #include "Combat/LDTacticalRules.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -53,9 +55,11 @@
 #include "Tests/LDProductionProbe.h"
 #include "Tests/LDInstitutionProbe.h"
 #include "Tests/LDCharterProbe.h"
+#include "Tests/LDAcquisitionProbe.h"
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
 #include "Tests/LDLoadoutProbe.h"
+#include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
@@ -185,6 +189,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
@@ -192,6 +197,7 @@ void ALDGameMode::StartPlay()
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))){GetWorld()->SpawnActor<ALDEconomyUIProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))){GetWorld()->SpawnActor<ALDCharterProbe>();}
+    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionProbe"))){GetWorld()->SpawnActor<ALDAcquisitionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))){GetWorld()->SpawnActor<ALDInstitutionProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
@@ -386,7 +392,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
         Economy=GetWorld()->SpawnActor<ALDEconomyDirector>();
         if(!Economy||!Economy->Initialize(Reason)){if(Economy){Economy->Destroy();Economy=nullptr;}return false;}
     }
-    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();Production=GetWorld()->SpawnActor<ALDProductionDirector>();Production->Initialize();}
+    if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();Production=GetWorld()->SpawnActor<ALDProductionDirector>();Production->Initialize();if(IsTacticalProfile()){Acquisition=GetWorld()->SpawnActor<ALDAcquisitionDirector>();if(!Acquisition->Initialize(Reason)){return false;}}}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
     Public->MatchDeadline=float(MatchStartedAt+(bTacticalProfile?2100:LDDevelopment::DeadlineSeconds));
     for (auto& Pair:Contenders)

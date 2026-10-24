@@ -1,5 +1,6 @@
 #include "Inventory/LDInventoryTypes.h"
 #include "Inventory/LDEquipmentCatalog.h"
+#include "Inventory/LDAcquisitionCatalog.h"
 ALDItem::ALDItem(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
 FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
 {
@@ -14,7 +15,13 @@ FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
     case ELDItemKind::Toolkit:return TEXT("Toolkit");
     case ELDItemKind::Core:return TEXT("Core");
     case ELDItemKind::NullBell:return TEXT("Null Bell");
-    default:if(const auto* C=ULDEquipmentCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Name;}}return TEXT("Unknown item");
+    case ELDItemKind::ArcaneCatalyst:return TEXT("Arcane Catalyst");
+    case ELDItemKind::HeartFragment:return TEXT("Heart Fragment");
+    case ELDItemKind::AncientKeyA:return TEXT("Ancient Key A");
+    case ELDItemKind::AncientKeyB:return TEXT("Ancient Key B");
+    case ELDItemKind::AncientKeyC:return TEXT("Ancient Key C");
+    case ELDItemKind::Heartbreaker:return TEXT("Heartbreaker");
+    default:if(const auto* C=ULDEquipmentCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Name;}}if(const auto* C=ULDAcquisitionCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Name;}}return TEXT("Unknown item");
     }
 }
 bool LDInventory::QuickUsable(ELDItemKind Kind,uint8 Rules)
@@ -30,7 +37,7 @@ int32 LDInventory::UnitWeight(ELDItemKind Kind)
     case ELDItemKind::Ore:return 3;
     case ELDItemKind::Toolkit:return 4;
     case ELDItemKind::Core:return 6;
-    default:if(const auto* C=ULDEquipmentCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Weight;}}return -1;
+    default:if(const auto* C=ULDEquipmentCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Weight;}}if(Kind==ELDItemKind::ArcaneCatalyst||Kind==ELDItemKind::AncientKeyA||Kind==ELDItemKind::AncientKeyB||Kind==ELDItemKind::AncientKeyC){return 1;}if(Kind==ELDItemKind::HeartFragment){return 2;}if(Kind==ELDItemKind::Heartbreaker){return 4;}if(const auto* C=ULDAcquisitionCatalog::Load()){if(const auto* D=C->Find(Kind)){return D->Weight;}}return -1;
     }
 }
 int32 LDInventory::Weight(const FLDInventory& I)
@@ -67,7 +74,7 @@ void LDInventory::Remove(FLDInventory& I,FGuid Id)
 bool LDInventory::Valid(const FLDInventory& I)
 {
     if(!I.Capacity||I.Items.Num()>I.Capacity||(I.RulesVersion!=6&&I.RulesVersion!=7)||I.Quick.Num()!=(I.RulesVersion==7?3:4)||I.Bindings.Num()!=6){return false;}TSet<FGuid> Ids,Refs;TSet<uint8> Slots;int32 Seals=0;
-    for(const auto& Item:I.Items){if(!Item.Id.IsValid()||Ids.Contains(Item.Id)||Item.Slot>=I.Capacity||Slots.Contains(Item.Slot)||UnitWeight(Item.Kind)<0){return false;}Ids.Add(Item.Id);Slots.Add(Item.Slot);Seals+=Item.Kind==ELDItemKind::Seal;}
+    for(const auto& Item:I.Items){if(!Item.Id.IsValid()||Ids.Contains(Item.Id)||Item.Slot>=I.Capacity||Slots.Contains(Item.Slot)||(Item.Quality>2||UnitWeight(Item.Kind)<0)){return false;}Ids.Add(Item.Id);Slots.Add(Item.Slot);Seals+=Item.Kind==ELDItemKind::Seal;}
     for(auto Id:I.Quick){if(!Id.IsValid()){continue;}const auto* Item=I.Find(Id);if(!Item||!QuickUsable(Item->Kind,I.RulesVersion)||Refs.Contains(Id)){return false;}Refs.Add(Id);}
     for(const auto& Item:I.Items){uint8 Mask=0;for(int32 N=0;N<6;++N){if(I.Bindings[N]==Item.Id){Mask|=1<<N;}}if(Mask!=Item.BindingMask){return false;}}
     for(int32 N=0;N<6;++N){if(!I.Bindings[N].IsValid()){continue;}const auto* Item=I.Find(I.Bindings[N]);const auto* C=ULDEquipmentCatalog::Load();const auto* D=Item&&C?C->Find(Item->Kind):nullptr;if(!D||I.RulesVersion!=7||!(N==D->Binding||(D->Binding==4&&N==5)||(D->TwoHanded&&N==1&&I.Bindings[0]==Item->Id))){return false;}if(D->TwoHanded&&I.Bindings[1]!=Item->Id){return false;}for(int32 Earlier=0;Earlier<N;++Earlier){if(I.Bindings[Earlier]==Item->Id&&!(N==1&&Earlier==0&&D->TwoHanded)){return false;}}}

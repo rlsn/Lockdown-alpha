@@ -1,0 +1,30 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -MaxParallelActions=4
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Executing up to 4 actions based on MaxProcessorCount override
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+[Adaptive Build] Excluded from LockdownEditor unity file: LDScaffoldBootstrapCommandlet.cpp
+[Adaptive Build] Excluded from Lockdown unity file: LDCommerceDirector.cpp, LDEconomyCharter.cpp, LDEconomyCommerce.cpp, LDEconomyDirector.cpp, LDEconomyInstitutions.cpp, LDEconomyLedger.cpp, LDEconomyProduction.cpp, LDProductionDirector.cpp, LDProductionPlan.cpp, LDGameMode.cpp, LDPlayerBank.cpp, LDPlayerCommerce.cpp, LDPlayerController.cpp, LDPlayerDevelopment.cpp, LDPlayerInventory.cpp, LDPlayerProduction.cpp, LDPlayerTrade.cpp, LDPlayerVendor.cpp, LDAcquisitionCatalog.cpp, LDAcquisitionDirector.cpp, LDEquipmentCatalog.cpp, LDGearRules.cpp, LDInventoryDirector.cpp, LDInventoryTypes.cpp, LDSupplyRequest.cpp, LDTradeDirector.cpp, LDAcquisitionNetworkProbe.cpp, LDAcquisitionProbe.cpp, LDAcquisitionRulesTests.cpp, LDCargoRulesTests.cpp, LDEconomyRulesTests.cpp, LDInventoryRulesTests.cpp, LDLoadoutRulesTests.cpp, LDTradeRulesTests.cpp, LDViewTests.cpp, LDHUDModel.cpp, LDInventoryAcquisitionPanel.cpp, LDInventoryBankPanel.cpp, LDInventoryCommercePanel.cpp, LDInventoryPanel.cpp, LDInventoryProductionPanel.cpp, LDInventoryServices.cpp, LDInventoryTradePanel.cpp, LDViewTypes.cpp, LDVisionDirector.cpp, LDWorldViewRelay.cpp
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 5 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 27.74 GB/39.85 GB committed
+  UBA Storage capacity 40 GB
+[1/5] Compile [x64] LDTradeDirector.cpp
+[2/5] Compile [x64] LDAcquisitionProbe.cpp
+[3/5] Link [x64] UnrealEditor-Lockdown.lib
+[4/5] Link [x64] UnrealEditor-Lockdown.dll
+[5/5] WriteMetadata LockdownEditor.target [NoUba]
+
+Total time in Unreal Build Accelerator local executor: 10.54 seconds
+Output binary: D:\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe
+
+Result: Succeeded
+Total execution time: 12.20 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 6.6kb

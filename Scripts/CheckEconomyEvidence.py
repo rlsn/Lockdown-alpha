@@ -36,19 +36,22 @@ def verify(path):
             budgets[d["id"]]-=d["units"]
             assert budgets[d["id"]]>=0
         assert len({d["id"] for d in r["items"]})==len(r["items"])
-        consumed={d["id"] for d in r["items"] if d["op"]==2}
+        consumed={d["id"] for d in r["items"] if d["op"] in (2,4)}
         for d in r["items"]:
-            if d["op"]==0:
+            if d["op"] in (0,4):
                 assert d["id"] not in items
                 assert d["expected"]==0 and len(set(d["parents"]))==len(d["parents"])
                 assert all(parent in consumed for parent in d["parents"])
-                items[d["id"]]={"kind":d["kind"],"location":d["to"],"consumed":False,"origin":r["id"],"parents":d["parents"]}
+                items[d["id"]]={"kind":d["kind"],"location":d["to"] if d["op"]!=4 else "None","consumed":d["op"]==4,"quality":d.get("quality",0),"skill":d.get("skill",0),"origin":r["id"],"parents":d["parents"]}
                 item_revisions[d["id"]]=1
             else:
-                assert d["op"] in (1,2) and d["expected"]==item_revisions[d["id"]] and not d["parents"]
+                assert d["op"] in (1,2,3) and d["expected"]==item_revisions[d["id"]] and not d["parents"]
                 item_revisions[d["id"]]+=1
                 i=items[d["id"]]
                 assert not i["consumed"] and i["location"]==d["from"] and i["kind"]==d["kind"]
+                if d["op"]==3:
+                    assert d["to"]==d["from"] and d["quality"]==i["quality"]+1<=2
+                    i["quality"]=d["quality"]
                 i["location"]=d["to"]
                 i["consumed"]=d["op"]==2
     assert accounts=={a["id"]:int(a["gold"]) for a in data["accounts"]}
@@ -57,7 +60,7 @@ def verify(path):
     assert (mint,burn)==(int(data["minted"]),int(data["burned"]))
     assert len(items)==len(data["items"])
     for i in data["items"]:
-        assert items[i["id"]]=={k:i[k] for k in ("kind","location","consumed","origin","parents")}
+        assert items[i["id"]]=={**{k:i[k] for k in ("kind","location","consumed","origin","parents")},"quality":i.get("quality",0),"skill":i.get("skill",0)}
         for parent in i["parents"]:
             assert items[parent]["consumed"]
     assert budgets=={b["id"]:b["remaining"] for b in data["budgets"]}

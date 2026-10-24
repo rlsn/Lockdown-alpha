@@ -118,7 +118,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyPayloadTest,"Lockdown.Rules.EconomyPa
 bool FLDEconomyPayloadTest::RunTest(const FString& Parameters)
 {
     auto Fields=[&](UStruct* Struct,const TArray<FName>& Names){int32 Count=0;for(TFieldIterator<FProperty> It(Struct,EFieldIteratorFlags::ExcludeSuper);It;++It){++Count;TestTrue(TEXT("Only intended economy payload fields"),Names.Contains(It->GetFName()));}TestEqual(TEXT("Complete reflected payload field count"),Count,Names.Num());for(FName Name:Names){TestNotNull(TEXT("Field participates in RPC/replication serialization"),Struct->FindPropertyByName(Name));}};
-    Fields(FLDProductionPlan::StaticStruct(),{TEXT("Site"),TEXT("Recipe"),TEXT("RecipeRevision"),TEXT("InventoryRevision"),TEXT("BuildRevision"),TEXT("SkillSlot"),TEXT("Fee"),TEXT("Coupon"),TEXT("Inputs")});
+    Fields(FLDProductionPlan::StaticStruct(),{TEXT("CatalogDigest"),TEXT("Mode"),TEXT("Target"),TEXT("Site"),TEXT("Recipe"),TEXT("RecipeRevision"),TEXT("InventoryRevision"),TEXT("BuildRevision"),TEXT("SkillSlot"),TEXT("Fee"),TEXT("Coupon"),TEXT("Inputs")});
     Fields(FLDCommerceOffer::StaticStruct(),{TEXT("Kind"),TEXT("Stock"),TEXT("Cap"),TEXT("Ask"),TEXT("Bid")});
     Fields(FLDCommerceView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("Revision"),TEXT("Service"),TEXT("Cash"),TEXT("QuotedAt"),TEXT("Offers")});
     Fields(FLDBankView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("WalletRevision"),TEXT("BankRevision"),TEXT("Wallet"),TEXT("Bank")});
