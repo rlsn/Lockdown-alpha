@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDEconomyDirector.h"
@@ -74,14 +75,21 @@ bool ALDCombatDirector::LegalTarget(ALDCharacter* Source,AActor* Target,double R
     {const auto* T=StateFor(Body);if(!T||T->Hp<=0||GetWorld()->GetTimeSeconds()<T->ProtectionUntil){return false;}}
     else if(const ALDWard* Ward=Cast<ALDWard>(Target))
     {if(Ward->Hp<=0||Ward->ExpiresAt<=GetWorld()->GetTimeSeconds()){return false;}}
+    else if(const auto* Field=Cast<ALDTacticalField>(Target))
+    {if(!Field->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()))||Field->Kind==ELDTacticalField::Smoke||Field->Source.Get()==Source){return false;}}
     else{return false;}
     const FVector From=Source->GetActorLocation(),To=Target->GetActorLocation();
     if(FVector::DistSquared2D(From,To)>Reach*Reach || (Aim&&!LDCombat::InCone(From,To,*Aim,Reach,Cone))){return false;}
     const ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(!Mode||!Mode->Vision){return false;}
     if(ALDPlayerController* PC=Cast<ALDPlayerController>(Source->GetController()))
-    {if(!Mode->Vision->CanSee(PC,To)){return false;}}
-    else if(!Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To)){return false;}
+    {if(!Mode->Vision->CanObserve(PC,Target)){return false;}}
+    else
+    {
+        if(Mode->IsTacticalProfile()&&Cast<ALDCharacter>(Target)&&Concealed(Cast<ALDCharacter>(Target))){return false;}
+        const float Sight=Mode->IsTacticalProfile()?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):720;
+        if(!Mode->Vision->Ray({From,Sight,Mode->Vision->LevelAt(From)},To)){return false;}
+    }
     return LDGround::ClearSegment(GetWorld(),From,To);
 }
 AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin,bool bBodiesOnly) const
@@ -103,6 +111,7 @@ AActor* ALDCombatDirector::Nearest(ALDCharacter* Source,double Reach,const FVect
     };
     for(const auto& Pair:Bodies){if(Pair.Key.IsValid()){Consider(Pair.Key.Get(),Pair.Value.Identity);}}
     if(!bAssassin&&!bBodiesOnly){for(TActorIterator<ALDWard> It(GetWorld());It;++It){Consider(*It,It->Identity);}}
+    if(!bAssassin&&!bBodiesOnly){for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){Consider(*It,It->Identity);}}
     return Best;
 }
 bool ALDCombatDirector::Request(ALDPlayerController* PC,uint8 Action,const FVector& Direction,FString& Result)
@@ -177,7 +186,7 @@ void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
     if(Mode->IsTacticalProfile())
     {
         const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());
-        O->Mp=S.Tactical.MP;O->Barrier=S.Tactical.Barrier;O->StatusMask=S.Tactical.Mask(At);O->StatusFeedback=LDTactical::StatusText(S.Tactical,At);O->NullBellReadyAt=S.NullBellReadyAt;
+        O->Mp=S.Tactical.MP;O->Barrier=S.Tactical.Barrier;O->StatusMask=S.Tactical.Mask(At);O->StatusFeedback=LDTactical::StatusText(S.Tactical,At);O->NullBellReadyAt=S.NullBellReadyAt;O->MajorProtectionReadyAt=FMath::Max(O->MajorProtectionReadyAt,S.Tactical.MajorReadyAt);
     }
     if(!Mode->IsTacticalProfile()&&O->Hp==S.Hp&&O->BasicReadyAt==float(S.BasicReady)&&O->AssassinReadyAt==float(S.AssassinReady)
         &&O->DashReadyAt==float(S.DashReady)&&O->WarningUntil==float(S.WarningUntil)&&O->DamageUntil==float(S.HitUntil)
@@ -190,6 +199,7 @@ void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
 }
 void ALDCombatDirector::Sample(double Now)
 {
+    SampleFields(LDTactical::Milliseconds(Now));
     TArray<FLDCombatHit> Impacts;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsFinished())
@@ -221,8 +231,10 @@ void ALDCombatDirector::Sample(double Now)
         {
             AActor* Target=Intent.Observed.IsValid()&&Mode->Vision?Mode->Vision->ResolveObserved(PC,Intent.Observed):nullptr;
             const auto Skill=Intent.Action>=3&&O->Build.Slots.IsValidIndex(Intent.Action-3)?O->Build.Slots[Intent.Action-3]:ELDSkill::None;
-            if(Mode->IsUIControlProfile()&&Intent.Action>=3&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch&&Skill!=ELDSkill::PurgeTouch&&Skill!=ELDSkill::SuretyShell&&!Target){Reason=TEXT("Target no longer visible");}
-            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);if(Mode->Trade){Mode->Trade->CancelFor(PC);}}
+            const auto* D=Mode->IsTacticalProfile()&&Mode->TacticalCatalog?Mode->TacticalCatalog->Find(Skill):nullptr;
+            const bool NeedsObserved=D?D->Target==ELDTacticalTarget::Unit:(Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch);
+            if((Intent.Observed.IsValid()&&!Target)||(Mode->IsUIControlProfile()&&Intent.Action>=3&&NeedsObserved&&!Target)){Reason=TEXT("Target no longer visible");}
+            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target,Intent.Point):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);if(Mode->Trade){Mode->Trade->CancelFor(PC);}}
         }
         PC->CompleteCombatRequest(Intent.Request,Reason);
     }
@@ -248,6 +260,7 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::IsRear(Body->GetActorLocation(),Victim->GetActorLocation(),Victim->GetActorForwardVector())
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
+            if(Mode->IsTacticalProfile()){BreakConcealment(Body);}
             if(Target){Impacts.Add({Body,Target,bAssassin&&S.Skill==ELDSkill::None?60:S.CommittedDamage,bSpark?LDTactical::EDamage::Magical:LDTactical::EDamage::Physical,bSpark||bAssassin});}
             S.Action=bAssassin||bSpark?3:0;S.RecoveryUntil=Now+(bSpark?.35:.25);S.Target.Reset();
         }
@@ -259,6 +272,7 @@ void ALDCombatDirector::Sample(double Now)
         auto* S=StateFor(Hit.Source);if(S){S->LastDealt=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
         if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicLocation(),600,1},Hit.Target->GetActorLocation()))
         {if(S){S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}}
+        if(auto* Field=Cast<ALDTacticalField>(Hit.Target)){Field->Hp-=Hit.Damage;continue;}
         if(auto* Ward=Cast<ALDWard>(Hit.Target)){Ward->Hp-=Hit.Damage;continue;}
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
         if(Victim->IsA<ALDWildSentinel>()){if(auto* PC=Cast<ALDPlayerController>(Hit.Source?Hit.Source->GetController():nullptr)){SentinelDamage.FindOrAdd(PC)+=Hit.Damage;}}
@@ -268,14 +282,18 @@ void ALDCombatDirector::Sample(double Now)
             if(Hit.Spell&&LDTactical::Block(T->Tactical,At)){UE_LOG(LogTemp,Display,TEXT("LD_B71_BLOCK token=%u"),Hit.Token);continue;}
             const auto* B=BuildFor(Victim);const double Armor=B?2+.5*(B->Attributes[2]-8):2;
             const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage,Hit.Kind,Armor,.15,At);
+            if(Hit.Interrupt&&T->Hp>0){ExplicitInterrupt(Victim,Now);}
+            if(Hit.SilenceMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Silence,At+Hit.SilenceMS,FGuid::NewGuid());}
+            if(Hit.BreakMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Break,At+Hit.BreakMS,FGuid::NewGuid());}
             if(Hit.StunMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Stun,At+Hit.StunMS,FGuid::NewGuid());}
             UE_LOG(LogTemp,Display,TEXT("LD_B71_DAMAGE source=%s victim=%s token=%u kind=%u contact=%.2f hp=%.2f barrier=%.2f"),*(Hit.SourceIdentity.IsValid()?Hit.SourceIdentity:S?S->Identity:FGuid()).ToString(),*T->Identity.ToString(),Hit.Token,uint8(Hit.Kind),Contact,T->Hp,T->Tactical.Barrier);
             if(Contact<=0){continue;}
+            BreakConcealment(Victim);if(Hit.Source){BreakConcealment(Hit.Source);}
         }
         else{T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);}
         T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
-        if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Damage cancelled the transaction."));if(Mode->Production){Mode->Production->Cancel(PC,TEXT("Damage cancelled production"));}}}
+        if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->NotifyDamage(PC,Now);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Damage cancelled the transaction."));if(Mode->Production){Mode->Production->Cancel(PC,TEXT("Damage cancelled production"));}}}
         const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ZeroVector;
         T->IncomingSector=uint8(FMath::RoundToInt(FRotator::ClampAxis(Bearing.Rotation().Yaw)/45))%8;
         if(T->Action==9&&T->Hp<=0){CancelTactical(Victim,TEXT("Death cancelled windup"));}
@@ -301,6 +319,7 @@ void ALDCombatDirector::Sample(double Now)
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 {
+    if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->bAidConsent=false;}}
     auto* S=StateFor(Body);if(!S){return;}
     if(ALDCorpse* Corpse=GetWorld()->SpawnActor<ALDCorpse>(Body->GetActorLocation()-FVector(0,0,65),Body->GetActorRotation())){Corpse->Presentation=Body->PresentationKey;}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->EndContenderLife(PC,Now);}

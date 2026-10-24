@@ -39,6 +39,8 @@ public:
     FLDVisionGrid Grid() const;
     FVector PublicLocation() const;
     bool IsPublicSensorActive() const { return bPublicSensor; }
+    bool CanObserve(ALDPlayerController* PC,AActor* Actor) const;
+    bool Detects(ALDPlayerController* PC,const FVector& Point) const;
     bool CanSee(ALDPlayerController* Controller, const FVector& Point) const;
     ALDWorldViewRelay* RelayFor(ALDPlayerController* Controller) const;
     const FLDWorldView* AuthorityViewFor(ALDPlayerController* Controller) const;

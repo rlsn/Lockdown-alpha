@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.7 B71 combat core/MP slice; B72 next**.
-[B71 implementation](v07/B71_IMPLEMENTATION.md) records the actual runtime,
+Current checkpoint: **v0.7 B72 geometry/control slice; B73 next**.
+[B72 implementation](v07/B72_IMPLEMENTATION.md) records the actual runtime,
 normal acquisition, native verification and remaining scope. The default frontend
 still uses V05; an explicit v07 profile opens the partial combat build. Full
 v0.7 and inherited technical/human acceptance remain open.
@@ -9,9 +9,10 @@ v0.7 and inherited technical/human acceptance remain open.
 | Current reference | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Runnable commands, next work and constraints |
-| [B71 implementation](v07/B71_IMPLEMENTATION.md) | Delivered combat, evidence and boundaries |
+| [B72 implementation](v07/B72_IMPLEMENTATION.md) | Delivered geometry/control, evidence and boundaries |
+| [B71 implementation](v07/B71_IMPLEMENTATION.md) | Historical combat/MP checkpoint |
 | [B70 review](v07/B70_BASELINE_REVIEW.md) | Inspected source, adapters, evidence and dependencies |
-| [B70 adapter contract](v07/B70_ADAPTERS.json) | Adopted profile/wire/import/class decisions; runtime pending |
+| [B70 adapter contract](v07/B70_ADAPTERS.json) | Adopted profile/wire/import/class decisions; historical adoption |
 | [v0.7 specification](v07/README.md) | Normative complete release scope, B70–B77 |
 | [v0.7 working ledger](v07/FeatureLedger.csv) | Actual C001–C055 status |
 | [Inherited acceptance](v07/evidence/B70/InheritedAcceptance.csv) | All48 v0.6 rows and mapped follow-ups |

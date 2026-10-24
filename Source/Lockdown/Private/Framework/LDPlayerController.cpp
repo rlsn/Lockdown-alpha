@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Character/LDCharacter.h"
 #include "UI/LDUIRoot.h"
 #include "EnhancedInputComponent.h"
@@ -23,6 +24,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Tests/LDCombatNetworkProbe.h"
 #include "Tests/LDTacticalProbe.h"
+#include "Tests/LDGeometryProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Tests/LDObjectiveNetworkProbe.h"
@@ -44,7 +46,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -95,6 +97,7 @@ void ALDPlayerController::InitializeLocalUI()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTacticalProbe>(ALDTacticalProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTradeProbe>(ALDTradeProbe::StaticClass(),FTransform::Identity,Params);}
@@ -247,7 +250,7 @@ void ALDPlayerController::ServerSkillRelease_Implementation(uint32 Match,uint32 
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
     if(O&&O->Match==Match&&O->Life==Life&&Mode->Combat){Mode->Combat->ReleaseSkillHold(this,Token);}
 }
-void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision,FGuid Observed)
+void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision,FGuid Observed,FVector Point)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* State=Mode?Mode->StateFor(this):nullptr;
     if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>=3+LDDevelopment::Slots(State->Build)||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1
@@ -259,10 +262,11 @@ void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,
     const double Now=GetWorld()->GetTimeSeconds();
     CombatTokens=FMath::Min(3.,CombatTokens+FMath::Max(0.,Now-LastCombatAt)*12);LastCombatAt=Now;
     if(CombatTokens<1){ClientIntentResult(Request,TEXT("Action rate limited."));return;}
+    if(Mode->Objectives){Mode->Objectives->CancelClaimForAction(this,Now);}
     --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
     if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
     CombatReceipts.Add(Request,LastCombatResult);
-    if(Mode->Combat){if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction,Observed);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
+    if(Mode->Combat){if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction,Observed,Point);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
     else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
 }
 void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Result)
@@ -518,14 +522,19 @@ void ALDPlayerController::CancelInterruptibleHolds()
     StopDevelopmentHold();StopProductionHold();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
 }
-void ALDPlayerController::SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target)
-{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;ServerTacticalAction(R);}
+void ALDPlayerController::SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point)
+{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Point=Point;if(OwnerState.Build.Slots.IsValidIndex(Slot)){if(const auto* C=ULDTacticalCatalog::Load()){if(const auto* D=C->Find(OwnerState.Build.Slots[Slot])){R.TargetMode=uint8(D->Target);}}}R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;ServerTacticalAction(R);}
 void ALDPlayerController::ServerTacticalAction_Implementation(FLDTacticalRequest R)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;
-    if(!O||!M->IsTacticalProfile()||R.Schema!=7||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=5){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
-    EnqueueAction(R.Match,R.Life,R.Token,uint8(3+R.Slot),R.Direction,R.BuildRevision,R.Observed);
+    if(!O||!M->IsTacticalProfile()||R.Schema!=7||R.WireVersion!=2||R.Point.ContainsNaN()||R.Point.GetAbsMax()>20000||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=5){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
+    const auto* D=M->TacticalCatalog->Find(O->Build.Slots[R.Slot]);
+    const uint8 Expected=D?uint8(D->Target):0;
+    if(R.TargetMode!=Expected||((R.TargetMode==3||R.TargetMode==4)&&R.Observed.IsValid())){ClientIntentResult(R.Token,TEXT("Invalid targeting mode"));return;}
+    EnqueueAction(R.Match,R.Life,R.Token,uint8(3+R.Slot),R.Direction,R.BuildRevision,R.Observed,R.Point);
 }
+void ALDPlayerController::ServerAidConsent_Implementation(uint32 Match,uint32 Life,bool Allow)
+{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;if(O&&M->IsTacticalProfile()&&M->IsPlaying()&&O->Match==Match&&O->Life==Life&&O->bActive){O->bAidConsent=Allow;M->SyncOwner(this);}}
 void ALDPlayerController::ServerCancelTactical_Implementation(uint32 Match,uint32 Life,uint32 Through)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Combat){auto* Body=Cast<ALDCharacter>(GetPawn());if(auto* S=M->Combat->StateFor(Body)){S->CancelledCoreThrough=FMath::Max(S->CancelledCoreThrough,Through);}M->Combat->CancelTactical(Body,TEXT("Stop or focus loss"));}}
 void ALDPlayerController::ClearControls()

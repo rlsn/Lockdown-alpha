@@ -111,6 +111,7 @@ private:
     UPROPERTY() TObjectPtr<class UVerticalBox> CatalogPanel;
     UPROPERTY() TObjectPtr<UTextBlock> CatalogInfo;
     UPROPERTY() TObjectPtr<ULDCommandButton> VendorBuy;
+    UPROPERTY() TObjectPtr<ULDCommandButton> AidButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> VendorOpen;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> Offers;
     ELDSkill SelectedOffer=ELDSkill::Spark;

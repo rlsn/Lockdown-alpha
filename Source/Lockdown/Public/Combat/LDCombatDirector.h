@@ -34,6 +34,8 @@ struct FLDBodyCombatState
     int64 CoreEndsAt=0;
     FGuid CoreTargetLife;
     FGuid CoreItem;
+    FVector CorePoint=FVector::ZeroVector;
+    FVector CoreDirection=FVector::ForwardVector;
     uint32 CoreBuildRevision=0;
     double CoreRecoveryUntil=0;
     double NullBellReadyAt=0;
@@ -56,6 +58,24 @@ public:
     uint32 Token=0;
 };
 
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding};
+UCLASS()
+class LOCKDOWN_API ALDTacticalField:public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDTacticalField(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
+    FGuid Identity=FGuid::NewGuid();
+    TWeakObjectPtr<ALDCharacter> Source;
+    FGuid SourceLife;
+    TWeakObjectPtr<ALDPlayerController> PlayerSource;
+    bool bPlayerSource=false;
+    ELDTacticalField Kind=ELDTacticalField::Smoke;
+    int64 ExpiresAt=0,ArmedAt=0;
+    double Hp=1,Radius=0;
+    bool Active(int64 At) const;
+};
+
 struct FLDCombatHit
 {
     ALDCharacter* Source;
@@ -66,6 +86,9 @@ struct FLDCombatHit
     int32 StunMS=0;
     uint32 Token=0;
     FGuid SourceIdentity;
+    bool Interrupt=false;
+    int32 SilenceMS=0;
+    int32 BreakMS=0;
 };
 
 UCLASS()
@@ -89,8 +112,8 @@ public:
     void Queue(ALDPlayerController* Controller,uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction);
     bool Request(ALDPlayerController* Controller,uint8 Action,const FVector& Direction,FString& Result);
     bool RequestBody(ALDCharacter* Body,uint8 Action,const FVector& Direction,FString& Result);
-    void QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,const FVector& Direction,FGuid Observed=FGuid());
-    bool RequestEquipped(ALDCharacter* Body,uint32 BuildRevision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget=nullptr);
+    void QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,const FVector& Direction,FGuid Observed=FGuid(),FVector Point=FVector::ZeroVector);
+    bool RequestEquipped(ALDCharacter* Body,uint32 BuildRevision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget=nullptr,FVector Point=FVector::ZeroVector);
     void RefreshSkillHold(ALDCharacter* Body,uint32 Token,uint32 Sequence,bool Moving);
     void ReleaseSkillHold(ALDPlayerController* PC,uint32 Token);
     bool RegisterNPCBuild(ALDCharacter* Body,const FLDCharacterBuild& Build);
@@ -108,13 +131,18 @@ public:
     bool RequestTacticalItem(ALDPlayerController* PC,FGuid Item,uint32 Token,FString& Why);
     void CancelTactical(ALDCharacter* Body,const FString& Why);
     void Sample(double Now);
+    bool Concealed(const ALDCharacter* Body) const;
+    void BreakConcealment(ALDCharacter* Body);
+    void ExplicitInterrupt(ALDCharacter* Body,double Now);
+    bool Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now);
+    void SampleFields(int64 At);
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
     struct FResidentReturn { double At; FVector Home; FGuid Wallet;bool HasBuild=false;FLDCharacterBuild Build; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TArray<FResidentReturn> Residents;
-    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed; };
+    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed;FVector Point=FVector::ZeroVector; };
     TArray<FIntent> Intents;
     double NextSample=0;
     uint64 NextOrder=0;
@@ -129,6 +157,6 @@ private:
     AActor* Nearest(ALDCharacter* Source,double Reach,const FVector& Aim,double Cone,bool bAssassin,bool bBodiesOnly=false) const;
     void Die(ALDCharacter* Body,double Now);
     void Sync(ALDCharacter* Body,FLDBodyCombatState& State);
-    bool RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32 Token,AActor* Target,FString& Why);
+    bool RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32 Token,AActor* Target,FString& Why,FVector Point,FVector Direction);
     void PrepareTactical(double Now,TArray<FLDCombatHit>& Hits);
 };

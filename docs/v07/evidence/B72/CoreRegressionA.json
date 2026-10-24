@@ -1,0 +1,24 @@
+{
+	"failures": 0,
+	"scope": "Controlled native B71 fixture; legal RPCs, diagnostic build/items/placement; not a normal earned route",
+	"checks": [
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Remote MP confirms one release despite replay/stale life",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Own silence cleanse and no skill cost reconcile",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Own mute cleanse and skill MP reconcile",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Own stun feedback and blocked actions reconcile",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Owner receives versioned build and catalog digest",
+		"PASS Independent owning client receives bounded MP",
+		"PASS Independent client transport echo measured",
+		"PASS Echo median 155.0ms"
+	]
+}

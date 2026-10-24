@@ -27,7 +27,7 @@ bool ALDCombatDirector::RegisterNPCBuild(ALDCharacter* Body,const FLDCharacterBu
     const auto Existing=S->NPCBuild.Cooldowns;
     const bool WasConfigured=S->bHasNPCBuild;
     S->NPCBuild=Build;
-    if (WasConfigured) { for (int32 I=1;I<LDDevelopment::SkillCount;++I) { S->NPCBuild.Cooldowns[I]=FMath::Max(Existing[I],Build.Cooldowns[I]); } }
+    if (WasConfigured) { for (int32 I=1;I<FMath::Min(Existing.Num(),S->NPCBuild.Cooldowns.Num());++I) { S->NPCBuild.Cooldowns[I]=FMath::Max(Existing[I],Build.Cooldowns[I]); } }
     S->bHasNPCBuild=true; return true;
 }
 void ALDCombatDirector::RegisterSkillTask(AActor* Target,const TSet<ELDSkill>& Skills,FSkillTask Task)
@@ -51,12 +51,12 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
     if (auto* PC=Cast<ALDPlayerController>(Source->GetController())) { return Mode->Vision->CanSee(PC,To); }
     return Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To);
 }
-void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction,FGuid Observed)
+void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction,FGuid Observed,FVector Point)
 {
     if (const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);!O||Slot>=LDDevelopment::Slots(O->Build)) { PC->CompleteCombatRequest(RequestId,TEXT("Invalid skill slot.")); return; }
     int32 Count=0; for (const auto& Intent:Intents) { if (Intent.Controller==PC) { ++Count; } }
     if (Count>=3) { PC->CompleteCombatRequest(RequestId,TEXT("Too many queued actions.")); return; }
-    Intents.Add({PC,Match,Life,RequestId,uint8(3+Slot),Direction,Revision,Observed});
+    Intents.Add({PC,Match,Life,RequestId,uint8(3+Slot),Direction,Revision,Observed,Point});
 }
 void ALDCombatDirector::CancelSkill(ALDCharacter* Body,FLDBodyCombatState& S)
 {
@@ -79,7 +79,7 @@ void ALDCombatDirector::ReleaseSkillHold(ALDPlayerController* PC,uint32 Token)
     if (auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
     { if (auto* S=StateFor(Body);S&&S->Action==7&&S->SkillToken<=Token) { CancelSkill(Body,*S); Sync(Body,*S); } }
 }
-bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget)
+bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8 Slot,uint32 Token,const FVector& Direction,FString& Result,AActor* ExplicitTarget,FVector Point)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>(); auto* S=StateFor(Body); auto* Build=BuildFor(Body);
     const double Now=GetWorld()->GetTimeSeconds();
@@ -87,7 +87,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
         ||Revision!=Build->Revision||Slot>=LDDevelopment::Slots(*Build)||!Token||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
     { Result=TEXT("Invalid slot, build revision or life."); return false; }
     const ELDSkill Skill=Build->Slots[Slot];
-    if(Mode->IsTacticalProfile()&&uint8(Skill)>=10){return RequestTactical(Body,Skill,Token,ExplicitTarget,Result);}
+    if(Mode->IsTacticalProfile()&&uint8(Skill)>=10){return RequestTactical(Body,Skill,Token,ExplicitTarget,Result,Point,Direction);}
     if(!Allows(Body,Skill==ELDSkill::Step?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Result)){return false;}
     if (Skill==ELDSkill::None||!LDDevelopment::Equipped(*Build,Skill)||LDDevelopment::Rank(*Build,Skill)<1)
     { Result=TEXT("Equip a learned skill in this slot."); return false; }

@@ -86,6 +86,9 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
 
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
+    // Ordinary native NPCs use the same root/stun/hex movement contract.
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsTacticalProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
+    {if(const auto* S=M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr){const uint16 Tags=S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));if(Tags&((1<<0)|(1<<3))){return 0;}if(Tags&(1<<5)){return .5f*Super::GetMaxSpeed();}}}
     if (const auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;PC&&PC->OwnerState.bDevelopmentProfile)
     {
         const auto* Public=GetWorld()->GetGameState<ALDGameState>();

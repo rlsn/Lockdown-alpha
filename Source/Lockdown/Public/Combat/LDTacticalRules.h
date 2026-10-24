@@ -12,6 +12,7 @@ namespace LDTactical
     {
         double MP=0, Barrier=0;
         int64 BarrierUntil=0, BlockUntil=0, LastRegen=-1;
+        int64 ConcealedUntil=0,GroundedUntil=0,GuardUntil=0,MajorReadyAt=0,AnchorUntil=0;
         int64 HPRegenRemainder=0,MPRegenRemainder=0;
         TArray<FStatus> Statuses;
         bool Has(EStatus Kind,int64 At) const;
@@ -24,6 +25,10 @@ namespace LDTactical
     LOCKDOWN_API void Dispel(FState& S,bool Strong,bool Positive=false);
     LOCKDOWN_API void Barrier(FState& S,double Amount,double MaxHP,int64 Until,int64 At);
     LOCKDOWN_API double Damage(double& HP,FState& S,double Amount,EDamage Kind,double Armor,double MR,int64 At);
+    LOCKDOWN_API bool ActivateGuard(FState& S,int64 At);
+    LOCKDOWN_API bool GuardControl(FState& S,EStatus Kind,int64 At);
+    LOCKDOWN_API bool PassiveActive(const FState& S,bool Breakable,int64 At);
+    LOCKDOWN_API float BodySight(const FState& S,int64 At);
     LOCKDOWN_API bool Block(FState& S,int64 At);
     LOCKDOWN_API void Regenerate(double& HP,FState& S,double MaxHP,double MaxMP,int64 At);
     LOCKDOWN_API FString StatusText(const FState& S,int64 At);

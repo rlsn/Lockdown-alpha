@@ -1,19 +1,20 @@
-# Project Lockdown — v0.7 B71 combat slice
+# Project Lockdown — v0.7 B72 geometry/control slice
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
 baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B71 combat core/MP slice; B72 next.**
-[B71 implementation](docs/v07/B71_IMPLEMENTATION.md) adds the isolated
-`v07_integration` profile, versioned data/requests, real MP, typed damage/barriers,
-core controls, Arc Bolt, Anchor Bash, Purge Touch, Surety Shell and Null Bell.
-This is partial v0.7; full geometry, equipment, catalogs and four routes follow.
-The [working ledger](docs/v07/FeatureLedger.csv) preserves each remaining gate.
+**Current checkpoint: B72 geometry/control slice; B73 next.**
+[B72 implementation](docs/v07/B72_IMPLEMENTATION.md) extends the isolated
+`v07_integration` profile with ground/cone requests, smoke/detection, field
+lifecycles, displacement, consent and explicit claim interrupts. Fourteen new
+ability effects are implemented; CircleII/III acquisition remains B74.
+This is partial v0.7; equipment, remaining catalogs and four-route integration
+follow. The [working ledger](docs/v07/FeatureLedger.csv) preserves remaining gates.
 
 The normal frontend still hosts the V05 economy; `v06_regression` is its explicit
-alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the B71
+alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the tactical
 lobby. The [B70 audit](docs/v07/B70_BASELINE_REVIEW.md) records the frozen
 predecessor and adopted specification; [current continuation](docs/CONTINUATION.md)
 records launch, evidence and next steps. Extended/human verification remains

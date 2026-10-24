@@ -24,7 +24,8 @@ public:
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
     UFUNCTION(Server,Reliable) void ServerTacticalAction(FLDTacticalRequest Request);
-    void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target);
+    void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point=FVector::ZeroVector);
+    UFUNCTION(Server,Reliable) void ServerAidConsent(uint32 Match,uint32 Life,bool Allow);
     UFUNCTION(Server,Reliable) void ServerCancelTactical(uint32 Match,uint32 Life,uint32 Through);
     void ClearControls();
     void CancelInterruptibleHolds();
@@ -221,7 +222,7 @@ private:
     void SkillStarted(uint8 Slot);
     void SkillStopped(uint8 Slot);
     void SkillAlias(ELDSkill Skill);
-    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0,FGuid Observed=FGuid());
+    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0,FGuid Observed=FGuid(),FVector Point=FVector::ZeroVector);
     UPROPERTY() TObjectPtr<class UInputMappingContext> SkillInputContext;
     UPROPERTY() TObjectPtr<class UInputMappingContext> NavigationInputContext;
     bool bNavigationContextActive=false;

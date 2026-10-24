@@ -1,0 +1,29 @@
+{
+  "stage": "Content/Lockdown/Data/V07/combat.json",
+  "stageSHA256": "f84e3a57c518dc877e06a8d33ef5ab6358ef51f24054c49acf5bb247b2cad3ce",
+  "definitions": [
+    "anchor_bash",
+    "veil_step",
+    "arc_bolt",
+    "counterpulse",
+    "farwatch_ward",
+    "wire_snare",
+    "surety_shell",
+    "smoke_veil",
+    "purge_touch",
+    "seers_flare",
+    "grounding_field",
+    "force_wave",
+    "remedy_bind",
+    "break_sigil"
+  ],
+  "count": 14,
+  "nativeAsset": "/Game/Lockdown/Generated/V07/DA_CombatCatalog",
+  "nativeAssetSHA256": "443201d3fe403d023ea8505440b2a473319257fe60b421a1ea8977ab830cdcb0",
+  "check": "PASS: B72 implemented subset SHA-256 f84e3a57c518dc877e06a8d33ef5ab6358ef51f24054c49acf5bb247b2cad3ce",
+  "wireVersion": 2,
+  "observationFields": 8,
+  "gameStatePublicFields": 34,
+  "wardSourceBound": 8,
+  "historicalStage": "Content/Lockdown/Data/V07/b71_combat.json"
+}

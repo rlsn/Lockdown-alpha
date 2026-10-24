@@ -1,4 +1,5 @@
 #include "Development/LDDevelopmentDirector.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -112,7 +113,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     if(R.Kind==LDDevelopmentTransaction::Prepare)
     {if(!Mode->Combat->Allows(Body,LDTactical::EAction::Skill)){Reject(TEXT("Silence or hard control prevents skill preparation"));return;}FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
-    {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::Count(O->Build)||LDDevelopment::Rank(O->Build,Book->Skill)>0){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
+    {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::Count(O->Build)||LDDevelopment::Rank(O->Build,Book->Skill)>0||(Mode->IsTacticalProfile()&&uint8(Book->Skill)>=10&&(!Mode->TacticalCatalog->Find(Book->Skill)||!ULDTacticalCatalog::NaturalGate(*Mode->TacticalCatalog->Find(Book->Skill),O->Build)))){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
     if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}
@@ -138,7 +139,9 @@ void ALDDevelopmentDirector::Sample(double Now)
         }
         else
         {
-            auto* Book=S.Book.Get();O->Build.Ranks[uint8(Book->Skill)]=1;++O->Build.Revision;
+            auto* Book=S.Book.Get();
+            if(Mode->IsTacticalProfile()&&uint8(Book->Skill)>=10&&(!Mode->TacticalCatalog->Find(Book->Skill)||!ULDTacticalCatalog::NaturalGate(*Mode->TacticalCatalog->Find(Book->Skill),O->Build))){Cancel(PC,TEXT("Natural learning requirements no longer met"));continue;}
+            O->Build.Ranks[uint8(Book->Skill)]=1;++O->Build.Revision;
             if(Mode->Inventory){Mode->Inventory->Remove(PC,Book,true,TEXT("BookRead"));}else{O->Books.RemoveAll([&](const FLDOwnedBook& Entry){return Entry.Id==Book->Identity;});Book->Holder.Reset();Book->Destroy();}
         }
         const bool Prepared=S.Kind==LDDevelopmentTransaction::Prepare;

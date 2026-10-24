@@ -46,6 +46,12 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
     TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
     if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
+    if(Entity.Kind==ELDObservedKind::TacticalField)
+    {
+        static const TCHAR* Names[]={TEXT("SMOKE"),TEXT("FARWATCH"),TEXT("WIRE SNARE"),TEXT("DETECTOR"),TEXT("GROUNDING")};
+        TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(Names[FMath::Min<uint8>(Entity.Presentation,4)]));
+        WardMesh->SetRelativeScale3D(Entity.Presentation==0?FVector(.7,.7,.15):FVector(.3,.3,.3));
+    }
     if(Entity.Kind==ELDObservedKind::Projectile){WardMesh->SetRelativeScale3D(FVector(.15));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
     {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}

@@ -249,10 +249,10 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     UE_LOG(LogTemp,Display,TEXT("LD_CHARACTER_CATALOG schema=%d sha256=%s"),Catalog->SchemaVersion,*Catalog->SourceChecksum);
 
     FString CombatJson,CombatError;
-    if(!FFileHelper::LoadFileToString(CombatJson,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/b71_combat.json")))){return 3;}
+    if(!FFileHelper::LoadFileToString(CombatJson,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/combat.json")))){return 3;}
     auto* ExpectedCombat=NewObject<ULDTacticalCatalog>();if(!ExpectedCombat->Import(CombatJson,CombatError)){UE_LOG(LogTemp,Error,TEXT("%s"),*CombatError);return 3;}
     const FString CombatPath=FString(GeneratedRoot)+TEXT("V07/DA_CombatCatalog");
-    if(bRegenerate||(!bValidate&&!Exists(CombatPath))){auto* Combat=NewObject<ULDTacticalCatalog>(EditablePackage(CombatPath),TEXT("DA_CombatCatalog"),RF_Public|RF_Standalone);if(!Combat->Import(CombatJson,CombatError)||!SaveAsset(Combat,CombatPath,ExpectedCombat->Checksum)){return 3;}}
+    if(bRegenerate||(!bValidate&&(!Exists(CombatPath)||!ULDTacticalCatalog::Load()||ULDTacticalCatalog::Load()->Checksum!=ExpectedCombat->Checksum))){auto* Combat=NewObject<ULDTacticalCatalog>(EditablePackage(CombatPath),TEXT("DA_CombatCatalog"),RF_Public|RF_Standalone);if(!Combat->Import(CombatJson,CombatError)||!SaveAsset(Combat,CombatPath,ExpectedCombat->Checksum)){return 3;}}
     const auto* Combat=ULDTacticalCatalog::Load();if(!Combat||!Combat->Validate(CombatError)||Combat->Checksum!=ExpectedCombat->Checksum||!HasSignature(const_cast<ULDTacticalCatalog*>(Combat),ExpectedCombat->Checksum)){UE_LOG(LogTemp,Error,TEXT("Missing/stale B71 catalog %s"),*CombatError);return 3;}
     UE_LOG(LogTemp,Display,TEXT("LD_B71_CATALOG schema=7 sha256=%s"),*Combat->Checksum);
     UInputMappingContext* Context = nullptr;

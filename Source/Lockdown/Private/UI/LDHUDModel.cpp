@@ -37,7 +37,7 @@ FString LDHUD::Tooltip(const FLDCharacterBuild& B,ELDSkill Skill)
     if(uint8(Skill)>=10)
     {
         const auto* Catalog=ULDTacticalCatalog::Load();const auto* D=Catalog?Catalog->Find(Skill):nullptr;
-        return D?FString::Printf(TEXT("%s · Rank %d · %d MP\nWindup %dms · Range %dcm · Base cooldown %.1fs\nMP/CD commit at release; blocked or missed packets do not refund.\nStop, focus loss, movement or relevant control cancels before release with 400ms recovery."),LDDevelopment::SkillName(Skill),LDDevelopment::Rank(B,Skill),D->Mana,D->Windup,D->Range,D->Cooldown/1000.):TEXT("Unavailable in B71");
+        return D?FString::Printf(TEXT("%s · Rank %d · %d MP\nWindup %dms · Range %dcm · Base cooldown %.1fs\nMP/CD commit at release; blocked or missed packets do not refund.\nStop, focus loss, movement or relevant control cancels before release with 400ms recovery."),LDDevelopment::SkillName(Skill),LDDevelopment::Rank(B,Skill),D->Mana,D->Windup,D->Range,D->Cooldown/1000.):TEXT("Not implemented in the current catalog");
     }
     const double Windup=Skill==ELDSkill::Spark?.4:Skill==ELDSkill::Ambush?.5:Skill==ELDSkill::Step?.2:LDDevelopment::ChannelSeconds(Skill);
     const TCHAR* Outcome=Skill==ELDSkill::Step?TEXT("Move in a confirmed direction; collision limits distance"):Skill==ELDSkill::Patch?TEXT("Hold to heal yourself; release cancels"):uint8(Skill)>=5?TEXT("Confirm an eligible observed task and hold; release cancels"):TEXT("Confirm one observed body; range and sight rechecked at impact");

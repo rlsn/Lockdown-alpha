@@ -53,6 +53,7 @@
 #include "Tests/LDInstitutionProbe.h"
 #include "Tests/LDCharterProbe.h"
 #include "Tests/LDTacticalProbe.h"
+#include "Tests/LDGeometryProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
@@ -109,7 +110,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
     if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
     bTacticalProfile=Profile==TEXT("v07_integration");
-    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load();if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/b71_combat.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
+    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load();if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/combat.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
     bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     if (bDevelopmentProfile)
@@ -181,6 +182,7 @@ void ALDGameMode::StartPlay()
         if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
     }
 #if !UE_BUILD_SHIPPING
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
@@ -284,7 +286,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
         : LDRules::DeathCost(LDRules::LevelFromXp(State->Xp),State->Gold,FMath::Max(0.,Now-MatchStartedAt));
     State->LastLostGold=Cost.LostGold; State->Gold-=Cost.LostGold;RecordEconomyGold(TEXT("DeathTax"),0,Cost.LostGold);
     if(Economy&&State->CharterPurchase.IsValid()&&!State->CharterActivation.IsValid()){State->bCharterAwaitingRespawn=true;State->CharterReadyAt=0;}
-    State->bActive=false; State->Hp=0; State->WardCharges=0;
+    State->bAidConsent=false;State->bActive=false; State->Hp=0; State->WardCharges=0;
     if(PC->Navigation){PC->Navigation->ResetLife();}
     State->ReturnAt=float(Now+Cost.DelaySeconds); State->WarningUntil=0; State->ActionCue=0;
     State->ActiveSkill=ELDSkill::None;State->SkillEndsAt=0;
@@ -408,7 +410,7 @@ void ALDGameMode::RefreshBuild(ALDPlayerController* PC,bool RestoreFullHP)
     if (auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
     {
         Body->GetCharacterMovement()->MaxWalkSpeed=float(180*LDDevelopment::SpeedFactor(State->Build));
-        if (Combat) { if (auto* S=Combat->StateFor(Body)) { S->Hp=State->Hp;if(bTacticalProfile){S->NullBellReadyAt=State->NullBellReadyAt;S->Tactical.MP=State->Mp;S->Tactical.LastRegen=LDTactical::Milliseconds(RuleTime());} } }
+        if (Combat) { if (auto* S=Combat->StateFor(Body)) { S->Hp=State->Hp;if(bTacticalProfile){S->NullBellReadyAt=State->NullBellReadyAt;S->Tactical.MajorReadyAt=State->MajorProtectionReadyAt;S->Tactical.MP=State->Mp;S->Tactical.LastRegen=LDTactical::Milliseconds(RuleTime());} } }
     }
     SyncOwner(PC);
 }

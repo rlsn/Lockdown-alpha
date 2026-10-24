@@ -1,3 +1,4 @@
+#include "Combat/LDTacticalCatalog.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "UI/LDControlSettings.h"
@@ -43,7 +44,7 @@ namespace
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
 double ALDPlayerController::ArmedRange() const
-{return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
+{if(OwnerState.Build.RulesVersion==7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
 FString ALDPlayerController::HeldInputLabel() const
 {
     if(OwnerState.DevelopmentKind){return HeldQuickSlot>=0?(HeldQuickGesture==2?TEXT("mouse button"):BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1)))):BindingLabel(TEXT("Context"));}
@@ -177,10 +178,11 @@ void ALDPlayerController::ArmAttack(){if(CanWorldCommand()){CancelArmed();bAttac
 void ALDPlayerController::ArmSkill(uint8 Slot,uint8 Gesture)
 {
     if(!CanWorldCommand()||!OwnerState.Build.Slots.IsValidIndex(Slot)||OwnerState.Build.Slots[Slot]==ELDSkill::None){IntentFeedback=TEXT("Empty skill slot");return;}
-    const bool SelfPurge=OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch&&ArmedSkill==Slot;
+    const bool SelfPurge=(OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind)&&ArmedSkill==Slot;
     CancelArmed();
-    if(OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch&&!SelfPurge){ArmedSkill=Slot;IntentFeedback=TEXT("Purge Touch: confirm an observed body, or press this skill again to cleanse yourself");return;}
-    if(OwnerState.Build.Slots[Slot]==ELDSkill::Patch||OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::SuretyShell){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}
+    if((OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind)&&!SelfPurge){ArmedSkill=Slot;IntentFeedback=TEXT("Confirm an observed body, or press this skill again to target yourself. External cleansing requires aid consent.");return;}
+    if(OwnerState.Build.Slots[Slot]==ELDSkill::Patch||OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::SuretyShell||OwnerState.Build.Slots[Slot]==ELDSkill::VeilStep||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}
+    if(OwnerState.Build.RulesVersion==7){const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;if(D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone)){ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose ground, range %d cm. Cancel with move/stop."),LDDevelopment::SkillName(D->Skill),D->Range);return;}}
     ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose a visible target or direction. %s cancels."),LDDevelopment::SkillName(OwnerState.Build.Slots[Slot]),*BindingLabel(TEXT("Navigate")));
 }
 FGuid ALDPlayerController::ObservedUnderPointer() const
@@ -216,6 +218,12 @@ void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
 {
     if(!CanWorldCommand()||!GetPawn()){return;}
     if(ArmedWard.IsValid()){const FGuid Item=ArmedWard;CancelArmed();InventoryCommand(LDInventory::Place,Item,0,Ground);return;}
+    if(OwnerState.Build.RulesVersion==7&&ArmedSkill>=0)
+    {
+        const uint8 Slot=uint8(ArmedSkill);const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;
+        if(D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone))
+        {FVector Aim=(Ground-GetPawn()->GetActorLocation()).GetSafeNormal2D();if(Aim.IsNearlyZero()){Aim=FVector::ForwardVector;}CancelArmed();Navigation->Stop();SendTacticalAction(++NextRequest,Slot,Aim,FGuid(),Ground);return;}
+    }
     FVector Point=Ground;
     if(Target.IsValid())
     {

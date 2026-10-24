@@ -83,7 +83,7 @@ namespace LDDevelopment
     inline int32 Count(const FLDCharacterBuild& B){return B.RulesVersion==7?V07SkillCount:SkillCount;}
     inline int32 Slots(const FLDCharacterBuild& B){return B.RulesVersion==7?5:4;}
     inline bool Held(ELDSkill S){return uint8(S)>=4&&uint8(S)<=9;}
-    inline bool Implemented(ELDSkill S){return uint8(S)<10||S==ELDSkill::AnchorBash||S==ELDSkill::ArcBolt||S==ELDSkill::PurgeTouch||S==ELDSkill::SuretyShell;}
+    inline bool Implemented(ELDSkill S){return uint8(S)<10||S==ELDSkill::AnchorBash||S==ELDSkill::ArcBolt||S==ELDSkill::PurgeTouch||S==ELDSkill::SuretyShell||S==ELDSkill::VeilStep||S==ELDSkill::FarwatchWard||S==ELDSkill::SmokeVeil||S==ELDSkill::GroundingField||S==ELDSkill::WireSnare||S==ELDSkill::ForceWave||S==ELDSkill::BreakSigil||S==ELDSkill::SeersFlare||S==ELDSkill::RemedyBind||S==ELDSkill::Counterpulse;}
     LOCKDOWN_API FLDCharacterBuild TacticalStart(uint8 ClassId,const FString& Digest);
     constexpr double DeadlineSeconds = 1500;
     enum EAttribute : uint8 { STR, DEX, CON, INT, WIS, CHA };

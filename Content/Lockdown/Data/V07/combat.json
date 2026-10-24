@@ -1,0 +1,548 @@
+{
+  "schema_version": 7,
+  "milestone": "B72 partial",
+  "abilities": [
+    {
+      "id": "anchor_bash",
+      "name": "Anchor Bash",
+      "circle": 1,
+      "kit": "Vanguard",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 220,
+      "area_cm": 0,
+      "windup_ms": 350,
+      "mana_cost": 24,
+      "cooldown_ms": 12000,
+      "effects": [
+        {
+          "op": "damage",
+          "kind": "physical",
+          "amount": 45
+        },
+        {
+          "op": "status",
+          "id": "stun",
+          "duration_ms": 1200
+        }
+      ],
+      "counterplay": "Short melee reach; targeted spell block",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "stun_ms": [
+          1200,
+          1350,
+          1500
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "veil_step",
+      "name": "Veil Step",
+      "circle": 1,
+      "kit": "Infiltrator",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 30,
+      "cooldown_ms": 26000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "concealed",
+          "duration_ms": 5000
+        }
+      ],
+      "counterplay": "Geometric detectors, ground AoE; positive damage breaks concealment",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          5000,
+          5500,
+          6000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "arc_bolt",
+      "name": "Arc Bolt",
+      "circle": 1,
+      "kit": "Arcanist",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 650,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 22,
+      "cooldown_ms": 7000,
+      "effects": [
+        {
+          "op": "projectile_damage",
+          "speed_cm_s": 1200,
+          "kind": "magical",
+          "amount": 85
+        }
+      ],
+      "counterplay": "Spell block, resistance; projectile cannot track an unseen unit",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "damage": [
+          85,
+          98,
+          110
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "counterpulse",
+      "name": "Counterpulse",
+      "circle": 1,
+      "kit": "Arcanist",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 32,
+      "cooldown_ms": 20000,
+      "effects": [
+        {
+          "op": "interrupt"
+        },
+        {
+          "op": "status",
+          "id": "silence",
+          "duration_ms": 1300
+        }
+      ],
+      "counterplay": "Bait interrupt, spell block",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          20000,
+          19000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "farwatch_ward",
+      "name": "Farwatch Ward",
+      "circle": 1,
+      "kit": "Seeker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 500,
+      "area_cm": 560,
+      "windup_ms": 500,
+      "mana_cost": 35,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "spawn_ward",
+          "hp": 40,
+          "lifetime_ms": 60000,
+          "vision_cm": 560,
+          "detector": false,
+          "owner_limit": 2
+        }
+      ],
+      "counterplay": "Destroy or counterward; no wall sight",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          60000,
+          70000,
+          80000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "wire_snare",
+      "name": "Wire Snare",
+      "circle": 1,
+      "kit": "Seeker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 350,
+      "area_cm": 100,
+      "windup_ms": 500,
+      "mana_cost": 28,
+      "cooldown_ms": 20000,
+      "effects": [
+        {
+          "op": "spawn_trap",
+          "hp": 20,
+          "arm_ms": 1000,
+          "lifetime_ms": 45000,
+          "root_ms": 1600,
+          "owner_limit": 2
+        }
+      ],
+      "counterplay": "Detect and attack trap; basic dispel",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          20000,
+          19000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "surety_shell",
+      "name": "Surety Shell",
+      "circle": 1,
+      "kit": "Broker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 32000,
+      "effects": [
+        {
+          "op": "barrier",
+          "amount": 150,
+          "duration_ms": 3000
+        }
+      ],
+      "counterplay": "Small hits or wait; no control immunity",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "barrier": [
+          150,
+          173,
+          195
+        ]
+      },
+      "potency_fields": [
+        "barrier"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "smoke_veil",
+      "name": "Smoke Veil",
+      "circle": 1,
+      "kit": "Trickster",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 500,
+      "area_cm": 400,
+      "windup_ms": 450,
+      "mana_cost": 35,
+      "cooldown_ms": 28000,
+      "effects": [
+        {
+          "op": "smoke",
+          "duration_ms": 5000,
+          "radius_cm": 400
+        }
+      ],
+      "counterplay": "Ground AoE, enter cloud, destroy sightline advantage; smoke blocks detectors across its boundary",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          400,
+          450,
+          500
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "purge_touch",
+      "name": "Purge Touch",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self_or_observed_unit",
+      "range_cm": 250,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 30,
+      "cooldown_ms": 30000,
+      "effects": [
+        {
+          "op": "basic_dispel",
+          "polarity": "self-negative; other-negative-if-consented-else-positive"
+        }
+      ],
+      "counterplay": "Silence/stun blocks self cast; mute does not",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          30000,
+          28000,
+          26000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "seers_flare",
+      "name": "Seer\u2019s Flare",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 8
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 350,
+      "windup_ms": 400,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "detector",
+          "duration_ms": 5000,
+          "vision_cm": 350,
+          "hp": 1,
+          "visible_anchor": true
+        }
+      ],
+      "counterplay": "Leave sensor geometry or obscure line; never identity",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          350,
+          375,
+          400
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "grounding_field",
+      "name": "Grounding Field",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 350,
+      "windup_ms": 650,
+      "mana_cost": 45,
+      "cooldown_ms": 34000,
+      "effects": [
+        {
+          "op": "grounding_anchor",
+          "hp": 90,
+          "duration_ms": 6000,
+          "radius_cm": 350
+        }
+      ],
+      "counterplay": "Destroy 90 HP emitter or walk out; does not prevent push/pull",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          90,
+          104,
+          117
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "force_wave",
+      "name": "Force Wave",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "STR": 9
+        },
+        {
+          "INT": 9
+        }
+      ],
+      "targeting": "cone",
+      "range_cm": 500,
+      "area_cm": 0,
+      "windup_ms": 500,
+      "mana_cost": 35,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "push",
+          "distance_cm": 250,
+          "angle_deg": 60
+        }
+      ],
+      "counterplay": "Walk out of cone, Anchor Greaves; ordinary spell block/dome do not block cone",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          24000,
+          22000,
+          20000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "remedy_bind",
+      "name": "Remedy Bind",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "targeting": "self_or_observed_unit",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 45,
+      "cooldown_ms": 44000,
+      "effects": [
+        {
+          "op": "remedy",
+          "other": "strong_negative_dispel_with_consent",
+          "self": "control_guard_one_charge_1500ms"
+        }
+      ],
+      "counterplay": "Stunned users cannot self cast; preguard is short, bait or separate",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          44000,
+          40000,
+          36000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "break_sigil",
+      "name": "Break Sigil",
+      "circle": 3,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 650,
+      "mana_cost": 50,
+      "cooldown_ms": 41000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "break",
+          "duration_ms": 4000
+        }
+      ],
+      "counterplay": "Strong dispel, active defenses; ordinary stat bonuses remain",
+      "school": "control",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          41000,
+          39000,
+          37000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    }
+  ],
+  "null_bell": {
+    "id": "null_bell",
+    "name": "Null Bell",
+    "tier": 1,
+    "equipment_slot": null,
+    "primary_stats": {},
+    "weight": 1,
+    "official_price_gold": 8,
+    "passive": {},
+    "active": {
+      "op": "basic_dispel_self",
+      "family": "cleanse"
+    },
+    "consumable": true,
+    "two_handed": false,
+    "quick_slot_required": true,
+    "cooldown_ms": 12000,
+    "death_policy": "drop",
+    "tradable": true,
+    "craftsmanship_eligible": false,
+    "default_quality": "standard",
+    "unique_family": "cleanse",
+    "active_mana_cost": 0
+  }
+}

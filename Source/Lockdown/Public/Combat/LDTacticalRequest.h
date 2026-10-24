@@ -8,6 +8,9 @@ struct FLDTacticalRequest
 {
     GENERATED_BODY()
     UPROPERTY() uint8 Schema=7;
+    UPROPERTY() uint8 WireVersion=2;
+    UPROPERTY() uint8 TargetMode=0;
+    UPROPERTY() FVector_NetQuantize10 Point=FVector::ZeroVector;
     UPROPERTY() uint32 Match=0;
     UPROPERTY() uint32 Life=0;
     UPROPERTY() uint32 Token=0;

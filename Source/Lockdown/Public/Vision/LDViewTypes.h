@@ -6,7 +6,7 @@
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo, Production, Institution, Projectile };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo, Production, Institution, Projectile, TacticalField };
 USTRUCT()
 struct FLDVisionGrid
 {
@@ -92,6 +92,8 @@ struct FLDOwnerState
     UPROPERTY() uint16 StatusMask=0;
     UPROPERTY() FString StatusFeedback;
     UPROPERTY() double NullBellReadyAt=0;
+    UPROPERTY() bool bAidConsent=false;
+    UPROPERTY() int64 MajorProtectionReadyAt=0;
     UPROPERTY() int64 Gold = 0;
     UPROPERTY() int64 BankGold = 0;
     UPROPERTY() int64 Xp = 0;

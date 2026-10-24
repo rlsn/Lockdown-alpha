@@ -19,3 +19,5 @@
 /docs/v07/evidence/B70/*.log -whitespace
 /docs/v07/evidence/B71/*.log -whitespace
 /Content/Lockdown/Data/V07/*.json text eol=lf
+
+/docs/v07/evidence/B72/*.log -whitespace

@@ -53,6 +53,8 @@ public:
     void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed);
     void RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,double Now);
     void Release(ALDPlayerController* PC,uint32 Life,uint32 Token);
+    void CancelClaimForAction(ALDPlayerController* PC,double Now);
+    void NotifyDamage(ALDPlayerController* PC,double Now);
     void Interrupt(ALDPlayerController* PC,double Now,bool bEndHold=false);
     void EndLife(ALDPlayerController* PC,const FVector& Point,double Now);
     void Withdraw(ALDPlayerController* PC,const FVector& Point,double Now);

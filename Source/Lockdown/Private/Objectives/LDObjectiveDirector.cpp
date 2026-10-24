@@ -1,4 +1,5 @@
 #include "Objectives/LDObjectiveDirector.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDBankDirector.h"
@@ -115,6 +116,10 @@ void ALDObjectiveDirector::ClearChannel(ALDPlayerController* PC,FLDInteractionSt
     {if(O->ChannelKind||O->ChannelProgress){O->ChannelKind=0;O->ChannelRoute=0;O->ChannelProgress=0;O->ChannelStartedAt=0;Mode->SyncOwner(PC);}}
     if(Had){PC->ClientIntentResult(S.Token,TEXT("Interaction interrupted; progress reset."));}
 }
+void ALDObjectiveDirector::CancelClaimForAction(ALDPlayerController* PC,double Now)
+{const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=Interactions.Find(PC);if(M->IsTacticalProfile()&&S&&S->Channel==LDObjective::Claim){Interrupt(PC,Now,true);}}
+void ALDObjectiveDirector::NotifyDamage(ALDPlayerController* PC,double Now)
+{const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=Interactions.Find(PC);if(M->IsTacticalProfile()&&S&&S->Channel==LDObjective::Claim){return;}Interrupt(PC,Now);}
 void ALDObjectiveDirector::Interrupt(ALDPlayerController* PC,double Now,bool bEndHold)
 {
     auto* S=Interactions.Find(PC);if(!S){return;}S->LastInterrupt=Now;if(bEndHold){S->bHeld=false;}ClearChannel(PC,*S);
@@ -222,7 +227,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);
     if(!S.bHeld||!LDObjective::FreshHold(Now,S.LastHold)||S.LastInterrupt>=Now-1.e-6||!Stationary(PC,S)||!Near(PC,S.Target)||!Eligible(PC,Now)){return;}
-    const auto* Combat=Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));if(Combat->Action||Combat->LastDamage>=Now-1.e-6){return;}
+    const auto* Combat=Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));if(Combat->Action||(!(Mode->IsTacticalProfile()&&S.Target==LDObjective::Heart)&&Combat->LastDamage>=Now-1.e-6)){return;}
     uint8 Kind=0,Route=0;
     if(S.Target==LDObjective::Fabricator&&CanFabricate(PC)){Kind=LDObjective::Fabricate;}
     if(O->ContractStage==1){if(const auto* D=LDRegion::Definition(GetWorld())){const auto* N=D->Node(O->ContractDestination);if(N&&N->Site==S.Target){Kind=LDObjective::Collect;}}else if(S.Target==LDObjective::Station){Kind=LDObjective::Collect;}}
@@ -231,7 +236,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     {const auto* GS=GetWorld()->GetGameState<ALDGameState>();
         if(Mode->Economy){if(GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&Now+10<=GS->CharterCloseAt){Route=4;S.Window=GS->CharterWindow;S.WindowClose=GS->CharterCloseAt;}}
         else{Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);}if(Route){Kind=LDObjective::Claim;}}
-    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;S.Body=Cast<ALDCharacter>(PC->GetPawn());S.Damage=Combat->LastDamage;
+    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;S.Body=Cast<ALDCharacter>(PC->GetPawn());S.Damage=Combat->LastDamage;if(Mode->IsTacticalProfile()&&Kind==LDObjective::Claim){Mode->Combat->BreakConcealment(Cast<ALDCharacter>(PC->GetPawn()));PC->Navigation->Stop();}
     UpdatePrivate(PC,S,Now);
 }
 void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionState& S,double Now)
@@ -253,7 +258,7 @@ void ALDObjectiveDirector::Sample(double Now)
         auto* PC=It.Key().Get();if(!PC){It.RemoveCurrent();continue;}auto& S=It.Value();auto* O=Mode->StateFor(PC);if(!O){continue;}
         const auto* Body=Cast<ALDCharacter>(PC->GetPawn());const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
         const bool Valid=Eligible(PC,Now)&&S.Life==O->Life&&S.bHeld&&LDObjective::FreshHold(Now,S.LastHold)
-            &&Stationary(PC,S)&&Near(PC,S.Target)&&(!S.Channel||(S.Body.Get()==Body&&Combat&&Combat->LastDamage==S.Damage))&&Combat&&!Combat->Action&&Combat->LastDamage<Now-1.e-6&&S.LastInterrupt<Now-1.e-6;
+            &&Stationary(PC,S)&&Near(PC,S.Target)&&(!S.Channel||(S.Body.Get()==Body&&Combat&&((Mode->IsTacticalProfile()&&S.Channel==LDObjective::Claim)||Combat->LastDamage==S.Damage)))&&Combat&&!Combat->Action&&((Mode->IsTacticalProfile()&&S.Target==LDObjective::Heart)||Combat->LastDamage<Now-1.e-6)&&S.LastInterrupt<Now-1.e-6;
         if(S.Channel&&(!Valid||FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)>4)){ClearChannel(PC,S);}
         if(!LDObjective::FreshHold(Now,S.LastHold)){S.bHeld=false;}
         if(!S.Channel&&Valid){BeginChannel(PC,S,Now);}
@@ -303,7 +308,7 @@ void ALDObjectiveDirector::Sample(double Now)
         if(Mode->Economy&&(S.Route!=4||!S.Window.IsValid()||S.Started+10>S.WindowClose||(Now>=S.WindowClose&&Now+1.e-6<S.Started+10))){ClearChannel(PC,S);S.bHeld=false;continue;}
         if((S.Route==LDObjective::SealRoute&&!CarriedBy(PC))||(S.Route==LDObjective::Assault&&GS->DefensiveFlags)){ClearChannel(PC,S);continue;}
         bool IsContested=false;
-        for(FConstPlayerControllerIterator Other=GetWorld()->GetPlayerControllerIterator();Other;++Other)
+        if(!Mode->IsTacticalProfile())for(FConstPlayerControllerIterator Other=GetWorld()->GetPlayerControllerIterator();Other;++Other)
         {auto* Opponent=Cast<ALDPlayerController>(Other->Get());if(Opponent!=PC&&Eligible(Opponent,Now)&&FVector::DistSquared2D(Opponent->GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=240*240){IsContested=true;break;}}
         if(IsContested||S.bContested){S.Started=Now;S.bContested=IsContested;}
         if(Mode->Economy&&S.Started+10>S.WindowClose){ClearChannel(PC,S);S.bHeld=false;continue;}

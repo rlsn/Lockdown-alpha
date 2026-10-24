@@ -1,4 +1,5 @@
 #include "Inventory/LDVendorDirector.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Economy/LDCommerceDirector.h"
 #include "Economy/LDBankDirector.h"
 #include "Inventory/LDTradeDirector.h"
@@ -26,7 +27,7 @@ bool ALDVendorDirector::TakeToken(FClient& C)
 FLDVendorQuote ALDVendorDirector::Quote(ALDPlayerController* PC,const FClient& C) const
 {
     FLDVendorQuote Q;Q.Match=C.Match;Q.Life=C.Life;Q.Token=C.Token;Q.Session=C.Session;Q.CatalogRevision=CatalogRevision;
-    if(C.Session.IsValid()){TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Skills.Append({ELDSkill::AnchorBash,ELDSkill::ArcBolt,ELDSkill::PurgeTouch,ELDSkill::SuretyShell});}for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
+    if(C.Session.IsValid()){TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Skills.Append({ELDSkill::AnchorBash,ELDSkill::ArcBolt,ELDSkill::PurgeTouch,ELDSkill::SuretyShell,ELDSkill::VeilStep,ELDSkill::Counterpulse,ELDSkill::FarwatchWard,ELDSkill::WireSnare,ELDSkill::SmokeVeil,ELDSkill::SeersFlare});}for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
 }
 bool ALDVendorDirector::ValidSession(ALDPlayerController* PC,const FClient& C) const
 {const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=const_cast<ALDGameMode*>(M)->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);return C.Session.IsValid()&&O&&O->Match==C.Match&&O->Life==C.Life&&S&&S->LastDamage==C.Damage&&Eligible(PC);}
@@ -63,7 +64,7 @@ void ALDVendorDirector::Request(const FRequest& R)
     auto* PC=R.PC.Get();if(!PC){return;}auto& C=Clients.FindChecked(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Text){Reply(PC,R.Id,{FGuid(),Text});};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Session!=C.Session||!ValidSession(PC,C)){Reject(TEXT("Vendor closed; nothing spent"));return;}
     if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Catalog updated. Review the price and click Buy again"));return;}
-    if(!LDDevelopmentTransaction::Sold(R.Skill)&&!(M->IsTacticalProfile()&&uint8(R.Skill)>=10&&LDDevelopment::Implemented(R.Skill))){Reject(TEXT("This book is not sold here"));return;}
+    if(!LDDevelopmentTransaction::Sold(R.Skill)&&!(M->IsTacticalProfile()&&uint8(R.Skill)>=10&&M->TacticalCatalog->Find(R.Skill)&&M->TacticalCatalog->Find(R.Skill)->Circle==1)){Reject(TEXT("This book is not sold here"));return;}
     if(R.InventoryRevision!=O->Inventory.Revision){Reject(TEXT("Bag changed; review and click Buy again"));return;}
     FString CapacityReason;if(!M->Inventory->HasSpace(PC,ELDItemKind::Book,&CapacityReason)){Reply(PC,R.Id,{FGuid(),CapacityReason+TEXT("; nothing spent")});return;}
     if(O->Gold<BookPrice){Reject(TEXT("Not enough gold; nothing spent"));return;}

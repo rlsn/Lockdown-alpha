@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateRange(1024,65000)][int]$Port=7797,[ValidateSet(0,100,150)][int]$RoundTripMs=100,[ValidateRange(0,25)][int]$JitterMs=10)
+param([string]$EngineRoot,[ValidateRange(1024,65000)][int]$Port=7797,[ValidateSet(0,100,150)][int]$RoundTripMs=100,[ValidateRange(0,25)][int]$JitterMs=10,[ValidateRange(60,180)][int]$TimeoutSeconds=120)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
@@ -17,7 +17,7 @@ try {
         $ownedProcesses+=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }
-    $deadline=(Get-Date).AddSeconds(70)
+    $deadline=(Get-Date).AddSeconds($TimeoutSeconds)
     while(@($ownedProcesses|Where-Object{-not $_.HasExited}).Count -and (Get-Date) -lt $deadline){Start-Sleep -Milliseconds 500}
     foreach($process in $ownedProcesses){if(-not $process.HasExited){throw "B71 fixture timed out: $output"};if($process.ExitCode -ne 0){throw "B71 fixture failed ($($process.ExitCode)): $output"}}
     foreach($role in @('Server','A','B')) {
