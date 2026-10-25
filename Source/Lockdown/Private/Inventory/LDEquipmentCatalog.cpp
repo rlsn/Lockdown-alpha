@@ -6,10 +6,10 @@
 THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
 THIRD_PARTY_INCLUDES_END
-namespace {FString Hash(const FString& S){FTCHARToUTF8 B(*S);FSHA256Signature H;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),H.Signature);return H.ToString().ToLower();}}
+namespace {FString EquipmentHash(const FString& S){FTCHARToUTF8 B(*S);FSHA256Signature H;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),H.Signature);return H.ToString().ToLower();}}
 bool ULDEquipmentCatalog::Import(const FString& Text,FString& Why)
 {
-    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=Hash(SourceJson);Items.Reset();Gates.Reset();
+    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=EquipmentHash(SourceJson);Items.Reset();Gates.Reset();
     if(Checksum!=LD_EQUIPMENT_SHA){Why=TEXT("Unsupported equipment semantics; sync implementation and native asset");return false;}
     TSharedPtr<FJsonObject> Root;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SourceJson),Root)||!Root){return false;}
     const TMap<FString,ELDItemKind> Kinds={{TEXT("iron_halberd"),ELDItemKind::IronHalberd},{TEXT("watchblade"),ELDItemKind::Watchblade},{TEXT("runic_staff"),ELDItemKind::RunicStaff},{TEXT("surveyor_bow"),ELDItemKind::SurveyorBow},{TEXT("oath_mace"),ELDItemKind::OathMace},{TEXT("null_dagger"),ELDItemKind::NullDagger},{TEXT("bastion_plate"),ELDItemKind::BastionPlate},{TEXT("shade_mantle"),ELDItemKind::ShadeMantle},{TEXT("archivist_robe"),ELDItemKind::ArchivistRobe},{TEXT("merchant_harness"),ELDItemKind::MerchantHarness},{TEXT("reflective_mail"),ELDItemKind::ReflectiveMail},{TEXT("pathfinder_boots"),ELDItemKind::PathfinderBoots},{TEXT("silent_soles"),ELDItemKind::SilentSoles},{TEXT("cliffwalkers"),ELDItemKind::Cliffwalkers},{TEXT("anchor_greaves"),ELDItemKind::AnchorGreaves},{TEXT("scholars_sigil"),ELDItemKind::ScholarsSigil},{TEXT("brokers_seal"),ELDItemKind::BrokersSeal},{TEXT("warding_eye"),ELDItemKind::WardingEye},{TEXT("iron_oath"),ELDItemKind::IronOath},{TEXT("weighted_satchel"),ELDItemKind::WeightedSatchel},{TEXT("null_bell"),ELDItemKind::NullBell},{TEXT("smoke_flask"),ELDItemKind::SmokeFlask},{TEXT("seers_dust"),ELDItemKind::SeersDust},{TEXT("healing_salve"),ELDItemKind::HealingSalve},{TEXT("mana_draught"),ELDItemKind::ManaDraught},{TEXT("ward_totem"),ELDItemKind::WardTotem},{TEXT("recall_token"),ELDItemKind::RecallToken},{TEXT("snare_mine"),ELDItemKind::SnareMine},{TEXT("counterglyph"),ELDItemKind::Counterglyph},{TEXT("mirror_sigil"),ELDItemKind::MirrorSigil},{TEXT("purity_charm"),ELDItemKind::PurityCharm},{TEXT("aegis_flask"),ELDItemKind::AegisFlask},{TEXT("grappling_chain"),ELDItemKind::GrapplingChain},{TEXT("blink_charm"),ELDItemKind::BlinkCharm},{TEXT("simple_staff"),ELDItemKind::SimpleStaff},{TEXT("conduit_staff"),ELDItemKind::ConduitStaff},{TEXT("null_staff"),ELDItemKind::NullStaff},{TEXT("rift_staff"),ELDItemKind::RiftStaff},{TEXT("harpoon_halberd"),ELDItemKind::HarpoonHalberd},{TEXT("tower_relic"),ELDItemKind::TowerRelic}};
@@ -29,7 +29,7 @@ bool ULDEquipmentCatalog::Import(const FString& Text,FString& Why)
 }
 bool ULDEquipmentCatalog::Validate(FString& Why) const
 {
-    if(Checksum!=LD_EQUIPMENT_SHA||Hash(SourceJson)!=Checksum){Why=TEXT("Equipment checksum mismatch");return false;}
+    if(Checksum!=LD_EQUIPMENT_SHA||EquipmentHash(SourceJson)!=Checksum){Why=TEXT("Equipment checksum mismatch");return false;}
     auto* C=NewObject<ULDEquipmentCatalog>();if(!C->Import(SourceJson,Why)||C->Items.Num()!=Items.Num()||C->Gates.Num()!=Gates.Num()){return false;}
     for(int32 I=0;I<Items.Num();++I){if(!FLDEquipmentDefinition::StaticStruct()->CompareScriptStruct(&Items[I],&C->Items[I],0)){Why=TEXT("Derived equipment differs from source");return false;}}
     for(int32 I=0;I<Gates.Num();++I){if(!FLDAbilityGate::StaticStruct()->CompareScriptStruct(&Gates[I],&C->Gates[I],0)){Why=TEXT("Derived gate differs from source");return false;}}return true;

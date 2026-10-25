@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDAcquisitionDirector.h"
@@ -57,6 +58,7 @@
 #include "Tests/LDCharterProbe.h"
 #include "Tests/LDAcquisitionProbe.h"
 #include "Tests/LDContentProbe.h"
+#include "Tests/LDWorldProbe.h"
 #include "Tests/LDContentNetworkProbe.h"
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
@@ -76,7 +78,7 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
     DOREPLIFETIME(ALDGameState,bDevelopmentProfile);DOREPLIFETIME(ALDGameState,bMatchStarted);
     DOREPLIFETIME(ALDGameState,bUIControlProfile);
     DOREPLIFETIME(ALDGameState,EconomyNextTick);DOREPLIFETIME(ALDGameState,ShortagePhase);DOREPLIFETIME(ALDGameState,ShortageRemaining);
-    DOREPLIFETIME(ALDGameState,CoreOrdersRemaining);DOREPLIFETIME(ALDGameState,SupplyOrdersRemaining);DOREPLIFETIME(ALDGameState,CharterWindow);DOREPLIFETIME(ALDGameState,CharterPhase);DOREPLIFETIME(ALDGameState,CharterWarningAt);DOREPLIFETIME(ALDGameState,CharterOpenAt);DOREPLIFETIME(ALDGameState,CharterCloseAt);DOREPLIFETIME(ALDGameState,OutcropOne);DOREPLIFETIME(ALDGameState,OutcropTwo);
+    DOREPLIFETIME(ALDGameState,CoreOrdersRemaining);DOREPLIFETIME(ALDGameState,SupplyOrdersRemaining);DOREPLIFETIME(ALDGameState,Breaches);DOREPLIFETIME(ALDGameState,CharterWindow);DOREPLIFETIME(ALDGameState,CharterPhase);DOREPLIFETIME(ALDGameState,CharterWarningAt);DOREPLIFETIME(ALDGameState,CharterOpenAt);DOREPLIFETIME(ALDGameState,CharterCloseAt);DOREPLIFETIME(ALDGameState,OutcropOne);DOREPLIFETIME(ALDGameState,OutcropTwo);
     DOREPLIFETIME(ALDGameState,LobbyCount);DOREPLIFETIME(ALDGameState,ReadyCount);
     DOREPLIFETIME(ALDGameState,PublicSensorOfflineUntil);DOREPLIFETIME(ALDGameState,PublicSensorLockoutUntil);
 }
@@ -193,6 +195,7 @@ void ALDGameMode::StartPlay()
 #if !UE_BUILD_SHIPPING
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){GetWorld()->SpawnActor<ALDContentNetworkProbe>();}
+    if(bTacticalProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDWorldProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe")))){GetWorld()->SpawnActor<ALDWorldProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
@@ -265,8 +268,10 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 }
 void ALDGameMode::Logout(AController* Exiting)
 {
+    if(Combat){Combat->FlushPastCommand();}
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
+        if(WorldRuntime){WorldRuntime->EndLife(PC);}
         if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC,true);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
@@ -289,8 +294,10 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 
 void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 {
+    if(Combat){Combat->FlushPastCommand();}
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
+    if(WorldRuntime){WorldRuntime->EndLife(PC);}
     if(bTacticalProfile){if(Development){Development->Cancel(PC,TEXT("Death cancelled preparation"));}Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
     if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
@@ -398,6 +405,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
     }
     if(Economy){Bank=GetWorld()->SpawnActor<ALDBankDirector>();Commerce=GetWorld()->SpawnActor<ALDCommerceDirector>();Production=GetWorld()->SpawnActor<ALDProductionDirector>();Production->Initialize();if(IsTacticalProfile()){Acquisition=GetWorld()->SpawnActor<ALDAcquisitionDirector>();if(!Acquisition->Initialize(Reason)){return false;}}}
     MatchStartedAt=GetWorld()->GetTimeSeconds(); Public->bMatchStarted=true;
+    if(bTacticalProfile&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))){WorldRuntime=GetWorld()->SpawnActor<ALDWorldDirector>();WorldRuntime->Initialize();}
     Public->MatchDeadline=float(MatchStartedAt+(bTacticalProfile?2100:LDDevelopment::DeadlineSeconds));
     for (auto& Pair:Contenders)
     {

@@ -50,6 +50,7 @@ void ALDBankDirector::Reply(ALDPlayerController* PC,uint32 Id,const FString& Rea
 }
 void ALDBankDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,int64 Amount,bool Deposit,uint32 WR,uint32 BR,bool Charter)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto& C=Clients.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
     if(!Id||!O||O->Match!=Match||O->Life!=Life){Reply(PC,Id,TEXT("Bank request has stale life"));return;}
     if(const auto* Receipt=C.Receipts.Find(Id)){Reply(PC,Id,*Receipt);return;}
@@ -57,7 +58,7 @@ void ALDBankDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uin
     if(Id<=C.LastRequest){Reply(PC,Id,TEXT("Expired bank request"));return;}
     C.LastRequest=Id;
     if(!TakeToken(C)||Requests.ContainsByPredicate([&](const auto& R){return R.PC==PC;})){Reply(PC,Id,TEXT("Bank busy; try again"));return;}
-    C.LastRequest=Id;Requests.Add({PC,Match,Life,Id,Session,Amount,Deposit,WR,BR,Charter});
+    C.LastRequest=Id;M->Objectives->CancelClaimForAction(PC,GetWorld()->GetTimeSeconds());Requests.Add({PC,Match,Life,Id,Session,Amount,Deposit,WR,BR,Charter});
 }
 void ALDBankDirector::Sample(double Now)
 {

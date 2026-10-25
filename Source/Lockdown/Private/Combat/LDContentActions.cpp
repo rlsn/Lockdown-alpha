@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Combat/LDCombatRules.h"
 #include "Character/LDCharacter.h"
@@ -29,7 +30,8 @@ namespace
 bool ALDCombatDirector::IsContentSkill(ELDSkill K) const
 {switch(K){case ELDSkill::BraceWall:case ELDSkill::Hamstring:case ELDSkill::LedgerMark:case ELDSkill::FalseTrail:case ELDSkill::EmberLine:case ELDSkill::Grapple:case ELDSkill::NullSeal:case ELDSkill::GuardSwap:case ELDSkill::Slipstream:case ELDSkill::ArcanePrison:case ELDSkill::TemporalLock:case ELDSkill::SovereignWard:case ELDSkill::GrandExchange:case ELDSkill::GateWeave:return true;default:return false;}}
 void ALDCombatDirector::QueueContent(ALDPlayerController* PC,const FLDTacticalRequest& R)
-{int32 Count=0;for(const auto& I:Intents){Count+=I.Controller==PC;}if(Count>=3){PC->CompleteCombatRequest(R.Token,TEXT("Too many queued actions"));return;}FIntent I;I.Controller=PC;I.Match=R.Match;I.Life=R.Life;I.Request=R.Token;I.Action=3+R.Slot;I.Direction=R.Direction;I.BuildRevision=R.BuildRevision;I.Content=R;I.IsContent=true;Intents.Add(I);}
+{
+    FlushPastCommand();int32 Count=0;for(const auto& I:Intents){Count+=I.Controller==PC;}if(Count>=3){PC->CompleteCombatRequest(R.Token,TEXT("Too many queued actions"));return;}FIntent I;I.Controller=PC;I.Match=R.Match;I.Life=R.Life;I.Request=R.Token;I.Action=3+R.Slot;I.Direction=R.Direction;I.BuildRevision=R.BuildRevision;I.Content=R;I.IsContent=true;Intents.Add(I);}
 void ALDCombatDirector::RefreshItemFamilies(ALDPlayerController* PC)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);const auto* C=ULDEquipmentCatalog::Load();if(!O||O->Build.RulesVersion!=7||!C){return;}for(const auto& I:O->Inventory.Items){if(const auto* D=C->Find(I.Kind);D&&!D->Family.IsEmpty()){auto& End=O->ItemFamilies.FindOrAdd(D->CooldownKey());End=FMath::Max(End,I.ReadyAt);}}O->ItemFamilies.FindOrAdd(TEXT("cleanse"))=FMath::Max(O->ItemFamilies.FindRef(TEXT("cleanse")),LDTactical::Milliseconds(O->NullBellReadyAt));}
 bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalRequest& R,AActor* First,AActor* Second,FString& Why)
@@ -56,7 +58,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         else if(Skill==ELDSkill::GuardSwap)
         {if(First){const auto* F=Cast<ALDTacticalField>(First);FVector End;if(!F||F->Kind!=ELDTacticalField::Marker||!Observe(First,Range,true)||!Allows(Body,LDTactical::EAction::Dash)||!MobilityEndpoint(Body,F->GetActorLocation(),End,F)){return Reject(TEXT("Owned observable marker or movement endpoint unavailable"));}}else{Mana=10;if(!Ground(R.Point,Range)){return Reject(TEXT("Marker placement unavailable"));}}}
         else if(Skill==ELDSkill::Grapple)
-        {if(!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Grapple mobility blocked"));}if(First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||!Observe(First,Range)){return Reject(TEXT("Invalid grapple body"));}}else if(!Ground(R.Point,Range)||!LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),R.Point)){return Reject(TEXT("Choose an unobstructed terrain anchor"));}}
+        {if(!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Grapple mobility blocked"));}if(First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(First)&&Cast<ALDWorldPawn>(First)->Immune())||!Observe(First,Range)){return Reject(TEXT("Invalid grapple body"));}}else if(!Ground(R.Point,Range)||!LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),R.Point)){return Reject(TEXT("Choose an unobstructed terrain anchor"));}}
         else if(D->Target==ELDTacticalTarget::SelfOrUnit){if(!Observe(First,Range)||Skill==ELDSkill::RemedyBind){return Reject(TEXT("Observable eligible aid target required"));}}
         else if(D->Target==ELDTacticalTarget::Unit){if((!Cast<ALDCharacter>(First)&&!IsDecoy)||!Observe(First,Range)){return Reject(TEXT("Observable body required"));}}
         else{if(!Ground(R.Point,Range)){return Reject(TEXT("Ground placement unavailable"));}}
@@ -72,7 +74,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         const auto& Op=ID->Operation;const int32 Range=ID->Param(TEXT("range_cm"));
         if(Op==TEXT("targeted_mute")||Op==TEXT("basic_dispel")){if(First&&((!Cast<ALDCharacter>(First)&&!IsDecoy)||!Observe(First,Range))){return Reject(TEXT("Observable target required"));}if(Op==TEXT("targeted_mute")&&!First){return Reject(TEXT("Observable hostile target required"));}}
         else if(Op==TEXT("smoke")||Op==TEXT("spawn_ward")||Op==TEXT("spawn_trap")||Op==TEXT("terrain_grapple")||Op==TEXT("grapple"))
-        {if(Op==TEXT("grapple")&&First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||!Observe(First,Range)){return Reject(TEXT("Invalid grapple target"));}}else if(!Ground(R.Point,Range)){return Reject(TEXT("Item ground placement unavailable"));}}
+        {if(Op==TEXT("grapple")&&First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(First)&&Cast<ALDWorldPawn>(First)->Immune())||!Observe(First,Range)){return Reject(TEXT("Invalid grapple target"));}}else if(!Ground(R.Point,Range)){return Reject(TEXT("Item ground placement unavailable"));}}
         if(Op==TEXT("blink")){FVector End;if(At<O->DirectDamageUntil||!Allows(Body,LDTactical::EAction::Dash)||!Ground(R.Point,ID->Param(TEXT("distance_cm")))||!MobilityEndpoint(Body,R.Point,End)){return Reject(TEXT("Blink unavailable"));}}
         if((Op==TEXT("grapple")||Op==TEXT("terrain_grapple"))&&!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Grapple movement blocked"));}
         if(Op==TEXT("recall"))
@@ -98,4 +100,5 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     S->ImpactAt=S->CoreEndsAt/1000.;Sync(Body,*S);Why=TEXT("Accepted; authoritative release/held channel revalidates legality");return true;
 }
 void ALDCombatDirector::ContentHold(ALDPlayerController* PC,uint32 LifeId,uint32 Token,uint32 Sequence,bool Moving,bool Release)
-{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);auto* S=PC?StateFor(Cast<ALDCharacter>(PC->GetPawn())):nullptr;if(!O||O->Life!=LifeId||!S||S->Action!=10||S->SkillToken!=Token||Sequence<=S->HoldSequence){return;}S->HoldSequence=Sequence;S->LastSkillHold=GetWorld()->GetTimeSeconds();if(Release||Moving){CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Held action released"));}}
+{
+    FlushPastCommand();auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);auto* S=PC?StateFor(Cast<ALDCharacter>(PC->GetPawn())):nullptr;if(!O||O->Life!=LifeId||!S||S->Action!=10||S->SkillToken!=Token||Sequence<=S->HoldSequence){return;}S->HoldSequence=Sequence;S->LastSkillHold=GetWorld()->GetTimeSeconds();if(Release||Moving){CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Held action released"));}}

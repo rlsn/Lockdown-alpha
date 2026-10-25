@@ -6,7 +6,7 @@
 #include "LDViewTypes.generated.h"
 
 // Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo, Production, Institution, Projectile, TacticalField };
+UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo, Production, Institution, Projectile, TacticalField, WorldCreature, WorldStructure, WorldSite };
 USTRUCT()
 struct FLDVisionGrid
 {
@@ -113,6 +113,11 @@ struct FLDOwnerState
     UPROPERTY() int32 SlowPercent=0;
     UPROPERTY() int64 DirectDamageUntil=0;
     UPROPERTY() int64 GateReadyAt=0;
+    UPROPERTY() int64 KeysReadyAt=0;
+    UPROPERTY() double ShrineReadyAt=0;
+    UPROPERTY() uint8 BreachRoute=0;
+    UPROPERTY() double BreachOpenAt=0;
+    UPROPERTY() double BreachCloseAt=0;
     UPROPERTY() int64 Gold = 0;
     UPROPERTY() int64 BankGold = 0;
     UPROPERTY() int64 Xp = 0;
@@ -150,6 +155,7 @@ struct FLDOwnerState
     UPROPERTY() uint8 ChannelKind = 0;
     UPROPERTY() uint8 ChannelRoute = 0;
     UPROPERTY() float ChannelStartedAt = 0;
+    UPROPERTY() double ChannelDuration=0;
     UPROPERTY() float ChannelProgress = 0;
     UPROPERTY() bool bWinner = false;
 };

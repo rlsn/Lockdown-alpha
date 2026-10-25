@@ -11,5 +11,6 @@ public class Lockdown : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/economy_rules.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/combat.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/equipment.json", StagedFileType.UFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/world.json", StagedFileType.UFS);
     }
 }

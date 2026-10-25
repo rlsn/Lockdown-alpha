@@ -3,6 +3,7 @@
 #include "Core/LDPrototypeTuning.h"
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "World/LDWorldDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDAcquisitionCatalog.h"
 #include "Dom/JsonObject.h"
@@ -266,6 +267,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     const FString AcqPath=TEXT("/Game/Lockdown/Generated/V07/DA_AcquisitionCatalog");auto* ExistingAcq=ULDAcquisitionCatalog::Load();
     if(bRegenerate||(!bValidate&&(!Exists(AcqPath)||!ExistingAcq||ExistingAcq->Checksum!=ExpectedAcq->Checksum))){auto* Acq=NewObject<ULDAcquisitionCatalog>(EditablePackage(AcqPath),TEXT("DA_AcquisitionCatalog"),RF_Public|RF_Standalone);if(!Acq->Import(AcqJson,AcqError)||!SaveAsset(Acq,AcqPath,ExpectedAcq->Checksum)){return 3;}}
     auto* Acq=ULDAcquisitionCatalog::Load();if(!Acq||!Acq->Validate(AcqError)||Acq->Checksum!=ExpectedAcq->Checksum||!HasSignature(Acq,ExpectedAcq->Checksum)){UE_LOG(LogTemp,Error,TEXT("Acquisition catalog: %s"),*AcqError);return 3;}
+    FString WorldJson,WorldError;if(!FFileHelper::LoadFileToString(WorldJson,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/world.json")))){return 3;}auto* ExpectedWorld=NewObject<ULDWorldCatalog>();if(!ExpectedWorld->Import(WorldJson,WorldError)){return 3;}const FString WorldPath=TEXT("/Game/Lockdown/Generated/V07/DA_WorldCatalog");auto* ExistingWorld=ULDWorldCatalog::Load();if(bRegenerate||(!bValidate&&(!ExistingWorld||ExistingWorld->Checksum!=ExpectedWorld->Checksum))){auto* W=NewObject<ULDWorldCatalog>(EditablePackage(WorldPath),TEXT("DA_WorldCatalog"),RF_Public|RF_Standalone);if(!W->Import(WorldJson,WorldError)||!SaveAsset(W,WorldPath,ExpectedWorld->Checksum)){return 3;}}if(!ULDWorldCatalog::Load()||!ULDWorldCatalog::Load()->Validate(WorldError)){return 3;}
     const auto* Combat=ULDTacticalCatalog::Load();if(!Combat||!Combat->Validate(CombatError)||Combat->Checksum!=ExpectedCombat->Checksum||!HasSignature(const_cast<ULDTacticalCatalog*>(Combat),ExpectedCombat->Checksum)){UE_LOG(LogTemp,Error,TEXT("Missing/stale B71 catalog %s"),*CombatError);return 3;}
     UE_LOG(LogTemp,Display,TEXT("LD_B71_CATALOG schema=7 sha256=%s"),*Combat->Checksum);
     UInputMappingContext* Context = nullptr;
@@ -452,6 +454,6 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         UE_LOG(LogTemp, Display, TEXT("Validated %s: %d generated meshes"), *Path, FoundCount);
     }
     if(!LDRegionBootstrap::Run(bValidate,bRegenerate,FParse::Param(*Params,TEXT("RebuildRegionMaps")))){return 6;}
-    UE_LOG(LogTemp,Display,TEXT("LD_BOOTSTRAP_SUCCESS %s (migration plus two regional topologies; 28 packages)"),*Signature);
+    UE_LOG(LogTemp,Display,TEXT("LD_BOOTSTRAP_SUCCESS %s (migration assets, three regional topologies and v07 native catalogs validated)"),*Signature);
     return 0;
 }

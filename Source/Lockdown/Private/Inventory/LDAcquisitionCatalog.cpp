@@ -6,7 +6,7 @@
 THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
 THIRD_PARTY_INCLUDES_END
-namespace {FString Hash(const FString& S){FTCHARToUTF8 B(*S);FSHA256Signature H;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),H.Signature);return H.ToString().ToLower();}}
+namespace {FString AcquisitionHash(const FString& S){FTCHARToUTF8 B(*S);FSHA256Signature H;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),H.Signature);return H.ToString().ToLower();}}
 ELDItemKind ULDAcquisitionCatalog::Kind(const FString& Id)
 {
     // Append-only native values are encoded in the checksum-closed source mapping.
@@ -16,7 +16,7 @@ ELDItemKind ULDAcquisitionCatalog::Kind(const FString& Id)
 }
 bool ULDAcquisitionCatalog::Import(const FString& Text,FString& Why)
 {
-    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=Hash(SourceJson);Items.Reset();Recipes.Reset();
+    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=AcquisitionHash(SourceJson);Items.Reset();Recipes.Reset();
     if(Checksum!=LD_ACQUISITION_SHA){Why=TEXT("Acquisition checksum mismatch");return false;}
     TSharedPtr<FJsonObject> Root;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SourceJson),Root)||!Root){return false;}
     const auto* Enum=StaticEnum<ELDItemKind>();
@@ -29,7 +29,7 @@ bool ULDAcquisitionCatalog::Import(const FString& Text,FString& Why)
 }
 bool ULDAcquisitionCatalog::Validate(FString& Why) const
 {
-    if(Checksum!=LD_ACQUISITION_SHA||Hash(SourceJson)!=Checksum){return false;}auto* C=NewObject<ULDAcquisitionCatalog>();if(!C->Import(SourceJson,Why)||C->Items.Num()!=Items.Num()||C->Recipes.Num()!=Recipes.Num()){return false;}
+    if(Checksum!=LD_ACQUISITION_SHA||AcquisitionHash(SourceJson)!=Checksum){return false;}auto* C=NewObject<ULDAcquisitionCatalog>();if(!C->Import(SourceJson,Why)||C->Items.Num()!=Items.Num()||C->Recipes.Num()!=Recipes.Num()){return false;}
     for(int32 N=0;N<Items.Num();++N){if(!FLDAcquisitionItem::StaticStruct()->CompareScriptStruct(&Items[N],&C->Items[N],0)){return false;}}
     for(int32 N=0;N<Recipes.Num();++N){if(!FLDAcquisitionRecipe::StaticStruct()->CompareScriptStruct(&Recipes[N],&C->Recipes[N],0)){return false;}}return true;
 }

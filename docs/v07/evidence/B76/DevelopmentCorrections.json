@@ -1,0 +1,43 @@
+{
+  "failedAttempts": [
+    {
+      "artifact": "Artifacts/20261025-172110-706-B76-World/Artifact",
+      "result": "Official-component quote unavailable in the driver",
+      "correction": "Use the actual owner commerce/bank UI session flow and close it before navigation."
+    },
+    {
+      "artifact": "Artifacts/20261025-175200-114-B76-World/Artifact",
+      "result": "Driver stalled on a blocked ground point and died",
+      "correction": "Bounded legal-ground candidates before native navigation; no encounter/resource overrides."
+    },
+    {
+      "artifact": "Artifacts/20261025-175358-953-B76-World/Artifact",
+      "result": "Guardian died and Fragment was collected; overlapping camp killed the actor during forge quiet time",
+      "correction": "Separate authored camp/lair/forge positions; retain declared combat and reward numbers."
+    },
+    {
+      "artifact": "Artifacts/20261025-180026-959-B76-World/Siege",
+      "result": "Camp placement interrupted the covered courier route",
+      "correction": "Place eastern camps away from service counters and covered road; rerun all four routes from zero money."
+    },
+    {
+      "artifact": "Artifacts/20261025-180910-343-B76-Boundaries/Leases",
+      "result": "Fixture bag count and same-sample reactivation assertions failed",
+      "correction": "Retain declared starter ward; issue a fresh activation after a later authority sample, then verify new lease/death endpoints."
+    },
+    {
+      "artifact": "Artifacts/20261025-181604-797-B76-Boundaries/Sources",
+      "result": "Nominal repeated150s schedule missed final three eligible spawns",
+      "correction": "Advance from each camp actual next-spawn endpoint; preserve at-least150s runtime rule."
+    }
+  ],
+  "otherCorrections": [
+    "World context IDs10-14 preserve existing fabrication ID9.",
+    "Native AI acceptance90cm reaches the declared220cm melee range after capsule radii.",
+    "Boss/tower status immunity is limited to the five declared control categories and displacement; root/disarm/slow/blind remain valid.",
+    "Fresh valid own service/inventory/combat gestures cancel Heart holds before downstream commit rejection; stale requests do not replay a commit.",
+    "Hash/helper namespace collisions and pinned-engine compilation issues corrected before successful Editor builds.",
+    "New context request updates its own target after claim cancellation, preventing an invalid request from auto-restarting the old Heart target. Subsequent SelfAction boundary and remote common-claim gates validate this localized change."
+  ],
+  "scope": "Earlier failing runs are not counted as passes. Final normal-route reports all originate from Artifacts/20261025-180321-112-B76-World and have diagnostic grants disabled."
+}

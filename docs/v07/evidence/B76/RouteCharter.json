@@ -1,0 +1,511 @@
+{
+	"failures": 0,
+	"route": "Charter",
+	"seconds": 529.8000078946352,
+	"checks": [
+		"PASS Native roster begins with zero money and declared starter endowment only; diagnostic grants disabled",
+		"PASS Recognized normal route",
+		"PASS Wait 7.00s on native world clock",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Eight earned courier payments /200g, no grants",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Ore",
+		"PASS Native traversal: City workshop",
+		"PASS Normal exact physical production / 4.0",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Ore",
+		"PASS Native traversal: City workshop",
+		"PASS Normal exact physical production / 4.0",
+		"PASS Native traversal: West Supply",
+		"PASS Normal exact physical production / 3.0",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Ore",
+		"PASS Native traversal: City workshop",
+		"PASS Normal exact physical production / 4.0",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Fiber",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Ore",
+		"PASS Native traversal: City workshop",
+		"PASS Normal exact physical production / 4.0",
+		"PASS Native traversal: Official input counter",
+		"PASS Wait 0.40s on native world clock",
+		"PASS Paid official component: Crystal",
+		"PASS Native traversal: City Core workshop",
+		"PASS Normal exact physical production / 6.0",
+		"PASS Native traversal: City industrial procurement",
+		"PASS Normal exact physical production / 3.0",
+		"PASS Earned natural STR12 preparation /2s",
+		"PASS Native traversal: Actual equipped Heave service",
+		"PASS Normal equipped Heave accepted: ",
+		"PASS Equipped Witness channel with natural gate",
+		"PASS Native traversal: Earned Treasury checkout",
+		"PASS Wait 6.10s on native world clock",
+		"PASS 100g registered Charter checkout with both earned endorsements",
+		"PASS Normal exact physical production / 4.0",
+		"PASS Native traversal: Public nonowner response City to Heart",
+		"PASS Public warning elapsed, rival has no Charter registration",
+		"PASS Normal held context target3 /10.0s",
+		"PASS Single terminal winner and finite-source ledger reconcile"
+	],
+	"travel": [
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 1.8000000268220901,
+			"straightCm": 707.10678118654755,
+			"from": "X=-1400.000 Y=-1100.000 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 2
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.5500000976026058,
+			"straightCm": 2704.4249897203176,
+			"from": "X=-922.107 Y=-622.107 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 4
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2697.228090260272,
+			"from": "X=-3568.075 Y=-995.495 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 6
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.437027708685513,
+			"from": "X=-935.237 Y=-612.646 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 6
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7651672342354,
+			"from": "X=-935.237 Y=-612.646 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 16
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.145075982492,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 24
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.413854771617451,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 24
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450326395,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 28
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354852126,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 30
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387128586757,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 30
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7747592250062,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 40
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.1450763626817,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 48
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.413854784639021,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 48
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450425657,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 52
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354753059,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 54
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387119319382,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 54
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7747592157712,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 64
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.1450763625771,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 72
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.41385478465898,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 72
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450425807,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 76
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354752887,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 78
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387119303452,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 78
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7747592157557,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 88
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.1450763625771,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 96
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 96
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 98
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 100
+		},
+		{
+			"name": "Native traversal: City workshop",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 102
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 104
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 106
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 108
+		},
+		{
+			"name": "Native traversal: City workshop",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 110
+		},
+		{
+			"name": "Native traversal: West Supply",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450425798,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 114
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354752896,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 116
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 116
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 118
+		},
+		{
+			"name": "Native traversal: City workshop",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 120
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 122
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 124
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 126
+		},
+		{
+			"name": "Native traversal: City workshop",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 128
+		},
+		{
+			"name": "Native traversal: Official input counter",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 130
+		},
+		{
+			"name": "Native traversal: City Core workshop",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 132
+		},
+		{
+			"name": "Native traversal: City industrial procurement",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 134
+		},
+		{
+			"name": "Native traversal: Actual equipped Heave service",
+			"seconds": 0.40000000596046448,
+			"straightCm": 125.39567278662493,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-1060.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 138
+		},
+		{
+			"name": "Native traversal: Earned Treasury checkout",
+			"seconds": 0.40000000596046448,
+			"straightCm": 126.3026700103426,
+			"from": "X=-1026.256 Y=-603.422 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 140
+		},
+		{
+			"name": "Native traversal: Public nonowner response City to Heart",
+			"seconds": 3.3000000491738319,
+			"straightCm": 1345.3624047073711,
+			"from": "X=-900.000 Y=-1000.000 Z=92.150",
+			"to": "X=0.000 Y=0.000 Z=0.000",
+			"nativePathQueries": 2
+		}
+	],
+	"scope": "Two native local contenders, benchmark fixed delta20Hz. Normal native navigation/movement/AI/combat/services and elapsed quiet/protection/holds. No teleports, gold/XP/items/HP/gates/endpoints setters in this lane. Automated commands, not human/remote/package acceptance."
+}

@@ -1,0 +1,959 @@
+{
+  "regions": [
+    {
+      "schema": 1,
+      "name": "B76 Civic Reach",
+      "min": [
+        -6000,
+        -4000,
+        0
+      ],
+      "cellSize": 200,
+      "guild": [
+        -900,
+        -600,
+        0
+      ],
+      "heart": [
+        0,
+        0,
+        0
+      ],
+      "tower": [
+        900,
+        900,
+        0
+      ],
+      "control": [
+        900,
+        750,
+        0
+      ],
+      "sentinel": [
+        700,
+        2600,
+        92
+      ],
+      "trainedResident": 7,
+      "spawns": [
+        [
+          -900,
+          -1000,
+          100
+        ],
+        [
+          -1200,
+          -700,
+          100
+        ],
+        [
+          -600,
+          -1100,
+          100
+        ],
+        [
+          -1400,
+          -1100,
+          100
+        ],
+        [
+          -1400,
+          -600,
+          100
+        ],
+        [
+          -800,
+          -1400,
+          100
+        ]
+      ],
+      "residents": [
+        [
+          -1100,
+          -450,
+          100
+        ],
+        [
+          -500,
+          -700,
+          100
+        ],
+        [
+          -3400,
+          -1200,
+          100
+        ],
+        [
+          -3900,
+          -800,
+          100
+        ],
+        [
+          3400,
+          1200,
+          100
+        ],
+        [
+          3900,
+          1600,
+          100
+        ],
+        [
+          -200,
+          2900,
+          100
+        ],
+        [
+          -3600,
+          -700,
+          100
+        ]
+      ],
+      "nodes": [
+        {
+          "id": 17,
+          "name": "City",
+          "site": 0,
+          "position": [
+            -900,
+            -600,
+            0
+          ],
+          "radius": 1200,
+          "visit": false
+        },
+        {
+          "id": 43,
+          "name": "WestTown",
+          "site": 2,
+          "position": [
+            -3600,
+            -1000,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 91,
+          "name": "EastTown",
+          "site": 6,
+          "position": [
+            3600,
+            1400,
+            0
+          ],
+          "radius": 300,
+          "visit": true
+        },
+        {
+          "id": 137,
+          "name": "WildCrossing",
+          "site": 0,
+          "position": [
+            0,
+            2600,
+            0
+          ],
+          "radius": 250,
+          "visit": true
+        },
+        {
+          "id": 180,
+          "name": "RuinA",
+          "site": 0,
+          "position": [
+            -3000,
+            1000,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 181,
+          "name": "RuinB",
+          "site": 0,
+          "position": [
+            0,
+            2300,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 182,
+          "name": "RuinC",
+          "site": 0,
+          "position": [
+            3000,
+            0,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 183,
+          "name": "BossLair",
+          "site": 0,
+          "position": [
+            2200,
+            2700,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 184,
+          "name": "HeartForge",
+          "site": 0,
+          "position": [
+            2500,
+            1400,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 185,
+          "name": "CentralPrecinct",
+          "site": 0,
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        },
+        {
+          "id": 186,
+          "name": "HeartAntechamber",
+          "site": 0,
+          "position": [
+            0,
+            -500,
+            0
+          ],
+          "radius": 200,
+          "visit": false
+        }
+      ],
+      "routes": [
+        {
+          "from": 17,
+          "to": 43,
+          "covered": false,
+          "points": [
+            [
+              -900,
+              -600,
+              0
+            ],
+            [
+              -1800,
+              -600,
+              0
+            ],
+            [
+              -2800,
+              -1000,
+              0
+            ],
+            [
+              -3600,
+              -1000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 43,
+          "covered": true,
+          "points": [
+            [
+              -900,
+              -600,
+              0
+            ],
+            [
+              -700,
+              -1800,
+              0
+            ],
+            [
+              -3600,
+              -1800,
+              0
+            ],
+            [
+              -3600,
+              -1000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 91,
+          "covered": false,
+          "points": [
+            [
+              -900,
+              -600,
+              0
+            ],
+            [
+              1800,
+              1400,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 91,
+          "covered": true,
+          "points": [
+            [
+              -900,
+              -600,
+              0
+            ],
+            [
+              600,
+              -1600,
+              0
+            ],
+            [
+              4000,
+              -1600,
+              0
+            ],
+            [
+              4300,
+              700,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 43,
+          "to": 137,
+          "covered": true,
+          "points": [
+            [
+              -3600,
+              -1000,
+              0
+            ],
+            [
+              -4200,
+              2600,
+              0
+            ],
+            [
+              0,
+              2600,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 137,
+          "to": 91,
+          "covered": false,
+          "points": [
+            [
+              0,
+              2600,
+              0
+            ],
+            [
+              4200,
+              2600,
+              0
+            ],
+            [
+              3600,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 43,
+          "to": 180,
+          "covered": false,
+          "points": [
+            [
+              -3600,
+              -1000,
+              0
+            ],
+            [
+              -3000,
+              1000,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 137,
+          "to": 181,
+          "covered": false,
+          "points": [
+            [
+              0,
+              2600,
+              0
+            ],
+            [
+              0,
+              2300,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 91,
+          "to": 182,
+          "covered": false,
+          "points": [
+            [
+              3600,
+              1400,
+              0
+            ],
+            [
+              3000,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 137,
+          "to": 183,
+          "covered": false,
+          "points": [
+            [
+              0,
+              2600,
+              0
+            ],
+            [
+              2200,
+              2700,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 91,
+          "to": 184,
+          "covered": false,
+          "points": [
+            [
+              3600,
+              1400,
+              0
+            ],
+            [
+              2500,
+              1400,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 184,
+          "to": 185,
+          "covered": false,
+          "points": [
+            [
+              2500,
+              1400,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 17,
+          "to": 185,
+          "covered": false,
+          "points": [
+            [
+              -900,
+              -600,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 180,
+          "to": 185,
+          "covered": false,
+          "points": [
+            [
+              -3000,
+              1000,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 182,
+          "to": 185,
+          "covered": false,
+          "points": [
+            [
+              3000,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "from": 186,
+          "to": 185,
+          "covered": true,
+          "points": [
+            [
+              0,
+              -500,
+              0
+            ],
+            [
+              -430,
+              -500,
+              0
+            ],
+            [
+              -430,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "name": "Ground",
+          "position": [
+            0,
+            0,
+            -20
+          ],
+          "size": [
+            12000,
+            8000,
+            40
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Plateau",
+          "position": [
+            1400,
+            -2100,
+            90
+          ],
+          "size": [
+            800,
+            800,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": true,
+          "pitch": 0
+        },
+        {
+          "name": "Ramp",
+          "position": [
+            800,
+            -2100,
+            90
+          ],
+          "size": [
+            447.2136,
+            300,
+            20
+          ],
+          "mesh": "Cube",
+          "floor": true,
+          "high": false,
+          "pitch": 26.565051
+        },
+        {
+          "name": "CoveredWest",
+          "position": [
+            -2100,
+            -1530,
+            150
+          ],
+          "size": [
+            1600,
+            60,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "CoveredEast",
+          "position": [
+            2300,
+            -1330,
+            150
+          ],
+          "size": [
+            1900,
+            60,
+            300
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree0",
+          "position": [
+            -2700,
+            -1450,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree1",
+          "position": [
+            -3200,
+            -1450,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree2",
+          "position": [
+            -4300,
+            1700,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree3",
+          "position": [
+            4400,
+            1900,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree4",
+          "position": [
+            2600,
+            1800,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "Tree5",
+          "position": [
+            -1100,
+            1600,
+            200
+          ],
+          "size": [
+            120,
+            120,
+            400
+          ],
+          "mesh": "Cylinder",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PublicSensorBase",
+          "position": [
+            900,
+            900,
+            80
+          ],
+          "size": [
+            100,
+            100,
+            160
+          ],
+          "mesh": "Cylinder",
+          "floor": true,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryNorth",
+          "position": [
+            0,
+            4025,
+            100
+          ],
+          "size": [
+            12100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundarySouth",
+          "position": [
+            0,
+            -4025,
+            100
+          ],
+          "size": [
+            12100,
+            50,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryWest",
+          "position": [
+            -6025,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            8000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "BoundaryEast",
+          "position": [
+            6025,
+            0,
+            100
+          ],
+          "size": [
+            50,
+            8000,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PrecinctWestCover",
+          "position": [
+            -320,
+            300,
+            110
+          ],
+          "size": [
+            40,
+            400,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PrecinctEastCover",
+          "position": [
+            320,
+            300,
+            110
+          ],
+          "size": [
+            40,
+            400,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "PrecinctNorthCover",
+          "position": [
+            0,
+            500,
+            110
+          ],
+          "size": [
+            400,
+            40,
+            220
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "TowerDoorA",
+          "position": [
+            -520,
+            300,
+            100
+          ],
+          "size": [
+            40,
+            180,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "TowerDoorB",
+          "position": [
+            780,
+            300,
+            100
+          ],
+          "size": [
+            40,
+            180,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        },
+        {
+          "name": "TowerDoorC",
+          "position": [
+            130,
+            850,
+            100
+          ],
+          "size": [
+            40,
+            180,
+            200
+          ],
+          "mesh": "Cube",
+          "floor": false,
+          "high": false,
+          "pitch": 0
+        }
+      ],
+      "cityId": 17
+    }
+  ]
+}

@@ -1,20 +1,26 @@
-# Continuation — B75 tactical content; B76 next
+# Continuation — B76 native world; B77 acceptance next
 
-25 October 2026. Read [B75 implementation](v07/B75_IMPLEMENTATION.md) for the
-complete effect, channel, cooldown and adapter details. B70–B74 are historical
-records. Keep `V07_TRANSITION.md` deleted; this is the active handoff.
+25 October 2026. Read [B76 implementation](v07/B76_IMPLEMENTATION.md) and its
+[portable evidence](v07/evidence/B76/Summary.json) for runtime and verification
+scope. B70–B75 remain historical records. Keep `V07_TRANSITION.md` deleted;
+this is the active handoff.
 
 ## Play and reproduce
 
 ```powershell
 ./Scripts/OpenStandalone.ps1 -Profile v07_integration
 ./Scripts/OpenStandalone.ps1 -Profile v06_regression
-./Scripts/BuildEditor.ps1 -MaxParallelActions 4
+./Scripts/BuildEditor.ps1 -MaxParallelActions 4 -Gather
 ./Scripts/BootstrapAssets.ps1 -Mode Validate
 python Scripts/SyncV07CombatData.py --check
 python Scripts/SyncV07EquipmentData.py --check
 python Scripts/SyncV07AcquisitionData.py --check
+python Scripts/SyncV07WorldData.py --check
 ./Scripts/RunTests.ps1
+./Scripts/RunWorldCheck.ps1 -Route All
+./Scripts/RunWorldBoundaryCheck.ps1
+./Scripts/RunWorldNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10
+./Scripts/RunWorldNetworkCheck.ps1 -RoundTripMs 150 -JitterMs 10
 ./Scripts/RunContentCheck.ps1
 ./Scripts/RunContentNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunAcquisitionCheck.ps1
@@ -27,62 +33,62 @@ python Scripts/SyncV07AcquisitionData.py --check
 
 Run Unreal operations sequentially; freeze Source/Config during each. UE5.8.4
 CL58902052, Win64 Development, MSVC14.44.35229/SDK10.0.26100.0, compile cap4.
-Each UPROPERTY owns one declaration. Commit is authorized; no push requested.
-Default frontend still uses V05; explicit v07 opens the native tactical lobby.
+Each UPROPERTY owns one declaration. Commit authorized; no push requested.
+Default frontend/V05 regression remain on the retained map. Explicit v07 launches
+`L_V07Region` with imported `DA_WorldCatalog` and native regional assets.
 
 ## Current runtime
 
-All28 spell/40 item definitions have effects. Six additional53-point starters
-grant two adopted skills and no ward/item/gold. The Guild exposes all16 Circle-I
-plus four legacy books at40g. Five shared skills retain natural
-gates and the one-capstone limit. Equipment actives require binding plus one
-of three quick references; consumables require a reference. Use the reference
-to aim/activate or hold Mana/Recall. Inspect a gate/scramble then hold Context.
+B75's28 spells/40 items, six extra starters and B74's paid supplies/12 recipes,
+finite caches, quality, natural gates, binding and quick references remain.
+The new world adds three bounded camp pools, guardian, three vulnerable towers,
+shrines, ruins and forge. Tower death removes sight and its native obstruction;
+all three down grants permanent global siege. Guardian and towers issue physical
+contestable drops with atomic finite reward receipts.
 
-Wire3 carries bounded two-target/two-point/item revisions; wire2 single targets
-remain readable. Server authority rechecks life, build, geometry and resources.
-Item families persist after consumption and merge transferred instance endpoints.
-Major protections share8s activation, with definition-specific longer reuse.
-Blink/Rift direct damage lock3s persists on the contender. Ward/trap charges
-remain one ledger source until retired. Death clears persistent fields/pairs;
-bound Tower Relic always drops. Ordinary bound equipment retains.
+Inspect the antechamber: Context4s activates three physical keys;
+Shift+Context6s consumes an owned Heartbreaker. Both publicly warn30s, then grant
+60s to that life only. Key loss revokes permanently; the90s owner and instance
+reuse endpoints survive transfer/re-pickup. Artifact death cancels without refund.
+Inspect dropped keys: Context3s within80cm after6s quiet. Shrines: Context4s after
+6s quiet, full HP/MP and90s reuse. World interaction IDs10–14 preserve old ID9.
 
-B74 supplies/books,12 recipes, East work orders, same-ID quality and finite caches
-remain. City sells28 priced items; CircleII60g at West/East; CircleIII90g at East
-with two global copies per definition. Town/East/HeartForge holds4/6/8s after six
-quiet seconds. Work orders never fabricate Toolkit/Core/Crystal/catalyst/Fragment
-or T4. Assembly outputs Standard. Eligible fields alone use1.07/1.14 floor.
+Retained public Charter and siege/private routes share one10s stationary Heart
+hold. Nonlethal damage and rival proximity preserve it; actual displacement,
+stun/hex, explicit interrupt, death, release, lost access and own actions cancel.
+Exact-close/deadline completion is inclusive; equal completions use acceptance
+ordinal. Timestamp draining resolves due combat before completion and produces
+one terminal result. Native movement is not historically resimulated; ambiguous
+changed pose conservatively cancels an older stationary hold.
 
-Retained-region adapters: Ruin A(-1400,800), B(0,1050), C(1450,800), HeartForge
-at East(-200,+220), Cliffwalkers link derived from public Plateau geometry.
-Actual guardian drops require a paid `GuardianDefeat` receipt and finite budget;
-the old Sentinel cannot mint Fragment/book. The complete world remains B76.
+Old diagnostic-map ruin/forge adapters remain for prior regression scripts.
+The new region reads authored positions from the closed world catalog. Camp
+placement keeps the covered economic road and service counters viable without
+requiring a kill. Declared encounter stats and reward counts are unchanged.
 
-## Immediate B76 work
+## Immediate B77 work
 
-1. Implement adopted camps/ruins/towers, guardian, shrines/forge and shortcuts in
-   native geometry. Preserve finite physical sources and reward identities.
-2. Connect key/artifact leases, global siege and retained public Charter to one
-   common claim/terminal ordering path. Rivals retain entry/interference rights.
-3. Demonstrate four routes through normal acquisition; add exact endpoint and
-   concurrent winner checks. Keep fixture cases separately labelled.
-4. Preserve B71–B75 combat, cooldown/source lifecycle, privacy, geometry, economy,
-   quality and ownership regressions while integrating world events.
+1. Complete the cross-feature100/150ms/privacy matrix, including progression,
+   delayed source attribution, disconnected/dead hitters and adversarial travel.
+2. Verify rendered and physical input, inspection/immunity readability, minimap,
+   resolutions, OS/text scales and full human route/interference tasks.
+3. Run cold cook/package and normal1/4-player sessions, restart/performance and
+   inherited V06-D01–D08. Record actual results; do not relabel focused fixtures.
+4. Reconcile the working ledger/acceptance matrix and delivery report against
+   portable native logs. No full v0.7 release acceptance is claimed by B76.
 
-## Evidence and boundaries
+## Evidence boundaries and preservation
 
-`v07/evidence/B75/Summary.json` records raw native logs, source/import hashes and
-independent ledger replays. The all-content effect lane explicitly grants
-items/build/resources and controls clock/placement. B75 networking uses a
-server and two independent clients. B74's earned acquisition lane grants no
-money/items/XP but controls time/placement/quiet/protection. None proves human
-travel or full sessions. Public observation remains8 fields and GameState34.
+Normal route demos use native movement/AI/combat, paid acquisition and real
+elapsed holds with diagnostic grants disabled. They use automated commands and
+fixed native20Hz delta; they are not human input, remote sessions or full pacing.
+Boundary and dedicated network tests explicitly label source/placement/clock
+fixtures. They cannot substitute for the normal route demonstrations. Public
+observation remains8 fields; GameState adds only the anonymous four-fact breach
+array (35 reflected public fields total).
 
-B76 world/route and B77 full100/150ms/privacy, physical/rendered input, OS scale,
-cold package, normal1/4-player35-minute, restart/performance and human acceptance
-remain open with inherited V06-D01–D08. No new package/full release is claimed.
-The93 adopted spec files are preserved. A pre-existing user whitespace edit in
+The93 adopted spec files are preserved. A pre-existing user edit in
 `v07/09_VICTORY_AND_MATCH_STATE.md` stays excluded; the other92 match adoption.
 The old B56 Seal-trade fixture is incompatible with V05 economy. Do not enable
-diagnostic Seal grants to force it through; use B74's earned Masterwork trade
-and return as the current transaction regression.
+diagnostic Seal grants to force it through; B74's earned Masterwork trade/return
+remains the current transaction regression.

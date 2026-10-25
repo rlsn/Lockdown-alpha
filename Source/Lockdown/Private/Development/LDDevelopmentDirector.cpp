@@ -50,6 +50,7 @@ void ALDDevelopmentDirector::FinishRequest(ALDPlayerController* PC,uint32 Id,con
 }
 void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan,uint32 InventoryRevision,uint32 ItemRevision)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);
     if(!HasAuthority()||!O||O->Match!=Match||O->Life!=Life||!Id||Kind<1||(Kind>4&&Kind!=LDDevelopmentTransaction::Loadout)
         ||(Kind==LDDevelopmentTransaction::Prepare&&(Plan.Attributes.Num()!=6||Plan.RulesVersion!=O->Build.RulesVersion||Plan.CatalogDigest!=O->Build.CatalogDigest||Plan.Ranks.Num()!=LDDevelopment::Count(O->Build)||Plan.Slots.Num()!=LDDevelopment::Slots(O->Build))))
@@ -61,17 +62,20 @@ void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 L
     int32 Count=0;for(const auto& R:Requests){if(R.PC==PC){++Count;}}
     if(S.Tokens<1||Count>=2){FinishRequest(PC,Id,TEXT("Development request rate limited."));return;}
     --S.Tokens;S.LastRequest=Id;S.Receipts.Add(Id,TEXT("Development request queued."));
-    Requests.Add({PC,Match,Life,Id,Kind,Skill,Item,Plan,InventoryRevision,ItemRevision});
+    Mode->Objectives->CancelClaimForAction(PC,Now);Requests.Add({PC,Match,Life,Id,Kind,Skill,Item,Plan,InventoryRevision,ItemRevision});
 }
 void ALDDevelopmentDirector::QueueLoadout(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,uint32 InvRev,uint32 ItemRev,uint8 Command,FGuid Item,uint8 Slot)
-{const int32 Before=Requests.Num();Queue(PC,Match,Life,Token,LDDevelopmentTransaction::Loadout,ELDSkill::None,Item,FLDBuildPlan(),InvRev,ItemRev);if(Requests.Num()>Before){Requests.Last().Command=Command;Requests.Last().Slot=Slot;}}
+{
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}const int32 Before=Requests.Num();Queue(PC,Match,Life,Token,LDDevelopmentTransaction::Loadout,ELDSkill::None,Item,FLDBuildPlan(),InvRev,ItemRev);if(Requests.Num()>Before){Requests.Last().Command=Command;Requests.Last().Slot=Slot;}}
 void ALDDevelopmentDirector::RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* S=States.Find(PC);if(!S||!S->Kind||S->Life!=Life||S->Token!=Token||Sequence<=S->Sequence||Token<=S->CancelledThrough){return;}
     S->Sequence=Sequence;S->LastHold=GetWorld()->GetTimeSeconds();if(Moving){Cancel(PC,TEXT("Movement cancelled the transaction."));}
 }
 void ALDDevelopmentDirector::Release(ALDPlayerController* PC,uint32 Life,uint32 Token)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);if(!O||O->Life!=Life){return;}
     auto& S=States.FindOrAdd(PC);S.CancelledThrough=FMath::Max(S.CancelledThrough,Token);
     if(S.Kind&&S.Token<=Token){Cancel(PC,TEXT("Released; nothing spent or consumed."));}

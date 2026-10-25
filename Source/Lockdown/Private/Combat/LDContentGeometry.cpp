@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Character/LDCharacter.h"
 #include "Region/LDRegionDirector.h"
 #include "Components/CapsuleComponent.h"
@@ -30,7 +31,7 @@ bool ALDCombatDirector::MobilityEndpoint(ALDCharacter* Body,FVector Desired,FVec
 bool ALDCombatDirector::AtomicSwap(AActor* A,AActor* B,ALDCharacter* Caster,int64 At,FString& Why,bool Execute)
 {
     auto Reject=[&](){Why=TEXT("Swap placement unavailable");return false;};if(!A||!B||A==B){return Reject();}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    auto Allowed=[&](AActor* T){if(auto* Body=Cast<ALDCharacter>(T)){const auto* S=StateFor(Body);return S&&S->Hp>0&&At>=LDTactical::Milliseconds(S->ProtectionUntil)&&!Body->IsA<ALDWildSentinel>()&&!S->Tactical.Has(LDTactical::EStatus::Root,At)&&S->Tactical.GroundedUntil<=At;}
+    auto Allowed=[&](AActor* T){if(auto* Body=Cast<ALDCharacter>(T)){const auto* S=StateFor(Body);return S&&S->Hp>0&&At>=LDTactical::Milliseconds(S->ProtectionUntil)&&!Body->IsA<ALDWildSentinel>()&&!(Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->Immune())&&!S->Tactical.Has(LDTactical::EStatus::Root,At)&&S->Tactical.GroundedUntil<=At;}
         const auto* F=Cast<ALDTacticalField>(T);return F&&F->Source.Get()==Caster&&F->Active(At)&&(F->Kind==ELDTacticalField::Marker||F->Kind==ELDTacticalField::Ward||F->Kind==ELDTacticalField::Decoy);};
     if(!Allowed(A)||!Allowed(B)||FVector::DistSquared2D(A->GetActorLocation(),B->GetActorLocation())>800*800){return Reject();}
     const FVector OldA=A->GetActorLocation(),OldB=B->GetActorLocation();FVector ToA,ToB;

@@ -1,0 +1,359 @@
+{
+	"failures": 0,
+	"route": "Siege",
+	"seconds": 817.25001217797399,
+	"checks": [
+		"PASS Native roster begins with zero money and declared starter endowment only; diagnostic grants disabled",
+		"PASS Recognized normal route",
+		"PASS Wait 7.00s on native world clock",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Native traversal: City Guild",
+		"PASS Courier cooldown elapsed",
+		"PASS Normal held context target1 /0.2s",
+		"PASS Native traversal: Assigned town",
+		"PASS Collect at native assigned town",
+		"PASS Native traversal: Town to City",
+		"PASS Normal held context target1 /3.0s",
+		"PASS Eight earned courier payments /200g, no grants",
+		"PASS Native traversal: City equipment supply",
+		"PASS Wait 6.10s on native world clock",
+		"PASS Earned Surveyor Bow purchase50g",
+		"PASS Quiet native weapon binding2s",
+		"PASS Native traversal: Camp observed approach",
+		"PASS Native legal bow combat: Camp",
+		"PASS Native traversal: Grand tower 0 observed approach",
+		"PASS Native legal bow combat: Grand tower 0",
+		"PASS Native traversal: Shrine outside tower range",
+		"PASS Wait 6.10s on native world clock",
+		"PASS Normal held context target12 /4.0s",
+		"PASS Native traversal: Grand tower 2 observed approach",
+		"PASS Native legal bow combat: Grand tower 2",
+		"PASS Native traversal: Shrine outside tower range",
+		"PASS Wait 6.10s on native world clock",
+		"PASS Normal held context target13 /4.0s",
+		"PASS Native traversal: Grand tower 1 observed approach",
+		"PASS Native legal bow combat: Grand tower 1",
+		"PASS Native traversal: Shrine outside tower range",
+		"PASS Wait 6.10s on native world clock",
+		"PASS Normal held context target13 /4.0s",
+		"PASS Three independent tower deaths grant permanent global siege",
+		"PASS Native traversal: Antechamber / shrine to claim circle",
+		"PASS Normal held context target3 /10.0s",
+		"PASS Single terminal winner and finite-source ledger reconcile"
+	],
+	"travel": [
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 2.0000000298023224,
+			"straightCm": 806.22577482985491,
+			"from": "X=-800.000 Y=-1400.000 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 2
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.750000309199095,
+			"straightCm": 4935.6818881852323,
+			"from": "X=-895.240 Y=-638.081 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 10
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.1432899028132,
+			"from": "X=3623.835 Y=1374.949 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 18
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.413879203128324,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 18
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452640560204,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 22
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325248564351,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 24
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387009858896,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 24
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7747591072803,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 34
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.145076361262,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 42
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.413854784877103,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 42
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450427476,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 46
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354751149,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 48
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387119140063,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 48
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.774759215592,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 58
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.145076362578,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 66
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.41385478465854,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 66
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450425802,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 70
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354752887,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 72
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 37.446387119303452,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 72
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 20.850000310689211,
+			"straightCm": 4961.7747592157557,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=3600.000 Y=1400.000 Z=0.000",
+			"nativePathQueries": 82
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 20.700000308454037,
+			"straightCm": 4936.1450763625771,
+			"from": "X=3623.841 Y=1374.940 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 90
+		},
+		{
+			"name": "Native traversal: City Guild",
+			"seconds": 0,
+			"straightCm": 36.413854784657879,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 90
+		},
+		{
+			"name": "Native traversal: Assigned town",
+			"seconds": 6.6500000990927219,
+			"straightCm": 2756.8452450425798,
+			"from": "X=-869.487 Y=-619.873 Z=92.150",
+			"to": "X=-3600.000 Y=-1000.000 Z=0.000",
+			"nativePathQueries": 94
+		},
+		{
+			"name": "Native traversal: Town to City",
+			"seconds": 6.8500001020729542,
+			"straightCm": 2692.4325354752896,
+			"from": "X=-3563.316 Y=-994.893 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 96
+		},
+		{
+			"name": "Native traversal: City equipment supply",
+			"seconds": 0,
+			"straightCm": 37.446387119304205,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-900.000 Y=-600.000 Z=0.000",
+			"nativePathQueries": 96
+		},
+		{
+			"name": "Native traversal: Camp observed approach",
+			"seconds": 7.1000001057982445,
+			"straightCm": 2942.5863285455121,
+			"from": "X=-935.244 Y=-612.652 Z=92.150",
+			"to": "X=-1800.000 Y=2200.000 Z=0.000",
+			"nativePathQueries": 100
+		},
+		{
+			"name": "Native traversal: Grand tower 0 observed approach",
+			"seconds": 4.8500000722706318,
+			"straightCm": 1994.8685127226115,
+			"from": "X=-1684.448 Y=2235.151 Z=92.150",
+			"to": "X=-1200.000 Y=300.000 Z=0.000",
+			"nativePathQueries": 122
+		},
+		{
+			"name": "Native traversal: Shrine outside tower range",
+			"seconds": 4.8500000722706318,
+			"straightCm": 1994.6628992658962,
+			"from": "X=-1200.000 Y=159.466 Z=92.150",
+			"to": "X=-3000.000 Y=-700.000 Z=0.000",
+			"nativePathQueries": 490
+		},
+		{
+			"name": "Native traversal: Grand tower 2 observed approach",
+			"seconds": 9.7500001452863216,
+			"straightCm": 3839.6190112710524,
+			"from": "X=-2969.292 Y=-685.337 Z=92.150",
+			"to": "X=550.000 Y=850.000 Z=0.000",
+			"nativePathQueries": 492
+		},
+		{
+			"name": "Native traversal: Shrine outside tower range",
+			"seconds": 7.4000001102685928,
+			"straightCm": 3071.0725895978981,
+			"from": "X=-69.444 Y=1400.000 Z=92.150",
+			"to": "X=3000.000 Y=1500.000 Z=0.000",
+			"nativePathQueries": 858
+		},
+		{
+			"name": "Native traversal: Grand tower 1 observed approach",
+			"seconds": 5.2000000774860382,
+			"straightCm": 2132.3175207164118,
+			"from": "X=2963.416 Y=1498.808 Z=92.150",
+			"to": "X=1200.000 Y=300.000 Z=0.000",
+			"nativePathQueries": 860
+		},
+		{
+			"name": "Native traversal: Shrine outside tower range",
+			"seconds": 6.4000000953674316,
+			"straightCm": 2521.9483061695264,
+			"from": "X=564.238 Y=846.328 Z=92.150",
+			"to": "X=3000.000 Y=1500.000 Z=0.000",
+			"nativePathQueries": 1226
+		},
+		{
+			"name": "Native traversal: Antechamber / shrine to claim circle",
+			"seconds": 8.3000001236796379,
+			"straightCm": 3323.0565249562396,
+			"from": "X=2968.962 Y=1492.638 Z=92.150",
+			"to": "X=0.000 Y=0.000 Z=0.000",
+			"nativePathQueries": 1228
+		}
+	],
+	"scope": "Two native local contenders, benchmark fixed delta20Hz. Normal native navigation/movement/AI/combat/services and elapsed quiet/protection/holds. No teleports, gold/XP/items/HP/gates/endpoints setters in this lane. Automated commands, not human/remote/package acceptance."
+}

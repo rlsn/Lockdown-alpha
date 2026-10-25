@@ -1,0 +1,27 @@
+{
+	"failures": 0,
+	"scope": "B75 controlled dedicated authority plus two independent clients, real v3 RPCs and sanitized native proxy observations; labelled build/item/clock/placement fixtures, no earned-route/human/cooked claim.",
+	"checks": [
+		"PASS Native two-client tactical match starts regardless of joining host role",
+		"PASS Remote two-target swap moves both bodies atomically",
+		"PASS Duplicate two-target request spends90MP once",
+		"PASS Remote two-point request creates exactly one linked pair",
+		"PASS Gate pair spends100MP once",
+		"PASS Fresh remote1s hold traverses gate once",
+		"PASS Arrival3s gate lock persists on owner",
+		"PASS Labelled native network consumable creation",
+		"PASS Actual quick-reference binding",
+		"PASS Target block consumes one glyph packet without mute",
+		"PASS Remote item consumed once; family endpoint retained",
+		"PASS Labelled native network consumable creation",
+		"PASS Actual quick-reference binding",
+		"PASS Unblocked remote glyph applies actual mute",
+		"PASS Remote item consumed once; family endpoint retained",
+		"PASS Temporal Lock is control without damage",
+		"PASS Remote capstone releases and pays real cooldown",
+		"PASS Labelled native network consumable creation",
+		"PASS Actual quick-reference binding",
+		"PASS Fresh held item channel restores80MP once",
+		"PASS Native network item accounting reconciles: "
+	]
+}

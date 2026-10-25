@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Combat/LDTacticalGeometry.h"
 #include "Economy/LDEconomyDirector.h"
@@ -80,7 +81,8 @@ bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target)
 TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) const
 {
     TArray<FLDSightSource> Sources;
-    if (bPublicSensor) { Sources.Add({PublicLocation(),600,1}); }
+    if (bPublicSensor && !GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime) { Sources.Add({PublicLocation(),600,1}); }
+    if(const auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime.Get()){Sources.Append(W->TowerSight());}
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const double Now=Mode->RuleTime();
     if(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Now)){Sources.Add({LDRegion::Site(GetWorld(),LDObjective::Heart),360,1});}
     if (PC && PC->OwnerState.bActive)
@@ -231,6 +233,7 @@ void ALDVisionDirector::Sample(bool bPublish)
     for(TActorIterator<ALDCharterTask> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDInstitutionSite> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDProductionSite> It(GetWorld());It;++It){Entities.Add(*It);}
+    for(TActorIterator<ALDWorldSite> It(GetWorld());It;++It){Entities.Add(*It);}
     for(TActorIterator<ALDWatchControl> It(GetWorld());It;++It){Entities.Add(*It);}
     for (auto& Pair : Observers)
     {
@@ -241,7 +244,7 @@ void ALDVisionDirector::Sample(bool bPublish)
         View.Generation=Generation; View.Revision=Revision+1; View.AuthoritySeconds=GetWorld()->GetTimeSeconds();
         View.BodySources=(PC->GetPawn() && PC->OwnerState.bActive) ? 1 : 0;
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-        View.PublicSources=uint8(bPublicSensor?1:0)+uint8(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Mode->RuleTime())?1:0);
+        View.PublicSources=uint8(Mode->WorldRuntime?Mode->WorldRuntime->TowerSight().Num():(bPublicSensor?1:0))+uint8(Mode->Objectives&&Mode->Objectives->HeartSensorActive(Mode->RuleTime())?1:0);
         View.WardSources=uint8(Sources.Num()-View.BodySources-View.PublicSources);
         View.Current.SetNumZeroed(LDVision::MaskBytes);
         for (const auto& Source : Sources)
@@ -271,15 +274,17 @@ void ALDVisionDirector::Sample(bool bPublish)
             if (const ALDCharacter* Body=Cast<ALDCharacter>(Actor))
             {
                 Record.Presentation=Body->PresentationKey%4;if(Body->IsA<ALDWildSentinel>()){Record.Kind=ELDObservedKind::Sentinel;}
+                if(const auto* P=Cast<ALDWorldPawn>(Body)){Record.Kind=P->Kind==2?ELDObservedKind::WorldStructure:ELDObservedKind::WorldCreature;Record.Presentation=P->Kind==2?P->Index:P->Kind;}
                 if(Mode->Combat){Record.ActionCue=Mode->Combat->CueFor(Body);Record.ExposedUntil=float(Mode->Combat->ExposedFor(Body));}
             }
+            else if(const auto* WorldSite=Cast<ALDWorldSite>(Actor)){Record.Kind=ELDObservedKind::WorldSite;Record.Presentation=WorldSite->Kind;}
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
             else if(const auto* F=Cast<ALDTacticalField>(Actor)){Record.Kind=F->Kind==ELDTacticalField::Decoy?ELDObservedKind::Body:ELDObservedKind::TacticalField;Record.Presentation=F->Kind==ELDTacticalField::Decoy&&F->Source.IsValid()?F->Source->PresentationKey%4:uint8(F->Kind);Record.ActionCue=F->Kind==ELDTacticalField::Telegraph?uint8(F->Radius/20):F->Kind==ELDTacticalField::Decoy&&Detects(PC,Position)?11:0;if(F->Kind==ELDTacticalField::Decoy){Record.Speed=F->PathIndex<F->TravelPath.Num()?420:0;Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}if(F->Kind==ELDTacticalField::Ember){Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}}
             else if(Actor->IsA<ALDArcProjectile>()){Record.Kind=ELDObservedKind::Projectile;Record.Presentation=0;Record.ActionCue=6;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}
             else if(const auto* Item=Cast<ALDItem>(Actor);Item&&Item->Kind==ELDItemKind::WardCharge){Record.Kind=ELDObservedKind::WardCharge;}
-            else if(const auto* Cargo=Cast<ALDItem>(Actor);Cargo&&(LDInventory::Commodity(Cargo->Kind)||Cargo->Kind>=ELDItemKind::NullBell)){Record.Kind=ELDObservedKind::Cargo;}
+            else if(const auto* Cargo=Cast<ALDItem>(Actor);Cargo&&(LDInventory::Commodity(Cargo->Kind)||Cargo->Kind>=ELDItemKind::NullBell)){Record.Kind=ELDObservedKind::Cargo;Record.Presentation=Cargo->Kind>=ELDItemKind::AncientKeyA&&Cargo->Kind<=ELDItemKind::AncientKeyC?1:0;}
             else if(const auto* Institution=Cast<ALDInstitutionSite>(Actor)){Record.Kind=ELDObservedKind::Institution;Record.Presentation=Institution->Site;Record.ActionCue=Institution->Status==1&&GetWorld()->GetTimeSeconds()>=Institution->WorkUntil?0:Institution->Status;Record.ExposedUntil=float(Institution->WorkUntil);}
             else if(const auto* Site=Cast<ALDProductionSite>(Actor)){Record.Kind=ELDObservedKind::Production;Record.Presentation=Site->Site;Record.ActionCue=Site->Site<2&&Mode->Economy?uint8(Mode->Economy->Accounting().Remaining(ALDProductionDirector::Budget(Site->Site))):0;}
             else if(Actor->IsA<ALDWatchControl>()){Record.Kind=ELDObservedKind::WatchControl;}

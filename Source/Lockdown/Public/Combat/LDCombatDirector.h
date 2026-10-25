@@ -78,7 +78,7 @@ public:
     bool Basic=false,Reflected=false;
 };
 
-enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble};
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse};
 UCLASS()
 class LOCKDOWN_API ALDTacticalField:public AActor
 {
@@ -168,6 +168,8 @@ public:
     bool RequestTacticalItem(ALDPlayerController* PC,FGuid Item,uint32 Token,FString& Why);
     void CancelTactical(ALDCharacter* Body,const FString& Why);
     void Sample(double Now);
+    void FlushPastCommand();
+    void AdvanceAuthority(double Through);
     bool QuietForPreparation(ALDCharacter* Body) const;
     bool Concealed(const ALDCharacter* Body) const;
     void BreakConcealment(ALDCharacter* Body);
@@ -205,6 +207,8 @@ private:
     struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed;FVector Point=FVector::ZeroVector; FLDTacticalRequest Content;bool IsContent=false; };
     TArray<FIntent> Intents;
     double NextSample=0;
+    bool bSampling=false,bAdvancing=false;
+    double LastAuthorityAt=-1;
     uint64 NextOrder=0;
     struct FTask { FGuid Identity=FGuid::NewGuid(); TSet<ELDSkill> Skills; FSkillTask Execute; };
     TMap<TWeakObjectPtr<AActor>,FTask> SkillTasks;

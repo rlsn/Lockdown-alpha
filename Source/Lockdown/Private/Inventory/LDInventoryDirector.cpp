@@ -1,4 +1,5 @@
 #include "Inventory/LDInventoryDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
@@ -43,6 +44,7 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
     O->Books.Reset();O->WardCharges=0;O->SealId.Invalidate();
     for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else if(Item.Kind==ELDItemKind::Seal){O->SealId=Item.Id;}}
     if(M->IsTacticalProfile()&&M->Combat){M->Combat->RefreshItemFamilies(PC);}
+    if(M->WorldRuntime){M->WorldRuntime->InventoryChanged(PC);}
     check(LDInventory::Valid(O->Inventory));M->SyncOwner(PC);
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
@@ -102,12 +104,13 @@ bool ALDInventoryDirector::Complete(ALDPlayerController* PC,uint32 Id,const FStr
 {auto* C=Clients.Find(PC);if(!C||!C->Receipts.Contains(Id)){return false;}Reply(PC,Id,Reason);return true;}
 void ALDInventoryDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint32 InvRev,uint8 Command,FGuid Item,uint32 ItemRev,uint8 Slot,FVector Point)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Match!=Match||O->Life!=Life||!Id||Command<1||Command>LDInventory::Use||Point.ContainsNaN()){PC->ClientIntentResult(Id,TEXT("Inventory action unavailable"));return;}
     if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&(Command==LDInventory::Use||Command==LDInventory::Place)){GetWorld()->GetAuthGameMode<ALDGameMode>()->Development->Cancel(PC,TEXT("Item action cancelled preparation"));}
     auto& C=Clients.FindOrAdd(PC);if(const auto* Receipt=C.Receipts.Find(Id)){PC->ClientInventoryResult(*O,Id,*Receipt);return;}
     if(Id<=C.Last){PC->ClientIntentResult(Id,TEXT("Expired inventory request"));return;}
     const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(8.,C.Tokens+FMath::Max(0.,Now-C.At)*8);C.At=Now;
-    int32 Count=0;for(const auto& R:Requests){Count+=R.PC==PC;}if(C.Tokens<1||Count>=4){PC->ClientIntentResult(Id,TEXT("Inventory busy; try again"));return;}--C.Tokens;C.Last=Id;C.Receipts.Add(Id,TEXT("Inventory request pending"));Requests.Add({PC,Match,Life,Id,InvRev,Command,Item,ItemRev,Slot,Point});
+    int32 Count=0;for(const auto& R:Requests){Count+=R.PC==PC;}if(C.Tokens<1||Count>=4){PC->ClientIntentResult(Id,TEXT("Inventory busy; try again"));return;}--C.Tokens;C.Last=Id;C.Receipts.Add(Id,TEXT("Inventory request pending"));GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->CancelClaimForAction(PC,Now);Requests.Add({PC,Match,Life,Id,InvRev,Command,Item,ItemRev,Slot,Point});
 }
 void ALDInventoryDirector::Sample(double Now)
 {const auto Pending=MoveTemp(Requests);Requests.Reset();for(const auto& R:Pending){Request(R,Now);}for(auto It=Clients.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}}
@@ -116,6 +119,7 @@ void ALDInventoryDirector::Request(const FRequest& R,double Now)
     auto* PC=R.PC.Get();if(!PC){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Why){Reply(PC,R.Id,Why);};
     if(!O||O->Match!=R.Match||O->Life!=R.Life||!M->IsPlaying()||O->Inventory.Revision!=R.InventoryRevision){Reject(TEXT("Inventory changed; review again"));return;}
     ALDItem* Item=R.Command==LDInventory::Pickup?Cast<ALDItem>(M->Vision->ResolveObserved(PC,R.Item)):Owned(PC,R.Item);
+    if(M->WorldRuntime&&R.Command==LDInventory::Pickup&&Item&&Item->Kind>=ELDItemKind::AncientKeyA&&Item->Kind<=ELDItemKind::AncientKeyC){Reject(TEXT("Inspect the key and hold Context three seconds after six quiet seconds"));return;}
     if(Item&&Item->Kind==ELDItemKind::NullBell&&!M->IsTacticalProfile()){Reject(TEXT("Tactical item requires v07 profile"));return;}
     if(M->Economy&&Item&&Item->Kind==ELDItemKind::Seal){Reject(TEXT("Legacy Seals are disabled in the economy profile"));return;}
     if(R.Command!=LDInventory::Sort&&R.Command!=LDInventory::Buy&&(!Item||Item->Revision!=R.ItemRevision||Item->bReserved)){Reject(TEXT("Item changed or unavailable"));return;}

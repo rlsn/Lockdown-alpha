@@ -39,7 +39,8 @@ struct FLDInteractionState
     FVector Anchor=FVector::ZeroVector;
     FGuid Contract;
     FGuid Window;
-    double WindowClose=0,Damage=-1000;
+    double WindowClose=0,Damage=-1000,Seconds=0;
+    uint64 Ordinal=0;
     TWeakObjectPtr<ALDCharacter> Body;
 };
 
@@ -65,11 +66,14 @@ public:
     bool SetDefencesFixture(uint8 Flags);
     const FLDInteractionState* StateFor(ALDPlayerController* PC) const {return Interactions.Find(PC);}
     double Deadline() const;
+    double NextEvent(double After,double Through) const;
+    void SampleWorldClaims(double Now);
     int32 QueuedRequestCount() const {return Requests.Num();}
     void FailNextFabricationForProbe();
     void AnnounceVoluntaryDrop(ALDSeal* Item,const FVector& Point);
 private:
     bool bFailFabrication=false;
+    uint64 NextClaimOrdinal=0;
     struct FRequest {TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id;uint8 Target;FGuid Observed;};
     TArray<FRequest> Requests;
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDInteractionState> Interactions;

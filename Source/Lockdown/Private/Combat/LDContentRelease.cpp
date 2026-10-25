@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -42,6 +43,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         else if(D->Target!=ELDTacticalTarget::Self)
         {if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)){return Reject();}}
         if(Skill==ELDSkill::Slipstream&&(!Allows(Body,LDTactical::EAction::Dash)||!Body->GetCharacterMovement()->IsMovingOnGround())){return Reject();}
+        if(Skill==ELDSkill::Grapple&&Cast<ALDWorldPawn>(First)&&Cast<ALDWorldPawn>(First)->Immune()){return Reject();}
         if(Skill==ELDSkill::Grapple&&!Allows(Body,LDTactical::EAction::Dash)){return Reject();}
         if(Skill==ELDSkill::SovereignWard&&At<FMath::Max(S->Tactical.MajorReadyAt,O?O->MajorProtectionReadyAt:int64(0))){return Reject();}
         if(S->Tactical.MP<Mana){if(Field){DestroyField(Field);}if(Pair){DestroyField(Pair);}return Reject();}

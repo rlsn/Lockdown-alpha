@@ -265,7 +265,8 @@ void ALDPlayerController::ContextV05()
     if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
     if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
     FLDObservedEntity Link;if(OwnerState.Build.RulesVersion==7&&ReadInspected(Link)&&Link.Kind==ELDObservedKind::TacticalField&&(Link.Presentation==11||Link.Presentation==14)){StartContentInteraction(Link.Id,Link.Presentation==11?2:3);return;}
-    FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){BeginPickup(Item.Id);return;}
+    FLDObservedEntity WorldSite;if(OwnerState.Build.RulesVersion==7&&ReadInspected(WorldSite)&&WorldSite.Kind==ELDObservedKind::WorldSite){const bool Artifact=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Heartbreaker;});const bool Shift=IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift);StartWorldInteraction(WorldSite.Presentation?11+WorldSite.Presentation:(Artifact&&(Shift||!OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;}))?11:10));return;}
+    FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){if(Item.Kind==ELDObservedKind::Cargo&&Item.Presentation==1){StartWorldInteraction(14,Item.Id);}else{BeginPickup(Item.Id);}return;}
     FLDObservedEntity E;
     if(ReadInspected(E)&&E.Kind==ELDObservedKind::Production){if(E.Presentation<2){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=E.Presentation;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();}else{ToggleInventoryPanel();}return;}
     if(ReadInspected(E)&&(E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl))

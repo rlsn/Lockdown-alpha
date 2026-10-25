@@ -43,11 +43,12 @@ void ALDCommerceDirector::Close(ALDPlayerController* PC,uint32 Token){auto& C=Cl
 void ALDCommerceDirector::Invalidate(ALDPlayerController* PC){if(auto* C=Clients.Find(PC);C&&C->View.Session.IsValid()){C->View.Session.Invalidate();Reply(PC,0,TEXT("Commerce closed: another service opened"));}}
 void ALDCommerceDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,uint32 Revision,uint8 Command,ELDItemKind Kind,FGuid Item,uint32 ItemRevision,uint32 InventoryRevision,int32 Price)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto& C=Clients.FindOrAdd(PC);auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Id||!O||O->Match!=Match||O->Life!=Life){Reply(PC,Id,TEXT("Stale commerce life"));return;}
     if(const auto* R=C.Receipts.Find(Id)){Reply(PC,Id,*R);return;}if(Requests.ContainsByPredicate([&](const auto& R){return R.PC==PC&&R.Id==Id;})){return;}
     if(Id<=C.LastRequest){Reply(PC,Id,TEXT("Expired commerce request"));return;}C.LastRequest=Id;
     if(!TakeToken(C)||Requests.FilterByPredicate([&](const auto& R){return R.PC==PC;}).Num()>=2){Reply(PC,Id,TEXT("Commerce busy · Try again"));return;}
-    Requests.Add({PC,Match,Life,Id,Session,Revision,Command,Kind,Item,ItemRevision,InventoryRevision,Price});
+    GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->CancelClaimForAction(PC,GetWorld()->GetTimeSeconds());Requests.Add({PC,Match,Life,Id,Session,Revision,Command,Kind,Item,ItemRevision,InventoryRevision,Price});
 }
 void ALDCommerceDirector::Sample(double Now)
 {

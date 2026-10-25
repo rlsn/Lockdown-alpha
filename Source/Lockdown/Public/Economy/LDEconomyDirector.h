@@ -46,6 +46,7 @@ public:
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
 private:
     friend class ALDAcquisitionDirector;
+    friend class ALDWorldDirector;
     friend class ALDCharterProbe;
     friend class ALDCommerceProbe;
     friend class ALDProductionProbe;

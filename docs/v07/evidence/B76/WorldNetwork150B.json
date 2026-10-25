@@ -1,0 +1,33 @@
+{
+	"failures": 0,
+	"route": "NetworkB",
+	"seconds": 36.646292600780725,
+	"checks": [
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Anonymous key warning reaches both independent clients",
+		"PASS Personal access arrives only on owning controller",
+		"PASS Native antechamber marker uses bounded world category",
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Revoked key lease stays revoked after held re-pickup",
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Artifact opening grants one owner only",
+		"PASS Artifact30s public warning is replicated without owner identity",
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Dead artifact owner receives cancellation and no consumed-item refund",
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Public nonowner claim produces one common terminal result",
+		"PASS Independent owners agree on the sole winner",
+		"PASS Destroyed tower state and shortcut facts replicate",
+		"PASS Independent client receives current sanitized native view",
+		"PASS Canonical encounter/item actors never replicate to rival client",
+		"PASS Independent transport echo samples measured",
+		"PASS Measured echo median 182.8ms"
+	],
+	"travel": [],
+	"scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

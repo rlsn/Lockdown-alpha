@@ -53,6 +53,7 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
 }
 void ALDCombatDirector::QueueSkill(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint32 Revision,uint8 Slot,const FVector& Direction,FGuid Observed,FVector Point)
 {
+    FlushPastCommand();
     if (const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);!O||Slot>=LDDevelopment::Slots(O->Build)) { PC->CompleteCombatRequest(RequestId,TEXT("Invalid skill slot.")); return; }
     int32 Count=0; for (const auto& Intent:Intents) { if (Intent.Controller==PC) { ++Count; } }
     if (Count>=3) { PC->CompleteCombatRequest(RequestId,TEXT("Too many queued actions.")); return; }
@@ -66,6 +67,7 @@ void ALDCombatDirector::CancelSkill(ALDCharacter* Body,FLDBodyCombatState& S)
 }
 void ALDCombatDirector::RefreshSkillHold(ALDCharacter* Body,uint32 Token,uint32 Sequence,bool Moving)
 {
+    FlushPastCommand();
     auto* S=StateFor(Body);
     if (!HasAuthority()||!S||S->Action!=7||S->SkillToken!=Token||Sequence<=S->HoldSequence) { return; }
     S->HoldSequence=Sequence; S->LastSkillHold=GetWorld()->GetTimeSeconds(); S->bHoldMoving=Moving;
@@ -74,6 +76,7 @@ void ALDCombatDirector::RefreshSkillHold(ALDCharacter* Body,uint32 Token,uint32 
 }
 void ALDCombatDirector::ReleaseSkillHold(ALDPlayerController* PC,uint32 Token)
 {
+    FlushPastCommand();
     if (!HasAuthority()||!PC) { return; }
     auto& Released=ReleasedSkills.FindOrAdd(PC); Released=FMath::Max(Released,Token);
     if (auto* Body=Cast<ALDCharacter>(PC->GetPawn()))

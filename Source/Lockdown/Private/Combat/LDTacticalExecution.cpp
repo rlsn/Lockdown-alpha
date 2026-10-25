@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Combat/LDCombatRules.h"
 #include "Region/LDRegionDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -40,7 +41,7 @@ void ALDCombatDirector::ApplyStatus(ALDCharacter* Body,LDTactical::EStatus Statu
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);if(!HasAuthority()||!M->IsTacticalProfile()||!S||S->Hp<=0){return;}
     const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());
-    if(Body->IsA<ALDWildSentinel>()||Until<=At||LDTactical::GuardControl(S->Tactical,Status,At)){return;}
+    if((Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->ImmuneTo(Status))||Body->IsA<ALDWildSentinel>()||Until<=At||LDTactical::GuardControl(S->Tactical,Status,At)){return;}
     LDTactical::Apply(S->Tactical,Status,Until,Source);
     const bool Hard=Status==LDTactical::EStatus::Stun||Status==LDTactical::EStatus::Hex;
     if(Hard||Status==LDTactical::EStatus::Silence)

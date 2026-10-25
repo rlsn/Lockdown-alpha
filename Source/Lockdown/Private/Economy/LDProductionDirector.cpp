@@ -1,4 +1,5 @@
 #include "Economy/LDProductionDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -22,7 +23,7 @@ namespace
     bool Still(const ALDCharacter* B){return B&&B->GetVelocity().SizeSquared2D()<=1&&B->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()<=1&&B->GetLastMovementInputVector().IsNearlyZero();}
 }
 FVector ALDProductionDirector::Position(const UWorld* W,uint8 Site)
-{if(Site>=6&&Site<9){const FVector Offsets[]={FVector(-1400,800,0),FVector(0,1050,0),FVector(1450,800,0)};return Offsets[Site-6];}if(Site==5){return LDRegion::Site(W,6)+FVector(-200,220,0);}
+{if(W->GetMapName().Contains(TEXT("L_V07Region"))&&Site>=5&&Site<9){const auto* C=ULDWorldCatalog::Load();return C->Position(Site==5?TEXT("HeartForge"):FString::Printf(TEXT("Ruin%c"),'A'+Site-6));}if(Site>=6&&Site<9){const FVector Offsets[]={FVector(-1400,800,0),FVector(0,1050,0),FVector(1450,800,0)};return Offsets[Site-6];}if(Site==5){return LDRegion::Site(W,6)+FVector(-200,220,0);}
     return Site<2?LDRegion::Site(W,8)+FVector(Site?160:-160,0,0):LDRegion::Site(W,Site==3?2:Site==4?6:1);}
 FString ALDProductionDirector::SiteName(uint8 Site)
 {const TCHAR* N[]={TEXT("Crystal outcrop 1"),TEXT("Crystal outcrop 2"),TEXT("City workshop"),TEXT("West workshop"),TEXT("East workshop"),TEXT("HeartForge"),TEXT("Ruin A cache"),TEXT("Ruin B cache"),TEXT("Ruin C cache")};return Site<9?N[Site]:TEXT("Unknown production site");}
@@ -62,12 +63,13 @@ void ALDProductionDirector::Reply(ALDPlayerController* PC,uint32 Token,const FSt
 }
 void ALDProductionDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,const FLDProductionPlan& Plan)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     if(!HasAuthority()||!PC){return;}auto& S=States.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
     if(!Token||!O||O->Match!=Match||O->Life!=Life||Plan.Inputs.Num()>4||Plan.CatalogDigest.Len()>64||Plan.Mode>1){Reply(PC,Token,TEXT("Invalid production request or life"));return;}
     if(const auto* R=S.Receipts.Find(Token)){Reply(PC,Token,*R);return;}if(Token<=S.LastRequest){return;}S.LastRequest=Token;
     const double Now=GetWorld()->GetTimeSeconds();S.Tokens=FMath::Min(3.,S.Tokens+FMath::Max(0.,Now-S.RateAt)*4);S.RateAt=Now;
     if(S.Tokens<1||Requests.FilterByPredicate([&](const auto& R){return R.PC==PC;}).Num()>=2){Reply(PC,Token,TEXT("Production request rate limited"));return;}--S.Tokens;
-    Requests.Add({PC,Match,Life,Token,Plan});
+    M->Objectives->CancelClaimForAction(PC,Now);Requests.Add({PC,Match,Life,Token,Plan});
 }
 bool ALDProductionDirector::Terms(ALDPlayerController* PC,const FLDProductionPlan& P,double Ends,bool Reserved,FString& Error) const
 {
@@ -118,9 +120,11 @@ void ALDProductionDirector::Request(const FRequest& R,double Now)
     Reply(PC,R.Token,TEXT("Production accepted; keep holding context. Release spends nothing"));
 }
 void ALDProductionDirector::RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
-{auto* S=States.Find(PC);if(!S||!S->Active||S->Life!=Life||S->Token!=Token||Sequence<=S->Sequence){return;}S->Sequence=Sequence;S->LastHold=GetWorld()->GetTimeSeconds();if(Moving){Cancel(PC,TEXT("Movement cancelled production"));}}
+{
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}auto* S=States.Find(PC);if(!S||!S->Active||S->Life!=Life||S->Token!=Token||Sequence<=S->Sequence){return;}S->Sequence=Sequence;S->LastHold=GetWorld()->GetTimeSeconds();if(Moving){Cancel(PC,TEXT("Movement cancelled production"));}}
 void ALDProductionDirector::Release(ALDPlayerController* PC,uint32 Life,uint32 Token)
-{auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Life!=Life){return;}auto& S=States.FindOrAdd(PC);S.Released=FMath::Max(S.Released,Token);if(S.Active&&S.Token<=Token){Cancel(PC);}}
+{
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Life!=Life){return;}auto& S=States.FindOrAdd(PC);S.Released=FMath::Max(S.Released,Token);if(S.Active&&S.Token<=Token){Cancel(PC);}}
 void ALDProductionDirector::Cancel(ALDPlayerController* PC,const FString& Reason)
 {
     auto* S=States.Find(PC);if(!S||!S->Active){return;}Reserve(PC,*S,false);S->Active=false;S->Released=FMath::Max(S->Released,S->Token);
@@ -153,3 +157,6 @@ bool ALDProductionDirector::SkillUse(ALDCharacter* Body,uint8 Site,ELDSkill Skil
     if(Site<2){FGuid Output;return M->Economy->CommitProduction(PC,Site,0,{},0,Output,Error);}
     O->CraftCoupon=FGuid::NewGuid();O->CouponSite=Site;O->CouponUntil=GetWorld()->GetTimeSeconds()+Rules.CouponSeconds;M->SyncOwner(PC);Error=TEXT("Analyze complete; one private workshop coupon, discount 2 for 30 seconds");return true;
 }
+
+double ALDProductionDirector::NextEvent(double After,double Through) const
+{double Next=Through;for(const auto& P:States){if(P.Value.Active&&P.Value.Ends>After+1.e-7&&P.Value.Ends<Next){Next=P.Value.Ends;}}return Next;}

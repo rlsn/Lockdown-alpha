@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Tests/LDWorldProbe.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Character/LDCharacter.h"
 #include "UI/LDUIRoot.h"
@@ -49,7 +50,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -100,6 +101,7 @@ void ALDPlayerController::InitializeLocalUI()
 #if !UE_BUILD_SHIPPING
     if(GetNetMode()==NM_Client)
     {
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDWorldProbe>(ALDWorldProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDContentNetworkProbe>(ALDContentNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>(ALDAcquisitionNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
@@ -258,6 +260,7 @@ void ALDPlayerController::ServerSkillRelease_Implementation(uint32 Match,uint32 
 }
 void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision,FGuid Observed,FVector Point,const FLDTacticalRequest* Content)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* State=Mode?Mode->StateFor(this):nullptr;
     if(!State||Match!=State->Match||Life!=State->Life||!Request||Action>=3+LDDevelopment::Slots(State->Build)||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1
         ||(Action>=3&&(!State->bDevelopmentProfile||BuildRevision!=State->Build.Revision)))
@@ -329,6 +332,8 @@ FString ALDPlayerController::LegacyContextPrompt() const
             return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
         }
     }
+    if(OwnerState.Build.RulesVersion==7&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
+    {const bool Public=GS&&(GS->DefensiveFlags==0||GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now+10<=GS->CharterCloseAt);const bool Personal=OwnerState.BreachRoute&&Now>=OwnerState.BreachOpenAt&&Now+10<=OwnerState.BreachCloseAt;return Public||Personal?TEXT("Hold context10s to claim. Positive damage/proximity alone do not cancel. Stun/hex, explicit interruption, displacement, release or lost access reset progress."):TEXT("Heart protected. Three towers / public Charter / three retained Keys / assembled Heartbreaker. Private activation occurs in the antechamber.");}
     if(GS&&GS->bUIControlProfile&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
     {return Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&GS->CharterWindow.IsValid()?TEXT("Hold context: public Heart claim 10s. All living unprotected contenders qualify; enemies within 240 cm contest."):TEXT("Heart protected. Treasury: Supply + Industrial + Witness + 100 gold; activate registered Charter at City.");}
     uint8 Target=0;FGuid Observed;if(!ChooseContext(Target,Observed)){return GS&&GS->bUIControlProfile?TEXT("Bag: paid supply, markets, exact production and procurement. Treasury: Supply + Industrial + Witness + 100 gold. City activation opens Heart for everyone."): OwnerState.bDevelopmentProfile?TEXT("1–4: equipped skills. E work/loot; P build/books. Guild: Shift+E fabricates a Seal (Witness, 4 credits, 100 gold). Conquest unavailable."):TEXT("Approach Guild [G], West station [W] or Heart [H]. E interacts within 120 cm.");}
@@ -371,7 +376,7 @@ void ALDPlayerController::InteractStopped()
 void ALDPlayerController::ServerContextRequest_Implementation(uint32 Match,uint32 Life,uint32 Request,uint8 Target,FGuid Observed)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
-    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||(Target>4&&!((Target==6||Target==LDObjective::Fabricator)&&Mode->Region))||(Target==4)!=Observed.IsValid())
+    if(!O||O->Match!=Match||O->Life!=Life||!Request||Target<1||(Target>4&&!((Target==6||Target==LDObjective::Fabricator)&&Mode->Region)&&!(Mode->WorldRuntime&&Target>=10&&Target<=14))||((Target==4||Target==14)!=Observed.IsValid()))
     {ClientIntentResult(Request,TEXT("Invalid interaction or stale life."));return;}
     if(const auto* Receipt=ContextReceipts.Find(Request)){ClientTransactionResult(OwnerState,Request,*Receipt);return;}
     if(Mode->IsFinished()){ClientIntentResult(Request,TEXT("Demo finished."));return;}
@@ -543,7 +548,7 @@ void ALDPlayerController::ServerTacticalAction_Implementation(FLDTacticalRequest
 void ALDPlayerController::ServerAidConsent_Implementation(uint32 Match,uint32 Life,bool Allow)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;if(O&&M->IsTacticalProfile()&&M->IsPlaying()&&O->Match==Match&&O->Life==Life&&O->bActive){O->bAidConsent=Allow;M->SyncOwner(this);}}
 void ALDPlayerController::ServerCancelTactical_Implementation(uint32 Match,uint32 Life,uint32 Through)
-{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Combat){auto* Body=Cast<ALDCharacter>(GetPawn());if(auto* S=M->Combat->StateFor(Body)){S->CancelledCoreThrough=FMath::Max(S->CancelledCoreThrough,Through);S->bAttackOrder=false;if(S->Action==1){S->Action=0;S->Target.Reset();}}M->Combat->CancelTactical(Body,TEXT("Stop or focus loss"));}}
+{if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Combat){auto* Body=Cast<ALDCharacter>(GetPawn());if(auto* S=M->Combat->StateFor(Body)){S->CancelledCoreThrough=FMath::Max(S->CancelledCoreThrough,Through);S->bAttackOrder=false;if(S->Action==1){S->Action=0;S->Target.Reset();}}M->Combat->CancelTactical(Body,TEXT("Stop or focus loss"));}}
 void ALDPlayerController::ClearControls()
 {
     PendingPickupToken=0;HeldQuickSlot=-1;if(InventoryUI){InventoryUI->CancelDrag();}
@@ -665,3 +670,6 @@ void ALDPlayerController::ServerSetAim_Implementation(uint32 Match,uint32 Life,f
     LastAcceptedAimTime = Now;
     if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->SetFacing(Yaw); }
 }
+
+void ALDPlayerController::StartWorldInteraction(uint8 Target,FGuid Observed)
+{Navigation->Stop();if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}if(bControlsSuppressed||!OwnerState.bActive){return;}bInteractHeld=true;ContextToken=++NextRequest;HoldSequence=0;LastHoldSent=-1000;ServerContextRequest(OwnerState.Match,OwnerState.Life,ContextToken,Target,Observed);}

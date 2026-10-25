@@ -4,7 +4,7 @@ param([string]$EngineRoot,[switch]$NavigationCheckpoint,[ValidateSet("v06_regres
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
 $output = New-LDArtifactDirectory 'Standalone'
-$world=if($Profile){"/Game/Lockdown/Generated/Maps/L_DevelopmentRegion?listen?Profile=$Profile"}elseif($NavigationCheckpoint){'/Game/Lockdown/Generated/Maps/L_DevelopmentRegion?listen?Profile=V05'}else{''}
+$world=if($Profile -eq "v07_integration"){"/Game/Lockdown/Generated/Maps/L_V07Region?listen?Profile=$Profile"}elseif($Profile){"/Game/Lockdown/Generated/Maps/L_DevelopmentRegion?listen?Profile=$Profile"}elseif($NavigationCheckpoint){'/Game/Lockdown/Generated/Maps/L_DevelopmentRegion?listen?Profile=V05'}else{''}
 $arguments = '"{0}" {1} -game -windowed -ResX=1280 -ResY=720 -nosplash -DisablePlugins=AllToolsets,ModelContextProtocol -abslog="{2}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'), $world, (Join-Path $output 'Standalone.log')
 # This command requests a visible interactive game. Editor Python toolsets cannot
 # initialize in a -game world; the normal editor retains its MCP plugins.

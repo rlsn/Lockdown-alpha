@@ -1,21 +1,21 @@
-# Project Lockdown — v0.7 B75 tactical content build
+# Project Lockdown — v0.7 B76 world build
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
-baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
+baseline is [v0.6](docs/v06/README.md), and the active contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B75 tactical content; B76 next.**
-[B75 implementation](docs/v07/B75_IMPLEMENTATION.md) completes all28 tactical
-spells, all40 item effects/bindings and six additional starter choices, including
-atomic swaps/gates, timed zones, projectile defenses and persistent item families.
-B74's paid supplies, recipes, quality and finite caches feed those effects.
-The authored guardian/world, tower rewards and four-route outcomes remain B76;
-release acceptance remains open in the [working ledger](docs/v07/FeatureLedger.csv).
+**Current checkpoint: B76 native world and four-route implementation.**
+[B76 implementation](docs/v07/B76_IMPLEMENTATION.md) records the authored region,
+finite camp/guardian/tower sources, shrines, physical key and artifact leases,
+global siege and common Heart claim ordering. It builds on B75's28 spells,
+40 items and B74's paid supplies, recipes and finite caches. Verification status
+and remaining release acceptance are recorded in the
+[working ledger](docs/v07/FeatureLedger.csv).
 
 The normal frontend still hosts the V05 economy; `v06_regression` is its explicit
 alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the tactical
-lobby. The [B70 audit](docs/v07/B70_BASELINE_REVIEW.md) records the frozen
+lobby in the extended native region. The [B70 audit](docs/v07/B70_BASELINE_REVIEW.md) records the frozen
 predecessor and adopted specification; [current continuation](docs/CONTINUATION.md)
 records launch, evidence and next steps. Extended/human verification remains
 scoped deferred work. No fresh package or complete-release acceptance is claimed.

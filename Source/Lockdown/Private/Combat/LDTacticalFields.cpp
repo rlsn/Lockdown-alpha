@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Region/LDRegionDirector.h"
 #include "Combat/LDTacticalGeometry.h"
 #include "Character/LDCharacter.h"
@@ -26,13 +27,13 @@ bool ALDCombatDirector::Concealed(const ALDCharacter* Body) const
 void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;}}
 void ALDCombatDirector::ExplicitInterrupt(ALDCharacter* Body,double Now)
 {
-    auto* S=StateFor(Body);if(!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()){return;}
+    auto* S=StateFor(Body);if(!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->Immune())){return;}
     if(S->Action==9||S->Action==10){CancelTactical(Body,TEXT("Explicit interrupt"));}else{CancelSkill(Body,*S);}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->Interrupt(PC,Now,true);}
 }
 bool ALDCombatDirector::Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now)
 {
-    auto* S=StateFor(Body);if(!HasAuthority()||!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()||S->Tactical.AnchorUntil>LDTactical::Milliseconds(Now)){return false;}
+    auto* S=StateFor(Body);if(!HasAuthority()||!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->Immune())||S->Tactical.AnchorUntil>LDTactical::Milliseconds(Now)){return false;}
     const FVector Start=Body->GetActorLocation(),Dir=Direction.GetSafeNormal2D();if(Dir.IsNearlyZero()||Distance<=0){return false;}
     auto* Move=Body->GetCharacterMovement();
     // Small native swept capsule moves, with static floor/ledge validation before each step.

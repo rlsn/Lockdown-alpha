@@ -8,11 +8,11 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 namespace
 {
-    FString Hash(const FString& Text){FTCHARToUTF8 B(*Text);FSHA256Signature D;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),D.Signature);return D.ToString().ToLower();}
+    FString TacticalHash(const FString& Text){FTCHARToUTF8 B(*Text);FSHA256Signature D;SHA256(reinterpret_cast<const uint8*>(B.Get()),B.Length(),D.Signature);return D.ToString().ToLower();}
 }
 bool ULDTacticalCatalog::Import(const FString& Text,FString& Error)
 {
-    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=Hash(SourceJson);Abilities.Reset();Starters.Reset();
+    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=TacticalHash(SourceJson);Abilities.Reset();Starters.Reset();
     auto Reject=[&](){Error=TEXT("Unsupported tactical contract; sync source, importer and native asset together");return false;};
     // Fail closed on every semantic edit, including unknown operations and payloads.
     if(Checksum!=LD_TACTICAL_CONTRACT_SHA){return Reject();}
@@ -47,7 +47,7 @@ bool ULDTacticalCatalog::NaturalGate(const FLDTacticalDefinition& D,const FLDCha
 }
 bool ULDTacticalCatalog::Validate(FString& Error) const
 {
-    if(Checksum!=LD_TACTICAL_CONTRACT_SHA||Checksum!=Hash(SourceJson)){Error=TEXT("Tactical checksum mismatch");return false;}
+    if(Checksum!=LD_TACTICAL_CONTRACT_SHA||Checksum!=TacticalHash(SourceJson)){Error=TEXT("Tactical checksum mismatch");return false;}
     auto* Copy=NewObject<ULDTacticalCatalog>();if(!Copy->Import(SourceJson,Error)||Copy->Abilities.Num()!=Abilities.Num()){return false;}
     for(const auto& A:Abilities){const auto* B=Copy->Find(A.Skill);if(!B||B->Id!=A.Id||B->Windup!=A.Windup||B->Mana!=A.Mana||B->Cooldown!=A.Cooldown||B->Range!=A.Range||B->Area!=A.Area||B->Circle!=A.Circle||B->Target!=A.Target||B->RankKey!=A.RankKey||B->Gates!=A.Gates||B->Magnitudes!=A.Magnitudes){Error=TEXT("Derived tactical data differs from source");return false;}}
     if(Starters.Num()!=Copy->Starters.Num()){return false;}for(int32 I=0;I<Starters.Num();++I){if(!FLDStarterKit::StaticStruct()->CompareScriptStruct(&Starters[I],&Copy->Starters[I],0)){Error=TEXT("Starter differs from source");return false;}}

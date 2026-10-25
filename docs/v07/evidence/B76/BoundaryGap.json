@@ -1,0 +1,12 @@
+{
+	"failures": 0,
+	"route": "Boundary",
+	"seconds": 7.2301800971268673,
+	"checks": [
+		"PASS Boundary lane explicitly permits labelled fixture sources; normal route lane forbids them",
+		"PASS A1ms late endpoint or uncovered gap refuses claim before progress",
+		"PASS Boundary exact physical sources and gold ledger reconcile: Integration match started. Roster locked."
+	],
+	"travel": [],
+	"scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDProductionDirector.h"
@@ -61,6 +62,7 @@ double ALDCombatDirector::ExposedFor(const ALDCharacter* Body) const
 {const auto* S=StateFor(Body);return S?S->ExposedUntil:0;}
 void ALDCombatDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint8 Action,const FVector& Direction)
 {
+    FlushPastCommand();
     // Three bounded edge intents per connection/sample; retries are handled by the controller.
     int32 Count=0;for(const auto& Intent:Intents){if(Intent.Controller==PC){++Count;}}
     if(Count>=3){PC->CompleteCombatRequest(RequestId,TEXT("Too many queued actions."));return;}
@@ -199,9 +201,11 @@ void ALDCombatDirector::Sync(ALDCharacter* Body,FLDBodyCombatState& S)
 }
 void ALDCombatDirector::Sample(double Now)
 {
+    TGuardValue<bool> Sampling(bSampling,true);
     SampleFields(LDTactical::Milliseconds(Now));
     TArray<FLDCombatHit> Impacts;
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(Mode->WorldRuntime){Mode->WorldRuntime->Publish(Now);Mode->WorldRuntime->Prepare(Now,Impacts);}
     if(Mode->IsFinished())
     {
         for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){It->Destroy();}
@@ -289,13 +293,14 @@ void ALDCombatDirector::Sample(double Now)
         {
             const int64 At=LDTactical::Milliseconds(Now);
             if(Hit.Spell&&LDTactical::Block(T->Tactical,At)){UE_LOG(LogTemp,Display,TEXT("LD_B71_BLOCK token=%u"),Hit.Token);continue;}
-            const auto* B=BuildFor(Victim);const double Armor=B?2+.5*(LDDevelopment::Effective(*B)[2]-8)+B->Gear.Armor:2;
+            const auto* B=BuildFor(Victim);const auto* WorldVictim=Cast<ALDWorldPawn>(Victim);const double Armor=WorldVictim?WorldVictim->Armor:B?2+.5*(LDDevelopment::Effective(*B)[2]-8)+B->Gear.Armor:2;
             const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ForwardVector;const bool Front=FVector::DotProduct(Bearing.GetSafeNormal2D(),T->Tactical.BarrierFacing.GetSafeNormal2D())>=.5;
-            double EffectiveArmor=Armor;double MR=B?.15+B->Gear.MagicResist:.15;
+            double EffectiveArmor=Armor;double MR=WorldVictim?WorldVictim->MR:B?.15+B->Gear.MagicResist:.15;
             if(B&&B->Gear.DirectionalGuard&&LDTactical::PassiveActive(T->Tactical,true,At)&&FVector::DotProduct(Bearing.GetSafeNormal2D(),Victim->GetActorForwardVector())>=.5){const double R=FMath::Min(.6,FMath::Max(0.,Armor)/(100+FMath::Max(0.,Armor))+.1);EffectiveArmor=100*R/(1-R);MR=FMath::Min(.6,MR+.1);}
             const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage,Hit.Kind,EffectiveArmor,MR,At,!T->Tactical.Directional||Front);
             if(Hit.MuteMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Mute,At+Hit.MuteMS,FGuid::NewGuid());}
             if(Hit.SlowMS&&T->Hp>0&&!Victim->IsA<ALDWildSentinel>()){LDTactical::Apply(T->Tactical,LDTactical::EStatus::Slow,At+Hit.SlowMS,FGuid::NewGuid(),40);}
+            if(Mode->WorldRuntime){Mode->WorldRuntime->Contact(Hit,Contact);}
             WeaponContact(Hit,Victim,Contact,At);
             if(Hit.Interrupt&&T->Hp>0){ExplicitInterrupt(Victim,Now);}
             if(Hit.SilenceMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Silence,At+Hit.SilenceMS,FGuid::NewGuid());}
@@ -332,11 +337,13 @@ void ALDCombatDirector::Sample(double Now)
     {if(Now>=Residents[I].At){auto* Returned=GetWorld()->SpawnActor<ALDResident>(Residents[I].Home,FRotator::ZeroRotator);if(Mode->WorldChecks){Mode->WorldChecks->BindReturnedBody(Returned,Residents[I].Wallet);}if(Residents[I].HasBuild){RegisterNPCBuild(Returned,Residents[I].Build);StateFor(Returned)->Hp=LDDevelopment::MaxHP(Residents[I].Build);}Residents.RemoveAtSwap(I);}}
     Mode->ReturnDueContenders(Now);
     if(Mode->Region){Mode->Region->Sample(Now);}
+    if(Mode->WorldRuntime){Mode->WorldRuntime->Publish(Now);}
     if(Mode->Objectives){Mode->Objectives->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
     if(Mode->Economy){FString Error;if(!Mode->Economy->Audit(Error)){++Mode->Economy->AuditFailures;UE_LOG(LogTemp,Error,TEXT("LD_ECONOMY_BATCH_AUDIT %s"),*Error);}}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 {
+    auto* WorldMode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* P=Cast<ALDWorldPawn>(Body)){if(WorldMode->WorldRuntime&&!WorldMode->WorldRuntime->Defeated(P,Now)){return;}EndContentLife(P);}else if(WorldMode->WorldRuntime){WorldMode->WorldRuntime->PvPKill(Body,Now);}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->bAidConsent=false;}}
     auto* S=StateFor(Body);if(!S){return;}
     if(ALDCorpse* Corpse=GetWorld()->SpawnActor<ALDCorpse>(Body->GetActorLocation()-FVector(0,0,65),Body->GetActorRotation())){Corpse->Presentation=Body->PresentationKey;}
@@ -348,6 +355,7 @@ void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 void ALDCombatDirector::Tick(float Delta)
 {
     Super::Tick(Delta);const double Now=GetWorld()->GetTimeSeconds();
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime){const double Begin=FPlatformTime::Seconds();AdvanceAuthority(Now);LastSampleMs=(FPlatformTime::Seconds()-Begin)*1000;++SampleSerial;return;}
     if(Now>=NextSample)
     {
         if(NextSample>0&&Now-NextSample>.1){UE_LOG(LogTemp,Warning,TEXT("LD authority combat sample late by %.3fs; sampling current pose once"),Now-NextSample);}

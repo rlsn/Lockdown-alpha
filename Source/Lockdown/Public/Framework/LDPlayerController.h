@@ -211,6 +211,7 @@ private:
     friend class ALDProductionProbe;
     friend class ALDInstitutionProbe;
     friend class ALDInventoryProbe;
+    friend class ALDWorldProbe;
     friend class ALDVendorProbe;
     friend class ALDTradeProbe;
     friend class ULDInventoryPanel;
@@ -276,6 +277,7 @@ private:
     double LastDevelopmentHoldSent=-1000;
     void InteractStarted();
     void StartInteraction(bool Fabricate);
+    void StartWorldInteraction(uint8 Target,FGuid Observed=FGuid());
     void InteractStopped();
     bool bInteractHeld=false;
     uint32 ContextToken=0,HoldSequence=0,LastContextRequest=0;

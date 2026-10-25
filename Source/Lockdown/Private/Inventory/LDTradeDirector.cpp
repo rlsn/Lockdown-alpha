@@ -79,11 +79,12 @@ void ALDTradeDirector::Reply(ALDPlayerController* PC,uint32 Id,FGuid Session,con
 }
 void ALDTradeDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint8 Command,FGuid Session,uint32 Rev,const FString& Digest,FGuid Item,int64 Gold)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto& C=Clients.FindOrAdd(PC);const double Now=GetWorld()->GetTimeSeconds();if(!Id){return;}if(const auto* Receipt=C.Receipts.Find(Id)){const auto Saved=*Receipt;Reply(PC,Id,Saved.Session,Saved.Message);return;}if(Id<=C.Last){return;}
     C.Last=Id;C.Tokens=FMath::Min(4.,C.Tokens+FMath::Max(0.,Now-C.At)*4);C.At=Now;
     if(Command==LDTrade::Cancel){C.CancelledThrough=Id;if(auto* Old=Requests.FindByPredicate([&](const auto& Q){return Q.PC==PC&&Q.Command==LDTrade::Cancel;})){*Old={PC,Match,Life,Id,Command,Session,Rev,Digest,Item,Gold,Now};}else{Requests.Add({PC,Match,Life,Id,Command,Session,Rev,Digest,Item,Gold,Now});}return;}
     if(C.Tokens<1||Requests.FilterByPredicate([&](const auto& R){return R.PC==PC;}).Num()>=4||Digest.Len()>64){FRequest Rejected{PC,Match,Life,Id,0,Session,Rev,TEXT(""),FGuid(),0,FMath::CeilToDouble((Now+.001)*4)/4};if(auto* Old=Requests.FindByPredicate([&](const auto& Q){return Q.PC==PC&&Q.Command==0;})){*Old=Rejected;}else{Requests.Add(Rejected);}return;}
-    --C.Tokens;Requests.Add({PC,Match,Life,Id,Command,Session,Rev,Digest,Item,Gold,Command==LDTrade::Invite?FMath::CeilToDouble((Now+.001)*4)/4:Now});
+    --C.Tokens;if(const auto* Own=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);Own&&Own->Match==Match&&Own->Life==Life){GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->CancelClaimForAction(PC,Now);}Requests.Add({PC,Match,Life,Id,Command,Session,Rev,Digest,Item,Gold,Command==LDTrade::Invite?FMath::CeilToDouble((Now+.001)*4)/4:Now});
 }
 void ALDTradeDirector::Request(const FRequest& R)
 {

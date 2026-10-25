@@ -52,12 +52,13 @@ void ALDVendorDirector::Reply(ALDPlayerController* PC,uint32 Id,const FReceipt& 
 }
 void ALDVendorDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,uint32 Revision,int32 Price,uint32 InventoryRevision,ELDSkill Skill)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto& C=Clients.FindOrAdd(PC);const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);
     if(!Id||!O||O->Match!=Match||O->Life!=Life){PC->ClientIntentResult(Id,TEXT("Purchase unavailable or stale life"));return;}
     if(const auto* R=C.Receipts.Find(Id)){if(!R->bFinal){return;}PC->ClientVendorResult(*O,Id,Quote(PC,C),R->Item,R->Reason);return;}
     if(Id<=C.LastRequest){PC->ClientIntentResult(Id,TEXT("Expired purchase request"));return;}
     int32 Pending=0;for(const auto& R:Requests){Pending+=R.PC==PC;}if(!TakeToken(C)||Pending>=2){PC->ClientIntentResult(Id,TEXT("Vendor busy; try again"));return;}
-    C.LastRequest=Id;C.Receipts.Add(Id,{FGuid(),TEXT("Purchase pending"),false});Requests.Add({PC,Match,Life,Id,Session,Revision,Price,InventoryRevision,Skill});
+    C.LastRequest=Id;C.Receipts.Add(Id,{FGuid(),TEXT("Purchase pending"),false});GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->CancelClaimForAction(PC,GetWorld()->GetTimeSeconds());Requests.Add({PC,Match,Life,Id,Session,Revision,Price,InventoryRevision,Skill});
 }
 void ALDVendorDirector::Request(const FRequest& R)
 {

@@ -54,6 +54,7 @@ public:
     void Cancel(ALDPlayerController* PC,const FString& Reason=TEXT("Production cancelled; nothing spent"));
     void EndLife(ALDPlayerController* PC);
     void Sample(double Now);
+    double NextEvent(double After,double Through) const;
     AActor* Target(uint8 Site) const {return Targets.IsValidIndex(Site)?Targets[Site].Get():nullptr;}
 private:
     friend class ALDEconomyUIProbe;

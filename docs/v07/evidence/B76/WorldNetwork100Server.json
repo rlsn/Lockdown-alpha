@@ -1,0 +1,22 @@
+{
+	"failures": 0,
+	"route": "NetworkServer",
+	"seconds": 38.946969904005527,
+	"checks": [
+		"PASS Dedicated new region creates three camps, guardian and three towers",
+		"PASS Explicit focused network physical fixture source",
+		"PASS Explicit focused network physical fixture source",
+		"PASS Explicit focused network physical fixture source",
+		"PASS Remote keys activate while foreign owner without keys is rejected",
+		"PASS Key removal revokes before next client command",
+		"PASS Remote3s re-pickup retains ID/cooldown and cannot restore old lease",
+		"PASS Explicit focused network physical fixture source",
+		"PASS Remote6s artifact activation consumes exactly once",
+		"PASS Artifact death cancellation occurs on dedicated authority",
+		"PASS Labelled tower death removes one public sight source and opens shortcut",
+		"PASS Nonregistered remote claimant wins public opening with one terminal receipt",
+		"PASS Focused remote source and terminal ledger reconcile: "
+	],
+	"travel": [],
+	"scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

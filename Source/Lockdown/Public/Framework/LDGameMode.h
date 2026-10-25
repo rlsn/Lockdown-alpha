@@ -14,11 +14,21 @@ public:
     ALDPlayerState();
 };
 
+USTRUCT()
+struct FLDBreachNotice
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Route=0;
+    UPROPERTY() double WarningAt=0;
+    UPROPERTY() double OpenAt=0;
+    UPROPERTY() double CloseAt=0;
+};
 UCLASS()
 class LOCKDOWN_API ALDGameState : public AGameStateBase
 {
     GENERATED_BODY()
 public:
+    UPROPERTY(Replicated) TArray<FLDBreachNotice> Breaches;
     UPROPERTY(Replicated) bool bPublicSensorActive = true;
     UPROPERTY(Replicated) uint8 DefensiveFlags = 15;
     UPROPERTY(Replicated) bool bClaimActive = false;
@@ -99,6 +109,8 @@ public:
     bool IsFinished() const;
     double RuleTime() const;
     double StartedAt() const {return MatchStartedAt;}
+    UPROPERTY() TObjectPtr<class ALDWorldDirector> WorldRuntime;
+    bool bDrainingEvents=false;
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;

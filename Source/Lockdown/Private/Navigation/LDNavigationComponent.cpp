@@ -23,7 +23,7 @@
 
 namespace
 {
-    constexpr uint8 Accepted=1,Arrived=2,Stopped=3,Rejected=4;
+    constexpr uint8 NavAccepted=1,Arrived=2,Stopped=3,Rejected=4;
     void HaltLocomotion(ALDCharacter* Body)
     {
         if(!Body){return;}Body->ConsumeMovementInputVector();auto* Move=Body->GetCharacterMovement();
@@ -117,7 +117,7 @@ void ULDNavigationComponent::ServerOrder_Implementation(FLDMoveIdentity Identity
     if(!Enabled()||!O||!O->bActive||!M->IsPlaying()||Identity.Match!=O->Match||Identity.Life!=O->Life||!Identity.Order||Surface.ContainsNaN()||Site>8)
     {ClientOrder(Identity,Rejected,{},40,TEXT("Invalid order or stale life"));return;}
     if(Server.Match!=O->Match||Server.Life!=O->Life){bServerActive=bPending=false;Server={O->Match,O->Life,0,0};}
-    if(Identity==Server){if(!bPending){ClientOrder(Server,LastResult,ServerGoal,ServerAcceptance,LastResult==Accepted?TEXT("Move accepted"):TEXT("Order finished"));}return;}
+    if(Identity==Server){if(!bPending){ClientOrder(Server,LastResult,ServerGoal,ServerAcceptance,LastResult==NavAccepted?TEXT("Move accepted"):TEXT("Order finished"));}return;}
     if(!Newer(Identity,Server)){ClientOrder(Identity,Rejected,{},40,TEXT("Expired move order"));return;}
     Server=Identity;PendingSurface=Surface;Approach=Observed;PendingSite=Site;
     bPending=true;bServerActive=false;LastHeartbeat=GetWorld()->GetTimeSeconds();ServerHeartbeatSequence=0;
@@ -184,10 +184,10 @@ void ULDNavigationComponent::ProcessOrder()
 {
     bPending=false;NextQuery=GetWorld()->GetTimeSeconds()+.1;
     if(!ResolveOrder(ServerGoal,ServerAcceptance,ServerPoints)){EndServer(Rejected,TEXT("No walkable route"));return;}
-    if(auto* TradeMode=GetWorld()->GetAuthGameMode<ALDGameMode>();TradeMode&&TradeMode->Trade){TradeMode->Trade->CancelFor(Controller());}bServerActive=true;LastResult=Accepted;bServerReplanned=false;
+    if(auto* TradeMode=GetWorld()->GetAuthGameMode<ALDGameMode>();TradeMode&&TradeMode->Trade){TradeMode->Trade->CancelFor(Controller());}bServerActive=true;LastResult=NavAccepted;bServerReplanned=false;
     ServerProgressAnchor=Controller()->GetPawn()->GetActorLocation();ServerLastProgress=GetWorld()->GetTimeSeconds();
     ServerBestProgress=AlongPath(ServerPoints,ServerProgressAnchor);
-    ClientOrder(Server,Accepted,ServerGoal,ServerAcceptance,TEXT("Move accepted"));
+    ClientOrder(Server,NavAccepted,ServerGoal,ServerAcceptance,TEXT("Move accepted"));
     UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u"),Server.Match,Server.Life,Server.Order,Server.Epoch);
 }
 void ULDNavigationComponent::EndServer(uint8 Result,const FString& Reason)
@@ -200,10 +200,10 @@ void ULDNavigationComponent::ClientOrder_Implementation(FLDMoveIdentity Identity
 {
     auto* PC=Controller();
     if(Identity!=Local||Identity.Match!=PC->OwnerState.Match||Identity.Life!=PC->OwnerState.Life){return;}
-    if((Result==0||Result==Accepted||Result==Rejected)&&AcknowledgedOrder!=Identity.Order)
+    if((Result==0||Result==NavAccepted||Result==Rejected)&&AcknowledgedOrder!=Identity.Order)
     {AcknowledgedOrder=Identity.Order;AcknowledgementMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000);}
     if(Result==0){Status=Reason;PC->IntentFeedback=Reason;return;}
-    if(Result==Accepted)
+    if(Result==NavAccepted)
     {
         if(AcceptedOrder==Identity.Order||!bLocalActive){return;}
         RouteAcceptanceMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000);

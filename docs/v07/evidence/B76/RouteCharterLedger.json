@@ -1,0 +1,4051 @@
+{
+	"schemaVersion": 1,
+	"event": "B76Charter",
+	"match": "CA7527024C5A113320517D9DE0FE0640",
+	"start": "450",
+	"minted": "330",
+	"burned": "188",
+	"end": "592",
+	"accounts": [
+		{
+			"id": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"gold": "140",
+			"endowment": "0",
+			"retired": false,
+			"revision": 30
+		},
+		{
+			"id": "Bank:3F78FD024227B7B58F50B79CD9958DA9",
+			"gold": "0",
+			"endowment": "0",
+			"retired": false,
+			"revision": 2
+		},
+		{
+			"id": "Wallet:056A96C046D5850739E7B18E33B85050",
+			"gold": "0",
+			"endowment": "0",
+			"retired": false,
+			"revision": 1
+		},
+		{
+			"id": "Bank:056A96C046D5850739E7B18E33B85050",
+			"gold": "0",
+			"endowment": "0",
+			"retired": false,
+			"revision": 1
+		},
+		{
+			"id": "WorldReward:3F78FD024227B7B58F50B79CD9958DA9",
+			"gold": "0",
+			"endowment": "0",
+			"retired": false,
+			"revision": 1
+		},
+		{
+			"id": "WorldReward:056A96C046D5850739E7B18E33B85050",
+			"gold": "0",
+			"endowment": "0",
+			"retired": false,
+			"revision": 1
+		},
+		{
+			"id": "WestTown",
+			"gold": "146",
+			"endowment": "150",
+			"retired": false,
+			"revision": 3
+		},
+		{
+			"id": "EastTown",
+			"gold": "144",
+			"endowment": "150",
+			"retired": false,
+			"revision": 3
+		},
+		{
+			"id": "City",
+			"gold": "162",
+			"endowment": "150",
+			"retired": false,
+			"revision": 2
+		}
+	],
+	"items": [
+		{
+			"id": "30C58A674287630557CF49AF8E9FF4EB",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8166477043B6F079C06F8F9A90043C36",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "15838F034B8F6BF5FA29D2B9641AB2E4",
+			"kind": 3,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8AC86D394EFF4A17190C38AB8514F2B3",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "3DA2510B45009D47F1E1019B9BD40B59",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "31CA637F4DC5A3FBD1D9A9AB311898CB",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "881467EC441A26F7556416B7D6ECA889",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "24CFE6AD4F79F0FAC9B21593343CC165",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "16667AEF449CA573DD29CBB267ACF821",
+			"kind": 3,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8950C5614C9DB7DF975846BAD3AAC3D4",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "AD7DF3E044FE7F6DA6FBA8A9D35CFD42",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "DDE677804C8D4EE49B9ABB989762BF6D",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "48D6A01B465C43A78F0F07A03E711EFC",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "A2CC58A44E53BF9736B7DB864CDBD454",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "DF8D650D42B99C2974837C903A20D8FE",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "6C7E1723415E6A8D7B382FB40F3A4188",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "3B892F044AEB11F723F2549A591AAA06",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "3B895C8C4457CED085AC7AB21AE99BB3",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "B540CD9E4E793A0C17FD89BA1CAE1592",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "0C70C88B48DF15CAF47EED90FB50B2AF",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "EBC271E2459DBEBDE0B68C98FABD0C5F",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "C6706B4B4CF5E1F007FD5ABE08629725",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "1CC68A5D4994E0C8683CB7A347999A4B",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "B5647EA747A7B456157FA8949E8B0C9E",
+			"kind": 4,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "D3ED41244DDC10F8ACF2908AC47A1D98",
+			"kind": 5,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "24CE358A412C42D3CFCAF0AA134D5D56",
+			"kind": 5,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "5961D507447ACAB7244E1D89A6335AF3",
+			"kind": 5,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "7B2FD7A645CBBE2AE1B277BC3F55E8D1",
+			"kind": 6,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "EA257E7D4683AF83CDA5699099B00AF2",
+			"kind": 6,
+			"location": "WestTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "F34CBCFB4B5AD124218D809DB3566214",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "71B075ED40F1FECC9BB1F99B06976BFD",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "75011C854B37EC2D6387B89072A2650B",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "AB53477745E968B06781AA9F87A387F0",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "CC8A9BF44CBE3072DAF0ADB9CF4F5F01",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "49E8E45247AC12D7E0314DA328E9269E",
+			"kind": 3,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "556CDBB2402C8F68FC04CD86CE07467C",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "C381FFE643014B224F68B1A9DE78530B",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "587AA85B4245E54CF752D784D2A27D51",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "A7B195BA42CFC00659BA23BC75CFDD58",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "45C7623E461F82055DD6B694842BA434",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "3DC634BA41448C2C14F48D9DA1439610",
+			"kind": 4,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "89339D9242AD38900ECFDAB057EC4D17",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "70A7E38E4C1A885D386090BA517DF831",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "A84907C04874C1AB1D6F61B6CAD4E67B",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "B0D14F6E4EF01C043D62ADA96D6440B7",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "72DBD3C5425C58ECD897348FC7E54ACB",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "D32300FC4AEA54EFF155A891F1B7B6C3",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "70666BDF437BE2991145CB91A5CABA86",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "68DD500D48250B6E2C86D5B67C396FD2",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "C1EE5154456F06C2182DB2A15B84781F",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "738171064E6474AA19C368A97B5FA36C",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "30BCAA024AEE117228CF22B269573B6D",
+			"kind": 4,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "E070228F4791B1641B3C78B904809926",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "82B9E9D04A5D74E664552CBAA728B2C6",
+			"kind": 5,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "9A7D606D43A65261EE90D0A765989EC6",
+			"kind": 5,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "6B2BCAEE4554988D163633AFEB897379",
+			"kind": 5,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8A87F13C470B1AA2C1B0C08B0981B7BF",
+			"kind": 6,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "66D5B7FE467E478BD6FC208E613B81A7",
+			"kind": 6,
+			"location": "EastTown",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "014217334173CE3D41586F94682405BA",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "222D4A0D4E968ED6A6F783A6C2B3F672",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8B67A0CD43A97558F2E92A897A731001",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "0F73934F43E388147B1C44BB780A8059",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "49048DFB4F1948169E160389E171F4BB",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "6DCC37E0404116486655D3868D979FB3",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "AA9E350643535BF906B0ABAA50E42ECD",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "481A9D7B456226AE5D755491953D5E34",
+			"kind": 3,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "15DD0A094E947C61F4C02A9620FD6487",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "C1A801644D6427978263F98FF56887E3",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "6A9A2DFE4346711A5AE23E8916C1032B",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "AFF4ECDC43C7AE867593CB86BE77BE23",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "2DA2F5824B68328BE2C6BD9E5CF32DBA",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "9EA9E118440D1862E80B19AF3C805BF1",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "2E477705486C77C37149B3B1A6F49C6C",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "F80AD3814B8DA6DE0FDD0C9733D698C3",
+			"kind": 4,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "380D62764173F7A3EF1979A717AA08DB",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "62F976C74E379EE9C46B99B54F354920",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "DBDFD8324B78E60D3434AFB8BE16FBB2",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "E0665EBA4806B9880EC7D3B38C8AD721",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "CD280D9F44FC15AFEDE8EA8271708726",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "ECC3F5D14114A90B86E0C6B3B2E2D022",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "FF5F94E0420F1138DDA784B78CD19E3C",
+			"kind": 5,
+			"location": "City",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "2D3756F645F4281A34CF6BB423F2A2E4",
+			"kind": 5,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "FCDBFCF048D620460799CCA93203B882",
+			"kind": 6,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "81BC65654D0E6570CE9C9F80680C3B26",
+			"kind": 6,
+			"location": "None",
+			"origin": "280C7C044972B124E14C63A5E11888C1",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "22FADA8C47A9CBA398F809874740B80B",
+			"kind": 50,
+			"location": "B74Cache6",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "481CACE14AB39A4C71F19783DFF34352",
+			"kind": 48,
+			"location": "B74Cache6",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "A5326C2043CBCDCC3349F29ACF36C237",
+			"kind": 0,
+			"location": "B74Cache6",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 34,
+			"parents": []
+		},
+		{
+			"id": "911D52F7455B3DA59CA3A0AB98295379",
+			"kind": 51,
+			"location": "B74Cache7",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "858D7A0A4F642A8AEEAF96BA4B3EB523",
+			"kind": 48,
+			"location": "B74Cache7",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "321CF5804188F7F7EF775DBF9F798D99",
+			"kind": 0,
+			"location": "B74Cache7",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 36,
+			"parents": []
+		},
+		{
+			"id": "C6A45A694E09A922C2BA54A6F2CA287A",
+			"kind": 52,
+			"location": "B74Cache8",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "EB9A61844793882589C8E88D2BFD66CF",
+			"kind": 48,
+			"location": "B74Cache8",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "E1E3F0664A4AD536297117A7E7ED0FC4",
+			"kind": 0,
+			"location": "B74Cache8",
+			"origin": "F89327954C1B7A734A7F2CA20A4205CC",
+			"consumed": false,
+			"quality": 0,
+			"skill": 37,
+			"parents": []
+		},
+		{
+			"id": "1EA3863F40713410C09460B7C0AA463A",
+			"kind": 1,
+			"location": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"origin": "1944FDCD41F756D720EEFA8A10563A6D",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8790030246CC1709EB25668F77ACD7F8",
+			"kind": 1,
+			"location": "Wallet:056A96C046D5850739E7B18E33B85050",
+			"origin": "A52F2E20495B07B5C5DAD3AF3B066244",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "B6347ACA4C66A7377219959207ABC297",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "5292BB3C40C500ED0000000100000001",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "612863A24D31E230DCF10DB267A60324",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "5292BB3C40C500ED0000000100000002",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "842CBCC941BCAE947E43DDA63E732D0A",
+			"kind": 3,
+			"location": "WestTown",
+			"origin": "5292BB3C40C500ED0000000200000001",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "A37E265F4D1191C81804248DE5C019C6",
+			"kind": 4,
+			"location": "EastTown",
+			"origin": "5292BB3C40C500ED0000000200000002",
+			"consumed": false,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "541D777147B94556E5D432B653AE5CD4",
+			"kind": 3,
+			"location": "None",
+			"origin": "7C3EA54B44F484EECD96AD8F36F4669D",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "4FAE0AF44A101937F7F1D68724C84744",
+			"kind": 3,
+			"location": "None",
+			"origin": "F8BA4A4C46F1C053CF90BFB50BD71B85",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "E35A2F124E8132FFCABD6A92D50647C2",
+			"kind": 4,
+			"location": "None",
+			"origin": "93B6D3AA4AB4D494EFD4618C185EDB96",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "FC1ECA964017AD7FA3CFDDAD5CC9D6E0",
+			"kind": 6,
+			"location": "None",
+			"origin": "0CAB0C564FCE5AD3738B5D92FAD3F56E",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": [
+				"541D777147B94556E5D432B653AE5CD4",
+				"4FAE0AF44A101937F7F1D68724C84744",
+				"E35A2F124E8132FFCABD6A92D50647C2"
+			]
+		},
+		{
+			"id": "FF1452034B386289C3CF609F6CC5902C",
+			"kind": 3,
+			"location": "None",
+			"origin": "458ACEF3412E851B073B99AE18EC5F05",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "6455D68942FDB71BFF38B3B3EF742A1F",
+			"kind": 3,
+			"location": "None",
+			"origin": "71175E994B1262514F1F378677ECE65B",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "7B85FC6141290F2FDBCF478B0E70A9C2",
+			"kind": 4,
+			"location": "None",
+			"origin": "77DB847E43A9F4B76060EF95455055D7",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "AC1EE9624D0B63E147DD4FA7D9C5416E",
+			"kind": 6,
+			"location": "None",
+			"origin": "3B45D8464EFDAAEADE147C9E297C7EA5",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": [
+				"FF1452034B386289C3CF609F6CC5902C",
+				"6455D68942FDB71BFF38B3B3EF742A1F",
+				"7B85FC6141290F2FDBCF478B0E70A9C2"
+			]
+		},
+		{
+			"id": "CF66D7074D0A407F1DCADB9AE9ED36F6",
+			"kind": 3,
+			"location": "None",
+			"origin": "2593A27F48798C62D62C7EBAA0E8AD26",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "47AE07DB45C9E9628A4C55929020B815",
+			"kind": 3,
+			"location": "None",
+			"origin": "A301F1074C11F8BB86B246992DA023EF",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "95ABBA8B4F32F794292568B4A03B6184",
+			"kind": 4,
+			"location": "None",
+			"origin": "CC6CEE9A41ED9986BDAC688A63C3E854",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "FA04B2AD4CD942F0F5027D8C7DD70F48",
+			"kind": 6,
+			"location": "None",
+			"origin": "E982BBF8438DE821419793AFA8216344",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": [
+				"CF66D7074D0A407F1DCADB9AE9ED36F6",
+				"47AE07DB45C9E9628A4C55929020B815",
+				"95ABBA8B4F32F794292568B4A03B6184"
+			]
+		},
+		{
+			"id": "BC039E2F43B9C25CBBB7E4B9ED8E8B04",
+			"kind": 3,
+			"location": "None",
+			"origin": "6798231141A239B4FB87F996E5BC380F",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "8B00D3E84B99F5EA6F1838BE89EDD1C0",
+			"kind": 3,
+			"location": "None",
+			"origin": "F4488BB64D0491151A770D8AABA8EF74",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "195B415B41E42BDC974F8887E07F173F",
+			"kind": 4,
+			"location": "None",
+			"origin": "E31C347B49ECA18E449F19BF3794E51D",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": []
+		},
+		{
+			"id": "94C7685845B43922556AA9B6E3917D96",
+			"kind": 6,
+			"location": "None",
+			"origin": "D746C872412E6F9531B6468265751ECD",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": [
+				"BC039E2F43B9C25CBBB7E4B9ED8E8B04",
+				"8B00D3E84B99F5EA6F1838BE89EDD1C0",
+				"195B415B41E42BDC974F8887E07F173F"
+			]
+		},
+		{
+			"id": "F72D4B2B496754EE220C2A9CA6196EEB",
+			"kind": 7,
+			"location": "None",
+			"origin": "DCF797964454FE1786DF9A85618828B0",
+			"consumed": true,
+			"quality": 0,
+			"skill": 0,
+			"parents": [
+				"FA04B2AD4CD942F0F5027D8C7DD70F48",
+				"94C7685845B43922556AA9B6E3917D96",
+				"2D3756F645F4281A34CF6BB423F2A2E4"
+			]
+		}
+	],
+	"budgets": [
+		{
+			"id": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"initial": 8,
+			"remaining": 0
+		},
+		{
+			"id": "Sentinel:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "Core:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"initial": 3,
+			"remaining": 2
+		},
+		{
+			"id": "Supply:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"initial": 1,
+			"remaining": 0
+		},
+		{
+			"id": "Courier:Wallet:056A96C046D5850739E7B18E33B85050",
+			"initial": 8,
+			"remaining": 8
+		},
+		{
+			"id": "Sentinel:Wallet:056A96C046D5850739E7B18E33B85050",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "Core:Wallet:056A96C046D5850739E7B18E33B85050",
+			"initial": 3,
+			"remaining": 3
+		},
+		{
+			"id": "Supply:Wallet:056A96C046D5850739E7B18E33B85050",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "CoreOrders",
+			"initial": 6,
+			"remaining": 5
+		},
+		{
+			"id": "SupplyOrders",
+			"initial": 2,
+			"remaining": 1
+		},
+		{
+			"id": "ShortageOrder",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B74Book10",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book11",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book12",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book13",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book14",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book15",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book16",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book17",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book18",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book19",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book20",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book21",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book22",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book23",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book24",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book25",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book26",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book27",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book28",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book29",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book30",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book31",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book32",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book33",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book34",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book35",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book36",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Book37",
+			"initial": 2,
+			"remaining": 2
+		},
+		{
+			"id": "B74Cache6",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B74Cache7",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B74Cache8",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B74Guardian",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B74Endowment",
+			"initial": 1,
+			"remaining": 0
+		},
+		{
+			"id": "B76Tower0",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.1",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.2",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.3",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.4",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.5",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.6",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.7",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.8",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.9",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.10",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.11",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp0.12",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Tower1",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.1",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.2",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.3",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.4",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.5",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.6",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.7",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.8",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.9",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.10",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.11",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp1.12",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Tower2",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.1",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.2",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.3",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.4",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.5",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.6",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.7",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.8",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.9",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.10",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.11",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76Camp2.12",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "B76GuardianDefeat",
+			"initial": 1,
+			"remaining": 1
+		},
+		{
+			"id": "ProducerWest",
+			"initial": 8,
+			"remaining": 6
+		},
+		{
+			"id": "ProducerEast",
+			"initial": 8,
+			"remaining": 6
+		},
+		{
+			"id": "Outcrop1",
+			"initial": 3,
+			"remaining": 3
+		},
+		{
+			"id": "Outcrop2",
+			"initial": 3,
+			"remaining": 3
+		}
+	],
+	"receipts": [
+		{
+			"id": "280C7C044972B124E14C63A5E11888C1",
+			"cause": "MarketStockEndowment",
+			"serial": "1",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "30C58A674287630557CF49AF8E9FF4EB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "8166477043B6F079C06F8F9A90043C36",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "15838F034B8F6BF5FA29D2B9641AB2E4",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "8AC86D394EFF4A17190C38AB8514F2B3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "3DA2510B45009D47F1E1019B9BD40B59",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "31CA637F4DC5A3FBD1D9A9AB311898CB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "881467EC441A26F7556416B7D6ECA889",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "24CFE6AD4F79F0FAC9B21593343CC165",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "16667AEF449CA573DD29CBB267ACF821",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "8950C5614C9DB7DF975846BAD3AAC3D4",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "AD7DF3E044FE7F6DA6FBA8A9D35CFD42",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "DDE677804C8D4EE49B9ABB989762BF6D",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "48D6A01B465C43A78F0F07A03E711EFC",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "A2CC58A44E53BF9736B7DB864CDBD454",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "DF8D650D42B99C2974837C903A20D8FE",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "6C7E1723415E6A8D7B382FB40F3A4188",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "3B892F044AEB11F723F2549A591AAA06",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "3B895C8C4457CED085AC7AB21AE99BB3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "B540CD9E4E793A0C17FD89BA1CAE1592",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "0C70C88B48DF15CAF47EED90FB50B2AF",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "EBC271E2459DBEBDE0B68C98FABD0C5F",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "C6706B4B4CF5E1F007FD5ABE08629725",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "1CC68A5D4994E0C8683CB7A347999A4B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "B5647EA747A7B456157FA8949E8B0C9E",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "D3ED41244DDC10F8ACF2908AC47A1D98",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "24CE358A412C42D3CFCAF0AA134D5D56",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "5961D507447ACAB7244E1D89A6335AF3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "7B2FD7A645CBBE2AE1B277BC3F55E8D1",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "EA257E7D4683AF83CDA5699099B00AF2",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				},
+				{
+					"id": "F34CBCFB4B5AD124218D809DB3566214",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "71B075ED40F1FECC9BB1F99B06976BFD",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "75011C854B37EC2D6387B89072A2650B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "AB53477745E968B06781AA9F87A387F0",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "CC8A9BF44CBE3072DAF0ADB9CF4F5F01",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "49E8E45247AC12D7E0314DA328E9269E",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "556CDBB2402C8F68FC04CD86CE07467C",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "C381FFE643014B224F68B1A9DE78530B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "587AA85B4245E54CF752D784D2A27D51",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "A7B195BA42CFC00659BA23BC75CFDD58",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "45C7623E461F82055DD6B694842BA434",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "3DC634BA41448C2C14F48D9DA1439610",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "89339D9242AD38900ECFDAB057EC4D17",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "70A7E38E4C1A885D386090BA517DF831",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "A84907C04874C1AB1D6F61B6CAD4E67B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "B0D14F6E4EF01C043D62ADA96D6440B7",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "72DBD3C5425C58ECD897348FC7E54ACB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "D32300FC4AEA54EFF155A891F1B7B6C3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "70666BDF437BE2991145CB91A5CABA86",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "68DD500D48250B6E2C86D5B67C396FD2",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "C1EE5154456F06C2182DB2A15B84781F",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "738171064E6474AA19C368A97B5FA36C",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "30BCAA024AEE117228CF22B269573B6D",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "E070228F4791B1641B3C78B904809926",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "82B9E9D04A5D74E664552CBAA728B2C6",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "9A7D606D43A65261EE90D0A765989EC6",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "6B2BCAEE4554988D163633AFEB897379",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "8A87F13C470B1AA2C1B0C08B0981B7BF",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "66D5B7FE467E478BD6FC208E613B81A7",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				},
+				{
+					"id": "014217334173CE3D41586F94682405BA",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "222D4A0D4E968ED6A6F783A6C2B3F672",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "8B67A0CD43A97558F2E92A897A731001",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "0F73934F43E388147B1C44BB780A8059",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "49048DFB4F1948169E160389E171F4BB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "6DCC37E0404116486655D3868D979FB3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "AA9E350643535BF906B0ABAA50E42ECD",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "481A9D7B456226AE5D755491953D5E34",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "15DD0A094E947C61F4C02A9620FD6487",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "C1A801644D6427978263F98FF56887E3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "6A9A2DFE4346711A5AE23E8916C1032B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "AFF4ECDC43C7AE867593CB86BE77BE23",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "2DA2F5824B68328BE2C6BD9E5CF32DBA",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "9EA9E118440D1862E80B19AF3C805BF1",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "2E477705486C77C37149B3B1A6F49C6C",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "F80AD3814B8DA6DE0FDD0C9733D698C3",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "380D62764173F7A3EF1979A717AA08DB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "62F976C74E379EE9C46B99B54F354920",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "DBDFD8324B78E60D3434AFB8BE16FBB2",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "E0665EBA4806B9880EC7D3B38C8AD721",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "CD280D9F44FC15AFEDE8EA8271708726",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "ECC3F5D14114A90B86E0C6B3B2E2D022",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "FF5F94E0420F1138DDA784B78CD19E3C",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "2D3756F645F4281A34CF6BB423F2A2E4",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "FCDBFCF048D620460799CCA93203B882",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				},
+				{
+					"id": "81BC65654D0E6570CE9C9F80680C3B26",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "City",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "F89327954C1B7A734A7F2CA20A4205CC",
+			"cause": "B74CacheEndowment",
+			"serial": "2",
+			"mint": "0",
+			"burn": "0",
+			"budget": "B74Endowment",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "22FADA8C47A9CBA398F809874740B80B",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 50,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache6",
+					"parents": []
+				},
+				{
+					"id": "481CACE14AB39A4C71F19783DFF34352",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 48,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache6",
+					"parents": []
+				},
+				{
+					"id": "A5326C2043CBCDCC3349F29ACF36C237",
+					"op": 0,
+					"quality": 0,
+					"skill": 34,
+					"kind": 0,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache6",
+					"parents": []
+				},
+				{
+					"id": "911D52F7455B3DA59CA3A0AB98295379",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 51,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache7",
+					"parents": []
+				},
+				{
+					"id": "858D7A0A4F642A8AEEAF96BA4B3EB523",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 48,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache7",
+					"parents": []
+				},
+				{
+					"id": "321CF5804188F7F7EF775DBF9F798D99",
+					"op": 0,
+					"quality": 0,
+					"skill": 36,
+					"kind": 0,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache7",
+					"parents": []
+				},
+				{
+					"id": "C6A45A694E09A922C2BA54A6F2CA287A",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 52,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache8",
+					"parents": []
+				},
+				{
+					"id": "EB9A61844793882589C8E88D2BFD66CF",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 48,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache8",
+					"parents": []
+				},
+				{
+					"id": "E1E3F0664A4AD536297117A7E7ED0FC4",
+					"op": 0,
+					"quality": 0,
+					"skill": 37,
+					"kind": 0,
+					"expected": 0,
+					"from": "None",
+					"to": "B74Cache8",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "1944FDCD41F756D720EEFA8A10563A6D",
+			"cause": "CarriedEndowment",
+			"serial": "3",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "1EA3863F40713410C09460B7C0AA463A",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 1,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "A52F2E20495B07B5C5DAD3AF3B066244",
+			"cause": "CarriedEndowment",
+			"serial": "4",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "8790030246CC1709EB25668F77ACD7F8",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 1,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:056A96C046D5850739E7B18E33B85050",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "B9AF8973461D6FB83CB792A569F090F5",
+			"cause": "CourierReward",
+			"serial": "5",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 1
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "F7D22417467A7CE3C0ADB9A6BE327F17",
+			"cause": "CourierReward",
+			"serial": "6",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 2
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "B81FF9C347A8DA80534EFF866B4DAB75",
+			"cause": "CourierReward",
+			"serial": "7",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 3
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "5292BB3C40C500ED0000000100000001",
+			"cause": "InstitutionProduction",
+			"serial": "8",
+			"mint": "0",
+			"burn": "2",
+			"budget": "ProducerWest",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "WestTown",
+					"delta": "-2",
+					"expected": 1
+				}
+			],
+			"items": [
+				{
+					"id": "B6347ACA4C66A7377219959207ABC297",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000100000002",
+			"cause": "InstitutionProduction",
+			"serial": "9",
+			"mint": "0",
+			"burn": "3",
+			"budget": "ProducerEast",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "EastTown",
+					"delta": "-3",
+					"expected": 1
+				}
+			],
+			"items": [
+				{
+					"id": "612863A24D31E230DCF10DB267A60324",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000100000003",
+			"cause": "InstitutionConsumption",
+			"serial": "10",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "15838F034B8F6BF5FA29D2B9641AB2E4",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "WestTown",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000100000004",
+			"cause": "InstitutionConsumption",
+			"serial": "11",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "30BCAA024AEE117228CF22B269573B6D",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "EastTown",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000100000005",
+			"cause": "InstitutionConsumption",
+			"serial": "12",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "81BC65654D0E6570CE9C9F80680C3B26",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "City",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "4C69F441435390E432A03E8677149889",
+			"cause": "CourierReward",
+			"serial": "13",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 4
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "AB542F9D42175A1AC0A515AABCF4DEE2",
+			"cause": "CourierReward",
+			"serial": "14",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 5
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "7748BABC42225C54C7784F8248174740",
+			"cause": "CourierReward",
+			"serial": "15",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 6
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "BE3D46404AC5164EE1B7D6AAB7F15C79",
+			"cause": "CourierReward",
+			"serial": "16",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 7
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "5292BB3C40C500ED0000000200000001",
+			"cause": "InstitutionProduction",
+			"serial": "17",
+			"mint": "0",
+			"burn": "2",
+			"budget": "ProducerWest",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "WestTown",
+					"delta": "-2",
+					"expected": 2
+				}
+			],
+			"items": [
+				{
+					"id": "842CBCC941BCAE947E43DDA63E732D0A",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "WestTown",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000200000002",
+			"cause": "InstitutionProduction",
+			"serial": "18",
+			"mint": "0",
+			"burn": "3",
+			"budget": "ProducerEast",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "EastTown",
+					"delta": "-3",
+					"expected": 2
+				}
+			],
+			"items": [
+				{
+					"id": "A37E265F4D1191C81804248DE5C019C6",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "EastTown",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000200000003",
+			"cause": "InstitutionConsumption",
+			"serial": "19",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "16667AEF449CA573DD29CBB267ACF821",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "WestTown",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000200000004",
+			"cause": "InstitutionConsumption",
+			"serial": "20",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "3DC634BA41448C2C14F48D9DA1439610",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "EastTown",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "5292BB3C40C500ED0000000200000005",
+			"cause": "InstitutionConsumption",
+			"serial": "21",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": [
+				{
+					"id": "FCDBFCF048D620460799CCA93203B882",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "City",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "760F11FC46DD259D7594259E6E33C061",
+			"cause": "CourierReward",
+			"serial": "22",
+			"mint": "25",
+			"burn": "0",
+			"budget": "Courier:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+			"units": 1,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "25",
+					"expected": 8
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "7C3EA54B44F484EECD96AD8F36F4669D",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "23",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 9
+				}
+			],
+			"items": [
+				{
+					"id": "541D777147B94556E5D432B653AE5CD4",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "F8BA4A4C46F1C053CF90BFB50BD71B85",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "24",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 10
+				}
+			],
+			"items": [
+				{
+					"id": "4FAE0AF44A101937F7F1D68724C84744",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "93B6D3AA4AB4D494EFD4618C185EDB96",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "25",
+			"mint": "0",
+			"burn": "6",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-6",
+					"expected": 11
+				}
+			],
+			"items": [
+				{
+					"id": "E35A2F124E8132FFCABD6A92D50647C2",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "0CAB0C564FCE5AD3738B5D92FAD3F56E",
+			"cause": "CraftProduction",
+			"serial": "26",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 12
+				}
+			],
+			"items": [
+				{
+					"id": "541D777147B94556E5D432B653AE5CD4",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "4FAE0AF44A101937F7F1D68724C84744",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "E35A2F124E8132FFCABD6A92D50647C2",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "FC1ECA964017AD7FA3CFDDAD5CC9D6E0",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": [
+						"541D777147B94556E5D432B653AE5CD4",
+						"4FAE0AF44A101937F7F1D68724C84744",
+						"E35A2F124E8132FFCABD6A92D50647C2"
+					]
+				}
+			]
+		},
+		{
+			"id": "458ACEF3412E851B073B99AE18EC5F05",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "27",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 13
+				}
+			],
+			"items": [
+				{
+					"id": "FF1452034B386289C3CF609F6CC5902C",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "71175E994B1262514F1F378677ECE65B",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "28",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 14
+				}
+			],
+			"items": [
+				{
+					"id": "6455D68942FDB71BFF38B3B3EF742A1F",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "77DB847E43A9F4B76060EF95455055D7",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "29",
+			"mint": "0",
+			"burn": "6",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-6",
+					"expected": 15
+				}
+			],
+			"items": [
+				{
+					"id": "7B85FC6141290F2FDBCF478B0E70A9C2",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "3B45D8464EFDAAEADE147C9E297C7EA5",
+			"cause": "CraftProduction",
+			"serial": "30",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 16
+				}
+			],
+			"items": [
+				{
+					"id": "FF1452034B386289C3CF609F6CC5902C",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "6455D68942FDB71BFF38B3B3EF742A1F",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "7B85FC6141290F2FDBCF478B0E70A9C2",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "AC1EE9624D0B63E147DD4FA7D9C5416E",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": [
+						"FF1452034B386289C3CF609F6CC5902C",
+						"6455D68942FDB71BFF38B3B3EF742A1F",
+						"7B85FC6141290F2FDBCF478B0E70A9C2"
+					]
+				}
+			]
+		},
+		{
+			"id": "F72628BE4BDF9D16BD0CAFB8569F9C2D",
+			"cause": "SupplyProcurement",
+			"serial": "31",
+			"mint": "50",
+			"burn": "0",
+			"budget": "SupplyOrders",
+			"units": 1,
+			"additionalBudgets": [
+				{
+					"id": "Supply:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"units": 1
+				}
+			],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "50",
+					"expected": 17
+				}
+			],
+			"items": [
+				{
+					"id": "FC1ECA964017AD7FA3CFDDAD5CC9D6E0",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "AC1EE9624D0B63E147DD4FA7D9C5416E",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "2593A27F48798C62D62C7EBAA0E8AD26",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "32",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 18
+				}
+			],
+			"items": [
+				{
+					"id": "CF66D7074D0A407F1DCADB9AE9ED36F6",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "A301F1074C11F8BB86B246992DA023EF",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "33",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 19
+				}
+			],
+			"items": [
+				{
+					"id": "47AE07DB45C9E9628A4C55929020B815",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "CC6CEE9A41ED9986BDAC688A63C3E854",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "34",
+			"mint": "0",
+			"burn": "6",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-6",
+					"expected": 20
+				}
+			],
+			"items": [
+				{
+					"id": "95ABBA8B4F32F794292568B4A03B6184",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "E982BBF8438DE821419793AFA8216344",
+			"cause": "CraftProduction",
+			"serial": "35",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 21
+				}
+			],
+			"items": [
+				{
+					"id": "CF66D7074D0A407F1DCADB9AE9ED36F6",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "47AE07DB45C9E9628A4C55929020B815",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "95ABBA8B4F32F794292568B4A03B6184",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "FA04B2AD4CD942F0F5027D8C7DD70F48",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": [
+						"CF66D7074D0A407F1DCADB9AE9ED36F6",
+						"47AE07DB45C9E9628A4C55929020B815",
+						"95ABBA8B4F32F794292568B4A03B6184"
+					]
+				}
+			]
+		},
+		{
+			"id": "6798231141A239B4FB87F996E5BC380F",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "36",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 22
+				}
+			],
+			"items": [
+				{
+					"id": "BC039E2F43B9C25CBBB7E4B9ED8E8B04",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "F4488BB64D0491151A770D8AABA8EF74",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "37",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 23
+				}
+			],
+			"items": [
+				{
+					"id": "8B00D3E84B99F5EA6F1838BE89EDD1C0",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "E31C347B49ECA18E449F19BF3794E51D",
+			"cause": "OfficialMaterialPurchase",
+			"serial": "38",
+			"mint": "0",
+			"burn": "6",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-6",
+					"expected": 24
+				}
+			],
+			"items": [
+				{
+					"id": "195B415B41E42BDC974F8887E07F173F",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "D746C872412E6F9531B6468265751ECD",
+			"cause": "CraftProduction",
+			"serial": "39",
+			"mint": "0",
+			"burn": "4",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-4",
+					"expected": 25
+				}
+			],
+			"items": [
+				{
+					"id": "BC039E2F43B9C25CBBB7E4B9ED8E8B04",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "8B00D3E84B99F5EA6F1838BE89EDD1C0",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 3,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "195B415B41E42BDC974F8887E07F173F",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 4,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "94C7685845B43922556AA9B6E3917D96",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": [
+						"BC039E2F43B9C25CBBB7E4B9ED8E8B04",
+						"8B00D3E84B99F5EA6F1838BE89EDD1C0",
+						"195B415B41E42BDC974F8887E07F173F"
+					]
+				}
+			]
+		},
+		{
+			"id": "C3BF8CFF4B356085E612BBA4242ED591",
+			"cause": "MarketBuy",
+			"serial": "40",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-12",
+					"expected": 26
+				},
+				{
+					"account": "City",
+					"delta": "12",
+					"expected": 1
+				}
+			],
+			"items": [
+				{
+					"id": "2D3756F645F4281A34CF6BB423F2A2E4",
+					"op": 1,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 1,
+					"from": "City",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "DCF797964454FE1786DF9A85618828B0",
+			"cause": "CraftProduction",
+			"serial": "41",
+			"mint": "0",
+			"burn": "6",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-6",
+					"expected": 27
+				}
+			],
+			"items": [
+				{
+					"id": "FA04B2AD4CD942F0F5027D8C7DD70F48",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "94C7685845B43922556AA9B6E3917D96",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 6,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "2D3756F645F4281A34CF6BB423F2A2E4",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 5,
+					"expected": 2,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				},
+				{
+					"id": "F72D4B2B496754EE220C2A9CA6196EEB",
+					"op": 0,
+					"quality": 0,
+					"skill": 0,
+					"kind": 7,
+					"expected": 0,
+					"from": "None",
+					"to": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"parents": [
+						"FA04B2AD4CD942F0F5027D8C7DD70F48",
+						"94C7685845B43922556AA9B6E3917D96",
+						"2D3756F645F4281A34CF6BB423F2A2E4"
+					]
+				}
+			]
+		},
+		{
+			"id": "761568324086574DD8D17CAAE1EC3ABB",
+			"cause": "CoreProcurement",
+			"serial": "42",
+			"mint": "80",
+			"burn": "0",
+			"budget": "CoreOrders",
+			"units": 1,
+			"additionalBudgets": [
+				{
+					"id": "Core:Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"units": 1
+				}
+			],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "80",
+					"expected": 28
+				}
+			],
+			"items": [
+				{
+					"id": "F72D4B2B496754EE220C2A9CA6196EEB",
+					"op": 2,
+					"quality": 0,
+					"skill": 0,
+					"kind": 7,
+					"expected": 1,
+					"from": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"to": "None",
+					"parents": []
+				}
+			]
+		},
+		{
+			"id": "FD0565954BCCC7ACECF12CA986AFEF36",
+			"cause": "RegisteredCharterPurchase",
+			"serial": "43",
+			"mint": "0",
+			"burn": "100",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [
+				{
+					"account": "Wallet:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "-100",
+					"expected": 29
+				},
+				{
+					"account": "Bank:3F78FD024227B7B58F50B79CD9958DA9",
+					"delta": "0",
+					"expected": 1
+				}
+			],
+			"items": []
+		},
+		{
+			"id": "F5432E994F560F3ECFC65A843B63C4F4",
+			"cause": "RegisteredCharterActivation",
+			"serial": "44",
+			"mint": "0",
+			"burn": "0",
+			"budget": "None",
+			"units": 0,
+			"additionalBudgets": [],
+			"gold": [],
+			"items": []
+		}
+	]
+}

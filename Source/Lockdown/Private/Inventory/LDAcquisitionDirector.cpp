@@ -1,4 +1,6 @@
 #include "Inventory/LDAcquisitionDirector.h"
+#include "Objectives/LDObjectiveDirector.h"
+#include "Combat/LDCombatDirector.h"
 #include "Inventory/LDAcquisitionCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDInventoryDirector.h"
@@ -111,9 +113,10 @@ bool ALDAcquisitionDirector::Commit(ALDPlayerController* PC,const FLDProductionP
 }
 void ALDAcquisitionDirector::Purchase(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,uint8 Site,ELDItemKind Kind,ELDSkill Skill,uint32 BagRevision,const FString& Digest)
 {
+    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto& Client=Clients.FindOrAdd(PC);auto Reply=[&](const FString& Why){Client.Receipts.Add(Token,Why);while(Client.Receipts.Num()>32){uint32 Old=MAX_uint32;for(const auto& V:Client.Receipts){Old=FMath::Min(Old,V.Key);}Client.Receipts.Remove(Old);}M->SyncOwner(PC);PC->ClientIntentResult(Token,Why);};
     if(!Token||!O||Match!=O->Match||Life!=O->Life){return;}if(const auto* Receipt=Client.Receipts.Find(Token)){PC->ClientIntentResult(Token,*Receipt);return;}if(Token<=Client.Last){return;}Client.Last=Token;const double Now=GetWorld()->GetTimeSeconds();Client.Tokens=FMath::Min(4.,Client.Tokens+FMath::Max(0.,Now-Client.At)*4);Client.At=Now;
-    const auto* C=ULDAcquisitionCatalog::Load();if(Client.Tokens<1||!M->IsTacticalProfile()||!C||Digest!=C->Checksum||BagRevision!=O->Inventory.Revision||Site<2||Site>4||!M->Production->Eligible(PC,Site,false)){Reply(TEXT("Supply terms, range, sight, life or inventory changed"));return;}--Client.Tokens;
+    const auto* C=ULDAcquisitionCatalog::Load();if(Client.Tokens<1||!M->IsTacticalProfile()||!C||Digest!=C->Checksum||BagRevision!=O->Inventory.Revision||Site<2||Site>4){Reply(TEXT("Supply terms, range, sight, life or inventory changed"));return;}M->Objectives->CancelClaimForAction(PC,Now);if(!M->Production->Eligible(PC,Site,false)){Reply(TEXT("Supply requires eligible body in reach"));return;}--Client.Tokens;
     int32 Price=-1;FName Budget;
     if(Kind==ELDItemKind::Book)
     {const auto* G=ULDEquipmentCatalog::Load()->Gate(Skill);if(LDDevelopmentTransaction::Sold(Skill)&&Site==2){Price=40;}else if(G){if(G->Circle==1&&Site==2){Price=40;}if(G->Circle==2&&(Site==3||Site==4)){Price=60;}if(G->Circle==3&&Site==4){Price=90;Budget=Stock(Skill);}}}
