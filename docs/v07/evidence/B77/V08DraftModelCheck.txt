@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "D:\Unreal Projects\Lockdown\docs\v08\tools\check_spec.py", line 86, in <module>
+    for p in json.loads((ROOT/'SOURCE_MANIFEST.json').read_text())['inputs']:check(hashlib.sha256((ROOT/p['file']).read_bytes()).hexdigest()==p['sha256'],'source archive hash')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\miniconda3\Lib\pathlib.py", line 1058, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\miniconda3\Lib\pathlib.py", line 1044, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\Unreal Projects\\Lockdown\\docs\\v08\\SOURCE_MANIFEST.json'

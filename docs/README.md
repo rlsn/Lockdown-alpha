@@ -1,14 +1,18 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.7 B76 native world; B77 acceptance next**.
-[B76 implementation](v07/B76_IMPLEMENTATION.md) records the actual runtime,
-four normal routes, native verification and remaining scope. The default frontend
-still uses V05; an explicit v07 profile opens the native world/combat build. Full
-v0.7 and inherited technical/human acceptance remain open.
+Current checkpoint: **B77 v0.7 closeout; v0.8 Stage0 next**.
+[v0.7 closeout](v07/B77_CLOSEOUT.md) freezes the B76 runtime (`ddf7be5`) and
+records user-authorized deferrals. Human review and lengthy technical acceptance
+remain deferred. [Continuation](CONTINUATION.md) is the active transition handoff.
+The supplied untracked `v08/` package is unchanged; its missing provenance
+manifest is an explicit adoption prerequisite, not a passed checker result.
 
 | Current reference | Purpose |
 | --- | --- |
-| [Continuation](CONTINUATION.md) | Runnable commands, next work and constraints |
+| [Continuation](CONTINUATION.md) | Actual baseline, v0.8 adoption/migration boundaries and minimal commands |
+| [B77 closeout](v07/B77_CLOSEOUT.md) | Frozen v0.7 delivery, retained evidence and minimal verification |
+| [B77 acceptance](v07/B77_ACCEPTANCE.md) | All55 rows, V07-D01–D08 and inherited deferrals |
+| [B77 audit](v07/evidence/B77/Audit.json) | Source/evidence hashes, import/model checks and historical ledger replay |
 | [B76 implementation](v07/B76_IMPLEMENTATION.md) | Native world, finite encounters, four routes, leases and common result ordering |
 | [B75 implementation](v07/B75_IMPLEMENTATION.md) | Historical28 spells/40 items, starters, capstones and effects |
 | [B74 implementation](v07/B74_IMPLEMENTATION.md) | Historical acquisition/assembly checkpoint |

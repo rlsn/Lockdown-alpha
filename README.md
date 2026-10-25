@@ -1,24 +1,24 @@
-# Project Lockdown — v0.7 B76 world build
+# Project Lockdown — v0.7 closed; v0.8 handoff ready
 
-Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
-authority lives in [docs/master](docs/master/README.md); the implemented economy
-baseline is [v0.6](docs/v06/README.md), and the active contract is [v0.7](docs/v07/README.md). Start with the
-[documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
+Windows-first Unreal5.8.4 project. **B77 closes v0.7 development for transition
+to v0.8, with human review and longer acceptance explicitly deferred.** The
+runtime/source/assets baseline is `ddf7be5` (B76); the closeout changes docs and
+evidence only. No fully verified release or fresh packaged executable is claimed.
 
-**Current checkpoint: B76 native world and four-route implementation.**
-[B76 implementation](docs/v07/B76_IMPLEMENTATION.md) records the authored region,
-finite camp/guardian/tower sources, shrines, physical key and artifact leases,
-global siege and common Heart claim ordering. It builds on B75's28 spells,
-40 items and B74's paid supplies, recipes and finite caches. Verification status
-and remaining release acceptance are recorded in the
-[working ledger](docs/v07/FeatureLedger.csv).
+Start with the [active handoff](docs/CONTINUATION.md),
+[v0.7 closeout](docs/v07/B77_CLOSEOUT.md),
+[acceptance disposition](docs/v07/B77_ACCEPTANCE.md) and
+[documentation index](docs/README.md). The supplied v0.8 spec is currently
+untracked user material; adoption/import comes next. Its checker currently
+requires a missing `SOURCE_MANIFEST.json`, recorded in the handoff.
 
-The normal frontend still hosts the V05 economy; `v06_regression` is its explicit
-alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the tactical
-lobby in the extended native region. The [B70 audit](docs/v07/B70_BASELINE_REVIEW.md) records the frozen
-predecessor and adopted specification; [current continuation](docs/CONTINUATION.md)
-records launch, evidence and next steps. Extended/human verification remains
-scoped deferred work. No fresh package or complete-release acceptance is claimed.
+The [B76 implementation](docs/v07/B76_IMPLEMENTATION.md) retains all28 tactical
+abilities/40 items, paid acquisition/12 recipes, native finite encounters and
+four Heart routes with independent accounting evidence. Explicit
+`./Scripts/OpenStandalone.ps1 -Profile v07_integration` opens the native world;
+the default frontend and `v06_regression` retain V05. No v0.8 runtime profile
+has been implemented. Long-term design remains in [masterR7](docs/master/README.md);
+new-version decisions must be reconciled with actual source during adoption.
 
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)
