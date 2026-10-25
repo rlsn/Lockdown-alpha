@@ -5,7 +5,7 @@
 #include "LDTacticalCatalog.generated.h"
 
 UENUM()
-enum class ELDTacticalTarget : uint8 { Self, Unit, SelfOrUnit, Ground, Cone };
+enum class ELDTacticalTarget : uint8 { Self, Unit, SelfOrUnit, Ground, Cone, Line, AnchorOrUnit, Marker, TwoUnits, TwoPoints };
 
 USTRUCT()
 struct FLDTacticalDefinition
@@ -25,6 +25,14 @@ struct FLDTacticalDefinition
     UPROPERTY() int32 Area=0;
     UPROPERTY() TArray<int32> Magnitudes;
 };
+USTRUCT()
+struct FLDStarterKit
+{
+    GENERATED_BODY()
+    UPROPERTY() FString Name;
+    UPROPERTY() TArray<int32> Attributes;
+    UPROPERTY() TArray<ELDSkill> Skills;
+};
 UCLASS()
 class LOCKDOWN_API ULDTacticalCatalog:public UDataAsset
 {
@@ -33,6 +41,7 @@ public:
     UPROPERTY() FString SourceJson;
     UPROPERTY() FString Checksum;
     UPROPERTY() TArray<FLDTacticalDefinition> Abilities;
+    UPROPERTY() TArray<FLDStarterKit> Starters;
     UPROPERTY() int32 NullBellPrice=8;
     UPROPERTY() int32 NullBellCooldown=12000;
     bool Import(const FString& Text,FString& Error);

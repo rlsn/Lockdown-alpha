@@ -16,6 +16,7 @@ struct LOCKDOWN_API FLDCharacterBuild
     UPROPERTY() uint8 RulesVersion=6;
     UPROPERTY() FString CatalogDigest;
     UPROPERTY() uint8 ClassId = 0;
+    UPROPERTY() uint8 Preset = 0;
     UPROPERTY() FLDGearStats Gear;
     UPROPERTY() TArray<int32> Attributes = {12,9,12,8,10,9}; // STR DEX CON INT WIS CHA
     UPROPERTY() int32 Level = 1;
@@ -85,13 +86,14 @@ namespace LDDevelopment
     inline int32 Count(const FLDCharacterBuild& B){return B.RulesVersion==7?V07SkillCount:SkillCount;}
     inline int32 Slots(const FLDCharacterBuild& B){return B.RulesVersion==7?5:4;}
     inline bool Held(ELDSkill S){return uint8(S)>=4&&uint8(S)<=9;}
-    inline bool Implemented(ELDSkill S){return uint8(S)<10||S==ELDSkill::AnchorBash||S==ELDSkill::ArcBolt||S==ELDSkill::PurgeTouch||S==ELDSkill::SuretyShell||S==ELDSkill::VeilStep||S==ELDSkill::FarwatchWard||S==ELDSkill::SmokeVeil||S==ELDSkill::GroundingField||S==ELDSkill::WireSnare||S==ELDSkill::ForceWave||S==ELDSkill::BreakSigil||S==ELDSkill::SeersFlare||S==ELDSkill::RemedyBind||S==ELDSkill::Counterpulse;}
+    inline bool Implemented(ELDSkill S){return uint8(S)>0&&uint8(S)<V07SkillCount;}
     LOCKDOWN_API FLDCharacterBuild TacticalStart(uint8 ClassId,const FString& Digest);
     constexpr double DeadlineSeconds = 1500;
     enum EAttribute : uint8 { STR, DEX, CON, INT, WIS, CHA };
     LOCKDOWN_API const TCHAR* SkillName(ELDSkill Skill);
     LOCKDOWN_API ELDSkill SkillFromName(const FString& Name);
     LOCKDOWN_API const TCHAR* ClassName(uint8 ClassId);
+    LOCKDOWN_API const TCHAR* PresetName(const FLDCharacterBuild& B);
     LOCKDOWN_API const TCHAR* SubclassName(uint8 Subclass);
     LOCKDOWN_API FLDCharacterBuild StartingBuild(uint8 ClassId, const ULDCharacterCatalog* Catalog = nullptr);
     LOCKDOWN_API bool Valid(const FLDCharacterBuild& Build);

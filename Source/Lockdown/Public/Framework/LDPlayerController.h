@@ -26,7 +26,7 @@ public:
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
     UFUNCTION(Server,Reliable) void ServerTacticalAction(FLDTacticalRequest Request);
-    void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point=FVector::ZeroVector);
+    void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point=FVector::ZeroVector,FGuid Second=FGuid(),FVector SecondPoint=FVector::ZeroVector);
     UFUNCTION(Server,Reliable) void ServerAidConsent(uint32 Match,uint32 Life,bool Allow);
     UFUNCTION(Server,Reliable) void ServerCancelTactical(uint32 Match,uint32 Life,uint32 Through);
     void ClearControls();
@@ -98,6 +98,14 @@ public:
     UFUNCTION(Client,Reliable) void ClientVendorClosed(uint32 Token,const FString& Reason);
     UFUNCTION(Client,Reliable) void ClientVendorResult(const FLDOwnerState& State,uint32 Request,const FLDVendorQuote& Quote,FGuid Item,const FString& Reason);
     void InventoryCommand(uint8 Command,FGuid Item=FGuid(),uint8 Slot=0,FVector Point=FVector::ZeroVector);
+    void SendItemAction(FGuid Item,FGuid Target,FVector Point);
+    void StartContentInteraction(FGuid Observed,uint8 Kind);
+    UFUNCTION(Server,Unreliable) void ServerContentHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,bool Release);
+    FGuid MultiTarget;
+    FVector MultiPoint=FVector::ZeroVector;
+    bool bMultiFirst=false,bContentMouse=false;
+    uint32 ContentHoldToken=0,ContentHoldSequence=0;
+    double LastContentHold=0;
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
@@ -231,7 +239,7 @@ private:
     void SkillStarted(uint8 Slot);
     void SkillStopped(uint8 Slot);
     void SkillAlias(ELDSkill Skill);
-    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0,FGuid Observed=FGuid(),FVector Point=FVector::ZeroVector);
+    void EnqueueAction(uint32 Match,uint32 Life,uint32 Request,uint8 Action,const FVector& Direction,uint32 BuildRevision=0,FGuid Observed=FGuid(),FVector Point=FVector::ZeroVector,const FLDTacticalRequest* Content=nullptr);
     UPROPERTY() TObjectPtr<class UInputMappingContext> SkillInputContext;
     UPROPERTY() TObjectPtr<class UInputMappingContext> NavigationInputContext;
     bool bNavigationContextActive=false;

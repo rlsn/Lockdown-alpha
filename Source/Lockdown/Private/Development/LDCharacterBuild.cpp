@@ -62,6 +62,8 @@ namespace LDDevelopment
         static const TCHAR* Names[] = {TEXT("Laborer"),TEXT("Rogue"),TEXT("Scholar")};
         return ClassId < 3 ? Names[ClassId] : TEXT("Invalid");
     }
+    const TCHAR* PresetName(const FLDCharacterBuild& B)
+    {static const TCHAR* Names[]={TEXT("Vanguard"),TEXT("Infiltrator"),TEXT("Arcanist"),TEXT("Seeker"),TEXT("Broker"),TEXT("Trickster")};return B.RulesVersion==7&&B.Preset>=3&&B.Preset<9?Names[B.Preset-3]:ClassName(B.ClassId);}
     const TCHAR* SubclassName(uint8 Subclass)
     {
         static const TCHAR* Names[] = {TEXT("None"),TEXT("Hauler"),TEXT("Medic"),TEXT("Cutpurse"),TEXT("Watcher"),TEXT("Channeler"),TEXT("Envoy")};
@@ -70,7 +72,7 @@ namespace LDDevelopment
     FLDCharacterBuild StartingBuild(uint8 ClassId, const ULDCharacterCatalog* Catalog)
     {
         check(ClassId < 3);
-        FLDCharacterBuild B; B.ClassId = ClassId; B.Ranks.Init(0, SkillCount);
+        FLDCharacterBuild B; B.ClassId = ClassId; B.Preset=ClassId; B.Ranks.Init(0, SkillCount);
         const TArray<TArray<int32>> Starts = {{12,9,12,8,10,9},{9,12,9,10,12,8},{8,9,10,12,9,12}};
         const TArray<TArray<ELDSkill>> Skills = {{ELDSkill::Heave,ELDSkill::Patch},{ELDSkill::Pickpocket,ELDSkill::Survey},{ELDSkill::Spark,ELDSkill::Analyze}};
         B.Attributes = Catalog ? Catalog->Classes[ClassId].Attributes : Starts[ClassId];
@@ -81,13 +83,14 @@ namespace LDDevelopment
     }
     FLDCharacterBuild TacticalStart(uint8 C,const FString& Digest)
     {
-        auto B=StartingBuild(C);B.RulesVersion=7;B.CatalogDigest=Digest;
+        check(C<9);const uint8 LegacyAdapters[]={0,1,2,1,2,1};auto B=StartingBuild(C<3?C:LegacyAdapters[C-3]);B.Preset=C;B.RulesVersion=7;B.CatalogDigest=Digest;
         const TArray<TArray<int32>> Starts={{11,8,10,8,8,8},{8,11,8,8,10,8},{8,8,8,11,8,10}};
-        B.Attributes=Starts[C];B.Ranks.SetNumZeroed(38);B.Cooldowns.SetNumZeroed(38);B.Slots.SetNum(5);return B;
+        B.Attributes=Starts[B.ClassId];B.Ranks.SetNumZeroed(38);B.Cooldowns.SetNumZeroed(38);B.Slots.SetNum(5);
+        if(C>=3){const auto* Catalog=ULDTacticalCatalog::Load();check(Catalog&&Catalog->Starters.IsValidIndex(C-3));const auto& K=Catalog->Starters[C-3];B.Attributes=K.Attributes;B.Ranks.Init(0,38);B.Slots.Init(ELDSkill::None,5);for(int32 I=0;I<K.Skills.Num();++I){B.Ranks[uint8(K.Skills[I])]=1;B.Slots[I]=K.Skills[I];}}return B;
     }
     bool Valid(const FLDCharacterBuild& B)
     {
-        if (B.ClassId>=3 || B.Attributes.Num()!=6 || B.Ranks.Num()!=Count(B) || B.Cooldowns.Num()!=Count(B) || B.Slots.Num()!=Slots(B)
+        if (B.ClassId>=3 || B.Preset>=(B.RulesVersion==7?9:3) || B.Attributes.Num()!=6 || B.Ranks.Num()!=Count(B) || B.Cooldowns.Num()!=Count(B) || B.Slots.Num()!=Slots(B)
             || B.Level<1 || B.Level>(B.RulesVersion==7?15:5) || (B.RulesVersion!=6&&B.RulesVersion!=7) || (B.RulesVersion==7&&B.CatalogDigest.Len()!=64) || B.AttributePoints<0 || B.SkillPoints<0 || B.Subclass>6 || !B.Revision || B.Ranks[0]) { return false; }
         for (int32 V : B.Attributes) { if (V<8 || V>16) { return false; } }
         for (int32 I=0; I<Count(B); ++I) { if (B.Ranks[I]>3 || !FMath::IsFinite(B.Cooldowns[I]) || B.Cooldowns[I]<0) { return false; } }

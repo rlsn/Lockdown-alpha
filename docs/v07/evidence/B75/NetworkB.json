@@ -1,0 +1,25 @@
+{
+	"failures": 0,
+	"scope": "B75 controlled dedicated authority plus two independent clients, real v3 RPCs and sanitized native proxy observations; labelled build/item/clock/placement fixtures, no earned-route/human/cooked claim.",
+	"checks": [
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Independent client sees reconciled swap destination",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Native linked gate cues delivered through8-field observation",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Temporal telegraph visible during remote windup",
+		"PASS Independent owner receives bounded current build",
+		"PASS Independent client maintains sanitized native world proxies",
+		"PASS Independent transport echo samples measured",
+		"PASS Transport median 132.8ms"
+	]
+}

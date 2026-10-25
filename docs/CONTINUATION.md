@@ -1,8 +1,8 @@
-# Continuation — B74 acquisition build; B75 next
+# Continuation — B75 tactical content; B76 next
 
-24 October 2026. Read [B74 implementation](v07/B74_IMPLEMENTATION.md) for exact
-supplies/recipes/work orders/quality/cache scope. B70–B73 are historical checkpoints.
-Keep the deletion of `V07_TRANSITION.md`; this is the active handoff.
+25 October 2026. Read [B75 implementation](v07/B75_IMPLEMENTATION.md) for the
+complete effect, channel, cooldown and adapter details. B70–B74 are historical
+records. Keep `V07_TRANSITION.md` deleted; this is the active handoff.
 
 ## Play and reproduce
 
@@ -15,6 +15,8 @@ python Scripts/SyncV07CombatData.py --check
 python Scripts/SyncV07EquipmentData.py --check
 python Scripts/SyncV07AcquisitionData.py --check
 ./Scripts/RunTests.ps1
+./Scripts/RunContentCheck.ps1
+./Scripts/RunContentNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunAcquisitionCheck.ps1
 ./Scripts/RunAcquisitionNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunLoadoutCheck.ps1 -RoundTripMs 100 -JitterMs 10
@@ -25,70 +27,62 @@ python Scripts/SyncV07AcquisitionData.py --check
 
 Run Unreal operations sequentially; freeze Source/Config during each. UE5.8.4
 CL58902052, Win64 Development, MSVC14.44.35229/SDK10.0.26100.0, compile cap4.
-Each UPROPERTY owns one declaration. Commit authorized; no push requested.
-Normal frontend remains V05; explicit v07 opens the native regional lobby.
+Each UPROPERTY owns one declaration. Commit is authorized; no push requested.
+Default frontend still uses V05; explicit v07 opens the native tactical lobby.
 
-Inventory has Supply, Gear craft and Ruins sections in v07. City supplies all28
-priced items; West/East sell CircleII books60g; East Archive sells CircleIII90g,
-two global paid creations per definition. Twelve supported passive gear effects
-include Broker's Seal; Null Bell works. Other acquired items remain explicitly
-labelled recipe/trade cargo until B75 effects/bindings exist. Unsupported books
-have physical sources but cannot yet read/equip/cast their unfinished effects.
+## Current runtime
 
-All12 exact recipes project final count/weight and use native held production.
-Town4s, East advanced6s, HeartForge8s; six quiet seconds, stationary, body sight,
-range120cm, fresh physical hold. Equipment must unbind first. East work orders
-buy only missing immediate official inputs; never fabricate Toolkit/Core/Crystal,
-catalysts or Fragment. No T4 order, disassembly, recursive production or XP.
-Quality Standard→Fine consumes Toolkit+6g/4s; Fine→Masterwork consumes
-Toolkit+Crystal+12g/6s at East. Same ID/endpoints remain; assembly output becomes
-Standard. Only eligible weapon damage/flat armor/item barrier uses1.07/1.14 floor.
-Bound Broker reduces only the equipment/quality fee by one, minimum one.
+All28 spell/40 item definitions have effects. Six additional53-point starters
+grant two adopted skills and no ward/item/gold. The Guild exposes all16 Circle-I
+plus four legacy books at40g. Five shared skills retain natural
+gates and the one-capstone limit. Equipment actives require binding plus one
+of three quick references; consumables require a reference. Use the reference
+to aim/activate or hold Mana/Recall. Inspect a gate/scramble then hold Context.
 
-Three fixed caches have one key/catalyst/named capstone each, endowed once.
-Quiet4s opening reveals the shared panel without transferring anything. Explicit
-pickup checks each item and capacity; keys require3s. Temporary retained-region
-service adapters are Ruin A(-1400,800), B(0,1050), C(1450,800), HeartForge at
-East(-200,+220). Full authored POIs and guardian remain B76. Guardian drops require
-an actual paid `GuardianDefeat` receipt; the old respawning Sentinel cannot mint
-the Fragment/book. Heartbreaker normal acquisition therefore still needs B76.
+Wire3 carries bounded two-target/two-point/item revisions; wire2 single targets
+remain readable. Server authority rechecks life, build, geometry and resources.
+Item families persist after consumption and merge transferred instance endpoints.
+Major protections share8s activation, with definition-specific longer reuse.
+Blink/Rift direct damage lock3s persists on the contender. Ward/trap charges
+remain one ledger source until retired. Death clears persistent fields/pairs;
+bound Tower Relic always drops. Ordinary bound equipment retains.
 
-## Immediate B75 work
+B74 supplies/books,12 recipes, East work orders, same-ID quality and finite caches
+remain. City sells28 priced items; CircleII60g at West/East; CircleIII90g at East
+with two global copies per definition. Town/East/HeartForge holds4/6/8s after six
+quiet seconds. Work orders never fabricate Toolkit/Core/Crystal/catalyst/Fragment
+or T4. Assembly outputs Standard. Eligible fields alone use1.07/1.14 floor.
 
-1. Implement remaining27 item effects/bindings and14 spell effects from adopted
-   contracts. Acquisition metadata does not mean delivered combat behavior.
-   Preserve native B71–B74 targeting, status, geometry, MP, privacy and authority.
-2. Extend `LDEquipmentCatalog` only as complete behavior becomes available.
-   Attributes/capacity remain independent of Break. Craftsmanship modifies only
-   weapon damage, armor and item barriers. Preserve exact endpoints, family/major
-   locks and positive-direct-damage locks through transfer/assembly.
-3. Add active-gear binding plus quick-reference checks, consumed/reusable semantics,
-   ward/trap limits, reflect-once, grapple/blink geometry and counters. Owned
-   `Quality`, `ReadyAt`, `BindingMask` and causal lineage now persist.
-4. Supported spells become learnable from existing books only when their effects
-   exist. Natural attributes qualify gates; knowledge/mastery/effective potency
-   remain separate. One capstone maximum.
-5. B76 implements actual guardian/world/towers, key/artifact leases and four normal
-   routes with exact scheduled ordering. Preserve source budgets, fixed cache
-   identities, individual pickups and the actual guardian defeat adapter.
+Retained-region adapters: Ruin A(-1400,800), B(0,1050), C(1450,800), HeartForge
+at East(-200,+220), Cliffwalkers link derived from public Plateau geometry.
+Actual guardian drops require a paid `GuardianDefeat` receipt and finite budget;
+the old Sentinel cannot mint Fragment/book. The complete world remains B76.
+
+## Immediate B76 work
+
+1. Implement adopted camps/ruins/towers, guardian, shrines/forge and shortcuts in
+   native geometry. Preserve finite physical sources and reward identities.
+2. Connect key/artifact leases, global siege and retained public Charter to one
+   common claim/terminal ordering path. Rivals retain entry/interference rights.
+3. Demonstrate four routes through normal acquisition; add exact endpoint and
+   concurrent winner checks. Keep fixture cases separately labelled.
+4. Preserve B71–B75 combat, cooldown/source lifecycle, privacy, geometry, economy,
+   quality and ownership regressions while integrating world events.
 
 ## Evidence and boundaries
 
-`docs/v07/evidence/B74/Summary.json` records final artifacts, source hashes,
-transport and independent replays. The earned local two-owner lane grants no
-diagnostic money/items/XP, but controls clock/placement/quiet/protection setup.
-The independent-client network boundary lane labels diagnostic gold/Toolkit setup.
-Neither certifies human travel or full sessions.
+`v07/evidence/B75/Summary.json` records raw native logs, source/import hashes and
+independent ledger replays. The all-content effect lane explicitly grants
+items/build/resources and controls clock/placement. B75 networking uses a
+server and two independent clients. B74's earned acquisition lane grants no
+money/items/XP but controls time/placement/quiet/protection. None proves human
+travel or full sessions. Public observation remains8 fields and GameState34.
 
-Public observations remain8 fields and GameState34. Production service IDs accept
-all9 native adapters. New request fields are owner-to-server; offered quality is
-deliberately visible only on voluntarily offered trade items.
-
-The93 adopted spec files are not edited by B74. A user whitespace edit in
-`docs/v07/09_VICTORY_AND_MATCH_STATE.md` predates this work and remains excluded
-from the commit; the other92 match adoption bytes. Preserve that user edit.
-
-Only the original source audit is Complete in FeatureLedger. Keep inherited
-V06-D01–D08 and B77 gaps visible: full100/150 network/privacy, rendered/OS-scale/
-physical input, cold package, normal1/4-player35-minute sessions, restarts/
-performance and human review. Reuse native transactions and sanitized observations.
+B76 world/route and B77 full100/150ms/privacy, physical/rendered input, OS scale,
+cold package, normal1/4-player35-minute, restart/performance and human acceptance
+remain open with inherited V06-D01–D08. No new package/full release is claimed.
+The93 adopted spec files are preserved. A pre-existing user whitespace edit in
+`v07/09_VICTORY_AND_MATCH_STATE.md` stays excluded; the other92 match adoption.
+The old B56 Seal-trade fixture is incompatible with V05 economy. Do not enable
+diagnostic Seal grants to force it through; use B74's earned Masterwork trade
+and return as the current transaction regression.

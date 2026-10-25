@@ -15,6 +15,8 @@
 bool ALDTacticalField::Active(int64 At) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Source.Get()):nullptr;
+    if(Kind==ELDTacticalField::Scramble){return !IsActorBeingDestroyed()&&M&&M->IsPlaying();}
+    if(Kind==ELDTacticalField::Gate&&(!Partner.IsValid()||Partner->Hp<=0||Partner->IsActorBeingDestroyed())){return false;}
     return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&S&&S->Identity==SourceLife&&S->Hp>0&&(!bPlayerSource||(PlayerSource.IsValid()&&PlayerSource->GetPawn()==Source.Get()&&M->StateFor(PlayerSource.Get())&&M->StateFor(PlayerSource.Get())->bActive))&&ExpiresAt>At&&Hp>0;
 }
 bool ALDCombatDirector::QuietForPreparation(ALDCharacter* Body) const
@@ -25,7 +27,7 @@ void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor
 void ALDCombatDirector::ExplicitInterrupt(ALDCharacter* Body,double Now)
 {
     auto* S=StateFor(Body);if(!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()){return;}
-    if(S->Action==9){CancelTactical(Body,TEXT("Explicit interrupt"));}else{CancelSkill(Body,*S);}
+    if(S->Action==9||S->Action==10){CancelTactical(Body,TEXT("Explicit interrupt"));}else{CancelSkill(Body,*S);}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->Interrupt(PC,Now,true);}
 }
 bool ALDCombatDirector::Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now)
@@ -51,7 +53,7 @@ void ALDCombatDirector::SampleFields(int64 At)
 {
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!HasAuthority()||!M||!M->IsTacticalProfile()){return;}
     for(auto& Pair:Bodies){Pair.Value.Tactical.GroundedUntil=0;}
-    TArray<ALDTacticalField*> Fields;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Active(At)){Fields.Add(*It);}else{It->Destroy();}}
+    TArray<ALDTacticalField*> Fields;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Active(At)||(It->Kind==ELDTacticalField::Ember&&It->TickIndex<6&&It->Active(FMath::Min(At,It->ExpiresAt-1)))){Fields.Add(*It);}else{DestroyField(*It);}}
     Fields.Sort([](const auto& A,const auto& B){return A.Identity.ToString()<B.Identity.ToString();});
     for(auto* F:Fields)
     {
@@ -65,6 +67,6 @@ void ALDCombatDirector::SampleFields(int64 At)
             else{Targets.Add(B);}
         }
         Targets.Sort([&](const auto& A,const auto& B){return StateFor(&A)->Identity.ToString()<StateFor(&B)->Identity.ToString();});
-        if(!Targets.IsEmpty()){ApplyStatus(Targets[0],LDTactical::EStatus::Root,At+1600,F->Identity);F->Destroy();}
+        if(!Targets.IsEmpty()){ApplyStatus(Targets[0],LDTactical::EStatus::Root,At+int64(F->Amount>0?F->Amount:1600),F->Identity);DestroyField(F);}
     }
 }

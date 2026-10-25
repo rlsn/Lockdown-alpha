@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Vision/LDVisionDirector.h"
+#include "Combat/LDCombatDirector.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
@@ -69,7 +70,7 @@ bool ALDEconomyDirector::CommitBank(ALDPlayerController* PC,int64 Amount,bool De
 bool ALDEconomyDirector::AllowDiagnosticItems() const
 {
 #if !UE_BUILD_SHIPPING
-    return FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
+    return FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))&&!FParse::Param(FCommandLine::Get(),TEXT("LDCharterJourney")))||FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"));
 #else
     return false;
 #endif
@@ -101,6 +102,7 @@ bool ALDEconomyDirector::Snapshot(TMap<FGuid,FPhysical>& Out,FString& Error) con
         if(Out.Contains(It->SourceCharge)){Error=TEXT("Ward charge counted twice");return false;}
         Out.Add(It->SourceCharge,{ELDItemKind::WardCharge,FName(*(TEXT("ActiveWard:")+It->Identity.ToString())),nullptr});
     }
+    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->ChargeIdentity.IsValid()&&!It->IsActorBeingDestroyed()){if(Out.Contains(It->ChargeIdentity)){Error=TEXT("Tactical source counted twice");return false;}Out.Add(It->ChargeIdentity,{It->ChargeKind,FName(*(TEXT("ActiveTactical:")+It->Identity.ToString())),nullptr});}}
     for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     {if(auto* PC=Cast<ALDPlayerController>(It->Get())){if(const auto* O=M->StateFor(PC)){for(const auto& I:O->Inventory.Items){const auto* P=Out.Find(I.Id);if(!P||P->Location!=Wallet(M->ContenderId(PC))){Error=TEXT("Bag contains missing physical item");return false;}}}}}
     return true;

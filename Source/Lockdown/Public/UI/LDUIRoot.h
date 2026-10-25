@@ -39,6 +39,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> DefenceLabels;
     UPROPERTY() TObjectPtr<UBorder> LobbyPanel;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyInfo;
+    UPROPERTY() TObjectPtr<class UVerticalBox> NewStarters;
     UPROPERTY() TObjectPtr<class UButton> LobbyStart;
     bool bInLobby = false;
     UFUNCTION() void Laborer();

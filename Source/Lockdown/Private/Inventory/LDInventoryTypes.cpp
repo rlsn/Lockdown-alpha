@@ -25,7 +25,7 @@ FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
     }
 }
 bool LDInventory::QuickUsable(ELDItemKind Kind,uint8 Rules)
-{return (Rules!=7&&Kind==ELDItemKind::Book)||Kind==ELDItemKind::WardCharge||Kind==ELDItemKind::NullBell;}
+{if(Rules!=7){return Kind==ELDItemKind::Book||Kind==ELDItemKind::WardCharge;}if(Kind==ELDItemKind::WardCharge){return true;}const auto* C=ULDEquipmentCatalog::Load();const auto* D=C?C->Find(Kind):nullptr;return D&&!D->Operation.IsEmpty();}
 bool LDInventory::Commodity(ELDItemKind Kind)
 {return Kind>=ELDItemKind::Fiber&&Kind<=ELDItemKind::Core;}
 int32 LDInventory::UnitWeight(ELDItemKind Kind)
@@ -66,7 +66,7 @@ bool LDInventory::Fits(const FLDInventory& I,const FLDCharacterBuild& B,const TA
 }
 bool LDInventory::BindQuick(FLDInventory& I,FGuid Id,uint8 Slot,FString& Reason)
 {
-    const auto* Item=I.Find(Id);if(Slot>=I.Quick.Num()||!Item||Item->bReserved||!QuickUsable(Item->Kind,I.RulesVersion)){Reason=TEXT("Item cannot be assigned");return false;}
+    const auto* Item=I.Find(Id);if(Slot>=I.Quick.Num()||!Item||Item->bReserved||!QuickUsable(Item->Kind,I.RulesVersion)||(I.RulesVersion==7&&Item&&ULDEquipmentCatalog::Load()->Find(Item->Kind)&&ULDEquipmentCatalog::Load()->Find(Item->Kind)->Binding!=255&&!Item->BindingMask)){Reason=TEXT("Item cannot be assigned");return false;}
     for(auto& Ref:I.Quick){if(Ref==Id){Ref.Invalidate();}}I.Quick[Slot]=Id;++I.Revision;return true;
 }
 void LDInventory::Remove(FLDInventory& I,FGuid Id)

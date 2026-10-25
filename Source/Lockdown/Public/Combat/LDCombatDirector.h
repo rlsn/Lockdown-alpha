@@ -1,8 +1,11 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Character/LDCharacter.h"
 #include "GameFramework/Actor.h"
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDTacticalRequest.h"
+#include "Inventory/LDInventoryTypes.h"
 #include "LDCombatDirector.generated.h"
 class ALDCharacter;
 class ALDPlayerController;
@@ -39,6 +42,21 @@ struct FLDBodyCombatState
     uint32 CoreBuildRevision=0;
     double CoreRecoveryUntil=0;
     double NullBellReadyAt=0;
+    TWeakObjectPtr<AActor> CoreSecondTarget;
+    FGuid CoreSecondLife;
+    FVector CoreSecondPoint=FVector::ZeroVector;
+    FLDTacticalRequest ContentRequest;
+    FGuid DaggerItem;
+    int64 DaggerUntil=0,SalveNext=0,SalveEnd=0,SalveDamageAt=0,GateLock=0,LastFootstep=0;
+    int32 SalveTicks=0;
+    FString ContentChannel;
+    FVector ChannelDestination=FVector::ZeroVector;
+    bool HadPositiveChannelDamage=false;
+    TMap<FGuid,int32> WatchHits;
+    bool bAttackOrder=false;
+    TWeakObjectPtr<AActor> AttackTarget;
+    FGuid AttackLife;
+    uint32 AttackToken=0;
 };
 
 UCLASS()
@@ -52,13 +70,15 @@ public:
     TWeakObjectPtr<ALDCharacter> Victim;
     FGuid VictimLife;
     FGuid CasterIdentity;
+    TWeakObjectPtr<AActor> ActorVictim;
     FVector Endpoint;
     double Amount=0;
     int64 AdvancedAt=0;
     uint32 Token=0;
+    bool Basic=false,Reflected=false;
 };
 
-enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding};
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble};
 UCLASS()
 class LOCKDOWN_API ALDTacticalField:public AActor
 {
@@ -74,6 +94,21 @@ public:
     int64 ExpiresAt=0,ArmedAt=0;
     double Hp=1,Radius=0;
     bool Active(int64 At) const;
+    TWeakObjectPtr<ALDTacticalField> Partner;
+    TWeakObjectPtr<ALDCharacter> Audience;
+    FVector Direction=FVector::ForwardVector;
+    int64 NextTick=0;
+    int32 TickIndex=0;
+    double Amount=0;
+    FGuid ChargeIdentity;
+    ELDItemKind ChargeKind=ELDItemKind::WardTotem;
+    bool ItemSource=false;
+    ELDSkill Skill=ELDSkill::None;
+    double SkillCooldown=0;
+    bool EnemyDestroyed=false;
+    TArray<FVector> TravelPath;
+    int32 PathIndex=1;
+    int64 LastUpdate=0;
 };
 
 struct FLDCombatHit
@@ -89,6 +124,8 @@ struct FLDCombatHit
     bool Interrupt=false;
     int32 SilenceMS=0;
     int32 BreakMS=0;
+    int32 SlowMS=0,MuteMS=0;
+    bool Basic=false,Periodic=false;
 };
 
 UCLASS()
@@ -137,13 +174,35 @@ public:
     void ExplicitInterrupt(ALDCharacter* Body,double Now);
     bool Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now);
     void SampleFields(int64 At);
+    void QueueContent(ALDPlayerController* PC,const FLDTacticalRequest& Request);
+    void ContentHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,bool Release=false);
+    bool RequestContent(ALDCharacter* Body,const FLDTacticalRequest& Request,AActor* First,AActor* Second,FString& Why);
+    bool IsContentSkill(ELDSkill Skill) const;
+    void SampleContent(int64 At,TArray<FLDCombatHit>& Hits);
+    void CompleteContentChannels(int64 At);
+    bool ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCombatHit>& Hits,FString& Why);
+    void DestroyField(ALDTacticalField* Field,const TCHAR* Cause=TEXT("TacticalSourceExpired"));
+    ALDTacticalField* CreateField(ALDCharacter* Body,ELDTacticalField Kind,FVector Point,int64 At,int64 Duration,double Hp,double Radius,bool Item=false);
+    bool MobilityEndpoint(ALDCharacter* Body,FVector Desired,FVector& Endpoint,const AActor* Ignore=nullptr) const;
+    bool AtomicSwap(AActor* First,AActor* Second,ALDCharacter* Caster,int64 At,FString& Why,bool Execute);
+    bool HasObjectiveCargo(ALDPlayerController* PC) const;
+    bool ProjectileIntercept(ALDArcProjectile* Projectile,FVector From,FVector To,int64 At);
+    void WeaponContact(const FLDCombatHit& Hit,ALDCharacter* Victim,double Contact,int64 At);
+    void RefreshItemFamilies(ALDPlayerController* PC);
+    void EndContentLife(ALDCharacter* Body);
+    bool Explored(ALDPlayerController* PC,FVector Point) const;
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
+    friend class ALDContentProbe;
+    friend class ALDContentNetworkProbe;
     struct FResidentReturn { double At; FVector Home; FGuid Wallet;bool HasBuild=false;FLDCharacterBuild Build; };
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TArray<FResidentReturn> Residents;
-    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed;FVector Point=FVector::ZeroVector; };
+    struct FMark {TWeakObjectPtr<ALDCharacter> Source,Target;FGuid SourceLife,TargetLife;int64 Until=0,Next=0;};
+    TArray<FMark> Marks;
+    bool bScrambleLinks=false;
+    struct FIntent { TWeakObjectPtr<ALDPlayerController> Controller;uint32 Match,Life,Request;uint8 Action;FVector Direction;uint32 BuildRevision=0;FGuid Observed;FVector Point=FVector::ZeroVector; FLDTacticalRequest Content;bool IsContent=false; };
     TArray<FIntent> Intents;
     double NextSample=0;
     uint64 NextOrder=0;

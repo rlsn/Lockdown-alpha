@@ -33,7 +33,7 @@ bool FLDControlTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundWireTest,"Lockdown.Rules.GroundWireAndNaturalGates",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDGroundWireTest::RunTest(const FString& Parameters)
 {
-    const auto* C=ULDTacticalCatalog::Load();if(!TestNotNull(TEXT("B72 catalog"),C)){return false;}TestEqual(TEXT("Only fourteen delivered definitions"),C->Abilities.Num(),14);
+    const auto* C=ULDTacticalCatalog::Load();if(!TestNotNull(TEXT("B72 catalog"),C)){return false;}TestEqual(TEXT("All28 delivered definitions"),C->Abilities.Num(),28);
     auto B=LDDevelopment::TacticalStart(0,C->Checksum);B.Attributes={8,8,8,9,8,8};
     TestTrue(TEXT("OR INT branch alone qualifies Force Wave"),ULDTacticalCatalog::NaturalGate(*C->Find(ELDSkill::ForceWave),B));
     B.Attributes[3]=8;TestFalse(TEXT("Below both natural branches"),ULDTacticalCatalog::NaturalGate(*C->Find(ELDSkill::ForceWave),B));

@@ -42,15 +42,24 @@ void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
     Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel||bInstitution),true);
     WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel&&!bInstitution);
     TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::Production||bInstitution);
+    if(Entity.Kind==ELDObservedKind::Body&&Entity.ActionCue==11){TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(TEXT("DETECTED ILLUSION")));}
     if(Entity.Kind==ELDObservedKind::WatchControl){TaskLabel->SetText(FText::FromString(TEXT("WATCH CONTROL\nAnalyze 14")));}
     if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
     TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
     if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
     if(Entity.Kind==ELDObservedKind::TacticalField)
     {
-        static const TCHAR* Names[]={TEXT("SMOKE"),TEXT("FARWATCH"),TEXT("WIRE SNARE"),TEXT("DETECTOR"),TEXT("GROUNDING")};
-        TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(Names[FMath::Min<uint8>(Entity.Presentation,4)]));
-        WardMesh->SetRelativeScale3D(Entity.Presentation==0?FVector(.7,.7,.15):FVector(.3,.3,.3));
+        static const TCHAR* Names[]={TEXT("SMOKE"),TEXT("FARWATCH"),TEXT("WIRE SNARE"),TEXT("DETECTOR"),TEXT("GROUNDING"),TEXT("SWAP MARKER"),TEXT(""),TEXT("EMBER LINE"),TEXT("ARCANE PRISON"),TEXT("TEMPORAL LOCK"),TEXT("SOVEREIGN WARD"),TEXT("LINKED GATE · HOLD CONTEXT 1s"),TEXT("STALE TRAIL"),TEXT("FOOTSTEP"),TEXT("SCRAMBLE · CLIFFWALKERS")};
+        TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(Names[FMath::Min<uint8>(Entity.Presentation,14)]));
+        WardMesh->SetRelativeScale3D(Entity.Presentation==0?FVector(6,6,.05):Entity.Presentation==7?FVector(7,1.6,.04):Entity.Presentation==10?FVector(7,7,.05):Entity.Presentation==12||Entity.Presentation==13?FVector(.3,.3,.02):FVector(.3));
+        if(bFirst)
+        {
+            if(Entity.Presentation==7){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));}
+            const bool Ring=Entity.Presentation==4||Entity.Presentation==8||Entity.Presentation==9||Entity.Presentation==10||Entity.Presentation==11;
+            if(Ring){const double Radius=Entity.Presentation==11?45:Entity.Presentation==10||Entity.Presentation==4?350:Entity.Presentation==9?FMath::Clamp<int32>(Entity.ActionCue,15,17)*20:300;
+                for(int32 N=0;N<24;++N){auto* Cue=NewObject<UStaticMeshComponent>(this);Cue->SetupAttachment(RootComponent);Cue->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));const double Angle=2*PI*N/24.;const double Height=Entity.Presentation==8?200:Entity.Presentation==11?100:8;Cue->SetRelativeLocation(FVector(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius,Height/2));Cue->SetRelativeRotation(FRotator(0,FMath::RadiansToDegrees(Angle)+90,0));Cue->SetRelativeScale3D(FVector(2*PI*Radius/24/100,.08,Height/100));Cue->SetCollisionEnabled(ECollisionEnabled::NoCollision);Cue->SetCanEverAffectNavigation(false);Cue->SetMaterial(0,WardMesh->GetMaterial(0));AddInstanceComponent(Cue);Cue->RegisterComponent();FieldCue.Add(Cue);}}
+            if(auto* Tint=Cast<UMaterialInstanceDynamic>(WardMesh->GetMaterial(0))){Tint->SetVectorParameterValue(TEXT("Tint"),Entity.Presentation==7||Entity.Presentation==9?FLinearColor(1,.15f,.03f):Entity.Presentation==11?FLinearColor(.65f,.12f,1):Entity.Presentation==10?FLinearColor(.1f,.65f,1):FLinearColor(.65f,.6f,.15f));}
+        }
     }
     if(Entity.Kind==ELDObservedKind::Projectile){WardMesh->SetRelativeScale3D(FVector(.15));}
     if(bFirst&&Entity.Kind==ELDObservedKind::Seal)

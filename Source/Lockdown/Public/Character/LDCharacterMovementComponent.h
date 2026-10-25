@@ -25,6 +25,7 @@ public:
     bool bWantsSprint = false;
     float SprintSpeed = 300.0f;
     bool bCombatWalkOnly = false;
+    bool StartContentDash(const FVector& Direction,double Distance,double Duration);
     bool StartAuthorityDash(const FVector& Direction,double Distance=360);
     virtual float GetMaxSpeed() const override;
     virtual void UpdateFromCompressedFlags(uint8 Flags) override;

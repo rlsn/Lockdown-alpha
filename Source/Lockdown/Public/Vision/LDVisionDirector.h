@@ -32,6 +32,7 @@ public:
     virtual void Tick(float Delta) override;
     void Register(ALDPlayerController* Controller);
     void Unregister(ALDPlayerController* Controller);
+    void EndLife(ALDPlayerController* PC);
     bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason,FGuid Charge=FGuid());
     bool Ray(const FLDSightSource& Source, const FVector& Target) const;
     uint8 LevelAt(const FVector& Position) const;

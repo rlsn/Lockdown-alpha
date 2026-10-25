@@ -12,14 +12,14 @@ namespace
 }
 bool ULDTacticalCatalog::Import(const FString& Text,FString& Error)
 {
-    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=Hash(SourceJson);Abilities.Reset();
+    SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=Hash(SourceJson);Abilities.Reset();Starters.Reset();
     auto Reject=[&](){Error=TEXT("Unsupported tactical contract; sync source, importer and native asset together");return false;};
     // Fail closed on every semantic edit, including unknown operations and payloads.
     if(Checksum!=LD_TACTICAL_CONTRACT_SHA){return Reject();}
     TSharedPtr<FJsonObject> Root;
     if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SourceJson),Root)||!Root||Root->GetIntegerField(TEXT("schema_version"))!=7){return Reject();}
-    const TMap<FString,ELDSkill> Supported={{TEXT("anchor_bash"),ELDSkill::AnchorBash},{TEXT("veil_step"),ELDSkill::VeilStep},{TEXT("arc_bolt"),ELDSkill::ArcBolt},{TEXT("counterpulse"),ELDSkill::Counterpulse},{TEXT("farwatch_ward"),ELDSkill::FarwatchWard},{TEXT("wire_snare"),ELDSkill::WireSnare},{TEXT("surety_shell"),ELDSkill::SuretyShell},{TEXT("smoke_veil"),ELDSkill::SmokeVeil},{TEXT("purge_touch"),ELDSkill::PurgeTouch},{TEXT("seers_flare"),ELDSkill::SeersFlare},{TEXT("grounding_field"),ELDSkill::GroundingField},{TEXT("force_wave"),ELDSkill::ForceWave},{TEXT("remedy_bind"),ELDSkill::RemedyBind},{TEXT("break_sigil"),ELDSkill::BreakSigil}};
-    const TMap<FString,ELDTacticalTarget> Targets={{TEXT("self"),ELDTacticalTarget::Self},{TEXT("hostile_unit"),ELDTacticalTarget::Unit},{TEXT("self_or_observed_unit"),ELDTacticalTarget::SelfOrUnit},{TEXT("ground"),ELDTacticalTarget::Ground},{TEXT("cone"),ELDTacticalTarget::Cone}};
+    const TMap<FString,ELDSkill> Supported={{TEXT("anchor_bash"),ELDSkill::AnchorBash},{TEXT("brace_wall"),ELDSkill::BraceWall},{TEXT("veil_step"),ELDSkill::VeilStep},{TEXT("hamstring"),ELDSkill::Hamstring},{TEXT("arc_bolt"),ELDSkill::ArcBolt},{TEXT("counterpulse"),ELDSkill::Counterpulse},{TEXT("farwatch_ward"),ELDSkill::FarwatchWard},{TEXT("wire_snare"),ELDSkill::WireSnare},{TEXT("ledger_mark"),ELDSkill::LedgerMark},{TEXT("surety_shell"),ELDSkill::SuretyShell},{TEXT("false_trail"),ELDSkill::FalseTrail},{TEXT("smoke_veil"),ELDSkill::SmokeVeil},{TEXT("purge_touch"),ELDSkill::PurgeTouch},{TEXT("seers_flare"),ELDSkill::SeersFlare},{TEXT("ember_line"),ELDSkill::EmberLine},{TEXT("grapple"),ELDSkill::Grapple},{TEXT("null_seal"),ELDSkill::NullSeal},{TEXT("grounding_field"),ELDSkill::GroundingField},{TEXT("force_wave"),ELDSkill::ForceWave},{TEXT("guard_swap"),ELDSkill::GuardSwap},{TEXT("slipstream"),ELDSkill::Slipstream},{TEXT("remedy_bind"),ELDSkill::RemedyBind},{TEXT("break_sigil"),ELDSkill::BreakSigil},{TEXT("arcane_prison"),ELDSkill::ArcanePrison},{TEXT("temporal_lock"),ELDSkill::TemporalLock},{TEXT("sovereign_ward"),ELDSkill::SovereignWard},{TEXT("grand_exchange"),ELDSkill::GrandExchange},{TEXT("gate_weave"),ELDSkill::GateWeave}};
+    const TMap<FString,ELDTacticalTarget> Targets={{TEXT("self"),ELDTacticalTarget::Self},{TEXT("hostile_unit"),ELDTacticalTarget::Unit},{TEXT("self_or_observed_unit"),ELDTacticalTarget::SelfOrUnit},{TEXT("ground"),ELDTacticalTarget::Ground},{TEXT("cone"),ELDTacticalTarget::Cone},{TEXT("line"),ELDTacticalTarget::Line},{TEXT("anchor_or_hostile_unit"),ELDTacticalTarget::AnchorOrUnit},{TEXT("owned_marker"),ELDTacticalTarget::Marker},{TEXT("two_observed_units"),ELDTacticalTarget::TwoUnits},{TEXT("two_ground_points"),ELDTacticalTarget::TwoPoints}};
     const auto& Rows=Root->GetArrayField(TEXT("abilities"));if(Rows.Num()!=Supported.Num()){return Reject();}
     TSet<ELDSkill> Seen;
     for(const auto& Row:Rows)
@@ -35,6 +35,9 @@ bool ULDTacticalCatalog::Import(const FString& Text,FString& Error)
         {for(const auto* A:Attr){double N=0;Gate->AsObject()->TryGetNumberField(A,N);D.Gates.Add(int32(N));}}
         Abilities.Add(D);
     }
+    for(const auto& V:Root->GetArrayField(TEXT("starter_kits")))
+    {const auto O=V->AsObject();FLDStarterKit K;K.Name=O->GetStringField(TEXT("name"));for(const TCHAR* A:{TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")}){K.Attributes.Add(O->GetObjectField(TEXT("attributes"))->GetIntegerField(A));}for(const auto& S:O->GetArrayField(TEXT("skills"))){if(!Supported.Contains(S->AsString())){return Reject();}K.Skills.Add(Supported[S->AsString()]);}Starters.Add(K);}
+    if(Starters.Num()!=6){return Reject();}
     NullBellPrice=8;NullBellCooldown=12000;Error.Reset();return true;
 }
 bool ULDTacticalCatalog::NaturalGate(const FLDTacticalDefinition& D,const FLDCharacterBuild& B)
@@ -47,6 +50,7 @@ bool ULDTacticalCatalog::Validate(FString& Error) const
     if(Checksum!=LD_TACTICAL_CONTRACT_SHA||Checksum!=Hash(SourceJson)){Error=TEXT("Tactical checksum mismatch");return false;}
     auto* Copy=NewObject<ULDTacticalCatalog>();if(!Copy->Import(SourceJson,Error)||Copy->Abilities.Num()!=Abilities.Num()){return false;}
     for(const auto& A:Abilities){const auto* B=Copy->Find(A.Skill);if(!B||B->Id!=A.Id||B->Windup!=A.Windup||B->Mana!=A.Mana||B->Cooldown!=A.Cooldown||B->Range!=A.Range||B->Area!=A.Area||B->Circle!=A.Circle||B->Target!=A.Target||B->RankKey!=A.RankKey||B->Gates!=A.Gates||B->Magnitudes!=A.Magnitudes){Error=TEXT("Derived tactical data differs from source");return false;}}
+    if(Starters.Num()!=Copy->Starters.Num()){return false;}for(int32 I=0;I<Starters.Num();++I){if(!FLDStarterKit::StaticStruct()->CompareScriptStruct(&Starters[I],&Copy->Starters[I],0)){Error=TEXT("Starter differs from source");return false;}}
     return NullBellPrice==Copy->NullBellPrice&&NullBellCooldown==Copy->NullBellCooldown;
 }
 ULDTacticalCatalog* ULDTacticalCatalog::Load(){return LoadObject<ULDTacticalCatalog>(nullptr,TEXT("/Game/Lockdown/Generated/V07/DA_CombatCatalog.DA_CombatCatalog"));}

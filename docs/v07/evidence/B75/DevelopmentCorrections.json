@@ -1,0 +1,33 @@
+{
+  "failedAttempts": [
+    {
+      "artifact": "Artifacts/20261025-101112-100-B75-Content",
+      "result": "Three fixture assertions failed",
+      "correction": "Counterpulse expects silence; passive-contact fixtures now perform native build refresh after binding."
+    },
+    {
+      "artifact": "Artifacts/20261025-101226-162-B75-ContentNet-100-10",
+      "result": "MP fixture bounds and telegraph visibility failed",
+      "correction": "MP expectation uses324 max; strict eight-field view now permits only15-17 radius cue values for Temporal telegraph. Added bounded wire regression."
+    },
+    {
+      "artifact": "Artifacts/20261025-102037-245-B75-ContentNet-100-10",
+      "result": "Host role race prevented match start; fixture later dereferenced absent economy",
+      "correction": "Fixture starts through whichever client is actual lobby host and exits immediately on startup failure; successful final network lane retains strict authority checks."
+    },
+    {
+      "artifact": "Artifacts/20261025-103426-256-B75-Content",
+      "result": "Two paid shop assertions failed; no book created",
+      "correction": "Fixture had called the director without the normal client quote latch. It now opens and buys through the real player shop controls; final courier-funded purchase and held read pass."
+    }
+  ],
+  "otherCorrections": [
+    "Owner cooldown maps replaced by RPC-compatible reflected arrays.",
+    "Pinned engine API/shadowing/incomplete-type compile errors corrected before successful native build.",
+    "Bookshop offer list and UI share all16 Circle-I choices; paid new-book source/read is verified.",
+    "New presets suppress inherited legacy ward endowment; actual empty start verified.",
+    "Physical held-input polling and root-motion ledge flags retain actual release/movement rules.",
+    "B72 owner-limit assertion updated to B75 oldest-source replacement with one real release cost; global emitter-cap failure is tested separately with no spending."
+  ],
+  "notClaimed": "No failed attempt is counted as passing evidence; raw successful logs and reports accompany final results."
+}

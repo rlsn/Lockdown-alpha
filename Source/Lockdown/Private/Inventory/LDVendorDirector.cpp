@@ -27,7 +27,7 @@ bool ALDVendorDirector::TakeToken(FClient& C)
 FLDVendorQuote ALDVendorDirector::Quote(ALDPlayerController* PC,const FClient& C) const
 {
     FLDVendorQuote Q;Q.Match=C.Match;Q.Life=C.Life;Q.Token=C.Token;Q.Session=C.Session;Q.CatalogRevision=CatalogRevision;
-    if(C.Session.IsValid()){TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()){Skills.Append({ELDSkill::AnchorBash,ELDSkill::ArcBolt,ELDSkill::PurgeTouch,ELDSkill::SuretyShell,ELDSkill::VeilStep,ELDSkill::Counterpulse,ELDSkill::FarwatchWard,ELDSkill::WireSnare,ELDSkill::SmokeVeil,ELDSkill::SeersFlare});}for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
+    if(C.Session.IsValid()){const auto Skills=OfferedSkills(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile());for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
 }
 bool ALDVendorDirector::ValidSession(ALDPlayerController* PC,const FClient& C) const
 {const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=const_cast<ALDGameMode*>(M)->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);return C.Session.IsValid()&&O&&O->Match==C.Match&&O->Life==C.Life&&S&&S->LastDamage==C.Damage&&Eligible(PC);}
@@ -89,3 +89,6 @@ void ALDVendorDirector::FailNextCreationForProbe()
 }
 
 void ALDVendorDirector::Invalidate(ALDPlayerController* PC){auto* C=Clients.Find(PC);if(C&&C->Session.IsValid()){C->Session.Invalidate();PC->ClientVendorClosed(C->Token,TEXT("Vendor closed: another service opened"));}}
+
+TArray<ELDSkill> ALDVendorDirector::OfferedSkills(bool Tactical)
+{TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(Tactical){if(const auto* C=ULDTacticalCatalog::Load()){for(const auto& D:C->Abilities){if(D.Circle==1){Skills.Add(D.Skill);}}}}return Skills;}

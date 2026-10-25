@@ -1,6 +1,116 @@
 {
   "schema_version": 7,
-  "milestone": "B72 partial",
+  "milestone": "B75 complete tactical content",
+  "starter_kits": [
+    {
+      "id": "vanguard",
+      "name": "Vanguard",
+      "attributes": {
+        "STR": 11,
+        "DEX": 8,
+        "CON": 10,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 8
+      },
+      "skills": [
+        "anchor_bash",
+        "brace_wall"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "infiltrator",
+      "name": "Infiltrator",
+      "attributes": {
+        "STR": 8,
+        "DEX": 11,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "veil_step",
+        "hamstring"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "arcanist",
+      "name": "Arcanist",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 11,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "arc_bolt",
+        "counterpulse"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "seeker",
+      "name": "Seeker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 11,
+        "CHA": 8
+      },
+      "skills": [
+        "farwatch_ward",
+        "wire_snare"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "broker",
+      "name": "Broker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 10,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "ledger_mark",
+        "surety_shell"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    },
+    {
+      "id": "trickster",
+      "name": "Trickster",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "false_trail",
+        "smoke_veil"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0
+    }
+  ],
   "abilities": [
     {
       "id": "anchor_bash",
@@ -42,6 +152,43 @@
       "max_rank": 3
     },
     {
+      "id": "brace_wall",
+      "name": "Brace Wall",
+      "circle": 1,
+      "kit": "Vanguard",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "directional_barrier",
+          "amount": 140,
+          "duration_ms": 3000,
+          "front_arc_deg": 120
+        }
+      ],
+      "counterplay": "Flank or displace; directional block does not stop control",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "barrier": [
+          140,
+          161,
+          182
+        ]
+      },
+      "potency_fields": [
+        "barrier"
+      ],
+      "max_rank": 3
+    },
+    {
       "id": "veil_step",
       "name": "Veil Step",
       "circle": 1,
@@ -73,6 +220,48 @@
         ]
       },
       "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "hamstring",
+      "name": "Hamstring",
+      "circle": 1,
+      "kit": "Infiltrator",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 220,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 20,
+      "cooldown_ms": 10000,
+      "effects": [
+        {
+          "op": "damage",
+          "kind": "physical",
+          "amount": 55
+        },
+        {
+          "op": "status",
+          "id": "slow",
+          "magnitude": 40,
+          "duration_ms": 2500
+        }
+      ],
+      "counterplay": "Basic dispel or kite",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "damage": [
+          55,
+          63,
+          72
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
       "max_rank": 3
     },
     {
@@ -224,6 +413,42 @@
       "max_rank": 3
     },
     {
+      "id": "ledger_mark",
+      "name": "Ledger Mark",
+      "circle": 1,
+      "kit": "Broker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 25,
+      "cooldown_ms": 30000,
+      "effects": [
+        {
+          "op": "trail_mark",
+          "duration_ms": 12000,
+          "sample_ms": 2000,
+          "trail_lifetime_ms": 4000,
+          "geometry_limited": true
+        }
+      ],
+      "counterplay": "Basic dispel; tracks only observable cells, never live hidden target coordinates",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "duration_ms": [
+          12000,
+          14000,
+          16000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
       "id": "surety_shell",
       "name": "Surety Shell",
       "circle": 1,
@@ -257,6 +482,43 @@
       "potency_fields": [
         "barrier"
       ],
+      "max_rank": 3
+    },
+    {
+      "id": "false_trail",
+      "name": "False Trail",
+      "circle": 1,
+      "kit": "Trickster",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "decoy",
+          "hp": 1,
+          "lifetime_ms": 7000,
+          "owner_limit": 1,
+          "path": "static-ground-only",
+          "cannot_interact": true
+        }
+      ],
+      "counterplay": "Detector shows illusion cue, any hit destroys; cannot claim, trade, scout or block claims",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          7000,
+          8000,
+          9000
+        ]
+      },
+      "potency_fields": [],
       "max_rank": 3
     },
     {
@@ -369,6 +631,128 @@
       "max_rank": 3
     },
     {
+      "id": "ember_line",
+      "name": "Ember Line",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 8
+        }
+      ],
+      "targeting": "line",
+      "range_cm": 700,
+      "area_cm": 80,
+      "windup_ms": 500,
+      "mana_cost": 35,
+      "cooldown_ms": 18000,
+      "effects": [
+        {
+          "op": "damage_zone",
+          "kind": "magical",
+          "total_damage": 100,
+          "duration_ms": 3000,
+          "tick_ms": 500,
+          "length_cm": 700,
+          "half_width_cm": 80
+        }
+      ],
+      "counterplay": "Walk around, resistance; each target receives at most listed total damage",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "damage": [
+          100,
+          115,
+          130
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "grapple",
+      "name": "Grapple",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {
+          "STR": 8
+        },
+        {
+          "DEX": 8
+        }
+      ],
+      "targeting": "anchor_or_hostile_unit",
+      "range_cm": 500,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 30,
+      "cooldown_ms": 21000,
+      "effects": [
+        {
+          "op": "grapple",
+          "self_move_cm": 500,
+          "target_pull_cm": 180,
+          "target_rule": "contender or small creature; not boss/tower",
+          "movement": "swept"
+        }
+      ],
+      "counterplay": "Root/grounding prevents self movement; valid geometry, spell block on hostile pull",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          21000,
+          20000,
+          19000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "null_seal",
+      "name": "Null Seal",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 9
+        },
+        {
+          "CHA": 10
+        }
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 38,
+      "cooldown_ms": 27000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "mute",
+          "duration_ms": 1800
+        }
+      ],
+      "counterplay": "Use spells or basic dispel; spell block",
+      "school": "control",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          27000,
+          25000,
+          23000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
       "id": "grounding_field",
       "name": "Grounding Field",
       "circle": 2,
@@ -447,6 +831,82 @@
       "max_rank": 3
     },
     {
+      "id": "guard_swap",
+      "name": "Guard Swap",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "targeting": "owned_marker",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 600,
+      "mana_cost": 40,
+      "cooldown_ms": 31000,
+      "effects": [
+        {
+          "op": "swap_self_owned_marker",
+          "marker_hp": 40,
+          "marker_ms": 20000,
+          "marker_placement": "first cast plants marker; second cast executes and starts full cooldown",
+          "place_cost_mp": 10
+        }
+      ],
+      "counterplay": "Destroy marker, root/grounding blocks swap; both endpoints walkable",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          31000,
+          29000,
+          27000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "slipstream",
+      "name": "Slipstream",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "DEX": 10
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 22000,
+      "effects": [
+        {
+          "op": "dash",
+          "distance_cm": 450,
+          "duration_ms": 300,
+          "collision": "swept"
+        }
+      ],
+      "counterplay": "Root, grounding, walls",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          22000,
+          20000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
       "id": "remedy_bind",
       "name": "Remedy Bind",
       "circle": 2,
@@ -518,6 +978,221 @@
         ]
       },
       "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "arcane_prison",
+      "name": "Arcane Prison",
+      "circle": 3,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 300,
+      "windup_ms": 800,
+      "mana_cost": 55,
+      "cooldown_ms": 47000,
+      "effects": [
+        {
+          "op": "prison",
+          "anchor_hp": 100,
+          "duration_ms": 3500,
+          "radius_cm": 300,
+          "wall_height_cm": 200,
+          "blocks_walk": true,
+          "blocks_sight": false
+        }
+      ],
+      "counterplay": "Destroy anchor, blink if not rooted, never spawn wall intersecting body",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          100,
+          115,
+          130
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "temporal_lock",
+      "name": "Temporal Lock",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 13,
+          "WIS": 10
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 650,
+      "area_cm": 300,
+      "windup_ms": 1200,
+      "mana_cost": 95,
+      "cooldown_ms": 115000,
+      "effects": [
+        {
+          "op": "telegraph",
+          "during_windup": true
+        },
+        {
+          "op": "area_status",
+          "id": "stun",
+          "duration_ms": 1800
+        }
+      ],
+      "counterplay": "Leave telegraph, pre-control guard; targeted spell block does not block AoE",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          300,
+          320,
+          340
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "sovereign_ward",
+      "name": "Sovereign Ward",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "CON": 12,
+          "WIS": 11
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 400,
+      "area_cm": 350,
+      "windup_ms": 1000,
+      "mana_cost": 90,
+      "cooldown_ms": 105000,
+      "effects": [
+        {
+          "op": "projectile_dome",
+          "hp": 150,
+          "duration_ms": 4000,
+          "radius_cm": 350
+        }
+      ],
+      "counterplay": "Enter on foot, melee, cone push, explicit instant interrupt; emitter takes damage",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          150,
+          173,
+          195
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3
+    },
+    {
+      "id": "grand_exchange",
+      "name": "Grand Exchange",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "CHA": 13,
+          "DEX": 10
+        }
+      ],
+      "targeting": "two_observed_units",
+      "range_cm": 650,
+      "area_cm": 0,
+      "windup_ms": 1100,
+      "mana_cost": 90,
+      "cooldown_ms": 95000,
+      "effects": [
+        {
+          "op": "swap_two",
+          "max_pair_distance_cm": 800,
+          "exclude": [
+            "boss",
+            "tower",
+            "service",
+            "heart",
+            "rooted",
+            "grounded"
+          ],
+          "atomic_both_endpoints": true
+        }
+      ],
+      "counterplay": "Either target spell block stops entire swap; block geometry, interrupt windup",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          95000,
+          90000,
+          85000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3
+    },
+    {
+      "id": "gate_weave",
+      "name": "Gate Weave",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 13,
+          "CHA": 10
+        }
+      ],
+      "targeting": "two_ground_points",
+      "range_cm": 4000,
+      "area_cm": 120,
+      "windup_ms": 1400,
+      "mana_cost": 100,
+      "cooldown_ms": 120000,
+      "effects": [
+        {
+          "op": "linked_gates",
+          "gate_hp": 100,
+          "duration_ms": 18000,
+          "max_separation_cm": 4000,
+          "requires_explored_endpoints": true,
+          "travel_hold_ms": 1000,
+          "arrival_lock_ms": 3000,
+          "owner_limit_pairs": 1
+        }
+      ],
+      "counterplay": "Destroy endpoint, guard exit; visible to others in sight, traversal permitted to all; no frozen invulnerability",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          100,
+          115,
+          130
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
       "max_rank": 3
     }
   ],

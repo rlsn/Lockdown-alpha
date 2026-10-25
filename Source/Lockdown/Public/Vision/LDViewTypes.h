@@ -49,6 +49,21 @@ template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2
 { enum { WithNetSerializer = true }; };
 
 USTRUCT()
+struct FLDItemFamily
+{
+    GENERATED_BODY()
+    UPROPERTY() FName Name;
+    UPROPERTY() int64 ReadyAt=0;
+};
+USTRUCT()
+struct FLDItemFamilies
+{
+    GENERATED_BODY()
+    UPROPERTY() TArray<FLDItemFamily> Entries;
+    int64 FindRef(FName Name) const {const auto* E=Entries.FindByPredicate([&](const auto& V){return V.Name==Name;});return E?E->ReadyAt:0;}
+    int64& FindOrAdd(FName Name) {for(auto& E:Entries){if(E.Name==Name){return E.ReadyAt;}}FLDItemFamily E;E.Name=Name;return Entries.Add_GetRef(E).ReadyAt;}
+};
+USTRUCT()
 struct FLDOwnerState
 {
     GENERATED_BODY()
@@ -94,6 +109,10 @@ struct FLDOwnerState
     UPROPERTY() double NullBellReadyAt=0;
     UPROPERTY() bool bAidConsent=false;
     UPROPERTY() int64 MajorProtectionReadyAt=0;
+    UPROPERTY() FLDItemFamilies ItemFamilies;
+    UPROPERTY() int32 SlowPercent=0;
+    UPROPERTY() int64 DirectDamageUntil=0;
+    UPROPERTY() int64 GateReadyAt=0;
     UPROPERTY() int64 Gold = 0;
     UPROPERTY() int64 BankGold = 0;
     UPROPERTY() int64 Xp = 0;

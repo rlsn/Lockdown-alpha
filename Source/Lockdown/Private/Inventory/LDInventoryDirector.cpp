@@ -42,6 +42,7 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
     // Legacy own fields are compatibility projections, never a second V05 store.
     O->Books.Reset();O->WardCharges=0;O->SealId.Invalidate();
     for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else if(Item.Kind==ELDItemKind::Seal){O->SealId=Item.Id;}}
+    if(M->IsTacticalProfile()&&M->Combat){M->Combat->RefreshItemFamilies(PC);}
     check(LDInventory::Valid(O->Inventory));M->SyncOwner(PC);
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
@@ -63,7 +64,7 @@ void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Con
 }
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
 {
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}const auto Items=O->Inventory.Items;
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}for(auto& Entry:O->Inventory.Items){if(Entry.Kind==ELDItemKind::TowerRelic){for(auto& Ref:O->Inventory.Bindings){if(Ref==Entry.Id){Ref.Invalidate();}}Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}}const auto Items=O->Inventory.Items;
     for(const auto& Entry:Items)
     {
         if(auto* Item=Owned(PC,Entry.Id))

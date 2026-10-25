@@ -10,6 +10,7 @@ class LOCKDOWN_API ALDVendorDirector:public AActor
     GENERATED_BODY()
 public:
     ALDVendorDirector(){bReplicates=false;}
+    static TArray<ELDSkill> OfferedSkills(bool Tactical);
     UPROPERTY(Config) int32 BookPrice=40;
     UPROPERTY(Config) uint32 CatalogRevision=1;
     void Invalidate(ALDPlayerController* PC);

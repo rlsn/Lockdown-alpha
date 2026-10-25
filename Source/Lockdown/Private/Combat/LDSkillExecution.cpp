@@ -142,7 +142,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     else if (Skill==ELDSkill::Ambush) { S->Action=2; S->ImpactAt=Now+.5; S->AssassinReady=Now+18; }
     else if (Skill==ELDSkill::Spark) { S->Action=6; S->ImpactAt=Now+.4; }
     else { S->Action=7; S->ImpactAt=Now+LDDevelopment::ChannelSeconds(Skill); }
-    S->Skill=Skill; S->Snapshot=*Build; S->CommittedDamage=Value; S->Target=Target; S->CommittedAim=Aim; S->Order=++NextOrder;
+    S->bAttackOrder=false;S->Skill=Skill; S->Snapshot=*Build; S->CommittedDamage=Value; S->Target=Target; S->CommittedAim=Aim; S->Order=++NextOrder;
     if(Mode->IsUIControlProfile()&&!Held){Body->SetFacing(Aim.Rotation().Yaw);}
     S->SkillToken=Token; S->HoldSequence=0; S->LastSkillHold=Now; S->bHoldMoving=false; S->SkillAnchor=Body->GetActorLocation();
     Build->Cooldowns[uint8(Skill)]=Now+LDDevelopment::Cooldown(Skill);

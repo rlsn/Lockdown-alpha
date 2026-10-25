@@ -1,17 +1,17 @@
-# Project Lockdown — v0.7 B74 acquisition build
+# Project Lockdown — v0.7 B75 tactical content build
 
 Windows-first Unreal 5.8.4 project extending the Grand Heart prototype. Design
 authority lives in [docs/master](docs/master/README.md); the implemented economy
 baseline is [v0.6](docs/v06/README.md), and the next contract is [v0.7](docs/v07/README.md). Start with the
 [documentation index](docs/README.md) and [current handoff](docs/CONTINUATION.md).
 
-**Current checkpoint: B74 acquisition and assembly; B75 next.**
-[B74 implementation](docs/v07/B74_IMPLEMENTATION.md) adds paid supplies, tiered
-book sources, twelve recipe projections, equipment work orders, deterministic
-quality and finite ruin caches. Twelve passive gear effects and Null Bell work;
-other acquired definitions are labelled cargo until their B75 effects arrive.
-Fourteen new spell effects remain from B71/B72. Full v0.7 remains open in the
-[working ledger](docs/v07/FeatureLedger.csv).
+**Current checkpoint: B75 tactical content; B76 next.**
+[B75 implementation](docs/v07/B75_IMPLEMENTATION.md) completes all28 tactical
+spells, all40 item effects/bindings and six additional starter choices, including
+atomic swaps/gates, timed zones, projectile defenses and persistent item families.
+B74's paid supplies, recipes, quality and finite caches feed those effects.
+The authored guardian/world, tower rewards and four-route outcomes remain B76;
+release acceptance remains open in the [working ledger](docs/v07/FeatureLedger.csv).
 
 The normal frontend still hosts the V05 economy; `v06_regression` is its explicit
 alias. Use `./Scripts/OpenStandalone.ps1 -Profile v07_integration` for the tactical

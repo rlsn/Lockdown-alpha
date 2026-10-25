@@ -21,4 +21,11 @@ struct FLDGearStats
     UPROPERTY() int32 CastRange=0;
     UPROPERTY() uint8 ControlPotency=0;
     UPROPERTY() int32 Detector=0;
+    UPROPERTY() int32 SightBonus=0;
+    UPROPERTY() int32 FootstepReduction=0;
+    UPROPERTY() int32 BarrierDamage=0;
+    UPROPERTY() int32 DirectionalGuard=0;
+    UPROPERTY() bool Ranged=false;
+    UPROPERTY() bool Watchblade=false;
+    UPROPERTY() bool Scramble=false;
 };

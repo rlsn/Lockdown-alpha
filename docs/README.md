@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.7 B74 acquisition build; B75 next**.
-[B74 implementation](v07/B74_IMPLEMENTATION.md) records the actual runtime,
+Current checkpoint: **v0.7 B75 tactical content; B76 next**.
+[B75 implementation](v07/B75_IMPLEMENTATION.md) records the actual runtime,
 normal acquisition, native verification and remaining scope. The default frontend
 still uses V05; an explicit v07 profile opens the partial combat build. Full
 v0.7 and inherited technical/human acceptance remain open.
@@ -9,7 +9,8 @@ v0.7 and inherited technical/human acceptance remain open.
 | Current reference | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Runnable commands, next work and constraints |
-| [B74 implementation](v07/B74_IMPLEMENTATION.md) | Supplies, recipes/work orders, quality, finite caches and evidence |
+| [B75 implementation](v07/B75_IMPLEMENTATION.md) | All28 spells/40 items, starters, capstones, native effects and evidence |
+| [B74 implementation](v07/B74_IMPLEMENTATION.md) | Historical acquisition/assembly checkpoint |
 | [B73 implementation](v07/B73_IMPLEMENTATION.md) | Historical build/gear/preparation checkpoint |
 | [B72 implementation](v07/B72_IMPLEMENTATION.md) | Historical geometry/control checkpoint |
 | [B71 implementation](v07/B71_IMPLEMENTATION.md) | Historical combat/MP checkpoint |

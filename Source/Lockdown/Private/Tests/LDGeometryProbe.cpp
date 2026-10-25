@@ -152,7 +152,7 @@ void ALDGeometryProbe::AuthorityEdges()
     int32 Count=0;for(int32 I=0;I<2;++I){auto* F=GetWorld()->SpawnActor<ALDTacticalField>(Floor,FRotator::ZeroRotator);F->Source=BB;F->SourceLife=SB->Identity;F->Kind=ELDTacticalField::Ward;F->Radius=560;F->Hp=40;F->ExpiresAt=AtMS+60000;++Count;}
     const auto Revision=M->StateFor(B.Get())->Build.Revision;Check(C->RequestEquipped(BB,Revision,0,90000,FVector::ForwardVector,Why,nullptr,Floor),TEXT("Field limit rechecked at release after accepted windup"));
     // Advance only the pending endpoint in this controlled fixture; wall-clock is unchanged.
-    SB->CoreEndsAt=AtMS;C->Sample(Now);Check(SB->Tactical.MP==200&&M->StateFor(B.Get())->Build.Cooldowns[uint8(ELDSkill::FarwatchWard)]==0,TEXT("Failed owner limit spends neither mana nor cooldown"));
+    SB->CoreEndsAt=AtMS;C->Sample(Now);Check(SB->Tactical.MP==200-D->Mana&&M->StateFor(B.Get())->Build.Cooldowns[uint8(ELDSkill::FarwatchWard)]>Now,TEXT("Third source replaces oldest and spends one release cost under B75 owner-limit semantics"));
     SA->Tactical.Statuses.Reset();C->ApplyStatus(BA,LDTactical::EStatus::Blind,AtMS+3000,FGuid::NewGuid());Check(M->Vision->SourcesFor(A.Get()).ContainsByPredicate([](const auto& X){return X.Radius==200;}),TEXT("Native blind contracts own body sight"));
     auto* Ward=GetWorld()->SpawnActor<ALDTacticalField>(BA->GetActorLocation(),FRotator::ZeroRotator);Ward->Source=BA;Ward->SourceLife=SA->Identity;Ward->Kind=ELDTacticalField::Ward;Ward->Hp=40;Ward->Radius=560;Ward->ExpiresAt=AtMS+60000;
     Check(M->Vision->SourcesFor(A.Get()).ContainsByPredicate([](const auto& X){return X.Radius==560;}),TEXT("Blind leaves independent authorized ward radius intact"));

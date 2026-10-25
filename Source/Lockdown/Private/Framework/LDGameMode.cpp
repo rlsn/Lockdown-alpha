@@ -56,6 +56,8 @@
 #include "Tests/LDInstitutionProbe.h"
 #include "Tests/LDCharterProbe.h"
 #include "Tests/LDAcquisitionProbe.h"
+#include "Tests/LDContentProbe.h"
+#include "Tests/LDContentNetworkProbe.h"
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
 #include "Tests/LDLoadoutProbe.h"
@@ -190,6 +192,8 @@ void ALDGameMode::StartPlay()
     }
 #if !UE_BUILD_SHIPPING
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>();}
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){GetWorld()->SpawnActor<ALDContentNetworkProbe>();}
+    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
@@ -263,7 +267,7 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
-        if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC,true);}
+        if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC,true);}
         if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
         if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
         if(Economy){Economy->Retire(PC);}
@@ -288,7 +292,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
     FLDOwnerState* State=StateFor(PC);
     if (!State || !State->bActive || IsFinished()) { return; }
     if(bTacticalProfile){if(Development){Development->Cancel(PC,TEXT("Death cancelled preparation"));}Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
-    if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
+    if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
@@ -369,13 +373,13 @@ void ALDGameMode::UpdateLobby()
 bool ALDGameMode::SetLobbyChoice(ALDPlayerController* PC,uint8 ClassId,bool Ready,FString& Reason)
 {
     auto* State=StateFor(PC); const auto* Public=GetGameState<ALDGameState>();
-    if (!bDevelopmentProfile || !State || !Public || Public->bMatchStarted || ClassId>=3 || !Catalog)
+    if (!bDevelopmentProfile || !State || !Public || Public->bMatchStarted || ClassId>=(bTacticalProfile?9:3) || !Catalog)
     { Reason=TEXT("Class choice is available in the lobby only."); return false; }
-    if (State->Build.ClassId!=ClassId)
+    if (State->Build.Preset!=ClassId)
     {
         const uint32 Revision=State->Build.Revision+1;
         State->Build=bTacticalProfile?LDDevelopment::TacticalStart(ClassId,TacticalCatalog->Checksum):LDDevelopment::StartingBuild(ClassId,Catalog); State->Build.Revision=Revision;
-        State->Xp=0; RefreshBuild(PC,true);
+        if(bTacticalProfile){State->WardCharges=ClassId>=3?0:1;}State->Xp=0; RefreshBuild(PC,true);
     }
     State->bReady=Ready; SyncOwner(PC); UpdateLobby();
     Reason=Ready?TEXT("Ready. Starting class remains private."):TEXT("Class selected. Mark Ready when prepared."); return true;
@@ -406,7 +410,7 @@ bool ALDGameMode::StartDevelopmentMatch(ALDPlayerController* PC,FString& Reason)
         }
     }
     if(Economy){Economy->SampleCharter(MatchStartedAt);Economy->SampleInstitutions(MatchStartedAt);FString EvidenceError;Economy->Export(TEXT("Endowment"),EvidenceError);}
-    Public->ForceNetUpdate(); Reason=Contenders.Num()==1?TEXT("Practice started: one human; 25 minute cap."):TEXT("Integration match started. Roster locked.");
+    Public->ForceNetUpdate(); Reason=Contenders.Num()==1?(bTacticalProfile?TEXT("Practice started: one human; 35 minute cap."):TEXT("Practice started: one human; 25 minute cap.")):TEXT("Integration match started. Roster locked.");
     UE_LOG(LogTemp,Display,TEXT("LD_V04_START humans=%d practice=%d deadline=%.3f catalog=%s"),Contenders.Num(),Contenders.Num()==1,Public->MatchDeadline,*Catalog->SourceChecksum);
     return true;
 }

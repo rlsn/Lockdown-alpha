@@ -25,14 +25,16 @@ bool ALDCombatDirector::Allows(ALDCharacter* Body,LDTactical::EAction Action,FSt
 }
 void ALDCombatDirector::CancelTactical(ALDCharacter* Body,const FString& Why)
 {
-    auto* S=StateFor(Body);if(!HasAuthority()||!S||S->Action!=9){return;}
+    auto* S=StateFor(Body);if(!HasAuthority()||!S||(S->Action!=9&&S->Action!=10)){return;}
+    const bool Channel=S->Action==10;
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Cast<ALDPlayerController>(Body->GetController());
     if(PC&&S->CoreItem.IsValid()&&M->Inventory)
     {
         if(auto* Item=M->Inventory->Owned(PC,S->CoreItem)){Item->bReserved=false;if(auto* Entry=const_cast<FLDInventoryItem*>(M->StateFor(PC)->Inventory.Find(Item->Identity))){Entry->bReserved=false;}M->Inventory->Changed(PC);}
     }
-    const uint32 Token=S->SkillToken;S->CoreItem.Invalidate();S->CoreRecoveryUntil=GetWorld()->GetTimeSeconds()+.4;CancelSkill(Body,*S);Sync(Body,*S);
-    if(PC){PC->CompleteCombatRequest(Token,Why+TEXT("; no release cost, 400ms recovery"));}
+    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Source.Get()==Body&&It->Kind==ELDTacticalField::Telegraph){DestroyField(*It);}}
+    const uint32 Token=S->SkillToken;S->ContentChannel.Reset();S->CoreItem.Invalidate();S->CoreRecoveryUntil=GetWorld()->GetTimeSeconds()+.4;CancelSkill(Body,*S);Sync(Body,*S);
+    if(PC){PC->CompleteCombatRequest(Token,Why+(Channel?TEXT("; committed channel start costs retained"):TEXT("; no release cost, 400ms recovery")));}
 }
 void ALDCombatDirector::ApplyStatus(ALDCharacter* Body,LDTactical::EStatus Status,int64 Until,FGuid Source)
 {
@@ -43,7 +45,7 @@ void ALDCombatDirector::ApplyStatus(ALDCharacter* Body,LDTactical::EStatus Statu
     const bool Hard=Status==LDTactical::EStatus::Stun||Status==LDTactical::EStatus::Hex;
     if(Hard||Status==LDTactical::EStatus::Silence)
     {
-        if(S->Action==9&&(!S->CoreItem.IsValid()||Hard)){CancelTactical(Body,TEXT("Cast cancelled by control"));}
+        if((S->Action==9||S->Action==10)&&(!S->CoreItem.IsValid()||Hard)){CancelTactical(Body,TEXT("Cast cancelled by control"));}
         if(Hard||S->Action==7||S->Action==6){CancelSkill(Body,*S);}
     }
     if(Status==LDTactical::EStatus::Mute&&S->Action==9&&S->CoreItem.IsValid()){CancelTactical(Body,TEXT("Item cancelled by mute"));}
@@ -55,11 +57,13 @@ void ALDCombatDirector::ApplyStatus(ALDCharacter* Body,LDTactical::EStatus Statu
         {PC->Navigation->Stop();M->Objectives->Interrupt(PC,GetWorld()->GetTimeSeconds(),true);M->Development->Cancel(PC,TEXT("Hard control cancelled preparation"));if(M->Production){M->Production->Cancel(PC,TEXT("Hard control cancelled production"));}}
     }
     if(Hard||Status==LDTactical::EStatus::Root){Body->GetCharacterMovement()->RemoveRootMotionSource(TEXT("LD_AuthorityDash"));Body->GetCharacterMovement()->StopMovementImmediately();}
+    if(S->Action==10&&(Hard||((Status==LDTactical::EStatus::Root)&&(S->ContentChannel==TEXT("gate")||S->ContentChannel==TEXT("recall")||S->ContentChannel==TEXT("scramble")))||(Status==LDTactical::EStatus::Mute&&(S->ContentChannel==TEXT("restore_mp")||S->ContentChannel==TEXT("recall"))))){CancelTactical(Body,TEXT("Channel controlled"));}
     Sync(Body,*S);
 }
 bool ALDCombatDirector::RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32 Token,AActor* Target,FString& Why,FVector Point,FVector Direction)
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);const auto* D=M->TacticalCatalog?M->TacticalCatalog->Find(Skill):nullptr;
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);
+    if((IsContentSkill(Skill)||(Cast<ALDTacticalField>(Target)&&Cast<ALDTacticalField>(Target)->Kind==ELDTacticalField::Decoy))&&B){FLDTacticalRequest R;R.Token=Token;R.BuildRevision=B->Revision;R.Slot=uint8(B->Slots.Find(Skill));R.Direction=Direction;R.Point=Point;return RequestContent(Body,R,Target,nullptr,Why);}const auto* D=M->TacticalCatalog?M->TacticalCatalog->Find(Skill):nullptr;
     const double Now=GetWorld()->GetTimeSeconds();
     const int32 Range=D?D->Range+(D->Range?B?B->Gear.CastRange:0:0):0;
     auto Reject=[&](const TCHAR* Text){Why=Text;return false;};
@@ -78,19 +82,12 @@ bool ALDCombatDirector::RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32
     if(Skill==ELDSkill::RemedyBind&&Target==Body&&LDTactical::Milliseconds(Now)<FMath::Max(S->Tactical.MajorReadyAt,OwnerState?OwnerState->MajorProtectionReadyAt:int64(0))){return Reject(TEXT("Major protection family ready after eight seconds"));}
     auto* PC=Cast<ALDPlayerController>(Body->GetController());if(PC){PC->Navigation->Stop();if(M->Trade){M->Trade->CancelFor(PC);}M->Objectives->Interrupt(PC,Now,true);}
     Body->GetCharacterMovement()->StopMovementImmediately();
-    S->Action=9;S->Skill=Skill;S->SkillToken=Token;S->LastCoreToken=Token;S->CoreEndsAt=LDTactical::Milliseconds(Now)+D->Windup;
+    S->bAttackOrder=false;S->Action=9;S->Skill=Skill;S->SkillToken=Token;S->LastCoreToken=Token;S->CoreEndsAt=LDTactical::Milliseconds(Now)+D->Windup;
     S->CorePoint=Point;S->CoreDirection=Direction;S->CoreBuildRevision=B->Revision;S->CoreItem.Invalidate();S->Target=Target;S->CoreTargetLife=StateFor(Cast<ALDCharacter>(Target))->Identity;S->SkillAnchor=Body->GetActorLocation();S->ImpactAt=S->CoreEndsAt/1000.;S->Snapshot=*B;
     S->Order=++NextOrder;Sync(Body,*S);Why=TEXT("Cast accepted: stationary windup; MP and cooldown commit at release");return true;
 }
 bool ALDCombatDirector::RequestTacticalItem(ALDPlayerController* PC,FGuid Id,uint32 Token,FString& Why)
-{
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;auto* S=StateFor(Body);auto* Item=M->Inventory?M->Inventory->Owned(PC,Id):nullptr;const double Now=GetWorld()->GetTimeSeconds();
-    if(!HasAuthority()||!M->IsTacticalProfile()||!M->IsPlaying()||!O||!S||S->Hp<=0||Now<S->ProtectionUntil||S->Action||Now<S->CoreRecoveryUntil||!Item||Item->Kind!=ELDItemKind::NullBell||Item->bReserved||!(O->Inventory.Quick.IndexOfByKey(Id)>=0&&O->Inventory.Quick.IndexOfByKey(Id)<3)||Now<FMath::Max(S->NullBellReadyAt,O->NullBellReadyAt)||!Token||Token<=S->LastCoreToken||Token<=S->CancelledCoreThrough){Why=TEXT("Null Bell needs a current quick reference, ready cooldown and free action");return false;}
-    if(!Allows(Body,LDTactical::EAction::Item,&Why)){return false;}
-    if(M->Trade){M->Trade->CancelFor(PC);}PC->Navigation->Stop();M->Objectives->Interrupt(PC,Now,true);Body->GetCharacterMovement()->StopMovementImmediately();
-    Item->bReserved=true;auto* Entry=const_cast<FLDInventoryItem*>(O->Inventory.Find(Id));Entry->bReserved=true;M->Inventory->Changed(PC);
-    S->Action=9;S->Skill=ELDSkill::None;S->SkillToken=Token;S->LastCoreToken=Token;S->CoreItem=Id;S->CoreEndsAt=LDTactical::Milliseconds(Now);S->CoreBuildRevision=O->Build.Revision;S->SkillAnchor=Body->GetActorLocation();S->Order=++NextOrder;Sync(Body,*S);Why=TEXT("Null Bell use accepted");return true;
-}
+{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);const auto* I=O?O->Inventory.Find(Id):nullptr;if(!I){Why=TEXT("Owned item unavailable");return false;}FLDTacticalRequest R;R.ActionKind=1;R.Match=O->Match;R.Life=O->Life;R.Token=Token;R.BuildRevision=O->Build.Revision;R.CatalogDigest=O->Build.CatalogDigest;R.InventoryRevision=O->Inventory.Revision;R.ItemRevision=I->Revision;R.Item=Id;return RequestContent(Cast<ALDCharacter>(PC->GetPawn()),R,nullptr,nullptr,Why);}
 void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M->IsTacticalProfile()){return;}const int64 At=LDTactical::Milliseconds(Now);
@@ -100,7 +97,7 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
         auto* Body=P.Key.Get();auto& S=P.Value;if(!Body||S.Hp<=0){continue;}
         S.Tactical.Statuses.RemoveAll([&](const auto& V){return V.Until<=At;});if(S.Tactical.BarrierUntil<=At){S.Tactical.Barrier=0;}
         if(const auto* B=BuildFor(Body);B&&B->RulesVersion==7){LDTactical::Regenerate(S.Hp,S.Tactical,LDDevelopment::MaxHP(*B),LDTactical::MaxMP(*B),At,200+B->Gear.MPRegen);}
-        if(S.Action==9){Pending.Add(Body);}
+        if(S.Action==9&&!(Cast<ALDTacticalField>(S.Target.Get())&&Cast<ALDTacticalField>(S.Target.Get())->Kind==ELDTacticalField::Decoy)&&!IsContentSkill(S.Skill)&&!(S.CoreItem.IsValid()&&S.ContentRequest.ActionKind==1)){Pending.Add(Body);}
     }
     Pending.Sort([&](const ALDCharacter& A,const ALDCharacter& B){const auto* X=StateFor(&A);const auto* Y=StateFor(&B);return X->CoreEndsAt!=Y->CoreEndsAt?X->CoreEndsAt<Y->CoreEndsAt:X->Order<Y->Order;});
     for(auto* Body:Pending)
@@ -142,10 +139,7 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
             if(D->Target==ELDTacticalTarget::Ground)
             {
                 const auto Kind=S->Skill==ELDSkill::FarwatchWard?ELDTacticalField::Ward:S->Skill==ELDSkill::WireSnare?ELDTacticalField::Trap:S->Skill==ELDSkill::SmokeVeil?ELDTacticalField::Smoke:S->Skill==ELDSkill::SeersFlare?ELDTacticalField::Detector:ELDTacticalField::Grounding;
-                int32 Count=0,Total=0;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind){++Count;}}}
-                const int32 Limit=Kind==ELDTacticalField::Ward||Kind==ELDTacticalField::Trap?2:1;
-                if(Count>=Limit||Total>=48){CancelTactical(Body,TEXT("Field capacity reached"));continue;}
-                Field=GetWorld()->SpawnActor<ALDTacticalField>(Surface+FVector(0,0,15),FRotator::ZeroRotator);if(!Field){CancelTactical(Body,TEXT("Field allocation failed"));continue;}
+                Field=CreateField(Body,Kind,Surface+FVector(0,0,15),At,5000,1,D->Area);if(!Field){CancelTactical(Body,TEXT("Field allocation/capacity unavailable"));continue;}
                 Field->Source=Body;Field->PlayerSource=PC;Field->bPlayerSource=PC!=nullptr;Field->SourceLife=S->Identity;Field->Kind=Kind;Field->ArmedAt=At+(Kind==ELDTacticalField::Trap?1000:0);
                 Field->ExpiresAt=At+(Kind==ELDTacticalField::Ward?Magnitude:Kind==ELDTacticalField::Trap?45000:Kind==ELDTacticalField::Grounding?6000:5000);
                 Field->Radius=(D->RankKey==TEXT("radius_cm"))?Magnitude:D->Area;
@@ -176,13 +170,14 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
     }
     for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It)
     {
-        auto* P=*It;auto* V=StateFor(P->Victim.Get());
-        if(!V||V->Identity!=P->VictimLife||V->Hp<=0){P->Destroy();continue;}
+        auto* P=*It;auto* Target=P->ActorVictim.IsValid()?P->ActorVictim.Get():static_cast<AActor*>(P->Victim.Get());auto* V=StateFor(Cast<ALDCharacter>(Target));const auto* F=Cast<ALDTacticalField>(Target);
+        if((!V&&!F)||(V&&(V->Identity!=P->VictimLife||V->Hp<=0))||(F&&(F->Identity!=P->VictimLife||!F->Active(At)))){P->Destroy();continue;}
         const FVector From=P->GetActorLocation(),Delta=P->Endpoint-From;const double Distance=Delta.Size();const double Travel=FMath::Max<int64>(0,At-P->AdvancedAt)*1.2;P->AdvancedAt=At;
         const FVector To=Distance<=Travel?P->Endpoint:From+Delta.GetSafeNormal()*Travel;
+        if(ProjectileIntercept(P,From,To,At)){continue;}
         if(!LDGround::ClearSegment(GetWorld(),From,To)){P->Destroy();continue;}
-        if(FMath::PointDistToSegment(P->Victim->GetActorLocation(),From,To)<=40)
-        {Hits.Add({P->Source.Get(),P->Victim.Get(),P->Amount,LDTactical::EDamage::Magical,true,0,P->Token,P->CasterIdentity});P->Destroy();}
+        if(FMath::PointDistToSegment(Target->GetActorLocation(),From,To)<=40)
+        {FLDCombatHit H{P->Source.Get(),Target,P->Amount,P->Basic?LDTactical::EDamage::Physical:LDTactical::EDamage::Magical,!P->Basic,0,P->Token,P->CasterIdentity};H.Basic=P->Basic;Hits.Add(H);P->Destroy();}
         else if(Distance<=Travel){P->Destroy();}else{P->SetActorLocation(To);}
     }
 }

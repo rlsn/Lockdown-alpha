@@ -14,6 +14,15 @@ struct FLDEquipmentDefinition
     UPROPERTY() bool TwoHanded=false;
     UPROPERTY() int32 Weight=0;
     UPROPERTY() FLDGearStats Stats;
+    UPROPERTY() FString Operation;
+    UPROPERTY() FString Family;
+    UPROPERTY() FString ActiveJson;
+    UPROPERTY() int32 Cooldown=0;
+    UPROPERTY() bool Consumable=false;
+    double Param(const TCHAR* Name,double Default=0) const;
+    // Major protections share the explicit eight-second activation lock;
+    // their longer reuse endpoints belong to the individual item definition.
+    FName CooldownKey() const {return FName(*(Family==TEXT("major_protection")?Id:Family));}
 };
 USTRUCT()
 struct FLDAbilityGate

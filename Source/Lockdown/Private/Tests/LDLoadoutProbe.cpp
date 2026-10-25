@@ -139,7 +139,7 @@ void ALDLoadoutProbe::AuthorityEdges()
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(A.Get());auto* Body=Cast<ALDCharacter>(A->GetPawn());auto* S=M->Combat->StateFor(Body);const double Now=GetWorld()->GetTimeSeconds();FString Why;
     S->LastDamage=S->LastDealt=Now-20;auto* P=GetWorld()->SpawnActor<ALDArcProjectile>();P->Source=Body;Check(!M->Combat->QuietForPreparation(Body),TEXT("Owned released projectile blocks quiet preparation before any contact"));P->Destroy();Check(M->Combat->QuietForPreparation(Body),TEXT("No pending projectile restores quiet eligibility"));
     const auto Gold=O->Gold;Check(M->Economy->Audit(Why)&&M->Economy->AuditFailures==0,TEXT("Native economy reconciles bound retained and dropped original identities"));Check(Gold>=0&&O->BankGold==BankBefore,TEXT("No hidden reward or bank loss from equipment/death"));
-    auto Draft=LDDevelopment::PlanFrom(O->Build);Draft.Slots[4]=ELDSkill::TemporalLock;Check(!LDDevelopment::Prepare(O->Build,Draft,O->Build,Why),TEXT("Unimplemented capstone cannot be activated through preparation"));
+    auto Draft=LDDevelopment::PlanFrom(O->Build);Draft.Slots[4]=ELDSkill::TemporalLock;Check(!LDDevelopment::Prepare(O->Build,Draft,O->Build,Why),TEXT("Unlearned capstone cannot be activated through preparation"));
 }
 void ALDLoadoutProbe::Tick(float Delta)
 {

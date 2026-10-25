@@ -134,7 +134,7 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     if(Draft.ExpectedRevision!=O.Build.Revision){StopConfirm();ResetDraft();}
     const double Now=GS->GetServerWorldTimeSeconds();FLDCharacterBuild Candidate;FString Error;const bool Valid=LDDevelopment::Prepare(O.Build,Draft,Candidate,Error);
     FLDCharacterBuild Ghost=O.Build;Ghost.Attributes=Draft.Attributes;Ghost.Ranks=Draft.Ranks;Ghost.Slots=Draft.Slots;Ghost.Subclass=Draft.Subclass;
-    Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::ClassName(O.Build.ClassId),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
+    Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::PresetName(O.Build),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
     for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])));}
     for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}

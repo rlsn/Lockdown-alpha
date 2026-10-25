@@ -10,6 +10,8 @@
 #include "Components/EditableTextBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
+#include "Components/ScrollBox.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -148,12 +150,14 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
                 auto* Caption=Text(Label,17); Caption->SetAutoWrapText(false); Caption->SetJustification(ETextJustify::Center); Control->SetContent(Caption);
                 Choices->AddChildToVerticalBox(Control)->SetPadding(FMargin(0,8)); return Control;
             };
-            Choice(TEXT("Laborer · STR 12 / CON 12 · Heave + Patch"))->OnClicked.AddDynamic(this,&ULDUIRoot::Laborer);
-            Choice(TEXT("Rogue · DEX 12 / WIS 12 · Pickpocket + Survey"))->OnClicked.AddDynamic(this,&ULDUIRoot::Rogue);
-            Choice(TEXT("Scholar · INT 12 / CHA 12 · Spark + Analyze"))->OnClicked.AddDynamic(this,&ULDUIRoot::Scholar);
+            auto* StarterScroll=WidgetTree->ConstructWidget<UScrollBox>();auto* StarterSize=WidgetTree->ConstructWidget<USizeBox>();StarterSize->SetHeightOverride(300);StarterSize->SetContent(StarterScroll);Choices->AddChildToVerticalBox(StarterSize);
+            auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+            for(uint8 N=0;N<3;++N){StarterScroll->AddChild(LDWidgets::Button(WidgetTree,FString(LDDevelopment::ClassName(N))+TEXT(" · retained economic skills"),[PC,N](){PC->ChooseLobbyClass(N);}));}
+            NewStarters=WidgetTree->ConstructWidget<UVerticalBox>();StarterScroll->AddChild(NewStarters);
+            if(const auto* C=ULDTacticalCatalog::Load()){for(uint8 N=0;N<C->Starters.Num();++N){const auto& K=C->Starters[N];NewStarters->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,K.Name+TEXT(" · ")+LDDevelopment::SkillName(K.Skills[0])+TEXT(" + ")+LDDevelopment::SkillName(K.Skills[1]),[PC,N](){PC->ChooseLobbyClass(N+3);}));}}
             Choice(TEXT("Toggle Ready"))->OnClicked.AddDynamic(this,&ULDUIRoot::Ready);
             LobbyStart=Choice(TEXT("Start match (host)")); LobbyStart->OnClicked.AddDynamic(this,&ULDUIRoot::StartMatch);
-            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nSkills use one shared loadout of four slots."),14));
+            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nv07: five shared slots · presets grant no gear or gold."),14));
             LobbyPanel->SetVisibility(ESlateVisibility::Collapsed);
         }
         if(!bFrontend)
@@ -226,8 +230,10 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         if (Lobby && LobbyInfo)
         {
             const auto& B=O.Build;
+            if(NewStarters){NewStarters->SetVisibility(O.Build.RulesVersion==7?ESlateVisibility::Visible:ESlateVisibility::Collapsed);}
+
             LobbyInfo->SetText(FText::FromString(FString::Printf(TEXT("Your class: %s · %s\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d\nReady %d / %d · Your choice is private\n%s"),
-                LDDevelopment::ClassName(B.ClassId),O.bReady?TEXT("READY"):TEXT("Not ready"),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],GS->ReadyCount,GS->LobbyCount,*PC->IntentFeedback)));
+                LDDevelopment::PresetName(B),O.bReady?TEXT("READY"):TEXT("Not ready"),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],GS->ReadyCount,GS->LobbyCount,*PC->IntentFeedback)));
             LobbyStart->SetIsEnabled(O.bLobbyHost&&GS->ReadyCount==GS->LobbyCount&&GS->LobbyCount>0);
             LobbyStart->SetVisibility(O.bLobbyHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
         }
@@ -271,7 +277,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
             if(LDRegion::Definition(GetWorld())&&GS&&!GS->bClaimActive&&!GS->EndReason){Public=FString::Printf(TEXT("Heart locked · Conquest deferred · %.0fs · Watch %s"),FMath::Max(0.,GS->MatchDeadline-Now),GS->bPublicSensorActive?TEXT("ON"):*FString::Printf(TEXT("OFF %.0fs"),FMath::Max(0.,GS->PublicSensorOfflineUntil-Now)));}
             const auto& B=O.Build;
             Status->SetText(FText::FromString(FString::Printf(TEXT("LOCKDOWN · %s · %s\n%s · Level %d · XP %lld / 420 · Gold %lld · Attribute points %d · Skill points %d\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d · Basic %.2f damage\n%s · %s"),
-                PC->Navigation->Enabled()?TEXT("v0.5 INPUT CHECKPOINT"):TEXT("v0.4 DEVELOPMENT"),*Life,LDDevelopment::ClassName(B.ClassId),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
+                PC->Navigation->Enabled()?TEXT("v0.5 INPUT CHECKPOINT"):TEXT("v0.4 DEVELOPMENT"),*Life,LDDevelopment::PresetName(B),B.Level,O.Xp,O.Gold,B.AttributePoints,B.SkillPoints,B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],LDDevelopment::BasicDamage(B),*Public,*Danger)));
         }
         if (O.bDevelopmentProfile)
         {

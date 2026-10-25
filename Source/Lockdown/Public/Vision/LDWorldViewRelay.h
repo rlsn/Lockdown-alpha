@@ -23,6 +23,7 @@ private:
     UPROPERTY() TObjectPtr<ULDHumanoidVisualComponent> Body;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> WardMesh;
     UPROPERTY() TObjectPtr<UTextRenderComponent> TaskLabel;
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> FieldCue;
     FVector Destination = FVector::ZeroVector;
     float Facing = 0, Speed = 0;
     uint8 Palette = 255;

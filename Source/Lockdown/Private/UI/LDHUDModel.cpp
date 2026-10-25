@@ -7,14 +7,15 @@
 
 FString LDHUD::Cue(uint8 Value)
 {
-    const TCHAR* States[]={TEXT("No visible action"),TEXT("Attack windup"),TEXT("Ambush windup"),TEXT("Recovering"),TEXT("Step"),TEXT("Fallen"),TEXT("Spark cast"),TEXT("Holding a channel"),TEXT("Preparing / reading"),TEXT("Spell windup")};
-    FString Result=States[FMath::Min<int32>(Value&15,9)];
+    const TCHAR* States[]={TEXT("No visible action"),TEXT("Attack windup"),TEXT("Ambush windup"),TEXT("Recovering"),TEXT("Step"),TEXT("Fallen"),TEXT("Spark cast"),TEXT("Holding a channel"),TEXT("Preparing / reading"),TEXT("Spell / item windup"),TEXT("Held item / traversal"),TEXT("Detected illusion")};
+    FString Result=States[FMath::Min<int32>(Value&15,11)];
     if(Value&64){Result+=TEXT(" · Protected");}if(Value&128){Result+=TEXT(" · Exposed");}return Result;
 }
 FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,double Now)
 {
     if(E)
     {
+        if(E->Kind==ELDObservedKind::TacticalField){return E->Presentation==11?TEXT("LINKED GATE\nInspect then hold Context1s within80cm. Root/grounding, damage, Heart claim and objective cargo prevent travel. Arrival lock3s. No remote sight."):E->Presentation==14?TEXT("SCRAMBLE LINK\nCliffwalkers required. Inspect then hold Context1s within80cm. Root/grounding prevent traversal."):E->Presentation==12?TEXT("STALE TRAIL CLUE\nLast observed ground position; expires4s after creation. No fog tracking."):E->Presentation==13?TEXT("AUDIBLE FOOTSTEP\nAnonymous local ground cue; no identity, cargo or private stats."):TEXT("OBSERVED TACTICAL FIELD\nVisible anchor / area. Attackable emitters can end their source. No private owner or HP data.");}
         if(E->Kind==ELDObservedKind::Projectile){return TEXT("OBSERVED PROJECTILE\nSnapshot trajectory · No private caster or target data");}
         if(E->Kind==ELDObservedKind::Institution){return ALDInstitutionSite::Name(E->Presentation)+TEXT("\nProtected official noncontender\n")+ALDInstitutionSite::StatusName(E->ActionCue)+TEXT("\nFunded production, then real stock consumption at 180s intervals; eight opportunities. No private player data.");}
         if(E->Kind==ELDObservedKind::Production){return ALDProductionDirector::SiteName(E->Presentation)+(E->Presentation<2?FString::Printf(TEXT("\nPublic remaining charges %d/3\nHold context six seconds, or use equipped Survey score 12 in one second."),E->ActionCue):E->Presentation>=6?TEXT("\nOpen the Ruins panel. Quiet4s open; each item individually owned. Keys3s."):E->Presentation==5?TEXT("\nHeartForge: two Cores, catalyst and Fragment;20g /8s. Objective activation remains B76."):TEXT("\nSelect exact inputs in Bag, preview then close and arm a fresh context hold. Equipped Analyze score 14 plans one private coupon."));}
@@ -28,8 +29,8 @@ FString LDHUD::Inspector(const FLDOwnerState& Own,const FLDObservedEntity* E,dou
         return FString(Label)+TEXT("\n")+Detail;
     }
     const auto& B=Own.Build;
-    if(B.RulesVersion==7){const auto A=LDDevelopment::Effective(B);return FString::Printf(TEXT("YOUR CHARACTER · %s\nNatural STR %d DEX %d CON %d INT %d WIS %d CHA %d\nEffective STR %d DEX %d CON %d INT %d WIS %d CHA %d\nHP %.0f/%.0f · MP %.0f/%.0f\nBase move %.0f · Armor %.1f · Basic %.2f"),LDDevelopment::ClassName(B.ClassId),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],A[0],A[1],A[2],A[3],A[4],A[5],Own.Hp,Own.MaxHp,Own.Mp,Own.MaxMp,420.*(1+B.Gear.Movement/100.),2+.5*(A[2]-8)+B.Gear.Armor,LDDevelopment::BasicDamage(B));}
-    return FString::Printf(TEXT("YOUR CHARACTER · %s\nSTR %d  DEX %d  CON %d\nINT %d  WIS %d  CHA %d\nWalk %.0f · Sprint %.0f · Basic %.2f\n%s"),LDDevelopment::ClassName(B.ClassId),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],180*LDDevelopment::SpeedFactor(B),300*LDDevelopment::SpeedFactor(B),LDDevelopment::BasicDamage(B),B.Subclass?LDDevelopment::SubclassName(B.Subclass):TEXT("No subclass"));
+    if(B.RulesVersion==7){const auto A=LDDevelopment::Effective(B);return FString::Printf(TEXT("YOUR CHARACTER · %s\nNatural STR %d DEX %d CON %d INT %d WIS %d CHA %d\nEffective STR %d DEX %d CON %d INT %d WIS %d CHA %d\nHP %.0f/%.0f · MP %.0f/%.0f\nBase move %.0f · Armor %.1f · Basic %.2f"),LDDevelopment::PresetName(B),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],A[0],A[1],A[2],A[3],A[4],A[5],Own.Hp,Own.MaxHp,Own.Mp,Own.MaxMp,420.*(1+B.Gear.Movement/100.),2+.5*(A[2]-8)+B.Gear.Armor,LDDevelopment::BasicDamage(B));}
+    return FString::Printf(TEXT("YOUR CHARACTER · %s\nSTR %d  DEX %d  CON %d\nINT %d  WIS %d  CHA %d\nWalk %.0f · Sprint %.0f · Basic %.2f\n%s"),LDDevelopment::PresetName(B),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],180*LDDevelopment::SpeedFactor(B),300*LDDevelopment::SpeedFactor(B),LDDevelopment::BasicDamage(B),B.Subclass?LDDevelopment::SubclassName(B.Subclass):TEXT("No subclass"));
 }
 double LDHUD::Range(ELDSkill Skill)
 {return Skill==ELDSkill::ArcBolt?650:Skill==ELDSkill::AnchorBash?220:Skill==ELDSkill::PurgeTouch?250:Skill==ELDSkill::SuretyShell?0:Skill==ELDSkill::Spark?500:Skill==ELDSkill::Ambush?112:Skill==ELDSkill::Pickpocket?100:Skill==ELDSkill::Patch?0:Skill==ELDSkill::Step?360:120;}
@@ -43,7 +44,7 @@ FString LDHUD::Tooltip(const FLDCharacterBuild& B,ELDSkill Skill)
         const int32 Trained=FMath::Clamp(LDDevelopment::Rank(B,Skill),1,3)-1;const int32 Value=LDGear::Magnitude(B,Skill,D->RankKey,D->Magnitudes);
         const double Cooldown=(D->RankKey==TEXT("cooldown_ms")?D->Magnitudes[Trained]:D->Cooldown)/1000.;
         const TCHAR* Field=D->RankKey==TEXT("damage")?TEXT("Damage"):D->RankKey==TEXT("barrier")?TEXT("Barrier"):D->RankKey==TEXT("radius_cm")?TEXT("Radius cm"):D->RankKey==TEXT("anchor_hp")?TEXT("Anchor HP"):D->RankKey==TEXT("stun_ms")?TEXT("Stun ms"):D->RankKey==TEXT("duration_ms")?TEXT("Duration ms"):TEXT("Cooldown ms");
-        return FString::Printf(TEXT("%s · Trained rank %d · %d MP\nWindup %dms · Range %dcm · Cooldown %.1fs\n%s: %d before eligible magnitude modifiers\nEquipment potency affects declared fields only.\nMP/CD commit at release; Stop or relevant control cancels before release."),LDDevelopment::SkillName(Skill),Trained+1,D->Mana,D->Windup,D->Range+(D->Range?B.Gear.CastRange:0),Cooldown,Field,Value);
+        return FString::Printf(TEXT("%s · Trained rank %d · %d MP\nWindup %dms · Range %dcm · Cooldown %.1fs\n%s: %d before eligible magnitude modifiers\nEquipment potency affects declared fields only.\nMP/CD commit at release; Stop or relevant control cancels before release."),LDDevelopment::SkillName(Skill),Trained+1,D->Mana,D->Windup,D->Skill==ELDSkill::GateWeave?650+B.Gear.CastRange:D->Range+(D->Range?B.Gear.CastRange:0),Cooldown,Field,Value);
     }
     const double Windup=Skill==ELDSkill::Spark?.4:Skill==ELDSkill::Ambush?.5:Skill==ELDSkill::Step?.2:LDDevelopment::ChannelSeconds(Skill);
     const TCHAR* Outcome=Skill==ELDSkill::Step?TEXT("Move in a confirmed direction; collision limits distance"):Skill==ELDSkill::Patch?TEXT("Hold to heal yourself; release cancels"):uint8(Skill)>=5?TEXT("Confirm an eligible observed task and hold; release cancels"):TEXT("Confirm one observed body; range and sight rechecked at impact");
