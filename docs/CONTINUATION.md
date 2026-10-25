@@ -1,121 +1,112 @@
-# Continuation — v0.7 closed; v0.8 audit/import next
+# Continuation — v0.8 B80 complete; B81 slots/traits next
 
-25 October 2026. v0.7 development is closed at B77 under the user's instruction
-to keep checks minimal, avoid lengthy tests and defer human review. The runtime
-baseline is **`ddf7be5` (B76)**; B77 changes documentation/evidence only. Read
-[v0.7 closeout](v07/B77_CLOSEOUT.md), [final acceptance](v07/B77_ACCEPTANCE.md)
-and [portable audit](v07/evidence/B77/Audit.json). This is the sole active handoff;
-keep `V07_TRANSITION.md` deleted. Commit authorized; no push requested.
+25 October 2026. **B80 audit/import is complete.** The user requested consistent
+Bxx build IDs: B80 Audit/import, B81 Slots/traits, B82 River core, B83 Fields,
+B84 Catalog/acquisition, B85 World integration and B86 Native usability.
+Read the [B80 review](v08/B80_BASELINE_REVIEW.md),
+[active specification](v08/README.md), [build plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md),
+[adapter inventory](v08/B80_ADAPTERS.json) and [working ledger](v08/FeatureLedger.csv).
+Commit authorized; no push requested.
 
-## Immediate v0.8 Stage0
+## Actual current progress
 
-The supplied [v0.8 package](v08/README.md) exists as38 untracked user files.
-B77 did not modify or stage it. Its statements that no repository/engine/status
-was supplied describe its original design context, not this checkout: actual
-source, pinned engine and B71–B76 evidence are available here.
+- Audit HEAD `7d9d66d` (B77); native runtime/source/assets baseline `ddf7be5`
+  (B76). v0.7 is closed with scoped results and named deferrals, not a fully
+  verified distribution. [B77 acceptance](v07/B77_ACCEPTANCE.md) remains intact.
+- All 38 original v08 input hashes match the B77 inventory. The missing
+  SOURCE_MANIFEST was explicitly reconstructed; four spec edits adopt B80–B86
+  terminology. Active data/templates/archives/models are unchanged.
+- `Scripts/SyncV08Data.py` produces the isolated, disabled schema8 payload and
+  hash manifest in `Content/Lockdown/Data/V08/`. All 52 abilities/80 items/20
+  recipes/9 traits/10 reactions are inventoried. Retained 28/40/12 IDs and native
+  legacy utilities/materials/objectives stay distinct. Legacy trait signature
+  placeholders resolve through actual starter IDs. New numeric IDs are reserved,
+  not implemented native enum entries.
+- B80 checks pass: 1,812 spec assertions/18 reference tests, nine focused import
+  tests, 340 retained B76 source hashes and 168 evidence hashes, prior V07 model
+  and four import checks. `.gitattributes` intentionally appends preservation
+  rules for v08. No existing native code/config/assets changed.
+- Fresh preflight confirms UE5.8.4 CL58902052 and available supported tools.
+  No fresh native build/cook/package/client/performance/human run at B80. The
+  last native engineering evidence is still B76 with its stated limits.
+- Working ledger: 363 rows including 68 new and 55 inherited acceptance cases;
+  v08 native cases remain Not run. E01–E48 and all V07-D01–D08/V06-D01–D08
+  dispositions are mapped and preserved under `v08/evidence/B80/`.
 
-1. Resolve package provenance first. `python -B docs/v08/tools/check_spec.py`
-   currently fails because `docs/v08/SOURCE_MANIFEST.json` is missing. Restore
-   it from the canonical package or explicitly reconstruct current archive
-   provenance with measured hashes and a documented origin; never label newly
-   computed hashes as historical approval. B77 Audit records all38 input hashes,
-   including the two supplied reference ZIPs. Run the lightweight checker after
-   reconciliation; no v0.8 model pass is claimed yet.
-2. Deliberately inventory/adopt the complete v0.8 prose/data/templates as the
-   new contract, with original package hashes and adapters. Leave v0.7's93
-   adopted files and historical reports intact. Map52 abilities/80 items/20
-   recipes, nine traits and ten reactions to the actual stable IDs: retain28
-   abilities/40 items/12 recipes and audit legacy utilities/book wrappers/classes
-   separately. Do not assume the package's unknown-baseline statements mean
-   the existing implementation is absent.
-3. Map its68 new and55 inherited acceptance cases to the B77 matrix and
-   V07-D01–D08/V06-D01–D08. Superseded slot counts belong to the old profile;
-   retain behavior/authority/accounting invariants in the new one. Partial/unrun
-   acceptance stays partial/unrun. Human and long runs remain deferred until
-   the user changes direction; use proportionate checks for actual source edits.
-4. Audit the existing directors, request/view serialization, native widgets,
-   inventory reservations and source lifetimes before choosing adapters. No GAS
-   rewrite or replacement browser game is needed. Create an isolated v0.8
-   profile/import only during implementation; it does not exist yet. Never load
-   schema8 data through the closed schema7 catalogs or convert a live match.
+## Implement B81
 
-## Migration boundaries
+1. Read 00, 01, 02, 03 and 09 of v08 plus the B80 review. Reuse the native
+   framework; no GAS rewrite or browser replacement. Implement an isolated
+   schema8 profile at InitGame/fresh match only. It does not exist at B80:
+   `v08_integration` currently rejects as unknown, and no runtime loader/module
+   dependency reads V08 data. Never feed it through schema7 catalogs.
+2. Add typed Learned(ability) / Gear(instance, active-definition) references to
+   six shared actions, seven body bindings and four physical accessory bindings.
+   Accessories act from their own binding; there is no independent quick bar
+   or backpack combat activation. Basic/world/book interactions stay distinct.
+3. Widen **both** projected/canonical item BindingMask fields from uint8 for
+   eleven bindings. Update bounded build/loadout/tactical serializers, request
+   validation, replay receipts, owner views and UI together. B80 proposes
+   schema8/action wire4/loadout2/16-bit mask; these values are not implemented.
+   Preserve v07 wire3/version1 and V05 regressions. Source category is derived
+   server-side: Silence blocks all learned skills; Mute blocks gear/accessory
+   actions even when a body item occupies a shared slot.
+4. Commit projected gear/actions atomically with life/build/inventory/item
+   revisions. Quiet-unbind invalidates dependent bar actions. Reject equipped
+   recipe/trade inputs. Consume one bound identity and empty that accessory;
+   never auto-refill. Retain maximum instance/owner-family/learned cooldowns,
+   lineage and item identity through death/drop/trade/rebind. Consumables and
+   objective relics drop while ordinary bound equipment retains. Keep all
+   equipped instances inside the 24-instance bag and existing weight budget.
+5. Implement exactly one immutable nonbreakable trait per nine presets; no
+   subclass stacking or free signature button. Keep legacy starting skills,
+   economic utility costs and Witness checks. Arcanist new matches teach
+   Frostline only when that operation is actually supported; keep unavailable
+   definitions/presets explicitly disabled until their dependencies are ready.
+6. Allocate primary bonuses in eleven-binding order with +2/piece/attribute,
+   +3/attribute and +6 total caps; two-hand instance counts once. Preview excess,
+   migration conflicts and source-dependent action removal. Q/W/E/R/D/G and
+   accessories1–4 require actual collision/focus checks; A/F/T/S retain meaning.
+7. Start with V08-001–015 and affected inherited cases. Prove authority/source
+   invalidation, Silence/Mute, stale/duplicate/spoof requests, cooldown persistence,
+   no bag activation and native owner UI through focused independent clients.
+   A data import/model pass does not satisfy these exits. Human and long runs
+   remain deferred; do not rerun them merely to close a milestone.
 
-| Actual v0.7 baseline | Proposed v0.8 change; not implemented |
-| --- | --- |
-| Five learned skill slots; item effects use binding plus three quick references | Six mixed learned/body-gear actions, plus four physical accessory bindings/actions; no independent quick bar |
-| Six physical gear bindings,24-instance bag | Seven body plus four accessory bindings; equipped instances remain inside24; one two-handed instance spans two bindings |
-| Class starter templates; no permanent intrinsic-trait layer | Exactly one nonbreakable intrinsic trait per audited class; signatures remain replaceable learned actions |
-| Wire3 source requests, server revision/life/geometry checks; public eight-field observation | Server-derived learned/gear/accessory source kinds and atomic reference invalidation; version request/view contracts explicitly |
-| Native navigation, smoke/Ember and bounded tactical fields | Static walkable river ford/dry detour; bounded environment cells/reactions, no elemental navmesh regeneration |
-| Shared ordered10s claim; damage/slow/root/silence/mute preserve it | Direct Frost on Wet may stun600ms with victim-wide6000ms lock; Frozen ground slows30%, never contact-stuns; due stun still precedes claim completion |
-
-At a fresh match/UI boundary, preview and revalidate equipment/action migration;
-retain stable item identity/cooldown/lineage and spill conflicting references to
-unbound inventory without free items. Body gear activations consume a shared
-action slot; accessories use their own physical slot. Silence blocks learned
-actives and Mute blocks item-sourced ones; derive source classification on the
-server. Reuse life/build/inventory revisions and replay-safe transaction commits.
-
-Implement in the package's stages: slots/traits, small river core, bounded fields,
-remaining catalog/acquisition, world integration, native usability. Expose only
-implemented/sourced definitions in a labelled development profile. The river
-slice must keep player and AI navigation traversable before/during/after freeze;
-world fields must use authorized fog/smoke views rather than full-grid replication.
-Keep30s warning/60s windows, finite sources and all four routes; surface damage
-alone cannot cancel a surviving stationary claim. Do not fabricate historical
-native trajectories when extending the scheduled authority clock.
-
-## Baseline locations and reproduction
-
-- Server orchestration: `Source/Lockdown/Private/Framework/LDGameMode.cpp`.
-- Actions/effects/costs/source lifecycle: `Source/Lockdown/Private/Combat/`.
-- Builds/preparation: `Development/`; owned instances/trade/acquisition: `Inventory/`;
-  accounting/services/production: `Economy/`, under the same Private directory.
-- Region/encounters/leases/ordered outcomes: `World/`, `Objectives/`, `Region/`;
-  native movement/pathing: `Character/`, `Navigation/`.
-- Authorized views: `Vision/`; owned native UI/input: `UI/` and Framework player files.
-- Staged schema7 data: `Content/Lockdown/Data/V07/`; closed sync scripts and native
-  generated catalogs/maps are inventoried in B76 SourceManifest/DataImport.
+## Reproduction and preservation
 
 ```powershell
+python -B docs/v08/tools/check_spec.py
+python -B Scripts/SyncV08Data.py --check
+python -B Scripts/TestV08Import.py
+python -B Scripts/CheckV08Baseline.py
 ./Scripts/OpenStandalone.ps1 -Profile v07_integration
 ./Scripts/OpenStandalone.ps1 -Profile v06_regression
-python -B docs/v07/tools/check_spec.py
-python -B Scripts/SyncV07CombatData.py --check
-python -B Scripts/SyncV07EquipmentData.py --check
-python -B Scripts/SyncV07AcquisitionData.py --check
-python -B Scripts/SyncV07WorldData.py --check
 ```
 
-Explicit v07 opens `L_V07Region`; default frontend/V05 regression stay on the
-retained map. Existing optional build/asset commands are `BuildEditor.ps1
--MaxParallelActions 4 -Gather` and `BootstrapAssets.ps1 -Mode Validate`. Run Unreal
-operations sequentially and freeze Source/Config during each. UE5.8.4 CL58902052,
-Win64 Development, MSVC14.44.35229 / SDK10.0.26100.0; compile cap4. No fresh
-package or full release acceptance exists; old distributions predate this source.
+The B80 checker is a frozen audit checkpoint: later native implementation
+intentionally invalidates its baseline comparison. Preserve recorded evidence;
+do not rewrite historical hashes to hide migration. Use the importer check for
+current generated contract identity, updating adoption provenance deliberately
+when active spec bytes change. Keep templates separate from the working ledger.
 
-B76 already records four normal-route demos,19 boundary cases, focused100/150ms
-world clients,40 rules and affected regressions, with33 independent ledger
-replays. B77 only verifies provenance/imports/models and replays four historical
-route snapshots. Do not rerun long suites just to close this handoff.
+Unreal operations run sequentially with Source/Config frozen. Pinned Win64
+Development UE5.8.4 CL58902052, selected MSVC14.44.35229 / SDK10.0.26100.0,
+max4 build actions. Existing `BuildEditor.ps1 -MaxParallelActions 4 -Gather`
+and `BootstrapAssets.ps1 -Mode Validate` remain available. Explicit v07 opens
+`L_V07Region`; frontend/V05 stay on the retained map. No current distribution
+or dedicated-server/reconnection release acceptance is implied.
 
-## Preservation and unresolved evidence
+B82 must author a permanently navigable river before field simulation. B83
+adds bounded fields/reactions with authorized views; B84 completes real catalog
+handlers/acquisition; B85 revisits all four normal routes and conservation;
+B86 completes native usability/evidence. Keep 30s warning/60s access windows,
+finite rewards and ordered ten-second claim; Wet/slow/damage alone do not
+cancel a surviving stationary claim. Applied direct-Frost Stun does.
 
-B77 preserves all93 adopted v0.7 files. The pre-existing edit in
-`v07/09_VICTORY_AND_MATCH_STATE.md` remains excluded from commits; the other92
-match adoption. The supplied untracked `v08/` package stays unchanged and outside
-the closeout commit until deliberate adoption. Preserve current user bytes when
-resolving its missing provenance manifest.
-
-V07-D01–D08 name deferred cross-feature networking/privacy, cold package,
-restart/performance, physical/rendered input, progression/last-hit source loss,
-combined authority races, normal class/tactical journeys and human/pacing work.
-Dead/disconnected reward escrow attribution exists but is not reconnection
-support; its full adversarial matrix is unrun. B76 conservative hold cancellation
-on ambiguous changed pose is not historical native movement resimulation.
-
-All48 inherited v0.6 rows and V06-D01–D08 remain traceable. The old B56 Seal-trade
-fixture is incompatible with V05 economy: use B74's earned trade/return evidence;
-do not add diagnostic Seal grants to make that obsolete fixture pass. Human
-review remains deferred; no invented participants, balance or performance pass.
+Preserve all prior version records and original archive bytes. B77's old
+Seal-trade fixture remains incompatible with V05 economy: use earned B74
+trade/return evidence rather than granting diagnostic Seals. Dead/disconnected
+reward escrow is not reconnection support. B76 conservative changed-pose hold
+cancellation is not native movement resimulation. Human/pacing/privacy/race/
+package/performance gaps retain their named deferred dispositions.

@@ -1,0 +1,201 @@
+id,area,definition,implementation,evidence,result
+V08-001,acceptance,slots_ten,,,Not run
+V08-002,acceptance,body_active,,,Not run
+V08-003,acceptance,body_mute,,,Not run
+V08-004,acceptance,source_unbind,,,Not run
+V08-005,acceptance,consumable_no_refill,,,Not run
+V08-006,acceptance,passive_no_button,,,Not run
+V08-007,acceptance,two_hands,,,Not run
+V08-008,acceptance,inventory24,,,Not run
+V08-009,acceptance,stat_caps,,,Not run
+V08-010,acceptance,trait_one,,,Not run
+V08-011,acceptance,trait_break,,,Not run
+V08-012,acceptance,signature,,,Not run
+V08-013,acceptance,legacy_adapter,,,Not run
+V08-014,acceptance,cooldown_swap,,,Not run
+V08-015,acceptance,quiet_cancel,,,Not run
+V08-016,acceptance,river_walk,,,Not run
+V08-017,acceptance,wet_entry,,,Not run
+V08-018,acceptance,river_frozen_wet,,,Not run
+V08-019,acceptance,wet_frost,,,Not run
+V08-020,acceptance,dry_frost,,,Not run
+V08-021,acceptance,frost_capsule,,,Not run
+V08-022,acceptance,reaction_shared,,,Not run
+V08-023,acceptance,reaction_endpoint,,,Not run
+V08-024,acceptance,reaction_guard,,,Not run
+V08-025,acceptance,reaction_block,,,Not run
+V08-026,acceptance,reaction_death,,,Not run
+V08-027,acceptance,category_immunity,,,Not run
+V08-028,acceptance,self_hazards,,,Not run
+V08-029,acceptance,melt,,,Not run
+V08-030,acceptance,steam_symmetry,,,Not run
+V08-031,acceptance,gust_clear,,,Not run
+V08-032,acceptance,water_lightning,,,Not run
+V08-033,acceptance,chain_observation,,,Not run
+V08-034,acceptance,oil_fire,,,Not run
+V08-035,acceptance,water_extinguish,,,Not run
+V08-036,acceptance,nature_fire,,,Not run
+V08-037,acceptance,shatter,,,Not run
+V08-038,acceptance,surface_tick,,,Not run
+V08-039,acceptance,burn_double,,,Not run
+V08-040,acceptance,field_caps,,,Not run
+V08-041,acceptance,paid_projectile,,,Not run
+V08-042,acceptance,transition_budget,,,Not run
+V08-043,acceptance,field_replacement,,,Not run
+V08-044,acceptance,field_death,,,Not run
+V08-045,acceptance,duration_caps,,,Not run
+V08-046,acceptance,proc_break,,,Not run
+V08-047,acceptance,mod_caps,,,Not run
+V08-048,acceptance,aura_consent,,,Not run
+V08-049,acceptance,support_pulse,,,Not run
+V08-050,acceptance,sabotage_scope,,,Not run
+V08-051,acceptance,catalog_import,,,Not run
+V08-052,acceptance,acquisition_all,,,Not run
+V08-053,acceptance,quality,,,Not run
+V08-054,acceptance,rare_source,,,Not run
+V08-055,acceptance,gold_conservation,,,Not run
+V08-056,acceptance,claim_damage,,,Not run
+V08-057,acceptance,claim_frost,,,Not run
+V08-058,acceptance,claim_ice,,,Not run
+V08-059,acceptance,claim_force,,,Not run
+V08-060,acceptance,routes_normal,,,Not run
+V08-061,acceptance,privacy_payload,,,Not run
+V08-062,acceptance,ground_oracle,,,Not run
+V08-063,acceptance,ui_sources,,,Not run
+V08-064,acceptance,ai_river,,,Not run
+V08-065,acceptance,npc_peace,,,Not run
+V08-066,acceptance,performance,,,Not run
+V08-067,acceptance,lower_level,,,Not run
+V08-068,acceptance,human_readability,,,Not run
+ability:anchor_bash,catalog,Anchor Bash,,,Not run
+ability:brace_wall,catalog,Brace Wall,,,Not run
+ability:veil_step,catalog,Veil Step,,,Not run
+ability:hamstring,catalog,Hamstring,,,Not run
+ability:arc_bolt,catalog,Arc Bolt,,,Not run
+ability:counterpulse,catalog,Counterpulse,,,Not run
+ability:farwatch_ward,catalog,Farwatch Ward,,,Not run
+ability:wire_snare,catalog,Wire Snare,,,Not run
+ability:ledger_mark,catalog,Ledger Mark,,,Not run
+ability:surety_shell,catalog,Surety Shell,,,Not run
+ability:false_trail,catalog,False Trail,,,Not run
+ability:smoke_veil,catalog,Smoke Veil,,,Not run
+ability:purge_touch,catalog,Purge Touch,,,Not run
+ability:seers_flare,catalog,Seer’s Flare,,,Not run
+ability:ember_line,catalog,Ember Line,,,Not run
+ability:grapple,catalog,Grapple,,,Not run
+ability:null_seal,catalog,Null Seal,,,Not run
+ability:grounding_field,catalog,Grounding Field,,,Not run
+ability:force_wave,catalog,Force Wave,,,Not run
+ability:guard_swap,catalog,Guard Swap,,,Not run
+ability:slipstream,catalog,Slipstream,,,Not run
+ability:remedy_bind,catalog,Remedy Bind,,,Not run
+ability:break_sigil,catalog,Break Sigil,,,Not run
+ability:arcane_prison,catalog,Arcane Prison,,,Not run
+ability:temporal_lock,catalog,Temporal Lock,,,Not run
+ability:sovereign_ward,catalog,Sovereign Ward,,,Not run
+ability:grand_exchange,catalog,Grand Exchange,,,Not run
+ability:gate_weave,catalog,Gate Weave,,,Not run
+ability:frostline,catalog,Frostline,,,Not run
+ability:firebolt,catalog,Firebolt,,,Not run
+ability:water_jet,catalog,Water Jet,,,Not run
+ability:gust,catalog,Gust,,,Not run
+ability:entangle,catalog,Entangle,,,Not run
+ability:chain_lightning,catalog,Chain Lightning,,,Not run
+ability:ice_nova,catalog,Ice Nova,,,Not run
+ability:rain_call,catalog,Rain Call,,,Not run
+ability:flameburst,catalog,Flameburst,,,Not run
+ability:static_lance,catalog,Static Lance,,,Not run
+ability:updraft,catalog,Updraft,,,Not run
+ability:vine_lash,catalog,Vine Lash,,,Not run
+ability:cleanse_rain,catalog,Cleanse Rain,,,Not run
+ability:thawing_touch,catalog,Thawing Touch,,,Not run
+ability:shatter_burst,catalog,Shatter Burst,,,Not run
+ability:conductive_field,catalog,Conductive Field,,,Not run
+ability:thermal_veil,catalog,Thermal Veil,,,Not run
+ability:deploy_conduit,catalog,Deploy Conduit,,,Not run
+ability:sabotage,catalog,Sabotage,,,Not run
+ability:rescue_line,catalog,Rescue Line,,,Not run
+ability:rally_guard,catalog,Rally Guard,,,Not run
+ability:disarming_cut,catalog,Disarming Cut,,,Not run
+ability:power_strike,catalog,Power Strike,,,Not run
+ability:scouting_pulse,catalog,Scouting Pulse,,,Not run
+item:iron_halberd,catalog,Iron Halberd,,,Not run
+item:watchblade,catalog,Watchblade,,,Not run
+item:runic_staff,catalog,Runic Staff,,,Not run
+item:surveyor_bow,catalog,Surveyor Bow,,,Not run
+item:oath_mace,catalog,Oath Mace,,,Not run
+item:null_dagger,catalog,Null Dagger,,,Not run
+item:bastion_plate,catalog,Bastion Plate,,,Not run
+item:shade_mantle,catalog,Shade Mantle,,,Not run
+item:archivist_robe,catalog,Archivist Robe,,,Not run
+item:merchant_harness,catalog,Merchant Harness,,,Not run
+item:reflective_mail,catalog,Reflective Mail,,,Not run
+item:pathfinder_boots,catalog,Pathfinder Boots,,,Not run
+item:silent_soles,catalog,Silent Soles,,,Not run
+item:cliffwalkers,catalog,Cliffwalkers,,,Not run
+item:anchor_greaves,catalog,Anchor Greaves,,,Not run
+item:scholars_sigil,catalog,Scholar’s Sigil,,,Not run
+item:brokers_seal,catalog,Broker’s Seal,,,Not run
+item:warding_eye,catalog,Warding Eye,,,Not run
+item:iron_oath,catalog,Iron Oath,,,Not run
+item:weighted_satchel,catalog,Weighted Satchel,,,Not run
+item:null_bell,catalog,Null Bell,,,Not run
+item:smoke_flask,catalog,Smoke Flask,,,Not run
+item:seers_dust,catalog,Seer’s Dust,,,Not run
+item:healing_salve,catalog,Healing Salve,,,Not run
+item:mana_draught,catalog,Mana Draught,,,Not run
+item:ward_totem,catalog,Ward Totem,,,Not run
+item:recall_token,catalog,Recall Token,,,Not run
+item:snare_mine,catalog,Snare Mine,,,Not run
+item:counterglyph,catalog,Counterglyph,,,Not run
+item:mirror_sigil,catalog,Mirror Sigil,,,Not run
+item:purity_charm,catalog,Purity Charm,,,Not run
+item:aegis_flask,catalog,Aegis Flask,,,Not run
+item:grappling_chain,catalog,Grappling Chain,,,Not run
+item:blink_charm,catalog,Blink Charm,,,Not run
+item:simple_staff,catalog,Simple Staff,,,Not run
+item:conduit_staff,catalog,Conduit Staff,,,Not run
+item:null_staff,catalog,Null Staff,,,Not run
+item:rift_staff,catalog,Rift Staff,,,Not run
+item:harpoon_halberd,catalog,Harpoon Halberd,,,Not run
+item:tower_relic,catalog,Tower Relic,,,Not run
+item:iron_helm,catalog,Iron Helm,,,Not run
+item:scholars_hood,catalog,Scholar Hood,,,Not run
+item:scouts_cowl,catalog,Scout Cowl,,,Not run
+item:mistweave_hood,catalog,Mistweave Hood,,,Not run
+item:storm_crown,catalog,Storm Crown,,,Not run
+item:surveyors_goggles,catalog,Surveyor Goggles,,,Not run
+item:reinforced_leggings,catalog,Reinforced Leggings,,,Not run
+item:runners_trousers,catalog,Runner Trousers,,,Not run
+item:insulated_leggings,catalog,Insulated Leggings,,,Not run
+item:river_waders,catalog,River Waders,,,Not run
+item:duelists_gloves,catalog,Duelist Gloves,,,Not run
+item:engineers_gloves,catalog,Engineer Gloves,,,Not run
+item:frostweave_gloves,catalog,Frostweave Gloves,,,Not run
+item:laborers_grip,catalog,Laborer Grip,,,Not run
+item:iron_longsword,catalog,Iron Longsword,,,Not run
+item:shadow_dagger,catalog,Shadow Dagger,,,Not run
+item:frost_staff,catalog,Frost Staff,,,Not run
+item:conductive_spear,catalog,Conductive Spear,,,Not run
+item:ember_wand,catalog,Ember Wand,,,Not run
+item:gust_staff,catalog,Gust Staff,,,Not run
+item:guardian_shield,catalog,Guardian Shield,,,Not run
+item:arcane_focus,catalog,Arcane Focus,,,Not run
+item:field_toolkit,catalog,Field Toolkit,,,Not run
+item:duelists_parrying_dagger,catalog,Parrying Dagger,,,Not run
+item:river_treads,catalog,River Treads,,,Not run
+item:wayfarer_boots,catalog,Wayfarer Boots,,,Not run
+item:thermal_coat,catalog,Thermal Coat,,,Not run
+item:channelers_vest,catalog,Channeler Vest,,,Not run
+item:cleansing_charm,catalog,Cleansing Charm,,,Not run
+item:mirror_amulet,catalog,Mirror Amulet,,,Not run
+item:command_banner,catalog,Command Banner,,,Not run
+item:resonance_ring,catalog,Resonance Ring,,,Not run
+item:arcane_lens,catalog,Arcane Lens,,,Not run
+item:shadow_charm,catalog,Shadow Charm,,,Not run
+item:elemental_purifier,catalog,Elemental Purifier,,,Not run
+item:frost_prism,catalog,Frost Prism,,,Not run
+item:water_flask,catalog,Water Flask,,,Not run
+item:oil_flask,catalog,Oil Flask,,,Not run
+item:frost_capsule,catalog,Frost Capsule,,,Not run
+item:gust_vial,catalog,Gust Vial,,,Not run

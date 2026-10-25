@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-10-25T23:41:48.6483265+08:00",
+  "engineVersion": {
+    "MajorVersion": 5,
+    "MinorVersion": 8,
+    "PatchVersion": 4,
+    "Changelist": 58902052,
+    "CompatibleChangelist": 55116800,
+    "IsLicenseeVersion": 0,
+    "IsPromotedBuild": 1,
+    "BranchName": "++UE5+Release-5.8"
+  },
+  "installedBuild": true,
+  "windowsSdks": [
+    "10.0.26100.0"
+  ],
+  "buildVerified": false,
+  "scope": "Fresh Scripts/Preflight.ps1 discovery only; no native build performed at B80.",
+  "source_artifact": "Artifacts/20261025-234147-848-Preflight/Environment.json",
+  "compilers": [
+    {
+      "Version": "14.44.35229",
+      "Banned": false,
+      "MeetsMinimum": true
+    },
+    {
+      "Version": "14.51.36260",
+      "Banned": false,
+      "MeetsMinimum": true
+    }
+  ],
+  "netFxSdks": [
+    {
+      "Version": "4.8",
+      "HeaderPresent": true,
+      "X64LibraryPresent": true
+    }
+  ]
+}

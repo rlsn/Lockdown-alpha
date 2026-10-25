@@ -1,24 +1,25 @@
-# Project Lockdown — v0.7 closed; v0.8 handoff ready
+# Project Lockdown — v0.8 B80 audit/import complete
 
-Windows-first Unreal5.8.4 project. **B77 closes v0.7 development for transition
-to v0.8, with human review and longer acceptance explicitly deferred.** The
-runtime/source/assets baseline is `ddf7be5` (B76); the closeout changes docs and
-evidence only. No fully verified release or fresh packaged executable is claimed.
+Windows-first Unreal 5.8.4 project. **B80 adopts the v0.8 specification and
+implements its isolated, disabled schema8 import. B81 slots/traits is next.**
+The native runtime remains B76 (`ddf7be5`), closed for v0.7 at B77. No native
+v0.8 profile or fresh packaged executable is claimed.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[v0.7 closeout](docs/v07/B77_CLOSEOUT.md),
-[acceptance disposition](docs/v07/B77_ACCEPTANCE.md) and
-[documentation index](docs/README.md). The supplied v0.8 spec is currently
-untracked user material; adoption/import comes next. Its checker currently
-requires a missing `SOURCE_MANIFEST.json`, recorded in the handoff.
+[B80 baseline review](docs/v08/B80_BASELINE_REVIEW.md),
+[v0.8 build plan B80–B86](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
+and [documentation index](docs/README.md). The
+[working ledger](docs/v08/FeatureLedger.csv) maps all 68 new/55 inherited cases,
+with E01–E48 and named deferrals retained. B80 checks validate provenance,
+contracts and models; v0.8 native acceptance remains Not run.
 
-The [B76 implementation](docs/v07/B76_IMPLEMENTATION.md) retains all28 tactical
-abilities/40 items, paid acquisition/12 recipes, native finite encounters and
-four Heart routes with independent accounting evidence. Explicit
-`./Scripts/OpenStandalone.ps1 -Profile v07_integration` opens the native world;
-the default frontend and `v06_regression` retain V05. No v0.8 runtime profile
-has been implemented. Long-term design remains in [masterR7](docs/master/README.md);
-new-version decisions must be reconciled with actual source during adoption.
+The [B76 implementation](docs/v07/B76_IMPLEMENTATION.md) retains 28 tactical
+abilities/40 items, paid acquisition/12 recipes, finite encounters and four
+Heart routes. Explicit `./Scripts/OpenStandalone.ps1 -Profile v07_integration`
+opens that native world; the default frontend and `v06_regression` retain V05.
+[v0.7 closeout](docs/v07/B77_CLOSEOUT.md) and
+[acceptance](docs/v07/B77_ACCEPTANCE.md) preserve scoped results and human/long-run
+deferrals. Long-term design remains in [masterR7](docs/master/README.md).
 
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)

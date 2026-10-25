@@ -1,0 +1,115 @@
+{
+  "schema_version": 8,
+  "exactly_one": true,
+  "respec_in_match": false,
+  "traits": [
+    {
+      "id": "vanguard_trait",
+      "class_id": "vanguard",
+      "name": "Directional Discipline",
+      "rule": "Own Brace Wall frontal arc is140 degrees instead of120; no damage/guard/proc bonus.",
+      "breakable": false,
+      "signature_suggestions": [
+        "brace_wall"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "infiltrator_trait",
+      "class_id": "infiltrator",
+      "name": "Patient Pursuit",
+      "rule": "Own Ledger Mark clue lifetime is5000ms instead of4000; still only creates samples in authorized visible cells.",
+      "breakable": false,
+      "signature_suggestions": [
+        "veil_step"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "arcanist_trait",
+      "class_id": "arcanist",
+      "name": "Field Practice",
+      "rule": "Own newly created Frozen/Burning/Electrified fields last+1000ms within global caps; no unit status duration or damage amplification.",
+      "breakable": false,
+      "signature_suggestions": [
+        "frostline"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "seeker_trait",
+      "class_id": "seeker",
+      "name": "Trailcraft",
+      "rule": "Own body sight+30cm, subject to total+50cm cap including equipment; no wall/smoke vision.",
+      "breakable": false,
+      "signature_suggestions": [
+        "farwatch_ward"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "broker_trait",
+      "class_id": "broker",
+      "name": "Careful Assembly",
+      "rule": "Equipment assembly/quality fee reduced1gold, minimum1; strongest with Broker Seal, never stacks; excludes Charter/books/commodities.",
+      "breakable": false,
+      "signature_suggestions": [
+        "surety_shell"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "trickster_trait",
+      "class_id": "trickster",
+      "name": "Convincing Decoy",
+      "rule": "False Trail decoy lasts+1000ms; still no interactions, sight, rewards or combat hitbox blocking.",
+      "breakable": false,
+      "signature_suggestions": [
+        "false_trail"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "laborer_trait",
+      "class_id": "laborer",
+      "name": "Load Planning",
+      "rule": "Carrying capacity+4; applies to natural-capacity formula, no economic score or new gold.",
+      "breakable": false,
+      "signature_suggestions": [
+        "legacy:Heave"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "rogue_trait",
+      "class_id": "rogue",
+      "name": "Patient Pursuit",
+      "rule": "Same behavior as Infiltrator trait; preserve actual legacy starting skills and theft rules.",
+      "breakable": false,
+      "signature_suggestions": [
+        "legacy:preserve"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    },
+    {
+      "id": "scholar_trait",
+      "class_id": "scholar",
+      "name": "Field Practice",
+      "rule": "Same behavior as Arcanist trait; preserve legacy starting skills and utility costs.",
+      "breakable": false,
+      "signature_suggestions": [
+        "legacy:preserve"
+      ],
+      "signature_occupies_shared_slot": true,
+      "signature_exclusive": false
+    }
+  ]
+}

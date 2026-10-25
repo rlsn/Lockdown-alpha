@@ -1,0 +1,21 @@
+# Implementation plan and release scope
+
+The complete v0.8 integration contract contains52 learned active definitions,80 item definitions,20 equipment/objective recipes, nine class trait definitions, ten bounded reactions and every retained v0.7/v0.6 required behavior. Content entries are not evidence that mechanics work. Build incrementally; expose only enabled implemented definitions in a labelled development profile. Do not call B81 the complete v0.8 release. Build IDs B80–B86 are stable milestone identifiers, continuing the B70–B77 convention.
+
+| Build | Implementation | Exit evidence |
+|---|---|---|
+| B80 Audit/import | Source/engine/framework and predecessor checks; stable ID migration; data validation; feature ledger | Actual baseline commit/build/commands and adapter inventory; no inferred baseline passes |
+| B81 Slots/traits | Six mixed-source actions, seven body/four accessory bindings, one trait, primary caps, death/consumable rules | Independent-client tests for permission, source invalidation, mute/silence, cooldown persistence and no bag activation |
+| B82 River core | Authored walkable river, Wet refresh/residual, directFrost600 ms/victim6s, Frozen30%slow | Native player+AI crossing before/during/after freeze; guard/claim/respawn edge cases |
+| B83 Fields | Bounded grid, damage/occlusion, all ten reactions, reservation caps, privacy | Server capacity/ordering tests; filtered packet inspection; repeatable lifecycle receipts |
+| B84 Catalog/acquisition | All52/80 implementations,20 recipes, books/quality/sources, mods/procs | Import hashes; every definition obtainable and observable; no unknown op/log-only item |
+| B85 World integration | Existing four routes, economy, NPC, death and Heart interruption | Four legal no-grant route demonstrations; one low-level tactical interruption; conservation reconciliation |
+| B86 Native usability | HUD/inventory/inspection/input rebinding, performance/AI readability | Packaged/native build, independent clients; recorded human feedback or explicit Not run |
+
+Small development river profile: enable Anchor Bash, Brace Wall, Frostline, Firebolt, Water Jet, Gust, Entangle, Chain Lightning, Purge Touch, Farwatch Ward and required legacy utilities; enable Iron Longsword, Guardian Shield, River Treads, Water Flask, Frost Capsule, Gust Vial, Cleansing Charm, Control Guard consumable(Purity Charm), basic recovery. Do not waive sources/MP/slots. Fixtures can supply known test setup only under isolated test profile; never normal progression evidence. Other definitions remain hidden until they have actual operation support.
+
+Do not couple elementfields to navmesh rebuild. Reuse existing line/circle masks and authorized view logic. Implement server mutation before art polish, but use distinguishable cues before human combat tests. Native client/UI operations must be wired to authoritative services rather than a parallel browser prototype. Performance target: at256live dynamiccells/4 contenders on recorded hardware, added environment service p95<=2 ms per100 ms step and p99<=5 ms; record unbounded spikes, replication volume and target-platform frame rate rather than claim universal guarantee. Budget measures are provisional acceptance targets; report actual hardware/load.
+
+Definition of done: all new cases and affected inherited cases pass with native runtime evidence; four normal routes feasible without grants; complete source/sink audit; all definitions imported with matching hashes; all enabled ops have real effects; no unauthorized view payload. Runtime failures block release. Missing engine/device/participants remain Not run and block claims of full release verification. Human balance/readability can remain explicitly pending after engineering pass, never a fabricated result. This deliverable contains specification/model evidence only.
+
+Deferred: ice bridges, swimming/drowning, procedural terrain deformation/navmesh rewiring, dynamic trees, smoke advection, unbounded propagation, full weather simulation, deep chemistry, free equipment extra buttons, trait respec/subclass stacking, new evasion/crit RNG, advanced spell variants, full60–90-minute balance, larger map, matchmaking/accounts/chat/new diplomacy. Existing delivered mechanics are preserved through adapters, not deleted by this list.

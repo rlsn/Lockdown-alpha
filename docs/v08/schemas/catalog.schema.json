@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project Lockdown v0.8 ability and item catalog structural contract",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 8
+    }
+  },
+  "oneOf": [
+    {
+      "required": [
+        "abilities"
+      ],
+      "properties": {
+        "abilities": {
+          "type": "array",
+          "minItems": 52,
+          "maxItems": 52,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "circle",
+              "requirements_any",
+              "targeting",
+              "range_cm",
+              "area_cm",
+              "windup_ms",
+              "mana_cost",
+              "cooldown_ms",
+              "effects",
+              "rank_scaling",
+              "potency_fields",
+              "activation_kind",
+              "acquisition"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "circle": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4
+              },
+              "activation_kind": {
+                "const": "learned_active"
+              },
+              "requirements_any": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object"
+                }
+              },
+              "effects": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "op"
+                  ],
+                  "properties": {
+                    "op": {
+                      "enum": [
+                        "damage",
+                        "status",
+                        "directional_barrier",
+                        "projectile_damage",
+                        "interrupt",
+                        "spawn_ward",
+                        "spawn_trap",
+                        "trail_mark",
+                        "barrier",
+                        "decoy",
+                        "smoke",
+                        "basic_dispel",
+                        "detector",
+                        "damage_zone",
+                        "grapple",
+                        "grounding_anchor",
+                        "push",
+                        "swap_self_owned_marker",
+                        "dash",
+                        "remedy",
+                        "prison",
+                        "telegraph",
+                        "area_status",
+                        "projectile_dome",
+                        "swap_two",
+                        "linked_gates",
+                        "arm_next_hit",
+                        "reflect_next_projectile",
+                        "anchor",
+                        "basic_dispel_self",
+                        "heal_over_time",
+                        "restore_mp",
+                        "recall",
+                        "targeted_mute",
+                        "spell_block",
+                        "control_guard",
+                        "terrain_grapple",
+                        "blink",
+                        "element_hit",
+                        "surface_apply",
+                        "surface_clear",
+                        "surface_burst",
+                        "water_cleanse",
+                        "conductive_bounce",
+                        "spawn_conduit",
+                        "sabotage",
+                        "consented_pull",
+                        "guard_aura_pulse",
+                        "element_item_hit",
+                        "element_item_field"
+                      ]
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "rank_scaling": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              },
+              "potency_fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "range_cm": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "area_cm": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "windup_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mana_cost": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cooldown_ms": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 80,
+          "maxItems": 80,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "equipment_slot",
+              "activation_binding",
+              "primary_stats",
+              "weight",
+              "active",
+              "passive",
+              "consumable",
+              "death_policy",
+              "acquisition"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "equipment_slot": {
+                "enum": [
+                  "head",
+                  "torso",
+                  "legs",
+                  "feet",
+                  "gloves",
+                  "main_hand",
+                  "off_hand",
+                  "accessory"
+                ]
+              },
+              "activation_binding": {
+                "enum": [
+                  null,
+                  "shared_skill",
+                  "accessory"
+                ]
+              },
+              "weight": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "consumable": {
+                "type": "boolean"
+              },
+              "active": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "op"
+                    ],
+                    "properties": {
+                      "op": {
+                        "enum": [
+                          "damage",
+                          "status",
+                          "directional_barrier",
+                          "projectile_damage",
+                          "interrupt",
+                          "spawn_ward",
+                          "spawn_trap",
+                          "trail_mark",
+                          "barrier",
+                          "decoy",
+                          "smoke",
+                          "basic_dispel",
+                          "detector",
+                          "damage_zone",
+                          "grapple",
+                          "grounding_anchor",
+                          "push",
+                          "swap_self_owned_marker",
+                          "dash",
+                          "remedy",
+                          "prison",
+                          "telegraph",
+                          "area_status",
+                          "projectile_dome",
+                          "swap_two",
+                          "linked_gates",
+                          "arm_next_hit",
+                          "reflect_next_projectile",
+                          "anchor",
+                          "basic_dispel_self",
+                          "heal_over_time",
+                          "restore_mp",
+                          "recall",
+                          "targeted_mute",
+                          "spell_block",
+                          "control_guard",
+                          "terrain_grapple",
+                          "blink",
+                          "element_hit",
+                          "surface_apply",
+                          "surface_clear",
+                          "surface_burst",
+                          "water_cleanse",
+                          "conductive_bounce",
+                          "spawn_conduit",
+                          "sabotage",
+                          "consented_pull",
+                          "guard_aura_pulse",
+                          "element_item_hit",
+                          "element_item_field"
+                        ]
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  ]
+}

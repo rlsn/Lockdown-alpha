@@ -1,0 +1,95 @@
+{
+  "schema_version": 8,
+  "modifiers": [
+    {
+      "id": "mist_steps",
+      "meaning": "While inside smoke/steam reduce footsteps audible range20%; does not see through occluders.",
+      "breakable": true
+    },
+    {
+      "id": "storm_resistance",
+      "meaning": "Electrified surface damage received reduced25%; direct lightning damage unchanged.",
+      "breakable": true
+    },
+    {
+      "id": "survey_overlay",
+      "meaning": "Owner sees already-explored static river/soil/flame sockets in surface preview; reveals no dynamic hidden fields or actors.",
+      "breakable": false
+    },
+    {
+      "id": "insulation",
+      "meaning": "Electrified surface damage received reduced25%; strongest with storm_resistance, never multiplicative.",
+      "breakable": true
+    },
+    {
+      "id": "river_wading",
+      "meaning": "Wet residual duration after leaving water/rain reduced from3000 to1500ms; does not prevent Wet in water or frost stun.",
+      "breakable": true
+    },
+    {
+      "id": "construct_durability",
+      "meaning": "Own newly placed nonobjective wards/traps/conduits/anchors HP +15%; snapshot at creation, emitter HP bonus cap20% total.",
+      "breakable": true
+    },
+    {
+      "id": "frost_extent",
+      "meaning": "Frost surface lifetime+1000ms, within10000ms cap; no unit stun/slow boost.",
+      "breakable": true
+    },
+    {
+      "id": "isolation_strike",
+      "meaning": "Melee basic hit adds12 physical damage if victim has no other ordinary body within300cm; once4000ms per owner. Server evaluates; no hidden-neighbor feedback.",
+      "breakable": true
+    },
+    {
+      "id": "frost_radius",
+      "meaning": "Frost field disk radius or line half-width +10%, footprint remains16cells. No range or stun bonus.",
+      "breakable": true
+    },
+    {
+      "id": "conductive_hit",
+      "meaning": "Basic attack against Wet victim adds15 magical damage, once4000ms per owner; does not electrify map, jump or stun.",
+      "breakable": true
+    },
+    {
+      "id": "ember_hit",
+      "meaning": "Successful basic attack applies Burning for3000ms, once5000ms per owner; no surface creation. Water can extinguish.",
+      "breakable": true
+    },
+    {
+      "id": "front_guard",
+      "meaning": "Basic attack damage from front120-degree arc reduced8% within ordinary60% physical mitigation cap. No hard-control block.",
+      "breakable": true
+    },
+    {
+      "id": "field_repair",
+      "meaning": "Own placed wards/conduits last+2000ms within their documented lifetime cap; no new repair/active action.",
+      "breakable": true
+    },
+    {
+      "id": "ice_grip",
+      "meaning": "Frozen-surface slow magnitude reduced from30% to15%; no Wet-stun immunity.",
+      "breakable": true
+    },
+    {
+      "id": "burn_resistance",
+      "meaning": "Burning unit-status damage received reduced25%; direct Fire damage and burning-surface damage unchanged.",
+      "breakable": true
+    },
+    {
+      "id": "consented_armor_aura",
+      "meaning": "Self and aid-consenting recipients within300cm/geometry gain4 armor. Multiple banners strongest only; membership revoked immediately; no stat gate access.",
+      "breakable": true
+    },
+    {
+      "id": "reaction_duration",
+      "meaning": "Own newly created Steam/Electrified fields +1000ms within their caps; never buffs Wet stun or creates extra reactions.",
+      "breakable": true
+    },
+    {
+      "id": "cover_concealment",
+      "meaning": "After2000ms stationary in authored cover, gain concealment until moving/releasing action/damage/cover exit. Detector reveals; not active invisibility.",
+      "breakable": true
+    }
+  ]
+}

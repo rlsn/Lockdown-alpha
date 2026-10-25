@@ -1,0 +1,882 @@
+{
+  "schema_version": 8,
+  "inherited_required_cases": [
+    {
+      "id": "C001",
+      "area": "baseline",
+      "requirement": "Actual v0.6 commit, toolchain, source inventory, legacy class/skill/Witness adapters and E01–E48 gaps recorded; no assumed delivery",
+      "status": "Not run"
+    },
+    {
+      "id": "C002",
+      "area": "profile",
+      "requirement": "v06 regression and v07 integration cannot mix; 35min/15cap/5skills/3quick configured and clean restart preserves no prior-match state",
+      "status": "Not run"
+    },
+    {
+      "id": "C003",
+      "area": "input",
+      "requirement": "Q/W/E/R/D,1/2/3, A/F/T/S remap conflicts, removed quick4, modal focus and no click fallthrough; self commands persist on enemy inspection",
+      "status": "Not run"
+    },
+    {
+      "id": "C004",
+      "area": "resource",
+      "requirement": "New skills consume real MP only on accepted release; cancel recovery; no refund on spell block; replay/stale/old-life requests spend once or none",
+      "status": "Not run"
+    },
+    {
+      "id": "C005",
+      "area": "damage",
+      "requirement": "Physical/magical formulas, barrier-before-HP,60percent mitigation cap,40percent barrier cap and simultaneous traded kills have exact receipts",
+      "status": "Not run"
+    },
+    {
+      "id": "C006",
+      "area": "status",
+      "requirement": "Silence blocks Purge Touch but allows Null Bell; mute reverses; stun/hex block both; external consent Remedy removes eligible hard tags",
+      "status": "Not run"
+    },
+    {
+      "id": "C007",
+      "area": "status",
+      "requirement": "Root blocks walk/dash/blink/gate but allows spells/attacks and incoming push; silence/mute/root alone do not cancel stationary Heart",
+      "status": "Not run"
+    },
+    {
+      "id": "C008",
+      "area": "stack",
+      "requirement": "Same-status overlap expires at maximum source endpoint, not summed duration; strongest slow, source aura reapplication and dispel provenance correct",
+      "status": "Not run"
+    },
+    {
+      "id": "C009",
+      "area": "protection",
+      "requirement": "Spell-block charge, control guard, reflection once, AoE bypass, dome crossing and eight-second major-protection lock differ correctly",
+      "status": "Not run"
+    },
+    {
+      "id": "C010",
+      "area": "passives",
+      "requirement": "Break only disables breakable passives, never natural gates/gear stats/capacity; blind affects own source, wards remain independently authorized",
+      "status": "Not run"
+    },
+    {
+      "id": "C011",
+      "area": "vision",
+      "requirement": "Fog/smoke/walls/elevation/detection do not leak identities or private stats; hidden homing/impact cues and Ledger Mark cannot reveal unseen bodies",
+      "status": "Not run"
+    },
+    {
+      "id": "C012",
+      "area": "geometry",
+      "requirement": "Push stops at wall/ledge, actual nonzero movement interrupts; blink/swap/gates validate endpoints; invalid placement reveals no hidden coordinate",
+      "status": "Not run"
+    },
+    {
+      "id": "C013",
+      "area": "build",
+      "requirement": "Natural/effective split rejects INT9+gear Temporal Lock; cross-class natural investment eventually permits legal equip/cast",
+      "status": "Not run"
+    },
+    {
+      "id": "C014",
+      "area": "build",
+      "requirement": "Five shared skill slots include utility/context F; one CircleIV maximum; old innate/direct request shortcuts cannot bypass slots",
+      "status": "Not run"
+    },
+    {
+      "id": "C015",
+      "area": "mastery",
+      "requirement": "XP thresholds, level-point budgets, rank2/rank3 costs and station commits correct; duplicate book keeps item and grants no rank/XP",
+      "status": "Not run"
+    },
+    {
+      "id": "C016",
+      "area": "potency",
+      "requirement": "One potency rank capped3 affects only declared magnitude fields, never hard-disable duration/cooldown/gates/unknown skills",
+      "status": "Not run"
+    },
+    {
+      "id": "C017",
+      "area": "gear",
+      "requirement": "Six bindings, two-hand conflict, one instance count/weight, deterministic +6total/+3stat clipping and negative tradeoffs match preview",
+      "status": "Not run"
+    },
+    {
+      "id": "C018",
+      "area": "loadout",
+      "requirement": "Six-second quiet plus two-second binding, interrupted holds, all quick-slot entry points, no inventory-click item bypass or cooldown reset",
+      "status": "Not run"
+    },
+    {
+      "id": "C019",
+      "area": "capacity",
+      "requirement": "Removing capacity gear while overloaded rejects; net craft/trade count/weight legal after outgoing inputs; reservations counted once",
+      "status": "Not run"
+    },
+    {
+      "id": "C020",
+      "area": "quality",
+      "requirement": "Standard/Fine/Masterwork modify only eligible numbers; assembly resets quality with preview; quality same ID keeps cooldown endpoints",
+      "status": "Not run"
+    },
+    {
+      "id": "C021",
+      "area": "supply",
+      "requirement": "Paid official counter/equipment/books create once/burn exact cost; unlimited essentials cannot be cornered; no new buyback mint",
+      "status": "Not run"
+    },
+    {
+      "id": "C022",
+      "area": "source",
+      "requirement": "CircleIII stock per-definition2, each capstone/key/catalyst source fixed, physical cache pickup/read/drop unique with no rejoin refresh",
+      "status": "Not run"
+    },
+    {
+      "id": "C023",
+      "area": "recipe",
+      "requirement": "Every recipe/work order has exact inputs/fee/station/time, net capacity, reservations and lineage; staged allocation failure spends nothing",
+      "status": "Not run"
+    },
+    {
+      "id": "C024",
+      "area": "craft",
+      "requirement": "Harpoon and three staff branches work; scarce catalyst required for completed work order; coupons/Seal apply only named fees; no disassembly",
+      "status": "Not run"
+    },
+    {
+      "id": "C025",
+      "area": "trade",
+      "requirement": "Consent exact revision/digest, unbind-before-offer, retained item/family endpoints, objective transfer/revocation; death releases lock before drop",
+      "status": "Not run"
+    },
+    {
+      "id": "C026",
+      "area": "content",
+      "requirement": "Every one of28 new abilities has legal source, actual effects, ranks, counterplay and visibility; not a tooltip-only implementation",
+      "status": "Not run"
+    },
+    {
+      "id": "C027",
+      "area": "content",
+      "requirement": "Every one of40 catalog items has passive/active/drop/cost/quality behavior and source, including always-drop Tower Relic",
+      "status": "Not run"
+    },
+    {
+      "id": "C028",
+      "area": "special",
+      "requirement": "Guard Swap two-stage cost/lifetime/CD, Grand Exchange atomic two-target block, Gate Weave visibility/endpoints/travel lock/cargo/death correct",
+      "status": "Not run"
+    },
+    {
+      "id": "C029",
+      "area": "world",
+      "requirement": "Camp36spawn and boss/tower reward identities bounded, no leash/respawn refresh; class/build-hidden ordinary residents preserved; officials identifiable",
+      "status": "Not run"
+    },
+    {
+      "id": "C030",
+      "area": "world",
+      "requirement": "Three ruins/forge/shrines/tower shortcuts and surveillance loss exist in native geometry; measured alternate approaches and warning travel",
+      "status": "Not run"
+    },
+    {
+      "id": "C031",
+      "area": "progress",
+      "requirement": "Existing work/procurement and new PvE/discovery/PvP budgets grant XP once; resident kills/trade/craft/gather loops yield no new XP",
+      "status": "Not run"
+    },
+    {
+      "id": "C032",
+      "area": "death",
+      "requirement": "Equipped ordinary gear retained; spare gear/books/cargo/consumables/keys/relic/fragment/artifact drop once; bank and knowledge persist",
+      "status": "Not run"
+    },
+    {
+      "id": "C033",
+      "area": "respawn",
+      "requirement": "Fixed delay endpoint, three-second protection cannot interact/claim; HP/MP refill explicit, no free item/cooldown/budget reset",
+      "status": "Not run"
+    },
+    {
+      "id": "C034",
+      "area": "siege",
+      "requirement": "All three towers legally destroyed opens access globally permanently, removes sources and pays/drops once; no fake deletion or other-route gate",
+      "status": "Not run"
+    },
+    {
+      "id": "C035",
+      "area": "charter",
+      "requirement": "Normal zero-kill bounded economy earns Witness/endorsements/fee, activates public30/60 and completes attempt; registration/death recovery retained",
+      "status": "Not run"
+    },
+    {
+      "id": "C036",
+      "area": "charter",
+      "requirement": "A contender without Charter wins its public opening; purchaser death leaves opening active; no private Charter/legacy Seal RPC bypass",
+      "status": "Not run"
+    },
+    {
+      "id": "C037",
+      "area": "keys",
+      "requirement": "Normal acquisition/trade/theft obtains three distinct keys; four-second activation/30+60 lease, transfer/loss/death revokes and shared90s item cooldown survives transfer",
+      "status": "Not run"
+    },
+    {
+      "id": "C038",
+      "area": "artifact",
+      "requirement": "Normal component acquisition/HeartForge builds Heartbreaker; activation consumes once,30+60 same-life lease; death cancels with no refund",
+      "status": "Not run"
+    },
+    {
+      "id": "C039",
+      "area": "claim",
+      "requirement": "Ten-second claim: damage alone/proximity do not interrupt; Counterpulse/ForceWave/stun/hex/lethal damage/self-cancel do; no actions while holding",
+      "status": "Not run"
+    },
+    {
+      "id": "C040",
+      "area": "claim",
+      "requirement": "Private owner permission does not stop rivals entering/interfering; own concealment breaks; no blanket protected claim; every route ends in same claim",
+      "status": "Not run"
+    },
+    {
+      "id": "C041",
+      "area": "timing",
+      "requirement": "Exact close/deadline completion legal,1ms late rejected, due lethal/disable wins at tie, simultaneous claims tie by start ordinal, stalled tick drains scheduled order",
+      "status": "Not run"
+    },
+    {
+      "id": "C042",
+      "area": "access",
+      "requirement": "Charter/private/siege overlaps OR correctly, route loss only cancels if no remaining authorization; private lease cannot extend global timer",
+      "status": "Not run"
+    },
+    {
+      "id": "C043",
+      "area": "deadline",
+      "requirement": "Full warning/open eligibility validated; late activation no consume; no refund delayed purchased Charter; NoAcquisition at cap without hidden-score win",
+      "status": "Not run"
+    },
+    {
+      "id": "C044",
+      "area": "terminal",
+      "requirement": "One winner across duplicate/completing claims, death, tower destruction and deadline; later transactions rejected, reservations/temporary sources cleaned",
+      "status": "Not run"
+    },
+    {
+      "id": "C045",
+      "area": "ledger",
+      "requirement": "Gold end=start+mint−burn across wallets/banks/markets; reward upper bound540N+682; no transfer counted as mint; initial endowment once",
+      "status": "Not run"
+    },
+    {
+      "id": "C046",
+      "area": "ledger",
+      "requirement": "Per-definition counts and parent lineage across equipped/cache/dropped/reserved/consumed, activation lease conversion and quality mutation reconcile",
+      "status": "Not run"
+    },
+    {
+      "id": "C047",
+      "area": "regression",
+      "requirement": "Affected v0.6 stock/cash/quotes/event/bank/weight/contracts/Charter/trade checks pass; explicitly replaced damage/proximity/slots are not false regressions",
+      "status": "Not run"
+    },
+    {
+      "id": "C048",
+      "area": "network",
+      "requirement": "Actual server+two independent clients at measured100/150ms RTT and jitter; casts, swaps, source loss, claims and revisions authoritative",
+      "status": "Not run"
+    },
+    {
+      "id": "C049",
+      "area": "native",
+      "requirement": "Cold build/cook/package and assets;1280×720/1920×1080,150percent scale/125percent text; cue/rejection/readability verified",
+      "status": "Not run"
+    },
+    {
+      "id": "C050",
+      "area": "privacy",
+      "requirement": "Restricted client payload, target handles, minimap/audio/VFX/logs contain no unauthorized opponent sheet/identity/hidden-target coordinates",
+      "status": "Not run"
+    },
+    {
+      "id": "C051",
+      "area": "lifecycle",
+      "requirement": "Ten restarts plus normal session shows no orphan collider/ward/gate/effect/lease/reservation/receipt growth; record hardware/frame/query costs",
+      "status": "Not run"
+    },
+    {
+      "id": "C052",
+      "area": "tactical",
+      "requirement": "Level8controller vs14claimant isolated scenario: meaningful interrupt without guaranteed duel win; claimant can counter by bait/sight/position",
+      "status": "Not run"
+    },
+    {
+      "id": "C053",
+      "area": "human",
+      "requirement": "Two three-item loadouts produce different counter choices; observers can explain silence/mute/stun, counters, gear caps and why wealth is not victory",
+      "status": "Not run"
+    },
+    {
+      "id": "C054",
+      "area": "routes",
+      "requirement": "Four separate normal-route end-to-end demos without grants, labelled times/resources/receipts; isolated fixtures kept separate",
+      "status": "Not run"
+    },
+    {
+      "id": "C055",
+      "area": "pacing",
+      "requirement": "Normal35-minute1- and4-contender runs where available record level spread, first book/gear/route times, deaths/downtime, controls/claims and supply use",
+      "status": "Not run"
+    }
+  ],
+  "new_cases": [
+    {
+      "id": "V08-001",
+      "key": "slots_ten",
+      "setup_action": "Equip six learned skills plus four active accessories; attempt an eleventh via direct request.",
+      "expected": "Ten legal actions,extra source rejected without spend.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-002",
+      "key": "body_active",
+      "setup_action": "Equip Reflective Mail,leave it off bar,then allocate slot6.",
+      "expected": "No reflection before allocation; allocation consumes one of six; no seventh learned action.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-003",
+      "key": "body_mute",
+      "setup_action": "Silence actor with gear reflection on shared bar,then Mute actor.",
+      "expected": "Silence allows gear action; Mute blocks it; learned martial has reverse classification.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-004",
+      "key": "source_unbind",
+      "setup_action": "Quiet-unbind a source with a granted action; resend stale action request.",
+      "expected": "Dependent bar ref removed atomically; stale request rejects.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-005",
+      "key": "consumable_no_refill",
+      "setup_action": "Use bound Water Flask while another sits in bag.",
+      "expected": "One identity consumed,binding empty,no automatic bag refill.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-006",
+      "key": "passive_no_button",
+      "setup_action": "Equip four passive accessories then request backpack Smoke Flask activation.",
+      "expected": "Passive effects work; bag action rejects.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-007",
+      "key": "two_hands",
+      "setup_action": "Equip halberd then shield simultaneously.",
+      "expected": "Draft rejects; halberd counts one item,occupies both hand bindings.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-008",
+      "key": "inventory24",
+      "setup_action": "Fill24 carried identities including eleven equipped; pick up another.",
+      "expected": "Count/weight once; pickup rejects,does not create extra gear storage.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-009",
+      "key": "stat_caps",
+      "setup_action": "Request excessive positive stats across all11 bindings.",
+      "expected": "Deterministic head-first allocation,+2piece/+3attribute/+6total,excess preview matches server.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-010",
+      "key": "trait_one",
+      "setup_action": "Try combine two traits or respec at station midmatch.",
+      "expected": "Exactly one starting immutable trait,no new button,no second passive.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-011",
+      "key": "trait_break",
+      "setup_action": "Apply Break to each class trait and breakable item simultaneously.",
+      "expected": "Trait remains; tagged item proc/behavior suspended,stats and action access remain.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-012",
+      "key": "signature",
+      "setup_action": "Replace signature with a universal learned skill.",
+      "expected": "No lost trait,no forced signature slot,no exclusive ordinary book gate.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-013",
+      "key": "legacy_adapter",
+      "setup_action": "Load Laborer/Rogue/Scholar and an unknown actual legacy class.",
+      "expected": "Known trait/skill mapping preserved; unknown adapter blocks normal enablement until authored.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-014",
+      "key": "cooldown_swap",
+      "setup_action": "Use item then quiet swap/drop/trade/reacquire/death.",
+      "expected": "Maximum owner-family/instance endpoints retained,no immediate second cast.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-015",
+      "key": "quiet_cancel",
+      "setup_action": "Start loadout commit then move,take damage,use item or lose focus.",
+      "expected": "No partial gear/action edits; prior loadout remains.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-016",
+      "key": "river_walk",
+      "setup_action": "Right-click player and AI across authored river before freeze,during freeze,after melt.",
+      "expected": "Same graph/path remains usable,no collision/nav rebuild/no swimming.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-017",
+      "key": "wet_entry",
+      "setup_action": "Enter river and leave at exact boundary.",
+      "expected": "Immediate Wet;100ms refresh;3000ms residual,1500 with Waders;state expiry exact.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-018",
+      "key": "river_frozen_wet",
+      "setup_action": "Freeze river then walk across it.",
+      "expected": "Still gains Wet;30%slow or15%withTreads;never contact stun.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-019",
+      "key": "wet_frost",
+      "setup_action": "Hit Wet enemy with Frostline once.",
+      "expected": "600ms stun if unguarded;Wet consumed;victim readiness now+6000;one receipt.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-020",
+      "key": "dry_frost",
+      "setup_action": "Hit dry target with Frostline outside wet cells.",
+      "expected": "Damage without reaction stun;no imaginary Wet prerequisite granted.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-021",
+      "key": "frost_capsule",
+      "setup_action": "Create Frozen surface under Wet target and remain inside10ticks.",
+      "expected": "Slow only;zero direct-Frost attempts;no stun.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-022",
+      "key": "reaction_shared",
+      "setup_action": "Two casters and Frost Prism target same continuallyWet victim within6s.",
+      "expected": "At most first eligible reaction;lock shared across sources,not extended by rejected later attempts.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-023",
+      "key": "reaction_endpoint",
+      "setup_action": "First attempt1000;new hits6999 and7000 whileWet.",
+      "expected": "6999no reaction/extension;7000eligible.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-024",
+      "key": "reaction_guard",
+      "setup_action": "Preapply Control Guard then valid WetFrost hit during claim.",
+      "expected": "Guard consumed,damage applies,Wet consumed,6slock;no Stun and claim continues if alive.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-025",
+      "key": "reaction_block",
+      "setup_action": "Spell-block a unit-target Frost Prism packet.",
+      "expected": "No damage,Wet consumption,guard consumption or reactionlock;area Frostline bypasses spellblock.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-026",
+      "key": "reaction_death",
+      "setup_action": "Die/rejoin after reaction but before readiness.",
+      "expected": "Readiness persists;ordinary status clears;river can Wet new life but lock still applies.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-027",
+      "key": "category_immunity",
+      "setup_action": "Direct Frost Wet tower/boss/protected official.",
+      "expected": "Public target categories respected;no immune-category stun or service damage.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-028",
+      "key": "self_hazards",
+      "setup_action": "Caster stands in own fire/electrified/steam/ice.",
+      "expected": "Neutral field effects apply;direct attack self immunity does not extend to environment.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-029",
+      "key": "melt",
+      "setup_action": "Fire enters Frozen river cells.",
+      "expected": "Frozen clears;Wet+Steam3s;no Burning same transition,no navigation change.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-030",
+      "key": "steam_symmetry",
+      "setup_action": "Place smoke/steam across defender/caster/ward.",
+      "expected": "Same union boundary occlusion rules both sides;ward only own legitimate sight.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-031",
+      "key": "gust_clear",
+      "setup_action": "Gust a subset of cloud cells.",
+      "expected": "Only actual mask clears;authorization recalculates immediately,no wall reveal.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-032",
+      "key": "water_lightning",
+      "setup_action": "Lightning wet/river and dry cells with same footprint.",
+      "expected": "Only conductive nonFrozen cells electrify;no chain beyond mask,no stun.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-033",
+      "key": "chain_observation",
+      "setup_action": "Chain Lightning primary observed but next candidate hidden behind smoke.",
+      "expected": "Hidden candidate never chosen;up to3 distinct visible lives,wet+20 only when present.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-034",
+      "key": "oil_fire",
+      "setup_action": "OilFlask on dry ground then Fire.",
+      "expected": "Oil consumed,Burning6s;normal20DPS,no duplicate bonus ticks.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-035",
+      "key": "water_extinguish",
+      "setup_action": "Apply Water to Burning unit/field.",
+      "expected": "Burning clears,unitWet;already applied damage not rewound;Oil not restored.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-036",
+      "key": "nature_fire",
+      "setup_action": "Entangle soil then Fire.",
+      "expected": "Root from direct skill separate;growth clears toBurning;static trees/collision/sight unchanged.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-037",
+      "key": "shatter",
+      "setup_action": "Shatter Frozen cells under one body overlapping several cells.",
+      "expected": "One80base physical hit/life/cast;ice clears;no Wetstun/no path collapse.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-038",
+      "key": "surface_tick",
+      "setup_action": "Stand on overlapping samekind sources;enter just before tick.",
+      "expected": "Strongest samekind once per500ms;no full duration damage per callback.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-039",
+      "key": "burn_double",
+      "setup_action": "Apply unit Burning and Burning surface simultaneously.",
+      "expected": "Greater20DPS source,not32;ordinary mitigation/caps respected.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-040",
+      "key": "field_caps",
+      "setup_action": "Fill owner64/match256 including reservations,request newfield.",
+      "expected": "Precommit generic reject without cost;no other owner field deletion.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-041",
+      "key": "paid_projectile",
+      "setup_action": "Pay Firebolt field reservation then reflect/block/miss.",
+      "expected": "Impact uses reserved sponsor capacity;block/miss releases once;reflection does not overallocate.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-042",
+      "key": "transition_budget",
+      "setup_action": "Queue more than512candidate transitions on one100ms boundary.",
+      "expected": "New requests reject deterministically before pay;expiry/CC/Heart timing not delayed.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-043",
+      "key": "field_replacement",
+      "setup_action": "Replace another source state on same cell and expire it.",
+      "expected": "New attribution/revision and owner allocation correct;no leaked/double capacity.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-044",
+      "key": "field_death",
+      "setup_action": "Kill source with live cellfields and wards/conduit/gates.",
+      "expected": "Fields expire normally;owned emitters specified vanish;no cloned item/no old-life target retarget.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-045",
+      "key": "duration_caps",
+      "setup_action": "Stack Arcanist,Frost Gloves,Resonance and field lifetime.",
+      "expected": "One eligible bonus per family then state cap;no unitStun bonus.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-046",
+      "key": "proc_break",
+      "setup_action": "EmberWand/ConductiveSpear proc;Break;swap same family.",
+      "expected": "Deterministic procs,no recursion;Break suspends/no resets;cooldown endpoints persist.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-047",
+      "key": "mod_caps",
+      "setup_action": "Combine StormCrown/Insulation/MR and GuardianShield/armor.",
+      "expected": "Strongest conditional family;total perkind mitigation<=60%;no multiplicative immunity.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-048",
+      "key": "aura_consent",
+      "setup_action": "CommandBanner near stranger then grant/revoke aid.",
+      "expected": "Only self/consented get4armor,strongest only;no ordinary allegiance inference.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-049",
+      "key": "support_pulse",
+      "setup_action": "RallyGuard once with consenting and nonconsenting units.",
+      "expected": "One barrier pulse on eligible bodies;no learned enduring aura.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-050",
+      "key": "sabotage_scope",
+      "setup_action": "Sabotage ward,conduit,ground anchor,service,tower,Heart.",
+      "expected": "Only legal construct disabled;nonobjective emitter resumes after3s if alive;service/objective immune.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-051",
+      "key": "catalog_import",
+      "setup_action": "Import every52abilities/80items/20recipes/modifier and operation.",
+      "expected": "All IDs/fields resolve,real handlers/assets;no silent ignored field or log-only active.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-052",
+      "key": "acquisition_all",
+      "setup_action": "Resolve source of every item/book and complete example optional recipes.",
+      "expected": "Priced creation or actual named recipe/drop;null not free;all paths reachable without grants.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-053",
+      "key": "quality",
+      "setup_action": "Upgrade permitted weapon/armor/barrier then try proc-only accessory.",
+      "expected": "Onlyquality_fields scale;ineligible rejects/no charge;same identity/cooldowns.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-054",
+      "key": "rare_source",
+      "setup_action": "Reset caches/boss/towers;loot/read/recreate actor.",
+      "expected": "Three keys/catalysts,one assignedcapstoneeach,three relic receipts;no extra rare spawn.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-055",
+      "key": "gold_conservation",
+      "setup_action": "Buy/craft/quality/trade/death with expandedcatalog.",
+      "expected": "Ledgers reconcile;fees/prices/tax burns;no new rewardmint beyond540*N+682.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-056",
+      "key": "claim_damage",
+      "setup_action": "Claim inWet river while taking nonlethal Fire/Lightningfield ticks.",
+      "expected": "No cancellation fromdamage/Wet/slow alone.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-057",
+      "key": "claim_frost",
+      "setup_action": "At claimcompletion timestamp apply valid WetFrost reaction.",
+      "expected": "AppliedStun cancels beforecompletion;guarded/suppressedreaction does not.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-058",
+      "key": "claim_ice",
+      "setup_action": "IceCapsule/Rain/Steam a stationary claimant.",
+      "expected": "No direct interrupt;vision/access still independent;publicstatic sensor remains.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-059",
+      "key": "claim_force",
+      "setup_action": "Gust/Rescue/Anchor atclaim.",
+      "expected": "Any actual forcedmovement interrupts;zero movement alone doesnot;Anchor onlypushpull.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-060",
+      "key": "routes_normal",
+      "setup_action": "CompleteSiege,Charter,Keys,Artifact separately using normalearnings/items.",
+      "expected": "One10sclaim perroute,allinheritedaccess/endpoint/deadline rules;no grant proof.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-061",
+      "key": "privacy_payload",
+      "setup_action": "Inspect unauthorizedclients during hidden fields/procs/target hits.",
+      "expected": "No hiddenactor/build/owner coords;permitted staticobjective warningonly.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-062",
+      "key": "ground_oracle",
+      "setup_action": "Cast blind groundfield with hiddentarget nearby;inspect response.",
+      "expected": "Genericcapacity/placement feedback,no victimcount/hiddenstatus lookup.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-063",
+      "key": "ui_sources",
+      "setup_action": "Inspect self/enemy,remapkeys,consumeacc/unbindbody.",
+      "expected": "Sourcebadges/disabledreason accurate;enemyUnknown;no binding collision silently overwritten.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-064",
+      "key": "ai_river",
+      "setup_action": "AI contender crosses river and attempts observedWetcombo.",
+      "expected": "Samecost/slots/permissions;no hiddenstate cheat,no hazardhardnavigationblock.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-065",
+      "key": "npc_peace",
+      "setup_action": "Run ordinary resident production/trade while contenders fight.",
+      "expected": "Workcontinues,officialservice protected;no NPC-widecombat conversion.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-066",
+      "key": "performance",
+      "setup_action": "Run4clients,256dynamiccells,reservations/expiry for10minutes on recordedmachine.",
+      "expected": "Measure service p95<=2ms/p99<=5ms goal;logs show no unbounded growth/permission leak.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-067",
+      "key": "lower_level",
+      "setup_action": "Use affordablecounter/control to interrupt strongerclaimant after legalacquisition.",
+      "expected": "Tacticalimpact observed,no requirement towin exposedduel;report actualbuild/income.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    },
+    {
+      "id": "V08-068",
+      "key": "human_readability",
+      "setup_action": "Humanplayers distinguishWet/directFrost/Frozensurface/Steam andbind gearactions.",
+      "expected": "Record confusions and observedTTK/controlchain;missingparticipants=Notrun.",
+      "evidence": "native server assertion/receipt + independent client observation where applicable",
+      "status": "Not run: specification only"
+    }
+  ],
+  "status": "Specification model checks only; native cases Not run"
+}

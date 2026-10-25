@@ -1,0 +1,178 @@
+{
+  "schema_version": 8,
+  "cell_cm": 200,
+  "evaluation_ms": 100,
+  "tick_damage_ms": 500,
+  "max_cells_per_cast": 32,
+  "max_dynamic_cells_per_owner": 64,
+  "max_dynamic_cells_match": 256,
+  "max_dynamic_lifetime_ms": 10000,
+  "max_surface_transitions_per_batch": 512,
+  "max_unit_reactions_per_cast_life": 1,
+  "max_reaction_depth": 1,
+  "rivers_always_walkable": true,
+  "dynamic_navigation_updates_from_elements": false,
+  "cell_states": [
+    "wet",
+    "frozen",
+    "burning",
+    "electrified",
+    "obscured",
+    "overgrown"
+  ],
+  "overlays": [
+    "oil"
+  ],
+  "caps_ms": {
+    "wet": 10000,
+    "frozen": 10000,
+    "burning": 6000,
+    "electrified": 4000,
+    "obscured": 6000,
+    "overgrown": 8000,
+    "oil": 8000
+  },
+  "state_values": {
+    "frozen_slow_percent": 30,
+    "overgrown_slow_percent": 15,
+    "burning_surface_raw_dps": 20,
+    "burning_unit_raw_dps": 12,
+    "burning_unit_ms": 3000,
+    "electrified_raw_dps": 18,
+    "wet_residual_ms": 3000,
+    "wet_frost_stun_ms": 600,
+    "wet_frost_lock_ms": 6000
+  },
+  "ordering": [
+    "movement_and_expiry",
+    "contact_wet_refresh",
+    "direct_packets_by_server_sequence",
+    "surface_commands_by_server_sequence",
+    "one_reaction_per_cell",
+    "environment_contact_damage",
+    "combat_deaths",
+    "institutions",
+    "heart_completions"
+  ],
+  "reactions": [
+    {
+      "id": "water_frost",
+      "inputs": [
+        "water_or_wet",
+        "frost_input"
+      ],
+      "outputs": [
+        "frozen"
+      ],
+      "unit_rule": "Direct hostile Frost on Wet attempts600ms stun; surface contact slow30% only",
+      "bound": "Keep underlying water; no bridge/navmesh"
+    },
+    {
+      "id": "ice_fire",
+      "inputs": [
+        "frozen",
+        "fire_input"
+      ],
+      "outputs": [
+        "wet",
+        "obscured"
+      ],
+      "unit_rule": "No extra impact damage from melting",
+      "bound": "Remove Frozen; Steam3000ms; no Burning that batch"
+    },
+    {
+      "id": "water_fire",
+      "inputs": [
+        "water_or_wet",
+        "fire_input"
+      ],
+      "outputs": [
+        "obscured"
+      ],
+      "unit_rule": "Fire damage still resolves; clears unit Wet after hit",
+      "bound": "Steam3000ms; no Burning on water"
+    },
+    {
+      "id": "water_lightning",
+      "inputs": [
+        "water_or_wet",
+        "lightning_input"
+      ],
+      "outputs": [
+        "electrified"
+      ],
+      "unit_rule": "18 raw magical damage/s contact, no hard control",
+      "bound": "No spread beyond footprint or between rivers"
+    },
+    {
+      "id": "oil_fire",
+      "inputs": [
+        "oil",
+        "fire_input"
+      ],
+      "outputs": [
+        "burning"
+      ],
+      "unit_rule": "20 raw magical damage/s contact",
+      "bound": "Consume Oil; Burning6000ms"
+    },
+    {
+      "id": "plant_fire",
+      "inputs": [
+        "overgrown_or_flammable_socket",
+        "fire_input"
+      ],
+      "outputs": [
+        "burning"
+      ],
+      "unit_rule": "No separate initial bonus damage",
+      "bound": "Clear temporary growth; Burning3000ms; static trees unchanged"
+    },
+    {
+      "id": "water_extinguish",
+      "inputs": [
+        "burning",
+        "water_input"
+      ],
+      "outputs": [
+        "wet"
+      ],
+      "unit_rule": "Clears unit Burning on Water hit/contact",
+      "bound": "Oil consumed by burning is never restored"
+    },
+    {
+      "id": "wind_obscured",
+      "inputs": [
+        "obscured",
+        "wind_clear"
+      ],
+      "outputs": [],
+      "unit_rule": "No reveal debuff; vision recalculates",
+      "bound": "Clears only selected cells; no gas relocation"
+    },
+    {
+      "id": "ice_impact",
+      "inputs": [
+        "frozen",
+        "shatter_input"
+      ],
+      "outputs": [
+        "wet"
+      ],
+      "unit_rule": "Shatter Burst80 raw physical once/unit/cast",
+      "bound": "No navigation collapse; no stun"
+    },
+    {
+      "id": "growth_soil",
+      "inputs": [
+        "soil",
+        "nature_input"
+      ],
+      "outputs": [
+        "overgrown"
+      ],
+      "unit_rule": "15% surface slow, direct Entangle root separate",
+      "bound": "No new terrain cover/LoS/collision in v08"
+    }
+  ]
+}

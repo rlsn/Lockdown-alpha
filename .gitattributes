@@ -29,3 +29,8 @@
 /docs/v07/evidence/B75/*.log -whitespace
 
 /docs/v07/evidence/B76/*.log -whitespace
+
+# B80 adoption/import manifests hash physical bytes, including source archives.
+/docs/v08/** -text whitespace=cr-at-eol
+/Content/Lockdown/Data/V08/*.json -text
+/Scripts/*V08*.py text eol=lf

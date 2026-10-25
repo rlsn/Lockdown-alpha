@@ -1,13 +1,22 @@
 # Project Lockdown documentation
 
-Current checkpoint: **B77 v0.7 closeout; v0.8 Stage0 next**.
-[v0.7 closeout](v07/B77_CLOSEOUT.md) freezes the B76 runtime (`ddf7be5`) and
-records user-authorized deferrals. Human review and lengthy technical acceptance
-remain deferred. [Continuation](CONTINUATION.md) is the active transition handoff.
-The supplied untracked `v08/` package is unchanged; its missing provenance
-manifest is an explicit adoption prerequisite, not a passed checker result.
+Current checkpoint: **v0.8 B80 audit/import complete; B81 slots/traits next**.
+The [B80 review](v08/B80_BASELINE_REVIEW.md) adopts the supplied package,
+reconstructs its missing provenance manifest with measured hashes, and stages a
+disabled schema8 contract. Native runtime remains B76, closed at B77. Human and
+long technical acceptance remain deferred; v0.8 native cases remain Not run.
+[Continuation](CONTINUATION.md) is the active implementation handoff.
 
-| Current reference | Purpose |
+| v0.8 reference | Purpose |
+| --- | --- |
+| [B80 review](v08/B80_BASELINE_REVIEW.md) | Actual baseline, architecture, completed audit/import, evidence and B81 boundaries |
+| [v0.8 specification](v08/README.md) / [B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md) | Active normative scope and stable build IDs |
+| [Provenance](v08/SOURCE_MANIFEST.json) | Original/adopted hashes, archive inputs and explicit reconstruction origin |
+| [Adapters](v08/B80_ADAPTERS.json) | Stable IDs, legacy classes/items, disabled import and proposed wire migration |
+| [Working ledger](v08/FeatureLedger.csv) | 363 rows; 68 new/55 inherited acceptance, catalogs and contract dependencies |
+| [B80 audit](v08/evidence/B80/Audit.json) | Preserved baseline hashes, checks, E01–E48 and named deferrals |
+
+| Retained v0.7 reference | Purpose |
 | --- | --- |
 | [Continuation](CONTINUATION.md) | Actual baseline, v0.8 adoption/migration boundaries and minimal commands |
 | [B77 closeout](v07/B77_CLOSEOUT.md) | Frozen v0.7 delivery, retained evidence and minimal verification |
