@@ -118,9 +118,9 @@ void ALDB82Probe::ClientTick()
     }
     if(Sent&&((Phase==1&&Role==TEXT("A"))||Phase==2)&&Now-HoldAt>.1){HoldAt=Now;PC->ServerDevelopmentHold(O.Match,O.Life,Token,++Sequence,false);}
     if(!Checked&&E>2)
-    {Checked=true;Check(O.Build.RulesVersion==8&&O.Build.Ranks.Num()==41&&O.Build.Actions.Num()==6,TEXT("Independent owner receives extended sparse identities and six actions"));
+    {Checked=true;Check(O.Build.RulesVersion==8&&O.Build.Ranks.Num()==54&&O.Build.Actions.Num()==6,TEXT("Independent owner receives extended sparse identities and six actions"));
         if(Phase==1&&Role==TEXT("A")){UE_LOG(LogTemp,Display,TEXT("LD_B82_READ feedback=%s"),*PC->IntentFeedback);}
-        if(const auto* V=PC->LocalView()){bool Safe=true;int32 Cells=0;for(const auto& Ent:V->LastView().Entities){if(Ent.Kind==ELDObservedKind::TacticalField&&Ent.Presentation>=16){++Cells;Safe&=Ent.Presentation<=17&&Ent.ActionCue==0;}}Check(Safe,TEXT("Authorized environment cues carry appearance/pose only; no owner/grid metadata"));if(Phase==4||Phase==8||Phase==9){Check(Cells>0,TEXT("Independent client receives authorized Wet/Frozen cell cues"));}}
+        if(const auto* V=PC->LocalView()){bool Safe=true;int32 Cells=0;for(const auto& Ent:V->LastView().Entities){if(Ent.Kind==ELDObservedKind::TacticalField&&Ent.Presentation>=16){++Cells;Safe&=Ent.Presentation<=22&&Ent.ActionCue<128;}}Check(Safe,TEXT("Authorized environment cues carry appearance/pose only; no owner/grid metadata"));if(Phase==4||Phase==8||Phase==9){Check(Cells>0,TEXT("Independent client receives authorized Wet/Frozen cell cues"));}}
     }
     if(Phase==11&&E>1.5){Finish();}
 }

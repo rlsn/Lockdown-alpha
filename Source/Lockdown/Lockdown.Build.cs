@@ -7,8 +7,8 @@ public class Lockdown : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "NavigationSystem", "AIModule", "NetCore" });
         PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json", "RHI" });
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/combat_b82.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/equipment_b82.json", StagedFileType.UFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/combat_b83.json", StagedFileType.UFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/equipment_b83.json", StagedFileType.UFS);
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/economy_rules.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/combat.json", StagedFileType.UFS);

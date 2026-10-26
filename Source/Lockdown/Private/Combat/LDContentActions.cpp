@@ -29,7 +29,7 @@ namespace
     bool Major(const FString& Family){return Family==TEXT("major_protection");}
 }
 bool ALDCombatDirector::IsContentSkill(ELDSkill K) const
-{switch(K){case ELDSkill::Frostline:case ELDSkill::WaterJet:case ELDSkill::BraceWall:case ELDSkill::Hamstring:case ELDSkill::LedgerMark:case ELDSkill::FalseTrail:case ELDSkill::EmberLine:case ELDSkill::Grapple:case ELDSkill::NullSeal:case ELDSkill::GuardSwap:case ELDSkill::Slipstream:case ELDSkill::ArcanePrison:case ELDSkill::TemporalLock:case ELDSkill::SovereignWard:case ELDSkill::GrandExchange:case ELDSkill::GateWeave:return true;default:return false;}}
+{if(K==ELDSkill::SmokeVeil){return GetWorld()->GetAuthGameMode<ALDGameMode>()->IsV08Profile();}switch(K){case ELDSkill::Firebolt:case ELDSkill::Gust:case ELDSkill::Entangle:case ELDSkill::ChainLightning:case ELDSkill::ShatterBurst:case ELDSkill::ConductiveField:case ELDSkill::Frostline:case ELDSkill::WaterJet:case ELDSkill::BraceWall:case ELDSkill::Hamstring:case ELDSkill::LedgerMark:case ELDSkill::FalseTrail:case ELDSkill::EmberLine:case ELDSkill::Grapple:case ELDSkill::NullSeal:case ELDSkill::GuardSwap:case ELDSkill::Slipstream:case ELDSkill::ArcanePrison:case ELDSkill::TemporalLock:case ELDSkill::SovereignWard:case ELDSkill::GrandExchange:case ELDSkill::GateWeave:return true;default:return false;}}
 void ALDCombatDirector::QueueContent(ALDPlayerController* PC,const FLDTacticalRequest& R)
 {
     FlushPastCommand();int32 Count=0;for(const auto& I:Intents){Count+=I.Controller==PC;}if(Count>=3){PC->CompleteCombatRequest(R.Token,TEXT("Too many queued actions"));return;}FIntent I;I.Controller=PC;I.Match=R.Match;I.Life=R.Life;I.Request=R.Token;I.Action=3+R.Slot;I.Direction=R.Direction;I.BuildRevision=R.BuildRevision;I.Content=R;I.IsContent=true;Intents.Add(I);}
@@ -76,7 +76,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         if(Major(ID->Family)&&At<FMath::Max(S->Tactical.MajorReadyAt,O->MajorProtectionReadyAt)){return Reject(TEXT("Major protection locked"));}
         const auto& Op=ID->Operation;const int32 Range=ID->Param(TEXT("range_cm"));
         if(Op==TEXT("element_item_hit")||Op==TEXT("targeted_mute")||Op==TEXT("basic_dispel")){if(First&&((!Cast<ALDCharacter>(First)&&!IsDecoy)||!Observe(First,Range))){return Reject(TEXT("Observable target required"));}if((Op==TEXT("targeted_mute")||Op==TEXT("element_item_hit"))&&!First){return Reject(TEXT("Observable hostile target required"));}}
-        else if(Op==TEXT("element_item_field")||Op==TEXT("smoke")||Op==TEXT("spawn_ward")||Op==TEXT("spawn_trap")||Op==TEXT("terrain_grapple")||Op==TEXT("grapple"))
+        else if(Op==TEXT("surface_clear")||Op==TEXT("element_item_field")||Op==TEXT("smoke")||Op==TEXT("spawn_ward")||Op==TEXT("spawn_trap")||Op==TEXT("terrain_grapple")||Op==TEXT("grapple"))
         {if(Op==TEXT("grapple")&&First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(First)&&Cast<ALDWorldPawn>(First)->Immune())||!Observe(First,Range)){return Reject(TEXT("Invalid grapple target"));}}else if(!Ground(R.Point,Range)){return Reject(TEXT("Item ground placement unavailable"));}}
         if(Op==TEXT("blink")){FVector End;if(At<O->DirectDamageUntil||!Allows(Body,LDTactical::EAction::Dash)||!Ground(R.Point,ID->Param(TEXT("distance_cm")))||!MobilityEndpoint(Body,R.Point,End)){return Reject(TEXT("Blink unavailable"));}}
         if((Op==TEXT("grapple")||Op==TEXT("terrain_grapple"))&&!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Grapple movement blocked"));}

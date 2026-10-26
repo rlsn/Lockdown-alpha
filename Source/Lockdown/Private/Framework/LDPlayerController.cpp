@@ -31,6 +31,7 @@
 #include "Tests/LDLoadoutProbe.h"
 #include "Tests/LDB81Probe.h"
 #include "Tests/LDB82Probe.h"
+#include "Tests/LDB83Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDContentNetworkProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -54,7 +55,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -109,6 +110,7 @@ void ALDPlayerController::InitializeLocalUI()
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDContentNetworkProbe>(ALDContentNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>(ALDAcquisitionNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB83Probe>(ALDB83Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB82Probe>(ALDB82Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB81Probe>(ALDB81Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}

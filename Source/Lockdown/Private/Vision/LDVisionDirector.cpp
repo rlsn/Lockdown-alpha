@@ -57,11 +57,13 @@ uint8 ALDVisionDirector::LevelAt(const FVector& P) const
 }
 FLDVisionGrid ALDVisionDirector::Grid() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Grid:FLDVisionGrid();}
 FVector ALDVisionDirector::PublicLocation() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Tower:PublicPosition();}
-bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target) const
+void ALDVisionDirector::RefreshEnvironment(){Sample(true);}
+bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target,bool SurfaceCue) const
 {
     if (!LDVision::InWorld(Target,Grid()) || FVector::DistSquared2D(Source.Position,Target) > FMath::Square(Source.Radius)) { return false; }
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(Mode->IsTacticalProfile())
+    if(Mode->IsV08Profile()){if(Mode->Combat&&Mode->Combat->EnvironmentOccludes(Source.Position,Target,SurfaceCue)){return false;}}
+    else if(Mode->IsTacticalProfile())
     {
         TArray<LDTactical::FSmokeCircle> Smoke;const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());
         for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Kind==ELDTacticalField::Smoke&&It->Active(At)){Smoke.Add({It->GetActorLocation(),It->Radius});}}
@@ -122,6 +124,7 @@ bool ALDVisionDirector::CanObserve(ALDPlayerController* PC,AActor* Actor) const
     if(!IsValid(Actor)){return false;}
     if(const auto* F=Cast<ALDTacticalField>(Actor);F&&F->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))
     {if(F->Kind==ELDTacticalField::Trail){return PC&&F->Audience.Get()==PC->GetPawn();}if(F->Kind==ELDTacticalField::Footstep){const APawn* B=PC?PC->GetPawn():nullptr;return B&&B!=F->Source.Get()&&Ray({B->GetActorLocation(),float(F->Radius),LevelAt(B->GetActorLocation())},F->GetActorLocation());}}
+    if(const auto* F=Cast<ALDTacticalField>(Actor);F&&F->EnvironmentPool&&(F->Conditions&16)){if(!F->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()))){return false;}return SourcesFor(PC).ContainsByPredicate([&](const auto& S){return Ray(S,F->GetActorLocation(),true);});}
     if(!CanSee(PC,Actor->GetActorLocation())){return false;}
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M->IsTacticalProfile()){return true;}
     if(const auto* B=Cast<ALDCharacter>(Actor);B&&M->Combat->Concealed(B)&&B!=PC->GetPawn()&&!Detects(PC,B->GetActorLocation())){return false;}
@@ -263,7 +266,7 @@ void ALDVisionDirector::Sample(bool bPublish)
         for (AActor* Actor : Entities)
         {
             const FVector Position=Actor->GetActorLocation();
-            const auto* Cue=Cast<ALDTacticalField>(Actor);const bool AuthorizedCue=Cue&&(Cue->Kind==ELDTacticalField::Trail||Cue->Kind==ELDTacticalField::Footstep);
+            const auto* Cue=Cast<ALDTacticalField>(Actor);const bool AuthorizedCue=Cue&&(Cue->Kind==ELDTacticalField::Trail||Cue->Kind==ELDTacticalField::Footstep||(Cue->EnvironmentPool&&(Cue->Conditions&16)));
             if (Actor==PC->GetPawn() || !CanObserve(PC,Actor) || (!AuthorizedCue&&(!LDVision::Bit(View.Current,LDVision::Cell(Position,G))
                 || !Sources.ContainsByPredicate([&](const FLDSightSource& S){return Ray(S,Position);})))) { continue; }
             if (View.Entities.Num()>=LDVision::MaxEntities) { UE_LOG(LogTemp,Error,TEXT("LD view capacity exceeded")); break; }
@@ -280,7 +283,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             }
             else if(const auto* WorldSite=Cast<ALDWorldSite>(Actor)){Record.Kind=ELDObservedKind::WorldSite;Record.Presentation=WorldSite->Kind;}
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
-            else if(const auto* F=Cast<ALDTacticalField>(Actor)){Record.Kind=F->Kind==ELDTacticalField::Decoy?ELDObservedKind::Body:ELDObservedKind::TacticalField;Record.Presentation=F->Kind==ELDTacticalField::Decoy&&F->Source.IsValid()?F->Source->PresentationKey%4:uint8(F->Kind);Record.ActionCue=F->Kind==ELDTacticalField::Telegraph?uint8(F->Radius/20):F->Kind==ELDTacticalField::Decoy&&Detects(PC,Position)?11:0;if(F->Kind==ELDTacticalField::Decoy){Record.Speed=F->PathIndex<F->TravelPath.Num()?420:0;Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}if(F->Kind==ELDTacticalField::Ember){Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}}
+            else if(const auto* F=Cast<ALDTacticalField>(Actor)){Record.Kind=F->Kind==ELDTacticalField::Decoy?ELDObservedKind::Body:ELDObservedKind::TacticalField;Record.Presentation=F->Kind==ELDTacticalField::Decoy&&F->Source.IsValid()?F->Source->PresentationKey%4:uint8(F->Kind);Record.ActionCue=F->EnvironmentPool?F->Conditions:F->Kind==ELDTacticalField::Telegraph?uint8(F->Radius/20):F->Kind==ELDTacticalField::Decoy&&Detects(PC,Position)?11:0;if(F->Kind==ELDTacticalField::Decoy){Record.Speed=F->PathIndex<F->TravelPath.Num()?420:0;Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}if(F->Kind==ELDTacticalField::Ember){Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}}
             else if(Actor->IsA<ALDArcProjectile>()){Record.Kind=ELDObservedKind::Projectile;Record.Presentation=0;Record.ActionCue=6;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}

@@ -1,21 +1,21 @@
-# Project Lockdown — v0.8 B82 river core
+# Project Lockdown — v0.8 B83 environmental fields
 
-Windows-first Unreal 5.8.4 project. B82 adds a separate native river region,
-Wet contact, Frozen slow and the direct-Frost reaction to the v0.8 profile.
-Six mixed-source actions, eleven physical bindings, class traits and atomic
-preparation remain in place. The full environmental service is B83.
+Windows-first Unreal 5.8.4 project. B83 extends the separate v0.8 region with
+bounded environmental states, all ten reactions, paid projectile reservations,
+contact damage and symmetric smoke/steam sight boundaries. Six mixed-source
+actions, eleven physical bindings, traits and atomic preparation remain in place.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B82 implementation and limits](docs/v08/B82_IMPLEMENTATION.md),
+[B83 implementation and limits](docs/v08/B83_IMPLEMENTATION.md),
 [v0.8 B80–B86 build plan](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
 and [working ledger](docs/v08/FeatureLedger.csv). The enabled slice has
-29 abilities/59 items/all nine presets. Ember Line awaits its v08 Burning
-surface; unsupported elemental content remains hidden.
+35 abilities/61 items/all nine presets. Full catalog completion is B84;
+unsupported definitions, including Ember Line, remain hidden.
 
 ```powershell
 ./Scripts/OpenStandalone.ps1 -Profile v08_integration
-python -B Scripts/SyncB82Data.py --check
-./Scripts/RunB82Check.ps1 -RoundTripMs 100 -JitterMs 10
+python -B Scripts/SyncB83Data.py --check
+./Scripts/RunB83Check.ps1 -RoundTripMs 100 -JitterMs 10
 ```
 
 See the implementation report for current native validation and evidence.
@@ -24,7 +24,7 @@ remain pending. The separate `v07_integration` profile retains the
 [B76 runtime](docs/v07/B76_IMPLEMENTATION.md), including all four Heart routes.
 [B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves scoped acceptance and named
 deferrals. The default frontend / `v06_regression` remain on V05.
-[B81](docs/v08/B81_IMPLEMENTATION.md) and
+[B82](docs/v08/B82_IMPLEMENTATION.md), [B81](docs/v08/B81_IMPLEMENTATION.md) and
 [B80](docs/v08/B80_BASELINE_REVIEW.md) preserve earlier checkpoints;
 [masterR7](docs/master/README.md) remains long-term context.
 

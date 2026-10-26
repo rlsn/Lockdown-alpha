@@ -46,7 +46,7 @@ bool ALDCombatDirector::AtomicSwap(AActor* A,AActor* B,ALDCharacter* Caster,int6
 ALDTacticalField* ALDCombatDirector::CreateField(ALDCharacter* Body,ELDTacticalField Kind,FVector Point,int64 At,int64 Duration,double Hp,double Radius,bool Item)
 {
     int32 Count=0,Total=0;ALDTacticalField* Oldest=nullptr;
-    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Kind!=ELDTacticalField::WetSurface&&It->Kind!=ELDTacticalField::FrozenSurface&&It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
+    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(uint8(It->Kind)<16&&It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
     if(Total>=80){return nullptr;}auto* F=GetWorld()->SpawnActor<ALDTacticalField>(Point,FRotator::ZeroRotator);if(!F){return nullptr;}
     F->Source=Body;F->SourceLife=StateFor(Body)->Identity;F->PlayerSource=Cast<ALDPlayerController>(Body->GetController());F->bPlayerSource=F->PlayerSource.IsValid();F->Kind=Kind;F->ExpiresAt=At+Duration;F->Hp=Hp;F->Radius=Radius;F->ArmedAt=At;F->ItemSource=Item;
     const int32 Limit=Kind==ELDTacticalField::Ward||Kind==ELDTacticalField::Trap?2:1;
@@ -66,5 +66,5 @@ bool ALDCombatDirector::ProjectileIntercept(ALDArcProjectile* P,FVector From,FVe
     for(auto* D:Domes){const FVector C=D->GetActorLocation();if(FVector::DistSquared2D(From,C)>FMath::Square(D->Radius)&&FMath::PointDistToSegment(C,From,To)<=D->Radius){P->Destroy();return true;}}
     auto* Victim=P->Victim.Get();auto* V=StateFor(Victim);
     if(!P->Basic&&!P->Reflected&&V&&V->Tactical.ReflectUntil>At&&FMath::PointDistToSegment(Victim->GetActorLocation(),From,To)<=40)
-    {V->Tactical.ReflectUntil=0;auto* Original=P->Source.Get();const auto* S=StateFor(Original);if(!S||S->Identity!=P->CasterIdentity){P->Destroy();return true;}P->Reflected=true;P->Source=Victim;P->CasterIdentity=V->Identity;P->Victim=Original;P->VictimLife=S->Identity;P->Endpoint=Original->GetActorLocation();P->SetActorLocation(Victim->GetActorLocation());return true;}return false;
+    {V->Tactical.ReflectUntil=0;auto* Original=P->Source.Get();const auto* S=StateFor(Original);if(!S||S->Identity!=P->CasterIdentity){P->Destroy();return true;}if(auto* Lease=EnvironmentLeases.Find(P->EnvironmentLease)){auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Cast<ALDPlayerController>(Victim->GetController());Lease->Command.State.Owner=PC?M->ContenderId(PC):V->Identity;Lease->Command.State.Life=V->Identity;}P->Reflected=true;P->Source=Victim;P->CasterIdentity=V->Identity;P->Victim=Original;P->ActorVictim=Original;P->VictimLife=S->Identity;P->Endpoint=Original->GetActorLocation();P->SetActorLocation(Victim->GetActorLocation());return true;}return false;
 }

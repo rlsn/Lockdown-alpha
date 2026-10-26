@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.8 B82 river core; B83 full fields next**.
-[B82 implementation](v08/B82_IMPLEMENTATION.md) records the enabled development
+Current checkpoint: **v0.8 B83 environmental fields; B84 catalog/acquisition next**.
+[B83 implementation](v08/B83_IMPLEMENTATION.md) records the enabled development
 slice, current native validation and remaining limits.
 [Continuation](CONTINUATION.md) is the active handoff. Original specification
 inputs, prior payloads/evidence and v07 history remain frozen. Full release,
@@ -9,7 +9,8 @@ human and long technical acceptance remain pending/deferred as named.
 
 | v0.8 reference | Purpose |
 | --- | --- |
-| [B82 implementation](v08/B82_IMPLEMENTATION.md) | Native river, Wet/Frozen/direct-Frost slice and exact evidence scope |
+| [B83 implementation](v08/B83_IMPLEMENTATION.md) | Six conditions/Oil, reservations, damage and occlusion; exact evidence scope |
+| [B82 implementation](v08/B82_IMPLEMENTATION.md) | Historical river, Wet/Frozen/direct-Frost checkpoint |
 | [B81 implementation](v08/B81_IMPLEMENTATION.md) | Historical slots/traits checkpoint and focused evidence |
 | [B80 review](v08/B80_BASELINE_REVIEW.md) | Actual baseline, architecture, audit/import and adoption |
 | [v0.8 specification](v08/README.md) / [B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md) | Normative scope and stable build IDs |

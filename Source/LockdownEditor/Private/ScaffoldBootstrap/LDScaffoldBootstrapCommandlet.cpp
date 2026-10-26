@@ -137,7 +137,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
 
     const TArray<TPair<FString,FLinearColor>> Materials = {
         {TEXT("M_Character"),FLinearColor(.2f,.35f,.32f)}, {TEXT("M_Ground"),FLinearColor(.13f,.17f,.15f)},
-        {TEXT("M_River"),FLinearColor(.035f,.22f,.48f)}, {TEXT("M_Stone"),FLinearColor(.4f,.38f,.3f)}, {TEXT("M_Tree"),FLinearColor(.12f,.22f,.15f)}
+        {TEXT("M_Soil"),FLinearColor(.28f,.2f,.08f)}, {TEXT("M_Fuel"),FLinearColor(.5f,.26f,.04f)}, {TEXT("M_Metal"),FLinearColor(.35f,.4f,.45f)}, {TEXT("M_River"),FLinearColor(.035f,.22f,.48f)}, {TEXT("M_Stone"),FLinearColor(.4f,.38f,.3f)}, {TEXT("M_Tree"),FLinearColor(.12f,.22f,.15f)}
     };
     for (const auto& Entry : Materials)
     {

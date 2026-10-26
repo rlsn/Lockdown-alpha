@@ -11,9 +11,12 @@ bool FLDViewPayloadTest::RunTest(const FString& Parameters)
     View.Current.Init(0,LDVision::MaskBytes); View.Explored.Init(255,LDVision::MaskBytes);
     LDVision::Set(View.Current,2399);
     FLDObservedEntity Entity; Entity.Id=FGuid::NewGuid(); Entity.Position=FVector(-1500,-1000,92.1);Entity.Kind=ELDObservedKind::Seal;
+    View.Entities.Init(Entity,128);FNetBitWriter LegacyWriter(nullptr,65536);bool LegacyOk=true;View.NetSerialize(LegacyWriter,nullptr,LegacyOk);
+    TestTrue(TEXT("Retained128-record view remains below8KiB"),LegacyOk&&!LegacyWriter.IsError()&&LegacyWriter.GetNumBytes()<8192);
     View.Entities.Init(Entity,LDVision::MaxEntities);
     FNetBitWriter Writer(nullptr,65536); bool bOk=true; View.NetSerialize(Writer,nullptr,bOk);
-    TestTrue(TEXT("128-record bounded maximum view fits 8 KiB after carried-capacity expansion"),bOk && !Writer.IsError() && Writer.GetNumBytes()<8192);
+    TestTrue(TEXT("512-record bounded maximum view fits32KiB"),bOk && !Writer.IsError() && Writer.GetNumBytes()<32768);
+    AddInfo(FString::Printf(TEXT("Maximum authorized512-tuple payload: %lld bytes"),int64(Writer.GetNumBytes())));
     FNetBitReader Reader(nullptr,Writer.GetData(),Writer.GetNumBits()); FLDWorldView Read; Read.NetSerialize(Reader,nullptr,bOk);
     TestTrue(TEXT("Wire round trip succeeds"),bOk && !Reader.IsError());
     TestEqual(TEXT("Complete entity count"),Read.Entities.Num(),LDVision::MaxEntities);

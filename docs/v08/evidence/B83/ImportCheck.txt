@@ -1,0 +1,1 @@
+PASS B83: 35 abilities, 61 items, six states/Oil and ten reactions; remaining catalog disabled

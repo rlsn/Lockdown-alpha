@@ -112,6 +112,8 @@ struct FLDOwnerState
     UPROPERTY() FLDItemFamilies ItemFamilies;
     UPROPERTY() int32 SlowPercent=0;
     UPROPERTY() int64 WetFrostReadyAt=0;
+    UPROPERTY() TArray<FIntPoint> LastSurfaceMask;
+    UPROPERTY() int64 LastSurfaceAt=0;
     UPROPERTY() int64 DirectDamageUntil=0;
     UPROPERTY() int64 GateReadyAt=0;
     UPROPERTY() int64 KeysReadyAt=0;
@@ -168,7 +170,7 @@ namespace LDVision
     constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
     // Four full 24-slot death drops, bodies, wards and short-lived corpse identities.
     // Still bounded by the existing uint8 count; the observed field mask is unchanged.
-    constexpr int32 MaxEntities = 128;
+    constexpr int32 MaxEntities = 512;
     inline bool InWorld(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return G.Valid()&&!P.ContainsNaN()&&P.X>=G.Min.X&&P.X<G.Min.X+Columns*G.CellSize&&P.Y>=G.Min.Y&&P.Y<G.Min.Y+Rows*G.CellSize; }
     inline int32 Cell(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return InWorld(P,G)?int32((P.Y-G.Min.Y)/G.CellSize)*Columns+int32((P.X-G.Min.X)/G.CellSize):INDEX_NONE; }
     inline FVector Centre(int32 Index,const FLDVisionGrid& G=FLDVisionGrid()) { return FVector(G.Min.X+((Index%Columns)+.5)*G.CellSize,G.Min.Y+((Index/Columns)+.5)*G.CellSize,0); }

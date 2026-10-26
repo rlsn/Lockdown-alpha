@@ -1,5 +1,7 @@
 #include "UI/LDHUD.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Combat/LDRiverRules.h"
+#include "Combat/LDEnvironmentRules.h"
 #include "Core/LDGroundQueries.h"
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDV08Loadout.h"
@@ -193,14 +195,12 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
         const double Range=PC->ArmedRange();TArray<FVector2D> Ring;const FVector Body=PC->GetPawn()->GetActorLocation();for(int32 I=0;I<=48;++I){const double Angle=I*2*PI/48;FVector2D P;if(Project(Body+FVector(FMath::Cos(Angle)*Range,FMath::Sin(Angle)*Range,-70),P)){Ring.Add(P);}}if(Ring.Num()>2){Lines(Ring,FLinearColor(.3f,1,.8f,.8f),1.5f);}
         if(PC->OwnerState.Build.RulesVersion==8)
         {
-            bool RiverAction=false,Frozen=false,Disk=false;double Length=0,Width=0;
-            if(PC->ArmedSlot()>=0){const auto K=PC->OwnerState.Build.Slots[PC->ArmedSlot()];RiverAction=K==ELDSkill::Frostline||K==ELDSkill::WaterJet;Frozen=K==ELDSkill::Frostline;Length=Frozen?650:600;Width=Frozen?90:80;}
-            if(const auto* Item=PC->OwnerState.Inventory.Find(PC->ArmedItem());Item&&(Item->Kind==ELDItemKind::WaterFlask||Item->Kind==ELDItemKind::FrostCapsule)){RiverAction=Disk=true;Frozen=Item->Kind==ELDItemKind::FrostCapsule;Width=180;}
-            FHitResult Hit;if(RiverAction&&PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
-            {for(const auto Cell:LDRiver::Footprint(Body,Hit.ImpactPoint,Length,Width,Disk))
-                {FVector Centre=LDRiver::Centre(Cell),Floor;bool Substrate=LDRiver::InRiver(Centre);if(const auto* View=PC->LocalView();View&&!View->IsStale()){for(const auto& V:View->LastView().Entities){if(V.Kind==ELDObservedKind::TacticalField&&V.Presentation>=16&&LDRiver::Cell(V.Position)==Cell){Substrate=true;}}}
-                    if((Frozen&&!Substrate)||!LDGround::MapSurface(GetWorld(),Centre,Floor)||!LDGround::ClearSegment(GetWorld(),Disk?Hit.ImpactPoint+FVector(0,0,30):Body,Floor+FVector(0,0,30))){continue;}
-                    TArray<FVector2D> Box;for(const FVector Corner:{FVector(-100,-100,5),FVector(100,-100,5),FVector(100,100,5),FVector(-100,100,5),FVector(-100,-100,5)}){FVector2D P;if(Project(Floor+Corner,P)){Box.Add(P);}}if(Box.Num()==5){Lines(Box,Frozen?FLinearColor(.65f,.9f,1):FLinearColor(.05f,.5f,1));}}}
+            bool Field=false,Frozen=false,Disk=false,Cone=false;double Length=0,Width=0;int32 Limit=16;
+            if(PC->ArmedSlot()>=0){const auto K=PC->OwnerState.Build.Slots[PC->ArmedSlot()];const auto* D=ULDTacticalCatalog::Load(8)->Find(K);if(D){Field=K==ELDSkill::Frostline||K==ELDSkill::WaterJet||K==ELDSkill::Gust||K==ELDSkill::Entangle||K==ELDSkill::ConductiveField||K==ELDSkill::ShatterBurst||K==ELDSkill::SmokeVeil;Frozen=K==ELDSkill::Frostline;Cone=K==ELDSkill::Gust;Disk=D->Target==ELDTacticalTarget::Ground;Length=D->Range;Width=Cone?60:D->Area;if(K==ELDSkill::SmokeVeil){Width=LDGear::Magnitude(PC->OwnerState.Build,K,D->RankKey,D->Magnitudes);Limit=32;}}}
+            if(const auto* I=PC->OwnerState.Inventory.Find(PC->ArmedItem())){if(const auto* D=ULDEquipmentCatalog::Load(8)->Find(I->Kind);D&&(D->Operation==TEXT("element_item_field")||D->Operation==TEXT("surface_clear")||D->Operation==TEXT("smoke"))){Field=Disk=true;Width=D->Param(TEXT("radius_cm"));Limit=D->Operation==TEXT("smoke")?32:16;}}
+            FHitResult Hit;if(Field&&PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
+            {for(const auto Cell:LDEnvironment::Mask(Body,Hit.ImpactPoint,Length,Width,Disk,Limit,Cone))
+                {FVector Floor;if(!LDGround::MapSurface(GetWorld(),LDRiver::Centre(Cell),Floor)||!LDGround::ClearSegment(GetWorld(),Disk?Hit.ImpactPoint+FVector(0,0,30):Body,Floor+FVector(0,0,30))){continue;}TArray<FVector2D> Box;for(const FVector Corner:{FVector(-100,-100,5),FVector(100,-100,5),FVector(100,100,5),FVector(-100,100,5),FVector(-100,-100,5)}){FVector2D P;if(Project(Floor+Corner,P)){Box.Add(P);}}if(Box.Num()==5){Lines(Box,Frozen?FLinearColor(.65f,.9f,1):FLinearColor(.05f,.5f,1));}}}
         }
         float X=0,Y=0;if(PC->GetMousePosition(X,Y)&&!PointerOverUI()){int32 W=0,H=0;PC->GetViewportSize(W,H);const FVector2D P=FVector2D(X,Y)*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));Lines({P-FVector2D(9,0),P+FVector2D(9,0)},FLinearColor(1,.85f,.35f));Lines({P-FVector2D(0,9),P+FVector2D(0,9)},FLinearColor(1,.85f,.35f));}
     }

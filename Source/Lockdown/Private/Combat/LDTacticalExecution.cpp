@@ -178,7 +178,7 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
         if(ProjectileIntercept(P,From,To,At)){continue;}
         if(!LDGround::ClearSegment(GetWorld(),From,To)){P->Destroy();continue;}
         if(FMath::PointDistToSegment(Target->GetActorLocation(),From,To)<=40)
-        {FLDCombatHit H{P->Source.Get(),Target,P->Amount,P->Basic?LDTactical::EDamage::Physical:LDTactical::EDamage::Magical,!P->Basic,0,P->Token,P->CasterIdentity};H.Basic=P->Basic;Hits.Add(H);P->Destroy();}
+        {FLDCombatHit H{P->Source.Get(),Target,P->Amount,P->Basic?LDTactical::EDamage::Physical:LDTactical::EDamage::Magical,!P->Basic,0,P->Token,P->CasterIdentity};H.Basic=P->Basic;H.DirectFire=P->Fire;H.TargetLife=P->VictimLife;H.SurfaceLease=P->EnvironmentLease;P->EnvironmentLease.Invalidate();if(P->Fire){if(const auto* Lease=EnvironmentLeases.Find(H.SurfaceLease)){H.CreditOwner=Lease->Command.State.Owner;}if(P->Reflected&&P->Source.IsValid()){auto* CasterPC=Cast<ALDPlayerController>(P->Source->GetController());H.CreditOwner=M->ContenderId(CasterPC);}}Hits.Add(H);P->Destroy();}
         else if(Distance<=Travel){P->Destroy();}else{P->SetActorLocation(To);}
     }
 }

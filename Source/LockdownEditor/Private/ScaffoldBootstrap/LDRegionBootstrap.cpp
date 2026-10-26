@@ -5,6 +5,8 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/FileHelper.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
 #include "HAL/FileManager.h"
@@ -44,7 +46,7 @@ bool Mesh(UWorld* W,const FString& Name,const FString& Shape,const FVector& Posi
     auto* A=W->SpawnActor<AStaticMeshActor>(Position,Rotation);if(!A){return false;}A->SetActorLabel(Name);A->Tags.Add(FName(*Name));auto* C=A->GetStaticMeshComponent();C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,*(TEXT("/Engine/BasicShapes/")+Shape)));if(!C->GetStaticMesh()){return false;}
     A->SetActorScale3D(Size/100.);C->SetCollisionProfileName(TEXT("BlockAll"));C->SetCollisionResponseToChannel(ECC_GameTraceChannel1,Floor?ECR_Block:ECR_Ignore);C->SetCollisionResponseToChannel(ECC_GameTraceChannel2,Floor?ECR_Ignore:ECR_Block);
     if(High){C->ComponentTags.Add(TEXT("LDHighGround"));}if(Road){C->SetCollisionEnabled(ECollisionEnabled::NoCollision);C->SetCanEverAffectNavigation(false);}
-    const FString Material=Name.StartsWith(TEXT("RiverFloor"))?TEXT("M_River"):Floor&&!Road?TEXT("M_Ground"):Shape==TEXT("Cylinder")?TEXT("M_Tree"):TEXT("M_Stone");C->SetMaterial(0,LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Lockdown/Generated/Materials/")+Material+TEXT(".")+Material)));return true;
+    const FString Material=Name==TEXT("FloorSoil")?TEXT("M_Soil"):Name==TEXT("FloorFuel")?TEXT("M_Fuel"):Name==TEXT("FloorMetal")?TEXT("M_Metal"):Name.StartsWith(TEXT("RiverFloor"))?TEXT("M_River"):Floor&&!Road?TEXT("M_Ground"):Shape==TEXT("Cylinder")?TEXT("M_Tree"):TEXT("M_Stone");C->SetMaterial(0,LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Lockdown/Generated/Materials/")+Material+TEXT(".")+Material)));return true;
 }
 bool BuildMap(UWorld* W,ULDRegionDefinition* D,const FString& Path)
 {
@@ -84,10 +86,10 @@ bool LDRegionBootstrap::Run(bool Validate,bool Regenerate,bool RebuildMaps)
     {
         FString Source,Error;FJsonSerializer::Serialize((*Definitions)[I]->AsObject().ToSharedRef(),TJsonWriterFactory<>::Create(&Source));auto* Expected=NewObject<ULDRegionDefinition>();if(!Expected->Import(Source,Error)){UE_LOG(LogTemp,Error,TEXT("Invalid region: %s"),*Error);return false;}
         const FString AssetName=I==3?TEXT("DA_ElementalRegion"):I==2?TEXT("DA_TacticalRegion"):I?TEXT("DA_AlternateRegion"):TEXT("DA_CivicRegion"),AssetPath=TEXT("/Game/Lockdown/Generated/Data/")+AssetName,MapPath=TEXT("/Game/Lockdown/Generated/Maps/")+FString(I==3?TEXT("L_V08Region"):I==2?TEXT("L_V07Region"):I?TEXT("L_RegionAlternate"):TEXT("L_DevelopmentRegion"));
-        if(Regenerate||(!Validate&&!FPackageName::DoesPackageExist(AssetPath))){auto* D=NewObject<ULDRegionDefinition>(CreatePackage(*AssetPath),*AssetName,RF_Public|RF_Standalone);if(!D->Import(Source,Error)||!Save(D,AssetPath,D->Signature)){return false;}}
+        if(Regenerate||(I==3&&FParse::Param(FCommandLine::Get(),TEXT("RebuildV08Region")))||(!Validate&&!FPackageName::DoesPackageExist(AssetPath))){auto* D=LoadObject<ULDRegionDefinition>(nullptr,*(AssetPath+TEXT(".")+AssetName));if(!D){D=NewObject<ULDRegionDefinition>(CreatePackage(*AssetPath),*AssetName,RF_Public|RF_Standalone);}D->GetOutermost()->FullyLoad();if(!D->Import(Source,Error)||!Save(D,AssetPath,D->Signature)){return false;}}
         auto* Definition=LoadObject<ULDRegionDefinition>(nullptr,*(AssetPath+TEXT(".")+AssetName));if(!Definition||!Definition->Validate(Error)){UE_LOG(LogTemp,Error,TEXT("Missing/invalid regional asset: %s"),*Error);return false;}
         for(TFieldIterator<FProperty> P(ULDRegionDefinition::StaticClass(),EFieldIteratorFlags::ExcludeSuper);P;++P){if(!P->Identical_InContainer(Definition,Expected)){UE_LOG(LogTemp,Error,TEXT("Saved region field mismatch: %s"),*P->GetName());return false;}}
-        UWorld* W=nullptr;if(Regenerate||RebuildMaps||(!Validate&&!FPackageName::DoesPackageExist(MapPath))){W=UEditorLoadingAndSavingUtils::NewBlankMap(false);if(!W||!BuildMap(W,Definition,MapPath)){return false;}}
+        UWorld* W=nullptr;if(Regenerate||(I==3&&FParse::Param(FCommandLine::Get(),TEXT("RebuildV08Region")))||RebuildMaps||(!Validate&&!FPackageName::DoesPackageExist(MapPath))){W=UEditorLoadingAndSavingUtils::NewBlankMap(false);if(!W||!BuildMap(W,Definition,MapPath)){return false;}}
         else{W=UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(MapPath,FPackageName::GetMapPackageExtension()));}
         if(!ValidateMap(W,Definition)){UE_LOG(LogTemp,Error,TEXT("Saved region map validation failed: %s"),*MapPath);return false;}UE_LOG(LogTemp,Display,TEXT("LD_REGION_VALIDATED %s signature=%s nodes=%d edges=%d"),*MapPath,*Definition->Signature,Definition->Nodes.Num(),Definition->Routes.Num());
     }

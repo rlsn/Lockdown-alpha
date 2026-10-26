@@ -16,7 +16,7 @@
 bool ALDTacticalField::Active(int64 At) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Source.Get()):nullptr;
-    if(Kind==ELDTacticalField::WetSurface||Kind==ELDTacticalField::FrozenSurface){return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&ExpiresAt>At;}
+    if(uint8(Kind)>=16){return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&ExpiresAt>At;}
     if(Kind==ELDTacticalField::Scramble){return !IsActorBeingDestroyed()&&M&&M->IsPlaying();}
     if(Kind==ELDTacticalField::Gate&&(!Partner.IsValid()||Partner->Hp<=0||Partner->IsActorBeingDestroyed())){return false;}
     return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&S&&S->Identity==SourceLife&&S->Hp>0&&(!bPlayerSource||(PlayerSource.IsValid()&&PlayerSource->GetPawn()==Source.Get()&&M->StateFor(PlayerSource.Get())&&M->StateFor(PlayerSource.Get())->bActive))&&ExpiresAt>At&&Hp>0;
@@ -55,7 +55,7 @@ void ALDCombatDirector::SampleFields(int64 At)
 {
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!HasAuthority()||!M||!M->IsTacticalProfile()){return;}
     for(auto& Pair:Bodies){Pair.Value.Tactical.GroundedUntil=0;}
-    TArray<ALDTacticalField*> Fields;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Active(At)||(It->Kind==ELDTacticalField::Ember&&It->TickIndex<6&&It->Active(FMath::Min(At,It->ExpiresAt-1)))){Fields.Add(*It);}else{DestroyField(*It);}}
+    TArray<ALDTacticalField*> Fields;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->EnvironmentPool){continue;}if(It->Active(At)||(It->Kind==ELDTacticalField::Ember&&It->TickIndex<6&&It->Active(FMath::Min(At,It->ExpiresAt-1)))){Fields.Add(*It);}else{DestroyField(*It);}}
     Fields.Sort([](const auto& A,const auto& B){return A.Identity.ToString()<B.Identity.ToString();});
     for(auto* F:Fields)
     {

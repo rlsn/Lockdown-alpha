@@ -34,7 +34,8 @@ public:
     void Unregister(ALDPlayerController* Controller);
     void EndLife(ALDPlayerController* PC);
     bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason,FGuid Charge=FGuid());
-    bool Ray(const FLDSightSource& Source, const FVector& Target) const;
+    void RefreshEnvironment();
+    bool Ray(const FLDSightSource& Source, const FVector& Target,bool SurfaceCue=false) const;
     uint8 LevelAt(const FVector& Position) const;
     void SetPublicSensor(bool bActive,bool Fixture=true);
     FLDVisionGrid Grid() const;

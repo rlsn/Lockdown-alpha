@@ -13,8 +13,8 @@ bool FLDB81Test::RunTest(const FString& Parameters)
     FString Why;const auto* C=ULDEquipmentCatalog::Load(8);const auto* Skills=ULDTacticalCatalog::Load(8);
     if(!TestNotNull(TEXT("Separate native schema8 equipment"),C)||!TestNotNull(TEXT("Separate native schema8 combat"),Skills)){return false;}
     TestTrue(TEXT("Enabled payloads validate and retain v07 asset separately"),C->Validate(Why)&&Skills->Validate(Why)&&C!=ULDEquipmentCatalog::Load());
-    TestEqual(TEXT("Only supported items exposed"),C->Items.Num(),59);
-    TestEqual(TEXT("Only supported abilities exposed"),Skills->Abilities.Num(),29);
+    TestEqual(TEXT("Only supported items exposed"),C->Items.Num(),61);
+    TestEqual(TEXT("Only supported abilities exposed"),Skills->Abilities.Num(),35);
     TestNull(TEXT("Ember Line hidden until its v08 Burning surface is implemented"),Skills->Find(ELDSkill::EmberLine));
     auto B=LDDevelopment::TacticalStart(3,Skills->Checksum,8);FLDInventory I;I.RulesVersion=8;I.Quick.Reset();I.Bindings.SetNum(11);
     auto Add=[&](ELDItemKind K){FLDInventoryItem Item;Item.Id=FGuid::NewGuid();Item.Kind=K;Item.Slot=I.Items.Num();I.Items.Add(Item);return Item.Id;};

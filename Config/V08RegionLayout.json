@@ -985,6 +985,57 @@
           "pitch": 0,
           "floor": true,
           "high": false
+        },
+        {
+          "name": "FloorSoil",
+          "mesh": "Cube",
+          "position": [
+            -2400,
+            -800,
+            0
+          ],
+          "size": [
+            800,
+            800,
+            2
+          ],
+          "pitch": 0,
+          "floor": true,
+          "high": false
+        },
+        {
+          "name": "FloorFuel",
+          "mesh": "Cube",
+          "position": [
+            -1000,
+            -1000,
+            0
+          ],
+          "size": [
+            400,
+            400,
+            2
+          ],
+          "pitch": 0,
+          "floor": true,
+          "high": false
+        },
+        {
+          "name": "FloorMetal",
+          "mesh": "Cube",
+          "position": [
+            500,
+            -900,
+            0
+          ],
+          "size": [
+            600,
+            600,
+            2
+          ],
+          "pitch": 0,
+          "floor": true,
+          "high": false
         }
       ],
       "cityId": 17

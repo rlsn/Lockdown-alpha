@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDEnvironmentRules.h"
 #include "Combat/LDTacticalRequest.h"
 #include "Inventory/LDInventoryTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -76,10 +77,12 @@ public:
     double Amount=0;
     int64 AdvancedAt=0;
     uint32 Token=0;
-    bool Basic=false,Reflected=false;
+    bool Basic=false,Reflected=false,Fire=false;
+    FGuid EnvironmentLease;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 };
 
-enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse, WetSurface, FrozenSurface};
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse, WetSurface, FrozenSurface, BurningSurface, ElectricSurface, SmokeSurface, GrowthSurface, OilSurface};
 UCLASS()
 class LOCKDOWN_API ALDTacticalField:public AActor
 {
@@ -106,7 +109,8 @@ public:
     bool ItemSource=false;
     ELDSkill Skill=ELDSkill::None;
     double SkillCooldown=0;
-    bool EnemyDestroyed=false;
+    bool EnemyDestroyed=false,EnvironmentPool=false;
+    uint8 Conditions=0;
     TArray<FVector> TravelPath;
     int32 PathIndex=1;
     int64 LastUpdate=0;
@@ -129,6 +133,10 @@ struct FLDCombatHit
     bool Basic=false,Periodic=false;
     bool DirectFrost=false,DirectWater=false;
     FGuid TargetLife;
+    FGuid CreditOwner,SurfaceLease;
+    bool DirectFire=false;
+    int32 RootMS=0;
+    bool WetLightningBonus=false;
 };
 
 UCLASS()
@@ -201,16 +209,39 @@ public:
     void SampleRiver(int64 At);
     void CommitRiver(int64 At);
     bool StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration);
+    bool StageEnvironment(ALDCharacter* Body,FVector Aim,LDEnvironment::EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit=16,bool Cone=false);
+    FGuid ReserveEnvironment(ALDCharacter* Body,int32 Cells,int64 At,int64 Duration);
+    void ReleaseEnvironment(FGuid Lease);
+    bool ImpactEnvironment(FGuid Lease,FVector Point,ALDCharacter* Source,int64 At);
+    bool EnvironmentOccludes(FVector From,FVector To,bool SurfaceCue=false) const;
+    void EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits);
+    void PublishEnvironmentCues(int64 At);
+    TArray<FIntPoint> EnvironmentMask(ALDCharacter* Body,FVector Aim,bool Disk,double Length,double Width,int32 Limit=16,bool Cone=false) const;
     void ElementContact(const FLDCombatHit& Hit,ALDCharacter* Victim,int64 At);
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
     friend class ALDB82Probe;
-    struct FRiverState {FGuid Owner,Life,Cast;int64 Created=0,Until=0;};
-    struct FRiverCell {FRiverState Wet,Frozen;TWeakObjectPtr<ALDTacticalField> Cue;};
-    struct FRiverCommand {FRiverState State;TArray<FIntPoint> Cells;bool Frozen=false;};
+    friend class ALDB83Probe;
+    using FRiverState=LDEnvironment::FRecord;
+    using FRiverCell=LDEnvironment::FCell;
+    using FRiverCommand=LDEnvironment::FCommand;
+    struct FEnvironmentLease {FRiverCommand Command;int32 Count=0;int64 Expires=0;};
+    TMap<FGuid,FEnvironmentLease> EnvironmentLeases;
+    TArray<TWeakObjectPtr<ALDTacticalField>> EnvironmentPool;
+    TSet<FIntPoint> ObscuredCells;
+    TMap<TWeakObjectPtr<ALDCharacter>,FRiverState> BurningUnits;
+    TArray<FLDCombatHit> SurfaceBursts;
+    uint32 EnvironmentRevision=0;
+    int64 EnvironmentDamageAt=-1;
+    bool EnsureEnvironmentPool();
+    FRiverCommand EnvironmentCommand(ALDCharacter* Body,LDEnvironment::EInput Input,int64 At,int64 Duration);
+    bool QueueEnvironment(FRiverCommand Command,int64 At,bool Reserved=false);
+    void RetireEnvironment(int64 At);
+    int32 HeldEnvironment(FGuid Owner=FGuid()) const;
     TMap<FIntPoint,FRiverCell> RiverCells;
     TArray<FRiverCommand> RiverCommands;
+    TMap<FIntPoint,FRiverCell> ProjectedEnvironment;
     struct FRiverContact {bool Wet=false;int64 SampledAt=-1;};
     TMap<TWeakObjectPtr<ALDCharacter>,FRiverContact> RiverContacts;
     TMap<FString,int64> FrostReceipts;
