@@ -16,6 +16,7 @@
 bool ALDTacticalField::Active(int64 At) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Source.Get()):nullptr;
+    if(Kind==ELDTacticalField::WetSurface||Kind==ELDTacticalField::FrozenSurface){return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&ExpiresAt>At;}
     if(Kind==ELDTacticalField::Scramble){return !IsActorBeingDestroyed()&&M&&M->IsPlaying();}
     if(Kind==ELDTacticalField::Gate&&(!Partner.IsValid()||Partner->Hp<=0||Partner->IsActorBeingDestroyed())){return false;}
     return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&S&&S->Identity==SourceLife&&S->Hp>0&&(!bPlayerSource||(PlayerSource.IsValid()&&PlayerSource->GetPawn()==Source.Get()&&M->StateFor(PlayerSource.Get())&&M->StateFor(PlayerSource.Get())->bActive))&&ExpiresAt>At&&Hp>0;

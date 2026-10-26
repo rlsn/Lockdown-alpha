@@ -1,22 +1,22 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.8 B81 native slots/traits implemented; B82 river core next**.
-[B81 implementation](v08/B81_IMPLEMENTATION.md) records the enabled development
-slice, native build/rule/independent-client evidence and remaining limits.
-[Continuation](CONTINUATION.md) is the active handoff. B80 adoption, original
-specification inputs and v07 history remain frozen. Full native release, human
-and long technical acceptance remain pending/deferred as named.
+Current checkpoint: **v0.8 B82 river core; B83 full fields next**.
+[B82 implementation](v08/B82_IMPLEMENTATION.md) records the enabled development
+slice, current native validation and remaining limits.
+[Continuation](CONTINUATION.md) is the active handoff. Original specification
+inputs, prior payloads/evidence and v07 history remain frozen. Full release,
+human and long technical acceptance remain pending/deferred as named.
 
 | v0.8 reference | Purpose |
 | --- | --- |
-| [B81 implementation](v08/B81_IMPLEMENTATION.md) | Native profile, typed loadouts/traits, current engineering evidence and B82 boundary |
-| [B81 evidence](v08/evidence/B81/Summary.json) | Actual build, 41 native rules, focused independent clients and conservation |
-| [B80 review](v08/B80_BASELINE_REVIEW.md) | Actual baseline, architecture, completed audit/import, evidence and B81 boundaries |
-| [v0.8 specification](v08/README.md) / [B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md) | Active normative scope and stable build IDs |
-| [Provenance](v08/SOURCE_MANIFEST.json) | Original/adopted hashes, archive inputs and explicit reconstruction origin |
-| [Adapters](v08/B80_ADAPTERS.json) | Stable IDs, legacy classes/items, disabled import and proposed wire migration |
-| [Working ledger](v08/FeatureLedger.csv) | 364 rows; B80/B81, 68 new/55 inherited acceptance, catalogs and contract dependencies |
-| [B80 audit](v08/evidence/B80/Audit.json) | Preserved baseline hashes, checks, E01–E48 and named deferrals |
+| [B82 implementation](v08/B82_IMPLEMENTATION.md) | Native river, Wet/Frozen/direct-Frost slice and exact evidence scope |
+| [B81 implementation](v08/B81_IMPLEMENTATION.md) | Historical slots/traits checkpoint and focused evidence |
+| [B80 review](v08/B80_BASELINE_REVIEW.md) | Actual baseline, architecture, audit/import and adoption |
+| [v0.8 specification](v08/README.md) / [B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md) | Normative scope and stable build IDs |
+| [Provenance](v08/SOURCE_MANIFEST.json) | Original/adopted hashes, archive inputs and reconstruction origin |
+| [Adapters](v08/B80_ADAPTERS.json) | Reserved stable IDs and original migration boundary |
+| [Working ledger](v08/FeatureLedger.csv) | Build checkpoints, new/inherited acceptance and catalog dependencies |
+| [B80 audit](v08/evidence/B80/Audit.json) | Preserved hashes, E01–E48 and named deferrals |
 
 | Retained v0.7 reference | Purpose |
 | --- | --- |

@@ -85,11 +85,21 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
     Super::MoveAutonomous(TimeStamp,Delta,Flags,Applied);
 }
 
+void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
+{
+    if(CharacterOwner&&CharacterOwner->HasAuthority()){if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsV08Profile()&&M->Combat){M->Combat->FlushPastCommand();}}
+    Super::PerformMovement(DeltaSeconds);
+}
+void ULDCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds,const FVector& OldLocation,const FVector& OldVelocity)
+{
+    Super::OnMovementUpdated(DeltaSeconds,OldLocation,OldVelocity);
+    if(CharacterOwner&&CharacterOwner->HasAuthority()){if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsV08Profile()&&M->Combat){M->Combat->RefreshRiverContact(Cast<ALDCharacter>(CharacterOwner),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));}}
+}
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
     // Ordinary native NPCs use the same root/stun/hex movement contract.
     if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsTacticalProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
-    {if(const auto* S=M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr){const uint16 Tags=S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));if(Tags&((1<<0)|(1<<3))){return 0;}int32 Slow=0;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){Slow=FMath::Max(Slow,T.Magnitude);}}return Super::GetMaxSpeed()*FMath::Min((Tags&(1<<5))?.5f:1.f,1-FMath::Clamp(Slow,0,60)/100.f);}}
+    {if(const auto* S=M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr){const uint16 Tags=S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));if(Tags&((1<<0)|(1<<3))){return 0;}int32 Slow=S->Tactical.SurfaceSlow;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){Slow=FMath::Max(Slow,T.Magnitude);}}return Super::GetMaxSpeed()*FMath::Min((Tags&(1<<5))?.5f:1.f,1-FMath::Clamp(Slow,0,60)/100.f);}}
     if (const auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;PC&&PC->OwnerState.bDevelopmentProfile)
     {
         const auto* Public=GetWorld()->GetGameState<ALDGameState>();
@@ -98,7 +108,8 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
         {
             const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr;
             const uint16 Tags=S?S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):PC->OwnerState.StatusMask;if(Tags&((1<<0)|(1<<3))){return 0;}
-            const auto& Gear=PC->OwnerState.Build.Gear;const int32 Positive=FMath::Clamp(FMath::Max(0,Gear.Movement)+(LDGear::OnRoad(GetWorld(),CharacterOwner->GetActorLocation())?Gear.RoadMovement:0),0,20);return 420.f*(1+(FMath::Min(0,Gear.Movement)+Positive)/100.f)*FMath::Min((Tags&(1<<5))?.5f:1.f,1-PC->OwnerState.SlowPercent/100.f);
+            int32 ContactSlow=PC->OwnerState.SlowPercent;if(S){ContactSlow=S->Tactical.SurfaceSlow;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){ContactSlow=FMath::Max(ContactSlow,T.Magnitude);}}}
+            const auto& Gear=PC->OwnerState.Build.Gear;const int32 Positive=FMath::Clamp(FMath::Max(0,Gear.Movement)+(LDGear::OnRoad(GetWorld(),CharacterOwner->GetActorLocation())?Gear.RoadMovement:0),0,20);return 420.f*(1+(FMath::Min(0,Gear.Movement)+Positive)/100.f)*FMath::Min((Tags&(1<<5))?.5f:1.f,1-ContactSlow/100.f);
         }
         return float((IsMovingOnGround()&&bWantsSprint&&!bCombatWalkOnly?300.:180.)*LDDevelopment::SpeedFactor(PC->OwnerState.Build));
     }

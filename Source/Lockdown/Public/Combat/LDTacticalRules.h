@@ -4,13 +4,14 @@
 
 namespace LDTactical
 {
-    enum class EStatus : uint8 { Stun, Silence, Mute, Root, Disarm, Hex, Break, Blind, Slow, Mark };
+    enum class EStatus : uint8 { Stun, Silence, Mute, Root, Disarm, Hex, Break, Blind, Slow, Mark, Wet };
     enum class EAction : uint8 { Attack, Skill, Item, Move, Dash, Service };
     enum class EDamage : uint8 { Physical, Magical, Pure };
     struct FStatus { EStatus Kind; int64 Until; FGuid Source; int32 Magnitude=0; };
     struct FState
     {
         double MP=0, Barrier=0;
+        int32 SurfaceSlow=0;
         bool Directional=false;
         FVector BarrierFacing=FVector::ForwardVector;
         int64 ReflectUntil=0;

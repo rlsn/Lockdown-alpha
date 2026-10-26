@@ -1,0 +1,1605 @@
+{
+  "schema_version": 8,
+  "milestone": "B82",
+  "abilities": [
+    {
+      "id": "anchor_bash",
+      "name": "Anchor Bash",
+      "circle": 1,
+      "kit": "Vanguard",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 220,
+      "area_cm": 0,
+      "windup_ms": 350,
+      "mana_cost": 24,
+      "cooldown_ms": 12000,
+      "effects": [
+        {
+          "op": "damage",
+          "kind": "physical",
+          "amount": 45
+        },
+        {
+          "op": "status",
+          "id": "stun",
+          "duration_ms": 1200
+        }
+      ],
+      "counterplay": "Short melee reach; targeted spell block",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "stun_ms": [
+          1200,
+          1350,
+          1500
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "martial",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "brace_wall",
+      "name": "Brace Wall",
+      "circle": 1,
+      "kit": "Vanguard",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "directional_barrier",
+          "amount": 140,
+          "duration_ms": 3000,
+          "front_arc_deg": 120
+        }
+      ],
+      "counterplay": "Flank or displace; directional block does not stop control",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "barrier": [
+          140,
+          161,
+          182
+        ]
+      },
+      "potency_fields": [
+        "barrier"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "veil_step",
+      "name": "Veil Step",
+      "circle": 1,
+      "kit": "Infiltrator",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 30,
+      "cooldown_ms": 26000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "concealed",
+          "duration_ms": 5000
+        }
+      ],
+      "counterplay": "Geometric detectors, ground AoE; positive damage breaks concealment; active timed concealment only, does not become a learned passive",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          5000,
+          5500,
+          6000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "hamstring",
+      "name": "Hamstring",
+      "circle": 1,
+      "kit": "Infiltrator",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 220,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 20,
+      "cooldown_ms": 10000,
+      "effects": [
+        {
+          "op": "damage",
+          "kind": "physical",
+          "amount": 55
+        },
+        {
+          "op": "status",
+          "id": "slow",
+          "magnitude": 40,
+          "duration_ms": 2500
+        }
+      ],
+      "counterplay": "Basic dispel or kite",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "damage": [
+          55,
+          63,
+          72
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "martial",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "arc_bolt",
+      "name": "Arc Bolt",
+      "circle": 1,
+      "kit": "Arcanist",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 650,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 22,
+      "cooldown_ms": 7000,
+      "effects": [
+        {
+          "op": "projectile_damage",
+          "speed_cm_s": 1200,
+          "kind": "magical",
+          "amount": 85
+        }
+      ],
+      "counterplay": "Spell block, resistance; projectile cannot track an unseen unit",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "damage": [
+          85,
+          98,
+          110
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "counterpulse",
+      "name": "Counterpulse",
+      "circle": 1,
+      "kit": "Arcanist",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 32,
+      "cooldown_ms": 20000,
+      "effects": [
+        {
+          "op": "interrupt"
+        },
+        {
+          "op": "status",
+          "id": "silence",
+          "duration_ms": 1300
+        }
+      ],
+      "counterplay": "Bait interrupt, spell block",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          20000,
+          19000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "farwatch_ward",
+      "name": "Farwatch Ward",
+      "circle": 1,
+      "kit": "Seeker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 500,
+      "area_cm": 560,
+      "windup_ms": 500,
+      "mana_cost": 35,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "spawn_ward",
+          "hp": 40,
+          "lifetime_ms": 60000,
+          "vision_cm": 560,
+          "detector": false,
+          "owner_limit": 2
+        }
+      ],
+      "counterplay": "Destroy or counterward; no wall sight",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          60000,
+          70000,
+          80000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "wire_snare",
+      "name": "Wire Snare",
+      "circle": 1,
+      "kit": "Seeker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 350,
+      "area_cm": 100,
+      "windup_ms": 500,
+      "mana_cost": 28,
+      "cooldown_ms": 20000,
+      "effects": [
+        {
+          "op": "spawn_trap",
+          "hp": 20,
+          "arm_ms": 1000,
+          "lifetime_ms": 45000,
+          "root_ms": 1600,
+          "owner_limit": 2
+        }
+      ],
+      "counterplay": "Detect and attack trap; basic dispel",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          20000,
+          19000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "ledger_mark",
+      "name": "Ledger Mark",
+      "circle": 1,
+      "kit": "Broker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 25,
+      "cooldown_ms": 30000,
+      "effects": [
+        {
+          "op": "trail_mark",
+          "duration_ms": 12000,
+          "sample_ms": 2000,
+          "trail_lifetime_ms": 4000,
+          "geometry_limited": true
+        }
+      ],
+      "counterplay": "Basic dispel; tracks only observable cells, never live hidden target coordinates",
+      "school": "foundation",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "duration_ms": [
+          12000,
+          14000,
+          16000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "surety_shell",
+      "name": "Surety Shell",
+      "circle": 1,
+      "kit": "Broker",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self",
+      "range_cm": 0,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 32000,
+      "effects": [
+        {
+          "op": "barrier",
+          "amount": 150,
+          "duration_ms": 3000
+        }
+      ],
+      "counterplay": "Small hits or wait; no control immunity",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "barrier": [
+          150,
+          173,
+          195
+        ]
+      },
+      "potency_fields": [
+        "barrier"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "false_trail",
+      "name": "False Trail",
+      "circle": 1,
+      "kit": "Trickster",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 400,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "decoy",
+          "hp": 1,
+          "lifetime_ms": 7000,
+          "owner_limit": 1,
+          "path": "static-ground-only",
+          "cannot_interact": true
+        }
+      ],
+      "counterplay": "Detector shows illusion cue, any hit destroys; cannot claim, trade, scout or block claims",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "duration_ms": [
+          7000,
+          8000,
+          9000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "smoke_veil",
+      "name": "Smoke Veil",
+      "circle": 1,
+      "kit": "Trickster",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "ground",
+      "range_cm": 500,
+      "area_cm": 400,
+      "windup_ms": 450,
+      "mana_cost": 35,
+      "cooldown_ms": 28000,
+      "effects": [
+        {
+          "op": "smoke",
+          "duration_ms": 5000,
+          "radius_cm": 400
+        }
+      ],
+      "counterplay": "Ground AoE, enter cloud, destroy sightline advantage; smoke blocks detectors across its boundary",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          400,
+          450,
+          500
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "purge_touch",
+      "name": "Purge Touch",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "self_or_observed_unit",
+      "range_cm": 250,
+      "area_cm": 0,
+      "windup_ms": 300,
+      "mana_cost": 30,
+      "cooldown_ms": 30000,
+      "effects": [
+        {
+          "op": "basic_dispel",
+          "polarity": "self-negative; other-negative-if-consented-else-positive"
+        }
+      ],
+      "counterplay": "Silence/stun blocks self cast; mute does not",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          30000,
+          28000,
+          26000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "seers_flare",
+      "name": "Seer’s Flare",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 8
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 350,
+      "windup_ms": 400,
+      "mana_cost": 30,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "detector",
+          "duration_ms": 5000,
+          "vision_cm": 350,
+          "hp": 1,
+          "visible_anchor": true
+        }
+      ],
+      "counterplay": "Leave sensor geometry or obscure line; never identity",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          350,
+          375,
+          400
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "grapple",
+      "name": "Grapple",
+      "circle": 1,
+      "kit": null,
+      "requirements_any": [
+        {
+          "STR": 8
+        },
+        {
+          "DEX": 8
+        }
+      ],
+      "targeting": "anchor_or_hostile_unit",
+      "range_cm": 500,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 30,
+      "cooldown_ms": 21000,
+      "effects": [
+        {
+          "op": "grapple",
+          "self_move_cm": 500,
+          "target_pull_cm": 180,
+          "target_rule": "contender or small creature; not boss/tower",
+          "movement": "swept"
+        }
+      ],
+      "counterplay": "Root/grounding prevents self movement; valid geometry, spell block on hostile pull",
+      "school": "foundation",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          21000,
+          20000,
+          19000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "martial",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "null_seal",
+      "name": "Null Seal",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 9
+        },
+        {
+          "CHA": 10
+        }
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 38,
+      "cooldown_ms": 27000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "mute",
+          "duration_ms": 1800
+        }
+      ],
+      "counterplay": "Use spells or basic dispel; spell block",
+      "school": "control",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          27000,
+          25000,
+          23000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "grounding_field",
+      "name": "Grounding Field",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 350,
+      "windup_ms": 650,
+      "mana_cost": 45,
+      "cooldown_ms": 34000,
+      "effects": [
+        {
+          "op": "grounding_anchor",
+          "hp": 90,
+          "duration_ms": 6000,
+          "radius_cm": 350
+        }
+      ],
+      "counterplay": "Destroy 90 HP emitter or walk out; does not prevent push/pull",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          90,
+          104,
+          117
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "force_wave",
+      "name": "Force Wave",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "STR": 9
+        },
+        {
+          "INT": 9
+        }
+      ],
+      "targeting": "cone",
+      "range_cm": 500,
+      "area_cm": 0,
+      "windup_ms": 500,
+      "mana_cost": 35,
+      "cooldown_ms": 24000,
+      "effects": [
+        {
+          "op": "push",
+          "distance_cm": 250,
+          "angle_deg": 60
+        }
+      ],
+      "counterplay": "Walk out of cone, Anchor Greaves; ordinary spell block/dome do not block cone",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          24000,
+          22000,
+          20000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "guard_swap",
+      "name": "Guard Swap",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "targeting": "owned_marker",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 600,
+      "mana_cost": 40,
+      "cooldown_ms": 31000,
+      "effects": [
+        {
+          "op": "swap_self_owned_marker",
+          "marker_hp": 40,
+          "marker_ms": 20000,
+          "marker_placement": "first cast plants marker; second cast executes and starts full cooldown",
+          "place_cost_mp": 10
+        }
+      ],
+      "counterplay": "Destroy marker, root/grounding blocks swap; both endpoints walkable",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          31000,
+          29000,
+          27000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "slipstream",
+      "name": "Slipstream",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "DEX": 10
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 250,
+      "mana_cost": 30,
+      "cooldown_ms": 22000,
+      "effects": [
+        {
+          "op": "dash",
+          "distance_cm": 450,
+          "duration_ms": 300,
+          "collision": "swept"
+        }
+      ],
+      "counterplay": "Root, grounding, walls",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          22000,
+          20000,
+          18000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "martial",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "remedy_bind",
+      "name": "Remedy Bind",
+      "circle": 2,
+      "kit": null,
+      "requirements_any": [
+        {
+          "WIS": 9,
+          "CON": 7
+        }
+      ],
+      "targeting": "self_or_observed_unit",
+      "range_cm": 450,
+      "area_cm": 0,
+      "windup_ms": 450,
+      "mana_cost": 45,
+      "cooldown_ms": 44000,
+      "effects": [
+        {
+          "op": "remedy",
+          "other": "strong_negative_dispel_with_consent",
+          "self": "control_guard_one_charge_1500ms"
+        }
+      ],
+      "counterplay": "Stunned users cannot self cast; preguard is short, bait or separate",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          44000,
+          40000,
+          36000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 2,
+        "station": "WestEastTrainer",
+        "price_gold": 60,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "break_sigil",
+      "name": "Break Sigil",
+      "circle": 3,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "targeting": "hostile_unit",
+      "range_cm": 550,
+      "area_cm": 0,
+      "windup_ms": 650,
+      "mana_cost": 50,
+      "cooldown_ms": 41000,
+      "effects": [
+        {
+          "op": "status",
+          "id": "break",
+          "duration_ms": 4000
+        }
+      ],
+      "counterplay": "Strong dispel, active defenses; ordinary stat bonuses remain",
+      "school": "control",
+      "hostile_target_spell_block": true,
+      "rank_scaling": {
+        "cooldown_ms": [
+          41000,
+          39000,
+          37000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 3,
+        "station": "EastArchive",
+        "price_gold": 90,
+        "stock_global": 2
+      }
+    },
+    {
+      "id": "arcane_prison",
+      "name": "Arcane Prison",
+      "circle": 3,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 11,
+          "WIS": 9
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 600,
+      "area_cm": 300,
+      "windup_ms": 800,
+      "mana_cost": 55,
+      "cooldown_ms": 47000,
+      "effects": [
+        {
+          "op": "prison",
+          "anchor_hp": 100,
+          "duration_ms": 3500,
+          "radius_cm": 300,
+          "wall_height_cm": 200,
+          "blocks_walk": true,
+          "blocks_sight": false
+        }
+      ],
+      "counterplay": "Destroy anchor, blink if not rooted, never spawn wall intersecting body",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          100,
+          115,
+          130
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 3,
+        "station": "EastArchive",
+        "price_gold": 90,
+        "stock_global": 2
+      }
+    },
+    {
+      "id": "temporal_lock",
+      "name": "Temporal Lock",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 13,
+          "WIS": 10
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 650,
+      "area_cm": 300,
+      "windup_ms": 1200,
+      "mana_cost": 95,
+      "cooldown_ms": 115000,
+      "effects": [
+        {
+          "op": "telegraph",
+          "during_windup": true
+        },
+        {
+          "op": "area_status",
+          "id": "stun",
+          "duration_ms": 1800
+        }
+      ],
+      "counterplay": "Leave telegraph, pre-control guard; targeted spell block does not block AoE",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "radius_cm": [
+          300,
+          320,
+          340
+        ]
+      },
+      "potency_fields": [
+        "radius_cm"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 4,
+        "station": "fixed_POI",
+        "price_gold": null,
+        "stock_global": 1
+      }
+    },
+    {
+      "id": "sovereign_ward",
+      "name": "Sovereign Ward",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "CON": 12,
+          "WIS": 11
+        }
+      ],
+      "targeting": "ground",
+      "range_cm": 400,
+      "area_cm": 350,
+      "windup_ms": 1000,
+      "mana_cost": 90,
+      "cooldown_ms": 105000,
+      "effects": [
+        {
+          "op": "projectile_dome",
+          "hp": 150,
+          "duration_ms": 4000,
+          "radius_cm": 350
+        }
+      ],
+      "counterplay": "Enter on foot, melee, cone push, explicit instant interrupt; emitter takes damage",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          150,
+          173,
+          195
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 4,
+        "station": "fixed_POI",
+        "price_gold": null,
+        "stock_global": 1
+      }
+    },
+    {
+      "id": "grand_exchange",
+      "name": "Grand Exchange",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "CHA": 13,
+          "DEX": 10
+        }
+      ],
+      "targeting": "two_observed_units",
+      "range_cm": 650,
+      "area_cm": 0,
+      "windup_ms": 1100,
+      "mana_cost": 90,
+      "cooldown_ms": 95000,
+      "effects": [
+        {
+          "op": "swap_two",
+          "max_pair_distance_cm": 800,
+          "exclude": [
+            "boss",
+            "tower",
+            "service",
+            "heart",
+            "rooted",
+            "grounded"
+          ],
+          "atomic_both_endpoints": true
+        }
+      ],
+      "counterplay": "Either target spell block stops entire swap; block geometry, interrupt windup",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "cooldown_ms": [
+          95000,
+          90000,
+          85000
+        ]
+      },
+      "potency_fields": [],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 4,
+        "station": "fixed_POI",
+        "price_gold": null,
+        "stock_global": 1
+      }
+    },
+    {
+      "id": "gate_weave",
+      "name": "Gate Weave",
+      "circle": 4,
+      "kit": null,
+      "requirements_any": [
+        {
+          "INT": 13,
+          "CHA": 10
+        }
+      ],
+      "targeting": "two_ground_points",
+      "range_cm": 4000,
+      "area_cm": 120,
+      "windup_ms": 1400,
+      "mana_cost": 100,
+      "cooldown_ms": 120000,
+      "effects": [
+        {
+          "op": "linked_gates",
+          "gate_hp": 100,
+          "duration_ms": 18000,
+          "max_separation_cm": 4000,
+          "requires_explored_endpoints": true,
+          "travel_hold_ms": 1000,
+          "arrival_lock_ms": 3000,
+          "owner_limit_pairs": 1
+        }
+      ],
+      "counterplay": "Destroy endpoint, guard exit; visible to others in sight, traversal permitted to all; no frozen invulnerability",
+      "school": "control",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "anchor_hp": [
+          100,
+          115,
+          130
+        ]
+      },
+      "potency_fields": [
+        "anchor_hp"
+      ],
+      "max_rank": 3,
+      "origin": "v07_retained",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": null,
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 4,
+        "station": "fixed_POI",
+        "price_gold": null,
+        "stock_global": 1
+      }
+    },
+    {
+      "id": "frostline",
+      "name": "Frostline",
+      "circle": 1,
+      "kit": "universal",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "line",
+      "range_cm": 650,
+      "area_cm": 90,
+      "windup_ms": 450,
+      "mana_cost": 30,
+      "cooldown_ms": 14000,
+      "effects": [
+        {
+          "op": "element_hit",
+          "element": "frost",
+          "kind": "magical",
+          "amount": 55,
+          "direct_frost": true
+        },
+        {
+          "op": "surface_apply",
+          "state": "frozen",
+          "lifetime_ms": 5000,
+          "max_cells": 16,
+          "geometry": "line",
+          "length_cm": 650,
+          "half_width_cm": 90,
+          "requires_material": "wet_or_water"
+        }
+      ],
+      "counterplay": "Dodge line, preempt guard, leave river; frozen field itself never stuns",
+      "school": "frost",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "damage": [
+          55,
+          63,
+          72
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3,
+      "origin": "v08_new",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": "frost",
+      "reaction_eligible": true,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    },
+    {
+      "id": "water_jet",
+      "name": "Water Jet",
+      "circle": 1,
+      "kit": "universal",
+      "requirements_any": [
+        {}
+      ],
+      "targeting": "line",
+      "range_cm": 600,
+      "area_cm": 80,
+      "windup_ms": 400,
+      "mana_cost": 24,
+      "cooldown_ms": 13000,
+      "effects": [
+        {
+          "op": "element_hit",
+          "element": "water",
+          "kind": "magical",
+          "amount": 25
+        },
+        {
+          "op": "surface_apply",
+          "state": "wet",
+          "lifetime_ms": 5000,
+          "max_cells": 16,
+          "geometry": "line",
+          "length_cm": 600,
+          "half_width_cm": 80
+        }
+      ],
+      "counterplay": "Dodge line; Wet is setup rather than hard control",
+      "school": "water",
+      "hostile_target_spell_block": false,
+      "rank_scaling": {
+        "damage": [
+          25,
+          29,
+          33
+        ]
+      },
+      "potency_fields": [
+        "damage"
+      ],
+      "max_rank": 3,
+      "origin": "v08_new",
+      "activation_kind": "learned_active",
+      "domain": "spell",
+      "element": "water",
+      "reaction_eligible": false,
+      "acquisition": {
+        "kind": "book",
+        "circle": 1,
+        "station": "City",
+        "price_gold": 40,
+        "stock_global": "unlimited"
+      }
+    }
+  ],
+  "starter_kits": [
+    {
+      "id": "vanguard",
+      "name": "Vanguard",
+      "attributes": {
+        "STR": 11,
+        "DEX": 8,
+        "CON": 10,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 8
+      },
+      "skills": [
+        "anchor_bash",
+        "brace_wall"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "vanguard_trait"
+    },
+    {
+      "id": "infiltrator",
+      "name": "Infiltrator",
+      "attributes": {
+        "STR": 8,
+        "DEX": 11,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "veil_step",
+        "hamstring"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "infiltrator_trait"
+    },
+    {
+      "id": "arcanist",
+      "name": "Arcanist",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 11,
+        "WIS": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "frostline",
+        "counterpulse"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "arcanist_trait"
+    },
+    {
+      "id": "seeker",
+      "name": "Seeker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 11,
+        "CHA": 8
+      },
+      "skills": [
+        "farwatch_ward",
+        "wire_snare"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "seeker_trait"
+    },
+    {
+      "id": "broker",
+      "name": "Broker",
+      "attributes": {
+        "STR": 8,
+        "DEX": 8,
+        "CON": 8,
+        "INT": 10,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "ledger_mark",
+        "surety_shell"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "broker_trait"
+    },
+    {
+      "id": "trickster",
+      "name": "Trickster",
+      "attributes": {
+        "STR": 8,
+        "DEX": 10,
+        "CON": 8,
+        "INT": 8,
+        "WIS": 8,
+        "CHA": 11
+      },
+      "skills": [
+        "false_trail",
+        "smoke_veil"
+      ],
+      "starting_items": [],
+      "starting_wallet": 0,
+      "trait_id": "trickster_trait"
+    }
+  ]
+}

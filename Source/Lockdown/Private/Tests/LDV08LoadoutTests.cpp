@@ -13,8 +13,8 @@ bool FLDB81Test::RunTest(const FString& Parameters)
     FString Why;const auto* C=ULDEquipmentCatalog::Load(8);const auto* Skills=ULDTacticalCatalog::Load(8);
     if(!TestNotNull(TEXT("Separate native schema8 equipment"),C)||!TestNotNull(TEXT("Separate native schema8 combat"),Skills)){return false;}
     TestTrue(TEXT("Enabled payloads validate and retain v07 asset separately"),C->Validate(Why)&&Skills->Validate(Why)&&C!=ULDEquipmentCatalog::Load());
-    TestEqual(TEXT("Only supported items exposed"),C->Items.Num(),54);
-    TestEqual(TEXT("Only supported abilities exposed"),Skills->Abilities.Num(),27);
+    TestEqual(TEXT("Only supported items exposed"),C->Items.Num(),59);
+    TestEqual(TEXT("Only supported abilities exposed"),Skills->Abilities.Num(),29);
     TestNull(TEXT("Ember Line hidden until its v08 Burning surface is implemented"),Skills->Find(ELDSkill::EmberLine));
     auto B=LDDevelopment::TacticalStart(3,Skills->Checksum,8);FLDInventory I;I.RulesVersion=8;I.Quick.Reset();I.Bindings.SetNum(11);
     auto Add=[&](ELDItemKind K){FLDInventoryItem Item;Item.Id=FGuid::NewGuid();Item.Kind=K;Item.Slot=I.Items.Num();I.Items.Add(Item);return Item.Id;};
@@ -46,7 +46,7 @@ bool FLDB81Test::RunTest(const FString& Parameters)
     B.Preset=6;TestEqual(TEXT("Seeker sight shares total cap"),LDV08::TraitValue(B,TEXT("sight"),40),50);
     B.Preset=7;TestEqual(TEXT("Broker discount strongest only"),LDV08::TraitValue(B,TEXT("assembly_discount"),1),1);
     B.Preset=2;TestEqual(TEXT("Future elemental lifetime hook shares global cap"),LDV08::TraitValue(B,TEXT("frozen_ms"),9800),10000);
-    TestFalse(TEXT("Unknown preset cannot enable"),LDV08::PresetEnabled(9));TestFalse(TEXT("Arcanist kit waits for actual Frostline support"),LDV08::PresetEnabled(5));
+    TestFalse(TEXT("Unknown preset cannot enable"),LDV08::PresetEnabled(9));TestTrue(TEXT("Arcanist kit includes native Frostline"),LDV08::PresetEnabled(5));
     // Positive maximum case, as well as malformed over-cap requests.
     {auto MaxBuild=LDDevelopment::TacticalStart(0,Skills->Checksum,8);FLDInventory MaxBag;MaxBag.RulesVersion=8;MaxBag.Quick.Reset();MaxBag.Bindings.SetNum(11);const ELDSkill Learned[]={ELDSkill::Heave,ELDSkill::Patch,ELDSkill::Step,ELDSkill::Ambush,ELDSkill::Spark,ELDSkill::Survey};for(int32 N=0;N<6;++N){MaxBuild.Ranks[uint8(Learned[N])]=1;MaxBuild.Slots[N]=Learned[N];MaxBuild.Actions[N].Skill=Learned[N];}const ELDItemKind Accessory[]={ELDItemKind::SmokeFlask,ELDItemKind::WardTotem,ELDItemKind::HealingSalve,ELDItemKind::ManaDraught};for(int32 N=0;N<4;++N){FLDInventoryItem V;V.Id=FGuid::NewGuid();V.Kind=Accessory[N];V.Slot=N;V.BindingMask=uint16(1<<(7+N));MaxBag.Items.Add(V);MaxBag.Bindings[7+N]=V.Id;}TestTrue(TEXT("Exactly six learned plus four physically bound active accessories is legal"),LDDevelopment::Valid(MaxBuild)&&LDInventory::Valid(MaxBag)&&LDV08::Validate(MaxBag,MaxBuild,Why));FLDInventoryItem BagOnly;BagOnly.Id=FGuid::NewGuid();BagOnly.Kind=ELDItemKind::SmokeFlask;BagOnly.Slot=4;MaxBag.Items.Add(BagOnly);TestFalse(TEXT("Backpack identity cannot activate through an accessory source"),LDV08::ItemSource(MaxBag,MaxBuild,BagOnly.Id,0,true));}
     auto* Controls=NewObject<ULDControlSettings>();Controls->ResetBindings();TestTrue(TEXT("Existing G preference accepted"),Controls->Rebind(TEXT("PanUp"),EKeys::G,Why));

@@ -23,7 +23,7 @@ void ALDRegionDirector::BeginPlay()
 }
 void ALDRegionDirector::SpawnSentinel()
 {
-    if(GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))){return;}
+    if((GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")))){return;}
     Sentinel=GetWorld()->SpawnActor<ALDWildSentinel>(Definition->Sentinel,FRotator::ZeroRotator);check(Sentinel.IsValid());
     Sentinel->GetCharacterMovement()->MaxWalkSpeed=180;auto* S=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat->StateFor(Sentinel.Get());check(S);S->Hp=100;
     if(SentinelWallet.IsValid()){GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks->BindReturnedBody(Sentinel.Get(),SentinelWallet);}

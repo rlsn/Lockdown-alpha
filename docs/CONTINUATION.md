@@ -1,96 +1,99 @@
-# Continuation — B81 implemented; B82 river core next
+# Active continuation — v0.8 B82
 
-26 October 2026. B81 implements the native v08_integration development profile
-on B80 (`aeffed2`). Read [B81 implementation](v08/B81_IMPLEMENTATION.md),
-[engineering evidence](v08/evidence/B81/Summary.json),
-[working ledger](v08/FeatureLedger.csv), [active spec](v08/README.md) and
-[B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md).
-Commit remains authorized; no push requested.
+Base: main at02687f1 (B81); B80 adoption aeffed2. B76 runtime ddf7be5 and
+B77 closeout7d9d66d remain separately reproducible. B82 implementation and
+validation scope live in [B82_IMPLEMENTATION](v08/B82_IMPLEMENTATION.md).
+The normative [B80–B86 plan](v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md),
+original data/templates/archive/manifests and prior evidence remain frozen.
+The working [FeatureLedger](v08/FeatureLedger.csv) tracks current engineering
+acceptance; it does not rewrite original “Not run” specification templates.
 
-## Current implementation
+## Current native slice
 
-- Six typed Learned/Gear actions; seven body/four physical accessory bindings;
-  no independent quick bar or backpack activation. Canonical and owner binding
-  masks are 16-bit; all eleven bound instances count inside 24.
-- Versioned projected drafts commit equipment/actions atomically through native
-  quiet/stationary preparation. Source unbind clears dependent actions. Learned
-  actions are Silence-blocked; body/accessory actions are Mute-blocked. Legacy
-  Step now follows the v08 learned-skill Silence rule.
-- Source identity, natural gates, revisions, reservations, weight, primary caps,
-  instance/owner-family cooldowns and death policies remain authoritative.
-  Consumable use empties its binding without refill; ordinary bound gear retains
-  on death, consumables/objectives drop, explicit return refills HP/MP only.
-- One immutable preset-derived trait, with native capacity/Brace arc/clue/sight/
-  assembly discount/decoy hooks. Arcanist/Scholar field-duration rules await
-  actual B82/B83 environment integration; do not call those field effects proven.
-- Native owner HUD, inventory and preparation use six/four/eleven with source
-  badges and full projected binding/stat-cap preview. Defaults Q/W/E/R/D/G and
-  accessories1–4 migrate without overwriting valid v07 preferences.
-- Enabled slice: 27 retained abilities, 54 items, eight presets. Arcanist preset5
-  requires Frostline and remains unavailable. Ember Line adds a v08 Burning
-  surface, so it stays hidden until B83; its v07 implementation is preserved.
-  Other elemental/advanced modifiers, remaining items and eight new recipes are
-  hidden until supported. Full v08 still requires all 52/80/20 definitions.
-- Separate schema8 payloads/compiled hashes live in Content/Lockdown/Data/V08.
-  Runtime does not read docs or load schema8 through schema7. B80's complete
-  disabled catalog, reservations and original package/provenance stay frozen.
-- Native Editor build and 41 compiled rule tests pass, plus focused independent
-  v08 clients and the separate retained v07 B73 loadout fixture. Portable results
-  and independent ledger replay are in evidence/B81; retain exact scope.
+Explicit `?Profile=v08_integration` uses L_V08Region; explicit v07 still uses
+L_V07Region. Default frontend/V05 remain separate. Both catalogs select their
+own schema/digest, with active schema8 UFS payloads combat_b82/equipment_b82.
+B80 and B81 JSONs are historical and must not be regenerated to hide migration.
+SyncB82Data.py is the current checker; SyncB81Data.py checks its historical
+payloads. TestV08Import isolates B80's retained enum prefixes in temporary
+fixtures, while B82's checker validates current sparse native reservations.
 
-## B82 implementation boundary
+B82 adds two static river floors with dry alternatives, native Wet entry/
+100ms refresh/3s residual (Waders1.5s), source-bound Frozen30% slow (Treads15%),
+and direct hostile Frost's fixed600ms Stun attempt / victim-wide6s readiness.
+The contender endpoint survives death/return and dispel. Actual packet block,
+life checks and existing guard/immunity precede the relevant effect. Surface
+contact never stuns. Due applied Stun precedes native Heart completion.
 
-1. Author a static river floor connected to both banks plus a dry detour in the
-   native region. Player and AI must cross on the same graph before, during and
-   after Frozen. No navmesh/collision changes from elemental state, swimming or
-   drowning. Keep the v07 region/profile separately reproducible.
-2. Add authoritative water contact: immediate Wet on crossing, 100ms refresh,
-   3000ms residual (1500ms for the authored Waders modifier when enabled).
-   Frozen river retains underlying water contact; Frozen ground applies 30%
-   slow (15% Treads when enabled), never contact stun.
-3. Implement real Frostline/direct Frost and required small water sources with
-   actual MP, slots, books/items and geometry. Direct hostile Frost on Wet can
-   attempt exactly 600ms Stun with a contender-wide 6000ms readiness endpoint.
-   Field contact/ticks never trigger it. Guard/immunity consume Wet and set the
-   lock on valid attempts; spell block prevents the attempt entirely. No self,
-   protected official, boss/tower hard-control bypass.
-4. Keep reaction readiness through death; do not put it in an ordinary dispellable
-   status. Revalidate original life at impact; deduplicate cast/victim-life.
-   Exact readiness boundary is inclusive; denied attempts never extend it.
-5. Due applied Stun precedes claim completion; Wet/slow/nonlethal damage alone
-   do not cancel a surviving stationary claim. Guarded/suppressed Stun does not
-   cancel. Preserve four-route endpoints, deadline/tie order and existing ledgers.
-6. Extend source IDs using B80 reservations, bounded wire/digest contracts and
-   both native owner/client projections. B81 currently has 38 rank identities;
-   adding Frostline requires coordinated native enum/rank/import changes. Do not
-   regenerate or rewrite historical B80 payloads/manifests to hide migration.
-7. Start with V08-016–027 plus applicable claim/AI/source cases. Use real native
-   player/AI crossing and independent-client receipts, not Python models as
-   gameplay proof. B83 owns the complete bounded grid/reaction/reservation/
-   privacy service; do not expose unsupported ops through an enabled catalog.
+The two-state cell slice uses200cm origin(-6000,-4000),16 cells/action,
+64 distinct owner cells/256 match cells and bounded boundary evaluations.
+Allocation checks precede release costs. Source life/owner/cast/creation/expiry
+are private; committed surfaces survive caster death. Field Practice extends
+new Frozen once, capped10s. Existing emitter budgets remain separate.
 
-## Commands and remaining acceptance
+Frostline38 and Water Jet40 use reserved IDs; Firebolt39 remains disabled.
+Schema8 ranks now have41 identities; schema7 remains38. B82 exposes29 learned
+abilities/59 items/all9 presets, including the authored Arcanist teaching kit.
+The five new items are Waders, Treads, Frost Prism, Water Flask and Frost
+Capsule. Ember Line's v08 surface and other unsupported operations stay hidden.
+All current clients need matching native modules; old executable compatibility
+and a new reconnect mechanism are not claimed.
+
+B81's six typed action refs, eleven bindings (head/torso/legs/feet/gloves/
+main/off/four accessories), atomic drafts, source invalidation, item identities,
+consumable clearing/death rules and absolute cooldowns remain the loadout path.
+Trait is derived from immutable preset. Native input/HUD/preparation use the
+same owner state and source definitions. Environment views contain authorized
+appearance/pose only, not a canonical grid or hidden creator/life records.
+
+## B83 boundary
+
+1. Extend the bounded Wet/Frozen service to all six conditions plus finite Oil,
+   and all ten reaction rows. Keep static river substrate outside cell budgets.
+   Preserve the existing direct-Frost unit algorithm, endpoint and claim order.
+2. Complete reservation/revalidation for delayed paid projectiles, overlap/
+   overwrite ownership,512 transition evaluations/100ms, expiry-first overload
+   behavior and complete damaging contact/tick attribution. No paid field may
+   silently disappear or defer due combat/Heart work.
+3. Integrate Steam/Smoke union occlusion, observation recomputation and bounded
+   actual-mask previews. Preserve source privacy; never send the full grid or
+   hidden owner IDs to make a client preview convenient.
+4. Keep original source life for persistent fields through death, prevent reward
+   duplication and respect protected bodies. Wards/traps/gates keep their own
+   life-bound semantics. Avoid adding boss control immunities not declared by
+   the existing category rules.
+5. Preserve exact native event order. Before real authority movement, the
+   movement component drains earlier events against the old pose; entry then
+   applies Wet before same-boundary packets. Do not fabricate past trajectories
+   from a new pose. Surface commands/contact follow direct packets.
+6. Enable new catalog definitions only with real native operations, costs,
+   acquisition and owner/client UI support. Preserve B80 numeric reservations,
+   isolated v07 data/profile and frozen historical payloads. B84 owns catalog
+   completion; B85 owns complete world integration; B86 owns usability/release.
+
+## Commands and evidence limits
 
 ```powershell
-python -B Scripts/SyncB81Data.py --check
+python -B Scripts/SyncB82Data.py --check
+python -B Scripts/TestV08Import.py
 python -B docs/v08/tools/check_spec.py
-./Scripts/BuildEditor.ps1 -MaxParallelActions 4
+./Scripts/BuildEditor.ps1 -MaxParallelActions 1
+./Scripts/BootstrapAssets.ps1 -Mode Validate
 ./Scripts/RunTests.ps1
+./Scripts/RunB82Check.ps1 -RoundTripMs 100 -JitterMs 10 -TimeoutSeconds 180
 ./Scripts/RunB81Check.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/OpenStandalone.ps1 -Profile v08_integration
-./Scripts/OpenStandalone.ps1 -Profile v07_integration
 ```
 
-Run Unreal operations sequentially with Source/Config frozen. UE5.8.4
-CL58902052, Win64 Development, MSVC14.44.35229 / SDK10.0.26100.0, max4 compile
-processes. The native v08 B81 slice uses L_DevelopmentRegion. Explicit v07 opens
-L_V07Region and retains the B76 four-route world; frontend/V05 remain separate.
+Run Unreal operations sequentially, with Source/Config frozen during native
+build/test execution. UE5.8.4 CL58902052, Win64 Development,
+MSVC14.44.35229 / SDK10.0.26100.0, at most4 compiler actions. B82 used one worker
+under local memory pressure. Native fixtures label diagnostic wallet/item/
+placement/clock setup; independent remote RPCs and actual movement are distinct
+from normal earned progression or human acceptance. See the final B82 report
+for completed checks and portable reports.
 
-The working ledger has 364 rows: B80/B81, 68 new/55 inherited cases, definitions
-and contract dependencies. B81 evidence is focused engineering acceptance;
-new/native cases beyond that scope remain partial/not run. All E01–E48 and
-V07-D01–D08/V06-D01–D08 remain mapped and preserved. Human review, physical/
-rendered input matrices, cold package, long sessions and full cross-feature
-races/privacy remain pending/deferred. No reconnection or fresh distribution
-is claimed. Future stages are B83 fields, B84 full catalog/acquisition, B85
-world integration and B86 native usability/release evidence.
+All E01–E48 and V07-D01–D08/V06-D01–D08 remain mapped and preserved. Human,
+physical/rendered input matrices, cold package/distribution, long sessions,
+full cross-feature races/privacy and normal progression journeys remain
+pending/deferred as named. Focused engineering tests do not waive them.

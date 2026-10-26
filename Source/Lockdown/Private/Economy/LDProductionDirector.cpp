@@ -23,7 +23,7 @@ namespace
     bool Still(const ALDCharacter* B){return B&&B->GetVelocity().SizeSquared2D()<=1&&B->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()<=1&&B->GetLastMovementInputVector().IsNearlyZero();}
 }
 FVector ALDProductionDirector::Position(const UWorld* W,uint8 Site)
-{if(W->GetMapName().Contains(TEXT("L_V07Region"))&&Site>=5&&Site<9){const auto* C=ULDWorldCatalog::Load();return C->Position(Site==5?TEXT("HeartForge"):FString::Printf(TEXT("Ruin%c"),'A'+Site-6));}if(Site>=6&&Site<9){const FVector Offsets[]={FVector(-1400,800,0),FVector(0,1050,0),FVector(1450,800,0)};return Offsets[Site-6];}if(Site==5){return LDRegion::Site(W,6)+FVector(-200,220,0);}
+{if((W->GetMapName().Contains(TEXT("L_V07Region"))||W->GetMapName().Contains(TEXT("L_V08Region")))&&Site>=5&&Site<9){const auto* C=ULDWorldCatalog::Load();return C->Position(Site==5?TEXT("HeartForge"):FString::Printf(TEXT("Ruin%c"),'A'+Site-6));}if(Site>=6&&Site<9){const FVector Offsets[]={FVector(-1400,800,0),FVector(0,1050,0),FVector(1450,800,0)};return Offsets[Site-6];}if(Site==5){return LDRegion::Site(W,6)+FVector(-200,220,0);}
     return Site<2?LDRegion::Site(W,8)+FVector(Site?160:-160,0,0):LDRegion::Site(W,Site==3?2:Site==4?6:1);}
 FString ALDProductionDirector::SiteName(uint8 Site)
 {const TCHAR* N[]={TEXT("Crystal outcrop 1"),TEXT("Crystal outcrop 2"),TEXT("City workshop"),TEXT("West workshop"),TEXT("East workshop"),TEXT("HeartForge"),TEXT("Ruin A cache"),TEXT("Ruin B cache"),TEXT("Ruin C cache")};return Site<9?N[Site]:TEXT("Unknown production site");}

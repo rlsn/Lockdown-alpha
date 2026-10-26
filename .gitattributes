@@ -34,3 +34,6 @@
 /docs/v08/** -text whitespace=cr-at-eol
 /Content/Lockdown/Data/V08/*.json -text
 /Scripts/*V08*.py text eol=lf
+
+# Preserve raw engine output in the B82 evidence bundle.
+/docs/v08/evidence/B82/*.log -whitespace

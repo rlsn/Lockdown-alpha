@@ -1,7 +1,7 @@
 #include "Development/LDV08Loadout.h"
 #include "Inventory/LDEquipmentCatalog.h"
 
-bool LDV08::PresetEnabled(uint8 P){return P<9&&P!=5;} // Frostline teaching kit waits for B82.
+bool LDV08::PresetEnabled(uint8 P){return P<9;} // B82 supplies the authored Frostline teaching kit.
 const TCHAR* LDV08::TraitName(const FLDCharacterBuild& B)
 {
     static const TCHAR* Names[]={TEXT("Load Planning"),TEXT("Patient Pursuit"),TEXT("Field Practice"),TEXT("Directional Discipline"),TEXT("Patient Pursuit"),TEXT("Field Practice"),TEXT("Trailcraft"),TEXT("Careful Assembly"),TEXT("Convincing Decoy")};

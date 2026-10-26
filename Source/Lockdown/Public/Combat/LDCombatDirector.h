@@ -14,6 +14,7 @@ enum class ELDSkillTaskPhase : uint8 { Validate, Accept, Commit };
 struct FLDBodyCombatState
 {
     FGuid Identity=FGuid::NewGuid();
+    int64 WetFrostReadyAt=0;
     double Hp=100;
     double CommittedDamage=20;
     double LastDamage=-1000,LastDealt=-1000,QuietSince=0,ExposedUntil=0;
@@ -78,7 +79,7 @@ public:
     bool Basic=false,Reflected=false;
 };
 
-enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse};
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse, WetSurface, FrozenSurface};
 UCLASS()
 class LOCKDOWN_API ALDTacticalField:public AActor
 {
@@ -126,6 +127,8 @@ struct FLDCombatHit
     int32 BreakMS=0;
     int32 SlowMS=0,MuteMS=0;
     bool Basic=false,Periodic=false;
+    bool DirectFrost=false,DirectWater=false;
+    FGuid TargetLife;
 };
 
 UCLASS()
@@ -193,9 +196,26 @@ public:
     void RefreshItemFamilies(ALDPlayerController* PC);
     void EndContentLife(ALDCharacter* Body);
     bool Explored(ALDPlayerController* PC,FVector Point) const;
+    // Server-only river contacts and bounded commands; no canonical grid replication.
+    void RefreshRiverContact(ALDCharacter* Body,int64 At,bool Boundary=false);
+    void SampleRiver(int64 At);
+    void CommitRiver(int64 At);
+    bool StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration);
+    void ElementContact(const FLDCombatHit& Hit,ALDCharacter* Victim,int64 At);
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
+    friend class ALDB82Probe;
+    struct FRiverState {FGuid Owner,Life,Cast;int64 Created=0,Until=0;};
+    struct FRiverCell {FRiverState Wet,Frozen;TWeakObjectPtr<ALDTacticalField> Cue;};
+    struct FRiverCommand {FRiverState State;TArray<FIntPoint> Cells;bool Frozen=false;};
+    TMap<FIntPoint,FRiverCell> RiverCells;
+    TArray<FRiverCommand> RiverCommands;
+    struct FRiverContact {bool Wet=false;int64 SampledAt=-1;};
+    TMap<TWeakObjectPtr<ALDCharacter>,FRiverContact> RiverContacts;
+    TMap<FString,int64> FrostReceipts;
+    int64 RiverBoundary=-1,RiverTransitionAt=-1;
+    int32 RiverEvaluations=0;
     friend class ALDContentProbe;
     friend class ALDContentNetworkProbe;
     struct FResidentReturn { double At; FVector Home; FGuid Wallet;bool HasBuild=false;FLDCharacterBuild Build; };

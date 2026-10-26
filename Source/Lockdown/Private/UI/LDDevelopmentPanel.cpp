@@ -66,7 +66,7 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         auto* LibrarySize=WidgetTree->ConstructWidget<USizeBox>();LibrarySize->SetHeightOverride(260);AddRow(Left,LibrarySize);
         auto* LibraryScroll=WidgetTree->ConstructWidget<UScrollBox>();LibraryScroll->SetAlwaysShowScrollbar(true);LibrarySize->SetContent(LibraryScroll);
         auto* LibraryRows=WidgetTree->ConstructWidget<UVerticalBox>();LibraryScroll->AddChild(LibraryRows);
-        for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
+        for(uint8 I=1;I<LDDevelopment::V08SkillCount;++I)
         {
             auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(LibraryRows,Row,2);
             auto* Label=Text(TEXT(""),14);SkillLabels.Add(Label);Row->AddChildToHorizontalBox(Label)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -145,9 +145,9 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
     for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])));}
     for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));if(O.Build.RulesVersion==8&&Draft.Actions[I].Source==ELDActionSource::Gear){const auto* Item=O.Inventory.Find(Draft.Actions[I].Instance);SlotLabels[I]->SetText(FText::FromString(Key+TEXT("\n[ITEM] ")+(Item?LDInventory::Name(Item->Kind,Item->Skill):TEXT("Missing source"))));}}
-    for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
+    for(uint8 I=1;I<LDDevelopment::V08SkillCount;++I)
     {
-        const bool Available=O.Build.RulesVersion!=8||I<10||ULDTacticalCatalog::Load(8)->Find(ELDSkill(I));SkillLabels[I-1]->GetParent()->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(!Available){continue;}
+        const bool Available=I<LDDevelopment::Count(O.Build)&&(O.Build.RulesVersion!=8||I<10||ULDTacticalCatalog::Load(8)->Find(ELDSkill(I)));SkillLabels[I-1]->GetParent()->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(!Available){continue;}
         if(!Draft.Ranks.IsValidIndex(I)){SkillLabels[I-1]->SetText(FText::FromString(TEXT("v07 only")));RankButtons[I-1]->SetIsEnabled(false);EquipButtons[I-1]->SetIsEnabled(false);continue;}
         const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.RulesVersion<7&&O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
         auto ValueBuild=Ghost;if(!ValueBuild.Ranks[I]){ValueBuild.Ranks[I]=1;}

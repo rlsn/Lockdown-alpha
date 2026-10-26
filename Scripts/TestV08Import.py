@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Focused B80 importer rejection tests. These are not Unreal gameplay tests."""
 import json
+import re
 from pathlib import Path
 import shutil
 import tempfile
@@ -23,6 +24,13 @@ class ImportBoundaries(unittest.TestCase):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(sync.ROOT / name, target)
+        # B80 is a frozen import fixture, not the current runtime generator.
+        # Preserve the actual retained prefix/values (including adversarial edits
+        # below), while removing later appended native identities in this copy.
+        for name, last in (("Development/LDCharacterBuild.h", "GateWeave"),
+                           ("Inventory/LDInventoryTypes.h", "Heartbreaker")):
+            path = self.root / "Source/Lockdown/Public" / name
+            path.write_text(re.sub(r"(" + last + r")\s*,[^}]+", r"\1 ", path.read_text(), count=1))
 
     def edit_catalog(self, name, edit):
         path = sync.SPEC / "data" / (name + ".json")

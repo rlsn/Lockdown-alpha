@@ -1,28 +1,31 @@
-# Project Lockdown — v0.8 B81 slots/traits implemented
+# Project Lockdown — v0.8 B82 river core
 
-Windows-first Unreal 5.8.4 project. **B81 adds the native v0.8 development
-profile: six mixed-source actions, seven body/four accessory bindings, one
-intrinsic class trait and atomic preparation. B82 river core is next.**
+Windows-first Unreal 5.8.4 project. B82 adds a separate native river region,
+Wet contact, Frozen slow and the direct-Frost reaction to the v0.8 profile.
+Six mixed-source actions, eleven physical bindings, class traits and atomic
+preparation remain in place. The full environmental service is B83.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B81 implementation and limits](docs/v08/B81_IMPLEMENTATION.md),
+[B82 implementation and limits](docs/v08/B82_IMPLEMENTATION.md),
 [v0.8 B80–B86 build plan](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
-and [working ledger](docs/v08/FeatureLedger.csv). The enabled B81 slice has
-27 abilities/54 items/eight presets. Arcanist needs Frostline; Ember Line needs
-its new Burning surface. Unsupported elemental content stays hidden.
+and [working ledger](docs/v08/FeatureLedger.csv). The enabled slice has
+29 abilities/59 items/all nine presets. Ember Line awaits its v08 Burning
+surface; unsupported elemental content remains hidden.
 
 ```powershell
 ./Scripts/OpenStandalone.ps1 -Profile v08_integration
-python -B Scripts/SyncB81Data.py --check
+python -B Scripts/SyncB82Data.py --check
+./Scripts/RunB82Check.ps1 -RoundTripMs 100 -JitterMs 10
 ```
 
-Native Editor build, 41 rule tests and focused independent-client engineering
-checks pass. Human, physical/rendered input, full release acceptance and fresh
-packaging remain pending. The separate `v07_integration` profile retains the
+See the implementation report for current native validation and evidence.
+Human, physical/rendered input, full release acceptance and fresh packaging
+remain pending. The separate `v07_integration` profile retains the
 [B76 runtime](docs/v07/B76_IMPLEMENTATION.md), including all four Heart routes.
-[B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves its scoped acceptance and
-named deferrals. The default frontend / `v06_regression` remain on V05.
-[B80 review](docs/v08/B80_BASELINE_REVIEW.md) records adoption/provenance;
+[B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves scoped acceptance and named
+deferrals. The default frontend / `v06_regression` remain on V05.
+[B81](docs/v08/B81_IMPLEMENTATION.md) and
+[B80](docs/v08/B80_BASELINE_REVIEW.md) preserve earlier checkpoints;
 [masterR7](docs/master/README.md) remains long-term context.
 
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),

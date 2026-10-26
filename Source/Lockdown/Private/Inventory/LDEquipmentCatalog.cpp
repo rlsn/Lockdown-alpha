@@ -1,5 +1,5 @@
 #include "Inventory/LDEquipmentCatalog.h"
-#include "Development/LDB81Contract.h"
+#include "Development/LDB82Contract.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "LDEquipmentContract.h"
@@ -13,12 +13,13 @@ namespace {FString EquipmentHash(const FString& S){FTCHARToUTF8 B(*S);FSHA256Sig
 bool ULDEquipmentCatalog::Import(const FString& Text,FString& Why)
 {
     SourceJson=Text.Replace(TEXT("\r\n"),TEXT("\n"));Checksum=EquipmentHash(SourceJson);Items.Reset();Gates.Reset();
-    RulesVersion=Checksum==LD_B81_EQUIPMENT_SHA?8:7;
-    if(Checksum!=(RulesVersion==8?LD_B81_EQUIPMENT_SHA:LD_EQUIPMENT_SHA)){Why=TEXT("Unsupported equipment semantics; sync implementation and native asset");return false;}
+    RulesVersion=Checksum==LD_B82_EQUIPMENT_SHA?8:7;
+    if(Checksum!=(RulesVersion==8?LD_B82_EQUIPMENT_SHA:LD_EQUIPMENT_SHA)){Why=TEXT("Unsupported equipment semantics; sync implementation and native asset");return false;}
     TSharedPtr<FJsonObject> Root;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SourceJson),Root)||!Root){return false;}
     TMap<FString,ELDItemKind> Kinds={{TEXT("iron_halberd"),ELDItemKind::IronHalberd},{TEXT("watchblade"),ELDItemKind::Watchblade},{TEXT("runic_staff"),ELDItemKind::RunicStaff},{TEXT("surveyor_bow"),ELDItemKind::SurveyorBow},{TEXT("oath_mace"),ELDItemKind::OathMace},{TEXT("null_dagger"),ELDItemKind::NullDagger},{TEXT("bastion_plate"),ELDItemKind::BastionPlate},{TEXT("shade_mantle"),ELDItemKind::ShadeMantle},{TEXT("archivist_robe"),ELDItemKind::ArchivistRobe},{TEXT("merchant_harness"),ELDItemKind::MerchantHarness},{TEXT("reflective_mail"),ELDItemKind::ReflectiveMail},{TEXT("pathfinder_boots"),ELDItemKind::PathfinderBoots},{TEXT("silent_soles"),ELDItemKind::SilentSoles},{TEXT("cliffwalkers"),ELDItemKind::Cliffwalkers},{TEXT("anchor_greaves"),ELDItemKind::AnchorGreaves},{TEXT("scholars_sigil"),ELDItemKind::ScholarsSigil},{TEXT("brokers_seal"),ELDItemKind::BrokersSeal},{TEXT("warding_eye"),ELDItemKind::WardingEye},{TEXT("iron_oath"),ELDItemKind::IronOath},{TEXT("weighted_satchel"),ELDItemKind::WeightedSatchel},{TEXT("null_bell"),ELDItemKind::NullBell},{TEXT("smoke_flask"),ELDItemKind::SmokeFlask},{TEXT("seers_dust"),ELDItemKind::SeersDust},{TEXT("healing_salve"),ELDItemKind::HealingSalve},{TEXT("mana_draught"),ELDItemKind::ManaDraught},{TEXT("ward_totem"),ELDItemKind::WardTotem},{TEXT("recall_token"),ELDItemKind::RecallToken},{TEXT("snare_mine"),ELDItemKind::SnareMine},{TEXT("counterglyph"),ELDItemKind::Counterglyph},{TEXT("mirror_sigil"),ELDItemKind::MirrorSigil},{TEXT("purity_charm"),ELDItemKind::PurityCharm},{TEXT("aegis_flask"),ELDItemKind::AegisFlask},{TEXT("grappling_chain"),ELDItemKind::GrapplingChain},{TEXT("blink_charm"),ELDItemKind::BlinkCharm},{TEXT("simple_staff"),ELDItemKind::SimpleStaff},{TEXT("conduit_staff"),ELDItemKind::ConduitStaff},{TEXT("null_staff"),ELDItemKind::NullStaff},{TEXT("rift_staff"),ELDItemKind::RiftStaff},{TEXT("harpoon_halberd"),ELDItemKind::HarpoonHalberd},{TEXT("tower_relic"),ELDItemKind::TowerRelic}};
 
     Kinds.Add(TEXT("iron_helm"),ELDItemKind::IronHelm);Kinds.Add(TEXT("scholars_hood"),ELDItemKind::ScholarsHood);Kinds.Add(TEXT("scouts_cowl"),ELDItemKind::ScoutsCowl);Kinds.Add(TEXT("reinforced_leggings"),ELDItemKind::ReinforcedLeggings);Kinds.Add(TEXT("runners_trousers"),ELDItemKind::RunnersTrousers);Kinds.Add(TEXT("laborers_grip"),ELDItemKind::LaborersGrip);Kinds.Add(TEXT("iron_longsword"),ELDItemKind::IronLongsword);Kinds.Add(TEXT("arcane_focus"),ELDItemKind::ArcaneFocus);Kinds.Add(TEXT("duelists_parrying_dagger"),ELDItemKind::DuelistsParryingDagger);Kinds.Add(TEXT("wayfarer_boots"),ELDItemKind::WayfarerBoots);Kinds.Add(TEXT("channelers_vest"),ELDItemKind::ChannelersVest);Kinds.Add(TEXT("cleansing_charm"),ELDItemKind::CleansingCharm);Kinds.Add(TEXT("mirror_amulet"),ELDItemKind::MirrorAmulet);Kinds.Add(TEXT("arcane_lens"),ELDItemKind::ArcaneLens);
+    Kinds.Add(TEXT("river_waders"),ELDItemKind::RiverWaders);Kinds.Add(TEXT("river_treads"),ELDItemKind::RiverTreads);Kinds.Add(TEXT("frost_prism"),ELDItemKind::FrostPrism);Kinds.Add(TEXT("water_flask"),ELDItemKind::WaterFlask);Kinds.Add(TEXT("frost_capsule"),ELDItemKind::FrostCapsule);
     TMap<FString,uint8> Slots={{TEXT("weapon"),0},{TEXT("offhand"),1},{TEXT("body"),2},{TEXT("feet"),3},{TEXT("charm"),4}};
     if(RulesVersion==8){Slots={{TEXT("head"),0},{TEXT("torso"),1},{TEXT("legs"),2},{TEXT("feet"),3},{TEXT("gloves"),4},{TEXT("main_hand"),5},{TEXT("off_hand"),6},{TEXT("accessory"),7}};}
     const TCHAR* Attr[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
@@ -36,12 +37,12 @@ bool ULDEquipmentCatalog::Import(const FString& Text,FString& Why)
 }
 bool ULDEquipmentCatalog::Validate(FString& Why) const
 {
-    if(Checksum!=(RulesVersion==8?LD_B81_EQUIPMENT_SHA:LD_EQUIPMENT_SHA)||EquipmentHash(SourceJson)!=Checksum){Why=TEXT("Equipment checksum mismatch");return false;}
+    if(Checksum!=(RulesVersion==8?LD_B82_EQUIPMENT_SHA:LD_EQUIPMENT_SHA)||EquipmentHash(SourceJson)!=Checksum){Why=TEXT("Equipment checksum mismatch");return false;}
     auto* C=NewObject<ULDEquipmentCatalog>();if(!C->Import(SourceJson,Why)||C->Items.Num()!=Items.Num()||C->Gates.Num()!=Gates.Num()){return false;}
     for(int32 I=0;I<Items.Num();++I){if(!FLDEquipmentDefinition::StaticStruct()->CompareScriptStruct(&Items[I],&C->Items[I],0)){Why=TEXT("Derived equipment differs from source");return false;}}
     for(int32 I=0;I<Gates.Num();++I){if(!FLDAbilityGate::StaticStruct()->CompareScriptStruct(&Gates[I],&C->Gates[I],0)){Why=TEXT("Derived gate differs from source");return false;}}return true;
 }
-ULDEquipmentCatalog* ULDEquipmentCatalog::Load(uint8 Rules){if(Rules==8){static ULDEquipmentCatalog* Cached=nullptr;if(!Cached){FString Text,Why;if(!FFileHelper::LoadFileToString(Text,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V08/equipment_b81.json")))){return nullptr;}auto* C=NewObject<ULDEquipmentCatalog>();if(!C->Import(Text,Why)){return nullptr;}C->AddToRoot();Cached=C;}return Cached;}return LoadObject<ULDEquipmentCatalog>(nullptr,TEXT("/Game/Lockdown/Generated/V07/DA_EquipmentCatalog.DA_EquipmentCatalog"));}
+ULDEquipmentCatalog* ULDEquipmentCatalog::Load(uint8 Rules){if(Rules==8){static ULDEquipmentCatalog* Cached=nullptr;if(!Cached){FString Text,Why;if(!FFileHelper::LoadFileToString(Text,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V08/equipment_b82.json")))){return nullptr;}auto* C=NewObject<ULDEquipmentCatalog>();if(!C->Import(Text,Why)){return nullptr;}C->AddToRoot();Cached=C;}return Cached;}return LoadObject<ULDEquipmentCatalog>(nullptr,TEXT("/Game/Lockdown/Generated/V07/DA_EquipmentCatalog.DA_EquipmentCatalog"));}
 
 double FLDEquipmentDefinition::Param(const TCHAR* Key,double Default) const
 {if(ActiveJson.IsEmpty()){return Default;}TSharedPtr<FJsonObject> O;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ActiveJson),O)||!O){return Default;}double Value=Default;O->TryGetNumberField(Key,Value);return Value;}

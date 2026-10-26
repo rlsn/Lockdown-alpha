@@ -37,7 +37,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         {if(First){auto* Marker=Cast<ALDTacticalField>(First);if(!Marker||Marker->Kind!=ELDTacticalField::Marker||!Observe(First,Range)||!Allows(Body,LDTactical::EAction::Dash)||!MobilityEndpoint(Body,Marker->GetActorLocation(),End,Marker)){return Reject();}}
             else{Mana=10;if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!MobilityEndpoint(Body,R.Point,End)){return Reject();}Field=CreateField(Body,ELDTacticalField::Marker,End-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()-13),At,20000,40,0);if(!Field){return Reject();}Field->SkillCooldown=(D->RankKey==TEXT("cooldown_ms")?D->Magnitudes[Rank]:D->Cooldown)/1000.;}}
         else if(Skill==ELDSkill::GateWeave)
-        {int32 Emitters=0;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){Emitters+=It->Active(At);}if(Emitters>78){return Reject();}FVector A,BPoint;if(!PC||FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(650+B->Gear.CastRange)||FVector::DistSquared2D(R.Point,R.SecondPoint)>4000.*4000||!Explored(PC,R.Point)||!Explored(PC,R.SecondPoint)||!MobilityEndpoint(Body,R.Point,A)||!MobilityEndpoint(Body,R.SecondPoint,BPoint)||FVector::DistSquared2D(A,BPoint)<120*120){return Reject();}
+        {int32 Emitters=0;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){Emitters+=It->Kind!=ELDTacticalField::WetSurface&&It->Kind!=ELDTacticalField::FrozenSurface&&It->Active(At);}if(Emitters>78){return Reject();}FVector A,BPoint;if(!PC||FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(650+B->Gear.CastRange)||FVector::DistSquared2D(R.Point,R.SecondPoint)>4000.*4000||!Explored(PC,R.Point)||!Explored(PC,R.SecondPoint)||!MobilityEndpoint(Body,R.Point,A)||!MobilityEndpoint(Body,R.SecondPoint,BPoint)||FVector::DistSquared2D(A,BPoint)<120*120){return Reject();}
             Field=CreateField(Body,ELDTacticalField::Gate,A-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()-13),At,18000,Value,0);if(!Field){return Reject();}Pair=CreateField(Body,ELDTacticalField::Gate,BPoint-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()-13),At,18000,Value,0);if(!Pair){DestroyField(Field);return Reject();}Field->Partner=Pair;Pair->Partner=Field;}
         else if(D->Target==ELDTacticalTarget::SelfOrUnit){if(!Observe(First,Range)||Skill==ELDSkill::RemedyBind){return Reject();}}
         else if(D->Target==ELDTacticalTarget::Unit||Skill==ELDSkill::Grapple&&First){if(!Observe(First,Range)||(!Cast<ALDCharacter>(First)&&!(Cast<ALDTacticalField>(First)&&Cast<ALDTacticalField>(First)->Kind==ELDTacticalField::Decoy))){return Reject();}}
@@ -60,12 +60,21 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
                 if(GetWorld()->OverlapAnyTestByObjectType(P,Q,FCollisionObjectQueryParams(ECC_Pawn),FCollisionShape::MakeBox(FVector(43,8,100)))){continue;}auto* Wall=NewObject<UBoxComponent>(Field);Wall->SetupAttachment(Field->GetRootComponent());Wall->SetRelativeLocation(Offset);Wall->SetRelativeRotation(Q);Wall->SetBoxExtent(FVector(43,8,100));Wall->SetCollisionEnabled(ECollisionEnabled::QueryOnly);Wall->SetCollisionObjectType(ECC_WorldDynamic);Wall->SetCollisionResponseToAllChannels(ECR_Ignore);Wall->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block);Wall->SetCanEverAffectNavigation(false);Field->AddInstanceComponent(Wall);Wall->RegisterComponent();}}
         }
         if(Skill==ELDSkill::ArcBolt){StagedProjectile=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(!StagedProjectile){return Reject();}}
+        if((Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet)&&!StageRiver(Body,R.Point,false,Skill==ELDSkill::Frostline,D->Range,D->Area,At,5000)){Why=TEXT("Field capacity unavailable");return false;}
         // All fallible allocations and endpoint checks precede release costs.
         S->Tactical.MP-=Mana;B->Cooldowns[uint8(Skill)]=Skill==ELDSkill::GuardSwap&&!First?B->Cooldowns[uint8(Skill)]:Now+(D->RankKey==TEXT("cooldown_ms")?D->Magnitudes[Rank]:D->Cooldown)/1000.;
         if(Skill==ELDSkill::GuardSwap&&!First){S->CoreRecoveryUntil=Now+1;}
         if(Skill==ELDSkill::GateWeave){TArray<ALDTacticalField*> Old;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Source.Get()==Body&&It->Kind==ELDTacticalField::Gate&&*It!=Field&&*It!=Pair){Old.Add(*It);}}for(auto* F:Old){DestroyField(F,TEXT("GatePairReplaced"));}}
         if(Skill==ELDSkill::BraceWall){const bool Replace=At>=S->Tactical.BarrierUntil||FMath::Min(Value*Scale,.4*LDDevelopment::MaxHP(*B))>S->Tactical.Barrier;LDTactical::Barrier(S->Tactical,Value*Scale,LDDevelopment::MaxHP(*B),At+3000,At);if(Replace){S->Tactical.Directional=true;S->Tactical.BarrierFacing=Body->GetActorForwardVector();}}
         if(Skill==ELDSkill::ArcBolt){auto* P=StagedProjectile;if(P){P->Source=Body;P->CasterIdentity=S->Identity;P->Victim=Cast<ALDCharacter>(First);P->ActorVictim=First;P->VictimLife=S->CoreTargetLife;P->Endpoint=First->GetActorLocation();P->AdvancedAt=At;P->Amount=Value*Scale*(1+B->Gear.SpellPercent/100.);P->Token=R.Token;}}
+        if(Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet)
+        {
+            const FVector Start=Body->GetActorLocation(),Dir=(FVector(R.Point)-Start).GetSafeNormal2D();
+            TArray<ALDCharacter*> Targets;for(const auto& P:Bodies){auto* T=P.Key.Get();if(!T||T==Body||P.Value.Hp<=0||At<LDTactical::Milliseconds(P.Value.ProtectionUntil)){continue;}const double Along=FVector::DotProduct(T->GetActorLocation()-Start,Dir);
+                if(Along>=0&&Along<=D->Range&&FVector::DistSquared2D(T->GetActorLocation(),Start+Dir*Along)<=FMath::Square(D->Area)&&LDGround::ClearSegment(GetWorld(),Start,T->GetActorLocation())){Targets.Add(T);}}
+            Targets.Sort([&](const auto& A,const auto& Other){return StateFor(&A)->Identity.ToString()<StateFor(&Other)->Identity.ToString();});
+            for(auto* T:Targets){FLDCombatHit H{Body,T,Value*Scale*(1+B->Gear.SpellPercent/100.),LDTactical::EDamage::Magical,false,0,R.Token};H.DirectFrost=Skill==ELDSkill::Frostline;H.DirectWater=Skill==ELDSkill::WaterJet;H.TargetLife=StateFor(T)->Identity;Hits.Add(H);}
+        }
         if(Skill==ELDSkill::AnchorBash){Hits.Add({Body,First,45,LDTactical::EDamage::Physical,true,D->Magnitudes[Rank],R.Token});}
         if(Skill==ELDSkill::Hamstring){FLDCombatHit H{Body,First,double(Value),LDTactical::EDamage::Physical,true,0,R.Token};H.SlowMS=2500;Hits.Add(H);}
         if(Skill==ELDSkill::NullSeal){FLDCombatHit H{Body,First,0,LDTactical::EDamage::Magical,true,0,R.Token};H.MuteMS=1800;Hits.Add(H);}
@@ -81,7 +90,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
     {
         if(!O||!Item||!Item->bReserved||Item->Revision!=R.ItemRevision||(B->RulesVersion==8?!LDV08::ItemSource(O->Inventory,*B,Item->Identity,R.Slot,R.SourceKind==2):!O->Inventory.Quick.Contains(Item->Identity)||(I->Binding!=255&&!Item->BindingMask))||O->ItemFamilies.FindRef(I->CooldownKey())>At||Item->ReadyAt>At){return Reject();}
         const auto Op=I->Operation;const int32 Range=I->Param(TEXT("range_cm"));
-        if(First&&(Op==TEXT("basic_dispel")||Op==TEXT("targeted_mute")||Op==TEXT("grapple"))&&!Observe(First,Range)){return Reject();}
+        if(First&&(Op==TEXT("element_item_hit")||Op==TEXT("basic_dispel")||Op==TEXT("targeted_mute")||Op==TEXT("grapple"))&&!Observe(First,Range)){return Reject();}
         if(Op==TEXT("blink")&&(!Allows(Body,LDTactical::EAction::Dash)||At<O->DirectDamageUntil||FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(I->Param(TEXT("distance_cm")))||!MobilityEndpoint(Body,R.Point,End))){return Reject();}
         if((Op==TEXT("grapple")||Op==TEXT("terrain_grapple"))&&!Allows(Body,LDTactical::EAction::Dash)){return Reject();}
         if(I->Family==TEXT("major_protection")&&At<FMath::Max(S->Tactical.MajorReadyAt,O->MajorProtectionReadyAt)){return Reject();}
@@ -89,11 +98,16 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         {if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)){return Reject();}const auto Kind=Op==TEXT("smoke")?ELDTacticalField::Smoke:Op==TEXT("spawn_ward")?ELDTacticalField::Ward:ELDTacticalField::Trap;
             Field=CreateField(Body,Kind,Surface+FVector(0,0,15),At,I->Param(TEXT("duration_ms")),I->Param(TEXT("hp"),1),Kind==ELDTacticalField::Ward?I->Param(TEXT("vision_cm")):I->Param(TEXT("radius_cm")),true);if(!Field){return Reject();}if(Kind==ELDTacticalField::Trap){Field->ArmedAt=At+1000;Field->Amount=I->Param(TEXT("root_ms"));}}
         if(Op==TEXT("detector")){Field=CreateField(Body,ELDTacticalField::Detector,Body->GetActorLocation(),At,I->Param(TEXT("duration_ms")),1,I->Param(TEXT("radius_cm")),true);if(!Field){return Reject();}}
+        if(Op==TEXT("element_item_hit")&&(!Cast<ALDCharacter>(First)||!Observe(First,Range))){return Reject();}
+        if(Op==TEXT("element_item_field"))
+        {if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)){return Reject();}
+            if(!StageRiver(Body,R.Point,true,Item->Kind==ELDItemKind::FrostCapsule,0,I->Param(TEXT("radius_cm")),At,I->Param(TEXT("lifetime_ms")))){Why=TEXT("Field capacity unavailable");return false;}}
         const int64 Cooldown=At+I->Cooldown;const FGuid Id=Item->Identity;O->ItemFamilies.FindOrAdd(I->CooldownKey())=Cooldown;Item->ReadyAt=Cooldown;Item->bReserved=false;auto* Entry=const_cast<FLDInventoryItem*>(O->Inventory.Find(Id));Entry->ReadyAt=Cooldown;Entry->bReserved=false;++Item->Revision;Entry->Revision=Item->Revision;++O->Inventory.Revision;S->CoreItem.Invalidate();
         if(I->Family==TEXT("major_protection")){S->Tactical.MajorReadyAt=At+8000;O->MajorProtectionReadyAt=At+8000;}
         if(I->Family==TEXT("cleanse")){S->NullBellReadyAt=Cooldown/1000.;O->NullBellReadyAt=S->NullBellReadyAt;}
         if(Op==TEXT("basic_dispel_self")){LDTactical::Dispel(S->Tactical,false);}
         if(Op==TEXT("basic_dispel")){auto* V=First?StateFor(Cast<ALDCharacter>(First)):S;if(V&&(V==S||!LDTactical::Block(V->Tactical,At))){LDTactical::Dispel(V->Tactical,false,V!=S);}}
+        if(Op==TEXT("element_item_hit")){FLDCombatHit H{Body,First,I->Param(TEXT("amount")),LDTactical::EDamage::Magical,true,0,R.Token};H.DirectFrost=true;H.TargetLife=S->CoreTargetLife;Hits.Add(H);}
         if(Op==TEXT("targeted_mute")){FLDCombatHit H{Body,First,0,LDTactical::EDamage::Magical,true,0,R.Token};H.MuteMS=I->Param(TEXT("duration_ms"));Hits.Add(H);}
         if(Op==TEXT("arm_next_hit")){S->DaggerItem=Id;S->DaggerUntil=At+I->Param(TEXT("duration_ms"));}
         if(Op==TEXT("reflect_next_projectile")){S->Tactical.ReflectUntil=At+I->Param(TEXT("duration_ms"));}

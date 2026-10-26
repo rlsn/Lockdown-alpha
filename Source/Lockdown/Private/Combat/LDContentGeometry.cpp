@@ -46,7 +46,7 @@ bool ALDCombatDirector::AtomicSwap(AActor* A,AActor* B,ALDCharacter* Caster,int6
 ALDTacticalField* ALDCombatDirector::CreateField(ALDCharacter* Body,ELDTacticalField Kind,FVector Point,int64 At,int64 Duration,double Hp,double Radius,bool Item)
 {
     int32 Count=0,Total=0;ALDTacticalField* Oldest=nullptr;
-    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
+    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Kind!=ELDTacticalField::WetSurface&&It->Kind!=ELDTacticalField::FrozenSurface&&It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
     if(Total>=80){return nullptr;}auto* F=GetWorld()->SpawnActor<ALDTacticalField>(Point,FRotator::ZeroRotator);if(!F){return nullptr;}
     F->Source=Body;F->SourceLife=StateFor(Body)->Identity;F->PlayerSource=Cast<ALDPlayerController>(Body->GetController());F->bPlayerSource=F->PlayerSource.IsValid();F->Kind=Kind;F->ExpiresAt=At+Duration;F->Hp=Hp;F->Radius=Radius;F->ArmedAt=At;F->ItemSource=Item;
     const int32 Limit=Kind==ELDTacticalField::Ward||Kind==ELDTacticalField::Trap?2:1;

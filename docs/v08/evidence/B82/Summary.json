@@ -1,0 +1,81 @@
+{
+  "milestone": "B82",
+  "date": "2026-10-26",
+  "base_commit": "02687f1",
+  "scope": "Native river engineering slice; full v0.8 acceptance remains pending",
+  "engine": "UE5.8.4 CL58902052",
+  "toolchain": "MSVC14.44.35229 / SDK10.0.26100.0; one compiler worker under memory pressure; at most4 allowed",
+  "build": {
+    "command": "./Scripts/BuildEditor.ps1 -MaxParallelActions 1",
+    "artifact": "Artifacts/20261026-104424-116-BuildEditor",
+    "result": "PASS"
+  },
+  "region": {
+    "command": "./Scripts/BootstrapAssets.ps1 -Mode Generate",
+    "artifact": "Artifacts/20261026-102346-606-Bootstrap-Generate",
+    "result": "PASS",
+    "maps": 4,
+    "new_assets": [
+      "Content/Lockdown/Generated/Data/DA_ElementalRegion.uasset",
+      "Content/Lockdown/Generated/Maps/L_V08Region.umap",
+      "Content/Lockdown/Generated/Materials/M_River.uasset"
+    ]
+  },
+  "rules": {
+    "command": "./Scripts/RunTests.ps1",
+    "artifact": "Artifacts/20261026-104850-593-Automation",
+    "passed": 43,
+    "failed": 0
+  },
+  "network": {
+    "command": "./Scripts/RunB82Check.ps1 -RoundTripMs 100 -JitterMs 10 -TimeoutSeconds 180",
+    "artifact": "Artifacts/20261026-104601-853-B82-Rivers-100-10",
+    "results": {
+      "Server": {
+        "checks": 56,
+        "failures": 0
+      },
+      "A": {
+        "checks": 23,
+        "failures": 0
+      },
+      "B": {
+        "checks": 23,
+        "failures": 0
+      }
+    }
+  },
+  "b81_regression": {
+    "artifact": "Artifacts/20261026-105118-540-B81-SlotsTraits-100-10",
+    "checks": {
+      "Server": 28,
+      "A": 17,
+      "B": 16
+    },
+    "failures": 0
+  },
+  "v07_regression": {
+    "artifact": "Artifacts/20261026-105305-066-B73-Loadout-100-10",
+    "checks": {
+      "Server": 46,
+      "A": 27,
+      "B": 26
+    },
+    "failures": 0
+  },
+  "ledger_replay": "PASS: 22 receipts / 9 accounts / 101 unique item identities / 445 gold source total; diagnostic funding/grants are labelled, not earned journey proof",
+  "enabled": {
+    "abilities": 29,
+    "items": 59,
+    "presets": 9
+  },
+  "working_ledger_rows": 365,
+  "source_manifest_sha256": "250b0c4ae415d08cf794e4f77c46b6355833807bafff145c1482ff3fcd594b1b",
+  "limits": [
+    "Editor server and two independent native clients at100ms RTT with10ms jitter; no packaged-server claim.",
+    "Native city crossings are actual player/AI movement; Heart ford/dry routes have native path and contact checks. No human participation claimed.",
+    "Boundary lane uses labelled placement, source grants, health/clock isolation; paid book/holds/item identities/releases remain real native transactions.",
+    "Full six-state/Oil grid, damaging contact attribution, delayed reservations, complete overwrite/overload/privacy and adverse matrices await B83-B86.",
+    "Historical B80/B81 data and evidence, original v08 inputs and v07 assets remain frozen; inherited E01-E48/V07-D01-D08/V06-D01-D08 remain mapped."
+  ]
+}

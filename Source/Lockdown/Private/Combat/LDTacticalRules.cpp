@@ -54,9 +54,9 @@ namespace LDTactical
     }
     FString StatusText(const FState& S,int64 At)
     {
-        static const TCHAR* Names[]={TEXT("Stun / strong dispel"),TEXT("Silence / basic dispel"),TEXT("Mute / basic dispel"),TEXT("Root / basic dispel"),TEXT("Disarm / basic dispel"),TEXT("Hex / strong dispel"),TEXT("Break / strong dispel"),TEXT("Blind / basic dispel"),TEXT("Slow / basic dispel"),TEXT("Ledger mark / basic dispel")};
+        static const TCHAR* Names[]={TEXT("Stun / strong dispel"),TEXT("Silence / basic dispel"),TEXT("Mute / basic dispel"),TEXT("Root / basic dispel"),TEXT("Disarm / basic dispel"),TEXT("Hex / strong dispel"),TEXT("Break / strong dispel"),TEXT("Blind / basic dispel"),TEXT("Slow / basic dispel"),TEXT("Ledger mark / basic dispel"),TEXT("Wet / basic dispel")};
         FString Result;
-        for(uint8 K=0;K<10;++K){int64 Until=At;for(const auto& V:S.Statuses){if(uint8(V.Kind)==K){Until=FMath::Max(Until,V.Until);}}if(Until>At){Result+=FString::Printf(TEXT("%s %.1fs · "),Names[K],(Until-At)/1000.);}}
+        for(uint8 K=0;K<11;++K){int64 Until=At;for(const auto& V:S.Statuses){if(uint8(V.Kind)==K){Until=FMath::Max(Until,V.Until);}}if(Until>At){Result+=FString::Printf(TEXT("%s %.1fs · "),Names[K],(Until-At)/1000.);}}
         if(S.ConcealedUntil>At){Result+=TEXT("Concealed · ");}
         if(S.GroundedUntil>At){Result+=TEXT("Grounded / source-bound · ");}
         if(S.GuardUntil>At){Result+=TEXT("Control guard / one charge · ");}

@@ -44,7 +44,7 @@ bool Mesh(UWorld* W,const FString& Name,const FString& Shape,const FVector& Posi
     auto* A=W->SpawnActor<AStaticMeshActor>(Position,Rotation);if(!A){return false;}A->SetActorLabel(Name);A->Tags.Add(FName(*Name));auto* C=A->GetStaticMeshComponent();C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,*(TEXT("/Engine/BasicShapes/")+Shape)));if(!C->GetStaticMesh()){return false;}
     A->SetActorScale3D(Size/100.);C->SetCollisionProfileName(TEXT("BlockAll"));C->SetCollisionResponseToChannel(ECC_GameTraceChannel1,Floor?ECR_Block:ECR_Ignore);C->SetCollisionResponseToChannel(ECC_GameTraceChannel2,Floor?ECR_Ignore:ECR_Block);
     if(High){C->ComponentTags.Add(TEXT("LDHighGround"));}if(Road){C->SetCollisionEnabled(ECollisionEnabled::NoCollision);C->SetCanEverAffectNavigation(false);}
-    const FString Material=Floor&&!Road?TEXT("M_Ground"):Shape==TEXT("Cylinder")?TEXT("M_Tree"):TEXT("M_Stone");C->SetMaterial(0,LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Lockdown/Generated/Materials/")+Material+TEXT(".")+Material)));return true;
+    const FString Material=Name.StartsWith(TEXT("RiverFloor"))?TEXT("M_River"):Floor&&!Road?TEXT("M_Ground"):Shape==TEXT("Cylinder")?TEXT("M_Tree"):TEXT("M_Stone");C->SetMaterial(0,LoadObject<UMaterialInterface>(nullptr,*(TEXT("/Game/Lockdown/Generated/Materials/")+Material+TEXT(".")+Material)));return true;
 }
 bool BuildMap(UWorld* W,ULDRegionDefinition* D,const FString& Path)
 {
@@ -60,7 +60,7 @@ bool BuildMap(UWorld* W,ULDRegionDefinition* D,const FString& Path)
     auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(W);if(!Nav){UE_LOG(LogTemp,Error,TEXT("Region navigation system absent"));return false;}FlushAsyncLoading();FAssetCompilingManager::Get().FinishAllCompilation();
     Nav->RemoveNavigationBuildLock(ENavigationBuildLock::AsyncLoadLock,UNavigationSystemV1::ELockRemovalRebuildAction::NoRebuild);Nav->OnNavigationBoundsUpdated(Bounds);Nav->Build();
     const auto Towns=D->Towns();auto* NavData=Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate);if(!NavData){UE_LOG(LogTemp,Error,TEXT("Region navigation data absent"));return false;}
-    if(Path.Contains(TEXT("L_V07Region"))){if(auto* Property=FindFProperty<FProperty>(NavData->GetClass(),TEXT("RuntimeGeneration"))){*Property->ContainerPtrToValuePtr<uint8>(NavData)=uint8(ERuntimeGenerationType::Dynamic);}}
+    if(Path.Contains(TEXT("L_V07Region"))||Path.Contains(TEXT("L_V08Region"))){if(auto* Property=FindFProperty<FProperty>(NavData->GetClass(),TEXT("RuntimeGeneration"))){*Property->ContainerPtrToValuePtr<uint8>(NavData)=uint8(ERuntimeGenerationType::Dynamic);}}
     const auto* Route=UNavigationSystemV1::FindPathToLocationSynchronously(W,D->Node(Towns[0])->Position,D->Node(Towns[1])->Position);
     if(!Route||!Route->IsValid()||Route->IsPartial()){UE_LOG(LogTemp,Error,TEXT("Region authoring failed town-to-town navigation"));return false;}
     W->GetOutermost()->GetMetaData().SetValue(W,RegionStampKey,*(D->Signature+TEXT(":cooked-bounds")));return UEditorLoadingAndSavingUtils::SaveMap(W,Path);
@@ -79,10 +79,11 @@ bool LDRegionBootstrap::Run(bool Validate,bool Regenerate,bool RebuildMaps)
     FString Json;TSharedPtr<FJsonObject> Root;const TArray<TSharedPtr<FJsonValue>>* Definitions=nullptr;
     if(!FFileHelper::LoadFileToString(Json,*(FPaths::ProjectConfigDir()/TEXT("RegionLayout.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Root)||!Root||!Root->TryGetArrayField(TEXT("regions"),Definitions)||Definitions->Num()!=2){return false;}
     FString V07Json;TSharedPtr<FJsonObject> V07Root;if(!FFileHelper::LoadFileToString(V07Json,*(FPaths::ProjectConfigDir()/TEXT("V07RegionLayout.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V07Json),V07Root)){return false;}TArray<TSharedPtr<FJsonValue>> All=*Definitions;All.Add(V07Root->GetArrayField(TEXT("regions"))[0]);Definitions=&All;
+    FString V08Json;TSharedPtr<FJsonObject> V08Root;if(!FFileHelper::LoadFileToString(V08Json,*(FPaths::ProjectConfigDir()/TEXT("V08RegionLayout.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(V08Json),V08Root)){return false;}All.Add(V08Root->GetArrayField(TEXT("regions"))[0]);
     for(int32 I=0;I<Definitions->Num();++I)
     {
         FString Source,Error;FJsonSerializer::Serialize((*Definitions)[I]->AsObject().ToSharedRef(),TJsonWriterFactory<>::Create(&Source));auto* Expected=NewObject<ULDRegionDefinition>();if(!Expected->Import(Source,Error)){UE_LOG(LogTemp,Error,TEXT("Invalid region: %s"),*Error);return false;}
-        const FString AssetName=I==2?TEXT("DA_TacticalRegion"):I?TEXT("DA_AlternateRegion"):TEXT("DA_CivicRegion"),AssetPath=TEXT("/Game/Lockdown/Generated/Data/")+AssetName,MapPath=TEXT("/Game/Lockdown/Generated/Maps/")+FString(I==2?TEXT("L_V07Region"):I?TEXT("L_RegionAlternate"):TEXT("L_DevelopmentRegion"));
+        const FString AssetName=I==3?TEXT("DA_ElementalRegion"):I==2?TEXT("DA_TacticalRegion"):I?TEXT("DA_AlternateRegion"):TEXT("DA_CivicRegion"),AssetPath=TEXT("/Game/Lockdown/Generated/Data/")+AssetName,MapPath=TEXT("/Game/Lockdown/Generated/Maps/")+FString(I==3?TEXT("L_V08Region"):I==2?TEXT("L_V07Region"):I?TEXT("L_RegionAlternate"):TEXT("L_DevelopmentRegion"));
         if(Regenerate||(!Validate&&!FPackageName::DoesPackageExist(AssetPath))){auto* D=NewObject<ULDRegionDefinition>(CreatePackage(*AssetPath),*AssetName,RF_Public|RF_Standalone);if(!D->Import(Source,Error)||!Save(D,AssetPath,D->Signature)){return false;}}
         auto* Definition=LoadObject<ULDRegionDefinition>(nullptr,*(AssetPath+TEXT(".")+AssetName));if(!Definition||!Definition->Validate(Error)){UE_LOG(LogTemp,Error,TEXT("Missing/invalid regional asset: %s"),*Error);return false;}
         for(TFieldIterator<FProperty> P(ULDRegionDefinition::StaticClass(),EFieldIteratorFlags::ExcludeSuper);P;++P){if(!P->Identical_InContainer(Definition,Expected)){UE_LOG(LogTemp,Error,TEXT("Saved region field mismatch: %s"),*P->GetName());return false;}}

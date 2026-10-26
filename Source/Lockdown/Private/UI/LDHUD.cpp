@@ -1,4 +1,6 @@
 #include "UI/LDHUD.h"
+#include "Combat/LDRiverRules.h"
+#include "Core/LDGroundQueries.h"
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDV08Loadout.h"
 #include "Inventory/LDEquipmentCatalog.h"
@@ -127,7 +129,7 @@ void ULDHUD::RefreshReadModel()
     if(B.RulesVersion>=7){const auto Fifth=B.Slots[4];CastChecked<UTextBlock>(Skills[4]->GetContent())->SetText(FText::FromString(FString(TEXT("["))+PC->BindingLabel(TEXT("Skill5"))+TEXT("] ")+LDDevelopment::SkillName(Fifth)));Skills[4]->SetIsEnabled(Fifth!=ELDSkill::None&&O.bActive&&Now>=O.ProtectedUntil&&!GS->EndReason);Items[3]->SetVisibility(ESlateVisibility::Collapsed);}
     const FString Remaining=FString::Printf(TEXT("%02d:%02d"),int32(FMath::Max(0.,GS->MatchDeadline-Now))/60,int32(FMath::Max(0.,GS->MatchDeadline-Now))%60);
     const FString Heart=GS->bUIControlProfile?LDHUD::PublicOpening(*GS,Now):GS->bClaimActive?FString::Printf(TEXT("%s %.1f/10s"),GS->bContested?TEXT("CONTESTED"):TEXT("Claim"),GS->ClaimProgress):TEXT("Heart protected");
-    const bool WorldRegion=B.RulesVersion>=7&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"));
+    const bool WorldRegion=B.RulesVersion>=7&&(GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")));
     const FString Secondary=WorldRegion?FString::Printf(TEXT("Towers %d/3 destroyed · Siege / Charter / Keys / Heartbreaker"),3-FMath::CountBits(uint32(GS->DefensiveFlags&7))):Overlay?FString::Printf(TEXT("YOURS · HP %.0f / %.0f · %s · Match continues"),O.Hp,O.MaxHp,*Life):(GS->bPublicSensorActive?FString(TEXT("Public watch ON")):FString(TEXT("Public watch OFF")))+TEXT(" · Conquest unavailable");
     const FString Economy=GS->bUIControlProfile?(GS->ShortagePhase==1?FString(TEXT("\nEAST TOOLKIT · "))+(GS->ShortageRemaining?TEXT("One order open: Toolkit → 40g / 20XP"):TEXT("Order filled; price premium remains")):GS->ShortagePhase==2?TEXT("\nEast shortage expired"):TEXT("\nEast shortage at 10:00–13:00")):TEXT("");
     CastChecked<UCanvasPanelSlot>(Objective->Slot)->SetSize(FVector2D(0,Overlay?100:TextScale>1?140:110));
@@ -165,6 +167,7 @@ void ULDHUD::RefreshReadModel()
     else if((O.ActionCue&15)==7){const double Left=FMath::Max(0.,O.SkillEndsAt-Now);Action=FString::Printf(TEXT("%s · Hold %s · %.1fs"),LDDevelopment::SkillName(O.ActiveSkill),*PC->HeldInputLabel(),Left);Fraction=1-Left/LDDevelopment::ChannelSeconds(O.ActiveSkill);}
     else if(O.ChannelKind){Action=FString::Printf(TEXT("%s · Hold %s · %.1f / %.0fs"),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):O.ChannelKind==4?TEXT("Fabricating"):O.ChannelKind==5?TEXT("Activating / key pickup"):O.ChannelKind==6?TEXT("Recovering"):TEXT("Claiming"),*PC->BindingLabel(TEXT("Context")),O.ChannelProgress,(O.ChannelDuration>0?O.ChannelDuration:LDObjective::Duration(O.ChannelKind)));Fraction=O.ChannelProgress/(O.ChannelDuration>0?O.ChannelDuration:LDObjective::Duration(O.ChannelKind));}
     else{Action=PC->IsTargeting()?TEXT("Armed · Confirm in world / ")+PC->BindingLabel(TEXT("Navigate"))+TEXT(" cancels"):PC->HasPendingAim()?TEXT("Pending…"):!O.bActive?TEXT("Waiting to return · Organize your bag"):PC->Navigation->bFollowCamera?TEXT("Camera: follow"):TEXT("Camera: free · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" follows");}
+    if(B.RulesVersion==8&&O.WetFrostReadyAt>Now*1000){Action+=FString::Printf(TEXT(" · Wet/Frost ready %.1fs"),(O.WetFrostReadyAt-Now*1000)/1000.);}
     ActionText->SetText(FText::FromString(Action));Progress->SetPercent(float(FMath::Clamp(Fraction,0.,1.)));
     if(LastFeedback!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){LastFeedback=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();FeedbackAt=Now;}Toast->SetText(FText::FromString(Now-FeedbackAt<5?LastFeedback:FString()));
     ToastPanel->SetVisibility(Toast->GetText().IsEmpty()||Overlay||!Playing?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
@@ -188,6 +191,17 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     if(PC->IsTargeting()&&PC->GetPawn())
     {
         const double Range=PC->ArmedRange();TArray<FVector2D> Ring;const FVector Body=PC->GetPawn()->GetActorLocation();for(int32 I=0;I<=48;++I){const double Angle=I*2*PI/48;FVector2D P;if(Project(Body+FVector(FMath::Cos(Angle)*Range,FMath::Sin(Angle)*Range,-70),P)){Ring.Add(P);}}if(Ring.Num()>2){Lines(Ring,FLinearColor(.3f,1,.8f,.8f),1.5f);}
+        if(PC->OwnerState.Build.RulesVersion==8)
+        {
+            bool RiverAction=false,Frozen=false,Disk=false;double Length=0,Width=0;
+            if(PC->ArmedSlot()>=0){const auto K=PC->OwnerState.Build.Slots[PC->ArmedSlot()];RiverAction=K==ELDSkill::Frostline||K==ELDSkill::WaterJet;Frozen=K==ELDSkill::Frostline;Length=Frozen?650:600;Width=Frozen?90:80;}
+            if(const auto* Item=PC->OwnerState.Inventory.Find(PC->ArmedItem());Item&&(Item->Kind==ELDItemKind::WaterFlask||Item->Kind==ELDItemKind::FrostCapsule)){RiverAction=Disk=true;Frozen=Item->Kind==ELDItemKind::FrostCapsule;Width=180;}
+            FHitResult Hit;if(RiverAction&&PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
+            {for(const auto Cell:LDRiver::Footprint(Body,Hit.ImpactPoint,Length,Width,Disk))
+                {FVector Centre=LDRiver::Centre(Cell),Floor;bool Substrate=LDRiver::InRiver(Centre);if(const auto* View=PC->LocalView();View&&!View->IsStale()){for(const auto& V:View->LastView().Entities){if(V.Kind==ELDObservedKind::TacticalField&&V.Presentation>=16&&LDRiver::Cell(V.Position)==Cell){Substrate=true;}}}
+                    if((Frozen&&!Substrate)||!LDGround::MapSurface(GetWorld(),Centre,Floor)||!LDGround::ClearSegment(GetWorld(),Disk?Hit.ImpactPoint+FVector(0,0,30):Body,Floor+FVector(0,0,30))){continue;}
+                    TArray<FVector2D> Box;for(const FVector Corner:{FVector(-100,-100,5),FVector(100,-100,5),FVector(100,100,5),FVector(-100,100,5),FVector(-100,-100,5)}){FVector2D P;if(Project(Floor+Corner,P)){Box.Add(P);}}if(Box.Num()==5){Lines(Box,Frozen?FLinearColor(.65f,.9f,1):FLinearColor(.05f,.5f,1));}}}
+        }
         float X=0,Y=0;if(PC->GetMousePosition(X,Y)&&!PointerOverUI()){int32 W=0,H=0;PC->GetViewportSize(W,H);const FVector2D P=FVector2D(X,Y)*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));Lines({P-FVector2D(9,0),P+FVector2D(9,0)},FLinearColor(1,.85f,.35f));Lines({P-FVector2D(0,9),P+FVector2D(0,9)},FLinearColor(1,.85f,.35f));}
     }
     E.PopClip();return Base+1;

@@ -111,6 +111,7 @@ struct FLDOwnerState
     UPROPERTY() int64 MajorProtectionReadyAt=0;
     UPROPERTY() FLDItemFamilies ItemFamilies;
     UPROPERTY() int32 SlowPercent=0;
+    UPROPERTY() int64 WetFrostReadyAt=0;
     UPROPERTY() int64 DirectDamageUntil=0;
     UPROPERTY() int64 GateReadyAt=0;
     UPROPERTY() int64 KeysReadyAt=0;

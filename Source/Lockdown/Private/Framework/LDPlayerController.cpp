@@ -30,6 +30,7 @@
 #include "Tests/LDGeometryProbe.h"
 #include "Tests/LDLoadoutProbe.h"
 #include "Tests/LDB81Probe.h"
+#include "Tests/LDB82Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDContentNetworkProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -53,7 +54,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -108,6 +109,7 @@ void ALDPlayerController::InitializeLocalUI()
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDContentNetworkProbe>(ALDContentNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>(ALDAcquisitionNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB82Probe>(ALDB82Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB81Probe>(ALDB81Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTacticalProbe>(ALDTacticalProbe::StaticClass(),FTransform::Identity,Params);}
@@ -336,7 +338,7 @@ FString ALDPlayerController::LegacyContextPrompt() const
             return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
         }
     }
-    if(OwnerState.Build.RulesVersion>=7&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
+    if(OwnerState.Build.RulesVersion>=7&&(GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")))&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
     {const bool Public=GS&&(GS->DefensiveFlags==0||GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now+10<=GS->CharterCloseAt);const bool Personal=OwnerState.BreachRoute&&Now>=OwnerState.BreachOpenAt&&Now+10<=OwnerState.BreachCloseAt;return Public||Personal?TEXT("Hold context10s to claim. Positive damage/proximity alone do not cancel. Stun/hex, explicit interruption, displacement, release or lost access reset progress."):TEXT("Heart protected. Three towers / public Charter / three retained Keys / assembled Heartbreaker. Private activation occurs in the antechamber.");}
     if(GS&&GS->bUIControlProfile&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
     {return Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&GS->CharterWindow.IsValid()?TEXT("Hold context: public Heart claim 10s. All living unprotected contenders qualify; enemies within 240 cm contest."):TEXT("Heart protected. Treasury: Supply + Industrial + Witness + 100 gold; activate registered Charter at City.");}

@@ -45,7 +45,7 @@ namespace
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
 double ALDPlayerController::ArmedRange() const
-{if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
+{if(ArmedWard.IsValid()){const auto* I=OwnerState.Inventory.Find(ArmedWard);const auto* C=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=I&&C?C->Find(I->Kind):nullptr;if(D){return D->Param(TEXT("range_cm"),D->Param(TEXT("distance_cm"),96));}}if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
 FString ALDPlayerController::HeldInputLabel() const
 {
     if(ContentHoldToken){return bContentMouse?BindingLabel(TEXT("Select")):HeldQuickSlot>=0?BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1))):BindingLabel(TEXT("Context"));}

@@ -137,7 +137,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
 
     const TArray<TPair<FString,FLinearColor>> Materials = {
         {TEXT("M_Character"),FLinearColor(.2f,.35f,.32f)}, {TEXT("M_Ground"),FLinearColor(.13f,.17f,.15f)},
-        {TEXT("M_Stone"),FLinearColor(.4f,.38f,.3f)}, {TEXT("M_Tree"),FLinearColor(.12f,.22f,.15f)}
+        {TEXT("M_River"),FLinearColor(.035f,.22f,.48f)}, {TEXT("M_Stone"),FLinearColor(.4f,.38f,.3f)}, {TEXT("M_Tree"),FLinearColor(.12f,.22f,.15f)}
     };
     for (const auto& Entry : Materials)
     {
@@ -454,6 +454,6 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         UE_LOG(LogTemp, Display, TEXT("Validated %s: %d generated meshes"), *Path, FoundCount);
     }
     if(!LDRegionBootstrap::Run(bValidate,bRegenerate,FParse::Param(*Params,TEXT("RebuildRegionMaps")))){return 6;}
-    UE_LOG(LogTemp,Display,TEXT("LD_BOOTSTRAP_SUCCESS %s (migration assets, three regional topologies and v07 native catalogs validated)"),*Signature);
+    UE_LOG(LogTemp,Display,TEXT("LD_BOOTSTRAP_SUCCESS %s (migration assets, four regional topologies and v07 native catalogs validated)"),*Signature);
     return 0;
 }

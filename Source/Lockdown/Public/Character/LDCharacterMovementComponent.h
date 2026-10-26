@@ -27,6 +27,8 @@ public:
     bool bCombatWalkOnly = false;
     bool StartContentDash(const FVector& Direction,double Distance,double Duration);
     bool StartAuthorityDash(const FVector& Direction,double Distance=360);
+    virtual void PerformMovement(float DeltaSeconds) override;
+    virtual void OnMovementUpdated(float DeltaSeconds,const FVector& OldLocation,const FVector& OldVelocity) override;
     virtual float GetMaxSpeed() const override;
     virtual void UpdateFromCompressedFlags(uint8 Flags) override;
     virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
