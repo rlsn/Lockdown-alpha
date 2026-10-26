@@ -14,6 +14,8 @@
 #include "Region/LDRegionDefinition.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "EngineUtils.h"
 #include "Inventory/LDInventoryDirector.h"
 
@@ -57,6 +59,7 @@ bool ALDDevelopmentDirector::Eligible(ALDPlayerController* PC,double Now,bool Qu
 }
 void ALDDevelopmentDirector::FinishRequest(ALDPlayerController* PC,uint32 Id,const FString& Reason)
 {
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))){UE_LOG(LogTemp,Display,TEXT("LD_B86_DEVELOPMENT request=%u time=%.3f result=%s"),Id,GetWorld()->GetTimeSeconds(),*Reason);}
     auto& S=States.FindOrAdd(PC);S.Receipts.Add(Id,Reason);
     while(S.Receipts.Num()>32){uint32 Oldest=MAX_uint32;for(const auto& Pair:S.Receipts){Oldest=FMath::Min(Oldest,Pair.Key);}S.Receipts.Remove(Oldest);}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(Mode->Inventory&&Mode->Inventory->Complete(PC,Id,Reason)){return;}if(auto* O=Mode->StateFor(PC)){PC->ClientDevelopmentResult(*O,Id,Reason);}

@@ -26,6 +26,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("CONTROLS & SETTINGS"),24));
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("The match continues. Inspecting changes no ownership. Arm an attack or skill, then confirm over the world. Release a held action to cancel.")))->SetPadding(FMargin(0,8));
+        if(CastChecked<ALDPlayerController>(GetOwningPlayer())->OwnerState.Build.RulesVersion==8){Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("Six shared actions [SKILL/ITEM] + four physical accessories [ACC]. Passive accessories have no activation. Wet + direct Frost can stun; Frozen ground only slows. Steam blocks sight. Binding changes require quiet preparation."),14));}
         Feedback=LDWidgets::Text(WidgetTree,TEXT("Choose a binding to change. Escape always goes Back."));Main->AddChildToVerticalBox(Feedback);
         Preferences=LDWidgets::Text(WidgetTree,TEXT(""));Main->AddChildToVerticalBox(Preferences)->SetPadding(FMargin(0,6));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Main->AddChildToVerticalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));

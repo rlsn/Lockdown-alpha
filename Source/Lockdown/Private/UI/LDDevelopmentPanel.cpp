@@ -143,8 +143,15 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     if(O.Build.RulesVersion==8)
     {Heading->SetText(FText::FromString(Heading->GetText().ToString()+TEXT(" · Intrinsic: ")+LDV08::TraitName(O.Build)));if(GearRowsRevision!=O.Inventory.Revision){GearRowsRevision=O.Inventory.Revision;GearActionRows->ClearChildren();GearActionRows->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("BODY ACTIONS · Equip source + allocate selected shared slot in one draft"),14));for(const auto& Item:O.Inventory.Items){const auto* D=ULDEquipmentCatalog::Load(8)->Find(Item.Kind);if(!D||D->Binding>=7||D->Operation.IsEmpty()){continue;}GearActionRows->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,D->Name+TEXT(" · item source"),[this,Index=Item.Slot](){Choose(15,Index);}));}}}
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
-    for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])));}
-    for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));if(O.Build.RulesVersion==8&&Draft.Actions[I].Source==ELDActionSource::Gear){const auto* Item=O.Inventory.Find(Draft.Actions[I].Instance);SlotLabels[I]->SetText(FText::FromString(Key+TEXT("\n[ITEM] ")+(Item?LDInventory::Name(Item->Kind,Item->Skill):TEXT("Missing source"))));}}
+    for(int32 I=0;I<6;++I)
+    {
+        AttributeLabels[I]->SetAutoWrapText(O.Build.RulesVersion==8);
+        const FString Label=O.Build.RulesVersion==8
+            ?FString::Printf(TEXT("%s\nNatural %d → %d\nEffective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])
+            :FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I]);
+        AttributeLabels[I]->SetText(FText::FromString(Label));
+    }
+    for(int32 I=0;I<SlotLabels.Num();++I){SlotLabels[I]->SetAutoWrapText(O.Build.RulesVersion==8);if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));if(O.Build.RulesVersion==8&&Draft.Actions[I].Source==ELDActionSource::Gear){const auto* Item=O.Inventory.Find(Draft.Actions[I].Instance);SlotLabels[I]->SetText(FText::FromString(Key+TEXT("\n[ITEM]\n")+(Item?LDInventory::Name(Item->Kind,Item->Skill):TEXT("Missing source"))));}}
     for(uint8 I=1;I<LDDevelopment::V08SkillCount;++I)
     {
         const bool Available=I<LDDevelopment::Count(O.Build)&&(O.Build.RulesVersion!=8||I<10||ULDTacticalCatalog::Load(8)->Find(ELDSkill(I)));SkillLabels[I-1]->GetParent()->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(!Available){continue;}

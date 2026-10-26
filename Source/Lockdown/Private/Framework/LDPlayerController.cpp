@@ -33,6 +33,7 @@
 #include "Tests/LDB82Probe.h"
 #include "Tests/LDB83Probe.h"
 #include "Tests/LDB84Probe.h"
+#include "Tests/LDB86Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDContentNetworkProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -56,7 +57,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -111,6 +112,7 @@ void ALDPlayerController::InitializeLocalUI()
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDContentNetworkProbe>(ALDContentNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>(ALDAcquisitionNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB86Probe>(ALDB86Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB84Probe>(ALDB84Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB83Probe>(ALDB83Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB82Probe>(ALDB82Probe::StaticClass(),FTransform::Identity,Params);}
@@ -191,8 +193,10 @@ void ALDPlayerController::SetupInputComponent()
 void ALDPlayerController::OnRep_OwnerState()
 {
     if(OwnerState.Match<LatestOwner.Match || (OwnerState.Match==LatestOwner.Match&&OwnerState.Revision<LatestOwner.Revision)){OwnerState=LatestOwner;return;}
-    if(IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||!OwnerState.bActive)){PendingAimRequest=0;Inspected.Invalidate();ClearControls();}
+    const bool NewLife=IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||(LatestOwner.bActive&&!OwnerState.bActive));
+    // Publish the lifecycle before cancellation can synchronously publish another receipt.
     LatestOwner=OwnerState;
+    if(NewLife){PendingAimRequest=0;Inspected.Invalidate();ClearControls();}
 }
 void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& State)
 {
@@ -480,7 +484,7 @@ void ALDPlayerController::ServerProbeHello_Implementation(uint8 ProbeIdentity)
 {
 #if !UE_BUILD_SHIPPING
     const ALDGameMode* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if (Mode && (Mode->bScaffoldProfile||Mode->IsDevelopmentProfile()) && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=2 && LDNetworkProbeEnabled()) { ProbeRole=ProbeIdentity; }
+    if (Mode && (Mode->bScaffoldProfile||Mode->IsDevelopmentProfile()) && !ProbeRole && ProbeIdentity>=1 && ProbeIdentity<=(FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))?4:2) && LDNetworkProbeEnabled()) { ProbeRole=ProbeIdentity; }
 #endif
 }
 void ALDPlayerController::ServerProbePing_Implementation(double Sent)

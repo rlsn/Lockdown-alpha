@@ -7,6 +7,13 @@
 class ALDGameState;
 namespace LDHUD
 {
+    struct FActionView
+    {
+        FString Name,Source,State,Tooltip;
+        bool CanActivate=false;
+    };
+    // Owner-only presentation. No actor queries or target/field enumeration.
+    LOCKDOWN_API FActionView Action(const FLDOwnerState& Own,uint8 Slot,bool Accessory,double Now,bool Finished=false,bool PanelOpen=false);
     LOCKDOWN_API FString EconomyStep(const FLDOwnerState& Own,const ALDGameState& Public,double Now);
     LOCKDOWN_API FString PublicOpening(const ALDGameState& Public,double Now);
     LOCKDOWN_API FString Inspector(const FLDOwnerState& Own,const FLDObservedEntity* Observed,double Now);

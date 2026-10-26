@@ -105,7 +105,7 @@ FReply ULDHUD::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseWheel(G,E);}
 FString ULDHUD::InspectionText() const{return Inspector?Inspector->GetText().ToString():FString();}
 FString ULDHUD::CommandText() const
-{FString Text=Resources?Resources->GetText().ToString():FString();for(const auto& B:Skills){Text+=CastChecked<UTextBlock>(B->GetContent())->GetText().ToString();}return Text;}
+{FString Text=Resources?Resources->GetText().ToString():FString();for(const auto& B:Skills){Text+=TEXT("\n")+CastChecked<UTextBlock>(B->GetContent())->GetText().ToString();}for(const auto& B:Items){if(B->IsVisible()){Text+=TEXT("\n")+CastChecked<UTextBlock>(B->GetContent())->GetText().ToString();}}return Text;}
 FString ULDHUD::TerminalText() const{return ResultText?ResultText->GetText().ToString():FString();}
 void ULDHUD::RefreshReadModel()
 {
@@ -114,7 +114,7 @@ void ULDHUD::RefreshReadModel()
     VendorButton->SetVisibility(PC->NearGuildVendor()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);VendorButton->SetIsEnabled(!PC->InventoryPending()&&O.bActive&&Now>=O.ProtectedUntil&&!GS->EndReason);
     const bool Playing=GS->bMatchStarted;const bool Overlay=(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())||(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
     Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Task->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Objective->SetVisibility(Playing?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
-    const float TextScale=PC->Controls?PC->Controls->TextScale:1;int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);const float UIScale=UWidgetLayoutLibrary::GetViewportScale(this);const bool Compact=ViewH<=720;const float BandHeight=Compact?180.f/FMath::Max(.1f,UIScale):(TextScale>1?250.f:220.f);MapFrame->SetWidthOverride(Compact?180:204);MapFrame->SetHeightOverride(110);InspectFrame->SetWidthOverride(Compact?300:330);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
+    const float TextScale=PC->Controls?PC->Controls->TextScale:1;int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);const float UIScale=UWidgetLayoutLibrary::GetViewportScale(this);const bool Compact=ViewH<=720;const float BandHeight=B.RulesVersion==8?(ViewH*(TextScale>1?.49f:.43f)/FMath::Max(.1f,UIScale)):(Compact?180.f/FMath::Max(.1f,UIScale):(TextScale>1?250.f:220.f));MapFrame->SetWidthOverride(Compact?180:204);MapFrame->SetHeightOverride(110);InspectFrame->SetWidthOverride(Compact?300:330);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
     if(AppliedScale!=TextScale){const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);T->SetFont(Font);}}}
     FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);TradeButton->SetVisibility(Selected&&Subject.Kind==ELDObservedKind::Body?ESlateVisibility::Visible:ESlateVisibility::Collapsed);TradeButton->SetIsEnabled(O.bActive&&!GS->EndReason&&!PC->InventoryPending());CastChecked<UTextBlock>(TradeButton->GetContent())->SetText(FText::FromString(TEXT("Offer trade [")+PC->BindingLabel(TEXT("Trade"))+TEXT("]")));Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
     if(Selected&&PC->GetPawn())
@@ -135,7 +135,7 @@ void ULDHUD::RefreshReadModel()
     const bool WorldRegion=B.RulesVersion>=7&&(GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")));
     const FString Secondary=WorldRegion?FString::Printf(TEXT("Towers %d/3 destroyed · Siege / Charter / Keys / Heartbreaker"),3-FMath::CountBits(uint32(GS->DefensiveFlags&7))):Overlay?FString::Printf(TEXT("YOURS · HP %.0f / %.0f · %s · Match continues"),O.Hp,O.MaxHp,*Life):(GS->bPublicSensorActive?FString(TEXT("Public watch ON")):FString(TEXT("Public watch OFF")))+TEXT(" · Conquest unavailable");
     const FString Economy=GS->bUIControlProfile?(GS->ShortagePhase==1?FString(TEXT("\nEAST TOOLKIT · "))+(GS->ShortageRemaining?TEXT("One order open: Toolkit → 40g / 20XP"):TEXT("Order filled; price premium remains")):GS->ShortagePhase==2?TEXT("\nEast shortage expired"):TEXT("\nEast shortage at 10:00–13:00")):TEXT("");
-    CastChecked<UCanvasPanelSlot>(Objective->Slot)->SetSize(FVector2D(0,Overlay?100:TextScale>1?140:110));
+    CastChecked<UCanvasPanelSlot>(Objective->Slot)->SetSize(FVector2D(0,Overlay?100:TextScale>1?(B.RulesVersion==8?200:140):110));
     ObjectiveText->SetText(FText::FromString(Remaining+(B.RulesVersion>=7?TEXT(" / 35:00 · "):TEXT(" / 25:00 · "))+Heart+(Overlay?FString():TEXT("\n")+Secondary+Economy)));
     const FString Job=O.ContractStage==1?TEXT("Collect at ")+LDRegion::SiteName(GetWorld(),O.ContractDestination):O.ContractStage==2?TEXT("Deliver at Guild"):TEXT("No active courier job");
     const FString Context=PC->ContextPrompt();const FString Brief=Context.Len()>90?Context.Left(87)+TEXT("…"):Context;
@@ -158,11 +158,22 @@ void ULDHUD::RefreshReadModel()
     }
     if(B.RulesVersion==8&&B.Actions.Num()==6&&O.Inventory.Bindings.Num()==11)
     {
-        Resources->SetText(FText::FromString(TEXT("v0.8 DEVELOPMENT · Slots & traits\n")+Resources->GetText().ToString()));
-        auto StateFor=[&](bool Item,double End,bool Empty){if(Empty){return FString(TEXT("Empty / passive"));}if(!O.bActive||GS->EndReason||Now<O.ProtectedUntil){return FString(TEXT("Unavailable"));}if(O.StatusMask&((1<<uint8(LDTactical::EStatus::Stun))|(1<<uint8(LDTactical::EStatus::Hex)))){return FString(TEXT("Hard disabled"));}if(O.StatusMask&(1<<uint8(Item?LDTactical::EStatus::Mute:LDTactical::EStatus::Silence))){return FString(Item?TEXT("Muted"):TEXT("Silenced"));}return End>Now?FString::Printf(TEXT("Cooldown %.1fs"),End-Now):FString(TEXT("Ready"));};
-        auto ItemEnd=[&](const FLDInventoryItem* I,const FLDEquipmentDefinition* D){return I&&D?FMath::Max3(I->ReadyAt,O.ItemFamilies.FindRef(D->CooldownKey()),D->Family==TEXT("major_protection")?O.MajorProtectionReadyAt:int64(0))/1000.:0.;};
-        for(int32 N=0;N<6;++N){const auto& A=B.Actions[N];const bool Gear=A.Source==ELDActionSource::Gear;const auto* I=Gear?O.Inventory.Find(A.Instance):nullptr;const auto* D=I?ULDEquipmentCatalog::Load(8)->Find(I->Kind):nullptr;const bool Empty=Gear?!D:A.Skill==ELDSkill::None;const double End=Gear?ItemEnd(I,D):B.Cooldowns[uint8(A.Skill)];const FString State=StateFor(Gear,End,Empty);const FString Name=Gear?(D?D->Name:TEXT("Missing source")):LDDevelopment::SkillName(A.Skill);CastChecked<UTextBlock>(Skills[N]->GetContent())->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),N+1)))+(Gear?TEXT(" [ITEM] "):TEXT(" [SKILL] "))+Name+TEXT(" · ")+State));Skills[N]->SetIsEnabled(State==TEXT("Ready"));Skills[N]->SetToolTipText(FText::FromString(Name+TEXT(" · ")+State+(Gear?TEXT(" · 0 MP, item cooldown, Mute applies"):TEXT(" · learned action, MP/cooldown, Silence applies"))));}
-        for(int32 N=0;N<4;++N){const auto* I=O.Inventory.Find(O.Inventory.Bindings[7+N]);const auto* D=I?ULDEquipmentCatalog::Load(8)->Find(I->Kind):nullptr;const bool Passive=!D||D->Operation.IsEmpty();const FString State=StateFor(true,ItemEnd(I,D),Passive);Items[N]->SetVisibility(ESlateVisibility::Visible);Items[N]->SetIsEnabled(State==TEXT("Ready"));CastChecked<UTextBlock>(Items[N]->GetContent())->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))+TEXT(" [ACC] ")+(D?D->Name:TEXT("Empty"))+TEXT(" · ")+State));Items[N]->SetToolTipText(FText::FromString(State+TEXT(" · One physical accessory. Consuming empties this binding; no auto-refill.")));}
+        TArray<UWidget*> Buttons;WidgetTree->GetAllWidgets(Buttons);for(auto* W:Buttons){if(auto* Button=Cast<UButton>(W);Button&&Button->GetStyle().NormalPadding.Top<13){auto Style=Button->GetStyle();Style.NormalPadding.Top=Style.NormalPadding.Bottom=13;Style.PressedPadding=Style.NormalPadding;Button->SetStyle(Style);}}
+        for(int32 N=0;N<6;++N)
+        {
+            const auto ActionView=LDHUD::Action(O,N,false,Now,GS->EndReason!=0,Overlay);
+            auto* Label=CastChecked<UTextBlock>(Skills[N]->GetContent());Label->SetAutoWrapText(true);
+            Label->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),N+1)))+TEXT(" [")+ActionView.Source+TEXT("]\n")+ActionView.Name+TEXT("\n")+ActionView.State));
+            Skills[N]->SetIsEnabled(ActionView.CanActivate);Skills[N]->SetToolTipText(FText::FromString(ActionView.Tooltip));
+        }
+        for(int32 N=0;N<4;++N)
+        {
+            const auto ActionView=LDHUD::Action(O,N,true,Now,GS->EndReason!=0,Overlay);
+            Items[N]->SetVisibility(ESlateVisibility::Visible);Items[N]->SetIsEnabled(ActionView.CanActivate);
+            auto* Label=CastChecked<UTextBlock>(Items[N]->GetContent());Label->SetAutoWrapText(true);
+            Label->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))+TEXT(" [ACC]\n")+ActionView.Name+TEXT("\n")+ActionView.State));
+            Items[N]->SetToolTipText(FText::FromString(ActionView.Tooltip));
+        }
     }
     FString Action;double Fraction=0;
     if(O.DevelopmentKind){const double Duration=O.DevelopmentKind==4?6:(O.DevelopmentKind==5||O.DevelopmentKind==6||O.DevelopmentKind==7)?O.ProductionSeconds:O.DevelopmentKind==2?3:2;const double Left=FMath::Max(0.,O.DevelopmentEndsAt-Now);Action=FString::Printf(TEXT("%s · Hold %s · %.1fs"),O.DevelopmentKind==7?TEXT("Civic service"):O.DevelopmentKind==6?TEXT("Shortage delivery"):O.DevelopmentKind==4?TEXT("Gathering"):O.DevelopmentKind==5?TEXT("Crafting"):O.DevelopmentKind==2?TEXT("Learning"):TEXT("Preparing"),*PC->HeldInputLabel(),Left);Fraction=1-Left/Duration;}

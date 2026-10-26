@@ -1,0 +1,6 @@
+PASS 61 native-to-portable raw SHA256/value copies
+PASS 407 normalized source/asset hashes
+PASS 7 archived executable/container/asset-registry hashes
+PASS 285 exact cooked source/config hashes
+PASS all368 prior ledger IDs retained; all55 inherited rows unchanged;369 total rows
+PASS frozen Content/Config/spec/data/templates/archive/prior evidence unchanged

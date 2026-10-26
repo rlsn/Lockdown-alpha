@@ -1,0 +1,13 @@
+{
+  "display": {
+    "primaryMonitorScalePercent": 100,
+    "method": "Read-only primary monitor scale query; offscreen UI does not certify OS scaling/window placement",
+    "scaleQueryResult": 0
+  },
+  "method": "Native offscreen rendered UMG, native Enhanced Input; labelled stats/knowledge/items/placement fixture, real held preparation. Not human or OS-input acceptance.",
+  "sourceRevision": "1ceffc7f0c5398fe9cbff6878365e370baebc085",
+  "sourceDirty": true,
+  "height": 720,
+  "width": 1280,
+  "largeText": true
+}

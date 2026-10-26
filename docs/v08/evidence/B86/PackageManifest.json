@@ -1,0 +1,1204 @@
+{
+  "runtime": "Lockdown/Binaries/Win64/Lockdown.exe",
+  "configuration": "Development",
+  "sourceDirty": true,
+  "files": [
+    {
+      "path": "Lockdown.exe",
+      "bytes": 171520,
+      "sha256": "870975390BD731941BC0306681BF2124995D34542CD31204CDD90901F29DBF42"
+    },
+    {
+      "path": "Lockdown\\Binaries\\Win64\\Lockdown.exe",
+      "bytes": 335738368,
+      "sha256": "4F738B0CE652876F4B5C316B26EB402C0FC0ECF1256437037FB64F5C201C364B"
+    },
+    {
+      "path": "Lockdown\\Content\\Paks\\global.ucas",
+      "bytes": 3354032,
+      "sha256": "A7FEE9DEEB261FA3B2887EC1D3D88D603935A8DD57681F9CC59AA55F63994A49"
+    },
+    {
+      "path": "Lockdown\\Content\\Paks\\global.utoc",
+      "bytes": 818,
+      "sha256": "6058BEF7573AE796D32E119BD3DF751F192FAA43838246679E3F6C9F6AE292D2"
+    },
+    {
+      "path": "Lockdown\\Content\\Paks\\Lockdown-Windows.pak",
+      "bytes": 11491908,
+      "sha256": "7093E23DA368D388730D309783FC3B7DF4351ECE6564437F7A282A306C279541"
+    },
+    {
+      "path": "Lockdown\\Content\\Paks\\Lockdown-Windows.ucas",
+      "bytes": 240104096,
+      "sha256": "560341BC7A2E7478688648EFA634106CD8D1E5234A29D7BA2918FDF751A8D998"
+    },
+    {
+      "path": "Lockdown\\Content\\Paks\\Lockdown-Windows.utoc",
+      "bytes": 208340,
+      "sha256": "EE86ECAC34E9FDE8B5768801EF3B13DE6339A3012682C97856729916C8327A14"
+    }
+  ],
+  "engine": {
+    "major": 5,
+    "minor": 8,
+    "patch": 4,
+    "changelist": 58902052,
+    "distribution": "Epic installed build",
+    "branch": "++UE5+Release-5.8"
+  },
+  "platform": "Win64",
+  "maps": [
+    "/Game/Lockdown/Generated/Maps/L_Frontend",
+    "/Game/Lockdown/Generated/Maps/L_MigrationSandbox",
+    "/Game/Lockdown/Generated/Maps/L_FunctionalTests",
+    "/Game/Lockdown/Generated/Maps/L_DevelopmentRegion",
+    "/Game/Lockdown/Generated/Maps/L_RegionAlternate",
+    "/Game/Lockdown/Generated/Maps/L_V07Region",
+    "/Game/Lockdown/Generated/Maps/L_V08Region"
+  ],
+  "sourceRevision": "1ceffc7f0c5398fe9cbff6878365e370baebc085",
+  "sourceFiles": [
+    {
+      "path": "Source\\Lockdown.Target.cs",
+      "sha256": "7709DB79E03C297E8ADB90267101871E1B26C7D6E5EE8F3351ABA7E2A4D7F1FF"
+    },
+    {
+      "path": "Source\\LockdownEditor.Target.cs",
+      "sha256": "CACF016CDF5FD21BCED8E4C98A45AEDC72396303B34DDC4D37438C07ECBCEA9A"
+    },
+    {
+      "path": "Source\\Lockdown\\Lockdown.Build.cs",
+      "sha256": "B606E0BF94B30935255A6442E2D9404427F01B6C6A8A83AD0433526CC0AE03FA"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\LockdownModule.cpp",
+      "sha256": "077FC5CBA080FB32EF2FF41F83AA2EE148D5A0ACEF2780969DF644CC7AD4D0B7"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Character\\LDCharacter.cpp",
+      "sha256": "D791FBACD8114E0AE3A090BE48531848935D94672BF4430D1EC3A7967BF00A2F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Character\\LDCharacterMovementComponent.cpp",
+      "sha256": "79CA58401F35F673B88CA506FE7AFA7A846FF15B3FA4D40DB8B122321E81EBCB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Character\\LDHumanoidVisualComponent.cpp",
+      "sha256": "AA8DB12D8EDC09121B0D9783E024B18F0E30F9408C8A708687EDE95B06538A15"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDCombatDirector.cpp",
+      "sha256": "070C2A10B4B415AD53F11B0A2D0000E08F8F46EE2FB55A11DC76C6E2DE7DCC72"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDContentActions.cpp",
+      "sha256": "A528BA142901A1117DB929E83BEC9A85668858C0432B179DCCADEEF4B78FA438"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDContentGeometry.cpp",
+      "sha256": "FB8B7E8F5049D6DD19FBB295B69F008BAD2BDFD50E64164F4F34E7DDB0320FF4"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDContentLifecycle.cpp",
+      "sha256": "D00F4EE8B660C78A35A352AA8D1628AE8AD3E6C474520558315BCF947ADF9FAF"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDContentRelease.cpp",
+      "sha256": "8B1C133033518BF151190E3CEE7B1679F8D47038CEFFE351CE58765B1433FD57"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDElementContact.cpp",
+      "sha256": "CD8E5C00FCF856C619F996B5B66C21DA5ACE2BA4874B12DF04EF9B7B2C9D27D3"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDEnvironmentRules.cpp",
+      "sha256": "F47D3C5DBCD34004BF5B7B466E0D42287B218D861E2C17F6C8F75ECA16A7B957"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDRiverEnvironment.cpp",
+      "sha256": "3204542C8BFD83E90A516C156C8F7466DDA3990C8A8D807D82B3BF23A486A8FE"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDRiverRules.cpp",
+      "sha256": "E6C93527D387C354DB2B1CE1F07B5342C1522164E1D34FFA6B9CFD6D54B4A90F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDSkillExecution.cpp",
+      "sha256": "16C2666989E1F2226C63B192A2121F173669FAD1A00C769CDC7BBF50C58910C2"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalCatalog.cpp",
+      "sha256": "A85B42CEB1CB0A86C609D8F07DEC8DDBE15CACC5BB529FCF819D797992B5F0D0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalContract.h",
+      "sha256": "80F6B68C67C16B8E412FC7E547AF8D447F3BF7670E8D4177D660716D75052B88"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalExecution.cpp",
+      "sha256": "4626FD1964BFFECCD57D4ABC40D86703F43EDFB2789C5F36F49B21D9BB773E88"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalFields.cpp",
+      "sha256": "5EA412A549425420E3C08EA84137148ACFE3DE9D8C0DE7C407C7330E91781E88"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalGeometry.cpp",
+      "sha256": "52175D8E8BA7A2D92BBE0E82B3537C654C7D44056E439176384CEA67BF81BE0D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalRequest.cpp",
+      "sha256": "90DB3E2394C8A37D49D384F8307FB82B72BD1209FB9B5680937295E14194F1D9"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDTacticalRules.cpp",
+      "sha256": "BD4C67895D29A30C376AC53002283CCCAAA7A15B9BD51254CE359D796964D3DB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDV08Catalog.cpp",
+      "sha256": "0C45ADFE45B20445EBA0E4736457FC956F21A40DFF7660A30ECDD6B31066CDC4"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Combat\\LDV08Modifiers.cpp",
+      "sha256": "D6EF4E608205412A705E950D0BDB6E975109BE600CD9E170848D9616B18BC7A5"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Core\\LDGroundQueries.cpp",
+      "sha256": "D24CDD5564C2E7E322D7E4FB871131A6D4202CEAF64DD88B6BA58B864C8689F0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Core\\LDPrototypeTuning.cpp",
+      "sha256": "7E8212EDADC64B36296C2EEFD27C5FE2120B5B678BDDA1193E2DB59A5A7D4052"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDB81Contract.h",
+      "sha256": "24DFAE84D64C3D86007E3D6FF806A629B7DAD40F43874226F8AE23E0B7290362"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDB82Contract.h",
+      "sha256": "86E539325E1262AD078D6822AF4BCF765B23C136D56720B38A9272AC0D44A59E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDB83Contract.h",
+      "sha256": "8229F42DA4560189EB8579D7109FE7F062700AAEBEF66A42E1C78F69D27A9248"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDB84Contract.h",
+      "sha256": "6204303452C19DABF8700514053EA76A4BB80CD44BAD34119BF611612773DF7E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDCharacterBuild.cpp",
+      "sha256": "C675525229FE19DF3E64B97DF37C095E4BE3CBE549586E073F45DDCEC4D96FBA"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDDevelopmentDirector.cpp",
+      "sha256": "CA918EB0DD646101D43D52AD78B313D8C7ACC49033819A7C3361D814A6537FFE"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDV08Loadout.cpp",
+      "sha256": "4D0317AEC78BCD7AB50D65BD0D84CE6C80EAC4D0E055CE0A4249AF7A36915991"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Development\\LDWorldChecks.cpp",
+      "sha256": "6DFA2FDAC32226D767B863976002A6A85B42E31751E55ED12DB131E192C4BE3E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDBankDirector.cpp",
+      "sha256": "16677002ECB3BC2FB98778E1E7F49A14634C7B5BC71C52CFD5A14321607C4F3F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDCommerceDirector.cpp",
+      "sha256": "88434D01C5B0C4C55457476B6F6662AC4053661DC2F7ECAB68E76BABA0DE15AF"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyCatalog.cpp",
+      "sha256": "0524F9A12EA452BC5AE44728094F5402D8803BE0C35BC246DA2C4C7A1F87DD82"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyCharter.cpp",
+      "sha256": "545AE606256C91E5E712023F57834CE9CC85362FA3BFB3B4D846F5CAD6A79255"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyCommerce.cpp",
+      "sha256": "01A0CA0A5DF0092E6D664F3F463DF2C29CEAF9C895E87BCBF51C024C86556132"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyDirector.cpp",
+      "sha256": "B5B2CB711CDE39CFF67F775A021A2ACDC268BA9232B28DC374987235D0246B57"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyInstitutions.cpp",
+      "sha256": "9AB63FD295456DEACE67A75029F7F8AB1EFD6975B7F525DF06C89F8D34540B00"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyLedger.cpp",
+      "sha256": "948ED693D16C7BA75B61D5B160605B7CE7A4E5DE511FC36ED36C5DC0345B523E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDEconomyProduction.cpp",
+      "sha256": "93E398AEBAD96D8A639787EC47BADD2CB357EF2AE8CF5AB51D0801670D28E861"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDInstitutionSite.cpp",
+      "sha256": "B4854F7DB49566B402D42353A656E3CF8797592FBB245B57525EF2D5534036BA"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDProductionDirector.cpp",
+      "sha256": "E2A2B562447BCF80411505BF2391B009DFC3E187E54D11F80F8B1EF12B521D2E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Economy\\LDProductionPlan.cpp",
+      "sha256": "E43E2433FCABDAAEEFD40775463B91801BC21793AC956F5C3CDFB2850E0CC84F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDGameInstance.cpp",
+      "sha256": "93D3FA4D165617820FF0A4144121E5C056FACCEF67C53E352B2A89D5FCACA6EC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDGameMode.cpp",
+      "sha256": "D383E4EF04B2D1D2B3664EA256AE2E228DDCAEC6B17EA8C987D407A8A53E30C0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerBank.cpp",
+      "sha256": "C61DBE429F2999E7A43486B8FF69E7055502DF0817ABD9B5C6DABAEB331FAC12"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerCommerce.cpp",
+      "sha256": "20A4177F6637EDAA8C5B2DBFED2DDFFCA7F48DC79A546DA226C0BC70EE97877D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerController.cpp",
+      "sha256": "99C3B17912AF5439968B26AC5A246E1908A4BC8A6F556DEE1F1B8C4C14B6F6AC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerDevelopment.cpp",
+      "sha256": "E4F073411F7C8864975153B4435663237E3453F2DE1273062E82F29088623401"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerInput.cpp",
+      "sha256": "0A5537FF0726475BE713161E9C010B918E88457BB07D4A3F98281C90653C4CCC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerInventory.cpp",
+      "sha256": "41DF4B0368CF00176370E65A00548D3F6F2CC80544B70FA0712BDF9387FDB075"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerProduction.cpp",
+      "sha256": "E2DAD084D3EBB459694C4993425B027A41472796CFE9F0C6E35D5EF4437F94AB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerTrade.cpp",
+      "sha256": "32964BAE612B35E1192C6B506AD7A0EB032F0118FB93A5DD3C80088E8E3E38DB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Framework\\LDPlayerVendor.cpp",
+      "sha256": "571A02E5882DEA271A09051C10F73AF4E81DA1651370F78CE6ACB6E66455068A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDAcquisitionCatalog.cpp",
+      "sha256": "D936B6092515354C540B6665E596839C9319B8482120EF8662B5E9EAE6CF2251"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDAcquisitionContract.h",
+      "sha256": "61364B1D02AE81F268C82701992BA1C212AA3382C44932B2B63A55A012116965"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDAcquisitionDirector.cpp",
+      "sha256": "E01E57BAF632D0AD62BAB520D39A38FE7B09610BC1ED878A48A7A6E4CCDB0544"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDEquipmentCatalog.cpp",
+      "sha256": "7DCF9C40A3DCB2B191F8C20CB1691BD4B59E2F0DA17690B04060BAEFBC9290E3"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDEquipmentContract.h",
+      "sha256": "E12FE1F5B2809B067C7411DD6564CFDB7FB87DC743299053ED2CCD90933FF604"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDGearRules.cpp",
+      "sha256": "8600EA4896F3F7A3A257EFB87BF1AE8DEACDF72BF4992D281758A8BEBAD002A5"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDInventoryDirector.cpp",
+      "sha256": "1A3E804E60A0FED035321824330DE1209B3172B2E269594DA87655BAE0370E92"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDInventoryTypes.cpp",
+      "sha256": "997832BFE1E993CCF36342592070B4125808C39D4FA73B2F946629F7500B5404"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDLoadoutRequest.cpp",
+      "sha256": "25B10EDFAB18C59F3FE09361F6B66E8176E317D97F5D3FBCA638A5EF79E77761"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDSupplyRequest.cpp",
+      "sha256": "F41C06E2FDB970989BC2952F774B841D09E8DE3FAC078CAE30768A275AD41E5B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDTradeDirector.cpp",
+      "sha256": "4CB6368B4CA95A26F4F57580181DD0B02A23B01F145412BAB317FDC8828070F1"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Inventory\\LDVendorDirector.cpp",
+      "sha256": "88894FD99740CFB2A12A0C3DF1A2D561EB05E1048EE4BFE15D5AD01455116053"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Navigation\\LDNavigationComponent.cpp",
+      "sha256": "925CB94C17ED6598E39AA35DD58377C47169BAFCA46DC8F2768DD0C4E432732B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Objectives\\LDObjectiveDirector.cpp",
+      "sha256": "D94B8EC55FC5B36B99BF1C4BDEDFE5B7BFC1C00337D71D45040935BCB1C978FE"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Region\\LDRegionDefinition.cpp",
+      "sha256": "E314EE84E1981F8A09F3D2EB6832AECEFC0F9D016AC39D14E5C3EED3CA9F41D3"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Region\\LDRegionDirector.cpp",
+      "sha256": "BE9FF4E971FC26C436F0219FD1AA5E98401A8A2448E3ED801BC61179E4A4FCC0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Region\\LDRegionNavBounds.cpp",
+      "sha256": "364E112AE58A8314D2047FAA5094168BE0052DCF01050CAA980599C58B7B6208"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDAcquisitionNetworkProbe.cpp",
+      "sha256": "6BE9BDCB6AB745DD5A599C7ABA780F398F8FC77C9D40D8132BEE7895A85E1748"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDAcquisitionProbe.cpp",
+      "sha256": "67FEE898E0277E7BC9FFFC5F7F3A1BC5975AD3583E39C56BF6ECAD9533C87EE8"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDAcquisitionRulesTests.cpp",
+      "sha256": "E2570D119BBF80A4845A229768899493BBEADCF0DB788E70D2B3575DF6E70B6A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB81Probe.cpp",
+      "sha256": "04BA7477DC50D4985938E8A15A5C846E04666A68937C638A52CE0409F7EF1932"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB82Boundaries.cpp",
+      "sha256": "78BFF262377D3F4C970E494845D01BDAC8EC0EEE6D34F20D91B2C7A38A83A06A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB82Probe.cpp",
+      "sha256": "83552FD802C234833A6A542AF83ACFB673B9AB3E5D3704F795381EA22088D8E6"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB83Boundaries.cpp",
+      "sha256": "7D3B2F3FD8326D716905F82D4405A5BFD078BCFDA2A1BA7D2AC2C9EDD61A130A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB83Fields.cpp",
+      "sha256": "3390A92CBC57E3B547F58EBC13D25999DFC91AF9FBCB52A592EA1DC624697717"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB83Probe.cpp",
+      "sha256": "C572256AF618314908379DC230506814707856C4609379B86D212E74C2970E50"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB84Boundaries.cpp",
+      "sha256": "46AF9A8380A5951167CAE6B8C78B76C6DBEC855E6163753BBAC13FE99B17688F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB84Catalog.cpp",
+      "sha256": "3887978320C5D7A0E8375DAB406CA85D7664D0D83F4CE7B0EC3728A8A8D65066"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB84Fields.cpp",
+      "sha256": "4C025FB92ED2F65FC6336A8F0F51AF0F095FD551499BCBD3D8E59CE355A5461A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB84Probe.cpp",
+      "sha256": "860676483F228BD6B0403EB54498EA1704F627C5244DBE97AAE804FE2A7187CC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB84RulesTests.cpp",
+      "sha256": "7AAD34063D4958DA034658E52FA05EAE4B816964BAFAF877BCE118DC66886205"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB86Probe.cpp",
+      "sha256": "4C8EF73EAEC95DC06FF611834ECA91BF71C7716AF81C754EA89758B7AB64ED05"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDB86RulesTests.cpp",
+      "sha256": "381CDEFBED0D847A58B527B1C6474FA7D2DA6B958881ED5B98B0A92A1393BA62"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCargoRulesTests.cpp",
+      "sha256": "5475C71E8876C3B80596791168E39BC66BB6F7110EFE6199F08ABB4EC7BF060E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCharacterBuildTests.cpp",
+      "sha256": "DAF193B9EE2288B20D037404268E6DC76433187F2D305A13818ACDE66B10BBB6"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCharterProbe.cpp",
+      "sha256": "FE393A214E5786BA03CFF172E7A9729DA90811B85BDB6FFFDF5E5E6C384E9B5B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCombatNetworkProbe.cpp",
+      "sha256": "73D2E404DB6B187BC612EE3286B5168636E39E303737A58112B8C1F5162A9CC5"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCombatProbe.cpp",
+      "sha256": "907CB30BF27C1C51B02E0DCC49302D0ABBB436FAF9F7D408ED4CD16CA7186F44"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCombatRulesTests.cpp",
+      "sha256": "7ECB666511A573AB0F26FEFBD241A64DC6151BC036362B0CBE1C206C9D4A4389"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDCommerceProbe.cpp",
+      "sha256": "8A2EE6A9893E9E7E5C2EC071444A43FD5F228DD7B27D4AD3CD63A77C69A1CE04"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDContentNetworkProbe.cpp",
+      "sha256": "A8C016217433C965773D32BB62A6365DAFB387C375F0A50E5DF913650B2B9F78"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDContentProbe.cpp",
+      "sha256": "46559374FF994A7713C4A6D69289DA2E646D1E3ECD54A4BE6F14DE04089DF12A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDContentRulesTests.cpp",
+      "sha256": "B3345FCDEC18195BE682851F20BFA51E5A46216194F611771CA70015B8CB8636"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDDevelopmentProbe.cpp",
+      "sha256": "43BDFA69713C88BFC9620F117992C8CF2EB9347C9857D5CCE49CCDE42867D773"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDEconomyProbe.cpp",
+      "sha256": "CCAD59835619F630C0DD33BF0D8E6EC8494C8B575A736140AE82E3F68A23AF71"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDEconomyRulesTests.cpp",
+      "sha256": "E0AB22D87174B295123861B1FA920874CFE8A3979F9F4F0C7BAA89C11AFFD315"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDEconomyUIProbe.cpp",
+      "sha256": "C1D808CE4CE823BBF5A660282E0961411A6F113A3C1303D136B877E3FB15A5C9"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDEnvironmentRulesTests.cpp",
+      "sha256": "B509D4D5350C66517B85772683D6E8A38B8C5B0E96D16C4DA7D05F4884983977"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDGeometryProbe.cpp",
+      "sha256": "AFFC2B9AF92BE317D2E5E99969C95A361BFEC2FB2435B4E7048AFB1358A3D837"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDGeometryRulesTests.cpp",
+      "sha256": "ACE5D830EA2F3B4EC3D0EB2F9FC27404F7EE0710F3D3DCB597818C8144E5B5ED"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDHUDProbeExtension.cpp",
+      "sha256": "6221006070822A19F035A2AAD28E6B75E323043F04D88B66604D376A4989FA01"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDHUDRulesTests.cpp",
+      "sha256": "EBAC8C6CA9DF8DBC5613156AF07ADE0724A6BBCAD0528A605F6B25C4F59BE379"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInputProbe.cpp",
+      "sha256": "E75D5B2689330F090BB0E2D13DF822CE046BD32693A0C78A0F798E06AF3DDF20"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInputRulesTests.cpp",
+      "sha256": "272B2CD15E04E57BA8A6F4BF31BA07C5519C61B17BEC28324BC6CAABDA22E809"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInstitutionGeography.cpp",
+      "sha256": "6DD8DA492C0B4E445283457E026982A0DD1792271E5174261DFB7EE4B70C7A06"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInstitutionProbe.cpp",
+      "sha256": "3BF87AB88240EE16092E2B93CEE763E4D49F3F35C64C26E41921BB6CBF3DA1E3"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInventoryProbe.cpp",
+      "sha256": "A8AAA5D6E92C58B1DC2EF18B6833900DE7D22F5F6238ABB4E2DFF8AF0C283FF6"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDInventoryRulesTests.cpp",
+      "sha256": "D5986C1141C8B9639FFE59946F323C260475C9E04D8CB2D87E362FB16C8582AF"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDLoadoutProbe.cpp",
+      "sha256": "04260A7D68D5BFA65C79E81C5395B9D0A1D651F7A7DA85FBAA7FE5F060F67D6D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDLoadoutRulesTests.cpp",
+      "sha256": "281ADD09C81C27D4B11C82C393C2CBE4EA7A7FD0EFD0816C007495C696E97D3F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDMovementProbe.cpp",
+      "sha256": "C29A7F829096FA3080C8C45FF3BC7F00851B9196BD0C37EFC0349946A2873D23"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDNavigationProbe.cpp",
+      "sha256": "B1895F17E33E61FBA6B77EF21E8DE62A0A157491B3464267089D05F08DFF61B9"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDObjectiveNetworkProbe.cpp",
+      "sha256": "76EA63D35130CBCECA4CA40F6A7D00C726F66D16D6FCDC5BC316C33428D2F96D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDObjectiveProbe.cpp",
+      "sha256": "F0671562F1383E5E52B4172B620621B4A0F85A4B575527D33C54C7AFF42B529A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDObjectiveRulesTests.cpp",
+      "sha256": "381892E238912CF460BBCCE98EF02B7B21814A40EB7CD34CBB6AE6C86AAF566E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDPreparationProbe.cpp",
+      "sha256": "675C2637E128B90A467E8727D992561B494C083A6224922FD661E048BE67B883"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDPreparationRulesTests.cpp",
+      "sha256": "E4D12BA935A04808BEF8D1EA4E37EE135AAA69D7152373514AA2749BCE19AA3B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDProductionProbe.cpp",
+      "sha256": "6CF8719CB56B932F8995779146F07DCCC014EE9EE532FD1EAAF1A908FDB45FF0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDRegionProbe.cpp",
+      "sha256": "E66F607EB9BF0D77C4FD59DBFDA3C0AAD92A98A0B1E026250546D93B1154EEA5"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDRegionRulesTests.cpp",
+      "sha256": "0022EA98C60DDD1BF85DB9A8DCC3F0D837FB8CF67008A067A27C185A61D675A9"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDReleaseProbe.cpp",
+      "sha256": "2CB42EB008FED57F1CE6DF3A88A74BE2AF9526B2D4488526205033EEC2AC261E"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDResetProbe.cpp",
+      "sha256": "7860D939C06B2B5D494806D0B748BEA3C750F069E87DBF4047E8D4C87BECC755"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDRiverRulesTests.cpp",
+      "sha256": "DB1CBAD3EFAD7CB8957D0723AE5052CF3C5383BB6946E0573AFB8C79A1EB2004"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDRulesTests.cpp",
+      "sha256": "1FC33004047B34B4ED6DC90B6177CF2CC90F3892FE76B15A323961CEBE8EACD6"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDSealProbe.cpp",
+      "sha256": "C7749B755161AD563388E6F2341A0A9509248B1E068E7D25DBE140936BB92702"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDSkillProbe.cpp",
+      "sha256": "C4A83EDB9AEDD0758214828119EA7F139B5C4BE40645F138CAF7778B135A6F96"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDSkillRulesTests.cpp",
+      "sha256": "37136B85FBE46ACCB60A165B1C1052E9BD31144975704FE748ED44F25D317504"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDSoakProbe.cpp",
+      "sha256": "DADCF819F553DBFD7AD338B292D785BA425680CBCC0BB560BC90065FA70E26CA"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDTacticalProbe.cpp",
+      "sha256": "4B49CAC5AC189096AD40206867C716AB952035FAEB5BB3BAB8063E09E2DFD824"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDTacticalRulesTests.cpp",
+      "sha256": "AA409EF606CAA53A6C12A67541182C5BB65035E30E2651F81C537649F15E871D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDTradeProbe.cpp",
+      "sha256": "286D44DC19CB8CB3CC7B6F8B74514147EECDDA48B5D6DB6A24D6A28ACD4968DC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDTradeRulesTests.cpp",
+      "sha256": "77C0AED07076C8BEB6A55C7AFAF2A744D760864298096F5882B9ACC218B34300"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDV08LoadoutTests.cpp",
+      "sha256": "54C1C26563D907C0C7400035129C6FC3B918288F90D0488488B66E3E3AE625C1"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDVendorProbe.cpp",
+      "sha256": "FEEC1A4402E41E6A8DAB94F42C43E3D0B0B04F3EFA7800506A16824F880E5723"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDViewNetworkProbe.cpp",
+      "sha256": "A420BD4D27D8F87E03B6D895F82EF81186EA60E1E74520F12ACE7638A54B70B0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDViewTests.cpp",
+      "sha256": "30B5B473707DBB47028855384E2E926237FD9F38A2BFD4EFC3ACD01EBABD372B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldBoundary.cpp",
+      "sha256": "6C8DDEA737D9914783BFA98C2E760BCFCA59D9C7ACA32D75149DDFD4C61C93F7"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldCheckProbe.cpp",
+      "sha256": "21426BBA86D9528EEE37877A89CE538992DFF000BC1CD46DBA2F0B60C336B0CC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldCheckRulesTests.cpp",
+      "sha256": "3CD74964185BD3577751A3A4D2040944802652EDEE02374C5CF95060F942908F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldNetwork.cpp",
+      "sha256": "BEAD527A7C7BE87463C7165E1FF939BD33EF81BBD5806F8E6EBCDE53E7E4FCD4"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldProbe.cpp",
+      "sha256": "27D23556043A052762683B7179FC49546462671B50E69DEA472566AEB5E1D855"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Tests\\LDWorldRulesTests.cpp",
+      "sha256": "504BAF0382A3AACC3C094EF8F2C2FCD52E4B960BFDCB62302C96AB93BDB79B6F"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDControlSettings.cpp",
+      "sha256": "7E788418DE24C10C965F855D7D059B2260C8CEC190DF46750FB22CA5754C49DF"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDControlsPanel.cpp",
+      "sha256": "C0BB094540EE840358A63C0388414F7E30FBD112964BCA7CE2A971E8C7453B82"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDDevelopmentPanel.cpp",
+      "sha256": "361B6A45F77EC43A0F973325AE15BE76B1C67EDC287C2920942A5EFF46346077"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDHUD.cpp",
+      "sha256": "D6B27472A3E183DAE572D921580834695C22DACA260ADE5F7B6971D2A3FF2CBB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDHUDModel.cpp",
+      "sha256": "8126C29A2118009E035D095A04A94A10BD9376288250B2D8F0CDC4EF7DA66DBC"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryAcquisitionPanel.cpp",
+      "sha256": "1756EA2E6F0EEEBB194451DB22A672B5F166E1EBD2A48C38E5E8D9016CF81F3A"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryBankPanel.cpp",
+      "sha256": "6E8ED2D8C70B0EB3738D2D65FD1A508728D391AED8FCDA0C3F3BB7E338C68F76"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryCommercePanel.cpp",
+      "sha256": "7CE37242ACF48795954AF011EB757F13BA2DC465267A25DF1C8D67E8C03E9F17"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryPanel.cpp",
+      "sha256": "B4511BE96E3B7FFA9A2EFFEB6D61FFEF5FB2486399EB6A39FA7572B78AF05C43"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryProductionPanel.cpp",
+      "sha256": "4B3EE58B3B8580F2F87F855F4301330149DA974A84C2E660427052A576AD4646"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryServices.cpp",
+      "sha256": "66403A1271C7763EE99B85CA09E2A4C74156B93D00C0EE1AAB653B6E26979AED"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDInventoryTradePanel.cpp",
+      "sha256": "3ED002DB964795F8EF3B8DC25FFBC1E06C3CF43116B55B8BF8ACBEEAA85EEF68"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDMinimap.cpp",
+      "sha256": "6E24C1021A08A298870468327849146DDB739622C231031964F026140FB16CBD"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDUIRoot.cpp",
+      "sha256": "F6B61268A68446E7B5DEEF0706A0A18EF88B274DCDBF5A339F7760867A93BB00"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDV08HUDModel.cpp",
+      "sha256": "EEAF5F179E432DD1B7F9E1DE86E53667226483013A8A712FE0ACD949093B4845"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\UI\\LDWidgets.cpp",
+      "sha256": "AC2020180DBA90DF3707200BB5742BDC7FA9AD82A5CD287937837BA4708CBA3C"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Vision\\LDViewTypes.cpp",
+      "sha256": "FF517BA060953DCAFC946F928387D8ED269ACDC04A50B9F7A9751AE56B2BD26D"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Vision\\LDVisionDirector.cpp",
+      "sha256": "826DD427CEA8F7C362F4D73E3A5D5395A4F1DC371699F21906E448D46A51CBC2"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\Vision\\LDWorldViewRelay.cpp",
+      "sha256": "D0C3A174FBB7A9F0B2BDF6CF116C76BEBE7EF198DE9BDEF3C8C56FEBB0E9355B"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\World\\LDWorldClaims.cpp",
+      "sha256": "61912560009627C2F8EB51713EBB6DE0C7A2833737A02357517A0520C31A8CD1"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\World\\LDWorldClock.cpp",
+      "sha256": "3CF40B4E4D7E62C4794E5D274E4D4E4B46BDFE8DB7AF4E14651208E0C10DE1DB"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\World\\LDWorldContract.h",
+      "sha256": "885A8B0CCE2F19349656A962197976F08744CFDE811147840B73F7E7999DA8D6"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\World\\LDWorldDirector.cpp",
+      "sha256": "EEC13B9A24D1EC2C42D321337274640CC063D7FCE358CAAD8149882DFFFCC3A0"
+    },
+    {
+      "path": "Source\\Lockdown\\Private\\World\\LDWorldLeases.cpp",
+      "sha256": "1BFAB077061DB77750E5DCE3D5BB63A7DE8DEEA6AB8D5656E18D3C23774F8943"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Character\\LDCharacter.h",
+      "sha256": "FFCF96F19D0B06E8E133B75A4AC73765CF574285B4FA00B0D3628EB30656062E"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Character\\LDCharacterMovementComponent.h",
+      "sha256": "8A5A27933C683CE94E4D769FC8AEA8FAAD9975F0F0E6BC456A4A9A6E1ECDED88"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Character\\LDHumanoidVisualComponent.h",
+      "sha256": "E014446C64920A157B61992941245B01AE9AD138DF9CA1E0BF11A55D926630ED"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDCombatDirector.h",
+      "sha256": "E19C4A98B689E2099C851E740F8B45472B2622522A3D156AF977DDC9C3DD5DF6"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDCombatRules.h",
+      "sha256": "00E8F30D6BEA3D8EC9E790ADB1E95DBE8BE8385FD3F775FACB3E0EAB2ED9D3D5"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDEnvironmentRules.h",
+      "sha256": "D8CD4A1763FFC794A17E2FF643B0C951D55CEF228A093D4216C5664D56BB6FFD"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDRiverRules.h",
+      "sha256": "0D0C252B17A027CDAA2C03AD43B7683FB68AAAE3816C5B1558D6A8D585828E0D"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDTacticalCatalog.h",
+      "sha256": "921331A47C36F780082785D382B06B5976EE9F86E0D7F1BE5697234A2449E021"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDTacticalGeometry.h",
+      "sha256": "9745C1C6249086ACF29DFED243E6BA11FECFC9874A96E99111E985D2F797AF45"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDTacticalRequest.h",
+      "sha256": "123B2CF84B67DA196A7265F81B79D214BB562B64C2A88843D7D0DCFF0FF89B08"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Combat\\LDTacticalRules.h",
+      "sha256": "F0CCBC2767BEDDD7CAA421624787DA00A28E4C93C047F495415B71939FD91FC2"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Core\\LDGroundQueries.h",
+      "sha256": "011C6B697DA6EC236BE72522D4395FD2E78F6F967053A2473AB775A905055CD6"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Core\\LDPrototypeTuning.h",
+      "sha256": "CE951CBB6F80ADFAED98570290B8F83337218A16DE3D7304CEAA789E76E2F569"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Core\\LDRules.h",
+      "sha256": "CD32008489FA3C7FF4A896AB6FCD7C0214B6FCDA55DA5270D9A508C0A73DE4DD"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDCharacterBuild.h",
+      "sha256": "649B3AB4F401EC7138D9D6A219539A1C9B654730DE4375609C00F057D9D016A6"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDDevelopmentDirector.h",
+      "sha256": "3F3F14BC43802924613E35215B6BB2E7202317E3439EB90F737FCE4C9D41CCE2"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDGearTypes.h",
+      "sha256": "46AB5A8961981223090BDE0751BC32E4BA06308D424051661EE9E1632E1FC706"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDV08Loadout.h",
+      "sha256": "DF31C81192BDC09806BEAAFA6689CE915BF1B9B20D1FC913D5778029C72CC1CD"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDV08Modifiers.h",
+      "sha256": "FA8D47BC1917E290215588B748324FD0D63CFE05FFCE6313153AF8669EA52C19"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Development\\LDWorldChecks.h",
+      "sha256": "F18BAAC9C7129E3B247535EA78418A59AB890452CF3F3E6333FBF656963774F3"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDBankDirector.h",
+      "sha256": "1DFFC8F94B740DB6996B67BB1B082A7089D3936398E6B22ACDF2CE3C50040437"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDCommerceDirector.h",
+      "sha256": "430876812F15645AF81E1480EAB1BBF31BA48F0D7FA8E091FB652D13C0C94814"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDEconomyCatalog.h",
+      "sha256": "5094C0ECA30C99057692437B3C38F31B30625A29DC152D893ABC69AA4254813F"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDEconomyDirector.h",
+      "sha256": "C3C92074A706A8D7111D8EDA420E4D3BC80B41167628E5504B637CA34CE2B280"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDEconomyLedger.h",
+      "sha256": "4887F433F511AC799129C305AEB8479BAA8417A4075629272E39C62D85966C67"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDInstitutionSite.h",
+      "sha256": "D4AFB40F091138281E2777C4A8E775A08130E52EB1437264185FBB1E16A7F6F8"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Economy\\LDProductionDirector.h",
+      "sha256": "C2B7F5B807B9B43EF8658F3736796E4C9B58904956575E6CE16A4BC8B1B099A8"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Framework\\LDGameInstance.h",
+      "sha256": "2ABBC37351B57BE63A927935FBD800F26579581D6863F0E80C195658E7CECE42"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Framework\\LDGameMode.h",
+      "sha256": "F0CFB1B78944428CE3A1CDF020A9BE8658610C08A3C385ED45DB5F70117B15AC"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Framework\\LDPlayerController.h",
+      "sha256": "B3BC2A6D65DCF2B666442A8A73BFE7F026AF2B13F170B721972D702CD7552FA7"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDAcquisitionCatalog.h",
+      "sha256": "455AAFFE7EB919990A751DD61DFF9477A5676A3D270E4D6510261A66AD0E9E2D"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDAcquisitionDirector.h",
+      "sha256": "FC8E2BA6C3380E3485C1F142A822A21F7AA77CD4170D7FFAF61BEA7FC441330E"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDEquipmentCatalog.h",
+      "sha256": "D1F1F6F6DBF0E57E894BFB77E24A53DC56A83699420CFB18631263AAD4F751C2"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDInventoryDirector.h",
+      "sha256": "DAFD89F59B8AB7EA80A2618EA5160FA331F01C64C1CAC610A7FB5CCDB150AA56"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDInventoryTypes.h",
+      "sha256": "9FE09CA3EDE071A72DBBF509AA45EA288C176C3C68965125DEA736EF78141A8B"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDLoadoutRequest.h",
+      "sha256": "45217590D757A18436D93A69C9BFED47F9038505D665F2FE929ED7DE827CE072"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDSupplyRequest.h",
+      "sha256": "BCA0505C8C21801F226FFAA37DF4C7934C9BEEB3C11EC1786F9D59124C3A81D1"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDTradeDirector.h",
+      "sha256": "FDC425B9666FB1860DBE95C87CAE67B3DCDF63D428CF9530C47F4507D311FAEF"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDTradeTypes.h",
+      "sha256": "CD3E0E64DEF5946063DFB8E6F53E66A5E8D172AFF81297E331AB14D21A0991C5"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDVendorDirector.h",
+      "sha256": "DE5A1616A365EBC7780FB540239A12B05277F972444E4AA2E00C164306593755"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Inventory\\LDVendorTypes.h",
+      "sha256": "DC8DA9880DF5DB806A5BBFB6FA85957FAA57B44132F3ED4FD0425C16DA4F1BAE"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Navigation\\LDNavigationComponent.h",
+      "sha256": "48D247EE33B89EF603555E821BBC755485A36CF7EFBC02B24B0588228A71DEEE"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Objectives\\LDObjectiveDirector.h",
+      "sha256": "CFE9B78EFBD924343BDB119EDD94FB925132FBC18813781A9AFC24F0564D742A"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Objectives\\LDObjectiveRules.h",
+      "sha256": "61B026317BACA3D6C759AD18A1C9902C804D624DC9A1AC28E4C56737B8CB3513"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Region\\LDRegionDefinition.h",
+      "sha256": "E8B0270B6E8B51B2F92458E7E1DF3CE5B58C8CB30F678FFD76F965C215EC3020"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Region\\LDRegionDirector.h",
+      "sha256": "78DA431514A581CF7C7AE56B2D93A661B8E7160B59950604F752254BF262AC5F"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Region\\LDRegionNavBounds.h",
+      "sha256": "3010352689A9130021C58AE37D94197A18CCE2F9492803D687E698C41583C9B3"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDAcquisitionNetworkProbe.h",
+      "sha256": "1C0D84257AB384B7CE5439B58DDC390977BB5240A91504BDE5D5F24DC76C56B6"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDAcquisitionProbe.h",
+      "sha256": "28B42596BD2DA8AD3A7B889637D604121BAA088EA0EFC70FCFD4764E6A505A21"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDB81Probe.h",
+      "sha256": "64AF5824FC03747D5988BAB2E47409F67161BB323BC35B09A3D316AFCEDD5AB8"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDB82Probe.h",
+      "sha256": "E4B084C7BCC51F19FDB940A0684435D10D4820545A02A38F3D7114014B391492"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDB83Probe.h",
+      "sha256": "467CD9305D59C5DD1F46F05E8A15BC2DB138457DEC67BE1B271260FF1D774394"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDB84Probe.h",
+      "sha256": "6ABEC9981081296407D4F6F95C47F74586A62780CBFE37FF1CBFA4CE0965E515"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDB86Probe.h",
+      "sha256": "5EE95B33A36B52136A9A40EDE9C441B6A4016DD2CFA92D6BD5B2BD1EB73E6D48"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDCharterProbe.h",
+      "sha256": "72BC49FE28F68004EBE877B3F72C162F93816C3C49E2A62D98858E5DE952C28D"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDCombatNetworkProbe.h",
+      "sha256": "0B13480E3FD62BDE420D332F6C6879E1A5406F15089597416870D16499BE00BA"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDCombatProbe.h",
+      "sha256": "65914A57181A788B9BD41B434C7D6B018D2990C9ADB4FC0CE67EF6F4F4046D0E"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDCommerceProbe.h",
+      "sha256": "1C57B5D3A2EFF834B1398F9258AEEA8593C15A2D800EEC4FC97A27A76DD9E69A"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDContentNetworkProbe.h",
+      "sha256": "4BFF4EABC727FA5F90B558AB104DFC5FB6C7D52F3AFFBBB4C9CC7DA1E921C322"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDContentProbe.h",
+      "sha256": "95B90D978D8340B92EE3142C8D6D2C7C25F29E45CAB5F6BD8EB73547A030C296"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDDevelopmentProbe.h",
+      "sha256": "E44C6B38E40907E5C35BD4755EFD46DAEB4F8613E19B081071CCC42BF8432B3D"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDEconomyProbe.h",
+      "sha256": "1740883706087AFECABBDAECD3DAE6B332B6BA28177777D51CC0CC6A49ED9B85"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDEconomyUIProbe.h",
+      "sha256": "57B654060BDDCA0CE3C3EF63DF3AA27DD6EBE306AFF04F18B442D74E18E3CFC9"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDGeometryProbe.h",
+      "sha256": "5D5DC7083D797843441DCA312829AD7B62142E4626F23B60220E422800D8EDBD"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDInputProbe.h",
+      "sha256": "5127F9CAE62944155B8928CB8707556EBF9C3769A8A54DECC1C00C80192D4975"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDInstitutionProbe.h",
+      "sha256": "87276C8FC21295E51FEEF737029B2A3E22F28550032C7016D438CC3F33CF826F"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDInventoryProbe.h",
+      "sha256": "09F8F1B7C8729D6DA6BC28E16BECDD366863DAA7296120842F6F3335BBB9C4DA"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDLoadoutProbe.h",
+      "sha256": "AAB1770B8B960FE7D117FCCC0CF95DBF7B941FA6D1AFB5D73881E50B96341676"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDMovementProbe.h",
+      "sha256": "71C2F58DC58A8E9065B583D87ACB7951597BC3990A449723B1DC8610D99C00A1"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDNavigationProbe.h",
+      "sha256": "085648AEC5F5B38552AD1E4C718D0A8FC0E1672A53129B2CDFA9B6D59B7CD57C"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDObjectiveNetworkProbe.h",
+      "sha256": "08F0AE4FD111AF556DAE3D9CDC4B37FAC976FA9AB3474EE026081243A7C36308"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDObjectiveProbe.h",
+      "sha256": "38B80CA4F2F8BE12FF53F5B399565C6650730A93F13703FBF87AAD1869E8BED7"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDProductionProbe.h",
+      "sha256": "043143A801A53703D97708B0A21B4BAEFD0932644E6F2080DDFF059ABF119A97"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDResetProbe.h",
+      "sha256": "897EAC0A8798D6A70FC3E676BDB44CFCF4E4C7BB214A8D6235B7E609477E9102"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDSoakProbe.h",
+      "sha256": "73327C320E8F9FA285FD263EAE2A466FEC6D65A3DED8D8852FDA7B491B4BC74A"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDTacticalProbe.h",
+      "sha256": "D57E651D5088A5C5755EF673C76CB834B2F5F1C7427236F3454030CB8890B45D"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDTradeProbe.h",
+      "sha256": "360966DFFD8A0B62A7C12AA77239751877EFE10328A062DAFCB3A357DB69A782"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDVendorProbe.h",
+      "sha256": "BB4A92F53E34F7A73EDF7A3D59F1E4E1F9ABE1D89242AA61C6B2963CF41A6E0E"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDViewNetworkProbe.h",
+      "sha256": "7079A515D369648EF2A4B10C6F642A6025CB774DDD8DE7E43BC81CCF6D13544F"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Tests\\LDWorldProbe.h",
+      "sha256": "5F6A6C525F22EB5CF1FB84F8688FDC080AA77D01F33A35D579259E2585A718E3"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDControlSettings.h",
+      "sha256": "014652A4440C1CBB999A2211236CCEB8929A957D1260060B155DC98C627473CD"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDControlsPanel.h",
+      "sha256": "C9F9C1A59D85427CCE8DF72C243907D12EABCA9A7D017C7D13B332F47E263CB7"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDDevelopmentPanel.h",
+      "sha256": "2234C246A73278E2EE63DD68C9880068B4691D7AC132AB598BC7AA93F0EA289B"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDHUD.h",
+      "sha256": "5905651B09A4EBE935E151EA5C3A2C3D0E4D289198C0271A84BEB6FFB16212C7"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDHUDModel.h",
+      "sha256": "1C93EB7617F59EA4C136B2080A05401D2D6BC9A4DD2FEB3D8628FF756FD7441A"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDInventoryPanel.h",
+      "sha256": "1E1576E6A0F83B86D1687492C2AB39C9AED3D9F00C1B3DE5AF98770F9F2C66B8"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDMinimap.h",
+      "sha256": "CEAC0798571D2F4D2DA87CB7DA82DB01B36BC3DD0ABA4B555782D5194843EF05"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDUIRoot.h",
+      "sha256": "91DE9924123B707A82802B01862C5E5107276D1D9D7D97CF7514F30DD1C5E51E"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\UI\\LDWidgets.h",
+      "sha256": "DC1843D40A7BA78C206506B48EC440AED62D2C27C8B1BADD3786C870B9CBB7B3"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Vision\\LDViewTypes.h",
+      "sha256": "31B8AC5C95AF5A8D39B5BD452E8283C22F68D0C36F812B49F75036F5D8C8E833"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Vision\\LDVisionDirector.h",
+      "sha256": "A618FAFF106A47B62D8B7CAA5407364500A09933AEE1A70689CE1973206A25C1"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\Vision\\LDWorldViewRelay.h",
+      "sha256": "6851ADAF38AA46D7E54D414D725A99F30AA9C109A8D4510DFD9BFE605494BC95"
+    },
+    {
+      "path": "Source\\Lockdown\\Public\\World\\LDWorldDirector.h",
+      "sha256": "BD637462227E61796A7059EA4165E6D026929BA8C5DB690C7CE3FC8F69E14307"
+    },
+    {
+      "path": "Source\\LockdownEditor\\LockdownEditor.Build.cs",
+      "sha256": "5D61709983DA9BA8FACADE16241988A2671D724F38A389E360B3F7B1C03C99FF"
+    },
+    {
+      "path": "Source\\LockdownEditor\\Private\\LockdownEditorModule.cpp",
+      "sha256": "850863E25D4389A51C5C6919CBC1478416E1430DA77E0579BF9622CB686FEC32"
+    },
+    {
+      "path": "Source\\LockdownEditor\\Private\\ScaffoldBootstrap\\LDRegionBootstrap.cpp",
+      "sha256": "1E19B1029351321D19C7A119AFA7A99D70864F8787979C79F8246F2BFEACBF20"
+    },
+    {
+      "path": "Source\\LockdownEditor\\Private\\ScaffoldBootstrap\\LDRegionBootstrap.h",
+      "sha256": "737B749F373009FE25A96A20405BBB75501721282A6A1D5C5BC271AAD4184992"
+    },
+    {
+      "path": "Source\\LockdownEditor\\Private\\ScaffoldBootstrap\\LDScaffoldBootstrapCommandlet.cpp",
+      "sha256": "F6A56DBBF0C185FCB619B97F16BF09D8E604AB6B377A67415F8E3BC1066F285B"
+    },
+    {
+      "path": "Source\\LockdownEditor\\Private\\ScaffoldBootstrap\\LDScaffoldBootstrapCommandlet.h",
+      "sha256": "967156137B2C6BD49C1482418C9E8B2DCFA435E1511FE85541CD2AA4A84DCA49"
+    },
+    {
+      "path": "Config\\BaselineSnapshot.json",
+      "sha256": "E8263E6E733890BE0C5595C4311BC4A46B3EDBED35E5A31EBFC4DEB0BBE43337"
+    },
+    {
+      "path": "Config\\BootstrapLayout.json",
+      "sha256": "A4C80E41BDB69F51B1216FAEC5CA39DCCA31EB75C5224AEE964E0544E37C829C"
+    },
+    {
+      "path": "Config\\DefaultEditor.ini",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "Config\\DefaultEditorPerProjectUserSettings.ini",
+      "sha256": "F91C698618D2162767854C3E2E0880A791463787E0E551E08765BCD27BF0EB68"
+    },
+    {
+      "path": "Config\\DefaultEngine.ini",
+      "sha256": "7DE3CA7924C2F08FB47AF30CD42925D1577AD59EFE6C96728800A48704D18C76"
+    },
+    {
+      "path": "Config\\DefaultGame.ini",
+      "sha256": "4AA498D59866D9F2671145C0B7FCD6E6903F066AD45588E97036289A6E7EBE03"
+    },
+    {
+      "path": "Config\\DefaultInput.ini",
+      "sha256": "DFC226D04B07E517CCE199CCC0A50149AAB2F3736CD717BC8AF3A62DE8801C33"
+    },
+    {
+      "path": "Config\\PlatformLock.json",
+      "sha256": "A03422E30CAB4F9AF5C8605A543AD1F84264063A487248B40FA861F4537167D8"
+    },
+    {
+      "path": "Config\\RegionLayout.json",
+      "sha256": "D31DB38AC6D72167B8C16F15C4AA1254852F35AB19C270C7E7450FBB8DBAA581"
+    },
+    {
+      "path": "Config\\V07RegionLayout.json",
+      "sha256": "E48CB7687390BBE0113E020F1A1C70D36051FA70B7D97E38841BFE6D2CE9EA33"
+    },
+    {
+      "path": "Config\\V08RegionLayout.json",
+      "sha256": "D276BE42F3BD7CF71F0AF1D2474F52E60D1436208AA1F0A0E974DDDEC428A8C1"
+    }
+  ],
+  "topologyNote": "Runtime checks select independent owning clients; packaged authority uses a nonparticipating listen connection. Dedicated Server target remains conditional and unverified."
+}

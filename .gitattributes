@@ -46,3 +46,6 @@
 
 # Preserve raw engine output in the B85 evidence bundle.
 /docs/v08/evidence/B85/*.log -whitespace
+
+# Preserve raw engine output in the B86 evidence bundle.
+/docs/v08/evidence/B86/*.log -whitespace

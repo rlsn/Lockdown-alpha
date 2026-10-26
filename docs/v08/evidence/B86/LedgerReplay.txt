@@ -1,0 +1,6 @@
+PASS docs\v08\evidence\B86\Boundaries\Death\Ledger.json: 3 receipts, 9 accounts, 93 unique items, 450 gold
+PASS docs\v08\evidence\B86\Boundaries\Leases\Ledger.json: 20 receipts, 9 accounts, 98 unique items, 450 gold
+PASS docs\v08\evidence\B86\Boundaries\Tags\Ledger.json: 2 receipts, 9 accounts, 93 unique items, 450 gold
+PASS docs\v08\evidence\B86\Regressions\B81\Ledger.json: 16 receipts, 9 accounts, 99 unique items, 450 gold
+PASS docs\v08\evidence\B86\Regressions\B84\Ledger.json: 414 receipts, 9 accounts, 323 unique items, 4482 gold
+PASS docs\v08\evidence\B86\Regressions\v07Loadout\Ledger.json: 41 receipts, 9 accounts, 111 unique items, 473 gold

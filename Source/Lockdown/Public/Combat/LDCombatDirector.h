@@ -243,6 +243,7 @@ private:
     friend class ALDB82Probe;
     friend class ALDB83Probe;
     friend class ALDB84Probe;
+    friend class ALDB86Probe;
     using FRiverState=LDEnvironment::FRecord;
     using FRiverCell=LDEnvironment::FCell;
     using FRiverCommand=LDEnvironment::FCommand;

@@ -1,0 +1,31 @@
+{
+  "failures": 0,
+  "route": "Boundary",
+  "schema": 8,
+  "catalogDigest": "eedd163486a7cfa147c93dbcdd4d582d288056232f14144e5f317c8f630f1d18",
+  "seconds": 115.65600372314454,
+  "checks": [
+    "PASS Boundary lane explicitly permits labelled fixture sources; normal route lane forbids them",
+    "PASS Labelled boundary physical source",
+    "PASS Labelled boundary physical source",
+    "PASS Labelled boundary physical source",
+    "PASS Labelled boundary physical source",
+    "PASS Labelled boundary physical source",
+    "PASS Keys retained; instance and owner endpoints commit together",
+    "PASS One live private lease per owner; rejected artifact remains physical",
+    "PASS Concurrent different-owner leases; artifact consumes once; two anonymous warnings",
+    "PASS Actual key drop immediately revokes old lease without closing another owner",
+    "PASS Different holder inherits the same physical reuse endpoint",
+    "PASS Artifact death cancels lease without refund and drops newly acquired key once",
+    "PASS Quiet held re-pickup retains same ID/cooldown and never resurrects old lease",
+    "PASS Reacquired keys cannot bypass persistent90s reuse",
+    "PASS Only a fresh activation after reuse creates another lease",
+    "PASS Key owner death drops physical keys, revokes lease and preserves owner cooldown",
+    "PASS Real return creates next life at full current HP/MP",
+    "PASS Returned body receives actual three-second protection",
+    "PASS Return never clones dropped key, resets reuse, or restores expired lease",
+    "PASS Boundary exact physical sources and gold ledger reconcile: Integration match started. Roster locked."
+  ],
+  "travel": [],
+  "scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

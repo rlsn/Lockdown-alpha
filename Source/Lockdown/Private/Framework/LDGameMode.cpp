@@ -68,6 +68,7 @@
 #include "Tests/LDB82Probe.h"
 #include "Tests/LDB83Probe.h"
 #include "Tests/LDB84Probe.h"
+#include "Tests/LDB86Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
@@ -132,11 +133,18 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     if (bDevelopmentProfile)
     {
         bScaffoldProfile=false;
-        if (GameSession) { GameSession->MaxPlayers=4; }
+        if (GameSession)
+        {
+            GameSession->MaxPlayers=4;
+#if !UE_BUILD_SHIPPING
+            // The packaged diagnostic listen host is infrastructure, not a contender.
+            if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){GameSession->MaxPlayers=5;}
+#endif
+        }
         Catalog=ULDCharacterCatalog::Load(); FString Error;
         if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bV08Profile?TEXT("v08_integration B85 world: complete catalog / four earned Heart routes"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bV08Profile?TEXT("v08_integration B86 native UI: complete catalog / four earned Heart routes"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
 }
 
 FVector ALDGameMode::TakeSpawn()
@@ -159,7 +167,7 @@ void ALDGameMode::RestartPlayer(AController* NewPlayer)
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe")))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
     if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
     RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
@@ -203,6 +211,7 @@ void ALDGameMode::StartPlay()
     if(bTacticalProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDWorldProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe")))){GetWorld()->SpawnActor<ALDWorldProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
+    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))){GetWorld()->SpawnActor<ALDB86Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))){GetWorld()->SpawnActor<ALDB84Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))){GetWorld()->SpawnActor<ALDB83Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){GetWorld()->SpawnActor<ALDB82Probe>();}
@@ -251,7 +260,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
+        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe")))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
 #endif
         // PreLogin can precede a start request or another completed admission.
         // Check again before creating any private record or fresh reward budget.
@@ -298,7 +307,7 @@ FGuid ALDGameMode::ContenderId(ALDPlayerController* PC) const
 void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 {
     if (FLDOwnerState* State=StateFor(PC))
-    { State->Match=Vision ? Vision->Generation : 0; ++State->Revision; PC->OwnerState=*State; PC->ForceNetUpdate(); }
+    { State->Match=Vision ? Vision->Generation : 0; ++State->Revision; PC->OwnerState=*State;if(PC->IsLocalController()){PC->OnRep_OwnerState();}PC->ForceNetUpdate(); }
 }
 
 void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)

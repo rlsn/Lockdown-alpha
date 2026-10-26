@@ -1,7 +1,7 @@
-# Active continuation — v0.8 B85
+# Active continuation — v0.8 B86
 
-Base: main at 6b5eed8 (B84). Current implementation and exact validation scope
-are in [B85_IMPLEMENTATION](v08/B85_IMPLEMENTATION.md). Original specifications,
+Base: main at 1ceffc7 (B85). Current implementation and exact validation scope
+are in [B86_IMPLEMENTATION](v08/B86_IMPLEMENTATION.md). Original specifications,
 data/templates/provenance, previous payloads/evidence and v07 assets stay frozen.
 The [working ledger](v08/FeatureLedger.csv) records focused engineering scope;
 full release acceptance and named inherited deferrals remain open.
@@ -67,19 +67,40 @@ unchanged dropped key/reuse identity. Route runners now accept an explicit
 profile; v07 is still their default. Normal journeys use actual fixed20Hz native
 time; boundary clock/status/placement/source setup remains diagnostic.
 
-## B86 boundary
+## B86 native checkpoint and remaining verification
 
-1. Complete native HUD/inventory/inspection/input rebinding and rendered input
-   acceptance, with distinguishable cues and human feedback or explicit Not run.
-2. Run cold packaged distribution with independent clients, longer sessions and
-   full four-contender environment service/replication/frame-rate measurements.
-   Previous256-cell maintenance p95/p99 is not that full workload.
-3. Carry forward per-definition independent-client/adverse cases, proc transfer/
-   death timing, prior-life/protection/hidden-chain combinations and the historical
-   intermittent v07 held-preparation concern. Passing current regressions does
-   not establish a root cause for the older failure.
-4. Preserve E01–E48, V07-D01–D08 and V06-D01–D08 mappings and named deferrals.
-   B85's four route demonstrations do not waive full release acceptance.
+The owner-only action model distinguishes learned/body/accessory/passive/empty
+sources and actual MP, binding, reservation, status, reuse, protection and busy
+reasons. Native UMG/Enhanced Input/Slate fixtures cover six/four commands,
+remap collisions/persistence, panel routing, actual fresh held preparation and
+720p/1080p/enlarged-text layouts. The local authority now publishes OwnerState
+notifications, installing the lifecycle before reentrant input cancellation.
+
+The fresh Development archive explicitly cooks seven maps, including both
+integration regions. PackageManifest pins source/executable/container hashes.
+The four-client workload uses actual contender budgets, a separate authority,
+normal clocks/native navigation and a labelled256-cell mixed-field batch with
+expiry/reservations. Raw service, frame, RTT, snapshot-age, bytes and memory
+samples are independently checked; Summary.json gives exact outcomes and scope.
+The service proxy includes whole authority/view work and diagnostic commands;
+it does not isolate the added environment cost or certify the2ms/5ms goal. The recorded
+whole-service proxy exceeds that provisional budget. One owner is rendered and
+three are headless; four simultaneous renderers exceeded available commit.
+
+Continue verification from the B86 evidence; B86 is the last listed build stage.
+Do not invent another stage or mark full release acceptance from focused checks:
+
+1. Profile the recorded full-workload service cost, isolate added environment
+   cost and meet the provisional target on a declared machine/configuration.
+2. Run human readability/gear binding/field cues/TTK/control-chain observations.
+   B86_PLAYTEST.md is explicitly Not run. Physical device, OS-scale/window and
+   focus-loss interactions remain separate from native offscreen automation.
+3. Complete per-definition independent-client/adverse cases, proc transfer/death
+   races, prior-life/protection/hidden-chain combinations and35-minute ordinary
+   sessions. Verify clean-machine distribution and conditional packaged Server.
+4. Preserve E01–E48, V07-D01–D08 and V06-D01–D08 mappings/deferrals. The historical
+   intermittent v07 held-preparation concern remains open; current passing
+   regressions do not establish its root cause.
 
 ## Commands and working rules
 
@@ -97,12 +118,16 @@ python -B docs/v08/tools/check_spec.py
 ./Scripts/RunB81Check.ps1
 ./Scripts/RunLoadoutCheck.ps1 -RoundTripMs 100 -JitterMs 10
 ./Scripts/RunAcquisitionNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10
-./Scripts/OpenStandalone.ps1 -Profile v08_integration
+./Scripts/CaptureB86UI.ps1 -Width 1280
+./Scripts/PackageWin64.ps1 -MaxParallelActions 2
+./Scripts/RunB86Check.ps1 -PackageRoot <archive> -Seconds 600 -RenderedClients 1
+python -B Scripts/CheckB86Evidence.py <run-directory> 600 --cooked
+./Scripts/OpenPackaged.ps1 -PackageRoot <archive> -Profile v08_integration
 ```
 
 Run Unreal operations sequentially and keep Source/Config frozen during each
 native build/check. UE5.8.4 CL58902052, Win64 Development,
-MSVC14.44.35229 / SDK10.0.26100.0. At most4 compiler actions; B85 used2 under
+MSVC14.44.35229 / SDK10.0.26100.0. At most4 compiler actions; B86 used2 under
 memory pressure. If world authoring changes, rebuild only the explicit v08 map
 with `BootstrapAssets.ps1 -Mode Generate -RebuildV08Region`, then validate all
 maps. Preserve historical assets, payloads, evidence and original templates.

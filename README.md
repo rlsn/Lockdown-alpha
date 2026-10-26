@@ -1,4 +1,4 @@
-# Project Lockdown — v0.8 B85 world integration
+# Project Lockdown — v0.8 B86 native usability
 
 Windows-first Unreal 5.8.4 project. The explicit v0.8 profile now exposes all
 52 catalog abilities, 80 items and 20 recipes, with native elemental/support
@@ -6,12 +6,14 @@ effects, equipment modifiers/procs and paid acquisition. Six mixed-source
 actions, eleven physical bindings and nine class starts remain in place.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B85 implementation and evidence](docs/v08/B85_IMPLEMENTATION.md),
+[B86 implementation and evidence](docs/v08/B86_IMPLEMENTATION.md),
 [v0.8 B80–B86 build plan](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
 and [working ledger](docs/v08/FeatureLedger.csv). The enabled slice has
 52 abilities/80 items/20 recipes/all nine presets. B85 demonstrates all four
 earned Heart routes, a level-one tactical interruption and complete ledger
-reconciliation. B86 owns native usability and release acceptance.
+reconciliation. B86 adds source-aware native commands, inspection/help, remapping evidence and
+a fresh packaged four-client workload. See the report for measured outcomes
+and remaining acceptance.
 
 ```powershell
 ./Scripts/OpenStandalone.ps1 -Profile v08_integration
@@ -21,8 +23,9 @@ python -B Scripts/SyncB84Data.py --check
 ```
 
 See the implementation report for current native validation and evidence.
-Human, physical/rendered input, full release acceptance and fresh packaging
-remain pending. The separate `v07_integration` profile retains the
+Human readability, physical-device/OS input, full adverse matrices and full
+release acceptance remain open. The recorded whole-service proxy exceeds the
+provisional performance budget; native automation is scoped separately. The separate `v07_integration` profile retains the
 [B76 runtime](docs/v07/B76_IMPLEMENTATION.md), including all four Heart routes.
 [B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves scoped acceptance and named
 deferrals. The default frontend / `v06_regression` remain on V05.
