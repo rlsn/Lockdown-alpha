@@ -1,0 +1,174 @@
+{
+  "succeeded": 41,
+  "failed": 0,
+  "notRun": 0,
+  "inProcess": 0,
+  "artifact": "Artifacts/20261026-075308-998-Automation",
+  "scope": "Compiled native rule tests, including final 27-ability v08 subset and typed-source contracts",
+  "tests": [
+    {
+      "path": "Lockdown.Rules.AcquisitionBoundedWire",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.AcquisitionExactInputsAndWorkOrders",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.AtomicWorkOrderLineageAndQualityReplay",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CargoCapacity",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CharacterGrowth",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CharacterPreparationPlan",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CharacterStarts",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CombatGeometry",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.CompleteContentAndMajorCooldownFamilies",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ContentMultiTargetAndItemWire",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ControlMappings",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ControlProtectionAndBlind",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.DeathCost",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.EconomyAccounting",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.EconomyCatalog",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.EconomyPayload",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.EquipmentCapsAndCapacity",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.GroundWireAndNaturalGates",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.HUDObservationBoundary",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.InventoryIdentity",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.LoadoutWireAndQuickShape",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.NaturalGatesMasteryAndPotency",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ObjectiveBoundaries",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ObjectiveTiming",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.PreparationWire",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.QualityEligibilityCapsAndIdentity",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.Region",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.SkillCatalog",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.SmokeUnionGeometry",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.SpatialConversion",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.TacticalControlMigration",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.TacticalResources",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.TacticalStatus",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.TacticalWireAndCatalog",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.TradePrivacy",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.V08SourcesTraitsAndWire",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ViewOrdering",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ViewPayload",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.ViewPrivacySchema",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.WorldChecks",
+      "state": "Success"
+    },
+    {
+      "path": "Lockdown.Rules.WorldContractAndPublicCues",
+      "state": "Success"
+    }
+  ]
+}

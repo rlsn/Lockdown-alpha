@@ -24,7 +24,9 @@ public:
     UPROPERTY() float TextScale=1;
     UPROPERTY() float Zoom=1400;
     static const TArray<FLDControlBinding>& Defaults(bool Tactical=false);
-    const TArray<FLDControlBinding>& Definitions() const {return Defaults(Profile==7);}
+    const TArray<FLDControlBinding>& Definitions() const {return Profile==8?HybridDefaults():Defaults(Profile==7);}
+    static const TArray<FLDControlBinding>& HybridDefaults();
+    bool MigrateHybrid();
     bool MigrateTactical();
     static ULDControlSettings* Load(const FString& Slot=TEXT("LockdownLocalControlsV1"),uint8 RequestedProfile=6);
     FKey Key(FName Action) const;

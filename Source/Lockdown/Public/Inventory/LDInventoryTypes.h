@@ -5,7 +5,7 @@
 #include "LDInventoryTypes.generated.h"
 
 // Append only: existing item and offered-item wire values remain stable.
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel, Watchblade, SurveyorBow, OathMace, NullDagger, ShadeMantle, ReflectiveMail, SilentSoles, Cliffwalkers, AnchorGreaves, BrokersSeal, IronOath, SmokeFlask, SeersDust, HealingSalve, ManaDraught, WardTotem, RecallToken, SnareMine, Counterglyph, MirrorSigil, PurityCharm, AegisFlask, GrapplingChain, BlinkCharm, NullStaff, RiftStaff, HarpoonHalberd, TowerRelic, ArcaneCatalyst, HeartFragment, AncientKeyA, AncientKeyB, AncientKeyC, Heartbreaker };
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel, Watchblade, SurveyorBow, OathMace, NullDagger, ShadeMantle, ReflectiveMail, SilentSoles, Cliffwalkers, AnchorGreaves, BrokersSeal, IronOath, SmokeFlask, SeersDust, HealingSalve, ManaDraught, WardTotem, RecallToken, SnareMine, Counterglyph, MirrorSigil, PurityCharm, AegisFlask, GrapplingChain, BlinkCharm, NullStaff, RiftStaff, HarpoonHalberd, TowerRelic, ArcaneCatalyst, HeartFragment, AncientKeyA, AncientKeyB, AncientKeyC, Heartbreaker, IronHelm=54, ScholarsHood=55, ScoutsCowl=56, ReinforcedLeggings=60, RunnersTrousers=61, LaborersGrip=67, IronLongsword=68, ArcaneFocus=75, DuelistsParryingDagger=77, WayfarerBoots=79, ChannelersVest=81, CleansingCharm=82, MirrorAmulet=83, ArcaneLens=86 };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -16,7 +16,7 @@ struct FLDInventoryItem
     UPROPERTY() uint8 Slot=0;
     UPROPERTY() uint32 Revision=1;
     UPROPERTY() bool bReserved=false;
-    UPROPERTY() uint8 BindingMask=0;
+    UPROPERTY() uint16 BindingMask=0;
     UPROPERTY() int64 ReadyAt=0;
     UPROPERTY() uint8 Quality=0;
 };
@@ -49,7 +49,7 @@ public:
     uint8 State=0,Slot=0; // dropped, carried, consumed
     uint32 Revision=1;
     bool bReserved=false;
-    uint8 BindingMask=0;
+    uint16 BindingMask=0;
     int64 ReadyAt=0;
     uint8 Quality=0;
     // Server-only causal metadata. Never serialize parents or origin to a peer.

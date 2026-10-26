@@ -6,6 +6,7 @@
 #include "LDDevelopmentPanel.generated.h"
 class ULDDevelopmentPanel;
 class UTextBlock;
+class UVerticalBox;
 
 UCLASS()
 class LOCKDOWN_API ULDDevelopmentButton : public ULDCommandButton
@@ -43,6 +44,8 @@ private:
     uint8 SelectedSlot=0,Armed=0;
     FGuid SelectedBook;
     FLDBuildPlan Draft;
+    UPROPERTY() TObjectPtr<UVerticalBox> GearActionRows;
+    uint32 GearRowsRevision=0;
     UPROPERTY() TObjectPtr<UTextBlock> Heading;
     UPROPERTY() TObjectPtr<UTextBlock> PreviewInfo;
     UPROPERTY() TObjectPtr<UTextBlock> HoldInfo;

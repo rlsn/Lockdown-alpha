@@ -1,25 +1,29 @@
-# Project Lockdown — v0.8 B80 audit/import complete
+# Project Lockdown — v0.8 B81 slots/traits implemented
 
-Windows-first Unreal 5.8.4 project. **B80 adopts the v0.8 specification and
-implements its isolated, disabled schema8 import. B81 slots/traits is next.**
-The native runtime remains B76 (`ddf7be5`), closed for v0.7 at B77. No native
-v0.8 profile or fresh packaged executable is claimed.
+Windows-first Unreal 5.8.4 project. **B81 adds the native v0.8 development
+profile: six mixed-source actions, seven body/four accessory bindings, one
+intrinsic class trait and atomic preparation. B82 river core is next.**
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B80 baseline review](docs/v08/B80_BASELINE_REVIEW.md),
-[v0.8 build plan B80–B86](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
-and [documentation index](docs/README.md). The
-[working ledger](docs/v08/FeatureLedger.csv) maps all 68 new/55 inherited cases,
-with E01–E48 and named deferrals retained. B80 checks validate provenance,
-contracts and models; v0.8 native acceptance remains Not run.
+[B81 implementation and limits](docs/v08/B81_IMPLEMENTATION.md),
+[v0.8 B80–B86 build plan](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
+and [working ledger](docs/v08/FeatureLedger.csv). The enabled B81 slice has
+27 abilities/54 items/eight presets. Arcanist needs Frostline; Ember Line needs
+its new Burning surface. Unsupported elemental content stays hidden.
 
-The [B76 implementation](docs/v07/B76_IMPLEMENTATION.md) retains 28 tactical
-abilities/40 items, paid acquisition/12 recipes, finite encounters and four
-Heart routes. Explicit `./Scripts/OpenStandalone.ps1 -Profile v07_integration`
-opens that native world; the default frontend and `v06_regression` retain V05.
-[v0.7 closeout](docs/v07/B77_CLOSEOUT.md) and
-[acceptance](docs/v07/B77_ACCEPTANCE.md) preserve scoped results and human/long-run
-deferrals. Long-term design remains in [masterR7](docs/master/README.md).
+```powershell
+./Scripts/OpenStandalone.ps1 -Profile v08_integration
+python -B Scripts/SyncB81Data.py --check
+```
+
+Native Editor build, 41 rule tests and focused independent-client engineering
+checks pass. Human, physical/rendered input, full release acceptance and fresh
+packaging remain pending. The separate `v07_integration` profile retains the
+[B76 runtime](docs/v07/B76_IMPLEMENTATION.md), including all four Heart routes.
+[B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves its scoped acceptance and
+named deferrals. The default frontend / `v06_regression` remain on V05.
+[B80 review](docs/v08/B80_BASELINE_REVIEW.md) records adoption/provenance;
+[masterR7](docs/master/README.md) remains long-term context.
 
 [B64 institutions](docs/v06/B64_IMPLEMENTATION.md), [B63 production](docs/v06/B63_IMPLEMENTATION.md),
 [B62 commerce](docs/v06/B62_IMPLEMENTATION.md) and [B61 foundations](docs/v06/B61_IMPLEMENTATION.md)

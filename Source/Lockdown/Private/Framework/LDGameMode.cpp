@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
@@ -63,6 +64,7 @@
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
 #include "Tests/LDLoadoutProbe.h"
+#include "Tests/LDB81Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
@@ -118,10 +120,10 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
 {
     Super::InitGame(MapName,Options,ErrorMessage);
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
-    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
-    bTacticalProfile=Profile==TEXT("v07_integration");
-    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load();FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/equipment.json")))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
-    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load();if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V07/combat.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
+    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")&&Profile!=TEXT("v08_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
+    bV08Profile=Profile==TEXT("v08_integration");bTacticalProfile=bV08Profile||Profile==TEXT("v07_integration");
+    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load(RulesVersion());FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/equipment_b81.json"):TEXT("Lockdown/Data/V07/equipment.json"))))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
+    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load(RulesVersion());if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/combat_b81.json"):TEXT("Lockdown/Data/V07/combat.json"))))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
     bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     if (bDevelopmentProfile)
@@ -131,7 +133,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
         Catalog=ULDCharacterCatalog::Load(); FString Error;
         if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bV08Profile?TEXT("v08_integration B81 development: six actions / four physical accessories; elemental content pending"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
 }
 
 FVector ALDGameMode::TakeSpawn()
@@ -198,6 +200,7 @@ void ALDGameMode::StartPlay()
     if(bTacticalProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDWorldProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe")))){GetWorld()->SpawnActor<ALDWorldProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
+    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){GetWorld()->SpawnActor<ALDB81Probe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
     if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
@@ -256,8 +259,8 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
         FLDContenderRecord Record; Record.Session=FGuid::NewGuid();
         if (bDevelopmentProfile)
         {
-            Record.State.bDevelopmentProfile=true;
-            Record.State.Build=bTacticalProfile?LDDevelopment::TacticalStart(0,TacticalCatalog->Checksum):LDDevelopment::StartingBuild(0,Catalog);
+            Record.State.bDevelopmentProfile=true;if(bV08Profile){Record.State.WardCharges=0;}
+            Record.State.Build=bTacticalProfile?LDDevelopment::TacticalStart(0,TacticalCatalog->Checksum,RulesVersion()):LDDevelopment::StartingBuild(0,Catalog);
             Record.State.Hp=Record.State.MaxHp=LDDevelopment::MaxHP(Record.State.Build);
             if (!LobbyHost.IsValid()) { LobbyHost=PC; }
             Record.State.bLobbyHost=LobbyHost==PC;
@@ -380,13 +383,13 @@ void ALDGameMode::UpdateLobby()
 bool ALDGameMode::SetLobbyChoice(ALDPlayerController* PC,uint8 ClassId,bool Ready,FString& Reason)
 {
     auto* State=StateFor(PC); const auto* Public=GetGameState<ALDGameState>();
-    if (!bDevelopmentProfile || !State || !Public || Public->bMatchStarted || ClassId>=(bTacticalProfile?9:3) || !Catalog)
+    if (!bDevelopmentProfile || !State || !Public || Public->bMatchStarted || (bV08Profile&&!LDV08::PresetEnabled(ClassId)) || ClassId>=(bTacticalProfile?9:3) || !Catalog)
     { Reason=TEXT("Class choice is available in the lobby only."); return false; }
     if (State->Build.Preset!=ClassId)
     {
         const uint32 Revision=State->Build.Revision+1;
-        State->Build=bTacticalProfile?LDDevelopment::TacticalStart(ClassId,TacticalCatalog->Checksum):LDDevelopment::StartingBuild(ClassId,Catalog); State->Build.Revision=Revision;
-        if(bTacticalProfile){State->WardCharges=ClassId>=3?0:1;}State->Xp=0; RefreshBuild(PC,true);
+        State->Build=bTacticalProfile?LDDevelopment::TacticalStart(ClassId,TacticalCatalog->Checksum,RulesVersion()):LDDevelopment::StartingBuild(ClassId,Catalog); State->Build.Revision=Revision;
+        if(bTacticalProfile){State->WardCharges=bV08Profile?0:ClassId>=3?0:1;}State->Xp=0; RefreshBuild(PC,true);
     }
     State->bReady=Ready; SyncOwner(PC); UpdateLobby();
     Reason=Ready?TEXT("Ready. Starting class remains private."):TEXT("Class selected. Mark Ready when prepared."); return true;

@@ -103,6 +103,8 @@ public:
     void RecordEconomyGold(FName Cause,int64 Mint=0,int64 Burn=0);
     bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
     bool IsTacticalProfile() const {return bTacticalProfile;}
+    bool IsV08Profile() const {return bV08Profile;}
+    uint8 RulesVersion() const {return bV08Profile?8:bTacticalProfile?7:6;}
     UPROPERTY() TObjectPtr<class ULDTacticalCatalog> TacticalCatalog;
     bool IsUIControlProfile() const {return bUIControlProfile;}
     const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
@@ -128,6 +130,7 @@ public:
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bTacticalProfile=false;
+    bool bV08Profile=false;
     bool bDevelopmentProfile = false;
     bool bUIControlProfile = false;
     UPROPERTY() TObjectPtr<ULDCharacterCatalog> Catalog;

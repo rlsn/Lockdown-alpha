@@ -1,3 +1,4 @@
+#include "Inventory/LDEquipmentCatalog.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -39,12 +40,12 @@ namespace
         return PC->IsInputKeyDown(Key);
     }
     int32 Numbered(FName Action,const TCHAR* Prefix)
-    {const FString Text=Action.ToString();const int32 Length=FCString::Strlen(Prefix);return Text.StartsWith(Prefix)&&Text.Len()==Length+1&&Text[Length]>=TEXT('1')&&Text[Length]<=TEXT('5')?Text[Length]-TEXT('1'):-1;}
+    {const FString Text=Action.ToString();const int32 Length=FCString::Strlen(Prefix);return Text.StartsWith(Prefix)&&Text.Len()==Length+1&&Text[Length]>=TEXT('1')&&Text[Length]<=TEXT('6')?Text[Length]-TEXT('1'):-1;}
 }
 FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Controls->Key(Action):FKey();}
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
 double ALDPlayerController::ArmedRange() const
-{if(OwnerState.Build.RulesVersion==7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
+{if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
 FString ALDPlayerController::HeldInputLabel() const
 {
     if(ContentHoldToken){return bContentMouse?BindingLabel(TEXT("Select")):HeldQuickSlot>=0?BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1))):BindingLabel(TEXT("Context"));}
@@ -183,13 +184,15 @@ void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 void ALDPlayerController::ArmAttack(){if(CanWorldCommand()){CancelArmed();bAttackArmed=true;IntentFeedback=TEXT("Choose an attack direction. ")+BindingLabel(TEXT("Navigate"))+TEXT(" cancels.");}}
 void ALDPlayerController::ArmSkill(uint8 Slot,uint8 Gesture)
 {
+    if(CanWorldCommand()&&OwnerState.Build.RulesVersion==8&&OwnerState.Build.Actions.IsValidIndex(Slot)&&OwnerState.Build.Actions[Slot].Source==ELDActionSource::Gear)
+    {const auto Id=OwnerState.Build.Actions[Slot].Instance;const auto* I=OwnerState.Inventory.Find(Id);const auto* D=I?ULDEquipmentCatalog::Load(8)->Find(I->Kind):nullptr;if(!D){IntentFeedback=TEXT("Body action source changed");return;}if(D->Param(TEXT("range_cm"))>0){CancelArmed();ArmedWard=Id;ArmedItemRevision=I->Revision;IntentFeedback=TEXT("Item-sourced shared action: confirm observed target or ground");}else{CancelArmed();SendItemAction(Id,FGuid(),GetPawn()->GetActorLocation());}return;}
     if(!CanWorldCommand()||!OwnerState.Build.Slots.IsValidIndex(Slot)||OwnerState.Build.Slots[Slot]==ELDSkill::None){IntentFeedback=TEXT("Empty skill slot");return;}
-    if(OwnerState.Build.RulesVersion==7&&OwnerState.Build.Slots[Slot]==ELDSkill::GrandExchange&&ArmedSkill==Slot){if(bMultiFirst){const auto First=MultiTarget;CancelArmed();SendTacticalAction(++NextRequest,Slot,FVector::ForwardVector,First,FVector::ZeroVector,FGuid());}else{bMultiFirst=true;MultiTarget.Invalidate();IntentFeedback=TEXT("Self selected first. Confirm one observed body/owned construct.");}return;}
+    if(OwnerState.Build.RulesVersion>=7&&OwnerState.Build.Slots[Slot]==ELDSkill::GrandExchange&&ArmedSkill==Slot){if(bMultiFirst){const auto First=MultiTarget;CancelArmed();SendTacticalAction(++NextRequest,Slot,FVector::ForwardVector,First,FVector::ZeroVector,FGuid());}else{bMultiFirst=true;MultiTarget.Invalidate();IntentFeedback=TEXT("Self selected first. Confirm one observed body/owned construct.");}return;}
     const bool SelfPurge=(OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind)&&ArmedSkill==Slot;
     CancelArmed();
     if((OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind)&&!SelfPurge){ArmedSkill=Slot;IntentFeedback=TEXT("Confirm an observed body, or press this skill again to target yourself. External cleansing requires aid consent.");return;}
     if(OwnerState.Build.Slots[Slot]==ELDSkill::Patch||OwnerState.Build.Slots[Slot]==ELDSkill::PurgeTouch||OwnerState.Build.Slots[Slot]==ELDSkill::SuretyShell||OwnerState.Build.Slots[Slot]==ELDSkill::VeilStep||OwnerState.Build.Slots[Slot]==ELDSkill::RemedyBind){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}
-    if(OwnerState.Build.RulesVersion==7){const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;if(D&&D->Target==ELDTacticalTarget::Self){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}if(D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone||D->Target==ELDTacticalTarget::Line||D->Target==ELDTacticalTarget::Marker||D->Target==ELDTacticalTarget::AnchorOrUnit||D->Target==ELDTacticalTarget::TwoPoints)){ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose ground, range %d cm. Cancel with move/stop."),LDDevelopment::SkillName(D->Skill),D->Skill==ELDSkill::GateWeave?650+OwnerState.Build.Gear.CastRange:D->Range);if(D->Skill==ELDSkill::GateWeave){IntentFeedback+=TEXT(" Then choose a second explored point within4000cm of the first.");}if(D->Skill==ELDSkill::GuardSwap){IntentFeedback+=TEXT(" Place10MP; confirm owned marker to execute40MP.");}return;}}
+    if(OwnerState.Build.RulesVersion>=7){const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;if(D&&D->Target==ELDTacticalTarget::Self){HeldSkillGesture=Gesture;SkillStarted(Slot);return;}if(D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone||D->Target==ELDTacticalTarget::Line||D->Target==ELDTacticalTarget::Marker||D->Target==ELDTacticalTarget::AnchorOrUnit||D->Target==ELDTacticalTarget::TwoPoints)){ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose ground, range %d cm. Cancel with move/stop."),LDDevelopment::SkillName(D->Skill),D->Skill==ELDSkill::GateWeave?650+OwnerState.Build.Gear.CastRange:D->Range);if(D->Skill==ELDSkill::GateWeave){IntentFeedback+=TEXT(" Then choose a second explored point within4000cm of the first.");}if(D->Skill==ELDSkill::GuardSwap){IntentFeedback+=TEXT(" Place10MP; confirm owned marker to execute40MP.");}return;}}
     ArmedSkill=Slot;IntentFeedback=FString::Printf(TEXT("%s: choose a visible target or direction. %s cancels."),LDDevelopment::SkillName(OwnerState.Build.Slots[Slot]),*BindingLabel(TEXT("Navigate")));
 }
 FGuid ALDPlayerController::ObservedUnderPointer() const
@@ -219,15 +222,15 @@ void ALDPlayerController::BeginTargetSkill(uint8 Slot,FGuid Target,const FVector
     const uint32 Token=++NextRequest;
     PendingAimRequest=Token;PendingSkillSlot=Slot;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Aim.Rotation().Yaw);}
     if(LDDevelopment::Held(Skill)){HeldSkillSlot=Slot;HeldSkillGesture=Gesture;HeldObserved=Target;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
-    if(OwnerState.Build.RulesVersion==7){Navigation->Stop();SendTacticalAction(Token,Slot,Aim,Target);}else{ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);}
+    if(OwnerState.Build.RulesVersion>=7){Navigation->Stop();SendTacticalAction(Token,Slot,Aim,Target);}else{ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);}
 }
 void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
 {
     if(!CanWorldCommand()||!GetPawn()){return;}
     if(ArmedWard.IsValid()){const FGuid Id=ArmedWard;const auto* Item=OwnerState.Inventory.Find(Id);const bool Legacy=Item&&Item->Kind==ELDItemKind::WardCharge;CancelArmed();if(Legacy){InventoryCommand(LDInventory::Place,Id,0,Ground);}else{SendItemAction(Id,Target,Ground);bContentMouse=true;}return;}
-    if(OwnerState.Build.RulesVersion==7&&ArmedSkill>=0)
+    if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0)
     {
-        const uint8 Slot=uint8(ArmedSkill);const auto* C=ULDTacticalCatalog::Load();const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;
+        const uint8 Slot=uint8(ArmedSkill);const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;
         if(D&&D->Target==ELDTacticalTarget::TwoUnits){if(!Target.IsValid()){IntentFeedback=TEXT("Choose an observed body/owned construct; press skill again to choose self.");return;}if(!bMultiFirst){bMultiFirst=true;MultiTarget=Target;IntentFeedback=TEXT("First target selected; confirm a second observed target.");return;}const auto First=MultiTarget;CancelArmed();SendTacticalAction(++NextRequest,Slot,FVector::ForwardVector,First,Ground,Target);return;}
         if(D&&D->Target==ELDTacticalTarget::TwoPoints){if(!bMultiFirst){bMultiFirst=true;MultiPoint=Ground;IntentFeedback=TEXT("First gate selected; confirm a second explored endpoint within4000cm.");return;}const auto First=MultiPoint;CancelArmed();SendTacticalAction(++NextRequest,Slot,FVector::ForwardVector,FGuid(),First,FGuid(),Ground);return;}
         if(D&&(D->Target==ELDTacticalTarget::Ground||D->Target==ELDTacticalTarget::Cone||D->Target==ELDTacticalTarget::Line||D->Target==ELDTacticalTarget::Marker||D->Target==ELDTacticalTarget::AnchorOrUnit||D->Target==ELDTacticalTarget::TwoPoints))
@@ -240,7 +243,7 @@ void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
         if(!E){IntentFeedback=TEXT("Target no longer visible");CancelArmed();return;}Point=E->Position;
     }
     const FVector Aim=(Point-GetPawn()->GetActorLocation()).GetSafeNormal2D();if(Aim.IsNearlyZero()){return;}
-    if(bAttackArmed&&OwnerState.Build.RulesVersion==7&&Target.IsValid()){CancelArmed();FLDTacticalRequest R;R.ActionKind=4;R.Token=++NextRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.BuildRevision=OwnerState.Build.Revision;R.CatalogDigest=OwnerState.Build.CatalogDigest;R.Direction=Aim;R.Observed=Target;ServerTacticalAction(R);return;}
+    if(bAttackArmed&&OwnerState.Build.RulesVersion>=7&&Target.IsValid()){CancelArmed();FLDTacticalRequest R;R.ActionKind=4;R.Token=++NextRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.BuildRevision=OwnerState.Build.Revision;R.CatalogDigest=OwnerState.Build.CatalogDigest;R.Direction=Aim;R.Observed=Target;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=4;R.SourceKind=3;R.InventoryRevision=OwnerState.Inventory.Revision;}ServerTacticalAction(R);return;}
     if(bAttackArmed){CancelArmed();PendingAimRequest=++NextRequest;PendingSkillSlot=255;CastChecked<ALDCharacter>(GetPawn())->SetFacing(Aim.Rotation().Yaw);ServerCombatAction(OwnerState.Match,OwnerState.Life,PendingAimRequest,0,Aim);}
     else if(ArmedSkill>=0){const uint8 Slot=uint8(ArmedSkill);CancelArmed();BeginTargetSkill(Slot,Target,Aim,1);}
 }
@@ -264,8 +267,8 @@ void ALDPlayerController::ContextV05()
     if(bDraftArmed){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}
     if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
     if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
-    FLDObservedEntity Link;if(OwnerState.Build.RulesVersion==7&&ReadInspected(Link)&&Link.Kind==ELDObservedKind::TacticalField&&(Link.Presentation==11||Link.Presentation==14)){StartContentInteraction(Link.Id,Link.Presentation==11?2:3);return;}
-    FLDObservedEntity WorldSite;if(OwnerState.Build.RulesVersion==7&&ReadInspected(WorldSite)&&WorldSite.Kind==ELDObservedKind::WorldSite){const bool Artifact=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Heartbreaker;});const bool Shift=IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift);StartWorldInteraction(WorldSite.Presentation?11+WorldSite.Presentation:(Artifact&&(Shift||!OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;}))?11:10));return;}
+    FLDObservedEntity Link;if(OwnerState.Build.RulesVersion>=7&&ReadInspected(Link)&&Link.Kind==ELDObservedKind::TacticalField&&(Link.Presentation==11||Link.Presentation==14)){StartContentInteraction(Link.Id,Link.Presentation==11?2:3);return;}
+    FLDObservedEntity WorldSite;if(OwnerState.Build.RulesVersion>=7&&ReadInspected(WorldSite)&&WorldSite.Kind==ELDObservedKind::WorldSite){const bool Artifact=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Heartbreaker;});const bool Shift=IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift);StartWorldInteraction(WorldSite.Presentation?11+WorldSite.Presentation:(Artifact&&(Shift||!OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;}))?11:10));return;}
     FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){if(Item.Kind==ELDObservedKind::Cargo&&Item.Presentation==1){StartWorldInteraction(14,Item.Id);}else{BeginPickup(Item.Id);}return;}
     FLDObservedEntity E;
     if(ReadInspected(E)&&E.Kind==ELDObservedKind::Production){if(E.Presentation<2){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=E.Presentation;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();}else{ToggleInventoryPanel();}return;}

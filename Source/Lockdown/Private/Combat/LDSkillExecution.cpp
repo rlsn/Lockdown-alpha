@@ -91,6 +91,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     { Result=TEXT("Invalid slot, build revision or life."); return false; }
     const ELDSkill Skill=Build->Slots[Slot];
     if(Mode->IsTacticalProfile()&&uint8(Skill)>=10){return RequestTactical(Body,Skill,Token,ExplicitTarget,Result,Point,Direction);}
+    if(Mode->IsV08Profile()&&!Allows(Body,LDTactical::EAction::Skill,&Result)){return false;}
     if(!Allows(Body,Skill==ELDSkill::Step?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Result)){return false;}
     if (Skill==ELDSkill::None||!LDDevelopment::Equipped(*Build,Skill)||LDDevelopment::Rank(*Build,Skill)<1)
     { Result=TEXT("Equip a learned skill in this slot."); return false; }

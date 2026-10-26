@@ -1,4 +1,6 @@
 #include "Inventory/LDAcquisitionDirector.h"
+#include "Serialization/JsonSerializer.h"
+#include "Development/LDV08Loadout.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDAcquisitionCatalog.h"
@@ -13,6 +15,8 @@
 #include "EngineUtils.h"
 namespace
 {
+    bool V08Quality(ELDItemKind Kind)
+    {const auto* C=ULDEquipmentCatalog::Load(8);const auto* D=C?C->Find(Kind):nullptr;if(!D){return false;}TSharedPtr<FJsonObject> Root;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(C->SourceJson),Root)||!Root){return false;}for(const auto& V:Root->GetArrayField(TEXT("items"))){const auto O=V->AsObject();if(O->GetStringField(TEXT("id"))==D->Id){return O->GetBoolField(TEXT("craftsmanship_eligible"));}}return false;}
     FName Cache(uint8 Site){return FName(*FString::Printf(TEXT("B74Cache%d"),Site));}
     FName Stock(ELDSkill Skill){return FName(*FString::Printf(TEXT("B74Book%d"),uint8(Skill)));}
     void Publish(ALDGameMode* M,ALDPlayerController* PC,ALDItem* Item)
@@ -39,7 +43,7 @@ bool ALDAcquisitionDirector::Initialize(FString& Why)
 }
 bool ALDAcquisitionDirector::Preview(const FLDInventory& Bag,const FLDCharacterBuild& Build,uint8 Recipe,uint8 Mode,uint8 Site,FGuid Target,FLDProductionPlan& Out,FString& Why)
 {
-    auto Reject=[&](const TCHAR* S){Why=S;return false;};const auto* C=ULDAcquisitionCatalog::Load();if(!C||Build.RulesVersion!=7||Mode>1){return Reject(TEXT("Acquisition profile or catalog unavailable"));}
+    auto Reject=[&](const TCHAR* S){Why=S;return false;};const auto* C=ULDAcquisitionCatalog::Load();if(!C||Build.RulesVersion<7||Mode>1){return Reject(TEXT("Acquisition profile or catalog unavailable"));}
     Out=FLDProductionPlan();Out.Site=Site;Out.Recipe=Recipe;Out.Mode=Mode;Out.Target=Target;Out.CatalogDigest=C->Checksum;Out.InventoryRevision=Bag.Revision;Out.BuildRevision=Build.Revision;
     TArray<ELDItemKind> Needs;TArray<FGuid> Removed;TArray<ELDItemKind> Incoming;int32 Base=0;
     if(Recipe>=20&&Recipe<32)
@@ -49,12 +53,12 @@ bool ALDAcquisitionDirector::Preview(const FLDInventory& Bag,const FLDCharacterB
     else if(Recipe==32||Recipe==33)
     {
         const auto* I=Bag.Find(Target);const auto* D=I?C->Find(I->Kind):nullptr;
-        if(Mode||!I||!D||!D->QualityEligible||I->Quality!=Recipe-32||I->bReserved||I->BindingMask||(Recipe==32?(Site<2||Site>4):Site!=4)){return Reject(TEXT("Unbind eligible gear; quality must advance one step at the correct forge"));}
+        if(Mode||!I||(Build.RulesVersion==8?!V08Quality(I->Kind):!D||!D->QualityEligible)||I->Quality!=Recipe-32||I->bReserved||I->BindingMask||(Recipe==32?(Site<2||Site>4):Site!=4)){return Reject(TEXT("Unbind eligible gear; quality must advance one step at the correct forge"));}
         Out.Inputs.Add(*I);Needs.Add(ELDItemKind::Toolkit);if(Recipe==33){Needs.Add(ELDItemKind::Crystal);}Base=Recipe==32?6:12;
     }
     else if(Recipe==34||Recipe==35){if(Mode||Site<6||Site>8){return Reject(TEXT("Approach a ruin cache"));}Why.Reset();return true;}
     else{return Reject(TEXT("Unsupported acquisition recipe"));}
-    Out.Fee=FMath::Max(1,Base-FMath::Min(1,Build.Gear.FeeDiscount));TSet<FGuid> Used;for(const auto& I:Out.Inputs){Used.Add(I.Id);}
+    Out.Fee=FMath::Max(1,Base-FMath::Min(1,LDV08::TraitValue(Build,TEXT("assembly_discount"),Build.Gear.FeeDiscount)));TSet<FGuid> Used;for(const auto& I:Out.Inputs){Used.Add(I.Id);}
     // Slot order is visible and stable; reservations and equipment never disappear into inputs.
     auto Items=Bag.Items;Items.Sort([](const auto& A,const auto& B){return A.Slot<B.Slot;});
     for(auto Kind:Needs)
@@ -119,8 +123,8 @@ void ALDAcquisitionDirector::Purchase(ALDPlayerController* PC,uint32 Match,uint3
     const auto* C=ULDAcquisitionCatalog::Load();if(Client.Tokens<1||!M->IsTacticalProfile()||!C||Digest!=C->Checksum||BagRevision!=O->Inventory.Revision||Site<2||Site>4){Reply(TEXT("Supply terms, range, sight, life or inventory changed"));return;}M->Objectives->CancelClaimForAction(PC,Now);if(!M->Production->Eligible(PC,Site,false)){Reply(TEXT("Supply requires eligible body in reach"));return;}--Client.Tokens;
     int32 Price=-1;FName Budget;
     if(Kind==ELDItemKind::Book)
-    {const auto* G=ULDEquipmentCatalog::Load()->Gate(Skill);if(LDDevelopmentTransaction::Sold(Skill)&&Site==2){Price=40;}else if(G){if(G->Circle==1&&Site==2){Price=40;}if(G->Circle==2&&(Site==3||Site==4)){Price=60;}if(G->Circle==3&&Site==4){Price=90;Budget=Stock(Skill);}}}
-    else if(Site==2){const auto* D=C->Find(Kind);if(D){Price=D->Price;}}
+    {const auto* G=ULDEquipmentCatalog::Load(O->Build.RulesVersion)->Gate(Skill);if(LDDevelopmentTransaction::Sold(Skill)&&Site==2){Price=40;}else if(G){if(G->Circle==1&&Site==2){Price=40;}if(G->Circle==2&&(Site==3||Site==4)){Price=60;}if(G->Circle==3&&Site==4){Price=90;Budget=Stock(Skill);}}}
+    else if(Site==2){if(O->Build.RulesVersion==8){const auto* D=ULDEquipmentCatalog::Load(8)->Find(Kind);if(D){Price=D->Price;}}else{const auto* D=C->Find(Kind);if(D){Price=D->Price;}}}
     FString Why;auto* E=M->Economy.Get();if(Price<0||O->Gold<Price||(!Budget.IsNone()&&E->Ledger.Remaining(Budget)<=0)||!M->Inventory->HasSpace(PC,Kind,&Why)||!E->Audit(Why)){Reply(Why.IsEmpty()?TEXT("Not sold here, insufficient wallet or global book stock exhausted"):Why);return;}
     ALDItem* I=Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!I){Reply(TEXT("Creation failed; nothing spent"));return;}I->Kind=Kind;I->Skill=Kind==ELDItemKind::Book?Skill:ELDSkill::None;
     LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Kind==ELDItemKind::Book?TEXT("TieredBookPurchase"):TEXT("OfficialEquipmentSupply");T.Burn=Price;const FName W=E->Wallet(M->ContenderId(PC));T.Gold.Add({W,E->Ledger.Account(W)->Revision,-int64(Price)});if(!Budget.IsNone()){T.Budget=Budget;T.Units=1;}LDEconomy::FItemDelta D;D.Id=I->Identity;D.Kind=Kind;D.Skill=uint8(I->Skill);D.Op=LDEconomy::EItemOp::Create;D.To=W;T.Items.Add(D);

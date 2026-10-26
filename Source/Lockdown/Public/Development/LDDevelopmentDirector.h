@@ -30,6 +30,7 @@ class LOCKDOWN_API ALDDevelopmentDirector : public AActor
 public:
     ALDDevelopmentDirector();
     void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint8 Kind,ELDSkill Skill,FGuid Item,const FLDBuildPlan& Plan,uint32 InventoryRevision=0,uint32 ItemRevision=0);
+    bool Replay(ALDPlayerController* PC,uint32 Token);
     void QueueLoadout(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,uint32 InvRev,uint32 ItemRev,uint8 Command,FGuid Item,uint8 Slot);
     void RefreshHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving);
     void Release(ALDPlayerController* PC,uint32 Life,uint32 Token);
@@ -51,7 +52,7 @@ private:
         FLDBuildPlan Plan;
         FLDInventory Loadout;
         uint32 InventoryRevision=0,BuildRevision=0;
-        uint8 Command=0;
+        uint8 Command=0,Slot=0;
         TMap<uint32,FString> Receipts;
     };
     TArray<FRequest> Requests;

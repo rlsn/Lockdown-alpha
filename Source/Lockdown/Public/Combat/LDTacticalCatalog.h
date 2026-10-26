@@ -44,9 +44,10 @@ public:
     UPROPERTY() TArray<FLDStarterKit> Starters;
     UPROPERTY() int32 NullBellPrice=8;
     UPROPERTY() int32 NullBellCooldown=12000;
+    UPROPERTY() uint8 RulesVersion=7;
     bool Import(const FString& Text,FString& Error);
     bool Validate(FString& Error) const;
     const FLDTacticalDefinition* Find(ELDSkill S) const{return Abilities.FindByPredicate([&](const auto& A){return A.Skill==S;});}
-    static ULDTacticalCatalog* Load();
+    static ULDTacticalCatalog* Load(uint8 Rules=7);
     static bool NaturalGate(const FLDTacticalDefinition& D,const FLDCharacterBuild& B);
 };

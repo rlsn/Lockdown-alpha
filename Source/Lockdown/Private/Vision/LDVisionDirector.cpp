@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Combat/LDTacticalGeometry.h"
@@ -88,7 +89,7 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
     if (PC && PC->OwnerState.bActive)
     {
         if (const ALDCharacter* Body = Cast<ALDCharacter>(PC->GetPawn()))
-        { const auto* S=Mode->Combat?Mode->Combat->StateFor(Body):nullptr;Sources.Add({Body->GetActorLocation(),Mode->IsTacticalProfile()&&S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(Now))+(S->Tactical.Has(LDTactical::EStatus::Blind,LDTactical::Milliseconds(Now))?0:PC->OwnerState.Build.Gear.SightBonus):720,LevelAt(Body->GetActorLocation())}); }
+        { const auto* S=Mode->Combat?Mode->Combat->StateFor(Body):nullptr;Sources.Add({Body->GetActorLocation(),Mode->IsTacticalProfile()&&S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(Now))+(S->Tactical.Has(LDTactical::EStatus::Blind,LDTactical::Milliseconds(Now))?0:LDV08::TraitValue(PC->OwnerState.Build,TEXT("sight"),PC->OwnerState.Build.Gear.SightBonus)):720,LevelAt(Body->GetActorLocation())}); }
     }
     for (const auto& Weak : Wards)
     {

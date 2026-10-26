@@ -31,14 +31,15 @@ void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBu
 }
 void ALDPlayerController::StartLoadoutHold(uint8 Command,FGuid Item,uint8 Slot)
 {
-    if(OwnerState.Build.RulesVersion!=7||InventoryPending()){return;}const auto* Entry=OwnerState.Inventory.Find(Item);const auto* C=ULDEquipmentCatalog::Load();if(!Entry||!C){return;}const uint32 ItemRevision=Entry->Revision;
+    if(OwnerState.Build.RulesVersion<7||InventoryPending()){return;}const auto* Entry=OwnerState.Inventory.Find(Item);const auto* C=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion);if(!Entry||!C){return;}const uint32 ItemRevision=Entry->Revision;
     ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;bLoadoutMouseHeld=true;InventoryPendingRequest=DevelopmentHoldToken;
-    FLDLoadoutRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=DevelopmentHoldToken;R.InventoryRevision=OwnerState.Inventory.Revision;R.BuildRevision=OwnerState.Build.Revision;R.ItemRevision=ItemRevision;R.Item=Item;R.Command=Command;R.Binding=Slot;R.EquipmentDigest=C->Checksum;ServerLoadoutRequest(R);
+    FLDLoadoutRequest R;R.Version=OwnerState.Build.RulesVersion==8?2:1;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=DevelopmentHoldToken;R.InventoryRevision=OwnerState.Inventory.Revision;R.BuildRevision=OwnerState.Build.Revision;R.ItemRevision=ItemRevision;R.Item=Item;R.Command=Command;R.Binding=Slot;R.EquipmentDigest=C->Checksum;ServerLoadoutRequest(R);
 }
 void ALDPlayerController::ServerLoadoutRequest_Implementation(FLDLoadoutRequest R)
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;const auto* C=ULDEquipmentCatalog::Load();
-    if(!O||!C||!M->IsTacticalProfile()||!M->IsPlaying()||R.Version!=1||R.Match!=O->Match||R.Life!=O->Life||R.BuildRevision!=O->Build.Revision||R.EquipmentDigest!=C->Checksum||R.Binding>=6||(R.Command!=LDInventory::Bind&&R.Command!=LDInventory::Unbind&&R.Command!=LDInventory::Equip&&R.Command!=LDInventory::Unequip)){ClientIntentResult(R.Token,TEXT("Invalid loadout schema, profile, revision or digest"));return;}
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;const auto* C=ULDEquipmentCatalog::Load(O?O->Build.RulesVersion:7);
+    if(O&&C&&O->Build.RulesVersion==8&&R.Version==2&&R.Match==O->Match&&R.Life==O->Life&&R.EquipmentDigest==C->Checksum&&M->Development->Replay(this,R.Token)){return;}
+    if(!O||!C||!M->IsTacticalProfile()||!M->IsPlaying()||R.Version!=(O->Build.RulesVersion==8?2:1)||R.Match!=O->Match||R.Life!=O->Life||R.BuildRevision!=O->Build.Revision||R.EquipmentDigest!=C->Checksum||R.Binding>=(O->Build.RulesVersion==8?11:6)||(R.Command!=LDInventory::Bind&&R.Command!=LDInventory::Unbind&&R.Command!=LDInventory::Equip&&R.Command!=LDInventory::Unequip)){ClientIntentResult(R.Token,TEXT("Invalid loadout schema, profile, revision or digest"));return;}
     M->Objectives->CancelClaimForAction(this,GetWorld()->GetTimeSeconds());M->Development->QueueLoadout(this,R.Match,R.Life,R.Token,R.InventoryRevision,R.ItemRevision,R.Command,R.Item,R.Binding);
 }
 void ALDPlayerController::StopDevelopmentHold()

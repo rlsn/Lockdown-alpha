@@ -10,6 +10,8 @@ struct FLDTacticalRequest
     UPROPERTY() uint8 Schema=7;
     UPROPERTY() uint8 WireVersion=3;
     UPROPERTY() uint8 TargetMode=0;
+    UPROPERTY() uint8 SourceKind=0; // learned, body gear, accessory, basic, world
+    UPROPERTY() FName SourceDefinition;
     UPROPERTY() uint8 ActionKind=0; // skill, item, gate traversal, authored scramble, observed attack
     UPROPERTY() FGuid SecondObserved;
     UPROPERTY() FVector_NetQuantize10 SecondPoint=FVector::ZeroVector;

@@ -1,4 +1,5 @@
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDV08Loadout.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDTradeDirector.h"
@@ -16,6 +17,18 @@
 #include "EngineUtils.h"
 #include "Inventory/LDInventoryDirector.h"
 
+namespace
+{
+    bool BindingAllowed(ALDGameMode* M,ALDCharacter* Body,const FLDOwnerState& O,const FLDInventory& Draft)
+    {if(O.Build.RulesVersion!=8){return true;}if(Draft.Bindings.Num()!=11){return false;}for(int32 N=7;N<11;++N){if(O.Inventory.Bindings[N]!=Draft.Bindings[N]&&!M->Combat->Allows(Body,LDTactical::EAction::Item)){return false;}}return true;}
+    bool DraftAllowed(ALDGameMode* M,ALDCharacter* Body,const FLDOwnerState& O,const FLDBuildPlan& P)
+    {
+        const bool Skill=M->Combat->Allows(Body,LDTactical::EAction::Skill),Item=M->Combat->Allows(Body,LDTactical::EAction::Item);
+        if(O.Build.RulesVersion!=8){return Skill;}
+        if(!LDV08::PreparationPermissions(O.Build,P,Skill,Item)||P.Bindings.Num()!=11){return false;}
+        for(int32 N=7;N<11;++N){if(P.Bindings[N]!=O.Inventory.Bindings[N]&&!Item){return false;}}return true;
+    }
+}
 bool LDDevelopmentTransaction::Sold(ELDSkill Skill)
 {return Skill==ELDSkill::Step||Skill==ELDSkill::Spark||Skill==ELDSkill::Patch||Skill==ELDSkill::Parley;}
 ALDBook::ALDBook(){Kind=ELDItemKind::Book;State=1;}
@@ -64,6 +77,8 @@ void ALDDevelopmentDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 L
     --S.Tokens;S.LastRequest=Id;S.Receipts.Add(Id,TEXT("Development request queued."));
     Mode->Objectives->CancelClaimForAction(PC,Now);Requests.Add({PC,Match,Life,Id,Kind,Skill,Item,Plan,InventoryRevision,ItemRevision});
 }
+bool ALDDevelopmentDirector::Replay(ALDPlayerController* PC,uint32 Token)
+{const auto* State=States.Find(PC);const auto* Receipt=State?State->Receipts.Find(Token):nullptr;auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||!Receipt){return false;}PC->ClientDevelopmentResult(*O,Token,*Receipt);return true;}
 void ALDDevelopmentDirector::QueueLoadout(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,uint32 InvRev,uint32 ItemRev,uint8 Command,FGuid Item,uint8 Slot)
 {
     if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}const int32 Before=Requests.Num();Queue(PC,Match,Life,Token,LDDevelopmentTransaction::Loadout,ELDSkill::None,Item,FLDBuildPlan(),InvRev,ItemRev);if(Requests.Num()>Before){Requests.Last().Command=Command;Requests.Last().Slot=Slot;}}
@@ -118,9 +133,9 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     if(R.Id<=S.CancelledThrough||!Eligible(PC,Now,true)||!Stationary(PC)){Reject(TEXT("Hold E while stationary after six seconds without damage dealt or taken."));return;}
     ALDBook* Book=nullptr;
     if(R.Kind==LDDevelopmentTransaction::Loadout)
-    {FString Why;if(!Mode->IsTacticalProfile()||((R.Command==LDInventory::Bind||R.Command==LDInventory::Unbind)&&!Mode->Combat->Allows(Body,LDTactical::EAction::Item))||!LDGear::Propose(O->Inventory,O->Build,R.Command,R.Item,R.Slot,S.Loadout,Why)){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Quick preparation blocked by control"):Why);return;}S.InventoryRevision=O->Inventory.Revision;S.BuildRevision=O->Build.Revision;S.Command=R.Command;}
+    {FString Why;if(!Mode->IsTacticalProfile()||((R.Command==LDInventory::Bind||R.Command==LDInventory::Unbind||O->Build.RulesVersion==8&&R.Slot>=7)&&!Mode->Combat->Allows(Body,LDTactical::EAction::Item))||!LDGear::Propose(O->Inventory,O->Build,R.Command,R.Item,R.Slot,S.Loadout,Why)||!BindingAllowed(Mode,Body,*O,S.Loadout)){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Quick preparation blocked by control"):Why);return;}S.InventoryRevision=O->Inventory.Revision;S.BuildRevision=O->Build.Revision;S.Command=R.Command;S.Slot=R.Slot;}
     else if(R.Kind==LDDevelopmentTransaction::Prepare)
-    {if(!Mode->Combat->Allows(Body,LDTactical::EAction::Skill)){Reject(TEXT("Silence or hard control prevents skill preparation"));return;}FLDCharacterBuild Candidate;FString Why;if(!NearStation(PC)||!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
+    {if(!DraftAllowed(Mode,Body,*O,R.Plan)){Reject(TEXT("Silence/Mute prevents the changed action sources"));return;}FLDCharacterBuild Candidate;FLDInventory Projected;FString Why;if(!NearStation(PC)||(O->Build.RulesVersion==8?!LDV08::Project(O->Inventory,O->Build,R.Plan,Projected,Candidate,Why):!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why))||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
     {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::Count(O->Build)||LDDevelopment::Rank(O->Build,Book->Skill)>0||(Mode->IsTacticalProfile()&&uint8(Book->Skill)>=10&&(!Mode->TacticalCatalog->Find(Book->Skill)))){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
     if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
@@ -137,9 +152,9 @@ void ALDDevelopmentDirector::Sample(double Now)
         auto* PC=Pair.Key.Get();auto& S=Pair.Value;if(!PC||!S.Kind){continue;}auto* O=Mode->StateFor(PC);auto* Body=Cast<ALDCharacter>(PC->GetPawn());auto* Combat=Mode->Combat->StateFor(Body);
         const bool Common=O&&O->Match==S.Match&&O->Life==S.Life&&Eligible(PC,Now,true)&&Combat&&Combat->Action==8&&Stationary(PC)
             &&Now-S.LastHold<=.25&&S.Token>S.CancelledThrough&&FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)<=4;
-        const bool Target=S.Kind==LDDevelopmentTransaction::Loadout?(O&&O->Inventory.Revision==S.InventoryRevision&&O->Build.Revision==S.BuildRevision&&(!(S.Command==LDInventory::Bind||S.Command==LDInventory::Unbind)||Mode->Combat->Allows(Body,LDTactical::EAction::Item))):S.Kind==LDDevelopmentTransaction::Prepare?(NearStation(PC)&&O&&O->Build.Revision==S.Plan.ExpectedRevision)
+        const bool Target=S.Kind==LDDevelopmentTransaction::Loadout?(O&&O->Inventory.Revision==S.InventoryRevision&&O->Build.Revision==S.BuildRevision&&(!(S.Command==LDInventory::Bind||S.Command==LDInventory::Unbind||O->Build.RulesVersion==8&&S.Slot>=7)||Mode->Combat->Allows(Body,LDTactical::EAction::Item))):S.Kind==LDDevelopmentTransaction::Prepare?(NearStation(PC)&&O&&O->Build.Revision==S.Plan.ExpectedRevision)
             :(S.Book.IsValid()&&S.Book->State==1&&S.Book->Holder==PC&&!S.Book->bReserved&&O&&LDDevelopment::Rank(O->Build,S.Book->Skill)==0);
-        if(!Common||!Target){Cancel(PC,TEXT("Transaction interrupted or changed; nothing spent or consumed."));continue;}
+        if(!Common||!Target||(S.Kind==LDDevelopmentTransaction::Loadout&&!BindingAllowed(Mode,Body,*O,S.Loadout))){Cancel(PC,TEXT("Transaction interrupted or changed; nothing spent or consumed."));continue;}
         if(Now+1.e-6<S.EndsAt){continue;}
         if(S.Kind==LDDevelopmentTransaction::Loadout)
         {
@@ -151,8 +166,9 @@ void ALDDevelopmentDirector::Sample(double Now)
         }
         else if(S.Kind==LDDevelopmentTransaction::Prepare)
         {
-            FLDCharacterBuild Candidate;FString Why;if(!Mode->Combat->Allows(Body,LDTactical::EAction::Skill)||!LDDevelopment::Prepare(O->Build,S.Plan,Candidate,Why)||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){Cancel(PC,Why);continue;}
-            O->Build=MoveTemp(Candidate);
+            FLDCharacterBuild Candidate;FLDInventory Projected;FString Why;if(!DraftAllowed(Mode,Body,*O,S.Plan)||(O->Build.RulesVersion==8?!LDV08::Project(O->Inventory,O->Build,S.Plan,Projected,Candidate,Why):!LDDevelopment::Prepare(O->Build,S.Plan,Candidate,Why))||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){Cancel(PC,Why);continue;}
+            if(O->Build.RulesVersion==8){O->Inventory=MoveTemp(Projected);++O->Inventory.Revision;for(auto& Entry:O->Inventory.Items){auto* Item=Mode->Inventory->Owned(PC,Entry.Id);check(Item);if(Item->BindingMask!=Entry.BindingMask){Item->BindingMask=Entry.BindingMask;++Item->Revision;Entry.Revision=Item->Revision;}}}
+            O->Build=MoveTemp(Candidate);if(O->Build.RulesVersion==8){Mode->Inventory->Changed(PC);}
         }
         else
         {

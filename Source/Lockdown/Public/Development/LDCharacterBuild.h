@@ -8,6 +8,19 @@
 UENUM()
 enum class ELDSkill : uint8 { None, Step, Ambush, Spark, Patch, Pickpocket, Parley, Analyze, Survey, Heave, AnchorBash, BraceWall, VeilStep, Hamstring, ArcBolt, Counterpulse, FarwatchWard, WireSnare, LedgerMark, SuretyShell, FalseTrail, SmokeVeil, PurgeTouch, SeersFlare, EmberLine, Grapple, NullSeal, GroundingField, ForceWave, GuardSwap, Slipstream, RemedyBind, BreakSigil, ArcanePrison, TemporalLock, SovereignWard, GrandExchange, GateWeave };
 
+UENUM()
+enum class ELDActionSource:uint8 { Learned, Gear };
+USTRUCT()
+struct FLDActionRef
+{
+    GENERATED_BODY()
+    UPROPERTY() ELDActionSource Source=ELDActionSource::Learned;
+    UPROPERTY() ELDSkill Skill=ELDSkill::None;
+    UPROPERTY() FGuid Instance;
+    UPROPERTY() FName Definition;
+    bool operator==(const FLDActionRef& Other) const {return Source==Other.Source&&Skill==Other.Skill&&Instance==Other.Instance&&Definition==Other.Definition;}
+};
+
 // This record is private to its owning contender. It is never a remote-body property.
 USTRUCT()
 struct LOCKDOWN_API FLDCharacterBuild
@@ -26,6 +39,7 @@ struct LOCKDOWN_API FLDCharacterBuild
     UPROPERTY() uint32 Revision = 1;
     UPROPERTY() TArray<uint8> Ranks;
     UPROPERTY() TArray<ELDSkill> Slots;
+    UPROPERTY() TArray<FLDActionRef> Actions;
     UPROPERTY() TArray<double> Cooldowns;
     FLDCharacterBuild();
 };
@@ -40,7 +54,10 @@ struct LOCKDOWN_API FLDBuildPlan
     UPROPERTY() TArray<int32> Attributes;
     UPROPERTY() TArray<uint8> Ranks;
     UPROPERTY() TArray<ELDSkill> Slots;
+    UPROPERTY() TArray<FLDActionRef> Actions;
     UPROPERTY() uint8 Subclass = 0;
+    UPROPERTY() uint32 InventoryRevision=0;
+    UPROPERTY() TArray<FGuid> Bindings;
     bool NetSerialize(FArchive& Ar,class UPackageMap* Map,bool& Success);
 };
 template<> struct TStructOpsTypeTraits<FLDBuildPlan> : TStructOpsTypeTraitsBase2<FLDBuildPlan>
@@ -83,11 +100,11 @@ public:
 namespace LDDevelopment
 {
     constexpr int32 SkillCount = 10, SlotCount = 4, V07SkillCount=38;
-    inline int32 Count(const FLDCharacterBuild& B){return B.RulesVersion==7?V07SkillCount:SkillCount;}
-    inline int32 Slots(const FLDCharacterBuild& B){return B.RulesVersion==7?5:4;}
+    inline int32 Count(const FLDCharacterBuild& B){return B.RulesVersion>=7?V07SkillCount:SkillCount;}
+    inline int32 Slots(const FLDCharacterBuild& B){return B.RulesVersion==8?6:B.RulesVersion==7?5:4;}
     inline bool Held(ELDSkill S){return uint8(S)>=4&&uint8(S)<=9;}
     inline bool Implemented(ELDSkill S){return uint8(S)>0&&uint8(S)<V07SkillCount;}
-    LOCKDOWN_API FLDCharacterBuild TacticalStart(uint8 ClassId,const FString& Digest);
+    LOCKDOWN_API FLDCharacterBuild TacticalStart(uint8 ClassId,const FString& Digest,uint8 Rules=7);
     constexpr double DeadlineSeconds = 1500;
     enum EAttribute : uint8 { STR, DEX, CON, INT, WIS, CHA };
     LOCKDOWN_API const TCHAR* SkillName(ELDSkill Skill);

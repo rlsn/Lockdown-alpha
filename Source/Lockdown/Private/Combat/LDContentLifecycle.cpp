@@ -1,3 +1,4 @@
+#include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -27,7 +28,7 @@ void ALDCombatDirector::SampleContent(int64 At,TArray<FLDCombatHit>& Hits)
     TArray<ALDCharacter*> Pending;
     for(auto& Pair:Bodies)
     {
-        auto* Body=Pair.Key.Get();auto& S=Pair.Value;if(!Body||S.Hp<=0){continue;}const auto* B=BuildFor(Body);if(!B||B->RulesVersion!=7){continue;}
+        auto* Body=Pair.Key.Get();auto& S=Pair.Value;if(!Body||S.Hp<=0){continue;}const auto* B=BuildFor(Body);if(!B||B->RulesVersion<7){continue;}
         if(S.DaggerItem.IsValid())
         {auto* PC=Cast<ALDPlayerController>(Body->GetController());const auto* I=PC?M->Inventory->Owned(PC,S.DaggerItem):nullptr;if(S.DaggerUntil<=At||!I||!I->BindingMask){S.DaggerItem.Invalidate();S.DaggerUntil=0;}}
         if(S.bAttackOrder&&S.Action>1){S.bAttackOrder=false;}
@@ -50,7 +51,7 @@ void ALDCombatDirector::SampleContent(int64 At,TArray<FLDCombatHit>& Hits)
     {
         auto& Mark=Marks[N];const auto* Source=StateFor(Mark.Source.Get());const auto* Target=StateFor(Mark.Target.Get());
         if(!Source||!Target||Source->Identity!=Mark.SourceLife||Target->Identity!=Mark.TargetLife||Source->Hp<=0||Target->Hp<=0||At>=Mark.Until||!Target->Tactical.Statuses.ContainsByPredicate([&](const auto& S){return S.Kind==LDTactical::EStatus::Mark&&S.Source==Mark.SourceLife&&S.Until>At;})){Marks.RemoveAt(N);continue;}
-        if(At<Mark.Next){continue;}Mark.Next=At+2000;auto* PC=Cast<ALDPlayerController>(Mark.Source->GetController());if(PC&&M->Vision->CanObserve(PC,Mark.Target.Get())){auto* Cue=CreateField(Mark.Source.Get(),ELDTacticalField::Trail,Mark.Target->GetActorLocation(),At,4000,1,0);if(Cue){Cue->Audience=Mark.Source;}}
+        if(At<Mark.Next){continue;}Mark.Next=At+2000;auto* PC=Cast<ALDPlayerController>(Mark.Source->GetController());if(PC&&M->Vision->CanObserve(PC,Mark.Target.Get())){auto* Cue=CreateField(Mark.Source.Get(),ELDTacticalField::Trail,Mark.Target->GetActorLocation(),At,LDV08::TraitValue(*BuildFor(Mark.Source.Get()),TEXT("mark_ms"),4000),1,0);if(Cue){Cue->Audience=Mark.Source;}}
     }
     for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It)
     {

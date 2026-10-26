@@ -1,6 +1,8 @@
 #include "UI/LDDevelopmentPanel.h"
+#include "Development/LDV08Loadout.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "UI/LDControlSettings.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -57,7 +59,8 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
         }
         AddRow(Left,Text(TEXT("EQUIPPED · Shared skill slots · Click a slot, then Equip a learned skill"),16));
         auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Left,Slots);
-        for(uint8 I=0;I<5;++I){auto* W=Button(TEXT(""),3,I);SlotLabels.Add(CastChecked<UTextBlock>(W->GetContent()));Slots->AddChildToHorizontalBox(W)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
+        for(uint8 I=0;I<6;++I){auto* W=Button(TEXT(""),3,I);SlotLabels.Add(CastChecked<UTextBlock>(W->GetContent()));Slots->AddChildToHorizontalBox(W)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));}
+        GearActionRows=WidgetTree->ConstructWidget<UVerticalBox>();AddRow(Left,GearActionRows);
         auto* Tools=WidgetTree->ConstructWidget<UHorizontalBox>();AddRow(Left,Tools);Tools->AddChildToHorizontalBox(Button(TEXT("Clear selected slot"),4,0));Tools->AddChildToHorizontalBox(Button(TEXT("Reset preview"),5,0))->SetPadding(FMargin(10,0));
         AddRow(Left,Text(TEXT("LIBRARY · Scroll for all skills · Ranks cost 1 then 2 SP"),16));
         auto* LibrarySize=WidgetTree->ConstructWidget<USizeBox>();LibrarySize->SetHeightOverride(260);AddRow(Left,LibrarySize);
@@ -92,7 +95,7 @@ TSharedRef<SWidget> ULDDevelopmentPanel::RebuildWidget()
     return Super::RebuildWidget();
 }
 void ULDDevelopmentPanel::ResetDraft()
-{Draft=LDDevelopment::PlanFrom(CastChecked<ALDPlayerController>(GetOwningPlayer())->OwnerState.Build);Armed=0;SelectedBook.Invalidate();}
+{const auto& O=CastChecked<ALDPlayerController>(GetOwningPlayer())->OwnerState;Draft=LDDevelopment::PlanFrom(O.Build);if(O.Build.RulesVersion==8){Draft.InventoryRevision=O.Inventory.Revision;Draft.Bindings=O.Inventory.Bindings;}Armed=0;SelectedBook.Invalidate();GearRowsRevision=0;}
 void ULDDevelopmentPanel::Open()
 {bOpen=true;ResetDraft();SetVisibility(ESlateVisibility::Visible);auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);SetUserFocus(PC);SetKeyboardFocus();}
 void ULDDevelopmentPanel::Close()
@@ -114,9 +117,11 @@ void ULDDevelopmentPanel::Choose(uint8 Operation,uint8 Index)
     if(Operation==1&&Draft.Attributes.IsValidIndex(Index)){Draft.Attributes[Index]=FMath::Min(16,Draft.Attributes[Index]+1);}
     if(Operation==2&&Draft.Ranks.IsValidIndex(Index)){Draft.Ranks[Index]=FMath::Min(3,int32(Draft.Ranks[Index])+1);}
     if(Operation==3&&Index<Draft.Slots.Num()){SelectedSlot=Index;}
-    if(Operation==4){Draft.Slots[SelectedSlot]=ELDSkill::None;}
+    if(Operation==4){Draft.Slots[SelectedSlot]=ELDSkill::None;if(O.Build.RulesVersion==8){Draft.Actions[SelectedSlot]=FLDActionRef();}}
     if(Operation==5){ResetDraft();}
-    if(Operation==6&&Index>0&&Index<LDDevelopment::Count(O.Build)){Draft.Slots[SelectedSlot]=ELDSkill(Index);}
+    if(Operation==6&&Index>0&&Index<LDDevelopment::Count(O.Build)){Draft.Slots[SelectedSlot]=ELDSkill(Index);if(O.Build.RulesVersion==8){Draft.Actions[SelectedSlot]=FLDActionRef();Draft.Actions[SelectedSlot].Skill=ELDSkill(Index);}}
+    if(Operation==15&&O.Build.RulesVersion==8)
+    {const auto* Item=O.Inventory.Items.FindByPredicate([&](const auto& I){return I.Slot==Index;});const auto* D=Item?ULDEquipmentCatalog::Load(8)->Find(Item->Kind):nullptr;if(D&&D->Binding<7&&!D->Operation.IsEmpty()){for(auto& Ref:Draft.Bindings){if(Ref==Item->Id){Ref.Invalidate();}}Draft.Bindings[D->Binding]=Item->Id;if(D->TwoHanded){Draft.Bindings[6]=Item->Id;}Draft.Actions[SelectedSlot]=FLDActionRef();auto& A=Draft.Actions[SelectedSlot];A.Source=ELDActionSource::Gear;A.Instance=Item->Id;A.Definition=FName(*D->Id);Draft.Slots[SelectedSlot]=ELDSkill::None;}}
     if(Operation==7){Draft.Subclass=Index==2?O.Build.Subclass:O.Build.ClassId*2+1+Index;}
 }
 void ULDDevelopmentPanel::StartConfirm()
@@ -132,27 +137,30 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     const float Scale=PC->Controls?PC->Controls->TextScale:1;if(Scale!=AppliedTextScale){TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;}
     const auto* GS=GetWorld()->GetGameState<ALDGameState>();if((!O.bActive&&!PC->Navigation->Enabled())||!GS||!GS->bMatchStarted||GS->EndReason){Close();return;}
     if(Draft.ExpectedRevision!=O.Build.Revision){StopConfirm();ResetDraft();}
-    const double Now=GS->GetServerWorldTimeSeconds();FLDCharacterBuild Candidate;FString Error;const bool Valid=LDDevelopment::Prepare(O.Build,Draft,Candidate,Error);
-    FLDCharacterBuild Ghost=O.Build;Ghost.Attributes=Draft.Attributes;Ghost.Ranks=Draft.Ranks;Ghost.Slots=Draft.Slots;Ghost.Subclass=Draft.Subclass;
+    const double Now=GS->GetServerWorldTimeSeconds();FLDCharacterBuild Candidate;FString Error;FLDInventory Projected;const bool Valid=O.Build.RulesVersion==8?LDV08::Project(O.Inventory,O.Build,Draft,Projected,Candidate,Error):LDDevelopment::Prepare(O.Build,Draft,Candidate,Error);
+    FLDCharacterBuild Ghost=O.Build;Ghost.Attributes=Draft.Attributes;Ghost.Ranks=Draft.Ranks;Ghost.Slots=Draft.Slots;Ghost.Subclass=Draft.Subclass;Ghost.Actions=Draft.Actions;if(O.Build.RulesVersion==8&&Valid){Ghost.Gear=Candidate.Gear;}
     Heading->SetText(FText::FromString(FString::Printf(TEXT("%s · Level %d · %d attribute points · %d skill points · Gold %lld"),LDDevelopment::PresetName(O.Build),O.Build.Level,O.Build.AttributePoints,O.Build.SkillPoints,O.Gold)));
+    if(O.Build.RulesVersion==8)
+    {Heading->SetText(FText::FromString(Heading->GetText().ToString()+TEXT(" · Intrinsic: ")+LDV08::TraitName(O.Build)));if(GearRowsRevision!=O.Inventory.Revision){GearRowsRevision=O.Inventory.Revision;GearActionRows->ClearChildren();GearActionRows->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("BODY ACTIONS · Equip source + allocate selected shared slot in one draft"),14));for(const auto& Item:O.Inventory.Items){const auto* D=ULDEquipmentCatalog::Load(8)->Find(Item.Kind);if(!D||D->Binding>=7||D->Operation.IsEmpty()){continue;}GearActionRows->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,D->Name+TEXT(" · item source"),[this,Index=Item.Slot](){Choose(15,Index);}));}}}
     const TCHAR* Attrs[]={TEXT("STR"),TEXT("DEX"),TEXT("CON"),TEXT("INT"),TEXT("WIS"),TEXT("CHA")};
     for(int32 I=0;I<6;++I){AttributeLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s natural %d → %d · effective %d"),Attrs[I],O.Build.Attributes[I],Draft.Attributes[I],LDDevelopment::Effective(Ghost)[I])));}
-    for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));}
+    for(int32 I=0;I<SlotLabels.Num();++I){if(!Draft.Slots.IsValidIndex(I)){SlotLabels[I]->SetText(FText::FromString(TEXT("Unavailable")));continue;}const FString Key=PC->Navigation->Enabled()?PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))):FString::FromInt(I+1);SlotLabels[I]->SetText(FText::FromString(FString::Printf(TEXT("%s[%s]\n%s"),SelectedSlot==I?TEXT("› "):TEXT(""),*Key,LDDevelopment::SkillName(Draft.Slots[I]))));if(O.Build.RulesVersion==8&&Draft.Actions[I].Source==ELDActionSource::Gear){const auto* Item=O.Inventory.Find(Draft.Actions[I].Instance);SlotLabels[I]->SetText(FText::FromString(Key+TEXT("\n[ITEM] ")+(Item?LDInventory::Name(Item->Kind,Item->Skill):TEXT("Missing source"))));}}
     for(uint8 I=1;I<LDDevelopment::V07SkillCount;++I)
     {
+        const bool Available=O.Build.RulesVersion!=8||I<10||ULDTacticalCatalog::Load(8)->Find(ELDSkill(I));SkillLabels[I-1]->GetParent()->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(!Available){continue;}
         if(!Draft.Ranks.IsValidIndex(I)){SkillLabels[I-1]->SetText(FText::FromString(TEXT("v07 only")));RankButtons[I-1]->SetIsEnabled(false);EquipButtons[I-1]->SetIsEnabled(false);continue;}
-        const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.RulesVersion!=7&&O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
+        const auto Skill=ELDSkill(I);const int32 Rank=LDDevelopment::Rank(O.Build,Skill);const bool Trainable=Rank>0||(O.Build.RulesVersion<7&&O.Build.Level>=2&&LDDevelopment::CanTrain(O.Build.ClassId,Skill));
         auto ValueBuild=Ghost;if(!ValueBuild.Ranks[I]){ValueBuild.Ranks[I]=1;}
         const TCHAR* Kind=I<=3?TEXT("combat"):TEXT("utility");
         const FString OwnValue=Skill==ELDSkill::Pickpocket?FString::Printf(TEXT("Own roll 1–20 %+d"),FMath::FloorToInt((ValueBuild.Attributes[1]-10)/2.)+ValueBuild.Ranks[I]+(ValueBuild.Subclass==3?1:0)):FString::Printf(TEXT("Own preview %.2f"),LDDevelopment::SkillValue(ValueBuild,Skill));
-        SkillLabels[I-1]->SetText(FText::FromString(FString::Printf(TEXT("%s · %s R%d → %d · %s\n%s · CD %.0fs%s"),LDDevelopment::SkillName(Skill),Rank?TEXT("Learned"):TEXT("Unknown"),Rank,Draft.Ranks[I],Kind,*OwnValue,LDDevelopment::Cooldown(Skill),Rank?TEXT(""):O.Build.RulesVersion==7?TEXT(" · book knowledge required; natural equip gate"):LDDevelopment::CanTrain(O.Build.ClassId,Skill)?TEXT(" · class Lv2 / 1 SP"):TEXT(" · book only"))));
-        RankButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Trainable&&Draft.Ranks[I]<3&&(O.Build.RulesVersion!=7||O.Build.Level>=(Draft.Ranks[I]==1?3:6)));EquipButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Draft.Ranks[I]>0&&(O.Build.RulesVersion!=7||LDGear::NaturalGate(Ghost,Skill)));
+        SkillLabels[I-1]->SetText(FText::FromString(FString::Printf(TEXT("%s · %s R%d → %d · %s\n%s · CD %.0fs%s"),LDDevelopment::SkillName(Skill),Rank?TEXT("Learned"):TEXT("Unknown"),Rank,Draft.Ranks[I],Kind,*OwnValue,LDDevelopment::Cooldown(Skill),Rank?TEXT(""):O.Build.RulesVersion>=7?TEXT(" · book knowledge required; natural equip gate"):LDDevelopment::CanTrain(O.Build.ClassId,Skill)?TEXT(" · class Lv2 / 1 SP"):TEXT(" · book only"))));
+        RankButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Trainable&&Draft.Ranks[I]<3&&(O.Build.RulesVersion<7||O.Build.Level>=(Draft.Ranks[I]==1?3:6)));EquipButtons[I-1]->SetIsEnabled(LDDevelopment::Implemented(Skill)&&Draft.Ranks[I]>0&&(O.Build.RulesVersion<7||LDGear::NaturalGate(Ghost,Skill)));
         CastChecked<UTextBlock>(RankButtons[I-1]->GetContent())->SetText(FText::FromString(Draft.Ranks[I]?FString::Printf(TEXT("R%d (%d SP)"),FMath::Min(3,int32(Draft.Ranks[I])+1),Draft.Ranks[I]==2?2:1):TEXT("Train (1 SP)")));
     }
     for(uint8 I=0;I<2;++I)
     {const uint8 Choice=O.Build.ClassId*2+1+I;const TCHAR* Effects[]={TEXT(""),TEXT("Heave +2"),TEXT("Patch +3"),TEXT("theft roll +1"),TEXT("Survey +2"),TEXT("Spark +3"),TEXT("Parley +2")};CastChecked<UTextBlock>(SubclassButtons[I]->GetContent())->SetText(FText::FromString(FString::Printf(TEXT("%s%s\n%s"),Draft.Subclass==Choice?TEXT("✓ "):TEXT(""),LDDevelopment::SubclassName(Choice),Effects[Choice])));SubclassButtons[I]->SetIsEnabled(O.Build.Level>=4&&(!O.Build.Subclass||O.Build.Subclass==Choice));}
     PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP %.0f → %.0f (current %.2f; no heal)\nWalk %.1f → %.1f · Sprint %.1f → %.1f · Basic %.2f → %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.Hp,180*LDDevelopment::SpeedFactor(O.Build),180*LDDevelopment::SpeedFactor(Ghost),300*LDDevelopment::SpeedFactor(O.Build),300*LDDevelopment::SpeedFactor(Ghost),LDDevelopment::BasicDamage(O.Build),LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After applying: %d attribute points / %d SP"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));
-    if(O.Build.RulesVersion==7){PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP max %.0f → %.0f · MP max %.0f → %.0f\nCurrent HP %.2f / MP %.2f will only clamp; increases do not refill.\nBase movement %.0f · Armor %.1f · Basic %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.MaxMp,LDTactical::MaxMP(Ghost),O.Hp,O.Mp,420.*(1+Ghost.Gear.Movement/100.),2+.5*(LDDevelopment::Effective(Ghost)[2]-8)+Ghost.Gear.Armor,LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After commit: %d attribute / %d mastery points"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));}
+    if(O.Build.RulesVersion>=7){PreviewInfo->SetText(FText::FromString(FString::Printf(TEXT("BUILD PREVIEW · HP max %.0f → %.0f · MP max %.0f → %.0f\nCurrent HP %.2f / MP %.2f will only clamp; increases do not refill.\nBase movement %.0f · Armor %.1f · Basic %.2f\n%s"),O.MaxHp,LDDevelopment::MaxHP(Ghost),O.MaxMp,LDTactical::MaxMP(Ghost),O.Hp,O.Mp,420.*(1+Ghost.Gear.Movement/100.),2+.5*(LDDevelopment::Effective(Ghost)[2]-8)+Ghost.Gear.Armor,LDDevelopment::BasicDamage(Ghost),Valid?*FString::Printf(TEXT("After commit: %d attribute / %d mastery points"),Candidate.AttributePoints,Candidate.SkillPoints):*Error)));}
     ApplyButton->SetIsEnabled(Valid&&!bHolding);
     if(PC->Navigation->Enabled())
     {
@@ -160,6 +168,7 @@ void ULDDevelopmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
         ApplyButton->SetIsEnabled(Valid&&Near&&O.bActive&&Now>=O.ProtectedUntil);
         CastChecked<UTextBlock>(ApplyButton->GetContent())->SetText(FText::FromString(TEXT("Apply preview")));
     }
+    if(O.Build.RulesVersion==8&&Valid){PreviewInfo->SetText(FText::FromString(PreviewInfo->GetText().ToString()+TEXT("\nPROJECTED EQUIPMENT · source removals clear dependent actions\n")+LDGear::Preview(Projected,Candidate)));}
     FString Confirm=Armed==LDDevelopmentTransaction::Prepare?TEXT("Armed: hold E for 2s at a Preparation station."):Armed==LDDevelopmentTransaction::Read?TEXT("Book selected: hold E for 3s to read."):TEXT("Apply a preview or select an unread book, then hold E.");
     if(O.DevelopmentKind){Confirm=FString::Printf(TEXT("%s · %.1fs remaining · Release E or lose focus to cancel."),O.DevelopmentKind==2?TEXT("Reading"):TEXT("Preparing"),FMath::Max(0.,O.DevelopmentEndsAt-Now));}
     HoldInfo->SetText(FText::FromString(Confirm));BookInfo->SetText(FText::FromString(PC->Navigation->Enabled()?FString::Printf(TEXT("%d books · %d / %d carried slots · first four previewed here"),O.Books.Num(),O.Inventory.Items.Num(),O.Inventory.Capacity):FString::Printf(TEXT("%d / 4 unread · learned library is separate"),O.Books.Num())));

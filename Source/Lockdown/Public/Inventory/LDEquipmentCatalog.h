@@ -13,6 +13,7 @@ struct FLDEquipmentDefinition
     UPROPERTY() uint8 Binding=0;
     UPROPERTY() bool TwoHanded=false;
     UPROPERTY() int32 Weight=0;
+    UPROPERTY() int32 Price=-1;
     UPROPERTY() FLDGearStats Stats;
     UPROPERTY() FString Operation;
     UPROPERTY() FString Family;
@@ -43,9 +44,10 @@ public:
     UPROPERTY() FString Checksum;
     UPROPERTY() TArray<FLDEquipmentDefinition> Items;
     UPROPERTY() TArray<FLDAbilityGate> Gates;
+    UPROPERTY() uint8 RulesVersion=7;
     bool Import(const FString& Text,FString& Why);
     bool Validate(FString& Why) const;
-    static ULDEquipmentCatalog* Load();
+    static ULDEquipmentCatalog* Load(uint8 Rules=7);
     const FLDEquipmentDefinition* Find(ELDItemKind K) const {return Items.FindByPredicate([&](const auto& D){return D.Kind==K;});}
     const FLDAbilityGate* Gate(ELDSkill S) const {return Gates.FindByPredicate([&](const auto& D){return D.Skill==S;});}
 };

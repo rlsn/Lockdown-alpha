@@ -23,6 +23,15 @@ const TArray<FLDControlBinding>& ULDControlSettings::Defaults(bool Tactical)
     static const TArray<FLDControlBinding> TacticalValues=[](){auto V=Values;V.RemoveAll([](const auto& B){return B.Action==TEXT("Item4");});V.Insert({TEXT("Skill5"),TEXT("Equipped skill 5"),EKeys::D},7);return V;}();
     return Tactical?TacticalValues:Values;
 }
+const TArray<FLDControlBinding>& ULDControlSettings::HybridDefaults()
+{static const TArray<FLDControlBinding> Values=[](){auto V=Defaults(true);V.Insert({TEXT("Skill6"),TEXT("Shared action 6"),EKeys::G},8);V.Insert({TEXT("Item4"),TEXT("Physical accessory 4"),EKeys::Four},12);for(auto& B:V){if(B.Action.ToString().StartsWith(TEXT("Item"))){B.Label=TEXT("Physical accessory ")+B.Action.ToString().Right(1);}}return V;}();return Values;}
+bool ULDControlSettings::MigrateHybrid()
+{
+    if(Profile==8&&Schema==3){return Valid();}auto Old=Bindings;Profile=8;Schema=3;Bindings.Reset();TSet<FKey> Used;
+    for(const auto& B:Definitions()){if(const auto* K=Old.Find(B.Action);K&&K->IsValid()&&!K->IsGamepadKey()&&!K->IsAxis2D()&&!K->IsAxis3D()&&(B.Axis?*K==EKeys::MouseWheelAxis:!K->IsAxis1D())&&(B.Action==TEXT("Back")?*K==EKeys::Escape:*K!=EKeys::Escape)&&*K!=EKeys::MouseScrollUp&&*K!=EKeys::MouseScrollDown&&!Used.Contains(*K)){Bindings.Add(B.Action,*K);Used.Add(*K);}}
+    const TArray<FKey> Spare={EKeys::B,EKeys::C,EKeys::H,EKeys::J,EKeys::K,EKeys::L,EKeys::M,EKeys::N,EKeys::O,EKeys::U,EKeys::V,EKeys::X,EKeys::Y,EKeys::Z,EKeys::Five,EKeys::Six};
+    for(const auto& B:Definitions()){if(Bindings.Contains(B.Action)){continue;}FKey K=B.Key;if(Used.Contains(K)){const auto* Free=Spare.FindByPredicate([&](FKey Value){return !Used.Contains(Value);});if(!Free){return false;}K=*Free;}Bindings.Add(B.Action,K);Used.Add(K);}return Valid();
+}
 FKey ULDControlSettings::Key(FName Action) const
 {if(const FKey* K=Bindings.Find(Action)){return *K;}for(const auto& B:Definitions()){if(B.Action==Action){return B.Key;}}return FKey();}
 FString ULDControlSettings::Label(FName Action) const {return Key(Action).GetDisplayName().ToString();}
@@ -44,7 +53,7 @@ bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
 }
 bool ULDControlSettings::Valid() const
 {
-    if(Schema!=(Profile==7?2:1)||(Profile!=6&&Profile!=7)||Bindings.Num()!=Definitions().Num()||Key(TEXT("Back"))!=EKeys::Escape||!FMath::IsFinite(TextScale)||TextScale<1||TextScale>1.25||!FMath::IsFinite(Zoom)||Zoom<1100||Zoom>1700){return false;}
+    if(Schema!=(Profile==8?3:Profile==7?2:1)||(Profile!=6&&Profile!=7&&Profile!=8)||Bindings.Num()!=Definitions().Num()||Key(TEXT("Back"))!=EKeys::Escape||!FMath::IsFinite(TextScale)||TextScale<1||TextScale>1.25||!FMath::IsFinite(Zoom)||Zoom<1100||Zoom>1700){return false;}
     TSet<FKey> Seen;
     for(const auto& B:Definitions())
     {const FKey K=Key(B.Action);if(!Bindings.Contains(B.Action)||!K.IsValid()||K.IsGamepadKey()||K.IsAxis2D()||K.IsAxis3D()||Seen.Contains(K)||(!B.Axis&&K.IsAxis1D())||(B.Axis&&K!=EKeys::MouseWheelAxis)){return false;}Seen.Add(K);}
@@ -65,13 +74,15 @@ bool ULDControlSettings::MigrateTactical()
 }
 ULDControlSettings* ULDControlSettings::Load(const FString& Slot,uint8 RequestedProfile)
 {
-    const bool Tactical=RequestedProfile==7;const FString LegacySlot=Slot==TEXT("LockdownLocalControlsV1")||Slot.StartsWith(TEXT("LockdownControlsProbe_"))?Slot:TEXT("LockdownLocalControlsV1");
-    const FString SafeSlot=Tactical?(LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07")):LegacySlot;
+    const bool Hybrid=RequestedProfile==8;const bool Tactical=RequestedProfile>=7;const FString LegacySlot=Slot==TEXT("LockdownLocalControlsV1")||Slot.StartsWith(TEXT("LockdownControlsProbe_"))?Slot:TEXT("LockdownLocalControlsV1");
+    const FString SafeSlot=Hybrid?LegacySlot+TEXT("_V08"):Tactical?(LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07")):LegacySlot;
     auto* Settings=UGameplayStatics::DoesSaveGameExist(SafeSlot,0)?Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(SafeSlot,0)):nullptr;
+    if(!Settings&&Hybrid){const FString Previous=LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07");if(UGameplayStatics::DoesSaveGameExist(Previous,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(Previous,0));}}
     if(!Settings&&Tactical&&UGameplayStatics::DoesSaveGameExist(LegacySlot,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(LegacySlot,0));}
     if(!Settings){Settings=CastChecked<ULDControlSettings>(UGameplayStatics::CreateSaveGameObject(StaticClass()));Settings->ResetBindings();}
     if(!FMath::IsFinite(Settings->TextScale)||Settings->TextScale<1||Settings->TextScale>1.25){Settings->TextScale=1;}if(!FMath::IsFinite(Settings->Zoom)||Settings->Zoom<1100||Settings->Zoom>1700){Settings->Zoom=1400;}
-    if(Tactical){if(!Settings->MigrateTactical()){Settings->Profile=7;Settings->Schema=2;Settings->ResetBindings();}}
+    if(Hybrid){if(!Settings->MigrateHybrid()){Settings->Profile=8;Settings->Schema=3;Settings->ResetBindings();}}
+    else if(Tactical){if(!Settings->MigrateTactical()){Settings->Profile=7;Settings->Schema=2;Settings->ResetBindings();}}
     else if(!Settings->Valid()){Settings->Profile=6;Settings->Schema=1;Settings->ResetBindings();}
     Settings->StorageSlot=SafeSlot;return Settings;
 }

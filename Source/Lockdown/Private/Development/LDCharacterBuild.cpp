@@ -1,4 +1,5 @@
 #include "Development/LDCharacterBuild.h"
+#include "Development/LDV08Loadout.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Dom/JsonObject.h"
@@ -18,30 +19,41 @@ FLDCharacterBuild::FLDCharacterBuild()
 
 bool FLDBuildPlan::NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success)
 {
-    if(Ar.IsSaving()&&RulesVersion!=6&&RulesVersion!=7){Success=false;Ar.SetError();return false;}
+    if(Ar.IsSaving()&&RulesVersion!=6&&RulesVersion!=7&&RulesVersion!=8){Success=false;Ar.SetError();return false;}
     uint8 Present=ExpectedRevision||Attributes.Num()||Ranks.Num()||Slots.Num()||Subclass?1:0;
     Ar.SerializeBits(&Present,1);Success=true;
     if(!Present){if(Ar.IsLoading()){*this=FLDBuildPlan();}return true;}
     // Preserve v06 bytes. UINT32_MAX is reserved as the extended-wire marker.
-    uint32 Header=RulesVersion==7?MAX_uint32:ExpectedRevision;
+    uint32 Header=RulesVersion>=7?MAX_uint32:ExpectedRevision;
     Ar<<Header;
     if(Header==MAX_uint32)
     {
-        uint8 Schema=7;Ar<<Schema;if(Schema!=7){Success=false;Ar.SetError();return false;}
-        RulesVersion=7;
+        uint8 Schema=RulesVersion;Ar<<Schema;if(Schema!=7&&Schema!=8){Success=false;Ar.SetError();return false;}
+        RulesVersion=Schema;
         // A bounded 32-byte digest, never an unbounded client string allocation.
         uint8 Bytes[32]={};if(Ar.IsSaving()){if(CatalogDigest.Len()!=64){Success=false;Ar.SetError();return false;}for(TCHAR C:CatalogDigest){if(!FChar::IsHexDigit(C)){Success=false;Ar.SetError();return false;}}HexToBytes(CatalogDigest,Bytes);}
         Ar.Serialize(Bytes,32);if(Ar.IsLoading()){CatalogDigest=BytesToHex(Bytes,32).ToLower();}
         Ar<<ExpectedRevision;
     }
     else{RulesVersion=6;ExpectedRevision=Header;CatalogDigest.Reset();}
-    const int32 Count=RulesVersion==7?38:10,SlotCount=RulesVersion==7?5:4;
+    const int32 Count=RulesVersion>=7?38:10,SlotCount=RulesVersion==8?6:RulesVersion==7?5:4;
     if(Ar.IsLoading()){Attributes.SetNum(6);Ranks.SetNum(Count);Slots.SetNum(SlotCount);}
     if(Attributes.Num()!=6||Ranks.Num()!=Count||Slots.Num()!=SlotCount){Success=false;Ar.SetError();return false;}
     for(auto& Value:Attributes){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(Ar.IsSaving()&&(Value<0||Value>31)){Success=false;}Ar.SerializeBits(&Wire,5);if(Ar.IsLoading()){Value=Wire;}}
     for(auto& Value:Ranks){uint8 Wire=Ar.IsLoading()?0:Value;if(Ar.IsSaving()&&Value>3){Success=false;}Ar.SerializeBits(&Wire,2);if(Ar.IsLoading()){Value=Wire;}}
-    for(auto& Value:Slots){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(RulesVersion==7){uint16 Wide=Ar.IsLoading()?0:uint16(Value);Ar<<Wide;if(Wide>=38){Success=false;}Wire=uint8(Wide);}else{if(Ar.IsSaving()&&Wire>15){Success=false;}Ar.SerializeBits(&Wire,4);}if(Ar.IsLoading()){Value=ELDSkill(Wire);}}
+    for(auto& Value:Slots){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(RulesVersion>=7){uint16 Wide=Ar.IsLoading()?0:uint16(Value);Ar<<Wide;if(Wide>=38){Success=false;}Wire=uint8(Wide);}else{if(Ar.IsSaving()&&Wire>15){Success=false;}Ar.SerializeBits(&Wire,4);}if(Ar.IsLoading()){Value=ELDSkill(Wire);}}
     uint8 SubclassWire=Ar.IsLoading()?0:Subclass;if(Ar.IsSaving()&&Subclass>7){Success=false;}Ar.SerializeBits(&SubclassWire,3);if(Ar.IsLoading()){Subclass=SubclassWire;}
+    if(RulesVersion==8)
+    {
+        if(Ar.IsLoading()){Actions.SetNum(6);Bindings.SetNum(11);}
+        if(Actions.Num()!=6||Bindings.Num()!=11){Success=false;Ar.SetError();return false;}
+        Ar<<InventoryRevision;
+        for(auto& Ref:Bindings){Ar<<Ref;}
+        for(auto& Ref:Actions){uint8 Source=uint8(Ref.Source),Skill=uint8(Ref.Skill);Ar<<Source<<Skill<<Ref.Instance;uint8 Bytes[64]={};
+            if(Ar.IsSaving()){FTCHARToUTF8 Name(*Ref.Definition.ToString());if(Name.Length()>63){Success=false;Ar.SetError();return false;}FMemory::Memcpy(Bytes,Name.Get(),Name.Length());}
+            Ar.Serialize(Bytes,64);if(Ar.IsLoading()){Bytes[63]=0;Ref.Source=ELDActionSource(Source);Ref.Skill=ELDSkill(Skill);Ref.Definition=FName(UTF8_TO_TCHAR(reinterpret_cast<const char*>(Bytes)));}
+            Success&=Source<=1&&Skill<38;}
+    }
     Success&=!Ar.IsError();if(!Success){Ar.SetError();}return Success;
 }
 
@@ -63,7 +75,7 @@ namespace LDDevelopment
         return ClassId < 3 ? Names[ClassId] : TEXT("Invalid");
     }
     const TCHAR* PresetName(const FLDCharacterBuild& B)
-    {static const TCHAR* Names[]={TEXT("Vanguard"),TEXT("Infiltrator"),TEXT("Arcanist"),TEXT("Seeker"),TEXT("Broker"),TEXT("Trickster")};return B.RulesVersion==7&&B.Preset>=3&&B.Preset<9?Names[B.Preset-3]:ClassName(B.ClassId);}
+    {static const TCHAR* Names[]={TEXT("Vanguard"),TEXT("Infiltrator"),TEXT("Arcanist"),TEXT("Seeker"),TEXT("Broker"),TEXT("Trickster")};return B.RulesVersion>=7&&B.Preset>=3&&B.Preset<9?Names[B.Preset-3]:ClassName(B.ClassId);}
     const TCHAR* SubclassName(uint8 Subclass)
     {
         static const TCHAR* Names[] = {TEXT("None"),TEXT("Hauler"),TEXT("Medic"),TEXT("Cutpurse"),TEXT("Watcher"),TEXT("Channeler"),TEXT("Envoy")};
@@ -81,25 +93,27 @@ namespace LDDevelopment
         for (int32 I=0; I<Starting.Num(); ++I) { B.Ranks[int32(Starting[I])] = 1; B.Slots[I] = Starting[I]; }
         return B;
     }
-    FLDCharacterBuild TacticalStart(uint8 C,const FString& Digest)
+    FLDCharacterBuild TacticalStart(uint8 C,const FString& Digest,uint8 Rules)
     {
-        check(C<9);const uint8 LegacyAdapters[]={0,1,2,1,2,1};auto B=StartingBuild(C<3?C:LegacyAdapters[C-3]);B.Preset=C;B.RulesVersion=7;B.CatalogDigest=Digest;
+        check(C<9);const uint8 LegacyAdapters[]={0,1,2,1,2,1};auto B=StartingBuild(C<3?C:LegacyAdapters[C-3]);B.Preset=C;B.RulesVersion=Rules;B.CatalogDigest=Digest;
         const TArray<TArray<int32>> Starts={{11,8,10,8,8,8},{8,11,8,8,10,8},{8,8,8,11,8,10}};
-        B.Attributes=Starts[B.ClassId];B.Ranks.SetNumZeroed(38);B.Cooldowns.SetNumZeroed(38);B.Slots.SetNum(5);
-        if(C>=3){const auto* Catalog=ULDTacticalCatalog::Load();check(Catalog&&Catalog->Starters.IsValidIndex(C-3));const auto& K=Catalog->Starters[C-3];B.Attributes=K.Attributes;B.Ranks.Init(0,38);B.Slots.Init(ELDSkill::None,5);for(int32 I=0;I<K.Skills.Num();++I){B.Ranks[uint8(K.Skills[I])]=1;B.Slots[I]=K.Skills[I];}}return B;
+        B.Attributes=Starts[B.ClassId];B.Ranks.SetNumZeroed(38);B.Cooldowns.SetNumZeroed(38);B.Slots.SetNum(Rules==8?6:5);
+        if(C>=3){const auto* Catalog=ULDTacticalCatalog::Load(Rules);check(Catalog&&Catalog->Starters.IsValidIndex(C-3));const auto& K=Catalog->Starters[C-3];B.Attributes=K.Attributes;B.Ranks.Init(0,38);B.Slots.Init(ELDSkill::None,Rules==8?6:5);for(int32 I=0;I<K.Skills.Num();++I){B.Ranks[uint8(K.Skills[I])]=1;B.Slots[I]=K.Skills[I];}}if(Rules==8){B.Actions.SetNum(6);for(int32 N=0;N<6;++N){B.Actions[N].Skill=B.Slots[N];}}return B;
     }
     bool Valid(const FLDCharacterBuild& B)
     {
-        if (B.ClassId>=3 || B.Preset>=(B.RulesVersion==7?9:3) || B.Attributes.Num()!=6 || B.Ranks.Num()!=Count(B) || B.Cooldowns.Num()!=Count(B) || B.Slots.Num()!=Slots(B)
-            || B.Level<1 || B.Level>(B.RulesVersion==7?15:5) || (B.RulesVersion!=6&&B.RulesVersion!=7) || (B.RulesVersion==7&&B.CatalogDigest.Len()!=64) || B.AttributePoints<0 || B.SkillPoints<0 || B.Subclass>6 || !B.Revision || B.Ranks[0]) { return false; }
+        if (B.ClassId>=3 || B.Preset>=(B.RulesVersion>=7?9:3) || B.Attributes.Num()!=6 || B.Ranks.Num()!=Count(B) || B.Cooldowns.Num()!=Count(B) || B.Slots.Num()!=Slots(B)
+            || B.Level<1 || B.Level>(B.RulesVersion>=7?15:5) || (B.RulesVersion!=6&&B.RulesVersion!=7&&B.RulesVersion!=8) || (B.RulesVersion>=7&&B.CatalogDigest.Len()!=64) || B.AttributePoints<0 || B.SkillPoints<0 || B.Subclass>6 || !B.Revision || B.Ranks[0]) { return false; }
         for (int32 V : B.Attributes) { if (V<8 || V>16) { return false; } }
         for (int32 I=0; I<Count(B); ++I) { if (B.Ranks[I]>3 || !FMath::IsFinite(B.Cooldowns[I]) || B.Cooldowns[I]<0) { return false; } }
+        if(B.RulesVersion==8&&(B.Actions.Num()!=6||!LDV08::PresetEnabled(B.Preset))){return false;}
+        if(B.RulesVersion==8){for(int32 N=0;N<6;++N){const auto& A=B.Actions[N];if(uint8(A.Source)>1||(A.Source==ELDActionSource::Learned?(A.Skill!=B.Slots[N]||A.Instance.IsValid()||!A.Definition.IsNone()):(B.Slots[N]!=ELDSkill::None||A.Skill!=ELDSkill::None||!A.Instance.IsValid()||A.Definition.IsNone()))){return false;}}}
         TSet<ELDSkill> Seen;int32 Capstones=0;
         for (ELDSkill Skill : B.Slots)
         {
             if (Skill==ELDSkill::None) { continue; }
-            if (uint8(Skill)>=Count(B) || !Implemented(Skill) || !B.Ranks[uint8(Skill)] || (B.RulesVersion==7&&!LDGear::NaturalGate(B,Skill)) || Seen.Contains(Skill)) { return false; }
-            Seen.Add(Skill);if(B.RulesVersion==7){const auto* C=ULDEquipmentCatalog::Load();const auto* G=C?C->Gate(Skill):nullptr;if(G&&G->Circle==4&&++Capstones>1){return false;}}
+            if (uint8(Skill)>=Count(B) || !Implemented(Skill) || !B.Ranks[uint8(Skill)] || (B.RulesVersion>=7&&!LDGear::NaturalGate(B,Skill)) || Seen.Contains(Skill)) { return false; }
+            Seen.Add(Skill);if(B.RulesVersion>=7){const auto* C=ULDEquipmentCatalog::Load(B.RulesVersion);const auto* G=C?C->Gate(Skill):nullptr;if(G&&G->Circle==4&&++Capstones>1){return false;}}
         }
         return !B.Subclass || (B.Level>=4 && (B.Subclass-1)/2 == B.ClassId);
     }
@@ -111,10 +125,10 @@ namespace LDDevelopment
     }
     int32 Rank(const FLDCharacterBuild& B, ELDSkill S) { return B.Ranks.IsValidIndex(uint8(S)) ? B.Ranks[uint8(S)] : 0; }
     bool Equipped(const FLDCharacterBuild& B, ELDSkill S) { return S!=ELDSkill::None && Rank(B,S)>0 && B.Slots.Contains(S); }
-    TArray<int32> Effective(const FLDCharacterBuild& B){TArray<int32> A=B.Attributes;if(B.RulesVersion==7&&A.Num()==6&&B.Gear.Primary.Num()==6){for(int32 I=0;I<6;++I){A[I]+=B.Gear.Primary[I];}}return A;}
+    TArray<int32> Effective(const FLDCharacterBuild& B){TArray<int32> A=B.Attributes;if(B.RulesVersion>=7&&A.Num()==6&&B.Gear.Primary.Num()==6){for(int32 I=0;I<6;++I){A[I]+=B.Gear.Primary[I];}}return A;}
     double TacticalDeathDelay(int32 Level,double Elapsed){return FMath::Min(90.,8.+2*FMath::Clamp(Level,1,15)+FMath::FloorToDouble(FMath::Max(0.,Elapsed)/120));}
-    double MaxHP(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return 600.+25*(Effective(B)[CON]-8)+18*(B.Level-1);} return FMath::Clamp(100. + 5*(B.Attributes[CON]-10),75.,150.); }
-    double BasicDamage(const FLDCharacterBuild& B) { if(B.RulesVersion==7){return B.Gear.WeaponBase+2*FMath::Max(0,Effective(B)[STR]-8);} return FMath::Clamp(20. + .75*(B.Attributes[STR]-10),14.,28.); }
+    double MaxHP(const FLDCharacterBuild& B) { if(B.RulesVersion>=7){return 600.+25*(Effective(B)[CON]-8)+18*(B.Level-1);} return FMath::Clamp(100. + 5*(B.Attributes[CON]-10),75.,150.); }
+    double BasicDamage(const FLDCharacterBuild& B) { if(B.RulesVersion>=7){return B.Gear.WeaponBase+2*FMath::Max(0,Effective(B)[STR]-8);} return FMath::Clamp(20. + .75*(B.Attributes[STR]-10),14.,28.); }
     double SpeedFactor(const FLDCharacterBuild& B) { return FMath::Clamp(1. + .01*(B.Attributes[DEX]-10),.90,1.10); }
     double SkillValue(const FLDCharacterBuild& B, ELDSkill S)
     {
@@ -147,7 +161,7 @@ namespace LDDevelopment
     void AwardXP(FLDCharacterBuild& B, int64& XP, int64 Amount)
     {
         if (Amount<=0) { return; }
-        if(B.RulesVersion==7)
+        if(B.RulesVersion>=7)
         {
             const int64 Added=FMath::Min<int64>(Amount,MAX_int64-FMath::Max<int64>(XP,0));XP=FMath::Max<int64>(XP,0)+Added;
             const int64 Thresholds[]={0,75,150,300,450,650,875,1125,1400,1700,2025,2375,2750,3150,3575};int32 Level=1;for(int32 I=1;I<15;++I){if(XP>=Thresholds[I]){Level=I+1;}}
@@ -162,7 +176,7 @@ namespace LDDevelopment
     int64 DeathLoss(int64 Gold) { check(Gold>=0); return (Gold/100)*15+((Gold%100)*15+99)/100; }
     FLDBuildPlan PlanFrom(const FLDCharacterBuild& B)
     {
-        FLDBuildPlan P; P.RulesVersion=B.RulesVersion;P.CatalogDigest=B.CatalogDigest;P.ExpectedRevision=B.Revision; P.Attributes=B.Attributes; P.Ranks=B.Ranks; P.Slots=B.Slots; P.Subclass=B.Subclass; return P;
+        FLDBuildPlan P; P.RulesVersion=B.RulesVersion;P.CatalogDigest=B.CatalogDigest;P.ExpectedRevision=B.Revision; P.Attributes=B.Attributes; P.Ranks=B.Ranks; P.Slots=B.Slots;P.Actions=B.Actions; P.Subclass=B.Subclass; return P;
     }
     bool Prepare(const FLDCharacterBuild& B, const FLDBuildPlan& P, FLDCharacterBuild& Result, FString& Error)
     {
@@ -177,16 +191,16 @@ namespace LDDevelopment
         for (int32 I=1; I<Count(B); ++I)
         {
             const int32 Old=B.Ranks[I], Next=P.Ranks[I];
-            if (Next<Old || Next>3 || (Next&&!Implemented(ELDSkill(I))) || (B.RulesVersion==7&&Next>Old&&((Next>=2&&B.Level<3)||(Next>=3&&B.Level<6)))) { return Reject(TEXT("Invalid skill rank.")); }
-            if (!Old && Next && (B.RulesVersion==7 || B.Level<2 || !CanTrain(B.ClassId,ELDSkill(I)))) { return Reject(TEXT("Class learning is unavailable.")); }
+            if (Next<Old || Next>3 || (Next&&!Implemented(ELDSkill(I))) || (B.RulesVersion>=7&&Next>Old&&((Next>=2&&B.Level<3)||(Next>=3&&B.Level<6)))) { return Reject(TEXT("Invalid skill rank.")); }
+            if (!Old && Next && (B.RulesVersion>=7 || B.Level<2 || !CanTrain(B.ClassId,ELDSkill(I)))) { return Reject(TEXT("Class learning is unavailable.")); }
             if (!Old && Next) { ++SkillCost; }
             for (int32 R=FMath::Max(1,Old); R<Next; ++R) { SkillCost+=R==1?1:2; }
         }
         if (AttributeCost>B.AttributePoints || SkillCost>B.SkillPoints) { return Reject(TEXT("Not enough development points.")); }
         if ((B.Subclass && P.Subclass!=B.Subclass) || P.Subclass>6 || (P.Subclass && (B.Level<4 || (P.Subclass-1)/2!=B.ClassId))) { return Reject(TEXT("Subclass choice is unavailable or permanent.")); }
-        FLDCharacterBuild Candidate=B; Candidate.Attributes=P.Attributes; Candidate.Ranks=P.Ranks; Candidate.Slots=P.Slots; Candidate.Subclass=P.Subclass;
+        FLDCharacterBuild Candidate=B; Candidate.Attributes=P.Attributes; Candidate.Ranks=P.Ranks; Candidate.Slots=P.Slots;Candidate.Actions=P.Actions; Candidate.Subclass=P.Subclass;
         Candidate.AttributePoints-=AttributeCost; Candidate.SkillPoints-=SkillCost; ++Candidate.Revision;
-        if (!Valid(Candidate)) { return Reject(TEXT("Equip at most four different learned skills.")); }
+        if (!Valid(Candidate)) { return Reject(TEXT("Equip different legal learned skills within the active profile slot limit.")); }
         Result=MoveTemp(Candidate); Error.Reset(); return true;
     }
     bool TheftSucceeds(int32 Roll, int32 D, int32 R, bool Cutpurse, int32 TargetWIS, bool Alert)

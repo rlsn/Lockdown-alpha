@@ -1,4 +1,5 @@
 #include "UI/LDUIRoot.h"
+#include "Development/LDV08Loadout.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameInstance.h"
 #include "Character/LDCharacter.h"
@@ -154,10 +155,10 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
             auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
             for(uint8 N=0;N<3;++N){StarterScroll->AddChild(LDWidgets::Button(WidgetTree,FString(LDDevelopment::ClassName(N))+TEXT(" · retained economic skills"),[PC,N](){PC->ChooseLobbyClass(N);}));}
             NewStarters=WidgetTree->ConstructWidget<UVerticalBox>();StarterScroll->AddChild(NewStarters);
-            if(const auto* C=ULDTacticalCatalog::Load()){for(uint8 N=0;N<C->Starters.Num();++N){const auto& K=C->Starters[N];NewStarters->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,K.Name+TEXT(" · ")+LDDevelopment::SkillName(K.Skills[0])+TEXT(" + ")+LDDevelopment::SkillName(K.Skills[1]),[PC,N](){PC->ChooseLobbyClass(N+3);}));}}
+            if(const auto* C=ULDTacticalCatalog::Load(PC->OwnerState.Build.RulesVersion)){for(uint8 N=0;N<C->Starters.Num();++N){const auto& K=C->Starters[N];if(K.Skills.Num()!=2){NewStarters->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,K.Name+TEXT(" · unavailable until Frostline is implemented"),14));continue;}NewStarters->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,K.Name+TEXT(" · ")+LDDevelopment::SkillName(K.Skills[0])+TEXT(" + ")+LDDevelopment::SkillName(K.Skills[1]),[this,N](){CastChecked<ALDPlayerController>(GetOwningPlayer())->ChooseLobbyClass(N+3);}));}}
             Choice(TEXT("Toggle Ready"))->OnClicked.AddDynamic(this,&ULDUIRoot::Ready);
             LobbyStart=Choice(TEXT("Start match (host)")); LobbyStart->OnClicked.AddDynamic(this,&ULDUIRoot::StartMatch);
-            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nv07: five shared slots · presets grant no gear or gold."),14));
+            Choices->AddChildToVerticalBox(Text(TEXT("1–4 humans · One is practice · Roster locks on start\nEach profile uses its own action bindings · presets grant no gear or gold."),14));
             LobbyPanel->SetVisibility(ESlateVisibility::Collapsed);
         }
         if(!bFrontend)
@@ -230,7 +231,7 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry, float Delta)
         if (Lobby && LobbyInfo)
         {
             const auto& B=O.Build;
-            if(NewStarters){NewStarters->SetVisibility(O.Build.RulesVersion==7?ESlateVisibility::Visible:ESlateVisibility::Collapsed);}
+            if(NewStarters){NewStarters->SetVisibility(O.Build.RulesVersion>=7?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(SeenStarterRules!=O.Build.RulesVersion){SeenStarterRules=O.Build.RulesVersion;NewStarters->ClearChildren();if(const auto* C=ULDTacticalCatalog::Load(O.Build.RulesVersion)){for(uint8 N=0;N<C->Starters.Num();++N){const auto& K=C->Starters[N];if(K.Skills.Num()!=2){NewStarters->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,K.Name+TEXT(" · unavailable until Frostline is implemented"),14));continue;}NewStarters->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,K.Name+TEXT(" · ")+LDDevelopment::SkillName(K.Skills[0])+TEXT(" + ")+LDDevelopment::SkillName(K.Skills[1]),[this,N](){CastChecked<ALDPlayerController>(GetOwningPlayer())->ChooseLobbyClass(N+3);}));}}}}
 
             LobbyInfo->SetText(FText::FromString(FString::Printf(TEXT("Your class: %s · %s\nSTR %d  DEX %d  CON %d  INT %d  WIS %d  CHA %d\nReady %d / %d · Your choice is private\n%s"),
                 LDDevelopment::PresetName(B),O.bReady?TEXT("READY"):TEXT("Not ready"),B.Attributes[0],B.Attributes[1],B.Attributes[2],B.Attributes[3],B.Attributes[4],B.Attributes[5],GS->ReadyCount,GS->LobbyCount,*PC->IntentFeedback)));

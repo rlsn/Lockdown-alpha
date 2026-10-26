@@ -1,3 +1,4 @@
+#include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -33,11 +34,13 @@ void ALDCombatDirector::QueueContent(ALDPlayerController* PC,const FLDTacticalRe
 {
     FlushPastCommand();int32 Count=0;for(const auto& I:Intents){Count+=I.Controller==PC;}if(Count>=3){PC->CompleteCombatRequest(R.Token,TEXT("Too many queued actions"));return;}FIntent I;I.Controller=PC;I.Match=R.Match;I.Life=R.Life;I.Request=R.Token;I.Action=3+R.Slot;I.Direction=R.Direction;I.BuildRevision=R.BuildRevision;I.Content=R;I.IsContent=true;Intents.Add(I);}
 void ALDCombatDirector::RefreshItemFamilies(ALDPlayerController* PC)
-{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);const auto* C=ULDEquipmentCatalog::Load();if(!O||O->Build.RulesVersion!=7||!C){return;}for(const auto& I:O->Inventory.Items){if(const auto* D=C->Find(I.Kind);D&&!D->Family.IsEmpty()){auto& End=O->ItemFamilies.FindOrAdd(D->CooldownKey());End=FMath::Max(End,I.ReadyAt);}}O->ItemFamilies.FindOrAdd(TEXT("cleanse"))=FMath::Max(O->ItemFamilies.FindRef(TEXT("cleanse")),LDTactical::Milliseconds(O->NullBellReadyAt));}
-bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalRequest& R,AActor* First,AActor* Second,FString& Why)
+{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);const auto* C=ULDEquipmentCatalog::Load(O?O->Build.RulesVersion:7);if(!O||O->Build.RulesVersion<7||!C){return;}for(const auto& I:O->Inventory.Items){if(const auto* D=C->Find(I.Kind);D&&!D->Family.IsEmpty()){auto& End=O->ItemFamilies.FindOrAdd(D->CooldownKey());End=FMath::Max(End,I.ReadyAt);}}O->ItemFamilies.FindOrAdd(TEXT("cleanse"))=FMath::Max(O->ItemFamilies.FindRef(TEXT("cleanse")),LDTactical::Milliseconds(O->NullBellReadyAt));}
+bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalRequest& Input,AActor* First,AActor* Second,FString& Why)
 {
+    auto R=Input;
     auto Reject=[&](const TCHAR* Text){Why=Text;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);auto* PC=Body?Cast<ALDPlayerController>(Body->GetController()):nullptr;auto* O=PC?M->StateFor(PC):nullptr;const double Now=GetWorld()->GetTimeSeconds();const int64 At=LDTactical::Milliseconds(Now);
     if(!HasAuthority()||!M->IsTacticalProfile()||!M->IsPlaying()||!S||!B||S->Hp<=0||Now<S->ProtectionUntil||S->Action||Now<S->CoreRecoveryUntil||!R.Token||R.Token<=S->LastCoreToken||R.Token<=S->CancelledCoreThrough||B->Revision!=R.BuildRevision||R.ActionKind>4){return Reject(TEXT("Action unavailable, stale or occupied"));}
+    if(B&&B->RulesVersion==8&&R.ActionKind==0&&B->Actions.IsValidIndex(R.Slot)&&B->Actions[R.Slot].Source==ELDActionSource::Gear){if(R.SourceKind!=1||!O||!LDV08::ItemSource(O->Inventory,*B,R.Item,R.Slot,false)){return Reject(TEXT("Equipped body action source changed"));}R.ActionKind=1;}
     ELDSkill Skill=R.ActionKind==0&&B->Slots.IsValidIndex(R.Slot)?B->Slots[R.Slot]:ELDSkill::None;
     if(R.ActionKind==4){if(!First||!LegalTarget(Body,First,B->Gear.Reach,nullptr,0)||!RequestBody(Body,0,R.Direction,Why)){return false;}S->bAttackOrder=true;S->AttackTarget=First;S->Target=First;S->AttackLife=Life(this,First);S->AttackToken=R.Token;return true;}
     const auto* Decoy=Cast<ALDTacticalField>(First);const bool IsDecoy=Decoy&&Decoy->Kind==ELDTacticalField::Decoy;
@@ -68,8 +71,8 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     }
     else if(R.ActionKind==1)
     {
-        RefreshItemFamilies(PC);Item=O&&M->Inventory?M->Inventory->Owned(PC,R.Item):nullptr;ID=Item?ULDEquipmentCatalog::Load()->Find(Item->Kind):nullptr;
-        if(!O||!ID||ID->Operation.IsEmpty()||!Item||Item->bReserved||Item->Revision!=R.ItemRevision||O->Inventory.Revision!=R.InventoryRevision||!O->Inventory.Quick.Contains(Item->Identity)||(ID->Binding!=255&&!Item->BindingMask)||Item->ReadyAt>At||O->ItemFamilies.FindRef(ID->CooldownKey())>At){return Reject(TEXT("Item needs its current equipped/quick reference and ready family"));}
+        RefreshItemFamilies(PC);Item=O&&M->Inventory?M->Inventory->Owned(PC,R.Item):nullptr;ID=Item?ULDEquipmentCatalog::Load(B->RulesVersion)->Find(Item->Kind):nullptr;
+        if(!O||!ID||ID->Operation.IsEmpty()||!Item||Item->bReserved||Item->Revision!=R.ItemRevision||O->Inventory.Revision!=R.InventoryRevision||(B->RulesVersion==8?!LDV08::ItemSource(O->Inventory,*B,Item->Identity,R.Slot,R.SourceKind==2):!O->Inventory.Quick.Contains(Item->Identity)||(ID->Binding!=255&&!Item->BindingMask))||Item->ReadyAt>At||O->ItemFamilies.FindRef(ID->CooldownKey())>At){return Reject(TEXT("Item needs its current equipped/quick reference and ready family"));}
         if(Major(ID->Family)&&At<FMath::Max(S->Tactical.MajorReadyAt,O->MajorProtectionReadyAt)){return Reject(TEXT("Major protection locked"));}
         const auto& Op=ID->Operation;const int32 Range=ID->Param(TEXT("range_cm"));
         if(Op==TEXT("targeted_mute")||Op==TEXT("basic_dispel")){if(First&&((!Cast<ALDCharacter>(First)&&!IsDecoy)||!Observe(First,Range))){return Reject(TEXT("Observable target required"));}if(Op==TEXT("targeted_mute")&&!First){return Reject(TEXT("Observable hostile target required"));}}
@@ -96,7 +99,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         const int64 End=At+ID->Cooldown;O->ItemFamilies.FindOrAdd(ID->CooldownKey())=End;Item->ReadyAt=End;S->CoreItem.Invalidate();M->Inventory->Remove(PC,Item,true,TEXT("ChannelItemConsumed"));
     }
     else
-    {S->Action=9;S->CoreEndsAt=At+(D?D->Windup:ID&&ID->Kind==ELDItemKind::NullBell?0:250);if(Item){Item->bReserved=true;auto* E=const_cast<FLDInventoryItem*>(O->Inventory.Find(Item->Identity));E->bReserved=true;M->Inventory->Changed(PC);}if(Skill==ELDSkill::TemporalLock){auto* F=CreateField(Body,ELDTacticalField::Telegraph,Plan.Point,At,D->Windup,1,LDGear::Magnitude(*B,Skill,D->RankKey,D->Magnitudes));if(F){F->Skill=Skill;}}}
+    {S->Action=9;S->CoreEndsAt=At+(D?D->Windup:B->RulesVersion==8?int32(ID->Param(TEXT("windup_ms"),250)):ID&&ID->Kind==ELDItemKind::NullBell?0:250);if(Item){Item->bReserved=true;auto* E=const_cast<FLDInventoryItem*>(O->Inventory.Find(Item->Identity));E->bReserved=true;M->Inventory->Changed(PC);}if(Skill==ELDSkill::TemporalLock){auto* F=CreateField(Body,ELDTacticalField::Telegraph,Plan.Point,At,D->Windup,1,LDGear::Magnitude(*B,Skill,D->RankKey,D->Magnitudes));if(F){F->Skill=Skill;}}}
     S->ImpactAt=S->CoreEndsAt/1000.;Sync(Body,*S);Why=TEXT("Accepted; authoritative release/held channel revalidates legality");return true;
 }
 void ALDCombatDirector::ContentHold(ALDPlayerController* PC,uint32 LifeId,uint32 Token,uint32 Sequence,bool Moving,bool Release)

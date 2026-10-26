@@ -94,7 +94,7 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
     {
         const auto* Public=GetWorld()->GetGameState<ALDGameState>();
         if (!Public || !Public->bMatchStarted || Public->EndReason || !PC->OwnerState.bActive) { return 0; }
-        if(PC->OwnerState.Build.RulesVersion==7)
+        if(PC->OwnerState.Build.RulesVersion>=7)
         {
             const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr;
             const uint16 Tags=S?S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):PC->OwnerState.StatusMask;if(Tags&((1<<0)|(1<<3))){return 0;}

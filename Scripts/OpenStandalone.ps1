@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[switch]$NavigationCheckpoint,[ValidateSet("v06_regression","v07_integration")][string]$Profile)
+param([string]$EngineRoot,[switch]$NavigationCheckpoint,[ValidateSet("v06_regression","v07_integration","v08_integration")][string]$Profile)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules

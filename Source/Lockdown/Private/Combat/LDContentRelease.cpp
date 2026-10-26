@@ -1,3 +1,4 @@
+#include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -20,7 +21,7 @@
 bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCombatHit>& Hits,FString& Why)
 {
     auto Reject=[&](){Why=TEXT("Release placement, target or resources unavailable");return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);auto* PC=Cast<ALDPlayerController>(Body->GetController());auto* O=PC?M->StateFor(PC):nullptr;const auto R=S->ContentRequest;auto* First=S->Target.Get();auto* Second=S->CoreSecondTarget.Get();const auto Skill=S->Skill;const double Now=At/1000.;
-    const auto* D=R.ActionKind==0?M->TacticalCatalog->Find(Skill):nullptr;auto* Item=R.ActionKind==1&&PC?M->Inventory->Owned(PC,R.Item):nullptr;const auto* I=Item?ULDEquipmentCatalog::Load()->Find(Item->Kind):nullptr;
+    const auto* D=R.ActionKind==0?M->TacticalCatalog->Find(Skill):nullptr;auto* Item=R.ActionKind==1&&PC?M->Inventory->Owned(PC,R.Item):nullptr;const auto* I=Item?ULDEquipmentCatalog::Load(B?B->RulesVersion:7)->Find(Item->Kind):nullptr;
     if(!B||B->Revision!=S->CoreBuildRevision||(!D&&!I)){return Reject();}
     auto Identity=[&](AActor* T){if(auto* C=Cast<ALDCharacter>(T)){const auto* V=StateFor(C);return V?V->Identity:FGuid();}const auto* F=Cast<ALDTacticalField>(T);return F?F->Identity:FGuid();};
     if((S->CoreTargetLife.IsValid()&&Identity(First)!=S->CoreTargetLife)||(S->CoreSecondLife.IsValid()&&Identity(Second)!=S->CoreSecondLife)){return Reject();}
@@ -51,7 +52,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         {
             if(Skill==ELDSkill::FalseTrail){auto* Path=UNavigationSystemV1::FindPathToLocationSynchronously(GetWorld(),Body->GetActorLocation(),Surface,Body);if(!Path||!Path->IsValid()||Path->IsPartial()||Path->PathPoints.Num()<2){return Reject();}for(const auto& P:Path->PathPoints){FVector G;if(!LDGround::MapSurface(GetWorld(),P,G)){return Reject();}DecoyPath.Add(G+FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()+2));}}
             const auto Kind=Skill==ELDSkill::FalseTrail?ELDTacticalField::Decoy:Skill==ELDSkill::EmberLine?ELDTacticalField::Ember:Skill==ELDSkill::ArcanePrison?ELDTacticalField::Prison:ELDTacticalField::Dome;
-            Duration=Kind==ELDTacticalField::Decoy?Value:Kind==ELDTacticalField::Ember?3000:Kind==ELDTacticalField::Prison?3500:4000;const FVector Point=Kind==ELDTacticalField::Decoy?Body->GetActorLocation():Kind==ELDTacticalField::Ember?Body->GetActorLocation()+R.Direction*350:Surface+FVector(0,0,15);
+            Duration=Kind==ELDTacticalField::Decoy?LDV08::TraitValue(*B,TEXT("decoy_ms"),Value):Kind==ELDTacticalField::Ember?3000:Kind==ELDTacticalField::Prison?3500:4000;const FVector Point=Kind==ELDTacticalField::Decoy?Body->GetActorLocation():Kind==ELDTacticalField::Ember?Body->GetActorLocation()+R.Direction*350:Surface+FVector(0,0,15);
             Field=CreateField(Body,Kind,Point,At,Duration,Kind==ELDTacticalField::Prison||Kind==ELDTacticalField::Dome?Value:1,Kind==ELDTacticalField::Prison?300:Kind==ELDTacticalField::Dome?350:0);if(!Field){return Reject();}
             Field->TravelPath=DecoyPath;Field->LastUpdate=At;Field->Direction=R.Direction;Field->Amount=Skill==ELDSkill::EmberLine?Value*Scale:0;Field->NextTick=At+500;
             if(Kind==ELDTacticalField::Prison)
@@ -78,7 +79,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
     }
     else
     {
-        if(!O||!Item||!Item->bReserved||Item->Revision!=R.ItemRevision||!O->Inventory.Quick.Contains(Item->Identity)||(I->Binding!=255&&!Item->BindingMask)||O->ItemFamilies.FindRef(I->CooldownKey())>At||Item->ReadyAt>At){return Reject();}
+        if(!O||!Item||!Item->bReserved||Item->Revision!=R.ItemRevision||(B->RulesVersion==8?!LDV08::ItemSource(O->Inventory,*B,Item->Identity,R.Slot,R.SourceKind==2):!O->Inventory.Quick.Contains(Item->Identity)||(I->Binding!=255&&!Item->BindingMask))||O->ItemFamilies.FindRef(I->CooldownKey())>At||Item->ReadyAt>At){return Reject();}
         const auto Op=I->Operation;const int32 Range=I->Param(TEXT("range_cm"));
         if(First&&(Op==TEXT("basic_dispel")||Op==TEXT("targeted_mute")||Op==TEXT("grapple"))&&!Observe(First,Range)){return Reject();}
         if(Op==TEXT("blink")&&(!Allows(Body,LDTactical::EAction::Dash)||At<O->DirectDamageUntil||FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(I->Param(TEXT("distance_cm")))||!MobilityEndpoint(Body,R.Point,End))){return Reject();}

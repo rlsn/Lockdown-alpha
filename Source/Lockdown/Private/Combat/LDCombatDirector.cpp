@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Economy/LDBankDirector.h"
@@ -294,7 +295,7 @@ void ALDCombatDirector::Sample(double Now)
             const int64 At=LDTactical::Milliseconds(Now);
             if(Hit.Spell&&LDTactical::Block(T->Tactical,At)){UE_LOG(LogTemp,Display,TEXT("LD_B71_BLOCK token=%u"),Hit.Token);continue;}
             const auto* B=BuildFor(Victim);const auto* WorldVictim=Cast<ALDWorldPawn>(Victim);const double Armor=WorldVictim?WorldVictim->Armor:B?2+.5*(LDDevelopment::Effective(*B)[2]-8)+B->Gear.Armor:2;
-            const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ForwardVector;const bool Front=FVector::DotProduct(Bearing.GetSafeNormal2D(),T->Tactical.BarrierFacing.GetSafeNormal2D())>=.5;
+            const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ForwardVector;const bool Front=FVector::DotProduct(Bearing.GetSafeNormal2D(),T->Tactical.BarrierFacing.GetSafeNormal2D())>=FMath::Cos(FMath::DegreesToRadians((B?LDV08::TraitValue(*B,TEXT("brace_arc"),120):120)/2.));
             double EffectiveArmor=Armor;double MR=WorldVictim?WorldVictim->MR:B?.15+B->Gear.MagicResist:.15;
             if(B&&B->Gear.DirectionalGuard&&LDTactical::PassiveActive(T->Tactical,true,At)&&FVector::DotProduct(Bearing.GetSafeNormal2D(),Victim->GetActorForwardVector())>=.5){const double R=FMath::Min(.6,FMath::Max(0.,Armor)/(100+FMath::Max(0.,Armor))+.1);EffectiveArmor=100*R/(1-R);MR=FMath::Min(.6,MR+.1);}
             const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage,Hit.Kind,EffectiveArmor,MR,At,!T->Tactical.Directional||Front);

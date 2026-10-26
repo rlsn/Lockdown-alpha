@@ -1,4 +1,6 @@
 #include "Framework/LDPlayerController.h"
+#include "Inventory/LDEquipmentCatalog.h"
+#include "Development/LDV08Loadout.h"
 #include "Tests/LDWorldProbe.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Character/LDCharacter.h"
@@ -27,6 +29,7 @@
 #include "Tests/LDTacticalProbe.h"
 #include "Tests/LDGeometryProbe.h"
 #include "Tests/LDLoadoutProbe.h"
+#include "Tests/LDB81Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDContentNetworkProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -50,7 +53,7 @@
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -105,6 +108,7 @@ void ALDPlayerController::InitializeLocalUI()
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDContentNetworkProbe>(ALDContentNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>(ALDAcquisitionNetworkProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDLoadoutProbe>(ALDLoadoutProbe::StaticClass(),FTransform::Identity,Params);}
+    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB81Probe>(ALDB81Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTacticalProbe>(ALDTacticalProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))
@@ -216,7 +220,7 @@ void ALDPlayerController::SkillStarted(uint8 Slot)
     if(LDDevelopment::Held(Skill)){Navigation->Stop();}
     if(LDDevelopment::Held(Skill))
     {HeldSkillSlot=Slot;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;InteractStopped();}
-    if(OwnerState.Build.RulesVersion==7){Navigation->Stop();SendTacticalAction(Token,Slot,Direction,FGuid());}else{ServerSkillAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Direction);}
+    if(OwnerState.Build.RulesVersion>=7){Navigation->Stop();SendTacticalAction(Token,Slot,Direction,FGuid());}else{ServerSkillAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Direction);}
 }
 void ALDPlayerController::SkillStopped(uint8 Slot)
 {
@@ -239,7 +243,7 @@ void ALDPlayerController::ServerCombatAction_Implementation(uint32 Match,uint32 
 }
 void ALDPlayerController::ServerSkillAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction)
 {
-    if(OwnerState.Build.RulesVersion==7){ClientIntentResult(Request,TEXT("Use versioned tactical action"));return;}
+    if(OwnerState.Build.RulesVersion>=7){ClientIntentResult(Request,TEXT("Use versioned tactical action"));return;}
     if(Slot>=LDDevelopment::Slots(OwnerState.Build)){return;}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;
     if(M&&M->IsUIControlProfile()&&O&&O->Build.Slots.IsValidIndex(Slot)&&O->Build.Slots[Slot]!=ELDSkill::Step&&O->Build.Slots[Slot]!=ELDSkill::Patch&&O->Build.Slots[Slot]!=ELDSkill::PurgeTouch&&O->Build.Slots[Slot]!=ELDSkill::SuretyShell)
@@ -247,7 +251,7 @@ void ALDPlayerController::ServerSkillAction_Implementation(uint32 Match,uint32 L
     EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,BuildRevision);
 }
 void ALDPlayerController::ServerSkillTargetAction_Implementation(uint32 Match,uint32 Life,uint32 Request,uint32 Revision,uint8 Slot,FVector_NetQuantizeNormal Direction,FGuid Observed)
-{if(OwnerState.Build.RulesVersion==7){ClientIntentResult(Request,TEXT("Use versioned tactical action"));return;}if(Slot<LDDevelopment::Slots(OwnerState.Build)){EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,Revision,Observed);}}
+{if(OwnerState.Build.RulesVersion>=7){ClientIntentResult(Request,TEXT("Use versioned tactical action"));return;}if(Slot<LDDevelopment::Slots(OwnerState.Build)){EnqueueAction(Match,Life,Request,uint8(3+Slot),Direction,Revision,Observed);}}
 void ALDPlayerController::ServerSkillHold_Implementation(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode?Mode->StateFor(this):nullptr;
@@ -332,7 +336,7 @@ FString ALDPlayerController::LegacyContextPrompt() const
             return FString::Printf(TEXT("%s · Own %s score %.0f / public 12 · %s · E remains work/loot."),LDCharter::Name(NearestTask->Presentation),LDDevelopment::SkillName(Skill),LDDevelopment::SkillValue(Build,Skill),Slot==INDEX_NONE?TEXT("Learned but unequipped; prepare at a station"):Build.Cooldowns[uint8(Skill)]>Now?TEXT("Skill cooling down"):*FString::Printf(TEXT("Hold slot %d for %.0fs"),Slot+1,LDDevelopment::ChannelSeconds(Skill)));
         }
     }
-    if(OwnerState.Build.RulesVersion==7&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
+    if(OwnerState.Build.RulesVersion>=7&&GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
     {const bool Public=GS&&(GS->DefensiveFlags==0||GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now+10<=GS->CharterCloseAt);const bool Personal=OwnerState.BreachRoute&&Now>=OwnerState.BreachOpenAt&&Now+10<=OwnerState.BreachCloseAt;return Public||Personal?TEXT("Hold context10s to claim. Positive damage/proximity alone do not cancel. Stun/hex, explicit interruption, displacement, release or lost access reset progress."):TEXT("Heart protected. Three towers / public Charter / three retained Keys / assembled Heartbreaker. Private activation occurs in the antechamber.");}
     if(GS&&GS->bUIControlProfile&&GetPawn()&&FVector::Dist2D(GetPawn()->GetActorLocation(),LDRegion::Site(GetWorld(),LDObjective::Heart))<=120)
     {return Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&GS->CharterWindow.IsValid()?TEXT("Hold context: public Heart claim 10s. All living unprotected contenders qualify; enemies within 240 cm contest."):TEXT("Heart protected. Treasury: Supply + Industrial + Witness + 100 gold; activate registered Charter at City.");}
@@ -529,18 +533,27 @@ void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->
 
 void ALDPlayerController::CancelInterruptibleHolds()
 {
-    if(OwnerState.Build.RulesVersion==7){ServerCancelTactical(OwnerState.Match,OwnerState.Life,NextRequest);}
+    if(OwnerState.Build.RulesVersion>=7){ServerCancelTactical(OwnerState.Match,OwnerState.Life,NextRequest);}
     if(ContentHoldToken){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}
     InteractStopped();
     StopDevelopmentHold();StopProductionHold();
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
 }
 void ALDPlayerController::SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point,FGuid Second,FVector SecondPoint)
-{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Point=Point;R.SecondObserved=Second;R.SecondPoint=SecondPoint;if(OwnerState.Build.Slots.IsValidIndex(Slot)){if(const auto* C=ULDTacticalCatalog::Load()){if(const auto* D=C->Find(OwnerState.Build.Slots[Slot])){R.TargetMode=uint8(D->Target);}}}R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;ServerTacticalAction(R);}
+{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Point=Point;R.SecondObserved=Second;R.SecondPoint=SecondPoint;if(OwnerState.Build.Slots.IsValidIndex(Slot)){if(const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion)){if(const auto* D=C->Find(OwnerState.Build.Slots[Slot])){R.TargetMode=uint8(D->Target);}}}R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=4;R.InventoryRevision=OwnerState.Inventory.Revision;const auto* C=ULDTacticalCatalog::Load(8);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;R.SourceDefinition=D?FName(*D->Id):FName(*FString::Printf(TEXT("legacy_%s"),*FString(LDDevelopment::SkillName(OwnerState.Build.Slots[Slot])).ToLower()));}ServerTacticalAction(R);}
 void ALDPlayerController::ServerTacticalAction_Implementation(FLDTacticalRequest R)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;
-    if(!O||!M->IsTacticalProfile()||R.Schema!=7||(R.WireVersion!=2&&R.WireVersion!=3)||R.ActionKind>4||R.Point.ContainsNaN()||R.Point.GetAbsMax()>20000||R.SecondPoint.ContainsNaN()||R.SecondPoint.GetAbsMax()>20000||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=5){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
+    if(O&&O->Build.RulesVersion==8&&R.Schema==8&&R.WireVersion==4&&R.Match==O->Match&&R.Life==O->Life&&R.CatalogDigest==O->Build.CatalogDigest){if(const auto* Receipt=CombatReceipts.Find(R.Token)){ClientIntentResult(R.Token,*Receipt);return;}}
+    if(!O||!M->IsTacticalProfile()||R.Schema!=O->Build.RulesVersion||(O->Build.RulesVersion==8?R.WireVersion!=4:(R.WireVersion!=2&&R.WireVersion!=3))||R.ActionKind>4||R.Point.ContainsNaN()||R.Point.GetAbsMax()>20000||R.SecondPoint.ContainsNaN()||R.SecondPoint.GetAbsMax()>20000||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=LDDevelopment::Slots(O->Build)){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
+    if(O->Build.RulesVersion==8)
+    {
+        uint8 Derived=R.ActionKind==0?(O->Build.Actions[R.Slot].Source==ELDActionSource::Gear?1:0):R.ActionKind==1?2:R.ActionKind==4?3:4;
+        bool Valid=R.SourceKind==Derived&&R.InventoryRevision==O->Inventory.Revision;
+        if(Derived==1||Derived==2){Valid&=LDV08::ItemSource(O->Inventory,O->Build,R.Item,R.Slot,Derived==2);const auto* E=O->Inventory.Find(R.Item);const auto* C=ULDEquipmentCatalog::Load(8);const auto* I=E&&C?C->Find(E->Kind):nullptr;Valid&=E&&I&&E->Revision==R.ItemRevision&&R.SourceDefinition==FName(*I->Id);}
+        else if(Derived==0){const auto* A=M->TacticalCatalog->Find(O->Build.Slots[R.Slot]);const FName Id=A?FName(*A->Id):FName(*FString::Printf(TEXT("legacy_%s"),*FString(LDDevelopment::SkillName(O->Build.Slots[R.Slot])).ToLower()));Valid&=R.SourceDefinition==Id&&!R.Item.IsValid();}
+        if(!Valid){ClientIntentResult(R.Token,TEXT("Action source, binding or revision changed"));return;}
+    }
     const auto* D=R.ActionKind==0?M->TacticalCatalog->Find(O->Build.Slots[R.Slot]):nullptr;
     if(R.ActionKind==0&&R.TargetMode!=(D?uint8(D->Target):0)){ClientIntentResult(R.Token,TEXT("Invalid targeting mode"));return;}
     EnqueueAction(R.Match,R.Life,R.Token,uint8(3+R.Slot),R.Direction,R.BuildRevision,R.Observed,R.Point,&R);

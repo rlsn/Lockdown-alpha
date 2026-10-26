@@ -1,3 +1,4 @@
+#include "Development/LDV08Loadout.h"
 #include "Framework/LDPlayerController.h"
 #include "Combat/LDCombatDirector.h"
 #include "Framework/LDGameMode.h"
@@ -26,15 +27,15 @@ void ALDPlayerController::InventoryCommand(uint8 Command,FGuid Item,uint8 Slot,F
 void ALDPlayerController::SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture)
 {
     if(!Held){if(HeldQuickSlot==Slot&&HeldQuickGesture==Gesture){StopDevelopmentHold();if(ContentHoldToken&&!bContentMouse){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}HeldQuickSlot=-1;}return;}
-    if(!CanWorldCommand()||Slot>=(OwnerState.Build.RulesVersion==7?3:4)||InventoryPending()){return;}const auto* Item=OwnerState.Inventory.Find(OwnerState.Inventory.Quick[Slot]);
+    if(!CanWorldCommand()||Slot>=(OwnerState.Build.RulesVersion==8?4:OwnerState.Build.RulesVersion>=7?3:4)||InventoryPending()){return;}const auto* Item=OwnerState.Inventory.Find(OwnerState.Build.RulesVersion==8?OwnerState.Inventory.Bindings[7+Slot]:OwnerState.Inventory.Quick[Slot]);
     if(!Item){IntentFeedback=TEXT("Quick item slot is empty");return;}if(Item->bReserved){IntentFeedback=TEXT("Item reserved");return;}
-    if(OwnerState.Build.RulesVersion==7&&Item->Kind!=ELDItemKind::WardCharge)
-    {const auto* C=ULDEquipmentCatalog::Load();const auto* D=C?C->Find(Item->Kind):nullptr;if(!D||D->Operation.IsEmpty()){return;}const auto Id=Item->Id;const bool SelfAgain=ArmedWard==Id&&D->Operation==TEXT("basic_dispel");
+    if(OwnerState.Build.RulesVersion>=7&&Item->Kind!=ELDItemKind::WardCharge)
+    {const auto* C=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(Item->Kind):nullptr;if(!D||D->Operation.IsEmpty()){return;}const auto Id=Item->Id;const bool SelfAgain=ArmedWard==Id&&D->Operation==TEXT("basic_dispel");
         if(!SelfAgain&&(D->Param(TEXT("range_cm"))>0||D->Operation==TEXT("blink")||D->Operation==TEXT("recall"))){CancelArmed();ArmedWard=Id;ArmedItemRevision=Item->Revision;IntentFeedback=D->Operation==TEXT("recall")?TEXT("Confirm a visited service and keep holding mouse for4s"):TEXT("Confirm observed target or ground. Null Staff: press reference again for self.");return;}
         CancelArmed();HeldQuickSlot=Slot;HeldQuickGesture=Gesture;bContentMouse=false;SendItemAction(Id,FGuid(),GetPawn()->GetActorLocation());return;}
     if(Item->Kind==ELDItemKind::NullBell){InventoryCommand(LDInventory::Use,Item->Id,Slot);return;}
     if(Item->Kind==ELDItemKind::WardCharge){ArmWard(Item->Id);return;}
-    if(OwnerState.Build.RulesVersion==7||Item->Kind!=ELDItemKind::Book){return;}const FGuid Id=Item->Id;StartDevelopmentHold(LDDevelopmentTransaction::Read,Id,FLDBuildPlan());HeldQuickSlot=Slot;HeldQuickGesture=Gesture;
+    if(OwnerState.Build.RulesVersion>=7||Item->Kind!=ELDItemKind::Book){return;}const FGuid Id=Item->Id;StartDevelopmentHold(LDDevelopmentTransaction::Read,Id,FLDBuildPlan());HeldQuickSlot=Slot;HeldQuickGesture=Gesture;
 }
 void ALDPlayerController::ArmWard(FGuid Item)
 {
@@ -56,8 +57,8 @@ void ALDPlayerController::ClientInventoryResult_Implementation(const FLDOwnerSta
 {ClientLifeReceipt_Implementation(State);ClientIntentResult_Implementation(Request,Result);}
 
 void ALDPlayerController::SendItemAction(FGuid Id,FGuid Target,FVector Point)
-{const auto* I=OwnerState.Inventory.Find(Id);if(!I){return;}FLDTacticalRequest R;R.ActionKind=1;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=++NextRequest;R.BuildRevision=OwnerState.Build.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.ItemRevision=I->Revision;R.Item=Id;R.Observed=Target;R.Point=Point;R.CatalogDigest=OwnerState.Build.CatalogDigest;const auto* D=ULDEquipmentCatalog::Load()->Find(I->Kind);if(D&&(D->Operation==TEXT("restore_mp")||D->Operation==TEXT("recall"))){ContentHoldToken=R.Token;ContentHoldSequence=0;LastContentHold=-1000;}ServerTacticalAction(R);}
+{const auto* I=OwnerState.Inventory.Find(Id);if(!I){return;}FLDTacticalRequest R;R.ActionKind=1;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=++NextRequest;R.BuildRevision=OwnerState.Build.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.ItemRevision=I->Revision;R.Item=Id;R.Observed=Target;R.Point=Point;R.CatalogDigest=OwnerState.Build.CatalogDigest;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=4;R.SourceKind=2;bool Found=false;for(int32 N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==Id){R.Slot=N;Found=true;}}for(int32 N=0;N<6;++N){if(OwnerState.Build.Actions[N].Source==ELDActionSource::Gear&&OwnerState.Build.Actions[N].Instance==Id){R.SourceKind=1;R.ActionKind=0;R.Slot=N;Found=true;}}const auto* Def=ULDEquipmentCatalog::Load(8)->Find(I->Kind);if(!Found||!Def){IntentFeedback=TEXT("Bind the item to an accessory or shared body action first");return;}R.SourceDefinition=FName(*Def->Id);}const auto* D=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion)->Find(I->Kind);if(D&&(D->Operation==TEXT("restore_mp")||D->Operation==TEXT("recall"))){ContentHoldToken=R.Token;ContentHoldSequence=0;LastContentHold=-1000;}ServerTacticalAction(R);}
 void ALDPlayerController::StartContentInteraction(FGuid Observed,uint8 Kind)
-{CancelInterruptibleHolds();FLDTacticalRequest R;R.ActionKind=Kind;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=++NextRequest;R.BuildRevision=OwnerState.Build.Revision;R.CatalogDigest=OwnerState.Build.CatalogDigest;R.Observed=Observed;ContentHoldToken=R.Token;ContentHoldSequence=0;LastContentHold=-1000;ServerTacticalAction(R);}
+{CancelInterruptibleHolds();FLDTacticalRequest R;R.ActionKind=Kind;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=4;R.SourceKind=Kind==4?3:4;R.InventoryRevision=OwnerState.Inventory.Revision;}R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=++NextRequest;R.BuildRevision=OwnerState.Build.Revision;R.CatalogDigest=OwnerState.Build.CatalogDigest;R.Observed=Observed;ContentHoldToken=R.Token;ContentHoldSequence=0;LastContentHold=-1000;ServerTacticalAction(R);}
 void ALDPlayerController::ServerContentHold_Implementation(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,bool Release)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&M->Combat){M->Combat->ContentHold(this,Life,Token,Sequence,Moving,Release);}}
