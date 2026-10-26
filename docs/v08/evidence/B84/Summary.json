@@ -1,0 +1,114 @@
+{
+  "milestone": "B84",
+  "date": "2026-10-26",
+  "base_commit": "c88b2b4",
+  "scope": "Complete enabled catalog/acquisition engineering checkpoint; full v0.8 world/usability/release acceptance remains partial",
+  "enabled": {
+    "abilities": 52,
+    "items": 80,
+    "recipes": 20,
+    "presets": 9,
+    "modifier_contracts": 18,
+    "schema8_rank_count": 62,
+    "schema7_rank_count": 38
+  },
+  "engine": "UE5.8.4 CL58902052",
+  "toolchain": "MSVC14.44.35229 / SDK10.0.26100.0;2 compiler workers under memory pressure, at most4 allowed",
+  "build": {
+    "command": "./Scripts/BuildEditor.ps1 -MaxParallelActions 2",
+    "artifact": "Artifacts/20261026-154440-703-BuildEditor",
+    "result": "PASS",
+    "note": "Final changes after network run only clarify work-order UI/error wording; no gameplay changes. Final rules run uses this build."
+  },
+  "rules": {
+    "command": "./Scripts/RunTests.ps1",
+    "artifact": "Artifacts/20261026-154654-957-Automation",
+    "passed": 47,
+    "failed": 0
+  },
+  "network": {
+    "command": "./Scripts/RunB84Check.ps1 -RoundTripMs 100 -JitterMs 10 -TimeoutSeconds 180",
+    "artifact": "Artifacts/20261026-154134-841-B84-Fields-100-10",
+    "checks": {
+      "Server": 536,
+      "A": 40,
+      "B": 40
+    },
+    "failures": 0
+  },
+  "region": {
+    "artifact": "Artifacts/20261026-153114-879-Bootstrap-Validate",
+    "command": "./Scripts/BootstrapAssets.ps1 -Mode Validate",
+    "result": "PASS",
+    "maps": 4,
+    "asset_changes": false
+  },
+  "regressions": {
+    "B83": {
+      "artifact": "Artifacts/20261026-153137-584-B83-Fields-100-10",
+      "checks": [
+        114,
+        40,
+        40
+      ]
+    },
+    "B81": {
+      "artifact": "Artifacts/20261026-153308-815-B81-SlotsTraits-100-10",
+      "checks": [
+        28,
+        17,
+        16
+      ]
+    },
+    "v07_loadout": {
+      "artifact": "Artifacts/20261026-153357-010-B73-Loadout-100-10",
+      "checks": [
+        46,
+        27,
+        26
+      ]
+    },
+    "v07_acquisition_network": {
+      "artifact": "Artifacts/20261026-153459-527-B74-AcquisitionNet-100-10",
+      "checks": [
+        17,
+        29,
+        25
+      ]
+    },
+    "failures": 0
+  },
+  "ledger_replay": {
+    "receipts": 414,
+    "accounts": 9,
+    "unique_items": 323,
+    "ending_gold": 4482,
+    "result": "PASS"
+  },
+  "catalog_lane": {
+    "official_paid_items": 68,
+    "noncapstone_paid_books": 48,
+    "held_recipes": 20,
+    "quality_steps": [
+      32,
+      33
+    ],
+    "scope": "Wallet/input/knowledge/equip/HP/status/velocity/position/clock setup explicitly diagnostic. Real native paid creation, held commits and effects; not normal earned progression."
+  },
+  "maintenance_sample": {
+    "samples": 200,
+    "live_cells": 256,
+    "p95_ms": 0.121,
+    "p99_ms": 0.131,
+    "scope": "SampleRiver maintenance only,2 remote contenders/native bodies/4 budget-owner IDs; excludes complete damage/vision, bandwidth and frame rate; not4-contender acceptance"
+  },
+  "report_encoding": "Portable JSON normalized to UTF-8 where native FFileHelper emitted UTF-16; report values unchanged. Raw final build output retained.",
+  "working_ledger_rows": 367,
+  "source_manifest_sha256": "2907516579f894bd57c7852ec8d4f523519c3781492aa523a4a120bbf3d6cc18",
+  "limits": [
+    "Four retained capstones keep unchanged finite B76 world sources; no new complete normal route demonstration claimed.",
+    "B85 owns four no-grant routes, encounter/world integration, low-level Heart interruption and source/sink audits. B86 owns rendered input, human usability, cold packaging, long sessions and full performance/replication/frame-rate evidence.",
+    "Full per-definition independent-client/adverse matrices and proc swap/trade/death races remain partial. Current v07 regressions pass; historical B83 intermittent held-preparation failure remains preserved/open.",
+    "All original specification/data/templates/provenance, historical payloads/evidence and v07/map assets unchanged. E01-E48,V07-D01-D08,V06-D01-D08 retained."
+  ]
+}

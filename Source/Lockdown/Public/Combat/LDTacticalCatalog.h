@@ -5,7 +5,7 @@
 #include "LDTacticalCatalog.generated.h"
 
 UENUM()
-enum class ELDTacticalTarget : uint8 { Self, Unit, SelfOrUnit, Ground, Cone, Line, AnchorOrUnit, Marker, TwoUnits, TwoPoints };
+enum class ELDTacticalTarget : uint8 { Self, Unit, SelfOrUnit, Ground, Cone, Line, AnchorOrUnit, Marker, TwoUnits, TwoPoints, Construct };
 
 USTRUCT()
 struct FLDTacticalDefinition

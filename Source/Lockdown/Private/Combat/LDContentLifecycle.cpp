@@ -25,6 +25,7 @@ void ALDCombatDirector::SampleContent(int64 At,TArray<FLDCombatHit>& Hits)
             auto* Link=GetWorld()->SpawnActor<ANavLinkProxy>((A+B)*.5,FRotator::ZeroRotator);if(Link){Link->SetReplicates(false);Link->Tags.Add(TEXT("LD_Cliffwalkers"));Link->PointLinks[0].Left=A-Link->GetActorLocation();Link->PointLinks[0].Right=B-Link->GetActorLocation();Link->PointLinks[0].SetAreaClass(UNavArea_Null::StaticClass());}
             for(int32 N=0;N<2;++N){auto* F=GetWorld()->SpawnActor<ALDTacticalField>((N?B:A)+FVector(0,0,15),FRotator::ZeroRotator);if(F){F->Kind=ELDTacticalField::Scramble;F->Direction=N?A:B;F->Hp=1;F->ExpiresAt=MAX_int64;}}}}
     }
+    if(M->IsV08Profile()){SampleCatalog(At);}
     TArray<ALDCharacter*> Pending;
     for(auto& Pair:Bodies)
     {
@@ -37,7 +38,7 @@ void ALDCombatDirector::SampleContent(int64 At,TArray<FLDCombatHit>& Hits)
         {auto* Target=S.AttackTarget.Get();const auto* T=StateFor(Cast<ALDCharacter>(Target));const auto* F=Cast<ALDTacticalField>(Target);const bool Same=T?T->Identity==S.AttackLife:F&&F->Identity==S.AttackLife;FString Why;if(!Same||!LegalTarget(Body,Target,B->Gear.Reach,nullptr,0)){S.bAttackOrder=false;}else if(RequestBody(Body,0,(Target->GetActorLocation()-Body->GetActorLocation()).GetSafeNormal2D(),Why)){S.bAttackOrder=true;S.Target=Target;}}
         if(S.Action==9&&(IsContentSkill(S.Skill)||S.CoreItem.IsValid()&&S.ContentRequest.ActionKind==1||(Cast<ALDTacticalField>(S.Target.Get())&&Cast<ALDTacticalField>(S.Target.Get())->Kind==ELDTacticalField::Decoy))){Pending.Add(Body);}
         if(Body->GetVelocity().SizeSquared2D()>80*80&&At>=S.LastFootstep+500)
-        {S.LastFootstep=At;auto* Cue=CreateField(Body,ELDTacticalField::Footstep,Body->GetActorLocation(),At,600,1,420*(1-(LDTactical::PassiveActive(S.Tactical,true,At)?B->Gear.FootstepReduction:0)/100.));if(Cue){Cue->Direction=Body->GetActorForwardVector();}}
+        {S.LastFootstep=At;auto* Cue=CreateField(Body,ELDTacticalField::Footstep,Body->GetActorLocation(),At,600,1,420*(1-(LDTactical::PassiveActive(S.Tactical,true,At)?FMath::Max(B->Gear.FootstepReduction,HasModifier(Body,TEXT("mist_steps"),At)&&RiverCells.FindRef(LDRiver::Cell(Body->GetActorLocation())).Obscured.Until>At?20:0):0)/100.));if(Cue){Cue->Direction=Body->GetActorForwardVector();}}
     }
     Pending.Sort([&](const auto& A,const auto& B){const auto* X=StateFor(&A);const auto* Y=StateFor(&B);return X->CoreEndsAt!=Y->CoreEndsAt?X->CoreEndsAt<Y->CoreEndsAt:X->Order<Y->Order;});
     for(auto* Body:Pending)
@@ -62,7 +63,7 @@ void ALDCombatDirector::SampleContent(int64 At,TArray<FLDCombatHit>& Hits)
         while(F->TickIndex<6&&At>=F->NextTick)
         {
             const int64 Cents=FMath::RoundToInt64(F->Amount*100);const double Amount=(F->TickIndex==5?Cents-5*(Cents/6):Cents/6)/100.;++F->TickIndex;F->NextTick+=500;
-            for(const auto& Pair:Bodies){auto* T=Pair.Key.Get();if(!T||T==F->Source.Get()||Pair.Value.Hp<=0||At<LDTactical::Milliseconds(Pair.Value.ProtectionUntil)){continue;}const FVector Delta=T->GetActorLocation()-F->GetActorLocation();const double Along=FVector::DotProduct(Delta,F->Direction);const FVector Closest=F->GetActorLocation()+F->Direction*FMath::Clamp(Along,-350.,350.);if(FMath::Abs(Along)>350||FVector::DistSquared2D(Closest,T->GetActorLocation())>80*80||!LDGround::ClearSegment(GetWorld(),Closest,T->GetActorLocation())){continue;}FLDCombatHit H{F->Source.Get(),T,Amount,LDTactical::EDamage::Magical,false};H.Periodic=true;Hits.Add(H);}
+            for(const auto& Pair:Bodies){auto* T=Pair.Key.Get();if(!T||T==F->Source.Get()||Pair.Value.Hp<=0||At<LDTactical::Milliseconds(Pair.Value.ProtectionUntil)){continue;}const FVector Delta=T->GetActorLocation()-F->GetActorLocation();const double Along=FVector::DotProduct(Delta,F->Direction);const FVector Closest=F->GetActorLocation()+F->Direction*FMath::Clamp(Along,-350.,350.);if(FMath::Abs(Along)>350||FVector::DistSquared2D(Closest,T->GetActorLocation())>80*80||!LDGround::ClearSegment(GetWorld(),Closest,T->GetActorLocation())){continue;}FLDCombatHit H{F->Source.Get(),T,Amount,LDTactical::EDamage::Magical,false};H.Periodic=true;H.SourceIdentity=F->SourceLife;H.TargetLife=Pair.Value.Identity;H.CreditOwner=F->CreditOwner;Hits.Add(H);}
         }
     }
 }
@@ -82,7 +83,7 @@ void ALDCombatDirector::CompleteContentChannels(int64 At)
         else
         {
             const auto* F=Cast<ALDTacticalField>(S.Target.Get());FVector Dest=S.ChannelDestination;
-            if(S.ContentChannel==TEXT("gate")){Good=F&&F->Active(At)&&F->Partner.IsValid()&&F->Partner->Active(At)&&!HasObjectiveCargo(PC)&&At>=O->GateReadyAt;Dest=Good?F->Partner->GetActorLocation():FVector::ZeroVector;}
+            if(S.ContentChannel==TEXT("gate")){Good=F&&F->Enabled(At)&&F->Partner.IsValid()&&F->Partner->Enabled(At)&&!HasObjectiveCargo(PC)&&At>=O->GateReadyAt;Dest=Good?F->Partner->GetActorLocation():FVector::ZeroVector;}
             if(S.ContentChannel==TEXT("scramble")){Good=F&&F->Kind==ELDTacticalField::Scramble&&F->Active(At)&&B->Gear.Scramble;Dest=Good?F->Direction:FVector::ZeroVector;}
             if(S.ContentChannel==TEXT("recall")){Good=!HasObjectiveCargo(PC);}
             Good=Good&&MobilityEndpoint(Body,Dest,End);if(Good){Body->SetActorLocation(End,false,nullptr,ETeleportType::TeleportPhysics);Body->GetCharacterMovement()->StopMovementImmediately();PC->Navigation->Stop();if(S.ContentChannel==TEXT("gate")){O->GateReadyAt=At+3000;}Body->ForceNetUpdate();}
@@ -94,12 +95,12 @@ void ALDCombatDirector::WeaponContact(const FLDCombatHit& Hit,ALDCharacter* Vict
 {
     if(!Hit.Basic||Contact<=0||!Hit.Source){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Hit.Source);auto* T=StateFor(Victim);const auto* B=BuildFor(Hit.Source);if(!S||!T||!B){return;}
     const bool Passives=LDTactical::PassiveActive(S->Tactical,true,At);
-    if(B->Gear.BarrierDamage&&Passives&&T->Tactical.Barrier>0){T->Tactical.Barrier=FMath::Max(0.,T->Tactical.Barrier-Contact*.5);}
-    if(B->Gear.Watchblade&&Passives&&!Victim->IsA<ALDWildSentinel>()){auto& Count=S->WatchHits.FindOrAdd(T->Identity);if(++Count>=3){Count=0;LDTactical::Apply(T->Tactical,LDTactical::EStatus::Mark,At+2000,S->Identity);Marks.Add({Hit.Source,Victim,S->Identity,T->Identity,At+2000,At});}}
-    else{S->WatchHits.Reset();}
+    if(B->RulesVersion!=8&&B->Gear.BarrierDamage&&Passives&&T->Tactical.Barrier>0){T->Tactical.Barrier=FMath::Max(0.,T->Tactical.Barrier-Contact*.5);}
+    if(B->Gear.Watchblade&&Passives&&!Victim->IsA<ALDWildSentinel>()){if(S->WatchVictim!=T->Identity||At>S->WatchAt+6000){S->WatchHits.Reset();}S->WatchVictim=T->Identity;S->WatchAt=At;auto& Count=S->WatchHits.FindOrAdd(T->Identity);if(++Count>=3){Count=0;LDTactical::Apply(T->Tactical,LDTactical::EStatus::Mark,At+2000,S->Identity);Marks.Add({Hit.Source,Victim,S->Identity,T->Identity,At+2000,At});}}
+    else if(!B->Gear.Watchblade){S->WatchHits.Reset();}
     if(S->DaggerItem.IsValid()&&S->DaggerUntil>At)
     {S->DaggerItem.Invalidate();S->DaggerUntil=0;if(!LDTactical::Block(T->Tactical,At)){ApplyStatus(Victim,LDTactical::EStatus::Silence,At+1300,FGuid::NewGuid());}}
 }
 
 void ALDCombatDirector::EndContentLife(ALDCharacter* Body)
-{auto* S=StateFor(Body);if(S){S->bAttackOrder=false;S->SalveEnd=0;S->DaggerItem.Invalidate();S->Tactical.ReflectUntil=0;if(S->Action==9||S->Action==10){CancelTactical(Body,TEXT("Life ended"));}}TArray<ALDTacticalField*> Owned;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Source.Get()==Body){Owned.Add(*It);}}for(auto* F:Owned){DestroyField(F,TEXT("TacticalOwnerLifeEnded"));}}
+{auto* S=StateFor(Body);if(S){S->bAttackOrder=false;S->SalveEnd=0;S->DaggerItem.Invalidate();S->Tactical.ReflectUntil=0;if(S->Action==9||S->Action==10){CancelTactical(Body,TEXT("Life ended"));}}TArray<ALDTacticalField*> Owned;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Source.Get()==Body&&!It->PersistentZone){Owned.Add(*It);}}for(auto* F:Owned){DestroyField(F,TEXT("TacticalOwnerLifeEnded"));}}

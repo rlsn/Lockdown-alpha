@@ -79,7 +79,7 @@ bool ALDCombatDirector::LegalTarget(ALDCharacter* Source,AActor* Target,double R
     else if(const ALDWard* Ward=Cast<ALDWard>(Target))
     {if(Ward->Hp<=0||Ward->ExpiresAt<=GetWorld()->GetTimeSeconds()){return false;}}
     else if(const auto* Field=Cast<ALDTacticalField>(Target))
-    {if(!Field->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()))||(uint8(Field->Kind)>=16||Field->Kind==ELDTacticalField::Smoke||Field->Kind==ELDTacticalField::Ember||Field->Kind==ELDTacticalField::Telegraph||Field->Kind==ELDTacticalField::Trail||Field->Kind==ELDTacticalField::Footstep||Field->Kind==ELDTacticalField::Scramble)||Field->Source.Get()==Source){return false;}}
+    {if(!Field->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()))||((uint8(Field->Kind)>=16&&uint8(Field->Kind)<=22)||Field->Kind==ELDTacticalField::Smoke||Field->Kind==ELDTacticalField::Ember||Field->Kind==ELDTacticalField::Telegraph||Field->Kind==ELDTacticalField::Trail||Field->Kind==ELDTacticalField::Footstep||Field->Kind==ELDTacticalField::Scramble)||Field->Source.Get()==Source){return false;}}
     else{return false;}
     const FVector From=Source->GetActorLocation(),To=Target->GetActorLocation();
     if(FVector::DistSquared2D(From,To)>Reach*Reach || (Aim&&!LDCombat::InCone(From,To,*Aim,Reach,Cone))){return false;}
@@ -286,7 +286,7 @@ void ALDCombatDirector::Sample(double Now)
     for(int32 HitIndex=0;HitIndex<Impacts.Num()||HitIndex==DirectCount;++HitIndex)
     {
         if(HitIndex==DirectCount&&Mode->IsV08Profile()){CommitRiver(LDTactical::Milliseconds(Now));EnvironmentDamage(LDTactical::Milliseconds(Now),Impacts);}
-        if(!Impacts.IsValidIndex(HitIndex)){break;}const FLDCombatHit Hit=Impacts[HitIndex];
+        if(!Impacts.IsValidIndex(HitIndex)){break;}FLDCombatHit Hit=Impacts[HitIndex];
         auto* S=StateFor(Hit.Source);if(S){if(!Mode->IsTacticalProfile()){S->LastDealt=Now;}S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
         if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicLocation(),600,1},Hit.Target->GetActorLocation()))
         {if(S){S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}}
@@ -299,16 +299,22 @@ void ALDCombatDirector::Sample(double Now)
             const int64 At=LDTactical::Milliseconds(Now);
             if(Hit.TargetLife.IsValid()&&Hit.TargetLife!=T->Identity){ReleaseEnvironment(Hit.SurfaceLease);continue;}
             if(Hit.Spell&&LDTactical::Block(T->Tactical,At)){ReleaseEnvironment(Hit.SurfaceLease);UE_LOG(LogTemp,Display,TEXT("LD_B71_BLOCK token=%u"),Hit.Token);continue;}
+            if(Mode->IsV08Profile()){AugmentBasic(Hit,At);}
             if(Hit.SurfaceLease.IsValid()){ImpactEnvironment(Hit.SurfaceLease,Victim->GetActorLocation(),Hit.Source,At);}
             if(Hit.RootMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Root,At+Hit.RootMS,Hit.SourceIdentity);}
             const auto* B=BuildFor(Victim);const auto* WorldVictim=Cast<ALDWorldPawn>(Victim);const double Armor=WorldVictim?WorldVictim->Armor:B?2+.5*(LDDevelopment::Effective(*B)[2]-8)+B->Gear.Armor:2;
             const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ForwardVector;const bool Front=FVector::DotProduct(Bearing.GetSafeNormal2D(),T->Tactical.BarrierFacing.GetSafeNormal2D())>=FMath::Cos(FMath::DegreesToRadians((B?LDV08::TraitValue(*B,TEXT("brace_arc"),120):120)/2.));
-            double EffectiveArmor=Armor;double MR=WorldVictim?WorldVictim->MR:B?.15+B->Gear.MagicResist:.15;
-            if(B&&B->Gear.DirectionalGuard&&LDTactical::PassiveActive(T->Tactical,true,At)&&FVector::DotProduct(Bearing.GetSafeNormal2D(),Victim->GetActorForwardVector())>=.5){const double R=FMath::Min(.6,FMath::Max(0.,Armor)/(100+FMath::Max(0.,Armor))+.1);EffectiveArmor=100*R/(1-R);MR=FMath::Min(.6,MR+.1);}
-            const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage+(Hit.WetLightningBonus&&T->Tactical.Has(LDTactical::EStatus::Wet,At)?20:0),Hit.Kind,EffectiveArmor,MR,At,!T->Tactical.Directional||Front);
+            double EffectiveArmor=Armor+(Mode->IsV08Profile()?AuraArmor(Victim,At):0);double MR=WorldVictim?WorldVictim->MR:B?.15+B->Gear.MagicResist:.15;
+            if(B&&B->Gear.DirectionalGuard&&LDTactical::PassiveActive(T->Tactical,true,At)&&FVector::DotProduct(Bearing.GetSafeNormal2D(),Victim->GetActorForwardVector())>=.5){const double R=FMath::Min(.6,FMath::Max(0.,EffectiveArmor)/(100+FMath::Max(0.,EffectiveArmor))+.1);EffectiveArmor=100*R/(1-R);MR=FMath::Min(.6,MR+.1);}
+            if(Mode->IsV08Profile()&&Hit.Basic&&HasModifier(Victim,TEXT("front_guard"),At)&&FVector::DotProduct(Bearing.GetSafeNormal2D(),Victim->GetActorForwardVector())>=.5){const double A=FMath::Max(0.,EffectiveArmor),R=FMath::Min(.6,1-(1-A/(100+A))*.92);EffectiveArmor=100*R/(1-R);}
+            if(Mode->IsV08Profile()&&((Hit.EnvironmentKind==2&&(HasModifier(Victim,TEXT("storm_resistance"),At)||HasModifier(Victim,TEXT("insulation"),At)))||(Hit.EnvironmentKind==3&&HasModifier(Victim,TEXT("burn_resistance"),At)))){MR=FMath::Min(.6,1-(1-FMath::Clamp(MR,0.,.6))*.75);}
+            const bool UseBarrier=!T->Tactical.Directional||Front;const auto* SourceBuild=Hit.Source?BuildFor(Hit.Source):nullptr;const int32 Bonus=FMath::Max(Hit.BarrierBonus,Mode->IsV08Profile()&&Hit.Basic&&SourceBuild&&S&&LDTactical::PassiveActive(S->Tactical,true,At)?SourceBuild->Gear.BarrierDamage:0);
+            if(Bonus&&UseBarrier&&At<T->Tactical.BarrierUntil&&T->Tactical.Barrier>0){const double A=FMath::Max(0.,EffectiveArmor),Reduction=Hit.Kind==LDTactical::EDamage::Physical?FMath::Min(.6,A/(100+A)):FMath::Clamp(MR,0.,.6);const double Normal=Hit.Damage*(1-Reduction);T->Tactical.Barrier-=FMath::Min(Normal,T->Tactical.Barrier*100/(100.+Bonus))*Bonus/100.;}
+            const double Contact=LDTactical::Damage(T->Hp,T->Tactical,Hit.Damage+(Hit.WetLightningBonus&&T->Tactical.Has(LDTactical::EStatus::Wet,At)?20:0),Hit.Kind,EffectiveArmor,MR,At,UseBarrier)+LDTactical::Damage(T->Hp,T->Tactical,Hit.ExtraMagical,LDTactical::EDamage::Magical,EffectiveArmor,MR,At,UseBarrier);
             if(Mode->IsV08Profile()){ElementContact(Hit,Victim,At);}
+            if(Hit.DisarmMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Disarm,At+Hit.DisarmMS,Hit.SourceIdentity);}
             if(Hit.MuteMS&&T->Hp>0){ApplyStatus(Victim,LDTactical::EStatus::Mute,At+Hit.MuteMS,FGuid::NewGuid());}
-            if(Hit.SlowMS&&T->Hp>0&&!Victim->IsA<ALDWildSentinel>()){LDTactical::Apply(T->Tactical,LDTactical::EStatus::Slow,At+Hit.SlowMS,FGuid::NewGuid(),40);}
+            if(Hit.SlowMS&&T->Hp>0&&!Victim->IsA<ALDWildSentinel>()){LDTactical::Apply(T->Tactical,LDTactical::EStatus::Slow,At+Hit.SlowMS,FGuid::NewGuid(),Hit.SlowMagnitude);}
             if(Mode->WorldRuntime){Mode->WorldRuntime->Contact(Hit,Contact);}
             WeaponContact(Hit,Victim,Contact,At);
             if(Hit.Interrupt&&T->Hp>0){ExplicitInterrupt(Victim,Now);}

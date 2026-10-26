@@ -37,7 +37,9 @@ public:
     UPROPERTY() TArray<FLDAcquisitionRecipe> Recipes;
     bool Import(const FString& Text,FString& Why);
     bool Validate(FString& Why) const;
-    static ULDAcquisitionCatalog* Load();
+    static ULDAcquisitionCatalog* Load(uint8 Rules=7);
+    static int32 RecipeIndex(uint8 Code){return Code>=20&&Code<32?Code-20:Code>=36&&Code<44?Code-24:INDEX_NONE;}
+    static uint8 RecipeCode(int32 Index){return uint8(Index<12?20+Index:24+Index);}
     static ELDItemKind Kind(const FString& Id);
     const FLDAcquisitionItem* Find(ELDItemKind K) const{return Items.FindByPredicate([&](const auto& I){return I.Kind==K;});}
     static int32 QualityValue(int32 Base,uint8 Quality){return Base*(Quality==2?114:Quality==1?107:100)/100;}

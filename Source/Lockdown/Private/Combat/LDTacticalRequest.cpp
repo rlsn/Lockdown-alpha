@@ -1,7 +1,7 @@
 #include "Combat/LDTacticalRequest.h"
 bool FLDTacticalRequest::NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success)
 {
-    Ar<<Schema<<WireVersion<<TargetMode;Success=((Schema==7&&(WireVersion==2||WireVersion==3))||(Schema==8&&WireVersion==4))&&TargetMode<10;if(!Success){Ar.SetError();return false;}
+    Ar<<Schema<<WireVersion<<TargetMode;Success=((Schema==7&&(WireVersion==2||WireVersion==3))||(Schema==8&&WireVersion==4))&&TargetMode<(Schema==8?11:10);if(!Success){Ar.SetError();return false;}
     uint8 Digest[32]={};
     if(Ar.IsSaving())
     {

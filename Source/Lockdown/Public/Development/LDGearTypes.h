@@ -28,4 +28,6 @@ struct FLDGearStats
     UPROPERTY() bool Ranged=false;
     UPROPERTY() bool Watchblade=false;
     UPROPERTY() bool Scramble=false;
+    UPROPERTY() uint32 ModifierMask=0;
+    UPROPERTY() int32 AttackSpeed=0;
 };

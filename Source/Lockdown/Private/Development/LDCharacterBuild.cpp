@@ -36,12 +36,12 @@ bool FLDBuildPlan::NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success)
         Ar<<ExpectedRevision;
     }
     else{RulesVersion=6;ExpectedRevision=Header;CatalogDigest.Reset();}
-    const int32 Count=RulesVersion==8?54:RulesVersion==7?38:10,SlotCount=RulesVersion==8?6:RulesVersion==7?5:4;
+    const int32 Count=RulesVersion==8?62:RulesVersion==7?38:10,SlotCount=RulesVersion==8?6:RulesVersion==7?5:4;
     if(Ar.IsLoading()){Attributes.SetNum(6);Ranks.SetNum(Count);Slots.SetNum(SlotCount);}
     if(Attributes.Num()!=6||Ranks.Num()!=Count||Slots.Num()!=SlotCount){Success=false;Ar.SetError();return false;}
     for(auto& Value:Attributes){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(Ar.IsSaving()&&(Value<0||Value>31)){Success=false;}Ar.SerializeBits(&Wire,5);if(Ar.IsLoading()){Value=Wire;}}
     for(auto& Value:Ranks){uint8 Wire=Ar.IsLoading()?0:Value;if(Ar.IsSaving()&&Value>3){Success=false;}Ar.SerializeBits(&Wire,2);if(Ar.IsLoading()){Value=Wire;}}
-    for(auto& Value:Slots){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(RulesVersion>=7){uint16 Wide=Ar.IsLoading()?0:uint16(Value);Ar<<Wide;if(Wide>=(RulesVersion==8?54:38)){Success=false;}Wire=uint8(Wide);}else{if(Ar.IsSaving()&&Wire>15){Success=false;}Ar.SerializeBits(&Wire,4);}if(Ar.IsLoading()){Value=ELDSkill(Wire);}}
+    for(auto& Value:Slots){uint8 Wire=Ar.IsLoading()?0:uint8(Value);if(RulesVersion>=7){uint16 Wide=Ar.IsLoading()?0:uint16(Value);Ar<<Wide;if(Wide>=(RulesVersion==8?62:38)){Success=false;}Wire=uint8(Wide);}else{if(Ar.IsSaving()&&Wire>15){Success=false;}Ar.SerializeBits(&Wire,4);}if(Ar.IsLoading()){Value=ELDSkill(Wire);}}
     uint8 SubclassWire=Ar.IsLoading()?0:Subclass;if(Ar.IsSaving()&&Subclass>7){Success=false;}Ar.SerializeBits(&SubclassWire,3);if(Ar.IsLoading()){Subclass=SubclassWire;}
     if(RulesVersion==8)
     {
@@ -52,7 +52,7 @@ bool FLDBuildPlan::NetSerialize(FArchive& Ar,UPackageMap* Map,bool& Success)
         for(auto& Ref:Actions){uint8 Source=uint8(Ref.Source),Skill=uint8(Ref.Skill);Ar<<Source<<Skill<<Ref.Instance;uint8 Bytes[64]={};
             if(Ar.IsSaving()){FTCHARToUTF8 Name(*Ref.Definition.ToString());if(Name.Length()>63){Success=false;Ar.SetError();return false;}FMemory::Memcpy(Bytes,Name.Get(),Name.Length());}
             Ar.Serialize(Bytes,64);if(Ar.IsLoading()){Bytes[63]=0;Ref.Source=ELDActionSource(Source);Ref.Skill=ELDSkill(Skill);Ref.Definition=FName(UTF8_TO_TCHAR(reinterpret_cast<const char*>(Bytes)));}
-            Success&=Source<=1&&Skill<54;}
+            Success&=Source<=1&&Skill<62;}
     }
     Success&=!Ar.IsError();if(!Success){Ar.SetError();}return Success;
 }
@@ -62,7 +62,7 @@ namespace LDDevelopment
     const TCHAR* SkillName(ELDSkill Skill)
     {
         static const TCHAR* Names[] = {TEXT("Empty"),TEXT("Step"),TEXT("Ambush"),TEXT("Spark"),TEXT("Patch"),TEXT("Pickpocket"),TEXT("Parley"),TEXT("Analyze"),TEXT("Survey"),TEXT("Heave"),TEXT("Anchor Bash"),TEXT("Brace Wall"),TEXT("Veil Step"),TEXT("Hamstring"),TEXT("Arc Bolt"),TEXT("Counterpulse"),TEXT("Farwatch Ward"),TEXT("Wire Snare"),TEXT("Ledger Mark"),TEXT("Surety Shell"),TEXT("False Trail"),TEXT("Smoke Veil"),TEXT("Purge Touch"),TEXT("Seers Flare"),TEXT("Ember Line"),TEXT("Grapple"),TEXT("Null Seal"),TEXT("Grounding Field"),TEXT("Force Wave"),TEXT("Guard Swap"),TEXT("Slipstream"),TEXT("Remedy Bind"),TEXT("Break Sigil"),TEXT("Arcane Prison"),TEXT("Temporal Lock"),TEXT("Sovereign Ward"),TEXT("Grand Exchange"),TEXT("Gate Weave")};
-        switch(Skill){case ELDSkill::Firebolt:return TEXT("Firebolt");case ELDSkill::Gust:return TEXT("Gust");case ELDSkill::Entangle:return TEXT("Entangle");case ELDSkill::ChainLightning:return TEXT("Chain Lightning");case ELDSkill::ShatterBurst:return TEXT("Shatter Burst");case ELDSkill::ConductiveField:return TEXT("Conductive Field");default:break;}
+        switch(Skill){case ELDSkill::IceNova:return TEXT("Ice Nova");case ELDSkill::RainCall:return TEXT("Rain Call");case ELDSkill::Flameburst:return TEXT("Flameburst");case ELDSkill::StaticLance:return TEXT("Static Lance");case ELDSkill::Updraft:return TEXT("Updraft");case ELDSkill::VineLash:return TEXT("Vine Lash");case ELDSkill::CleanseRain:return TEXT("Cleanse Rain");case ELDSkill::ThawingTouch:return TEXT("Thawing Touch");case ELDSkill::ThermalVeil:return TEXT("Thermal Veil");case ELDSkill::DeployConduit:return TEXT("Deploy Conduit");case ELDSkill::Sabotage:return TEXT("Sabotage");case ELDSkill::RescueLine:return TEXT("Rescue Line");case ELDSkill::RallyGuard:return TEXT("Rally Guard");case ELDSkill::DisarmingCut:return TEXT("Disarming Cut");case ELDSkill::PowerStrike:return TEXT("Power Strike");case ELDSkill::ScoutingPulse:return TEXT("Scouting Pulse");case ELDSkill::Firebolt:return TEXT("Firebolt");case ELDSkill::Gust:return TEXT("Gust");case ELDSkill::Entangle:return TEXT("Entangle");case ELDSkill::ChainLightning:return TEXT("Chain Lightning");case ELDSkill::ShatterBurst:return TEXT("Shatter Burst");case ELDSkill::ConductiveField:return TEXT("Conductive Field");default:break;}
         if(Skill==ELDSkill::Frostline){return TEXT("Frostline");}if(Skill==ELDSkill::WaterJet){return TEXT("Water Jet");}
         return uint8(Skill) < V07SkillCount ? Names[uint8(Skill)] : TEXT("Invalid");
     }
@@ -99,8 +99,8 @@ namespace LDDevelopment
     {
         check(C<9);const uint8 LegacyAdapters[]={0,1,2,1,2,1};auto B=StartingBuild(C<3?C:LegacyAdapters[C-3]);B.Preset=C;B.RulesVersion=Rules;B.CatalogDigest=Digest;
         const TArray<TArray<int32>> Starts={{11,8,10,8,8,8},{8,11,8,8,10,8},{8,8,8,11,8,10}};
-        B.Attributes=Starts[B.ClassId];B.Ranks.SetNumZeroed(Rules==8?54:38);B.Cooldowns.SetNumZeroed(Rules==8?54:38);B.Slots.SetNum(Rules==8?6:5);
-        if(C>=3){const auto* Catalog=ULDTacticalCatalog::Load(Rules);check(Catalog&&Catalog->Starters.IsValidIndex(C-3));const auto& K=Catalog->Starters[C-3];B.Attributes=K.Attributes;B.Ranks.Init(0,Rules==8?54:38);B.Slots.Init(ELDSkill::None,Rules==8?6:5);for(int32 I=0;I<K.Skills.Num();++I){B.Ranks[uint8(K.Skills[I])]=1;B.Slots[I]=K.Skills[I];}}if(Rules==8){B.Actions.SetNum(6);for(int32 N=0;N<6;++N){B.Actions[N].Skill=B.Slots[N];}}return B;
+        B.Attributes=Starts[B.ClassId];B.Ranks.SetNumZeroed(Rules==8?62:38);B.Cooldowns.SetNumZeroed(Rules==8?62:38);B.Slots.SetNum(Rules==8?6:5);
+        if(C>=3){const auto* Catalog=ULDTacticalCatalog::Load(Rules);check(Catalog&&Catalog->Starters.IsValidIndex(C-3));const auto& K=Catalog->Starters[C-3];B.Attributes=K.Attributes;B.Ranks.Init(0,Rules==8?62:38);B.Slots.Init(ELDSkill::None,Rules==8?6:5);for(int32 I=0;I<K.Skills.Num();++I){B.Ranks[uint8(K.Skills[I])]=1;B.Slots[I]=K.Skills[I];}}if(Rules==8){B.Actions.SetNum(6);for(int32 N=0;N<6;++N){B.Actions[N].Skill=B.Slots[N];}}return B;
     }
     bool Valid(const FLDCharacterBuild& B)
     {

@@ -29,7 +29,7 @@ namespace
     bool Major(const FString& Family){return Family==TEXT("major_protection");}
 }
 bool ALDCombatDirector::IsContentSkill(ELDSkill K) const
-{if(K==ELDSkill::SmokeVeil){return GetWorld()->GetAuthGameMode<ALDGameMode>()->IsV08Profile();}switch(K){case ELDSkill::Firebolt:case ELDSkill::Gust:case ELDSkill::Entangle:case ELDSkill::ChainLightning:case ELDSkill::ShatterBurst:case ELDSkill::ConductiveField:case ELDSkill::Frostline:case ELDSkill::WaterJet:case ELDSkill::BraceWall:case ELDSkill::Hamstring:case ELDSkill::LedgerMark:case ELDSkill::FalseTrail:case ELDSkill::EmberLine:case ELDSkill::Grapple:case ELDSkill::NullSeal:case ELDSkill::GuardSwap:case ELDSkill::Slipstream:case ELDSkill::ArcanePrison:case ELDSkill::TemporalLock:case ELDSkill::SovereignWard:case ELDSkill::GrandExchange:case ELDSkill::GateWeave:return true;default:return false;}}
+{if(IsB84Skill(K)){return true;}if(K==ELDSkill::SmokeVeil){return GetWorld()->GetAuthGameMode<ALDGameMode>()->IsV08Profile();}switch(K){case ELDSkill::Firebolt:case ELDSkill::Gust:case ELDSkill::Entangle:case ELDSkill::ChainLightning:case ELDSkill::ShatterBurst:case ELDSkill::ConductiveField:case ELDSkill::Frostline:case ELDSkill::WaterJet:case ELDSkill::BraceWall:case ELDSkill::Hamstring:case ELDSkill::LedgerMark:case ELDSkill::FalseTrail:case ELDSkill::EmberLine:case ELDSkill::Grapple:case ELDSkill::NullSeal:case ELDSkill::GuardSwap:case ELDSkill::Slipstream:case ELDSkill::ArcanePrison:case ELDSkill::TemporalLock:case ELDSkill::SovereignWard:case ELDSkill::GrandExchange:case ELDSkill::GateWeave:return true;default:return false;}}
 void ALDCombatDirector::QueueContent(ALDPlayerController* PC,const FLDTacticalRequest& R)
 {
     FlushPastCommand();int32 Count=0;for(const auto& I:Intents){Count+=I.Controller==PC;}if(Count>=3){PC->CompleteCombatRequest(R.Token,TEXT("Too many queued actions"));return;}FIntent I;I.Controller=PC;I.Match=R.Match;I.Life=R.Life;I.Request=R.Token;I.Action=3+R.Slot;I.Direction=R.Direction;I.BuildRevision=R.BuildRevision;I.Content=R;I.IsContent=true;Intents.Add(I);}
@@ -59,10 +59,11 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         else if(Skill==ELDSkill::GateWeave)
         {if(!PC||!Ground(R.Point,650+B->Gear.CastRange)||!Ground(R.SecondPoint,5000)||FVector::DistSquared2D(R.Point,R.SecondPoint)>4000.*4000||!Explored(PC,R.Point)||!Explored(PC,R.SecondPoint)){return Reject(TEXT("Gate placement unavailable"));}}
         else if(Skill==ELDSkill::GuardSwap)
-        {if(First){const auto* F=Cast<ALDTacticalField>(First);FVector End;if(!F||F->Kind!=ELDTacticalField::Marker||!Observe(First,Range,true)||!Allows(Body,LDTactical::EAction::Dash)||!MobilityEndpoint(Body,F->GetActorLocation(),End,F)){return Reject(TEXT("Owned observable marker or movement endpoint unavailable"));}}else{Mana=10;if(!Ground(R.Point,Range)){return Reject(TEXT("Marker placement unavailable"));}}}
+        {if(First){const auto* F=Cast<ALDTacticalField>(First);FVector End;if(!F||F->Kind!=ELDTacticalField::Marker||!F->Enabled(At)||!Observe(First,Range,true)||!Allows(Body,LDTactical::EAction::Dash)||!MobilityEndpoint(Body,F->GetActorLocation(),End,F)){return Reject(TEXT("Owned observable marker or movement endpoint unavailable"));}}else{Mana=10;if(!Ground(R.Point,Range)){return Reject(TEXT("Marker placement unavailable"));}}}
         else if(Skill==ELDSkill::Grapple)
         {if(!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Grapple mobility blocked"));}if(First){if(!Cast<ALDCharacter>(First)||First->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(First)&&Cast<ALDWorldPawn>(First)->Immune())||!Observe(First,Range)){return Reject(TEXT("Invalid grapple body"));}}else if(!Ground(R.Point,Range)||!LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),R.Point)){return Reject(TEXT("Choose an unobstructed terrain anchor"));}}
-        else if(D->Target==ELDTacticalTarget::SelfOrUnit){if(!Observe(First,Range)||Skill==ELDSkill::RemedyBind){return Reject(TEXT("Observable eligible aid target required"));}}
+        else if(D->Target==ELDTacticalTarget::SelfOrUnit){if(!First&&IsB84Skill(Skill)){First=Body;}if(!Observe(First,Range)||Skill==ELDSkill::RemedyBind){return Reject(TEXT("Observable eligible aid target required"));}}
+        else if(D->Target==ELDTacticalTarget::Construct){const auto* F=Cast<ALDTacticalField>(First);if(!F||!Observe(First,Range,F&&F->Source.Get()==Body)||F->EnvironmentPool||F->Kind==ELDTacticalField::Scramble||F->Kind==ELDTacticalField::GuardianPulse){return Reject(TEXT("Choose an observed nonobjective construct"));}}
         else if(D->Target==ELDTacticalTarget::Unit){if((!Cast<ALDCharacter>(First)&&!IsDecoy)||!Observe(First,Range)){return Reject(TEXT("Observable body required"));}}
         else{if(!Ground(R.Point,Range)){return Reject(TEXT("Ground placement unavailable"));}}
         if(Skill==ELDSkill::Slipstream&&!Allows(Body,LDTactical::EAction::Dash)){return Reject(TEXT("Dash movement blocked"));}
@@ -86,7 +87,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     else
     {
         const auto* F=Cast<ALDTacticalField>(First);if(!PC||!F||!F->Active(At)||FVector::DistSquared2D(Body->GetActorLocation(),F->GetActorLocation())>80*80||(R.ActionKind==2&&HasObjectiveCargo(PC))||M->Objectives->HasChannel(PC)||At<O->GateReadyAt){return Reject(TEXT("Traversal unavailable"));}
-        if(R.ActionKind==2){if(F->Kind!=ELDTacticalField::Gate||!F->Partner.IsValid()||!F->Partner->Active(At)){return Reject(TEXT("Gate pair unavailable"));}Plan.SecondPoint=F->Partner->GetActorLocation();}
+        if(R.ActionKind==2){if(F->Kind!=ELDTacticalField::Gate||!F->Enabled(At)||!F->Partner.IsValid()||!F->Partner->Enabled(At)){return Reject(TEXT("Gate pair unavailable"));}Plan.SecondPoint=F->Partner->GetActorLocation();}
         else{if(F->Kind!=ELDTacticalField::Scramble||!B->Gear.Scramble){return Reject(TEXT("Cliffwalkers and an authored scramble link required"));}Plan.SecondPoint=F->Direction;}
         FVector End;if(!MobilityEndpoint(Body,Plan.SecondPoint,End)){return Reject(TEXT("Traversal placement unavailable"));}
     }

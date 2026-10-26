@@ -10,6 +10,7 @@ struct FLDEquipmentDefinition
     UPROPERTY() ELDItemKind Kind=ELDItemKind::IronHalberd;
     UPROPERTY() FString Id;
     UPROPERTY() FString Name;
+    UPROPERTY() FString ModifierHelp;
     UPROPERTY() uint8 Binding=0;
     UPROPERTY() bool TwoHanded=false;
     UPROPERTY() int32 Weight=0;

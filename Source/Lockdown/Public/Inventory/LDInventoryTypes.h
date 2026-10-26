@@ -5,7 +5,7 @@
 #include "LDInventoryTypes.generated.h"
 
 // Append only: existing item and offered-item wire values remain stable.
-UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel, Watchblade, SurveyorBow, OathMace, NullDagger, ShadeMantle, ReflectiveMail, SilentSoles, Cliffwalkers, AnchorGreaves, BrokersSeal, IronOath, SmokeFlask, SeersDust, HealingSalve, ManaDraught, WardTotem, RecallToken, SnareMine, Counterglyph, MirrorSigil, PurityCharm, AegisFlask, GrapplingChain, BlinkCharm, NullStaff, RiftStaff, HarpoonHalberd, TowerRelic, ArcaneCatalyst, HeartFragment, AncientKeyA, AncientKeyB, AncientKeyC, Heartbreaker, IronHelm=54, ScholarsHood=55, ScoutsCowl=56, ReinforcedLeggings=60, RunnersTrousers=61, LaborersGrip=67, IronLongsword=68, ArcaneFocus=75, DuelistsParryingDagger=77, WayfarerBoots=79, ChannelersVest=81, CleansingCharm=82, MirrorAmulet=83, ArcaneLens=86, RiverWaders=63, RiverTreads=78, FrostPrism=89, WaterFlask=90, FrostCapsule=92, OilFlask=91, GustVial=93 };
+UENUM() enum class ELDItemKind:uint8 { Book, WardCharge, Seal, Fiber, Ore, Crystal, Toolkit, Core, NullBell, IronHalberd, SimpleStaff, RunicStaff, ConduitStaff, BastionPlate, ArchivistRobe, MerchantHarness, PathfinderBoots, ScholarsSigil, WardingEye, WeightedSatchel, Watchblade, SurveyorBow, OathMace, NullDagger, ShadeMantle, ReflectiveMail, SilentSoles, Cliffwalkers, AnchorGreaves, BrokersSeal, IronOath, SmokeFlask, SeersDust, HealingSalve, ManaDraught, WardTotem, RecallToken, SnareMine, Counterglyph, MirrorSigil, PurityCharm, AegisFlask, GrapplingChain, BlinkCharm, NullStaff, RiftStaff, HarpoonHalberd, TowerRelic, ArcaneCatalyst, HeartFragment, AncientKeyA, AncientKeyB, AncientKeyC, Heartbreaker, IronHelm=54, ScholarsHood=55, ScoutsCowl=56, ReinforcedLeggings=60, RunnersTrousers=61, LaborersGrip=67, IronLongsword=68, ArcaneFocus=75, DuelistsParryingDagger=77, WayfarerBoots=79, ChannelersVest=81, CleansingCharm=82, MirrorAmulet=83, ArcaneLens=86, RiverWaders=63, RiverTreads=78, FrostPrism=89, WaterFlask=90, FrostCapsule=92, OilFlask=91, GustVial=93, MistweaveHood=57, StormCrown=58, SurveyorsGoggles=59, InsulatedLeggings=62, DuelistsGloves=64, EngineersGloves=65, FrostweaveGloves=66, ShadowDagger=69, FrostStaff=70, ConductiveSpear=71, EmberWand=72, GustStaff=73, GuardianShield=74, FieldToolkit=76, ThermalCoat=80, CommandBanner=84, ResonanceRing=85, ShadowCharm=87, ElementalPurifier=88 };
 USTRUCT()
 struct FLDInventoryItem
 {
@@ -18,6 +18,7 @@ struct FLDInventoryItem
     UPROPERTY() bool bReserved=false;
     UPROPERTY() uint16 BindingMask=0;
     UPROPERTY() int64 ReadyAt=0;
+    UPROPERTY() int64 ProcReadyAt=0;
     UPROPERTY() uint8 Quality=0;
 };
 USTRUCT()
@@ -50,7 +51,7 @@ public:
     uint32 Revision=1;
     bool bReserved=false;
     uint16 BindingMask=0;
-    int64 ReadyAt=0;
+    int64 ReadyAt=0,ProcReadyAt=0;
     uint8 Quality=0;
     // Server-only causal metadata. Never serialize parents or origin to a peer.
     FName Institution; // persistent institution address; server-only

@@ -6,7 +6,7 @@
 #include "LDCharacterBuild.generated.h"
 
 UENUM()
-enum class ELDSkill : uint8 { None, Step, Ambush, Spark, Patch, Pickpocket, Parley, Analyze, Survey, Heave, AnchorBash, BraceWall, VeilStep, Hamstring, ArcBolt, Counterpulse, FarwatchWard, WireSnare, LedgerMark, SuretyShell, FalseTrail, SmokeVeil, PurgeTouch, SeersFlare, EmberLine, Grapple, NullSeal, GroundingField, ForceWave, GuardSwap, Slipstream, RemedyBind, BreakSigil, ArcanePrison, TemporalLock, SovereignWard, GrandExchange, GateWeave, Frostline=38, WaterJet=40, Firebolt=39, Gust=41, Entangle=42, ChainLightning=43, ShatterBurst=52, ConductiveField=53 };
+enum class ELDSkill : uint8 { None, Step, Ambush, Spark, Patch, Pickpocket, Parley, Analyze, Survey, Heave, AnchorBash, BraceWall, VeilStep, Hamstring, ArcBolt, Counterpulse, FarwatchWard, WireSnare, LedgerMark, SuretyShell, FalseTrail, SmokeVeil, PurgeTouch, SeersFlare, EmberLine, Grapple, NullSeal, GroundingField, ForceWave, GuardSwap, Slipstream, RemedyBind, BreakSigil, ArcanePrison, TemporalLock, SovereignWard, GrandExchange, GateWeave, Frostline=38, WaterJet=40, Firebolt=39, Gust=41, Entangle=42, ChainLightning=43, ShatterBurst=52, ConductiveField=53, IceNova=44, RainCall=45, Flameburst=46, StaticLance=47, Updraft=48, VineLash=49, CleanseRain=50, ThawingTouch=51, ThermalVeil=54, DeployConduit=55, Sabotage=56, RescueLine=57, RallyGuard=58, DisarmingCut=59, PowerStrike=60, ScoutingPulse=61 };
 
 UENUM()
 enum class ELDActionSource:uint8 { Learned, Gear };
@@ -99,11 +99,11 @@ public:
 
 namespace LDDevelopment
 {
-    constexpr int32 SkillCount = 10, SlotCount = 4, V07SkillCount=38, V08SkillCount=54;
+    constexpr int32 SkillCount = 10, SlotCount = 4, V07SkillCount=38, V08SkillCount=62;
     inline int32 Count(const FLDCharacterBuild& B){return B.RulesVersion==8?V08SkillCount:B.RulesVersion==7?V07SkillCount:SkillCount;}
     inline int32 Slots(const FLDCharacterBuild& B){return B.RulesVersion==8?6:B.RulesVersion==7?5:4;}
     inline bool Held(ELDSkill S){return uint8(S)>=4&&uint8(S)<=9;}
-    inline bool Implemented(ELDSkill S){return (uint8(S)>0&&uint8(S)<V07SkillCount)||S==ELDSkill::Frostline||S==ELDSkill::WaterJet||S==ELDSkill::Firebolt||S==ELDSkill::Gust||S==ELDSkill::Entangle||S==ELDSkill::ChainLightning||S==ELDSkill::ShatterBurst||S==ELDSkill::ConductiveField;}
+    inline bool Implemented(ELDSkill S){return uint8(S)>0&&uint8(S)<V08SkillCount;}
     LOCKDOWN_API FLDCharacterBuild TacticalStart(uint8 ClassId,const FString& Digest,uint8 Rules=7);
     constexpr double DeadlineSeconds = 1500;
     enum EAttribute : uint8 { STR, DEX, CON, INT, WIS, CHA };

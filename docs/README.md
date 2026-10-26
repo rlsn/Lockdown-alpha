@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-Current checkpoint: **v0.8 B83 environmental fields; B84 catalog/acquisition next**.
-[B83 implementation](v08/B83_IMPLEMENTATION.md) records the enabled development
+Current checkpoint: **v0.8 B84 catalog/acquisition; B85 world integration next**.
+[B84 implementation](v08/B84_IMPLEMENTATION.md) records the enabled development
 slice, current native validation and remaining limits.
 [Continuation](CONTINUATION.md) is the active handoff. Original specification
 inputs, prior payloads/evidence and v07 history remain frozen. Full release,
@@ -9,7 +9,8 @@ human and long technical acceptance remain pending/deferred as named.
 
 | v0.8 reference | Purpose |
 | --- | --- |
-| [B83 implementation](v08/B83_IMPLEMENTATION.md) | Six conditions/Oil, reservations, damage and occlusion; exact evidence scope |
+| [B84 implementation](v08/B84_IMPLEMENTATION.md) | Complete native catalog, modifiers, paid sources/recipes and exact evidence scope |
+| [B83 implementation](v08/B83_IMPLEMENTATION.md) | Historical field service, damage and occlusion checkpoint |
 | [B82 implementation](v08/B82_IMPLEMENTATION.md) | Historical river, Wet/Frozen/direct-Frost checkpoint |
 | [B81 implementation](v08/B81_IMPLEMENTATION.md) | Historical slots/traits checkpoint and focused evidence |
 | [B80 review](v08/B80_BASELINE_REVIEW.md) | Actual baseline, architecture, audit/import and adoption |

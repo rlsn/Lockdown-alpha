@@ -4,6 +4,7 @@
 #include "Combat/LDTacticalGeometry.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -16,7 +17,7 @@
 bool ALDTacticalField::Active(int64 At) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Source.Get()):nullptr;
-    if(uint8(Kind)>=16){return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&ExpiresAt>At;}
+    if((uint8(Kind)>=16&&uint8(Kind)<=22)||PersistentZone){return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&ExpiresAt>At;}
     if(Kind==ELDTacticalField::Scramble){return !IsActorBeingDestroyed()&&M&&M->IsPlaying();}
     if(Kind==ELDTacticalField::Gate&&(!Partner.IsValid()||Partner->Hp<=0||Partner->IsActorBeingDestroyed())){return false;}
     return !IsActorBeingDestroyed()&&M&&M->IsPlaying()&&S&&S->Identity==SourceLife&&S->Hp>0&&(!bPlayerSource||(PlayerSource.IsValid()&&PlayerSource->GetPawn()==Source.Get()&&M->StateFor(PlayerSource.Get())&&M->StateFor(PlayerSource.Get())->bActive))&&ExpiresAt>At&&Hp>0;
@@ -24,8 +25,8 @@ bool ALDTacticalField::Active(int64 At) const
 bool ALDCombatDirector::QuietForPreparation(ALDCharacter* Body) const
 {const auto* S=StateFor(Body);if(!S||GetWorld()->GetTimeSeconds()-FMath::Max(S->LastDamage,S->LastDealt)<6){return false;}for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){if(It->Source.Get()==Body&&!It->IsActorBeingDestroyed()){return false;}}return true;}
 bool ALDCombatDirector::Concealed(const ALDCharacter* Body) const
-{const auto* S=StateFor(Body);return S&&S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
-void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;}}
+{const auto* S=StateFor(Body);return S&&((S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));}
+void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
 void ALDCombatDirector::ExplicitInterrupt(ALDCharacter* Body,double Now)
 {
     auto* S=StateFor(Body);if(!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->Immune())){return;}
@@ -53,12 +54,16 @@ bool ALDCombatDirector::Push(ALDCharacter* Body,const FVector& Direction,double 
 }
 void ALDCombatDirector::SampleFields(int64 At)
 {
-    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!HasAuthority()||!M||!M->IsTacticalProfile()){return;}
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!HasAuthority()||!M||!M->IsTacticalProfile()){return;}
     for(auto& Pair:Bodies){Pair.Value.Tactical.GroundedUntil=0;}
     TArray<ALDTacticalField*> Fields;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->EnvironmentPool){continue;}if(It->Active(At)||(It->Kind==ELDTacticalField::Ember&&It->TickIndex<6&&It->Active(FMath::Min(At,It->ExpiresAt-1)))){Fields.Add(*It);}else{DestroyField(*It);}}
     Fields.Sort([](const auto& A,const auto& B){return A.Identity.ToString()<B.Identity.ToString();});
     for(auto* F:Fields)
     {
+        if(F->Kind==ELDTacticalField::Prison){TInlineComponentArray<UBoxComponent*> Walls(F);for(auto* Wall:Walls){Wall->SetCollisionEnabled(F->Enabled(At)?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);}}
+        if(F->Kind==ELDTacticalField::Conduit)
+        {if(!F->Enabled(At)){F->NextTick=At+1000;continue;}if(At<F->NextTick){continue;}F->NextTick+=1000;for(auto& Pair:Bodies){auto* B=Pair.Key.Get();auto* PC=B?Cast<ALDPlayerController>(B->GetController()):nullptr;const auto* O=PC?M->StateFor(PC):nullptr;const auto* Build=BuildFor(B);if(B&&Build&&Pair.Value.Hp>0&&(B==F->Source.Get()||(O&&O->bAidConsent))&&FVector::DistSquared2D(B->GetActorLocation(),F->GetActorLocation())<=250.*250&&LDGround::ClearSegment(GetWorld(),F->GetActorLocation(),B->GetActorLocation())){Pair.Value.Tactical.MP=FMath::Min(LDTactical::MaxMP(*Build),Pair.Value.Tactical.MP+1);}}continue;}
+        if(!F->Enabled(At)){continue;}
         if(F->Kind!=ELDTacticalField::Grounding&&(F->Kind!=ELDTacticalField::Trap||F->ArmedAt>At)){continue;}
         TArray<ALDCharacter*> Targets;
         for(const auto& Pair:Bodies)

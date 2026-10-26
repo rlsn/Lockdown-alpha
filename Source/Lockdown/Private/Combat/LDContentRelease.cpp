@@ -27,6 +27,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
     if((S->CoreTargetLife.IsValid()&&Identity(First)!=S->CoreTargetLife)||(S->CoreSecondLife.IsValid()&&Identity(Second)!=S->CoreSecondLife)){return Reject();}
     auto Observe=[&](AActor* T,int32 Range){if(!T){return false;}if(T==Body){return true;}if(const auto* F=Cast<ALDTacticalField>(T);F&&F->Source.Get()==Body){return F->Active(At)&&FVector::DistSquared2D(T->GetActorLocation(),Body->GetActorLocation())<=FMath::Square(Range)&&(!PC||M->Vision->CanObserve(PC,T));}return LegalTarget(Body,T,Range,nullptr,0);};
     int32 Mana=D?D->Mana:0;const int32 Value=D?LDGear::Magnitude(*B,Skill,D->RankKey,D->Magnitudes):0;const int32 Rank=D?FMath::Clamp(LDDevelopment::Rank(*B,Skill),1,3)-1:0;const double Scale=FMath::Min(1.25,1+.025*FMath::Max(0,LDDevelopment::Effective(*B)[3]-8));
+    if(D&&IsB84Skill(Skill)){return ReleaseCatalog(Body,At,Hits,Why);}
     TArray<FVector> DecoyPath;ALDArcProjectile* StagedProjectile=nullptr;int32 Duration=0;ALDTacticalField* Field=nullptr;ALDTacticalField* Pair=nullptr;FVector End,Surface;
     if(D)
     {
@@ -68,6 +69,8 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         if(Skill==ELDSkill::Gust&&!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Wind,false,450,60,At,0,16,true)){return Reject();}
         if((Skill==ELDSkill::Entangle||Skill==ELDSkill::ConductiveField||Skill==ELDSkill::ShatterBurst)&&!StageEnvironment(Body,R.Point,Skill==ELDSkill::Entangle?LDEnvironment::EInput::Nature:Skill==ELDSkill::ConductiveField?LDEnvironment::EInput::Lightning:LDEnvironment::EInput::Shatter,true,0,D->Area,At,Skill==ELDSkill::Entangle?6000:3000)){return Reject();}
         if(Skill==ELDSkill::ShatterBurst&&!RiverCommands.IsEmpty()){RiverCommands.Last().State.Magnitude=Value;}
+        if(Skill==ELDSkill::EmberLine&&M->IsV08Profile())
+        {if(!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Fire,false,700,80,At,3000)){DestroyField(Field);return Reject();}Field->PersistentZone=true;Field->CreditOwner=O?M->ContenderId(PC):S->Identity;}
         // All fallible allocations and endpoint checks precede release costs.
         S->Tactical.MP-=Mana;B->Cooldowns[uint8(Skill)]=Skill==ELDSkill::GuardSwap&&!First?B->Cooldowns[uint8(Skill)]:Now+(D->RankKey==TEXT("cooldown_ms")?D->Magnitudes[Rank]:D->Cooldown)/1000.;
         if(Skill==ELDSkill::GuardSwap&&!First){S->CoreRecoveryUntil=Now+1;}
@@ -112,7 +115,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         if(Op==TEXT("detector")){Field=CreateField(Body,ELDTacticalField::Detector,Body->GetActorLocation(),At,I->Param(TEXT("duration_ms")),1,I->Param(TEXT("radius_cm")),true);if(!Field){return Reject();}}
         if(Op==TEXT("element_item_hit")&&(!Cast<ALDCharacter>(First)||!Observe(First,Range))){return Reject();}
         if(M->IsV08Profile()&&Op==TEXT("smoke")&&!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Smoke,true,0,I->Param(TEXT("radius_cm")),At,5000,32)){return Reject();}
-        if(Op==TEXT("surface_clear")){if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)||!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Wind,true,0,I->Param(TEXT("radius_cm")),At,0)){return Reject();}}
+        if(Op==TEXT("surface_clear")){if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)||!StageEnvironment(Body,R.Point,Item->Kind==ELDItemKind::ElementalPurifier?LDEnvironment::EInput::Purify:LDEnvironment::EInput::Wind,true,0,I->Param(TEXT("radius_cm")),At,0)){return Reject();}}
         if(Op==TEXT("element_item_field"))
         {if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)){return Reject();}
             if(!StageEnvironment(Body,R.Point,Item->Kind==ELDItemKind::FrostCapsule?LDEnvironment::EInput::Frost:Item->Kind==ELDItemKind::OilFlask?LDEnvironment::EInput::Oil:LDEnvironment::EInput::Water,true,0,I->Param(TEXT("radius_cm")),At,I->Param(TEXT("lifetime_ms")))){Why=TEXT("Field capacity unavailable");return false;}}

@@ -15,20 +15,18 @@
 #include "EngineUtils.h"
 namespace
 {
-    bool V08Quality(ELDItemKind Kind)
-    {const auto* C=ULDEquipmentCatalog::Load(8);const auto* D=C?C->Find(Kind):nullptr;if(!D){return false;}TSharedPtr<FJsonObject> Root;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(C->SourceJson),Root)||!Root){return false;}for(const auto& V:Root->GetArrayField(TEXT("items"))){const auto O=V->AsObject();if(O->GetStringField(TEXT("id"))==D->Id){return O->GetBoolField(TEXT("craftsmanship_eligible"));}}return false;}
     FName Cache(uint8 Site){return FName(*FString::Printf(TEXT("B74Cache%d"),Site));}
     FName Stock(ELDSkill Skill){return FName(*FString::Printf(TEXT("B74Book%d"),uint8(Skill)));}
     void Publish(ALDGameMode* M,ALDPlayerController* PC,ALDItem* Item)
     {
         auto* O=M->StateFor(PC);uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
         Item->State=1;Item->Holder=PC;Item->Slot=Slot;Item->bReserved=false;++Item->Revision;
-        FLDInventoryItem I;I.Id=Item->Identity;I.Kind=Item->Kind;I.Skill=Item->Skill;I.Slot=Slot;I.Revision=Item->Revision;I.ReadyAt=Item->ReadyAt;I.Quality=Item->Quality;O->Inventory.Items.Add(I);++O->Inventory.Revision;
+        FLDInventoryItem I;I.Id=Item->Identity;I.Kind=Item->Kind;I.Skill=Item->Skill;I.Slot=Slot;I.Revision=Item->Revision;I.ReadyAt=Item->ReadyAt;I.ProcReadyAt=Item->ProcReadyAt;I.Quality=Item->Quality;O->Inventory.Items.Add(I);++O->Inventory.Revision;
     }
 }
 bool ALDAcquisitionDirector::Initialize(FString& Why)
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=M->Economy.Get();const auto* C=ULDAcquisitionCatalog::Load();
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=M->Economy.Get();const auto* C=ULDAcquisitionCatalog::Load(M->IsV08Profile()?8:7);
     if(!C||!C->Validate(Why)){Why=TEXT("Missing or stale acquisition catalog");return false;}
     if(E->Ledger.Remaining(TEXT("B74Endowment"))==0){return true;}
     LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=TEXT("B74CacheEndowment");T.Budget=TEXT("B74Endowment");T.Units=1;TArray<ALDItem*> Created;
@@ -43,17 +41,17 @@ bool ALDAcquisitionDirector::Initialize(FString& Why)
 }
 bool ALDAcquisitionDirector::Preview(const FLDInventory& Bag,const FLDCharacterBuild& Build,uint8 Recipe,uint8 Mode,uint8 Site,FGuid Target,FLDProductionPlan& Out,FString& Why)
 {
-    auto Reject=[&](const TCHAR* S){Why=S;return false;};const auto* C=ULDAcquisitionCatalog::Load();if(!C||Build.RulesVersion<7||Mode>1){return Reject(TEXT("Acquisition profile or catalog unavailable"));}
+    auto Reject=[&](const TCHAR* S){Why=S;return false;};const auto* C=ULDAcquisitionCatalog::Load(Build.RulesVersion);if(!C||Build.RulesVersion<7||Mode>1){return Reject(TEXT("Acquisition profile or catalog unavailable"));}
     Out=FLDProductionPlan();Out.Site=Site;Out.Recipe=Recipe;Out.Mode=Mode;Out.Target=Target;Out.CatalogDigest=C->Checksum;Out.InventoryRevision=Bag.Revision;Out.BuildRevision=Build.Revision;
     TArray<ELDItemKind> Needs;TArray<FGuid> Removed;TArray<ELDItemKind> Incoming;int32 Base=0;
-    if(Recipe>=20&&Recipe<32)
+    if(C->Recipes.IsValidIndex(ULDAcquisitionCatalog::RecipeIndex(Recipe)))
     {
-        const auto& R=C->Recipes[Recipe-20];if((R.Station==0&&(Site<2||Site>4))||(R.Station==1&&Site!=4)||(R.Station==2&&Site!=5)||(Mode&& (Site!=4||R.Station==2))){return Reject(TEXT("Wrong workshop; work orders require East and cannot build T4"));}Needs=R.Inputs;Incoming.Add(R.Output);Base=R.Fee;
+        const auto& R=C->Recipes[ULDAcquisitionCatalog::RecipeIndex(Recipe)];if((R.Station==0&&(Site<2||Site>4))||(R.Station==1&&Site!=4)||(R.Station==2&&Site!=5)||(Mode&&(R.Station==2||(Build.RulesVersion!=8&&Site!=4)))){return Reject(Build.RulesVersion==8?TEXT("Use the recipe station; work orders cannot build T4"):TEXT("Wrong workshop; work orders require East and cannot build T4"));}Needs=R.Inputs;Incoming.Add(R.Output);Base=R.Fee;
     }
     else if(Recipe==32||Recipe==33)
     {
         const auto* I=Bag.Find(Target);const auto* D=I?C->Find(I->Kind):nullptr;
-        if(Mode||!I||(Build.RulesVersion==8?!V08Quality(I->Kind):!D||!D->QualityEligible)||I->Quality!=Recipe-32||I->bReserved||I->BindingMask||(Recipe==32?(Site<2||Site>4):Site!=4)){return Reject(TEXT("Unbind eligible gear; quality must advance one step at the correct forge"));}
+        if(Mode||!I||(!D||!D->QualityEligible)||I->Quality!=Recipe-32||I->bReserved||I->BindingMask||(Recipe==32?(Site<2||Site>4):Site!=4)){return Reject(TEXT("Unbind eligible gear; quality must advance one step at the correct forge"));}
         Out.Inputs.Add(*I);Needs.Add(ELDItemKind::Toolkit);if(Recipe==33){Needs.Add(ELDItemKind::Crystal);}Base=Recipe==32?6:12;
     }
     else if(Recipe==34||Recipe==35){if(Mode||Site<6||Site>8){return Reject(TEXT("Approach a ruin cache"));}Why.Reset();return true;}
@@ -71,7 +69,7 @@ bool ALDAcquisitionDirector::Preview(const FLDInventory& Bag,const FLDCharacterB
 }
 bool ALDAcquisitionDirector::Terms(ALDPlayerController* PC,const FLDProductionPlan& P,bool Reserved,FString& Why) const
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto* C=ULDAcquisitionCatalog::Load();auto Reject=[&](const TCHAR* S){Why=S;return false;};
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto* C=ULDAcquisitionCatalog::Load(M->IsV08Profile()?8:7);auto Reject=[&](const TCHAR* S){Why=S;return false;};
     if(!M->IsTacticalProfile()||!O||!C||P.CatalogDigest!=C->Checksum||P.RecipeRevision!=1||P.Inputs.Num()>4||P.Coupon.IsValid()||P.BuildRevision!=O->Build.Revision||P.InventoryRevision!=O->Inventory.Revision){return Reject(TEXT("Acquisition terms or natural/equipment build changed"));}
     if(P.Recipe==34||P.Recipe==35)
     {
@@ -92,14 +90,14 @@ bool ALDAcquisitionDirector::Terms(ALDPlayerController* PC,const FLDProductionPl
 }
 bool ALDAcquisitionDirector::Commit(ALDPlayerController* PC,const FLDProductionPlan& P,FString& Why)
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=M->Economy.Get();auto* O=M->StateFor(PC);const auto* C=ULDAcquisitionCatalog::Load();if(!Terms(PC,P,true,Why)||!E->Audit(Why)){return false;}
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=M->Economy.Get();auto* O=M->StateFor(PC);const auto* C=ULDAcquisitionCatalog::Load(M->IsV08Profile()?8:7);if(!Terms(PC,P,true,Why)||!E->Audit(Why)){return false;}
     if(P.Recipe==34)
     {if(E->Ledger.Remaining(Cache(P.Site))>0){LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=TEXT("RuinCacheOpen");T.Budget=Cache(P.Site);T.Units=1;if(!E->Ledger.Commit(T,Why)){return false;}}CacheView(PC,P.Site);return true;}
     if(P.Recipe==35)
     {for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->Identity!=P.Target){continue;}auto* I=*It;LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=TEXT("RuinCachePickup");const auto* L=E->Ledger.Item(I->Identity);LDEconomy::FItemDelta D;D.Id=I->Identity;D.Kind=I->Kind;D.Op=LDEconomy::EItemOp::Transfer;D.Expected=L->Revision;D.From=L->Location;D.To=E->Wallet(M->ContenderId(PC));T.Items.Add(D);if(!E->Ledger.Commit(T,Why)){return false;}Publish(M,PC,I);M->Inventory->Changed(PC);CacheView(PC,P.Site);return E->Audit(Why);}return false;}
     const FName W=E->Wallet(M->ContenderId(PC));const auto* Account=E->Ledger.Account(W);if(!Account||Account->Gold!=O->Gold){return false;}
-    const bool Quality=P.Recipe>=32;LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Quality?TEXT("EquipmentQuality"):P.Mode?TEXT("EquipmentWorkOrder"):TEXT("EquipmentAssembly");T.Burn=P.Fee;T.Gold.Add({W,Account->Revision,-int64(P.Fee)});
-    TArray<ALDItem*> Consumed;TArray<FGuid> Parents;TArray<ELDItemKind> Missing=Quality?TArray<ELDItemKind>{}:C->Recipes[P.Recipe-20].Inputs;int64 Endpoint=0;ALDItem* Existing=nullptr;
+    const bool Quality=P.Recipe==32||P.Recipe==33;LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Quality?TEXT("EquipmentQuality"):P.Mode?TEXT("EquipmentWorkOrder"):TEXT("EquipmentAssembly");T.Burn=P.Fee;T.Gold.Add({W,Account->Revision,-int64(P.Fee)});
+    TArray<ALDItem*> Consumed;TArray<FGuid> Parents;TArray<ELDItemKind> Missing=Quality?TArray<ELDItemKind>{}:C->Recipes[ULDAcquisitionCatalog::RecipeIndex(P.Recipe)].Inputs;int64 Endpoint=0;ALDItem* Existing=nullptr;
     for(const auto& I:P.Inputs)
     {
         auto* A=M->Inventory->Owned(PC,I.Id);const auto* L=E->Ledger.Item(I.Id);LDEconomy::FItemDelta D;D.Id=I.Id;D.Kind=I.Kind;D.Expected=L->Revision;D.From=W;
@@ -109,7 +107,7 @@ bool ALDAcquisitionDirector::Commit(ALDPlayerController* PC,const FLDProductionP
     for(auto K:Missing){LDEconomy::FItemDelta D;D.Id=FGuid::NewGuid();D.Kind=K;D.Op=LDEconomy::EItemOp::Transient;D.To=W;T.Items.Add(D);Parents.Add(D.Id);}
     ALDItem* Created=nullptr;
     if(!Quality)
-    {Created=GetWorld()->SpawnActor<ALDItem>();if(!Created){Why=TEXT("Output allocation failed; nothing spent");return false;}Created->Kind=C->Recipes[P.Recipe-20].Output;Created->ReadyAt=Endpoint;Created->OriginReceipt=T.Id;Created->ParentIds=Parents;LDEconomy::FItemDelta D;D.Id=Created->Identity;D.Kind=Created->Kind;D.Op=LDEconomy::EItemOp::Create;D.To=W;D.Parents=Parents;T.Items.Add(D);}
+    {Created=GetWorld()->SpawnActor<ALDItem>();if(!Created){Why=TEXT("Output allocation failed; nothing spent");return false;}Created->Kind=C->Recipes[ULDAcquisitionCatalog::RecipeIndex(P.Recipe)].Output;Created->ReadyAt=Endpoint;Created->OriginReceipt=T.Id;Created->ParentIds=Parents;LDEconomy::FItemDelta D;D.Id=Created->Identity;D.Kind=Created->Kind;D.Op=LDEconomy::EItemOp::Create;D.To=W;D.Parents=Parents;T.Items.Add(D);}
     if(!E->Ledger.Commit(T,Why)){if(Created){Created->Destroy();}return false;}
     for(auto* I:Consumed){LDInventory::Remove(O->Inventory,I->Identity);I->State=2;I->Holder.Reset();I->Destroy();}
     if(Existing){++Existing->Quality;++Existing->Revision;Existing->bReserved=false;auto* I=O->Inventory.Items.FindByPredicate([&](const auto& V){return V.Id==Existing->Identity;});I->Quality=Existing->Quality;I->Revision=Existing->Revision;I->bReserved=false;++O->Inventory.Revision;}
@@ -120,7 +118,7 @@ void ALDAcquisitionDirector::Purchase(ALDPlayerController* PC,uint32 Match,uint3
     if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto& Client=Clients.FindOrAdd(PC);auto Reply=[&](const FString& Why){Client.Receipts.Add(Token,Why);while(Client.Receipts.Num()>32){uint32 Old=MAX_uint32;for(const auto& V:Client.Receipts){Old=FMath::Min(Old,V.Key);}Client.Receipts.Remove(Old);}M->SyncOwner(PC);PC->ClientIntentResult(Token,Why);};
     if(!Token||!O||Match!=O->Match||Life!=O->Life){return;}if(const auto* Receipt=Client.Receipts.Find(Token)){PC->ClientIntentResult(Token,*Receipt);return;}if(Token<=Client.Last){return;}Client.Last=Token;const double Now=GetWorld()->GetTimeSeconds();Client.Tokens=FMath::Min(4.,Client.Tokens+FMath::Max(0.,Now-Client.At)*4);Client.At=Now;
-    const auto* C=ULDAcquisitionCatalog::Load();if(Client.Tokens<1||!M->IsTacticalProfile()||!C||Digest!=C->Checksum||BagRevision!=O->Inventory.Revision||Site<2||Site>4){Reply(TEXT("Supply terms, range, sight, life or inventory changed"));return;}M->Objectives->CancelClaimForAction(PC,Now);if(!M->Production->Eligible(PC,Site,false)){Reply(TEXT("Supply requires eligible body in reach"));return;}--Client.Tokens;
+    const auto* C=ULDAcquisitionCatalog::Load(M->IsV08Profile()?8:7);if(Client.Tokens<1||!M->IsTacticalProfile()||!C||Digest!=C->Checksum||BagRevision!=O->Inventory.Revision||Site<2||Site>4){Reply(TEXT("Supply terms, range, sight, life or inventory changed"));return;}M->Objectives->CancelClaimForAction(PC,Now);if(!M->Production->Eligible(PC,Site,false)){Reply(TEXT("Supply requires eligible body in reach"));return;}--Client.Tokens;
     int32 Price=-1;FName Budget;
     if(Kind==ELDItemKind::Book)
     {const auto* G=ULDEquipmentCatalog::Load(O->Build.RulesVersion)->Gate(Skill);if(LDDevelopmentTransaction::Sold(Skill)&&Site==2){Price=40;}else if(G){if(G->Circle==1&&Site==2){Price=40;}if(G->Circle==2&&(Site==3||Site==4)){Price=60;}if(G->Circle==3&&Site==4){Price=90;Budget=Stock(Skill);}}}
@@ -143,5 +141,5 @@ bool ALDAcquisitionDirector::GuardianDrops(FVector Position,FGuid DefeatReceipt,
 }
 
 double ALDAcquisitionDirector::HoldSeconds(const FLDProductionPlan& P) const
-{const auto* C=ULDAcquisitionCatalog::Load();if(P.Recipe>=20&&P.Recipe<32&&C){return C->Recipes[P.Recipe-20].HoldMs/1000.;}if(P.Recipe==32||P.Recipe==34){return 4;}if(P.Recipe==33){return 6;}if(P.Recipe==35){for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->Identity==P.Target){return It->Kind>=ELDItemKind::AncientKeyA&&It->Kind<=ELDItemKind::AncientKeyC?3:.01;}}}return 0;}
+{const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* C=ULDAcquisitionCatalog::Load(M->IsV08Profile()?8:7);if(C&&C->Recipes.IsValidIndex(ULDAcquisitionCatalog::RecipeIndex(P.Recipe))){return C->Recipes[ULDAcquisitionCatalog::RecipeIndex(P.Recipe)].HoldMs/1000.;}if(P.Recipe==32||P.Recipe==34){return 4;}if(P.Recipe==33){return 6;}if(P.Recipe==35){for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->Identity==P.Target){return It->Kind>=ELDItemKind::AncientKeyA&&It->Kind<=ELDItemKind::AncientKeyC?3:.01;}}}return 0;}
 bool ALDAcquisitionDirector::Quiet(const FLDProductionPlan& P) const{return P.Recipe!=35||HoldSeconds(P)>1;}

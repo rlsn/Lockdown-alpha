@@ -100,7 +100,7 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
         { Sources.Add({Ward->GetActorLocation(),560,LevelAt(Ward->GetActorLocation())}); }
     }
     if(Mode->IsTacticalProfile())for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It)
-    {if(It->Active(LDTactical::Milliseconds(Now))&&It->Source.IsValid()&&It->Source->GetController()==PC&&(It->Kind==ELDTacticalField::Ward||It->Kind==ELDTacticalField::Detector)){Sources.Add({It->GetActorLocation(),float(It->Radius),LevelAt(It->GetActorLocation())});}}
+    {if(It->Enabled(LDTactical::Milliseconds(Now))&&It->Source.IsValid()&&It->Source->GetController()==PC&&(It->Kind==ELDTacticalField::Ward||It->Kind==ELDTacticalField::Detector)){Sources.Add({It->GetActorLocation(),float(It->Radius),LevelAt(It->GetActorLocation())});}}
     return Sources;
 }
 bool ALDVisionDirector::CanSee(ALDPlayerController* PC, const FVector& Point) const
@@ -117,7 +117,7 @@ bool ALDVisionDirector::Detects(ALDPlayerController* PC,const FVector& Point) co
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?const_cast<ALDGameMode*>(M)->StateFor(PC):nullptr;const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=Body&&M->Combat?M->Combat->StateFor(Body):nullptr;
     if(O&&Body&&S&&O->Build.Gear.Detector>0&&LDTactical::PassiveActive(S->Tactical,true,At)&&Ray({Body->GetActorLocation(),float(O->Build.Gear.Detector),LevelAt(Body->GetActorLocation())},Point)){return true;}
     for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It)
-    {if(It->Kind==ELDTacticalField::Detector&&It->Active(At)&&It->Source.IsValid()&&It->Source->GetController()==PC&&Ray({It->GetActorLocation(),float(It->Radius),LevelAt(It->GetActorLocation())},Point)){return true;}}return false;
+    {if(It->Kind==ELDTacticalField::Detector&&It->Enabled(At)&&It->Source.IsValid()&&It->Source->GetController()==PC&&Ray({It->GetActorLocation(),float(It->Radius),LevelAt(It->GetActorLocation())},Point)){return true;}}return false;
 }
 bool ALDVisionDirector::CanObserve(ALDPlayerController* PC,AActor* Actor) const
 {
@@ -283,7 +283,7 @@ void ALDVisionDirector::Sample(bool bPublish)
             }
             else if(const auto* WorldSite=Cast<ALDWorldSite>(Actor)){Record.Kind=ELDObservedKind::WorldSite;Record.Presentation=WorldSite->Kind;}
             else if(const ALDCorpse* Corpse=Cast<ALDCorpse>(Actor)){Record.Presentation=Corpse->Presentation%4;Record.ActionCue=5;}
-            else if(const auto* F=Cast<ALDTacticalField>(Actor)){Record.Kind=F->Kind==ELDTacticalField::Decoy?ELDObservedKind::Body:ELDObservedKind::TacticalField;Record.Presentation=F->Kind==ELDTacticalField::Decoy&&F->Source.IsValid()?F->Source->PresentationKey%4:uint8(F->Kind);Record.ActionCue=F->EnvironmentPool?F->Conditions:F->Kind==ELDTacticalField::Telegraph?uint8(F->Radius/20):F->Kind==ELDTacticalField::Decoy&&Detects(PC,Position)?11:0;if(F->Kind==ELDTacticalField::Decoy){Record.Speed=F->PathIndex<F->TravelPath.Num()?420:0;Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}if(F->Kind==ELDTacticalField::Ember){Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}}
+            else if(const auto* F=Cast<ALDTacticalField>(Actor)){Record.Kind=F->Kind==ELDTacticalField::Decoy?ELDObservedKind::Body:ELDObservedKind::TacticalField;Record.Presentation=F->Kind==ELDTacticalField::Decoy&&F->Source.IsValid()?F->Source->PresentationKey%4:uint8(F->Kind);Record.ActionCue=F->EnvironmentPool?F->Conditions:F->Kind==ELDTacticalField::Telegraph?uint8(F->Radius/20):F->Kind==ELDTacticalField::Decoy&&Detects(PC,Position)?11:F->SuppressedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())?1:0;if(F->Kind==ELDTacticalField::Decoy){Record.Speed=F->PathIndex<F->TravelPath.Num()?420:0;Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}if(F->Kind==ELDTacticalField::Ember){Record.Facing=uint16(FRotator::ClampAxis(F->Direction.Rotation().Yaw)/360*65535);}}
             else if(Actor->IsA<ALDArcProjectile>()){Record.Kind=ELDObservedKind::Projectile;Record.Presentation=0;Record.ActionCue=6;}
             else if(Actor->IsA<ALDSeal>()){Record.Kind=ELDObservedKind::Seal;}
             else if(Actor->IsA<ALDBook>()){Record.Kind=ELDObservedKind::Book;}

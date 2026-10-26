@@ -46,7 +46,9 @@ bool ALDCombatDirector::AtomicSwap(AActor* A,AActor* B,ALDCharacter* Caster,int6
 ALDTacticalField* ALDCombatDirector::CreateField(ALDCharacter* Body,ELDTacticalField Kind,FVector Point,int64 At,int64 Duration,double Hp,double Radius,bool Item)
 {
     int32 Count=0,Total=0;ALDTacticalField* Oldest=nullptr;
-    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(uint8(It->Kind)<16&&It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
+    for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if((uint8(It->Kind)<16||It->Kind==ELDTacticalField::Conduit)&&It->Active(At)){++Total;if(It->Source.Get()==Body&&It->Kind==Kind&&It->ItemSource==Item){++Count;if(!Oldest||It->ExpiresAt<Oldest->ExpiresAt){Oldest=*It;}}}}
+    if(HasModifier(Body,TEXT("construct_durability"),At)&&Kind!=ELDTacticalField::Ember&&Kind!=ELDTacticalField::Smoke&&Kind!=ELDTacticalField::Decoy&&Kind!=ELDTacticalField::Telegraph&&Kind!=ELDTacticalField::Trail&&Kind!=ELDTacticalField::Footstep){Hp=FMath::FloorToDouble(Hp*1.15);}
+    if(HasModifier(Body,TEXT("field_repair"),At)&&(Kind==ELDTacticalField::Ward||Kind==ELDTacticalField::Conduit)){Duration=FMath::Min<int64>(Kind==ELDTacticalField::Ward?80000:10000,Duration+2000);}
     if(Total>=80){return nullptr;}auto* F=GetWorld()->SpawnActor<ALDTacticalField>(Point,FRotator::ZeroRotator);if(!F){return nullptr;}
     F->Source=Body;F->SourceLife=StateFor(Body)->Identity;F->PlayerSource=Cast<ALDPlayerController>(Body->GetController());F->bPlayerSource=F->PlayerSource.IsValid();F->Kind=Kind;F->ExpiresAt=At+Duration;F->Hp=Hp;F->Radius=Radius;F->ArmedAt=At;F->ItemSource=Item;
     const int32 Limit=Kind==ELDTacticalField::Ward||Kind==ELDTacticalField::Trap?2:1;
@@ -61,7 +63,7 @@ void ALDCombatDirector::DestroyField(ALDTacticalField* F,const TCHAR* Cause)
 }
 bool ALDCombatDirector::ProjectileIntercept(ALDArcProjectile* P,FVector From,FVector To,int64 At)
 {
-    TArray<ALDTacticalField*> Domes;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Kind==ELDTacticalField::Dome&&It->Active(At)&&It->Source!=P->Source){Domes.Add(*It);}}
+    TArray<ALDTacticalField*> Domes;for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Kind==ELDTacticalField::Dome&&It->Enabled(At)&&It->Source!=P->Source){Domes.Add(*It);}}
     Domes.Sort([](const auto& A,const auto& B){return A.Identity.ToString()<B.Identity.ToString();});
     for(auto* D:Domes){const FVector C=D->GetActorLocation();if(FVector::DistSquared2D(From,C)>FMath::Square(D->Radius)&&FMath::PointDistToSegment(C,From,To)<=D->Radius){P->Destroy();return true;}}
     auto* Victim=P->Victim.Get();auto* V=StateFor(Victim);

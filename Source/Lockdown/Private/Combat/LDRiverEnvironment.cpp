@@ -26,7 +26,7 @@ ALDCombatDirector::FRiverCommand ALDCombatDirector::EnvironmentCommand(ALDCharac
 {
     FRiverCommand Q;Q.Input=Input;const auto* S=StateFor(Body);const auto* B=BuildFor(Body);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Body?Cast<ALDPlayerController>(Body->GetController()):nullptr;
     Q.State.Owner=PC?M->ContenderId(PC):S?S->Identity:FGuid();Q.State.BudgetOwner=Q.State.Owner;Q.State.Life=S?S->Identity:FGuid();Q.State.Cast=FGuid::NewGuid();Q.State.Created=At;Q.State.Until=At+Duration;Q.State.Revision=++EnvironmentRevision;
-    if(B){Q.FrozenBonus=LDV08::TraitValue(*B,TEXT("frozen_ms"),0);Q.BurningBonus=LDV08::TraitValue(*B,TEXT("burning_ms"),0);Q.ElectricBonus=LDV08::TraitValue(*B,TEXT("electrified_ms"),0);}return Q;
+    if(HasModifier(Body,TEXT("frost_extent"),At)){Q.FrozenBonus+=1000;}if(HasModifier(Body,TEXT("reaction_duration"),At)){Q.ElectricBonus+=1000;Q.SteamBonus+=1000;}if(B){Q.FrozenBonus+=LDV08::TraitValue(*B,TEXT("frozen_ms"),0);Q.BurningBonus=LDV08::TraitValue(*B,TEXT("burning_ms"),0);Q.ElectricBonus+=LDV08::TraitValue(*B,TEXT("electrified_ms"),0);}return Q;
 }
 TArray<FIntPoint> ALDCombatDirector::EnvironmentMask(ALDCharacter* Body,FVector Aim,bool Disk,double Length,double Width,int32 Limit,bool Cone) const
 {
@@ -47,7 +47,7 @@ bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved)
 bool ALDCombatDirector::StageEnvironment(ALDCharacter* Body,FVector Aim,EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit,bool Cone)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M||!M->IsV08Profile()||!BuildFor(Body)){return false;}
-    auto Q=EnvironmentCommand(Body,Input,At,Duration);Q.Cells=EnvironmentMask(Body,Aim,Disk,Length,Width,Limit,Cone);return QueueEnvironment(MoveTemp(Q),At);
+    auto Q=EnvironmentCommand(Body,Input,At,Duration);Q.Cells=EnvironmentMask(Body,Aim,Disk,Length,Input==EInput::Frost&&HasModifier(Body,TEXT("frost_radius"),At)?Width*1.1:Width,Limit,Cone);return QueueEnvironment(MoveTemp(Q),At);
 }
 bool ALDCombatDirector::StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration)
 {return StageEnvironment(Body,Aim,Frozen?EInput::Frost:EInput::Water,Disk,Length,Width,At,Duration);}
@@ -111,10 +111,9 @@ void ALDCombatDirector::RefreshRiverContact(ALDCharacter* Body,int64 At,bool Bou
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);if(!M||!M->IsV08Profile()||!S||!Body){return;}auto& Last=RiverContacts.FindOrAdd(Body);if(At<Last.SampledAt){return;}
     const FVector Feet=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const auto* C=RiverCells.Find(LDRiver::Cell(Feet));FVector G;const bool Floor=LDGround::MapSurface(GetWorld(),Feet,G)&&FMath::Abs(Feet.Z-G.Z)<=12;
     const bool WaterContact=Floor&&((GetWorld()->GetMapName().Contains(TEXT("L_V08Region"))&&LDRiver::InRiver(Feet))||(C&&(C->Wet.Until>At||(C->Frozen.Until>At&&C->Frozen.WetSubstrate))));
-    auto* PC=Cast<ALDPlayerController>(Body->GetController());auto* O=PC?M->StateFor(PC):nullptr;const auto* Waders=O&&O->Inventory.Bindings.IsValidIndex(2)?O->Inventory.Find(O->Inventory.Bindings[2]):nullptr;const auto* Treads=O&&O->Inventory.Bindings.IsValidIndex(3)?O->Inventory.Find(O->Inventory.Bindings[3]):nullptr;
-    if(S->Hp>0&&((WaterContact&&(Boundary||!Last.Wet))||(!WaterContact&&Last.Wet&&S->Tactical.Has(LDTactical::EStatus::Wet,At)))){LDTactical::Apply(S->Tactical,LDTactical::EStatus::Wet,At+(Waders&&Waders->Kind==ELDItemKind::RiverWaders?1500:3000),FGuid());}
+    if(S->Hp>0&&((WaterContact&&(Boundary||!Last.Wet))||(!WaterContact&&Last.Wet&&S->Tactical.Has(LDTactical::EStatus::Wet,At)))){LDTactical::Apply(S->Tactical,LDTactical::EStatus::Wet,At+(HasModifier(Body,TEXT("river_wading"),At)?1500:3000),FGuid());}
     if(WaterContact){S->Tactical.Statuses.RemoveAll([](const auto& T){return T.Kind==LDTactical::EStatus::Burning;});BurningUnits.Remove(Body);}
-    S->Tactical.SurfaceSlow=S->Hp>0&&At>=LDTactical::Milliseconds(S->ProtectionUntil)&&Floor&&C&&!Body->IsA<ALDWildSentinel>()?(C->Frozen.Until>At?(Treads&&Treads->Kind==ELDItemKind::RiverTreads?15:30):C->Overgrown.Until>At?15:0):0;
+    S->Tactical.SurfaceSlow=S->Hp>0&&At>=LDTactical::Milliseconds(S->ProtectionUntil)&&Floor&&C&&!Body->IsA<ALDWildSentinel>()?(C->Frozen.Until>At?(HasModifier(Body,TEXT("ice_grip"),At)?15:30):C->Overgrown.Until>At?15:0):0;
     Last.Wet=WaterContact;Last.SampledAt=At;
 }
 void ALDCombatDirector::EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits)
@@ -124,7 +123,7 @@ void ALDCombatDirector::EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits)
     {
         auto* B=P.Key.Get();auto& S=P.Value;if(!B||S.Hp<=0||At<LDTactical::Milliseconds(S.ProtectionUntil)){continue;}const auto* C=RiverCells.Find(LDRiver::Cell(B->GetActorLocation()));
         FVector Ground;const FVector Feet=B->GetActorLocation()-FVector(0,0,B->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const bool Floor=LDGround::MapSurface(GetWorld(),Feet,Ground)&&FMath::Abs(Feet.Z-Ground.Z)<=12;
-        auto Add=[&](const FRecord& R,int32 Raw){FLDCombatHit H{nullptr,B,Raw/2.,LDTactical::EDamage::Magical,false,0,0,R.Life};H.Periodic=true;H.TargetLife=S.Identity;H.CreditOwner=R.Owner;Hits.Add(H);};
+        auto Add=[&](const FRecord& R,int32 Raw){FLDCombatHit H{nullptr,B,Raw/2.,LDTactical::EDamage::Magical,false,0,0,R.Life};H.Periodic=true;H.EnvironmentKind=Raw==18?2:Raw==12?3:1;H.TargetLife=S.Identity;H.CreditOwner=R.Owner;Hits.Add(H);};
         const auto* Unit=BurningUnits.Find(B);if(!S.Tactical.Has(LDTactical::EStatus::Burning,At)){BurningUnits.Remove(B);Unit=nullptr;}
         if(Floor&&C&&C->Burning.Until>At){Add(C->Burning,20);}else if(Unit&&Unit->Until>At){Add(*Unit,12);}
         if(Floor&&C&&C->Electrified.Until>At){Add(C->Electrified,18);}

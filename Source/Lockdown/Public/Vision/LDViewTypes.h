@@ -115,6 +115,7 @@ struct FLDOwnerState
     UPROPERTY() TArray<FIntPoint> LastSurfaceMask;
     UPROPERTY() int64 LastSurfaceAt=0;
     UPROPERTY() int64 DirectDamageUntil=0;
+    UPROPERTY() FLDItemFamilies ProcReady;
     UPROPERTY() int64 GateReadyAt=0;
     UPROPERTY() int64 KeysReadyAt=0;
     UPROPERTY() double ShrineReadyAt=0;

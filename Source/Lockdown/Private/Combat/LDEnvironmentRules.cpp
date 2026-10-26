@@ -23,7 +23,7 @@ bool LDEnvironment::Transition(FCell& C,const FCommand& Q,uint8 Base,int64 At)
     auto Put=[&](EState S,int32 Duration=0)
     {auto& R=C.Get(S);const int64 Old=R.Until;const uint32 Rev=FMath::Max(R.Revision+1,Q.State.Revision);R=Q.State;R.Created=At;R.Revision=Rev;
         int64 Span=Duration?Duration:FMath::Max<int64>(0,Q.State.Until-Q.State.Created);
-        if(S==EState::Frozen){Span+=Q.FrozenBonus;}if(S==EState::Burning){Span+=Q.BurningBonus;}if(S==EState::Electrified){Span+=Q.ElectricBonus;}
+        if(S==EState::Obscured&&Q.Input!=EInput::Smoke){Span+=Q.SteamBonus;}if(S==EState::Frozen){Span+=Q.FrozenBonus;}if(S==EState::Burning){Span+=Q.BurningBonus;}if(S==EState::Electrified){Span+=Q.ElectricBonus;}
         R.Until=FMath::Min(At+Cap(S),FMath::Max(Old,At+Span));R.Magnitude=S==EState::Burning?20:S==EState::Electrified?18:R.Magnitude;};
     switch(Q.Input)
     {
@@ -39,6 +39,9 @@ bool LDEnvironment::Transition(FCell& C,const FCommand& Q,uint8 Base,int64 At)
     case EInput::Wind:if(C.Obscured.Until<=At){return false;}C.Obscured={};return true;
     case EInput::Nature:if(!(Base&Soil)||Ice||C.Burning.Until>At){return false;}Put(EState::Overgrown);return true;
     case EInput::Shatter:if(!Ice){return false;}C.Frozen={};Put(EState::Wet,3000);return true;
+    case EInput::Thaw:if(!Ice){return false;}C.Frozen={};Put(EState::Wet,3000);Put(EState::Obscured,3000);return true;
+    case EInput::Steam:if(!Wet&&!Ice){return false;}if(Ice){C.Frozen={};Put(EState::Wet,3000);}Put(EState::Obscured,4000);return true;
+    case EInput::Purify:if(C.Burning.Until<=At&&C.Electrified.Until<=At){return false;}C.Burning={};C.Electrified={};return true;
     case EInput::Smoke:Put(EState::Obscured);return true;
     case EInput::Oil:if(Wet||Ice||C.Burning.Until>At){return false;}Put(EState::Oil);return true;
     default:return false;

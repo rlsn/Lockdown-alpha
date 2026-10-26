@@ -67,6 +67,7 @@
 #include "Tests/LDB81Probe.h"
 #include "Tests/LDB82Probe.h"
 #include "Tests/LDB83Probe.h"
+#include "Tests/LDB84Probe.h"
 #include "Tests/LDAcquisitionNetworkProbe.h"
 #include "Tests/LDEconomyUIProbe.h"
 
@@ -124,8 +125,8 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
     if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")&&Profile!=TEXT("v08_integration")){ErrorMessage=TEXT("Unknown rules profile");return;}
     bV08Profile=Profile==TEXT("v08_integration");bTacticalProfile=bV08Profile||Profile==TEXT("v07_integration");
-    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load(RulesVersion());FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/equipment_b83.json"):TEXT("Lockdown/Data/V07/equipment.json"))))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
-    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load(RulesVersion());if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/combat_b83.json"):TEXT("Lockdown/Data/V07/combat.json"))))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
+    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load(RulesVersion());FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/equipment_b84.json"):TEXT("Lockdown/Data/V07/equipment.json"))))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
+    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load(RulesVersion());if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/combat_b84.json"):TEXT("Lockdown/Data/V07/combat.json"))))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
     bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
     if (bDevelopmentProfile)
@@ -202,6 +203,7 @@ void ALDGameMode::StartPlay()
     if(bTacticalProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDWorldProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe")))){GetWorld()->SpawnActor<ALDWorldProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
     if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
+    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))){GetWorld()->SpawnActor<ALDB84Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))){GetWorld()->SpawnActor<ALDB83Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){GetWorld()->SpawnActor<ALDB82Probe>();}
     if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){GetWorld()->SpawnActor<ALDB81Probe>();}

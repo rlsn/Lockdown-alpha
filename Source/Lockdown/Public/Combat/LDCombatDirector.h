@@ -51,6 +51,11 @@ struct FLDBodyCombatState
     FGuid DaggerItem;
     int64 DaggerUntil=0,SalveNext=0,SalveEnd=0,SalveDamageAt=0,GateLock=0,LastFootstep=0;
     int32 SalveTicks=0;
+    int64 CoverSince=0,WatchAt=0;
+    FVector CoverAnchor=FVector::ZeroVector;
+    bool CoverConcealed=false;
+    FGuid WatchVictim;
+    TMap<FName,int64> ProcReady;
     FString ContentChannel;
     FVector ChannelDestination=FVector::ZeroVector;
     bool HadPositiveChannelDamage=false;
@@ -82,7 +87,7 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 };
 
-enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse, WetSurface, FrozenSurface, BurningSurface, ElectricSurface, SmokeSurface, GrowthSurface, OilSurface};
+enum class ELDTacticalField : uint8 {Smoke, Ward, Trap, Detector, Grounding, Marker, Decoy, Ember, Prison, Telegraph, Dome, Gate, Trail, Footstep, Scramble, GuardianPulse, WetSurface, FrozenSurface, BurningSurface, ElectricSurface, SmokeSurface, GrowthSurface, OilSurface, Conduit};
 UCLASS()
 class LOCKDOWN_API ALDTacticalField:public AActor
 {
@@ -111,6 +116,10 @@ public:
     double SkillCooldown=0;
     bool EnemyDestroyed=false,EnvironmentPool=false;
     uint8 Conditions=0;
+    int64 SuppressedUntil=0;
+    bool PersistentZone=false;
+    FGuid CreditOwner;
+    bool Enabled(int64 At) const {return Active(At)&&At>=SuppressedUntil;}
     TArray<FVector> TravelPath;
     int32 PathIndex=1;
     int64 LastUpdate=0;
@@ -137,6 +146,9 @@ struct FLDCombatHit
     bool DirectFire=false;
     int32 RootMS=0;
     bool WetLightningBonus=false;
+    double ExtraMagical=0;
+    int32 BarrierBonus=0,DisarmMS=0,SlowMagnitude=40;
+    uint8 EnvironmentKind=0;
 };
 
 UCLASS()
@@ -190,6 +202,13 @@ public:
     void QueueContent(ALDPlayerController* PC,const FLDTacticalRequest& Request);
     void ContentHold(ALDPlayerController* PC,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,bool Release=false);
     bool RequestContent(ALDCharacter* Body,const FLDTacticalRequest& Request,AActor* First,AActor* Second,FString& Why);
+    bool IsB84Skill(ELDSkill Skill) const;
+    bool ReleaseCatalog(ALDCharacter* Body,int64 At,TArray<FLDCombatHit>& Hits,FString& Why);
+    bool HasModifier(const ALDCharacter* Body,const TCHAR* Id,int64 At) const;
+    bool ClaimProc(ALDCharacter* Body,const TCHAR* Family,int64 At,int64 Cooldown);
+    void AugmentBasic(FLDCombatHit& Hit,int64 At);
+    double AuraArmor(ALDCharacter* Body,int64 At) const;
+    void SampleCatalog(int64 At);
     bool IsContentSkill(ELDSkill Skill) const;
     void SampleContent(int64 At,TArray<FLDCombatHit>& Hits);
     void CompleteContentChannels(int64 At);
@@ -223,6 +242,7 @@ public:
 private:
     friend class ALDB82Probe;
     friend class ALDB83Probe;
+    friend class ALDB84Probe;
     using FRiverState=LDEnvironment::FRecord;
     using FRiverCell=LDEnvironment::FCell;
     using FRiverCommand=LDEnvironment::FCommand;

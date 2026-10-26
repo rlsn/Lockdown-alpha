@@ -35,7 +35,7 @@ bool FLDRiverGeometryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("City and Heart have underlying water"),LDRiver::InRiver(FVector(-1600,-700,1))&&LDRiver::InRiver(FVector(-400,-400,1)));
     TestFalse(TEXT("Adjacent dry detour remains dry"),LDRiver::InRiver(FVector(-1600,-1400,1)));
     const auto* C=ULDTacticalCatalog::Load(8);if(!TestNotNull(TEXT("Current river catalog"),C)){return false;}
-    auto B=LDDevelopment::TacticalStart(5,C->Checksum,8);TestTrue(TEXT("Arcanist knows authored Frostline"),LDDevelopment::Rank(B,ELDSkill::Frostline)==1&&B.Ranks.Num()==54);
+    auto B=LDDevelopment::TacticalStart(5,C->Checksum,8);TestTrue(TEXT("Arcanist knows authored Frostline"),LDDevelopment::Rank(B,ELDSkill::Frostline)==1&&B.Ranks.Num()==62);
     TestTrue(TEXT("No substituted Firebolt identity"),uint8(ELDSkill::WaterJet)==40&&C->Find(ELDSkill(39))!=nullptr);
     TestTrue(TEXT("Both books reachable through active Guild catalog"),ALDVendorDirector::OfferedSkills(true,8).Contains(ELDSkill::Frostline)&&ALDVendorDirector::OfferedSkills(true,8).Contains(ELDSkill::WaterJet));
     TestEqual(TEXT("Field Practice adds once"),LDV08::TraitValue(B,TEXT("frozen_ms"),5000),6000);

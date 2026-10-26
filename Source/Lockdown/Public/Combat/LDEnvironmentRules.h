@@ -5,7 +5,7 @@ class ALDTacticalField;
 
 namespace LDEnvironment
 {
-    enum class EInput:uint8 { Water,Frost,Fire,Lightning,Wind,Nature,Shatter,Smoke,Oil };
+    enum class EInput:uint8 { Water,Frost,Fire,Lightning,Wind,Nature,Shatter,Smoke,Oil,Thaw,Steam,Purify };
     enum class EState:uint8 { Wet,Frozen,Burning,Electrified,Obscured,Overgrown,Oil,Count };
     enum ESubstrate:uint8 { Stone=0,Water=1,Soil=2,Flammable=4,Metal=8 };
     struct FRecord
@@ -33,7 +33,7 @@ namespace LDEnvironment
         TArray<FIntPoint> Cells;
         TMap<FIntPoint,FCell> Outcomes;
         TSet<FIntPoint> Shattered;
-        int32 FrozenBonus=0,BurningBonus=0,ElectricBonus=0;
+        int32 FrozenBonus=0,BurningBonus=0,ElectricBonus=0,SteamBonus=0;
         FGuid Reservation;
     };
     LOCKDOWN_API int32 Cap(EState State);

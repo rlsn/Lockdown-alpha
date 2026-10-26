@@ -57,7 +57,7 @@ void ALDB83Probe::Enter(int32 Next)
         if(Next==9){Place(Body(B.Get()),FVector(-1900,-300,0),false);}
     }
     if(Next==10){for(auto* PC:{A.Get(),B.Get()}){PC->Navigation->Stop();Place(Body(PC),LDRegion::Site(GetWorld(),1)+FVector(PC==A.Get()?20:90,0,0),false);auto* S=C->StateFor(Body(PC));S->LastDamage=S->LastDealt=GetWorld()->GetTimeSeconds()-20;S->ProtectionUntil=0;M->StateFor(PC)->ProtectedUntil=0;}
-        auto* O=M->StateFor(A.Get());O->Gold+=64;M->RecordEconomyGold(TEXT("CourierReward"),64);int32 N=0;for(auto Kind:{ELDItemKind::Book,ELDItemKind::OilFlask,ELDItemKind::GustVial,ELDItemKind::SmokeFlask}){M->Acquisition->Purchase(A.Get(),O->Match,O->Life,910000+N++,2,Kind,Kind==ELDItemKind::Book?ELDSkill::Firebolt:ELDSkill::None,O->Inventory.Revision,ULDAcquisitionCatalog::Load()->Checksum);}Check(O->Gold==0&&Item(*O,ELDItemKind::OilFlask)&&Item(*O,ELDItemKind::GustVial),TEXT("B83 paid Firebolt and field consumables debit authored prices"));}
+        auto* O=M->StateFor(A.Get());O->Gold+=64;M->RecordEconomyGold(TEXT("CourierReward"),64);int32 N=0;for(auto Kind:{ELDItemKind::Book,ELDItemKind::OilFlask,ELDItemKind::GustVial,ELDItemKind::SmokeFlask}){M->Acquisition->Purchase(A.Get(),O->Match,O->Life,910000+N++,2,Kind,Kind==ELDItemKind::Book?ELDSkill::Firebolt:ELDSkill::None,O->Inventory.Revision,ULDAcquisitionCatalog::Load(8)->Checksum);}Check(O->Gold==0&&Item(*O,ELDItemKind::OilFlask)&&Item(*O,ELDItemKind::GustVial),TEXT("B83 paid Firebolt and field consumables debit authored prices"));}
     if(Next==12){Place(Body(A.Get()),FVector(-1500,-1000,0),false);Place(Body(B.Get()),FVector(-1100,-1000,0),false);for(auto* PC:{A.Get(),B.Get()}){auto* S=C->StateFor(Body(PC));S->Tactical.Statuses.Reset();S->ProtectionUntil=0;S->Hp=LDDevelopment::MaxHP(M->StateFor(PC)->Build);M->StateFor(PC)->ProtectedUntil=0;}}
     if(Next==13){MP=C->StateFor(Body(A.Get()))->Tactical.MP;}
     M->SyncOwner(A.Get());M->SyncOwner(B.Get());A->ClientProbePhase(Next);B->ClientProbePhase(Next);
@@ -75,7 +75,7 @@ void ALDB83Probe::ServerTick()
         auto Grant=[&](ALDPlayerController* PC,ELDItemKind K){auto* I=GetWorld()->SpawnActor<ALDItem>();I->Kind=K;Check(M->Inventory->Adopt(PC,I,TEXT("DiagnosticItemCreation")),TEXT("Labelled fixture physical identity enters ledger"));};
         Grant(A.Get(),ELDItemKind::FrostPrism);Grant(A.Get(),ELDItemKind::WaterFlask);Grant(B.Get(),ELDItemKind::FrostCapsule);Grant(B.Get(),ELDItemKind::RiverWaders);Grant(B.Get(),ELDItemKind::RiverTreads);
         auto* O=M->StateFor(A.Get());O->Gold+=40;M->RecordEconomyGold(TEXT("CourierReward"),40);const auto Before=O->Inventory.Items.Num();
-        M->Acquisition->Purchase(A.Get(),O->Match,O->Life,900001,2,ELDItemKind::Book,ELDSkill::WaterJet,O->Inventory.Revision,ULDAcquisitionCatalog::Load()->Checksum);
+        M->Acquisition->Purchase(A.Get(),O->Match,O->Life,900001,2,ELDItemKind::Book,ELDSkill::WaterJet,O->Inventory.Revision,ULDAcquisitionCatalog::Load(8)->Checksum);
         Check(O->Gold==0&&O->Inventory.Items.Num()==Before+1,TEXT("Water Jet book costs real40g via native supply; wallet funding is diagnostic"));
         NPC=GetWorld()->SpawnActor<ALDResident>(FVector(-2100,-900,92),FRotator::ZeroRotator);NPC->SetActorTickEnabled(false);NPC->SpawnDefaultController();Check(C->RegisterNPCBuild(NPC.Get(),LDDevelopment::TacticalStart(5,M->TacticalCatalog->Checksum,8)),TEXT("Native AI owns the same paid MP/slot/cooldown build"));
         Enter(1);return;
@@ -132,7 +132,7 @@ void ALDB83Probe::ClientTick()
     }
     if(Sent&&(((Phase==1||Phase==10||Phase==11)&&Role==TEXT("A"))||Phase==2)&&Now-HoldAt>.1){HoldAt=Now;PC->ServerDevelopmentHold(O.Match,O.Life,Token,++Sequence,false);}
     if(!Checked&&E>2)
-    {Checked=true;Check(O.Build.RulesVersion==8&&O.Build.Ranks.Num()==54&&O.Build.Actions.Num()==6,TEXT("Independent owner receives extended sparse identities and six actions"));
+    {Checked=true;Check(O.Build.RulesVersion==8&&O.Build.Ranks.Num()==62&&O.Build.Actions.Num()==6,TEXT("Independent owner receives extended sparse identities and six actions"));
         if(Phase==1&&Role==TEXT("A")){UE_LOG(LogTemp,Display,TEXT("LD_B83_READ feedback=%s"),*PC->IntentFeedback);}
         if(const auto* V=PC->LocalView()){bool Safe=true;int32 Cells=0;for(const auto& Ent:V->LastView().Entities){if(Ent.Kind==ELDObservedKind::TacticalField&&Ent.Presentation>=16){++Cells;Safe&=Ent.Presentation<=22&&Ent.ActionCue<128;}}Check(Safe,TEXT("Authorized environment cues carry appearance/pose only; no owner/grid metadata"));if(Phase==4||Phase==8||Phase==9||Phase==12||Phase==13||Phase==14){Check(Cells>0,TEXT("Independent client receives authorized Wet/Frozen cell cues"));}}
     }
