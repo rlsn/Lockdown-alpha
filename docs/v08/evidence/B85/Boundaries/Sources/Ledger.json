@@ -1,0 +1,4525 @@
+{
+  "schemaVersion": 1,
+  "event": "B85Boundary",
+  "match": "78A2C43141F9366368D7F9A2662AFB7E",
+  "start": "450",
+  "minted": "642",
+  "burned": "40",
+  "end": "1052",
+  "accounts": [
+    {
+      "id": "Wallet:A615A7774E601D1C79949294DA1AE447",
+      "gold": "642",
+      "endowment": "0",
+      "retired": false,
+      "revision": 41
+    },
+    {
+      "id": "Bank:A615A7774E601D1C79949294DA1AE447",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "Wallet:7885688346C4DD26122A2DBD3F83FC83",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "Bank:7885688346C4DD26122A2DBD3F83FC83",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "WorldReward:A615A7774E601D1C79949294DA1AE447",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "WorldReward:7885688346C4DD26122A2DBD3F83FC83",
+      "gold": "0",
+      "endowment": "0",
+      "retired": false,
+      "revision": 1
+    },
+    {
+      "id": "WestTown",
+      "gold": "134",
+      "endowment": "150",
+      "retired": false,
+      "revision": 9
+    },
+    {
+      "id": "EastTown",
+      "gold": "126",
+      "endowment": "150",
+      "retired": false,
+      "revision": 9
+    },
+    {
+      "id": "City",
+      "gold": "150",
+      "endowment": "150",
+      "retired": false,
+      "revision": 1
+    }
+  ],
+  "items": [
+    {
+      "id": "C4A94DC548EAA111BD9B5F8AA6D7872B",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "BEC795814614B9B74CDD09A19922D3F0",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8295FBD145E6235C30D84A9F02E9FA2C",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "645C5FBA49F8D6CEB75C10BBCE101F6B",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "A5A6A11D4701D888EB8533BF86B9E3DF",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F34C41A7408355FF0AB4D095EB66EFFE",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "478BDBB44CD6A930824439AA960E24A8",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "CD832491489EA3BC2C295D991EE3FB15",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F3D2F8CA4E56815F46B427A7DE6C6520",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "1542B6454A8215014E99D88740CDD868",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "92C99CE34EB732107D6AF88B86872C71",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "5F234F484A054692BEB142B89D9A5A6E",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "80A245414CB4369438AA00A21B5536C1",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "03F5E8C8487EA418663270A68D722139",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "46CE495A49AED97B9EE1DE898425F9F8",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8ED89B50467D1A9E8D72539CC582B9CE",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9D373DCA47AB8AA858414D9840290B3C",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3D4FE6704A2613256A862DB057BA9D8C",
+      "kind": 3,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "408606F34E119B6703183C915020710F",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8A068A6B433EE2DECA1C93BF2106682C",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "C789E18347E12496EBC3DDB335B74835",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "71B12EF34303DBB4AB84959303D03F07",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "B39D0E734D09CC0087E77E85537E0579",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9C39ED8B4A29460A5AA1C889E53E29F9",
+      "kind": 4,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "CF9CC75A487BB50967D8399DE788AB41",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "57205FB445492399A7A0DC8C9AEC3177",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "D2609A2544CB0A87A39AEC9A0963A2FE",
+      "kind": 5,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "7E05CEAC4B5F9B461EB460A5C62BD946",
+      "kind": 6,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "C10AD86D4FC9849B1775E9A66C1C2F0F",
+      "kind": 6,
+      "location": "WestTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "A7C4C98048B7E9B2E94209837B83D06F",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "EA8B1FE741C9F7C68AA2AAB036631E3D",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "477EBC33466EBB33D3D9A98671FB93F2",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "927868974ADEBA8E3A0C8E989907B3B5",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "5647BABC441CF883B3DA278CE6214706",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3DCF67C44F024CBD1552D48BDE503E7A",
+      "kind": 3,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "7C3FD0764B7AB72CAC5A22AADA343ABF",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "4138B2F54595FB76F64A07B60F6D47AE",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "6C87F4854D8ADDE8D71B209E01E5C852",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "E81A4B344C599633D084D7880F26DBC3",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "73CEDCDC4A38F78284E1E5975C8E6541",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8C87EC004186534D2FEB9881C60EC7D8",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "27D9EA0448AA1E7C3CB7BABED8664386",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F4DBC62A4D385F0D2B06FE9FF1346497",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9AFDB8E145AC1157DE7B84AF866F57C9",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9E13858C4CAA4483B679658D57F6883C",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "97D7ADDE43940A5144A294AA52F46666",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "FE0B9F9840961F414D2995ABE8B1F92F",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "796176024885FDCD93276ABEC00DC2F5",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "1A5FABDB42B64DA36870079FD4985D9E",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "2B962B8C4CF960094B36F4AAC3861919",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "EEB6E9044B9F988805E774AB22307507",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F50388E440E6CCD00989DDB0D7BE410D",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "1E0497E44AF70A3A7BA47EAB4C71C592",
+      "kind": 4,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "093940074E9BC8B3BBFE839B1BC5C013",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "06A4D96F4A37C536AFADD3AD30FD4EB1",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "1BA7897B4CF1D029C624D7BE0FAA3B5C",
+      "kind": 5,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "DAD3E49349DB4A8CB9DD44A2724B5954",
+      "kind": 6,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "01C5C4674AC4409D42BC8A90ACF7F7EC",
+      "kind": 6,
+      "location": "EastTown",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "48509AD149208560074430AB5B9A8412",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "FC74D6BF49C745DA4BC79BA142DC62B3",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F695194F49BA0B79E2DEB8BF711AC9A9",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "A62077CC420A50F048F85691C455994D",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "1F69AA1140A904F102C30F82B9131C11",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "2DF6093D46D602DA5DA1F59A54A5971C",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3125BAB24D313D5743D1D3994F694463",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3E0AE45E414C3C134635EFA57D69ED76",
+      "kind": 3,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "E11D2CC14368F812A0F47296F6C8E197",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9494D99E4578CCCE609F7CA4359963FC",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "BF28D5A8411EFFC10317D68A98AB3C2B",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "D9F37FD641346DA856D060A9622BD030",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "67A5453244B2A8811593018FE6FC233E",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "7E7A5470452B89739F534090ECDEEAA6",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "944164A84F164B7DBB5DB3BB24AA71A6",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "583593F24FB7479643CAC3B2D39017D0",
+      "kind": 4,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "AE6FDFD54683D25638056484F4F97C0F",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "F8EFF8784C210E2F9B4AA798DFC2AE98",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "6909D69947C3E71426C5E68D374A305D",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "D8738D8D42EB4657826FD9B65F3FD54B",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "6B92012C4D0957DBF19965A27B23D7CB",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "49376B724703D23B0442E1860CEC24AE",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "858B5FF44158459D9F7CFA8218D267D9",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "134808B9443F7911BC7BEF8118D33254",
+      "kind": 5,
+      "location": "City",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "38730D5E4E4F0CC5B0EAD9BCEA19BF53",
+      "kind": 6,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "ED98B0294739EA8D6C011DB6EB7B571D",
+      "kind": 6,
+      "location": "None",
+      "origin": "0D7051254AEAE50AEFEECC83BF34141D",
+      "consumed": true,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "7895B924459539285D3E1E9FEF1A17B3",
+      "kind": 50,
+      "location": "B74Cache6",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8CC9053C4059E593B0D00F9A45FB22C4",
+      "kind": 48,
+      "location": "B74Cache6",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "6E38D4BD41AB8EC95AFEADB02F3B2537",
+      "kind": 0,
+      "location": "B74Cache6",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 34,
+      "parents": []
+    },
+    {
+      "id": "3D0640774F6D6A227DCC98BEDCC2C50C",
+      "kind": 51,
+      "location": "B74Cache7",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "E8F04E23454BB84CDB52BEBC1844017C",
+      "kind": 48,
+      "location": "B74Cache7",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8E2442CB48A6DD5259EAF59BD81227F4",
+      "kind": 0,
+      "location": "B74Cache7",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 36,
+      "parents": []
+    },
+    {
+      "id": "3ADC8964467084538EE231B2EF2FAFBF",
+      "kind": 52,
+      "location": "B74Cache8",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "B2FF0609497B801583882A8C58378B55",
+      "kind": 48,
+      "location": "B74Cache8",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "714DCCE243B114A95707F499489E7E08",
+      "kind": 0,
+      "location": "B74Cache8",
+      "origin": "77BEF5FC43F3693ECE465D86D19C4559",
+      "consumed": false,
+      "quality": 0,
+      "skill": 37,
+      "parents": []
+    },
+    {
+      "id": "E2CA910A4E5CC99548362BA6FEF56522",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000100000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "39583EDF4294499FEEB14C847DA808FC",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000100000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "30BE71B2438902422DADB2B29FABE26E",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000200000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "158A29934E7BFFE126F373B45A5032E1",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000200000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "A8A569CD49AD4F4EF7777191BC661D47",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000300000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "9C48AF7F4C4B2957C23FA599B840563C",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000300000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8B3E9FF643547B49A33C4485498A2D0C",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000400000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "7212026B4876BD97A4E8C8B259D8E4EA",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000400000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "895614CA4421745628E265A42CF1FB1B",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000500000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "266C53294EAB5914204EC18FD0CA67B5",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000500000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "78F8DD574C84B10A2AB47C8ABDEEDFFF",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000600000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "B3A4DA73403C6073CD704F822EB67245",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000600000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "FA14D06D450DB8C0C3B85A84C051394A",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000700000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3C71DCDC4C8840FFBD858282B7974399",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000700000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8ED7A057407770972E3354801D362BDE",
+      "kind": 3,
+      "location": "WestTown",
+      "origin": "EF08443B40808E520000000800000001",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "8210401F4135EA324DC88390A203B3B5",
+      "kind": 4,
+      "location": "EastTown",
+      "origin": "EF08443B40808E520000000800000002",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "735AB9664110B079563584910BA724FE",
+      "kind": 47,
+      "location": "World",
+      "origin": "5F4AAC0942D54B2598A391B887F3C7A1",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "53E817AA48E432BBBE1C009BBFD6BFF0",
+      "kind": 47,
+      "location": "World",
+      "origin": "9F096E034B1F77E7C818889652E24B00",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "430828464E4D42D723D41A9EE0553638",
+      "kind": 47,
+      "location": "World",
+      "origin": "5055256D45063D374243A28FBC9B5385",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "3F30CE1C44E9CABB396D109F6A68CD40",
+      "kind": 49,
+      "location": "World",
+      "origin": "381D55864F61DA9ED074A481151C90EE",
+      "consumed": false,
+      "quality": 0,
+      "skill": 0,
+      "parents": []
+    },
+    {
+      "id": "85D3D4BC4E56776529B97F8EDF198CA2",
+      "kind": 0,
+      "location": "World",
+      "origin": "381D55864F61DA9ED074A481151C90EE",
+      "consumed": false,
+      "quality": 0,
+      "skill": 35,
+      "parents": []
+    }
+  ],
+  "budgets": [
+    {
+      "id": "Courier:Wallet:A615A7774E601D1C79949294DA1AE447",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "Sentinel:Wallet:A615A7774E601D1C79949294DA1AE447",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "Core:Wallet:A615A7774E601D1C79949294DA1AE447",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Supply:Wallet:A615A7774E601D1C79949294DA1AE447",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "Courier:Wallet:7885688346C4DD26122A2DBD3F83FC83",
+      "initial": 8,
+      "remaining": 8
+    },
+    {
+      "id": "Sentinel:Wallet:7885688346C4DD26122A2DBD3F83FC83",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "Core:Wallet:7885688346C4DD26122A2DBD3F83FC83",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Supply:Wallet:7885688346C4DD26122A2DBD3F83FC83",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "CoreOrders",
+      "initial": 6,
+      "remaining": 6
+    },
+    {
+      "id": "SupplyOrders",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "ShortageOrder",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "B74Book10",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book11",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book12",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book13",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book14",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book15",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book16",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book17",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book18",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book19",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book20",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book21",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book22",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book23",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book24",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book25",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book26",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book27",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book28",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book29",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book30",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book31",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book32",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book33",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book34",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book35",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book36",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book37",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book38",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book39",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book40",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book41",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book42",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book43",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book44",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book45",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book46",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book47",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book48",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book49",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book50",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book51",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book52",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book53",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book54",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book55",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book56",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book57",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book58",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book59",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book60",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Book61",
+      "initial": 2,
+      "remaining": 2
+    },
+    {
+      "id": "B74Cache6",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "B74Cache7",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "B74Cache8",
+      "initial": 1,
+      "remaining": 1
+    },
+    {
+      "id": "B74Guardian",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B74Endowment",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Tower0",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.1",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.2",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.3",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.4",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.5",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.6",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.7",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.8",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.9",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.10",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.11",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp0.12",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Tower1",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.1",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.2",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.3",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.4",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.5",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.6",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.7",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.8",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.9",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.10",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.11",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp1.12",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Tower2",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.1",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.2",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.3",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.4",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.5",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.6",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.7",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.8",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.9",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.10",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.11",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76Camp2.12",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "B76GuardianDefeat",
+      "initial": 1,
+      "remaining": 0
+    },
+    {
+      "id": "ProducerWest",
+      "initial": 8,
+      "remaining": 0
+    },
+    {
+      "id": "ProducerEast",
+      "initial": 8,
+      "remaining": 0
+    },
+    {
+      "id": "Outcrop1",
+      "initial": 3,
+      "remaining": 3
+    },
+    {
+      "id": "Outcrop2",
+      "initial": 3,
+      "remaining": 3
+    }
+  ],
+  "receipts": [
+    {
+      "id": "0D7051254AEAE50AEFEECC83BF34141D",
+      "cause": "MarketStockEndowment",
+      "serial": "1",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "C4A94DC548EAA111BD9B5F8AA6D7872B",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "BEC795814614B9B74CDD09A19922D3F0",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "8295FBD145E6235C30D84A9F02E9FA2C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "645C5FBA49F8D6CEB75C10BBCE101F6B",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "A5A6A11D4701D888EB8533BF86B9E3DF",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "F34C41A7408355FF0AB4D095EB66EFFE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "478BDBB44CD6A930824439AA960E24A8",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "CD832491489EA3BC2C295D991EE3FB15",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "F3D2F8CA4E56815F46B427A7DE6C6520",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "1542B6454A8215014E99D88740CDD868",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "92C99CE34EB732107D6AF88B86872C71",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "5F234F484A054692BEB142B89D9A5A6E",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "80A245414CB4369438AA00A21B5536C1",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "03F5E8C8487EA418663270A68D722139",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "46CE495A49AED97B9EE1DE898425F9F8",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "8ED89B50467D1A9E8D72539CC582B9CE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "9D373DCA47AB8AA858414D9840290B3C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "3D4FE6704A2613256A862DB057BA9D8C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "408606F34E119B6703183C915020710F",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "8A068A6B433EE2DECA1C93BF2106682C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "C789E18347E12496EBC3DDB335B74835",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "71B12EF34303DBB4AB84959303D03F07",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "B39D0E734D09CC0087E77E85537E0579",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "9C39ED8B4A29460A5AA1C889E53E29F9",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "CF9CC75A487BB50967D8399DE788AB41",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "57205FB445492399A7A0DC8C9AEC3177",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "D2609A2544CB0A87A39AEC9A0963A2FE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "7E05CEAC4B5F9B461EB460A5C62BD946",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "C10AD86D4FC9849B1775E9A66C1C2F0F",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        },
+        {
+          "id": "A7C4C98048B7E9B2E94209837B83D06F",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "EA8B1FE741C9F7C68AA2AAB036631E3D",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "477EBC33466EBB33D3D9A98671FB93F2",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "927868974ADEBA8E3A0C8E989907B3B5",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "5647BABC441CF883B3DA278CE6214706",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "3DCF67C44F024CBD1552D48BDE503E7A",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "7C3FD0764B7AB72CAC5A22AADA343ABF",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "4138B2F54595FB76F64A07B60F6D47AE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "6C87F4854D8ADDE8D71B209E01E5C852",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "E81A4B344C599633D084D7880F26DBC3",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "73CEDCDC4A38F78284E1E5975C8E6541",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "8C87EC004186534D2FEB9881C60EC7D8",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "27D9EA0448AA1E7C3CB7BABED8664386",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "F4DBC62A4D385F0D2B06FE9FF1346497",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "9AFDB8E145AC1157DE7B84AF866F57C9",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "9E13858C4CAA4483B679658D57F6883C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "97D7ADDE43940A5144A294AA52F46666",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "FE0B9F9840961F414D2995ABE8B1F92F",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "796176024885FDCD93276ABEC00DC2F5",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "1A5FABDB42B64DA36870079FD4985D9E",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "2B962B8C4CF960094B36F4AAC3861919",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "EEB6E9044B9F988805E774AB22307507",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "F50388E440E6CCD00989DDB0D7BE410D",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "1E0497E44AF70A3A7BA47EAB4C71C592",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "093940074E9BC8B3BBFE839B1BC5C013",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "06A4D96F4A37C536AFADD3AD30FD4EB1",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "1BA7897B4CF1D029C624D7BE0FAA3B5C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "DAD3E49349DB4A8CB9DD44A2724B5954",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "01C5C4674AC4409D42BC8A90ACF7F7EC",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        },
+        {
+          "id": "48509AD149208560074430AB5B9A8412",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "FC74D6BF49C745DA4BC79BA142DC62B3",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "F695194F49BA0B79E2DEB8BF711AC9A9",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "A62077CC420A50F048F85691C455994D",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "1F69AA1140A904F102C30F82B9131C11",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "2DF6093D46D602DA5DA1F59A54A5971C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "3125BAB24D313D5743D1D3994F694463",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "3E0AE45E414C3C134635EFA57D69ED76",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "E11D2CC14368F812A0F47296F6C8E197",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "9494D99E4578CCCE609F7CA4359963FC",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "BF28D5A8411EFFC10317D68A98AB3C2B",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "D9F37FD641346DA856D060A9622BD030",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "67A5453244B2A8811593018FE6FC233E",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "7E7A5470452B89739F534090ECDEEAA6",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "944164A84F164B7DBB5DB3BB24AA71A6",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "583593F24FB7479643CAC3B2D39017D0",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "AE6FDFD54683D25638056484F4F97C0F",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "F8EFF8784C210E2F9B4AA798DFC2AE98",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "6909D69947C3E71426C5E68D374A305D",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "D8738D8D42EB4657826FD9B65F3FD54B",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "6B92012C4D0957DBF19965A27B23D7CB",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "49376B724703D23B0442E1860CEC24AE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "858B5FF44158459D9F7CFA8218D267D9",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "134808B9443F7911BC7BEF8118D33254",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 5,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "38730D5E4E4F0CC5B0EAD9BCEA19BF53",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        },
+        {
+          "id": "ED98B0294739EA8D6C011DB6EB7B571D",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 0,
+          "from": "None",
+          "to": "City",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "77BEF5FC43F3693ECE465D86D19C4559",
+      "cause": "B74CacheEndowment",
+      "serial": "2",
+      "mint": "0",
+      "burn": "0",
+      "budget": "B74Endowment",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "7895B924459539285D3E1E9FEF1A17B3",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 50,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache6",
+          "parents": []
+        },
+        {
+          "id": "8CC9053C4059E593B0D00F9A45FB22C4",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 48,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache6",
+          "parents": []
+        },
+        {
+          "id": "6E38D4BD41AB8EC95AFEADB02F3B2537",
+          "op": 0,
+          "quality": 0,
+          "skill": 34,
+          "kind": 0,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache6",
+          "parents": []
+        },
+        {
+          "id": "3D0640774F6D6A227DCC98BEDCC2C50C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 51,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache7",
+          "parents": []
+        },
+        {
+          "id": "E8F04E23454BB84CDB52BEBC1844017C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 48,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache7",
+          "parents": []
+        },
+        {
+          "id": "8E2442CB48A6DD5259EAF59BD81227F4",
+          "op": 0,
+          "quality": 0,
+          "skill": 36,
+          "kind": 0,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache7",
+          "parents": []
+        },
+        {
+          "id": "3ADC8964467084538EE231B2EF2FAFBF",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 52,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache8",
+          "parents": []
+        },
+        {
+          "id": "B2FF0609497B801583882A8C58378B55",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 48,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache8",
+          "parents": []
+        },
+        {
+          "id": "714DCCE243B114A95707F499489E7E08",
+          "op": 0,
+          "quality": 0,
+          "skill": 37,
+          "kind": 0,
+          "expected": 0,
+          "from": "None",
+          "to": "B74Cache8",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "090C71E84DCF68C4EBE7D8998CDAE5B8",
+      "cause": "CampDefeat",
+      "serial": "3",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.1",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 1
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "C491C6044D45E62027E9379B09D67595",
+      "cause": "CampDefeat",
+      "serial": "4",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.1",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 2
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "51B8FB9C436EE2891A803380425875B2",
+      "cause": "CampDefeat",
+      "serial": "5",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.1",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 3
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "3433A5564857BE83026C0D9DB20B374B",
+      "cause": "CampDefeat",
+      "serial": "6",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.2",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 4
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "1155DD4544F1A15E4DDF798DABE67143",
+      "cause": "CampDefeat",
+      "serial": "7",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.2",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 5
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "88E6977D4E1BE2FBDAD12DB3E3DA6A18",
+      "cause": "CampDefeat",
+      "serial": "8",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.2",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 6
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000100000001",
+      "cause": "InstitutionProduction",
+      "serial": "9",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 1
+        }
+      ],
+      "items": [
+        {
+          "id": "E2CA910A4E5CC99548362BA6FEF56522",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000100000002",
+      "cause": "InstitutionProduction",
+      "serial": "10",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 1
+        }
+      ],
+      "items": [
+        {
+          "id": "39583EDF4294499FEEB14C847DA808FC",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000100000003",
+      "cause": "InstitutionConsumption",
+      "serial": "11",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "03F5E8C8487EA418663270A68D722139",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000100000004",
+      "cause": "InstitutionConsumption",
+      "serial": "12",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "1A5FABDB42B64DA36870079FD4985D9E",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000100000005",
+      "cause": "InstitutionConsumption",
+      "serial": "13",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "38730D5E4E4F0CC5B0EAD9BCEA19BF53",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 1,
+          "from": "City",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "9601CEDC4581887FCE51CC92914C7790",
+      "cause": "CampDefeat",
+      "serial": "14",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.3",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 7
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "17FD5B25464E19FB95C1E2A1887F7DC0",
+      "cause": "CampDefeat",
+      "serial": "15",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.3",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 8
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "E544B666498D4D5EFBAECAA2203A10A3",
+      "cause": "CampDefeat",
+      "serial": "16",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.3",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 9
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000200000001",
+      "cause": "InstitutionProduction",
+      "serial": "17",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 2
+        }
+      ],
+      "items": [
+        {
+          "id": "30BE71B2438902422DADB2B29FABE26E",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000200000002",
+      "cause": "InstitutionProduction",
+      "serial": "18",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 2
+        }
+      ],
+      "items": [
+        {
+          "id": "158A29934E7BFFE126F373B45A5032E1",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000200000003",
+      "cause": "InstitutionConsumption",
+      "serial": "19",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "1542B6454A8215014E99D88740CDD868",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000200000004",
+      "cause": "InstitutionConsumption",
+      "serial": "20",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "1E0497E44AF70A3A7BA47EAB4C71C592",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000200000005",
+      "cause": "InstitutionConsumption",
+      "serial": "21",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "ED98B0294739EA8D6C011DB6EB7B571D",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 6,
+          "expected": 1,
+          "from": "City",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "04E5D89E45AE7B38711B22B13CF0F0FE",
+      "cause": "CampDefeat",
+      "serial": "22",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.4",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 10
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "97917928418B56BDC576FF9FA3070342",
+      "cause": "CampDefeat",
+      "serial": "23",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.4",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 11
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "701E55C94761F16A4FF5B681B3E72454",
+      "cause": "CampDefeat",
+      "serial": "24",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.4",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 12
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000300000001",
+      "cause": "InstitutionProduction",
+      "serial": "25",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 3
+        }
+      ],
+      "items": [
+        {
+          "id": "A8A569CD49AD4F4EF7777191BC661D47",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000300000002",
+      "cause": "InstitutionProduction",
+      "serial": "26",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 3
+        }
+      ],
+      "items": [
+        {
+          "id": "9C48AF7F4C4B2957C23FA599B840563C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000300000003",
+      "cause": "InstitutionConsumption",
+      "serial": "27",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "3D4FE6704A2613256A862DB057BA9D8C",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000300000004",
+      "cause": "InstitutionConsumption",
+      "serial": "28",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "27D9EA0448AA1E7C3CB7BABED8664386",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "F2B7D942414453D2505EC3905F2B02E1",
+      "cause": "CampDefeat",
+      "serial": "29",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.5",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 13
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "A48B5BED41ACF969E826AE949F62C015",
+      "cause": "CampDefeat",
+      "serial": "30",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.5",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 14
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "0F78A4FF4F8DAD946814B4909FDA07D1",
+      "cause": "CampDefeat",
+      "serial": "31",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.5",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 15
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000400000001",
+      "cause": "InstitutionProduction",
+      "serial": "32",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 4
+        }
+      ],
+      "items": [
+        {
+          "id": "8B3E9FF643547B49A33C4485498A2D0C",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000400000002",
+      "cause": "InstitutionProduction",
+      "serial": "33",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 4
+        }
+      ],
+      "items": [
+        {
+          "id": "7212026B4876BD97A4E8C8B259D8E4EA",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000400000003",
+      "cause": "InstitutionConsumption",
+      "serial": "34",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "46CE495A49AED97B9EE1DE898425F9F8",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000400000004",
+      "cause": "InstitutionConsumption",
+      "serial": "35",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "2B962B8C4CF960094B36F4AAC3861919",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "98E8016243697D6C44466AA609452998",
+      "cause": "CampDefeat",
+      "serial": "36",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.6",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 16
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "AEF3F90244466AD7FA2E9EAE4E011F27",
+      "cause": "CampDefeat",
+      "serial": "37",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.6",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 17
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "E4C474144A03EB82FE6E99B2153B0790",
+      "cause": "CampDefeat",
+      "serial": "38",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.6",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 18
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000500000001",
+      "cause": "InstitutionProduction",
+      "serial": "39",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 5
+        }
+      ],
+      "items": [
+        {
+          "id": "895614CA4421745628E265A42CF1FB1B",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000500000002",
+      "cause": "InstitutionProduction",
+      "serial": "40",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 5
+        }
+      ],
+      "items": [
+        {
+          "id": "266C53294EAB5914204EC18FD0CA67B5",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000500000003",
+      "cause": "InstitutionConsumption",
+      "serial": "41",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "478BDBB44CD6A930824439AA960E24A8",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000500000004",
+      "cause": "InstitutionConsumption",
+      "serial": "42",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "4138B2F54595FB76F64A07B60F6D47AE",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "DB1E52104A062C7A61926DA49E0EE25C",
+      "cause": "CampDefeat",
+      "serial": "43",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.7",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 19
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "F074379749F33FAD41571B8E40FD3255",
+      "cause": "CampDefeat",
+      "serial": "44",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.7",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 20
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "A2852A844814E4BB2BC8F488FCF44AE1",
+      "cause": "CampDefeat",
+      "serial": "45",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.7",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 21
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "6E3E79B6487F050AC08729A0CA87C590",
+      "cause": "CampDefeat",
+      "serial": "46",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.8",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 22
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "0A9D5CCF4304CD186B5A588988AF7748",
+      "cause": "CampDefeat",
+      "serial": "47",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.8",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 23
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "67C7EB86474BBDC536B219BC721AF982",
+      "cause": "CampDefeat",
+      "serial": "48",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.8",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 24
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000600000001",
+      "cause": "InstitutionProduction",
+      "serial": "49",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 6
+        }
+      ],
+      "items": [
+        {
+          "id": "78F8DD574C84B10A2AB47C8ABDEEDFFF",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000600000002",
+      "cause": "InstitutionProduction",
+      "serial": "50",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 6
+        }
+      ],
+      "items": [
+        {
+          "id": "B3A4DA73403C6073CD704F822EB67245",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000600000003",
+      "cause": "InstitutionConsumption",
+      "serial": "51",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "5F234F484A054692BEB142B89D9A5A6E",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000600000004",
+      "cause": "InstitutionConsumption",
+      "serial": "52",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "6C87F4854D8ADDE8D71B209E01E5C852",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EFEDA21E464D59A68907C0B83EE85686",
+      "cause": "CampDefeat",
+      "serial": "53",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.9",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 25
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "573B37734F2F47D8D59E619C33E13C04",
+      "cause": "CampDefeat",
+      "serial": "54",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.9",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 26
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "7629304848938343277902B424D8D9BC",
+      "cause": "CampDefeat",
+      "serial": "55",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.9",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 27
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000700000001",
+      "cause": "InstitutionProduction",
+      "serial": "56",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 7
+        }
+      ],
+      "items": [
+        {
+          "id": "FA14D06D450DB8C0C3B85A84C051394A",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000700000002",
+      "cause": "InstitutionProduction",
+      "serial": "57",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 7
+        }
+      ],
+      "items": [
+        {
+          "id": "3C71DCDC4C8840FFBD858282B7974399",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000700000003",
+      "cause": "InstitutionConsumption",
+      "serial": "58",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "645C5FBA49F8D6CEB75C10BBCE101F6B",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000700000004",
+      "cause": "InstitutionConsumption",
+      "serial": "59",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "73CEDCDC4A38F78284E1E5975C8E6541",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "F098F0204DD354CB53754D931B684265",
+      "cause": "CampDefeat",
+      "serial": "60",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.10",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 28
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "7913824048E8CD5FEB471EA313996FA2",
+      "cause": "CampDefeat",
+      "serial": "61",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.10",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 29
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "CB64B9EA43C0BDFF7507EA95069A1799",
+      "cause": "CampDefeat",
+      "serial": "62",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.10",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 30
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "EF08443B40808E520000000800000001",
+      "cause": "InstitutionProduction",
+      "serial": "63",
+      "mint": "0",
+      "burn": "2",
+      "budget": "ProducerWest",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "WestTown",
+          "delta": "-2",
+          "expected": 8
+        }
+      ],
+      "items": [
+        {
+          "id": "8ED7A057407770972E3354801D362BDE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 0,
+          "from": "None",
+          "to": "WestTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000800000002",
+      "cause": "InstitutionProduction",
+      "serial": "64",
+      "mint": "0",
+      "burn": "3",
+      "budget": "ProducerEast",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "EastTown",
+          "delta": "-3",
+          "expected": 8
+        }
+      ],
+      "items": [
+        {
+          "id": "8210401F4135EA324DC88390A203B3B5",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 0,
+          "from": "None",
+          "to": "EastTown",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000800000003",
+      "cause": "InstitutionConsumption",
+      "serial": "65",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "80A245414CB4369438AA00A21B5536C1",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 3,
+          "expected": 1,
+          "from": "WestTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "EF08443B40808E520000000800000004",
+      "cause": "InstitutionConsumption",
+      "serial": "66",
+      "mint": "0",
+      "burn": "0",
+      "budget": "None",
+      "units": 0,
+      "additionalBudgets": [],
+      "gold": [],
+      "items": [
+        {
+          "id": "796176024885FDCD93276ABEC00DC2F5",
+          "op": 2,
+          "quality": 0,
+          "skill": 0,
+          "kind": 4,
+          "expected": 1,
+          "from": "EastTown",
+          "to": "None",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "E5DB893444526DAF354D1FA5B9CAF470",
+      "cause": "CampDefeat",
+      "serial": "67",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.11",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 31
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "3FD26F2046782A0DAC9E8C825F081D70",
+      "cause": "CampDefeat",
+      "serial": "68",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.11",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 32
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "2AA2BDB3433188D8A1EBEB84792C34B0",
+      "cause": "CampDefeat",
+      "serial": "69",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.11",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 33
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "21B1ED144C37CB666826D3898BE27096",
+      "cause": "CampDefeat",
+      "serial": "70",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp0.12",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 34
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "DBFC6D024E3F6C99EA9527B7C3198EB1",
+      "cause": "CampDefeat",
+      "serial": "71",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp1.12",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 35
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "45012ECC4D4DD8A250461EA4D58AA656",
+      "cause": "CampDefeat",
+      "serial": "72",
+      "mint": "12",
+      "burn": "0",
+      "budget": "B76Camp2.12",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "12",
+          "expected": 36
+        }
+      ],
+      "items": []
+    },
+    {
+      "id": "5F4AAC0942D54B2598A391B887F3C7A1",
+      "cause": "GrandTowerDefeat",
+      "serial": "73",
+      "mint": "40",
+      "burn": "0",
+      "budget": "B76Tower0",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "40",
+          "expected": 37
+        }
+      ],
+      "items": [
+        {
+          "id": "735AB9664110B079563584910BA724FE",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 47,
+          "expected": 0,
+          "from": "None",
+          "to": "World",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "9F096E034B1F77E7C818889652E24B00",
+      "cause": "GrandTowerDefeat",
+      "serial": "74",
+      "mint": "40",
+      "burn": "0",
+      "budget": "B76Tower1",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "40",
+          "expected": 38
+        }
+      ],
+      "items": [
+        {
+          "id": "53E817AA48E432BBBE1C009BBFD6BFF0",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 47,
+          "expected": 0,
+          "from": "None",
+          "to": "World",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "5055256D45063D374243A28FBC9B5385",
+      "cause": "GrandTowerDefeat",
+      "serial": "75",
+      "mint": "40",
+      "burn": "0",
+      "budget": "B76Tower2",
+      "units": 1,
+      "additionalBudgets": [],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "40",
+          "expected": 39
+        }
+      ],
+      "items": [
+        {
+          "id": "430828464E4D42D723D41A9EE0553638",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 47,
+          "expected": 0,
+          "from": "None",
+          "to": "World",
+          "parents": []
+        }
+      ]
+    },
+    {
+      "id": "381D55864F61DA9ED074A481151C90EE",
+      "cause": "GuardianDefeat",
+      "serial": "76",
+      "mint": "90",
+      "burn": "0",
+      "budget": "B76GuardianDefeat",
+      "units": 1,
+      "additionalBudgets": [
+        {
+          "id": "B74Guardian",
+          "units": 1
+        }
+      ],
+      "gold": [
+        {
+          "account": "Wallet:A615A7774E601D1C79949294DA1AE447",
+          "delta": "90",
+          "expected": 40
+        }
+      ],
+      "items": [
+        {
+          "id": "3F30CE1C44E9CABB396D109F6A68CD40",
+          "op": 0,
+          "quality": 0,
+          "skill": 0,
+          "kind": 49,
+          "expected": 0,
+          "from": "None",
+          "to": "World",
+          "parents": []
+        },
+        {
+          "id": "85D3D4BC4E56776529B97F8EDF198CA2",
+          "op": 0,
+          "quality": 0,
+          "skill": 35,
+          "kind": 0,
+          "expected": 0,
+          "from": "None",
+          "to": "World",
+          "parents": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "Close": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Close",
+    "checks": 5,
+    "failures": 0
+  },
+  "Deadline": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Deadline",
+    "checks": 5,
+    "failures": 0
+  },
+  "TieA": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieA",
+    "checks": 6,
+    "failures": 0
+  },
+  "TieB": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieB",
+    "checks": 6,
+    "failures": 0
+  },
+  "Damage": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Damage",
+    "checks": 5,
+    "failures": 0
+  },
+  "Tags": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Tags",
+    "checks": 5,
+    "failures": 0
+  },
+  "Handoff": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Handoff",
+    "checks": 5,
+    "failures": 0
+  },
+  "Late": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Late",
+    "checks": 3,
+    "failures": 0
+  },
+  "Gap": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Gap",
+    "checks": 3,
+    "failures": 0
+  },
+  "Death": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Death",
+    "checks": 4,
+    "failures": 0
+  },
+  "Stun": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Stun",
+    "checks": 4,
+    "failures": 0
+  },
+  "Interrupt": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Interrupt",
+    "checks": 4,
+    "failures": 0
+  },
+  "Displacement": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Displacement",
+    "checks": 5,
+    "failures": 0
+  },
+  "Release": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Release",
+    "checks": 4,
+    "failures": 0
+  },
+  "Leases": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Leases",
+    "checks": 20,
+    "failures": 0
+  },
+  "Shrines": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Shrines",
+    "checks": 5,
+    "failures": 0
+  },
+  "Sources": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Sources",
+    "checks": 152,
+    "failures": 0
+  },
+  "SelfAction": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/SelfAction",
+    "checks": 23,
+    "failures": 0
+  },
+  "ActivationDeadline": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/ActivationDeadline",
+    "checks": 9,
+    "failures": 0
+  },
+  "NPC": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/NPC",
+    "checks": 14,
+    "failures": 0
+  }
+}

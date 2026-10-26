@@ -1,0 +1,262 @@
+{
+  "docs/v08/evidence/B85/Routes/Keys/Report.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Keys/Report.json",
+    "raw_sha256": "280cf6418db686e100dac3b590cdbcc32275e825b16e7c8ea368d26d0783079b"
+  },
+  "docs/v08/evidence/B85/Routes/Keys/Ledger.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Keys/Ledger.json",
+    "raw_sha256": "d7762b198c6e735c6af5d41aa281eb91398986e83db94aefcc85ad92e2ab9ae4"
+  },
+  "docs/v08/evidence/B85/Routes/Siege/Report.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Siege/Report.json",
+    "raw_sha256": "c0bcaf342d50e65e8d449b7616ed3b5798bf251813fb7e7ef24f7c9646c658ac"
+  },
+  "docs/v08/evidence/B85/Routes/Siege/Ledger.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Siege/Ledger.json",
+    "raw_sha256": "adbaa88775d5c429350667533c31cc45f27df3500dae7bb6ab03e1c47a070c72"
+  },
+  "docs/v08/evidence/B85/Routes/Artifact/Report.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Artifact/Report.json",
+    "raw_sha256": "02eb5428bb0bd0a03035678de17534f0bb6a76007dd9962e83e772ba6c5e0098"
+  },
+  "docs/v08/evidence/B85/Routes/Artifact/Ledger.json": {
+    "artifact": "Artifacts/20261026-162522-190-B85-World/Artifact/Ledger.json",
+    "raw_sha256": "f29482e7b3d753cc40e1d3dcc27aeab7b5e5fe23bf7d87bfa139f108c83f42a6"
+  },
+  "docs/v08/evidence/B85/Routes/Charter/Report.json": {
+    "artifact": "Artifacts/20261026-163343-780-B85-World/Charter/Report.json",
+    "raw_sha256": "4394181f067e0979a30f3f05904cfc8d4dd20a0487b537859eec3019d16bb5f3"
+  },
+  "docs/v08/evidence/B85/Routes/Charter/Ledger.json": {
+    "artifact": "Artifacts/20261026-163343-780-B85-World/Charter/Ledger.json",
+    "raw_sha256": "2a26bdab5f24a9ad9a219729e89b53ed1fccea221a327eb0f88bc67b70283b5f"
+  },
+  "docs/v08/evidence/B85/Boundaries/Close/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Close/Report.json",
+    "raw_sha256": "2980ac0f92bcc84c479f5912c820c0236b296210db43be7cb89a1d66546f93ca"
+  },
+  "docs/v08/evidence/B85/Boundaries/Close/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Close/Ledger.json",
+    "raw_sha256": "605aee324e2059bc4bd756dc3b7977e6059fea78dfc1beec5abf875908fc32f7"
+  },
+  "docs/v08/evidence/B85/Boundaries/Deadline/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Deadline/Report.json",
+    "raw_sha256": "e6e576acb1ff195222de32e80f9080aad1b6be39436dc8d06063ec19707f5f0d"
+  },
+  "docs/v08/evidence/B85/Boundaries/Deadline/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Deadline/Ledger.json",
+    "raw_sha256": "dd44a9fe35e8bf426211d23d425528b01594349a4adac392255ca413d95ae703"
+  },
+  "docs/v08/evidence/B85/Boundaries/TieA/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieA/Report.json",
+    "raw_sha256": "b4a766af93271a7832a2317fce582813cbaa1f42064b936f33a32ef2f83b5222"
+  },
+  "docs/v08/evidence/B85/Boundaries/TieA/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieA/Ledger.json",
+    "raw_sha256": "1397d969488a15c14cdd9e535c4bd06d5a34e04096ad7b400abf5f44f20c20af"
+  },
+  "docs/v08/evidence/B85/Boundaries/TieB/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieB/Report.json",
+    "raw_sha256": "8cd3209f7d66d077ab24a6e7383ffc9bd5127a64c4d2300c00654580ea10a571"
+  },
+  "docs/v08/evidence/B85/Boundaries/TieB/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/TieB/Ledger.json",
+    "raw_sha256": "9f07ba99fe126ce2c9a52eca6ec7b5ffcd3037711840223a49c42150bcdfc6e8"
+  },
+  "docs/v08/evidence/B85/Boundaries/Damage/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Damage/Report.json",
+    "raw_sha256": "a2ae3015cd5676ec0abde00990688a5e87d8884d9a1a8d588a06696f081e1d79"
+  },
+  "docs/v08/evidence/B85/Boundaries/Damage/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Damage/Ledger.json",
+    "raw_sha256": "34104c3211cd17489dbc5138731384b7c9b5f6e8757d621c9ed0dbadee61e574"
+  },
+  "docs/v08/evidence/B85/Boundaries/Tags/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Tags/Report.json",
+    "raw_sha256": "64a9110ef59fadf132f45913a92eb9db42d25ab0c9a399c697c525f79e844902"
+  },
+  "docs/v08/evidence/B85/Boundaries/Tags/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Tags/Ledger.json",
+    "raw_sha256": "e497c5ffb90a6451a579ebce75e78d16d028c1ca4c12974e1b36316c35bf803d"
+  },
+  "docs/v08/evidence/B85/Boundaries/Handoff/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Handoff/Report.json",
+    "raw_sha256": "b3ae854fe5f7b55ba5cadeac7b675724e12471a3aa25e394846f704321bc9b3b"
+  },
+  "docs/v08/evidence/B85/Boundaries/Handoff/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Handoff/Ledger.json",
+    "raw_sha256": "a27eb93087d656a0184d6361b9a2ec79689b4dd09b0173f1008f870eb3c73be3"
+  },
+  "docs/v08/evidence/B85/Boundaries/Late/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Late/Report.json",
+    "raw_sha256": "baf4ca273d7e827d79b85db2d5a2e6026ae5393d3eff9cd39bc43409824a5ba2"
+  },
+  "docs/v08/evidence/B85/Boundaries/Late/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Late/Ledger.json",
+    "raw_sha256": "b8e60a15b5cb3d8a8cc05e52e7d6fc0c8203d3f832faa3abb176b22e5f71e6f8"
+  },
+  "docs/v08/evidence/B85/Boundaries/Gap/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Gap/Report.json",
+    "raw_sha256": "4648a760e55e2a27f5bdf1bfa2042bb921a6b457769f98473035eca7898eabea"
+  },
+  "docs/v08/evidence/B85/Boundaries/Gap/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Gap/Ledger.json",
+    "raw_sha256": "0bb95112008613718df5c78717c734c8c81bfd26926cbf939e4011553027f0fa"
+  },
+  "docs/v08/evidence/B85/Boundaries/Death/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Death/Report.json",
+    "raw_sha256": "6aeae594118d4a9da0b139c07775eac6de5809730821217a1b52021a01b876cb"
+  },
+  "docs/v08/evidence/B85/Boundaries/Death/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Death/Ledger.json",
+    "raw_sha256": "d12047d2db1f9a8b66da4da5aa3db126401bb5859e18db3834ac2f0413a7988a"
+  },
+  "docs/v08/evidence/B85/Boundaries/Stun/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Stun/Report.json",
+    "raw_sha256": "637c278a12b90cc0b28b75d8764bef7f8b4831dbd2b446fd745b9ab80a04f188"
+  },
+  "docs/v08/evidence/B85/Boundaries/Stun/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Stun/Ledger.json",
+    "raw_sha256": "fcb162672dab4aff0132fb1f8d83f654c1c87d1452f6b9ee7b215f912c3d919c"
+  },
+  "docs/v08/evidence/B85/Boundaries/Interrupt/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Interrupt/Report.json",
+    "raw_sha256": "21a8a5a64cffb6e87fdbb17536a345851c57b8f95c6ab9f17c714c5521155a37"
+  },
+  "docs/v08/evidence/B85/Boundaries/Interrupt/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Interrupt/Ledger.json",
+    "raw_sha256": "c57785b086086cf2d0149e96519d75eba2a36121246cd87ca870df87bdf73acd"
+  },
+  "docs/v08/evidence/B85/Boundaries/Displacement/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Displacement/Report.json",
+    "raw_sha256": "9572b0fb3da11de7855fe67b5552515254cc6d41c8d0270c7bfee10bc5bee4fa"
+  },
+  "docs/v08/evidence/B85/Boundaries/Displacement/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Displacement/Ledger.json",
+    "raw_sha256": "77ceb381e5aeea032fc461944cd1045dc5fe8756e3a15cd4034fcb848d56d1e8"
+  },
+  "docs/v08/evidence/B85/Boundaries/Release/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Release/Report.json",
+    "raw_sha256": "59789f24afcc9971ec7f1b381ea78afa87cb4e587597ec248a6b377d4dd1712f"
+  },
+  "docs/v08/evidence/B85/Boundaries/Release/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Release/Ledger.json",
+    "raw_sha256": "ed9c095b15a08fd8462f4e0faad6f9253e268df23be02fa941036dd239801285"
+  },
+  "docs/v08/evidence/B85/Boundaries/Leases/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Leases/Report.json",
+    "raw_sha256": "d8060c13b665a5c0e3df8ae205ee1dcae30945a6effee6e0b06a989d6b6efff9"
+  },
+  "docs/v08/evidence/B85/Boundaries/Leases/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Leases/Ledger.json",
+    "raw_sha256": "14182628d40fb758ddee8e815cc1a50ae7c2ef895139edb7641461b763b0c1cd"
+  },
+  "docs/v08/evidence/B85/Boundaries/Shrines/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Shrines/Report.json",
+    "raw_sha256": "2e0cbe07040a991f09985a16bdde3d38274e7879eb4c3a7690487a6d83a51d88"
+  },
+  "docs/v08/evidence/B85/Boundaries/Shrines/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Shrines/Ledger.json",
+    "raw_sha256": "effffd8911f372fe2a6462bde35f35820df4cb5604324462ad2f84c675cf5588"
+  },
+  "docs/v08/evidence/B85/Boundaries/Sources/Report.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Sources/Report.json",
+    "raw_sha256": "cb2bc9925a7cdd03ca2fb70857271e785ffd145a8d6e418960ef860d491c6978"
+  },
+  "docs/v08/evidence/B85/Boundaries/Sources/Ledger.json": {
+    "artifact": "Artifacts/20261026-163513-039-B85-Boundaries/Sources/Ledger.json",
+    "raw_sha256": "a4175f0567fec8b7ce529470672784903e9a76a187a8eaaabacae60c220b71dd"
+  },
+  "docs/v08/evidence/B85/Boundaries/SelfAction/Report.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/SelfAction/Report.json",
+    "raw_sha256": "7afb6bac02005b09e22046e91b690def672c0031490f61502f98150d772438d8"
+  },
+  "docs/v08/evidence/B85/Boundaries/SelfAction/Ledger.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/SelfAction/Ledger.json",
+    "raw_sha256": "58d634f67e3c5744aa8e4146bb45030db3b02778174bb02415e0a47a09208e84"
+  },
+  "docs/v08/evidence/B85/Boundaries/ActivationDeadline/Report.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/ActivationDeadline/Report.json",
+    "raw_sha256": "07aee2340178739a94e800e89b6cb57eda40e40634964e033c5ffa02b304be5e"
+  },
+  "docs/v08/evidence/B85/Boundaries/ActivationDeadline/Ledger.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/ActivationDeadline/Ledger.json",
+    "raw_sha256": "670fbd6a28c2a65840b5bb548330beda104c45d1f9404463472dc39fe48515b8"
+  },
+  "docs/v08/evidence/B85/Boundaries/NPC/Report.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/NPC/Report.json",
+    "raw_sha256": "7a6addd84ac90abdc54d8e40e456d667ed2ab9ad88513b0aa5233a3b9abea523"
+  },
+  "docs/v08/evidence/B85/Boundaries/NPC/Ledger.json": {
+    "artifact": "Artifacts/20261026-164333-181-B85-Boundaries/NPC/Ledger.json",
+    "raw_sha256": "a549a81e9f9ccbd4f6ec0d5dcab80c833c03f7920afdf0afb7a253b085d9c89f"
+  },
+  "docs/v08/evidence/B85/Regressions/B84/Server.json": {
+    "artifact": "Artifacts/20261026-164528-363-B84-Fields-100-10/Server.json",
+    "raw_sha256": "226974dcb0abeff206073b7277b726ddf0226888777f219e2acde003e5cb8227"
+  },
+  "docs/v08/evidence/B85/Regressions/B84/A.json": {
+    "artifact": "Artifacts/20261026-164528-363-B84-Fields-100-10/A.json",
+    "raw_sha256": "ee1286c07608c31586ee3b4e05f459d86261240dc628a20bb05364ad175f6635"
+  },
+  "docs/v08/evidence/B85/Regressions/B84/B.json": {
+    "artifact": "Artifacts/20261026-164528-363-B84-Fields-100-10/B.json",
+    "raw_sha256": "b9c1a44770b0e1a4b2a7530d2c717b2ffd6e37faa48133e364c21739417ed556"
+  },
+  "docs/v08/evidence/B85/Regressions/B84/Ledger.json": {
+    "artifact": "Artifacts/20261026-164528-363-B84-Fields-100-10/Ledger.json",
+    "raw_sha256": "b3bc0ec15477e2050dac1ed33f7938348ffd66d821868b36bf42913e94f5548f"
+  },
+  "docs/v08/evidence/B85/Regressions/B83/Server.json": {
+    "artifact": "Artifacts/20261026-164711-273-B83-Fields-100-10/Server.json",
+    "raw_sha256": "3ff76c36c32a2fcfbf6b59a60036e02b25fa0740985fea2dc6ced614a75e10b2"
+  },
+  "docs/v08/evidence/B85/Regressions/B83/A.json": {
+    "artifact": "Artifacts/20261026-164711-273-B83-Fields-100-10/A.json",
+    "raw_sha256": "ecbbca648a6a99dfe54eac631de1fa924ef64bb0e2ecb9550d4d1d337ab037a9"
+  },
+  "docs/v08/evidence/B85/Regressions/B83/B.json": {
+    "artifact": "Artifacts/20261026-164711-273-B83-Fields-100-10/B.json",
+    "raw_sha256": "c6099d04a47e0e9bdb367f6f7fc13bf22c05fc38faceb19004db5e4c5499697c"
+  },
+  "docs/v08/evidence/B85/Regressions/B83/Ledger.json": {
+    "artifact": "Artifacts/20261026-164711-273-B83-Fields-100-10/Ledger.json",
+    "raw_sha256": "1027b8b706db013f535cf87aa47488aa4baf65b486f0ed295c908190a5f65188"
+  },
+  "docs/v08/evidence/B85/Regressions/B81/Server.json": {
+    "artifact": "Artifacts/20261026-164843-409-B81-SlotsTraits-100-10/Server.json",
+    "raw_sha256": "e515f1e089dc81cf622bcdeaf927f50c19dfe174b9ab3690fb05bd884e1b9eeb"
+  },
+  "docs/v08/evidence/B85/Regressions/B81/A.json": {
+    "artifact": "Artifacts/20261026-164843-409-B81-SlotsTraits-100-10/A.json",
+    "raw_sha256": "82278b03ac554df213c216acff5c24d9fc7da6c97d4f50aa779c15320e6cc07d"
+  },
+  "docs/v08/evidence/B85/Regressions/B81/B.json": {
+    "artifact": "Artifacts/20261026-164843-409-B81-SlotsTraits-100-10/B.json",
+    "raw_sha256": "bf0a0903653d9d779e37a9c38e75eff119d2827eab92910103b0daed90953a94"
+  },
+  "docs/v08/evidence/B85/Regressions/B81/Ledger.json": {
+    "artifact": "Artifacts/20261026-164843-409-B81-SlotsTraits-100-10/Ledger.json",
+    "raw_sha256": "5769d281855f5ef6681588e70c7d0be233709dd641b476d70e16cf49a7b43d86"
+  },
+  "docs/v08/evidence/B85/Rules.json": {
+    "artifact": "Artifacts/20261026-164433-990-Automation/Report/index.json",
+    "raw_sha256": "894ebd00ee70e83c7ac7326120a9c3ff5a7024696534527b9fa25b315f9925ac"
+  },
+  "docs/v08/evidence/B85/Regressions/v07Loadout/Server.json": {
+    "artifact": "Artifacts/20261026-164933-654-B73-Loadout-100-10/Server.json",
+    "raw_sha256": "2018c3fa9debf2a42349336db05c4bb9823939368cd2ebc02bb1a5b482ee8f61"
+  },
+  "docs/v08/evidence/B85/Regressions/v07Loadout/A.json": {
+    "artifact": "Artifacts/20261026-164933-654-B73-Loadout-100-10/A.json",
+    "raw_sha256": "5a1d9db3d538078b54708a54acf3cc4be81b80de35c8e935fdc097e6c79a199d"
+  },
+  "docs/v08/evidence/B85/Regressions/v07Loadout/B.json": {
+    "artifact": "Artifacts/20261026-164933-654-B73-Loadout-100-10/B.json",
+    "raw_sha256": "d4295a8d08d78a0817361ec7f4e67de2c350a2362b29ace147fe5da4570c801a"
+  },
+  "docs/v08/evidence/B85/Regressions/v07Loadout/Ledger.json": {
+    "artifact": "Artifacts/20261026-164933-654-B73-Loadout-100-10/Ledger.json",
+    "raw_sha256": "4d7237bb68cde940461719cc335091e833fe1a4296c4e1f457b848df1d2048fd"
+  }
+}

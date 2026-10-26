@@ -1,5 +1,6 @@
 #include "World/LDWorldDirector.h"
 #include "LDWorldContract.h"
+#include "Combat/LDTacticalCatalog.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDVisionDirector.h"
@@ -35,7 +36,15 @@ ALDWorldPawn::ALDWorldPawn(const FObjectInitializer& Initializer):Super(Initiali
 ALDWorldPawn* ALDWorldDirector::Spawn(uint8 K,uint8 Index,double At)
 {
     const auto D=WorldData()->GetObjectField(TEXT("world"))->GetObjectField(K==0?TEXT("camp"):K==1?TEXT("boss"):TEXT("tower"));const FString Name=K==0?FString::Printf(TEXT("Camp%c"),'A'+Index):K==1?TEXT("BossLair"):FString::Printf(TEXT("GrandTower%c"),'A'+Index);FVector Ground;if(!LDGround::MapSurface(GetWorld(),Position(Name),Ground)){return nullptr;}
-    auto* P=GetWorld()->SpawnActor<ALDWorldPawn>(Ground+FVector(0,0,92),FRotator::ZeroRotator);if(!P){return nullptr;}if(auto* AI=Cast<AAIController>(P->GetController())){AI->SetReplicates(false);}P->Kind=K;P->Index=Index;if(K==0){P->SpawnId=CampIds[Index][CampCursor[Index]];}P->Home=P->GetActorLocation();P->Maximum=D->GetNumberField(TEXT("hp"));P->Armor=D->GetNumberField(TEXT("armor"));P->MR=K==0?.15:D->GetNumberField(TEXT("magic_resist"));P->AttackDamage=D->GetNumberField(TEXT("attack_damage"));P->Interval=D->GetNumberField(TEXT("attack_interval_ms"))/1000.;P->NextAttack=At+P->Interval;P->NextPulse=K==1?At+10:0;P->GetCharacterMovement()->MaxWalkSpeed=260;auto* C=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get();C->StateFor(P)->Hp=P->Maximum;Pawns.Add(P);return P;
+    auto* P=GetWorld()->SpawnActor<ALDWorldPawn>(Ground+FVector(0,0,92),FRotator::ZeroRotator);if(!P){return nullptr;}if(auto* AI=Cast<AAIController>(P->GetController())){AI->SetReplicates(false);}P->Kind=K;P->Index=Index;if(K==0){P->SpawnId=CampIds[Index][CampCursor[Index]];}P->Home=P->GetActorLocation();P->Maximum=D->GetNumberField(TEXT("hp"));P->Armor=D->GetNumberField(TEXT("armor"));P->MR=K==0?.15:D->GetNumberField(TEXT("magic_resist"));P->AttackDamage=D->GetNumberField(TEXT("attack_damage"));P->Interval=D->GetNumberField(TEXT("attack_interval_ms"))/1000.;P->NextAttack=At+P->Interval;P->NextPulse=K==1?At+10:0;P->GetCharacterMovement()->MaxWalkSpeed=260;auto* C=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get();C->StateFor(P)->Hp=P->Maximum;
+    // Authored v08 camp combatants have a declared level-one spell kit, no inventory or wallet grant.
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(K==0&&M->IsV08Profile())
+    {
+        const auto B=LDDevelopment::TacticalStart(5,M->TacticalCatalog->Checksum,8);
+        if(C->RegisterNPCBuild(P,B)){C->StateFor(P)->Tactical.MP=LDTactical::MaxMP(B);}
+    }
+    Pawns.Add(P);return P;
 }
 void ALDWorldDirector::Initialize()
 {
@@ -57,7 +66,20 @@ void ALDWorldDirector::Prepare(double At,TArray<FLDCombatHit>& Hits)
         auto* P=Weak.Get();auto* S=C->StateFor(P);if(!P||!S||P->Paid){continue;}if(S->Hp<=0){if(Defeated(P,At)){C->EndContentLife(P);P->Destroy();}continue;}ALDCharacter* Target=nullptr;double Best=DBL_MAX;FGuid BestId;
         for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It){auto* PC=Cast<ALDPlayerController>(It->Get());auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* O=M->StateFor(PC);const auto* T=C->StateFor(B);if(M->bDrainingEvents&&P->Target.Get()!=B){continue;}if(!B||!O||!O->bActive||!T||T->Hp<=0||At<T->ProtectionUntil||At<O->ProtectedUntil||C->Concealed(B)){continue;}const double D=FVector::DistSquared2D(P->GetActorLocation(),B->GetActorLocation());const double Range=S->Tactical.Has(LDTactical::EStatus::Blind,LDTactical::Milliseconds(At))?200:P->Kind==2?650:1000;if(D>Range*Range||FVector::DistSquared2D(P->Home,B->GetActorLocation())>Range*Range||!M->Vision->Ray({P->GetActorLocation(),float(Range),M->Vision->LevelAt(P->GetActorLocation())},B->GetActorLocation())){continue;}if(D<Best||(D==Best&&T->Identity.ToString()<BestId.ToString())){Target=B;Best=D;BestId=T->Identity;}}
         if(!M->bDrainingEvents){P->Target=Target;}auto* AI=Cast<AAIController>(P->GetController());if(!Target||FVector::DistSquared2D(P->Home,P->GetActorLocation())>1000*1000){if(P->Kind!=2){S->Hp=P->Maximum;if(AI&&!M->bDrainingEvents){AI->MoveToLocation(P->Home,20);}}P->PulseAt=0;continue;}
-        P->SetFacing((Target->GetActorLocation()-P->GetActorLocation()).Rotation().Yaw);if(P->Kind!=2&&AI&&!M->bDrainingEvents){if(Best>200*200){AI->MoveToActor(Target,90);}else{AI->StopMovement();}}
+        P->SetFacing((Target->GetActorLocation()-P->GetActorLocation()).Rotation().Yaw);
+        // Decide only on a currently visible body and its public Wet cue. The ordinary
+        // request boundary rechecks range, gates, MP, Silence and absolute cooldown.
+        if(M->IsV08Profile()&&P->Kind==0&&!M->bDrainingEvents&&S->bHasNPCBuild&&!S->Action&&Best<=650*650&&!C->EnvironmentOccludes(P->GetActorLocation(),Target->GetActorLocation()))
+        {
+            const auto* Visible=C->StateFor(Target);
+            if(Visible&&Visible->Tactical.Has(LDTactical::EStatus::Wet,LDTactical::Milliseconds(At)))
+            {
+                FLDTacticalRequest R;R.Schema=8;R.WireVersion=4;R.Token=S->LastCoreToken+1;R.BuildRevision=S->NPCBuild.Revision;R.Slot=uint8(S->NPCBuild.Slots.Find(ELDSkill::Frostline));R.Point=Target->GetActorLocation();R.Direction=(FVector(R.Point)-P->GetActorLocation()).GetSafeNormal2D();FString Why;
+                C->RequestContent(P,R,nullptr,nullptr,Why);
+            }
+        }
+        if(S->Action&&P->Kind==0&&M->IsV08Profile()){if(AI&&!M->bDrainingEvents){AI->StopMovement();}continue;}
+        if(P->Kind!=2&&AI&&!M->bDrainingEvents){if(Best>200*200){AI->MoveToActor(Target,90);}else{AI->StopMovement();}}
         if(P->Kind==1&&P->PulseAt>0&&At>=P->PulseAt){for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It){auto* B=Cast<ALDCharacter>(It->Get()->GetPawn());const auto* T=C->StateFor(B);if(B&&T&&T->Hp>0&&At>=T->ProtectionUntil&&FVector::DistSquared2D(B->GetActorLocation(),P->PulsePoint)<=400*400&&LDGround::ClearSegment(GetWorld(),P->PulsePoint,B->GetActorLocation())){Hits.Add({P,B,120,LDTactical::EDamage::Magical,false});}}P->PulseAt=0;}
         if(P->Kind==1&&At>=P->NextPulse){P->PulsePoint=P->GetActorLocation();P->PulseAt=At+1.5;P->NextPulse=At+10;if(!C->CreateField(P,ELDTacticalField::GuardianPulse,P->PulsePoint,LDTactical::Milliseconds(At),1500,1,400)){P->PulseAt=0;}}
         if(!C->Allows(P,LDTactical::EAction::Attack)||At<P->NextAttack||Best>FMath::Square(P->Kind==2?650:220)){continue;}P->NextAttack=At+P->Interval;

@@ -1,0 +1,25 @@
+{
+  "failures": 0,
+  "route": "Boundary",
+  "schema": 8,
+  "catalogDigest": "eedd163486a7cfa147c93dbcdd4d582d288056232f14144e5f317c8f630f1d18",
+  "seconds": 24.359013397002126,
+  "checks": [
+    "PASS Boundary lane explicitly permits labelled fixture sources; normal route lane forbids them",
+    "PASS Elemental camp policy belongs to explicit schema8 profile",
+    "PASS Camp has valid declared six-slot Arcanist build",
+    "PASS Dry visible target does not trigger elemental response",
+    "PASS Labelled local Smoke fixture reserves bounded cells",
+    "PASS Visible field mask occludes Wet target before AI action or cost",
+    "PASS Live camp AI chooses ordinary Frostline for visible Wet body",
+    "PASS AI release pays real MP and cooldown",
+    "PASS AI direct Frost commits real victim-wide reaction endpoint",
+    "PASS Wet does not bypass AI cooldown",
+    "PASS Spell kit cannot introduce generic600HP regeneration into finite260HP camp",
+    "PASS Actual Silence blocks AI skill through normal request boundary",
+    "PASS NPC kit and choices mint no gold, items or rewards",
+    "PASS Boundary exact physical sources and gold ledger reconcile: Integration match started. Roster locked."
+  ],
+  "travel": [],
+  "scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

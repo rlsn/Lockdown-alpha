@@ -1,0 +1,15 @@
+{
+  "failures": 0,
+  "route": "Boundary",
+  "schema": 8,
+  "catalogDigest": "eedd163486a7cfa147c93dbcdd4d582d288056232f14144e5f317c8f630f1d18",
+  "seconds": 18.238352400565056,
+  "checks": [
+    "PASS Boundary lane explicitly permits labelled fixture sources; normal route lane forbids them",
+    "PASS Eligible full scheduled claim accepted",
+    "PASS Same-boundary death/disable/interrupt/displacement/release beats winner resolution",
+    "PASS Boundary exact physical sources and gold ledger reconcile: Integration match started. Roster locked."
+  ],
+  "travel": [],
+  "scope": "Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."
+}

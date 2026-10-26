@@ -1,0 +1,119 @@
+{
+  "failures": 0,
+  "route": "Keys",
+  "schema": 8,
+  "catalogDigest": "eedd163486a7cfa147c93dbcdd4d582d288056232f14144e5f317c8f630f1d18",
+  "seconds": 163.40000243484974,
+  "checks": [
+    "PASS Native roster begins with zero money and declared starter endowment only; diagnostic grants disabled",
+    "PASS Recognized normal route",
+    "PASS Wait 7.00s on native world clock",
+    "PASS Native traversal: Town before ruin discovery",
+    "PASS Native traversal: Town / ruin approach",
+    "PASS Wait 6.10s on native world clock",
+    "PASS Normal exact physical production / 4.0",
+    "PASS Normal exact physical production / 3.0",
+    "PASS Exact scarce cache item owned",
+    "PASS Native traversal: Town before ruin discovery",
+    "PASS Native traversal: Town / ruin approach",
+    "PASS Wait 6.10s on native world clock",
+    "PASS Normal exact physical production / 4.0",
+    "PASS Normal exact physical production / 3.0",
+    "PASS Exact scarce cache item owned",
+    "PASS Native traversal: Town before ruin discovery",
+    "PASS Native traversal: Town / ruin approach",
+    "PASS Wait 6.10s on native world clock",
+    "PASS Normal exact physical production / 4.0",
+    "PASS Normal exact physical production / 3.0",
+    "PASS Exact scarce cache item owned",
+    "PASS Native traversal: Ruin / forge to antechamber",
+    "PASS Wait 6.10s on native world clock",
+    "PASS Normal held context target10 /4.0s",
+    "PASS Public30s warning, owner60s lease and source retention/consume",
+    "PASS Native traversal: Antechamber / shrine to claim circle",
+    "PASS Owner warning elapsed through native time",
+    "PASS Native traversal: Level-one defender responds to public breach",
+    "PASS Observed starter Counterpulse accepted: Cast accepted: stationary windup; MP and cooldown commit at release",
+    "PASS Defender uses unchanged level-one kit, zero wallet and no equipment",
+    "PASS Interrupt pays live32MP and real cooldown",
+    "PASS Actual interrupt clears claim while earned key authorization survives",
+    "PASS Level-one paid Counterpulse interrupts live Heart; no damage, grants or progression setters",
+    "PASS Normal held context target3 /10.0s",
+    "PASS Single terminal winner and finite-source ledger reconcile"
+  ],
+  "travel": [
+    {
+      "name": "Native traversal: Town before ruin discovery",
+      "seconds": 6.850000102072954,
+      "straightCm": 2828.42712474619,
+      "from": "X=-800.000 Y=-1400.000 Z=92.150",
+      "to": "X=-3600.000 Y=-1000.000 Z=0.000",
+      "nativePathQueries": 2
+    },
+    {
+      "name": "Native traversal: Town / ruin approach",
+      "seconds": 5.050000075250864,
+      "straightCm": 2083.6142217680654,
+      "from": "X=-3568.917 Y=-1004.441 Z=92.150",
+      "to": "X=-3000.000 Y=1000.000 Z=0.000",
+      "nativePathQueries": 4
+    },
+    {
+      "name": "Native traversal: Town before ruin discovery",
+      "seconds": 16.800000250339508,
+      "straightCm": 6624.220249388794,
+      "from": "X=-3009.924 Y=965.036 Z=92.150",
+      "to": "X=3600.000 Y=1400.000 Z=0.000",
+      "nativePathQueries": 6
+    },
+    {
+      "name": "Native traversal: Town / ruin approach",
+      "seconds": 9.100000135600567,
+      "straightCm": 3683.536175444436,
+      "from": "X=3569.969 Y=1392.387 Z=92.150",
+      "to": "X=0.000 Y=2300.000 Z=0.000",
+      "nativePathQueries": 8
+    },
+    {
+      "name": "Native traversal: Town before ruin discovery",
+      "seconds": 9.150000136345625,
+      "straightCm": 3672.785297609957,
+      "from": "X=36.216 Y=2288.143 Z=92.150",
+      "to": "X=3600.000 Y=1400.000 Z=0.000",
+      "nativePathQueries": 10
+    },
+    {
+      "name": "Native traversal: Town / ruin approach",
+      "seconds": 3.7500000558793545,
+      "straightCm": 1526.9861547091932,
+      "from": "X=3564.753 Y=1418.711 Z=92.150",
+      "to": "X=3000.000 Y=0.000 Z=0.000",
+      "nativePathQueries": 12
+    },
+    {
+      "name": "Native traversal: Ruin / forge to antechamber",
+      "seconds": 7.850000116974115,
+      "straightCm": 3057.874323067571,
+      "from": "X=3011.701 Y=29.392 Z=92.150",
+      "to": "X=0.000 Y=-500.000 Z=0.000",
+      "nativePathQueries": 14
+    },
+    {
+      "name": "Native traversal: Antechamber / shrine to claim circle",
+      "seconds": 1.2500000186264515,
+      "straightCm": 487.0814126039447,
+      "from": "X=27.144 Y=-486.324 Z=92.150",
+      "to": "X=0.000 Y=0.000 Z=0.000",
+      "nativePathQueries": 16
+    },
+    {
+      "name": "Native traversal: Level-one defender responds to public breach",
+      "seconds": 3.6500000543892384,
+      "straightCm": 1494.021418855834,
+      "from": "X=-1200.000 Y=-700.000 Z=92.150",
+      "to": "X=0.000 Y=190.000 Z=0.000",
+      "nativePathQueries": 2
+    }
+  ],
+  "scope": "Two native local contenders, benchmark fixed delta20Hz. Normal native navigation/movement/AI/combat/services and elapsed quiet/protection/holds. No teleports, gold/XP/items/HP/gates/endpoints setters in this lane. Automated commands, not human/remote/package acceptance."
+}

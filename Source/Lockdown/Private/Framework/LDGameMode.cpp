@@ -136,7 +136,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
         Catalog=ULDCharacterCatalog::Load(); FString Error;
         if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bV08Profile?TEXT("v08_integration B81 development: six actions / four physical accessories; elemental content pending"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bV08Profile?TEXT("v08_integration B85 world: complete catalog / four earned Heart routes"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
 }
 
 FVector ALDGameMode::TakeSpawn()

@@ -1,4 +1,4 @@
-# Project Lockdown — v0.8 B84 catalog and acquisition
+# Project Lockdown — v0.8 B85 world integration
 
 Windows-first Unreal 5.8.4 project. The explicit v0.8 profile now exposes all
 52 catalog abilities, 80 items and 20 recipes, with native elemental/support
@@ -6,16 +6,18 @@ effects, equipment modifiers/procs and paid acquisition. Six mixed-source
 actions, eleven physical bindings and nine class starts remain in place.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B84 implementation and limits](docs/v08/B84_IMPLEMENTATION.md),
+[B85 implementation and evidence](docs/v08/B85_IMPLEMENTATION.md),
 [v0.8 B80–B86 build plan](docs/v08/11_IMPLEMENTATION_PLAN_AND_RELEASE_SCOPE.md)
 and [working ledger](docs/v08/FeatureLedger.csv). The enabled slice has
-52 abilities/80 items/20 recipes/all nine presets. B85 owns complete normal
-world-route demonstrations; B86 owns native usability and release acceptance.
+52 abilities/80 items/20 recipes/all nine presets. B85 demonstrates all four
+earned Heart routes, a level-one tactical interruption and complete ledger
+reconciliation. B86 owns native usability and release acceptance.
 
 ```powershell
 ./Scripts/OpenStandalone.ps1 -Profile v08_integration
 python -B Scripts/SyncB84Data.py --check
-./Scripts/RunB84Check.ps1 -RoundTripMs 100 -JitterMs 10
+./Scripts/RunWorldCheck.ps1 -Profile v08_integration
+./Scripts/RunWorldBoundaryCheck.ps1 -Profile v08_integration
 ```
 
 See the implementation report for current native validation and evidence.
@@ -24,7 +26,7 @@ remain pending. The separate `v07_integration` profile retains the
 [B76 runtime](docs/v07/B76_IMPLEMENTATION.md), including all four Heart routes.
 [B77 closeout](docs/v07/B77_CLOSEOUT.md) preserves scoped acceptance and named
 deferrals. The default frontend / `v06_regression` remain on V05.
-[B83](docs/v08/B83_IMPLEMENTATION.md), [B82](docs/v08/B82_IMPLEMENTATION.md), [B81](docs/v08/B81_IMPLEMENTATION.md) and
+[B84](docs/v08/B84_IMPLEMENTATION.md), [B83](docs/v08/B83_IMPLEMENTATION.md), [B82](docs/v08/B82_IMPLEMENTATION.md), [B81](docs/v08/B81_IMPLEMENTATION.md) and
 [B80](docs/v08/B80_BASELINE_REVIEW.md) preserve earlier checkpoints;
 [masterR7](docs/master/README.md) remains long-term context.
 

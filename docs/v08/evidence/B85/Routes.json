@@ -1,0 +1,91 @@
+{
+  "Keys": {
+    "checks": 35,
+    "seconds": 163.40000243484974,
+    "travel_legs": 9,
+    "receipts": 9,
+    "physical_identities": 93,
+    "minted": "0",
+    "burned": "0",
+    "final_gold": "450",
+    "causes": {
+      "MarketStockEndowment": 1,
+      "B74CacheEndowment": 1,
+      "RuinCacheOpen": 3,
+      "RuinCachePickup": 3,
+      "KeysActivation": 1
+    }
+  },
+  "Siege": {
+    "checks": 85,
+    "seconds": 816.8500121720135,
+    "travel_legs": 33,
+    "receipts": 36,
+    "physical_identities": 105,
+    "minted": "332",
+    "burned": "70",
+    "final_gold": "712",
+    "causes": {
+      "MarketStockEndowment": 1,
+      "B74CacheEndowment": 1,
+      "CourierReward": 8,
+      "InstitutionProduction": 8,
+      "InstitutionConsumption": 10,
+      "OfficialEquipmentSupply": 1,
+      "CampDefeat": 1,
+      "GrandTowerDefeat": 3,
+      "ShrineRecovery": 3
+    }
+  },
+  "Artifact": {
+    "checks": 141,
+    "seconds": 746.3000111207366,
+    "travel_legs": 52,
+    "receipts": 55,
+    "physical_identities": 123,
+    "minted": "290",
+    "burned": "174",
+    "final_gold": "566",
+    "causes": {
+      "MarketStockEndowment": 1,
+      "B74CacheEndowment": 1,
+      "CourierReward": 8,
+      "InstitutionProduction": 8,
+      "InstitutionConsumption": 10,
+      "OfficialEquipmentSupply": 1,
+      "OfficialMaterialPurchase": 12,
+      "CraftProduction": 6,
+      "MarketBuy": 2,
+      "RuinCacheOpen": 1,
+      "RuinCachePickup": 1,
+      "GuardianDefeat": 1,
+      "Pickup": 1,
+      "EquipmentAssembly": 1,
+      "HeartbreakerActivation": 1
+    }
+  },
+  "Charter": {
+    "checks": 125,
+    "seconds": 528.8500078804791,
+    "travel_legs": 47,
+    "receipts": 42,
+    "physical_identities": 114,
+    "minted": "330",
+    "burned": "188",
+    "final_gold": "592",
+    "causes": {
+      "MarketStockEndowment": 1,
+      "B74CacheEndowment": 1,
+      "CourierReward": 8,
+      "InstitutionProduction": 4,
+      "InstitutionConsumption": 6,
+      "OfficialMaterialPurchase": 12,
+      "CraftProduction": 5,
+      "SupplyProcurement": 1,
+      "MarketBuy": 1,
+      "CoreProcurement": 1,
+      "RegisteredCharterPurchase": 1,
+      "RegisteredCharterActivation": 1
+    }
+  }
+}

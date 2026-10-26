@@ -1,0 +1,149 @@
+{
+  "milestone": "B85",
+  "date": "2026-10-26",
+  "base_commit": "6b5eed8",
+  "scope": "World engineering checkpoint: four earned native routes, level-one Heart interruption, visible-cue camp AI and source/sink reconciliation. Full release acceptance remains open.",
+  "enabled": {
+    "abilities": 52,
+    "items": 80,
+    "recipes": 20,
+    "presets": 9,
+    "schema8_rank_count": 62,
+    "schema7_rank_count": 38
+  },
+  "engine": "UE5.8.4 CL58902052 / Win64 Development",
+  "toolchain": "MSVC14.44.35229 / SDK10.0.26100.0; two compiler workers under memory pressure",
+  "build": {
+    "result": "PASS",
+    "full_unity_artifact": "Artifacts/20261026-162319-359-BuildEditor-Unity",
+    "charter_only_fixture_fix_build": "Artifacts/20261026-163247-969-BuildEditor-Unity",
+    "final_artifact": "Artifacts/20261026-164149-208-BuildEditor-Unity",
+    "arguments": "LockdownEditor Win64 Development -WaitMutex -NoHotReloadFromIDE -Unattended -MaxParallelActions=2 -DisableAdaptiveUnity",
+    "note": "Adaptive unity disabled explicitly verifies probe helper collision fix. Later builds change only Charter/SelfAction fixture request envelopes; gameplay source is unchanged."
+  },
+  "routes": {
+    "commands": [
+      "./Scripts/RunWorldCheck.ps1 -Profile v08_integration -Route All -TimeoutSeconds 600",
+      "./Scripts/RunWorldCheck.ps1 -Profile v08_integration -Route Charter -TimeoutSeconds 600",
+      "python -B Scripts/CheckB85Evidence.py docs/v08/evidence/B85/Routes"
+    ],
+    "artifacts": [
+      "Artifacts/20261026-162522-190-B85-World",
+      "Artifacts/20261026-163343-780-B85-World"
+    ],
+    "checks": 386,
+    "failures": 0,
+    "details": "Routes.json",
+    "scope": "Two local native contenders; actual fixed20Hz benchmark time, navigation/movement, quiet/held services, finite encounters, paid sources and physical Heart claims. No route grants/teleports/progression or clock setters. Charter rerun after its draft envelope fix; other three unchanged branches retain successful reports."
+  },
+  "boundaries": {
+    "commands": [
+      "./Scripts/RunWorldBoundaryCheck.ps1 -Profile v08_integration -TimeoutSeconds 180",
+      "./Scripts/RunWorldBoundaryCheck.ps1 -Profile v08_integration -Cases SelfAction,ActivationDeadline,NPC -TimeoutSeconds 180"
+    ],
+    "artifacts": [
+      "Artifacts/20261026-163513-039-B85-Boundaries",
+      "Artifacts/20261026-164333-181-B85-Boundaries"
+    ],
+    "cases": 20,
+    "checks": 287,
+    "failures": 0,
+    "details": "Boundaries.json",
+    "scope": "Labelled placement, status, sources and clock fixtures. Real native authority, category immunities, finite budgets, exact Heart timing, camp decisions, death/return and physical endpoints. SelfAction rerun after fixture envelopes were updated; preceding17 independent cases unchanged."
+  },
+  "rules": {
+    "command": "./Scripts/RunTests.ps1",
+    "artifact": "Artifacts/20261026-164433-990-Automation",
+    "passed": 47,
+    "failed": 0
+  },
+  "region": {
+    "command": "./Scripts/BootstrapAssets.ps1 -Mode Validate",
+    "artifact": "Artifacts/20261026-164505-115-Bootstrap-Validate",
+    "result": "PASS",
+    "regional_topologies": 4,
+    "errors": 0,
+    "warnings": 6,
+    "warning_scope": "Existing generic CrowdFollowing/RecastNavMesh warnings during map loading; native regional signatures validated.",
+    "asset_changes": false
+  },
+  "network_regressions": {
+    "B84": {
+      "artifact": "Artifacts/20261026-164528-363-B84-Fields-100-10",
+      "checks": {
+        "Server": 536,
+        "A": 40,
+        "B": 40
+      },
+      "failures": 0,
+      "round_trip_ms": 100,
+      "jitter_ms": 10,
+      "scope": "Dedicated native editor server and two independent clients; labelled diagnostic setup, not earned journeys."
+    },
+    "B83": {
+      "artifact": "Artifacts/20261026-164711-273-B83-Fields-100-10",
+      "checks": {
+        "Server": 114,
+        "A": 40,
+        "B": 40
+      },
+      "failures": 0,
+      "round_trip_ms": 100,
+      "jitter_ms": 10,
+      "scope": "Dedicated native editor server and two independent clients; labelled diagnostic setup, not earned journeys."
+    },
+    "B81": {
+      "artifact": "Artifacts/20261026-164843-409-B81-SlotsTraits-100-10",
+      "checks": {
+        "Server": 28,
+        "A": 17,
+        "B": 16
+      },
+      "failures": 0,
+      "round_trip_ms": 100,
+      "jitter_ms": 10,
+      "scope": "Dedicated native editor server and two independent clients; labelled diagnostic setup, not earned journeys."
+    },
+    "v07Loadout": {
+      "artifact": "Artifacts/20261026-164933-654-B73-Loadout-100-10",
+      "checks": {
+        "Server": 46,
+        "A": 27,
+        "B": 26
+      },
+      "failures": 0,
+      "round_trip_ms": 100,
+      "jitter_ms": 10,
+      "scope": "Dedicated native editor server and two independent clients; labelled diagnostic setup, not earned journeys."
+    }
+  },
+  "independent_replay": {
+    "command": "python -B Scripts/CheckEconomyEvidence.py <each portable Ledger.json>",
+    "ledgers": 28,
+    "result": "PASS",
+    "evidence": "LedgerReplay.txt",
+    "scope": "Gold/account revisions, nonnegative finite budgets, every physical identity/location/revision, consumption and production parents. Additional route checker verifies actual catalog hash, no diagnostic receipts or starter inventories, retained keys, tower relics and consumed Heartbreaker lineage."
+  },
+  "static_checks": {
+    "SyncB84Data.py --check": "PASS52/80/20/18 modifiers; stable native reservations",
+    "TestV08Import.py": "PASS9 import boundary tests",
+    "docs/v08/tools/check_spec.py": "PASS1812 assertions /18 reference boundary tests; specification models only",
+    "feature_ledger": "All367 prior IDs retained; B85 added;368 rows"
+  },
+  "source_manifest_sha256": "647603500a9f964ab1588427bc108bfbd8de88f14426fb7436c9ed024521c4d0",
+  "source_manifest_files": 400,
+  "working_ledger_rows": 368,
+  "inputs": "Inputs.json",
+  "report_encoding": "Portable JSON normalized to UTF-8 where native FFileHelper emitted UTF-16. Values preserved; raw input SHA256 recorded. Raw successful full-unity/final build and bootstrap logs retained.",
+  "resolved_during_implementation": [
+    "Unity compilation exposed duplicate anonymous Body/Item helpers across B82-B84 probes; renamed per probe and verified with adaptive unity disabled.",
+    "Retained world harness needed v08 main-hand5, schema8/wire4/basic source/inventory revision, profile acquisition digest and full atomic stat draft. Failed harness attempts are not accepted evidence."
+  ],
+  "limits": [
+    "Per-definition independent-client/adverse combinations, proc transfer/death timing and prior-life/protection/hidden-chain combinations remain partial.",
+    "Rendered/native input and human feedback, cold packaged distribution, long sessions and full four-contender service/replication/frame performance remain B86; no new full performance claim.",
+    "Historical intermittent v07 held-preparation failure remains preserved/open; current46/27/26 pass does not establish its root cause.",
+    "All original specification/data/templates/provenance, historical payloads/evidence, Config and all recorded Content assets unchanged. E01-E48,V07-D01-D08,V06-D01-D08 mappings retained.",
+    "Default frontend/V05 and explicit v07 remain separate; no old-executable/live-match migration or new reconnect claim."
+  ]
+}

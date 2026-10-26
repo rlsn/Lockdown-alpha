@@ -97,7 +97,9 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
     {
         auto* Body=P.Key.Get();auto& S=P.Value;if(!Body||S.Hp<=0){continue;}
         S.Tactical.Statuses.RemoveAll([&](const auto& V){return V.Until<=At;});if(S.Tactical.BarrierUntil<=At){S.Tactical.Barrier=0;}
-        if(const auto* B=BuildFor(Body);B&&B->RulesVersion>=7){LDTactical::Regenerate(S.Hp,S.Tactical,LDDevelopment::MaxHP(*B),LDTactical::MaxMP(*B),At,200+B->Gear.MPRegen);}
+        if(const auto* B=BuildFor(Body);B&&B->RulesVersion>=7){// World bodies retain authored HP and leash-only recovery even with a spell kit.
+            double IgnoredHP=S.Hp;
+            LDTactical::Regenerate(Cast<ALDWorldPawn>(Body)?IgnoredHP:S.Hp,S.Tactical,LDDevelopment::MaxHP(*B),LDTactical::MaxMP(*B),At,200+B->Gear.MPRegen);}
         if(S.Action==9&&!(Cast<ALDTacticalField>(S.Target.Get())&&Cast<ALDTacticalField>(S.Target.Get())->Kind==ELDTacticalField::Decoy)&&!IsContentSkill(S.Skill)&&!(S.CoreItem.IsValid()&&S.ContentRequest.ActionKind==1)){Pending.Add(Body);}
     }
     Pending.Sort([&](const ALDCharacter& A,const ALDCharacter& B){const auto* X=StateFor(&A);const auto* Y=StateFor(&B);return X->CoreEndsAt!=Y->CoreEndsAt?X->CoreEndsAt<Y->CoreEndsAt:X->Order<Y->Order;});
