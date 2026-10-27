@@ -88,6 +88,7 @@ void ALDPlayerController::RebuildV05Mappings()
 }
 void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
+    if(EnvironmentUI()){return;}
     if(!IsLocalController()||(!Navigation->Enabled()&&!IsFrontend())){return;}
     if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
     if(Controls->Profile!=OwnerState.Build.RulesVersion&&!IsFrontend()){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);RebuildV05Mappings();}

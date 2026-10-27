@@ -20,6 +20,7 @@ class LOCKDOWN_API ALDPlayerController : public APlayerController
     GENERATED_BODY()
 public:
     ALDPlayerController();
+    virtual bool EnvironmentUI() const {return false;}
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;

@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "Region/LDMapDefinition.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -63,7 +64,9 @@ bool ULDNavigationComponent::Plan(const FVector& Surface,TArray<FVector>& Out,FV
     ON_SCOPE_EXIT {QueryMilliseconds+=(FPlatformTime::Seconds()-Started)*1000;};
     const auto* PC=Controller();const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-    if(!Body||!Nav||Surface.ContainsNaN()||!LDVision::InWorld(Surface,LDRegion::Definition(GetWorld())?LDRegion::Definition(GetWorld())->Grid:FLDVisionGrid())){return false;}
+    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    const bool InWorld=Public&&Public->bEnvironmentProfile?ULDMapDefinition::InBounds(Surface):LDVision::InWorld(Surface,LDRegion::Definition(GetWorld())?LDRegion::Definition(GetWorld())->Grid:FLDVisionGrid());
+    if(!Body||!Nav||Surface.ContainsNaN()||!InWorld){return false;}
     FHitResult Hit;
     if(!GetWorld()->LineTraceSingleByChannel(Hit,Surface+FVector(0,0,25),Surface-FVector(0,0,50),ECC_GameTraceChannel1)
         ||Hit.ImpactNormal.Z<FMath::Cos(FMath::DegreesToRadians(40.))||FMath::Abs(Hit.ImpactPoint.Z-Surface.Z)>50){return false;}
@@ -313,7 +316,9 @@ void ULDNavigationComponent::TickCamera(float Delta)
     }
     if(bFollowCamera||bRecenterHeld){CameraCentre=B->GetActorLocation();}
     const auto Grid=LDRegion::Definition(GetWorld())?LDRegion::Definition(GetWorld())->Grid:FLDVisionGrid();
-    CameraCentre.X=FMath::Clamp(CameraCentre.X,double(Grid.Min.X),double(Grid.Min.X+60*Grid.CellSize));
-    CameraCentre.Y=FMath::Clamp(CameraCentre.Y,double(Grid.Min.Y),double(Grid.Min.Y+40*Grid.CellSize));
+    if(const auto* Public=GetWorld()->GetGameState<ALDGameState>();Public&&Public->bEnvironmentProfile)
+    {CameraCentre.X=FMath::Clamp(CameraCentre.X,-118000.,118000.);CameraCentre.Y=FMath::Clamp(CameraCentre.Y,-118000.,118000.);}
+    else {CameraCentre.X=FMath::Clamp(CameraCentre.X,double(Grid.Min.X),double(Grid.Min.X+60*Grid.CellSize));
+    CameraCentre.Y=FMath::Clamp(CameraCentre.Y,double(Grid.Min.Y),double(Grid.Min.Y+40*Grid.CellSize));}
     B->CameraArm->SetWorldLocation(CameraCentre);
 }

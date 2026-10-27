@@ -62,7 +62,7 @@ namespace
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
 bool ALDPlayerController::CanWorldCommand() const
-{const auto* G=GetWorld()->GetGameState<ALDGameState>();return !bControlsSuppressed&&!bFreshInputRequired&&OwnerState.bActive&&GetPawn()&&G&&G->bMatchStarted&&!G->EndReason;}
+{const auto* G=GetWorld()->GetGameState<ALDGameState>();return !bControlsSuppressed&&(!bFreshInputRequired||EnvironmentUI())&&OwnerState.bActive&&GetPawn()&&G&&G->bMatchStarted&&!G->EndReason;}
 
 bool ALDPlayerController::IsFrontend() const { return GetWorld()->GetMapName().Contains(TEXT("L_Frontend")); }
 
@@ -92,6 +92,7 @@ void ALDPlayerController::BeginPlay()
 }
 void ALDPlayerController::InitializeLocalUI()
 {
+    if(EnvironmentUI()){return;}
     if (!IsLocalController()||!GetLocalPlayer()||RootUI) { return; }
     Controls=ULDControlSettings::Load();
     bShowMouseCursor = true;

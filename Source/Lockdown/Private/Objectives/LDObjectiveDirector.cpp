@@ -60,6 +60,7 @@ double ALDObjectiveDirector::Deadline() const{return GetWorld()->GetGameState<AL
 bool ALDObjectiveDirector::Eligible(ALDPlayerController* PC,double Now) const
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(Mode->IsEnvironmentProfile()){return false;}
     const auto* O=Mode->StateFor(PC);const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
     return Mode->IsPlaying()&&O&&O->bActive&&Body&&Combat&&Combat->Hp>0&&Mode->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=Combat->ProtectionUntil&&Now>=O->ProtectedUntil;
@@ -260,6 +261,7 @@ void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionS
 }
 void ALDObjectiveDirector::Sample(double Now)
 {
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()){return;}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!Mode->IsPlaying()){return;}
     // Independent private RNG, so simultaneous recovery has no transport-order or role preference.
     for(int32 I=Requests.Num()-1;I>0;--I){Requests.Swap(I,Transactions.RandRange(0,I));}

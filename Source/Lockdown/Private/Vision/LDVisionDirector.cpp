@@ -1,4 +1,6 @@
 #include "Vision/LDVisionDirector.h"
+#include "World/LDEnvironmentDirector.h"
+#include "Region/LDMapDefinition.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
@@ -57,9 +59,11 @@ uint8 ALDVisionDirector::LevelAt(const FVector& P) const
 }
 FLDVisionGrid ALDVisionDirector::Grid() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Grid:FLDVisionGrid();}
 FVector ALDVisionDirector::PublicLocation() const{const auto* D=LDRegion::Definition(GetWorld());return D?D->Tower:PublicPosition();}
-void ALDVisionDirector::RefreshEnvironment(){Sample(true);}
+void ALDVisionDirector::RefreshEnvironment(){if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()){if(auto* E=ALDEnvironmentDirector::Get(GetWorld())){E->Publish();}return;}Sample(true);}
 bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target,bool SurfaceCue) const
 {
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsEnvironmentProfile())
+    {const auto* E=ALDEnvironmentDirector::Get(GetWorld());return E&&E->Ray(Source.Position,Target,nullptr,Source.Radius);}
     if (!LDVision::InWorld(Target,Grid()) || FVector::DistSquared2D(Source.Position,Target) > FMath::Square(Source.Radius)) { return false; }
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsV08Profile()){if(Mode->Combat&&Mode->Combat->EnvironmentOccludes(Source.Position,Target,SurfaceCue)){return false;}}
@@ -84,6 +88,13 @@ bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target,
 TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) const
 {
     TArray<FLDSightSource> Sources;
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsEnvironmentProfile())
+    {
+        if(PC&&PC->OwnerState.bActive)
+        {if(const auto* B=Cast<ALDCharacter>(PC->GetPawn()))
+         {const auto* S=M->Combat?M->Combat->StateFor(B):nullptr;Sources.Add({B->GetActorLocation(),S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):1800,0});}}
+        return Sources;
+    }
     if (bPublicSensor && !GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime) { Sources.Add({PublicLocation(),600,1}); }
     if(const auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime.Get()){Sources.Append(W->TowerSight());}
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const double Now=Mode->RuleTime();
@@ -105,6 +116,8 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
 }
 bool ALDVisionDirector::CanSee(ALDPlayerController* PC, const FVector& Point) const
 {
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsEnvironmentProfile())
+    {return SourcesFor(PC).ContainsByPredicate([&](const auto& S){return Ray(S,Point);});}
     const int32 Cell=LDVision::Cell(Point,Grid());
     if (Cell==INDEX_NONE) { return false; }
     const auto Sources=SourcesFor(PC);
@@ -121,6 +134,8 @@ bool ALDVisionDirector::Detects(ALDPlayerController* PC,const FVector& Point) co
 }
 bool ALDVisionDirector::CanObserve(ALDPlayerController* PC,AActor* Actor) const
 {
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsEnvironmentProfile())
+    {const auto* E=ALDEnvironmentDirector::Get(GetWorld());return E&&E->Visible(PC,Actor);}
     if(!IsValid(Actor)){return false;}
     if(const auto* F=Cast<ALDTacticalField>(Actor);F&&F->Active(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))
     {if(F->Kind==ELDTacticalField::Trail){return PC&&F->Audience.Get()==PC->GetPawn();}if(F->Kind==ELDTacticalField::Footstep){const APawn* B=PC?PC->GetPawn():nullptr;return B&&B!=F->Source.Get()&&Ray({B->GetActorLocation(),float(F->Radius),LevelAt(B->GetActorLocation())},F->GetActorLocation());}}
@@ -134,6 +149,7 @@ bool ALDVisionDirector::CanObserve(ALDPlayerController* PC,AActor* Actor) const
 }
 void ALDVisionDirector::Register(ALDPlayerController* PC)
 {
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()){return;}
     if (!PC || Observers.Contains(PC)) { return; }
     FActorSpawnParameters Params; Params.Owner=PC;
     FObserver Observer;
@@ -153,6 +169,8 @@ const FLDWorldView* ALDVisionDirector::AuthorityViewFor(ALDPlayerController* PC)
 { const FObserver* Observer=Observers.Find(PC); return Observer ? &Observer->Pending : nullptr; }
 AActor* ALDVisionDirector::ResolveObserved(ALDPlayerController* PC,const FGuid& Id) const
 {
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile())
+    {const auto* E=ALDEnvironmentDirector::Get(GetWorld());return E?E->Resolve(PC,Id):nullptr;}
     const FObserver* Observer=Observers.Find(PC);
     if (!Observer || !Observer->Visible.Contains(Id)) { return nullptr; }
     for (const auto& Pair : Observer->Ids)
@@ -197,6 +215,7 @@ bool ALDVisionDirector::PlaceWard(ALDPlayerController* PC, const FVector& Desire
 void ALDVisionDirector::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()){return;}
     const double Now=GetWorld()->GetTimeSeconds();
     const double RuleNow=GetWorld()->GetAuthGameMode<ALDGameMode>()->RuleTime();
     for (int32 Index=Wards.Num()-1;Index>=0;--Index)

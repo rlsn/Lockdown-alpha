@@ -46,6 +46,7 @@ public:
     UPROPERTY(Replicated) uint8 SealNoticeDistrict = 0;
     UPROPERTY(Replicated) bool bDevelopmentProfile = false;
     UPROPERTY(Replicated) bool bUIControlProfile = false;
+    UPROPERTY(Replicated) bool bEnvironmentProfile = false;
     UPROPERTY(Replicated) bool bMatchStarted = true;
     UPROPERTY(Replicated) float EconomyNextTick=0;
     UPROPERTY(Replicated) uint8 ShortagePhase=0;
@@ -104,6 +105,7 @@ public:
     bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
     bool IsTacticalProfile() const {return bTacticalProfile;}
     bool IsV08Profile() const {return bV08Profile;}
+    bool IsEnvironmentProfile() const {return bEnvironmentProfile;}
     uint8 RulesVersion() const {return bV08Profile?8:bTacticalProfile?7:6;}
     UPROPERTY() TObjectPtr<class ULDTacticalCatalog> TacticalCatalog;
     bool IsUIControlProfile() const {return bUIControlProfile;}
@@ -130,6 +132,7 @@ public:
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
     bool bTacticalProfile=false;
+    bool bEnvironmentProfile=false;
     bool bV08Profile=false;
     bool bDevelopmentProfile = false;
     bool bUIControlProfile = false;

@@ -3,6 +3,7 @@
 #include "UObject/CoreNet.h"
 #include "UObject/UnrealType.h"
 #include "Framework/LDGameMode.h"
+#include "World/LDEnvironmentDirector.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDViewPayloadTest,"Lockdown.Rules.ViewPayload",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDViewPayloadTest::RunTest(const FString& Parameters)
@@ -43,11 +44,18 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDObservedEntity::StaticStruct());It;++It)
     { ++Count; TestTrue(TEXT("Only approved observed fields"),Allowed.Contains(It->GetFName())); TestNull(TEXT("No canonical UObject references"),CastField<FObjectPropertyBase>(*It)); }
     TestEqual(TEXT("Approved schema complete"),Count,8);
-    const TSet<FName> Public={TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil"),TEXT("OutcropOne"),TEXT("OutcropTwo"),TEXT("EconomyNextTick"),TEXT("ShortagePhase"),TEXT("ShortageRemaining"),TEXT("CoreOrdersRemaining"),TEXT("SupplyOrdersRemaining"),TEXT("CharterWindow"),TEXT("CharterPhase"),TEXT("CharterWarningAt"),TEXT("CharterOpenAt"),TEXT("CharterCloseAt"),TEXT("Breaches")};
+    const TSet<FName> Public={TEXT("bEnvironmentProfile"),TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil"),TEXT("OutcropOne"),TEXT("OutcropTwo"),TEXT("EconomyNextTick"),TEXT("ShortagePhase"),TEXT("ShortageRemaining"),TEXT("CoreOrdersRemaining"),TEXT("SupplyOrdersRemaining"),TEXT("CharterWindow"),TEXT("CharterPhase"),TEXT("CharterWarningAt"),TEXT("CharterOpenAt"),TEXT("CharterCloseAt"),TEXT("Breaches")};
     int32 PublicCount=0;
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
     {++PublicCount;TestTrue(TEXT("Only approved public objective facts"),Public.Contains(It->GetFName()));TestNull(TEXT("No claimant/carrier canonical references"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Public schema complete"),PublicCount,35);
+    TestEqual(TEXT("Public schema complete"),PublicCount,36);
+    const TSet<FName> FullMap={TEXT("Handle"),TEXT("PublicDoor"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("Presentation"),TEXT("Facing")};
+    int32 FullCount=0;for(TFieldIterator<FProperty> It(FLDEnvironmentViewEntry::StaticStruct());It;++It)
+    {++FullCount;TestTrue(TEXT("Full-map view contains only approved observed fields"),FullMap.Contains(It->GetFName()));TestNull(TEXT("Full-map view has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}
+    TestEqual(TEXT("Full-map observed schema complete"),FullCount,7);
+    FVector_NetQuantize10 Boundary=FVector(-118000,118000,1292.15);FNetBitWriter FullWriter(nullptr,1024);bool FullOk=true;Boundary.NetSerialize(FullWriter,nullptr,FullOk);
+    FVector_NetQuantize10 BoundaryRead;FNetBitReader FullReader(nullptr,FullWriter.GetData(),FullWriter.GetNumBits());BoundaryRead.NetSerialize(FullReader,nullptr,FullOk);
+    TestTrue(TEXT("Full-map boundary pose fits native quantization"),FullOk&&!FullReader.IsError()&&FVector(BoundaryRead).Equals(Boundary,.11));
     TestEqual(TEXT("Lower world corner"),LDVision::Cell(FVector(-2400,-1600,0)),0);
     TestEqual(TEXT("Upper edge excluded"),LDVision::Cell(FVector(2400,1600,0)),INDEX_NONE);
     TestEqual(TEXT("Last interior cell"),LDVision::Cell(FVector(2399.9,1599.9,0)),2399);
