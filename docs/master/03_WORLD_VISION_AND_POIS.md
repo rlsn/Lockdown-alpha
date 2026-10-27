@@ -29,6 +29,16 @@ The full-demo target is 144 shells with 36 enterable buildings, exactly 25%. Sel
 
 The representative encounter is Riverport frontage → rear entry → warehouse container → roof route → grass escape. It should demonstrate collision, sight, ownership and action decisions before those components expand across the map. B90 establishes structure; B91 owns interactive doors, interior completion, foliage, cargo and portable traversal.
 
+The [completed B90 structure](../v09/B90_COMPLETION.md) binds every settlement and
+service declaration to native floors and paths. Five cities have six service
+districts each; six towns have one selected service building each. A town's
+authored route hub and its building seat are separate spatial addresses within
+one settlement. Aliases reference existing sites and never mint another source.
+Road paint stops at walls, all 72 doorway openings admit the native body, and
+closed interiors reject navigation. F6 shows this geography and the civic
+core/edge policy. B92 must implement actual witnessed security and transactions
+against those addresses.
+
 ## Sight and uncertainty
 
 The full-profile defaults are 18 m own-body sight and 24 m public watch, clipped by geometry. Lower ground cannot see across a tagged upward ledge. Higher ground sees downslope only within ordinary range/blockers. Height grants no automatic range or damage multiplier.
@@ -44,6 +54,12 @@ Test for recognizable major choices every 45–90 seconds outside settlements an
 The [B90 traversal record](../v09/B90_TRAVERSAL.md) now provides 31 actual walks at baseline speed. Native navigation can take legal open-terrain shortcuts: Lumen Archive→Crownreach measured 252.67 s against a 323.72 s graph estimate, while Riverport→Crownreach measured 263.07 s against 369.73 s. Place useful opportunities along observed paths as well as authored road junctions; a graph alone does not predict player traffic.
 
 The longest measured interval without a POI anchor within 50 m was 339.07 s on Highfort→Lumen Archive. This explicit geometric proxy omits cover, functional props and encounters. It flags a B91 placement priority without proving how a finished route feels. Retain trace corridors and remeasure after meaningful content is fitted.
+
+The [native travel heat plot](../v09/evidence/B90Completion/traversal/TravelHeat.png)
+weights each sampled corridor by elapsed walking time in 50 m cells. Its 31
+fixture journeys are a reproducible design diagnostic, not a population traffic
+forecast. Compare the longest gaps and actual shortcut corridors when placing
+functional content; do not interpret the hottest cell as predicted player demand.
 
 The [B90 approach inspector](../v09/B90_APPROACHES.md) now checks seven rare or
 forge targets against their native paths. All have distinct local alternatives,

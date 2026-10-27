@@ -1,0 +1,13 @@
+{
+  "payload_sha256": "87730ff8db760b3854e8959aa423f11b4a5d8e0ccc59ffec2a2534fe9873d342",
+  "sites": 96,
+  "services": 36,
+  "settlements": 11,
+  "aliases": 16,
+  "door_sweeps": 216,
+  "closed_shell_rejections": 108,
+  "road_wall_overlaps": 0,
+  "actual_walks": 72,
+  "aggregate_walk_seconds": 944.8667159453034,
+  "scope": "B90 spatial service/district/doorway mapping; service transactions, guards and upper floors remain B91/B92"
+}

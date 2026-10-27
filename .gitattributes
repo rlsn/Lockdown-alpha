@@ -42,6 +42,9 @@
 /docs/v09/evidence/B90River/*.log -whitespace
 /docs/v09/evidence/B90Approaches/**/*.log -whitespace
 /docs/v09/evidence/B90Approaches/*.log -whitespace
+/docs/v09/evidence/B90Completion/**/*.log -whitespace
+/docs/v09/evidence/B90Completion/*.log -whitespace
+/docs/v09/evidence/B90Completion/**/*.svg -whitespace
 /Content/Lockdown/Data/V08/*.json -text
 /Scripts/*V08*.py text eol=lf
 

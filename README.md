@@ -2,12 +2,14 @@
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
-144 building blocks, 24 spawn pads and native navigation evidence. Its
+144 building blocks, 24 spawn pads and native navigation evidence. B90's spatial
+stage is complete, including settlement/service mapping, fitted road/doorway
+geometry, native travel heat and actual world-reset/profile isolation. Its
 standalone spatial preview is separate from full-match gameplay, which still
 requires the dependent B91–B94 work.
 
 Start with the [active handoff](docs/CONTINUATION.md),
-[B90 implementation and remaining gates](docs/v09/B90_IMPLEMENTATION.md),
+[B90 completion and evidence](docs/v09/B90_COMPLETION.md),
 [v0.9 stage plan](docs/v09/09_IMPLEMENTATION_STAGES.md), and
 [living game design](docs/master/README.md). The master now covers vision,
 principles, core loops, player journeys, mechanics, control/UI, map, population,

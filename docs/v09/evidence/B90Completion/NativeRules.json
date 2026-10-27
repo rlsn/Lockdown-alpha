@@ -1,0 +1,820 @@
+﻿{
+	"devices": [
+		{
+			"deviceName": "YUMO",
+			"instance": "F234AB164268E406CD35489D517AFA8C",
+			"instanceName": "YUMO-60388",
+			"platform": "WindowsEditor",
+			"oSVersion": "Windows 11 (25H2) [10.0.26200.9711] ",
+			"model": "Default",
+			"gPU": "NVIDIA GeForce RTX 4060 Laptop GPU",
+			"cPUModel": "AMD Ryzen 9 7945HX with Radeon Graphics        ",
+			"rAMInGB": 16,
+			"renderMode": "SM6",
+			"rHI": "",
+			"appInstanceLog": ""
+		}
+	],
+	"reportCreatedOn": "2026.10.27-10.54.22",
+	"succeeded": 51,
+	"succeededWithWarnings": 0,
+	"failed": 0,
+	"notRun": 0,
+	"inProcess": 0,
+	"totalDuration": 1.1018943786621094,
+	"comparisonExported": false,
+	"comparisonExportDirectory": "",
+	"tests": [
+		{
+			"testDisplayName": "AcquisitionBoundedWire",
+			"fullTestPath": "Lockdown.Rules.AcquisitionBoundedWire",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.0023083016276359558,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "AcquisitionExactInputsAndWorkOrders",
+			"fullTestPath": "Lockdown.Rules.AcquisitionExactInputsAndWorkOrders",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.033700000494718552,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "AtomicWorkOrderLineageAndQualityReplay",
+			"fullTestPath": "Lockdown.Rules.AtomicWorkOrderLineageAndQualityReplay",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.014197800308465958,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "B90ApproachPaths",
+			"fullTestPath": "Lockdown.Rules.B90ApproachPaths",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016062300652265549,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "B90Map",
+			"fullTestPath": "Lockdown.Rules.B90Map",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.087340906262397766,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CargoCapacity",
+			"fullTestPath": "Lockdown.Rules.CargoCapacity",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016540098935365677,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CharacterGrowth",
+			"fullTestPath": "Lockdown.Rules.CharacterGrowth",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015906199812889099,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CharacterPreparationPlan",
+			"fullTestPath": "Lockdown.Rules.CharacterPreparationPlan",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.01589599996805191,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CharacterStarts",
+			"fullTestPath": "Lockdown.Rules.CharacterStarts",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016046799719333649,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CombatGeometry",
+			"fullTestPath": "Lockdown.Rules.CombatGeometry",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.014579102396965027,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "CompleteContentAndMajorCooldownFamilies",
+			"fullTestPath": "Lockdown.Rules.CompleteContentAndMajorCooldownFamilies",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016386300325393677,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ContentMultiTargetAndItemWire",
+			"fullTestPath": "Lockdown.Rules.ContentMultiTargetAndItemWire",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015874598175287247,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ControlMappings",
+			"fullTestPath": "Lockdown.Rules.ControlMappings",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016408197581768036,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ControlProtectionAndBlind",
+			"fullTestPath": "Lockdown.Rules.ControlProtectionAndBlind",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016233101487159729,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "DeathCost",
+			"fullTestPath": "Lockdown.Rules.DeathCost",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016441900283098221,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "EconomyAccounting",
+			"fullTestPath": "Lockdown.Rules.EconomyAccounting",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016431599855422974,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [
+				{
+					"event":
+					{
+						"type": "Info",
+						"message": "",
+						"context": "",
+						"artifact": "00000000000000000000000000000000"
+					},
+					"filename": "",
+					"lineNumber": -1,
+					"timestamp": "2026.10.27-10.54.20"
+				}
+			],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "EconomyCatalog",
+			"fullTestPath": "Lockdown.Rules.EconomyCatalog",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015955399721860886,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "EconomyPayload",
+			"fullTestPath": "Lockdown.Rules.EconomyPayload",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028642803430557251,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "EquipmentCapsAndCapacity",
+			"fullTestPath": "Lockdown.Rules.EquipmentCapsAndCapacity",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029429599642753601,
+			"dateTime": "2026.10.27-10.54.20",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "GroundWireAndNaturalGates",
+			"fullTestPath": "Lockdown.Rules.GroundWireAndNaturalGates",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029542602598667145,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "HUDObservationBoundary",
+			"fullTestPath": "Lockdown.Rules.HUDObservationBoundary",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015980400145053864,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "InventoryIdentity",
+			"fullTestPath": "Lockdown.Rules.InventoryIdentity",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016081199049949646,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "LoadoutWireAndQuickShape",
+			"fullTestPath": "Lockdown.Rules.LoadoutWireAndQuickShape",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016181297600269318,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "MapRiverContact",
+			"fullTestPath": "Lockdown.Rules.MapRiverContact",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029144700616598129,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "NaturalGatesMasteryAndPotency",
+			"fullTestPath": "Lockdown.Rules.NaturalGatesMasteryAndPotency",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028167001903057098,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ObjectiveBoundaries",
+			"fullTestPath": "Lockdown.Rules.ObjectiveBoundaries",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016668502241373062,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ObjectiveTiming",
+			"fullTestPath": "Lockdown.Rules.ObjectiveTiming",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015622902661561966,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "PreparationWire",
+			"fullTestPath": "Lockdown.Rules.PreparationWire",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016943600028753281,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "QualityEligibilityCapsAndIdentity",
+			"fullTestPath": "Lockdown.Rules.QualityEligibilityCapsAndIdentity",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.017046000808477402,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "Region",
+			"fullTestPath": "Lockdown.Rules.Region",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.01507670059800148,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "SkillCatalog",
+			"fullTestPath": "Lockdown.Rules.SkillCatalog",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028630603104829788,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "SmokeUnionGeometry",
+			"fullTestPath": "Lockdown.Rules.SmokeUnionGeometry",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016498997807502747,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "SpatialConversion",
+			"fullTestPath": "Lockdown.Rules.SpatialConversion",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016273699700832367,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "TacticalControlMigration",
+			"fullTestPath": "Lockdown.Rules.TacticalControlMigration",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029008999466896057,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "TacticalResources",
+			"fullTestPath": "Lockdown.Rules.TacticalResources",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.027875900268554688,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "TacticalStatus",
+			"fullTestPath": "Lockdown.Rules.TacticalStatus",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029232997447252274,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "TacticalWireAndCatalog",
+			"fullTestPath": "Lockdown.Rules.TacticalWireAndCatalog",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.01484999805688858,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "TradePrivacy",
+			"fullTestPath": "Lockdown.Rules.TradePrivacy",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016655799001455307,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08CompleteCatalogAndRecipes",
+			"fullTestPath": "Lockdown.Rules.V08CompleteCatalogAndRecipes",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.035332396626472473,
+			"dateTime": "2026.10.27-10.54.21",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08ObscuredUnionAndBoundedWire",
+			"fullTestPath": "Lockdown.Rules.V08ObscuredUnionAndBoundedWire",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.015655402094125748,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08OwnerActionReadiness",
+			"fullTestPath": "Lockdown.Rules.V08OwnerActionReadiness",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.014944799244403839,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08RiverFootprintsAndCatalog",
+			"fullTestPath": "Lockdown.Rules.V08RiverFootprintsAndCatalog",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.026117198169231415,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08SelectiveTerrainUtilities",
+			"fullTestPath": "Lockdown.Rules.V08SelectiveTerrainUtilities",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028027299791574478,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08SourcesTraitsAndWire",
+			"fullTestPath": "Lockdown.Rules.V08SourcesTraitsAndWire",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028357397764921188,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08TenEnvironmentalReactions",
+			"fullTestPath": "Lockdown.Rules.V08TenEnvironmentalReactions",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016628701239824295,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "V08WetFrostBoundary",
+			"fullTestPath": "Lockdown.Rules.V08WetFrostBoundary",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016260396689176559,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ViewOrdering",
+			"fullTestPath": "Lockdown.Rules.ViewOrdering",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.028651900589466095,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ViewPayload",
+			"fullTestPath": "Lockdown.Rules.ViewPayload",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.016502700746059418,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [
+				{
+					"event":
+					{
+						"type": "Info",
+						"message": "Maximum authorized512-tuple payload: 17794 bytes",
+						"context": "",
+						"artifact": "00000000000000000000000000000000"
+					},
+					"filename": "",
+					"lineNumber": -1,
+					"timestamp": "2026.10.27-10.54.22"
+				}
+			],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "ViewPrivacySchema",
+			"fullTestPath": "Lockdown.Rules.ViewPrivacySchema",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.029009297490119934,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "WorldChecks",
+			"fullTestPath": "Lockdown.Rules.WorldChecks",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.030087299644947052,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		},
+		{
+			"testDisplayName": "WorldContractAndPublicCues",
+			"fullTestPath": "Lockdown.Rules.WorldContractAndPublicCues",
+			"tags": [],
+			"state": "Success",
+			"deviceInstance": [
+				"F234AB164268E406CD35489D517AFA8C"
+			],
+			"duration": 0.01645670086145401,
+			"dateTime": "2026.10.27-10.54.22",
+			"entries": [],
+			"warnings": 0,
+			"errors": 0,
+			"artifacts": []
+		}
+	]
+}

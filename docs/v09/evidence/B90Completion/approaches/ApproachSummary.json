@@ -1,0 +1,18 @@
+{
+  "payload_sha256": "87730ff8db760b3854e8959aa423f11b4a5d8e0ccc59ffec2a2534fe9873d342",
+  "targets": 7,
+  "incoming_branches": 23,
+  "branch_pairs": 36,
+  "distinct_pairs": 33,
+  "merged_pairs": 3,
+  "geometry_blocked_rays": 0,
+  "out_of_range_rays": 159,
+  "clear_rays": 129,
+  "primitive_shells_checked": 144,
+  "geometry_boundary_checks": 7,
+  "actual_walks": 23,
+  "all_branches_walked": true,
+  "max_recorded_walk_distance_from_inspected_centerline_cm": 2.450867048432062,
+  "aggregate_walk_seconds": 318.85001662932336,
+  "scope": "Static native approach inspection; sampled range failure is not cover; no unit authorization, full match or human pacing claim"
+}

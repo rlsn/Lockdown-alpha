@@ -22,7 +22,9 @@ decks to provide capsule clearance underneath. Frozen patches are diagnostic
 seeds in these fixtures; normal paid item/spell dispatch and restricted
 observation still require B91. The full-map preview remains standalone.
 
-The preview does not run the legacy short-map economy in the full world. This keeps review useful without pretending the full-profile roster, services, observations and endowments are already integrated. B90 gate status must be read per acceptance case; later stages stay pending.
+The preview runs no economy in the full world. The full-profile roster, service
+transactions, observations and endowments belong to later stages. Read B90
+acceptance at the spatial boundary recorded in the completion report.
 
 The [approach inspector](../v09/B90_APPROACHES.md) adds F5 camera overview and
 actual final-section walking for all 23 incoming branches to seven key targets.
@@ -31,9 +33,20 @@ pass, while the inspected in-range rays remain clear. Range failures do not prov
 This closes the spatial-alternative portion of B90-T05; full-profile unit sight,
 tagged ledges, concealment, mutable occlusion and restricted payloads remain B91.
 
+The [B90 completion record](../v09/B90_COMPLETION.md) closes the remaining spatial
+work: all 11 settlement identities, 36 service/building bindings, 72 physical
+doorway walks, 216 capsule-clearance lanes, clipped road paint, a time-weighted
+travel heat plot and real world reloads followed by a v0.8 source-accounting
+fixture. Fitter revision 3 preserves authored coordinates and seed 9001. Two
+independent generations and a saved reopen agree on canonical geometry and pads.
+The twelve stage-owned cases pass; composite B91–B94 gameplay dependencies stay
+explicitly open. Static civic policy rings are no substitute for witnessed
+security. Measured long empty corridors and clear key-target sightlines remain
+fitting priorities.
+
 | Frontier | Required next work |
 | --- | --- |
-| B90 spatial acceptance | Close remaining native fitting/travel/debug/reproducibility cases named in its report |
+| B90 spatial acceptance | Complete; retain evidence and recheck affected paths/contact/geometry after later mutations |
 | B91 functional environment | Complete selected interiors/stairs/doors, atomic proxy mutations, foliage, containers, heavy carry and traversal |
 | B92 living population/economy | Five conserved market pools, shared stock, finite contracts/endowments, roster/routines/security and legal AI progression |
 | B93 route convergence | Full-map earned routes, physical cargo, warnings and exact capital claim endpoints |
