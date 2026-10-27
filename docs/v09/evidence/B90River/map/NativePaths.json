@@ -1,0 +1,1109 @@
+{
+	"stage": "B90",
+	"payload_sha256": "80edef1004242f5044a5aa916949ba7960eecebb6a8d83a0a4165b950832255c",
+	"seed": 9001,
+	"layout_revision": 1,
+	"fitter_revision": 2,
+	"terrain_tiles": 144,
+	"spawn_actors": 24,
+	"native_path_queries": 2559,
+	"failures": 0,
+	"fitted_pads": [
+		{
+			"id": "capital",
+			"projected": true,
+			"source_cm": "X=4000.000 Y=4000.000 Z=400.000",
+			"fitted_cm": "X=4000.000 Y=4000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort",
+			"projected": true,
+			"source_cm": "X=-82000.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-82000.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars",
+			"projected": true,
+			"source_cm": "X=78000.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=78000.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport",
+			"projected": true,
+			"source_cm": "X=-80000.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-80000.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks",
+			"projected": true,
+			"source_cm": "X=76000.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=76000.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "oakmere",
+			"projected": true,
+			"source_cm": "X=-77000.000 Y=8000.000 Z=0.000",
+			"fitted_cm": "X=-77000.000 Y=8000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "millford",
+			"projected": true,
+			"source_cm": "X=-39000.000 Y=45000.000 Z=0.000",
+			"fitted_cm": "X=-39000.000 Y=45000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "reedbank",
+			"projected": true,
+			"source_cm": "X=-47000.000 Y=-65000.000 Z=0.000",
+			"fitted_cm": "X=-47000.000 Y=-65000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ashcross",
+			"projected": true,
+			"source_cm": "X=38000.000 Y=-85000.000 Z=400.000",
+			"fitted_cm": "X=38000.000 Y=-85000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "bellwick",
+			"projected": true,
+			"source_cm": "X=73000.000 Y=20000.000 Z=400.000",
+			"fitted_cm": "X=73000.000 Y=20000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "stonewake",
+			"projected": true,
+			"source_cm": "X=0.000 Y=84000.000 Z=800.000",
+			"fitted_cm": "X=-0.000 Y=84000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_treasury",
+			"projected": true,
+			"source_cm": "X=-6920.000 Y=-4400.000 Z=400.000",
+			"fitted_cm": "X=-6920.000 Y=-4400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_supply",
+			"projected": true,
+			"source_cm": "X=360.000 Y=-4400.000 Z=400.000",
+			"fitted_cm": "X=360.000 Y=-4400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_guild",
+			"projected": true,
+			"source_cm": "X=11280.000 Y=-4400.000 Z=400.000",
+			"fitted_cm": "X=11280.000 Y=-4400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_workshop",
+			"projected": true,
+			"source_cm": "X=-6920.000 Y=12400.000 Z=400.000",
+			"fitted_cm": "X=-6920.000 Y=12400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_infirmary",
+			"projected": true,
+			"source_cm": "X=360.000 Y=12400.000 Z=400.000",
+			"fitted_cm": "X=360.000 Y=12400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_guard",
+			"projected": true,
+			"source_cm": "X=11280.000 Y=12400.000 Z=400.000",
+			"fitted_cm": "X=11280.000 Y=12400.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_barracks",
+			"projected": true,
+			"source_cm": "X=-89800.000 Y=66000.000 Z=800.000",
+			"fitted_cm": "X=-89800.000 Y=66000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_supply",
+			"projected": true,
+			"source_cm": "X=-84600.000 Y=66000.000 Z=800.000",
+			"fitted_cm": "X=-84600.000 Y=66000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_market",
+			"projected": true,
+			"source_cm": "X=-76800.000 Y=66000.000 Z=800.000",
+			"fitted_cm": "X=-76800.000 Y=66000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_workshop",
+			"projected": true,
+			"source_cm": "X=-89800.000 Y=78000.000 Z=800.000",
+			"fitted_cm": "X=-89800.000 Y=78000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_inn",
+			"projected": true,
+			"source_cm": "X=-84600.000 Y=78000.000 Z=800.000",
+			"fitted_cm": "X=-84600.000 Y=78000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "highfort_guard",
+			"projected": true,
+			"source_cm": "X=-76800.000 Y=78000.000 Z=800.000",
+			"fitted_cm": "X=-76800.000 Y=78000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_archive",
+			"projected": true,
+			"source_cm": "X=70200.000 Y=72000.000 Z=400.000",
+			"fitted_cm": "X=70200.000 Y=72000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_supply",
+			"projected": true,
+			"source_cm": "X=75400.000 Y=72000.000 Z=400.000",
+			"fitted_cm": "X=75400.000 Y=72000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_market",
+			"projected": true,
+			"source_cm": "X=83200.000 Y=72000.000 Z=400.000",
+			"fitted_cm": "X=83200.000 Y=72000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_workshop",
+			"projected": true,
+			"source_cm": "X=70200.000 Y=84000.000 Z=400.000",
+			"fitted_cm": "X=70200.000 Y=84000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_infirmary",
+			"projected": true,
+			"source_cm": "X=75400.000 Y=84000.000 Z=400.000",
+			"fitted_cm": "X=75400.000 Y=84000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "scholars_guard",
+			"projected": true,
+			"source_cm": "X=83200.000 Y=84000.000 Z=400.000",
+			"fitted_cm": "X=83200.000 Y=84000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_market",
+			"projected": true,
+			"source_cm": "X=-87800.000 Y=-72000.000 Z=0.000",
+			"fitted_cm": "X=-87800.000 Y=-72000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_supply",
+			"projected": true,
+			"source_cm": "X=-82600.000 Y=-72000.000 Z=0.000",
+			"fitted_cm": "X=-82600.000 Y=-72000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_guild",
+			"projected": true,
+			"source_cm": "X=-74800.000 Y=-72000.000 Z=0.000",
+			"fitted_cm": "X=-74800.000 Y=-72000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_workshop",
+			"projected": true,
+			"source_cm": "X=-87800.000 Y=-60000.000 Z=0.000",
+			"fitted_cm": "X=-87800.000 Y=-60000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_inn",
+			"projected": true,
+			"source_cm": "X=-82600.000 Y=-60000.000 Z=0.000",
+			"fitted_cm": "X=-82600.000 Y=-60000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "riverport_guard",
+			"projected": true,
+			"source_cm": "X=-74800.000 Y=-60000.000 Z=0.000",
+			"fitted_cm": "X=-74800.000 Y=-60000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_forge",
+			"projected": true,
+			"source_cm": "X=68200.000 Y=-74000.000 Z=400.000",
+			"fitted_cm": "X=68200.000 Y=-74000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_supply",
+			"projected": true,
+			"source_cm": "X=73400.000 Y=-74000.000 Z=400.000",
+			"fitted_cm": "X=73400.000 Y=-74000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_market",
+			"projected": true,
+			"source_cm": "X=81200.000 Y=-74000.000 Z=400.000",
+			"fitted_cm": "X=81200.000 Y=-74000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_workshop",
+			"projected": true,
+			"source_cm": "X=68200.000 Y=-62000.000 Z=400.000",
+			"fitted_cm": "X=68200.000 Y=-62000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_inn",
+			"projected": true,
+			"source_cm": "X=73400.000 Y=-62000.000 Z=400.000",
+			"fitted_cm": "X=73400.000 Y=-62000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ironworks_guard",
+			"projected": true,
+			"source_cm": "X=81200.000 Y=-62000.000 Z=400.000",
+			"fitted_cm": "X=81200.000 Y=-62000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_01",
+			"projected": true,
+			"source_cm": "X=-103000.000 Y=40000.000 Z=0.000",
+			"fitted_cm": "X=-103000.000 Y=40000.000 Z=12.745",
+			"vertical_fit_cm": 12.745098104920585,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_02",
+			"projected": true,
+			"source_cm": "X=-58000.000 Y=92000.000 Z=800.000",
+			"fitted_cm": "X=-58000.000 Y=92000.000 Z=820.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_03",
+			"projected": true,
+			"source_cm": "X=38000.000 Y=102000.000 Z=800.000",
+			"fitted_cm": "X=38000.000 Y=102000.000 Z=820.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_04",
+			"projected": true,
+			"source_cm": "X=104000.000 Y=51000.000 Z=400.000",
+			"fitted_cm": "X=104000.000 Y=51000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_05",
+			"projected": true,
+			"source_cm": "X=-104000.000 Y=-18000.000 Z=0.000",
+			"fitted_cm": "X=-104000.000 Y=-18000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_06",
+			"projected": true,
+			"source_cm": "X=-60000.000 Y=-32000.000 Z=0.000",
+			"fitted_cm": "X=-60000.000 Y=-32000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_07",
+			"projected": true,
+			"source_cm": "X=46000.000 Y=47000.000 Z=400.000",
+			"fitted_cm": "X=46000.000 Y=47000.000 Z=419.363",
+			"vertical_fit_cm": 19.363141908126579,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_08",
+			"projected": true,
+			"source_cm": "X=101000.000 Y=-12000.000 Z=0.000",
+			"fitted_cm": "X=101000.000 Y=-12000.000 Z=11.053",
+			"vertical_fit_cm": 11.052690250359284,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_09",
+			"projected": true,
+			"source_cm": "X=-102000.000 Y=-99000.000 Z=0.000",
+			"fitted_cm": "X=-102000.000 Y=-99000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_10",
+			"projected": true,
+			"source_cm": "X=-10000.000 Y=-100000.000 Z=0.000",
+			"fitted_cm": "X=-10000.000 Y=-100000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_11",
+			"projected": true,
+			"source_cm": "X=48000.000 Y=-41000.000 Z=400.000",
+			"fitted_cm": "X=48000.000 Y=-41000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "camp_12",
+			"projected": true,
+			"source_cm": "X=104000.000 Y=-98000.000 Z=400.000",
+			"fitted_cm": "X=104000.000 Y=-98000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ruin_a",
+			"projected": true,
+			"source_cm": "X=-96000.000 Y=102000.000 Z=800.000",
+			"fitted_cm": "X=-96000.000 Y=102000.000 Z=817.412",
+			"vertical_fit_cm": 17.411764883285628,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ruin_b",
+			"projected": true,
+			"source_cm": "X=-7000.000 Y=-102000.000 Z=0.000",
+			"fitted_cm": "X=-7000.000 Y=-102000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ruin_c",
+			"projected": true,
+			"source_cm": "X=104000.000 Y=-42000.000 Z=400.000",
+			"fitted_cm": "X=104000.000 Y=-42000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "boss_lair",
+			"projected": true,
+			"source_cm": "X=9000.000 Y=57000.000 Z=400.000",
+			"fitted_cm": "X=9000.000 Y=57000.000 Z=417.897",
+			"vertical_fit_cm": 17.896887653854208,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "heart_forge",
+			"projected": true,
+			"source_cm": "X=39000.000 Y=-31000.000 Z=400.000",
+			"fitted_cm": "X=39000.000 Y=-31000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "tower_a",
+			"projected": true,
+			"source_cm": "X=-9000.000 Y=19000.000 Z=400.000",
+			"fitted_cm": "X=-9000.000 Y=19000.000 Z=414.677",
+			"vertical_fit_cm": 14.67695968259136,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "tower_b",
+			"projected": true,
+			"source_cm": "X=19500.000 Y=1000.000 Z=400.000",
+			"fitted_cm": "X=19500.000 Y=1000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "tower_c",
+			"projected": true,
+			"source_cm": "X=1000.000 Y=-15500.000 Z=400.000",
+			"fitted_cm": "X=1000.000 Y=-15500.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "heart",
+			"projected": true,
+			"source_cm": "X=4000.000 Y=4000.000 Z=400.000",
+			"fitted_cm": "X=4000.000 Y=4000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "antechamber",
+			"projected": true,
+			"source_cm": "X=4000.000 Y=-500.000 Z=400.000",
+			"fitted_cm": "X=4000.000 Y=-500.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "north_bridge",
+			"projected": true,
+			"source_cm": "X=-28000.000 Y=65000.000 Z=0.000",
+			"fitted_cm": "X=-28000.000 Y=65000.000 Z=300.000",
+			"vertical_fit_cm": 300,
+			"ground_collision": true,
+			"ground_normal_z": 0.99994421216356444
+		},
+		{
+			"id": "mill_bridge",
+			"projected": true,
+			"source_cm": "X=-36000.000 Y=35000.000 Z=0.000",
+			"fitted_cm": "X=-36000.000 Y=35000.000 Z=320.000",
+			"vertical_fit_cm": 320,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "capital_ford",
+			"projected": true,
+			"source_cm": "X=-32500.000 Y=10000.000 Z=0.000",
+			"fitted_cm": "X=-32500.000 Y=10000.000 Z=10.486",
+			"vertical_fit_cm": 10.486119270461659,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "south_bridge",
+			"projected": true,
+			"source_cm": "X=-30000.000 Y=-56000.000 Z=0.000",
+			"fitted_cm": "X=-30000.000 Y=-56000.000 Z=308.373",
+			"vertical_fit_cm": 308.37336993822925,
+			"ground_collision": true,
+			"ground_normal_z": 0.99994421216465124
+		},
+		{
+			"id": "reed_ford",
+			"projected": true,
+			"source_cm": "X=-30000.000 Y=-82000.000 Z=0.000",
+			"fitted_cm": "X=-30000.000 Y=-82000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "east_bridge",
+			"projected": true,
+			"source_cm": "X=61000.000 Y=29500.000 Z=400.000",
+			"fitted_cm": "X=61000.000 Y=29500.000 Z=416.805",
+			"vertical_fit_cm": 16.804511895234498,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "east_ford",
+			"projected": true,
+			"source_cm": "X=84000.000 Y=22300.000 Z=0.000",
+			"fitted_cm": "X=84000.000 Y=22300.000 Z=16.833",
+			"vertical_fit_cm": 16.833333560836547,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "north_pass",
+			"projected": true,
+			"source_cm": "X=-45000.000 Y=102000.000 Z=800.000",
+			"fitted_cm": "X=-45000.000 Y=102000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "west_pass",
+			"projected": true,
+			"source_cm": "X=-92000.000 Y=36000.000 Z=400.000",
+			"fitted_cm": "X=-92000.000 Y=36000.000 Z=418.022",
+			"vertical_fit_cm": 18.021926778398722,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "east_pass",
+			"projected": true,
+			"source_cm": "X=96000.000 Y=-25000.000 Z=400.000",
+			"fitted_cm": "X=96000.000 Y=-25000.000 Z=419.162",
+			"vertical_fit_cm": 19.162075640865908,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "south_tunnel",
+			"projected": true,
+			"source_cm": "X=32000.000 Y=-60000.000 Z=0.000",
+			"fitted_cm": "X=32000.000 Y=-60000.000 Z=12.941",
+			"vertical_fit_cm": 12.941176470588236,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "heart_dry_flank",
+			"projected": true,
+			"source_cm": "X=10000.000 Y=-9500.000 Z=400.000",
+			"fitted_cm": "X=10000.000 Y=-9500.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "crystal_north",
+			"projected": true,
+			"source_cm": "X=-25000.000 Y=103000.000 Z=800.000",
+			"fitted_cm": "X=-25000.000 Y=103000.000 Z=818.634",
+			"vertical_fit_cm": 18.633874772766262,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "crystal_west",
+			"projected": true,
+			"source_cm": "X=-96000.000 Y=10000.000 Z=0.000",
+			"fitted_cm": "X=-96000.000 Y=10000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "crystal_center",
+			"projected": true,
+			"source_cm": "X=22000.000 Y=57000.000 Z=400.000",
+			"fitted_cm": "X=22000.000 Y=57000.000 Z=417.924",
+			"vertical_fit_cm": 17.923982964133472,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "crystal_east",
+			"projected": true,
+			"source_cm": "X=100000.000 Y=90000.000 Z=400.000",
+			"fitted_cm": "X=100000.000 Y=90000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "crystal_south",
+			"projected": true,
+			"source_cm": "X=-54000.000 Y=-100000.000 Z=0.000",
+			"fitted_cm": "X=-54000.000 Y=-100000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ore_north",
+			"projected": true,
+			"source_cm": "X=-108000.000 Y=80000.000 Z=800.000",
+			"fitted_cm": "X=-108000.000 Y=80000.000 Z=818.024",
+			"vertical_fit_cm": 18.023655156602899,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ore_east",
+			"projected": true,
+			"source_cm": "X=95000.000 Y=-85000.000 Z=400.000",
+			"fitted_cm": "X=95000.000 Y=-85000.000 Z=418.629",
+			"vertical_fit_cm": 18.629037217251266,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "fiber_west",
+			"projected": true,
+			"source_cm": "X=-98000.000 Y=-36000.000 Z=0.000",
+			"fitted_cm": "X=-98000.000 Y=-36000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "fiber_south",
+			"projected": true,
+			"source_cm": "X=26000.000 Y=-104000.000 Z=0.000",
+			"fitted_cm": "X=26000.000 Y=-104000.000 Z=15.147",
+			"vertical_fit_cm": 15.147058785030449,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "oak_shrine",
+			"projected": true,
+			"source_cm": "X=-65000.000 Y=26000.000 Z=0.000",
+			"fitted_cm": "X=-65000.000 Y=26000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "reed_shrine",
+			"projected": true,
+			"source_cm": "X=-66000.000 Y=-88000.000 Z=0.000",
+			"fitted_cm": "X=-66000.000 Y=-88000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ash_shrine",
+			"projected": true,
+			"source_cm": "X=55000.000 Y=-102000.000 Z=400.000",
+			"fitted_cm": "X=55000.000 Y=-102000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "sky_shrine",
+			"projected": true,
+			"source_cm": "X=42000.000 Y=85000.000 Z=800.000",
+			"fitted_cm": "X=42000.000 Y=85000.000 Z=817.992",
+			"vertical_fit_cm": 17.992461437100474,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "quarry_shrine",
+			"projected": true,
+			"source_cm": "X=21000.000 Y=45000.000 Z=400.000",
+			"fitted_cm": "X=21000.000 Y=45000.000 Z=416.622",
+			"vertical_fit_cm": 16.622488113631903,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "west_watch",
+			"projected": true,
+			"source_cm": "X=-105000.000 Y=54000.000 Z=400.000",
+			"fitted_cm": "X=-105000.000 Y=54000.000 Z=418.029",
+			"vertical_fit_cm": 18.028814450757011,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "east_watch",
+			"projected": true,
+			"source_cm": "X=105000.000 Y=8000.000 Z=400.000",
+			"fitted_cm": "X=105000.000 Y=8000.000 Z=417.319",
+			"vertical_fit_cm": 17.318701545155761,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "smuggler_cove",
+			"projected": true,
+			"source_cm": "X=-80000.000 Y=-80500.000 Z=0.000",
+			"fitted_cm": "X=-80000.000 Y=-80500.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "old_lab",
+			"projected": true,
+			"source_cm": "X=101000.000 Y=104000.000 Z=400.000",
+			"fitted_cm": "X=101000.000 Y=104000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "fallen_garden",
+			"projected": true,
+			"source_cm": "X=40000.000 Y=68000.000 Z=400.000",
+			"fitted_cm": "X=40000.000 Y=68000.000 Z=420.000",
+			"vertical_fit_cm": 20,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "charcoal_camp",
+			"projected": true,
+			"source_cm": "X=59000.000 Y=-18000.000 Z=0.000",
+			"fitted_cm": "X=59000.000 Y=-18000.000 Z=15.392",
+			"vertical_fit_cm": 15.392156862745098,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "ferry_ruins",
+			"projected": true,
+			"source_cm": "X=-45000.000 Y=-16000.000 Z=0.000",
+			"fitted_cm": "X=-45000.000 Y=-16000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_00",
+			"projected": true,
+			"source_cm": "X=-83600.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-83600.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_01",
+			"projected": true,
+			"source_cm": "X=76400.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=76400.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_02",
+			"projected": true,
+			"source_cm": "X=-81600.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-81600.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_03",
+			"projected": true,
+			"source_cm": "X=74400.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=74400.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_04",
+			"projected": true,
+			"source_cm": "X=-82800.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-82800.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_05",
+			"projected": true,
+			"source_cm": "X=77200.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=77200.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_06",
+			"projected": true,
+			"source_cm": "X=-80800.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-80800.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_07",
+			"projected": true,
+			"source_cm": "X=75200.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=75200.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_08",
+			"projected": true,
+			"source_cm": "X=-82000.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-82000.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_09",
+			"projected": true,
+			"source_cm": "X=78000.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=78000.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_10",
+			"projected": true,
+			"source_cm": "X=-80000.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-80000.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_11",
+			"projected": true,
+			"source_cm": "X=76000.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=76000.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_12",
+			"projected": true,
+			"source_cm": "X=-81200.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-81200.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_13",
+			"projected": true,
+			"source_cm": "X=78800.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=78800.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_14",
+			"projected": true,
+			"source_cm": "X=-79200.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-79200.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_15",
+			"projected": true,
+			"source_cm": "X=76800.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=76800.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_16",
+			"projected": true,
+			"source_cm": "X=-80400.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-80400.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_17",
+			"projected": true,
+			"source_cm": "X=79600.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=79600.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_18",
+			"projected": true,
+			"source_cm": "X=-78400.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-78400.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_19",
+			"projected": true,
+			"source_cm": "X=77600.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=77600.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_20",
+			"projected": true,
+			"source_cm": "X=-79600.000 Y=72000.000 Z=800.000",
+			"fitted_cm": "X=-79600.000 Y=72000.000 Z=810.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_21",
+			"projected": true,
+			"source_cm": "X=80400.000 Y=78000.000 Z=400.000",
+			"fitted_cm": "X=80400.000 Y=78000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_22",
+			"projected": true,
+			"source_cm": "X=-77600.000 Y=-66000.000 Z=0.000",
+			"fitted_cm": "X=-77600.000 Y=-66000.000 Z=10.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		},
+		{
+			"id": "spawn_23",
+			"projected": true,
+			"source_cm": "X=78400.000 Y=-68000.000 Z=400.000",
+			"fitted_cm": "X=78400.000 Y=-68000.000 Z=410.000",
+			"vertical_fit_cm": 10,
+			"ground_collision": true,
+			"ground_normal_z": 1
+		}
+	],
+	"route_ground_samples": 31909,
+	"missing_ground_samples": 0,
+	"candidate_capsule_contacts": 1,
+	"max_sampled_grade": 0.24061626480602158,
+	"legal_step_contacts": 25,
+	"candidate_contacts": [
+		{
+			"from": "camp_07",
+			"to": "east_bridge",
+			"actor": "bridge_east_bridge_014",
+			"start": "X=60962.500 Y=30537.500 Z=470.941",
+			"end": "X=61040.000 Y=30480.000 Z=483.273",
+			"normal": "X=-0.654 Y=0.311 Z=0.690"
+		}
+	],
+	"scope": "Editor Recast paths/projections against saved native collision; path times are estimates, not walked time. No economy, combat, NPC, network or human acceptance."
+}

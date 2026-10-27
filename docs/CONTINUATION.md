@@ -1,12 +1,12 @@
 # Active continuation — v0.9 B90
 
-Current native source is **b96c329**, based on **ebc19a5, v0.8 B86**, and implements the first full-map spatial increment. Read [B90 implementation/evidence](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
+Current native source is **daa7d9e**, based on **ebc19a5, v0.8 B86**, and implements the full-map spatial foundation, actual traversal and grounded river-contact slice. Read [river contact/current evidence](v09/B90_RIVER_CONTACT.md), [original foundation](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
 
 ## Current boundaries
 
 B86 remains the playable short-map schema8 baseline: 52 abilities, 80 items, 20 recipes, nine presets, six mixed actions, eleven bindings, bounded fields and four earned Heart routes. Its original payloads, map assets, evidence and inherited deferrals remain unchanged.
 
-B90 adds an independent full-map definition, closed spatial compiler, native tiled terrain/bridge/settlement builder, saved L_V09Full and a labelled standalone spatial preview. It carries 96 POIs, 117 routes, 144 building blocks and 24 spawn pads. The preview uses native character movement/navigation and creates no legacy match economy, population, inventories or objective rewards. It checks the saved definition against the current staged payload before admission.
+B90 adds an independent full-map definition, closed spatial compiler, native tiled terrain/bridge/settlement builder, saved L_V09Full and a labelled standalone spatial preview. It carries 96 POIs, 117 routes, 144 building blocks and 24 spawn pads. The preview uses native character movement/navigation and creates no legacy match economy, population, inventories or objective rewards. It checks the saved definition against the current staged payload before admission. Fitter revision 2 raises three low decks to 300 cm for underpass clearance; the eastern deck stays at 400 cm. Layout revision 1 and the 59-file incoming source package stay unchanged.
 
 The legacy 60×40 fog/region wire format is deliberately unchanged. Full-profile observation, interactive objects, interiors/stairs, routines/security, five-market accounting, AI progression and earned victory integration still require B91–B93. B94 owns full-duration, multiplayer stress and human pacing evidence.
 
@@ -15,6 +15,15 @@ journeys,15 border/terrace cases, all 11 settlement arrivals and two walked Hear
 approaches. All pass; the longest interval without a POI anchor within 50 m is
 339.067 s and remains a B91 functional-density risk. These are separate fixtures,
 not a full competitive session.
+
+The current contact increment adds grounded Wet and frozen-floor slow through
+the shared v0.8 reducer. All 55 native contact cases pass, covering every named
+crossing and all 17 route/river intersections; 42 actual exits verify residual
+Wet and expiry. Dry decks remain unaffected by frozen water beneath them.
+Frozen walking measures 294 cm/s and no Stun. Normal paid Frost/item commands,
+full-map replication/privacy and life/resource dispatch remain B91 work; fields
+in these fixtures are explicit diagnostic seeds. The complete fitter revision 2
+replay passes 31 journeys and 15 boundary cases with zero falling or replans.
 
 ## Verification
 
@@ -26,8 +35,11 @@ python -B Scripts/SyncV09Data.py --check
 python -B Scripts/SyncB84Data.py --check
 ./Scripts/BuildEditor.ps1 -MaxParallelActions 3
 ./Scripts/BuildB90Map.ps1 -Validate
+./Scripts/RunB90River.ps1
+./Scripts/RunB90River.ps1 -Capture
 ./Scripts/OpenB90.ps1 -CheckWalk
 ./Scripts/RunTests.ps1
+./Scripts/RunB82Check.ps1
 ./Scripts/RunB90Traversal.ps1 -Lane All
 ./Scripts/OpenB90.ps1
 ~~~
@@ -36,7 +48,7 @@ Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native output
 
 ## Next work
 
-Finish the remaining B90 ledger cases before calling its full release gate complete. In particular, some source B90 acceptance rows request Wet/frozen contact and service/reset accounting that depend on B91/B92 integration. The report records this gate overlap; the structural preview does not fake those systems.
+Finish the remaining B90 ledger cases before calling its full release gate complete. Contact-fixture acceptance is now recorded; sight/occluded approaches, detailed district/interior fitting, services and reset/source accounting still overlap B91/B92 integration. The report records this gate overlap; the structural preview does not fake those systems.
 
 The next functional environment reference is Riverport public front → rear door → warehouse container → roof/stairs → grass escape. Reuse existing request/life/hold/inventory/receipt authority and maintain one collision/sight/local-nav mutation revision. Add no advertised cosmetic-only verbs or unbound item shortcuts.
 

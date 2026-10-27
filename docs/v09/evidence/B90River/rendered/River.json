@@ -1,0 +1,32 @@
+{
+	"stage": "B90",
+	"map_sha256": "80edef1004242f5044a5aa916949ba7960eecebb6a8d83a0a4165b950832255c",
+	"scope": "Standalone actual native walking; diagnostic placements and Frost seeding; no paid casting or competitive match claimed",
+	"complete": true,
+	"dry_seed_rejected": true,
+	"failures": 0,
+	"cases": [
+		{
+			"id": "heart_inset_frozen",
+			"passed": true,
+			"reason": "Native exit and residual expiry",
+			"arrived": true,
+			"frozen_fixture": true,
+			"water_expected": true,
+			"centre_cm": "X=1500.000 Y=1000.000 Z=400.000",
+			"path_unchanged": true,
+			"residual_expected": true,
+			"exit_wet": true,
+			"expiry_clear": true,
+			"wet_samples": 209,
+			"ice_samples": 123,
+			"slow_samples": 123,
+			"stun_samples": 0,
+			"falling_samples": 0,
+			"ice_steady_peak_cm_s": 294,
+			"peak_cm_s": 420,
+			"walked_cm": 2170.8001163831309
+		}
+	],
+	"rendered_heart_fixture": true
+}

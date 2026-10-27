@@ -2,6 +2,10 @@
 
 27 October 2026 · Source **b96c329** · Based on **c9b0529**.
 
+Historical fitter revision 1 report. Later [river contact and fitter revision 2](B90_RIVER_CONTACT.md)
+supersede this report's statement that the preview has no Wet/frozen contact;
+the original measurements and evidence below remain unchanged.
+
 This increment replaces several remaining travel estimates with actual native
 CharacterMovement observations. It does not advance into B91's world-object
 interactions or close the complete B90 release gate. The supplied specification,

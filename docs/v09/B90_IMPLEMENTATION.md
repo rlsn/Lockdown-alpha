@@ -2,6 +2,10 @@
 
 27 October 2026 · Native spatial foundation implemented; broader stage acceptance remains partial.
 
+Later [river-contact work](B90_RIVER_CONTACT.md) adds grounded Wet/frozen contact
+and fitter revision 2 bridge clearance. This report and its original evidence
+describe the historical fitter revision 1 foundation.
+
 Continuation: [native journeys and boundary evidence](B90_TRAVERSAL.md) at
 **b96c329** adds 31 measured journeys and 15 physical boundary cases. The original
 foundation results below remain the record of 96caff1.

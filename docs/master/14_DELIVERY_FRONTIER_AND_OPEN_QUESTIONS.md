@@ -14,6 +14,14 @@ B90 adds checksum-closed spatial compilation, an independent full-map definition
 
 The [traversal increment](../v09/B90_TRAVERSAL.md) at b96c329 adds 31 actual journeys and 15 physical border/terrace cases, with no movement failures or falling. It also identifies a 339-second interval without a POI anchor within 50 m. That metric is a placement warning and excludes future functional props/encounters; it is not a human pacing conclusion.
 
+The [river-contact increment](../v09/B90_RIVER_CONTACT.md) adds grounded Wet and
+frozen-floor movement slow using the existing shared contact rules. Its native
+fixtures cover all named crossings and every authored route/river intersection,
+including dry decks over frozen water. Fitter revision 2 raises the three low
+decks to provide capsule clearance underneath. Frozen patches are diagnostic
+seeds in these fixtures; normal paid item/spell dispatch and restricted
+observation still require B91. The full-map preview remains standalone.
+
 The preview does not run the legacy short-map economy in the full world. This keeps review useful without pretending the full-profile roster, services, observations and endowments are already integrated. B90 gate status must be read per acceptance case; later stages stay pending.
 
 | Frontier | Required next work |

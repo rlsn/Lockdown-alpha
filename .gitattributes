@@ -38,6 +38,8 @@
 /Content/Lockdown/Data/V09/*.json -text
 /docs/v09/evidence/B90/*.log -whitespace
 /docs/v09/evidence/B90Traversal/*.log -whitespace
+/docs/v09/evidence/B90River/**/*.log -whitespace
+/docs/v09/evidence/B90River/*.log -whitespace
 /Content/Lockdown/Data/V08/*.json -text
 /Scripts/*V08*.py text eol=lf
 
