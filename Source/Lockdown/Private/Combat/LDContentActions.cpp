@@ -1,5 +1,6 @@
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Combat/LDCombatRules.h"
@@ -40,6 +41,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     auto R=Input;
     auto Reject=[&](const TCHAR* Text){Why=Text;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);auto* B=BuildFor(Body);auto* PC=Body?Cast<ALDPlayerController>(Body->GetController()):nullptr;auto* O=PC?M->StateFor(PC):nullptr;const double Now=GetWorld()->GetTimeSeconds();const int64 At=LDTactical::Milliseconds(Now);
     if(!HasAuthority()||!M->IsTacticalProfile()||!M->IsPlaying()||!S||!B||S->Hp<=0||Now<S->ProtectionUntil||S->Action||Now<S->CoreRecoveryUntil||!R.Token||R.Token<=S->LastCoreToken||R.Token<=S->CancelledCoreThrough||B->Revision!=R.BuildRevision||R.ActionKind>4){return Reject(TEXT("Action unavailable, stale or occupied"));}
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->ForceDrop(Cast<ALDB91Controller>(PC))){return Reject(TEXT("No safe cargo drop; action unavailable"));}
     if(B&&B->RulesVersion==8&&R.ActionKind==0&&B->Actions.IsValidIndex(R.Slot)&&B->Actions[R.Slot].Source==ELDActionSource::Gear){if(R.SourceKind!=1||!O||!LDV08::ItemSource(O->Inventory,*B,R.Item,R.Slot,false)){return Reject(TEXT("Equipped body action source changed"));}R.ActionKind=1;}
     ELDSkill Skill=R.ActionKind==0&&B->Slots.IsValidIndex(R.Slot)?B->Slots[R.Slot]:ELDSkill::None;
     if(R.ActionKind==4){if(!First||!LegalTarget(Body,First,B->Gear.Reach,nullptr,0)||!RequestBody(Body,0,R.Direction,Why)){return false;}S->bAttackOrder=true;S->AttackTarget=First;S->Target=First;S->AttackLife=Life(this,First);S->AttackToken=R.Token;return true;}

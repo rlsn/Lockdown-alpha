@@ -56,12 +56,13 @@ const FLDEnvironmentViewEntry* ALDB91Controller::NearestDoor() const
 void ALDB91Controller::StartDoor(ELDWorldVerb Verb)
 {
     const auto* D=NearestDoor();const auto* E=ALDEnvironmentDirector::Get(GetWorld());if(!D||!E||!CanWorldCommand()){return;}
+    ReleaseDoor();HeldObject=false;
     Navigation->Stop();FLDWorldRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;
     R.Observed=D->Handle;R.ObjectRevision=D->Revision;R.Verb=Verb;R.Contract=E->Contract;
     HeldSequence=R.Sequence;Nonce=0;SentAt=GetWorld()->GetTimeSeconds();ServerWorldInteraction(R);
 }
 void ALDB91Controller::ReleaseDoor()
-{if(HeldSequence){ServerWorldRelease(OwnerState.Match,OwnerState.Life,HeldSequence);HeldSequence=0;}}
+{if(HeldSequence){if(HeldObject){ServerObjectRelease(OwnerState.Match,OwnerState.Life,HeldSequence);}else{ServerWorldRelease(OwnerState.Match,OwnerState.Life,HeldSequence);}HeldSequence=0;}}
 void ALDB91Controller::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);if(!IsLocalController()){return;}
@@ -71,27 +72,42 @@ void ALDB91Controller::PlayerTick(float Delta)
     {auto* E=GetWorld()->SpawnActor<ALDEnvironmentDirector>();FString Why;if(!E->Initialize(Why)){E->Destroy();IntentFeedback=Why;}}
     if(Now-LastViewAt>.5||OwnerState.Match!=LastViewMatch||OwnerState.Life!=LastViewLife)
     {View.Reset();for(auto& P:BodyViews){if(P.Value.IsValid()){P.Value->GetOwner()->Destroy();}}BodyViews.Reset();}
+    if(Now-ObjectViewAt>.5||OwnerState.Match!=ObjectViewMatch||OwnerState.Life!=ObjectViewLife)
+    {ObjectView.Reset();ContainerView.Reset();ContainerHandle.Invalidate();for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->Proxy->SetVisibility(false);}}}
     if(WasInputKeyJustPressed(EKeys::RightMouseButton))
     {ReleaseDoor();FHitResult Hit;if(CanWorldCommand()&&GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){Navigation->Navigate(Hit.ImpactPoint);}}
     if(WasInputKeyJustPressed(EKeys::S)||WasInputKeyJustPressed(EKeys::Escape)){ReleaseDoor();Navigation->Stop();}
     if(WasInputKeyJustPressed(EKeys::F))
-    {if(const auto* D=NearestDoor()){HeldKey=EKeys::F;StartDoor((D->State&1)?ELDWorldVerb::Close:ELDWorldVerb::Open);}}
+    {HeldKey=EKeys::F;if(const auto* O=NearestObject()){StartObject(uint8(O->Kind)>=4?ELDObjectVerb::Pickup:ELDObjectVerb::Open);}
+     else if(const auto* D=NearestDoor()){StartDoor((D->State&1)?ELDWorldVerb::Close:ELDWorldVerb::Open);}}
     if(WasInputKeyJustPressed(EKeys::V)){HeldKey=EKeys::V;StartDoor(ELDWorldVerb::Lockpick);}
     if(WasInputKeyJustPressed(EKeys::B)){HeldKey=EKeys::B;StartDoor(ELDWorldVerb::Force);}
+    if(WasInputKeyJustPressed(EKeys::Tab)){ContainerSelection=(ContainerSelection+1)%FMath::Max(1,ContainerView.Num());}
+    if(WasInputKeyJustPressed(EKeys::I)){BagSelection=(BagSelection+1)%FMath::Max(1,OwnerState.Inventory.Items.Num());}
+    for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::T,ELDObjectVerb::Take},{EKeys::Y,ELDObjectVerb::Store},{EKeys::C,ELDObjectVerb::Carry},{EKeys::P,ELDObjectVerb::Push},{EKeys::X,ELDObjectVerb::Break}})
+    {if(WasInputKeyJustPressed(P.Key)){HeldKey=P.Key;StartObject(P.Value);}}
+    for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::G,ELDObjectVerb::Drop},{EKeys::J,ELDObjectVerb::Place}})
+    {if(WasInputKeyJustPressed(P.Key)){FHitResult Hit;HeldKey=P.Key;if(GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){StartObject(P.Value,Hit.ImpactPoint);}}}
     if(HeldSequence)
     {if(!IsInputKeyDown(HeldKey)||!CanWorldCommand()){ReleaseDoor();}
-     else if(Now-SentAt>=.1){SentAt=Now;ServerWorldHold(OwnerState.Match,OwnerState.Life,HeldSequence,++Nonce,false);}}
+     else if(Now-SentAt>=.1){SentAt=Now;if(HeldObject){ServerObjectHold(OwnerState.Match,OwnerState.Life,HeldSequence,++Nonce);}else{ServerWorldHold(OwnerState.Match,OwnerState.Life,HeldSequence,++Nonce,false);}}}
     if(auto* Body=Cast<ALDCharacter>(GetPawn()))
     {const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);if(Zoom){Body->Zoom(Zoom);}}
 }
 void ALDB91HUD::DrawHUD()
 {
     Super::DrawHUD();const auto* PC=Cast<ALDB91Controller>(PlayerOwner);if(!PC){return;}
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,150);
-    DrawText(TEXT("B91 FUNCTIONAL ENVIRONMENT / doors, windows and permanent stairs / remaining object systems in development"),FLinearColor::White,22,20);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,225);
+    DrawText(TEXT("B91 FUNCTIONAL ENVIRONMENT / finite storage, flasks and cargo / remaining systems in development"),FLinearColor::White,22,20);
     DrawText(TEXT("RMB move | S stop | hold F open/close (0.3s) | hold V rear lockpick (3s) | hold B force rear (3s) | Esc cancel"),FLinearColor::White,22,43);
     DrawText(PC->IntentFeedback,FLinearColor::Yellow,22,66);
     if(const auto* D=PC->NearestDoor())
     {DrawText(D->PublicDoor.ToString()+FString::Printf(TEXT(" | revision %u | %s%s%s"),D->Revision,D->State&1?TEXT("open"):TEXT("closed"),D->State&2?TEXT(" / resident locked"):TEXT(" / unlocked"),D->State&4?TEXT(" / broken open"):TEXT("")),FLinearColor::White,22,89);}
     DrawText(TEXT("Only observed door revisions and local body handles are transmitted. Public fronts cannot lock. No full-match services active."),FLinearColor::White,22,115);
+    DrawText(TEXT("Objects: hold F open/pickup | T take | Y store | C carry | J place at cursor | P push | X break | G drop bag item at cursor"),FLinearColor::White,22,138);
+    DrawText(TEXT("Tab next container item | I next bag item | transfers/cargo need 6 quiet seconds | carry moves at 70% speed"),FLinearColor::White,22,160);
+    FString Contents=TEXT("Opened storage: ");for(int N=0;N<PC->ContainerView.Num();++N){Contents+=(N==PC->ContainerSelection?TEXT(" >"):TEXT(" "))+LDInventory::Name(PC->ContainerView[N].Kind,ELDSkill::None);}
+    DrawText(Contents,FLinearColor::White,22,182);
+    const auto& Bag=PC->OwnerState.Inventory;const auto* Item=Bag.Items.IsValidIndex(PC->BagSelection)?&Bag.Items[PC->BagSelection]:nullptr;
+    DrawText(FString::Printf(TEXT("Bag %d/24 | selected: %s | cargo: %s"),Bag.Items.Num(),Item?*LDInventory::Name(Item->Kind,Item->Skill):TEXT("empty"),PC->HasObjectCargo()?TEXT("carried"):TEXT("none")),FLinearColor::White,22,204);
 }

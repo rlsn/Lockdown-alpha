@@ -4,6 +4,7 @@
 #include "GameFramework/HUD.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
+#include "World/LDWorldObjects.h"
 #include "LDEnvironmentDirector.generated.h"
 
 class UStaticMeshComponent;
@@ -137,6 +138,25 @@ public:
     UFUNCTION(Server,Reliable) void ServerWorldRelease(uint32 Match,uint32 Life,uint32 Sequence);
     UFUNCTION(Client,Reliable) void ClientEnvironmentView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDEnvironmentViewEntry>& Entries);
     UFUNCTION(Client,Reliable) void ClientWorldReceipt(FLDWorldReceipt Receipt);
+    UFUNCTION(Server,Reliable) void ServerObjectInteraction(FLDObjectRequest Request);
+    UFUNCTION(Server,Unreliable) void ServerObjectHold(uint32 Match,uint32 Life,uint32 Sequence,uint32 NonceValue);
+    UFUNCTION(Server,Reliable) void ServerObjectRelease(uint32 Match,uint32 Life,uint32 Sequence);
+    UFUNCTION(Client,Reliable) void ClientObjectReceipt(FLDWorldReceipt Receipt);
+    UFUNCTION(Client,Reliable) void ClientObjectView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDObjectView>& Entries);
+    UFUNCTION(Client,Reliable) void ClientContainerView(uint32 Match,uint32 Life,FGuid Handle,uint32 Revision,const TArray<FLDContainerEntry>& Entries);
+    UFUNCTION(Client,Reliable) void ClientCargoState(uint32 Match,uint32 Life,bool Carrying,FGuid Observed);
+    TArray<FLDObjectView> ObjectView;
+    TArray<FLDContainerEntry> ContainerView;
+    FGuid ContainerHandle;
+    uint32 ContainerRevision=0;
+    FLDWorldReceipt LastObjectReceipt;
+    uint32 ObjectReceiptSerial=0;
+    bool bObjectCargo=false;
+    FGuid CargoHandle;
+    bool HasObjectCargo() const;
+    const FLDObjectView* NearestObject() const;
+    void StartObject(ELDObjectVerb Verb,FVector Point=FVector::ZeroVector);
+    int32 ContainerSelection=0,BagSelection=0;
     TArray<FLDEnvironmentViewEntry> View;
     FLDWorldReceipt LastWorldReceipt;
     uint32 WorldReceiptSerial=0;
@@ -153,10 +173,16 @@ public:
     UFUNCTION(Server,Reliable) void ServerB91ProbeAck(uint8 Phase,const FString& Report);
     UFUNCTION(Client,Reliable) void ClientB91ProbeTask(uint8 Phase);
     void TickB91Probe();
+    void TickB91ObjectsProbe();
 private:
     uint32 WorldSequence=0,HeldSequence=0,Nonce=0;
     double SentAt=0;
     FKey HeldKey;
+    bool HeldObject=false;
+    uint64 ObjectViewRevision=0;
+    uint32 ObjectViewMatch=0,ObjectViewLife=0;
+    double ObjectViewAt=0;
+    TMap<FGuid,TWeakObjectPtr<ALDWorldObject>> ObjectProxies;
     TMap<FGuid,TWeakObjectPtr<ULDHumanoidVisualComponent>> BodyViews;
     uint8 ProbeTask=0,ProbeStep=0;
     uint8 ProbeRetries=0;
@@ -164,6 +190,10 @@ private:
     double ProbeAt=0,ProbeHoldAt=0;
     double ProbeRetryAt=0;
     FLDWorldRequest ProbeRequest;
+    FLDObjectRequest ObjectProbeRequest;
+    FVector ObjectProbePad=FVector::ZeroVector,ObjectProbeStart=FVector::ZeroVector;
+    int32 ObjectProbeContainerBefore=0;
+    bool ObjectProbeRejectedPlace=false;
     FGuid ProbeReceipt;
     uint32 ProbeDuplicateSerial=0;
     FString ProbeMotion=TEXT("phase,time_s,x_cm,y_cm,z_cm\n");

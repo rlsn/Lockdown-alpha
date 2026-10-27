@@ -1,4 +1,5 @@
 #include "Inventory/LDInventoryDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
@@ -63,10 +64,11 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
 void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
     if(!Item||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Item->BindingMask){const auto* C=ULDEquipmentCatalog::Load(O->Build.RulesVersion);const auto* D=C?C->Find(Item->Kind):nullptr;if(!Consume||O->Build.RulesVersion!=8||!D||!D->Consumable){return;}Item->BindingMask=0;}
-    LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(Cause.IsNone()?FName(Consume?TEXT("ItemConsumed"):TEXT("Drop")):Cause,0,0,Consume?TArray<FGuid>{Item->Identity}:TArray<FGuid>{})){++E->AuditFailures;}}if(Consume){Item->Destroy();}
+    LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(Cause.IsNone()?FName(Consume?TEXT("ItemConsumed"):TEXT("Drop")):Cause,0,0,Consume?TArray<FGuid>{Item->Identity}:TArray<FGuid>{})){++E->AuditFailures;}}if(Consume){if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->RecordConsumption(Item);}Item->Destroy();}
 }
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
 {
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->ForceDrop(Cast<ALDB91Controller>(PC));}
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}for(auto& Entry:O->Inventory.Items){if(Entry.Kind==ELDItemKind::TowerRelic||(O->Build.RulesVersion==8&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)->Consumable)){for(auto& Ref:O->Inventory.Bindings){if(Ref==Entry.Id){Ref.Invalidate();}}Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}}const auto Items=O->Inventory.Items;
     for(const auto& Entry:Items)
     {
@@ -77,7 +79,9 @@ void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
             else if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile()&&!Item->BindingMask&&(Item->Kind!=ELDItemKind::Book&&Item->Kind!=ELDItemKind::Seal)||LDInventory::Commodity(Item->Kind)||Item->Kind==ELDItemKind::NullBell)
             {
                 FVector Surface;const FVector Point=PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),1);
-                if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}
+                if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile())
+                {FHitResult H;const bool Found=GetWorld()->LineTraceSingleByChannel(H,Point+FVector(0,0,10),Point-FVector(0,0,200),ECC_GameTraceChannel1);Surface=Found?H.ImpactPoint:Point-FVector(0,0,90);}
+                else if(!LDGround::MapSurface(GetWorld(),Point,Surface)){const bool Found=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Found);}
                 Item->SetActorLocation(Surface+FVector(0,0,12));Remove(PC,Item,false);
             }
         }
@@ -105,6 +109,7 @@ bool ALDInventoryDirector::Complete(ALDPlayerController* PC,uint32 Id,const FStr
 {auto* C=Clients.Find(PC);if(!C||!C->Receipts.Contains(Id)){return false;}Reply(PC,Id,Reason);return true;}
 void ALDInventoryDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,uint32 InvRev,uint8 Command,FGuid Item,uint32 ItemRev,uint8 Slot,FVector Point)
 {
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()&&(Command==LDInventory::Pickup||Command==LDInventory::Drop)){PC->ClientIntentResult(Id,TEXT("Use the versioned held world-object request"));return;}
     if(auto* State=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);State&&State->Build.RulesVersion==8&&(Command==LDInventory::Use||Command==LDInventory::Bind||Command==LDInventory::Unbind||Command==LDInventory::Place)){PC->ClientIntentResult(Id,TEXT("Use the versioned physical accessory/shared action request"));return;}
     if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O||O->Match!=Match||O->Life!=Life||!Id||Command<1||Command>LDInventory::Use||Point.ContainsNaN()){PC->ClientIntentResult(Id,TEXT("Inventory action unavailable"));return;}

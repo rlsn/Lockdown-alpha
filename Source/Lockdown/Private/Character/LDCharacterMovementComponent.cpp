@@ -6,6 +6,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Combat/LDCombatDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Character/LDCharacter.h"
 #include "Engine/World.h"
 #include "Region/LDMapSurfaceSubsystem.h"
@@ -114,7 +115,8 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
             const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr;
             const uint16 Tags=S?S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):PC->OwnerState.StatusMask;if(Tags&((1<<0)|(1<<3))){return 0;}
             int32 ContactSlow=PC->OwnerState.SlowPercent;if(S){ContactSlow=S->Tactical.SurfaceSlow;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){ContactSlow=FMath::Max(ContactSlow,T.Magnitude);}}}
-            const auto& Gear=PC->OwnerState.Build.Gear;const int32 Positive=FMath::Clamp(FMath::Max(0,Gear.Movement)+(LDGear::OnRoad(GetWorld(),CharacterOwner->GetActorLocation())?Gear.RoadMovement:0),0,20);return 420.f*(1+(FMath::Min(0,Gear.Movement)+Positive)/100.f)*FMath::Min((Tags&(1<<5))?.5f:1.f,1-ContactSlow/100.f);
+            const auto* EnvironmentPC=Cast<ALDB91Controller>(PC);const float CargoFactor=EnvironmentPC&&EnvironmentPC->HasObjectCargo()?.7f:1.f;
+            const auto& Gear=PC->OwnerState.Build.Gear;const int32 Positive=FMath::Clamp(FMath::Max(0,Gear.Movement)+(LDGear::OnRoad(GetWorld(),CharacterOwner->GetActorLocation())?Gear.RoadMovement:0),0,20);return CargoFactor*420.f*(1+(FMath::Min(0,Gear.Movement)+Positive)/100.f)*FMath::Min((Tags&(1<<5))?.5f:1.f,1-ContactSlow/100.f);
         }
         return float((IsMovingOnGround()&&bWantsSprint&&!bCombatWalkOnly?300.:180.)*LDDevelopment::SpeedFactor(PC->OwnerState.Build));
     }

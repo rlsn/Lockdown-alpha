@@ -167,6 +167,7 @@ bool ALDEnvironmentDirector::Eligible(ALDB91Controller* PC,ALDEnvironmentDoor* D
     if(!Ready||!D||!O||!B||!S||!O->bActive||!M->IsPlaying()||S->Hp<=0||Now<O->ProtectedUntil||Now<S->ProtectionUntil
        ||S->Action||O->DevelopmentKind||!M->Combat->Allows(const_cast<ALDCharacter*>(B),LDTactical::EAction::Service))
     {return Fail(TEXT("World interaction unavailable"));}
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&Objects->Carried(PC)){return Fail(TEXT("Put down cargo before using a door"));}
     const FVector Target=D->GetActorLocation()-FVector(0,0,40);
     if(FVector::DistSquared2D(B->GetActorLocation(),Target)>120*120||FMath::Abs(B->GetActorLocation().Z-Target.Z)>100||!Visible(PC,D))
     {return Fail(TEXT("Visible doorway must be within 120cm on this floor"));}
@@ -201,6 +202,7 @@ void ALDEnvironmentDirector::Begin(ALDB91Controller* PC,const FLDWorldRequest& R
     if(!D||D->Revision!=R.ObjectRevision||!Eligible(PC,D,R.Verb,Why)){Reply(PC,R,2,Why.IsEmpty()?TEXT("Door changed or not observed"):Why);return;}
     for(const auto& H:Holds){if(H.Value.Door==D&&H.Key!=PC){Reply(PC,R,2,TEXT("Door reserved; try again"));return;}}
     Cancel(PC,TEXT("Superseded held interaction"));FHold H;H.Request=R;H.Door=D;H.Start=PC->GetPawn()->GetActorLocation();
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->Cancel(PC,TEXT("Door interaction started"));}
     H.Started=H.Heartbeat=Now;H.Ends=Now+((R.Verb==ELDWorldVerb::Force||R.Verb==ELDWorldVerb::Lockpick)?3.:.3);
     H.DamageAt=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;Holds.Add(PC,H);
     Reply(PC,R,0,TEXT("Hold in place; move, damage, release or loss of sight cancels"));

@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Combat/LDCombatRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -90,6 +91,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
         ||Revision!=Build->Revision||Slot>=LDDevelopment::Slots(*Build)||!Token||Direction.ContainsNaN()||FMath::Abs(Direction.Z)>.001||Direction.SizeSquared()<.9||Direction.SizeSquared()>1.1)
     { Result=TEXT("Invalid slot, build revision or life."); return false; }
     const ELDSkill Skill=Build->Slots[Slot];
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->ForceDrop(Cast<ALDB91Controller>(Body->GetController()))){Result=TEXT("No safe cargo drop; action unavailable");return false;}
     if(Mode->IsTacticalProfile()&&uint8(Skill)>=10){return RequestTactical(Body,Skill,Token,ExplicitTarget,Result,Point,Direction);}
     if(Mode->IsV08Profile()&&!Allows(Body,LDTactical::EAction::Skill,&Result)){return false;}
     if(!Allows(Body,Skill==ELDSkill::Step?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Result)){return false;}

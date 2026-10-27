@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -130,6 +131,7 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(!Mode->IsPlaying()){Result=TEXT("Gameplay is unavailable in the lobby or after results.");return false;}
     if(Mode->IsDevelopmentProfile()&&Action!=0){Result=TEXT("Use an equipped skill slot; legacy skill shortcuts are disabled in v0.4.");return false;}
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->ForceDrop(Cast<ALDB91Controller>(Body?Body->GetController():nullptr))){Result=TEXT("No safe cargo drop; action unavailable");return false;}
     if(!Allows(Body,LDTactical::EAction::Attack,&Result)){return false;}
     if(!S||S->Hp<=0||Now<S->ProtectionUntil||Direction.ContainsNaN()||Direction.SizeSquared2D()<UE_SMALL_NUMBER||FMath::Abs(Direction.Z)>.001||Action>2)
     {Result=TEXT("Action unavailable.");return false;}
@@ -329,6 +331,7 @@ void ALDCombatDirector::Sample(double Now)
         }
         else{T->Hp=FMath::Max(0.,T->Hp-Hit.Damage);}
         T->LastDamage=Now;T->QuietSince=Now;T->HitUntil=Now+.15;
+        if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->ForceDrop(Cast<ALDB91Controller>(Victim->GetController()));}
         T->ExposedUntil=FMath::Max(T->ExposedUntil,Now+4);
         if(auto* PC=Cast<ALDPlayerController>(Victim->GetController())){if(Mode->Objectives){Mode->Objectives->NotifyDamage(PC,Now);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Damage cancelled the transaction."));if(Mode->Production){Mode->Production->Cancel(PC,TEXT("Damage cancelled production"));}}}
         const FVector Bearing=Hit.Source?Hit.Source->GetActorLocation()-Victim->GetActorLocation():FVector::ZeroVector;

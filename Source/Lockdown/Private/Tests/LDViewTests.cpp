@@ -53,6 +53,10 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     int32 FullCount=0;for(TFieldIterator<FProperty> It(FLDEnvironmentViewEntry::StaticStruct());It;++It)
     {++FullCount;TestTrue(TEXT("Full-map view contains only approved observed fields"),FullMap.Contains(It->GetFName()));TestNull(TEXT("Full-map view has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}
     TestEqual(TEXT("Full-map observed schema complete"),FullCount,7);
+    const TSet<FName> Objects={TEXT("Handle"),TEXT("Kind"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("PhysicalRevision")};
+    int32 ObjectCount=0;for(TFieldIterator<FProperty> It(FLDObjectView::StaticStruct());It;++It)
+    {++ObjectCount;TestTrue(TEXT("World-object view contains only public observed fields"),Objects.Contains(It->GetFName()));TestNull(TEXT("World-object view has no canonical actor reference"),CastField<FObjectPropertyBase>(*It));}
+    TestEqual(TEXT("World-object observed schema complete"),ObjectCount,6);
     FVector_NetQuantize10 Boundary=FVector(-118000,118000,1292.15);FNetBitWriter FullWriter(nullptr,1024);bool FullOk=true;Boundary.NetSerialize(FullWriter,nullptr,FullOk);
     FVector_NetQuantize10 BoundaryRead;FNetBitReader FullReader(nullptr,FullWriter.GetData(),FullWriter.GetNumBits());BoundaryRead.NetSerialize(FullReader,nullptr,FullOk);
     TestTrue(TEXT("Full-map boundary pose fits native quantization"),FullOk&&!FullReader.IsError()&&FVector(BoundaryRead).Equals(Boundary,.11));

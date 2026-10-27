@@ -26,6 +26,7 @@ void ALDB91Controller::TickB91Probe()
     if(!Probe()||GetNetMode()!=NM_Client||!IsLocalController()||!GetPawn()||!OwnerState.Match){return;}
     if(!EnvironmentProbeRole)
     {FString ProbeLabel;FParse::Value(FCommandLine::Get(),TEXT("B91Role="),ProbeLabel);EnvironmentProbeRole=ProbeLabel==TEXT("A")?1:2;ServerB91ProbeHello(EnvironmentProbeRole);}
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ObjectsProbe"))){TickB91ObjectsProbe();return;}
     const double Now=GetWorld()->GetTimeSeconds();
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91NetCapture"))&&Now-ProbeCaptureAt>=.2
        &&(ProbeFrame||View.ContainsByPredicate([](const auto& Entry){return Entry.PublicDoor==TEXT("building_riverport_00_door_north");})))
