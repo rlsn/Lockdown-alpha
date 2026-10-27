@@ -1,0 +1,501 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "B90-T01",
+      "stage_id": "B90",
+      "action": "Import the selected full profile twice, then reset",
+      "expected": "96 POIs,144 buildings,24 spawn pads; stable IDs; no duplicate actor/source/market",
+      "required_evidence": "Import report, source hashes, actor ID diff",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T02",
+      "stage_id": "B90",
+      "action": "Walk without abilities from every spawn to every service and objective",
+      "expected": "Native path succeeds; no compulsory ladder, bridge-only river gate or invalid slope",
+      "required_evidence": "Native all-pairs required-target path report",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T03",
+      "stage_id": "B90",
+      "action": "Walk all named and unmarked river crossings thawed and frozen",
+      "expected": "Same connectivity; Wet at fords, dry deck over bridge; no base river slow",
+      "required_evidence": "Movement/contact logs and capture",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T04",
+      "stage_id": "B90",
+      "action": "Traverse every road/plateau interface",
+      "expected": "Continuous <=25% ramp or valid stairs, correct band height, no cliff clipping",
+      "required_evidence": "Native sweeps, elevation overlay",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T05",
+      "stage_id": "B90",
+      "action": "Inspect routes to each ruin, boss,forge and Heart",
+      "expected": "Two usable approach branches at key targets; one occluded or alternate branch",
+      "required_evidence": "Native paths + sightline evidence",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T06",
+      "stage_id": "B90",
+      "action": "Walk antechamber to Heart at420 cm/s",
+      "expected": "Measured <=15 seconds on normal dry path; claim circle not forced Wet",
+      "required_evidence": "Path trace and server elapsed time",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T07",
+      "stage_id": "B90",
+      "action": "Visit five cities and six towns",
+      "expected": "Correct identity/services, six city districts, distinct watched core and edge",
+      "required_evidence": "Level walkthrough + service mapping",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T08",
+      "stage_id": "B90",
+      "action": "Regenerate seed9001 twice and reopen level",
+      "expected": "Same semantic IDs, positions,source counts; visual scatter cannot move objectives",
+      "required_evidence": "Serialized manifest diff",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T09",
+      "stage_id": "B90",
+      "action": "Place all primitive building/road geometry",
+      "expected": "Local district approach routes fit doorways; no carved road through a closed shell",
+      "required_evidence": "Native collision and path overlay",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T10",
+      "stage_id": "B90",
+      "action": "Walk near playable border and ledges with push/dash",
+      "expected": "No falling death, out-of-bounds launch or endpoint inside collision",
+      "required_evidence": "Sweep and rejected endpoint receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T11",
+      "stage_id": "B90",
+      "action": "Measure prescribed long trips and empty road stretches",
+      "expected": "Native length/time separated from graph estimate; empty segments recorded for density tuning",
+      "required_evidence": "Completed travel CSV and heat trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B90-T12",
+      "stage_id": "B90",
+      "action": "Switch fresh match to v08_integration",
+      "expected": "Original short-map limits and sources active alone; no v09 rewards/endowments imported",
+      "required_evidence": "Profile-specific actor and ledger dump",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T01",
+      "stage_id": "B91",
+      "action": "Enter all36 interiors; inspect108 closed shells",
+      "expected": "Exactly25% enterable; legal real doors/stairs, no fake door verbs",
+      "required_evidence": "Native interior checklist",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T02",
+      "stage_id": "B91",
+      "action": "Open/close door while another client observes and paths through",
+      "expected": "Collision,sight and local navigation share one revision; occupied closure rejects",
+      "required_evidence": "Two-client video + revision receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T03",
+      "stage_id": "B91",
+      "action": "Force/lockpick rear door; attempt lock at public front",
+      "expected": "Rear broken-open persists; no public-service lockout; owner rule enforced",
+      "required_evidence": "Door and navigation logs",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T04",
+      "stage_id": "B91",
+      "action": "Two clients take one flask or carry one ladder simultaneously",
+      "expected": "Exactly one location/owner; losing request spends nothing",
+      "required_evidence": "Race receipts + item identity query",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T05",
+      "stage_id": "B91",
+      "action": "Throw/pour a flask from unbound inventory then bound accessory under Mute",
+      "expected": "Unbound/Mute rejects; bound action consumes once with inherited cooldown/mask",
+      "required_evidence": "Action/inventory receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T06",
+      "stage_id": "B91",
+      "action": "Ignite torch and toggle light through drop/swap/death/rejoin",
+      "expected": "Fuel never resets; no extra sight/detection or ground auto-fire; Mute respected",
+      "required_evidence": "Fuel trace + restricted payload",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T07",
+      "stage_id": "B91",
+      "action": "Carry,push,place crate/barrel near door/Heart/corridor and another body",
+      "expected": "One world instance,70%carry speed,suppressed actions; unsafe placement rejects; no body displacement",
+      "required_evidence": "Native geometry + receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T08",
+      "stage_id": "B91",
+      "action": "Break an empty and a filled container in a race",
+      "expected": "Existing contents drop once; no invented oil,material,gold or duplicate storage",
+      "required_evidence": "Lineage/item identity check",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T09",
+      "stage_id": "B91",
+      "action": "Deploy/retrieve rope and ladder; race traversal; Root/Stun mid-use",
+      "expected": "One instance/anchor reservation; permanent stairs usable; interruption returns valid endpoint",
+      "required_evidence": "Link/inventory/state logs",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T10",
+      "stage_id": "B91",
+      "action": "Harvest,burn and attack the same sapling across death/reload",
+      "expected": "At most one Fiber when harvested; destruction none; proxy removal matches sight/nav",
+      "required_evidence": "Source receipt + geometry diff",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T11",
+      "stage_id": "B91",
+      "action": "Hide in grass, approach within2 m, detect, attack, then burn patch",
+      "expected": "Geometry-gated concealment; reveal timers; no wall reveal; burnt cover stays removed",
+      "required_evidence": "Two restricted client traces",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T12",
+      "stage_id": "B91",
+      "action": "Use Wet+direct Frost repeatedly on river, then Frost Capsule alone",
+      "expected": "600 ms stun/6000 ms victim lock; floor only30%slow; guard and death lock rules retained",
+      "required_evidence": "Combat/contact boundary trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T13",
+      "stage_id": "B91",
+      "action": "Create Steam then Gust; attempt unit target across smoke/wall",
+      "expected": "Union occlusion applied to all audiences; authorization recalculated; no target/private-data leak",
+      "required_evidence": "Restricted serialized payload inspection",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T14",
+      "stage_id": "B91",
+      "action": "Fill field budget while lighting sapling/oil",
+      "expected": "Capacity refusal without cost; paid reservations survive; expiry and source ownership exact",
+      "required_evidence": "Capacity/receipt trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B91-T15",
+      "stage_id": "B91",
+      "action": "Fit all480 functional props and3000 scenery-tree targets",
+      "expected": "No essential corridor overlap; all verbs work; static trees do not burn or drop loot",
+      "required_evidence": "Fitted manifest + interaction sampling + count report",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T01",
+      "stage_id": "B92",
+      "action": "Start default4-human full match then12-human configuration",
+      "expected": "196 noncontenders +24 contenders;20 then12 AI contenders; no double roster count",
+      "required_evidence": "Roster/role budget dump",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T02",
+      "stage_id": "B92",
+      "action": "Observe civilian loops and cross-city travelers for15 minutes",
+      "expected": "Real path travel, staggered activity,flee/resume; sealed cargo neither loot nor market stock",
+      "required_evidence": "Routine timeline + stock delta",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T03",
+      "stage_id": "B92",
+      "action": "Attack resident/force rear door inside and outside guard sight",
+      "expected": "Only observed local incident; no omniscient suspect or human label",
+      "required_evidence": "Guard knowledge and observer records",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T04",
+      "stage_id": "B92",
+      "action": "Fight/respawn guards and ambient wildlife repeatedly",
+      "expected": "Zero gold/XP/loot mint;24 guard IDs;90 s downtime; no infinite reinforcements",
+      "required_evidence": "Kill/source and ledger receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T05",
+      "stage_id": "B92",
+      "action": "Buy/sell simultaneously at all five market pools",
+      "expected": "Current unit quotes,finite cash,stock caps and source lineage; stale quote rejects",
+      "required_evidence": "Transaction races + five-pool ledger",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T06",
+      "stage_id": "B92",
+      "action": "Buy Circle-III book at multiple official endpoints",
+      "expected": "Only two copies per definition globally; no per-city rare stock clone",
+      "required_evidence": "Stock/source audit",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T07",
+      "stage_id": "B92",
+      "action": "Run all29 production/consumption ticks including empty/poor pool",
+      "expected": "At most145 producer burn; actual items consumed; no deferred catch-up or hidden funding",
+      "required_evidence": "Scheduled receipts + identity closure",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T08",
+      "stage_id": "B92",
+      "action": "Complete/repeat/abandon/die during courier and procurement work",
+      "expected": "20 paid courier cap,40 issuance cap,one active token; endorsement andN budgets exact",
+      "required_evidence": "Contract/source receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T09",
+      "stage_id": "B92",
+      "action": "Harvest all deposits,saplings and initial common caches",
+      "expected": "Finite charges/endowments,no XP/gold mint or life reset; no rare key in common chest",
+      "required_evidence": "Item-source closure",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T10",
+      "stage_id": "B92",
+      "action": "Progress from zero kills to paid registered Charter with a legal Witness path",
+      "expected": "Actual native skill gates/costs documented; no free grant; both endorsements and100 gold spent",
+      "required_evidence": "Complete action and balance trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T11",
+      "stage_id": "B92",
+      "action": "Transfer gold,bank across cities,die with gear/cargo/consumables",
+      "expected": "One account; fees/tax burn; ordinary gear retained; consumables/objectives drop once",
+      "required_evidence": "Gold and item conservation report",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T12",
+      "stage_id": "B92",
+      "action": "Hide hazards/keys/rival wallet from contender AI",
+      "expected": "AI choices use owned/observed/public facts; no remote path cost or objective-carrier oracle",
+      "required_evidence": "AI input audit + restricted view",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B92-T13",
+      "stage_id": "B92",
+      "action": "Move near/far bodies across simulation tiers during combat/transactions",
+      "expected": "Wake before observation; one identity/receipt; no skipped damage or visible teleport",
+      "required_evidence": "Tier transition and native movement trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T01",
+      "stage_id": "B93",
+      "action": "Destroy each tower once then reload/rejoin",
+      "expected": "Three permanent losses,three relics,total120 gold; siege opens once; local watch removed",
+      "required_evidence": "Objective/source/access log",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T02",
+      "stage_id": "B93",
+      "action": "Activate Charter near Heart while a different contender waits locally",
+      "expected": "30/60 public window; nonbuyer can physically win; Treasury purchase still required",
+      "required_evidence": "Activation/travel/claim receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T03",
+      "stage_id": "B93",
+      "action": "Collect all keys,activate,transfer/drop/recover one",
+      "expected": "Unique keys,lease revoked on loss;90 s instance+owner locks persist",
+      "required_evidence": "Instance and access timeline",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T04",
+      "stage_id": "B93",
+      "action": "Craft/activate Heartbreaker,die before and after activation",
+      "expected": "Exact inputs/20 fee,8 s craft; artifact drops precommit or is consumed once; no refunded lease",
+      "required_evidence": "Lineage and life-bound lease receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T05",
+      "stage_id": "B93",
+      "action": "Attempt duplicate ruin,boss,Fragment or capstone reward",
+      "expected": "Three key bundles,one boss,finite assigned books; restored body cannot pay again",
+      "required_evidence": "Source identity closure",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T06",
+      "stage_id": "B93",
+      "action": "Hold Heart through ordinary damage,Wet,Root,Silence,Mute and proximity",
+      "expected": "Surviving authorized claim continues; no passive contest or damage interrupt",
+      "required_evidence": "Claim cancellation reason log",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T07",
+      "stage_id": "B93",
+      "action": "Apply Stun,Hex,Interrupt,actual push and zero-distance blocked push at completion",
+      "expected": "Actual qualifying effects cancel; zero movement alone does not; due combat precedes completion",
+      "required_evidence": "Scheduled-time boundary trace",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T08",
+      "stage_id": "B93",
+      "action": "Use guarded Wet-Frost and frozen surface at a claim",
+      "expected": "Guarded no-Stun and surface slow do not falsely cancel; lock spent as inherited",
+      "required_evidence": "Reaction and claim receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T09",
+      "stage_id": "B93",
+      "action": "Overlap access routes; close one exactly at claim end",
+      "expected": "OR authorization; inclusive endpoint; no timer extension or boolean-close race",
+      "required_evidence": "Access interval/claim receipt",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T10",
+      "stage_id": "B93",
+      "action": "Start two claims with equal completion time; reach exact deadline",
+      "expected": "One role-neutral start-ordinal winner; valid due completion before NoAcquisition",
+      "required_evidence": "Winner receipt + monotonic timeline",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T11",
+      "stage_id": "B93",
+      "action": "Attack,observe and approach Heart without own access route",
+      "expected": "Defenders enter normally; fog still governs targeting; no civic guard/shrine/protection bubble",
+      "required_evidence": "Native precinct inspection",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B93-T12",
+      "stage_id": "B93",
+      "action": "Run AI route attempts using real earned resources",
+      "expected": "No hidden teleport,free key/artifact/Witness,money or scripted tower deletion",
+      "required_evidence": "Complete contender action/commerce traces",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T01",
+      "stage_id": "B94",
+      "action": "Run normal24-contender matches at60/75/90-minute deadlines",
+      "expected": "Terminal winner or truthful NoAcquisition; no min-win gate; correct timer/profile",
+      "required_evidence": "Per-run roster,profile and terminal receipts",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T02",
+      "stage_id": "B94",
+      "action": "Run at least one human-involved60+ minute observed session",
+      "expected": "Record pacing,empty travel,first encounters,route response; no automated-soak balance claim",
+      "required_evidence": "Session notes + telemetry",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T03",
+      "stage_id": "B94",
+      "action": "Stress distributed whole-map population then capital convergence",
+      "expected": "Recorded hardware/settings,30 Hz server p95<=33.3 ms,p99<=50 ms;60 FPS target measured",
+      "required_evidence": "Profiler captures and percentiles",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T04",
+      "stage_id": "B94",
+      "action": "Stress1024 live cells,2048 transitions/100 ms and pending reservations",
+      "expected": "No paid field loss,resource overrun,late claim/control reorder or expiry drift",
+      "required_evidence": "Environment and event queue profiler",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T05",
+      "stage_id": "B94",
+      "action": "Test150 ms RTT,packet loss,reordered/duplicate requests and disconnect/rejoin",
+      "expected": "No stale-life commits,duplicate item/reward or identity leak; p95 interaction target reported",
+      "required_evidence": "Network harness and receipt audit",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T06",
+      "stage_id": "B94",
+      "action": "Open remote inspector/minimap/listeners behind fog during mutations",
+      "expected": "No hidden roles,build,wallet,loot coordinates,crime tracker or live fogged proxy changes",
+      "required_evidence": "Restricted payload diff",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T07",
+      "stage_id": "B94",
+      "action": "Soak carry,door,nav and traversal interactions with crowd pressure",
+      "expected": "No permanent path deadlock,stuck essential service,vanished cargo or repeated receipt",
+      "required_evidence": "Path failure/timeout logs",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T08",
+      "stage_id": "B94",
+      "action": "Close every gold and item ledger at terminal/reset",
+      "expected": "Delta zero; initial+mint-burn accounting includes all market/resident/world locations",
+      "required_evidence": "Machine-readable closure report",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T09",
+      "stage_id": "B94",
+      "action": "Regress inherited52 abilities/80 items/20 recipes and traits/loadouts",
+      "expected": "No map-scope deletions,fake ops,unbound item actions or changed combat limits",
+      "required_evidence": "Inherited test report + importer coverage",
+      "native_status": "Not run"
+    },
+    {
+      "id": "B94-T10",
+      "stage_id": "B94",
+      "action": "Review all B90-B94 exits and deviations",
+      "expected": "Native evidence attached; failed/not-run gates remain visible; tuning/data/prose synchronized",
+      "required_evidence": "Completed implementation report and feature ledger",
+      "native_status": "Not run"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+atlas_index,id,name,kind,east_m,north_m,height_m,functions,stage_id
+1,capital,Crownreach,settlement,40.0,40.0,4.0,route_hub;civilian_work_and_trade,B90
+2,highfort,Highfort,settlement,-820.0,720.0,8.0,route_hub;civilian_work_and_trade,B90
+3,scholars,Lumen Archive,settlement,780.0,780.0,4.0,route_hub;civilian_work_and_trade,B90
+4,riverport,Riverport,settlement,-800.0,-660.0,0.0,route_hub;civilian_work_and_trade,B90
+5,ironworks,Ironworks,settlement,760.0,-680.0,4.0,route_hub;civilian_work_and_trade,B90
+6,oakmere,Oakmere,settlement,-770.0,80.0,0.0,route_hub;civilian_work_and_trade,B90
+7,millford,Millford,settlement,-390.0,450.0,0.0,route_hub;civilian_work_and_trade,B90
+8,reedbank,Reedbank,settlement,-470.0,-650.0,0.0,route_hub;civilian_work_and_trade,B90
+9,ashcross,Ashcross,settlement,380.0,-850.0,4.0,route_hub;civilian_work_and_trade,B90
+10,bellwick,Bellwick,settlement,730.0,200.0,4.0,route_hub;civilian_work_and_trade,B90
+11,stonewake,Stonewake,settlement,0.0,840.0,8.0,route_hub;civilian_work_and_trade,B90
+12,capital_treasury,Treasury,service,-69.2,-44.0,4.0,bank;charter_purchase;core_procurement,B92
+13,capital_supply,Official Supply,service,3.6,-44.0,4.0,official_supply;circle1_books,B92
+14,capital_guild,Civic Guild,service,112.8,-44.0,4.0,supply_commission;courier_board;witness,B92
+15,capital_workshop,Commons Workshop,service,-69.2,124.0,4.0,workshop;preparation,B92
+16,capital_infirmary,Public Infirmary,service,3.6,124.0,4.0,shrine;safe_route_information,B92
+17,capital_guard,Civic Guard Post,service,112.8,124.0,4.0,guards;crime_reporting,B92
+18,highfort_barracks,Barracks,service,-898.0,660.0,8.0,trainer_circle2;preparation,B92
+19,highfort_supply,Garrison Supply,service,-846.0,660.0,8.0,official_supply;circle1_books,B92
+20,highfort_market,Highfort Market,service,-768.0,660.0,8.0,market;courier_board,B92
+21,highfort_workshop,Armorer Hall,service,-898.0,780.0,8.0,workshop;preparation,B92
+22,highfort_inn,Cliff Inn,service,-846.0,780.0,8.0,shrine;civilian_rest,B92
+23,highfort_guard,North Watch,service,-768.0,780.0,8.0,guards;crime_reporting,B92
+24,scholars_archive,Grand Archive,service,702.0,720.0,4.0,archive_circle3;circle2_books,B92
+25,scholars_supply,Scholars Supply,service,754.0,720.0,4.0,official_supply;circle1_books,B92
+26,scholars_market,Garden Exchange,service,832.0,720.0,4.0,market;courier_board,B92
+27,scholars_workshop,Research Hall,service,702.0,840.0,4.0,workshop;preparation,B92
+28,scholars_infirmary,Garden Hospice,service,754.0,840.0,4.0,shrine;civilian_rest,B92
+29,scholars_guard,Library Watch,service,832.0,840.0,4.0,guards;crime_reporting,B92
+30,riverport_market,Harbor Exchange,service,-878.0,-720.0,0.0,market;courier_board,B92
+31,riverport_supply,Dock Supply,service,-826.0,-720.0,0.0,official_supply;circle1_books,B92
+32,riverport_guild,Port Guild,service,-748.0,-720.0,0.0,supply_commission;courier_board;witness,B92
+33,riverport_workshop,Shipwright Hall,service,-878.0,-600.0,0.0,workshop;preparation,B92
+34,riverport_inn,Low Tide Inn,service,-826.0,-600.0,0.0,shrine;civilian_rest,B92
+35,riverport_guard,Harbor Watch,service,-748.0,-600.0,0.0,guards;crime_reporting,B92
+36,ironworks_forge,Advanced Forge,service,682.0,-740.0,4.0,advanced_forge;preparation,B92
+37,ironworks_supply,Foundry Supply,service,734.0,-740.0,4.0,official_supply;circle1_books,B92
+38,ironworks_market,Foundry Exchange,service,812.0,-740.0,4.0,market;courier_board,B92
+39,ironworks_workshop,Open Workshop,service,682.0,-620.0,4.0,workshop;preparation,B92
+40,ironworks_inn,Cinder Inn,service,734.0,-620.0,4.0,shrine;civilian_rest,B92
+41,ironworks_guard,Foundry Watch,service,812.0,-620.0,4.0,guards;crime_reporting,B92
+42,camp_01,Wilderness Camp 1,camp,-1030.0,400.0,0.0,bounded_combat;patrol_cover,B92
+43,camp_02,Wilderness Camp 2,camp,-580.0,920.0,8.0,bounded_combat;patrol_cover,B92
+44,camp_03,Wilderness Camp 3,camp,380.0,1020.0,8.0,bounded_combat;patrol_cover,B92
+45,camp_04,Wilderness Camp 4,camp,1040.0,510.0,4.0,bounded_combat;patrol_cover,B92
+46,camp_05,Wilderness Camp 5,camp,-1040.0,-180.0,0.0,bounded_combat;patrol_cover,B92
+47,camp_06,Wilderness Camp 6,camp,-600.0,-320.0,0.0,bounded_combat;patrol_cover,B92
+48,camp_07,Wilderness Camp 7,camp,460.0,470.0,4.0,bounded_combat;patrol_cover,B92
+49,camp_08,Wilderness Camp 8,camp,1010.0,-120.0,0.0,bounded_combat;patrol_cover,B92
+50,camp_09,Wilderness Camp 9,camp,-1020.0,-990.0,0.0,bounded_combat;patrol_cover,B92
+51,camp_10,Wilderness Camp 10,camp,-100.0,-1000.0,0.0,bounded_combat;patrol_cover,B92
+52,camp_11,Wilderness Camp 11,camp,480.0,-410.0,4.0,bounded_combat;patrol_cover,B92
+53,camp_12,Wilderness Camp 12,camp,1040.0,-980.0,4.0,bounded_combat;patrol_cover,B92
+54,ruin_a,Glass Monastery,ruin,-960.0,1020.0,8.0,unique_key_catalyst_book_cache;ambush_and_retreat,B92
+55,ruin_b,Drowned Observatory,ruin,-70.0,-1020.0,0.0,unique_key_catalyst_book_cache;ambush_and_retreat,B92
+56,ruin_c,Ash Vault,ruin,1040.0,-420.0,4.0,unique_key_catalyst_book_cache;ambush_and_retreat,B92
+57,boss_lair,Hollow Crown Quarry,boss,90.0,570.0,4.0,single_guardian_boss;fragment_and_book,B92
+58,heart_forge,Old Heart Foundry,service,390.0,-310.0,4.0,heart_forge;craft_interception,B92
+59,tower_a,Grand Tower A,tower,-90.0,190.0,4.0,siege_gate;local_public_watch,B93
+60,tower_b,Grand Tower B,tower,195.0,10.0,4.0,siege_gate;local_public_watch,B93
+61,tower_c,Grand Tower C,tower,10.0,-155.0,4.0,siege_gate;local_public_watch,B93
+62,heart,Grand Heart,heart,40.0,40.0,4.0,single_physical_claim;public_attempt_sensor,B93
+63,antechamber,Heart Antechamber,terminal,40.0,-5.0,4.0,keys_activation;heartbreaker_activation,B93
+64,north_bridge,North Bridge,crossing,-280.0,650.0,0.0,route_choice;vision_or_exposure_control,B90
+65,mill_bridge,Mill Bridge,crossing,-360.0,350.0,0.0,route_choice;vision_or_exposure_control,B90
+66,capital_ford,Crown Ford,crossing,-325.0,100.0,0.0,route_choice;vision_or_exposure_control,B90
+67,south_bridge,South Bridge,crossing,-300.0,-560.0,0.0,route_choice;vision_or_exposure_control,B90
+68,reed_ford,Reed Ford,crossing,-300.0,-820.0,0.0,route_choice;vision_or_exposure_control,B90
+69,east_bridge,Garden Bridge,crossing,610.0,295.0,4.0,route_choice;vision_or_exposure_control,B90
+70,east_ford,Bell Ford,crossing,840.0,223.0,0.0,route_choice;vision_or_exposure_control,B90
+71,north_pass,North Saddle,pass,-450.0,1020.0,8.0,route_choice;vision_or_exposure_control,B90
+72,west_pass,Oak Cut,pass,-920.0,360.0,4.0,route_choice;vision_or_exposure_control,B90
+73,east_pass,Foundry Steps,pass,960.0,-250.0,4.0,route_choice;vision_or_exposure_control,B90
+74,south_tunnel,Ash Culvert,pass,320.0,-600.0,0.0,route_choice;vision_or_exposure_control,B90
+75,heart_dry_flank,Heart Dry Flank,pass,100.0,-95.0,4.0,route_choice;vision_or_exposure_control,B90
+76,crystal_north,Sky Crystal,resource,-250.0,1030.0,8.0,finite_Crystal_harvest;trade_route_interception,B92
+77,crystal_west,Moss Crystal,resource,-960.0,100.0,0.0,finite_Crystal_harvest;trade_route_interception,B92
+78,crystal_center,Quarry Crystal,resource,220.0,570.0,4.0,finite_Crystal_harvest;trade_route_interception,B92
+79,crystal_east,Garden Crystal,resource,1000.0,900.0,4.0,finite_Crystal_harvest;trade_route_interception,B92
+80,crystal_south,Reed Crystal,resource,-540.0,-1000.0,0.0,finite_Crystal_harvest;trade_route_interception,B92
+81,ore_north,North Ore,resource,-1080.0,800.0,8.0,finite_Ore_harvest;trade_route_interception,B92
+82,ore_east,Foundry Ore,resource,950.0,-850.0,4.0,finite_Ore_harvest;trade_route_interception,B92
+83,fiber_west,Oak Fiber,resource,-980.0,-360.0,0.0,finite_Fiber_harvest;trade_route_interception,B92
+84,fiber_south,Farm Fiber,resource,260.0,-1040.0,0.0,finite_Fiber_harvest;trade_route_interception,B92
+85,oak_shrine,Oak Shrine,shrine,-650.0,260.0,0.0,recovery;covered_detour,B92
+86,reed_shrine,Reed Shrine,shrine,-660.0,-880.0,0.0,recovery;covered_detour,B92
+87,ash_shrine,Ash Shrine,shrine,550.0,-1020.0,4.0,recovery;covered_detour,B92
+88,sky_shrine,Sky Shrine,shrine,420.0,850.0,8.0,recovery;covered_detour,B92
+89,quarry_shrine,Quarry Shrine,shrine,210.0,450.0,4.0,recovery;covered_detour,B92
+90,west_watch,Broken West Watch,landmark,-1050.0,540.0,4.0,supply_storage;tactical_vantage,B91
+91,east_watch,Abandoned East Watch,landmark,1050.0,80.0,4.0,supply_storage;tactical_vantage,B91
+92,smuggler_cove,Port Quay and Smuggler Cove,landmark,-800.0,-805.0,0.0,supply_storage;tactical_vantage,B91
+93,old_lab,Old Laboratory,landmark,1010.0,1040.0,4.0,supply_storage;tactical_vantage,B91
+94,fallen_garden,Fallen Garden,landmark,400.0,680.0,4.0,supply_storage;tactical_vantage,B91
+95,charcoal_camp,Charcoal Yard,landmark,590.0,-180.0,0.0,supply_storage;tactical_vantage,B91
+96,ferry_ruins,Ferry Ruins,landmark,-450.0,-160.0,0.0,supply_storage;tactical_vantage,B91

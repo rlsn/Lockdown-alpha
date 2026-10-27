@@ -1,0 +1,148 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "capital",
+      "name": "Crownreach",
+      "position_cm": [
+        4000,
+        4000,
+        400
+      ],
+      "kind": "capital",
+      "footprint_radius_cm": 20000,
+      "identity": "Heart, Charter, finance; guarded squares and contested precinct",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "highfort",
+      "name": "Highfort",
+      "position_cm": [
+        -82000,
+        72000,
+        800
+      ],
+      "kind": "city",
+      "footprint_radius_cm": 12500,
+      "identity": "fortification, training, cliff paths",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "scholars",
+      "name": "Lumen Archive",
+      "position_cm": [
+        78000,
+        78000,
+        400
+      ],
+      "kind": "city",
+      "footprint_radius_cm": 12500,
+      "identity": "books, research materials, gardens",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "riverport",
+      "name": "Riverport",
+      "position_cm": [
+        -80000,
+        -66000,
+        0
+      ],
+      "kind": "city",
+      "footprint_radius_cm": 12500,
+      "identity": "commerce, warehouses, smuggling edges",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "ironworks",
+      "name": "Ironworks",
+      "position_cm": [
+        76000,
+        -68000,
+        400
+      ],
+      "kind": "city",
+      "footprint_radius_cm": 12500,
+      "identity": "ore, production, advanced forge",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "oakmere",
+      "name": "Oakmere",
+      "position_cm": [
+        -77000,
+        8000,
+        0
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "millford",
+      "name": "Millford",
+      "position_cm": [
+        -39000,
+        45000,
+        0
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "reedbank",
+      "name": "Reedbank",
+      "position_cm": [
+        -47000,
+        -65000,
+        0
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "ashcross",
+      "name": "Ashcross",
+      "position_cm": [
+        38000,
+        -85000,
+        400
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "bellwick",
+      "name": "Bellwick",
+      "position_cm": [
+        73000,
+        20000,
+        400
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    },
+    {
+      "id": "stonewake",
+      "name": "Stonewake",
+      "position_cm": [
+        0,
+        84000,
+        800
+      ],
+      "kind": "town",
+      "footprint_radius_cm": 6000,
+      "identity": "rest, local work, route choice",
+      "security": "watched_core_unwatched_edges"
+    }
+  ]
+}

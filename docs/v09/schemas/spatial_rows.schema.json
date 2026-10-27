@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"v0.9 spatial row envelope (semantic checks in tools/validate_spec.py)",
+  "type":"object",
+  "required":["schema_version","rows"],
+  "properties":{
+    "schema_version":{"const":9},
+    "rows":{"type":"array","items":{"type":"object","required":["id"],"properties":{"id":{"type":"string","minLength":1},"position_cm":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"integer"}},"stage_id":{"enum":["B90","B91","B92","B93","B94"]}}}}
+  },
+  "additionalProperties":false
+}

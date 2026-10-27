@@ -1,0 +1,3332 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "edge_highfort__stonewake",
+      "from": "highfort",
+      "to": "stonewake",
+      "kind": "road",
+      "points_cm": [
+        [
+          -82000,
+          72000,
+          800
+        ],
+        [
+          0,
+          84000,
+          800
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 82873,
+      "nominal_travel_s": 197.32,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -32237,
+            79282
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_stonewake__scholars",
+      "from": "stonewake",
+      "to": "scholars",
+      "kind": "road",
+      "points_cm": [
+        [
+          0,
+          84000,
+          800
+        ],
+        [
+          78000,
+          78000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 78230,
+      "nominal_travel_s": 186.26,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars__bellwick",
+      "from": "scholars",
+      "to": "bellwick",
+      "kind": "road",
+      "points_cm": [
+        [
+          78000,
+          78000,
+          400
+        ],
+        [
+          73000,
+          20000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 58215,
+      "nominal_travel_s": 138.61,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            73400,
+            24640
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_bellwick__ironworks",
+      "from": "bellwick",
+      "to": "ironworks",
+      "kind": "road",
+      "points_cm": [
+        [
+          73000,
+          20000,
+          400
+        ],
+        [
+          76000,
+          -68000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 88051,
+      "nominal_travel_s": 209.65,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks__ashcross",
+      "from": "ironworks",
+      "to": "ashcross",
+      "kind": "road",
+      "points_cm": [
+        [
+          76000,
+          -68000,
+          400
+        ],
+        [
+          38000,
+          -85000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 41629,
+      "nominal_travel_s": 99.12,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ashcross__reed_ford",
+      "from": "ashcross",
+      "to": "reed_ford",
+      "kind": "road",
+      "points_cm": [
+        [
+          38000,
+          -85000,
+          400
+        ],
+        [
+          -30000,
+          -82000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 68066,
+      "nominal_travel_s": 162.06,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -29796,
+            -82009
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_reed_ford__reedbank",
+      "from": "reed_ford",
+      "to": "reedbank",
+      "kind": "road",
+      "points_cm": [
+        [
+          -30000,
+          -82000,
+          0
+        ],
+        [
+          -47000,
+          -65000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 24042,
+      "nominal_travel_s": 57.24,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "port_canal",
+          "point_xy_cm": [
+            -42223,
+            -69777
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_reedbank__riverport",
+      "from": "reedbank",
+      "to": "riverport",
+      "kind": "road",
+      "points_cm": [
+        [
+          -47000,
+          -65000,
+          0
+        ],
+        [
+          -80000,
+          -66000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 33015,
+      "nominal_travel_s": 78.61,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport__oakmere",
+      "from": "riverport",
+      "to": "oakmere",
+      "kind": "road",
+      "points_cm": [
+        [
+          -80000,
+          -66000,
+          0
+        ],
+        [
+          -77000,
+          8000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 74061,
+      "nominal_travel_s": 176.34,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_oakmere__highfort",
+      "from": "oakmere",
+      "to": "highfort",
+      "kind": "road",
+      "points_cm": [
+        [
+          -77000,
+          8000,
+          0
+        ],
+        [
+          -82000,
+          72000,
+          800
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 64195,
+      "nominal_travel_s": 152.85,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort__millford",
+      "from": "highfort",
+      "to": "millford",
+      "kind": "road",
+      "points_cm": [
+        [
+          -82000,
+          72000,
+          800
+        ],
+        [
+          -39000,
+          45000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 50774,
+      "nominal_travel_s": 120.89,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_millford__north_bridge",
+      "from": "millford",
+      "to": "north_bridge",
+      "kind": "road",
+      "points_cm": [
+        [
+          -39000,
+          45000,
+          0
+        ],
+        [
+          -28000,
+          65000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 22825,
+      "nominal_travel_s": 54.35,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_millford__mill_bridge",
+      "from": "millford",
+      "to": "mill_bridge",
+      "kind": "road",
+      "points_cm": [
+        [
+          -39000,
+          45000,
+          0
+        ],
+        [
+          -36000,
+          35000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 10440,
+      "nominal_travel_s": 24.86,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_north_bridge__stonewake",
+      "from": "north_bridge",
+      "to": "stonewake",
+      "kind": "road",
+      "points_cm": [
+        [
+          -28000,
+          65000,
+          0
+        ],
+        [
+          0,
+          84000,
+          800
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 33838,
+      "nominal_travel_s": 80.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -27199,
+            65543
+          ],
+          "mode": "dry_bridge",
+          "bridge_id": "north_bridge"
+        }
+      ],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_oakmere__mill_bridge",
+      "from": "oakmere",
+      "to": "mill_bridge",
+      "kind": "road",
+      "points_cm": [
+        [
+          -77000,
+          8000,
+          0
+        ],
+        [
+          -36000,
+          35000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 49092,
+      "nominal_travel_s": 116.89,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_mill_bridge__capital",
+      "from": "mill_bridge",
+      "to": "capital",
+      "kind": "road",
+      "points_cm": [
+        [
+          -36000,
+          35000,
+          0
+        ],
+        [
+          4000,
+          4000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 50606,
+      "nominal_travel_s": 120.49,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -35809,
+            34852
+          ],
+          "mode": "dry_bridge",
+          "bridge_id": "mill_bridge"
+        },
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            -18951,
+            21787
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_reedbank__south_bridge",
+      "from": "reedbank",
+      "to": "south_bridge",
+      "kind": "road",
+      "points_cm": [
+        [
+          -47000,
+          -65000,
+          0
+        ],
+        [
+          -30000,
+          -56000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 19235,
+      "nominal_travel_s": 45.8,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_south_bridge__capital_ford",
+      "from": "south_bridge",
+      "to": "capital_ford",
+      "kind": "road",
+      "points_cm": [
+        [
+          -30000,
+          -56000,
+          0
+        ],
+        [
+          -32500,
+          10000,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 66047,
+      "nominal_travel_s": 157.25,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -30956,
+            -30768
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_capital_ford__capital",
+      "from": "capital_ford",
+      "to": "capital",
+      "kind": "road",
+      "points_cm": [
+        [
+          -32500,
+          10000,
+          0
+        ],
+        [
+          4000,
+          4000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 36990,
+      "nominal_travel_s": 88.07,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_bellwick__east_bridge",
+      "from": "bellwick",
+      "to": "east_bridge",
+      "kind": "road",
+      "points_cm": [
+        [
+          73000,
+          20000,
+          400
+        ],
+        [
+          61000,
+          29500,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 15305,
+      "nominal_travel_s": 36.44,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_east_bridge__capital",
+      "from": "east_bridge",
+      "to": "capital",
+      "kind": "road",
+      "points_cm": [
+        [
+          61000,
+          29500,
+          400
+        ],
+        [
+          4000,
+          4000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 62444,
+      "nominal_travel_s": 148.68,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital__heart_forge",
+      "from": "capital",
+      "to": "heart_forge",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          39000,
+          -31000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 49497,
+      "nominal_travel_s": 117.85,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_heart_forge__ashcross",
+      "from": "heart_forge",
+      "to": "ashcross",
+      "kind": "road",
+      "points_cm": [
+        [
+          39000,
+          -31000,
+          400
+        ],
+        [
+          38000,
+          -85000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 54009,
+      "nominal_travel_s": 128.59,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital__boss_lair",
+      "from": "capital",
+      "to": "boss_lair",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          9000,
+          57000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 53235,
+      "nominal_travel_s": 126.75,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            6338,
+            28787
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_boss_lair__stonewake",
+      "from": "boss_lair",
+      "to": "stonewake",
+      "kind": "road",
+      "points_cm": [
+        [
+          9000,
+          57000,
+          400
+        ],
+        [
+          0,
+          84000,
+          800
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 28460,
+      "nominal_travel_s": 67.76,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_bellwick__east_ford",
+      "from": "bellwick",
+      "to": "east_ford",
+      "kind": "road",
+      "points_cm": [
+        [
+          73000,
+          20000,
+          400
+        ],
+        [
+          84000,
+          22300,
+          0
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 11238,
+      "nominal_travel_s": 26.76,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_east_ford__scholars",
+      "from": "east_ford",
+      "to": "scholars",
+      "kind": "road",
+      "points_cm": [
+        [
+          84000,
+          22300,
+          0
+        ],
+        [
+          78000,
+          78000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 56022,
+      "nominal_travel_s": 133.39,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            83968,
+            22595
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_capital__antechamber",
+      "from": "capital",
+      "to": "antechamber",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          4000,
+          -500,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 4500,
+      "nominal_travel_s": 10.71,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_antechamber__heart",
+      "from": "antechamber",
+      "to": "heart",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          -500,
+          400
+        ],
+        [
+          4000,
+          4000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 4500,
+      "nominal_travel_s": 10.71,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_antechamber__heart_dry_flank",
+      "from": "antechamber",
+      "to": "heart_dry_flank",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          -500,
+          400
+        ],
+        [
+          10000,
+          -9500,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 10817,
+      "nominal_travel_s": 25.75,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_heart_dry_flank__heart",
+      "from": "heart_dry_flank",
+      "to": "heart",
+      "kind": "road",
+      "points_cm": [
+        [
+          10000,
+          -9500,
+          400
+        ],
+        [
+          4000,
+          4000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 14773,
+      "nominal_travel_s": 35.17,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital__tower_a",
+      "from": "capital",
+      "to": "tower_a",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          -9000,
+          19000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 19849,
+      "nominal_travel_s": 47.26,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital__tower_b",
+      "from": "capital",
+      "to": "tower_b",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          19500,
+          1000,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 15788,
+      "nominal_travel_s": 37.59,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital__tower_c",
+      "from": "capital",
+      "to": "tower_c",
+      "kind": "road",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          1000,
+          -15500,
+          400
+        ]
+      ],
+      "width_cm": 800,
+      "length_cm": 19729,
+      "nominal_travel_s": 46.97,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort__ruin_a",
+      "from": "highfort",
+      "to": "ruin_a",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -82000,
+          72000,
+          800
+        ],
+        [
+          -96000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 33106,
+      "nominal_travel_s": 78.82,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_reed_ford__ruin_b",
+      "from": "reed_ford",
+      "to": "ruin_b",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -30000,
+          -82000,
+          0
+        ],
+        [
+          -7000,
+          -102000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 30480,
+      "nominal_travel_s": 72.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -29679,
+            -82279
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_ironworks__ruin_c",
+      "from": "ironworks",
+      "to": "ruin_c",
+      "kind": "trail",
+      "points_cm": [
+        [
+          76000,
+          -68000,
+          400
+        ],
+        [
+          104000,
+          -42000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 38210,
+      "nominal_travel_s": 90.98,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort__north_pass",
+      "from": "highfort",
+      "to": "north_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -82000,
+          72000,
+          800
+        ],
+        [
+          -45000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 47634,
+      "nominal_travel_s": 113.41,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_north_pass__stonewake",
+      "from": "north_pass",
+      "to": "stonewake",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -45000,
+          102000,
+          800
+        ],
+        [
+          0,
+          84000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 48466,
+      "nominal_travel_s": 115.4,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -35860,
+            98344
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_oakmere__west_pass",
+      "from": "oakmere",
+      "to": "west_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -77000,
+          8000,
+          0
+        ],
+        [
+          -92000,
+          36000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 31765,
+      "nominal_travel_s": 75.63,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_west_pass__highfort",
+      "from": "west_pass",
+      "to": "highfort",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -92000,
+          36000,
+          400
+        ],
+        [
+          -82000,
+          72000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 37363,
+      "nominal_travel_s": 88.96,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks__east_pass",
+      "from": "ironworks",
+      "to": "east_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          76000,
+          -68000,
+          400
+        ],
+        [
+          96000,
+          -25000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 47424,
+      "nominal_travel_s": 112.91,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_east_pass__bellwick",
+      "from": "east_pass",
+      "to": "bellwick",
+      "kind": "trail",
+      "points_cm": [
+        [
+          96000,
+          -25000,
+          400
+        ],
+        [
+          73000,
+          20000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 50537,
+      "nominal_travel_s": 120.33,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ashcross__south_tunnel",
+      "from": "ashcross",
+      "to": "south_tunnel",
+      "kind": "trail",
+      "points_cm": [
+        [
+          38000,
+          -85000,
+          400
+        ],
+        [
+          32000,
+          -60000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 25710,
+      "nominal_travel_s": 61.21,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_south_tunnel__heart_forge",
+      "from": "south_tunnel",
+      "to": "heart_forge",
+      "kind": "trail",
+      "points_cm": [
+        [
+          32000,
+          -60000,
+          0
+        ],
+        [
+          39000,
+          -31000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 29833,
+      "nominal_travel_s": 71.03,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_ford__heart_dry_flank",
+      "from": "capital_ford",
+      "to": "heart_dry_flank",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -32500,
+          10000,
+          0
+        ],
+        [
+          10000,
+          -9500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 46760,
+      "nominal_travel_s": 111.33,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_east_bridge__tower_a",
+      "from": "east_bridge",
+      "to": "tower_a",
+      "kind": "trail",
+      "points_cm": [
+        [
+          61000,
+          29500,
+          400
+        ],
+        [
+          -9000,
+          19000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 70783,
+      "nominal_travel_s": 168.53,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            52778,
+            28267
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        },
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            31106,
+            25016
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_heart_forge__tower_c",
+      "from": "heart_forge",
+      "to": "tower_c",
+      "kind": "trail",
+      "points_cm": [
+        [
+          39000,
+          -31000,
+          400
+        ],
+        [
+          1000,
+          -15500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 41040,
+      "nominal_travel_s": 97.71,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_treasury__antechamber",
+      "from": "capital_treasury",
+      "to": "antechamber",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -6920,
+          -4400,
+          400
+        ],
+        [
+          4000,
+          -500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 11596,
+      "nominal_travel_s": 27.61,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_supply__antechamber",
+      "from": "capital_supply",
+      "to": "antechamber",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          360,
+          -4400,
+          400
+        ],
+        [
+          4000,
+          -500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5335,
+      "nominal_travel_s": 12.7,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_guild__heart_dry_flank",
+      "from": "capital_guild",
+      "to": "heart_dry_flank",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          11280,
+          -4400,
+          400
+        ],
+        [
+          10000,
+          -9500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5258,
+      "nominal_travel_s": 12.52,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_workshop__tower_a",
+      "from": "capital_workshop",
+      "to": "tower_a",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -6920,
+          12400,
+          400
+        ],
+        [
+          -9000,
+          19000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 6920,
+      "nominal_travel_s": 16.48,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_infirmary__capital_workshop",
+      "from": "capital_infirmary",
+      "to": "capital_workshop",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          360,
+          12400,
+          400
+        ],
+        [
+          -6920,
+          12400,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7280,
+      "nominal_travel_s": 17.33,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_capital_guard__capital_infirmary",
+      "from": "capital_guard",
+      "to": "capital_infirmary",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          11280,
+          12400,
+          400
+        ],
+        [
+          360,
+          12400,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 10920,
+      "nominal_travel_s": 26.0,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_barracks__highfort",
+      "from": "highfort_barracks",
+      "to": "highfort",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -89800,
+          66000,
+          800
+        ],
+        [
+          -82000,
+          72000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_supply__highfort_barracks",
+      "from": "highfort_supply",
+      "to": "highfort_barracks",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -84600,
+          66000,
+          800
+        ],
+        [
+          -89800,
+          66000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_market__highfort_supply",
+      "from": "highfort_market",
+      "to": "highfort_supply",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -76800,
+          66000,
+          800
+        ],
+        [
+          -84600,
+          66000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_workshop__highfort",
+      "from": "highfort_workshop",
+      "to": "highfort",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -89800,
+          78000,
+          800
+        ],
+        [
+          -82000,
+          72000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_inn__highfort_workshop",
+      "from": "highfort_inn",
+      "to": "highfort_workshop",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -84600,
+          78000,
+          800
+        ],
+        [
+          -89800,
+          78000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_highfort_guard__highfort_inn",
+      "from": "highfort_guard",
+      "to": "highfort_inn",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -76800,
+          78000,
+          800
+        ],
+        [
+          -84600,
+          78000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_archive__scholars",
+      "from": "scholars_archive",
+      "to": "scholars",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          70200,
+          72000,
+          400
+        ],
+        [
+          78000,
+          78000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_supply__scholars_archive",
+      "from": "scholars_supply",
+      "to": "scholars_archive",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          75400,
+          72000,
+          400
+        ],
+        [
+          70200,
+          72000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_market__scholars_supply",
+      "from": "scholars_market",
+      "to": "scholars_supply",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          83200,
+          72000,
+          400
+        ],
+        [
+          75400,
+          72000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_workshop__scholars",
+      "from": "scholars_workshop",
+      "to": "scholars",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          70200,
+          84000,
+          400
+        ],
+        [
+          78000,
+          78000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_infirmary__scholars_workshop",
+      "from": "scholars_infirmary",
+      "to": "scholars_workshop",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          75400,
+          84000,
+          400
+        ],
+        [
+          70200,
+          84000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_scholars_guard__scholars_infirmary",
+      "from": "scholars_guard",
+      "to": "scholars_infirmary",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          83200,
+          84000,
+          400
+        ],
+        [
+          75400,
+          84000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_market__riverport",
+      "from": "riverport_market",
+      "to": "riverport",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -87800,
+          -72000,
+          0
+        ],
+        [
+          -80000,
+          -66000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_supply__riverport_market",
+      "from": "riverport_supply",
+      "to": "riverport_market",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -82600,
+          -72000,
+          0
+        ],
+        [
+          -87800,
+          -72000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_guild__riverport_supply",
+      "from": "riverport_guild",
+      "to": "riverport_supply",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -74800,
+          -72000,
+          0
+        ],
+        [
+          -82600,
+          -72000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_workshop__riverport",
+      "from": "riverport_workshop",
+      "to": "riverport",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -87800,
+          -60000,
+          0
+        ],
+        [
+          -80000,
+          -66000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_inn__riverport_workshop",
+      "from": "riverport_inn",
+      "to": "riverport_workshop",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -82600,
+          -60000,
+          0
+        ],
+        [
+          -87800,
+          -60000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_riverport_guard__riverport_inn",
+      "from": "riverport_guard",
+      "to": "riverport_inn",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          -74800,
+          -60000,
+          0
+        ],
+        [
+          -82600,
+          -60000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_forge__ironworks",
+      "from": "ironworks_forge",
+      "to": "ironworks",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          68200,
+          -74000,
+          400
+        ],
+        [
+          76000,
+          -68000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_supply__ironworks_forge",
+      "from": "ironworks_supply",
+      "to": "ironworks_forge",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          73400,
+          -74000,
+          400
+        ],
+        [
+          68200,
+          -74000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_market__ironworks_supply",
+      "from": "ironworks_market",
+      "to": "ironworks_supply",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          81200,
+          -74000,
+          400
+        ],
+        [
+          73400,
+          -74000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_workshop__ironworks",
+      "from": "ironworks_workshop",
+      "to": "ironworks",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          68200,
+          -62000,
+          400
+        ],
+        [
+          76000,
+          -68000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 9841,
+      "nominal_travel_s": 23.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_inn__ironworks_workshop",
+      "from": "ironworks_inn",
+      "to": "ironworks_workshop",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          73400,
+          -62000,
+          400
+        ],
+        [
+          68200,
+          -62000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 5200,
+      "nominal_travel_s": 12.38,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ironworks_guard__ironworks_inn",
+      "from": "ironworks_guard",
+      "to": "ironworks_inn",
+      "kind": "district_lane",
+      "points_cm": [
+        [
+          81200,
+          -62000,
+          400
+        ],
+        [
+          73400,
+          -62000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 7800,
+      "nominal_travel_s": 18.57,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_01__west_pass",
+      "from": "camp_01",
+      "to": "west_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -103000,
+          40000,
+          0
+        ],
+        [
+          -92000,
+          36000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 11705,
+      "nominal_travel_s": 27.87,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_02__north_pass",
+      "from": "camp_02",
+      "to": "north_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -58000,
+          92000,
+          800
+        ],
+        [
+          -45000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 16401,
+      "nominal_travel_s": 39.05,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_03__scholars_workshop",
+      "from": "camp_03",
+      "to": "scholars_workshop",
+      "kind": "trail",
+      "points_cm": [
+        [
+          38000,
+          102000,
+          800
+        ],
+        [
+          70200,
+          84000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 36890,
+      "nominal_travel_s": 87.83,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_04__scholars_market",
+      "from": "camp_04",
+      "to": "scholars_market",
+      "kind": "trail",
+      "points_cm": [
+        [
+          104000,
+          51000,
+          400
+        ],
+        [
+          83200,
+          72000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 29557,
+      "nominal_travel_s": 70.37,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_05__oakmere",
+      "from": "camp_05",
+      "to": "oakmere",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -104000,
+          -18000,
+          0
+        ],
+        [
+          -77000,
+          8000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 37483,
+      "nominal_travel_s": 89.25,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_06__riverport_guard",
+      "from": "camp_06",
+      "to": "riverport_guard",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -60000,
+          -32000,
+          0
+        ],
+        [
+          -74800,
+          -60000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 31671,
+      "nominal_travel_s": 75.41,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_07__east_bridge",
+      "from": "camp_07",
+      "to": "east_bridge",
+      "kind": "trail",
+      "points_cm": [
+        [
+          46000,
+          47000,
+          400
+        ],
+        [
+          61000,
+          29500,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 23049,
+      "nominal_travel_s": 54.88,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "east_tributary",
+          "point_xy_cm": [
+            60870,
+            29652
+          ],
+          "mode": "dry_bridge",
+          "bridge_id": "east_bridge"
+        }
+      ],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_08__east_pass",
+      "from": "camp_08",
+      "to": "east_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          101000,
+          -12000,
+          0
+        ],
+        [
+          96000,
+          -25000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 13928,
+      "nominal_travel_s": 33.16,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_09__riverport_market",
+      "from": "camp_09",
+      "to": "riverport_market",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -102000,
+          -99000,
+          0
+        ],
+        [
+          -87800,
+          -72000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 30506,
+      "nominal_travel_s": 72.63,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_10__ruin_b",
+      "from": "camp_10",
+      "to": "ruin_b",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -10000,
+          -100000,
+          0
+        ],
+        [
+          -7000,
+          -102000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 3606,
+      "nominal_travel_s": 8.59,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_11__heart_forge",
+      "from": "camp_11",
+      "to": "heart_forge",
+      "kind": "trail",
+      "points_cm": [
+        [
+          48000,
+          -41000,
+          400
+        ],
+        [
+          39000,
+          -31000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 13454,
+      "nominal_travel_s": 32.03,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_camp_12__ironworks_market",
+      "from": "camp_12",
+      "to": "ironworks_market",
+      "kind": "trail",
+      "points_cm": [
+        [
+          104000,
+          -98000,
+          400
+        ],
+        [
+          81200,
+          -74000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 33103,
+      "nominal_travel_s": 78.82,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_crystal_north__north_pass",
+      "from": "crystal_north",
+      "to": "north_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -25000,
+          103000,
+          800
+        ],
+        [
+          -45000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 20025,
+      "nominal_travel_s": 47.68,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "main_river",
+          "point_xy_cm": [
+            -33140,
+            102593
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_crystal_west__oakmere",
+      "from": "crystal_west",
+      "to": "oakmere",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -96000,
+          10000,
+          0
+        ],
+        [
+          -77000,
+          8000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 19105,
+      "nominal_travel_s": 45.49,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_crystal_center__boss_lair",
+      "from": "crystal_center",
+      "to": "boss_lair",
+      "kind": "trail",
+      "points_cm": [
+        [
+          22000,
+          57000,
+          400
+        ],
+        [
+          9000,
+          57000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 13000,
+      "nominal_travel_s": 30.95,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_crystal_east__scholars_guard",
+      "from": "crystal_east",
+      "to": "scholars_guard",
+      "kind": "trail",
+      "points_cm": [
+        [
+          100000,
+          90000,
+          400
+        ],
+        [
+          83200,
+          84000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 17839,
+      "nominal_travel_s": 42.47,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_crystal_south__reed_ford",
+      "from": "crystal_south",
+      "to": "reed_ford",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -54000,
+          -100000,
+          0
+        ],
+        [
+          -30000,
+          -82000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 30000,
+      "nominal_travel_s": 71.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ore_north__highfort_workshop",
+      "from": "ore_north",
+      "to": "highfort_workshop",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -108000,
+          80000,
+          800
+        ],
+        [
+          -89800,
+          78000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 18310,
+      "nominal_travel_s": 43.6,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ore_east__camp_12",
+      "from": "ore_east",
+      "to": "camp_12",
+      "kind": "trail",
+      "points_cm": [
+        [
+          95000,
+          -85000,
+          400
+        ],
+        [
+          104000,
+          -98000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 15811,
+      "nominal_travel_s": 37.65,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_fiber_west__camp_05",
+      "from": "fiber_west",
+      "to": "camp_05",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -98000,
+          -36000,
+          0
+        ],
+        [
+          -104000,
+          -18000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 18974,
+      "nominal_travel_s": 45.18,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_fiber_south__ashcross",
+      "from": "fiber_south",
+      "to": "ashcross",
+      "kind": "trail",
+      "points_cm": [
+        [
+          26000,
+          -104000,
+          0
+        ],
+        [
+          38000,
+          -85000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 22472,
+      "nominal_travel_s": 53.5,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_oak_shrine__oakmere",
+      "from": "oak_shrine",
+      "to": "oakmere",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -65000,
+          26000,
+          0
+        ],
+        [
+          -77000,
+          8000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 21633,
+      "nominal_travel_s": 51.51,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_reed_shrine__crystal_south",
+      "from": "reed_shrine",
+      "to": "crystal_south",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -66000,
+          -88000,
+          0
+        ],
+        [
+          -54000,
+          -100000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 16971,
+      "nominal_travel_s": 40.41,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ash_shrine__ashcross",
+      "from": "ash_shrine",
+      "to": "ashcross",
+      "kind": "trail",
+      "points_cm": [
+        [
+          55000,
+          -102000,
+          400
+        ],
+        [
+          38000,
+          -85000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 24042,
+      "nominal_travel_s": 57.24,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_sky_shrine__camp_03",
+      "from": "sky_shrine",
+      "to": "camp_03",
+      "kind": "trail",
+      "points_cm": [
+        [
+          42000,
+          85000,
+          800
+        ],
+        [
+          38000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 17464,
+      "nominal_travel_s": 41.58,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_quarry_shrine__crystal_center",
+      "from": "quarry_shrine",
+      "to": "crystal_center",
+      "kind": "trail",
+      "points_cm": [
+        [
+          21000,
+          45000,
+          400
+        ],
+        [
+          22000,
+          57000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 12042,
+      "nominal_travel_s": 28.67,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_west_watch__camp_01",
+      "from": "west_watch",
+      "to": "camp_01",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -105000,
+          54000,
+          400
+        ],
+        [
+          -103000,
+          40000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 14142,
+      "nominal_travel_s": 33.67,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_east_watch__camp_08",
+      "from": "east_watch",
+      "to": "camp_08",
+      "kind": "trail",
+      "points_cm": [
+        [
+          105000,
+          8000,
+          400
+        ],
+        [
+          101000,
+          -12000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 20396,
+      "nominal_travel_s": 48.56,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_smuggler_cove__riverport_supply",
+      "from": "smuggler_cove",
+      "to": "riverport_supply",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -80000,
+          -80500,
+          0
+        ],
+        [
+          -82600,
+          -72000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 8889,
+      "nominal_travel_s": 21.16,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [
+        {
+          "river_id": "port_canal",
+          "point_xy_cm": [
+            -80144,
+            -80029
+          ],
+          "mode": "walkable_wet_ford",
+          "bridge_id": null
+        }
+      ],
+      "dry_for_entire_route": false
+    },
+    {
+      "id": "edge_old_lab__crystal_east",
+      "from": "old_lab",
+      "to": "crystal_east",
+      "kind": "trail",
+      "points_cm": [
+        [
+          101000,
+          104000,
+          400
+        ],
+        [
+          100000,
+          90000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 14036,
+      "nominal_travel_s": 33.42,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_fallen_garden__sky_shrine",
+      "from": "fallen_garden",
+      "to": "sky_shrine",
+      "kind": "trail",
+      "points_cm": [
+        [
+          40000,
+          68000,
+          400
+        ],
+        [
+          42000,
+          85000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 17117,
+      "nominal_travel_s": 40.75,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_charcoal_camp__heart_forge",
+      "from": "charcoal_camp",
+      "to": "heart_forge",
+      "kind": "trail",
+      "points_cm": [
+        [
+          59000,
+          -18000,
+          0
+        ],
+        [
+          39000,
+          -31000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 23854,
+      "nominal_travel_s": 56.8,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ferry_ruins__camp_06",
+      "from": "ferry_ruins",
+      "to": "camp_06",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -45000,
+          -16000,
+          0
+        ],
+        [
+          -60000,
+          -32000,
+          0
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 21932,
+      "nominal_travel_s": 52.22,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ruin_a__north_pass",
+      "from": "ruin_a",
+      "to": "north_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -96000,
+          102000,
+          800
+        ],
+        [
+          -45000,
+          102000,
+          800
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 51000,
+      "nominal_travel_s": 121.43,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ruin_b__ashcross",
+      "from": "ruin_b",
+      "to": "ashcross",
+      "kind": "trail",
+      "points_cm": [
+        [
+          -7000,
+          -102000,
+          0
+        ],
+        [
+          38000,
+          -85000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 48104,
+      "nominal_travel_s": 114.53,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_ruin_c__east_pass",
+      "from": "ruin_c",
+      "to": "east_pass",
+      "kind": "trail",
+      "points_cm": [
+        [
+          104000,
+          -42000,
+          400
+        ],
+        [
+          96000,
+          -25000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 18788,
+      "nominal_travel_s": 44.73,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_boss_lair__fallen_garden",
+      "from": "boss_lair",
+      "to": "fallen_garden",
+      "kind": "trail",
+      "points_cm": [
+        [
+          9000,
+          57000,
+          400
+        ],
+        [
+          40000,
+          68000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 32894,
+      "nominal_travel_s": 78.32,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_heart_forge__ironworks",
+      "from": "heart_forge",
+      "to": "ironworks",
+      "kind": "trail",
+      "points_cm": [
+        [
+          39000,
+          -31000,
+          400
+        ],
+        [
+          76000,
+          -68000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 52326,
+      "nominal_travel_s": 124.59,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    },
+    {
+      "id": "edge_heart__tower_b",
+      "from": "heart",
+      "to": "tower_b",
+      "kind": "trail",
+      "points_cm": [
+        [
+          4000,
+          4000,
+          400
+        ],
+        [
+          19500,
+          1000,
+          400
+        ]
+      ],
+      "width_cm": 400,
+      "length_cm": 15788,
+      "nominal_travel_s": 37.59,
+      "speed_bonus_percent": 0,
+      "bidirectional": true,
+      "permanent_navigation": true,
+      "stage_id": "B90",
+      "river_contacts": [],
+      "dry_for_entire_route": true
+    }
+  ]
+}

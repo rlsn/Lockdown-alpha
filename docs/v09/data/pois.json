@@ -1,0 +1,2024 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "capital",
+      "name": "Crownreach",
+      "kind": "settlement",
+      "position_cm": [
+        4000,
+        4000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "highfort",
+      "name": "Highfort",
+      "kind": "settlement",
+      "position_cm": [
+        -82000,
+        72000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "scholars",
+      "name": "Lumen Archive",
+      "kind": "settlement",
+      "position_cm": [
+        78000,
+        78000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "riverport",
+      "name": "Riverport",
+      "kind": "settlement",
+      "position_cm": [
+        -80000,
+        -66000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "ironworks",
+      "name": "Ironworks",
+      "kind": "settlement",
+      "position_cm": [
+        76000,
+        -68000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "oakmere",
+      "name": "Oakmere",
+      "kind": "settlement",
+      "position_cm": [
+        -77000,
+        8000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "millford",
+      "name": "Millford",
+      "kind": "settlement",
+      "position_cm": [
+        -39000,
+        45000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "reedbank",
+      "name": "Reedbank",
+      "kind": "settlement",
+      "position_cm": [
+        -47000,
+        -65000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "ashcross",
+      "name": "Ashcross",
+      "kind": "settlement",
+      "position_cm": [
+        38000,
+        -85000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "bellwick",
+      "name": "Bellwick",
+      "kind": "settlement",
+      "position_cm": [
+        73000,
+        20000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "stonewake",
+      "name": "Stonewake",
+      "kind": "settlement",
+      "position_cm": [
+        0,
+        84000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_hub",
+        "civilian_work_and_trade"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "capital_treasury",
+      "name": "Treasury",
+      "kind": "service",
+      "position_cm": [
+        -6920,
+        -4400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bank",
+        "charter_purchase",
+        "core_procurement"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "capital_supply",
+      "name": "Official Supply",
+      "kind": "service",
+      "position_cm": [
+        360,
+        -4400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "capital_guild",
+      "name": "Civic Guild",
+      "kind": "service",
+      "position_cm": [
+        11280,
+        -4400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_commission",
+        "courier_board",
+        "witness"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "capital_workshop",
+      "name": "Commons Workshop",
+      "kind": "service",
+      "position_cm": [
+        -6920,
+        12400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "capital_infirmary",
+      "name": "Public Infirmary",
+      "kind": "service",
+      "position_cm": [
+        360,
+        12400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "shrine",
+        "safe_route_information"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "capital_guard",
+      "name": "Civic Guard Post",
+      "kind": "service",
+      "position_cm": [
+        11280,
+        12400,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_barracks",
+      "name": "Barracks",
+      "kind": "service",
+      "position_cm": [
+        -89800,
+        66000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "trainer_circle2",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_supply",
+      "name": "Garrison Supply",
+      "kind": "service",
+      "position_cm": [
+        -84600,
+        66000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_market",
+      "name": "Highfort Market",
+      "kind": "service",
+      "position_cm": [
+        -76800,
+        66000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_workshop",
+      "name": "Armorer Hall",
+      "kind": "service",
+      "position_cm": [
+        -89800,
+        78000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_inn",
+      "name": "Cliff Inn",
+      "kind": "service",
+      "position_cm": [
+        -84600,
+        78000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "highfort_guard",
+      "name": "North Watch",
+      "kind": "service",
+      "position_cm": [
+        -76800,
+        78000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_archive",
+      "name": "Grand Archive",
+      "kind": "service",
+      "position_cm": [
+        70200,
+        72000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "archive_circle3",
+        "circle2_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_supply",
+      "name": "Scholars Supply",
+      "kind": "service",
+      "position_cm": [
+        75400,
+        72000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_market",
+      "name": "Garden Exchange",
+      "kind": "service",
+      "position_cm": [
+        83200,
+        72000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_workshop",
+      "name": "Research Hall",
+      "kind": "service",
+      "position_cm": [
+        70200,
+        84000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_infirmary",
+      "name": "Garden Hospice",
+      "kind": "service",
+      "position_cm": [
+        75400,
+        84000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "scholars_guard",
+      "name": "Library Watch",
+      "kind": "service",
+      "position_cm": [
+        83200,
+        84000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_market",
+      "name": "Harbor Exchange",
+      "kind": "service",
+      "position_cm": [
+        -87800,
+        -72000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_supply",
+      "name": "Dock Supply",
+      "kind": "service",
+      "position_cm": [
+        -82600,
+        -72000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_guild",
+      "name": "Port Guild",
+      "kind": "service",
+      "position_cm": [
+        -74800,
+        -72000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_commission",
+        "courier_board",
+        "witness"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_workshop",
+      "name": "Shipwright Hall",
+      "kind": "service",
+      "position_cm": [
+        -87800,
+        -60000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_inn",
+      "name": "Low Tide Inn",
+      "kind": "service",
+      "position_cm": [
+        -82600,
+        -60000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "riverport_guard",
+      "name": "Harbor Watch",
+      "kind": "service",
+      "position_cm": [
+        -74800,
+        -60000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_forge",
+      "name": "Advanced Forge",
+      "kind": "service",
+      "position_cm": [
+        68200,
+        -74000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "advanced_forge",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_supply",
+      "name": "Foundry Supply",
+      "kind": "service",
+      "position_cm": [
+        73400,
+        -74000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_market",
+      "name": "Foundry Exchange",
+      "kind": "service",
+      "position_cm": [
+        81200,
+        -74000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_workshop",
+      "name": "Open Workshop",
+      "kind": "service",
+      "position_cm": [
+        68200,
+        -62000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_inn",
+      "name": "Cinder Inn",
+      "kind": "service",
+      "position_cm": [
+        73400,
+        -62000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ironworks_guard",
+      "name": "Foundry Watch",
+      "kind": "service",
+      "position_cm": [
+        81200,
+        -62000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "security": "watched",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_01",
+      "name": "Wilderness Camp 1",
+      "kind": "camp",
+      "position_cm": [
+        -103000,
+        40000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_01",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_02",
+      "name": "Wilderness Camp 2",
+      "kind": "camp",
+      "position_cm": [
+        -58000,
+        92000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_02",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_03",
+      "name": "Wilderness Camp 3",
+      "kind": "camp",
+      "position_cm": [
+        38000,
+        102000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_03",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_04",
+      "name": "Wilderness Camp 4",
+      "kind": "camp",
+      "position_cm": [
+        104000,
+        51000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_04",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_05",
+      "name": "Wilderness Camp 5",
+      "kind": "camp",
+      "position_cm": [
+        -104000,
+        -18000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_05",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_06",
+      "name": "Wilderness Camp 6",
+      "kind": "camp",
+      "position_cm": [
+        -60000,
+        -32000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_06",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_07",
+      "name": "Wilderness Camp 7",
+      "kind": "camp",
+      "position_cm": [
+        46000,
+        47000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_07",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_08",
+      "name": "Wilderness Camp 8",
+      "kind": "camp",
+      "position_cm": [
+        101000,
+        -12000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_08",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_09",
+      "name": "Wilderness Camp 9",
+      "kind": "camp",
+      "position_cm": [
+        -102000,
+        -99000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_09",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_10",
+      "name": "Wilderness Camp 10",
+      "kind": "camp",
+      "position_cm": [
+        -10000,
+        -100000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_10",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_11",
+      "name": "Wilderness Camp 11",
+      "kind": "camp",
+      "position_cm": [
+        48000,
+        -41000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_11",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_12",
+      "name": "Wilderness Camp 12",
+      "kind": "camp",
+      "position_cm": [
+        104000,
+        -98000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "bounded_combat",
+        "patrol_cover"
+      ],
+      "security": "wild",
+      "reward_source": "camp_12",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ruin_a",
+      "name": "Glass Monastery",
+      "kind": "ruin",
+      "position_cm": [
+        -96000,
+        102000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "unique_key_catalyst_book_cache",
+        "ambush_and_retreat"
+      ],
+      "security": "wild",
+      "reward_source": "ruin_a",
+      "legacy_alias": "RuinA",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ruin_b",
+      "name": "Drowned Observatory",
+      "kind": "ruin",
+      "position_cm": [
+        -7000,
+        -102000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "unique_key_catalyst_book_cache",
+        "ambush_and_retreat"
+      ],
+      "security": "wild",
+      "reward_source": "ruin_b",
+      "legacy_alias": "RuinB",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ruin_c",
+      "name": "Ash Vault",
+      "kind": "ruin",
+      "position_cm": [
+        104000,
+        -42000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "unique_key_catalyst_book_cache",
+        "ambush_and_retreat"
+      ],
+      "security": "wild",
+      "reward_source": "ruin_c",
+      "legacy_alias": "RuinC",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "boss_lair",
+      "name": "Hollow Crown Quarry",
+      "kind": "boss",
+      "position_cm": [
+        9000,
+        57000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "single_guardian_boss",
+        "fragment_and_book"
+      ],
+      "security": "wild",
+      "reward_source": "boss_once",
+      "legacy_alias": "BossLair",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "heart_forge",
+      "name": "Old Heart Foundry",
+      "kind": "service",
+      "position_cm": [
+        39000,
+        -31000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "heart_forge",
+        "craft_interception"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": "HeartForge",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "tower_a",
+      "name": "Grand Tower A",
+      "kind": "tower",
+      "position_cm": [
+        -9000,
+        19000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "siege_gate",
+        "local_public_watch"
+      ],
+      "security": "contested",
+      "reward_source": "tower_a",
+      "legacy_alias": "GrandTowerA",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B93"
+    },
+    {
+      "id": "tower_b",
+      "name": "Grand Tower B",
+      "kind": "tower",
+      "position_cm": [
+        19500,
+        1000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "siege_gate",
+        "local_public_watch"
+      ],
+      "security": "contested",
+      "reward_source": "tower_b",
+      "legacy_alias": "GrandTowerB",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B93"
+    },
+    {
+      "id": "tower_c",
+      "name": "Grand Tower C",
+      "kind": "tower",
+      "position_cm": [
+        1000,
+        -15500,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "siege_gate",
+        "local_public_watch"
+      ],
+      "security": "contested",
+      "reward_source": "tower_c",
+      "legacy_alias": "GrandTowerC",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B93"
+    },
+    {
+      "id": "heart",
+      "name": "Grand Heart",
+      "kind": "heart",
+      "position_cm": [
+        4000,
+        4000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "single_physical_claim",
+        "public_attempt_sensor"
+      ],
+      "security": "contested",
+      "reward_source": null,
+      "legacy_alias": "CentralPrecinct",
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B93"
+    },
+    {
+      "id": "antechamber",
+      "name": "Heart Antechamber",
+      "kind": "terminal",
+      "position_cm": [
+        4000,
+        -500,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "keys_activation",
+        "heartbreaker_activation"
+      ],
+      "security": "contested",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B93"
+    },
+    {
+      "id": "north_bridge",
+      "name": "North Bridge",
+      "kind": "crossing",
+      "position_cm": [
+        -28000,
+        65000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "mill_bridge",
+      "name": "Mill Bridge",
+      "kind": "crossing",
+      "position_cm": [
+        -36000,
+        35000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "capital_ford",
+      "name": "Crown Ford",
+      "kind": "crossing",
+      "position_cm": [
+        -32500,
+        10000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "south_bridge",
+      "name": "South Bridge",
+      "kind": "crossing",
+      "position_cm": [
+        -30000,
+        -56000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "reed_ford",
+      "name": "Reed Ford",
+      "kind": "crossing",
+      "position_cm": [
+        -30000,
+        -82000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "east_bridge",
+      "name": "Garden Bridge",
+      "kind": "crossing",
+      "position_cm": [
+        61000,
+        29500,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "east_ford",
+      "name": "Bell Ford",
+      "kind": "crossing",
+      "position_cm": [
+        84000,
+        22300,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "street",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "north_pass",
+      "name": "North Saddle",
+      "kind": "pass",
+      "position_cm": [
+        -45000,
+        102000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "west_pass",
+      "name": "Oak Cut",
+      "kind": "pass",
+      "position_cm": [
+        -92000,
+        36000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "east_pass",
+      "name": "Foundry Steps",
+      "kind": "pass",
+      "position_cm": [
+        96000,
+        -25000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "south_tunnel",
+      "name": "Ash Culvert",
+      "kind": "pass",
+      "position_cm": [
+        32000,
+        -60000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "heart_dry_flank",
+      "name": "Heart Dry Flank",
+      "kind": "pass",
+      "position_cm": [
+        10000,
+        -9500,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "route_choice",
+        "vision_or_exposure_control"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B90"
+    },
+    {
+      "id": "crystal_north",
+      "name": "Sky Crystal",
+      "kind": "resource",
+      "position_cm": [
+        -25000,
+        103000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Crystal_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "crystal_north",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_west",
+      "name": "Moss Crystal",
+      "kind": "resource",
+      "position_cm": [
+        -96000,
+        10000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Crystal_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "crystal_west",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_center",
+      "name": "Quarry Crystal",
+      "kind": "resource",
+      "position_cm": [
+        22000,
+        57000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Crystal_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "crystal_center",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_east",
+      "name": "Garden Crystal",
+      "kind": "resource",
+      "position_cm": [
+        100000,
+        90000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Crystal_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "crystal_east",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_south",
+      "name": "Reed Crystal",
+      "kind": "resource",
+      "position_cm": [
+        -54000,
+        -100000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Crystal_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "crystal_south",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ore_north",
+      "name": "North Ore",
+      "kind": "resource",
+      "position_cm": [
+        -108000,
+        80000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Ore_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "ore_north",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ore_east",
+      "name": "Foundry Ore",
+      "kind": "resource",
+      "position_cm": [
+        95000,
+        -85000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Ore_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "ore_east",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "fiber_west",
+      "name": "Oak Fiber",
+      "kind": "resource",
+      "position_cm": [
+        -98000,
+        -36000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Fiber_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "fiber_west",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "fiber_south",
+      "name": "Farm Fiber",
+      "kind": "resource",
+      "position_cm": [
+        26000,
+        -104000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "finite_Fiber_harvest",
+        "trade_route_interception"
+      ],
+      "security": "wild",
+      "reward_source": "fiber_south",
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "oak_shrine",
+      "name": "Oak Shrine",
+      "kind": "shrine",
+      "position_cm": [
+        -65000,
+        26000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "recovery",
+        "covered_detour"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "reed_shrine",
+      "name": "Reed Shrine",
+      "kind": "shrine",
+      "position_cm": [
+        -66000,
+        -88000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "recovery",
+        "covered_detour"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ash_shrine",
+      "name": "Ash Shrine",
+      "kind": "shrine",
+      "position_cm": [
+        55000,
+        -102000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "recovery",
+        "covered_detour"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "sky_shrine",
+      "name": "Sky Shrine",
+      "kind": "shrine",
+      "position_cm": [
+        42000,
+        85000,
+        800
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "recovery",
+        "covered_detour"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "quarry_shrine",
+      "name": "Quarry Shrine",
+      "kind": "shrine",
+      "position_cm": [
+        21000,
+        45000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "recovery",
+        "covered_detour"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B92"
+    },
+    {
+      "id": "west_watch",
+      "name": "Broken West Watch",
+      "kind": "landmark",
+      "position_cm": [
+        -105000,
+        54000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "east_watch",
+      "name": "Abandoned East Watch",
+      "kind": "landmark",
+      "position_cm": [
+        105000,
+        8000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "smuggler_cove",
+      "name": "Port Quay and Smuggler Cove",
+      "kind": "landmark",
+      "position_cm": [
+        -80000,
+        -80500,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "old_lab",
+      "name": "Old Laboratory",
+      "kind": "landmark",
+      "position_cm": [
+        101000,
+        104000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "fallen_garden",
+      "name": "Fallen Garden",
+      "kind": "landmark",
+      "position_cm": [
+        40000,
+        68000,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "charcoal_camp",
+      "name": "Charcoal Yard",
+      "kind": "landmark",
+      "position_cm": [
+        59000,
+        -18000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    },
+    {
+      "id": "ferry_ruins",
+      "name": "Ferry Ruins",
+      "kind": "landmark",
+      "position_cm": [
+        -45000,
+        -16000,
+        0
+      ],
+      "interaction_radius_cm": 120,
+      "functions": [
+        "supply_storage",
+        "tactical_vantage"
+      ],
+      "security": "wild",
+      "reward_source": null,
+      "legacy_alias": null,
+      "access": "ordinary_navigation_no_spell_required",
+      "public_map": "service_or_landmark_only",
+      "stage_id": "B91"
+    }
+  ]
+}

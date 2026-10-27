@@ -1,0 +1,88 @@
+{
+  "schema_version": 9,
+  "transaction_radius_cm": 120,
+  "quiet_s": 6,
+  "ground_pickup_ms": 500,
+  "harvest_ms": 4000,
+  "heavy_carry_ms": 1000,
+  "placement_ms": 1500,
+  "door_open_ms": 300,
+  "door_force_ms": 3000,
+  "door_lockpick_ms": 3000,
+  "torch_ignite_socket_ms": 1000,
+  "interaction_classes": {
+    "world": "door, pickup, harvest, heavy carry, fixed workstation",
+    "item": "portable torch/lantern/flask/rope activation"
+  },
+  "carry": {
+    "one_heavy_prop": true,
+    "hands_suppressed": true,
+    "speed_percent": 70,
+    "attack_skill_item_service_during_carry": false,
+    "drop_on_damage_death_or_ability_request": true,
+    "weight_check": "heavy weight <= natural capacity; no bag instance while carried"
+  },
+  "placement": {
+    "critical_corridor_exclusion_cm": 400,
+    "reject_occupied_capsules": true,
+    "no_stack": true,
+    "valid_surface_grade_max": 0.25,
+    "minimum_clear_walk_width_cm": 300
+  },
+  "torch": {
+    "equipment_slot": "accessory",
+    "fuel_ms": 180000,
+    "refill": false,
+    "light_cosmetic_radius_cm": 600,
+    "sight_bonus_cm": 0,
+    "surface_max_cells": 4,
+    "burning_ms": 3000,
+    "cooldown_ms": 12000,
+    "direct_unit_damage": 0,
+    "active_blocked_by": "Mute",
+    "ground_emitter_cannot_be_remotely_activated": true
+  },
+  "lantern": {
+    "equipment_slot": "accessory",
+    "fuel_ms": 300000,
+    "refill": false,
+    "light_cosmetic_radius_cm": 800,
+    "sight_bonus_cm": 0,
+    "active_blocked_by": "Mute"
+  },
+  "rope": {
+    "equipment_slot": "accessory",
+    "consume_on_attach": false,
+    "action_requires_binding": true,
+    "detach_quiet_s": 6,
+    "max_rise_cm": 500,
+    "use_placed_link": "world_channel_not_free_portable_cast"
+  },
+  "sapling": {
+    "burning_clears_proxy_after_ms": 3000,
+    "harvest_fiber": 1,
+    "destruction_fiber": 0,
+    "regen": false,
+    "static_tree_fire_spread": false
+  },
+  "grass": {
+    "hide_requires_inside_and_no_detected_authorized_observer": true,
+    "reveal_on_attack_or_cast": true,
+    "burning_disables_concealment_ms": 3000,
+    "burnt_for_match": true,
+    "concealment_rearm_ms": 1000,
+    "reveal_after_offense_ms": 2000,
+    "proximity_reveal_cm": 200
+  },
+  "door": {
+    "initial_locked": false,
+    "relock_owner_only": true,
+    "generic_lockpick_no_skill_book": true,
+    "entry_always_has_force_or_alternative": true,
+    "force_hp_cost": 0,
+    "official_service_front_doors_lockable": false,
+    "north_private_door_cannot_block_south_public_entry": true,
+    "occupancy_blocks_close": true,
+    "authored_destruction_only": true
+  }
+}

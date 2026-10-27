@@ -1,0 +1,26 @@
+{
+  "schema_version": 9,
+  "near_cm": 10000,
+  "mid_cm": 30000,
+  "near_perception_hz": 5,
+  "near_decision_hz": 2,
+  "mid_decision_hz": 1,
+  "far_schedule_hz": 0.2,
+  "combat_hz": "reuse native fixed authority; never coarse-resolve player-observable combat",
+  "wake_triggers": [
+    "any authorized player sight volume",
+    "combat projectile or hazard",
+    "public objective interaction",
+    "guard pursuit",
+    "pending inventory or institutional transaction"
+  ],
+  "far_unit_policy": "persist identity and route progress; no disappearing body across any observer; no far-vs-near duplicate receipts",
+  "target_client_fps": 60,
+  "target_server_tick_hz": 30,
+  "target_server_p95_tick_ms": 33.3,
+  "target_server_p99_tick_ms": 50,
+  "max_interaction_roundtrip_p95_ms": 250,
+  "max_high_level_route_query_p95_ms": 10,
+  "performance_status": "targets requiring recorded hardware, build, density and network conditions; unmeasured",
+  "stage_id": "B94"
+}

@@ -32,6 +32,11 @@
 
 # B80 adoption/import manifests hash physical bytes, including source archives.
 /docs/v08/** -text whitespace=cr-at-eol
+/docs/v09/** -text whitespace=cr-at-eol,-blank-at-eof
+# Retain byte-hashed incoming Matplotlib SVG path formatting.
+/docs/v09/atlas/*.svg -whitespace
+/Content/Lockdown/Data/V09/*.json -text
+/docs/v09/evidence/B90/*.log -whitespace
 /Content/Lockdown/Data/V08/*.json -text
 /Scripts/*V08*.py text eol=lf
 

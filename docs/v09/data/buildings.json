@@ -1,0 +1,3317 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "building_capital_00",
+      "settlement_id": "capital",
+      "position_cm": [
+        -6920,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_00_door_north",
+        "building_capital_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_treasury"
+    },
+    {
+      "id": "building_capital_01",
+      "settlement_id": "capital",
+      "position_cm": [
+        -3280,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_02",
+      "settlement_id": "capital",
+      "position_cm": [
+        360,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_02_door_north",
+        "building_capital_02_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_supply"
+    },
+    {
+      "id": "building_capital_03",
+      "settlement_id": "capital",
+      "position_cm": [
+        7640,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_04",
+      "settlement_id": "capital",
+      "position_cm": [
+        11280,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_04_door_north",
+        "building_capital_04_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_guild"
+    },
+    {
+      "id": "building_capital_05",
+      "settlement_id": "capital",
+      "position_cm": [
+        14920,
+        -4400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_06",
+      "settlement_id": "capital",
+      "position_cm": [
+        -6920,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_07",
+      "settlement_id": "capital",
+      "position_cm": [
+        -3280,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_08",
+      "settlement_id": "capital",
+      "position_cm": [
+        360,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_09",
+      "settlement_id": "capital",
+      "position_cm": [
+        7640,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_10",
+      "settlement_id": "capital",
+      "position_cm": [
+        11280,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_11",
+      "settlement_id": "capital",
+      "position_cm": [
+        14920,
+        -200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_12",
+      "settlement_id": "capital",
+      "position_cm": [
+        -6920,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_13",
+      "settlement_id": "capital",
+      "position_cm": [
+        -3280,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_14",
+      "settlement_id": "capital",
+      "position_cm": [
+        360,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_15",
+      "settlement_id": "capital",
+      "position_cm": [
+        7640,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_16",
+      "settlement_id": "capital",
+      "position_cm": [
+        11280,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_17",
+      "settlement_id": "capital",
+      "position_cm": [
+        14920,
+        8200,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_18",
+      "settlement_id": "capital",
+      "position_cm": [
+        -6920,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_18_door_north",
+        "building_capital_18_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_workshop"
+    },
+    {
+      "id": "building_capital_19",
+      "settlement_id": "capital",
+      "position_cm": [
+        -3280,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_20",
+      "settlement_id": "capital",
+      "position_cm": [
+        360,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_20_door_north",
+        "building_capital_20_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_infirmary"
+    },
+    {
+      "id": "building_capital_21",
+      "settlement_id": "capital",
+      "position_cm": [
+        7640,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_capital_22",
+      "settlement_id": "capital",
+      "position_cm": [
+        11280,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_capital_22_door_north",
+        "building_capital_22_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "capital_guard"
+    },
+    {
+      "id": "building_capital_23",
+      "settlement_id": "capital",
+      "position_cm": [
+        14920,
+        12400,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_00",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -89800,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_00_door_north",
+        "building_highfort_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_barracks"
+    },
+    {
+      "id": "building_highfort_01",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -87200,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_02",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -84600,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_02_door_north",
+        "building_highfort_02_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_supply"
+    },
+    {
+      "id": "building_highfort_03",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -79400,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_04",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -76800,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_04_door_north",
+        "building_highfort_04_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_market"
+    },
+    {
+      "id": "building_highfort_05",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -74200,
+        66000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_06",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -89800,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_07",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -87200,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_08",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -84600,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_09",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -79400,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_10",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -76800,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_11",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -74200,
+        69000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_12",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -89800,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_13",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -87200,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_14",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -84600,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_15",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -79400,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_16",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -76800,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_17",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -74200,
+        75000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_18",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -89800,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_18_door_north",
+        "building_highfort_18_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_workshop"
+    },
+    {
+      "id": "building_highfort_19",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -87200,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_20",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -84600,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_20_door_north",
+        "building_highfort_20_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_inn"
+    },
+    {
+      "id": "building_highfort_21",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -79400,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_highfort_22",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -76800,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_highfort_22_door_north",
+        "building_highfort_22_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "highfort_guard"
+    },
+    {
+      "id": "building_highfort_23",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -74200,
+        78000,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_00",
+      "settlement_id": "scholars",
+      "position_cm": [
+        70200,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_00_door_north",
+        "building_scholars_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_archive"
+    },
+    {
+      "id": "building_scholars_01",
+      "settlement_id": "scholars",
+      "position_cm": [
+        72800,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_02",
+      "settlement_id": "scholars",
+      "position_cm": [
+        75400,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_02_door_north",
+        "building_scholars_02_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_supply"
+    },
+    {
+      "id": "building_scholars_03",
+      "settlement_id": "scholars",
+      "position_cm": [
+        80600,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_04",
+      "settlement_id": "scholars",
+      "position_cm": [
+        83200,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_04_door_north",
+        "building_scholars_04_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_market"
+    },
+    {
+      "id": "building_scholars_05",
+      "settlement_id": "scholars",
+      "position_cm": [
+        85800,
+        72000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_06",
+      "settlement_id": "scholars",
+      "position_cm": [
+        70200,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_07",
+      "settlement_id": "scholars",
+      "position_cm": [
+        72800,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_08",
+      "settlement_id": "scholars",
+      "position_cm": [
+        75400,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_09",
+      "settlement_id": "scholars",
+      "position_cm": [
+        80600,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_10",
+      "settlement_id": "scholars",
+      "position_cm": [
+        83200,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_11",
+      "settlement_id": "scholars",
+      "position_cm": [
+        85800,
+        75000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_12",
+      "settlement_id": "scholars",
+      "position_cm": [
+        70200,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_13",
+      "settlement_id": "scholars",
+      "position_cm": [
+        72800,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_14",
+      "settlement_id": "scholars",
+      "position_cm": [
+        75400,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_15",
+      "settlement_id": "scholars",
+      "position_cm": [
+        80600,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_16",
+      "settlement_id": "scholars",
+      "position_cm": [
+        83200,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_17",
+      "settlement_id": "scholars",
+      "position_cm": [
+        85800,
+        81000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_18",
+      "settlement_id": "scholars",
+      "position_cm": [
+        70200,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_18_door_north",
+        "building_scholars_18_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_workshop"
+    },
+    {
+      "id": "building_scholars_19",
+      "settlement_id": "scholars",
+      "position_cm": [
+        72800,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_20",
+      "settlement_id": "scholars",
+      "position_cm": [
+        75400,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_20_door_north",
+        "building_scholars_20_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_infirmary"
+    },
+    {
+      "id": "building_scholars_21",
+      "settlement_id": "scholars",
+      "position_cm": [
+        80600,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_scholars_22",
+      "settlement_id": "scholars",
+      "position_cm": [
+        83200,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_scholars_22_door_north",
+        "building_scholars_22_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "scholars_guard"
+    },
+    {
+      "id": "building_scholars_23",
+      "settlement_id": "scholars",
+      "position_cm": [
+        85800,
+        84000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_00",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -87800,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_00_door_north",
+        "building_riverport_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_market"
+    },
+    {
+      "id": "building_riverport_01",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -85200,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_02",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -82600,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_02_door_north",
+        "building_riverport_02_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_supply"
+    },
+    {
+      "id": "building_riverport_03",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -77400,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_04",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -74800,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_04_door_north",
+        "building_riverport_04_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_guild"
+    },
+    {
+      "id": "building_riverport_05",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -72200,
+        -72000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_06",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -87800,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_07",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -85200,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_08",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -82600,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_09",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -77400,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_10",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -74800,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_11",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -72200,
+        -69000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_12",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -87800,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_13",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -85200,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_14",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -82600,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_15",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -77400,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_16",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -74800,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_17",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -72200,
+        -63000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_18",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -87800,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_18_door_north",
+        "building_riverport_18_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_workshop"
+    },
+    {
+      "id": "building_riverport_19",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -85200,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_20",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -82600,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_20_door_north",
+        "building_riverport_20_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_inn"
+    },
+    {
+      "id": "building_riverport_21",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -77400,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_riverport_22",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -74800,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_riverport_22_door_north",
+        "building_riverport_22_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "riverport_guard"
+    },
+    {
+      "id": "building_riverport_23",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -72200,
+        -60000,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_00",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        68200,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_00_door_north",
+        "building_ironworks_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_forge"
+    },
+    {
+      "id": "building_ironworks_01",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        70800,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_02",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        73400,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_02_door_north",
+        "building_ironworks_02_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_supply"
+    },
+    {
+      "id": "building_ironworks_03",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        78600,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_04",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        81200,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_04_door_north",
+        "building_ironworks_04_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_market"
+    },
+    {
+      "id": "building_ironworks_05",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        83800,
+        -74000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_06",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        68200,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_07",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        70800,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_08",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        73400,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_09",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        78600,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_10",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        81200,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_11",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        83800,
+        -71000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_12",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        68200,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_13",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        70800,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_14",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        73400,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_15",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        78600,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_16",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        81200,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_17",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        83800,
+        -65000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_18",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        68200,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_18_door_north",
+        "building_ironworks_18_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_workshop"
+    },
+    {
+      "id": "building_ironworks_19",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        70800,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_20",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        73400,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_20_door_north",
+        "building_ironworks_20_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_inn"
+    },
+    {
+      "id": "building_ironworks_21",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        78600,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ironworks_22",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        81200,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ironworks_22_door_north",
+        "building_ironworks_22_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ironworks_guard"
+    },
+    {
+      "id": "building_ironworks_23",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        83800,
+        -62000,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_oakmere_00",
+      "settlement_id": "oakmere",
+      "position_cm": [
+        -79500,
+        5500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_oakmere_00_door_north",
+        "building_oakmere_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "oakmere"
+    },
+    {
+      "id": "building_oakmere_01",
+      "settlement_id": "oakmere",
+      "position_cm": [
+        -74500,
+        5500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_oakmere_02",
+      "settlement_id": "oakmere",
+      "position_cm": [
+        -79500,
+        10500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_oakmere_03",
+      "settlement_id": "oakmere",
+      "position_cm": [
+        -74500,
+        10500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_millford_00",
+      "settlement_id": "millford",
+      "position_cm": [
+        -41500,
+        42500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_millford_00_door_north",
+        "building_millford_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "millford"
+    },
+    {
+      "id": "building_millford_01",
+      "settlement_id": "millford",
+      "position_cm": [
+        -36500,
+        42500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_millford_02",
+      "settlement_id": "millford",
+      "position_cm": [
+        -41500,
+        47500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_millford_03",
+      "settlement_id": "millford",
+      "position_cm": [
+        -36500,
+        47500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_reedbank_00",
+      "settlement_id": "reedbank",
+      "position_cm": [
+        -49500,
+        -67500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_reedbank_00_door_north",
+        "building_reedbank_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "reedbank"
+    },
+    {
+      "id": "building_reedbank_01",
+      "settlement_id": "reedbank",
+      "position_cm": [
+        -44500,
+        -67500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_reedbank_02",
+      "settlement_id": "reedbank",
+      "position_cm": [
+        -49500,
+        -62500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_reedbank_03",
+      "settlement_id": "reedbank",
+      "position_cm": [
+        -44500,
+        -62500,
+        0
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ashcross_00",
+      "settlement_id": "ashcross",
+      "position_cm": [
+        35500,
+        -87500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_ashcross_00_door_north",
+        "building_ashcross_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "ashcross"
+    },
+    {
+      "id": "building_ashcross_01",
+      "settlement_id": "ashcross",
+      "position_cm": [
+        40500,
+        -87500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ashcross_02",
+      "settlement_id": "ashcross",
+      "position_cm": [
+        35500,
+        -82500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_ashcross_03",
+      "settlement_id": "ashcross",
+      "position_cm": [
+        40500,
+        -82500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_bellwick_00",
+      "settlement_id": "bellwick",
+      "position_cm": [
+        70500,
+        17500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_bellwick_00_door_north",
+        "building_bellwick_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "bellwick"
+    },
+    {
+      "id": "building_bellwick_01",
+      "settlement_id": "bellwick",
+      "position_cm": [
+        75500,
+        17500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_bellwick_02",
+      "settlement_id": "bellwick",
+      "position_cm": [
+        70500,
+        22500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_bellwick_03",
+      "settlement_id": "bellwick",
+      "position_cm": [
+        75500,
+        22500,
+        400
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_stonewake_00",
+      "settlement_id": "stonewake",
+      "position_cm": [
+        -2500,
+        81500,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": true,
+      "floor_count": 2,
+      "roof_access": true,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [
+        "building_stonewake_00_door_north",
+        "building_stonewake_00_door_south"
+      ],
+      "stage_id": "B91",
+      "poi_id": "stonewake"
+    },
+    {
+      "id": "building_stonewake_01",
+      "settlement_id": "stonewake",
+      "position_cm": [
+        2500,
+        81500,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_stonewake_02",
+      "settlement_id": "stonewake",
+      "position_cm": [
+        -2500,
+        86500,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    },
+    {
+      "id": "building_stonewake_03",
+      "settlement_id": "stonewake",
+      "position_cm": [
+        2500,
+        86500,
+        800
+      ],
+      "size_cm": [
+        1400,
+        1800,
+        600
+      ],
+      "enterable": false,
+      "floor_count": 1,
+      "roof_access": false,
+      "wall_vision_proxy": true,
+      "roof_fade_cosmetic_only": true,
+      "permanent_structural_collision": true,
+      "door_ids": [],
+      "stage_id": "B91"
+    }
+  ]
+}

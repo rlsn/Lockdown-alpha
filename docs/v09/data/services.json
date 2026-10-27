@@ -1,0 +1,452 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "service_capital_treasury",
+      "poi_id": "capital_treasury",
+      "functions": [
+        "bank",
+        "charter_purchase",
+        "core_procurement"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_capital_supply",
+      "poi_id": "capital_supply",
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_capital_guild",
+      "poi_id": "capital_guild",
+      "functions": [
+        "supply_commission",
+        "courier_board",
+        "witness"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_capital_workshop",
+      "poi_id": "capital_workshop",
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_capital_infirmary",
+      "poi_id": "capital_infirmary",
+      "functions": [
+        "shrine",
+        "safe_route_information"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_capital_guard",
+      "poi_id": "capital_guard",
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_barracks",
+      "poi_id": "highfort_barracks",
+      "functions": [
+        "trainer_circle2",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_supply",
+      "poi_id": "highfort_supply",
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_market",
+      "poi_id": "highfort_market",
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_workshop",
+      "poi_id": "highfort_workshop",
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_inn",
+      "poi_id": "highfort_inn",
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_highfort_guard",
+      "poi_id": "highfort_guard",
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_archive",
+      "poi_id": "scholars_archive",
+      "functions": [
+        "archive_circle3",
+        "circle2_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_supply",
+      "poi_id": "scholars_supply",
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_market",
+      "poi_id": "scholars_market",
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_workshop",
+      "poi_id": "scholars_workshop",
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_infirmary",
+      "poi_id": "scholars_infirmary",
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_scholars_guard",
+      "poi_id": "scholars_guard",
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_market",
+      "poi_id": "riverport_market",
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_supply",
+      "poi_id": "riverport_supply",
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_guild",
+      "poi_id": "riverport_guild",
+      "functions": [
+        "supply_commission",
+        "courier_board",
+        "witness"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_workshop",
+      "poi_id": "riverport_workshop",
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_inn",
+      "poi_id": "riverport_inn",
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_riverport_guard",
+      "poi_id": "riverport_guard",
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_forge",
+      "poi_id": "ironworks_forge",
+      "functions": [
+        "advanced_forge",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_supply",
+      "poi_id": "ironworks_supply",
+      "functions": [
+        "official_supply",
+        "circle1_books"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_market",
+      "poi_id": "ironworks_market",
+      "functions": [
+        "market",
+        "courier_board"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_workshop",
+      "poi_id": "ironworks_workshop",
+      "functions": [
+        "workshop",
+        "preparation"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_inn",
+      "poi_id": "ironworks_inn",
+      "functions": [
+        "shrine",
+        "civilian_rest"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ironworks_guard",
+      "poi_id": "ironworks_guard",
+      "functions": [
+        "guards",
+        "crime_reporting"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": "global_per_definition_for_official_books_and_rare_stock",
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_oakmere",
+      "poi_id": "oakmere",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_millford",
+      "poi_id": "millford",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_reedbank",
+      "poi_id": "reedbank",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_ashcross",
+      "poi_id": "ashcross",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_bellwick",
+      "poi_id": "bellwick",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    },
+    {
+      "id": "service_stonewake",
+      "poi_id": "stonewake",
+      "functions": [
+        "courier_board",
+        "workshop",
+        "preparation",
+        "shrine"
+      ],
+      "protected_official": true,
+      "queue": "unbounded_nonexclusive_service_transactions",
+      "shared_stock_pool": null,
+      "stage_id": "B92"
+    }
+  ]
+}

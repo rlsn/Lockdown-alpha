@@ -1,0 +1,307 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "tall_grass",
+      "count": 96,
+      "portable": false,
+      "verbs": [
+        "enter",
+        "ignite"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "concealment": true,
+      "burnable": true,
+      "size_cm": [
+        500,
+        500,
+        150
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": "disk_radius_250cm_feet_point",
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "sapling",
+      "count": 64,
+      "portable": false,
+      "verbs": [
+        "harvest",
+        "chop",
+        "ignite"
+      ],
+      "blocks_walk": true,
+      "blocks_sight": true,
+      "concealment": false,
+      "burnable": true,
+      "size_cm": [
+        120,
+        120,
+        400
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "door",
+      "count": 72,
+      "portable": false,
+      "verbs": [
+        "open",
+        "close",
+        "lock",
+        "lockpick",
+        "force"
+      ],
+      "blocks_walk": true,
+      "blocks_sight": true,
+      "burnable": false,
+      "size_cm": [
+        320,
+        30,
+        300
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "chest",
+      "count": 48,
+      "portable": false,
+      "verbs": [
+        "open",
+        "lockpick",
+        "store",
+        "take"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "size_cm": [
+        100,
+        80,
+        80
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "crate",
+      "count": 36,
+      "portable": false,
+      "verbs": [
+        "push",
+        "carry",
+        "place",
+        "open",
+        "break"
+      ],
+      "blocks_walk": true,
+      "blocks_sight": true,
+      "burnable": false,
+      "weight": 12,
+      "size_cm": [
+        120,
+        120,
+        220
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "barrel",
+      "count": 24,
+      "portable": false,
+      "verbs": [
+        "push",
+        "open",
+        "break"
+      ],
+      "blocks_walk": true,
+      "blocks_sight": false,
+      "burnable": false,
+      "weight": 16,
+      "size_cm": [
+        120,
+        120,
+        140
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "water_flask",
+      "count": 24,
+      "portable": true,
+      "verbs": [
+        "take",
+        "drop",
+        "trade",
+        "throw",
+        "pour"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "inherits_item_id": "water_flask",
+      "weight": 1,
+      "size_cm": [
+        20,
+        20,
+        30
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "oil_flask",
+      "count": 24,
+      "portable": true,
+      "verbs": [
+        "take",
+        "drop",
+        "trade",
+        "throw",
+        "pour"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "inherits_item_id": "oil_flask",
+      "weight": 1,
+      "size_cm": [
+        20,
+        20,
+        30
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "torch",
+      "count": 24,
+      "portable": true,
+      "verbs": [
+        "take",
+        "drop",
+        "trade",
+        "equip",
+        "ignite",
+        "extinguish",
+        "light_socket"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "weight": 2,
+      "size_cm": [
+        20,
+        20,
+        90
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "lantern",
+      "count": 12,
+      "portable": true,
+      "verbs": [
+        "take",
+        "drop",
+        "trade",
+        "equip",
+        "toggle"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "weight": 3,
+      "size_cm": [
+        40,
+        40,
+        60
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "rope",
+      "count": 12,
+      "portable": true,
+      "verbs": [
+        "take",
+        "drop",
+        "trade",
+        "attach",
+        "detach",
+        "use"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "weight": 3,
+      "size_cm": [
+        40,
+        40,
+        30
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "ladder",
+      "count": 12,
+      "portable": false,
+      "verbs": [
+        "carry",
+        "place",
+        "use",
+        "retrieve"
+      ],
+      "blocks_walk": false,
+      "blocks_sight": false,
+      "burnable": false,
+      "weight": 10,
+      "size_cm": [
+        70,
+        500,
+        30
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    },
+    {
+      "id": "furniture",
+      "count": 32,
+      "portable": false,
+      "verbs": [
+        "inspect",
+        "use_storage"
+      ],
+      "blocks_walk": true,
+      "blocks_sight": false,
+      "burnable": false,
+      "size_cm": [
+        200,
+        100,
+        100
+      ],
+      "interaction_radius_cm": 120,
+      "concealment_shape": null,
+      "proxy_shape": "upright_box_or_capsule_fitted_to_size_cm"
+    }
+  ]
+}

@@ -1,0 +1,317 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "spawn_00",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -83600,
+        72000,
+        800
+      ],
+      "contender_slot": 0,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_01",
+      "settlement_id": "scholars",
+      "position_cm": [
+        76400,
+        78000,
+        400
+      ],
+      "contender_slot": 1,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_02",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -81600,
+        -66000,
+        0
+      ],
+      "contender_slot": 2,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_03",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        74400,
+        -68000,
+        400
+      ],
+      "contender_slot": 3,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_04",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -82800,
+        72000,
+        800
+      ],
+      "contender_slot": 4,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_05",
+      "settlement_id": "scholars",
+      "position_cm": [
+        77200,
+        78000,
+        400
+      ],
+      "contender_slot": 5,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_06",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -80800,
+        -66000,
+        0
+      ],
+      "contender_slot": 6,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_07",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        75200,
+        -68000,
+        400
+      ],
+      "contender_slot": 7,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_08",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -82000,
+        72000,
+        800
+      ],
+      "contender_slot": 8,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_09",
+      "settlement_id": "scholars",
+      "position_cm": [
+        78000,
+        78000,
+        400
+      ],
+      "contender_slot": 9,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_10",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -80000,
+        -66000,
+        0
+      ],
+      "contender_slot": 10,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_11",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        76000,
+        -68000,
+        400
+      ],
+      "contender_slot": 11,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_12",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -81200,
+        72000,
+        800
+      ],
+      "contender_slot": 12,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_13",
+      "settlement_id": "scholars",
+      "position_cm": [
+        78800,
+        78000,
+        400
+      ],
+      "contender_slot": 13,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_14",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -79200,
+        -66000,
+        0
+      ],
+      "contender_slot": 14,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_15",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        76800,
+        -68000,
+        400
+      ],
+      "contender_slot": 15,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_16",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -80400,
+        72000,
+        800
+      ],
+      "contender_slot": 16,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_17",
+      "settlement_id": "scholars",
+      "position_cm": [
+        79600,
+        78000,
+        400
+      ],
+      "contender_slot": 17,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_18",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -78400,
+        -66000,
+        0
+      ],
+      "contender_slot": 18,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_19",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        77600,
+        -68000,
+        400
+      ],
+      "contender_slot": 19,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_20",
+      "settlement_id": "highfort",
+      "position_cm": [
+        -79600,
+        72000,
+        800
+      ],
+      "contender_slot": 20,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_21",
+      "settlement_id": "scholars",
+      "position_cm": [
+        80400,
+        78000,
+        400
+      ],
+      "contender_slot": 21,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_22",
+      "settlement_id": "riverport",
+      "position_cm": [
+        -77600,
+        -66000,
+        0
+      ],
+      "contender_slot": 22,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    },
+    {
+      "id": "spawn_23",
+      "settlement_id": "ironworks",
+      "position_cm": [
+        78400,
+        -68000,
+        400
+      ],
+      "contender_slot": 23,
+      "protected_ms": 3000,
+      "respawn_policy": "assigned_home_city; nearest_clear pad in same city; never enemy proximity oracle",
+      "stage_id": "B92"
+    }
+  ]
+}

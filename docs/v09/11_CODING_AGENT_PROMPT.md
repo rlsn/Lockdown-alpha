@@ -1,0 +1,20 @@
+# Coding agent prompt
+
+Implement Project Lockdown v0.9 in the existing Unreal project using this package and its byte-preserved v0.8 source. Deliver a functional complete-map demo with placeholder art where necessary. This is a code/level implementation task; importing documents or drawing map markers alone does not fulfill it.
+
+First read00–10, the active data manifests and inherited v0.8 authority/combat/economy/route contracts. Audit the actual repository, engine version, build/run/tests, current implementation and AGENTS.md. Record mismatches and keep existing architecture/working content. Do not assume a missing system was already delivered. No engine-version-specific API is mandated here.
+
+Use **B90, B91, B92, B93, B94** as stage IDs everywhere. Begin at B90, validate its exit criteria, then advance through the dependent stages. Use B90-Fxx feature IDs and B90-Txx acceptance IDs, similarly for later stages. Commit coherent verified increments with stage IDs if the user's repository instructions authorize commits; report the actual commits and remaining gates. Never make stage names M0/S1 or carry the inconsistent v0.8 convention forward.
+
+Build the2.4×2.4 km seed9001 layout: Crownreach, four outer cities, six towns,96 POIs,144 buildings/36 interiors,480 functional props,16 traversal anchors, permanent walkable rivers, fitted roads/ramps, Wet and dry Heart approaches. All essential locations are reachable at baseline420 cm/s without movement powers or portable traversal. Use deterministic approved placement and stable IDs. Extend the native builder rather than shipping a disconnected web demo.
+
+Activate exactly one profile. v09_full has24 contender seats including1–12 humans; AI fills remaining seats. Preserve the isolated35-minute v08_integration regression profile. Import v0.8 catalogs with explicit v0.9 overlays, never duplicate legacy nodes, stock pools, rewards, rare keys or objective actors. Follow centimeter/millisecond units. Unknown IDs, verbs, effects or data fields that affect behavior fail import.
+
+Reuse server action/inventory/transaction/fog authority. Portable item actives require accessory bindings and Mute checks; the six shared action slots remain shared by combat/profession/gear skills. Heavy props remain world instances; no unbound flask/torch shortcut. Atomic door/foliage/cargo changes update collision, sight and local navigation together. Permanent river connectivity and mandatory dry alternatives survive every optional mutation. Do not replace bounded environment with fluid simulation, universal fire spread or arbitrary physical construction.
+
+Populate actual work/trade/rest/security routines and official services. Cosmetic travelers carry no fake market stock. Real sources and transactions conserve gold/items. Use full-profile quotas and finite endowments; no free gear/money/capstones/Witness for bots. Audit missing inherited Witness behavior before claiming zero-kill Charter works. AI planning uses owned/observed/public information and ordinary legal requests. No hidden opponent or human labels in AI/clients.
+
+Connect all four routes to one real physical ten-second claim. Keep exact access-window/deadline event ordering, drops, control versus damage interruption and no refunds. Move Charter activation to antechamber, retain its Treasury purchase. Ensure civic guards and public recovery cannot immunize claimants. Do not script wins, delete towers on timers or introduce minimum-win gates.
+
+Run `python3 tools/validate_spec.py` for input checks and the native cases from10. Spec/model success is not runtime evidence. Record actual path lengths, multiplayer races/payload authorization, ledger identities, NPC behavior, route legality and performance. Validate60/75/90-minute profiles; clearly distinguish normal matches, soak fixtures and human balance observations. Fill implementation templates honestly. Report Not run or blocked work, exact missing dependencies, real build/test commands and defects. Never claim a complete playable full map if native B90–B94 gates remain unmet.
+

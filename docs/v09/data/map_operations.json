@@ -1,0 +1,45 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "portable_world_tool",
+      "category": "item",
+      "meaning": "Bound torch/lantern/rope action only. Dispatch by exact tool+verb, preserve fuel/identity, reserve target/field before commit; reject unknown verb."
+    },
+    {
+      "id": "world_transfer",
+      "category": "world",
+      "meaning": "Take/drop/container-store one actual instance; capacity and ownership atomic; never clone"
+    },
+    {
+      "id": "world_carry_place",
+      "category": "world",
+      "meaning": "Bind one heavy world instance to carrier then fitted ground or approved anchor; suppress actions and reserve clear placement"
+    },
+    {
+      "id": "world_push",
+      "category": "world",
+      "meaning": "Sweep heavy prop <=150 cm over 1000 ms; fit permanent clearance; no body displacement"
+    },
+    {
+      "id": "world_door",
+      "category": "world",
+      "meaning": "Open/close/lock/force rear or public door under documented owner rules; collision+sight+navigation revision atomic"
+    },
+    {
+      "id": "world_harvest",
+      "category": "world",
+      "meaning": "Finite source charge reservation, quiet channel, exact yield+capacity commit; one source id can never reset"
+    },
+    {
+      "id": "world_traverse_anchor",
+      "category": "world",
+      "meaning": "One reserved 2000 ms link use, root/control/life checks; interruption restores last valid endpoint"
+    },
+    {
+      "id": "world_break_container",
+      "category": "world",
+      "meaning": "Quiet 3000 ms break; existing contents transfer to world once; no material or payload mint"
+    }
+  ]
+}

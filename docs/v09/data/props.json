@@ -1,0 +1,8097 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "building_capital_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -6920,
+        -3500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -6920,
+        -5300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_capital_02_door_north",
+      "type_id": "door",
+      "position_cm": [
+        360,
+        -3500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_02",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_02_door_south",
+      "type_id": "door",
+      "position_cm": [
+        360,
+        -5300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_02",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_capital_04_door_north",
+      "type_id": "door",
+      "position_cm": [
+        11280,
+        -3500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_04",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_04_door_south",
+      "type_id": "door",
+      "position_cm": [
+        11280,
+        -5300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_04",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_capital_18_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -6920,
+        13300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_18",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_18_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -6920,
+        11500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_18",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_capital_20_door_north",
+      "type_id": "door",
+      "position_cm": [
+        360,
+        13300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_20",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_20_door_south",
+      "type_id": "door",
+      "position_cm": [
+        360,
+        11500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_20",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_capital_22_door_north",
+      "type_id": "door",
+      "position_cm": [
+        11280,
+        13300,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_22",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:capital"
+    },
+    {
+      "id": "building_capital_22_door_south",
+      "type_id": "door",
+      "position_cm": [
+        11280,
+        11500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_capital_22",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -89800,
+        66900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -89800,
+        65100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_02_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -84600,
+        66900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_02",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_02_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -84600,
+        65100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_02",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_04_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -76800,
+        66900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_04",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_04_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -76800,
+        65100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_04",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_18_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -89800,
+        78900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_18",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_18_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -89800,
+        77100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_18",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_20_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -84600,
+        78900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_20",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_20_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -84600,
+        77100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_20",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_highfort_22_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -76800,
+        78900,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_22",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:highfort"
+    },
+    {
+      "id": "building_highfort_22_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -76800,
+        77100,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_highfort_22",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        70200,
+        72900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        70200,
+        71100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_02_door_north",
+      "type_id": "door",
+      "position_cm": [
+        75400,
+        72900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_02",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_02_door_south",
+      "type_id": "door",
+      "position_cm": [
+        75400,
+        71100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_02",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_04_door_north",
+      "type_id": "door",
+      "position_cm": [
+        83200,
+        72900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_04",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_04_door_south",
+      "type_id": "door",
+      "position_cm": [
+        83200,
+        71100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_04",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_18_door_north",
+      "type_id": "door",
+      "position_cm": [
+        70200,
+        84900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_18",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_18_door_south",
+      "type_id": "door",
+      "position_cm": [
+        70200,
+        83100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_18",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_20_door_north",
+      "type_id": "door",
+      "position_cm": [
+        75400,
+        84900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_20",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_20_door_south",
+      "type_id": "door",
+      "position_cm": [
+        75400,
+        83100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_20",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_scholars_22_door_north",
+      "type_id": "door",
+      "position_cm": [
+        83200,
+        84900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_22",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:scholars"
+    },
+    {
+      "id": "building_scholars_22_door_south",
+      "type_id": "door",
+      "position_cm": [
+        83200,
+        83100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_scholars_22",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -87800,
+        -71100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -87800,
+        -72900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_02_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -82600,
+        -71100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_02",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_02_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -82600,
+        -72900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_02",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_04_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -74800,
+        -71100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_04",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_04_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -74800,
+        -72900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_04",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_18_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -87800,
+        -59100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_18",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_18_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -87800,
+        -60900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_18",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_20_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -82600,
+        -59100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_20",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_20_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -82600,
+        -60900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_20",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_riverport_22_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -74800,
+        -59100,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_22",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:riverport"
+    },
+    {
+      "id": "building_riverport_22_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -74800,
+        -60900,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_riverport_22",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        68200,
+        -73100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        68200,
+        -74900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_02_door_north",
+      "type_id": "door",
+      "position_cm": [
+        73400,
+        -73100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_02",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_02_door_south",
+      "type_id": "door",
+      "position_cm": [
+        73400,
+        -74900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_02",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_04_door_north",
+      "type_id": "door",
+      "position_cm": [
+        81200,
+        -73100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_04",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_04_door_south",
+      "type_id": "door",
+      "position_cm": [
+        81200,
+        -74900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_04",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_18_door_north",
+      "type_id": "door",
+      "position_cm": [
+        68200,
+        -61100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_18",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_18_door_south",
+      "type_id": "door",
+      "position_cm": [
+        68200,
+        -62900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_18",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_20_door_north",
+      "type_id": "door",
+      "position_cm": [
+        73400,
+        -61100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_20",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_20_door_south",
+      "type_id": "door",
+      "position_cm": [
+        73400,
+        -62900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_20",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ironworks_22_door_north",
+      "type_id": "door",
+      "position_cm": [
+        81200,
+        -61100,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_22",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ironworks"
+    },
+    {
+      "id": "building_ironworks_22_door_south",
+      "type_id": "door",
+      "position_cm": [
+        81200,
+        -62900,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ironworks_22",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_oakmere_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -79500,
+        6400,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_oakmere_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:oakmere"
+    },
+    {
+      "id": "building_oakmere_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -79500,
+        4600,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_oakmere_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_millford_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -41500,
+        43400,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_millford_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:millford"
+    },
+    {
+      "id": "building_millford_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -41500,
+        41600,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_millford_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_reedbank_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -49500,
+        -66600,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_reedbank_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:reedbank"
+    },
+    {
+      "id": "building_reedbank_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -49500,
+        -68400,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_reedbank_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_ashcross_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        35500,
+        -86600,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ashcross_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:ashcross"
+    },
+    {
+      "id": "building_ashcross_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        35500,
+        -88400,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_ashcross_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_bellwick_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        70500,
+        18400,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_bellwick_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:bellwick"
+    },
+    {
+      "id": "building_bellwick_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        70500,
+        16600,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_bellwick_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "building_stonewake_00_door_north",
+      "type_id": "door",
+      "position_cm": [
+        -2500,
+        82400,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_stonewake_00",
+      "hinge_side": "north",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": true,
+      "lock_owner": "resident:stonewake"
+    },
+    {
+      "id": "building_stonewake_00_door_south",
+      "type_id": "door",
+      "position_cm": [
+        -2500,
+        80600,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "building_id": "building_stonewake_00",
+      "hinge_side": "south",
+      "initial_state": "closed_unlocked",
+      "critical_path": false,
+      "lockable": false,
+      "lock_owner": null
+    },
+    {
+      "id": "prop_tall_grass_000",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -80184,
+        -71426,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_001",
+      "type_id": "tall_grass",
+      "position_cm": [
+        78129,
+        -75306,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_002",
+      "type_id": "tall_grass",
+      "position_cm": [
+        101497,
+        49030,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_04",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_003",
+      "type_id": "tall_grass",
+      "position_cm": [
+        47020,
+        -45095,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_11",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_004",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -11433,
+        16841,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_005",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -32262,
+        5558,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_006",
+      "type_id": "tall_grass",
+      "position_cm": [
+        95131,
+        -21724,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_007",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -51321,
+        -98651,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_008",
+      "type_id": "tall_grass",
+      "position_cm": [
+        55414,
+        -105419,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ash_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_009",
+      "type_id": "tall_grass",
+      "position_cm": [
+        39805,
+        65148,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fallen_garden",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_010",
+      "type_id": "tall_grass",
+      "position_cm": [
+        76780,
+        -70341,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_011",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -4989,
+        -6178,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_treasury",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_012",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -82777,
+        69005,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_013",
+      "type_id": "tall_grass",
+      "position_cm": [
+        84665,
+        74774,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_014",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -85764,
+        -57977,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_015",
+      "type_id": "tall_grass",
+      "position_cm": [
+        72174,
+        -63338,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_016",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -63736,
+        -31656,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_06",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_017",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -96530,
+        104904,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_018",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -948,
+        -12788,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_019",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -27953,
+        -83334,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_020",
+      "type_id": "tall_grass",
+      "position_cm": [
+        6323,
+        -9884,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_dry_flank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_021",
+      "type_id": "tall_grass",
+      "position_cm": [
+        94520,
+        -83232,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_022",
+      "type_id": "tall_grass",
+      "position_cm": [
+        20732,
+        42433,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "quarry_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_023",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -43243,
+        -16870,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ferry_ruins",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_024",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -38099,
+        40944,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "millford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_025",
+      "type_id": "tall_grass",
+      "position_cm": [
+        7309,
+        -2823,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_026",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -88407,
+        81630,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_027",
+      "type_id": "tall_grass",
+      "position_cm": [
+        74240,
+        82529,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_028",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -77840,
+        -57086,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_029",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -101040,
+        36055,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_01",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_030",
+      "type_id": "tall_grass",
+      "position_cm": [
+        100898,
+        -14491,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_08",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_031",
+      "type_id": "tall_grass",
+      "position_cm": [
+        101289,
+        -40336,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_032",
+      "type_id": "tall_grass",
+      "position_cm": [
+        81,
+        1517,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "antechamber",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_033",
+      "type_id": "tall_grass",
+      "position_cm": [
+        83776,
+        20053,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_034",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -93668,
+        9610,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_035",
+      "type_id": "tall_grass",
+      "position_cm": [
+        28216,
+        -104340,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_036",
+      "type_id": "tall_grass",
+      "position_cm": [
+        108091,
+        8189,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_037",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -83652,
+        73785,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_038",
+      "type_id": "tall_grass",
+      "position_cm": [
+        37532,
+        -86907,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ashcross",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_039",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -711,
+        10623,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_040",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -73714,
+        80569,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_041",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -86228,
+        -69339,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_042",
+      "type_id": "tall_grass",
+      "position_cm": [
+        74994,
+        -76184,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_043",
+      "type_id": "tall_grass",
+      "position_cm": [
+        38268,
+        104432,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_044",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -10771,
+        -103052,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_045",
+      "type_id": "tall_grass",
+      "position_cm": [
+        38114,
+        -34654,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_046",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -39087,
+        34052,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_047",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -90728,
+        39732,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_048",
+      "type_id": "tall_grass",
+      "position_cm": [
+        95601,
+        89255,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_049",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -64243,
+        -89814,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_050",
+      "type_id": "tall_grass",
+      "position_cm": [
+        98277,
+        102319,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_051",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -79854,
+        -63514,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_052",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -2899,
+        84416,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "stonewake",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_053",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -87048,
+        62482,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_barracks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_054",
+      "type_id": "tall_grass",
+      "position_cm": [
+        73835,
+        70338,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_055",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -70788,
+        -71322,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_056",
+      "type_id": "tall_grass",
+      "position_cm": [
+        68670,
+        -58989,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_057",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -104066,
+        -20147,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_05",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_058",
+      "type_id": "tall_grass",
+      "position_cm": [
+        106440,
+        -95524,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_12",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_059",
+      "type_id": "tall_grass",
+      "position_cm": [
+        16917,
+        4673,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_060",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -27749,
+        -57817,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_061",
+      "type_id": "tall_grass",
+      "position_cm": [
+        29252,
+        -58895,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_tunnel",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_062",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -111448,
+        78598,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_063",
+      "type_id": "tall_grass",
+      "position_cm": [
+        39579,
+        85439,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "sky_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_064",
+      "type_id": "tall_grass",
+      "position_cm": [
+        63199,
+        -17662,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "charcoal_camp",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_065",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -74391,
+        7468,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oakmere",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_066",
+      "type_id": "tall_grass",
+      "position_cm": [
+        1541,
+        -2104,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_067",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -77286,
+        70245,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_068",
+      "type_id": "tall_grass",
+      "position_cm": [
+        66907,
+        84291,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_069",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -80399,
+        -63639,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_070",
+      "type_id": "tall_grass",
+      "position_cm": [
+        80162,
+        -66077,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_071",
+      "type_id": "tall_grass",
+      "position_cm": [
+        47826,
+        48492,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_07",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_072",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -8670,
+        -100768,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_073",
+      "type_id": "tall_grass",
+      "position_cm": [
+        4079,
+        -128,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_074",
+      "type_id": "tall_grass",
+      "position_cm": [
+        61898,
+        32412,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_075",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -23167,
+        100040,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_076",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -100321,
+        -36181,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_077",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -106724,
+        53421,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_078",
+      "type_id": "tall_grass",
+      "position_cm": [
+        7032,
+        2507,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_079",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -47635,
+        -60606,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reedbank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_080",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -4270,
+        11425,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_081",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -86093,
+        76872,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_082",
+      "type_id": "tall_grass",
+      "position_cm": [
+        80576,
+        85161,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_083",
+      "type_id": "tall_grass",
+      "position_cm": [
+        64744,
+        -71983,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_084",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -60577,
+        93374,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_02",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_085",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -103335,
+        -95908,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_09",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_086",
+      "type_id": "tall_grass",
+      "position_cm": [
+        8814,
+        52825,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "boss_lair",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_087",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -23662,
+        64549,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_088",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -47413,
+        103102,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_089",
+      "type_id": "tall_grass",
+      "position_cm": [
+        25413,
+        59500,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_center",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_090",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -67344,
+        29269,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oak_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_091",
+      "type_id": "tall_grass",
+      "position_cm": [
+        -81271,
+        -76980,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "smuggler_cove",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_092",
+      "type_id": "tall_grass",
+      "position_cm": [
+        75444,
+        76963,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_093",
+      "type_id": "tall_grass",
+      "position_cm": [
+        76623,
+        20954,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "bellwick",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_094",
+      "type_id": "tall_grass",
+      "position_cm": [
+        14871,
+        14574,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_tall_grass_095",
+      "type_id": "tall_grass",
+      "position_cm": [
+        67606,
+        69318,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_archive",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_sapling_000",
+      "type_id": "sapling",
+      "position_cm": [
+        -82515,
+        77798,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_000"
+    },
+    {
+      "id": "prop_sapling_001",
+      "type_id": "sapling",
+      "position_cm": [
+        80375,
+        82452,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_001"
+    },
+    {
+      "id": "prop_sapling_002",
+      "type_id": "sapling",
+      "position_cm": [
+        70016,
+        -76063,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_002"
+    },
+    {
+      "id": "prop_sapling_003",
+      "type_id": "sapling",
+      "position_cm": [
+        -56341,
+        89612,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_02",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_003"
+    },
+    {
+      "id": "prop_sapling_004",
+      "type_id": "sapling",
+      "position_cm": [
+        -100507,
+        -101133,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_09",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_004"
+    },
+    {
+      "id": "prop_sapling_005",
+      "type_id": "sapling",
+      "position_cm": [
+        9062,
+        60936,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "boss_lair",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_005"
+    },
+    {
+      "id": "prop_sapling_006",
+      "type_id": "sapling",
+      "position_cm": [
+        -25488,
+        67558,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_006"
+    },
+    {
+      "id": "prop_sapling_007",
+      "type_id": "sapling",
+      "position_cm": [
+        -46941,
+        102039,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_007"
+    },
+    {
+      "id": "prop_sapling_008",
+      "type_id": "sapling",
+      "position_cm": [
+        20235,
+        53986,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_center",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_008"
+    },
+    {
+      "id": "prop_sapling_009",
+      "type_id": "sapling",
+      "position_cm": [
+        -65221,
+        28361,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oak_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_009"
+    },
+    {
+      "id": "prop_sapling_010",
+      "type_id": "sapling",
+      "position_cm": [
+        -80713,
+        -76406,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "smuggler_cove",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_010"
+    },
+    {
+      "id": "prop_sapling_011",
+      "type_id": "sapling",
+      "position_cm": [
+        74921,
+        77153,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_011"
+    },
+    {
+      "id": "prop_sapling_012",
+      "type_id": "sapling",
+      "position_cm": [
+        71553,
+        17458,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "bellwick",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_012"
+    },
+    {
+      "id": "prop_sapling_013",
+      "type_id": "sapling",
+      "position_cm": [
+        10236,
+        8027,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_013"
+    },
+    {
+      "id": "prop_sapling_014",
+      "type_id": "sapling",
+      "position_cm": [
+        68865,
+        74881,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_archive",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_014"
+    },
+    {
+      "id": "prop_sapling_015",
+      "type_id": "sapling",
+      "position_cm": [
+        -83500,
+        -74808,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_015"
+    },
+    {
+      "id": "prop_sapling_016",
+      "type_id": "sapling",
+      "position_cm": [
+        79843,
+        -72008,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_016"
+    },
+    {
+      "id": "prop_sapling_017",
+      "type_id": "sapling",
+      "position_cm": [
+        102095,
+        50832,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_04",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_017"
+    },
+    {
+      "id": "prop_sapling_018",
+      "type_id": "sapling",
+      "position_cm": [
+        49514,
+        -43843,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_11",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_018"
+    },
+    {
+      "id": "prop_sapling_019",
+      "type_id": "sapling",
+      "position_cm": [
+        -6969,
+        17178,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_019"
+    },
+    {
+      "id": "prop_sapling_020",
+      "type_id": "sapling",
+      "position_cm": [
+        -33977,
+        7021,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_020"
+    },
+    {
+      "id": "prop_sapling_021",
+      "type_id": "sapling",
+      "position_cm": [
+        96680,
+        -20650,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_021"
+    },
+    {
+      "id": "prop_sapling_022",
+      "type_id": "sapling",
+      "position_cm": [
+        -53286,
+        -102687,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_022"
+    },
+    {
+      "id": "prop_sapling_023",
+      "type_id": "sapling",
+      "position_cm": [
+        52295,
+        -102228,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ash_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_023"
+    },
+    {
+      "id": "prop_sapling_024",
+      "type_id": "sapling",
+      "position_cm": [
+        35826,
+        69251,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fallen_garden",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_024"
+    },
+    {
+      "id": "prop_sapling_025",
+      "type_id": "sapling",
+      "position_cm": [
+        72907,
+        -66459,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_025"
+    },
+    {
+      "id": "prop_sapling_026",
+      "type_id": "sapling",
+      "position_cm": [
+        -9647,
+        -4979,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_treasury",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_026"
+    },
+    {
+      "id": "prop_sapling_027",
+      "type_id": "sapling",
+      "position_cm": [
+        -82303,
+        62772,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_027"
+    },
+    {
+      "id": "prop_sapling_028",
+      "type_id": "sapling",
+      "position_cm": [
+        84832,
+        67864,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_028"
+    },
+    {
+      "id": "prop_sapling_029",
+      "type_id": "sapling",
+      "position_cm": [
+        -89394,
+        -56726,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_029"
+    },
+    {
+      "id": "prop_sapling_030",
+      "type_id": "sapling",
+      "position_cm": [
+        69658,
+        -63916,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_030"
+    },
+    {
+      "id": "prop_sapling_031",
+      "type_id": "sapling",
+      "position_cm": [
+        -61429,
+        -28789,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_06",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_031"
+    },
+    {
+      "id": "prop_sapling_032",
+      "type_id": "sapling",
+      "position_cm": [
+        -97851,
+        100371,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_032"
+    },
+    {
+      "id": "prop_sapling_033",
+      "type_id": "sapling",
+      "position_cm": [
+        1734,
+        -17687,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_033"
+    },
+    {
+      "id": "prop_sapling_034",
+      "type_id": "sapling",
+      "position_cm": [
+        -33657,
+        -82965,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_034"
+    },
+    {
+      "id": "prop_sapling_035",
+      "type_id": "sapling",
+      "position_cm": [
+        8281,
+        -7700,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_dry_flank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_035"
+    },
+    {
+      "id": "prop_sapling_036",
+      "type_id": "sapling",
+      "position_cm": [
+        97421,
+        -84095,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_036"
+    },
+    {
+      "id": "prop_sapling_037",
+      "type_id": "sapling",
+      "position_cm": [
+        23908,
+        42505,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "quarry_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_037"
+    },
+    {
+      "id": "prop_sapling_038",
+      "type_id": "sapling",
+      "position_cm": [
+        -44401,
+        -12302,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ferry_ruins",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_038"
+    },
+    {
+      "id": "prop_sapling_039",
+      "type_id": "sapling",
+      "position_cm": [
+        -39838,
+        47739,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "millford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_039"
+    },
+    {
+      "id": "prop_sapling_040",
+      "type_id": "sapling",
+      "position_cm": [
+        8039,
+        -2067,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_040"
+    },
+    {
+      "id": "prop_sapling_041",
+      "type_id": "sapling",
+      "position_cm": [
+        -88659,
+        75555,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_041"
+    },
+    {
+      "id": "prop_sapling_042",
+      "type_id": "sapling",
+      "position_cm": [
+        74852,
+        88201,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_042"
+    },
+    {
+      "id": "prop_sapling_043",
+      "type_id": "sapling",
+      "position_cm": [
+        -78006,
+        -61671,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_043"
+    },
+    {
+      "id": "prop_sapling_044",
+      "type_id": "sapling",
+      "position_cm": [
+        -103635,
+        43793,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_01",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_044"
+    },
+    {
+      "id": "prop_sapling_045",
+      "type_id": "sapling",
+      "position_cm": [
+        98375,
+        -10375,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_08",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_045"
+    },
+    {
+      "id": "prop_sapling_046",
+      "type_id": "sapling",
+      "position_cm": [
+        107128,
+        -39552,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_046"
+    },
+    {
+      "id": "prop_sapling_047",
+      "type_id": "sapling",
+      "position_cm": [
+        4170,
+        -3080,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "antechamber",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_047"
+    },
+    {
+      "id": "prop_sapling_048",
+      "type_id": "sapling",
+      "position_cm": [
+        86070,
+        23542,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_048"
+    },
+    {
+      "id": "prop_sapling_049",
+      "type_id": "sapling",
+      "position_cm": [
+        -94656,
+        8316,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_049"
+    },
+    {
+      "id": "prop_sapling_050",
+      "type_id": "sapling",
+      "position_cm": [
+        23062,
+        -106273,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_050"
+    },
+    {
+      "id": "prop_sapling_051",
+      "type_id": "sapling",
+      "position_cm": [
+        105744,
+        10611,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_051"
+    },
+    {
+      "id": "prop_sapling_052",
+      "type_id": "sapling",
+      "position_cm": [
+        -80375,
+        70435,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_052"
+    },
+    {
+      "id": "prop_sapling_053",
+      "type_id": "sapling",
+      "position_cm": [
+        37913,
+        -86850,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ashcross",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_053"
+    },
+    {
+      "id": "prop_sapling_054",
+      "type_id": "sapling",
+      "position_cm": [
+        1639,
+        16231,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_054"
+    },
+    {
+      "id": "prop_sapling_055",
+      "type_id": "sapling",
+      "position_cm": [
+        -75457,
+        82235,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_055"
+    },
+    {
+      "id": "prop_sapling_056",
+      "type_id": "sapling",
+      "position_cm": [
+        -86774,
+        -75636,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_056"
+    },
+    {
+      "id": "prop_sapling_057",
+      "type_id": "sapling",
+      "position_cm": [
+        77632,
+        -75378,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_057"
+    },
+    {
+      "id": "prop_sapling_058",
+      "type_id": "sapling",
+      "position_cm": [
+        41962,
+        99952,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_058"
+    },
+    {
+      "id": "prop_sapling_059",
+      "type_id": "sapling",
+      "position_cm": [
+        -11673,
+        -97882,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_059"
+    },
+    {
+      "id": "prop_sapling_060",
+      "type_id": "sapling",
+      "position_cm": [
+        42094,
+        -31183,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_060"
+    },
+    {
+      "id": "prop_sapling_061",
+      "type_id": "sapling",
+      "position_cm": [
+        -38860,
+        33122,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_061"
+    },
+    {
+      "id": "prop_sapling_062",
+      "type_id": "sapling",
+      "position_cm": [
+        -93870,
+        36550,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_062"
+    },
+    {
+      "id": "prop_sapling_063",
+      "type_id": "sapling",
+      "position_cm": [
+        97693,
+        90841,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "harvest_output": {
+        "definition_id": "Fiber",
+        "count": 1
+      },
+      "removed_on_chop": true,
+      "hp": 80,
+      "one_time_source_id": "sapling_063"
+    },
+    {
+      "id": "prop_chest_000",
+      "type_id": "chest",
+      "position_cm": [
+        3332,
+        14218,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_001",
+      "type_id": "chest",
+      "position_cm": [
+        -76078,
+        81950,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_002",
+      "type_id": "chest",
+      "position_cm": [
+        -90345,
+        -71861,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_003",
+      "type_id": "chest",
+      "position_cm": [
+        75218,
+        -70948,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_004",
+      "type_id": "chest",
+      "position_cm": [
+        38737,
+        98433,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_005",
+      "type_id": "chest",
+      "position_cm": [
+        -10537,
+        -96267,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_006",
+      "type_id": "chest",
+      "position_cm": [
+        36577,
+        -28392,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_007",
+      "type_id": "chest",
+      "position_cm": [
+        -33532,
+        33516,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_008",
+      "type_id": "chest",
+      "position_cm": [
+        -93612,
+        37953,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_009",
+      "type_id": "chest",
+      "position_cm": [
+        101263,
+        92192,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_010",
+      "type_id": "chest",
+      "position_cm": [
+        -65736,
+        -84387,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_011",
+      "type_id": "chest",
+      "position_cm": [
+        100860,
+        106535,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [
+        {
+          "definition_id": "Fiber",
+          "count": 2
+        },
+        {
+          "definition_id": "Ore",
+          "count": 1
+        }
+      ],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_012",
+      "type_id": "chest",
+      "position_cm": [
+        -77780,
+        -64440,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_013",
+      "type_id": "chest",
+      "position_cm": [
+        425,
+        82203,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "stonewake",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_014",
+      "type_id": "chest",
+      "position_cm": [
+        -91555,
+        70125,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_barracks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_015",
+      "type_id": "chest",
+      "position_cm": [
+        71407,
+        70554,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_016",
+      "type_id": "chest",
+      "position_cm": [
+        -72701,
+        -74806,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_017",
+      "type_id": "chest",
+      "position_cm": [
+        65905,
+        -58285,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_018",
+      "type_id": "chest",
+      "position_cm": [
+        -106107,
+        -14630,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_05",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_019",
+      "type_id": "chest",
+      "position_cm": [
+        103560,
+        -95322,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_12",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_020",
+      "type_id": "chest",
+      "position_cm": [
+        20032,
+        -1837,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_021",
+      "type_id": "chest",
+      "position_cm": [
+        -29284,
+        -53942,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_022",
+      "type_id": "chest",
+      "position_cm": [
+        29545,
+        -57370,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_tunnel",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_023",
+      "type_id": "chest",
+      "position_cm": [
+        -106467,
+        77765,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_024",
+      "type_id": "chest",
+      "position_cm": [
+        44462,
+        86196,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "sky_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_025",
+      "type_id": "chest",
+      "position_cm": [
+        62409,
+        -17356,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "charcoal_camp",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_026",
+      "type_id": "chest",
+      "position_cm": [
+        -76035,
+        5098,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oakmere",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_027",
+      "type_id": "chest",
+      "position_cm": [
+        -1303,
+        -6781,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_028",
+      "type_id": "chest",
+      "position_cm": [
+        -80306,
+        63366,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_029",
+      "type_id": "chest",
+      "position_cm": [
+        68159,
+        85454,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_030",
+      "type_id": "chest",
+      "position_cm": [
+        -81020,
+        -62910,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_031",
+      "type_id": "chest",
+      "position_cm": [
+        81229,
+        -57810,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_032",
+      "type_id": "chest",
+      "position_cm": [
+        44215,
+        48182,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_07",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_033",
+      "type_id": "chest",
+      "position_cm": [
+        -3209,
+        -103706,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_034",
+      "type_id": "chest",
+      "position_cm": [
+        600,
+        6162,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_035",
+      "type_id": "chest",
+      "position_cm": [
+        59372,
+        32324,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_036",
+      "type_id": "chest",
+      "position_cm": [
+        -27148,
+        106800,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_037",
+      "type_id": "chest",
+      "position_cm": [
+        -100998,
+        -38975,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_038",
+      "type_id": "chest",
+      "position_cm": [
+        -102618,
+        53523,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_039",
+      "type_id": "chest",
+      "position_cm": [
+        4372,
+        1801,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_040",
+      "type_id": "chest",
+      "position_cm": [
+        -48001,
+        -61573,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reedbank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_041",
+      "type_id": "chest",
+      "position_cm": [
+        -7615,
+        15385,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_042",
+      "type_id": "chest",
+      "position_cm": [
+        -86688,
+        81777,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_043",
+      "type_id": "chest",
+      "position_cm": [
+        82011,
+        85767,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_044",
+      "type_id": "chest",
+      "position_cm": [
+        72037,
+        -75111,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_045",
+      "type_id": "chest",
+      "position_cm": [
+        -56528,
+        90836,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_02",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_046",
+      "type_id": "chest",
+      "position_cm": [
+        -104136,
+        -100017,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_09",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_chest_047",
+      "type_id": "chest",
+      "position_cm": [
+        10589,
+        60295,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "boss_lair",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "initial_contents": [],
+      "rare_objective_contents": false
+    },
+    {
+      "id": "prop_crate_000",
+      "type_id": "crate",
+      "position_cm": [
+        2896,
+        13178,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_001",
+      "type_id": "crate",
+      "position_cm": [
+        -80777,
+        79373,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_002",
+      "type_id": "crate",
+      "position_cm": [
+        -87711,
+        -75859,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_003",
+      "type_id": "crate",
+      "position_cm": [
+        72780,
+        -76305,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_004",
+      "type_id": "crate",
+      "position_cm": [
+        40220,
+        102797,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_005",
+      "type_id": "crate",
+      "position_cm": [
+        -13905,
+        -98682,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_006",
+      "type_id": "crate",
+      "position_cm": [
+        37638,
+        -28741,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_007",
+      "type_id": "crate",
+      "position_cm": [
+        -35034,
+        36664,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_008",
+      "type_id": "crate",
+      "position_cm": [
+        -88607,
+        34657,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_009",
+      "type_id": "crate",
+      "position_cm": [
+        101744,
+        92974,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_010",
+      "type_id": "crate",
+      "position_cm": [
+        -64274,
+        -89164,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_011",
+      "type_id": "crate",
+      "position_cm": [
+        98865,
+        101769,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_012",
+      "type_id": "crate",
+      "position_cm": [
+        -77024,
+        -64480,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_013",
+      "type_id": "crate",
+      "position_cm": [
+        2197,
+        85084,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "stonewake",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_014",
+      "type_id": "crate",
+      "position_cm": [
+        -89854,
+        62768,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_barracks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_015",
+      "type_id": "crate",
+      "position_cm": [
+        73417,
+        69613,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_016",
+      "type_id": "crate",
+      "position_cm": [
+        -75881,
+        -67867,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_017",
+      "type_id": "crate",
+      "position_cm": [
+        71230,
+        -60005,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_018",
+      "type_id": "crate",
+      "position_cm": [
+        -106024,
+        -19274,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_05",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_019",
+      "type_id": "crate",
+      "position_cm": [
+        106578,
+        -97726,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_12",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_020",
+      "type_id": "crate",
+      "position_cm": [
+        18672,
+        -904,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_021",
+      "type_id": "crate",
+      "position_cm": [
+        -27602,
+        -54801,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_022",
+      "type_id": "crate",
+      "position_cm": [
+        30422,
+        -59062,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_tunnel",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_023",
+      "type_id": "crate",
+      "position_cm": [
+        -112455,
+        79978,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_024",
+      "type_id": "crate",
+      "position_cm": [
+        44528,
+        87220,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "sky_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_025",
+      "type_id": "crate",
+      "position_cm": [
+        55315,
+        -16878,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "charcoal_camp",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_026",
+      "type_id": "crate",
+      "position_cm": [
+        -74590,
+        8033,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oakmere",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_027",
+      "type_id": "crate",
+      "position_cm": [
+        2046,
+        -6377,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_028",
+      "type_id": "crate",
+      "position_cm": [
+        -79727,
+        63390,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_029",
+      "type_id": "crate",
+      "position_cm": [
+        66899,
+        86167,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_030",
+      "type_id": "crate",
+      "position_cm": [
+        -80537,
+        -56863,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_031",
+      "type_id": "crate",
+      "position_cm": [
+        80511,
+        -60168,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_032",
+      "type_id": "crate",
+      "position_cm": [
+        47167,
+        48555,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_07",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_033",
+      "type_id": "crate",
+      "position_cm": [
+        -8700,
+        -101040,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_034",
+      "type_id": "crate",
+      "position_cm": [
+        5838,
+        2089,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_crate_035",
+      "type_id": "crate",
+      "position_cm": [
+        58362,
+        29571,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_barrel_000",
+      "type_id": "barrel",
+      "position_cm": [
+        -80584,
+        65683,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_001",
+      "type_id": "barrel",
+      "position_cm": [
+        80548,
+        70388,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_002",
+      "type_id": "barrel",
+      "position_cm": [
+        -84710,
+        -58417,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_003",
+      "type_id": "barrel",
+      "position_cm": [
+        75254,
+        -61575,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_004",
+      "type_id": "barrel",
+      "position_cm": [
+        -60218,
+        -28231,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_06",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_005",
+      "type_id": "barrel",
+      "position_cm": [
+        -97834,
+        102788,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_006",
+      "type_id": "barrel",
+      "position_cm": [
+        -1984,
+        -14529,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_007",
+      "type_id": "barrel",
+      "position_cm": [
+        -29174,
+        -84316,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_008",
+      "type_id": "barrel",
+      "position_cm": [
+        8106,
+        -11202,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_dry_flank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_009",
+      "type_id": "barrel",
+      "position_cm": [
+        97540,
+        -85575,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_010",
+      "type_id": "barrel",
+      "position_cm": [
+        19623,
+        46695,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "quarry_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_011",
+      "type_id": "barrel",
+      "position_cm": [
+        -48479,
+        -13952,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ferry_ruins",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_012",
+      "type_id": "barrel",
+      "position_cm": [
+        -40044,
+        48290,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "millford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_013",
+      "type_id": "barrel",
+      "position_cm": [
+        9485,
+        -1972,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_014",
+      "type_id": "barrel",
+      "position_cm": [
+        -87266,
+        80395,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_015",
+      "type_id": "barrel",
+      "position_cm": [
+        76351,
+        81935,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_016",
+      "type_id": "barrel",
+      "position_cm": [
+        -76984,
+        -58742,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_017",
+      "type_id": "barrel",
+      "position_cm": [
+        -103740,
+        42163,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_01",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_018",
+      "type_id": "barrel",
+      "position_cm": [
+        101544,
+        -8448,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_08",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_019",
+      "type_id": "barrel",
+      "position_cm": [
+        105972,
+        -42570,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_020",
+      "type_id": "barrel",
+      "position_cm": [
+        3351,
+        -3315,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "antechamber",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_021",
+      "type_id": "barrel",
+      "position_cm": [
+        84852,
+        18604,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_022",
+      "type_id": "barrel",
+      "position_cm": [
+        -95229,
+        7787,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_barrel_023",
+      "type_id": "barrel",
+      "position_cm": [
+        22045,
+        -103386,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false,
+      "payload": "empty_storage_no_combat_spill"
+    },
+    {
+      "id": "prop_water_flask_000",
+      "type_id": "water_flask",
+      "position_cm": [
+        -82238,
+        -64384,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_001",
+      "type_id": "water_flask",
+      "position_cm": [
+        83382,
+        -60549,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_002",
+      "type_id": "water_flask",
+      "position_cm": [
+        45140,
+        42765,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_07",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_003",
+      "type_id": "water_flask",
+      "position_cm": [
+        -5077,
+        -104279,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_004",
+      "type_id": "water_flask",
+      "position_cm": [
+        7036,
+        2774,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_005",
+      "type_id": "water_flask",
+      "position_cm": [
+        64609,
+        31992,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_006",
+      "type_id": "water_flask",
+      "position_cm": [
+        -25844,
+        104598,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_007",
+      "type_id": "water_flask",
+      "position_cm": [
+        -94505,
+        -36111,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_008",
+      "type_id": "water_flask",
+      "position_cm": [
+        -101238,
+        53508,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_009",
+      "type_id": "water_flask",
+      "position_cm": [
+        650,
+        5513,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_010",
+      "type_id": "water_flask",
+      "position_cm": [
+        -46591,
+        -62927,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reedbank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_011",
+      "type_id": "water_flask",
+      "position_cm": [
+        -5832,
+        9605,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_012",
+      "type_id": "water_flask",
+      "position_cm": [
+        -82506,
+        78880,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_013",
+      "type_id": "water_flask",
+      "position_cm": [
+        86979,
+        85383,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_014",
+      "type_id": "water_flask",
+      "position_cm": [
+        67926,
+        -76390,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_015",
+      "type_id": "water_flask",
+      "position_cm": [
+        -61917,
+        93677,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_02",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_016",
+      "type_id": "water_flask",
+      "position_cm": [
+        -100155,
+        -98350,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_09",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_017",
+      "type_id": "water_flask",
+      "position_cm": [
+        11580,
+        59439,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "boss_lair",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_018",
+      "type_id": "water_flask",
+      "position_cm": [
+        -29636,
+        62808,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_019",
+      "type_id": "water_flask",
+      "position_cm": [
+        -45265,
+        105440,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_020",
+      "type_id": "water_flask",
+      "position_cm": [
+        23141,
+        55183,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_center",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_021",
+      "type_id": "water_flask",
+      "position_cm": [
+        -61791,
+        24414,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oak_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_022",
+      "type_id": "water_flask",
+      "position_cm": [
+        -76837,
+        -82770,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "smuggler_cove",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_water_flask_023",
+      "type_id": "water_flask",
+      "position_cm": [
+        77451,
+        76144,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_000",
+      "type_id": "oil_flask",
+      "position_cm": [
+        74201,
+        87475,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_001",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -76414,
+        -57274,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_002",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -99896,
+        41051,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_01",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_003",
+      "type_id": "oil_flask",
+      "position_cm": [
+        99044,
+        -11386,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_08",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_004",
+      "type_id": "oil_flask",
+      "position_cm": [
+        106613,
+        -43334,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_005",
+      "type_id": "oil_flask",
+      "position_cm": [
+        6128,
+        -75,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "antechamber",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_006",
+      "type_id": "oil_flask",
+      "position_cm": [
+        87247,
+        20192,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_007",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -94250,
+        11888,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_008",
+      "type_id": "oil_flask",
+      "position_cm": [
+        23767,
+        -102854,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_009",
+      "type_id": "oil_flask",
+      "position_cm": [
+        108893,
+        9876,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_010",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -83114,
+        68744,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_011",
+      "type_id": "oil_flask",
+      "position_cm": [
+        40876,
+        -85839,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ashcross",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_012",
+      "type_id": "oil_flask",
+      "position_cm": [
+        1548,
+        14820,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_013",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -79983,
+        80225,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_014",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -84474,
+        -73552,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_015",
+      "type_id": "oil_flask",
+      "position_cm": [
+        69709,
+        -75885,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_016",
+      "type_id": "oil_flask",
+      "position_cm": [
+        42053,
+        103934,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_017",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -6882,
+        -101064,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_018",
+      "type_id": "oil_flask",
+      "position_cm": [
+        38044,
+        -27374,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_019",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -37532,
+        33176,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_020",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -87768,
+        35913,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_021",
+      "type_id": "oil_flask",
+      "position_cm": [
+        95785,
+        89507,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_022",
+      "type_id": "oil_flask",
+      "position_cm": [
+        -65525,
+        -89748,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_oil_flask_023",
+      "type_id": "oil_flask",
+      "position_cm": [
+        104061,
+        102645,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_000",
+      "type_id": "torch",
+      "position_cm": [
+        3560,
+        11698,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_001",
+      "type_id": "torch",
+      "position_cm": [
+        -78178,
+        74377,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_002",
+      "type_id": "torch",
+      "position_cm": [
+        -89048,
+        -74932,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_003",
+      "type_id": "torch",
+      "position_cm": [
+        72360,
+        -70990,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_004",
+      "type_id": "torch",
+      "position_cm": [
+        34604,
+        99938,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_005",
+      "type_id": "torch",
+      "position_cm": [
+        -6505,
+        -99609,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_006",
+      "type_id": "torch",
+      "position_cm": [
+        35691,
+        -30067,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_007",
+      "type_id": "torch",
+      "position_cm": [
+        -37862,
+        32782,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_008",
+      "type_id": "torch",
+      "position_cm": [
+        -94521,
+        33044,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_009",
+      "type_id": "torch",
+      "position_cm": [
+        97509,
+        86307,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_010",
+      "type_id": "torch",
+      "position_cm": [
+        -69398,
+        -87837,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_011",
+      "type_id": "torch",
+      "position_cm": [
+        100812,
+        101117,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_012",
+      "type_id": "torch",
+      "position_cm": [
+        -76457,
+        -64483,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_013",
+      "type_id": "torch",
+      "position_cm": [
+        1933,
+        84933,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "stonewake",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_014",
+      "type_id": "torch",
+      "position_cm": [
+        -90714,
+        61940,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_barracks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_015",
+      "type_id": "torch",
+      "position_cm": [
+        73990,
+        76051,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_016",
+      "type_id": "torch",
+      "position_cm": [
+        -76281,
+        -69162,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_017",
+      "type_id": "torch",
+      "position_cm": [
+        64686,
+        -64396,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_018",
+      "type_id": "torch",
+      "position_cm": [
+        -104275,
+        -15628,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_05",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_019",
+      "type_id": "torch",
+      "position_cm": [
+        106962,
+        -95645,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_12",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_020",
+      "type_id": "torch",
+      "position_cm": [
+        18462,
+        4796,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_021",
+      "type_id": "torch",
+      "position_cm": [
+        -29262,
+        -59966,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_022",
+      "type_id": "torch",
+      "position_cm": [
+        34248,
+        -57111,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "south_tunnel",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_torch_023",
+      "type_id": "torch",
+      "position_cm": [
+        -108733,
+        82781,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_000",
+      "type_id": "lantern",
+      "position_cm": [
+        -87207,
+        81400,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_001",
+      "type_id": "lantern",
+      "position_cm": [
+        81822,
+        85412,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_002",
+      "type_id": "lantern",
+      "position_cm": [
+        66829,
+        -70698,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_003",
+      "type_id": "lantern",
+      "position_cm": [
+        -54159,
+        91570,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_02",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_004",
+      "type_id": "lantern",
+      "position_cm": [
+        -99953,
+        -98164,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_09",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_005",
+      "type_id": "lantern",
+      "position_cm": [
+        8673,
+        61227,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "boss_lair",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_006",
+      "type_id": "lantern",
+      "position_cm": [
+        -29425,
+        63495,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_007",
+      "type_id": "lantern",
+      "position_cm": [
+        -43108,
+        103297,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "north_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_008",
+      "type_id": "lantern",
+      "position_cm": [
+        23462,
+        58653,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_center",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_009",
+      "type_id": "lantern",
+      "position_cm": [
+        -66575,
+        27995,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "oak_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_010",
+      "type_id": "lantern",
+      "position_cm": [
+        -77382,
+        -77396,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "smuggler_cove",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_lantern_011",
+      "type_id": "lantern",
+      "position_cm": [
+        75996,
+        76272,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_000",
+      "type_id": "rope",
+      "position_cm": [
+        -2108,
+        -3989,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_001",
+      "type_id": "rope",
+      "position_cm": [
+        -78297,
+        64400,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_002",
+      "type_id": "rope",
+      "position_cm": [
+        68037,
+        85210,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_003",
+      "type_id": "rope",
+      "position_cm": [
+        -80121,
+        -62375,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_004",
+      "type_id": "rope",
+      "position_cm": [
+        78903,
+        -63540,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_005",
+      "type_id": "rope",
+      "position_cm": [
+        44145,
+        47278,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_07",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_006",
+      "type_id": "rope",
+      "position_cm": [
+        -4405,
+        -103351,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_b",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_007",
+      "type_id": "rope",
+      "position_cm": [
+        7461,
+        1932,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_008",
+      "type_id": "rope",
+      "position_cm": [
+        61354,
+        27224,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_009",
+      "type_id": "rope",
+      "position_cm": [
+        -21299,
+        105527,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_north",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_010",
+      "type_id": "rope",
+      "position_cm": [
+        -96908,
+        -39581,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_rope_011",
+      "type_id": "rope",
+      "position_cm": [
+        -102170,
+        57073,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_000",
+      "type_id": "ladder",
+      "position_cm": [
+        -84144,
+        64180,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_001",
+      "type_id": "ladder",
+      "position_cm": [
+        84842,
+        70161,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_002",
+      "type_id": "ladder",
+      "position_cm": [
+        -90137,
+        -58183,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_003",
+      "type_id": "ladder",
+      "position_cm": [
+        76975,
+        -64144,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_inn",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_004",
+      "type_id": "ladder",
+      "position_cm": [
+        -58351,
+        -33122,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_06",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_005",
+      "type_id": "ladder",
+      "position_cm": [
+        -98745,
+        103569,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_a",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_006",
+      "type_id": "ladder",
+      "position_cm": [
+        -1104,
+        -16119,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "tower_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_007",
+      "type_id": "ladder",
+      "position_cm": [
+        -32426,
+        -80533,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_008",
+      "type_id": "ladder",
+      "position_cm": [
+        10545,
+        -12759,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_dry_flank",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_009",
+      "type_id": "ladder",
+      "position_cm": [
+        91993,
+        -88108,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ore_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_010",
+      "type_id": "ladder",
+      "position_cm": [
+        21664,
+        42132,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "quarry_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_ladder_011",
+      "type_id": "ladder",
+      "position_cm": [
+        -49050,
+        -15659,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ferry_ruins",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_000",
+      "type_id": "furniture",
+      "position_cm": [
+        76600,
+        85426,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_001",
+      "type_id": "furniture",
+      "position_cm": [
+        -70364,
+        -60017,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_002",
+      "type_id": "furniture",
+      "position_cm": [
+        -105331,
+        38512,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_01",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_003",
+      "type_id": "furniture",
+      "position_cm": [
+        101153,
+        -15742,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_08",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_004",
+      "type_id": "furniture",
+      "position_cm": [
+        102073,
+        -41068,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ruin_c",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_005",
+      "type_id": "furniture",
+      "position_cm": [
+        6829,
+        1575,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "antechamber",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_006",
+      "type_id": "furniture",
+      "position_cm": [
+        82884,
+        26393,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_ford",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_007",
+      "type_id": "furniture",
+      "position_cm": [
+        -98067,
+        6920,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_west",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_008",
+      "type_id": "furniture",
+      "position_cm": [
+        28169,
+        -102970,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "fiber_south",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_009",
+      "type_id": "furniture",
+      "position_cm": [
+        107604,
+        8164,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "east_watch",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_010",
+      "type_id": "furniture",
+      "position_cm": [
+        -82634,
+        68333,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_011",
+      "type_id": "furniture",
+      "position_cm": [
+        35815,
+        -84539,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ashcross",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_012",
+      "type_id": "furniture",
+      "position_cm": [
+        2132,
+        13161,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "capital_infirmary",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_013",
+      "type_id": "furniture",
+      "position_cm": [
+        -76544,
+        73602,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_guard",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_014",
+      "type_id": "furniture",
+      "position_cm": [
+        -90895,
+        -71578,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_market",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_015",
+      "type_id": "furniture",
+      "position_cm": [
+        76816,
+        -72023,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_016",
+      "type_id": "furniture",
+      "position_cm": [
+        37999,
+        99715,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_03",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_017",
+      "type_id": "furniture",
+      "position_cm": [
+        -10018,
+        -102023,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_10",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_018",
+      "type_id": "furniture",
+      "position_cm": [
+        41173,
+        -34811,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "heart_forge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_019",
+      "type_id": "furniture",
+      "position_cm": [
+        -34818,
+        33424,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "mill_bridge",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_020",
+      "type_id": "furniture",
+      "position_cm": [
+        -91278,
+        32538,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "west_pass",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_021",
+      "type_id": "furniture",
+      "position_cm": [
+        97272,
+        90518,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "crystal_east",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_022",
+      "type_id": "furniture",
+      "position_cm": [
+        -63690,
+        -90705,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "reed_shrine",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_023",
+      "type_id": "furniture",
+      "position_cm": [
+        99432,
+        102379,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "old_lab",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_024",
+      "type_id": "furniture",
+      "position_cm": [
+        -78629,
+        -69885,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_025",
+      "type_id": "furniture",
+      "position_cm": [
+        -2947,
+        84091,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "stonewake",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_026",
+      "type_id": "furniture",
+      "position_cm": [
+        -93320,
+        66814,
+        800
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "highfort_barracks",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_027",
+      "type_id": "furniture",
+      "position_cm": [
+        73589,
+        68554,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "scholars_supply",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_028",
+      "type_id": "furniture",
+      "position_cm": [
+        -78495,
+        -73397,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "riverport_guild",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_029",
+      "type_id": "furniture",
+      "position_cm": [
+        65706,
+        -59969,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "ironworks_workshop",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_030",
+      "type_id": "furniture",
+      "position_cm": [
+        -102444,
+        -16520,
+        0
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_05",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    },
+    {
+      "id": "prop_furniture_031",
+      "type_id": "furniture",
+      "position_cm": [
+        105072,
+        -101081,
+        400
+      ],
+      "initial_owner": "world",
+      "respawn": false,
+      "stage_id": "B91",
+      "anchor_poi_id": "camp_12",
+      "placement_pad_cm": 250,
+      "blocks_critical_corridor": false
+    }
+  ]
+}

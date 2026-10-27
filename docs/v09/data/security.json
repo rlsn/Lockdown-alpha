@@ -1,0 +1,35 @@
+{
+  "schema_version": 9,
+  "civic_zone_radius_cm": {
+    "capital": 12000,
+    "city": 7000,
+    "town": 3000
+  },
+  "heart_contested_override_radius_cm": 7000,
+  "witness_geometry_required": true,
+  "incident_expiry_ms": 120000,
+  "alarm_range_cm": 3000,
+  "guard_leash_from_home_cm": 6000,
+  "lose_sight_ms": 5000,
+  "search_ms": 5000,
+  "civilian_resume_safe_ms": 10000,
+  "guard": {
+    "count": 24,
+    "hp": 600,
+    "armor": 10,
+    "magic_resist": 0.15,
+    "attack_damage": 35,
+    "attack_interval_ms": 1500,
+    "attack_range_cm": 220,
+    "movement_cm_s": 420,
+    "sight_cm": 1800,
+    "hard_control": false,
+    "respawn_ms": 90000,
+    "reward_gold": 0,
+    "reward_xp": 0,
+    "loot": [],
+    "spawn_protection_ms": 3000
+  },
+  "no_fines_prison_bounty_or_reinforcement_mint": true,
+  "stage_id": "B92"
+}

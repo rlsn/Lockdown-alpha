@@ -1,0 +1,523 @@
+{
+  "schema_version": 9,
+  "rivers": [
+    {
+      "id": "main_river",
+      "width_cm": 2200,
+      "bank_ramp_width_cm": 600,
+      "floor_z_cm": 0,
+      "points_cm": [
+        [
+          -22000,
+          120000,
+          0
+        ],
+        [
+          -38000,
+          95000,
+          0
+        ],
+        [
+          -27000,
+          65000,
+          0
+        ],
+        [
+          -36000,
+          36000,
+          0
+        ],
+        [
+          -32000,
+          12000,
+          0
+        ],
+        [
+          -40000,
+          -18000,
+          0
+        ],
+        [
+          -23000,
+          -42000,
+          0
+        ],
+        [
+          -35000,
+          -70000,
+          0
+        ],
+        [
+          -22000,
+          -100000,
+          0
+        ],
+        [
+          -30000,
+          -120000,
+          0
+        ]
+      ],
+      "always_walkable": true,
+      "water_contact": "v08_wet",
+      "base_slow_percent": 0,
+      "freeze_navigation_change": false
+    },
+    {
+      "id": "port_canal",
+      "width_cm": 1800,
+      "bank_ramp_width_cm": 500,
+      "floor_z_cm": 0,
+      "points_cm": [
+        [
+          -90000,
+          -82000,
+          0
+        ],
+        [
+          -80000,
+          -80000,
+          0
+        ],
+        [
+          -65000,
+          -77000,
+          0
+        ],
+        [
+          -52000,
+          -73000,
+          0
+        ],
+        [
+          -33800,
+          -67000,
+          0
+        ]
+      ],
+      "always_walkable": true,
+      "water_contact": "v08_wet",
+      "base_slow_percent": 0,
+      "freeze_navigation_change": false
+    },
+    {
+      "id": "east_tributary",
+      "width_cm": 1400,
+      "bank_ramp_width_cm": 500,
+      "floor_z_cm": 0,
+      "points_cm": [
+        [
+          120000,
+          28000,
+          0
+        ],
+        [
+          80000,
+          22000,
+          0
+        ],
+        [
+          60000,
+          30000,
+          0
+        ],
+        [
+          35000,
+          24000,
+          0
+        ],
+        [
+          12000,
+          30000,
+          0
+        ],
+        [
+          -16000,
+          24000,
+          0
+        ],
+        [
+          -32000,
+          12000,
+          0
+        ]
+      ],
+      "always_walkable": true,
+      "water_contact": "v08_wet",
+      "base_slow_percent": 0,
+      "freeze_navigation_change": false
+    }
+  ],
+  "crossings": [
+    {
+      "id": "north_bridge",
+      "poi_id": "north_bridge",
+      "mode": "permanent_bridge",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": false,
+      "river_id": "main_river",
+      "stage_id": "B90"
+    },
+    {
+      "id": "mill_bridge",
+      "poi_id": "mill_bridge",
+      "mode": "permanent_bridge",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": false,
+      "river_id": "main_river",
+      "stage_id": "B90"
+    },
+    {
+      "id": "capital_ford",
+      "poi_id": "capital_ford",
+      "mode": "walkable_ford",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": true,
+      "river_id": "main_river",
+      "stage_id": "B90"
+    },
+    {
+      "id": "south_bridge",
+      "poi_id": "south_bridge",
+      "mode": "permanent_bridge",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": false,
+      "river_id": "main_river",
+      "stage_id": "B90"
+    },
+    {
+      "id": "reed_ford",
+      "poi_id": "reed_ford",
+      "mode": "walkable_ford",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": true,
+      "river_id": "main_river",
+      "stage_id": "B90"
+    },
+    {
+      "id": "east_bridge",
+      "poi_id": "east_bridge",
+      "mode": "permanent_bridge",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": false,
+      "river_id": "east_tributary",
+      "stage_id": "B90"
+    },
+    {
+      "id": "east_ford",
+      "poi_id": "east_ford",
+      "mode": "walkable_ford",
+      "width_cm": 800,
+      "indestructible": true,
+      "applies_wet": true,
+      "river_id": "east_tributary",
+      "stage_id": "B90"
+    }
+  ],
+  "biomes": [
+    {
+      "id": "north_ridge",
+      "bounds_cm": [
+        -118000,
+        50000,
+        25000,
+        118000
+      ],
+      "base_band_cm": 800,
+      "palette": "rock_pine"
+    },
+    {
+      "id": "archive_uplands",
+      "bounds_cm": [
+        25000,
+        40000,
+        118000,
+        118000
+      ],
+      "base_band_cm": 400,
+      "palette": "garden_woodland"
+    },
+    {
+      "id": "oakwood",
+      "bounds_cm": [
+        -118000,
+        -45000,
+        -48000,
+        50000
+      ],
+      "base_band_cm": 0,
+      "palette": "dense_forest"
+    },
+    {
+      "id": "reed_marsh",
+      "bounds_cm": [
+        -118000,
+        -118000,
+        0,
+        -45000
+      ],
+      "base_band_cm": 0,
+      "palette": "marsh_farmland"
+    },
+    {
+      "id": "ash_fields",
+      "bounds_cm": [
+        0,
+        -118000,
+        118000,
+        -40000
+      ],
+      "base_band_cm": 400,
+      "palette": "quarry_scrub"
+    },
+    {
+      "id": "central_basin",
+      "bounds_cm": [
+        -48000,
+        -40000,
+        118000,
+        40000
+      ],
+      "base_band_cm": 0,
+      "palette": "mixed_urban_riparian"
+    }
+  ],
+  "height_policy": {
+    "noise_amplitude_cm": 150,
+    "flatten_settlement_and_poi_pad": true,
+    "max_authored_walkable_grade": 0.25,
+    "band_step_requires_ramp_or_stair": true,
+    "settlement_flatten_apron_cm": 1200,
+    "noise_exclusion": "POI pads, roads, rivers, buildings, protected nav corridors"
+  },
+  "plateaus": [
+    {
+      "id": "capital_plateau",
+      "center_cm": [
+        4000,
+        4000,
+        400
+      ],
+      "radius_cm": 22500,
+      "height_cm": 400
+    },
+    {
+      "id": "highfort_plateau",
+      "center_cm": [
+        -82000,
+        72000,
+        800
+      ],
+      "radius_cm": 15000,
+      "height_cm": 800
+    },
+    {
+      "id": "scholars_plateau",
+      "center_cm": [
+        78000,
+        78000,
+        400
+      ],
+      "radius_cm": 15000,
+      "height_cm": 400
+    },
+    {
+      "id": "ironworks_plateau",
+      "center_cm": [
+        76000,
+        -68000,
+        400
+      ],
+      "radius_cm": 15000,
+      "height_cm": 400
+    },
+    {
+      "id": "ashcross_plateau",
+      "center_cm": [
+        38000,
+        -85000,
+        400
+      ],
+      "radius_cm": 8500,
+      "height_cm": 400
+    },
+    {
+      "id": "bellwick_plateau",
+      "center_cm": [
+        73000,
+        20000,
+        400
+      ],
+      "radius_cm": 8500,
+      "height_cm": 400
+    },
+    {
+      "id": "stonewake_plateau",
+      "center_cm": [
+        0,
+        84000,
+        800
+      ],
+      "radius_cm": 8500,
+      "height_cm": 800
+    }
+  ],
+  "forest_patches": [
+    {
+      "id": "forest_00",
+      "center_cm": [
+        -105000,
+        23000,
+        0
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_01",
+      "center_cm": [
+        -65000,
+        40000,
+        0
+      ],
+      "radius_cm": 11000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_02",
+      "center_cm": [
+        -97000,
+        -40000,
+        0
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_03",
+      "center_cm": [
+        -66000,
+        -101000,
+        0
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_04",
+      "center_cm": [
+        -7000,
+        102000,
+        800
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_05",
+      "center_cm": [
+        52000,
+        97000,
+        800
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_06",
+      "center_cm": [
+        105000,
+        65000,
+        400
+      ],
+      "radius_cm": 9000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_07",
+      "center_cm": [
+        105000,
+        -61000,
+        400
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_08",
+      "center_cm": [
+        -50000,
+        67000,
+        0
+      ],
+      "radius_cm": 9000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_09",
+      "center_cm": [
+        -60000,
+        -10000,
+        0
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_10",
+      "center_cm": [
+        20000,
+        -75000,
+        400
+      ],
+      "radius_cm": 10000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    },
+    {
+      "id": "forest_11",
+      "center_cm": [
+        53000,
+        45000,
+        400
+      ],
+      "radius_cm": 9000,
+      "scenery_tree_target": 250,
+      "mutable_tree_target": 0
+    }
+  ],
+  "heart_water_inset": {
+    "id": "heart_water_inset",
+    "center_cm": [
+      1500,
+      1000,
+      400
+    ],
+    "size_cm": [
+      1200,
+      600
+    ],
+    "always_walkable": true,
+    "wet": true,
+    "static_substrate": true,
+    "does_not_cover_claim_circle": true,
+    "dry_alternative_poi_id": "heart_dry_flank",
+    "stage_id": "B90"
+  }
+}

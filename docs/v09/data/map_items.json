@@ -1,0 +1,102 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "torch",
+      "name": "Torch",
+      "equipment_slot": "accessory",
+      "weight": 2,
+      "consumable": false,
+      "tradable": true,
+      "quality": "standard_only",
+      "stats": {},
+      "passives": {},
+      "source": "finite_world_endowment",
+      "official_price_gold": null,
+      "death_policy": "drop",
+      "active": {
+        "op": "portable_world_tool",
+        "verbs": [
+          "toggle",
+          "ignite_socket"
+        ],
+        "binding": "accessory",
+        "blocked_by": "Mute",
+        "mana_cost": 0,
+        "range_cm": 120
+      },
+      "persistent_instance_fields": [
+        "fuel_remaining_ms",
+        "lit",
+        "location",
+        "cooldown_ready_at",
+        "revision"
+      ],
+      "stage_id": "B91"
+    },
+    {
+      "id": "lantern",
+      "name": "Lantern",
+      "equipment_slot": "accessory",
+      "weight": 3,
+      "consumable": false,
+      "tradable": true,
+      "quality": "standard_only",
+      "stats": {},
+      "passives": {},
+      "source": "finite_world_endowment",
+      "official_price_gold": null,
+      "death_policy": "drop",
+      "active": {
+        "op": "portable_world_tool",
+        "verbs": [
+          "toggle"
+        ],
+        "binding": "accessory",
+        "blocked_by": "Mute",
+        "mana_cost": 0,
+        "range_cm": 120
+      },
+      "persistent_instance_fields": [
+        "fuel_remaining_ms",
+        "lit",
+        "location",
+        "cooldown_ready_at",
+        "revision"
+      ],
+      "stage_id": "B91"
+    },
+    {
+      "id": "rope",
+      "name": "Rope",
+      "equipment_slot": "accessory",
+      "weight": 3,
+      "consumable": false,
+      "tradable": true,
+      "quality": "standard_only",
+      "stats": {},
+      "passives": {},
+      "source": "finite_world_endowment",
+      "official_price_gold": null,
+      "death_policy": "drop",
+      "active": {
+        "op": "portable_world_tool",
+        "verbs": [
+          "attach_to_anchor"
+        ],
+        "binding": "accessory",
+        "blocked_by": "Mute",
+        "mana_cost": 0,
+        "range_cm": 120
+      },
+      "persistent_instance_fields": [
+        "fuel_remaining_ms",
+        "lit",
+        "location",
+        "cooldown_ready_at",
+        "revision"
+      ],
+      "stage_id": "B91"
+    }
+  ]
+}

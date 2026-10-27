@@ -1,0 +1,376 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "camp_01",
+      "poi_id": "camp_01",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_02",
+      "poi_id": "camp_02",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_03",
+      "poi_id": "camp_03",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_04",
+      "poi_id": "camp_04",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_05",
+      "poi_id": "camp_05",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_06",
+      "poi_id": "camp_06",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_07",
+      "poi_id": "camp_07",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_08",
+      "poi_id": "camp_08",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_09",
+      "poi_id": "camp_09",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_10",
+      "poi_id": "camp_10",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_11",
+      "poi_id": "camp_11",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "camp_12",
+      "poi_id": "camp_12",
+      "kind": "camp",
+      "spawn_id_count": 6,
+      "first_at_ms": 0,
+      "spawn_gap_min_ms": 600000,
+      "max_live": 1,
+      "gold_each": 12,
+      "xp_each": 90,
+      "replenishes": false,
+      "source_identity": "match+camp+ordinal",
+      "stage_id": "B92"
+    },
+    {
+      "id": "ruin_a",
+      "poi_id": "ruin_a",
+      "kind": "ruin_cache",
+      "unique_contents": [
+        "ancient_key_a",
+        "arcane_catalyst",
+        "book_temporal_lock"
+      ],
+      "copies": 1,
+      "xp_first_discovery_per_contender": 50,
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "ruin_b",
+      "poi_id": "ruin_b",
+      "kind": "ruin_cache",
+      "unique_contents": [
+        "ancient_key_b",
+        "arcane_catalyst",
+        "book_grand_exchange"
+      ],
+      "copies": 1,
+      "xp_first_discovery_per_contender": 50,
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "ruin_c",
+      "poi_id": "ruin_c",
+      "kind": "ruin_cache",
+      "unique_contents": [
+        "ancient_key_c",
+        "arcane_catalyst",
+        "book_gate_weave"
+      ],
+      "copies": 1,
+      "xp_first_discovery_per_contender": 50,
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "boss_once",
+      "poi_id": "boss_lair",
+      "kind": "boss",
+      "gold_each": 90,
+      "xp_each": 250,
+      "copies": 1,
+      "unique_contents": [
+        "heart_fragment",
+        "book_sovereign_ward"
+      ],
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "tower_a",
+      "poi_id": "tower_a",
+      "kind": "tower",
+      "gold_each": 40,
+      "xp_each": 150,
+      "copies": 1,
+      "unique_contents": [
+        "tower_relic"
+      ],
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "tower_b",
+      "poi_id": "tower_b",
+      "kind": "tower",
+      "gold_each": 40,
+      "xp_each": 150,
+      "copies": 1,
+      "unique_contents": [
+        "tower_relic"
+      ],
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "tower_c",
+      "poi_id": "tower_c",
+      "kind": "tower",
+      "gold_each": 40,
+      "xp_each": 150,
+      "copies": 1,
+      "unique_contents": [
+        "tower_relic"
+      ],
+      "replenishes": false,
+      "stage_id": "B93"
+    },
+    {
+      "id": "crystal_north",
+      "poi_id": "crystal_north",
+      "kind": "resource",
+      "definition_id": "Crystal",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_west",
+      "poi_id": "crystal_west",
+      "kind": "resource",
+      "definition_id": "Crystal",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_center",
+      "poi_id": "crystal_center",
+      "kind": "resource",
+      "definition_id": "Crystal",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_east",
+      "poi_id": "crystal_east",
+      "kind": "resource",
+      "definition_id": "Crystal",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "crystal_south",
+      "poi_id": "crystal_south",
+      "kind": "resource",
+      "definition_id": "Crystal",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "ore_north",
+      "poi_id": "ore_north",
+      "kind": "resource",
+      "definition_id": "Ore",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "ore_east",
+      "poi_id": "ore_east",
+      "kind": "resource",
+      "definition_id": "Ore",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "fiber_west",
+      "poi_id": "fiber_west",
+      "kind": "resource",
+      "definition_id": "Fiber",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    },
+    {
+      "id": "fiber_south",
+      "poi_id": "fiber_south",
+      "kind": "resource",
+      "definition_id": "Fiber",
+      "charges": 6,
+      "units_each": 1,
+      "xp": 0,
+      "gold": 0,
+      "replenishes": false,
+      "stage_id": "B92"
+    }
+  ]
+}

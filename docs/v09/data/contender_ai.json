@@ -1,0 +1,55 @@
+{
+  "schema_version": 9,
+  "default_count": 20,
+  "roster_total": 24,
+  "decisions_per_second_near": 2,
+  "macro_decision_interval_ms": 5000,
+  "goal_weights": {
+    "courier_and_supply": 4,
+    "combat_camps": 3,
+    "keys": 1,
+    "artifact": 1,
+    "siege": 1
+  },
+  "policy": [
+    {
+      "state": "establish",
+      "condition": "needs resources or level",
+      "actions": [
+        "choose known payable work",
+        "buy legal kit",
+        "train only with actual money and slots"
+      ]
+    },
+    {
+      "state": "progress",
+      "condition": "ordinary needs met",
+      "actions": [
+        "choose feasible route goal",
+        "navigate through known static graph",
+        "react only to observed hazards"
+      ]
+    },
+    {
+      "state": "respond",
+      "condition": "public warning or visible rival threat",
+      "actions": [
+        "estimate own travel",
+        "defend if arrival feasible",
+        "otherwise continue local progression"
+      ]
+    },
+    {
+      "state": "contest",
+      "condition": "valid access and near Heart",
+      "actions": [
+        "claim via ordinary hold command",
+        "interrupt observed rival via legal active"
+      ]
+    }
+  ],
+  "quiet_civilian_behavior_is_not_contender_ai": true,
+  "knowledge_policy": "owned+observed+intentionally public; no human label, private wallet, remote dropped-key coordinates or hidden hazard weights",
+  "route_fallback": "blocked planned action replans; no free money, teleport or forced objective removal",
+  "stage_id": "B92"
+}

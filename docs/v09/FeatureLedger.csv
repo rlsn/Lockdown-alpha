@@ -1,0 +1,63 @@
+feature_id,stage_id,description,status,source_commit,acceptance_case,evidence,deviation
+B90-F01,B90,"Import the selected full profile twice, then reset",Partial,,B90-T01,B90_IMPLEMENTATION.md; evidence/B90/,Checksum-closed repeat import and native counts; full gameplay reset/source accounting remains B92.
+B90-F02,B90,Walk without abilities from every spawn to every service and objective,Native path pass,,B90-T02,B90_IMPLEMENTATION.md; evidence/B90/,"All 24 spawn pads to all 96 POIs; complete Recast paths, no ability/traversal requirement. Physical long-route walkthroughs remain separate."
+B90-F03,B90,Walk all named and unmarked river crossings thawed and frozen,Partial,,B90-T03,B90_IMPLEMENTATION.md; evidence/B90/,Permanent floor/deck connectivity implemented; Wet/frozen gameplay contact belongs to B91 integration and is not run.
+B90-F04,B90,Traverse every road/plateau interface,Passed (geometry),,B90-T04,B90_IMPLEMENTATION.md; evidence/B90/,31909 native ground samples; max grade24.0617%; zero missing ground; conservative bridge-edge contact corroborated by native body walk.
+B90-F05,B90,"Inspect routes to each ruin, boss,forge and Heart",Partial,,B90-T05,B90_IMPLEMENTATION.md; evidence/B90/,Both directions of all authored approaches have native paths; occlusion encounter acceptance remains B91.
+B90-F06,B90,Walk antechamber to Heart at420 cm/s,Passed,,B90-T06,B90_IMPLEMENTATION.md; evidence/B90/,Actual native 420 cm/s Heart walk:10.7s /4441.5cm after labelled start placement; no abilities.
+B90-F07,B90,Visit five cities and six towns,Partial,,B90-T07,B90_IMPLEMENTATION.md; evidence/B90/,Five cities/six towns and city service coordinates placed; services/security behavior remains B92.
+B90-F08,B90,Regenerate seed9001 twice and reopen level,Passed (semantic),,B90-T08,B90_IMPLEMENTATION.md; evidence/B90/,Two full generations plus reopen have identical fitted pads and 2312746 bytes of canonical actor/instance transforms.
+B90-F09,B90,Place all primitive building/road geometry,Partial,,B90-T09,B90_IMPLEMENTATION.md; evidence/B90/,144 building blocks and nav-fitted road geometry pass native access; placeholder render captured. Detailed street/readability/interior fitting remains.
+B90-F10,B90,Walk near playable border and ledges with push/dash,Partial,,B90-T10,B90_IMPLEMENTATION.md; evidence/B90/,Perimeter collision implemented; native border push/dash endpoint scenarios not run.
+B90-F11,B90,Measure prescribed long trips and empty road stretches,Partial,,B90-T11,B90_IMPLEMENTATION.md; evidence/B90/,20 prescribed native path measurements separate from estimates; long walked/empty-interval traces not run.
+B90-F12,B90,Switch fresh match to v08_integration,Partial,,B90-T12,B90_IMPLEMENTATION.md; evidence/B90/,"Unchanged v08 sources replay passes:76 receipts,9 accounts,114 unique items,1052 gold. Full-profile gameplay reset/ledger comparison awaits B92."
+B91-F01,B91,Enter all36 interiors; inspect108 closed shells,Not started,,B91-T01,,
+B91-F02,B91,Open/close door while another client observes and paths through,Not started,,B91-T02,,
+B91-F03,B91,Force/lockpick rear door; attempt lock at public front,Not started,,B91-T03,,
+B91-F04,B91,Two clients take one flask or carry one ladder simultaneously,Not started,,B91-T04,,
+B91-F05,B91,Throw/pour a flask from unbound inventory then bound accessory under Mute,Not started,,B91-T05,,
+B91-F06,B91,Ignite torch and toggle light through drop/swap/death/rejoin,Not started,,B91-T06,,
+B91-F07,B91,"Carry,push,place crate/barrel near door/Heart/corridor and another body",Not started,,B91-T07,,
+B91-F08,B91,Break an empty and a filled container in a race,Not started,,B91-T08,,
+B91-F09,B91,Deploy/retrieve rope and ladder; race traversal; Root/Stun mid-use,Not started,,B91-T09,,
+B91-F10,B91,"Harvest,burn and attack the same sapling across death/reload",Not started,,B91-T10,,
+B91-F11,B91,"Hide in grass, approach within2 m, detect, attack, then burn patch",Not started,,B91-T11,,
+B91-F12,B91,"Use Wet+direct Frost repeatedly on river, then Frost Capsule alone",Not started,,B91-T12,,
+B91-F13,B91,Create Steam then Gust; attempt unit target across smoke/wall,Not started,,B91-T13,,
+B91-F14,B91,Fill field budget while lighting sapling/oil,Not started,,B91-T14,,
+B91-F15,B91,Fit all480 functional props and3000 scenery-tree targets,Not started,,B91-T15,,
+B92-F01,B92,Start default4-human full match then12-human configuration,Not started,,B92-T01,,
+B92-F02,B92,Observe civilian loops and cross-city travelers for15 minutes,Not started,,B92-T02,,
+B92-F03,B92,Attack resident/force rear door inside and outside guard sight,Not started,,B92-T03,,
+B92-F04,B92,Fight/respawn guards and ambient wildlife repeatedly,Not started,,B92-T04,,
+B92-F05,B92,Buy/sell simultaneously at all five market pools,Not started,,B92-T05,,
+B92-F06,B92,Buy Circle-III book at multiple official endpoints,Not started,,B92-T06,,
+B92-F07,B92,Run all29 production/consumption ticks including empty/poor pool,Not started,,B92-T07,,
+B92-F08,B92,Complete/repeat/abandon/die during courier and procurement work,Not started,,B92-T08,,
+B92-F09,B92,"Harvest all deposits,saplings and initial common caches",Not started,,B92-T09,,
+B92-F10,B92,Progress from zero kills to paid registered Charter with a legal Witness path,Not started,,B92-T10,,
+B92-F11,B92,"Transfer gold,bank across cities,die with gear/cargo/consumables",Not started,,B92-T11,,
+B92-F12,B92,Hide hazards/keys/rival wallet from contender AI,Not started,,B92-T12,,
+B92-F13,B92,Move near/far bodies across simulation tiers during combat/transactions,Not started,,B92-T13,,
+B93-F01,B93,Destroy each tower once then reload/rejoin,Not started,,B93-T01,,
+B93-F02,B93,Activate Charter near Heart while a different contender waits locally,Not started,,B93-T02,,
+B93-F03,B93,"Collect all keys,activate,transfer/drop/recover one",Not started,,B93-T03,,
+B93-F04,B93,"Craft/activate Heartbreaker,die before and after activation",Not started,,B93-T04,,
+B93-F05,B93,"Attempt duplicate ruin,boss,Fragment or capstone reward",Not started,,B93-T05,,
+B93-F06,B93,"Hold Heart through ordinary damage,Wet,Root,Silence,Mute and proximity",Not started,,B93-T06,,
+B93-F07,B93,"Apply Stun,Hex,Interrupt,actual push and zero-distance blocked push at completion",Not started,,B93-T07,,
+B93-F08,B93,Use guarded Wet-Frost and frozen surface at a claim,Not started,,B93-T08,,
+B93-F09,B93,Overlap access routes; close one exactly at claim end,Not started,,B93-T09,,
+B93-F10,B93,Start two claims with equal completion time; reach exact deadline,Not started,,B93-T10,,
+B93-F11,B93,"Attack,observe and approach Heart without own access route",Not started,,B93-T11,,
+B93-F12,B93,Run AI route attempts using real earned resources,Not started,,B93-T12,,
+B94-F01,B94,Run normal24-contender matches at60/75/90-minute deadlines,Not started,,B94-T01,,
+B94-F02,B94,Run at least one human-involved60+ minute observed session,Not started,,B94-T02,,
+B94-F03,B94,Stress distributed whole-map population then capital convergence,Not started,,B94-T03,,
+B94-F04,B94,"Stress1024 live cells,2048 transitions/100 ms and pending reservations",Not started,,B94-T04,,
+B94-F05,B94,"Test150 ms RTT,packet loss,reordered/duplicate requests and disconnect/rejoin",Not started,,B94-T05,,
+B94-F06,B94,Open remote inspector/minimap/listeners behind fog during mutations,Not started,,B94-T06,,
+B94-F07,B94,"Soak carry,door,nav and traversal interactions with crowd pressure",Not started,,B94-T07,,
+B94-F08,B94,Close every gold and item ledger at terminal/reset,Not started,,B94-T08,,
+B94-F09,B94,Regress inherited52 abilities/80 items/20 recipes and traits/loadouts,Not started,,B94-T09,,
+B94-F10,B94,Review all B90-B94 exits and deviations,Not started,,B94-T10,,

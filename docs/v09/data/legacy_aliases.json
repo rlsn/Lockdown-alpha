@@ -1,0 +1,22 @@
+{
+  "schema_version": 9,
+  "aliases": {
+    "City": "capital",
+    "CityTreasury": "capital_treasury",
+    "WestTown": "riverport",
+    "EastTown": "ironworks",
+    "WildCrossing": "capital_ford",
+    "RuinA": "ruin_a",
+    "RuinB": "ruin_b",
+    "RuinC": "ruin_c",
+    "BossLair": "boss_lair",
+    "HeartForge": "heart_forge",
+    "CentralPrecinct": "heart",
+    "GrandTowerA": "tower_a",
+    "GrandTowerB": "tower_b",
+    "GrandTowerC": "tower_c",
+    "HeartAntechamber": "antechamber",
+    "OfficialSupply": "capital_supply"
+  },
+  "semantic_policy": "aliases adapt inherited contracts; never spawn both old and new actors"
+}
