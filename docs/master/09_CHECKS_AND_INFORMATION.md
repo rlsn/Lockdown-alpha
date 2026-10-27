@@ -1,19 +1,45 @@
-# Checks, effects and information
+# Mechanics, effects and information
 
-## Resolution types
+## Resolution vocabulary
 
-Reliable controls and bounded continuous combat scaling coexist with deterministic world thresholds and context-appropriate probability for theft. The user's permission for dice does not require random outcomes everywhere. New combat has no mandatory crit/evasion RNG; retained Pickpocket follows audited commitment/cost/retry/random receipt rules. No frame-based reroll or cancel-for-free favorable draw.
+Reliable spatial control coexists with bounded scaling, deterministic world thresholds and context-appropriate probability. Theft retains its audited commitment/cost/retry/random receipt rules. Combat does not require new critical-hit/evasion randomness. Cancel/retry cannot become a free reroll.
 
-## Effect vocabulary
+An ability definition must specify target category, release/commit timing, range/geometry, costs, status tags, duration, dispellability, stacking, death attribution and available counters. Reject unknown verbs/effects. The UI, keyboard, context and RPC paths share that definition's legality.
 
-Stun/hex stop skill and item responses; silence stops skills but leaves items; mute stops items but leaves skills; root stops voluntary movement/dash/blink/gate but not forced push; disarm stops basic attacks; break suppresses only tagged passives; blind restricts own sight; reveal is geometric location evidence, not identity. Strong/basic dispels, one-charge spell block, short control guard and projectile dome have distinct scopes. Barriers absorb damage without disabling control. Explicit Interrupt differs from silence, particularly on generic Heart interaction.
+| Effect | Tactical purpose and boundary |
+| --- | --- |
+| Stun / Hex | Hard interruption; affected responses follow category rules |
+| Silence | Blocks learned skills, including martial skills; item responses remain possible |
+| Mute | Blocks item actions; independent learned responses remain possible |
+| Root | Stops voluntary movement and movement abilities; not forced displacement |
+| Disarm | Stops basic attacks |
+| Break | Suppresses declared equipment passives/modifiers, not ordinary stats or intrinsic class trait |
+| Blind | Reduces own sight; does not rewrite other legitimate sources |
+| Reveal / Detection | Reveals concealed location within valid geometry, not private identity |
+| Barrier | Absorbs damage; does not inherently prevent control |
+| Block / Guard / Dome | Distinct targeted spell, control or projectile responses |
+| Interrupt | Explicit cancellation, distinct from generic Silence on a Heart interaction |
 
-Same statuses do not add durations, major protections cannot become indefinite chains, and hard-disable mastery scales only modestly. Default DR is off for initial comparison; gather evidence before adopting a new protection mechanic. Every source/expiry/dispellability/geometry/counter must be authored and readable. Public structure categories explain boss/tower disable immunity.
+Same statuses do not add arbitrary durations/magnitudes. Use authored strongest/expiry composition. Major protection families and charges prevent indefinite chains. Default hard-control diminishing returns remain off; measure frustration before adding another system. Towers/bosses use explicit public target-category rules rather than unexplained hidden immunities.
 
-## Hidden builds
+## Environment as bounded tactics
 
-Appearance and witnessed skill/equipment use are evidence. Exact opponent class, attributes, ranks, knowledge library, equipped loadout, HP/MP, wallet/bank and human ownership remain private by default. Generic inspector cannot request a full sheet. A future explicit investigation may authorize selected facts, never an accidental widget dump.
+The six-state elemental model and finite Oil overlay use paid releases, source receipts, geometry masks and capped allocations. Wet river contact precedes same-boundary hits. A qualifying direct Frost hit on a Wet ordinary victim may attempt the inherited short Stun and starts a victim-wide reaction lock. Frozen floors, periodic ticks and Frost Capsule do not qualify.
 
-Filter before serialization across selection, hover/cursor, minimap, outlines, ability target handles, audio/VFX and logs. Seeing/revealing a body does not authorize wall vision or persistent identity. Smoke/detection obey geometry. Ledger trail cues exist only within authorized observations and may become stale; no live unseen tracker. Distant ward/public sight allows observation but not remote service range or invisible target steering.
+Ice keeps water contact, slows and never adds sliding, drowning or connectivity changes. Smoke/Steam occludes symmetrically across its union boundary; detectors cannot see through it. A cleared cloud requires observation revalidation before a follow-up unit-target action. Fire does not recursively spread through all scenery.
 
-Learned actives need knowledge, rank, slot, natural gates, life, status, resource and cooldown legality through every keyboard/context/RPC path. Books cannot become free unslotted combat actions. Cooldowns stay with identity/family through swapping, death, trade and assembly. Peer trade exposes voluntarily offered terms only; institution stock/reserve is deliberately public service data, not ordinary private purse.
+Only listed saplings/grass are mutable in v0.9. Clearing/burning/harvesting share one source state and cannot repeat rewards after death or reload. Permanent scenery remains scenery. Local geometry mutations must agree across movement, sight and navigation.
+
+## Private builds and observation
+
+Exact opponent attributes, class, ranks, knowledge, loadout, HP/MP, wallet/bank and human ownership stay private. Appearance and witnessed actions are evidence. A future investigation mechanic must explicitly authorize selected facts; it cannot be an accidental full-sheet inspector.
+
+Filter before serialization across hover, minimap, sound/VFX, target handles, outlines, AI and debug output available to ordinary clients. Static geography can be public while current mutations are hidden. Observation is not persistent identity or authority to transact remotely.
+
+## Identity and event ordering
+
+Requests carry match/life/sequence/revision identities. Duplicate requests return the original receipt rather than applying twice. Completion revalidates source, ownership, observation, range, capacity and timing. Failure changes no resources. Release reservations on cancellation and death in the specified order.
+
+Cooldowns can belong to an owner family and/or a physical instance. Swap, trade, quality, assembly and death preserve the authored endpoints. Effects retaining source-life attribution cannot credit a later life. Due combat and control resolve before same-time claim completion.
+
+Test exact endpoints, overlapping routes, simultaneous pickup/trade, cancelled holds, death/rejoin and stale targets. These are core mechanics, not optional implementation details.

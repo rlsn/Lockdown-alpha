@@ -1,33 +1,36 @@
-# Decisions and source history
+# Decisions, precedence and source history
 
-## Current authority
+## Authority
 
-Direct user choices lead; current attached contents precede historical summaries. Revision 7 integrates the combat/progression/victory/acquisition conversation supplied with this request and current complete combat draft, while preserving adopted economic public contest and privacy/native foundations. Exact numeric defaults are release proposals rather than measured balance.
+Current user decisions govern. v0.9 owns its explicit full-profile changes; unchanged behavior comes from adopted v0.8 and inherited v0.7/v0.6 contracts. Native implementation is inspected evidence, not a source that silently overrules a written discrepancy. Record and resolve a disagreement before closing the affected gate.
 
-| Decision | Status |
+The master records long-term meaning and rationale. Release catalogs own exact numbers/state machines. Implementation reports own delivered coverage and limitations. Archives own historical provenance. These documents serve different purposes; copying a historical balance default into the master does not make it current.
+
+## Selected evolution
+
+| Decision | Meaning |
 | --- | --- |
-|Unreal,3D/top-down, native right-click navigation|Retained user direction|
-|Six attributes, flexible class starts, universal book learning|Retained user direction|
-|Shared active pool for combat and utility|Explicit prior user correction|
-|Selective theft/check RNG allowed|Retained; new combat crit/evasion not required|
-|60–90 minute full sessions; flexible map topology|Retained user direction|
-|Hybrid shops/markets, light crafting, economic unlock+contest|Explicit economic direction|
-|Tactical control/items/vision/positioning matter despite level|Current combat direction|
-|Gear stats/quality, spell circles/mastery, natural prerequisites|Developed proposals selected as v0.7 defaults|
-|Hybrid assembly/crafting/direct sources/books/training|Current acquisition proposal selected for implementation|
-|Five skills/three items/one capstone, six bindings|Selected test defaults|
-|Charter PUBLIC, key/artifact PERSONAL, siege GLOBAL|Explicit reconciliation of conflicting assistant proposals|
-|Ten-second action-interrupted claim, no passive body/damage stall|New v0.7 override to prior capture rules|
-|35 minute integration,15 cap,28 abilities/40 items|v0.7 test scope, no full-session claim|
-
-## Sources and availability
-
-All attached master-r6 Markdown and active v0.6 contracts were read. v0.6 includes frozen v0.5 excerpts; these were inspected for inventory/trade/authority compatibility. The current360-line `Lockdown_Combat_Effects_v0.1.md` was retrieved and read. The supplied external conversation gives full combat/acquisition replies for this turn. A project search found these files but no relevant standalone earlier v0.3/v0.4/v0.5 packages; earlier decisions are grounded in embedded sources and supplied context, not invented documents.
-
-Historical chronology—original stealth/last-survivor concept, Grand Heart/respawn/vision, Unreal selection, six-attribute pivot, UI and economy—remains in `HISTORY_REVISION_6.md` as frozen history, not active rules. Earlier source-reader limitations are historical; they do not invalidate the newly supplied complete conversation/draft. No actual Unreal repository/build was provided or independently inspected here. Do not infer v0.6 delivery from an economy spec.
+| Grand Heart replaces last-survivor victory | Shared final acquisition links economic and combat plans |
+| Respawn retains development | Long matches support recovery while property/time remain exposed |
+| Unreal desktop replaces browser runtime target | Native spatial control, collision and restricted observation are foundations |
+| Attributes and cross-class learning replace fixed heroes | Class is a start; investment/preparation creates the build |
+| Bounded economy and registered public Charter | Economic achievement opens a contest, never remote paid victory |
+| Tactical claim interruption | Specific control/displacement matters; damage/proximity alone does not stop a hold |
+| v0.8 mixed loadout | Six shared actions, seven body and four accessory bindings; one intrinsic trait |
+| Bounded environment | River contact and finite fields, not fluid simulation/universal destruction |
+| v0.9 map selection | 2.4 km square, fixed geography plus deterministic detail, 36/144 selected interiors |
+| v0.9 stage IDs | B90–B94 are canonical across code, ledgers and acceptance |
 
 ## Superseded assumptions
 
-Fixed heroes, automatic primary-stat growth, separate free utility, universal no-RNG, full 20–30 minute match target, fixed three attribute districts, private carried Seal in normal economic play, remote automatic economic winner, and new-gear/no-MP indefinite deferral are superseded. v0.7 also replaces four/four loadout, five-level integration cap and damage/proximity capture interruption. Frozen regression profile retains older behavior only within that labelled profile.
+Fixed heroes, automatic primary-stat growth, separate free utility actions, five shared actions, three quick references, six old gear bindings, private economic auto-win and damage/proximity claim cancellation are superseded in active tactical profiles. Frozen regression profiles may retain historical behavior only within their labelled isolation.
 
-Open future decisions include full-session macro tuning, subclasses/signature passives, spell variants, anti-chain-control DR, expanded law/guards, autonomous route strategy, squads, and final city count. Do not silently convert these candidates into already-implemented systems.
+The full session is 60–90 minutes, with legal earlier wins. The short v0.8 integration deadline is a test boundary. The world count/topology is selected for v0.9 rather than a vague future candidate. General guards/routines are now v0.9 required work, while sophisticated diplomacy remains future scope.
+
+## Provenance and revision policy
+
+Revision 8 follows an actual review of the native ebc19a5 B86 baseline and the supplied untracked v0.9 package. Earlier master claims that no game source was inspected describe that older documentation task; they are not current coverage statements.
+
+Revision 7 remains byte-preserved in release reference copies and the v0.8 master source archive. v0.8 original/adopted hashes and historical audits remain unchanged. v0.9's supplied source package, data and model evidence are kept separate from B90 implementation evidence. For a new decision record its date, rationale, affected contract/profile and tests; do not erase the reason a prior choice existed.
+
+Open issues and delivery gaps belong in [the frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md). A candidate stays a candidate until deliberately selected.

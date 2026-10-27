@@ -1,16 +1,40 @@
-# Cities and NPC systems
+# Cities, population and security
 
-| Population | Role | Can win? |
+## Why cities exist
+
+Cities connect reliable services, routines and exposure to other contenders. Players earn, prepare, recover and observe there before leaving relative predictability. Watched fronts and vulnerable edges support commerce and infiltration. A city is neither an attribute-exclusive district nor a universal safe zone.
+
+Crownreach concentrates institutions and the final contest. Highfort emphasizes garrison/fortification, Lumen Archive knowledge/gardens, Riverport exchange/warehouses, and Ironworks production/forging. Towns provide work, preparation and recovery without adding rare-stock pools at every stop.
+
+## Population roles
+
+| Role | Purpose | Boundary |
 | --- | --- | --- |
-|Residents|Work, travel, trade, rest, flee; provide ordinary cover|No|
-|Autonomous contenders|Earn, learn, prepare, fight and pursue routes legally|Yes|
-|Wild threats|Bounded camp/boss encounters and material sources|No|
-|Official institutions|Clearly marked supplier, market, bank, trainer, workshop and procurement services|No|
+| Residents | Work, trade, rest and ordinary cover | May flee violence; no repeatable progression from killing them |
+| Travelers | Visible intersettlement movement | Demo cargo is visual sealed logistics, without invented loot/stock |
+| Guards | Local response to witnessed trouble | Actual perception and bounded pursuit; no global crime oracle |
+| Officials | Discoverable institution services | Marked noncontenders, noncombat/nonlootable; no protection aura |
+| Hostile encounters | Finite risk and sources | Explicit camp/boss budgets; ambient threats are not infinite farms |
+| Contenders | Earn, prepare, oppose and legally win | Same observation, costs, gates, ownership and death rules as humans |
 
-Ordinary visually interchangeable bodies do not carry human/NPC or resident/contender labels. Appearance may suggest occupation, never full private capability. Official services are a narrow public exception: identifiable noncontenders, noncombat/nonlootable, institutional wallets/catalogs. Their protection does not make cities invulnerable safe zones. Surveillance is actual sight; a full guard/law simulation remains future work.
+Ordinary human ownership and resident/contender identity are private. Appearance may suggest occupation without revealing a sheet. Officials are a deliberate public exception so services are discoverable.
 
-Peaceful residents maintain routines and flee violence instead of everyone farming/fighting. Routine resident killing grants no fresh growth. Not every resident requires full strategic progression; relevant capabilities can share legality while policies stay simple. Contender NPCs must pay normal resource/slot/cooldown/prerequisite/death costs and may use only observed/owned/public information. Human status, unseen cargo, private spells and hidden wallet are never AI inputs.
+The v0.9 target is 24 contender seats, with 1–12 humans replacing AI. At four humans there are 216 NPCs: 196 noncontenders plus 20 AI contenders, for 220 total bodies. These are full-profile capacities, not established performance. Exact assignments live in [v0.9 population](../v09/05_NPCS_SECURITY_AND_SIMULATION.md).
 
-Economic institutions provide structured commerce/work panels rather than branching dialogue. Background production and consumption are explicit bounded ledger operations, with animations illustrating receipts, not hidden wallets or magically replenished stock. Full caravans, hiring guards, faction diplomacy and rich social reputation remain later systems.
+## Routines with bounded scope
 
-v0.7 preserves actual delivered populations and extends legal combat/route interactions. It does not require building a complete autonomous four-route strategist if absent in the baseline. Optional test opponents are labelled evidence of mechanics, not proof of an organically self-progressing world. Future AI route diversity should emerge from the same sources and risk choices as players.
+Civilians move between reachable work, market and rest anchors. Travel takes real time and may overrun a nominal phase. Closed homes use exterior doorsteps. Travelers dwell and return between settlements. Schedules cannot teleport through observed space.
+
+Production/consumption uses bounded institution ledgers. Animation illustrates receipts rather than justifying hidden wallets or magical replenishment. Full physical caravans, hiring armies, faction diplomacy and generated dialogue remain future candidates.
+
+## Local security
+
+Public fronts remain usable; selected rear doors create riskier entry. Guards respond to legally witnessed attacks/forced access using last-seen evidence and limited pursuit. Lack of observation must matter. Feedback explains a local response without exposing hidden witnesses.
+
+Security makes street violence consequential while preserving player conflict. Official protection and recovery services cannot sterilize the Heart precinct. Defenders may enter and interfere without owning an access route.
+
+## Autonomous contenders
+
+AI selects goals from owned, observed and public information, then executes ordinary commands. Establish income and a kit, evaluate feasible routes, react to warnings when travel is possible, and contest physically. It must acquire keys/Fragment, buy knowledge and train normally. Scripted route-complete fixtures prove mechanics, not autonomous growth.
+
+Distant simulation may reduce planning frequency. It cannot duplicate actors, skip costs or lethal hazards, reset receipts or unload an active transaction. Validate behavior and near/mid/far cost together before claiming a working living population.

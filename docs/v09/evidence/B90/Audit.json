@@ -1,7 +1,7 @@
 {
   "stage": "B90",
   "baseline_revision": "ebc19a5",
-  "tested_source_state": "Working tree; native code pinned by LF-normalized hashes. Final source commit is recorded after commit.",
+  "tested_source_state": "Native runtime/editor code and generated assets committed as 96caff1; tests ran against the identical pinned working-tree bytes. Subsequent commit updates documentation only.",
   "engine": "5.8.4 CL58902052",
   "platform": "Win64 Development",
   "toolchain": "MSVC14.44.35229 / Windows SDK10.0.26100.0",
@@ -578,7 +578,7 @@
     "NativeRules.json": "300639ba9a652f40ca7e670c45878ef4cf5b143b8faa0f354f9f7eee419c2a28",
     "NativeTravel.csv": "6fdcbeb427c1ff3105b591f025933ac655ca6a0247c23dc1623a0f70833c292b",
     "NativeValidation.log": "a6a8a8e46d7806719c9c3568ee2ef8fc37d3c2eeba0b4b4278cd16481fa1927a",
-    "README.md": "d72f20bd3e01f85318f85cc797d2db5a15febb51ef5ce361ee44b0266c721e8e",
+    "README.md": "d43df8572bdf869a496a547a8fb1b5f88c32d3031e3b22bee02247ee2dc22959",
     "Render.log": "d167385ffa700b48e1e99ae7b29a855d1591470ca1e86e977939dba71d29e440",
     "Summary.json": "957f26373011ceb0cbf23e4e8bc36ed0f6a95ed5b6775e86a6f45e4ac88474f8",
     "TravelComparison.csv": "b49b1bd036003c4c8937efe059bbc3f12eba34b698c7ee06fc3fa7b2445f77a5",
@@ -586,5 +586,6 @@
     "v08_sources/Report.json": "042a9b0ef2f6c510c685ca513bf95894f9bf296847d3c064e51159290c214b22",
     "V08Sources.log": "b890320aa49b63208eb1a825439a54b173041bc8352497a17cdc891b51a897c3",
     "walk/Walk.json": "e641df1b4f24c1f7e402f910c3d70bf7cbdbae25b0ca651ebc55754f19ce4d27"
-  }
+  },
+  "source_commit": "96caff17be1807e648e61762fde99cc4ced3aacc"
 }

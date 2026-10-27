@@ -1,26 +1,38 @@
-# Grand Heart and match rules
+# Grand Heart, match rules and recovery
 
-## Four routes, one contested acquisition
+## Four routes, one acquisition
 
-Grand Heart acquisition is the only ordinary win. Kills, wealth, level and survival support plans but do not crown a winner.
+The only ordinary victory is physical Grand Heart acquisition. Kills, wealth, level and survival support plans but never crown a winner. All contenders can approach and interfere with the precinct even without permission to claim.
 
-| Route | Progression | Access | Primary exposure |
+| Route | Progression | Access | Strategic exposure |
 | --- | --- | --- | --- |
-|Siege|Destroy three Grand towers in current slice|Permanent global|Open benefit to rivals; infrastructure pressure|
-|Sovereign Charter|Distinct commercial endorsements, Witness and fee; registered activation|Temporary GLOBAL public contest|Irreversible spending, public timing; nonpurchaser can win|
-|Three ancient keys|Explore, buy, steal or recover three distinct portable keys|Temporary personal lease while carrying all|Cargo loss/theft/transfer and activation warning|
-|Heartbreaker|Acquire rare components and assemble at special forge|Temporary personal same-life lease on consuming artifact|Contested component chain, craft site and lost consumed investment on death|
+| Siege | Destroy three Grand Towers | Permanent, global | Rivals benefit from irreversible infrastructure loss |
+| Sovereign Charter | Witness, Supply/Industrial endorsements, registered purchase | Temporary, public/global | Purchaser pays and announces an opportunity anyone eligible may win |
+| Ancient keys | Carry all three distinct unique keys | Temporary, personal | Transport, theft, drops and continued ownership matter |
+| Heartbreaker | Acquire rare ingredients and craft at Heart forge | Temporary, personal and same-life | Vulnerable craft/transport; activation consumes investment |
 
-All routes culminate in one physical ten-second claim. Keys/artifact work with towers intact and do not require conquest. The Charter remains the explicitly adopted public economic route; a later assistant's private-Charter example is superseded. No remote automatic wealth/crafting winner.
+The Charter never buys a private automatic result. Keys and artifact can work with towers intact. Components and keys may be acquired by commerce/theft/recovery rather than requiring a prescribed combat class. Their scarcity is real instance ownership, not one free copy per contender.
 
-## Tactical claim rules
+## Activation and convergence
 
-The claimant holds within120 cm, breaks concealment and cannot freely attack/cast/use items while channeling. Predeployed wards, traps, barriers or timed dome can protect but do not grant unconditional immunity. Stun/hex, actual forced movement, explicit interrupt, death, self-cancel or authorization loss cancel. Ordinary nonlethal damage and enemy proximity alone do not. Silence/mute/root do not independently cancel the generic Heart interaction; Counterpulse cancels via explicit Interrupt. A low-level defender has useful responses without winning a damage race.
+The selected warning/opening is 30/60 seconds. In v0.9 all activation occurs near Heart at the antechamber; Charter purchase remains at Treasury. The normal antechamber-to-Heart walk targets at most 15 seconds. This gives a local responder or activator a feasible journey without pretending every outer city can respond in 30 seconds.
 
-Public attempts expose objective timing/location, not private build or an unauthorized hidden approach coordinate. Multiple attempts may run; earliest legal scheduled completion wins, exact tie uses role-neutral start ordinal. Access is OR across routes, so another valid route may sustain authorization. Private access never prevents rivals physically approaching/interfering.
+A warning exposes objective timing/static location, not a private build or fogged carrier position. Public tower-watch loss changes local information. Both dry and Wet approaches remain usable. Guards, shrines, official bodies and spawn protection cannot turn the claim circle into an invulnerable service zone.
 
-Warnings/openings are concrete30/60 s integration tuning; completion must fit the inclusive end/deadline. Due combat/death can cancel a completion at the same instant. One server event order and unique terminal receipt govern every route. A cap without acquisition produces NoAcquisition, never hidden score/last-living victory.
+## Tactical claim
 
-## Death and recovery
+Claiming requires permission and a ten-second hold within 120 cm. The claimant breaks concealment and cannot attack, cast, use an item or trade while maintaining it. Prepared defenses may help, but they do not create universal immunity.
 
-Retain progression, knowledge, trained ranks, ordinary equipped gear, protected bank and bound accomplishments. Physical keys/Heartbreaker/relics and carried trade property drop; time/wallet loss adds stakes. Compute respawn endpoint at death and display it without silent extension. Protection cannot enable a claim. Public Charter opening survives purchaser death; personal key/artifact leases do not. No normal permanent death or cross-match wealth persistence is introduced.
+Death, Stun, Hex, explicit Interrupt, actual forced displacement, leaving range, self-cancel or authorization loss cancel. Ordinary nonlethal damage, proximity, Root, Slow, Wet, Silence and Mute alone do not cancel an existing generic Heart interaction. A prevented Stun does not become a fake interruption. This is why a lower-level defender can matter without winning a damage race.
+
+Access is OR across valid routes. Multiple contenders may attempt a claim. The earliest scheduled legal completion wins; exact ties use a role-neutral start ordinal. Due combat/control resolves before same-boundary completion. Inclusive access/deadline endpoints and a unique terminal receipt apply everywhere. Closing one route cannot cancel a claim still authorized by another.
+
+At deadline, a due valid completion may win after due combat. Otherwise the result is NoAcquisition. There is no score winner, last-survivor shortcut, undocumented minimum-win gate or timer-scripted tower deletion.
+
+## Death changes the plan
+
+Retain natural development, knowledge/mastery, ordinary equipped gear, bank and earned endorsements/registration. Drop vulnerable spare goods, unread books, consumables, keys, artifact and objective relics according to their categories. Bound consumables remain vulnerable. Burn the specified wallet tax and compute the respawn endpoint once.
+
+Personal leases are constrained by ownership/life; a public Charter opening survives its purchaser's death. Key reuse locks and cooldowns cannot reset through dying or transferring. Spawn protection prevents offensive/service exploitation and claiming.
+
+Recovery should preserve the player's accumulated identity while imposing a real time, property and position cost. A late death may eliminate the final opportunity without permanent elimination. Match completion/reset clears match-local progression and source state; no cross-match wealth advantage is assumed.

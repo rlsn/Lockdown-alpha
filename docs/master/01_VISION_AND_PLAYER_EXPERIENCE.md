@@ -1,17 +1,32 @@
 # Vision and player experience
 
-## Different forms of power in one world
+## The player fantasy
 
-Players compete for the Grand Heart through shared geography and economy. Fighters threaten routes, scouts acquire information, scholars develop unusual abilities, merchants fund equipment/access, thieves change ownership, and opportunists exploit other contenders' commitments. A class establishes a start rather than a fixed hero kit. Profession describes activity, not a second mandatory class tree.
+Enter a world with ordinary business, learn where power and opportunity lie, and turn a developing personal build into a winning plan. A fighter threatens routes, a merchant finances access, a scholar prepares unusual utility, and a thief changes who holds decisive cargo. These activities share geography and economy, generating encounters between different strategies.
 
-The central combat promise: level and equipment determine available capabilities; decisions, positioning, information and timing determine how those capabilities become an outcome. A stronger fighter should usually win an equal open duel, while a lower-level controller can interrupt the fighter's claim or force an escape. Strategic utility must have solo uses—concealment, detection, repositioning, traps, disruption and resource protection—not require a permanent team.
+The class is an opening position. Profession describes what someone does, not a compulsory second tree. Players change direction by investing attributes, learning knowledge, acquiring equipment and preparing limited actions. A quiet opening preserves the possibility of becoming dangerous later; an aggressive opening exposes recovery and supply decisions.
 
-Moderate numerical growth supports powerful qualitative choices. Low-circle stun/dispels remain relevant later. Expensive gear specializes and compresses functions but sacrifices bindings/quick slots and has counters. Wealth cannot purchase every answer simultaneously. Every powerful effect has visible commitment, cost, cooldown, positional weakness or an accessible response.
+## The experience arc
 
-## Stealth develops into chaos
+Early play gives room to orient, earn, buy basic answers and observe bodies without knowing their intentions. The middle creates overlapping commitments: a rare cache, market shortage, growing opponent, vulnerable forge or contested road. The end concentrates attention through access warnings, tower destruction and physical Heart attempts. These are soft incentives, not timed unlock gates.
 
-Early establishment contains ordinary work, exploration, skill discovery, trade and believable crowd routines. Midgame increasingly contests routes, caches, rare books, material flows and towers. Endgame access warnings and public claim attempts draw contenders toward the precinct. These are soft incentives, not hard minute gates. Early exceptional play may win.
+Tension comes from incomplete information with understandable consequences. A witnessed spell or weapon is evidence; it does not reveal a wallet, complete build or human ownership. Suspicion and opportunism should work without requiring dialogue or constant player combat.
 
-World progress needs legal visible causes; infrastructure destruction changes routes and sight for everyone. Unpredictable social intentions arise from incomplete information and shared interests, not mandatory dialogue. A quiet merchant can remain strategically competitive without matching a fighter's duel strength. Repetitive chores or long empty travel are failures to measure, not desired depth.
+## What a good decision feels like
 
-Success requires actual people understanding choices, counters and recovery. A complete catalog or AI victory does not establish fun, strategic diversity or60–90 minute pacing.
+A stronger character should usually win an equal open duel. A weaker character can choose ground, withdraw, protect goods, reveal an ambush or interrupt acquisition. Utility needs useful solo applications. A cheap, well-timed answer can defeat a costly commitment while consuming preparation, resources, position or timing of its own.
+
+Power should expand plans more than raw arithmetic. Detection versus mobility, materials versus spare counters, and a public economic opening versus private cargo transport are consequential choices. Players cannot bring every answer into an encounter through unrestricted backpack use.
+
+## Emotional goals
+
+| Goal | Evidence to seek | Failure signal |
+| --- | --- | --- |
+| Curiosity | Players investigate and explain an opportunity | Every interaction needs external documentation |
+| Suspicion | Players infer intent from observed actions | UI or AI simply knows hidden identity/build |
+| Agency | Losing players name a plausible different decision | Defeat feels numerically inevitable or unexplained |
+| Commitment | Players weigh cost and exposure | Swaps, cancels or death erase every cost |
+| Recovery | A setback changes a plan without deleting it | Long helpless waiting or repeated opening chores |
+| Convergence | Several strategies meet at the precinct | A remote transaction wins or warnings attract nobody |
+
+The first demo prioritizes legible systems and consequential choices over final art, rich dialogue or simulation breadth. Human playtests establish whether activities connect into a satisfying match. Catalog completeness, bot victories and technical soak duration cannot establish that alone.

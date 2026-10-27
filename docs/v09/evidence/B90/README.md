@@ -2,7 +2,7 @@
 
 These are selected native outputs from the tested working tree based on
 ebc19a5. Audit.json pins code, generated assets, commands and local full-log
-directories. Source commit metadata is recorded after the implementation commit.
+directories. The native implementation commit is 96caff1; later changes update documentation only.
 
 - NativePaths.json: all 120 fitted pads and native path/collision/grade counts.
 - NativeTravel.csv: all 2,559 native queries; times are 420 cm/s estimates.

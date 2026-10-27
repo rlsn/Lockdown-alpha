@@ -1,15 +1,48 @@
-# UI, controls, inventory and trade
+# Controls, UI and interaction design
 
-Combine RPG build/inventory detail with MOBA spatial awareness: minimap, lower inspector and persistent OWN command/status bar. Selecting another unit changes inspector subject, not controlled body. Own HP/MP,5skills and3quick items remain visible. Opponent private sheet remains Unknown. Show actual mana and server costs; v0.7 adds the real resource rather than a decorative MP bar.
+## Persistent control and clear ownership
 
-Right-click sets ground navigation/observed approach. LMB selects; A arms explicit attack, skillsQ/W/E/R/D, items1/2/3, F hold interaction, T peer offer, S stop. Default mapping is remappable and labels follow mappings. No automatic attack on a neutral right-click or stale hidden target chase. Keep native movement and one authority. Camera pan/minimap grants no vision, range or remote casts.
+The interface combines RPG build detail with tactical spatial awareness. The player always controls their own body. Selection changes the inspector subject; it never transfers commands to a selected NPC. Own HP/MP, prepared actions, accessory bindings and relevant status remain available while inspecting something else.
 
-Text/modal/drag/panel/target/minimap/world ownership prevents input fallthrough. UI never pauses opponents. Focus loss cancels movement/holds/target/trade and never replays on return. Local preference migration unbinds retired quick4 and checks D conflicts explicitly.
+| Intent | Default input | Behavior |
+| --- | --- | --- |
+| Select | Left click | Inspect an authorized body/object or static location |
+| Move/approach | Right click | Native navigation to ground or a currently observed target |
+| Basic attack | A | Explicit attack intent; neutral right-click does not attack |
+| Shared actions | Q / W / E / R / D / G | Six prepared learned/profession/body-equipment actions |
+| Accessories | 1 / 2 / 3 / 4 | Exact bound physical accessory actions |
+| Context | Hold F | Available legal world/service interaction |
+| Peer trade | T | Offer to an observed nearby humanoid |
+| Stop/cancel | S / contextual cancel | Stop movement or the current cancellable intent |
 
-Inventory is24unique carried instances with weight; equipped gear is the SAME instance referenced by six bindings, not extra storage. Quick slots likewise reference item IDs. Gear passives need binding; active gear also needs quick reference. Consumables use one quick reference and disappear on accepted use. Inventory opening is immediate; binding changes require quiet+commit and skill/rank/attribute preparation also requires a station. No midfight backpack Use bypass.
+Bindings are remappable. Labels follow the current mapping and collisions must be visible. Retained preferences migrate without silently overwriting customized keys. Navigation reports arrived/blocked/stopped truthfully and stops stale hidden-target pursuit.
 
-Tooltips separate natural/effective stats, tier/quality, learned/trained/equipped/effective rank, unmet gates, clipped gear bonuses, consumed/reusable, cooldown family, and death rule. Assembly preview shows exact inputs, fees, Standard output, capacity and component-quality loss; quality upgrades are deterministic. Objective panel distinguishes global Charter/siege from personal keys/artifact and explains why ordinary damage/proximity does not stop a claim.
+## Screen hierarchy
 
-Official catalog/market/bank/workshop/commission panels reuse the native shell, no branching dialogue. Peer trade retains versioned offers, exact final double consent, shared item reservations and atomic capacity/balance transfer. Offered gold is not protected escrow; death releases locks before drops. Opponent sees only offered items/gold, not full bag or wallet. Equipped gear must be quietly unbound before transfer.
+The world carries motion, position, cover and effect telegraphs. The minimap provides public static geography, explored substrate, authorized local observations and explicit public objective notices. The lower inspector provides selected-subject context. The own command bar remains stable and displays actual MP, cooldown and binding/status reasons.
 
-Verify native tasks at720 p/1080 p,150 percent OS scale and125 percent text, using real independent clients and restricted payloads. Clear effect names/counter reasons and timing cues matter more than final art. Static mockups do not establish functioning UI or fair information.
+Private opponent class, attributes, ranks, knowledge, loadout, HP/MP, purse and human ownership remain Unknown unless a specific mechanic authorizes a fact. Hover, outlines, target handles and audio cannot disclose what the inspector withholds. Camera pan and map routing neither reveal space nor grant remote service reach.
+
+Inventory and development panels expose detail on demand. Service panels reuse the shell for supply, markets, bank, work, workshop and acquisition. Dialogue trees are not required to discover a reliable transaction.
+
+## Action and interaction feedback
+
+An action should communicate source, target mode, range, cost, cooldown, commit point and why it is blocked. Distinguish learned action, body-equipment active, accessory, passive and empty slot. A tooltip must not advertise a verb that has no server operation.
+
+A context choice shows object name, available verb, ownership restriction and hold preview only when authorized. Crowded F selection cannot steal a combat click. Placement shows intended footprint/endpoints and gives generic invalid feedback without revealing a hidden body. Carrying shows the prop, reduced speed, suppressed actions and Place/Drop.
+
+Release of a hold, focus loss, moving out of range and lifecycle changes cancel through the same intent authority. Cancelled input is never replayed when focus returns.
+
+## Inventory and transactions
+
+The bag holds at most 24 unique instances and a weight budget. Equipped items are the same instances, referenced by eleven bindings. Accessory actions require a physical binding; body-equipment actives additionally require a shared action slot. Opening a bag is immediate; changing bindings takes quiet plus commitment.
+
+Tooltips distinguish natural/effective attributes, tier/quality, known/trained/prepared/effective rank, unmet gates, clipped bonuses, cooldown family and death behavior. Craft previews list exact ingredients, fee, Standard output, capacity and quality loss before committing.
+
+Peer trade uses versioned offers, shared reservations, Ready, final review and separate confirmations from both players. Offered gold remains exposed to ordinary loss until commit. Death releases locks before drops. Only voluntarily offered terms are revealed. Items must be legally unbound before transfer.
+
+## Input arbitration and accessibility
+
+Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.
+
+Verify practical tasks at 720p, 1080p, enlarged text and OS scaling: find an action reason, remap, navigate, learn/prepare, equip, compare, buy, trade, cancel and recover after death. Observe real users and independent clients. Screenshots establish layout only; native input and restricted payloads establish behavior.

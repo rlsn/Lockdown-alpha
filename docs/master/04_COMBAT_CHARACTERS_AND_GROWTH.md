@@ -1,34 +1,42 @@
-# Combat, characters and growth
+# Characters, growth and tactical combat
 
-## Flexible starts and six attributes
+## Flexible starts
 
-No predefined heroes or automatic primary-stat growth. STR/DEX/CON/INT/WIS/CHA support combat and noncombat capability; players allocate earned points freely. Classes provide starting distribution/training. Profession need not match class. Preserve delivered economic classes and skills rather than silently renaming them. Six proposed teaching kits—Vanguard, Infiltrator, Arcanist, Seeker, Broker, Trickster—offer two starter abilities each and equal-budget additional presets, never exclusive books.
+A class supplies a starting distribution, training and one intrinsic trait. It does not lock ordinary learned skills to that class. The nine current presets are Vanguard, Infiltrator, Arcanist, Seeker, Broker, Trickster and retained Laborer, Rogue and Scholar. Presets teach approaches without becoming fixed heroes.
 
-| Attribute | Typical role | Constraint |
+STR, DEX, CON, INT, WIS and CHA support combat and world activity. Players allocate earned points rather than receiving automatic primary-stat growth. Natural attributes determine learning/preparation/casting prerequisites where specified; equipped and temporary bonuses affect effective outcomes. Purchasing gear cannot substitute for natural investment.
+
+| Attribute | Typical contribution | Design constraint |
 | --- | --- | --- |
-|STR|Physical impact, load, forcing interactions|No damage growth erasing utility|
-|DEX|Mobility, precision, stealth/theft|No universal best scaling for all builds|
-|CON|HP, durability and endurance|No automatic control/claim immunity|
-|INT|Spell magnitude, mana, craft/research|Bounded magnitude; no free frequency multiplication|
-|WIS|Detection, scouting, precision support|Geometric authorization still applies|
-|CHA|Deception, influence and commerce|No universal compounding income bonus|
+| STR | Physical impact, carrying, forceful work | Does not erase utility through damage growth |
+| DEX | Mobility, precision, stealth/theft | Does not become universally optimal |
+| CON | HP, armor and endurance | No automatic control or claim immunity |
+| INT | Spell magnitude, mana and technical capability | Bounded output; no free frequency multiplier |
+| WIS | Observation and support capability | Geometry authorization still applies |
+| CHA | Commerce, influence and deception | No universal compounding income bonus |
 
-Natural attributes are starting+permanently allocated; equipment/buffs contribute only effective stats. High-circle equip/cast gates use natural values. Learning knowledge may precede eligibility. Hard class locks on ordinary learned spells are avoided; investment, slot limits, resources and explicit exclusivity govern powerful synergies.
+The full-profile defaults retain level cap 15, 53 starting natural points and natural values 8–16. A level cap is capacity, not a prediction that everyone reaches it. Exact formulas and gates live in active release data.
 
-## Knowledge, mastery and prepared actions
+## Knowledge, mastery and preparation
 
-Separate known skills, trained rank and equipped slot. Selected defaults: five active slots shared by ALL learned combat/utility actions; three item quick references; at most one Circle IV equipped. Skills from books/trainers/starts become permanent knowledge for the match. Books are not scroll casts, and duplicate books do not merge into ranks. Mastery spends earned development points at a station. Circle I–IV is intrinsic complexity, rank 1–3 is proficiency, variant is a future tactical alternative.
+Knowledge, trained rank, effective potency and prepared action are distinct. Books/trainers/starts grant match-long knowledge. Mastery raises trained rank using earned development points. Equipment may grant bounded potency improvements without granting knowledge or bypassing natural prerequisites.
 
-Rank improves magnitude, resource economy, radius or modest cooldown; hard-disable duration increases little. Gear may grant one bounded potency-only effective rank, capped3, never knowledge/gates/control duration/new rank mechanics. Learning a spell does not let an unslotted contextual action bypass the common budget.
+Six shared action slots hold learned combat/profession actions and body-equipment actives. Every active in this family competes for those slots. Four accessory bindings activate their exact physical items. There is no separate utility bar, class-active button or backpack cast path. One intrinsic trait is immutable for the match, costs no slot and has no button. It is not suppressed by Break; specifically tagged equipment modifiers are.
 
-## Equipment and tactical choices
+Only one capstone is prepared at a time. Circle I–IV describes complexity/gates; rank 1–3 describes mastery. A cheap low-circle answer remains useful against an expensive capability. Duplicate books do not merge into ranks or create unslotted casts.
 
-Six bindings: weapon,offhand,body,feet,two charms; two-handed weapons reserve offhand. Equipped gear provides attributes/secondary effects; active equipment additionally competes for the three quick slots with consumables. Tier describes function; Standard/Fine/Masterwork craftsmanship modestly improves eligible physical numbers, not mechanics. Ordinary gear cannot provide best damage, durability, movement, detection and escape at once.
+## Equipment as opportunity cost
 
-Quiet committed gear/quick changes prevent an unrestricted backpack hotbar during fights. Skills/points/ranks require station preparation. Cooldowns persist through swaps/trade/assembly/death. Gear caps are readable; natural prerequisites cannot be bought by temporary equipment stacking.
+Seven body bindings are head, torso, legs, feet, gloves, main hand and off hand; four additional physical accessory bindings complete the eleven bindings. Two-handed weapons reserve both hands. Every binding references an existing carried instance and counts toward capacity.
 
-## Growth and tactical combat
+Tier describes function/scarcity. Standard, Fine and Masterwork describe eligible workmanship. Quality does not increase attribute points, hard-control duration or hidden charges. Specialized equipment trades coverage, weight, price, slots or counters for its benefit.
 
-Meaningful bounded work, procurement, exploration and combat grant shared XP. No craft/trade/bank/duplicate-book loops. Basic attack is sustained threat; stuns, silence, mute, dispels, displacement, smoke/detection, targeted block and timed defenses change fights. Offensive and defensive tools have distinct counters. Baseline MP and moderate HP/damage curves are concrete v0.7 choices, not assumptions about prior builds.
+Changes require quiet and committed holds; skill/rank/attribute preparation uses stations. Cooldowns follow owner/family/physical-instance rules through swap, trade, assembly and death. The inventory is logistical flexibility, not an instantaneous universal hotbar.
 
-Retain development on death. Ordinary equipped gear persists; spare gear/materials/books/consumables and objective cargo remain vulnerable. Late downtime can remove a final opportunity without permanent character deletion. Exact numbers live in v0.7 and remain tuning targets.
+## Combat rhythm and fairness
+
+Basic attacks create sustained pressure. MP, release timings, cooldowns, range and observation constrain spells and utility. Damage, barriers, dispels, block, control guard, dome, displacement and detection solve different problems. Effects need recognizable cues, timing and response windows.
+
+Moderate numerical growth supports strong qualitative choices. Compare equal open duels separately from ambushes, escapes and claim interruptions. A lower-level defender should be useful through legal disruption while a stronger fighter retains an earned duel advantage.
+
+Retain development and ordinary equipped gear on death. Drop vulnerable spare goods and objective cargo, charge wallet loss and time, then allow a different plan. Evaluate time-to-kill, accessible counters, control-chain duration, resource recovery and post-death usefulness in normal progression, not only constructed high-level fixtures.

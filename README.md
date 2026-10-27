@@ -1,4 +1,25 @@
-# Project Lockdown — v0.8 B86 native usability
+# Project Lockdown — v0.9 B90 world skeleton
+
+The full-map work starts from the native v0.8 B86 baseline. B90 adds a
+deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
+144 building blocks, 24 spawn pads and native navigation evidence. Its
+standalone spatial preview is separate from full-match gameplay, which still
+requires the dependent B91–B94 work.
+
+Start with the [active handoff](docs/CONTINUATION.md),
+[B90 implementation and remaining gates](docs/v09/B90_IMPLEMENTATION.md),
+[v0.9 stage plan](docs/v09/09_IMPLEMENTATION_STAGES.md), and
+[living game design](docs/master/README.md). The master now covers vision,
+principles, core loops, player journeys, mechanics, control/UI, map, population,
+economy and long-term development decisions.
+
+```powershell
+python -B Scripts/SyncV09Data.py --check
+./Scripts/BuildB90Map.ps1 -Validate
+./Scripts/OpenB90.ps1
+```
+
+## Retained v0.8 playable integration
 
 Windows-first Unreal 5.8.4 project. The explicit v0.8 profile now exposes all
 52 catalog abilities, 80 items and 20 recipes, with native elemental/support

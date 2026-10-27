@@ -1,23 +1,41 @@
-# Economy, production and institutions
+# Economy, work and institutions
 
-## Hybrid access
+## The economic game
 
-Stable official supply provides predictable essentials; finite regional stock/cash creates scarcity, timing and transport margins. Marked nonwinning services expose only deliberate institution facts. Ordinary humans/NPCs remain masked. Structured work/trade panels suffice; no dialogue requirement.
+Economic play transforms time, information, transport and risk into options. It should support a credible non-kill route while remaining connected to rivals. Professions are activities rather than mandatory second classes. Work/production has concrete requirements and geography; no blanket percentage-income snowball is assumed.
 
-Official payments burn gold and create paid items; market sales/buys transfer existing gold/items with finite reserve/capacity and guarded bid/ask. No silent stock/cash reset. Physical banks protect committed deposits after fees; ordinary wallet theft/death risk remains. Treasury permits explicit wallet/bank split for registered Charter. No loans/interest/insurance introduced.
+Official supply is a paid reliable source with burn receipts. Regional markets transfer actual stock/cash with stock-dependent quotes. Peers set terms voluntarily. Banks protect committed savings after fees. Workshops transform exact goods and burn fees. These are distinct transaction types and should read distinctly in UI.
 
-## Light production and supply
+## Finite sources and cash
 
-Few-input short chains support materials, gear assembly, specialized equipment and quality. Workshops/advanced forge/HeartForge create geography and cargo exposure, not a factory simulator. Existing Fiber/Ore/Crystal→Toolkit/Core production remains; new gear recipes consume those goods and selected tactical components. Profession/learned utility may improve a named task through real slots/cooldowns, never universal free crafting XP or percentage income snowball.
+Five full-profile market pools begin with 600 gold each and explicit stocks. Ninety-six civilians contribute 288 initial wallet gold. Rare official stock is shared globally per definition, so visiting another endpoint does not multiply it. Town service access does not create an extra market or rare pool.
 
-Consumables, equipment, books and artifacts have multiple sources appropriate to scarcity. Basic counter-items are unlimited fixed-price paid supply so one buyer cannot corner all dispel/detection. Regional markets keep finite commodity scope; completed gear is available through work orders, peer trade or authored rare sources. No blanket automatic buyback for all generated equipment. Quality and assembly provide sinks even though equipped ordinary gear persists.
+The selected full-profile reward mint ceiling is 790N + 1,114, or 20,074 for 24 contenders. With the audited zero-wallet baseline and 3,288 initial circulation, the pre-burn ceiling is 23,362. This is a conservation bound, not a promise that all money enters play or every contender earns a quota. Exact sources and baseline assumptions live in [v0.9 economy](../v09/06_ECONOMY_SOURCES_AND_PROGRESSION.md).
 
-## Source/sink discipline
+Gold enters through bounded courier/procurement/shortage and encounter rewards. Markets and peer trade transfer it. Official purchases, fees, production expenditure, Charter and death tax burn it. Bank transfers do not mint interest. No resident/guard/ambient farming, automatic gear buyback or respawn endowment is implied.
 
-Every event is endowment, creation, consumption/transformation, burn or transfer. Count wallets+banks+institution reserves; transfers cancel in aggregate. Item counts include equipped/cache/world/dropped/reserved once. Recipes retain lineage; timed wards/leases have explicit lifecycle. Physical drops transfer, corpse cleanup cannot erase goods silently. Actor recreation/death/rejoin never repeats source grants.
+## Work, discovery and progression
 
-v0.6's bounded contracts/producers/consumers remain unchanged in v0.7. Camps/boss/towers add explicit limited rewards; max new combat gold642, giving reward bound540*N+682 with predecessor sources. PvP grants bounded XP but no newly minted gold. Full-session economic calibration remains pending. Measure actual margins after fees/travel/loss, stockouts, cash exhaustion, wealth concentration and first access timing.
+Courier jobs, real Supply/Industrial deliveries and first visits support growth outside combat. One active courier token identifies a contract; another carrier cannot redeem someone else's job. Abandonment is not payout, death does not reset quota and repeated issuance has its own bound.
 
-## Progress and victory
+Witness remains the audited Heave/Parley/profession operation, not a free reward for opening a door. Economic endorsements require distinct deliveries. Crafting, banking, market turnover, repeated surface reactions and movement do not grant passive XP loops.
 
-Economic play earns distinct Supply/Industrial endorsements and Witness, then registered Charter purchase/activation. This opens a PUBLIC contest, not private paid victory. Wealth can instead buy equipment, books, keys or artifact inputs; routes overlap economically. Keys/rare fragments/catalysts are physical contestable goods. Final victory is always contested Heart acquisition. v0.7 preserves a normal zero-kill economic route while giving all builds affordable disruption tools and meaningful slot opportunity costs.
+A zero-kill Charter demonstration must include actual earnings, inputs, Witness, travel, fees and useful counter purchases. An illustrative arithmetic surplus is not proof that a full combat kit is affordable.
+
+## Light production and acquisition
+
+Short chains connect Fiber/Ore/Crystal, Toolkits/Cores and specialist equipment. Stations create vulnerable preparation and cargo movement. Work orders can buy missing available official inputs and charge fees, but cannot fabricate rare catalysts or recursively invent components.
+
+Production/consumption uses scheduled bounded opportunities, actual market reserves and stock/capacity checks. A missed opportunity is skipped, without catch-up or deficit funding. Visual travelers do not secretly move economic inventory. A complete physical supply chain is future scope.
+
+## Property, banking and loss
+
+One physical instance occupies one place: bag/equipment, world/container, market, carried-world binding or installed traversal link. Reservations lock that same instance rather than creating another. Equipped ordinary gear persists through death; exposed cargo, books, consumables and objectives follow their drop categories.
+
+Banking is physical and quiet, shares one account across counters and burns the deposit fee. Treasury Charter payment may explicitly split wallet and bank. There are no assumed loans, insurance or interest. Peer offers do not create protected gold escrow.
+
+## Accounting and design evaluation
+
+Global gold end equals start + named mints − burns; transfers cancel. Item end equals start + creation − consumption − explicit cleanup. Recipes retain lineage and finite sources retain receipt identity across actor recreation/death/rejoin.
+
+Measure stockouts, cash exhaustion, net travel margins, wealth concentration, counter affordability and first access timing. Economic depth comes from meaningful choices and competition; repeated unopposed errands are a pacing failure. The public Charter converts economic achievement into a contested opening, never a remote money victory.

@@ -2,7 +2,7 @@
 
 27 October 2026 · Native spatial foundation implemented; broader stage acceptance remains partial.
 
-Starting source: **ebc19a5, v0.8 B86**. See [baseline review](B90_BASELINE_REVIEW.md)
+Implementation source: **96caff1**. Starting source: **ebc19a5, v0.8 B86**. See [baseline review](B90_BASELINE_REVIEW.md)
 for the repository/architecture audit, actual zero-wallet/empty-inventory starts,
 working Witness operation and inherited limits. The supplied v0.9 specification
 is adopted with hashes in SOURCE_MANIFEST.json; original prose/data/templates
