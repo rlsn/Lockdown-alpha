@@ -44,3 +44,11 @@ Test for recognizable major choices every 45–90 seconds outside settlements an
 The [B90 traversal record](../v09/B90_TRAVERSAL.md) now provides 31 actual walks at baseline speed. Native navigation can take legal open-terrain shortcuts: Lumen Archive→Crownreach measured 252.67 s against a 323.72 s graph estimate, while Riverport→Crownreach measured 263.07 s against 369.73 s. Place useful opportunities along observed paths as well as authored road junctions; a graph alone does not predict player traffic.
 
 The longest measured interval without a POI anchor within 50 m was 339.07 s on Highfort→Lumen Archive. This explicit geometric proxy omits cover, functional props and encounters. It flags a B91 placement priority without proving how a finished route feels. Retain trace corridors and remeasure after meaningful content is fitted.
+
+The [B90 approach inspector](../v09/B90_APPROACHES.md) now checks seven rare or
+forge targets against their native paths. All have distinct local alternatives,
+but three of the 36 branch pairs merge near the destination. No sampled
+in-range cross-branch ray is blocked by current geometry. Distance can put an observer
+outside sight radius; that is not cover. B91 fitting should add readable cover
+and observation choices along actual approaches without closing permanent
+access. Recheck both paths and sight after those additions.

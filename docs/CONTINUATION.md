@@ -1,6 +1,6 @@
 # Active continuation — v0.9 B90
 
-Current native source is **daa7d9e**, based on **ebc19a5, v0.8 B86**, and implements the full-map spatial foundation, actual traversal and grounded river-contact slice. Read [river contact/current evidence](v09/B90_RIVER_CONTACT.md), [original foundation](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
+Current native source is **4f8b91f**, based on **ebc19a5, v0.8 B86**, and implements the full-map spatial foundation, actual traversal, grounded river contact and native approach inspection. Read [approach inspection/current evidence](v09/B90_APPROACHES.md), [river contact](v09/B90_RIVER_CONTACT.md), [original foundation](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
 
 ## Current boundaries
 
@@ -25,6 +25,14 @@ full-map replication/privacy and life/resource dispatch remain B91 work; fields
 in these fixtures are explicit diagnostic seeds. The complete fitter revision 2
 replay passes 31 journeys and 15 boundary cases with zero falling or replans.
 
+F5 opens a target-centered approach overview with wheel zoom and camera restore.
+The new Approaches traversal lane walks all 23 incoming final sections to seven
+key targets. All pass; 33 of 36 branch pairs are spatially distinct, and every
+target has an alternative. The 288 cross-branch rays yield 129 clear, 159 out of
+range and zero geometry blockers. Do not call these concealed approaches.
+All 144 shell wall/opening calibrations and seven range/deck checks pass.
+This static inspector is not full-profile unit observation/target authorization.
+
 ## Verification
 
 Run native operations sequentially and keep Source/Config fixed during a run. Unreal 5.8.4 CL58902052, Win64 Development, MSVC14.44.35229 / SDK10.0.26100.0; use at most 3–4 compiler actions under current memory pressure.
@@ -41,6 +49,8 @@ python -B Scripts/SyncB84Data.py --check
 ./Scripts/RunTests.ps1
 ./Scripts/RunB82Check.ps1
 ./Scripts/RunB90Traversal.ps1 -Lane All
+./Scripts/RunB90Traversal.ps1 -Lane Approaches
+./Scripts/RunB90Traversal.ps1 -Lane Approaches -Capture
 ./Scripts/OpenB90.ps1
 ~~~
 
@@ -48,7 +58,7 @@ Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native output
 
 ## Next work
 
-Finish the remaining B90 ledger cases before calling its full release gate complete. Contact-fixture acceptance is now recorded; sight/occluded approaches, detailed district/interior fitting, services and reset/source accounting still overlap B91/B92 integration. The report records this gate overlap; the structural preview does not fake those systems.
+Finish the remaining B90 ledger cases before calling its full release gate complete. Contact fixtures and static spatial alternatives are now proven. Detailed district/interior fitting, full-profile observation, services and reset/source accounting still overlap B91/B92 integration. Fit cover along the actual native approaches without closing access; current range failures are not geometry cover. The report records this gate overlap; the structural preview does not fake those systems.
 
 The next functional environment reference is Riverport public front → rear door → warehouse container → roof/stairs → grass escape. Reuse existing request/life/hold/inventory/receipt authority and maintain one collision/sight/local-nav mutation revision. Add no advertised cosmetic-only verbs or unbound item shortcuts.
 

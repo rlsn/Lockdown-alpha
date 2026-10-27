@@ -24,6 +24,13 @@ observation still require B91. The full-map preview remains standalone.
 
 The preview does not run the legacy short-map economy in the full world. This keeps review useful without pretending the full-profile roster, services, observations and endowments are already integrated. B90 gate status must be read per acceptance case; later stages stay pending.
 
+The [approach inspector](../v09/B90_APPROACHES.md) adds F5 camera overview and
+actual final-section walking for all 23 incoming branches to seven key targets.
+Each target has a distinct alternative pair. Static shell/deck/range checks
+pass, while the inspected in-range rays remain clear. Range failures do not prove cover.
+This closes the spatial-alternative portion of B90-T05; full-profile unit sight,
+tagged ledges, concealment, mutable occlusion and restricted payloads remain B91.
+
 | Frontier | Required next work |
 | --- | --- |
 | B90 spatial acceptance | Close remaining native fitting/travel/debug/reproducibility cases named in its report |

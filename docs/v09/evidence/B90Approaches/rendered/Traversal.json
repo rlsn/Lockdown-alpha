@@ -1,0 +1,46 @@
+{
+	"stage": "B90",
+	"payload_sha256": "80edef1004242f5044a5aa916949ba7960eecebb6a8d83a0a4165b950832255c",
+	"lane": "Approaches",
+	"trip_filter": "antechamber__heart",
+	"complete": true,
+	"failures": 0,
+	"planned_trips": 1,
+	"planned_boundaries": 0,
+	"speed_cm_s": 420,
+	"wall_seconds": 7.7223878018558025,
+	"min_tick_seconds": 0.01666666753590107,
+	"max_tick_seconds": 0.01666666753590107,
+	"navigation_contract":
+	{
+		"coincident_arrival": true,
+		"outside_rejected": true,
+		"closed_shell_rejected": true
+	},
+	"empty_anchor_radius_cm": 5000,
+	"trips": [
+		{
+			"from": "antechamber",
+			"to": "heart",
+			"kind": "final_60m_approach",
+			"passed": true,
+			"reason": "Arrived by native movement",
+			"native_path_cm": 4500,
+			"path_estimate_s": 10.714285714285714,
+			"walked_cm": 4441.5002345811081,
+			"walk_seconds": 10.683333890512586,
+			"peak_speed_cm_s": 420,
+			"trace_samples": 12,
+			"replans": 0,
+			"falling_seconds": 0,
+			"longest_empty_s": 0,
+			"empty_distance_cm": 0,
+			"longest_empty_start_cm": "X=0.000 Y=0.000 Z=0.000",
+			"longest_empty_end_cm": "X=0.000 Y=0.000 Z=0.000",
+			"static_water_samples": 0,
+			"end_cm": "X=4000.000 Y=3941.500 Z=492.150"
+		}
+	],
+	"boundaries": [],
+	"scope": "Standalone spatial fixtures; placement only before each case; ordinary native movement at fixed60Hz, accelerated wall execution. Empty means no POI anchor within50m, not a functional interaction test. Push uses native swept floor-following geometry, not competitive combat costs/control. No Wet/frozen effects, economy, AI, networking or human pacing acceptance."
+}

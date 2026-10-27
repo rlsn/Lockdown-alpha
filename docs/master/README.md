@@ -9,8 +9,8 @@ The intended experience is **stealth developing into chaos**: establish a life a
 This directory explains the game across releases. Exact current rules belong to active release contracts; actual coverage belongs to implementation reports and evidence. The native baseline reviewed for this revision is **v0.8 B86, commit ebc19a5**. v0.9 adds the full-map contract and B90 spatial implementation; later gameplay and full-session gates remain open. See [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md) and [continuation](../CONTINUATION.md).
 
 Current B90 evidence includes actual long journeys, physical movement boundaries,
-and grounded river/ice contact. This advances the spatial foundation while the
-living population, full-map economy, object interactions and earned victory
+grounded river/ice contact and native key-target approaches. This advances the
+spatial foundation while the living population, full-map economy, object interactions and earned victory
 integration remain on the delivery frontier.
 
 ## Reading paths

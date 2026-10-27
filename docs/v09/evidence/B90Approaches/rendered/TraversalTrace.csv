@@ -1,0 +1,13 @@
+trip,elapsed_s,x_cm,y_cm,z_cm,speed_cm_s,walked_cm,nearest_poi,distance_to_poi_cm,static_water_geometry
+antechamber__heart,0.0000,4000.000,-500.000,492.150,0.000,0.000,antechamber,0.000,false
+antechamber__heart,1.0000,4000.000,-125.500,492.150,420.000,374.500,antechamber,374.500,false
+antechamber__heart,2.0000,4000.000,294.500,492.150,420.000,794.500,antechamber,794.500,false
+antechamber__heart,3.0000,4000.000,714.500,492.150,420.000,1214.500,antechamber,1214.500,false
+antechamber__heart,4.0000,4000.000,1134.500,492.150,420.000,1634.500,antechamber,1634.500,false
+antechamber__heart,5.0000,4000.000,1554.500,492.150,420.000,2054.500,antechamber,2054.500,false
+antechamber__heart,6.0000,4000.000,1974.500,492.150,420.000,2474.500,capital,2025.500,false
+antechamber__heart,7.0000,4000.000,2394.500,492.150,420.000,2894.500,capital,1605.500,false
+antechamber__heart,8.0000,4000.000,2814.500,492.150,420.000,3314.500,capital,1185.500,false
+antechamber__heart,9.0000,4000.000,3234.500,492.150,420.000,3734.500,capital,765.500,false
+antechamber__heart,10.0000,4000.000,3654.500,492.150,420.000,4154.500,capital,345.500,false
+antechamber__heart,10.6833,4000.000,3941.500,492.150,420.000,4441.500,capital,58.500,false

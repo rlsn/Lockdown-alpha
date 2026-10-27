@@ -1,0 +1,11 @@
+{
+  "stage": "B90",
+  "lane": "Routes",
+  "subset": "antechamber__heart",
+  "trips": 1,
+  "boundaries": 0,
+  "simulated_walk_seconds": 10.683333890512586,
+  "longest_poi_anchor_gap_seconds": 0,
+  "navigation_replans": 0,
+  "scope": "Actual native motion with diagnostic starting placements and fixed60Hz accelerated wall execution. POI gap is a geometric proxy; no Wet/frozen gameplay or human pacing claim."
+}
