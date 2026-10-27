@@ -18,7 +18,7 @@ public:
     ALDB90TraversalProbe();
     virtual void Tick(float DeltaSeconds) override;
 private:
-    struct FTrip { FName From, To; FString Kind; };
+    struct FTrip { FName From, To; FString Kind; FVector Fixture=FVector::ZeroVector; bool Approach=false; };
     struct FBoundary { FString Id; FVector Position, Direction; };
     UPROPERTY() TObjectPtr<ALDCharacter> Body;
     UPROPERTY() TObjectPtr<ALDB90PreviewController> Controller;

@@ -3,6 +3,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/HUD.h"
+#include "Region/LDMapApproaches.h"
 #include "LDB90Preview.generated.h"
 
 // Spatial review only. B92 will admit full matches after roster/economy integration.
@@ -29,6 +30,7 @@ public:
     uint32 NavigationFailures = 0;
     bool RoutesVisible = false, PadsVisible = true, BandsVisible = false, ProxiesVisible = false;
     FString Feedback;
+    FString ApproachFeedback;
 private:
     TArray<FVector> Path;
     int32 Waypoint = 0;
@@ -38,6 +40,12 @@ private:
     int32 CaptureState = 0;
     bool TraversalStarted = false;
     bool RiverStarted = false;
+    bool ApproachesVisible = false;
+    float BeforeApproachZoom = 1400;
+    FVector BeforeApproachOffset = FVector(0,0,20);
+    TArray<LDMapApproaches::FTarget> ApproachTargets;
+    void SetApproachInspection(bool Enabled);
+    void InspectApproaches(const FVector& Position);
     FVector Destination = FVector::ZeroVector;
     FVector ProgressPosition = FVector::ZeroVector;
     double ProgressAt = 0;

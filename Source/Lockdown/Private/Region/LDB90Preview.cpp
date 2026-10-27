@@ -56,6 +56,40 @@ bool ALDB90PreviewController::Plan(const FVector& Goal)
 }
 bool ALDB90PreviewController::NavigateTo(const FVector& Goal)
 { Stalls=0; return Plan(Goal); }
+void ALDB90PreviewController::SetApproachInspection(bool Enabled)
+{
+    auto* Body=Cast<ALDCharacter>(GetPawn()); if(!Body||Enabled==ApproachesVisible) { return; }
+    if(Enabled) { BeforeApproachZoom=Body->CameraArm->TargetArmLength; BeforeApproachOffset=Body->CameraArm->TargetOffset; Body->CameraArm->TargetArmLength=14000; }
+    else { Body->CameraArm->TargetArmLength=BeforeApproachZoom; Body->CameraArm->TargetOffset=BeforeApproachOffset; ApproachFeedback.Reset(); }
+    ApproachesVisible=Enabled;
+}
+void ALDB90PreviewController::InspectApproaches(const FVector& Position)
+{
+    if(ApproachTargets.IsEmpty())
+    { FString Error;
+      if(!LDMapApproaches::Collect(GetWorld(),ULDMapDefinition::Get(GetWorld()),ApproachTargets,Error))
+      { SetApproachInspection(false); Feedback=TEXT("Approach inspection unavailable: ")+Error; return; } }
+    const LDMapApproaches::FTarget* Nearest=nullptr; double Best=DBL_MAX;
+    for(const auto& T:ApproachTargets) { const double D=FVector::DistSquared2D(Position,T.Goal); if(D<Best) { Best=D; Nearest=&T; } }
+    if(!Nearest) { return; }
+    if(auto* Body=Cast<ALDCharacter>(GetPawn())) { Body->CameraArm->TargetOffset=Nearest->Goal-Body->GetActorLocation()+FVector(0,0,20); }
+    ApproachFeedback=FString::Printf(TEXT("F5 overview %s: %d approaches | static rays: green clear / red blocked / yellow beyond 18m | no unit authorization"),*Nearest->Id.ToString(),Nearest->Branches.Num());
+    DrawDebugCircle(GetWorld(),Nearest->Goal+FVector(0,0,25),160,24,FColor::White,false,0,0,5,FVector(1,0,0),FVector(0,1,0),false);
+    DrawDebugString(GetWorld(),Nearest->Goal+FVector(0,0,120),Nearest->Id.ToString(),nullptr,FColor::White,0,true);
+    const FColor Colors[]={FColor::Cyan,FColor::Orange,FColor::Green,FColor::Magenta,FColor::White,FColor::Blue,FColor::Yellow};
+    for(int32 I=0;I<Nearest->Branches.Num();++I)
+    {
+        const auto& B=Nearest->Branches[I];
+        for(int32 J=1;J<B.Points.Num();++J) { DrawDebugLine(GetWorld(),B.Points[J-1]+FVector(0,0,20),B.Points[J]+FVector(0,0,20),Colors[I%7],false,0,0,7); }
+        DrawDebugString(GetWorld(),B.Points[0]+FVector(0,0,80),B.From.ToString(),nullptr,Colors[I%7],0,true);
+    }
+    for(const auto& Pair:Nearest->Pairs) { for(const auto& S:Pair.Samples) { if(S.Remaining==1800)
+    {
+        const FColor Color=S.Body.Result==LDMapApproaches::ERay::Blocked?FColor::Red:S.Body.Result==LDMapApproaches::ERay::Clear?FColor::Green:FColor::Yellow;
+        DrawDebugLine(GetWorld(),S.A+FVector(0,0,120),S.B+FVector(0,0,120),Color,false,0,0,3);
+        if(S.Body.Result==LDMapApproaches::ERay::Blocked) { DrawDebugPoint(GetWorld(),S.Body.Hit,14,FColor::Red,false,0); }
+    } } }
+}
 void ALDB90PreviewController::StopNavigation()
 {
     Path.Reset(); Waypoint=0;
@@ -71,8 +105,9 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     if (WasInputKeyJustPressed(EKeys::F2)) { PadsVisible=!PadsVisible; }
     if (WasInputKeyJustPressed(EKeys::F3)) { BandsVisible=!BandsVisible; }
     if (WasInputKeyJustPressed(EKeys::F4)) { ProxiesVisible=!ProxiesVisible; }
-    if (WasInputKeyJustPressed(EKeys::MouseScrollUp)) { Body->Zoom(1); }
-    if (WasInputKeyJustPressed(EKeys::MouseScrollDown)) { Body->Zoom(-1); }
+    if (WasInputKeyJustPressed(EKeys::F5)) { SetApproachInspection(!ApproachesVisible); }
+    const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);
+    if(Zoom) { if(ApproachesVisible) { Body->CameraArm->TargetArmLength=FMath::Clamp(Body->CameraArm->TargetArmLength-Zoom*1000,6000.f,18000.f); } else { Body->Zoom(Zoom); } }
     if (WasInputKeyJustPressed(EKeys::P)) { ConsoleCommand(TEXT("show Navigation")); }
     if (WasInputKeyJustPressed(EKeys::RightMouseButton))
     {
@@ -106,6 +141,14 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     { TraversalStarted=true; GetWorld()->SpawnActor<ALDB90TraversalProbe>(); }
     if(!RiverStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90RiverProbe")))
     { RiverStarted=true; GetWorld()->SpawnActor<ALDB90RiverProbe>(); }
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB90ApproachCapture")))
+    {
+        const double Now=GetWorld()->GetTimeSeconds();
+        if(CaptureState==0&&Now>3) { SetApproachInspection(true); PadsVisible=false; CaptureState=1; }
+        if(CaptureState==1&&Now>7)
+        { FString Output; FParse::Value(FCommandLine::Get(),TEXT("B90Output="),Output); FScreenshotRequest::RequestScreenshot(Output/TEXT("Approaches.png"),true,false); CaptureState=2; }
+    }
+    if(ApproachesVisible) { InspectApproaches(Body->GetActorLocation()); }
     if (RoutesVisible) { for (const auto& R:D->Routes) { for (int32 I=1; I<R.Points.Num(); ++I)
     { DrawDebugLine(GetWorld(),R.Points[I-1]+FVector(0,0,80),R.Points[I]+FVector(0,0,80),FColor::Cyan,false,0,0,5); } } }
     if (PadsVisible) { for (const auto& P:D->POIs)
@@ -173,13 +216,14 @@ void ALDB90PreviewController::PlayerTick(float Delta)
 void ALDB90PreviewHUD::DrawHUD()
 {
     Super::DrawHUD(); const auto* PC=Cast<ALDB90PreviewController>(PlayerOwner); if (!PC) { return; }
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,1000,110);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,1100,PC->ApproachFeedback.IsEmpty()?110:135);
     DrawText(TEXT("B90 FULL MAP / spatial review / combat, economy and population pending"),FLinearColor::White,22,20);
-    DrawText(TEXT("RMB move | W/arrows walk | S stop | F1 routes | F2 POIs | F3 heights | F4 proxies | P navmesh"),FLinearColor::White,22,43);
+    DrawText(TEXT("RMB move | W/arrows walk | S stop | F1 routes | F2 POIs | F3 heights | F4 proxies | F5 approaches | P navmesh"),FLinearColor::White,22,43);
     DrawText(PC->Feedback,FLinearColor::Yellow,22,66);
     if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>())
     { if(const auto* C=Surface->Contact(Cast<ALDCharacter>(PC->GetPawn())))
       { const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());
         const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
         DrawText(FString::Printf(TEXT("Wet: %s | Frozen floor: %s | Surface slow: %d%% | Max speed: %.0f cm/s"),C->State.Has(LDTactical::EStatus::Wet,At)?TEXT("active"):TEXT("clear"),C->Frozen?TEXT("yes"):TEXT("no"),C->State.SurfaceSlow,Body->GetCharacterMovement()->GetMaxSpeed()),FLinearColor::White,22,89); } }
+    if(!PC->ApproachFeedback.IsEmpty()) { DrawText(PC->ApproachFeedback,FLinearColor::White,22,112); }
 }

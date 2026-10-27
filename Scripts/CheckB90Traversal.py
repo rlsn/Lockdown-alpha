@@ -40,6 +40,10 @@ def verify(directory):
                        key=lambda p: (math.dist(p['position'][:2], city['position'][:2]), p['id']))
         expected.extend((city['id'], p['id']) for p in towns[:2])
     expected.extend([('capital', 'highfort'), ('capital_ford', 'heart'), ('heart_dry_flank', 'heart')])
+    if report['lane'] == 'Approaches':
+        expected = [(r['end'] if r['start'] == p['id'] else r['start'], p['id'])
+                    for p in source['pois'] if p['kind'] in ('ruin', 'boss', 'heart') or p['id'] in ('heart_forge', 'ironworks_forge')
+                    for r in source['routes'] if p['id'] in (r['start'], r['end'])]
     if report['trip_filter']:
         expected = [p for p in expected if '__'.join(p) == report['trip_filter']]
     if report['lane'] == 'Bounds':
@@ -104,7 +108,7 @@ def verify(directory):
                                 longest_poi_anchor_gap_seconds=round(trip['longest_empty_s'], 3),
                                 navigation_replans=trip['replans']))
     boundaries = ([f'border_{x}_{y}' for y in [-1, 0, 1] for x in [-1, 0, 1] if x or y]
-                  + [p['id'] for p in source['plateaus']]) if report['lane'] != 'Routes' else []
+                  + [p['id'] for p in source['plateaus']]) if report['lane'] not in ('Routes', 'Approaches') else []
     assert [r['id'] for r in report['boundaries']] == boundaries
     assert report['planned_boundaries'] == len(boundaries)
     for row in report['boundaries']:

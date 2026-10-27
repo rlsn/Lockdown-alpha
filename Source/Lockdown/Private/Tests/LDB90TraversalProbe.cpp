@@ -1,6 +1,7 @@
 #include "Tests/LDB90TraversalProbe.h"
 #include "Region/LDB90Preview.h"
 #include "Region/LDMapDefinition.h"
+#include "Region/LDMapApproaches.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -21,6 +22,7 @@ ALDB90TraversalProbe::ALDB90TraversalProbe()
 
 bool ALDB90TraversalProbe::Initialize()
 {
+    WallStart=FPlatformTime::Seconds();
     Controller=Cast<ALDB90PreviewController>(GetWorld()->GetFirstPlayerController());
     Body=Controller?Cast<ALDCharacter>(Controller->GetPawn()):nullptr;
     Definition=ULDMapDefinition::Get(GetWorld());
@@ -29,7 +31,7 @@ bool ALDB90TraversalProbe::Initialize()
     FParse::Value(FCommandLine::Get(),TEXT("B90TraversalLane="),Lane);
     FParse::Value(FCommandLine::Get(),TEXT("B90Trip="),Filter);
     if(Lane.IsEmpty()) { Lane=TEXT("All"); }
-    if(Output.IsEmpty()||(Lane!=TEXT("All")&&Lane!=TEXT("Routes")&&Lane!=TEXT("Bounds"))) { return false; }
+    if(Output.IsEmpty()||(Lane!=TEXT("All")&&Lane!=TEXT("Routes")&&Lane!=TEXT("Bounds")&&Lane!=TEXT("Approaches"))) { return false; }
     IFileManager::Get().MakeDirectory(*Output,true);
     Controller->PadsVisible=Controller->RoutesVisible=Controller->BandsVisible=Controller->ProxiesVisible=false;
     NavigationContract=MakeShared<FJsonObject>();
@@ -59,9 +61,41 @@ bool ALDB90TraversalProbe::Initialize()
     Trips.Add({TEXT("capital"),TEXT("highfort"),TEXT("settlement_arrival")});
     Trips.Add({TEXT("capital_ford"),TEXT("heart"),TEXT("western_heart_approach")});
     Trips.Add({TEXT("heart_dry_flank"),TEXT("heart"),TEXT("dry_heart_approach")});
+    if(Lane==TEXT("Approaches"))
+    {
+        Trips.Reset(); TArray<LDMapApproaches::FTarget> Targets; FString Error;
+        if(!LDMapApproaches::Collect(GetWorld(),Definition,Targets,Error))
+        { UE_LOG(LogTemp,Error,TEXT("LD_B90_APPROACH %s"),*Error); return false; }
+        auto Report=LDMapApproaches::Report(Definition,Targets);
+        for(const auto& T:Targets)
+        { for(const auto& B:T.Branches) { Trips.Add({B.From,T.Id,TEXT("final_60m_approach"),B.Points[0],true}); } }
+        TArray<TSharedPtr<FJsonValue>> Checks; bool Calibration=true;
+        for(const auto& B:Definition->Buildings)
+        {
+            const auto Wall=LDMapApproaches::StaticRay(GetWorld(),B.Position-FVector(1000,0,0),B.Position+FVector(1000,0,0),2400);
+            const auto Door=LDMapApproaches::StaticRay(GetWorld(),B.Position-FVector(0,1200,0),B.Position+FVector(0,1200,0),2400);
+            const bool Pass=Wall.Result==LDMapApproaches::ERay::Blocked&&(B.Enterable?Door.Result==LDMapApproaches::ERay::Clear:Door.Result==LDMapApproaches::ERay::Blocked);
+            auto J=MakeShared<FJsonObject>(); J->SetStringField(TEXT("building"),B.Id.ToString()); J->SetBoolField(TEXT("enterable"),B.Enterable); J->SetBoolField(TEXT("wall_blocks"),Wall.Result==LDMapApproaches::ERay::Blocked); J->SetBoolField(TEXT("door_axis_clear"),Door.Result==LDMapApproaches::ERay::Clear); J->SetBoolField(TEXT("passed"),Pass);
+            Checks.Add(MakeShared<FJsonValueObject>(J)); Calibration&=Pass;
+        }
+        Report->SetArrayField(TEXT("static_shell_calibration"),Checks);
+        auto Contract=MakeShared<FJsonObject>();
+        const FVector Heart=Definition->NavigationTarget(TEXT("heart"));
+        Contract->SetBoolField(TEXT("exact_18m_inclusive"),LDMapApproaches::StaticRay(GetWorld(),Heart,Heart+FVector(1800,0,0),1800).Result==LDMapApproaches::ERay::Clear);
+        Contract->SetBoolField(TEXT("beyond_18m_denied"),LDMapApproaches::StaticRay(GetWorld(),Heart,Heart+FVector(1800.01,0,0),1800).Result==LDMapApproaches::ERay::Range);
+        Contract->SetBoolField(TEXT("invalid_range_denied"),LDMapApproaches::StaticRay(GetWorld(),Heart,Heart,-1).Result==LDMapApproaches::ERay::Invalid);
+        for(FName Id:Definition->Bridges)
+        { const FVector Top=Definition->NavigationTarget(Id),Bottom(Top.X,Top.Y,0);
+          Contract->SetBoolField(Id.ToString()+TEXT("_deck_blocks_vertical_ray"),LDMapApproaches::StaticRay(GetWorld(),Top,Bottom,1800).Result==LDMapApproaches::ERay::Blocked); }
+        for(const auto& P:Contract->Values) { Calibration&=P.Value->AsBool(); }
+        Report->SetObjectField(TEXT("geometry_contract"),Contract);
+        if(!Calibration) { ++Failures; }
+        FString Json; FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Json));
+        FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Approaches.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    }
     if(!Filter.IsEmpty()) { Trips.RemoveAll([&](const FTrip& T){return T.From.ToString()+TEXT("__")+T.To.ToString()!=Filter;}); }
     if(Lane==TEXT("Bounds")) { Trips.Reset(); }
-    if(Lane!=TEXT("Routes"))
+    if(Lane!=TEXT("Routes")&&Lane!=TEXT("Approaches"))
     {
         for(int32 Y=-1;Y<=1;++Y) { for(int32 X=-1;X<=1;++X) { if(X||Y)
         { Boundaries.Add({FString::Printf(TEXT("border_%d_%d"),X,Y),FVector(X*117500,Y*117500,0),FVector(X,Y,0).GetSafeNormal2D()}); } } }
@@ -99,7 +133,8 @@ void ALDB90TraversalProbe::BeginTrip()
     Phase=1; PlannedLength=Length=PeakSpeed=FallingSeconds=EmptySeconds=MaxEmptySeconds=EmptyDistance=0;
     Samples=WaterSamples=0; StartReplans=Controller->NavigationReplans;
     EmptyStart=LongestEmptyStart=LongestEmptyEnd=FVector::ZeroVector;
-    if(!Place(Definition->NavigationTarget(Trips[TripIndex].From),true)) { EndTrip(false,TEXT("Start pad has no native floor")); }
+    const auto& T=Trips[TripIndex];
+    if(!Place(T.Approach?T.Fixture:Definition->NavigationTarget(T.From),true)) { EndTrip(false,TEXT("Start pad has no native floor")); }
 }
 
 void ALDB90TraversalProbe::SampleTravel(float Delta, bool Force)

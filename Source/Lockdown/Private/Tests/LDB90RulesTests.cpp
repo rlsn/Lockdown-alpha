@@ -1,10 +1,27 @@
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapSurfaceSubsystem.h"
+#include "Region/LDMapApproaches.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDB90ApproachPaths,"Lockdown.Rules.B90ApproachPaths",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDB90ApproachPaths::RunTest(const FString& Parameters)
+{
+    const TArray<FVector> Path={FVector(0,0,0),FVector(300,0,400),FVector(300,0,400),FVector(300,600,400)};
+    const auto Tail=LDMapApproaches::Tail(Path,850);
+    TestTrue(TEXT("Tail preserves bends, grades and direction"),Tail.Num()==3&&Tail[0].Equals(FVector(150,0,200))&&Tail.Last()==Path.Last());
+    TestTrue(TEXT("Tail measures in native 3D units"),FMath::IsNearlyEqual(LDMapApproaches::Length(Tail),850.));
+    TestTrue(TEXT("Remaining distance follows corner before slope"),LDMapApproaches::AtRemaining(Path,850).Equals(FVector(150,0,200)));
+    TestTrue(TEXT("Zero-distance tail is endpoint only"),LDMapApproaches::Tail(Path,0).Num()==1);
+    TestTrue(TEXT("Overlong remaining distance clamps to start"),LDMapApproaches::AtRemaining(Path,2000)==Path[0]);
+    TestTrue(TEXT("Overlong tail retains whole traversable length"),FMath::IsNearlyEqual(LDMapApproaches::Length(LDMapApproaches::Tail(Path,2000)),1100.));
+    TestTrue(TEXT("Empty and invalid requests have no path"),LDMapApproaches::Tail({},100).IsEmpty()&&LDMapApproaches::Tail(Path,-1).IsEmpty());
+    TestTrue(TEXT("Ordinary services are not rare-target approaches"),!LDMapApproaches::KeyTarget(TEXT("capital_guild"),TEXT("service"))&&LDMapApproaches::KeyTarget(TEXT("heart_forge"),TEXT("service")));
+    TestTrue(TEXT("A static ray without a world never authorizes"),LDMapApproaches::StaticRay(nullptr,{},{},1800).Result==LDMapApproaches::ERay::Invalid);
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDB90MapRules,"Lockdown.Rules.B90Map",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDB90MapRules::RunTest(const FString& Parameters)
 {
