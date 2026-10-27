@@ -10,6 +10,7 @@ requires the dependent B91–B94 work.
 
 Start with the [active handoff](docs/CONTINUATION.md),
 [B91 functional-environment progress](docs/v09/B91_IMPLEMENTATION.md),
+[finite storage and cargo](docs/v09/B91_OBJECTS.md),
 [B90 completion and evidence](docs/v09/B90_COMPLETION.md),
 [v0.9 stage plan](docs/v09/09_IMPLEMENTATION_STAGES.md), and
 [living game design](docs/master/README.md). The master now covers vision,
@@ -23,10 +24,12 @@ python -B Scripts/SyncV09Data.py --check
 ```
 
 The first B91 increment adds fitted interiors, permanent stairs and authoritative
-doors, with restricted two-owner observation and native recordings:
+doors, with restricted two-owner observation and native recordings. The next
+checkpoint adds finite storage, inherited flasks and crate/barrel cargo:
 
 ```powershell
 python -B Scripts/SyncB91Data.py --check
+python -B Scripts/SyncB91Objects.py --check
 ./Scripts/OpenB91.ps1 -Visible
 ```
 

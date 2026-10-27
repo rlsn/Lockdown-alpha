@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 8 · 27 October 2026 · Long-term product and design reference
+Revision 8 · 28 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -15,7 +15,8 @@ geometry and actual reset/profile isolation. F6 exposes public settlement
 geography and policy outlines; live services and guards remain B92 work. The
 current implementation stage is [B91's functional environment](../v09/B91_IMPLEMENTATION.md),
 with structural interiors, permanent stairs and native door authority verified.
-Storage/cargo, foliage and portable interactions remain. Living population,
+The [storage/cargo checkpoint](../v09/B91_OBJECTS.md) adds finite ownership and
+crate/barrel transport. Foliage, portable tools and traversal remain. Living population,
 full-map economy and earned victory integration remain on the delivery frontier.
 
 ## Reading paths

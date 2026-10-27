@@ -1,5 +1,9 @@
 # B91 — functional environment
 
+This is the historical structural/door checkpoint. The later
+[finite storage/cargo report](B91_OBJECTS.md) records current object progress;
+each evidence bundle preserves the source it actually tested.
+
 Native source: **a5fc200df683f3a04054ad58cdf2d3c9fecf54dc**, based on the
 B90 completion at **3358cfc**. Compiled structural contract:
 `4137f1de587c7f9577565d218ecfdf02de85711859ff8399282320c159dd9bfc`.
@@ -11,7 +15,7 @@ The [B90 completion record](B90_COMPLETION.md) remains the spatial baseline.
 
 The [portable evidence](evidence/B91/README.md) and [audit](evidence/B91/Audit.json)
 record the exact source, compiled contracts, native reports, traces and client
-videos. This increment covers B91-T01–T03; B91-T04–T15 remain open.
+videos. This increment covers B91-T01–T03; B91-T04–T15 remained open at this source.
 
 ## Architecture and profile
 

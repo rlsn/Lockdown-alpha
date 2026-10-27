@@ -41,6 +41,30 @@ Tooltips distinguish natural/effective attributes, tier/quality, known/trained/p
 
 Peer trade uses versioned offers, shared reservations, Ready, final review and separate confirmations from both players. Offered gold remains exposed to ordinary loss until commit. Death releases locks before drops. Only voluntarily offered terms are revealed. Items must be legally unbound before transfer.
 
+World storage uses the same physical instances as the bag. A common cache is a
+finite initial endowment; an empty barrel contains no implied oil or reward.
+Opening a visible container grants a local, revision-bound contents view.
+Taking, storing and breaking revalidate that view and the exact item before
+ownership changes. A rival who arrives first can take the item; a retry cannot
+take a second copy. Contents close when the body leaves reach, loses sight or
+changes life. A map marker, camera cutaway or remembered container never grants
+access to its live inventory.
+
+Heavy cargo creates a tactical commitment. The prop remains in the world with
+one carrier, consumes neither a bag slot nor a new equipment slot, suppresses
+hand actions and services, and reduces movement to 70%. Its contents add weight.
+Placement must preserve doorways, stairs, public routes and other bodies. Failed
+placement retains the cargo; damage, death or an explicit ability request first
+requires a safe drop. Dropping a prop cannot displace another character or turn
+an illegal action into a legal one.
+
+Interaction feedback should make those commitments easy to judge: current
+container, selected physical item, hold duration, required quiet time, cargo
+state and a clear reason for refusal. Prototype keyboard shortcuts are delivery
+tools. The long-term interface must support deliberate selection among nearby
+objects, readable contents, visible placement footprints and the same input
+cancellation rules as combat.
+
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.

@@ -1,15 +1,18 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**, at native source **a5fc200**. Its [first verified increment](v09/B91_IMPLEMENTATION.md)
-provides 36 structural interiors, 16 permanent stair flights, 72 authoritative
-doors and a restricted full-map observation path. The B91 audit pins the exact
-source, contracts, native reports, recordings and unchanged map/input hashes.
-The remaining B91 object cases stay open in the working ledger.
+B91 is **in progress**. The latest [storage/cargo checkpoint](v09/B91_OBJECTS.md)
+adds 156 fitted objects, 84 finite physical item endowments, private storage,
+crate/barrel carry/place/push/break and restricted object observations. Its 49
+native checks use two independent remote owners and preserve every item identity.
+The [first checkpoint](v09/B91_IMPLEMENTATION.md), at a5fc200, provides 36
+structural interiors, 16 permanent stair flights, 72 authoritative doors and a
+restricted full-map body/door view. Each checkpoint retains its own source audit.
 
 `v09_environment` is an explicit development profile on `L_V09Full`, selected
 with `LDB91GameMode`. It reuses contender/life state, combat control gates and
-native navigation/CharacterMovement. It starts no legacy residents, markets,
-endowments or Heart victory executors. This is not B92 full-match admission.
+native navigation/CharacterMovement. It starts no legacy residents, markets or
+Heart victory executors. The finite B91 world endowments initialize once per
+world. This is not B92 full-match admission.
 The B90 `v09_full` spatial review and playable `v08_integration` remain separate.
 
 All 52 interior/stair walks pass with zero falling. Door holds bind match, life,
@@ -30,6 +33,19 @@ door changes stay private; reobservation returns current state. Nonowner canonic
 body meshes stay hidden, authorized body proxies expire, and render cutaways
 preserve collision and server sight. The existing privacy-schema rule guards
 both observed formats and the explicit public environment-profile flag.
+
+Storage/cargo adds a separate six-field object view and owner-only container
+quotes. Empty ground reveals no held-item revision. Broken cover and observed
+empty space clear stale client obstacles without revealing a hidden destination.
+Native protected-pad tests cover all 72 doors, 16 stair landings, 24 spawns,
+36 service pads, the Heart and 117 route corridors. The 52 interior/stair walks,
+two-client door scenario and all 51 rules tests pass with the new objects active.
+
+Next B91 work is portable Torch/Lantern/Rope items and fuel, ladder/rope links,
+full-map flask/action integration, foliage/concealment and paid environment
+fields/contact. Functional initial sources now total 228 of 480, including doors;
+the remaining 252 props and 3,000 scenery trees are still required. T04 remains
+partial until the ladder race; T07/T08 cover the verified cargo/storage boundary.
 
 ## Retained B90 baseline
 

@@ -29,6 +29,14 @@ after sight is lost, while hidden mutations stay private. Unchanged observed
 revisions do no collision/navigation work. This preserves both privacy and local
 path liveness; the old fog wire format remains unchanged.
 
+World objects use a separate bounded observed record and a private container
+quote. A stable physical item has one location across bag, storage, ground or
+installed use. A carried prop remains a world instance with one carrier, rather
+than becoming a second bag item. Receipt replay, revision checks and reservation
+ownership must agree across those systems. Rendering receives only current
+authorized presentation or an observed empty-space update; a remembered source
+cannot publish an item's later private inventory revisions.
+
 ## Static and mutable world
 
 Public static geography may be distributed with the map. Hidden units, distant mutable object state and private contents cannot be published as a global registry. Static terrain and required routes remain available to authority. Streaming/LOD cannot unload an active fight, carry binding or pending transaction.
