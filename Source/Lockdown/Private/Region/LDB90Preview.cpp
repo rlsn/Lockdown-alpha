@@ -1,5 +1,6 @@
 #include "Region/LDB90Preview.h"
 #include "Region/LDMapDefinition.h"
+#include "Tests/LDB90TraversalProbe.h"
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
@@ -42,9 +43,22 @@ bool ALDB90PreviewController::Plan(const FVector& Goal)
 {
     Path.Reset(); Waypoint=0;
     auto* Body=Cast<ALDCharacter>(GetPawn()); if (!Body) { return false; }
+    if(!ULDMapDefinition::InBounds(Goal)) { Feedback=TEXT("Move outside the playable map"); return false; }
+    Destination=Goal;
+    if(FVector::DistSquared2D(Body->GetActorLocation(),Goal)<=35*35) { Feedback=TEXT("Arrived"); return true; }
     auto* Route=UNavigationSystemV1::FindPathToLocationSynchronously(GetWorld(),Body->GetNavAgentLocation(),Goal);
     if (!Route || !Route->IsValid() || Route->IsPartial()) { Feedback=TEXT("No complete native path"); return false; }
-    Path=Route->PathPoints; Waypoint=1; Feedback=TEXT("Walking at 420 cm/s"); return true;
+    Path=Route->PathPoints; Waypoint=1; Destination=Path.Last();
+    ProgressAt=GetWorld()->GetTimeSeconds(); ProgressPosition=Body->GetActorLocation();
+    Feedback=TEXT("Walking at 420 cm/s"); return true;
+}
+bool ALDB90PreviewController::NavigateTo(const FVector& Goal)
+{ Stalls=0; return Plan(Goal); }
+void ALDB90PreviewController::StopNavigation()
+{
+    Path.Reset(); Waypoint=0;
+    if(auto* Body=Cast<ALDCharacter>(GetPawn())) { Body->ConsumeMovementInputVector(); Body->GetCharacterMovement()->StopMovementImmediately(); }
+    Feedback=TEXT("Stopped");
 }
 void ALDB90PreviewController::PlayerTick(float Delta)
 {
@@ -61,9 +75,9 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     if (WasInputKeyJustPressed(EKeys::RightMouseButton))
     {
         FHitResult Hit;
-        if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)) { Plan(Hit.ImpactPoint); }
+        if (GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)) { NavigateTo(Hit.ImpactPoint); }
     }
-    if (WasInputKeyJustPressed(EKeys::S)) { Path.Reset(); Body->GetCharacterMovement()->StopMovementImmediately(); }
+    if (WasInputKeyJustPressed(EKeys::S)) { StopNavigation(); }
     const double Forward=(IsInputKeyDown(EKeys::W)?1.:0.)-(IsInputKeyDown(EKeys::Down)?1.:0.);
     const double Side=(IsInputKeyDown(EKeys::Right)?1.:0.)-(IsInputKeyDown(EKeys::Left)?1.:0.);
     if (Forward || Side)
@@ -74,9 +88,20 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     if (Path.IsValidIndex(Waypoint))
     {
         const FVector Direction=Path[Waypoint]-Body->GetActorLocation();
-        if (Direction.Size2D()<35) { ++Waypoint; }
+        if (Direction.Size2D()<35)
+        { ++Waypoint; if(!Path.IsValidIndex(Waypoint)) { StopNavigation(); Feedback=TEXT("Arrived"); } }
         else { Body->AddMovementInput(Direction.GetSafeNormal2D()); Body->SetFacing(Direction.Rotation().Yaw); }
+        const double Now=GetWorld()->GetTimeSeconds();
+        if(FVector::DistSquared2D(ProgressPosition,Body->GetActorLocation())>10*10)
+        { ProgressPosition=Body->GetActorLocation(); ProgressAt=Now; }
+        else if(IsNavigating()&&Now-ProgressAt>2)
+        {
+            ++NavigationReplans;
+            if(++Stalls>2||!Plan(Destination)) { ++NavigationFailures; StopNavigation(); Feedback=TEXT("Path blocked; choose another approach"); }
+        }
     }
+    if(!TraversalStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90Traversal")))
+    { TraversalStarted=true; GetWorld()->SpawnActor<ALDB90TraversalProbe>(); }
     if (RoutesVisible) { for (const auto& R:D->Routes) { for (int32 I=1; I<R.Points.Num(); ++I)
     { DrawDebugLine(GetWorld(),R.Points[I-1]+FVector(0,0,80),R.Points[I]+FVector(0,0,80),FColor::Cyan,false,0,0,5); } } }
     if (PadsVisible) { for (const auto& P:D->POIs)
