@@ -65,6 +65,14 @@ tools. The long-term interface must support deliberate selection among nearby
 objects, readable contents, visible placement footprints and the same input
 cancellation rules as combat.
 
+Portable tools retain their physical fuel through binding, storage, transfer,
+drop and life changes. A lit tool keeps burning until extinguished or empty;
+changing a reference cannot refill it. Active use requires the real accessory
+binding and item permission, including Mute. Cosmetic light can communicate a
+visible tool without becoming a sight source or exposing a hidden carrier's
+inventory. Public presentation carries a light cue; precise fuel belongs to the
+owner or a legally disclosed transaction view.
+
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.

@@ -47,7 +47,7 @@ fitting priorities.
 | Frontier | Required next work |
 | --- | --- |
 | B90 spatial acceptance | Complete; retain evidence and recheck affected paths/contact/geometry after later mutations |
-| B91 functional environment | Interiors, permanent stairs, doors, finite storage and crate/barrel cargo implemented; finish portable items/traversal, foliage, paid environment integration and full fitting |
+| B91 functional environment | Interiors, stairs, doors, storage/cargo and retained portable fuel implemented; finish traversal, socket fire, foliage, paid environment integration and full fitting |
 | B92 living population/economy | Five conserved market pools, shared stock, finite contracts/endowments, roster/routines/security and legal AI progression |
 | B93 route convergence | Full-map earned routes, physical cargo, warnings and exact capital claim endpoints |
 | B94 full-session acceptance | Normal 60/75/90-minute scenarios, restricted clients, density/field stress and human pacing evidence |

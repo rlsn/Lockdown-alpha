@@ -1,9 +1,13 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**. The latest [storage/cargo checkpoint](v09/B91_OBJECTS.md)
-adds 156 fitted objects, 84 finite physical item endowments, private storage,
-crate/barrel carry/place/push/break and restricted object observations. Its 49
-native checks use two independent remote owners and preserve every item identity.
+B91 is **in progress**. The latest [portable-tool checkpoint](v09/B91_TOOLS.md),
+at **0476cb4**, adds finite Torch/Lantern/Rope instances, retained fuel,
+cosmetic light and full-map 18m sight with inherited Blind/capped bonuses.
+Its 32 native checks retain one Torch through binding, lit drop, swap, end-life,
+life return and expiry. The expanded world has 204 fitted object sources and
+132 finite physical items. The [storage/cargo checkpoint](v09/B91_OBJECTS.md)
+provides private storage and crate/barrel carry/place/push/break; all 49 checks
+pass again with portable tools present.
 The [first checkpoint](v09/B91_IMPLEMENTATION.md), at a5fc200, provides 36
 structural interiors, 16 permanent stair flights, 72 authoritative doors and a
 restricted full-map body/door view. Each checkpoint retains its own source audit.
@@ -41,11 +45,11 @@ Native protected-pad tests cover all 72 doors, 16 stair landings, 24 spawns,
 36 service pads, the Heart and 117 route corridors. The 52 interior/stair walks,
 two-client door scenario and all 51 rules tests pass with the new objects active.
 
-Next B91 work is portable Torch/Lantern/Rope items and fuel, ladder/rope links,
-full-map flask/action integration, foliage/concealment and paid environment
-fields/contact. Functional initial sources now total 228 of 480, including doors;
-the remaining 252 props and 3,000 scenery trees are still required. T04 remains
-partial until the ladder race; T07/T08 cover the verified cargo/storage boundary.
+Next B91 work is ladder/rope links, socket ignition, full-map flask/action
+integration, foliage/concealment and paid environment fields/contact. Functional
+initial sources now total 276 of 480, including doors; the remaining 204 props
+and 3,000 scenery trees are still required. T04 remains partial until the ladder
+race; T06/T07/T08 cover verified fuel, cargo and storage boundaries.
 
 ## Retained B90 baseline
 

@@ -1,0 +1,41 @@
+{
+	"phase": 1,
+	"completed": true,
+	"receipt_result": 1,
+	"receipt": "2588090A4B3A5E46E5BDB4BC939D7732",
+	"local_nav_retries": 0,
+	"receipt_reason": "Door transaction committed",
+	"duplicate_receipt_same": true,
+	"door_revision": 3,
+	"door_state": 1,
+	"door_observed": true,
+	"view_revision": 41,
+	"wire_fields": [
+		"Handle",
+		"PublicDoor",
+		"Position",
+		"Revision",
+		"State",
+		"Presentation",
+		"Facing",
+		"Light"
+	],
+	"received_entries": [
+		{
+			"handle": "CCBB69FD47733307B5D981BB3722A9CE",
+			"public_door": "building_riverport_00_door_north",
+			"position_cm": "X=-87800.000 Y=-71120.000 Z=130.000",
+			"revision": 3,
+			"state": 1,
+			"light": 0
+		},
+		{
+			"handle": "D72ACD4545E26798F990C582AF44F4F1",
+			"public_door": "None",
+			"position_cm": "X=-87800.000 Y=-71205.000 Z=92.100",
+			"revision": 0,
+			"state": 0,
+			"light": 0
+		}
+	]
+}

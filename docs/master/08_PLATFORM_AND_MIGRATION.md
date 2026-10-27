@@ -37,6 +37,14 @@ ownership must agree across those systems. Rendering receives only current
 authorized presentation or an observed empty-space update; a remembered source
 cannot publish an item's later private inventory revisions.
 
+The portable-tool overlay keeps the retained 80-item catalog and old item IDs
+intact. New physical definitions use explicit append-only IDs and environment
+admission. Continuous fuel derives from a physical clock; structural revisions
+change on explicit activation/expiry, not every fuel tick. Draft commits and
+transfers refresh the owner projection from that instance. Full-map sight uses
+its own 18m base and the inherited Blind/bonus rules, independently of cosmetic
+body/ground light. Legacy sight and fog formats remain separate.
+
 ## Static and mutable world
 
 Public static geography may be distributed with the map. Hidden units, distant mutable object state and private contents cannot be published as a global registry. Static terrain and required routes remain available to authority. Streaming/LOD cannot unload an active fight, carry binding or pending transaction.

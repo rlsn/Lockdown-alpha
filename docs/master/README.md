@@ -16,7 +16,8 @@ geography and policy outlines; live services and guards remain B92 work. The
 current implementation stage is [B91's functional environment](../v09/B91_IMPLEMENTATION.md),
 with structural interiors, permanent stairs and native door authority verified.
 The [storage/cargo checkpoint](../v09/B91_OBJECTS.md) adds finite ownership and
-crate/barrel transport. Foliage, portable tools and traversal remain. Living population,
+crate/barrel transport. [Portable tools](../v09/B91_TOOLS.md) now retain fuel and
+provide cosmetic light; traversal, socket fire and foliage remain. Living population,
 full-map economy and earned victory integration remain on the delivery frontier.
 
 ## Reading paths
