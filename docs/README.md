@@ -1,6 +1,6 @@
 # Project Lockdown documentation
 
-The active implementation is **v0.9 B90 spatial foundation**, starting from native v0.8 B86 at ebc19a5. [B90 report](v09/B90_IMPLEMENTATION.md) distinguishes delivered geometry/navigation from remaining acceptance. [Continuation](CONTINUATION.md) gives the next steps and commands.
+The active implementation is **v0.9 B91 functional environment**, starting from native v0.8 B86 at ebc19a5 after completed B90 spatial work. [B91 progress](v09/B91_IMPLEMENTATION.md), [portable tools](v09/B91_TOOLS.md) and [approved traversal](v09/B91_TRAVERSAL.md) distinguish verified checkpoints from remaining acceptance. [Continuation](CONTINUATION.md) gives the next steps and commands.
 
 ## Design and active implementation
 

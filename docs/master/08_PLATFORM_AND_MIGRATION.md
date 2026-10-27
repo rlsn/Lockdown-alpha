@@ -45,6 +45,15 @@ transfers refresh the owner projection from that instance. Full-map sight uses
 its own 18m base and the inherited Blind/bonus rules, independently of cosmetic
 body/ground light. Legacy sight and fog formats remain separate.
 
+Traversal reserves an approved anchor on the authority while retaining the
+original world prop or installed physical item. Public endpoint geometry is
+separate from private user/deployer state. Native body movement, manual capsule
+occupancy and the owner's sequence-bound presentation must agree on the same
+supported start/end points. Cancel before death drops or unpossession; resetting
+an input reference must never duplicate the tool or leave an obsolete movement
+order active on the next life. Saturated return pads require an explicit safe
+pending state, followed by separate density stress validation.
+
 ## Static and mutable world
 
 Public static geography may be distributed with the map. Hidden units, distant mutable object state and private contents cannot be published as a global registry. Static terrain and required routes remain available to authority. Streaming/LOD cannot unload an active fight, carry binding or pending transaction.

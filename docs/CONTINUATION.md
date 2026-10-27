@@ -1,11 +1,14 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**. The latest [portable-tool checkpoint](v09/B91_TOOLS.md),
-at **0476cb4**, adds finite Torch/Lantern/Rope instances, retained fuel,
-cosmetic light and full-map 18m sight with inherited Blind/capped bonuses.
-Its 32 native checks retain one Torch through binding, lit drop, swap, end-life,
-life return and expiry. The expanded world has 204 fitted object sources and
-132 finite physical items. The [storage/cargo checkpoint](v09/B91_OBJECTS.md)
+B91 is **in progress**. The latest [approved-link checkpoint](v09/B91_TRAVERSAL.md),
+at **02a9c829cd18a25e15b5908f7ff62175eb760f4f**, adds 12 finite world ladders and 16 paired anchors, shared
+two-second traversal, one-user reservations and safe interruption/life handling.
+The expanded world has 232 object/anchor records, 288/480 functional sources
+including doors, and the same 132 finite physical items. The
+[portable-tool checkpoint](v09/B91_TOOLS.md), at 0476cb4, retains fuel through
+binding, drop, swap, end-life, life return and expiry, without adding sight.
+Full-map 18m sight retains inherited Blind/capped bonuses. The
+[storage/cargo checkpoint](v09/B91_OBJECTS.md)
 provides private storage and crate/barrel carry/place/push/break; all 49 checks
 pass again with portable tools present.
 The [first checkpoint](v09/B91_IMPLEMENTATION.md), at a5fc200, provides 36
@@ -38,18 +41,25 @@ body meshes stay hidden, authorized body proxies expire, and render cutaways
 preserve collision and server sight. The existing privacy-schema rule guards
 both observed formats and the explicit public environment-profile flag.
 
-Storage/cargo adds a separate six-field object view and owner-only container
+Storage/cargo uses a separate observed object view and owner-only container
 quotes. Empty ground reveals no held-item revision. Broken cover and observed
 empty space clear stale client obstacles without revealing a hidden destination.
 Native protected-pad tests cover all 72 doors, 16 stair landings, 24 spawns,
 36 service pads, the Heart and 117 route corridors. The 52 interior/stair walks,
 two-client door scenario and all 51 rules tests pass with the new objects active.
 
-Next B91 work is ladder/rope links, socket ignition, full-map flask/action
+Approved links extend that view with one public static paired endpoint, while
+keeping users, reservations, deployers and item identity private. All 16 pairs
+have native supported endpoints and capsule routes. Actual RPC movement covers
+ladder ascent/descent and Rope use; Root, Stun, heartbeat, occupancy, retrieval
+and end-life checks preserve supported landings and the original item/prop.
+
+Next B91 work is socket ignition, full-map flask/action
 integration, foliage/concealment and paid environment fields/contact. Functional
-initial sources now total 276 of 480, including doors; the remaining 204 props
-and 3,000 scenery trees are still required. T04 remains partial until the ladder
-race; T06/T07/T08 cover verified fuel, cargo and storage boundaries.
+initial sources now total 288 of 480, including doors; the remaining 192 props
+and 3,000 scenery trees are still required. T04 and T09 now cover the verified
+ladder race and optional-link boundary. T06/T07/T08 retain fuel, cargo and storage
+scope; the whole stage remains open.
 
 ## Retained B90 baseline
 
@@ -114,6 +124,9 @@ python -B Scripts/TestB91Import.py
 python -B Scripts/SyncB91Data.py --check
 ./Scripts/RunB91Check.ps1
 ./Scripts/RunB91Network.ps1
+./Scripts/RunB91Network.ps1 -Traversal -Port 7925
+./Scripts/RunB91Network.ps1 -Objects -Port 7921
+./Scripts/RunB91Network.ps1 -Tools -Port 7923
 ./Scripts/RunB91Network.ps1 -Capture -RenderedClient A
 ./Scripts/RunB91Network.ps1 -Capture -RenderedClient B
 ./Scripts/RunB90Structure.ps1
@@ -135,13 +148,11 @@ Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native output
 
 ## Next work
 
-Continue **B91 functional environment**, beginning with real warehouse storage,
-finite physical item instances and cargo. The door/stair/observation boundary is
-implemented. B91-T04–T15 still require pickup/carry races; portable definitions,
-accessory/fuel/drop behavior; heavy push/placement; private storage and one-time
-break drops; rope/ladder reservations; finite sapling/grass mutations; concealment/
-ledge rules; paid full-map environment actions/capacity; all 480 functional props
-and 3,000 scenery trees. Extend this dispatcher and inherited inventory/action/
+Continue **B91 functional environment** with finite saplings/grass, furniture,
+concealment/ledge rules, socket fire and paid full-map flask/environment actions
+and capacity. Interiors, stairs, doors, private storage, cargo, portable fuel and
+approved links have verified checkpoints. T05 and T10–T15 remain open, including
+all 480 functional props and 3,000 scenery trees. Extend this dispatcher and inherited inventory/action/
 receipt authority. Do not add cosmetic-only verbs or unbound item shortcuts.
 
 B90's twelve spatial cases pass; the

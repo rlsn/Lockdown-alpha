@@ -73,6 +73,14 @@ visible tool without becoming a sight source or exposing a hidden carrier's
 inventory. Public presentation carries a light cue; precise fuel belongs to the
 owner or a legally disclosed transaction view.
 
+Distinguish preparing a portable route from using one. A Rope requires its real
+accessory binding to attach; once installed, traversal is a held world action
+available to rivals. The original item leaves the bag and returns unbound when
+its owner detaches it. A Ladder stays world cargo throughout. Show the approved
+pair, landing, hold progress and refusal reason without exposing the hidden
+user or deployer's private identity. Control, damage, release or life change
+must resolve to a supported landing before ordinary input resumes.
+
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.

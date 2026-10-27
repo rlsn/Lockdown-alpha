@@ -29,6 +29,14 @@ The full-demo target is 144 shells with 36 enterable buildings, exactly 25%. Sel
 
 The representative encounter is Riverport frontage → rear entry → warehouse container → roof route → grass escape. It should demonstrate collision, sight, ownership and action decisions before those components expand across the map. B90 establishes structure; B91 owns interactive doors, interior completion, foliage, cargo and portable traversal.
 
+Optional vertical routes change exposure and timing without making a carried
+tool mandatory for reaching an essential location. An approved ladder or rope
+opens a bidirectional route that rivals may also use. Deployment commits real
+property; retrieval requires ownership, quiet and a free link. Permanent stairs
+must survive every deployment and retrieval. A roof route should be legible as
+a change of position and risk, with readable landings and interruption behavior,
+not a shortcut that clips a body through a solid facade.
+
 The [completed B90 structure](../v09/B90_COMPLETION.md) binds every settlement and
 service declaration to native floors and paths. Five cities have six service
 districts each; six towns have one selected service building each. A town's

@@ -1,7 +1,8 @@
 # B91 — functional environment
 
 This is the historical structural/door checkpoint. The later
-[finite storage/cargo report](B91_OBJECTS.md) records current object progress;
+[finite storage/cargo](B91_OBJECTS.md), [portable fuel](B91_TOOLS.md) and
+[approved traversal](B91_TRAVERSAL.md) reports record later object progress;
 each evidence bundle preserves the source it actually tested.
 
 Native source: **a5fc200df683f3a04054ad58cdf2d3c9fecf54dc**, based on the

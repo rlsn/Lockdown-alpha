@@ -1,0 +1,24 @@
+{
+	"phase": 6,
+	"completed": true,
+	"receipt_result": -1,
+	"receipt": "",
+	"local_nav_retries": 0,
+	"receipt_reason": "",
+	"duplicate_receipt_same": true,
+	"door_revision": 0,
+	"door_state": 0,
+	"door_observed": false,
+	"view_revision": 86,
+	"wire_fields": [
+		"Handle",
+		"PublicDoor",
+		"Position",
+		"Revision",
+		"State",
+		"Presentation",
+		"Facing",
+		"Light"
+	],
+	"received_entries": []
+}
