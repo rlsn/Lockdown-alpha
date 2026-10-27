@@ -99,7 +99,7 @@ void ALDB90TraversalProbe::BeginTrip()
     Phase=1; PlannedLength=Length=PeakSpeed=FallingSeconds=EmptySeconds=MaxEmptySeconds=EmptyDistance=0;
     Samples=WaterSamples=0; StartReplans=Controller->NavigationReplans;
     EmptyStart=LongestEmptyStart=LongestEmptyEnd=FVector::ZeroVector;
-    if(!Place(Definition->Find(Trips[TripIndex].From)->Position,true)) { EndTrip(false,TEXT("Start pad has no native floor")); }
+    if(!Place(Definition->NavigationTarget(Trips[TripIndex].From),true)) { EndTrip(false,TEXT("Start pad has no native floor")); }
 }
 
 void ALDB90TraversalProbe::SampleTravel(float Delta, bool Force)
@@ -205,7 +205,7 @@ void ALDB90TraversalProbe::Tick(float Delta)
         if(Now-PhaseAt<.3) { return; }
         if(!Body->GetCharacterMovement()->IsMovingOnGround())
         { if(Now-PhaseAt>3) { EndTrip(false,TEXT("Start did not settle onto native floor")); } return; }
-        const FVector Goal=Definition->Find(Trips[TripIndex].To)->Position;
+        const FVector Goal=Definition->NavigationTarget(Trips[TripIndex].To);
         auto* Native=UNavigationSystemV1::FindPathToLocationSynchronously(GetWorld(),Body->GetNavAgentLocation(),Goal);
         if(!Native||!Native->IsValid()||Native->IsPartial()) { EndTrip(false,TEXT("Native planning failed")); return; }
         for(int32 I=1;I<Native->PathPoints.Num();++I) { PlannedLength+=FVector::Distance(Native->PathPoints[I-1],Native->PathPoints[I]); }
@@ -214,7 +214,7 @@ void ALDB90TraversalProbe::Tick(float Delta)
     }
     if(Phase==2)
     {
-        SampleTravel(Delta); const FVector Goal=Definition->Find(Trips[TripIndex].To)->Position;
+        SampleTravel(Delta); const FVector Goal=Definition->NavigationTarget(Trips[TripIndex].To);
         if(FVector::Dist2D(Body->GetActorLocation(),Goal)<60)
         { SampleTravel(0,true); EndTrip(PeakSpeed<=421&&SafeEndpoint(),TEXT("Arrived by native movement")); }
         else if(!Controller->IsNavigating()||Now-WalkAt>FMath::Max(30.,PlannedLength/420*2.5+20))

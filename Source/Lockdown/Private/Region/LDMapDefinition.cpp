@@ -95,7 +95,7 @@ bool ULDMapDefinition::Import(const FString& Json, FString& Error)
 bool ULDMapDefinition::Validate(FString& Error) const
 {
     auto Fail = [&](const TCHAR* Why) { Error = Why; return false; };
-    if (Checksum != LD_B90_MAP_SHA || Hash(SourceJson) != Checksum || Seed != 9001 || LayoutRevision != 1 || FitterRevision != 1
+    if (Checksum != LD_B90_MAP_SHA || Hash(SourceJson) != Checksum || Seed != 9001 || LayoutRevision != 1 || FitterRevision != 2
         || POIs.Num() != 96 || Spawns.Num() != 24 || Buildings.Num() != 144 || Settlements.Num() != 11
         || Routes.Num() != 117 || Rivers.Num() != 3 || Bridges.Num() != 4)
     { return Fail(TEXT("B90 source identity/count mismatch")); }
@@ -124,6 +124,13 @@ bool ULDMapDefinition::Validate(FString& Error) const
 
 const FLDMapPoint* ULDMapDefinition::Find(FName Id) const
 { return POIs.FindByPredicate([&](const auto& P) { return P.Id == Id; }); }
+FVector ULDMapDefinition::NavigationTarget(FName Id) const
+{
+    const auto* P=Find(Id); if(!P) { return FVector::ZeroVector; }
+    FVector Target=P->Position;
+    if(Bridges.Contains(Id)) { Target.Z=FMath::Max(300.,Target.Z); }
+    return Target;
+}
 
 double ULDMapDefinition::Height(const FVector2D& XY) const
 {

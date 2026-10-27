@@ -111,10 +111,11 @@ void ALDCombatDirector::RefreshRiverContact(ALDCharacter* Body,int64 At,bool Bou
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);if(!M||!M->IsV08Profile()||!S||!Body){return;}auto& Last=RiverContacts.FindOrAdd(Body);if(At<Last.SampledAt){return;}
     const FVector Feet=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const auto* C=RiverCells.Find(LDRiver::Cell(Feet));FVector G;const bool Floor=LDGround::MapSurface(GetWorld(),Feet,G)&&FMath::Abs(Feet.Z-G.Z)<=12;
     const bool WaterContact=Floor&&((GetWorld()->GetMapName().Contains(TEXT("L_V08Region"))&&LDRiver::InRiver(Feet))||(C&&(C->Wet.Until>At||(C->Frozen.Until>At&&C->Frozen.WetSubstrate))));
-    if(S->Hp>0&&((WaterContact&&(Boundary||!Last.Wet))||(!WaterContact&&Last.Wet&&S->Tactical.Has(LDTactical::EStatus::Wet,At)))){LDTactical::Apply(S->Tactical,LDTactical::EStatus::Wet,At+(HasModifier(Body,TEXT("river_wading"),At)?1500:3000),FGuid());}
-    if(WaterContact){S->Tactical.Statuses.RemoveAll([](const auto& T){return T.Kind==LDTactical::EStatus::Burning;});BurningUnits.Remove(Body);}
-    S->Tactical.SurfaceSlow=S->Hp>0&&At>=LDTactical::Milliseconds(S->ProtectionUntil)&&Floor&&C&&!Body->IsA<ALDWildSentinel>()?(C->Frozen.Until>At?(HasModifier(Body,TEXT("ice_grip"),At)?15:30):C->Overgrown.Until>At?15:0):0;
-    Last.Wet=WaterContact;Last.SampledAt=At;
+    LDRiver::FContactInput Input;
+    Input.Floor=Floor; Input.Water=WaterContact; Input.Frozen=C&&C->Frozen.Until>At; Input.Growth=C&&C->Overgrown.Until>At;
+    Input.Alive=S->Hp>0; Input.Protected=At<LDTactical::Milliseconds(S->ProtectionUntil); Input.Immune=Body->IsA<ALDWildSentinel>();
+    Input.Wading=HasModifier(Body,TEXT("river_wading"),At); Input.IceGrip=HasModifier(Body,TEXT("ice_grip"),At);
+    if(LDRiver::RefreshContact(S->Tactical,Last.Wet,Last.SampledAt,Input,At,Boundary)) { BurningUnits.Remove(Body); }
 }
 void ALDCombatDirector::EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits)
 {

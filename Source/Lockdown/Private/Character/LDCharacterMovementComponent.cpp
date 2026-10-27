@@ -8,6 +8,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Engine/World.h"
+#include "Region/LDMapSurfaceSubsystem.h"
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
@@ -93,10 +94,14 @@ void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
 void ULDCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds,const FVector& OldLocation,const FVector& OldVelocity)
 {
     Super::OnMovementUpdated(DeltaSeconds,OldLocation,OldVelocity);
+    if(auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>();Surface&&Surface->Enabled())
+    { Surface->Refresh(Cast<ALDCharacter>(CharacterOwner),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())); }
     if(CharacterOwner&&CharacterOwner->HasAuthority()){if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsV08Profile()&&M->Combat){M->Combat->RefreshRiverContact(Cast<ALDCharacter>(CharacterOwner),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));}}
 }
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
+    if(GetWorld()) { if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>();Surface&&Surface->Enabled())
+    { const auto* C=Surface->Contact(Cast<ALDCharacter>(CharacterOwner)); return Super::GetMaxSpeed()*(1-(C?C->State.SurfaceSlow:0)/100.f); } }
     // Ordinary native NPCs use the same root/stun/hex movement contract.
     if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsTacticalProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
     {if(const auto* S=M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr){const uint16 Tags=S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));if(Tags&((1<<0)|(1<<3))){return 0;}int32 Slow=S->Tactical.SurfaceSlow;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){Slow=FMath::Max(Slow,T.Magnitude);}}return Super::GetMaxSpeed()*FMath::Min((Tags&(1<<5))?.5f:1.f,1-FMath::Clamp(Slow,0,60)/100.f);}}

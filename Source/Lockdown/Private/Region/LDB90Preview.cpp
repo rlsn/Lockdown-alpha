@@ -1,6 +1,8 @@
 #include "Region/LDB90Preview.h"
 #include "Region/LDMapDefinition.h"
 #include "Tests/LDB90TraversalProbe.h"
+#include "Tests/LDB90RiverProbe.h"
+#include "Region/LDMapSurfaceSubsystem.h"
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
@@ -50,7 +52,7 @@ bool ALDB90PreviewController::Plan(const FVector& Goal)
     if (!Route || !Route->IsValid() || Route->IsPartial()) { Feedback=TEXT("No complete native path"); return false; }
     Path=Route->PathPoints; Waypoint=1; Destination=Path.Last();
     ProgressAt=GetWorld()->GetTimeSeconds(); ProgressPosition=Body->GetActorLocation();
-    Feedback=TEXT("Walking at 420 cm/s"); return true;
+    Feedback=TEXT("Walking"); return true;
 }
 bool ALDB90PreviewController::NavigateTo(const FVector& Goal)
 { Stalls=0; return Plan(Goal); }
@@ -102,6 +104,8 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     }
     if(!TraversalStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90Traversal")))
     { TraversalStarted=true; GetWorld()->SpawnActor<ALDB90TraversalProbe>(); }
+    if(!RiverStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90RiverProbe")))
+    { RiverStarted=true; GetWorld()->SpawnActor<ALDB90RiverProbe>(); }
     if (RoutesVisible) { for (const auto& R:D->Routes) { for (int32 I=1; I<R.Points.Num(); ++I)
     { DrawDebugLine(GetWorld(),R.Points[I-1]+FVector(0,0,80),R.Points[I]+FVector(0,0,80),FColor::Cyan,false,0,0,5); } } }
     if (PadsVisible) { for (const auto& P:D->POIs)
@@ -140,7 +144,7 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     {
         const double Now=GetWorld()->GetTimeSeconds();
         const bool BridgeEntry=FParse::Param(FCommandLine::Get(),TEXT("LDB90BridgeEntry"));
-        const FVector Goal=D->Find(BridgeEntry?TEXT("east_bridge"):TEXT("heart"))->Position;
+        const FVector Goal=D->NavigationTarget(BridgeEntry?TEXT("east_bridge"):TEXT("heart"));
         if (!ProbeStarted && Now>2)
         {
             ProbeStarted=true;
@@ -169,8 +173,13 @@ void ALDB90PreviewController::PlayerTick(float Delta)
 void ALDB90PreviewHUD::DrawHUD()
 {
     Super::DrawHUD(); const auto* PC=Cast<ALDB90PreviewController>(PlayerOwner); if (!PC) { return; }
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,1000,85);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,1000,110);
     DrawText(TEXT("B90 FULL MAP / spatial review / combat, economy and population pending"),FLinearColor::White,22,20);
     DrawText(TEXT("RMB move | W/arrows walk | S stop | F1 routes | F2 POIs | F3 heights | F4 proxies | P navmesh"),FLinearColor::White,22,43);
     DrawText(PC->Feedback,FLinearColor::Yellow,22,66);
+    if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>())
+    { if(const auto* C=Surface->Contact(Cast<ALDCharacter>(PC->GetPawn())))
+      { const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());
+        const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+        DrawText(FString::Printf(TEXT("Wet: %s | Frozen floor: %s | Surface slow: %d%% | Max speed: %.0f cm/s"),C->State.Has(LDTactical::EStatus::Wet,At)?TEXT("active"):TEXT("clear"),C->Frozen?TEXT("yes"):TEXT("no"),C->State.SurfaceSlow,Body->GetCharacterMovement()->GetMaxSpeed()),FLinearColor::White,22,89); } }
 }

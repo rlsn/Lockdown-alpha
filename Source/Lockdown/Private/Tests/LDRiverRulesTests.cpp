@@ -5,6 +5,37 @@
 #include "Inventory/LDVendorDirector.h"
 #include "Net/DataBunch.h"
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDContactReducerTest,"Lockdown.Rules.MapRiverContact",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDContactReducerTest::RunTest(const FString& Parameters)
+{
+    using namespace LDTactical; FState S; bool Wet=false; int64 At=-1; LDRiver::FContactInput I; I.Floor=I.Water=true;
+    Apply(S,EStatus::Burning,9000,FGuid());
+    TestTrue(TEXT("Immediate native water entry"),LDRiver::RefreshContact(S,Wet,At,I,1000,false));
+    TestTrue(TEXT("Water extinguishes Burning and applies Wet"),S.Has(EStatus::Wet,3999)&&!S.Has(EStatus::Burning,1000));
+    LDRiver::RefreshContact(S,Wet,At,I,1100,true);
+    I.Water=false; LDRiver::RefreshContact(S,Wet,At,I,1150,false);
+    TestTrue(TEXT("Exit sets exact three-second residual"),!Wet&&S.Has(EStatus::Wet,4149)&&!S.Has(EStatus::Wet,4150));
+    LDRiver::RefreshContact(S,Wet,At,I,1200,true);
+    TestFalse(TEXT("Dry boundaries cannot extend residual"),S.Has(EStatus::Wet,4150));
+    I.Water=I.Frozen=true; LDRiver::RefreshContact(S,Wet,At,I,1300,false);
+    TestEqual(TEXT("Frozen contact is thirty-percent slow"),S.SurfaceSlow,30);
+    TestFalse(TEXT("Frozen floor never adds Stun"),S.Has(EStatus::Stun,1300));
+    S.Statuses.Reset(); I.IceGrip=true; I.Wading=true; LDRiver::RefreshContact(S,Wet,At,I,1400,true);
+    TestEqual(TEXT("Ice Grip halves surface slow"),S.SurfaceSlow,15);
+    I.Water=false; LDRiver::RefreshContact(S,Wet,At,I,1500,false);
+    TestTrue(TEXT("Wading sets 1500ms residual"),S.Has(EStatus::Wet,2999)&&!S.Has(EStatus::Wet,3000));
+    I.Protected=true; LDRiver::RefreshContact(S,Wet,At,I,1600,false); TestEqual(TEXT("Protection suppresses surface slow"),S.SurfaceSlow,0);
+    I.Protected=false; I.Floor=false; LDRiver::RefreshContact(S,Wet,At,I,1700,false); TestEqual(TEXT("No floor means no contact slow"),S.SurfaceSlow,0);
+    I.Floor=true; I.Immune=true; LDRiver::RefreshContact(S,Wet,At,I,1800,false); TestEqual(TEXT("Existing NPC immunity retained"),S.SurfaceSlow,0);
+    I.Immune=false; I.Alive=false; I.Water=true; S.Statuses.Reset(); LDRiver::RefreshContact(S,Wet,At,I,1900,true);
+    TestTrue(TEXT("Dead body gains neither Wet nor slow"),!S.Has(EStatus::Wet,1900)&&S.SurfaceSlow==0);
+    I.Alive=true; LDRiver::RefreshContact(S,Wet,At,I,2000,true);
+    TestFalse(TEXT("Older sample rejected"),LDRiver::RefreshContact(S,Wet,At,I,1999,true));
+    TestEqual(TEXT("Rejected sample leaves stamp unchanged"),At,int64(2000));
+    TestEqual(TEXT("Rejected sample leaves slow unchanged"),S.SurfaceSlow,15);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDRiverReactionTest,"Lockdown.Rules.V08WetFrostBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDRiverReactionTest::RunTest(const FString& Parameters)
 {

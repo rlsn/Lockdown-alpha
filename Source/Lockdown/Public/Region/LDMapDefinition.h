@@ -40,7 +40,7 @@ public:
     UPROPERTY() FString Checksum;
     UPROPERTY() int32 Seed = 9001;
     UPROPERTY() int32 LayoutRevision = 1;
-    UPROPERTY() int32 FitterRevision = 1;
+    UPROPERTY() int32 FitterRevision = 2;
     UPROPERTY() TArray<FLDMapPoint> POIs;
     UPROPERTY() TArray<FLDMapPoint> Spawns;
     UPROPERTY() TArray<FLDMapPoint> Settlements;
@@ -55,6 +55,7 @@ public:
     bool Import(const FString& Json, FString& Error);
     bool Validate(FString& Error) const;
     const FLDMapPoint* Find(FName Id) const;
+    FVector NavigationTarget(FName Id) const;
     double Height(const FVector2D& XY) const;
     bool RiverAt(const FVector& Surface) const;
     static bool InBounds(const FVector& Point);

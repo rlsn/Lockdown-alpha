@@ -1,4 +1,16 @@
 #include "Combat/LDRiverRules.h"
+bool LDRiver::RefreshContact(LDTactical::FState& State,bool& LastWet,int64& SampledAt,
+    const FContactInput& Input,int64 At,bool Boundary)
+{
+    if(At<SampledAt) { return false; }
+    const bool Water=Input.Floor&&Input.Water;
+    if(Input.Alive&&((Water&&(Boundary||!LastWet))||(!Water&&LastWet&&State.Has(LDTactical::EStatus::Wet,At))))
+    { LDTactical::Apply(State,LDTactical::EStatus::Wet,At+(Input.Wading?1500:3000),FGuid()); }
+    if(Water) { State.Statuses.RemoveAll([](const auto& S){return S.Kind==LDTactical::EStatus::Burning;}); }
+    State.SurfaceSlow=Input.Alive&&!Input.Protected&&Input.Floor&&!Input.Immune
+        ?Input.Frozen?(Input.IceGrip?15:30):Input.Growth?15:0:0;
+    LastWet=Water; SampledAt=At; return Water;
+}
 TArray<FIntPoint> LDRiver::Footprint(FVector Start,FVector Aim,double Length,double Width,bool Disk)
 {
     TArray<FIntPoint> Out;const FVector Dir=(Aim-Start).GetSafeNormal2D();

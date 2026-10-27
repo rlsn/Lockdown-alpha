@@ -66,7 +66,7 @@ def compile_map():
     payload = dict(schema=9, stage='B90', profile='v09_full', seed=9001, revision=1,
                    bounds=world['bounds_cm'], speed=420, inset=2000,
                    # A fitted mesh is a separate versioned product; source coordinates stay intact.
-                   fitter_revision=1,
+                   fitter_revision=2,
                    pois=[dict(id=r['id'], name=r['name'], kind=r['kind'], position=r['position_cm']) for r in pois],
                    spawns=points(data['spawn_pads']['rows']),
                    settlements=[dict(id=r['id'], position=r['position_cm'], radius=r['footprint_radius_cm'])

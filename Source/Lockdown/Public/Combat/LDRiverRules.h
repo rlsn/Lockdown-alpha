@@ -5,6 +5,14 @@
 // B82's two-state slice. Grid origin matches the authored public region grid.
 namespace LDRiver
 {
+    struct FContactInput
+    {
+        bool Floor=false, Water=false, Frozen=false, Growth=false;
+        bool Alive=true, Protected=false, Immune=false, Wading=false, IceGrip=false;
+    };
+    // Shared contact reducer. Returns true when external Burning attribution must clear.
+    LOCKDOWN_API bool RefreshContact(LDTactical::FState& State,bool& LastWet,int64& SampledAt,
+        const FContactInput& Input,int64 At,bool Boundary);
     constexpr int32 CellSize=200, CastCap=16, OwnerCap=64, MatchCap=256;
     inline FIntPoint Cell(FVector P){return FIntPoint(FMath::FloorToInt((P.X+6000)/200),FMath::FloorToInt((P.Y+4000)/200));}
     inline FVector Centre(FIntPoint C){return FVector(-5900+C.X*200,-3900+C.Y*200,0);}

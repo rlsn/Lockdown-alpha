@@ -37,6 +37,7 @@ private:
     bool ProbeStarted = false;
     int32 CaptureState = 0;
     bool TraversalStarted = false;
+    bool RiverStarted = false;
     FVector Destination = FVector::ZeroVector;
     FVector ProgressPosition = FVector::ZeroVector;
     double ProgressAt = 0;

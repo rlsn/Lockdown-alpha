@@ -1,2 +1,2 @@
 #pragma once
-#define LD_B90_MAP_SHA TEXT("5518d6ea1e115c92e1ec1f12ad3454628c9b182fd15d6ff2ed6a5cbd450fa5de")
+#define LD_B90_MAP_SHA TEXT("80edef1004242f5044a5aa916949ba7960eecebb6a8d83a0a4165b950832255c")

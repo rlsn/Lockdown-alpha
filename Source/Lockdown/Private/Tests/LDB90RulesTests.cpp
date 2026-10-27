@@ -1,4 +1,5 @@
 #include "Region/LDMapDefinition.h"
+#include "Region/LDMapSurfaceSubsystem.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
@@ -26,6 +27,13 @@ bool FLDB90MapRules::RunTest(const FString& Parameters)
     TestFalse(TEXT("Dry bridge above water has no river contact"),D->RiverAt(FVector(-27000,65000,200)));
     TestFalse(TEXT("Dry Heart circle"),D->RiverAt(D->Find(TEXT("heart"))->Position));
     TestTrue(TEXT("Western Heart inset provides water alternative"),D->RiverAt(D->WetInset));
+    for(FName Id:D->Bridges) { TestTrue(TEXT("Bridge target selects fitted dry layer"),D->NavigationTarget(Id).Z>=300&&!D->RiverAt(D->NavigationTarget(Id))); }
+    FIntPoint Cell;
+    TestTrue(TEXT("Independent full-map cell origin"),ULDMapSurfaceSubsystem::Cell(FVector(-120000,-120000,0),Cell)&&Cell==FIntPoint(0,0));
+    TestTrue(TEXT("Negative coordinates retain 2m precision"),ULDMapSurfaceSubsystem::Cell(FVector(-1,-201,0),Cell)&&Cell==FIntPoint(599,598));
+    TestTrue(TEXT("Last cell uses full 1200x1200 address space"),ULDMapSurfaceSubsystem::Cell(FVector(119999,119999,0),Cell)&&Cell==FIntPoint(1199,1199));
+    TestFalse(TEXT("Upper cell boundary is exclusive"),ULDMapSurfaceSubsystem::Cell(FVector(120000,0,0),Cell));
+    TestFalse(TEXT("Lower cell boundary rejects overflow"),ULDMapSurfaceSubsystem::Cell(FVector(-120001,0,0),Cell));
     TestFalse(TEXT("Full-map origin is outside legacy extent assumptions"),ULDMapDefinition::InBounds(FVector(120000,0,0)));
     return true;
 }

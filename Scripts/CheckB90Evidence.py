@@ -15,7 +15,7 @@ def check(directory, walk=None, compare=None, bridge_entry=None):
     payload = (ROOT / 'Content/Lockdown/Data/V09/map_b90.json').read_bytes()
     source = json.loads(payload)
     assert report['stage'] == 'B90' and report['payload_sha256'] == hashlib.sha256(payload).hexdigest()
-    assert report['seed'] == 9001 and report['layout_revision'] == report['fitter_revision'] == 1
+    assert report['seed'] == 9001 and report['layout_revision'] == 1 and report['fitter_revision'] == 2
     assert report['terrain_tiles'] == 144 and report['spawn_actors'] == 24 and report['failures'] == 0
     assert report['missing_ground_samples'] == 0
     assert report['max_sampled_grade'] <= .25

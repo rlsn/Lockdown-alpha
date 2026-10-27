@@ -136,7 +136,7 @@ void BuildBridge(UWorld* W, const ULDMapDefinition* D, FName Id)
         if (Distance < Best) { Best = Distance; Centre = P; Tangent = Delta.GetSafeNormal2D(); Width = River.Width; }
     } }
     const FVector Across(-Tangent.Y, Tangent.X, 0); const double Half = Width*.5+6000;
-    const double Deck = FMath::Max(200.,POI->Position.Z);
+    const double Deck = D->NavigationTarget(Id).Z;
     auto Point = [&](double Along)
     {
         FVector P = Centre+Across*Along;
@@ -204,7 +204,9 @@ void SurfaceGeometry(UWorld* W, const ULDMapDefinition* D)
     Water->AddInstance(FTransform(FRotator::ZeroRotator,D->WetInset+FVector(0,0,5),FVector(D->WetSize.X,D->WetSize.Y,2)/100.));
     for(const auto& R:D->Routes) { for(int32 I=1;I<R.Points.Num();++I)
     {
-        auto* Path=UNavigationSystemV1::FindPathToLocationSynchronously(W,R.Points[I-1],R.Points[I]);
+        const FVector A=I==1?D->NavigationTarget(R.From):R.Points[I-1];
+        const FVector B=I==R.Points.Num()-1?D->NavigationTarget(R.To):R.Points[I];
+        auto* Path=UNavigationSystemV1::FindPathToLocationSynchronously(W,A,B);
         if(!Path||!Path->IsValid()||Path->IsPartial()) { continue; } // Evidence() rejects any missing native route.
         for(int32 J=1;J<Path->PathPoints.Num();++J) { Strip(Roads,Path->PathPoints[J-1],Path->PathPoints[J],R.Width,true); }
     } }
@@ -293,7 +295,8 @@ bool Evidence(UWorld* W, const ULDMapDefinition* D, const FString& Output)
         FHitResult Ground;
         const bool HasGround=W->LineTraceSingleByChannel(Ground,P.Position+FVector(0,0,1000),P.Position-FVector(0,0,1200),ECC_GameTraceChannel1);
         FNavLocation Location;
-        const bool Found = Nav->ProjectPointToNavigation(P.Position,Location,FVector(60,60,900));
+        const FVector Target=D->Find(P.Id)?D->NavigationTarget(P.Id):P.Position;
+        const bool Found = Nav->ProjectPointToNavigation(Target,Location,FVector(60,60,D->Bridges.Contains(P.Id)?80:900));
         if (!Found || FVector::DistSquared2D(P.Position,Location.Location)>60*60) { ++Failed; }
         else { Destinations.Add(P.Id,Location.Location); }
         auto Row = MakeShared<FJsonObject>(); Row->SetStringField(TEXT("id"),P.Id.ToString()); Row->SetBoolField(TEXT("projected"),Found);
