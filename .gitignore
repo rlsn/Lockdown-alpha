@@ -56,3 +56,4 @@ Desktop.ini
 
 # Source, Config, Content, Build resources, docs and .uproject stay tracked.
 # In particular, never ignore .uasset, .umap, or World Partition external actors.
+/.workbuddy
