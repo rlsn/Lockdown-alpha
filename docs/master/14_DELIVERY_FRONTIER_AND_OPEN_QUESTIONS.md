@@ -47,12 +47,21 @@ fitting priorities.
 | Frontier | Required next work |
 | --- | --- |
 | B90 spatial acceptance | Complete; retain evidence and recheck affected paths/contact/geometry after later mutations |
-| B91 functional environment | Complete selected interiors/stairs/doors, atomic proxy mutations, foliage, containers, heavy carry and traversal |
+| B91 functional environment | Selected structural interiors, permanent stairs and authoritative doors implemented; finish storage/cargo, portable items/traversal, foliage, paid environment integration and full fitting |
 | B92 living population/economy | Five conserved market pools, shared stock, finite contracts/endowments, roster/routines/security and legal AI progression |
 | B93 route convergence | Full-map earned routes, physical cargo, warnings and exact capital claim endpoints |
 | B94 full-session acceptance | Normal 60/75/90-minute scenarios, restricted clients, density/field stress and human pacing evidence |
 
 ## Product questions to answer through play
+
+The [first B91 increment](../v09/B91_IMPLEMENTATION.md) provides native interior
+and stair walks plus two-owner door transactions and restricted received views.
+Full-map observation uses a separate sparse payload, preserving the old grid
+codec. Source revisions drive physical/sight/local-nav changes; repeated snapshots
+must not trigger fresh navigation mutations. Rendering a client exposed that
+liveness requirement during implementation. Camera cutaways preserve authority
+occlusion and present only observed body proxies. The stage remains in progress;
+the complete Riverport storage → roof/traversal → grass encounter is next.
 
 Can a new player find income, prepare a useful toolkit and understand the Heart without external coaching? Does a quiet economic opening remain competitive after buying real defenses? Can a weaker defender identify and execute a legal interruption? Does losing cargo create a new plan or erase all motivation? Do travelers/cities support readable uncertainty without confusing reliable services?
 

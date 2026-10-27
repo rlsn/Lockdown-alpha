@@ -1,0 +1,33 @@
+{
+  "stage": "B91",
+  "status": "In progress",
+  "increment": "Structural interiors, permanent stairs and authoritative doors",
+  "completed_cases": [
+    "B91-T01",
+    "B91-T02",
+    "B91-T03"
+  ],
+  "open_cases": [
+    "B91-T04",
+    "B91-T05",
+    "B91-T06",
+    "B91-T07",
+    "B91-T08",
+    "B91-T09",
+    "B91-T10",
+    "B91-T11",
+    "B91-T12",
+    "B91-T13",
+    "B91-T14",
+    "B91-T15"
+  ],
+  "full_stage_acceptance": false,
+  "native_walks": 52,
+  "native_rules": 51,
+  "video_scope": "Two independent owning clients per run; A/B recorded in separate runs with one renderer and one headless peer; reduced 720p settings, ~5Hz timestamped frames",
+  "later_stage_dependencies": [
+    "B92 population/economy/security",
+    "B93 earned full-map victory",
+    "B94 full-session/stress/human acceptance"
+  ]
+}

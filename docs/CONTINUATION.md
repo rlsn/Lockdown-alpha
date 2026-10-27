@@ -1,4 +1,37 @@
-# Active continuation — B90 complete; B91 next
+# Active continuation — B91 functional environment
+
+B91 is **in progress**, at native source **a5fc200**. Its [first verified increment](v09/B91_IMPLEMENTATION.md)
+provides 36 structural interiors, 16 permanent stair flights, 72 authoritative
+doors and a restricted full-map observation path. The B91 audit pins the exact
+source, contracts, native reports, recordings and unchanged map/input hashes.
+The remaining B91 object cases stay open in the working ledger.
+
+`v09_environment` is an explicit development profile on `L_V09Full`, selected
+with `LDB91GameMode`. It reuses contender/life state, combat control gates and
+native navigation/CharacterMovement. It starts no legacy residents, markets,
+endowments or Heart victory executors. This is not B92 full-match admission.
+The B90 `v09_full` spatial review and playable `v08_integration` remain separate.
+
+All 52 interior/stair walks pass with zero falling. Door holds bind match, life,
+sequence, layout, compiled contract, observed handle and object revision. They
+revalidate input, range, sight, movement, damage, protection/control and quiet
+before one collision/sight/local-nav mutation. Public fronts cannot lock; rear
+ownership is exact, occupied closure rejects and forced rears stay broken-open.
+Duplicate sequences replay receipts; unchanged snapshots do no proxy work.
+
+Two real remote owners pass doorway movement, observer loss/return, occupied
+rejection and a one-winner race. Each view has timestamped native video from a
+separate two-owner run with one renderer and one headless peer. Simultaneous dual
+rendering exhausted memory. The reduced 720p recordings establish no frame-rate,
+full-session or human pacing acceptance.
+
+The separate bounded full-map snapshot preserves the old 60×40 fog codec. Hidden
+door changes stay private; reobservation returns current state. Nonowner canonical
+body meshes stay hidden, authorized body proxies expire, and render cutaways
+preserve collision and server sight. The existing privacy-schema rule guards
+both observed formats and the explicit public environment-profile flag.
+
+## Retained B90 baseline
 
 Native source **7e96ece** completes the B90 world skeleton at its stage-owned spatial boundary, based on
 **ebc19a5, v0.8 B86**. Read [completion and current evidence](v09/B90_COMPLETION.md),
@@ -7,7 +40,7 @@ The completion audit pins the exact native source commit, retained asset bytes,
 commands and raw reports. Earlier foundation/traversal/river/approach reports
 remain historical evidence; their hashes and supplied source package are unchanged.
 
-## Current boundaries
+## B90 boundaries
 
 B86 remains the playable short-map schema8 baseline: 52 abilities, 80 items, 20 recipes, nine presets, six mixed actions, eleven bindings, bounded fields and four earned Heart routes. Its original payloads, map assets, evidence and inherited deferrals remain unchanged.
 
@@ -57,6 +90,12 @@ python -B Scripts/SyncV09Data.py --check
 python -B Scripts/SyncB84Data.py --check
 ./Scripts/BuildEditor.ps1 -MaxParallelActions 3
 ./Scripts/BuildB90Map.ps1 -Validate
+python -B Scripts/TestB91Import.py
+python -B Scripts/SyncB91Data.py --check
+./Scripts/RunB91Check.ps1
+./Scripts/RunB91Network.ps1
+./Scripts/RunB91Network.ps1 -Capture -RenderedClient A
+./Scripts/RunB91Network.ps1 -Capture -RenderedClient B
 ./Scripts/RunB90Structure.ps1
 ./Scripts/RunB90Closure.ps1
 ./Scripts/RunB90River.ps1
@@ -69,13 +108,23 @@ python -B Scripts/SyncB84Data.py --check
 ./Scripts/RunB90Traversal.ps1 -Lane Approaches -Capture
 python -B Scripts/CheckB90Completion.py docs/v09/evidence/B90Completion
 ./Scripts/OpenB90.ps1
+./Scripts/OpenB91.ps1 -Visible
 ~~~
 
 Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native outputs and exact commands are retained in the portable B90 evidence/audit. Paths, estimates, walked times, fixtures and human evidence stay distinct. Root Artifacts contains local full logs and earlier failed development attempts.
 
 ## Next work
 
-Proceed to **B91 functional environment**. B90's twelve spatial cases pass; the
+Continue **B91 functional environment**, beginning with real warehouse storage,
+finite physical item instances and cargo. The door/stair/observation boundary is
+implemented. B91-T04–T15 still require pickup/carry races; portable definitions,
+accessory/fuel/drop behavior; heavy push/placement; private storage and one-time
+break drops; rope/ladder reservations; finite sapling/grass mutations; concealment/
+ledge rules; paid full-map environment actions/capacity; all 480 functional props
+and 3,000 scenery trees. Extend this dispatcher and inherited inventory/action/
+receipt authority. Do not add cosmetic-only verbs or unbound item shortcuts.
+
+B90's twelve spatial cases pass; the
 completion report separately records later gameplay dependencies in composite
 acceptance sentences. B92 must still initialize and reset the full-profile
 economy and reconcile its five markets. Fit useful opportunities along the

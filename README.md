@@ -1,4 +1,4 @@
-# Project Lockdown — v0.9 B90 world skeleton
+# Project Lockdown — v0.9 B91 functional environment in progress
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
@@ -9,6 +9,7 @@ standalone spatial preview is separate from full-match gameplay, which still
 requires the dependent B91–B94 work.
 
 Start with the [active handoff](docs/CONTINUATION.md),
+[B91 functional-environment progress](docs/v09/B91_IMPLEMENTATION.md),
 [B90 completion and evidence](docs/v09/B90_COMPLETION.md),
 [v0.9 stage plan](docs/v09/09_IMPLEMENTATION_STAGES.md), and
 [living game design](docs/master/README.md). The master now covers vision,
@@ -19,6 +20,14 @@ economy and long-term development decisions.
 python -B Scripts/SyncV09Data.py --check
 ./Scripts/BuildB90Map.ps1 -Validate
 ./Scripts/OpenB90.ps1
+```
+
+The first B91 increment adds fitted interiors, permanent stairs and authoritative
+doors, with restricted two-owner observation and native recordings:
+
+```powershell
+python -B Scripts/SyncB91Data.py --check
+./Scripts/OpenB91.ps1 -Visible
 ```
 
 ## Retained v0.8 playable integration

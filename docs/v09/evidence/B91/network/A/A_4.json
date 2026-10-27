@@ -1,0 +1,38 @@
+{
+	"phase": 4,
+	"completed": true,
+	"receipt_result": 2,
+	"receipt": "2DB4F6F949A36B5E170445A05B567C25",
+	"local_nav_retries": 0,
+	"receipt_reason": "Door cannot close or doorway is occupied",
+	"duplicate_receipt_same": true,
+	"door_revision": 5,
+	"door_state": 1,
+	"door_observed": true,
+	"view_revision": 71,
+	"wire_fields": [
+		"Handle",
+		"PublicDoor",
+		"Position",
+		"Revision",
+		"State",
+		"Presentation",
+		"Facing"
+	],
+	"received_entries": [
+		{
+			"handle": "2323A6794B69BC8ECCE1BF8DE1D35F52",
+			"public_door": "building_riverport_00_door_north",
+			"position_cm": "X=-87800.000 Y=-71120.000 Z=130.000",
+			"revision": 5,
+			"state": 1
+		},
+		{
+			"handle": "92B8003649BC300B2B7F8189B673D2A9",
+			"public_door": "None",
+			"position_cm": "X=-87800.000 Y=-71120.000 Z=92.200",
+			"revision": 0,
+			"state": 0
+		}
+	]
+}

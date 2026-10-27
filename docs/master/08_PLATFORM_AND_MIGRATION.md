@@ -21,6 +21,14 @@ Existing foundations include native character movement, authoritative navigation
 
 B90 uses an independent full-map definition because the legacy region/grid format has small-map assumptions. Do not enlarge a wire field or fog allocation casually to make coordinates fit. Full-profile observation/replication requires deliberate B91–B94 integration and restricted-client evidence.
 
+The initial B91 environment implements a separate bounded full-map observation
+snapshot. Public door addresses accompany observer-local handles; other bodies
+carry only authorized presentation. Current visibility is revalidated before a
+handle can authorize an interaction. Last-known door presentation can remain
+after sight is lost, while hidden mutations stay private. Unchanged observed
+revisions do no collision/navigation work. This preserves both privacy and local
+path liveness; the old fog wire format remains unchanged.
+
 ## Static and mutable world
 
 Public static geography may be distributed with the map. Hidden units, distant mutable object state and private contents cannot be published as a global registry. Static terrain and required routes remain available to authority. Streaming/LOD cannot unload an active fight, carry binding or pending transaction.

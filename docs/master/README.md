@@ -13,7 +13,9 @@ boundary: native journeys, movement boundaries, river/ice contact, key-target
 approaches, settlement/service mapping, doorway clearance, deterministic saved
 geometry and actual reset/profile isolation. F6 exposes public settlement
 geography and policy outlines; live services and guards remain B92 work. The
-next implementation stage is B91's functional environment. Living population,
+current implementation stage is [B91's functional environment](../v09/B91_IMPLEMENTATION.md),
+with structural interiors, permanent stairs and native door authority verified.
+Storage/cargo, foliage and portable interactions remain. Living population,
 full-map economy and earned victory integration remain on the delivery frontier.
 
 ## Reading paths
