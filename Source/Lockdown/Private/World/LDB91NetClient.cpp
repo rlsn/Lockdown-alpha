@@ -20,12 +20,13 @@ void ALDB91Controller::ServerB91ProbeHello_Implementation(uint8 ProbeIdentity)
 void ALDB91Controller::ServerB91ProbeAck_Implementation(uint8 Phase,const FString& Report)
 {if(Probe()&&EnvironmentProbeRole&&Phase>=1&&Phase<=8&&Report.Len()<65536){EnvironmentProbeReports.Add(Phase,Report);}}
 void ALDB91Controller::ClientB91ProbeTask_Implementation(uint8 Phase)
-{if(Probe()&&Phase>=1&&Phase<=8){ProbeTask=Phase;ProbeStep=ProbeRetries=0;ProbeSent=false;ProbeAt=ProbeRetryAt=GetWorld()->GetTimeSeconds();ProbeReceipt.Invalidate();}}
+{if(Probe()&&Phase>=1&&Phase<=8){ProbeTask=Phase;ProbeStep=ProbeRetries=0;ProbeSent=false;ProbeAt=ProbeRetryAt=GetWorld()->GetTimeSeconds();ProbeReceipt.Invalidate();ToolProbeDevToken=ToolProbeDevNonce=0;}}
 void ALDB91Controller::TickB91Probe()
 {
     if(!Probe()||GetNetMode()!=NM_Client||!IsLocalController()||!GetPawn()||!OwnerState.Match){return;}
     if(!EnvironmentProbeRole)
     {FString ProbeLabel;FParse::Value(FCommandLine::Get(),TEXT("B91Role="),ProbeLabel);EnvironmentProbeRole=ProbeLabel==TEXT("A")?1:2;ServerB91ProbeHello(EnvironmentProbeRole);}
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ToolsProbe"))){TickB91ToolsProbe();return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ObjectsProbe"))){TickB91ObjectsProbe();return;}
     const double Now=GetWorld()->GetTimeSeconds();
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91NetCapture"))&&Now-ProbeCaptureAt>=.2
@@ -88,7 +89,7 @@ void ALDB91Controller::TickB91Probe()
     for(TFieldIterator<FProperty> I(FLDEnvironmentViewEntry::StaticStruct());I;++I){Fields.Add(MakeShared<FJsonValueString>(I->GetName()));}
     for(const auto& Entry:View)
     {auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("handle"),Entry.Handle.ToString());J->SetStringField(TEXT("public_door"),Entry.PublicDoor.ToString());
-     J->SetStringField(TEXT("position_cm"),FVector(Entry.Position).ToString());J->SetNumberField(TEXT("revision"),Entry.Revision);J->SetNumberField(TEXT("state"),Entry.State);Rows.Add(MakeShared<FJsonValueObject>(J));}
+     J->SetStringField(TEXT("position_cm"),FVector(Entry.Position).ToString());J->SetNumberField(TEXT("revision"),Entry.Revision);J->SetNumberField(TEXT("state"),Entry.State);J->SetNumberField(TEXT("light"),Entry.Light);Rows.Add(MakeShared<FJsonValueObject>(J));}
     R->SetArrayField(TEXT("wire_fields"),Fields);R->SetArrayField(TEXT("received_entries"),Rows);
     FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));ServerB91ProbeAck(ProbeTask,Json);
     FString Output;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Output);

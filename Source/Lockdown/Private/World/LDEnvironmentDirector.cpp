@@ -1,5 +1,7 @@
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91Contract.h"
+#include "World/LDPortableTools.h"
+#include "Development/LDV08Loadout.h"
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Vision/LDVisionDirector.h"
@@ -140,11 +142,16 @@ bool ALDEnvironmentDirector::Visible(ALDPlayerController* PC,AActor* A) const
     const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;if(!B||!IsValid(A)||!PC->OwnerState.bActive){return false;}
     const FVector Target=Cast<ALDEnvironmentDoor>(A)?A->GetActorLocation()-FVector(0,0,40):A->GetActorLocation();
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    const auto* S=M&&M->Combat?M->Combat->StateFor(B):nullptr;
-    const double Radius=S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):1800;
+    const double Radius=SightFor(PC);
     if(!Ray(B->GetActorLocation(),Target,A->IsA<ALDEnvironmentDoor>()?A:nullptr,Radius)){return false;}
     if(const auto* Other=Cast<ALDCharacter>(A);Other&&M&&M->Combat&&M->Combat->Concealed(Other)&&Other!=B)
     {return M->Vision&&M->Vision->Detects(PC,Other->GetActorLocation());}return true;
+}
+float ALDEnvironmentDirector::SightFor(ALDPlayerController* PC) const
+{
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=Body&&M&&M->Combat?M->Combat->StateFor(Body):nullptr;
+    if(S&&S->Tactical.Has(LDTactical::EStatus::Blind,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()))){return 200;}
+    const auto* O=PC&&M?M->StateFor(PC):nullptr;return 1800+FMath::Clamp(O?LDV08::TraitValue(O->Build,TEXT("sight"),O->Build.Gear.SightBonus):0,0,50);
 }
 AActor* ALDEnvironmentDirector::Resolve(ALDPlayerController* PC,FGuid Handle) const
 {
@@ -240,7 +247,7 @@ void ALDEnvironmentDirector::Publish()
             auto& Id=Observer.Handles.FindOrAdd(A);if(!Id.IsValid()){Id=FGuid::NewGuid();}Observer.Visible.Add(Id);
             FLDEnvironmentViewEntry E;E.Handle=Id;E.Position=A->GetActorLocation();
             if(const auto* D=Cast<ALDEnvironmentDoor>(A)){E.PublicDoor=D->Id;E.Revision=D->Revision;E.State=D->State();}
-            else if(const auto* B=Cast<ALDCharacter>(A)){E.Presentation=B->PresentationKey%4;E.State=M->Combat->CueFor(B);E.Facing=uint16(FRotator::ClampAxis(B->GetActorRotation().Yaw)/360*65535);}
+            else if(const auto* B=Cast<ALDCharacter>(A)){E.Presentation=B->PresentationKey%4;E.State=M->Combat->CueFor(B);E.Facing=uint16(FRotator::ClampAxis(B->GetActorRotation().Yaw)/360*65535);E.Light=LDPortableTools::LightFor(Cast<ALDPlayerController>(B->GetController()));}
             Entries.Add(E);
         };
         for(auto D:Doors){if(D.IsValid()){Add(D.Get());}}

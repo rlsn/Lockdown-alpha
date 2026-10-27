@@ -92,7 +92,7 @@ TArray<FLDSightSource> ALDVisionDirector::SourcesFor(ALDPlayerController* PC) co
     {
         if(PC&&PC->OwnerState.bActive)
         {if(const auto* B=Cast<ALDCharacter>(PC->GetPawn()))
-         {const auto* S=M->Combat?M->Combat->StateFor(B):nullptr;Sources.Add({B->GetActorLocation(),S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):1800,0});}}
+         {const auto* E=ALDEnvironmentDirector::Get(GetWorld());Sources.Add({B->GetActorLocation(),E?E->SightFor(PC):0,0});}}
         return Sources;
     }
     if (bPublicSensor && !GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime) { Sources.Add({PublicLocation(),600,1}); }

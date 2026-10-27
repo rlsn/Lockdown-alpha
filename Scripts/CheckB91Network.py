@@ -17,7 +17,7 @@ def check(directory):
     for role, phases in [('A', (1, 3, 4, 5, 8)), ('B', (2, 6, 7, 8))]:
         for phase in phases:
             data = read(f'{role}_{phase}.json')
-            assert data['completed'] and set(data['wire_fields']) == fields
+            assert data['completed'] and set(data['wire_fields']) in (fields, fields|{'Light'})
             assert len(data['received_entries']) <= 128
             if phase not in (6, 7, 8):
                 assert data['receipt_result'] == (2 if phase == 4 else 1)

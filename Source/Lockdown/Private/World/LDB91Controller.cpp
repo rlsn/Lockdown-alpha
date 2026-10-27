@@ -1,4 +1,5 @@
 #include "World/LDEnvironmentDirector.h"
+#include "World/LDPortableTools.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -6,6 +7,7 @@
 #include "Engine/World.h"
 #include "Engine/Canvas.h"
 #include "EngineUtils.h"
+#include "Components/PointLightComponent.h"
 
 ALDB91GameMode::ALDB91GameMode()
 {PlayerControllerClass=ALDB91Controller::StaticClass();HUDClass=ALDB91HUD::StaticClass();}
@@ -37,9 +39,11 @@ void ALDB91Controller::ClientEnvironmentView_Implementation(uint32 Match,uint32 
         {
             auto* A=GetWorld()->SpawnActor<AActor>();A->SetActorEnableCollision(false);
             Visual=NewObject<ULDHumanoidVisualComponent>(A);A->SetRootComponent(Visual);A->AddInstanceComponent(Visual);Visual->RegisterComponent();Weak=Visual;
+            auto* Glow=NewObject<UPointLightComponent>(A);A->AddInstanceComponent(Glow);Glow->SetupAttachment(Visual);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->RegisterComponent();Glow->SetVisibility(false);
         }
         Visual->SetWorldLocationAndRotation(Entry.Position,FRotator(0,Entry.Facing/65535.*360,0));
         Visual->ApplyPalette(Entry.Presentation%4);Visual->SetCue(Entry.State);Visual->SetVisibility(true,true);
+        if(auto* Glow=Visual->GetOwner()->FindComponentByClass<UPointLightComponent>()){Glow->SetAttenuationRadius(Entry.Light==2?800:600);Glow->SetVisibility(Entry.Light==1||Entry.Light==2);}
     }
     for(auto I=BodyViews.CreateIterator();I;++I)
     {if(!View.ContainsByPredicate([&](const auto& Entry){return Entry.PublicDoor.IsNone()&&Entry.Handle==I.Key();}))
@@ -66,6 +70,7 @@ void ALDB91Controller::ReleaseDoor()
 void ALDB91Controller::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);if(!IsLocalController()){return;}
+    if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetPortableLight(LDPortableTools::LightFor(this));}
     TickB91Probe();
     const double Now=GetWorld()->GetTimeSeconds();
     if(GetNetMode()==NM_Client&&!ALDEnvironmentDirector::Get(GetWorld()))
@@ -73,7 +78,7 @@ void ALDB91Controller::PlayerTick(float Delta)
     if(Now-LastViewAt>.5||OwnerState.Match!=LastViewMatch||OwnerState.Life!=LastViewLife)
     {View.Reset();for(auto& P:BodyViews){if(P.Value.IsValid()){P.Value->GetOwner()->Destroy();}}BodyViews.Reset();}
     if(Now-ObjectViewAt>.5||OwnerState.Match!=ObjectViewMatch||OwnerState.Life!=ObjectViewLife)
-    {ObjectView.Reset();ContainerView.Reset();ContainerHandle.Invalidate();for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->Proxy->SetVisibility(false);}}}
+    {ObjectView.Reset();ContainerView.Reset();ContainerHandle.Invalidate();for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->SetObserved(false);}}}
     if(WasInputKeyJustPressed(EKeys::RightMouseButton))
     {ReleaseDoor();FHitResult Hit;if(CanWorldCommand()&&GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){Navigation->Navigate(Hit.ImpactPoint);}}
     if(WasInputKeyJustPressed(EKeys::S)||WasInputKeyJustPressed(EKeys::Escape)){ReleaseDoor();Navigation->Stop();}
@@ -84,6 +89,12 @@ void ALDB91Controller::PlayerTick(float Delta)
     if(WasInputKeyJustPressed(EKeys::B)){HeldKey=EKeys::B;StartDoor(ELDWorldVerb::Force);}
     if(WasInputKeyJustPressed(EKeys::Tab)){ContainerSelection=(ContainerSelection+1)%FMath::Max(1,ContainerView.Num());}
     if(WasInputKeyJustPressed(EKeys::I)){BagSelection=(BagSelection+1)%FMath::Max(1,OwnerState.Inventory.Items.Num());}
+    for(int N=0;N<4;++N){const FKey Key=TArray<FKey>{EKeys::One,EKeys::Two,EKeys::Three,EKeys::Four}[N];if(WasInputKeyJustPressed(Key)&&OwnerState.Inventory.Items.IsValidIndex(BagSelection))
+    {ReleaseDoor();ToolBindingHeld=true;ToolBindingKey=Key;StartLoadoutHold(LDInventory::Equip,OwnerState.Inventory.Items[BagSelection].Id,7+N);}}
+    if(WasInputKeyJustPressed(EKeys::U)&&OwnerState.Inventory.Items.IsValidIndex(BagSelection))
+    {ReleaseDoor();ToolBindingHeld=true;ToolBindingKey=EKeys::U;StartLoadoutHold(LDInventory::Unequip,OwnerState.Inventory.Items[BagSelection].Id,7);}
+    if(ToolBindingHeld&&!IsInputKeyDown(ToolBindingKey)){StopDevelopmentHold();ToolBindingHeld=false;}
+    if(WasInputKeyJustPressed(EKeys::L)){ToggleSelectedTool();}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::T,ELDObjectVerb::Take},{EKeys::Y,ELDObjectVerb::Store},{EKeys::C,ELDObjectVerb::Carry},{EKeys::P,ELDObjectVerb::Push},{EKeys::X,ELDObjectVerb::Break}})
     {if(WasInputKeyJustPressed(P.Key)){HeldKey=P.Key;StartObject(P.Value);}}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::G,ELDObjectVerb::Drop},{EKeys::J,ELDObjectVerb::Place}})
@@ -97,7 +108,7 @@ void ALDB91Controller::PlayerTick(float Delta)
 void ALDB91HUD::DrawHUD()
 {
     Super::DrawHUD();const auto* PC=Cast<ALDB91Controller>(PlayerOwner);if(!PC){return;}
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,225);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,270);
     DrawText(TEXT("B91 FUNCTIONAL ENVIRONMENT / finite storage, flasks and cargo / remaining systems in development"),FLinearColor::White,22,20);
     DrawText(TEXT("RMB move | S stop | hold F open/close (0.3s) | hold V rear lockpick (3s) | hold B force rear (3s) | Esc cancel"),FLinearColor::White,22,43);
     DrawText(PC->IntentFeedback,FLinearColor::Yellow,22,66);
@@ -110,4 +121,6 @@ void ALDB91HUD::DrawHUD()
     DrawText(Contents,FLinearColor::White,22,182);
     const auto& Bag=PC->OwnerState.Inventory;const auto* Item=Bag.Items.IsValidIndex(PC->BagSelection)?&Bag.Items[PC->BagSelection]:nullptr;
     DrawText(FString::Printf(TEXT("Bag %d/24 | selected: %s | cargo: %s"),Bag.Items.Num(),Item?*LDInventory::Name(Item->Kind,Item->Skill):TEXT("empty"),PC->HasObjectCargo()?TEXT("carried"):TEXT("none")),FLinearColor::White,22,204);
+    DrawText(TEXT("Hold 1/2/3/4: bind selected item to accessory 1/2/3/4 (quiet + 2s) | hold U unbind | L toggle bound Torch/Lantern"),FLinearColor::White,22,226);
+    if(Item&&LDPortableTools::IsTool(Item->Kind)){DrawText(FString::Printf(TEXT("Physical tool | fuel %.1fs | %s | binding mask %u | cosmetic light adds no sight"),Item->FuelMs/1000.,Item->bLit?TEXT("lit"):TEXT("off"),Item->BindingMask),FLinearColor::Yellow,22,248);}
 }

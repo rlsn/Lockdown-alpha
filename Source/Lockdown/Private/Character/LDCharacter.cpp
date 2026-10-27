@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "AIController.h"
 #include "NavigationSystem.h"
 #include "Net/UnrealNetwork.h"
@@ -38,6 +39,7 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Movement->NavAgentProps.bCanJump = false;
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("SharedBody"));
     Body->SetupAttachment(GetRootComponent());
+    PortableGlow=CreateDefaultSubobject<UPointLightComponent>(TEXT("OwnerCosmeticToolLight"));PortableGlow->SetupAttachment(GetRootComponent());PortableGlow->SetMobility(EComponentMobility::Movable);PortableGlow->SetCastShadows(false);PortableGlow->SetIntensity(1500);PortableGlow->SetLightColor(FLinearColor(1.f,.65f,.25f));PortableGlow->SetVisibility(false);
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteRotation(true);
@@ -56,6 +58,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Camera->PostProcessSettings.MotionBlurAmount = 0;
 }
 
+void ALDCharacter::SetPortableLight(uint8 Mode)
+{PortableGlow->SetAttenuationRadius(Mode==2?800:600);PortableGlow->SetVisibility(Mode==1||Mode==2);}
 void ALDCharacter::BeginPlay()
 {
     Super::BeginPlay();
@@ -73,6 +77,7 @@ void ALDCharacter::BeginPlay()
 void ALDCharacter::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if(!GetController()||!GetController()->IsLocalController()){SetPortableLight(0);}
     if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Body->SetCue(Mode->Combat->CueFor(this));}}}
     else if(const auto* PC=Cast<ALDPlayerController>(GetController())){Body->SetCue(PC->OwnerState.ActionCue);}
     Body->Animate(GetVelocity(), Delta);

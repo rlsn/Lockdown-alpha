@@ -4,6 +4,7 @@
 #include "Tests/LDB91Probe.h"
 #include "Tests/LDB91NetProbe.h"
 #include "Tests/LDB91ObjectsProbe.h"
+#include "Tests/LDB91ToolsProbe.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -221,7 +222,8 @@ void ALDGameMode::StartPlay()
         for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
         {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}
         if(FParse::Param(FCommandLine::Get(),TEXT("LDB91Probe"))){GetWorld()->SpawnActor<ALDB91Probe>();}
-        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ObjectsProbe"))){GetWorld()->SpawnActor<ALDB91ObjectsProbe>();}
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ToolsProbe"))){GetWorld()->SpawnActor<ALDB91ToolsProbe>();}
+        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ObjectsProbe"))){GetWorld()->SpawnActor<ALDB91ObjectsProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91NetProbe"))){GetWorld()->SpawnActor<ALDB91NetProbe>();}
         UE_LOG(LogTemp,Display,TEXT("LD_B91_ENVIRONMENT doors/interiors review; no markets, population or victory executors"));return;
     }

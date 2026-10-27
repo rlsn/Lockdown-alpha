@@ -7,6 +7,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class ULDHumanoidVisualComponent;
 class ULDPrototypeTuning;
+class UPointLightComponent;
 
 UCLASS()
 class LOCKDOWN_API ALDCharacter : public ACharacter
@@ -22,6 +23,8 @@ public:
     UPROPERTY(VisibleAnywhere) TObjectPtr<ULDHumanoidVisualComponent> Body;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpringArmComponent> CameraArm;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<UPointLightComponent> PortableGlow;
+    void SetPortableLight(uint8 Mode);
     UPROPERTY() TObjectPtr<ULDPrototypeTuning> Tuning;
     UPROPERTY(ReplicatedUsing=OnRep_Presentation) uint8 PresentationKey = 0;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;

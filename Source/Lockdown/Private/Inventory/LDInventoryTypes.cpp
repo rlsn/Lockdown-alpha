@@ -2,7 +2,11 @@
 #include "Development/LDV08Loadout.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDAcquisitionCatalog.h"
+#include "World/LDPortableTools.h"
+#include "Engine/World.h"
 ALDItem::ALDItem(){bReplicates=false;RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));}
+void ALDItem::Project(FLDInventoryItem& E) const
+{E.Id=Identity;E.Kind=Kind;E.Skill=Skill;E.Slot=Slot;E.Revision=Revision;E.bReserved=bReserved;E.BindingMask=BindingMask;E.ReadyAt=ReadyAt;E.ProcReadyAt=ProcReadyAt;E.Quality=Quality;E.FuelMs=LDPortableTools::Remaining(this,GetWorld()?GetWorld()->GetTimeSeconds():FuelAt);E.bLit=bLit&&E.FuelMs>0;}
 FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
 {
     switch(Kind)
@@ -75,7 +79,7 @@ void LDInventory::Remove(FLDInventory& I,FGuid Id)
 bool LDInventory::Valid(const FLDInventory& I)
 {
     if(!I.Capacity||I.Items.Num()>I.Capacity||(I.RulesVersion!=6&&I.RulesVersion!=7&&I.RulesVersion!=8)||I.Quick.Num()!=(I.RulesVersion==8?0:I.RulesVersion==7?3:4)||I.Bindings.Num()!=(I.RulesVersion==8?11:6)){return false;}TSet<FGuid> Ids,Refs;TSet<uint8> Slots;int32 Seals=0;
-    for(const auto& Item:I.Items){if(!Item.Id.IsValid()||Ids.Contains(Item.Id)||Item.Slot>=I.Capacity||Slots.Contains(Item.Slot)||(Item.Quality>2||UnitWeight(Item.Kind)<0)){return false;}Ids.Add(Item.Id);Slots.Add(Item.Slot);Seals+=Item.Kind==ELDItemKind::Seal;}
+    for(const auto& Item:I.Items){if(!Item.Id.IsValid()||Ids.Contains(Item.Id)||Item.Slot>=I.Capacity||Slots.Contains(Item.Slot)||(Item.Quality>2||LDPortableTools::IsTool(Item.Kind)&&Item.Quality!=0||UnitWeight(Item.Kind)<0)){return false;}Ids.Add(Item.Id);Slots.Add(Item.Slot);Seals+=Item.Kind==ELDItemKind::Seal;}
     for(auto Id:I.Quick){if(!Id.IsValid()){continue;}const auto* Item=I.Find(Id);if(!Item||!QuickUsable(Item->Kind,I.RulesVersion)||Refs.Contains(Id)){return false;}Refs.Add(Id);}
     for(const auto& Item:I.Items){uint16 Mask=0;for(int32 N=0;N<I.Bindings.Num();++N){if(I.Bindings[N]==Item.Id){Mask|=1<<N;}}if(Mask!=Item.BindingMask){return false;}}
     if(I.RulesVersion==8){const auto* C=ULDEquipmentCatalog::Load(8);if(!C){return false;}TSet<FGuid> Bound;for(int32 N=0;N<11;++N){const auto Id=I.Bindings[N];if(!Id.IsValid()){continue;}const auto* Item=I.Find(Id);const auto* D=Item?C->Find(Item->Kind):nullptr;if(!D||!(D->Binding==N||D->Binding==7&&N>=7||N==6&&D->TwoHanded&&I.Bindings[5]==Id)||Bound.Contains(Id)&&!(N==6&&D->TwoHanded&&I.Bindings[5]==Id)||D->TwoHanded&&(I.Bindings[5]!=Id||I.Bindings[6]!=Id)){return false;}Bound.Add(Id);}return Seals<=1;}

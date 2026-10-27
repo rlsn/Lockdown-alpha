@@ -1,5 +1,5 @@
 #include "World/LDEnvironmentDirector.h"
-#include "World/LDB91ObjectsContract.h"
+#include "World/LDB91ToolsContract.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -24,9 +24,9 @@ void ALDB91Controller::ClientObjectView_Implementation(uint32 Match,uint32 Life,
     ObjectView=Entries;ObjectViewMatch=Match;ObjectViewLife=Life;ObjectViewRevision=Revision;ObjectViewAt=GetWorld()->GetTimeSeconds();
     if(GetNetMode()==NM_Client)
     {
-        for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->Proxy->SetVisibility(false);}}
+        for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->SetObserved(false);}}
         for(const auto& V:Entries)
-        {auto& Weak=ObjectProxies.FindOrAdd(V.Handle);auto* P=Weak.Get();if(!P){P=GetWorld()->SpawnActor<ALDWorldObject>();Weak=P;}P->Kind=V.Kind;P->Apply(V.Position,V.State,V.Revision);P->Proxy->SetVisibility(!(V.State&5));}
+        {auto& Weak=ObjectProxies.FindOrAdd(V.Handle);auto* P=Weak.Get();if(!P){P=GetWorld()->SpawnActor<ALDWorldObject>();Weak=P;}P->Kind=V.Kind;P->Apply(V.Position,V.State,V.Revision);P->SetObserved(!(V.State&5));}
     }
     const auto* Open=Entries.FindByPredicate([&](const auto& E){return E.Handle==ContainerHandle&&E.Revision==ContainerRevision;});
     if(!Open||!GetPawn()||FVector::Dist2D(GetPawn()->GetActorLocation(),Open->Position)>120)
@@ -43,11 +43,17 @@ const FLDObjectView* ALDB91Controller::NearestObject() const
 void ALDB91Controller::StartObject(ELDObjectVerb Verb,FVector Point)
 {
     const auto* O=NearestObject();if(!CanWorldCommand()||(!O&&Verb!=ELDObjectVerb::Drop)){return;}ReleaseDoor();Navigation->Stop();
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_OBJECTS_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
     if(O){R.Observed=O->Handle;R.ObjectRevision=O->Revision;R.ItemRevision=O->PhysicalRevision;}
     if(Verb==ELDObjectVerb::Take)
     {if(!ContainerView.IsValidIndex(ContainerSelection)){return;}const auto& I=ContainerView[ContainerSelection];R.Item=I.Item;R.ItemRevision=I.Revision;R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;}
     if(Verb==ELDObjectVerb::Store||Verb==ELDObjectVerb::Drop)
     {if(!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}const auto& I=OwnerState.Inventory.Items[BagSelection];R.Item=I.Id;R.ItemRevision=I.Revision;}
     HeldObject=true;HeldSequence=R.Sequence;Nonce=0;SentAt=GetWorld()->GetTimeSeconds();ServerObjectInteraction(R);
+}
+void ALDB91Controller::ToggleSelectedTool()
+{
+    if(!CanWorldCommand()||!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}ReleaseDoor();const auto& Item=OwnerState.Inventory.Items[BagSelection];
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.Verb=ELDObjectVerb::Toggle;R.Accessory=255;
+    for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==R.Item){R.Accessory=N;break;}}ServerObjectInteraction(R);
 }

@@ -6,9 +6,10 @@
 class ALDB91Controller;
 class ALDCharacter;
 class UStaticMeshComponent;
+class UPointLightComponent;
 
-UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem };
-UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break };
+UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope };
+UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle };
 USTRUCT()
 struct FLDObjectRequest
 {
@@ -24,6 +25,7 @@ struct FLDObjectRequest
     UPROPERTY() FGuid Item;
     UPROPERTY() uint32 ItemRevision=0;
     UPROPERTY() ELDObjectVerb Verb=ELDObjectVerb::Open;
+    UPROPERTY() uint8 Accessory=0;
     UPROPERTY() FVector_NetQuantize10 Point=FVector::ZeroVector;
 };
 // Observer-local identity, public geometry and state only. Contents require a
@@ -64,13 +66,15 @@ public:
     TWeakObjectPtr<ALDItem> Physical;
     FVector SourcePosition,LastClear;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Proxy;
+    UPROPERTY() TObjectPtr<UPointLightComponent> Glow;
     FVector Size() const;
     bool Heavy() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel;}
     bool Container() const {return Kind==ELDObjectKind::Chest||Heavy();}
     bool Available() const;
     int32 Weight() const;
-    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0);}
+    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0)|uint8(Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid()&&Physical->bLit?8:0);}
     void Apply(FVector Position,uint8 State,uint32 NewRevision);
+    void SetObserved(bool Visible);
 };
 UCLASS()
 class LOCKDOWN_API ALDWorldObjects:public AActor
@@ -127,6 +131,11 @@ private:
     TSet<FGuid> Consumed;
     uint64 ViewRevision=0;
     double NextPublish=0;
+    double NextFuelPublish=0;
+    bool FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const;
+    bool InitializeTools(FString& Error);
+    void TickTools(double Now);
+    bool ToggleTool(ALDB91Controller* PC,const FLDObjectRequest& Request,FString& Why);
     bool SurfaceAt(FVector Point,FVector& Surface) const;
     bool Reserved(FVector Surface,FVector Size) const;
     bool Eligible(ALDB91Controller* PC,ALDWorldObject* Object,const FLDObjectRequest& R,FString& Why) const;

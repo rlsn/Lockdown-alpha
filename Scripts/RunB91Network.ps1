@@ -1,13 +1,18 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[switch]$Capture,[switch]$Objects,[ValidateSet('A','B')][string]$RenderedClient='A',[ValidateRange(1024,65000)][int]$Port=7911,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
+param([string]$EngineRoot,[switch]$Capture,[switch]$Objects,[switch]$Tools,[ValidateSet('A','B')][string]$RenderedClient='A',[ValidateRange(1024,65000)][int]$Port=7911,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+if($Objects -and $Tools){throw 'Choose one native scenario'}
 if($Objects){
     & python -B (Join-Path $PSScriptRoot 'SyncB91Objects.py') --check
     if($LASTEXITCODE -ne 0){throw 'B91 objects contract is stale'}
 }
-$output=New-LDArtifactDirectory $(if($Objects){'B91Objects-Network'}elseif($Capture){"B91Network-Capture-$RenderedClient"}else{'B91Network'})
+if($Objects -or $Tools){
+    & python -B (Join-Path $PSScriptRoot 'SyncB91Tools.py') --check
+    if($LASTEXITCODE -ne 0){throw 'B91 tools contract is stale'}
+}
+$output=New-LDArtifactDirectory $(if($Tools){'B91Tools-Network'}elseif($Objects){'B91Objects-Network'}elseif($Capture){"B91Network-Capture-$RenderedClient"}else{'B91Network'})
 $owned=@()
 try {
     foreach($role in @('Server','A','B')){
@@ -17,6 +22,7 @@ try {
         $commands=if($Capture -and $role -eq $RenderedClient){'t.MaxFPS 30,sg.ShadowQuality 1,r.Shadow.Virtual.MaxPhysicalPages 512,sg.GlobalIlluminationQuality 0,sg.ReflectionQuality 0'}else{'t.MaxFPS 60'}
         $arguments='"{0}" {1} {2} {3} -port={4} -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="{5}" -LDB91NetProbe -B91Role={6} -B91Output="{7}" -abslog="{8}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'),$destination,$mode,$surface,$Port,$commands,$role,$output,(Join-Path $output "$role.log")
         if($Objects){$arguments+=' -LDB91ObjectsProbe'}
+        if($Tools){$arguments+=' -LDB91ToolsProbe'}
         $owned+=Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }
@@ -26,7 +32,7 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if(-not $owned[0].HasExited){throw "B91 network fixture timed out: $output"}
-    & python -B (Join-Path $PSScriptRoot $(if($Objects){'CheckB91Objects.py'}else{'CheckB91Network.py'})) $output
+    & python -B (Join-Path $PSScriptRoot $(if($Tools){'CheckB91Tools.py'}elseif($Objects){'CheckB91Objects.py'}else{'CheckB91Network.py'})) $output
     if($LASTEXITCODE -ne 0){throw "B91 network evidence rejected: $output"}
     Write-Host "B91 network evidence: $output"
 } finally {foreach($process in $owned){if(-not $process.HasExited){$process.Kill();$process.WaitForExit()}}}

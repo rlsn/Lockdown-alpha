@@ -37,7 +37,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote object owners"));
-        Check(Objects->Objects.Num()==156&&Count(GetWorld())==84,TEXT("Exact 156 objects and 84 finite physical endowments"));
+        Check(Objects->Objects.Num()==204&&Count(GetWorld())==132,TEXT("Exact 204 objects and 132 finite physical endowments"));
         for(TActorIterator<ALDItem> I(GetWorld());I;++I){InitialIds.Add(I->Identity);}
         for(auto O:Objects->Objects)
         {FVector Surface=O->LastClear;const bool Valid=Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);
@@ -77,7 +77,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         {Check(Objects->Carried(Winner)==Target,TEXT("Same cargo exists before contender end-life"));M->EndContenderLife(Winner,Now);Check(!Objects->Carried(Winner)&&!Target->Carrier.IsValid(),TEXT("Contender end-life safely releases carried world cargo"));Phase=97;At=Now;return;}
         if(Phase==97&&Now-At>.3)
         {Objects->Publish();bool Aligned=true;for(auto O:Objects->Objects){if(O.IsValid()&&O->Physical.IsValid()&&O->Physical->State==0){Aligned&=O->GetActorLocation().Equals(O->Physical->GetActorLocation(),.1);}}
-         Check(Aligned,TEXT("Life drops move existing physical proxies to their actual ground locations"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==84,TEXT("Damage, control and life changes preserve all 84 finite identities"));
+         Check(Aligned,TEXT("Life drops move existing physical proxies to their actual ground locations"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==InitialIds.Num(),TEXT("Damage, control and life changes preserve all 132 finite identities"));
          Winner=Winner==A?B:A;Place(Winner,Target->LastClear+FVector(3000,0,92.15));FVector Direction=FVector::ZeroVector,PushPad=Target->LastClear;
          // The ordinary forced-drop pad can be a legal cul-de-sac. Refit this
          // same instance to a genuinely clear native lane for the positive push
@@ -91,13 +91,13 @@ void ALDB91ObjectsProbe::Tick(float Delta)
          Place(Winner,Target->LastClear-Direction*110+FVector(0,0,92.15));Objects->Publish();PushOrigin=Target->GetActorLocation();PushBody=Winner->GetPawn()->GetActorLocation();
          const auto OldReport=Read(Winner,7);if(OldReport){FGuid::Parse(OldReport->GetStringField(TEXT("target_handle")),NativeRequest.Observed);}auto* Own=M->StateFor(Winner);NativeRequest.Match=Own->Match;NativeRequest.Life=Own->Life;NativeRequest.Sequence=50003;NativeRequest.ObjectRevision=Target->Revision;NativeRequest.InventoryRevision=Own->Inventory.Revision;NativeRequest.Verb=ELDObjectVerb::Push;Objects->Begin(Winner,NativeRequest);Phase=98;At=Now;return;}
         if(Phase==98&&Now-At>1.2)
-        {Check(FMath::Abs(FVector::Dist2D(PushOrigin,Target->GetActorLocation())-150)<1&&Winner->GetPawn()->GetActorLocation().Equals(PushBody,.1),TEXT("One-second swept push moves cargo 150cm without displacing the body"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==84,TEXT("Final storage and cargo source closure"));
+        {Check(FMath::Abs(FVector::Dist2D(PushOrigin,Target->GetActorLocation())-150)<1&&Winner->GetPawn()->GetActorLocation().Equals(PushBody,.1),TEXT("One-second swept push moves cargo 150cm without displacing the body"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==InitialIds.Num(),TEXT("Final storage and cargo source closure"));
          Target=Objects->Find(TEXT("prop_barrel_016"));Place(Winner,Target->LastClear+FVector(-110,0,92.15));Objects->Publish();const auto* Client=Objects->Clients.Find(Winner);const auto* Handle=Client?Client->Handles.Find(Target):nullptr;
          NativeRequest.Observed=Handle?*Handle:FGuid();auto* Own=M->StateFor(Winner);BagBefore=Own->Inventory.Items.Num();NativeRequest.Match=Own->Match;NativeRequest.Life=Own->Life;NativeRequest.Sequence=50004;NativeRequest.ObjectRevision=Target->Revision;NativeRequest.InventoryRevision=Own->Inventory.Revision;NativeRequest.Verb=ELDObjectVerb::Carry;Objects->Begin(Winner,NativeRequest);Phase=100;At=Now;return;}
         if(Phase==100&&Now-At>1.2)
         {Check(Target->Weight()==16&&Objects->Carried(Winner)==Target&&FMath::Abs(Cast<ALDCharacter>(Winner->GetPawn())->GetCharacterMovement()->GetMaxSpeed()-294)<.1,TEXT("Empty barrel carries at weight16 and 70 percent speed"));NativeRequest.Sequence=50005;NativeRequest.ObjectRevision=Target->Revision;NativeRequest.Verb=ELDObjectVerb::Place;NativeRequest.Point=Target->LastClear;Objects->Begin(Winner,NativeRequest);Phase=101;At=Now;return;}
         if(Phase==101&&Now-At>1.7)
-        {Check(!Target->Carrier.IsValid()&&Target->Proxy->GetCollisionResponseToChannel(ECC_GameTraceChannel2)==ECR_Ignore&&FMath::Abs(Cast<ALDCharacter>(Winner->GetPawn())->GetCharacterMovement()->GetMaxSpeed()-420)<.1,TEXT("Placed barrel restores movement and remains non-occluding"));FString Why;Check(M->StateFor(Winner)->Inventory.Items.Num()==BagBefore&&Objects->Conserved(Why)&&Count(GetWorld())==84,TEXT("Barrel transport creates no bag instance or material"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;}
+        {Check(!Target->Carrier.IsValid()&&Target->Proxy->GetCollisionResponseToChannel(ECC_GameTraceChannel2)==ECR_Ignore&&FMath::Abs(Cast<ALDCharacter>(Winner->GetPawn())->GetCharacterMovement()->GetMaxSpeed()-420)<.1,TEXT("Placed barrel restores movement and remains non-occluding"));FString Why;Check(M->StateFor(Winner)->Inventory.Items.Num()==BagBefore&&Objects->Conserved(Why)&&Count(GetWorld())==InitialIds.Num(),TEXT("Barrel transport creates no bag instance or material"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;}
         return;
     }
     const bool Both=Phase!=4&&Phase!=8;const auto RA=Read(Both?A:Winner,Phase),RB=Both?Read(B,Phase):nullptr;if(!RA||(Both&&!RB)){return;}
@@ -149,7 +149,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
     if(Phase==8)
     {
         Check(RA->GetIntegerField(TEXT("receipt_result"))==1&&RA->GetBoolField(TEXT("unsafe_place_retained_cargo"))&&!Target->Carrier.IsValid(),TEXT("Occupied placement retains cargo; later native walk and legal placement succeed"));
-        Check(!Objects->Carried(A)&&!Objects->Carried(B)&&Count(GetWorld())==84,TEXT("Placed cargo restores hands and preserves all finite item identities"));
+        Check(!Objects->Carried(A)&&!Objects->Carried(B)&&Count(GetWorld())==InitialIds.Num(),TEXT("Placed cargo restores hands and preserves all finite item identities"));
         FString Why;Check(Objects->Conserved(Why),TEXT("Every finite item occupies exactly one bag, container or ground location"));
         FGuid::Parse(RA->GetStringField(TEXT("target_handle")),NativeRequest.Observed);NativeCarry(50000);Phase=91;
     }
@@ -157,7 +157,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
 }
 void ALDB91ObjectsProbe::Save(bool Complete)
 {
-    FString Output;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Output);if(Output.IsEmpty()){return;}auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("failures"),Failures);R->SetStringField(TEXT("stage"),TEXT("B91"));R->SetNumberField(TEXT("phase"),Phase);R->SetStringField(TEXT("contract"),Objects?Objects->Contract:TEXT(""));R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("fitted_objects"),Manifest);R->SetNumberField(TEXT("finite_initial_items"),84);FString Why;R->SetBoolField(TEXT("conserved"),Objects&&Objects->Conserved(Why));R->SetStringField(TEXT("conservation_reason"),Why);
+    FString Output;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Output);if(Output.IsEmpty()){return;}auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("failures"),Failures);R->SetStringField(TEXT("stage"),TEXT("B91"));R->SetNumberField(TEXT("phase"),Phase);R->SetStringField(TEXT("contract"),Objects?Objects->Contract:TEXT(""));R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("fitted_objects"),Manifest);R->SetNumberField(TEXT("finite_initial_items"),InitialIds.Num());FString Why;R->SetBoolField(TEXT("conserved"),Objects&&Objects->Conserved(Why));R->SetStringField(TEXT("conservation_reason"),Why);
     R->SetStringField(TEXT("scope"),TEXT("Native editor authority with two independent headless remote owners; storage, pickup/break/carry races and physical placement. Remaining B91 systems and full-stage acceptance are open."));
     R->SetStringField(TEXT("push_setup"),TEXT("Positive push refits the same existing crate to a native clear pad; original generated placements remain in fitted_objects. No item or prop is created by this setup."));
     TArray<TSharedPtr<FJsonValue>> StartIds,BreakIds,Items;

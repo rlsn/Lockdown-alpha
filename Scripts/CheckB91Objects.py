@@ -14,18 +14,24 @@ def check(root):
     assert report['complete'] and report['failures'] == 0
     assert report['phase'] == 101
     assert len(report['checks']) == 49 and all(c['passed'] for c in report['checks'])
-    assert report['finite_initial_items'] == 84 and report['conserved']
+    size = len(report['fitted_objects'])
+    assert size in (156, 204)
+    finite_count = 84 if size == 156 else 132
+    assert report['finite_initial_items'] == finite_count and report['conserved']
     initial = report['initial_item_ids']
     physical = report['physical_items']
-    assert len(initial) == len(set(initial)) == len(physical) == 84
+    assert len(initial) == len(set(initial)) == len(physical) == finite_count
     assert set(initial) == {r['id'] for r in physical}
     assert all(r['origin'].startswith('prop_') and r['origin_receipt'] for r in physical)
     broken = report['break_item_ids']
     assert len(broken) == 2 and len(set(broken)) == 2
     assert all(r['state'] == 0 and r['location'] == 'ground' for r in physical if r['id'] in broken)
     manifest = report['fitted_objects']
-    assert len(manifest) == 156 and len({r['source_id'] for r in manifest}) == 156
-    assert collections.Counter(r['kind'] for r in manifest) == {1: 48, 2: 36, 3: 24, 4: 24, 5: 24}
+    assert len({r['source_id'] for r in manifest}) == size
+    expected = {1: 48, 2: 36, 3: 24, 4: 24, 5: 24}
+    if size == 204:
+        expected.update({7: 24, 8: 12, 9: 12})
+    assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
         assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01
         assert row['placement_valid']
@@ -60,12 +66,12 @@ def check(root):
     digest = hashlib.sha256((root/'Objects.json').read_bytes().replace(b'\r\n', b'\n')).hexdigest()
     result = dict(stage='B91', increment='finite storage and crate/barrel cargo',
                   full_stage_acceptance=False, native_report_sha256_normalized_lf=digest,
-                  checks=len(report['checks']), fitted_objects=156, finite_initial_items=84,
+                  checks=len(report['checks']), fitted_objects=size, finite_initial_items=finite_count,
                   independent_owners=2, received_reports=received,
                   limitations=['Ladder/rope, new portable light tools, foliage and full-map field integration remain open.',
                                'This is a native editor server with two independent headless owners; no packaged server, video or human acceptance.'])
     (root/'ObjectsSummary.json').write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
-    print(f"PASS B91 objects: {len(report['checks'])} native checks, 156 fitted objects, 84 finite items, two remote owners")
+    print(f"PASS B91 objects: {len(report['checks'])} native checks, {size} fitted objects, {finite_count} finite items, two remote owners")
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 #include "Inventory/LDInventoryDirector.h"
 #include "World/LDEnvironmentDirector.h"
+#include "World/LDPortableTools.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
@@ -42,6 +43,9 @@ bool ALDInventoryDirector::HasSpace(ALDPlayerController* PC,ELDItemKind Kind,FSt
 void ALDInventoryDirector::Changed(ALDPlayerController* PC)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);if(!O){return;}
+    // Quiet loadout drafts contain old display fuel. Refresh from the same
+    // physical clock before publishing; preparation cannot visually refill it.
+    for(auto& Entry:O->Inventory.Items){if(LDPortableTools::IsTool(Entry.Kind)){if(auto* Item=Owned(PC,Entry.Id)){Item->Project(Entry);}}}
     // Legacy own fields are compatibility projections, never a second V05 store.
     O->Books.Reset();O->WardCharges=0;O->SealId.Invalidate();
     for(const auto& Item:O->Inventory.Items){if(Item.Kind==ELDItemKind::Book){FLDOwnedBook B;B.Id=Item.Id;B.Skill=Item.Skill;O->Books.Add(B);}else if(Item.Kind==ELDItemKind::WardCharge){++O->WardCharges;}else if(Item.Kind==ELDItemKind::Seal){O->SealId=Item.Id;}}
@@ -51,6 +55,7 @@ void ALDInventoryDirector::Changed(ALDPlayerController* PC)
 }
 bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause,bool Journal)
 {
+    if(Item&&LDPortableTools::IsTool(Item->Kind)&&(!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile()||Item->Quality!=0)){return false;}
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!Item||!O||(uint8(Item->Kind)>=8&&!GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile())||!HasSpace(PC,Item->Kind)||O->Inventory.Find(Item->Identity)||(Item->State==1&&Item->Holder.IsValid())){return false;}
     auto* Economy=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get();
     if(Economy&&Item->Kind==ELDItemKind::Seal){return false;}
@@ -59,7 +64,7 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
     uint8 Slot=0;while(O->Inventory.Items.ContainsByPredicate([&](const auto& I){return I.Slot==Slot;})){++Slot;}
     Item->Holder=PC;Item->State=1;Item->Slot=Slot;++Item->Revision;
     if(auto* Seal=Cast<ALDSeal>(Item)){Seal->Carrier=PC;}
-    FLDInventoryItem Entry;Entry.Id=Item->Identity;Entry.Kind=Item->Kind;Entry.Skill=Item->Skill;Entry.Slot=Slot;Entry.Revision=Item->Revision;Entry.bReserved=Item->bReserved;Entry.BindingMask=Item->BindingMask;Entry.ReadyAt=Item->ReadyAt;Entry.ProcReadyAt=Item->ProcReadyAt;Entry.Quality=Item->Quality;O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
+    FLDInventoryItem Entry;Item->Project(Entry);O->Inventory.Items.Add(Entry);++O->Inventory.Revision;Changed(PC);if(Economy&&Journal){if(!Economy->Record(CreationCause.IsNone()?FName(TEXT("Pickup")):CreationCause)){++Economy->AuditFailures;}}return true;
 }
 void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
@@ -69,7 +74,7 @@ void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Con
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
 {
     if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->ForceDrop(Cast<ALDB91Controller>(PC));}
-    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}for(auto& Entry:O->Inventory.Items){if(Entry.Kind==ELDItemKind::TowerRelic||(O->Build.RulesVersion==8&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)->Consumable)){for(auto& Ref:O->Inventory.Bindings){if(Ref==Entry.Id){Ref.Invalidate();}}Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}}const auto Items=O->Inventory.Items;
+    auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}for(auto& Entry:O->Inventory.Items){if(Entry.Kind==ELDItemKind::TowerRelic||LDPortableTools::IsTool(Entry.Kind)||(O->Build.RulesVersion==8&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)->Consumable)){for(auto& Ref:O->Inventory.Bindings){if(Ref==Entry.Id){Ref.Invalidate();}}Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}}const auto Items=O->Inventory.Items;
     for(const auto& Entry:Items)
     {
         if(auto* Item=Owned(PC,Entry.Id))

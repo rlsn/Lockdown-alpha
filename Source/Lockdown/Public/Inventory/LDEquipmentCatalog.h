@@ -49,7 +49,7 @@ public:
     bool Import(const FString& Text,FString& Why);
     bool Validate(FString& Why) const;
     static ULDEquipmentCatalog* Load(uint8 Rules=7);
-    const FLDEquipmentDefinition* Find(ELDItemKind K) const {return Items.FindByPredicate([&](const auto& D){return D.Kind==K;});}
+    const FLDEquipmentDefinition* Find(ELDItemKind K) const;
     const FLDAbilityGate* Gate(ELDSkill S) const {return Gates.FindByPredicate([&](const auto& D){return D.Skill==S;});}
 };
 namespace LDGear

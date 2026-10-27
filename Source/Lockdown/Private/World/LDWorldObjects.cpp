@@ -1,6 +1,7 @@
 #include "World/LDWorldObjects.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91ObjectsContract.h"
+#include "World/LDB91ToolsContract.h"
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
@@ -9,6 +10,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Engine/World.h"
@@ -33,9 +35,10 @@ ALDWorldObject::ALDWorldObject()
     bReplicates=false;Proxy=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ObjectProxy"));SetRootComponent(Proxy);
     Proxy->SetMobility(EComponentMobility::Movable);Proxy->SetCollisionProfileName(TEXT("BlockAll"));
     Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Ignore);
+    Glow=CreateDefaultSubobject<UPointLightComponent>(TEXT("ObservedCosmeticGlow"));Glow->SetupAttachment(Proxy);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->SetVisibility(false);
 }
 FVector ALDWorldObject::Size() const
-{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);default:return FVector(20,20,30);}}
+{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);default:return FVector(20,20,30);}}
 bool ALDWorldObject::Available() const
 {return !Broken&&(Container()||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
 int32 ALDWorldObject::Weight() const
@@ -45,11 +48,14 @@ void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
     if(NewRevision<Revision||(NewRevision==Revision&&State==AppliedState&&Proxy->GetStaticMesh()&&GetActorLocation().Equals(Position,.01))){return;}AppliedState=State;
     Broken=State&1;bCarriedWorld=State&2;SetActorLocation(Position);Proxy->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
     Proxy->SetRelativeScale3D(Size()/100.);Proxy->SetVisibility(!(State&5));
+    Glow->SetAttenuationRadius(Kind==ELDObjectKind::Torch?600:Kind==ELDObjectKind::Lantern?800:0);Glow->SetVisibility(false);
     Proxy->SetCollisionEnabled(Heavy()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
     Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,Kind==ELDObjectKind::Crate?ECR_Block:ECR_Ignore);
     Proxy->SetCanEverAffectNavigation(Heavy()&&!(State&7));
     Revision=CollisionRevision=SightRevision=NavigationRevision=NewRevision;++ProxyUpdates;FNavigationSystem::UpdateComponentData(*Proxy);
 }
+void ALDWorldObject::SetObserved(bool Visible)
+{Proxy->SetVisibility(Visible&&!(AppliedState&5));Glow->SetVisibility(Visible&&!(AppliedState&5)&&(AppliedState&8)&&(Kind==ELDObjectKind::Torch||Kind==ELDObjectKind::Lantern));}
 ALDWorldObjects::ALDWorldObjects()
 {bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
 ALDWorldObjects* ALDWorldObjects::Get(UWorld* W)
@@ -121,11 +127,7 @@ bool ALDWorldObjects::Initialize(FString& Error)
     {
         const auto R=V->AsObject();const auto& A=R->GetArrayField(TEXT("position"));const FVector Source(A[0]->AsNumber(),A[1]->AsNumber(),A[2]->AsNumber());
         auto* O=GetWorld()->SpawnActor<ALDWorldObject>();O->SourceId=FName(*R->GetStringField(TEXT("id")));O->Kind=ELDObjectKind(int32(R->GetNumberField(TEXT("kind"))));O->SourcePosition=Source;
-        bool Fitted=false;FVector Surface=Source;
-        // Stable ring order, bounded to the authored ten-metre fitting budget.
-        for(int Ring=0;Ring<=10&&!Fitted;++Ring){for(int Y=-Ring;Y<=Ring&&!Fitted;++Y){for(int X=-Ring;X<=Ring&&!Fitted;++X)
-        {if(FMath::Max(FMath::Abs(X),FMath::Abs(Y))!=Ring||X*X+Y*Y>100){continue;}FVector P=Source+FVector(X*100,Y*100,0);P.Z=D->Height(FVector2D(P));
-         Fitted=Placement(O,P,Surface);}}}
+        FVector Surface=Source;const bool Fitted=FitSource(O,Source,Surface);
         if(!Fitted){Error=TEXT("No legal fitted pad within 10m: ")+O->SourceId.ToString();O->Destroy();return false;}
         O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),0,1);Objects.Add(O);
         for(const auto& C:R->GetArrayField(TEXT("contents")))
@@ -134,14 +136,21 @@ bool ALDWorldObjects::Initialize(FString& Error)
         if(O->Kind==ELDObjectKind::Water||O->Kind==ELDObjectKind::Oil)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
-    Ready=Objects.Num()==156&&Finite.Num()==84;if(!Ready){Error=TEXT("B91 object census mismatch");}return Ready;
+    if(Objects.Num()!=156||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
+    if(!InitializeTools(Error)){return false;}Contract=LD_B91_WORLD_SHA;
+    Ready=Objects.Num()==204&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool census mismatch");}return Ready;
+}
+bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
+{
+    const auto* D=ULDMapDefinition::Get(GetWorld());if(!D){return false;}
+    for(int Ring=0;Ring<=10;++Ring){for(int Y=-Ring;Y<=Ring;++Y){for(int X=-Ring;X<=Ring;++X)
+    {if(FMath::Max(FMath::Abs(X),FMath::Abs(Y))!=Ring||X*X+Y*Y>100){continue;}FVector P=Source+FVector(X*100,Y*100,0);P.Z=D->Height(FVector2D(P));if(Placement(Object,P,Surface)){return true;}}}}return false;
 }
 bool ALDWorldObjects::Visible(ALDB91Controller* PC,ALDWorldObject* O) const
 {
     auto* E=ALDEnvironmentDirector::Get(GetWorld());const auto* B=PC?PC->GetPawn().Get():nullptr;
     if(!E||!O||!B||!PC->OwnerState.bActive){return false;}if(O->Carrier==PC){return true;}
-    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=M&&M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(B)):nullptr;
-    const double Radius=S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):1800;
+    const double Radius=E->SightFor(PC);
     // Eye height at the object's floor; ignore its own cover at the endpoint.
     return E->Ray(B->GetActorLocation(),O->GetActorLocation()-FVector(0,0,O->Size().Z*.5-90),O,Radius);
 }
@@ -192,6 +201,7 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
     {Reply(PC,R,2,TEXT("Stale object request/profile/layout/life"));return;}
     const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(8.,C.Tokens+FMath::Max(0.,Now-C.At)*8);C.At=Now;C.Last=R.Sequence;
     if(C.Tokens<1){Reply(PC,R,2,TEXT("Object request busy"));return;}--C.Tokens;
+    if(R.Verb==ELDObjectVerb::Toggle){FString Why;const bool Done=ToggleTool(PC,R,Why);if(Done){++Committed;}Reply(PC,R,Done?1:2,Why);return;}
     auto* Object=R.Verb==ELDObjectVerb::Drop?nullptr:Resolve(PC,R.Observed);FString Why;
     if(!Eligible(PC,Object,R,Why)){Reply(PC,R,2,Why);return;}
     for(const auto& P:Holds){if(P.Key!=PC&&(Object&&P.Value.Object==Object||R.Item.IsValid()&&P.Value.Request.Item==R.Item)&&!(R.Verb==ELDObjectVerb::Open&&P.Value.Request.Verb==ELDObjectVerb::Open)){Reply(PC,R,2,TEXT("Object reserved; try again"));return;}}
@@ -231,7 +241,7 @@ void ALDWorldObjects::Quote(ALDB91Controller* PC,ALDWorldObject* O)
 }
 ALDWorldObject* ALDWorldObjects::Wrap(ALDItem* Item,FVector Surface)
 {
-    for(auto O:Objects){if(O.IsValid()&&O->Physical==Item){O->Apply(Surface+FVector(0,0,18),0,O->Revision+1);Item->SetActorLocation(O->GetActorLocation());return O.Get();}}
+    for(auto O:Objects){if(O.IsValid()&&O->Physical==Item){O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);Item->SetActorLocation(O->GetActorLocation());return O.Get();}}
     auto* O=GetWorld()->SpawnActor<ALDWorldObject>();O->Kind=ELDObjectKind::LooseItem;O->Physical=Item;O->Apply(Surface+FVector(0,0,18),0,1);Item->SetActorLocation(O->GetActorLocation());Objects.Add(O);return O;
 }
 bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold& H,FString& Why)
@@ -303,7 +313,7 @@ void ALDWorldObjects::Publish()
         // stale client obstacle. This reveals absence here, never its new hidden
         // position, state, carrier or inventory. It grants no interaction handle.
         if(auto* E=ALDEnvironmentDirector::Get(GetWorld());E&&PC->GetPawn()&&Own->bActive)
-        {const auto* S=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));const double Radius=S?LDTactical::BodySight(S->Tactical,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())):1800;
+        {const double Radius=E->SightFor(PC);
          for(auto& Pair:C.LastSeen){auto& Old=Pair.Value;
          if(View.Num()>=128||C.Visible.Contains(Pair.Key)||(Old.State&4)){continue;}
          const double Half=Old.Kind==ELDObjectKind::Crate?110:Old.Kind==ELDObjectKind::Barrel?70:40;
@@ -313,11 +323,12 @@ void ALDWorldObjects::Publish()
         PC->ClientObjectView(Own->Match,Own->Life,ViewRevision,View);
     }
     if(GetNetMode()!=NM_DedicatedServer)
-    {auto* Local=Cast<ALDB91Controller>(GetWorld()->GetFirstPlayerController());for(auto O:Objects){if(O.IsValid()){O->Proxy->SetVisibility(O->Available()&&Local&&Local->IsLocalController()&&Visible(Local,O.Get()));}}}
+    {auto* Local=Cast<ALDB91Controller>(GetWorld()->GetFirstPlayerController());for(auto O:Objects){if(O.IsValid()){O->SetObserved(O->Available()&&Local&&Local->IsLocalController()&&Visible(Local,O.Get()));}}}
 }
 void ALDWorldObjects::Tick(float Delta)
 {
     Super::Tick(Delta);if(!Ready||GetNetMode()==NM_Client){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}const double Now=GetWorld()->GetTimeSeconds();
+    TickTools(Now);
     TArray<TWeakObjectPtr<ALDB91Controller>> Carriers;Cargo.GetKeys(Carriers);
     for(auto Weak:Carriers)
     {auto* PC=Weak.Get();const auto C=Cargo.FindRef(Weak);auto* O=C.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;

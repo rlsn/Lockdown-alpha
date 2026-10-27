@@ -38,6 +38,7 @@ struct FLDEnvironmentViewEntry
     UPROPERTY() uint8 State=0; // door open/locked/broken, or public body pose
     UPROPERTY() uint8 Presentation=0;
     UPROPERTY() uint16 Facing=0;
+    UPROPERTY() uint8 Light=0; // observed cosmetic cue only; never a sight source
 };
 USTRUCT()
 struct FLDWorldReceipt
@@ -87,6 +88,7 @@ public:
     void Cancel(class ALDB91Controller* PC,const FString& Reason);
     bool ResidentLock(FName DoorId,FName Resident,bool Locked);
     bool Ray(FVector From,FVector To,const AActor* Endpoint=nullptr,double Radius=1800) const;
+    float SightFor(ALDPlayerController* PC) const;
     bool Visible(ALDPlayerController* PC,AActor* Actor) const;
     AActor* Resolve(ALDPlayerController* PC,FGuid Handle) const;
     void Publish();
@@ -156,6 +158,7 @@ public:
     bool HasObjectCargo() const;
     const FLDObjectView* NearestObject() const;
     void StartObject(ELDObjectVerb Verb,FVector Point=FVector::ZeroVector);
+    void ToggleSelectedTool();
     int32 ContainerSelection=0,BagSelection=0;
     TArray<FLDEnvironmentViewEntry> View;
     FLDWorldReceipt LastWorldReceipt;
@@ -174,11 +177,14 @@ public:
     UFUNCTION(Client,Reliable) void ClientB91ProbeTask(uint8 Phase);
     void TickB91Probe();
     void TickB91ObjectsProbe();
+    void TickB91ToolsProbe();
 private:
     uint32 WorldSequence=0,HeldSequence=0,Nonce=0;
     double SentAt=0;
     FKey HeldKey;
     bool HeldObject=false;
+    bool ToolBindingHeld=false;
+    FKey ToolBindingKey;
     uint64 ObjectViewRevision=0;
     uint32 ObjectViewMatch=0,ObjectViewLife=0;
     double ObjectViewAt=0;
@@ -191,6 +197,9 @@ private:
     double ProbeRetryAt=0;
     FLDWorldRequest ProbeRequest;
     FLDObjectRequest ObjectProbeRequest;
+    FGuid ToolProbeIdentity;
+    uint32 ToolProbeDevToken=0,ToolProbeDevNonce=0;
+    double ToolProbeDevAt=0;
     FVector ObjectProbePad=FVector::ZeroVector,ObjectProbeStart=FVector::ZeroVector;
     int32 ObjectProbeContainerBefore=0;
     bool ObjectProbeRejectedPlace=false;
