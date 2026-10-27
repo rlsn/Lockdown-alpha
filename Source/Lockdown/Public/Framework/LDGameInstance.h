@@ -13,6 +13,7 @@ public:
     uint32 AuthorityGeneration = 0;
     TSharedPtr<struct FLDResetEvidence> ResetEvidence;
     TSharedPtr<struct FLDDevelopmentResetEvidence> DevelopmentResetEvidence;
+    TSharedPtr<struct FLDB90ResetEvidence> B90ResetEvidence;
     virtual void Init() override;
     virtual void Shutdown() override;
 private:

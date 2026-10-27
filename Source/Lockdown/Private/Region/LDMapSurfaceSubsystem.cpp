@@ -48,7 +48,8 @@ void ULDMapSurfaceSubsystem::Tick(float Delta)
 }
 bool ULDMapSurfaceSubsystem::SeedFrozenForProbe(FVector Surface,FGuid Owner,int64 At,FString& Why)
 {
-    if(!Definition||!FParse::Param(FCommandLine::Get(),TEXT("LDB90RiverProbe"))||!Owner.IsValid()||!Definition->RiverAt(Surface))
+    const bool Probe=FParse::Param(FCommandLine::Get(),TEXT("LDB90RiverProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB90ClosureProbe"));
+    if(!Definition||!Probe||!Owner.IsValid()||!Definition->RiverAt(Surface))
     { Why=TEXT("Frozen fixture requires authored water and explicit river-probe mode"); return false; }
     FIntPoint Centre; if(!Cell(Surface,Centre)) { return false; }
     TMap<FIntPoint,FSurface> Candidate=Cells; int32 Owned=0;

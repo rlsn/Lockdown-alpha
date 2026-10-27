@@ -1,6 +1,7 @@
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapSurfaceSubsystem.h"
 #include "Region/LDMapApproaches.h"
+#include "Region/LDMapRegistry.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
@@ -44,6 +45,16 @@ bool FLDB90MapRules::RunTest(const FString& Parameters)
     TestFalse(TEXT("Dry bridge above water has no river contact"),D->RiverAt(FVector(-27000,65000,200)));
     TestFalse(TEXT("Dry Heart circle"),D->RiverAt(D->Find(TEXT("heart"))->Position));
     TestTrue(TEXT("Western Heart inset provides water alternative"),D->RiverAt(D->WetInset));
+    TestTrue(TEXT("Full metadata preserves unique service seats and alias routing"),D->Services.Num()==36&&D->Aliases.Num()==16&&D->CanonicalId(TEXT("CityTreasury"))==TEXT("capital_treasury"));
+    TestTrue(TEXT("Aliases share one service binding"),D->ServiceFor(TEXT("CityTreasury"))==D->ServiceFor(TEXT("capital_treasury")));
+    TestTrue(TEXT("Heart policy overrides civic core"),D->CivicPolicy(D->Find(TEXT("heart"))->Position)==TEXT("contested_precinct"));
+    D->Services[0].Functions.Add(TEXT("free_teleport")); TestFalse(TEXT("Mutated saved service metadata cannot masquerade behind a valid source checksum"),D->Validate(Error)); D->Import(Text,Error);
+    D->POIs[0].Position.X+=1; TestFalse(TEXT("Mutated saved coordinate rejects"),D->Validate(Error)); D->Import(Text,Error);
+    D->Rivers[0].Width+=1; TestFalse(TEXT("Mutated saved river footprint rejects"),D->Validate(Error)); D->Import(Text,Error);
+    const FBox Wall(FVector(-100,-100,0),FVector(100,100,600));
+    TestTrue(TEXT("Road footprint detects wall crossing"),LDMapFitting::RoadOverlaps(FTransform(FRotator(0,45,0),FVector(0,0,2),FVector(4,8,.02)),Wall));
+    TestFalse(TEXT("Road beside wall remains clear"),LDMapFitting::RoadOverlaps(FTransform(FRotator::ZeroRotator,FVector(600,0,2),FVector(2,2,.02)),Wall));
+    TestFalse(TEXT("Different floor does not clip lower road"),LDMapFitting::RoadOverlaps(FTransform(FRotator::ZeroRotator,FVector(0,0,-50),FVector(2,2,.02)),Wall));
     for(FName Id:D->Bridges) { TestTrue(TEXT("Bridge target selects fitted dry layer"),D->NavigationTarget(Id).Z>=300&&!D->RiverAt(D->NavigationTarget(Id))); }
     FIntPoint Cell;
     TestTrue(TEXT("Independent full-map cell origin"),ULDMapSurfaceSubsystem::Cell(FVector(-120000,-120000,0),Cell)&&Cell==FIntPoint(0,0));

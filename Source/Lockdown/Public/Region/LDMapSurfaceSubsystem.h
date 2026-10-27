@@ -32,6 +32,7 @@ public:
     bool SeedFrozenForProbe(FVector Surface,FGuid Owner,int64 At,FString& Why);
     void ResetProbe();
     static bool Cell(FVector Point,FIntPoint& Out);
+    int32 LiveCells() const { return Cells.Num(); }
 private:
     struct FSurface { LDEnvironment::FCell Conditions; double Z=0; };
     const ULDMapDefinition* Definition=nullptr;

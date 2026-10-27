@@ -1,4 +1,5 @@
 #include "Tests/LDWorldProbe.h"
+#include "Tests/LDB90ClosureProbe.h"
 #include "UI/LDInventoryPanel.h"
 #include "World/LDWorldDirector.h"
 #include "Framework/LDGameMode.h"
@@ -138,5 +139,6 @@ void ALDWorldProbe::Build()
 }
 void ALDWorldProbe::Finish()
 {
+    if(!Done&&!ALDB90ClosureProbe::LegacyCompleted(GetWorld())) { Check(false,TEXT("B90-to-v08 profile isolation")); }
     if(Done){return;}Done=true;auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("failures"),Failures);R->SetStringField(TEXT("route"),Route);R->SetNumberField(TEXT("schema"),Mode?Mode->RulesVersion():0);R->SetStringField(TEXT("catalogDigest"),Mode&&Mode->StateFor(A)?Mode->StateFor(A)->Build.CatalogDigest:TEXT(""));R->SetNumberField(TEXT("seconds"),GetWorld()->GetTimeSeconds());TArray<TSharedPtr<FJsonValue>> Values;for(const auto& S:Checks){Values.Add(MakeShared<FJsonValueString>(S));}R->SetArrayField(TEXT("checks"),Values);R->SetArrayField(TEXT("travel"),Travel);R->SetStringField(TEXT("scope"),Route==TEXT("Boundary")||Route.StartsWith(TEXT("Network"))?TEXT("Explicit boundary or dedicated-server/two-client fixtures; labelled physical sources and placement. Never normal route evidence; remote channels and public/owner observations are real."):TEXT("Two native local contenders, benchmark fixed delta20Hz. Normal native navigation/movement/AI/combat/services and elapsed quiet/protection/holds. No teleports, gold/XP/items/HP/gates/endpoints setters in this lane. Automated commands, not human/remote/package acceptance."));FString Path,Json;FParse::Value(FCommandLine::Get(),TEXT("LDProbeReport="),Path);FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*Path);if(Mode&&Mode->Economy){FFileHelper::SaveStringToFile(Mode->Economy->Accounting().ExportJson(FName(*((Mode->IsV08Profile()?TEXT("B85"):TEXT("B76"))+Route))),*(FPaths::GetPath(Path)/TEXT("Ledger.json")));}FPlatformMisc::RequestExitWithStatus(false,Failures?1:0);
 }

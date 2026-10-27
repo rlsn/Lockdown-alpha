@@ -17,6 +17,27 @@ struct FLDMapPoint
     UPROPERTY() FVector Size = FVector::ZeroVector;
     UPROPERTY() double Radius = 0;
     UPROPERTY() bool Enterable = false;
+    UPROPERTY() FName Settlement;
+    UPROPERTY() FName POI;
+    UPROPERTY() FString Identity;
+    UPROPERTY() FString Security;
+    UPROPERTY() TArray<FName> Functions;
+    UPROPERTY() TArray<FName> Doors;
+    UPROPERTY() int32 Floors = 1;
+    UPROPERTY() bool Roof = false;
+    UPROPERTY() double CivicRadius = 0;
+};
+
+USTRUCT()
+struct FLDMapService
+{
+    GENERATED_BODY()
+    UPROPERTY() FName Id;
+    UPROPERTY() FName POI;
+    UPROPERTY() FName Building;
+    UPROPERTY() FName Settlement;
+    UPROPERTY() FVector Position = FVector::ZeroVector;
+    UPROPERTY() TArray<FName> Functions;
 };
 
 USTRUCT()
@@ -40,7 +61,7 @@ public:
     UPROPERTY() FString Checksum;
     UPROPERTY() int32 Seed = 9001;
     UPROPERTY() int32 LayoutRevision = 1;
-    UPROPERTY() int32 FitterRevision = 2;
+    UPROPERTY() int32 FitterRevision = 3;
     UPROPERTY() TArray<FLDMapPoint> POIs;
     UPROPERTY() TArray<FLDMapPoint> Spawns;
     UPROPERTY() TArray<FLDMapPoint> Settlements;
@@ -51,11 +72,17 @@ public:
     UPROPERTY() TArray<FName> Bridges;
     UPROPERTY() FVector WetInset = FVector::ZeroVector;
     UPROPERTY() FVector2D WetSize = FVector2D::ZeroVector;
+    UPROPERTY() TArray<FLDMapService> Services;
+    UPROPERTY() TMap<FName,FName> Aliases;
+    UPROPERTY() double CivicHeartOverride = 7000;
 
     bool Import(const FString& Json, FString& Error);
     bool Validate(FString& Error) const;
     const FLDMapPoint* Find(FName Id) const;
     FVector NavigationTarget(FName Id) const;
+    FName CanonicalId(FName Id) const;
+    const FLDMapService* ServiceFor(FName POI) const;
+    FName CivicPolicy(const FVector& Point) const;
     double Height(const FVector2D& XY) const;
     bool RiverAt(const FVector& Surface) const;
     static bool InBounds(const FVector& Point);

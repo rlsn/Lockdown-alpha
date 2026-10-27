@@ -1,6 +1,7 @@
 #include "LDB90BootstrapCommandlet.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDB90Preview.h"
+#include "Region/LDMapRegistry.h"
 #include "Region/LDRegionNavBounds.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"
@@ -174,7 +175,7 @@ void SurfaceGeometry(UWorld* W, const ULDMapDefinition* D)
 {
     auto Layer = [&](const TCHAR* Name, const TCHAR* Material)
     {
-        auto* A = W->SpawnActor<AActor>(); A->SetActorLabel(Name);
+        auto* A = W->SpawnActor<AActor>(); A->SetActorLabel(Name); A->Tags.Add(FName(Name));
         auto* C = NewObject<UInstancedStaticMeshComponent>(A,Name,RF_Transactional);
         A->SetRootComponent(C); A->AddInstanceComponent(C);
         C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
@@ -183,6 +184,23 @@ void SurfaceGeometry(UWorld* W, const ULDMapDefinition* D)
     };
     auto* Roads = Layer(TEXT("FittedRoadSurfaces"),TEXT("M_Soil"));
     auto* Water = Layer(TEXT("PermanentRiverSurfaces"),TEXT("M_River"));
+    const auto Walls=LDMapFitting::StructuralWalls(W);
+    auto AddRoad=[&](const FTransform& Tile)
+    {
+        TArray<const FBox*> Near;
+        for(const auto& Wall:Walls) { if(LDMapFitting::RoadOverlaps(Tile,Wall,2)) { Near.Add(&Wall); } }
+        if(Near.IsEmpty()) { Roads->AddInstance(Tile); return; }
+        // Clip only presentation against actual wall proxies. Native floors and
+        // navigation remain permanent. Fine tiles preserve the 3m door opening.
+        const FVector Scale=Tile.GetScale3D();
+        const int32 Along=FMath::Max(1,FMath::CeilToInt(Scale.X*100/50)),Across=FMath::Max(1,FMath::CeilToInt(Scale.Y*100/50));
+        for(int32 X=0;X<Along;++X) { for(int32 Y=0;Y<Across;++Y)
+        {
+            const FVector Local((double(X)+.5)/Along*100-50,(double(Y)+.5)/Across*100-50,0);
+            const FTransform Small(Tile.GetRotation(),Tile.TransformPosition(Local),FVector(Scale.X/Along,Scale.Y/Across,Scale.Z));
+            if(!Near.ContainsByPredicate([&](const FBox* Wall){return LDMapFitting::RoadOverlaps(Small,*Wall,2);})) { Roads->AddInstance(Small); }
+        } }
+    };
     auto Strip = [&](UInstancedStaticMeshComponent* C, FVector A, FVector B, double Width, bool Ground)
     {
         const int32 Steps=FMath::Max(1,FMath::CeilToInt(FVector::Dist2D(A,B)/200));
@@ -197,7 +215,8 @@ void SurfaceGeometry(UWorld* W, const ULDMapDefinition* D)
             }
             const FVector Delta=Q-P;
             const FRotator Rotation(FMath::RadiansToDegrees(FMath::Atan2(Delta.Z,Delta.Size2D())),Delta.Rotation().Yaw,0);
-            C->AddInstance(FTransform(Rotation,(P+Q)*.5+FVector(0,0,Ground?2:5),FVector(Delta.Size()+3,Width,2)/100.));
+            const FTransform Tile(Rotation,(P+Q)*.5+FVector(0,0,Ground?2:5),FVector(Delta.Size()+3,Width,2)/100.);
+            if(Ground) { AddRoad(Tile); } else { C->AddInstance(Tile); }
         }
     };
     for(const auto& R:D->Rivers) { for(int32 I=1;I<R.Points.Num();++I) { Strip(Water,R.Points[I-1],R.Points[I],R.Width,false); } }
@@ -390,6 +409,13 @@ bool Evidence(UWorld* W, const ULDMapDefinition* D, const FString& Output)
     Report->SetNumberField(TEXT("candidate_capsule_contacts"),BlockedSweeps); Report->SetNumberField(TEXT("max_sampled_grade"),MaxGrade);
     Report->SetNumberField(TEXT("legal_step_contacts"),SteppedContacts);
     Report->SetArrayField(TEXT("candidate_contacts"),SweepFailures);
+    const auto Walls=LDMapFitting::StructuralWalls(W); int32 Paint=0,PaintOverlap=0;
+    for(AActor* A:W->PersistentLevel->Actors) { if(A&&A->Tags.Contains(TEXT("FittedRoadSurfaces")))
+    { if(const auto* C=A->FindComponentByClass<UInstancedStaticMeshComponent>())
+      { for(int32 I=0;I<C->GetInstanceCount();++I) { FTransform T; C->GetInstanceTransform(I,T,true); ++Paint;
+        PaintOverlap+=Walls.ContainsByPredicate([&](const FBox& B){return LDMapFitting::RoadOverlaps(T,B);}); } } } }
+    Report->SetNumberField(TEXT("road_paint_instances"),Paint); Report->SetNumberField(TEXT("road_wall_overlaps"),PaintOverlap);
+    if(!Paint||PaintOverlap) { ++Failed; Report->SetNumberField(TEXT("failures"),Failed); }
     TArray<FString> Geometry;
     for(AActor* A:W->PersistentLevel->Actors)
     {

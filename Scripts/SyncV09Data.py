@@ -8,7 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs/v09/data'
-INPUTS = ('rules', 'pois', 'routes', 'settlements', 'spawn_pads', 'buildings', 'terrain')
+INPUTS = ('rules', 'pois', 'routes', 'settlements', 'spawn_pads', 'buildings', 'terrain',
+          'services', 'security', 'legacy_aliases')
 
 
 def encode(value):
@@ -25,6 +26,7 @@ def compile_map():
         'spawn_pads': 'contender_slot id position_cm protected_ms respawn_policy settlement_id stage_id',
         'buildings': 'door_ids enterable floor_count id permanent_structural_collision poi_id position_cm roof_access roof_fade_cosmetic_only settlement_id size_cm stage_id wall_vision_proxy',
         'settlements': 'footprint_radius_cm id identity kind name position_cm security',
+        'services': 'functions id poi_id protected_official queue shared_stock_pool stage_id',
     }
     for name, fields in allowed.items():
         for row in data[name]['rows']:
@@ -43,11 +45,13 @@ def compile_map():
     assert world['bounds_cm'] == [-120000, -120000, 120000, 120000]
     pois = data['pois']['rows']
     ids = {row['id'] for row in pois}
+    poi_functions = set('advanced_forge ambush_and_retreat archive_circle3 bank bounded_combat charter_purchase circle1_books circle2_books civilian_rest civilian_work_and_trade core_procurement courier_board covered_detour craft_interception crime_reporting finite_Crystal_harvest finite_Fiber_harvest finite_Ore_harvest fragment_and_book guards heart_forge heartbreaker_activation keys_activation local_public_watch market official_supply patrol_cover preparation public_attempt_sensor recovery route_choice route_hub safe_route_information shrine siege_gate single_guardian_boss single_physical_claim supply_commission supply_storage tactical_vantage trade_route_interception trainer_circle2 unique_key_catalyst_book_cache vision_or_exposure_control witness workshop'.split())
     for row in pois:
         assert row['stage_id'] in {'B90', 'B91', 'B92', 'B93', 'B94'}
         assert row['kind'] in {'settlement', 'service', 'camp', 'ruin', 'boss', 'tower',
                                'heart', 'terminal', 'crossing', 'pass', 'resource', 'shrine', 'landmark'}
         assert len(row['functions']) >= 2
+        assert set(row['functions']) <= poi_functions, ('Unknown POI function', row['id'])
     for route in data['routes']['rows']:
         assert route['from'] in ids and route['to'] in ids
         assert route['permanent_navigation'] and route['bidirectional']
@@ -59,6 +63,29 @@ def compile_map():
             assert max(abs(point[0]), abs(point[1])) <= 118000 and 0 <= point[2] <= 800
     assert {r['contender_slot'] for r in data['spawn_pads']['rows']} == set(range(24))
     assert sum(r['enterable'] for r in data['buildings']['rows']) == 36
+    buildings = data['buildings']['rows']
+    hosts = {b['poi_id']: b for b in buildings if b['enterable']}
+    assert len(hosts) == 36 and all(b['poi_id'] in ids for b in buildings if b['enterable'])
+    settlements = {s['id']: s for s in data['settlements']['rows']}
+    assert all(b['settlement_id'] in settlements for b in buildings)
+    for settlement in settlements:
+        local = [b for b in buildings if b['settlement_id'] == settlement]
+        city = settlements[settlement]['kind'] in {'capital', 'city'}
+        assert len(local) == (24 if city else 4)
+        assert sum(b['enterable'] for b in local) == (6 if city else 1)
+    services = data['services']['rows']
+    functions = set('bank charter_purchase core_procurement official_supply circle1_books circle2_books civilian_rest supply_commission courier_board witness workshop preparation shrine safe_route_information guards crime_reporting trainer_circle2 market archive_circle3 advanced_forge'.split())
+    assert len(services) == len({s['id'] for s in services}) == 36
+    assert {s['poi_id'] for s in services} == set(hosts)
+    for service in services:
+        assert service['stage_id'] == 'B92' and service['protected_official']
+        assert service['functions'] and set(service['functions']) <= functions, ('Unknown service function', service['id'])
+    aliases = data['legacy_aliases']['aliases']
+    assert len(aliases) == 16 and set(aliases.values()) <= ids
+    security = data['security']
+    assert security['stage_id'] == 'B92'
+    assert security['civic_zone_radius_cm'] == dict(capital=12000, city=7000, town=3000)
+    assert security['heart_contested_override_radius_cm'] == 7000
     points = lambda rows: [{'id': r['id'], 'position': r['position_cm']} for r in rows]
     terrain = data['terrain']
     travel_path = ROOT / 'docs/v09/atlas/TRAVEL_TABLE.csv'
@@ -66,13 +93,23 @@ def compile_map():
     payload = dict(schema=9, stage='B90', profile='v09_full', seed=9001, revision=1,
                    bounds=world['bounds_cm'], speed=420, inset=2000,
                    # A fitted mesh is a separate versioned product; source coordinates stay intact.
-                   fitter_revision=2,
-                   pois=[dict(id=r['id'], name=r['name'], kind=r['kind'], position=r['position_cm']) for r in pois],
+                   fitter_revision=3,
+                   pois=[dict(id=r['id'], name=r['name'], kind=r['kind'], position=r['position_cm'],
+                              functions=r['functions'], security=r['security']) for r in pois],
                    spawns=points(data['spawn_pads']['rows']),
-                   settlements=[dict(id=r['id'], position=r['position_cm'], radius=r['footprint_radius_cm'])
+                   settlements=[dict(id=r['id'], name=r['name'], kind=r['kind'], identity=r['identity'],
+                                     security=r['security'], civic_radius=security['civic_zone_radius_cm'][r['kind']],
+                                     position=r['position_cm'], radius=r['footprint_radius_cm'])
                                 for r in data['settlements']['rows']],
                    buildings=[dict(id=r['id'], position=r['position_cm'], size=r['size_cm'],
-                                   enterable=r['enterable']) for r in data['buildings']['rows']],
+                                   enterable=r['enterable'], settlement=r['settlement_id'],
+                                   poi=r.get('poi_id', ''), doors=r['door_ids'],
+                                   floors=r['floor_count'], roof=r['roof_access']) for r in buildings],
+                   services=[dict(id=s['id'], poi=s['poi_id'], building=hosts[s['poi_id']]['id'],
+                                  settlement=hosts[s['poi_id']]['settlement_id'],
+                                  position=hosts[s['poi_id']]['position_cm'], functions=s['functions'],
+                                  execution_stage='B92') for s in services],
+                   aliases=aliases, civic_heart_override=7000,
                    routes=[dict(id=r['id'], start=r['from'], end=r['to'], width=r['width_cm'],
                                 points=r['points_cm']) for r in data['routes']['rows']],
                    rivers=[dict(id=r['id'], width=r['width_cm'], bank=r['bank_ramp_width_cm'],

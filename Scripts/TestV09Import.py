@@ -49,6 +49,24 @@ class SpatialImportTests(unittest.TestCase):
     def test_profile_mixing(self):
         self.reject('rules', lambda d: d['world'].update(seed=7001))
 
+    def test_unbound_service(self):
+        self.reject('services', lambda d: d['rows'][0].update(poi_id='ruin_a'))
+
+    def test_unknown_service_function(self):
+        self.reject('services', lambda d: d['rows'][0].update(functions=['free_teleport']))
+
+    def test_unknown_poi_function(self):
+        self.reject('pois', lambda d: d['rows'][0].update(functions=['route_hub', 'free_teleport']))
+
+    def test_duplicate_service(self):
+        self.reject('services', lambda d: d['rows'][1].update(id=d['rows'][0]['id']))
+
+    def test_alias_target(self):
+        self.reject('legacy_aliases', lambda d: d['aliases'].update(City='missing'))
+
+    def test_security_unit_drift(self):
+        self.reject('security', lambda d: d['civic_zone_radius_cm'].update(capital=120))
+
 
 if __name__ == '__main__':
     unittest.main()

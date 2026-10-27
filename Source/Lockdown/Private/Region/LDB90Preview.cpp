@@ -3,6 +3,9 @@
 #include "Tests/LDB90TraversalProbe.h"
 #include "Tests/LDB90RiverProbe.h"
 #include "Region/LDMapSurfaceSubsystem.h"
+#include "Region/LDMapRegistry.h"
+#include "Tests/LDB90StructureProbe.h"
+#include "Tests/LDB90ClosureProbe.h"
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
@@ -58,10 +61,42 @@ bool ALDB90PreviewController::NavigateTo(const FVector& Goal)
 { Stalls=0; return Plan(Goal); }
 void ALDB90PreviewController::SetApproachInspection(bool Enabled)
 {
+    if(Enabled&&SettlementView) { SetSettlementInspection(false); }
     auto* Body=Cast<ALDCharacter>(GetPawn()); if(!Body||Enabled==ApproachesVisible) { return; }
     if(Enabled) { BeforeApproachZoom=Body->CameraArm->TargetArmLength; BeforeApproachOffset=Body->CameraArm->TargetOffset; Body->CameraArm->TargetArmLength=14000; }
     else { Body->CameraArm->TargetArmLength=BeforeApproachZoom; Body->CameraArm->TargetOffset=BeforeApproachOffset; ApproachFeedback.Reset(); }
     ApproachesVisible=Enabled;
+}
+void ALDB90PreviewController::SetSettlementInspection(bool Enabled)
+{
+    auto* Body=Cast<ALDCharacter>(GetPawn()); if(!Body||Enabled==SettlementView) { return; }
+    if(Enabled) { SetApproachInspection(false); BeforeApproachZoom=Body->CameraArm->TargetArmLength; BeforeApproachOffset=Body->CameraArm->TargetOffset; Body->CameraArm->TargetArmLength=48000; }
+    else { Body->CameraArm->TargetArmLength=BeforeApproachZoom; Body->CameraArm->TargetOffset=BeforeApproachOffset; SettlementFeedback.Reset(); }
+    SettlementView=Enabled;
+}
+void ALDB90PreviewController::InspectSettlement(const FVector& Position)
+{
+    const auto* D=ULDMapDefinition::Get(GetWorld()); auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>(); FString Error;
+    if(!D||!Registry||!Registry->Ensure(Error)) { SetSettlementInspection(false); Feedback=TEXT("Settlement map unavailable: ")+Error; return; }
+    const FLDMapPoint* Nearest=nullptr; double Best=DBL_MAX;
+    for(const auto& S:D->Settlements) { const double Distance=FVector::DistSquared2D(Position,S.Position); if(Distance<Best) { Best=Distance; Nearest=&S; } }
+    if(!Nearest) { return; }
+    const FString Prefix=TEXT("F6 ")+Nearest->Name+TEXT(" | ");
+    if(auto* Body=Cast<ALDCharacter>(GetPawn()))
+    { if(!SettlementFeedback.StartsWith(Prefix)) { Body->CameraArm->TargetArmLength=Nearest->Radius*3.3; }
+      Body->CameraArm->TargetOffset=Nearest->Position-Body->GetActorLocation()+FVector(0,0,20); }
+    SettlementFeedback=Prefix+Nearest->Identity;
+    auto Ring=[&](FVector P,double Radius,FColor Color) { DrawDebugCircle(GetWorld(),P+FVector(0,0,20),Radius,64,Color,false,0,0,25,FVector(1,0,0),FVector(0,1,0),false); };
+    Ring(Nearest->Position,Nearest->Radius,FColor::Cyan); Ring(Nearest->Position,Nearest->CivicRadius,FColor::Orange);
+    if(Nearest->Id==TEXT("capital")) { Ring(D->Find(TEXT("heart"))->Position,D->CivicHeartOverride,FColor::Red); }
+    for(const auto& B:D->Buildings) { if(B.Settlement==Nearest->Id)
+    { DrawDebugBox(GetWorld(),B.Position+FVector(0,0,40),FVector(B.Size.X*.5,B.Size.Y*.5,40),B.Enterable?FColor::Green:FColor(110,110,110),false,0,0,12); } }
+    for(const auto& S:D->Services) { if(S.Settlement==Nearest->Id)
+    {
+        DrawDebugString(GetWorld(),S.Position+FVector(0,0,700),S.POI.ToString(),nullptr,FColor::Yellow,0,true);
+        if(const auto* Seat=Registry->ServiceSeats().FindByPredicate([&](const auto& B){return B.Id==S.Id;}))
+        { for(int32 I=1;I<Seat->HubPath.Num();++I) { DrawDebugLine(GetWorld(),Seat->HubPath[I-1]+FVector(0,0,35),Seat->HubPath[I]+FVector(0,0,35),FColor::Yellow,false,0,0,12); } }
+    } }
 }
 void ALDB90PreviewController::InspectApproaches(const FVector& Position)
 {
@@ -106,8 +141,11 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     if (WasInputKeyJustPressed(EKeys::F3)) { BandsVisible=!BandsVisible; }
     if (WasInputKeyJustPressed(EKeys::F4)) { ProxiesVisible=!ProxiesVisible; }
     if (WasInputKeyJustPressed(EKeys::F5)) { SetApproachInspection(!ApproachesVisible); }
+    if (WasInputKeyJustPressed(EKeys::F6)) { SetSettlementInspection(!SettlementView); }
+    if (WasInputKeyJustPressed(EKeys::F9)) { UGameplayStatics::OpenLevel(this,TEXT("/Game/Lockdown/Generated/V09/L_V09Full"),true,TEXT("Profile=v09_full")); return; }
+    if (WasInputKeyJustPressed(EKeys::F10)) { UGameplayStatics::OpenLevel(this,TEXT("/Game/Lockdown/Generated/Maps/L_V08Region"),true,TEXT("Profile=v08_integration")); return; }
     const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);
-    if(Zoom) { if(ApproachesVisible) { Body->CameraArm->TargetArmLength=FMath::Clamp(Body->CameraArm->TargetArmLength-Zoom*1000,6000.f,18000.f); } else { Body->Zoom(Zoom); } }
+    if(Zoom) { if(ApproachesVisible||SettlementView) { Body->CameraArm->TargetArmLength=FMath::Clamp(Body->CameraArm->TargetArmLength-Zoom*(SettlementView?3000:1000),SettlementView?12000.f:6000.f,SettlementView?90000.f:18000.f); } else { Body->Zoom(Zoom); } }
     if (WasInputKeyJustPressed(EKeys::P)) { ConsoleCommand(TEXT("show Navigation")); }
     if (WasInputKeyJustPressed(EKeys::RightMouseButton))
     {
@@ -141,6 +179,8 @@ void ALDB90PreviewController::PlayerTick(float Delta)
     { TraversalStarted=true; GetWorld()->SpawnActor<ALDB90TraversalProbe>(); }
     if(!RiverStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90RiverProbe")))
     { RiverStarted=true; GetWorld()->SpawnActor<ALDB90RiverProbe>(); }
+    if(!StructureStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90Structure"))) { StructureStarted=true; GetWorld()->SpawnActor<ALDB90StructureProbe>(); }
+    if(!ClosureStarted&&FParse::Param(FCommandLine::Get(),TEXT("LDB90ClosureProbe"))) { ClosureStarted=true; GetWorld()->SpawnActor<ALDB90ClosureProbe>(); }
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB90ApproachCapture")))
     {
         const double Now=GetWorld()->GetTimeSeconds();
@@ -149,6 +189,8 @@ void ALDB90PreviewController::PlayerTick(float Delta)
         { FString Output; FParse::Value(FCommandLine::Get(),TEXT("B90Output="),Output); FScreenshotRequest::RequestScreenshot(Output/TEXT("Approaches.png"),true,false); CaptureState=2; }
     }
     if(ApproachesVisible) { InspectApproaches(Body->GetActorLocation()); }
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB90SettlementCapture"))) { SetSettlementInspection(true); }
+    if(SettlementView) { InspectSettlement(Body->GetActorLocation()); }
     if (RoutesVisible) { for (const auto& R:D->Routes) { for (int32 I=1; I<R.Points.Num(); ++I)
     { DrawDebugLine(GetWorld(),R.Points[I-1]+FVector(0,0,80),R.Points[I]+FVector(0,0,80),FColor::Cyan,false,0,0,5); } } }
     if (PadsVisible) { for (const auto& P:D->POIs)
@@ -216,9 +258,9 @@ void ALDB90PreviewController::PlayerTick(float Delta)
 void ALDB90PreviewHUD::DrawHUD()
 {
     Super::DrawHUD(); const auto* PC=Cast<ALDB90PreviewController>(PlayerOwner); if (!PC) { return; }
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,1100,PC->ApproachFeedback.IsEmpty()?110:135);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,PC->SettlementFeedback.IsEmpty()?160:184);
     DrawText(TEXT("B90 FULL MAP / spatial review / combat, economy and population pending"),FLinearColor::White,22,20);
-    DrawText(TEXT("RMB move | W/arrows walk | S stop | F1 routes | F2 POIs | F3 heights | F4 proxies | F5 approaches | P navmesh"),FLinearColor::White,22,43);
+    DrawText(TEXT("RMB move | W/arrows walk | S stop | F1 routes | F2 POIs | F3 heights | F4 proxies | F5 approaches | F6 settlement | P navmesh"),FLinearColor::White,22,43);
     DrawText(PC->Feedback,FLinearColor::Yellow,22,66);
     if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>())
     { if(const auto* C=Surface->Contact(Cast<ALDCharacter>(PC->GetPawn())))
@@ -226,4 +268,7 @@ void ALDB90PreviewHUD::DrawHUD()
         const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
         DrawText(FString::Printf(TEXT("Wet: %s | Frozen floor: %s | Surface slow: %d%% | Max speed: %.0f cm/s"),C->State.Has(LDTactical::EStatus::Wet,At)?TEXT("active"):TEXT("clear"),C->Frozen?TEXT("yes"):TEXT("no"),C->State.SurfaceSlow,Body->GetCharacterMovement()->GetMaxSpeed()),FLinearColor::White,22,89); } }
     if(!PC->ApproachFeedback.IsEmpty()) { DrawText(PC->ApproachFeedback,FLinearColor::White,22,112); }
+    if(!PC->SettlementFeedback.IsEmpty()) { DrawText(PC->SettlementFeedback,FLinearColor::White,22,112); }
+    DrawText(TEXT("F9 fresh B90 reset | F10 fresh v0.8 baseline lobby | Static review; declared services are not transactions"),FLinearColor::White,22,138);
+    if(!PC->SettlementFeedback.IsEmpty()) { DrawText(TEXT("Cyan footprint | Orange civic policy | Red contested | Planned B92 services; no live guards or transactions"),FLinearColor::White,22,160); }
 }
