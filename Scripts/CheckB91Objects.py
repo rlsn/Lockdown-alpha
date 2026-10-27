@@ -15,7 +15,7 @@ def check(root):
     assert report['phase'] == 101
     assert len(report['checks']) == 49 and all(c['passed'] for c in report['checks'])
     size = len(report['fitted_objects'])
-    assert size in (156, 204)
+    assert size in (156, 204, 232)
     finite_count = 84 if size == 156 else 132
     assert report['finite_initial_items'] == finite_count and report['conserved']
     initial = report['initial_item_ids']
@@ -29,8 +29,10 @@ def check(root):
     manifest = report['fitted_objects']
     assert len({r['source_id'] for r in manifest}) == size
     expected = {1: 48, 2: 36, 3: 24, 4: 24, 5: 24}
-    if size == 204:
+    if size >= 204:
         expected.update({7: 24, 8: 12, 9: 12})
+    if size == 232:
+        expected.update({10: 12, 11: 16})
     assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
         assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01
@@ -42,7 +44,7 @@ def check(root):
         if data.get('fixture') != 'objects':
             continue
         assert data['completed'], path.name
-        assert set(data['wire_fields']) == fields
+        assert set(data['wire_fields']) in (fields, fields | {'Endpoint'})
         assert data['duplicate_same']
         assert all(set(r) == {'handle', 'kind', 'position', 'revision', 'state', 'physical_revision'} for r in data['received_entries'])
         assert all(not (r['state'] & 4) or r['physical_revision'] == 0 for r in data['received_entries'])

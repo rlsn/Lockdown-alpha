@@ -21,7 +21,7 @@ def check(root):
         for phase in range(1, 9):
             data = json.loads((root/f'{role}_{phase}.json').read_text(encoding='utf-8-sig'))
             assert data['completed'], (role, phase, data.get('reason'))
-            assert set(data['object_fields']) == world and set(data['body_fields']) == body
+            assert set(data['object_fields']) in (world, world | {'Endpoint'}) and set(data['body_fields']) == body
             assert not data['world_payload_contains_fuel']
             if role == 'B' and phase == 4:
                 assert data['peer_body_count'] == 0

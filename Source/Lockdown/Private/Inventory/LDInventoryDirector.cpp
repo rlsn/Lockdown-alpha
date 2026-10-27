@@ -73,7 +73,7 @@ void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Con
 }
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)
 {
-    if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->ForceDrop(Cast<ALDB91Controller>(PC));}
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld())){auto* EnvironmentPC=Cast<ALDB91Controller>(PC);Objects->Cancel(EnvironmentPC,TEXT("Life ended before property drops"));Objects->ForceDrop(EnvironmentPC);}
     auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Retiring){for(auto& Entry:O->Inventory.Items){Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}for(auto& Ref:O->Inventory.Bindings){Ref.Invalidate();}}for(auto& Entry:O->Inventory.Items){if(Entry.Kind==ELDItemKind::TowerRelic||LDPortableTools::IsTool(Entry.Kind)||(O->Build.RulesVersion==8&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)&&ULDEquipmentCatalog::Load(8)->Find(Entry.Kind)->Consumable)){for(auto& Ref:O->Inventory.Bindings){if(Ref==Entry.Id){Ref.Invalidate();}}Entry.BindingMask=0;if(auto* P=Owned(PC,Entry.Id)){P->BindingMask=0;}}}const auto Items=O->Inventory.Items;
     for(const auto& Entry:Items)
     {

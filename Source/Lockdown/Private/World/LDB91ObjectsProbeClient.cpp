@@ -1,5 +1,5 @@
 #include "World/LDEnvironmentDirector.h"
-#include "World/LDB91ToolsContract.h"
+#include "World/LDB91TraversalContract.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -20,7 +20,7 @@ void ALDB91Controller::TickB91ObjectsProbe()
     {const FLDObjectView* Best=nullptr;double Distance=125*125;for(const auto& V:ObjectView){const double D=FVector::DistSquared2D(V.Position,P);if(V.Kind==Kind&&D<Distance){Best=&V;Distance=D;}}return Best;};
     auto Issue=[&](ELDObjectVerb Verb,const FLDObjectView* V,FVector Point=FVector::ZeroVector)
     {
-        ObjectProbeRequest=FLDObjectRequest();auto& R=ObjectProbeRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_WORLD_SHA;
+        ObjectProbeRequest=FLDObjectRequest();auto& R=ObjectProbeRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;
         R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;if(V){R.Observed=V->Handle;R.ObjectRevision=V->Revision;R.ItemRevision=V->PhysicalRevision;}
         if(Verb==ELDObjectVerb::Take){R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;for(const auto& I:ContainerView){if(I.Kind==ELDItemKind::Fiber){R.Item=I.Item;R.ItemRevision=I.Revision;break;}}}
         if(Verb==ELDObjectVerb::Store){R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;for(const auto& I:OwnerState.Inventory.Items){if(I.Kind==ELDItemKind::Fiber){R.Item=I.Id;R.ItemRevision=I.Revision;break;}}}

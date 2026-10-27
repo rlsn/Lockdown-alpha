@@ -8,8 +8,8 @@ class ALDCharacter;
 class UStaticMeshComponent;
 class UPointLightComponent;
 
-UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope };
-UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle };
+UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor };
+UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve };
 USTRUCT()
 struct FLDObjectRequest
 {
@@ -26,6 +26,8 @@ struct FLDObjectRequest
     UPROPERTY() uint32 ItemRevision=0;
     UPROPERTY() ELDObjectVerb Verb=ELDObjectVerb::Open;
     UPROPERTY() uint8 Accessory=0;
+    UPROPERTY() FGuid Anchor;
+    UPROPERTY() uint32 AnchorRevision=0;
     UPROPERTY() FVector_NetQuantize10 Point=FVector::ZeroVector;
 };
 // Observer-local identity, public geometry and state only. Contents require a
@@ -40,6 +42,7 @@ struct FLDObjectView
     UPROPERTY() uint32 Revision=0;
     UPROPERTY() uint8 State=0;
     UPROPERTY() uint32 PhysicalRevision=0;
+    UPROPERTY() FVector_NetQuantize10 Endpoint=FVector::ZeroVector;
 };
 USTRUCT()
 struct FLDContainerEntry
@@ -65,14 +68,20 @@ public:
     TArray<TWeakObjectPtr<ALDItem>> Contents;
     TWeakObjectPtr<ALDItem> Physical;
     FVector SourcePosition,LastClear;
+    FVector Lower=FVector::ZeroVector,Upper=FVector::ZeroVector;
+    TWeakObjectPtr<ALDWorldObject> LinkedLadder,InstalledAt;
+    FGuid Deployer;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Proxy;
     UPROPERTY() TObjectPtr<UPointLightComponent> Glow;
     FVector Size() const;
-    bool Heavy() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel;}
-    bool Container() const {return Kind==ELDObjectKind::Chest||Heavy();}
+    bool Heavy() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Ladder;}
+    bool BlocksWalk() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel;}
+    bool Container() const {return Kind==ELDObjectKind::Chest||BlocksWalk();}
+    bool LinkInstalled() const {return Kind==ELDObjectKind::Anchor&&(LinkedLadder.IsValid()||!Contents.IsEmpty());}
     bool Available() const;
     int32 Weight() const;
-    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0)|uint8(Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid()&&Physical->bLit?8:0);}
+    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0)|uint8(Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid()&&Physical->bLit?8:0)|uint8(LinkInstalled()||InstalledAt.IsValid()?16:0);}
+    FVector EndFor(FVector Body) const {return FVector::DistSquared(Body,Lower+FVector(0,0,90))<=FVector::DistSquared(Body,Upper+FVector(0,0,90))?Lower:Upper;}
     void Apply(FVector Position,uint8 State,uint32 NewRevision);
     void SetObserved(bool Visible);
 };
@@ -91,6 +100,7 @@ public:
     ALDWorldObject* Find(FName SourceId) const;
     ALDWorldObject* Carried(const ALDB91Controller* PC) const;
     bool ForceDrop(ALDB91Controller* PC);
+    bool Traversing(const ALDB91Controller* PC) const;
     void Begin(ALDB91Controller* PC,const FLDObjectRequest& Request);
     void Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,uint32 Nonce,bool Release);
     void Cancel(ALDB91Controller* PC,const FString& Why);
@@ -104,6 +114,7 @@ public:
     void RecordConsumption(ALDItem* Item);
 private:
     friend class ALDB91ObjectsProbe;
+    friend class ALDB91TraversalProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
@@ -119,13 +130,17 @@ private:
     {
         FLDObjectRequest Request;
         TWeakObjectPtr<ALDWorldObject> Object;
+        TWeakObjectPtr<ALDWorldObject> Link;
+        TWeakObjectPtr<ALDCharacter> Body;
         FVector Start,Destination,PushStart;
+        FVector Via;
         double Started=0,Ends=0,Heartbeat=0,Damage=0;
         uint32 Nonce=0;
     };
     struct FCargo{TWeakObjectPtr<ALDWorldObject> Object;uint32 Life=0;double Damage=0;};
     TMap<TWeakObjectPtr<ALDB91Controller>,FClient> Clients;
     TMap<TWeakObjectPtr<ALDB91Controller>,FHold> Holds;
+    TMap<TWeakObjectPtr<ALDB91Controller>,FHold> Returns;
     TMap<TWeakObjectPtr<ALDB91Controller>,FCargo> Cargo;
     TMap<FGuid,TWeakObjectPtr<ALDItem>> Finite;
     TSet<FGuid> Consumed;
@@ -134,6 +149,14 @@ private:
     double NextFuelPublish=0;
     bool FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const;
     bool InitializeTools(FString& Error);
+    bool InitializeTraversal(FString& Error);
+    bool LinkEligible(ALDB91Controller* PC,ALDWorldObject* Object,const FLDObjectRequest& R,FString& Why) const;
+    bool BeginLink(ALDB91Controller* PC,ALDWorldObject* Object,FHold& Hold,FString& Why);
+    bool CommitLink(ALDB91Controller* PC,ALDWorldObject* Object,const FHold& Hold,FString& Why);
+    bool MoveTraversal(ALDB91Controller* PC,const FHold& Hold,double Now,FString& Why);
+    void EndTraversal(ALDB91Controller* PC,const FHold& Hold,bool Success);
+    bool EndpointClear(ALDB91Controller* PC,FVector Feet) const;
+    bool RestoreTraversal(ALDB91Controller* PC,const FHold& Hold,bool Success);
     void TickTools(double Now);
     bool ToggleTool(ALDB91Controller* PC,const FLDObjectRequest& Request,FString& Why);
     bool SurfaceAt(FVector Point,FVector& Surface) const;

@@ -37,10 +37,10 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote object owners"));
-        Check(Objects->Objects.Num()==204&&Count(GetWorld())==132,TEXT("Exact 204 objects and 132 finite physical endowments"));
+        Check(Objects->Objects.Num()==232&&Count(GetWorld())==132,TEXT("Exact 232 objects and 132 finite physical endowments"));
         for(TActorIterator<ALDItem> I(GetWorld());I;++I){InitialIds.Add(I->Identity);}
         for(auto O:Objects->Objects)
-        {FVector Surface=O->LastClear;const bool Valid=Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);
+        {FVector Surface=O->LastClear;const bool Valid=O->Kind==ELDObjectKind::Anchor?Objects->EndpointClear(A,O->Lower)&&Objects->EndpointClear(A,O->Upper):Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);
          auto Vector=[](FVector P){return TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(P.X),MakeShared<FJsonValueNumber>(P.Y),MakeShared<FJsonValueNumber>(P.Z)};};R->SetArrayField(TEXT("source_cm"),Vector(O->SourcePosition));R->SetArrayField(TEXT("fitted_cm"),Vector(O->LastClear));Manifest.Add(MakeShared<FJsonValueObject>(R));}
         Check(!Manifest.ContainsByPredicate([](const auto& R){return !R->AsObject()->GetBoolField(TEXT("placement_valid"));}),TEXT("All initial pads pass current physical placement and corridor rules"));
         auto* Crate=Objects->Find(TEXT("prop_crate_000"));auto* E=ALDEnvironmentDirector::Get(GetWorld());const auto* Map=ULDMapDefinition::Get(GetWorld());FVector Surface;

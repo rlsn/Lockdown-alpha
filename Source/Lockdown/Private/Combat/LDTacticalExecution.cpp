@@ -22,6 +22,8 @@
 bool ALDCombatDirector::Allows(ALDCharacter* Body,LDTactical::EAction Action,FString* Why) const
 {
     const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* S=StateFor(Body);
+    if(auto* PC=Body?Cast<ALDB91Controller>(Body->GetController()):nullptr)
+    {if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&Objects->Traversing(PC)){if(Why){*Why=TEXT("Traversal controls the body until a safe landing");}return false;}}
     if(Action!=LDTactical::EAction::Move){if(auto* PC=Body?Cast<ALDB91Controller>(Body->GetController()):nullptr;PC&&PC->HasObjectCargo()){if(Why){*Why=TEXT("Put down cargo before this action");}return false;}}
     if(M&&M->IsTacticalProfile()&&S&&Action!=LDTactical::EAction::Move&&Action!=LDTactical::EAction::Service&&GetWorld()->GetTimeSeconds()<S->CoreRecoveryUntil){if(Why){*Why=TEXT("Recovering from cancelled windup");}return false;}
     return !M||!M->IsTacticalProfile()||(S&&LDTactical::Allows(S->Tactical,Action,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()),Why));

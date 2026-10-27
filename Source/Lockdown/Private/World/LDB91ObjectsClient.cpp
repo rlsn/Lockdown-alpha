@@ -1,5 +1,7 @@
 #include "World/LDEnvironmentDirector.h"
-#include "World/LDB91ToolsContract.h"
+#include "World/LDB91TraversalContract.h"
+#include "Character/LDCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -43,7 +45,7 @@ const FLDObjectView* ALDB91Controller::NearestObject() const
 void ALDB91Controller::StartObject(ELDObjectVerb Verb,FVector Point)
 {
     const auto* O=NearestObject();if(!CanWorldCommand()||(!O&&Verb!=ELDObjectVerb::Drop)){return;}ReleaseDoor();Navigation->Stop();
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
     if(O){R.Observed=O->Handle;R.ObjectRevision=O->Revision;R.ItemRevision=O->PhysicalRevision;}
     if(Verb==ELDObjectVerb::Take)
     {if(!ContainerView.IsValidIndex(ContainerSelection)){return;}const auto& I=ContainerView[ContainerSelection];R.Item=I.Item;R.ItemRevision=I.Revision;R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;}
@@ -54,6 +56,25 @@ void ALDB91Controller::StartObject(ELDObjectVerb Verb,FVector Point)
 void ALDB91Controller::ToggleSelectedTool()
 {
     if(!CanWorldCommand()||!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}ReleaseDoor();const auto& Item=OwnerState.Inventory.Items[BagSelection];
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.Verb=ELDObjectVerb::Toggle;R.Accessory=255;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.Verb=ELDObjectVerb::Toggle;R.Accessory=255;
     for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==R.Item){R.Accessory=N;break;}}ServerObjectInteraction(R);
 }
+void ALDB91Controller::StartLink(ELDObjectVerb Verb)
+{
+    if(!CanWorldCommand()||!GetPawn()){return;}const FLDObjectView* Anchor=nullptr;double Best=120*120;
+    for(const auto& V:ObjectView){const double D=FVector::DistSquared2D(GetPawn()->GetActorLocation(),V.Position);if(V.Kind==ELDObjectKind::Anchor&&!(V.State&4)&&D<=Best&&FMath::Abs(GetPawn()->GetActorLocation().Z-V.Position.Z)<150){Anchor=&V;Best=D;}}
+    if(!Anchor){return;}FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Verb=Verb;R.Observed=Anchor->Handle;R.ObjectRevision=Anchor->Revision;R.InventoryRevision=OwnerState.Inventory.Revision;
+    if(Verb==ELDObjectVerb::Deploy)
+    {const auto* Ladder=ObjectView.FindByPredicate([&](const auto& V){return V.Handle==CargoHandle&&V.Kind==ELDObjectKind::Ladder;});if(!Ladder){return;}R.Anchor=Anchor->Handle;R.AnchorRevision=Anchor->Revision;R.Observed=Ladder->Handle;R.ObjectRevision=Ladder->Revision;}
+    if(Verb==ELDObjectVerb::Attach)
+    {if(!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}const auto& I=OwnerState.Inventory.Items[BagSelection];R.Item=I.Id;R.ItemRevision=I.Revision;R.Accessory=255;for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==I.Id){R.Accessory=N;break;}}}
+    ReleaseDoor();Navigation->Stop();HeldObject=true;HeldSequence=R.Sequence;Nonce=0;SentAt=GetWorld()->GetTimeSeconds();ServerObjectInteraction(R);
+}
+void ALDB91Controller::ClientTraversalState_Implementation(uint32 Match,uint32 Life,uint32 Sequence,bool Active,FVector_NetQuantize10 Position)
+{
+    if(!IsLocalController()||Match!=OwnerState.Match||Life!=OwnerState.Life||Sequence<TraversalSequence){return;}auto* Body=Cast<ALDCharacter>(GetPawn());if(!Body){return;}
+    if(Sequence==TraversalSequence&&Active&&!bTraversalActive){return;}TraversalSequence=Sequence;TraversalMatch=Match;TraversalLife=Life;bTraversalActive=Active;Navigation->ResetLife();Body->GetCharacterMovement()->StopMovementImmediately();Body->SetActorLocation(Position);
+    if(Active){Body->GetCharacterMovement()->DisableMovement();}else{Body->GetCharacterMovement()->SetMovementMode(MOVE_Walking);}
+}
+void ALDB91Controller::ClientTraversalPose_Implementation(uint32 Match,uint32 Life,uint32 Sequence,FVector_NetQuantize10 Position)
+{if(bTraversalActive&&Sequence==TraversalSequence&&Match==OwnerState.Match&&Life==OwnerState.Life){if(auto* Body=GetPawn().Get()){Body->SetActorLocation(Position);}}}

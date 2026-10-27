@@ -147,6 +147,10 @@ public:
     UFUNCTION(Client,Reliable) void ClientObjectView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDObjectView>& Entries);
     UFUNCTION(Client,Reliable) void ClientContainerView(uint32 Match,uint32 Life,FGuid Handle,uint32 Revision,const TArray<FLDContainerEntry>& Entries);
     UFUNCTION(Client,Reliable) void ClientCargoState(uint32 Match,uint32 Life,bool Carrying,FGuid Observed);
+    UFUNCTION(Client,Reliable) void ClientTraversalState(uint32 Match,uint32 Life,uint32 Sequence,bool Active,FVector_NetQuantize10 Position);
+    UFUNCTION(Client,Unreliable) void ClientTraversalPose(uint32 Match,uint32 Life,uint32 Sequence,FVector_NetQuantize10 Position);
+    bool bTraversalActive=false;
+    void StartLink(ELDObjectVerb Verb);
     TArray<FLDObjectView> ObjectView;
     TArray<FLDContainerEntry> ContainerView;
     FGuid ContainerHandle;
@@ -178,6 +182,7 @@ public:
     void TickB91Probe();
     void TickB91ObjectsProbe();
     void TickB91ToolsProbe();
+    void TickB91TraversalProbe();
 private:
     uint32 WorldSequence=0,HeldSequence=0,Nonce=0;
     double SentAt=0;
@@ -187,12 +192,15 @@ private:
     FKey ToolBindingKey;
     uint64 ObjectViewRevision=0;
     uint32 ObjectViewMatch=0,ObjectViewLife=0;
+    uint32 TraversalSequence=0;
+    uint32 TraversalMatch=0,TraversalLife=0;
     double ObjectViewAt=0;
     TMap<FGuid,TWeakObjectPtr<ALDWorldObject>> ObjectProxies;
     TMap<FGuid,TWeakObjectPtr<ULDHumanoidVisualComponent>> BodyViews;
     uint8 ProbeTask=0,ProbeStep=0;
     uint8 ProbeRetries=0;
     bool ProbeSent=false;
+    bool TraversalProbeDeployer=false;
     double ProbeAt=0,ProbeHoldAt=0;
     double ProbeRetryAt=0;
     FLDWorldRequest ProbeRequest;

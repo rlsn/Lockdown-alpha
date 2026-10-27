@@ -96,7 +96,16 @@ bool ALDEnvironmentDirector::Initialize(FString& Error)
         for(int32 Side:{-1,1})
         {
             // Two explicit small windows: 6m wide, 1.3m tall, sill at 1m.
-            Add(FVector(Side*680,-600,300),FVector(40,600,600));Add(FVector(Side*680,600,300),FVector(40,600,600));
+            Add(FVector(Side*680,-600,300),FVector(40,600,600));
+            if(Side==1&&Roofs.Contains(Id))
+            {
+                // Approved optional-link portal over the north landing. Ground
+                // wall stays intact; the 3m upper opening clears a full capsule.
+                Add(FVector(680,600,200),FVector(40,600,400));
+                Add(FVector(680,430,500),FVector(40,260,200));
+                Add(FVector(680,880,500),FVector(40,40,200));
+            }
+            else{Add(FVector(Side*680,600,300),FVector(40,600,600));}
             Add(FVector(Side*680,0,50),FVector(40,600,100));Add(FVector(Side*680,0,415),FVector(40,600,370));
             for(int32 Wing:{-1,1}){Add(FVector(Wing*425,Side*880,300),FVector(550,40,600));}
             Add(FVector(0,Side*880,430),FVector(300,40,340));
@@ -174,7 +183,7 @@ bool ALDEnvironmentDirector::Eligible(ALDB91Controller* PC,ALDEnvironmentDoor* D
     if(!Ready||!D||!O||!B||!S||!O->bActive||!M->IsPlaying()||S->Hp<=0||Now<O->ProtectedUntil||Now<S->ProtectionUntil
        ||S->Action||O->DevelopmentKind||!M->Combat->Allows(const_cast<ALDCharacter*>(B),LDTactical::EAction::Service))
     {return Fail(TEXT("World interaction unavailable"));}
-    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&Objects->Carried(PC)){return Fail(TEXT("Put down cargo before using a door"));}
+    if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&(Objects->Carried(PC)||Objects->Traversing(PC))){return Fail(TEXT("Finish cargo or traversal before using a door"));}
     const FVector Target=D->GetActorLocation()-FVector(0,0,40);
     if(FVector::DistSquared2D(B->GetActorLocation(),Target)>120*120||FMath::Abs(B->GetActorLocation().Z-Target.Z)>100||!Visible(PC,D))
     {return Fail(TEXT("Visible doorway must be within 120cm on this floor"));}

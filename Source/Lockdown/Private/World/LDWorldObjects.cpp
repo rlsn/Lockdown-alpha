@@ -2,6 +2,7 @@
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91ObjectsContract.h"
 #include "World/LDB91ToolsContract.h"
+#include "World/LDB91TraversalContract.h"
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
@@ -28,7 +29,7 @@ namespace
 uint64 ObjectReceiptKey(uint32 Life,uint32 Seq){return (uint64(Life)<<32)|Seq;}
 bool ItemVerb(ELDObjectVerb V){return V==ELDObjectVerb::Take||V==ELDObjectVerb::Store||V==ELDObjectVerb::Drop;}
 double Duration(ELDObjectVerb V)
-{switch(V){case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:return 1.5;case ELDObjectVerb::Break:return 3.;default:return .5;}}
+{switch(V){case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:case ELDObjectVerb::Attach:case ELDObjectVerb::Deploy:case ELDObjectVerb::Retrieve:return 1.5;case ELDObjectVerb::Use:return 2.;case ELDObjectVerb::Break:return 3.;default:return .5;}}
 }
 ALDWorldObject::ALDWorldObject()
 {
@@ -38,20 +39,20 @@ ALDWorldObject::ALDWorldObject()
     Glow=CreateDefaultSubobject<UPointLightComponent>(TEXT("ObservedCosmeticGlow"));Glow->SetupAttachment(Proxy);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->SetVisibility(false);
 }
 FVector ALDWorldObject::Size() const
-{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);default:return FVector(20,20,30);}}
+{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);default:return FVector(20,20,30);}}
 bool ALDWorldObject::Available() const
-{return !Broken&&(Container()||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
+{return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
 int32 ALDWorldObject::Weight() const
-{int32 W=Kind==ELDObjectKind::Crate?12:Kind==ELDObjectKind::Barrel?16:0;for(auto P:Contents){if(P.IsValid()){W+=LDInventory::UnitWeight(P->Kind);}}return W;}
+{int32 W=Kind==ELDObjectKind::Crate?12:Kind==ELDObjectKind::Barrel?16:Kind==ELDObjectKind::Ladder?10:0;for(auto P:Contents){if(P.IsValid()){W+=LDInventory::UnitWeight(P->Kind);}}return W;}
 void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
 {
     if(NewRevision<Revision||(NewRevision==Revision&&State==AppliedState&&Proxy->GetStaticMesh()&&GetActorLocation().Equals(Position,.01))){return;}AppliedState=State;
     Broken=State&1;bCarriedWorld=State&2;SetActorLocation(Position);Proxy->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
     Proxy->SetRelativeScale3D(Size()/100.);Proxy->SetVisibility(!(State&5));
     Glow->SetAttenuationRadius(Kind==ELDObjectKind::Torch?600:Kind==ELDObjectKind::Lantern?800:0);Glow->SetVisibility(false);
-    Proxy->SetCollisionEnabled(Heavy()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
+    Proxy->SetCollisionEnabled(BlocksWalk()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
     Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,Kind==ELDObjectKind::Crate?ECR_Block:ECR_Ignore);
-    Proxy->SetCanEverAffectNavigation(Heavy()&&!(State&7));
+    Proxy->SetCanEverAffectNavigation(BlocksWalk()&&!(State&7));
     Revision=CollisionRevision=SightRevision=NavigationRevision=NewRevision;++ProxyUpdates;FNavigationSystem::UpdateComponentData(*Proxy);
 }
 void ALDWorldObject::SetObserved(bool Visible)
@@ -86,7 +87,9 @@ bool ALDWorldObjects::Reserved(FVector P,FVector Size) const
         for(const auto& S:E->RoofGoals){if(FVector::Dist2D(P,S)<300+R){return true;}}
     }
     // Do not turn interior corridors or stair landings into placement pads.
-    for(const auto& B:D->Buildings){if(FMath::Abs(P.X-B.Position.X)<700+R&&FMath::Abs(P.Y-B.Position.Y)<900+R){return true;}}
+    for(const auto& B:D->Buildings)
+    {if(FMath::Abs(P.X-B.Position.X)<700+R&&FMath::Abs(P.Y-B.Position.Y)<900+R){return true;}
+     if(B.Roof&&FVector::Dist2D(P,B.Position+FVector(950,740,0))<200+R){return true;}}
     return D->RiverAt(P);
 }
 bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Surface) const
@@ -95,7 +98,8 @@ bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Su
     const FVector Extent=Object->Size()*.5;
     const double CentreZ=Surface.Z;double PadZ=CentreZ;
     for(int X:{-1,1}){for(int Y:{-1,1}){FVector Corner=Surface;
-    if(!SurfaceAt(Surface+FVector(X*Extent.X,Y*Extent.Y,0),Corner)||FMath::Abs(Corner.Z-CentreZ)>20){return false;}PadZ=FMath::Max(PadZ,Corner.Z);}}
+    const double Grade=Object->Kind==ELDObjectKind::Ladder?FMath::Max(20.,Extent.Size2D()*.25):20.;
+    if(!SurfaceAt(Surface+FVector(X*Extent.X,Y*Extent.Y,0),Corner)||FMath::Abs(Corner.Z-CentreZ)>Grade){return false;}PadZ=FMath::Max(PadZ,Corner.Z);}}
     // Upright props rest on the highest sampled corner. A horizontal box at the
     // centre height otherwise penetrates even a legal, gentle terrain slope.
     Surface.Z=PadZ;
@@ -137,8 +141,8 @@ bool ALDWorldObjects::Initialize(FString& Error)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
     if(Objects.Num()!=156||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
-    if(!InitializeTools(Error)){return false;}Contract=LD_B91_WORLD_SHA;
-    Ready=Objects.Num()==204&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool census mismatch");}return Ready;
+    if(!InitializeTools(Error)||!InitializeTraversal(Error)){return false;}Contract=LD_B91_LINK_WORLD_SHA;
+    Ready=Objects.Num()==232&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -152,7 +156,8 @@ bool ALDWorldObjects::Visible(ALDB91Controller* PC,ALDWorldObject* O) const
     if(!E||!O||!B||!PC->OwnerState.bActive){return false;}if(O->Carrier==PC){return true;}
     const double Radius=E->SightFor(PC);
     // Eye height at the object's floor; ignore its own cover at the endpoint.
-    return E->Ray(B->GetActorLocation(),O->GetActorLocation()-FVector(0,0,O->Size().Z*.5-90),O,Radius);
+    const FVector Target=O->Kind==ELDObjectKind::Anchor?O->EndFor(B->GetActorLocation())+FVector(0,0,90):O->GetActorLocation()-FVector(0,0,O->Size().Z*.5-90);
+    return E->Ray(B->GetActorLocation(),Target,O,Radius);
 }
 ALDWorldObject* ALDWorldObjects::Resolve(ALDB91Controller* PC,FGuid Id) const
 {const auto* C=Clients.Find(PC);if(!C||!C->Visible.Contains(Id)){return nullptr;}for(const auto& P:C->Handles){if(P.Value==Id&&Visible(PC,P.Key.Get())){return P.Key.Get();}}return nullptr;}
@@ -162,16 +167,20 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
     const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B&&M&&M->Combat?M->Combat->StateFor(B):nullptr;const double Now=GetWorld()->GetTimeSeconds();
     if(!Ready||!Own||!B||!S||!Own->bActive||!M->IsPlaying()||S->Hp<=0||S->Action||Own->DevelopmentKind||Now<Own->ProtectedUntil||Now<S->ProtectionUntil
        ||!LDTactical::Allows(S->Tactical,LDTactical::EAction::Service,LDTactical::Milliseconds(Now))){return Fail(TEXT("World interaction unavailable"));}
+    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)){return LinkEligible(PC,O,R,Why);}
+    if(Traversing(PC)){return Fail(TEXT("Finish traversal before another interaction"));}
     const bool Drop=R.Verb==ELDObjectVerb::Drop;
     if(!Drop&&(!O||!O->Available()||O->Revision!=R.ObjectRevision||O->bCarriedWorld&&O->Carrier!=PC)){return Fail(TEXT("Object changed or unavailable"));}
     if(!Drop&&O->Carrier!=PC&&(FVector::Dist2D(B->GetActorLocation(),O->GetActorLocation())>(R.Verb==ELDObjectVerb::Push&&Holds.Contains(PC)?270:120)||FMath::Abs(B->GetActorLocation().Z-(O->GetActorLocation().Z-O->Size().Z*.5+90))>100||!Visible(PC,O))){return Fail(TEXT("Visible object must be within 120cm on this floor"));}
     if(R.Verb!=ELDObjectVerb::Open&&R.Verb!=ELDObjectVerb::Drop&&Now-FMath::Max3(S->LastDamage,S->LastDealt,S->QuietSince)<6){return Fail(TEXT("Six combat-quiet seconds required"));}
     if(Carried(PC)&&R.Verb!=ELDObjectVerb::Place){return Fail(TEXT("Put down cargo before another interaction"));}
     if(R.Verb==ELDObjectVerb::Open&&(!O->Container()||O->Carrier.IsValid())){return Fail(TEXT("No accessible container"));}
+    if(O&&O->InstalledAt.IsValid()){return Fail(TEXT("Use the approved anchor to retrieve an installed ladder"));}
+    if(R.Verb==ELDObjectVerb::Push&&O&&!O->BlocksWalk()){return Fail(TEXT("Only crates and barrels can be pushed"));}
     if(R.Verb==ELDObjectVerb::Carry||R.Verb==ELDObjectVerb::Push)
     {const int Natural=Own->Build.Attributes.Num()==6?60+2*(Own->Build.Attributes[0]-10):0;if(!O->Heavy()||O->Weight()>Natural||O->Carrier.IsValid()){return Fail(TEXT("Cargo exceeds natural carrying capacity or is occupied"));}}
     if(R.Verb==ELDObjectVerb::Place&&(!O||O->Carrier!=PC||Carried(PC)!=O)){return Fail(TEXT("No carried cargo"));}
-    if(R.Verb==ELDObjectVerb::Break&&(!O->Heavy()||O->Carrier.IsValid())){return Fail(TEXT("Only a placed crate or barrel can break"));}
+    if(R.Verb==ELDObjectVerb::Break&&(!O->BlocksWalk()||O->Carrier.IsValid())){return Fail(TEXT("Only a placed crate or barrel can break"));}
     if(R.Verb==ELDObjectVerb::Pickup&&(!O->Physical.IsValid()||O->Physical->State!=0||O->Physical->Holder.IsValid()||FVector::Dist(O->Physical->GetActorLocation(),O->GetActorLocation())>10)){return Fail(TEXT("Physical item unavailable"));}
     if(R.Verb==ELDObjectVerb::Take||R.Verb==ELDObjectVerb::Store)
     {const auto* C=Clients.Find(PC);const auto* Quote=C?C->Opened.Find(O):nullptr;if(!O->Container()||!Quote||*Quote!=O->Revision){return Fail(TEXT("Open the current container revision first"));}}
@@ -204,9 +213,11 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
     if(R.Verb==ELDObjectVerb::Toggle){FString Why;const bool Done=ToggleTool(PC,R,Why);if(Done){++Committed;}Reply(PC,R,Done?1:2,Why);return;}
     auto* Object=R.Verb==ELDObjectVerb::Drop?nullptr:Resolve(PC,R.Observed);FString Why;
     if(!Eligible(PC,Object,R,Why)){Reply(PC,R,2,Why);return;}
-    for(const auto& P:Holds){if(P.Key!=PC&&(Object&&P.Value.Object==Object||R.Item.IsValid()&&P.Value.Request.Item==R.Item)&&!(R.Verb==ELDObjectVerb::Open&&P.Value.Request.Verb==ELDObjectVerb::Open)){Reply(PC,R,2,TEXT("Object reserved; try again"));return;}}
+    const auto* RequestedAnchor=R.Anchor.IsValid()?Resolve(PC,R.Anchor):nullptr;
+    for(const auto& P:Holds){if(P.Key!=PC&&(Object&&(P.Value.Object==Object||P.Value.Link==Object)||RequestedAnchor&&(P.Value.Object==RequestedAnchor||P.Value.Link==RequestedAnchor)||R.Item.IsValid()&&P.Value.Request.Item==R.Item)&&!(R.Verb==ELDObjectVerb::Open&&P.Value.Request.Verb==ELDObjectVerb::Open)){Reply(PC,R,2,TEXT("Object reserved; try again"));return;}}
     Cancel(PC,TEXT("Superseded held interaction"));if(auto* E=ALDEnvironmentDirector::Get(GetWorld())){E->Cancel(PC,TEXT("Object interaction started"));}
-    FHold H;H.Request=R;H.Object=Object;H.Start=PC->GetPawn()->GetActorLocation();H.Started=H.Heartbeat=Now;H.Ends=Now+Duration(R.Verb);H.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;
+    FHold H;H.Request=R;H.Object=Object;H.Body=Cast<ALDCharacter>(PC->GetPawn());H.Start=PC->GetPawn()->GetActorLocation();H.Started=H.Heartbeat=Now;H.Ends=Now+Duration(R.Verb);H.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;
+    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&!BeginLink(PC,Object,H,Why)){Reply(PC,R,2,Why);return;}
     if(R.Verb==ELDObjectVerb::Place||R.Verb==ELDObjectVerb::Drop)
     {
         FVector Surface;const double Range=R.Verb==ELDObjectVerb::Place?250:80;
@@ -231,7 +242,7 @@ void ALDWorldObjects::Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 
     if(Release){Cancel(PC,TEXT("Held input released"));return;}if(Nonce>H->Nonce){H->Nonce=Nonce;H->Heartbeat=GetWorld()->GetTimeSeconds();}
 }
 void ALDWorldObjects::Cancel(ALDB91Controller* PC,const FString& Why)
-{if(const auto* H=Holds.Find(PC)){const auto R=H->Request;Holds.Remove(PC);Reply(PC,R,2,Why);}}
+{if(const auto* H=Holds.Find(PC)){const auto Copy=*H;Holds.Remove(PC);if(Copy.Request.Verb==ELDObjectVerb::Use){EndTraversal(PC,Copy,false);}Reply(PC,Copy.Request,2,Why);}}
 void ALDWorldObjects::Quote(ALDB91Controller* PC,ALDWorldObject* O)
 {
     if(!PC||!O||!O->Container()||!Visible(PC,O)||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),O->GetActorLocation())>120){return;}
@@ -247,6 +258,7 @@ ALDWorldObject* ALDWorldObjects::Wrap(ALDItem* Item,FVector Surface)
 bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold& H,FString& Why)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto& R=H.Request;auto* Inventory=M->Inventory.Get();
+    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)){return CommitLink(PC,O,H,Why);}
     if(R.Verb==ELDObjectVerb::Open){Quote(PC,O);return true;}
     if(R.Verb==ELDObjectVerb::Take||R.Verb==ELDObjectVerb::Pickup)
     {
@@ -276,9 +288,12 @@ bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold&
 bool ALDWorldObjects::ForceDrop(ALDB91Controller* PC)
 {
     auto* O=Carried(PC);if(!O){return true;}Cancel(PC,TEXT("Cargo dropped"));const FVector Near=PC&&PC->GetPawn()?PC->GetPawn()->GetActorLocation()-FVector(0,0,90):O->LastClear;
-    FVector Surface=Near;bool Found=false;
+    FVector Surface=Near;bool Found=false;const auto* Map=ULDMapDefinition::Get(GetWorld());
     for(int Ring=1;Ring<=20&&!Found;++Ring){for(int Y=-Ring;Y<=Ring&&!Found;++Y){for(int X=-Ring;X<=Ring&&!Found;++X)
-    {if(FMath::Max(FMath::Abs(X),FMath::Abs(Y))!=Ring){continue;}Found=Placement(O,Near+FVector(X*100,Y*100,0),Surface);}}}
+    {if(FMath::Max(FMath::Abs(X),FMath::Abs(Y))!=Ring){continue;}FVector Point=Near+FVector(X*100,Y*100,0);Found=Placement(O,Point,Surface);
+     // A retrieved roof link must be able to drop onto nearby ground below
+     // the upper floor instead of snapping back to its distant source pad.
+     if(!Found&&Map){Point.Z=Map->Height(FVector2D(Point));Found=Placement(O,Point,Surface);}}}}
     if(!Found){Found=Placement(O,O->LastClear,Surface);}if(!Found){return false;}
     O->Carrier.Reset();O->bCarriedWorld=false;Cargo.Remove(PC);if(PC){PC->ClientCargoState(PC->OwnerState.Match,PC->OwnerState.Life,false,FGuid());}O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);return true;
 }
@@ -308,7 +323,8 @@ void ALDWorldObjects::Publish()
     {
         auto* PC=Cast<ALDB91Controller>(I->Get());const auto* Own=PC?M->StateFor(PC):nullptr;if(!Own){continue;}auto& C=Clients.FindOrAdd(PC);C.Visible.Reset();TArray<FLDObjectView> View;
         for(auto O:Objects){if(!O.IsValid()||!Visible(PC,O.Get())||View.Num()>=128){continue;}auto& Id=C.Handles.FindOrAdd(O);if(!Id.IsValid()){Id=FGuid::NewGuid();}C.Visible.Add(Id);
-        FLDObjectView V;V.Handle=Id;V.Kind=O->Kind;V.Position=O->GetActorLocation();V.Revision=O->Revision;V.State=O->Flags();V.PhysicalRevision=O->Physical.IsValid()&&O->Physical->State==0&&!O->Physical->Holder.IsValid()?O->Physical->Revision:0;View.Add(V);C.LastSeen.Add(Id,V);}
+        FLDObjectView V;V.Handle=Id;V.Kind=O->Kind;V.Position=O->GetActorLocation();if(O->Kind==ELDObjectKind::Anchor&&PC->GetPawn()){const FVector Near=O->EndFor(PC->GetPawn()->GetActorLocation());V.Position=Near+FVector(0,0,18);V.Endpoint=Near.Equals(O->Lower)?O->Upper:O->Lower;}
+        V.Revision=O->Revision;V.State=O->Flags();V.PhysicalRevision=O->Physical.IsValid()&&O->Physical->State==0&&!O->Physical->Holder.IsValid()?O->Physical->Revision:0;View.Add(V);C.LastSeen.Add(Id,V);}
         // Observing empty space at a previously seen cargo position clears its
         // stale client obstacle. This reveals absence here, never its new hidden
         // position, state, carrier or inventory. It grants no interaction handle.
@@ -329,6 +345,8 @@ void ALDWorldObjects::Tick(float Delta)
 {
     Super::Tick(Delta);if(!Ready||GetNetMode()==NM_Client){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}const double Now=GetWorld()->GetTimeSeconds();
     TickTools(Now);
+    TArray<TWeakObjectPtr<ALDB91Controller>> Returning;Returns.GetKeys(Returning);
+    for(auto Weak:Returning){if(!Weak.IsValid()||RestoreTraversal(Weak.Get(),Returns.FindChecked(Weak),false)){Returns.Remove(Weak);}}
     TArray<TWeakObjectPtr<ALDB91Controller>> Carriers;Cargo.GetKeys(Carriers);
     for(auto Weak:Carriers)
     {auto* PC=Weak.Get();const auto C=Cargo.FindRef(Weak);auto* O=C.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;
@@ -345,8 +363,10 @@ void ALDWorldObjects::Tick(float Delta)
     {
         auto* PC=Weak.Get();auto* Live=Holds.Find(Weak);if(!Live){continue;}const auto H=*Live;auto* O=H.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;FString Why;
         if(!PC){Holds.Remove(Weak);continue;}
-        if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||S->LastDamage!=H.Damage||FVector::DistSquared(H.Start,B->GetActorLocation())>25||Now-H.Heartbeat>.35||!Eligible(PC,O,H.Request,Why))
+        const bool Use=H.Request.Verb==ELDObjectVerb::Use;
+        if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||H.Body!=B||S->LastDamage!=H.Damage||(!Use&&FVector::DistSquared(H.Start,B->GetActorLocation())>25)||Now-H.Heartbeat>.35||(Use&&Now-H.Started>3)||!Eligible(PC,O,H.Request,Why))
         {Cancel(PC,TEXT("Object hold cancelled; state, movement, damage or input changed"));continue;}
+        if(Use&&!MoveTraversal(PC,H,Now,Why)){Cancel(PC,Why);continue;}
         if(H.Request.Verb==ELDObjectVerb::Push&&O)
         {
             const FVector Want=FMath::Lerp(H.PushStart,H.Destination,FMath::Clamp((Now-H.Started)/(H.Ends-H.Started),0.,1.));FVector Surface;
@@ -355,7 +375,7 @@ void ALDWorldObjects::Tick(float Delta)
             {Cancel(PC,TEXT("Push stopped at an occupied endpoint"));continue;}
             O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);Live=Holds.Find(Weak);if(Live){Live->Request.ObjectRevision=O->Revision;}
         }
-        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
+        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
     }
     if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}
 }

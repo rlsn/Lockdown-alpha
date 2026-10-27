@@ -70,6 +70,7 @@ void ALDB91Controller::ReleaseDoor()
 void ALDB91Controller::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);if(!IsLocalController()){return;}
+    if(bTraversalActive&&(!OwnerState.bActive||OwnerState.Match!=TraversalMatch||OwnerState.Life!=TraversalLife)){bTraversalActive=false;}
     if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetPortableLight(LDPortableTools::LightFor(this));}
     TickB91Probe();
     const double Now=GetWorld()->GetTimeSeconds();
@@ -83,7 +84,7 @@ void ALDB91Controller::PlayerTick(float Delta)
     {ReleaseDoor();FHitResult Hit;if(CanWorldCommand()&&GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){Navigation->Navigate(Hit.ImpactPoint);}}
     if(WasInputKeyJustPressed(EKeys::S)||WasInputKeyJustPressed(EKeys::Escape)){ReleaseDoor();Navigation->Stop();}
     if(WasInputKeyJustPressed(EKeys::F))
-    {HeldKey=EKeys::F;if(const auto* O=NearestObject()){StartObject(uint8(O->Kind)>=4?ELDObjectVerb::Pickup:ELDObjectVerb::Open);}
+    {HeldKey=EKeys::F;if(const auto* O=NearestObject()){if(O->Kind==ELDObjectKind::Anchor||O->Kind==ELDObjectKind::Ladder&&(O->State&16)){StartLink(ELDObjectVerb::Use);}else{StartObject(O->Kind==ELDObjectKind::Ladder?ELDObjectVerb::Carry:uint8(O->Kind)>=4?ELDObjectVerb::Pickup:ELDObjectVerb::Open);}}
      else if(const auto* D=NearestDoor()){StartDoor((D->State&1)?ELDWorldVerb::Close:ELDWorldVerb::Open);}}
     if(WasInputKeyJustPressed(EKeys::V)){HeldKey=EKeys::V;StartDoor(ELDWorldVerb::Lockpick);}
     if(WasInputKeyJustPressed(EKeys::B)){HeldKey=EKeys::B;StartDoor(ELDWorldVerb::Force);}
@@ -95,6 +96,8 @@ void ALDB91Controller::PlayerTick(float Delta)
     {ReleaseDoor();ToolBindingHeld=true;ToolBindingKey=EKeys::U;StartLoadoutHold(LDInventory::Unequip,OwnerState.Inventory.Items[BagSelection].Id,7);}
     if(ToolBindingHeld&&!IsInputKeyDown(ToolBindingKey)){StopDevelopmentHold();ToolBindingHeld=false;}
     if(WasInputKeyJustPressed(EKeys::L)){ToggleSelectedTool();}
+    for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::H,ELDObjectVerb::Attach},{EKeys::O,ELDObjectVerb::Deploy},{EKeys::K,ELDObjectVerb::Retrieve}})
+    {if(WasInputKeyJustPressed(P.Key)){HeldKey=P.Key;StartLink(P.Value);}}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::T,ELDObjectVerb::Take},{EKeys::Y,ELDObjectVerb::Store},{EKeys::C,ELDObjectVerb::Carry},{EKeys::P,ELDObjectVerb::Push},{EKeys::X,ELDObjectVerb::Break}})
     {if(WasInputKeyJustPressed(P.Key)){HeldKey=P.Key;StartObject(P.Value);}}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::G,ELDObjectVerb::Drop},{EKeys::J,ELDObjectVerb::Place}})
@@ -108,7 +111,7 @@ void ALDB91Controller::PlayerTick(float Delta)
 void ALDB91HUD::DrawHUD()
 {
     Super::DrawHUD();const auto* PC=Cast<ALDB91Controller>(PlayerOwner);if(!PC){return;}
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,270);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,296);
     DrawText(TEXT("B91 FUNCTIONAL ENVIRONMENT / finite storage, flasks and cargo / remaining systems in development"),FLinearColor::White,22,20);
     DrawText(TEXT("RMB move | S stop | hold F open/close (0.3s) | hold V rear lockpick (3s) | hold B force rear (3s) | Esc cancel"),FLinearColor::White,22,43);
     DrawText(PC->IntentFeedback,FLinearColor::Yellow,22,66);
@@ -123,4 +126,5 @@ void ALDB91HUD::DrawHUD()
     DrawText(FString::Printf(TEXT("Bag %d/24 | selected: %s | cargo: %s"),Bag.Items.Num(),Item?*LDInventory::Name(Item->Kind,Item->Skill):TEXT("empty"),PC->HasObjectCargo()?TEXT("carried"):TEXT("none")),FLinearColor::White,22,204);
     DrawText(TEXT("Hold 1/2/3/4: bind selected item to accessory 1/2/3/4 (quiet + 2s) | hold U unbind | L toggle bound Torch/Lantern"),FLinearColor::White,22,226);
     if(Item&&LDPortableTools::IsTool(Item->Kind)){DrawText(FString::Printf(TEXT("Physical tool | fuel %.1fs | %s | binding mask %u | cosmetic light adds no sight"),Item->FuelMs/1000.,Item->bLit?TEXT("lit"):TEXT("off"),Item->BindingMask),FLinearColor::Yellow,22,248);}
+    DrawText(TEXT("Approved anchor: hold H attach bound Rope | O install carried Ladder | F traverse (2s) | K retrieve own unused link"),FLinearColor::White,22,270);
 }
