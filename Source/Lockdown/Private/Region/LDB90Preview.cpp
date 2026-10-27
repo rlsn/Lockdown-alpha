@@ -242,10 +242,10 @@ void ALDB90PreviewController::PlayerTick(float Delta)
         if (ProbeStart>=0)
         {
             ProbeLength+=FVector::Dist2D(ProbeOrigin,Body->GetActorLocation()); ProbeOrigin=Body->GetActorLocation();
-            const bool Arrived=FVector::Dist2D(Body->GetActorLocation(),Goal)<60;
-            if (Arrived || Now-ProbeStart>20)
+            const bool ReachedGoal=FVector::Dist2D(Body->GetActorLocation(),Goal)<60;
+            if (ReachedGoal || Now-ProbeStart>20)
             {
-                const bool Passed=Arrived && Now-ProbeStart<=15;
+                const bool Passed=ReachedGoal && Now-ProbeStart<=15;
                 const FString Result=FString::Printf(TEXT("{\"stage\":\"B90\",\"case\":\"%s\",\"passed\":%s,\"walk_seconds\":%.4f,\"walked_cm\":%.3f,\"speed_cm_s\":420,\"setup\":\"labelled %s placement; ordinary native CharacterMovement without abilities\"}\n"),BridgeEntry?TEXT("B90-BridgeEntry"):TEXT("B90-T06"),Passed?TEXT("true"):TEXT("false"),Now-ProbeStart,ProbeLength,BridgeEntry?TEXT("Garden bridge edge"):TEXT("antechamber"));
                 FString Output; FParse::Value(FCommandLine::Get(),TEXT("B90Output="),Output);
                 if (!Output.IsEmpty()) { FFileHelper::SaveStringToFile(Result,*(Output/TEXT("Walk.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM); }
