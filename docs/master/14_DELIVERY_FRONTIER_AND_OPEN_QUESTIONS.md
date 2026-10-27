@@ -12,6 +12,8 @@ B86 reports real limits: one client rendered while three were headless, whole-se
 
 B90 adds checksum-closed spatial compilation, an independent full-map definition, a deterministic native terrain/bridge/settlement builder, saved map assets and a standalone spatial review mode. Native path and movement evidence is recorded in [the B90 report](../v09/B90_IMPLEMENTATION.md).
 
+The [traversal increment](../v09/B90_TRAVERSAL.md) at b96c329 adds 31 actual journeys and 15 physical border/terrace cases, with no movement failures or falling. It also identifies a 339-second interval without a POI anchor within 50 m. That metric is a placement warning and excludes future functional props/encounters; it is not a human pacing conclusion.
+
 The preview does not run the legacy short-map economy in the full world. This keeps review useful without pretending the full-profile roster, services, observations and endowments are already integrated. B90 gate status must be read per acceptance case; later stages stay pending.
 
 | Frontier | Required next work |

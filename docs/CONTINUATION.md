@@ -1,6 +1,6 @@
 # Active continuation — v0.9 B90
 
-Current native source is **96caff1**, based on **ebc19a5, v0.8 B86**, and implements the first full-map spatial increment. Read [B90 implementation/evidence](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
+Current native source is **b96c329**, based on **ebc19a5, v0.8 B86**, and implements the first full-map spatial increment. Read [B90 implementation/evidence](v09/B90_IMPLEMENTATION.md), [baseline review](v09/B90_BASELINE_REVIEW.md), [working ledger](v09/FeatureLedger.csv) and [living game design](master/README.md).
 
 ## Current boundaries
 
@@ -9,6 +9,12 @@ B86 remains the playable short-map schema8 baseline: 52 abilities, 80 items, 20 
 B90 adds an independent full-map definition, closed spatial compiler, native tiled terrain/bridge/settlement builder, saved L_V09Full and a labelled standalone spatial preview. It carries 96 POIs, 117 routes, 144 building blocks and 24 spawn pads. The preview uses native character movement/navigation and creates no legacy match economy, population, inventories or objective rewards. It checks the saved definition against the current staged payload before admission.
 
 The legacy 60×40 fog/region wire format is deliberately unchanged. Full-profile observation, interactive objects, interiors/stairs, routines/security, five-market accounting, AI progression and earned victory integration still require B91–B93. B94 owns full-duration, multiplayer stress and human pacing evidence.
+
+The [native traversal increment](v09/B90_TRAVERSAL.md) now records 31 actual
+journeys,15 border/terrace cases, all 11 settlement arrivals and two walked Heart
+approaches. All pass; the longest interval without a POI anchor within 50 m is
+339.067 s and remains a B91 functional-density risk. These are separate fixtures,
+not a full competitive session.
 
 ## Verification
 
@@ -22,6 +28,7 @@ python -B Scripts/SyncB84Data.py --check
 ./Scripts/BuildB90Map.ps1 -Validate
 ./Scripts/OpenB90.ps1 -CheckWalk
 ./Scripts/RunTests.ps1
+./Scripts/RunB90Traversal.ps1 -Lane All
 ./Scripts/OpenB90.ps1
 ~~~
 

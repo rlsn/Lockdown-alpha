@@ -9,6 +9,7 @@ The active implementation is **v0.9 B90 spatial foundation**, starting from nati
 | [Living master design](master/README.md) | Long-term vision, principles, core loop, mechanics, control/UI, world and player experience |
 | [v0.9 specification](v09/README.md) / [stage plan](v09/09_IMPLEMENTATION_STAGES.md) | Preserved full-map contracts; canonical B90–B94 sequence |
 | [B90 baseline review](v09/B90_BASELINE_REVIEW.md) | Actual architecture, starter/Witness audit and isolation decisions |
+| [B90 traversal](v09/B90_TRAVERSAL.md) | Actual journeys, physical border/terrace tests and measured density risks |
 | [B90 implementation](v09/B90_IMPLEMENTATION.md) | Native changes, commands, measured evidence and remaining gates |
 | [v0.9 working ledger](v09/FeatureLedger.csv) | Per-case actual status; separate from blank source templates |
 | [Source adoption](v09/SOURCE_MANIFEST.json) | Hashes of the supplied untracked specification package |

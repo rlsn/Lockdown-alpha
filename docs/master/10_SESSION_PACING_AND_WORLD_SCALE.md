@@ -27,6 +27,8 @@ Measure first rival sighting, journey/idle share, longest empty segment, source 
 
 Warnings need plausible responses from local staging, not guaranteed responses from every city. The nearby antechamber resolves activation-to-Heart feasibility; macro positioning still matters.
 
+B90 measured the western ford→Heart walk at 89.5 s and the dry flank→Heart walk at 35.67 s, without combat or surface effects. At baseline speed the ford responder cannot hear a fresh 30/60-second opening warning, travel the entire route and finish a new ten-second claim before closure. This supports deliberate forward staging; it does not authorize silently extending every warning. See the [native traversal report](../v09/B90_TRAVERSAL.md) before tuning response expectations.
+
 ## Progression and recovery pacing
 
 Extra duration does not multiply every reward. Full-profile camp timings, work quotas, stocks and endowments are explicit. Prices, natural gates, slot limits and route costs remain meaningful. Record normal level/gold distributions and counter affordability rather than assuming every contender reaches level 15.

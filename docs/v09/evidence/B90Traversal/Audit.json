@@ -1,0 +1,70 @@
+{
+  "stage": "B90",
+  "source_commit": "b96c329be39f4d72afda84993117bbd6739f8f4f",
+  "baseline_revision": "c9b0529",
+  "engine": "5.8.4 CL58902052",
+  "platform": "Win64 Development",
+  "toolchain": "MSVC14.44.35229 / SDK10.0.26100.0",
+  "source_sha256_normalized_lf": {
+    "Source/Lockdown/Private/Region/LDB90Preview.cpp": "dfbb0111aefce774f8eae764fbe5f138ee9b7ca69f4a46c553013c11d13d8cf9",
+    "Source/Lockdown/Public/Region/LDB90Preview.h": "6979010672c0125662ffb2e26014806ba8ce2967404f36fbe6877d8a8dece828",
+    "Source/Lockdown/Private/Tests/LDB90TraversalProbe.cpp": "3c8198ca29c48eaa0e9a7e05373e0390231e1e724022707e0178eac8fcdc3a89",
+    "Source/Lockdown/Public/Tests/LDB90TraversalProbe.h": "d6814c8ca4664727d91c4d84e32c6933534a787773e767718fcf5937540d9135",
+    "Scripts/RunB90Traversal.ps1": "a129d2e30d6840419f43fecf39ed5da1e5df3f2acdbfd5cb8b63aa8016ac315c",
+    "Scripts/CheckB90Traversal.py": "e8e0857864acd81bad710c17cfaef1c13ca4b9d72b422a4e1f28fae0a6bbd8eb"
+  },
+  "payload_sha256": "5518d6ea1e115c92e1ec1f12ad3454628c9b182fd15d6ff2ed6a5cbd450fa5de",
+  "checks": {
+    "editor_build": "Passed",
+    "game_build": "Passed",
+    "native_rules": 49,
+    "native_rule_failures": 0,
+    "actual_journeys": 31,
+    "boundary_cases": 15,
+    "native_failures": 0,
+    "simulated_walk_seconds": 6149.8669874072075,
+    "wall_seconds": 202.41962410137057,
+    "fixed_tick_seconds": 0.01666666753590107,
+    "navigation_replans": 0,
+    "falling_seconds": 0
+  },
+  "commands": [
+    "./Scripts/BuildEditor.ps1 -MaxParallelActions 3",
+    "./Scripts/RunB90Traversal.ps1 -Lane All",
+    "python -B Scripts/CheckB90Traversal.py <run>",
+    "./Scripts/BuildGame.ps1 -MaxParallelActions 3",
+    "./Scripts/RunTests.ps1",
+    "./Scripts/OpenB90.ps1 -CheckWalk",
+    "./Scripts/OpenB90.ps1 -CheckWalk -WalkCase BridgeEntry"
+  ],
+  "local_artifacts": {
+    "traversal": "20261027-131841-896-B90Traversal-All",
+    "editor_build": "20261027-131813-221-BuildEditor",
+    "game_build": "20261027-132404-071-BuildGame",
+    "automation": "20261027-132622-561-Automation",
+    "heart": "20261027-132710-961-B90Walk",
+    "bridge_entry": "20261027-132730-361-B90Walk"
+  },
+  "limits": [
+    "Starting placement before each fixture; no teleport during journeys",
+    "Aggregate simulated walking is not a full match or human pacing evidence",
+    "Empty interval means no POI anchor within50m; excludes functional prop/cover/encounter evaluation",
+    "Swept push is physical geometry only, not paid combat dispatch/control/interrupt integration",
+    "No Wet/frozen runtime, services, economy, AI or multiplayer acceptance",
+    "Replanning budget exists but passing journeys required zero replans"
+  ],
+  "portable_sha256": {
+    "BoundaryTrace.csv": "c82df83b1138f86cf1b0f3e1f70ad85f87ce880ebc1765276ffc894ec0229b9b",
+    "bridge_entry/Walk.json": "924fc7bcd3efac49baf93658c2af24e45fd7337cc65275e779ddef83bc2efb09",
+    "BuildEditor.log": "3cddd8551a8558000c3d67f5f413fc9f86104c5c721ca9eb4ad29aa3ad1049d7",
+    "BuildGame.log": "65b36344bc76b07747fb16a49fe957efb653eb9f642a7be43af522afa48f130a",
+    "heart/Walk.json": "5d56b3df7e8eeaba832e5af19523e2f97ef425de9d8c1128fbf2ce88a6d85aaf",
+    "MeasuredTravel.csv": "89c0cb0cec8bc387e1d3456b3decca8263ca462121e42c69cde5663658f7f030",
+    "Native.log": "793c79d79fed3981f2f08c9200a8a5b8c4187ff75255e3ccf8952c173942d153",
+    "NativeRules.json": "ef290b56dae849c496ee157fb7a2f14a5adc5e628cea26fa9e8c5a37fc979f80",
+    "README.md": "268638f490f64b0aceb6b4cc6312d1fdda76f393f63813396a45f8e471ad8870",
+    "Traversal.json": "12ded54c1ff4630aa5990e9fae2f2c0fb939a18d922313fae95e5bf1bfd91dfb",
+    "TraversalSummary.json": "1464688476325128b9ed96bba10dc97cdb09ba649c3732e42be1fc8c4c9698a5",
+    "TraversalTrace.csv": "5719ab18d5fd2227ab19f99e515b18a2ec9f0d8a74aa84dc9799ef560e2755fe"
+  }
+}

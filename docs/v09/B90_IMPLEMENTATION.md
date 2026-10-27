@@ -2,6 +2,10 @@
 
 27 October 2026 · Native spatial foundation implemented; broader stage acceptance remains partial.
 
+Continuation: [native journeys and boundary evidence](B90_TRAVERSAL.md) at
+**b96c329** adds 31 measured journeys and 15 physical boundary cases. The original
+foundation results below remain the record of 96caff1.
+
 Implementation source: **96caff1**. Starting source: **ebc19a5, v0.8 B86**. See [baseline review](B90_BASELINE_REVIEW.md)
 for the repository/architecture audit, actual zero-wallet/empty-inventory starts,
 working Witness operation and inherited limits. The supplied v0.9 specification
@@ -139,10 +143,12 @@ dedicated-server acceptance is claimed.
 The [working ledger](FeatureLedger.csv) records all 62 cases separately from the
 blank supplied templates. B90's structural native access is implemented; the
 complete B90 release gate is **not closed**. Its cases also request Wet/frozen
-contact, services, actual long travel/empty-interval traces, border push/dash
-receipts and full-profile reset/accounting checks. These need further native
-scenarios and some dependent B91/B92 integration. Two usable approach branches
-are supported by native paths; full sightline/occlusion encounters remain B91.
+contact, services and full-profile reset/accounting checks. The traversal
+increment now supplies actual long journeys, geometric empty intervals and
+physical border/terrace dash/push receipts. Functional density and ordinary
+competitive movement semantics still need dependent B91/B92 integration. Two
+Heart approaches are physically walked; full sightline/occlusion encounters
+remain B91.
 
 B91–B94 are not implemented by this change. There are no functional prop verbs,
 full NPC routines, five-market economy, full-profile earned victory routes,
