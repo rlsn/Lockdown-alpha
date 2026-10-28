@@ -42,7 +42,8 @@ def main():
     for source, name in ((args.editor, 'BuildEditor.log'), (args.game, 'BuildGame.log')):
         assert 'Result: Succeeded' in (source/name).read_text(encoding='utf-8-sig')
     for role in ('Server', 'A', 'B'):
-        legacy = json.loads((args.legacy/f'{role}.json').read_text(encoding='utf-8-sig'))
+        raw = (args.legacy/f'{role}.json').read_bytes()
+        legacy = json.loads(raw.decode('utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'))
         assert not legacy['failures'] and len(legacy['checks']) >= 10
     verify_economy(args.legacy/'Ledger.json')
     imports = b''
