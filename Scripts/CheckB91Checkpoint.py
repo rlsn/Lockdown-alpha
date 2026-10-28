@@ -11,7 +11,7 @@ def read(path):
     return raw.decode('utf-16' if raw[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8-sig')
 
 
-def check(root):
+def check(root, placement=False):
     counts = []
     for mode, minimum in (('Write', 16), ('Read', 10), ('Reject', 13), ('Fresh', 4)):
         data = json.loads(read(root / (mode + '.json')))
@@ -26,6 +26,10 @@ def check(root):
     saved = json.loads(envelope['payload'])
     restored = json.loads(json.loads(read(root / 'Restored.json'))['payload'])
     assert len(saved['objects']) == 436 and len(saved['items']) == 143 and len(saved['consumed']) == 1
+    baseline = json.loads(json.loads(read(root / 'Baseline.json'))['payload'])
+    original = {o['id']: o for o in baseline['objects']}
+    moved = sum(o['kind'] == 2 and o['position'] != original[o['id']]['position'] for o in saved['objects'] if o['id'] in original)
+    assert moved == 1 if placement else moved in (0, 1)
     assert saved['objects'] == restored['objects'] and saved['doors'] == restored['doors']
     assert saved['consumed'] == restored['consumed']
     live = {i['id']: i for i in saved['items']}
@@ -45,4 +49,4 @@ def check(root):
 
 
 if __name__ == '__main__':
-    check(Path(sys.argv[1]))
+    check(Path(sys.argv[1]), placement='--placement' in sys.argv[2:])

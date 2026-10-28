@@ -174,6 +174,7 @@ private:
     bool CheckpointSettled(FString& Error) const;
     bool CaptureCheckpoint(LDCheckpoint::FData& Data,FString& Error) const;
     bool ValidateCheckpoint(const LDCheckpoint::FData& Data,FString& Error) const;
+    bool ValidateCheckpointGeometry(const LDCheckpoint::FData& Data,FString& Error) const;
     void TickCheckpoint(double Now);
     uint64 ViewRevision=0;
     double NextPublish=0;

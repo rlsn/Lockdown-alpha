@@ -90,7 +90,7 @@ bool ALDWorldObjects::ValidateCheckpoint(const LDCheckpoint::FData& D,FString& E
     for(const auto& P:Yields){if(!Items.Contains(P.Key)&&!Sinks.Contains(P.Key)){return Fail(TEXT("Harvest reward disappeared"));}}
     if(Expected.Num()!=Actual.Num()){return Fail(TEXT("Endowment count changed"));}for(const auto& P:Expected){if(Actual.FindRef(P.Key)!=P.Value){return Fail(TEXT("Endowment duplicated or lost"));}}
     const auto* E=ALDEnvironmentDirector::Get(GetWorld());for(const auto& R:D.Doors){auto* Door=E->Door(FName(*R.Id));const bool Open=R.State&1,Locked=R.State&2,Broken=R.State&4;if(!Door||R.Revision>D.DoorMutation||Open&&Locked||Broken&&(!Open||Locked)||Locked&&!Door->Rear||Broken&&!Door->Rear||R.State&&R.Revision<2){return Fail(TEXT("Invalid door state or address"));}}
-    return true;
+    return ValidateCheckpointGeometry(D,Error);
 }
 bool ALDWorldObjects::SaveCheckpoint(const FString& Path,FString& Error)
 {

@@ -11,6 +11,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Engine/World.h"
+#include "Engine/StaticMeshActor.h"
+#include "Components/StaticMeshComponent.h"
 
 ALDB91CheckpointProbe::ALDB91CheckpointProbe(){PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
 void ALDB91CheckpointProbe::Check(bool Passed,const FString& Name)
@@ -45,6 +47,8 @@ void ALDB91CheckpointProbe::Tick(float Delta)
                 auto* Spent=Water->Physical.Get();O->RecordConsumption(Spent);Water->Physical.Reset();Spent->State=2;Spent->Destroy();Water->Apply(Water->GetActorLocation(),Water->Flags(),2);
                 auto* Tool=Torch->Physical.Get();Tool->State=1;Tool->Holder=Chest;Tool->FuelMs=170000;Tool->FuelAt=GetWorld()->GetTimeSeconds();Tool->bLit=true;Tool->ReadyAt=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())+12000;Tool->ProcReadyAt=Tool->ReadyAt+6000;++Tool->Revision;Chest->Contents.Add(Tool);Chest->Apply(Chest->GetActorLocation(),Chest->Flags(),2);Torch->Apply(Torch->GetActorLocation(),Torch->Flags(),2);
                 for(auto D:E->Doors){if(D->Rear){D->Apply(5,2);++E->MutationRevision;break;}}
+                bool Moved=false;for(auto P:O->Objects){if(P->Kind!=ELDObjectKind::Crate){continue;}FVector Pad;if(O->FitSource(P.Get(),P->LastClear+FVector(600,0,0),Pad)&&FVector::Dist2D(Pad,P->LastClear)>100){P->LastClear=Pad;P->Apply(Pad+FVector(0,0,P->Size().Z*.5+3),P->Flags(),P->Revision+1);Moved=true;break;}}
+                Check(Moved,TEXT("Diagnostic relocation finds a legal new cargo footprint"));
                 ++O->Committed;Check(O->Conserved(Error),TEXT("Diagnostic mutated fixture conserves every finite identity"));
                 Check(O->SaveCheckpoint(Path,Error),TEXT("Save harvest receipt, partial HP, burnt grass, consume tombstone, storage, lit fuel and door"));
                 FString Before;FFileHelper::LoadFileToString(Before,*Path);
@@ -87,6 +91,16 @@ void ALDB91CheckpointProbe::Tick(float Delta)
             Bad=Saved;Bad.Items[0].Origin=TEXT("unearned_source");Reject(TEXT("Unknown provenance"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
             Bad=Saved;Bad.DoorMutation=1;Reject(TEXT("Door mutation revision regression"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
             Bad=Saved;Bad.Items[0].Receipt=Bad.Items[1].Receipt;Reject(TEXT("Duplicate provenance receipt"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
+            int Crate=INDEX_NONE,Peer=INDEX_NONE;for(int N=0;N<Saved.Objects.Num();++N){if(Saved.Objects[N].Kind==int(ELDObjectKind::Crate)){if(Crate==INDEX_NONE){Crate=N;}else{Peer=N;break;}}}
+            Check(Crate!=INDEX_NONE&&Peer!=INDEX_NONE,TEXT("Placement diagnostics address two authored crates"));
+            if(Crate!=INDEX_NONE&&Peer!=INDEX_NONE)
+            {
+                Bad=Saved;Bad.Objects[Crate].Position.Z+=40;Bad.Objects[Crate].Clear.Z+=40;Bad.Objects[Crate].Revision=2;Reject(TEXT("Floating cargo"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
+                Bad=Saved;Bad.Objects[Crate].Clear.Z+=20;Reject(TEXT("Inconsistent clear pad"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
+                Bad=Saved;Bad.Objects[Peer].Position=Bad.Objects[Crate].Position;Bad.Objects[Peer].Clear=Bad.Objects[Crate].Clear;Bad.Objects[Peer].Revision=2;Reject(TEXT("Overlapping saved cargo"),LDCheckpoint::Envelope(LDCheckpoint::Encode(Bad),O->Contract,E->Contract));
+                auto* Wall=GetWorld()->SpawnActor<AStaticMeshActor>();auto* Mesh=Wall->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));Wall->SetActorLocation(Saved.Objects[Crate].Position);Mesh->SetCollisionProfileName(TEXT("BlockAll"));Mesh->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Ignore);
+                Reject(TEXT("Cargo intersecting fixed geometry"),Text);Wall->Destroy();
+            }
             Reject(TEXT("Wrong scope"),Text.Replace(TEXT("settled_environment"),TEXT("invalid_scope")));Reject(TEXT("Checksum mismatch"),Text.Replace(TEXT("committed"),TEXT("committeD")));
             Check(O->RestoreCheckpoint(Path,Error),TEXT("Valid restore still succeeds after all rejected files"));
         }
