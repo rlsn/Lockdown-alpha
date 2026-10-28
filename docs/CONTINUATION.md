@@ -1,19 +1,17 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**. The latest [approved-link checkpoint](v09/B91_TRAVERSAL.md),
-at **02a9c829cd18a25e15b5908f7ff62175eb760f4f**, adds 12 finite world ladders and 16 paired anchors, shared
-two-second traversal, one-user reservations and safe interruption/life handling.
-The expanded world has 232 object/anchor records, 288/480 functional sources
-including doors, and the same 132 finite physical items. The
-[portable-tool checkpoint](v09/B91_TOOLS.md), at 0476cb4, retains fuel through
-binding, drop, swap, end-life, life return and expiry, without adding sight.
-Full-map 18m sight retains inherited Blind/capped bonuses. The
-[storage/cargo checkpoint](v09/B91_OBJECTS.md)
-provides private storage and crate/barrel carry/place/push/break; all 49 checks
-pass again with portable tools present.
-The [first checkpoint](v09/B91_IMPLEMENTATION.md), at a5fc200, provides 36
-structural interiors, 16 permanent stair flights, 72 authoritative doors and a
-restricted full-map body/door view. Each checkpoint retains its own source audit.
+B91 is **in progress**. The latest [fixed-furniture checkpoint](v09/B91_FURNITURE.md),
+at **48f0766bf24e6006cdf8a57213409560cf221a71**, adds all 32 empty, fixed low storage fixtures. Native
+fitting and two-client storage tests preserve 132 finite physical items. The
+world now has 264 object/anchor records and 320/480 functional sources including
+72 doors. The remaining functional sources are 64 saplings and 96 grass patches;
+3,000 scenery trees and full-map environment integration remain open.
+The [approved-link checkpoint](v09/B91_TRAVERSAL.md) adds 12 finite world ladders
+and 16 paired anchors with shared two-second traversal and safe interruption.
+[Portable tools](v09/B91_TOOLS.md) retain fuel across binding, drop and life
+changes without adding sight. [Storage/cargo](v09/B91_OBJECTS.md) and the
+[first structural checkpoint](v09/B91_IMPLEMENTATION.md) retain their own source
+audits and acceptance scope. Full-map 18m sight retains inherited Blind/capped bonuses.
 
 `v09_environment` is an explicit development profile on `L_V09Full`, selected
 with `LDB91GameMode`. It reuses contender/life state, combat control gates and
@@ -56,7 +54,7 @@ and end-life checks preserve supported landings and the original item/prop.
 
 Next B91 work is socket ignition, full-map flask/action
 integration, foliage/concealment and paid environment fields/contact. Functional
-initial sources now total 288 of 480, including doors; the remaining 192 props
+initial sources now total 320 of 480, including doors; the remaining 160 props
 and 3,000 scenery trees are still required. T04 and T09 now cover the verified
 ladder race and optional-link boundary. T06/T07/T08 retain fuel, cargo and storage
 scope; the whole stage remains open.
@@ -124,6 +122,7 @@ python -B Scripts/TestB91Import.py
 python -B Scripts/SyncB91Data.py --check
 ./Scripts/RunB91Check.ps1
 ./Scripts/RunB91Network.ps1
+./Scripts/RunB91Network.ps1 -Furniture -Port 7927
 ./Scripts/RunB91Network.ps1 -Traversal -Port 7925
 ./Scripts/RunB91Network.ps1 -Objects -Port 7921
 ./Scripts/RunB91Network.ps1 -Tools -Port 7923
@@ -148,10 +147,10 @@ Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native output
 
 ## Next work
 
-Continue **B91 functional environment** with finite saplings/grass, furniture,
+Continue **B91 functional environment** with finite saplings/grass,
 concealment/ledge rules, socket fire and paid full-map flask/environment actions
 and capacity. Interiors, stairs, doors, private storage, cargo, portable fuel and
-approved links have verified checkpoints. T05 and T10–T15 remain open, including
+approved links and fixed furniture have verified checkpoints. T05 and T10–T15 remain open, including
 all 480 functional props and 3,000 scenery trees. Extend this dispatcher and inherited inventory/action/
 receipt authority. Do not add cosmetic-only verbs or unbound item shortcuts.
 

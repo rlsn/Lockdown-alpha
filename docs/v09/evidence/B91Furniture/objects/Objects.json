@@ -1,0 +1,5501 @@
+{
+	"complete": true,
+	"failures": 0,
+	"stage": "B91",
+	"phase": 101,
+	"furniture_scenario": false,
+	"contract": "5e0d3d3665d55e4207e6623864ae2750b15fb02c42bdb6bb5b6f063d6cf68711",
+	"checks": [
+		{
+			"case": "Two independent remote object owners",
+			"passed": true
+		},
+		{
+			"case": "Exact 264 objects and 132 finite physical endowments",
+			"passed": true
+		},
+		{
+			"case": "All initial pads pass current physical placement and corridor rules",
+			"passed": true
+		},
+		{
+			"case": "All72 authored door pads reject cargo placement",
+			"passed": true
+		},
+		{
+			"case": "All16 permanent stair landings reject cargo placement",
+			"passed": true
+		},
+		{
+			"case": "All24 contender spawn pads reject cargo placement",
+			"passed": true
+		},
+		{
+			"case": "All36 service reach pads reject cargo placement",
+			"passed": true
+		},
+		{
+			"case": "Heart reach pad rejects cargo placement",
+			"passed": true
+		},
+		{
+			"case": "All117 authored route corridors reject cargo placement",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 1 completed",
+			"passed": true
+		},
+		{
+			"case": "Flask race has one physical owner and one winner",
+			"passed": true
+		},
+		{
+			"case": "Winning and losing duplicate sequences replay the same receipts",
+			"passed": true
+		},
+		{
+			"case": "Unopened container inventories are absent on both clients",
+			"passed": true
+		},
+		{
+			"case": "Observed empty ground reveals no held-item revision",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 2 completed",
+			"passed": true
+		},
+		{
+			"case": "Legal Open quotes exactly two Fiber and one Ore",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 3 completed",
+			"passed": true
+		},
+		{
+			"case": "Exact-item Take race removes one stored instance",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 4 completed",
+			"passed": true
+		},
+		{
+			"case": "Store returns the same unbound physical item without minting",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 5 completed",
+			"passed": true
+		},
+		{
+			"case": "Filled break race drops exactly its two existing instances once",
+			"passed": true
+		},
+		{
+			"case": "Broken cover uses one collision/sight/navigation revision",
+			"passed": true
+		},
+		{
+			"case": "Both clients remove observed broken cover collision",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 6 completed",
+			"passed": true
+		},
+		{
+			"case": "Empty barrel break race creates no oil, material or item",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 7 completed",
+			"passed": true
+		},
+		{
+			"case": "Cargo race binds one existing world instance to one owner",
+			"passed": true
+		},
+		{
+			"case": "Carried cargo limits native movement to 70 percent",
+			"passed": true
+		},
+		{
+			"case": "Cargo suppresses attacks, skills, items and services",
+			"passed": true
+		},
+		{
+			"case": "Remote object phase 8 completed",
+			"passed": true
+		},
+		{
+			"case": "Occupied placement retains cargo; later native walk and legal placement succeed",
+			"passed": true
+		},
+		{
+			"case": "Placed cargo restores hands and preserves all finite item identities",
+			"passed": true
+		},
+		{
+			"case": "Every finite item occupies exactly one bag, container or ground location",
+			"passed": true
+		},
+		{
+			"case": "Cargo can be carried again after placement",
+			"passed": true
+		},
+		{
+			"case": "Ordinary combat attack starts against cargo carrier",
+			"passed": true
+		},
+		{
+			"case": "Actual combat damage safely drops cargo before later actions",
+			"passed": true
+		},
+		{
+			"case": "Cargo re-enters the same world binding after quiet",
+			"passed": true
+		},
+		{
+			"case": "Explicit attack drops cargo but Stun still rejects the attack",
+			"passed": true
+		},
+		{
+			"case": "Same cargo exists before contender end-life",
+			"passed": true
+		},
+		{
+			"case": "Contender end-life safely releases carried world cargo",
+			"passed": true
+		},
+		{
+			"case": "Life drops move existing physical proxies to their actual ground locations",
+			"passed": true
+		},
+		{
+			"case": "Damage, control and life changes preserve all 132 finite identities",
+			"passed": true
+		},
+		{
+			"case": "Native push fixture has a legal 150cm swept lane",
+			"passed": true
+		},
+		{
+			"case": "One-second swept push moves cargo 150cm without displacing the body",
+			"passed": true
+		},
+		{
+			"case": "Final storage and cargo source closure",
+			"passed": true
+		},
+		{
+			"case": "Empty barrel carries at weight16 and 70 percent speed",
+			"passed": true
+		},
+		{
+			"case": "Placed barrel restores movement and remains non-occluding",
+			"passed": true
+		},
+		{
+			"case": "Barrel transport creates no bag instance or material",
+			"passed": true
+		}
+	],
+	"fitted_objects": [
+		{
+			"source_id": "prop_chest_000",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				3332,
+				14218,
+				400
+			],
+			"fitted_cm": [
+				3332,
+				14218,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_001",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-76078,
+				81950,
+				800
+			],
+			"fitted_cm": [
+				-76078,
+				81950,
+				800
+			]
+		},
+		{
+			"source_id": "prop_chest_002",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-90345,
+				-71861,
+				0
+			],
+			"fitted_cm": [
+				-90345,
+				-71861,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_003",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				75218,
+				-70948,
+				400
+			],
+			"fitted_cm": [
+				75218,
+				-70948,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_004",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				38737,
+				98433,
+				800
+			],
+			"fitted_cm": [
+				38437,
+				98133,
+				797.48776504516604
+			]
+		},
+		{
+			"source_id": "prop_chest_005",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-10537,
+				-96267,
+				0
+			],
+			"fitted_cm": [
+				-10537,
+				-96267,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_006",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				36577,
+				-28392,
+				400
+			],
+			"fitted_cm": [
+				36877,
+				-28192,
+				399.66526489257808
+			]
+		},
+		{
+			"source_id": "prop_chest_007",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-33532,
+				33516,
+				0
+			],
+			"fitted_cm": [
+				-33132.000002444984,
+				33415.999967316675,
+				89.409183364995414
+			]
+		},
+		{
+			"source_id": "prop_chest_008",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-93612,
+				37953,
+				400
+			],
+			"fitted_cm": [
+				-93612,
+				37953,
+				380.66941162109379
+			]
+		},
+		{
+			"source_id": "prop_chest_009",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				101263,
+				92192,
+				400
+			],
+			"fitted_cm": [
+				101263,
+				92192,
+				395.71465293884279
+			]
+		},
+		{
+			"source_id": "prop_chest_010",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-65736,
+				-84387,
+				0
+			],
+			"fitted_cm": [
+				-65736,
+				-84387,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_011",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				100860,
+				106535,
+				400
+			],
+			"fitted_cm": [
+				100860,
+				106535,
+				373.47050361633296
+			]
+		},
+		{
+			"source_id": "prop_chest_012",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-77780,
+				-64440,
+				0
+			],
+			"fitted_cm": [
+				-77780,
+				-64440,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_013",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				425,
+				82203,
+				800
+			],
+			"fitted_cm": [
+				125,
+				81903,
+				800
+			]
+		},
+		{
+			"source_id": "prop_chest_014",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-91555,
+				70125,
+				800
+			],
+			"fitted_cm": [
+				-91555,
+				70125,
+				800
+			]
+		},
+		{
+			"source_id": "prop_chest_015",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				71407,
+				70554,
+				400
+			],
+			"fitted_cm": [
+				71407,
+				70554,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_016",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-72701,
+				-74806,
+				0
+			],
+			"fitted_cm": [
+				-72701,
+				-74806,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_017",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				65905,
+				-58285,
+				400
+			],
+			"fitted_cm": [
+				65705,
+				-58485,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_018",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-106107,
+				-14630,
+				0
+			],
+			"fitted_cm": [
+				-106107,
+				-14630,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_019",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				103560,
+				-95322,
+				400
+			],
+			"fitted_cm": [
+				103560,
+				-95322,
+				393.67077468872071
+			]
+		},
+		{
+			"source_id": "prop_chest_020",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				20032,
+				-1837,
+				400
+			],
+			"fitted_cm": [
+				20032,
+				-1837,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_021",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-29284,
+				-53942,
+				0
+			],
+			"fitted_cm": [
+				-29483.999994977949,
+				-53842.000002871995,
+				79.937787096931942
+			]
+		},
+		{
+			"source_id": "prop_chest_022",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				29545,
+				-57370,
+				0
+			],
+			"fitted_cm": [
+				29545,
+				-57370,
+				6.8613047957420292
+			]
+		},
+		{
+			"source_id": "prop_chest_023",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-106467,
+				77765,
+				800
+			],
+			"fitted_cm": [
+				-106467,
+				77765,
+				758.62238952636721
+			]
+		},
+		{
+			"source_id": "prop_chest_024",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				44462,
+				86196,
+				800
+			],
+			"fitted_cm": [
+				44462,
+				86196,
+				733.25461914062498
+			]
+		},
+		{
+			"source_id": "prop_chest_025",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				62409,
+				-17356,
+				0
+			],
+			"fitted_cm": [
+				62409,
+				-17356,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_026",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-76035,
+				5098,
+				0
+			],
+			"fitted_cm": [
+				-76035,
+				5098,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_027",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-1303,
+				-6781,
+				400
+			],
+			"fitted_cm": [
+				-1303,
+				-6781,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_028",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-80306,
+				63366,
+				800
+			],
+			"fitted_cm": [
+				-80306,
+				63366,
+				800
+			]
+		},
+		{
+			"source_id": "prop_chest_029",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				68159,
+				85454,
+				400
+			],
+			"fitted_cm": [
+				68359,
+				85554,
+				400.00045394897461
+			]
+		},
+		{
+			"source_id": "prop_chest_030",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-81020,
+				-62910,
+				0
+			],
+			"fitted_cm": [
+				-81020,
+				-62910,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_031",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				81229,
+				-57810,
+				400
+			],
+			"fitted_cm": [
+				81229,
+				-57910,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_032",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				44215,
+				48182,
+				400
+			],
+			"fitted_cm": [
+				44215,
+				48182,
+				388.42611679077152
+			]
+		},
+		{
+			"source_id": "prop_chest_033",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-3209,
+				-103706,
+				0
+			],
+			"fitted_cm": [
+				-3209,
+				-103706,
+				8.5058424353599378
+			]
+		},
+		{
+			"source_id": "prop_chest_034",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				600,
+				6162,
+				400
+			],
+			"fitted_cm": [
+				500,
+				6062,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_035",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				59372,
+				32324,
+				400
+			],
+			"fitted_cm": [
+				59271.999771212126,
+				32224.000095920346,
+				252.2133720257961
+			]
+		},
+		{
+			"source_id": "prop_chest_036",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-27148,
+				106800,
+				800
+			],
+			"fitted_cm": [
+				-27148,
+				106700,
+				288.5781098937988
+			]
+		},
+		{
+			"source_id": "prop_chest_037",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-100998,
+				-38975,
+				0
+			],
+			"fitted_cm": [
+				-100998,
+				-38975,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_038",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-102618,
+				53523,
+				400
+			],
+			"fitted_cm": [
+				-102618,
+				53523,
+				378.08862663269042
+			]
+		},
+		{
+			"source_id": "prop_chest_039",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				4372,
+				1801,
+				400
+			],
+			"fitted_cm": [
+				4472,
+				1701,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_040",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-48001,
+				-61573,
+				0
+			],
+			"fitted_cm": [
+				-48001,
+				-61573,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_041",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-7615,
+				15385,
+				400
+			],
+			"fitted_cm": [
+				-7415,
+				15485,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_042",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-86688,
+				81777,
+				800
+			],
+			"fitted_cm": [
+				-86988,
+				81477,
+				800
+			]
+		},
+		{
+			"source_id": "prop_chest_043",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				82011,
+				85767,
+				400
+			],
+			"fitted_cm": [
+				82011,
+				85767,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_044",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				72037,
+				-75111,
+				400
+			],
+			"fitted_cm": [
+				72037,
+				-75111,
+				400
+			]
+		},
+		{
+			"source_id": "prop_chest_045",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-56528,
+				90836,
+				800
+			],
+			"fitted_cm": [
+				-56528,
+				90836,
+				793.60630432128903
+			]
+		},
+		{
+			"source_id": "prop_chest_046",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				-104136,
+				-100017,
+				0
+			],
+			"fitted_cm": [
+				-104136,
+				-100017,
+				0
+			]
+		},
+		{
+			"source_id": "prop_chest_047",
+			"kind": 1,
+			"placement_valid": true,
+			"source_cm": [
+				10589,
+				60295,
+				400
+			],
+			"fitted_cm": [
+				10589,
+				60295,
+				360.17025039672853
+			]
+		},
+		{
+			"source_id": "prop_crate_000",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				2896,
+				13178,
+				400
+			],
+			"fitted_cm": [
+				2896,
+				13178,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_001",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-80777,
+				79373,
+				800
+			],
+			"fitted_cm": [
+				-80777,
+				79373,
+				800
+			]
+		},
+		{
+			"source_id": "prop_crate_002",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-87711,
+				-75859,
+				0
+			],
+			"fitted_cm": [
+				-87711,
+				-75859,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_003",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				72780,
+				-76305,
+				400
+			],
+			"fitted_cm": [
+				72780,
+				-76305,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_004",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				40220,
+				102797,
+				800
+			],
+			"fitted_cm": [
+				40220,
+				102797,
+				777.37563385009764
+			]
+		},
+		{
+			"source_id": "prop_crate_005",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-13905,
+				-98682,
+				0
+			],
+			"fitted_cm": [
+				-13905,
+				-98682,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_006",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				37638,
+				-28741,
+				400
+			],
+			"fitted_cm": [
+				37638,
+				-28741,
+				399.81528549194331
+			]
+		},
+		{
+			"source_id": "prop_crate_007",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-35034,
+				36664,
+				0
+			],
+			"fitted_cm": [
+				-34934.000022307206,
+				37364.000038031154,
+				85.080275859944834
+			]
+		},
+		{
+			"source_id": "prop_crate_008",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-88607,
+				34657,
+				400
+			],
+			"fitted_cm": [
+				-88607,
+				34657,
+				337.134732131958
+			]
+		},
+		{
+			"source_id": "prop_crate_009",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				101744,
+				92974,
+				400
+			],
+			"fitted_cm": [
+				101744,
+				92974,
+				381.08747726440424
+			]
+		},
+		{
+			"source_id": "prop_crate_010",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-64274,
+				-89164,
+				0
+			],
+			"fitted_cm": [
+				-64174,
+				-89164,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_011",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				98865,
+				101769,
+				400
+			],
+			"fitted_cm": [
+				98865,
+				101769,
+				374.80711898803713
+			]
+		},
+		{
+			"source_id": "prop_crate_012",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-77024,
+				-64480,
+				0
+			],
+			"fitted_cm": [
+				-77024,
+				-64480,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_013",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				2197,
+				85084,
+				800
+			],
+			"fitted_cm": [
+				2197,
+				85084,
+				800
+			]
+		},
+		{
+			"source_id": "prop_crate_014",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-89854,
+				62768,
+				800
+			],
+			"fitted_cm": [
+				-89854,
+				62768,
+				800
+			]
+		},
+		{
+			"source_id": "prop_crate_015",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				73417,
+				69613,
+				400
+			],
+			"fitted_cm": [
+				73417,
+				69613,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_016",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-75881,
+				-67867,
+				0
+			],
+			"fitted_cm": [
+				-75881,
+				-67867,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_017",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				71230,
+				-60005,
+				400
+			],
+			"fitted_cm": [
+				71230,
+				-60005,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_018",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-106024,
+				-19274,
+				0
+			],
+			"fitted_cm": [
+				-106024,
+				-19274,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_019",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				106578,
+				-97726,
+				400
+			],
+			"fitted_cm": [
+				106578,
+				-97726,
+				371.82684799194334
+			]
+		},
+		{
+			"source_id": "prop_crate_020",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				18672,
+				-904,
+				400
+			],
+			"fitted_cm": [
+				18672,
+				-904,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_021",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-27602,
+				-54801,
+				0
+			],
+			"fitted_cm": [
+				-27101.999983115616,
+				-54900.999951732789,
+				86.775006282027462
+			]
+		},
+		{
+			"source_id": "prop_crate_022",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				30422,
+				-59062,
+				0
+			],
+			"fitted_cm": [
+				30422,
+				-59062,
+				0.61884191721676984
+			]
+		},
+		{
+			"source_id": "prop_crate_023",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-112455,
+				79978,
+				800
+			],
+			"fitted_cm": [
+				-112955,
+				79478,
+				259.60186954498289
+			]
+		},
+		{
+			"source_id": "prop_crate_024",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				44528,
+				87220,
+				800
+			],
+			"fitted_cm": [
+				44528,
+				87220,
+				672.560493774414
+			]
+		},
+		{
+			"source_id": "prop_crate_025",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				55315,
+				-16878,
+				0
+			],
+			"fitted_cm": [
+				55315,
+				-16878,
+				12.791777801513661
+			]
+		},
+		{
+			"source_id": "prop_crate_026",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-74590,
+				8033,
+				0
+			],
+			"fitted_cm": [
+				-74590,
+				8033,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_027",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				2046,
+				-6377,
+				400
+			],
+			"fitted_cm": [
+				1846,
+				-6577,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_028",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-79727,
+				63390,
+				800
+			],
+			"fitted_cm": [
+				-79727,
+				63390,
+				800
+			]
+		},
+		{
+			"source_id": "prop_crate_029",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				66899,
+				86167,
+				400
+			],
+			"fitted_cm": [
+				67099,
+				86267,
+				402.63377410888671
+			]
+		},
+		{
+			"source_id": "prop_crate_030",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-80537,
+				-56863,
+				0
+			],
+			"fitted_cm": [
+				-80537,
+				-56863,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_031",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				80511,
+				-60168,
+				400
+			],
+			"fitted_cm": [
+				80511,
+				-60168,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_032",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				47167,
+				48555,
+				400
+			],
+			"fitted_cm": [
+				47167,
+				48555,
+				393.07933143615719
+			]
+		},
+		{
+			"source_id": "prop_crate_033",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				-8700,
+				-101040,
+				0
+			],
+			"fitted_cm": [
+				-9000,
+				-101340,
+				0
+			]
+		},
+		{
+			"source_id": "prop_crate_034",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				5838,
+				2089,
+				400
+			],
+			"fitted_cm": [
+				5538,
+				1789,
+				400
+			]
+		},
+		{
+			"source_id": "prop_crate_035",
+			"kind": 2,
+			"placement_valid": true,
+			"source_cm": [
+				58362,
+				29571,
+				400
+			],
+			"fitted_cm": [
+				58362.000054276592,
+				29570.999980558299,
+				64.808167856980219
+			]
+		},
+		{
+			"source_id": "prop_barrel_000",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-80584,
+				65683,
+				800
+			],
+			"fitted_cm": [
+				-80784,
+				65483,
+				800
+			]
+		},
+		{
+			"source_id": "prop_barrel_001",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				80548,
+				70388,
+				400
+			],
+			"fitted_cm": [
+				80548,
+				70388,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_002",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-84710,
+				-58417,
+				0
+			],
+			"fitted_cm": [
+				-84710,
+				-58417,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_003",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				75254,
+				-61575,
+				400
+			],
+			"fitted_cm": [
+				75154,
+				-61475,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_004",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-60218,
+				-28231,
+				0
+			],
+			"fitted_cm": [
+				-60218,
+				-28231,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_005",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-97834,
+				102788,
+				800
+			],
+			"fitted_cm": [
+				-97834,
+				102788,
+				784.15671478271486
+			]
+		},
+		{
+			"source_id": "prop_barrel_006",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-1984,
+				-14529,
+				400
+			],
+			"fitted_cm": [
+				-1984,
+				-14529,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_007",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-29174,
+				-84316,
+				0
+			],
+			"fitted_cm": [
+				-29774,
+				-84916,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_008",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				8106,
+				-11202,
+				400
+			],
+			"fitted_cm": [
+				8106,
+				-11202,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_009",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				97540,
+				-85575,
+				400
+			],
+			"fitted_cm": [
+				97540,
+				-85575,
+				386.73779830932619
+			]
+		},
+		{
+			"source_id": "prop_barrel_010",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				19623,
+				46695,
+				400
+			],
+			"fitted_cm": [
+				19623,
+				46695,
+				394.36170646667483
+			]
+		},
+		{
+			"source_id": "prop_barrel_011",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-48479,
+				-13952,
+				0
+			],
+			"fitted_cm": [
+				-48479,
+				-13952,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_012",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-40044,
+				48290,
+				0
+			],
+			"fitted_cm": [
+				-40044,
+				48290,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_013",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				9485,
+				-1972,
+				400
+			],
+			"fitted_cm": [
+				9385,
+				-2072,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_014",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-87266,
+				80395,
+				800
+			],
+			"fitted_cm": [
+				-87266,
+				80395,
+				800
+			]
+		},
+		{
+			"source_id": "prop_barrel_015",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				76351,
+				81935,
+				400
+			],
+			"fitted_cm": [
+				76351,
+				81935,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_016",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-76984,
+				-58742,
+				0
+			],
+			"fitted_cm": [
+				-76984,
+				-58742,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_017",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-103740,
+				42163,
+				0
+			],
+			"fitted_cm": [
+				-103840,
+				42063,
+				10.05626111745832
+			]
+		},
+		{
+			"source_id": "prop_barrel_018",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				101544,
+				-8448,
+				0
+			],
+			"fitted_cm": [
+				101244,
+				-8348,
+				34.981343765258799
+			]
+		},
+		{
+			"source_id": "prop_barrel_019",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				105972,
+				-42570,
+				400
+			],
+			"fitted_cm": [
+				105972,
+				-42570,
+				390.99849319458008
+			]
+		},
+		{
+			"source_id": "prop_barrel_020",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				3351,
+				-3315,
+				400
+			],
+			"fitted_cm": [
+				3351,
+				-3315,
+				400
+			]
+		},
+		{
+			"source_id": "prop_barrel_021",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				84852,
+				18604,
+				0
+			],
+			"fitted_cm": [
+				84852,
+				18604,
+				50.804442749023423
+			]
+		},
+		{
+			"source_id": "prop_barrel_022",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				-95229,
+				7787,
+				0
+			],
+			"fitted_cm": [
+				-95229,
+				7787,
+				0
+			]
+		},
+		{
+			"source_id": "prop_barrel_023",
+			"kind": 3,
+			"placement_valid": true,
+			"source_cm": [
+				22045,
+				-103386,
+				0
+			],
+			"fitted_cm": [
+				22045,
+				-103386,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_000",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-82238,
+				-64384,
+				0
+			],
+			"fitted_cm": [
+				-82538,
+				-64684,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_001",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				83382,
+				-60549,
+				400
+			],
+			"fitted_cm": [
+				83382,
+				-60549,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_002",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				45140,
+				42765,
+				400
+			],
+			"fitted_cm": [
+				45140,
+				42765,
+				262.20928478240967
+			]
+		},
+		{
+			"source_id": "prop_water_flask_003",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-5077,
+				-104279,
+				0
+			],
+			"fitted_cm": [
+				-5077,
+				-104279,
+				1.5280341029167062
+			]
+		},
+		{
+			"source_id": "prop_water_flask_004",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				7036,
+				2774,
+				400
+			],
+			"fitted_cm": [
+				7036,
+				2774,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_005",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				64609,
+				31992,
+				400
+			],
+			"fitted_cm": [
+				64508.999960523957,
+				31892.000004550333,
+				145.93454774318326
+			]
+		},
+		{
+			"source_id": "prop_water_flask_006",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-25844,
+				104598,
+				800
+			],
+			"fitted_cm": [
+				-25844,
+				104598,
+				687.48629089355472
+			]
+		},
+		{
+			"source_id": "prop_water_flask_007",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-94505,
+				-36111,
+				0
+			],
+			"fitted_cm": [
+				-94505,
+				-36111,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_008",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-101238,
+				53508,
+				400
+			],
+			"fitted_cm": [
+				-101238,
+				53508,
+				272.79371368408204
+			]
+		},
+		{
+			"source_id": "prop_water_flask_009",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				650,
+				5513,
+				400
+			],
+			"fitted_cm": [
+				650,
+				5513,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_010",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-46591,
+				-62927,
+				0
+			],
+			"fitted_cm": [
+				-46591,
+				-62927,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_011",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-5832,
+				9605,
+				400
+			],
+			"fitted_cm": [
+				-5832,
+				9605,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_012",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-82506,
+				78880,
+				800
+			],
+			"fitted_cm": [
+				-82506,
+				78880,
+				800
+			]
+		},
+		{
+			"source_id": "prop_water_flask_013",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				86979,
+				85383,
+				400
+			],
+			"fitted_cm": [
+				86679,
+				85683,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_014",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				67926,
+				-76390,
+				400
+			],
+			"fitted_cm": [
+				67926,
+				-76390,
+				400
+			]
+		},
+		{
+			"source_id": "prop_water_flask_015",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-61917,
+				93677,
+				800
+			],
+			"fitted_cm": [
+				-62017,
+				93577,
+				434.11979171752932
+			]
+		},
+		{
+			"source_id": "prop_water_flask_016",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-100155,
+				-98350,
+				0
+			],
+			"fitted_cm": [
+				-100155,
+				-98350,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_017",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				11580,
+				59439,
+				400
+			],
+			"fitted_cm": [
+				11580,
+				59439,
+				380.40370704650877
+			]
+		},
+		{
+			"source_id": "prop_water_flask_018",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-29636,
+				62808,
+				0
+			],
+			"fitted_cm": [
+				-29935.999990000066,
+				62507.999996246232,
+				79.651254926032237
+			]
+		},
+		{
+			"source_id": "prop_water_flask_019",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-45265,
+				105440,
+				800
+			],
+			"fitted_cm": [
+				-45265,
+				105440,
+				614.76998596191402
+			]
+		},
+		{
+			"source_id": "prop_water_flask_020",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				23141,
+				55183,
+				400
+			],
+			"fitted_cm": [
+				23141,
+				55183,
+				395.53445014953616
+			]
+		},
+		{
+			"source_id": "prop_water_flask_021",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-61791,
+				24414,
+				0
+			],
+			"fitted_cm": [
+				-61791,
+				24414,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_022",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				-76837,
+				-82770,
+				0
+			],
+			"fitted_cm": [
+				-76837,
+				-82770,
+				0
+			]
+		},
+		{
+			"source_id": "prop_water_flask_023",
+			"kind": 4,
+			"placement_valid": true,
+			"source_cm": [
+				77451,
+				76144,
+				400
+			],
+			"fitted_cm": [
+				77351,
+				76044,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_000",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				74201,
+				87475,
+				400
+			],
+			"fitted_cm": [
+				74201,
+				87475,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_001",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-76414,
+				-57274,
+				0
+			],
+			"fitted_cm": [
+				-76414,
+				-57274,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_002",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-99896,
+				41051,
+				0
+			],
+			"fitted_cm": [
+				-99896,
+				41051,
+				25.326163501739501
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_003",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				99044,
+				-11386,
+				0
+			],
+			"fitted_cm": [
+				99044,
+				-11386,
+				0.92052143096921668
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_004",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				106613,
+				-43334,
+				400
+			],
+			"fitted_cm": [
+				106613,
+				-43334,
+				349.5452590942383
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_005",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				6128,
+				-75,
+				400
+			],
+			"fitted_cm": [
+				6228,
+				25,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_006",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				87247,
+				20192,
+				0
+			],
+			"fitted_cm": [
+				87247,
+				20192,
+				0.67347424805163314
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_007",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-94250,
+				11888,
+				0
+			],
+			"fitted_cm": [
+				-94250,
+				11888,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_008",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				23767,
+				-102854,
+				0
+			],
+			"fitted_cm": [
+				23767,
+				-102854,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_009",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				108893,
+				9876,
+				400
+			],
+			"fitted_cm": [
+				108893,
+				9876,
+				208.00243789672851
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_010",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-83114,
+				68744,
+				800
+			],
+			"fitted_cm": [
+				-83314,
+				68844,
+				800
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_011",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				40876,
+				-85839,
+				400
+			],
+			"fitted_cm": [
+				40876,
+				-85839,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_012",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				1548,
+				14820,
+				400
+			],
+			"fitted_cm": [
+				1548,
+				14820,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_013",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-79983,
+				80225,
+				800
+			],
+			"fitted_cm": [
+				-79983,
+				80225,
+				800
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_014",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-84474,
+				-73552,
+				0
+			],
+			"fitted_cm": [
+				-84474,
+				-73552,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_015",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				69709,
+				-75885,
+				400
+			],
+			"fitted_cm": [
+				69709,
+				-75885,
+				400
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_016",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				42053,
+				103934,
+				800
+			],
+			"fitted_cm": [
+				42053,
+				103934,
+				465.55466117858884
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_017",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-6882,
+				-101064,
+				0
+			],
+			"fitted_cm": [
+				-6882,
+				-101064,
+				9.7599973798878636e-05
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_018",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				38044,
+				-27374,
+				400
+			],
+			"fitted_cm": [
+				38044,
+				-27374,
+				369.76570083618162
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_019",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-37532,
+				33176,
+				0
+			],
+			"fitted_cm": [
+				-37432,
+				33376,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_020",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-87768,
+				35913,
+				400
+			],
+			"fitted_cm": [
+				-87768,
+				35913,
+				243.42976997375487
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_021",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				95785,
+				89507,
+				400
+			],
+			"fitted_cm": [
+				95785,
+				89507,
+				389.5704974365234
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_022",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				-65525,
+				-89748,
+				0
+			],
+			"fitted_cm": [
+				-65525,
+				-89748,
+				0
+			]
+		},
+		{
+			"source_id": "prop_oil_flask_023",
+			"kind": 5,
+			"placement_valid": true,
+			"source_cm": [
+				104061,
+				102645,
+				400
+			],
+			"fitted_cm": [
+				104061,
+				102645,
+				324.785878829956
+			]
+		},
+		{
+			"source_id": "prop_furniture_000",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				76600,
+				85426,
+				400
+			],
+			"fitted_cm": [
+				76600,
+				85426,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_001",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-70364,
+				-60017,
+				0
+			],
+			"fitted_cm": [
+				-70364,
+				-60017,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_002",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-105331,
+				38512,
+				0
+			],
+			"fitted_cm": [
+				-105331,
+				38512,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_003",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				101153,
+				-15742,
+				0
+			],
+			"fitted_cm": [
+				101153,
+				-15742,
+				45.511593894958509
+			]
+		},
+		{
+			"source_id": "prop_furniture_004",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				102073,
+				-41068,
+				400
+			],
+			"fitted_cm": [
+				102073,
+				-41068,
+				395.86177444458008
+			]
+		},
+		{
+			"source_id": "prop_furniture_005",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				6829,
+				1575,
+				400
+			],
+			"fitted_cm": [
+				7029,
+				1775,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_006",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				82884,
+				26393,
+				0
+			],
+			"fitted_cm": [
+				82884,
+				26393,
+				21.810387187004068
+			]
+		},
+		{
+			"source_id": "prop_furniture_007",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-98067,
+				6920,
+				0
+			],
+			"fitted_cm": [
+				-98067,
+				6920,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_008",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				28169,
+				-102970,
+				0
+			],
+			"fitted_cm": [
+				28169,
+				-102970,
+				7.0327344644069569
+			]
+		},
+		{
+			"source_id": "prop_furniture_009",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				107604,
+				8164,
+				400
+			],
+			"fitted_cm": [
+				107604,
+				8164,
+				373.00786529541017
+			]
+		},
+		{
+			"source_id": "prop_furniture_010",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-82634,
+				68333,
+				800
+			],
+			"fitted_cm": [
+				-82534,
+				68133,
+				800
+			]
+		},
+		{
+			"source_id": "prop_furniture_011",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				35815,
+				-84539,
+				400
+			],
+			"fitted_cm": [
+				35615,
+				-84339,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_012",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				2132,
+				13161,
+				400
+			],
+			"fitted_cm": [
+				2132,
+				13161,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_013",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-76544,
+				73602,
+				800
+			],
+			"fitted_cm": [
+				-76544,
+				73602,
+				800
+			]
+		},
+		{
+			"source_id": "prop_furniture_014",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-90895,
+				-71578,
+				0
+			],
+			"fitted_cm": [
+				-90895,
+				-71578,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_015",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				76816,
+				-72023,
+				400
+			],
+			"fitted_cm": [
+				76816,
+				-72023,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_016",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				37999,
+				99715,
+				800
+			],
+			"fitted_cm": [
+				37999,
+				99715,
+				799.11849990844723
+			]
+		},
+		{
+			"source_id": "prop_furniture_017",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-10018,
+				-102023,
+				0
+			],
+			"fitted_cm": [
+				-10018,
+				-102023,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_018",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				41173,
+				-34811,
+				400
+			],
+			"fitted_cm": [
+				41173,
+				-34811,
+				391.54278045654297
+			]
+		},
+		{
+			"source_id": "prop_furniture_019",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-34818,
+				33424,
+				0
+			],
+			"fitted_cm": [
+				-34117.999984984723,
+				32723.999872906345,
+				37.776860882611885
+			]
+		},
+		{
+			"source_id": "prop_furniture_020",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-91278,
+				32538,
+				400
+			],
+			"fitted_cm": [
+				-91278,
+				32538,
+				375.67530364990233
+			]
+		},
+		{
+			"source_id": "prop_furniture_021",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				97272,
+				90518,
+				400
+			],
+			"fitted_cm": [
+				97272,
+				90518,
+				391.31885345458988
+			]
+		},
+		{
+			"source_id": "prop_furniture_022",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-63690,
+				-90705,
+				0
+			],
+			"fitted_cm": [
+				-63890,
+				-90905,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_023",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				99432,
+				102379,
+				400
+			],
+			"fitted_cm": [
+				99432,
+				102379,
+				394.69902832031249
+			]
+		},
+		{
+			"source_id": "prop_furniture_024",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-78629,
+				-69885,
+				0
+			],
+			"fitted_cm": [
+				-78629,
+				-69885,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_025",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-2947,
+				84091,
+				800
+			],
+			"fitted_cm": [
+				-2947,
+				84091,
+				800
+			]
+		},
+		{
+			"source_id": "prop_furniture_026",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-93320,
+				66814,
+				800
+			],
+			"fitted_cm": [
+				-93320,
+				66814,
+				800
+			]
+		},
+		{
+			"source_id": "prop_furniture_027",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				73589,
+				68554,
+				400
+			],
+			"fitted_cm": [
+				73589,
+				68554,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_028",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-78495,
+				-73397,
+				0
+			],
+			"fitted_cm": [
+				-78495,
+				-73397,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_029",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				65706,
+				-59969,
+				400
+			],
+			"fitted_cm": [
+				65706,
+				-59969,
+				400
+			]
+		},
+		{
+			"source_id": "prop_furniture_030",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				-102444,
+				-16520,
+				0
+			],
+			"fitted_cm": [
+				-102144,
+				-16920,
+				0
+			]
+		},
+		{
+			"source_id": "prop_furniture_031",
+			"kind": 12,
+			"placement_valid": true,
+			"source_cm": [
+				105072,
+				-101081,
+				400
+			],
+			"fitted_cm": [
+				105072,
+				-101081,
+				329.76182022094724
+			]
+		},
+		{
+			"source_id": "prop_torch_000",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				3560,
+				11698,
+				400
+			],
+			"fitted_cm": [
+				3560,
+				11698,
+				400
+			]
+		},
+		{
+			"source_id": "prop_torch_001",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-78178,
+				74377,
+				800
+			],
+			"fitted_cm": [
+				-78178,
+				74377,
+				800
+			]
+		},
+		{
+			"source_id": "prop_torch_002",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-89048,
+				-74932,
+				0
+			],
+			"fitted_cm": [
+				-88948,
+				-75132,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_003",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				72360,
+				-70990,
+				400
+			],
+			"fitted_cm": [
+				72560,
+				-71190,
+				400
+			]
+		},
+		{
+			"source_id": "prop_torch_004",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				34604,
+				99938,
+				800
+			],
+			"fitted_cm": [
+				34604,
+				99938,
+				521.85485534667964
+			]
+		},
+		{
+			"source_id": "prop_torch_005",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-6505,
+				-99609,
+				0
+			],
+			"fitted_cm": [
+				-6505,
+				-99609,
+				1.3215225267410062
+			]
+		},
+		{
+			"source_id": "prop_torch_006",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				35691,
+				-30067,
+				400
+			],
+			"fitted_cm": [
+				35591,
+				-30167,
+				398.36101768493654
+			]
+		},
+		{
+			"source_id": "prop_torch_007",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-37862,
+				32782,
+				0
+			],
+			"fitted_cm": [
+				-37961.999992765188,
+				32681.9999894047,
+				80.189043168587403
+			]
+		},
+		{
+			"source_id": "prop_torch_008",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-94521,
+				33044,
+				400
+			],
+			"fitted_cm": [
+				-94521,
+				33044,
+				269.19207962036131
+			]
+		},
+		{
+			"source_id": "prop_torch_009",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				97509,
+				86307,
+				400
+			],
+			"fitted_cm": [
+				97509,
+				86307,
+				304.98317657470704
+			]
+		},
+		{
+			"source_id": "prop_torch_010",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-69398,
+				-87837,
+				0
+			],
+			"fitted_cm": [
+				-69398,
+				-87837,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_011",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				100812,
+				101117,
+				400
+			],
+			"fitted_cm": [
+				101212,
+				100717,
+				399.3200009918213
+			]
+		},
+		{
+			"source_id": "prop_torch_012",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-76457,
+				-64483,
+				0
+			],
+			"fitted_cm": [
+				-76457,
+				-64483,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_013",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				1933,
+				84933,
+				800
+			],
+			"fitted_cm": [
+				1833,
+				84833,
+				800
+			]
+		},
+		{
+			"source_id": "prop_torch_014",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-90714,
+				61940,
+				800
+			],
+			"fitted_cm": [
+				-90714,
+				61940,
+				800
+			]
+		},
+		{
+			"source_id": "prop_torch_015",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				73990,
+				76051,
+				400
+			],
+			"fitted_cm": [
+				73990,
+				76051,
+				400
+			]
+		},
+		{
+			"source_id": "prop_torch_016",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-76281,
+				-69162,
+				0
+			],
+			"fitted_cm": [
+				-76281,
+				-69162,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_017",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				64686,
+				-64396,
+				400
+			],
+			"fitted_cm": [
+				64686,
+				-64396,
+				400
+			]
+		},
+		{
+			"source_id": "prop_torch_018",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-104275,
+				-15628,
+				0
+			],
+			"fitted_cm": [
+				-104275,
+				-15628,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_019",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				106962,
+				-95645,
+				400
+			],
+			"fitted_cm": [
+				106962,
+				-95645,
+				273.17020790100094
+			]
+		},
+		{
+			"source_id": "prop_torch_020",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				18462,
+				4796,
+				400
+			],
+			"fitted_cm": [
+				18462,
+				4796,
+				400
+			]
+		},
+		{
+			"source_id": "prop_torch_021",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-29262,
+				-59966,
+				0
+			],
+			"fitted_cm": [
+				-29262,
+				-59966,
+				0
+			]
+		},
+		{
+			"source_id": "prop_torch_022",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				34248,
+				-57111,
+				0
+			],
+			"fitted_cm": [
+				34248,
+				-57111,
+				18.507471985816949
+			]
+		},
+		{
+			"source_id": "prop_torch_023",
+			"kind": 7,
+			"placement_valid": true,
+			"source_cm": [
+				-108733,
+				82781,
+				800
+			],
+			"fitted_cm": [
+				-108733,
+				82781,
+				707.77676330566408
+			]
+		},
+		{
+			"source_id": "prop_lantern_000",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-87207,
+				81400,
+				800
+			],
+			"fitted_cm": [
+				-87207,
+				81400,
+				800
+			]
+		},
+		{
+			"source_id": "prop_lantern_001",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				81822,
+				85412,
+				400
+			],
+			"fitted_cm": [
+				81822,
+				85412,
+				400
+			]
+		},
+		{
+			"source_id": "prop_lantern_002",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				66829,
+				-70698,
+				400
+			],
+			"fitted_cm": [
+				66829,
+				-70698,
+				400
+			]
+		},
+		{
+			"source_id": "prop_lantern_003",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-54159,
+				91570,
+				800
+			],
+			"fitted_cm": [
+				-54159,
+				91570,
+				683.16035827636722
+			]
+		},
+		{
+			"source_id": "prop_lantern_004",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-99953,
+				-98164,
+				0
+			],
+			"fitted_cm": [
+				-99953,
+				-98164,
+				0
+			]
+		},
+		{
+			"source_id": "prop_lantern_005",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				8673,
+				61227,
+				400
+			],
+			"fitted_cm": [
+				8673,
+				61227,
+				426.74973411560063
+			]
+		},
+		{
+			"source_id": "prop_lantern_006",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-29425,
+				63495,
+				0
+			],
+			"fitted_cm": [
+				-29425,
+				63495,
+				0
+			]
+		},
+		{
+			"source_id": "prop_lantern_007",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-43108,
+				103297,
+				800
+			],
+			"fitted_cm": [
+				-43108,
+				103297,
+				790.40852005004876
+			]
+		},
+		{
+			"source_id": "prop_lantern_008",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				23462,
+				58653,
+				400
+			],
+			"fitted_cm": [
+				23462,
+				58653,
+				384.74187660217285
+			]
+		},
+		{
+			"source_id": "prop_lantern_009",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-66575,
+				27995,
+				0
+			],
+			"fitted_cm": [
+				-66575,
+				27995,
+				0
+			]
+		},
+		{
+			"source_id": "prop_lantern_010",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				-77382,
+				-77396,
+				0
+			],
+			"fitted_cm": [
+				-77382,
+				-77396,
+				0
+			]
+		},
+		{
+			"source_id": "prop_lantern_011",
+			"kind": 8,
+			"placement_valid": true,
+			"source_cm": [
+				75996,
+				76272,
+				400
+			],
+			"fitted_cm": [
+				76196,
+				76072,
+				400
+			]
+		},
+		{
+			"source_id": "prop_rope_000",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-2108,
+				-3989,
+				400
+			],
+			"fitted_cm": [
+				-2408,
+				-4289,
+				400
+			]
+		},
+		{
+			"source_id": "prop_rope_001",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-78297,
+				64400,
+				800
+			],
+			"fitted_cm": [
+				-78297,
+				64400,
+				800
+			]
+		},
+		{
+			"source_id": "prop_rope_002",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				68037,
+				85210,
+				400
+			],
+			"fitted_cm": [
+				67637,
+				84810,
+				400.00050186157227
+			]
+		},
+		{
+			"source_id": "prop_rope_003",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-80121,
+				-62375,
+				0
+			],
+			"fitted_cm": [
+				-80321,
+				-62575,
+				0
+			]
+		},
+		{
+			"source_id": "prop_rope_004",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				78903,
+				-63540,
+				400
+			],
+			"fitted_cm": [
+				78903,
+				-63540,
+				400
+			]
+		},
+		{
+			"source_id": "prop_rope_005",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				44145,
+				47278,
+				400
+			],
+			"fitted_cm": [
+				44145,
+				47278,
+				393.27046020507817
+			]
+		},
+		{
+			"source_id": "prop_rope_006",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-4405,
+				-103351,
+				0
+			],
+			"fitted_cm": [
+				-4405,
+				-103351,
+				3.5619161754846402
+			]
+		},
+		{
+			"source_id": "prop_rope_007",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				7461,
+				1932,
+				400
+			],
+			"fitted_cm": [
+				7461,
+				1932,
+				400
+			]
+		},
+		{
+			"source_id": "prop_rope_008",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				61354,
+				27224,
+				400
+			],
+			"fitted_cm": [
+				61154,
+				27424,
+				141.98248580932616
+			]
+		},
+		{
+			"source_id": "prop_rope_009",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-21299,
+				105527,
+				800
+			],
+			"fitted_cm": [
+				-21699,
+				105127,
+				515.5783911895752
+			]
+		},
+		{
+			"source_id": "prop_rope_010",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-96908,
+				-39581,
+				0
+			],
+			"fitted_cm": [
+				-96908,
+				-39581,
+				0
+			]
+		},
+		{
+			"source_id": "prop_rope_011",
+			"kind": 9,
+			"placement_valid": true,
+			"source_cm": [
+				-102170,
+				57073,
+				400
+			],
+			"fitted_cm": [
+				-102170,
+				57073,
+				227.68260860443115
+			]
+		},
+		{
+			"source_id": "prop_ladder_000",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-84144,
+				64180,
+				800
+			],
+			"fitted_cm": [
+				-83644,
+				63580,
+				800
+			]
+		},
+		{
+			"source_id": "prop_ladder_001",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				84842,
+				70161,
+				400
+			],
+			"fitted_cm": [
+				84442,
+				69761,
+				400
+			]
+		},
+		{
+			"source_id": "prop_ladder_002",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-90137,
+				-58183,
+				0
+			],
+			"fitted_cm": [
+				-90137,
+				-58183,
+				0
+			]
+		},
+		{
+			"source_id": "prop_ladder_003",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				76975,
+				-64144,
+				400
+			],
+			"fitted_cm": [
+				76975,
+				-64144,
+				400
+			]
+		},
+		{
+			"source_id": "prop_ladder_004",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-58351,
+				-33122,
+				0
+			],
+			"fitted_cm": [
+				-58351,
+				-33122,
+				0
+			]
+		},
+		{
+			"source_id": "prop_ladder_005",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-98745,
+				103569,
+				800
+			],
+			"fitted_cm": [
+				-98745,
+				103569,
+				686.5263067626953
+			]
+		},
+		{
+			"source_id": "prop_ladder_006",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-1104,
+				-16119,
+				400
+			],
+			"fitted_cm": [
+				-1104,
+				-16119,
+				400
+			]
+		},
+		{
+			"source_id": "prop_ladder_007",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-32426,
+				-80533,
+				0
+			],
+			"fitted_cm": [
+				-32426,
+				-80533,
+				0
+			]
+		},
+		{
+			"source_id": "prop_ladder_008",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				10545,
+				-12759,
+				400
+			],
+			"fitted_cm": [
+				10545,
+				-12759,
+				400
+			]
+		},
+		{
+			"source_id": "prop_ladder_009",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				91993,
+				-88108,
+				400
+			],
+			"fitted_cm": [
+				91993,
+				-88108,
+				363.11168624877928
+			]
+		},
+		{
+			"source_id": "prop_ladder_010",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				21664,
+				42132,
+				400
+			],
+			"fitted_cm": [
+				21664,
+				42132,
+				364.40320350646971
+			]
+		},
+		{
+			"source_id": "prop_ladder_011",
+			"kind": 10,
+			"placement_valid": true,
+			"source_cm": [
+				-49050,
+				-15659,
+				0
+			],
+			"fitted_cm": [
+				-49050,
+				-15659,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_00",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-5970,
+				-4400,
+				400
+			],
+			"fitted_cm": [
+				-5970,
+				-3660,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_01",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-5970,
+				12400,
+				400
+			],
+			"fitted_cm": [
+				-5970,
+				13140,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_02",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-88850,
+				66000,
+				800
+			],
+			"fitted_cm": [
+				-88850,
+				66740,
+				800
+			]
+		},
+		{
+			"source_id": "roof_anchor_03",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-88850,
+				78000,
+				800
+			],
+			"fitted_cm": [
+				-88850,
+				78740,
+				800
+			]
+		},
+		{
+			"source_id": "roof_anchor_04",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				71150,
+				72000,
+				400
+			],
+			"fitted_cm": [
+				71150,
+				72740,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_05",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				71150,
+				84000,
+				400
+			],
+			"fitted_cm": [
+				71150,
+				84740,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_06",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-86850,
+				-72000,
+				0
+			],
+			"fitted_cm": [
+				-86850,
+				-71260,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_07",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-86850,
+				-60000,
+				0
+			],
+			"fitted_cm": [
+				-86850,
+				-59260,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_08",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				69150,
+				-74000,
+				400
+			],
+			"fitted_cm": [
+				69150,
+				-73260,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_09",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				69150,
+				-62000,
+				400
+			],
+			"fitted_cm": [
+				69150,
+				-61260,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_10",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-78550,
+				5500,
+				0
+			],
+			"fitted_cm": [
+				-78550,
+				6240,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_11",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-40550,
+				42500,
+				0
+			],
+			"fitted_cm": [
+				-40550,
+				43240,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_12",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-48550,
+				-67500,
+				0
+			],
+			"fitted_cm": [
+				-48550,
+				-66760,
+				0
+			]
+		},
+		{
+			"source_id": "roof_anchor_13",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				36450,
+				-87500,
+				400
+			],
+			"fitted_cm": [
+				36450,
+				-86760,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_14",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				71450,
+				17500,
+				400
+			],
+			"fitted_cm": [
+				71450,
+				18240,
+				400
+			]
+		},
+		{
+			"source_id": "roof_anchor_15",
+			"kind": 11,
+			"placement_valid": true,
+			"source_cm": [
+				-1550,
+				81500,
+				800
+			],
+			"fitted_cm": [
+				-1550,
+				82240,
+				800
+			]
+		}
+	],
+	"finite_initial_items": 132,
+	"conserved": true,
+	"conservation_reason": "",
+	"scope": "Native editor authority with two independent headless remote owners; storage, pickup/break/carry races and physical placement. Remaining B91 systems and full-stage acceptance are open.",
+	"push_setup": "Positive push refits the same existing crate to a native clear pad; original generated placements remain in fitted_objects. No item or prop is created by this setup.",
+	"initial_item_ids": [
+		"6D11DD004068139401DEEF80E5EBFCB6",
+		"C7BA53194341FC68B763AAA270AF58AE",
+		"425D76CB41021742FBBBC7A80799DA6C",
+		"1E21D5F2483AA465094BBCB5B0495333",
+		"F1F023684873192478226E9734FF52AA",
+		"2C56C91F4C60528074617D885005FE1D",
+		"8B9AC3B142297D36049BEB8F4A00ED7C",
+		"5C26106C42DBD801D4BF0FB7B289F8B8",
+		"B50FB10242F81CCB68074A847362562B",
+		"1E5D6EC14F8606951F827795EA7A03B1",
+		"9304342D4518FB794CD5E8A65774D978",
+		"AF346C674482F70FF8A2F1B931A5A7FB",
+		"000E878F4E354C749682BEB385F150A8",
+		"B5EE54604A6043EA12ECF6831BC53F6E",
+		"71D93C8E4C559D2EAD39E2920E95D8C1",
+		"0E99A810445F67DD639768A005472A46",
+		"DE6E06FF49969364E3F1218FB9C07737",
+		"5F7B7AD741EDDE3C46E2B78D5297EFA2",
+		"B80F9D3D4CA286EA3A85BA8AEAFC277F",
+		"CB7283784E1A382DE97B0682332BCC51",
+		"2A022C6E4CA3F7792F0F78B5F0DE4C40",
+		"2410B0904E366B6435B27B9B2A31B5B2",
+		"26E768F4492F181E7B86F0843F693F10",
+		"416DC17D445475100ED5AA871490512F",
+		"E4720E8448E106EE0C013A9249E0CB28",
+		"E1712C7842EE8818C2C0548357FABD05",
+		"2203B2E74500F2499B265EAC93BF64D0",
+		"EE25DD574FAC61C558EA7FA469E92560",
+		"DB868A89407772F6E0A87FA414814A5D",
+		"EA1AF5E64624CAA4A348ADA7B531F1E7",
+		"9207492F4146BD5DE9443C862119327A",
+		"12F4BDED4E64E9EFD4BEFF8E14A5F435",
+		"D0812BAE4FD7C7BB577217996962CF2F",
+		"ACEED5AD48254F9392F9629E64FFEB81",
+		"5EF1A1D44C747E8CB661D688E710EF90",
+		"D401150A4932B94A80051C9E3B137CAA",
+		"603F6E0943E3B9DF4FCCA19F365E0FED",
+		"0AB00C7D4847F2468DF0698906227AFA",
+		"C8273A8B4A2342A18D9B48A490F099D8",
+		"82A0830F46B862DA92E164B5BEE00664",
+		"E74F39304A4F5D991FC0C0A335D6D664",
+		"A5F7B59B49478E3A356D3CB78B9D0E1B",
+		"8DB6F0DA40F8921A1A8170A8F5D41258",
+		"BE16CA824E3674AC54DFCDB5D950B3A6",
+		"591BDDC94876A17BB6505EA7A77543B7",
+		"0829D8AB4F55B8D1F11E2B9193A7663F",
+		"B1C2DB73412AA668005FF599EA24C202",
+		"DC0B826E42EBFEA9AAB5D5BB20BE9555",
+		"5C3D7B4E4CCB560939240482026D1E54",
+		"011B86964919A64D891ED4A8F8D633EB",
+		"E2C2A4EB41E56BF664E6CFA52338956D",
+		"EFCB9EFE444D7C4DCFABDCB2309B9287",
+		"D69979F7476024E7D4050BA726D33011",
+		"99342D644ED194ABF30F2F92BFA6BD0C",
+		"BDF4BABF4F3B516939D35491E49582A2",
+		"496BD9C442C8EED1667C68BA3CD0B144",
+		"B549E09D420E67586B1C13A180AAEB2C",
+		"07D951D646E5C0263A1FEE9423F4647E",
+		"E9429E9C44ADC6816CA5EF80AEE2178B",
+		"86B7E4FD422D2D138A212790A6D3CD84",
+		"41DF1CF44C046B06DB4490BB2A863C39",
+		"E5FF500443E646FBB4BFB0B488704030",
+		"83C8139B403489209C529CB4FD495089",
+		"D1FD36CB42B8E1D829544FB6D61ED600",
+		"F36FBF4A463B6590B7C529B5F34B4D21",
+		"EE9DAB5A470A6CE39ABEDFA595A00473",
+		"CCC129EB494402AAB228ADAB7A5B1557",
+		"FF44AAE34C1B96D8B87E6DAF232A795D",
+		"D5065AB547A0496BD64C678CAD4B6566",
+		"0A1A7BC24B9F12387F81D1B2C10A3230",
+		"00AE7CF940AB90A7B3CDBEA7C4B23AAA",
+		"FEE98DD24CD4DD2060F8A9B2F27BD37A",
+		"2BB7EAA543A2C1B5043987BF30297EDB",
+		"C49C416E4F4A19C2716E0CBA5F8ADEA1",
+		"CC425CDA4AE7035EDEDF008BE939096F",
+		"41FD3D044C190751A7046791F0D85B0B",
+		"DB044DBC402671DECE2E579FEFA9EE63",
+		"D69767374FD40DD470A7E1A255A8CCA8",
+		"2AF3820F4C2F2EA38F2705B14C92F9B1",
+		"9A2709A14227DD5E906906836895B64E",
+		"A05038544D9B4EFF9F9286BA9F6285F0",
+		"8F6175A6461F74CFC3C96A90327101B7",
+		"58B06FCB4340761F95B4F79B8A76CBB8",
+		"5E45BC194E158813964C8C9B9CDA9BD8",
+		"F80C8D2C43D29E2046FA72BBBDC48DB9",
+		"A59D351449F4967A690569A16810D01D",
+		"C9C75E3040B43DC2C716828A0DF0E575",
+		"3290CBA149B3EEC3C7C19D9161CBBE90",
+		"5B8FBF194FE116675E41579C9E59027E",
+		"5233B4574E5AF6263642A08628CD2DE1",
+		"09C8ECCD40FBDFBDB80948B001AF3351",
+		"F78379044E081F1D7903DF96BBF8A2EB",
+		"1F99591640B8E4152ED041800373A7F0",
+		"BB1F45E44D4F43B3C27844AED219473F",
+		"DA649A0442F6FB61500CB4A7BD1D0A17",
+		"919C56A44AD4F9DB5B25F6BCCCE1988F",
+		"30BC18D9446E7E238D6B81B51FA8108D",
+		"E1BD556140215E204E48A18612B402E9",
+		"A38A9CAF4505D300ABB722BAF4F76D11",
+		"7DB7B752405998A3B301A1A43B1E6699",
+		"01546EFE4DCF150205A63C922D7D6FB0",
+		"4E0FE897490F4F47C2D915A72B6562E9",
+		"A56AB52344421EABFB14B8882672B6A8",
+		"2A68A4C841DB0DBD522ABFA543724AED",
+		"EC23E22F4346BD21A80AD1B8BB0791A6",
+		"BC9445274C4955814A6A3FAAB30A5059",
+		"38B85DE7406781FCFBF968BBC1B66157",
+		"7BCB23CE415BD021B5FC4AAAB4958B54",
+		"B927748E461EEC429BF9E2A358614615",
+		"1B0B3C9E41C9475EB11E998B53E6A1D7",
+		"2ACD182B4F5B47CA36FAECB1D3C68059",
+		"0451DDCC48C14050D868949801304683",
+		"8E7E6BA443CA0318CB622FAF5BBE3CED",
+		"2F0345854C3685A835881E871D9AD786",
+		"B912E95C4E45B61313DFD6B465A13C4F",
+		"0AAD868F462F7E8CD119A3A51C98AA03",
+		"C6F4A1554319E7FB673567B3BD8255BA",
+		"90120055477C37C8F56A1BBDFA823521",
+		"0DDE8FD54F577FCC06AD28A81C404CD6",
+		"BC10CD354CC5082F2B0F33B92F07DAB8",
+		"410A361047C46D1E0468B98916571178",
+		"227858F6426412F3422FDAB1EFB2039E",
+		"65EC474E4B7612424A417792E52B491A",
+		"2F5BDEE642C890E997F2FD86ADE5DA31",
+		"A47AF0E743B2741933C5FBAC7849BAB0",
+		"4877B7E64266E819F160168D912C8209",
+		"63F811D94D3E0D5D3F9043ADE8680C92",
+		"825EA4184397EB66A366AFBFA09950A5",
+		"B05CA6CC461A328DD24E65BD377FF830",
+		"56BF096F4E34D05D9114168FE5B7A652",
+		"1689CEAB49073A56F2C4508605DA3AFB",
+		"888F9C5C4B2455EB9BA61E9CCA496834"
+	],
+	"break_item_ids": [
+		"8B9AC3B142297D36049BEB8F4A00ED7C",
+		"B50FB10242F81CCB68074A847362562B"
+	],
+	"physical_items": [
+		{
+			"id": "6D11DD004068139401DEEF80E5EBFCB6",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_000",
+			"origin_receipt": "297E611E42B7C3148BEAAEB9EE96C389",
+			"location": "container:prop_chest_000"
+		},
+		{
+			"id": "C7BA53194341FC68B763AAA270AF58AE",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_000",
+			"origin_receipt": "F21DAD844F1B42E12AC8B49700B52BE6",
+			"location": "container:prop_chest_000"
+		},
+		{
+			"id": "425D76CB41021742FBBBC7A80799DA6C",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_000",
+			"origin_receipt": "BA8F66B341B6ACF489E655A6BB3343E8",
+			"location": "container:prop_chest_000"
+		},
+		{
+			"id": "1E21D5F2483AA465094BBCB5B0495333",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_001",
+			"origin_receipt": "D5BE62674F834F2777A1C3BD5E5B183A",
+			"location": "container:prop_chest_001"
+		},
+		{
+			"id": "F1F023684873192478226E9734FF52AA",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_001",
+			"origin_receipt": "F50BECCB47098BF62363968536646E63",
+			"location": "container:prop_chest_001"
+		},
+		{
+			"id": "2C56C91F4C60528074617D885005FE1D",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_001",
+			"origin_receipt": "DAE746594B864DB047C3EB9DCEA8A79E",
+			"location": "container:prop_chest_001"
+		},
+		{
+			"id": "8B9AC3B142297D36049BEB8F4A00ED7C",
+			"kind": 3,
+			"state": 0,
+			"revision": 6,
+			"origin": "prop_chest_002",
+			"origin_receipt": "49327AD94FCABC34DD3B5E9EF9F3C77B",
+			"location": "ground"
+		},
+		{
+			"id": "5C26106C42DBD801D4BF0FB7B289F8B8",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_002",
+			"origin_receipt": "57F9849A43A09260DEB2168EACB9D694",
+			"location": "container:prop_chest_002"
+		},
+		{
+			"id": "B50FB10242F81CCB68074A847362562B",
+			"kind": 4,
+			"state": 0,
+			"revision": 3,
+			"origin": "prop_chest_002",
+			"origin_receipt": "3678E11C4EA7CE5BB56186A750E9CF20",
+			"location": "ground"
+		},
+		{
+			"id": "1E5D6EC14F8606951F827795EA7A03B1",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_003",
+			"origin_receipt": "6E4813004A200CE572E144AC1C142381",
+			"location": "container:prop_chest_003"
+		},
+		{
+			"id": "9304342D4518FB794CD5E8A65774D978",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_003",
+			"origin_receipt": "E52024FC4E7465526A6522AB51B46E7D",
+			"location": "container:prop_chest_003"
+		},
+		{
+			"id": "AF346C674482F70FF8A2F1B931A5A7FB",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_003",
+			"origin_receipt": "01BD34204F84BFA9A04390B1EB94B43D",
+			"location": "container:prop_chest_003"
+		},
+		{
+			"id": "000E878F4E354C749682BEB385F150A8",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_004",
+			"origin_receipt": "88CDEBDA4873650FC3260B973856602E",
+			"location": "container:prop_chest_004"
+		},
+		{
+			"id": "B5EE54604A6043EA12ECF6831BC53F6E",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_004",
+			"origin_receipt": "1C42BE7D48CBEE7834B9B3B3646CA531",
+			"location": "container:prop_chest_004"
+		},
+		{
+			"id": "71D93C8E4C559D2EAD39E2920E95D8C1",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_004",
+			"origin_receipt": "2FD6542C46EF962E8EC6DC99A957FF5E",
+			"location": "container:prop_chest_004"
+		},
+		{
+			"id": "0E99A810445F67DD639768A005472A46",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_005",
+			"origin_receipt": "3EED1CA9471EB192B39C599709DF6CD1",
+			"location": "container:prop_chest_005"
+		},
+		{
+			"id": "DE6E06FF49969364E3F1218FB9C07737",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_005",
+			"origin_receipt": "B0D4E2EB43BFAFB4B2764C8E606E20E3",
+			"location": "container:prop_chest_005"
+		},
+		{
+			"id": "5F7B7AD741EDDE3C46E2B78D5297EFA2",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_005",
+			"origin_receipt": "D90CD93241F4AD2C45F738B9A70AA9F5",
+			"location": "container:prop_chest_005"
+		},
+		{
+			"id": "B80F9D3D4CA286EA3A85BA8AEAFC277F",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_006",
+			"origin_receipt": "444961BF4685CA2CD7CC0EBA6419DF5E",
+			"location": "container:prop_chest_006"
+		},
+		{
+			"id": "CB7283784E1A382DE97B0682332BCC51",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_006",
+			"origin_receipt": "21AFF8524A066D5F936FE3894E00E57D",
+			"location": "container:prop_chest_006"
+		},
+		{
+			"id": "2A022C6E4CA3F7792F0F78B5F0DE4C40",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_006",
+			"origin_receipt": "B26A7F1A45BAFDC04A06CE8B937B8D79",
+			"location": "container:prop_chest_006"
+		},
+		{
+			"id": "2410B0904E366B6435B27B9B2A31B5B2",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_007",
+			"origin_receipt": "42941562449E01EC38F16F9C7AFE9949",
+			"location": "container:prop_chest_007"
+		},
+		{
+			"id": "26E768F4492F181E7B86F0843F693F10",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_007",
+			"origin_receipt": "E477D2DB43CD810C9960F9AF8A91AF5F",
+			"location": "container:prop_chest_007"
+		},
+		{
+			"id": "416DC17D445475100ED5AA871490512F",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_007",
+			"origin_receipt": "53CE0A254D1BCC8F007941926A330BC8",
+			"location": "container:prop_chest_007"
+		},
+		{
+			"id": "E4720E8448E106EE0C013A9249E0CB28",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_008",
+			"origin_receipt": "C30E7F544EB753D935D61BB902700E2C",
+			"location": "container:prop_chest_008"
+		},
+		{
+			"id": "E1712C7842EE8818C2C0548357FABD05",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_008",
+			"origin_receipt": "24C9D9CE41E797C69AA521ADD95DF660",
+			"location": "container:prop_chest_008"
+		},
+		{
+			"id": "2203B2E74500F2499B265EAC93BF64D0",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_008",
+			"origin_receipt": "435C22044FE347E7B9B8479D866057A2",
+			"location": "container:prop_chest_008"
+		},
+		{
+			"id": "EE25DD574FAC61C558EA7FA469E92560",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_009",
+			"origin_receipt": "1B6D9DE6443C54BF21BD00BCCC59C679",
+			"location": "container:prop_chest_009"
+		},
+		{
+			"id": "DB868A89407772F6E0A87FA414814A5D",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_009",
+			"origin_receipt": "EF72E8B4442D87D355B1A78F6A0ED26F",
+			"location": "container:prop_chest_009"
+		},
+		{
+			"id": "EA1AF5E64624CAA4A348ADA7B531F1E7",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_009",
+			"origin_receipt": "A803423E417D1FDB415A05B0620CFCF2",
+			"location": "container:prop_chest_009"
+		},
+		{
+			"id": "9207492F4146BD5DE9443C862119327A",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_010",
+			"origin_receipt": "C8DB4DF64B8D9CBEDCE3229652CD5A45",
+			"location": "container:prop_chest_010"
+		},
+		{
+			"id": "12F4BDED4E64E9EFD4BEFF8E14A5F435",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_010",
+			"origin_receipt": "D94994AC40C38043C1C1F6A8EE7350EE",
+			"location": "container:prop_chest_010"
+		},
+		{
+			"id": "D0812BAE4FD7C7BB577217996962CF2F",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_010",
+			"origin_receipt": "1000D75946B66034A201F48D98EA8BE7",
+			"location": "container:prop_chest_010"
+		},
+		{
+			"id": "ACEED5AD48254F9392F9629E64FFEB81",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_011",
+			"origin_receipt": "8F1895514144A0D61466FCA2CE002DDF",
+			"location": "container:prop_chest_011"
+		},
+		{
+			"id": "5EF1A1D44C747E8CB661D688E710EF90",
+			"kind": 3,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_011",
+			"origin_receipt": "783E01A443540A112A65E99B54F68AE8",
+			"location": "container:prop_chest_011"
+		},
+		{
+			"id": "D401150A4932B94A80051C9E3B137CAA",
+			"kind": 4,
+			"state": 1,
+			"revision": 1,
+			"origin": "prop_chest_011",
+			"origin_receipt": "180A54CC47696E657C13E3B4FC4B6318",
+			"location": "container:prop_chest_011"
+		},
+		{
+			"id": "603F6E0943E3B9DF4FCCA19F365E0FED",
+			"kind": 90,
+			"state": 0,
+			"revision": 3,
+			"origin": "prop_water_flask_000",
+			"origin_receipt": "47BACEDC4DDE5AFE2EC69190761A1E6E",
+			"location": "ground"
+		},
+		{
+			"id": "0AB00C7D4847F2468DF0698906227AFA",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_001",
+			"origin_receipt": "C5956D894C91E1D77F5696B95181DCA8",
+			"location": "ground"
+		},
+		{
+			"id": "C8273A8B4A2342A18D9B48A490F099D8",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_002",
+			"origin_receipt": "EFAE438B42AEDC0AE7B904BDA50C948C",
+			"location": "ground"
+		},
+		{
+			"id": "82A0830F46B862DA92E164B5BEE00664",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_003",
+			"origin_receipt": "2B31CAD94DC5EAD0300F6996BD94A272",
+			"location": "ground"
+		},
+		{
+			"id": "E74F39304A4F5D991FC0C0A335D6D664",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_004",
+			"origin_receipt": "F4E531374BD3B64D4A069F8FEB69FD78",
+			"location": "ground"
+		},
+		{
+			"id": "A5F7B59B49478E3A356D3CB78B9D0E1B",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_005",
+			"origin_receipt": "FC83FDF84B20E17987CD1F8B872CFE15",
+			"location": "ground"
+		},
+		{
+			"id": "8DB6F0DA40F8921A1A8170A8F5D41258",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_006",
+			"origin_receipt": "933CD3904A37F07FC1A4618E18A26C27",
+			"location": "ground"
+		},
+		{
+			"id": "BE16CA824E3674AC54DFCDB5D950B3A6",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_007",
+			"origin_receipt": "51D59FFD4C086DE8D24CCDB3DDF2F747",
+			"location": "ground"
+		},
+		{
+			"id": "591BDDC94876A17BB6505EA7A77543B7",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_008",
+			"origin_receipt": "06CBD50E4809AE966A269A943011E5E7",
+			"location": "ground"
+		},
+		{
+			"id": "0829D8AB4F55B8D1F11E2B9193A7663F",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_009",
+			"origin_receipt": "300278F44EA45DFBA796F786DC79B6D5",
+			"location": "ground"
+		},
+		{
+			"id": "B1C2DB73412AA668005FF599EA24C202",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_010",
+			"origin_receipt": "F43EBC82439C6558421EEA92E3567705",
+			"location": "ground"
+		},
+		{
+			"id": "DC0B826E42EBFEA9AAB5D5BB20BE9555",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_011",
+			"origin_receipt": "149ADB2D4875F3E36F239BBDBB7B8C0F",
+			"location": "ground"
+		},
+		{
+			"id": "5C3D7B4E4CCB560939240482026D1E54",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_012",
+			"origin_receipt": "11AC2F2E437AE38EC529B89A7156D77D",
+			"location": "ground"
+		},
+		{
+			"id": "011B86964919A64D891ED4A8F8D633EB",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_013",
+			"origin_receipt": "F1BE117745250F7280F3CE9070724C80",
+			"location": "ground"
+		},
+		{
+			"id": "E2C2A4EB41E56BF664E6CFA52338956D",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_014",
+			"origin_receipt": "2D00A5E14B9F6C585E7BE19B1029BEFE",
+			"location": "ground"
+		},
+		{
+			"id": "EFCB9EFE444D7C4DCFABDCB2309B9287",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_015",
+			"origin_receipt": "703215F041B4780F8074C0B256B27915",
+			"location": "ground"
+		},
+		{
+			"id": "D69979F7476024E7D4050BA726D33011",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_016",
+			"origin_receipt": "3B4DB2404996F38E97B712ADAD226AA8",
+			"location": "ground"
+		},
+		{
+			"id": "99342D644ED194ABF30F2F92BFA6BD0C",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_017",
+			"origin_receipt": "54B9FF5048FF8F96663A5A8CC13AC44B",
+			"location": "ground"
+		},
+		{
+			"id": "BDF4BABF4F3B516939D35491E49582A2",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_018",
+			"origin_receipt": "9F84AE134C32A9638488F7816123DE2D",
+			"location": "ground"
+		},
+		{
+			"id": "496BD9C442C8EED1667C68BA3CD0B144",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_019",
+			"origin_receipt": "73842E6C4F67650F907800AC2C5CA29F",
+			"location": "ground"
+		},
+		{
+			"id": "B549E09D420E67586B1C13A180AAEB2C",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_020",
+			"origin_receipt": "BEFB8DE94A10CE25BD741A94BAFD39B1",
+			"location": "ground"
+		},
+		{
+			"id": "07D951D646E5C0263A1FEE9423F4647E",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_021",
+			"origin_receipt": "2C12D52D49391E5E3B53A38699708B2B",
+			"location": "ground"
+		},
+		{
+			"id": "E9429E9C44ADC6816CA5EF80AEE2178B",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_022",
+			"origin_receipt": "6A2C0CF1412FED19F0ACA0870290AEF6",
+			"location": "ground"
+		},
+		{
+			"id": "86B7E4FD422D2D138A212790A6D3CD84",
+			"kind": 90,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_water_flask_023",
+			"origin_receipt": "41C396F74409879952A7EB825A84EBE2",
+			"location": "ground"
+		},
+		{
+			"id": "41DF1CF44C046B06DB4490BB2A863C39",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_000",
+			"origin_receipt": "8BCBFDC849D4495D9148BCA1442D7703",
+			"location": "ground"
+		},
+		{
+			"id": "E5FF500443E646FBB4BFB0B488704030",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_001",
+			"origin_receipt": "2FC778844E05A3B79159C491C4F231AD",
+			"location": "ground"
+		},
+		{
+			"id": "83C8139B403489209C529CB4FD495089",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_002",
+			"origin_receipt": "7BE197CD412B28D438587BB9B251C404",
+			"location": "ground"
+		},
+		{
+			"id": "D1FD36CB42B8E1D829544FB6D61ED600",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_003",
+			"origin_receipt": "12124F3D480783B9232FF880B24CE1F2",
+			"location": "ground"
+		},
+		{
+			"id": "F36FBF4A463B6590B7C529B5F34B4D21",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_004",
+			"origin_receipt": "392A27A244ED059E68D8EA8163F63DD4",
+			"location": "ground"
+		},
+		{
+			"id": "EE9DAB5A470A6CE39ABEDFA595A00473",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_005",
+			"origin_receipt": "9645786B4135FCFBC4233D8ECD52E6E4",
+			"location": "ground"
+		},
+		{
+			"id": "CCC129EB494402AAB228ADAB7A5B1557",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_006",
+			"origin_receipt": "62803FAC4FE760DD1C8AAEA0E99539BA",
+			"location": "ground"
+		},
+		{
+			"id": "FF44AAE34C1B96D8B87E6DAF232A795D",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_007",
+			"origin_receipt": "3CB5F8A746354891D74644AEE0B49840",
+			"location": "ground"
+		},
+		{
+			"id": "D5065AB547A0496BD64C678CAD4B6566",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_008",
+			"origin_receipt": "7CCA6B214FEB3051FAFB499C6998BCC1",
+			"location": "ground"
+		},
+		{
+			"id": "0A1A7BC24B9F12387F81D1B2C10A3230",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_009",
+			"origin_receipt": "68684B1F43F1EC922A78F297841E2484",
+			"location": "ground"
+		},
+		{
+			"id": "00AE7CF940AB90A7B3CDBEA7C4B23AAA",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_010",
+			"origin_receipt": "3E1A07E544B8C184E6600D85B2477FC3",
+			"location": "ground"
+		},
+		{
+			"id": "FEE98DD24CD4DD2060F8A9B2F27BD37A",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_011",
+			"origin_receipt": "00B75276494E4018721A14B341F075DB",
+			"location": "ground"
+		},
+		{
+			"id": "2BB7EAA543A2C1B5043987BF30297EDB",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_012",
+			"origin_receipt": "AB9F80B9430B0595E69422A0EAFCCD33",
+			"location": "ground"
+		},
+		{
+			"id": "C49C416E4F4A19C2716E0CBA5F8ADEA1",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_013",
+			"origin_receipt": "DEB24D3047489C46050244B7A96F8013",
+			"location": "ground"
+		},
+		{
+			"id": "CC425CDA4AE7035EDEDF008BE939096F",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_014",
+			"origin_receipt": "32E5CB0545AF6417C73BAE977EB34093",
+			"location": "ground"
+		},
+		{
+			"id": "41FD3D044C190751A7046791F0D85B0B",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_015",
+			"origin_receipt": "91F55C4F4C29C6FF2139FB9B32968D64",
+			"location": "ground"
+		},
+		{
+			"id": "DB044DBC402671DECE2E579FEFA9EE63",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_016",
+			"origin_receipt": "3A46699043BF8912D9A37C9F8E9022F3",
+			"location": "ground"
+		},
+		{
+			"id": "D69767374FD40DD470A7E1A255A8CCA8",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_017",
+			"origin_receipt": "B65F423F4871405D3B5A87B81A5EB4EC",
+			"location": "ground"
+		},
+		{
+			"id": "2AF3820F4C2F2EA38F2705B14C92F9B1",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_018",
+			"origin_receipt": "18DD1795499467AA5D6C149ED4262DB1",
+			"location": "ground"
+		},
+		{
+			"id": "9A2709A14227DD5E906906836895B64E",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_019",
+			"origin_receipt": "AE90ABB54DB1474857B026950BA446AA",
+			"location": "ground"
+		},
+		{
+			"id": "A05038544D9B4EFF9F9286BA9F6285F0",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_020",
+			"origin_receipt": "5CF00128427D7C895F6D23849B524CB6",
+			"location": "ground"
+		},
+		{
+			"id": "8F6175A6461F74CFC3C96A90327101B7",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_021",
+			"origin_receipt": "0C45D88C4A2F3956518831B29671A78B",
+			"location": "ground"
+		},
+		{
+			"id": "58B06FCB4340761F95B4F79B8A76CBB8",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_022",
+			"origin_receipt": "E41288D14180E9959E269BA113A9ED13",
+			"location": "ground"
+		},
+		{
+			"id": "5E45BC194E158813964C8C9B9CDA9BD8",
+			"kind": 91,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_oil_flask_023",
+			"origin_receipt": "0715FC97455B090982CF62AAE74764B0",
+			"location": "ground"
+		},
+		{
+			"id": "F80C8D2C43D29E2046FA72BBBDC48DB9",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_000",
+			"origin_receipt": "9DC580234966787DC2B33AA95621733E",
+			"location": "ground"
+		},
+		{
+			"id": "A59D351449F4967A690569A16810D01D",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_001",
+			"origin_receipt": "664DF77C425B0920540DFCA79BC961F7",
+			"location": "ground"
+		},
+		{
+			"id": "C9C75E3040B43DC2C716828A0DF0E575",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_002",
+			"origin_receipt": "99A32FE346387677AA215CA27AD85B1E",
+			"location": "ground"
+		},
+		{
+			"id": "3290CBA149B3EEC3C7C19D9161CBBE90",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_003",
+			"origin_receipt": "AC2F4A5A48749CD5A69072BEE5829DD5",
+			"location": "ground"
+		},
+		{
+			"id": "5B8FBF194FE116675E41579C9E59027E",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_004",
+			"origin_receipt": "8B93D37B4FCFAC301671D08CE57FF4C9",
+			"location": "ground"
+		},
+		{
+			"id": "5233B4574E5AF6263642A08628CD2DE1",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_005",
+			"origin_receipt": "BDA347904825E0C8A7BE99944126569B",
+			"location": "ground"
+		},
+		{
+			"id": "09C8ECCD40FBDFBDB80948B001AF3351",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_006",
+			"origin_receipt": "E4E239564D4327480ACC9D9A03D8558D",
+			"location": "ground"
+		},
+		{
+			"id": "F78379044E081F1D7903DF96BBF8A2EB",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_007",
+			"origin_receipt": "A35A921944A16820BBC8D1A45255F4C3",
+			"location": "ground"
+		},
+		{
+			"id": "1F99591640B8E4152ED041800373A7F0",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_008",
+			"origin_receipt": "6C9F4729440FF0D9F46C5C9FA8E229FE",
+			"location": "ground"
+		},
+		{
+			"id": "BB1F45E44D4F43B3C27844AED219473F",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_009",
+			"origin_receipt": "8966E4C6408472F1B7A7868F8989931A",
+			"location": "ground"
+		},
+		{
+			"id": "DA649A0442F6FB61500CB4A7BD1D0A17",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_010",
+			"origin_receipt": "C3BE99364F2B01926A34479BBA21B4A2",
+			"location": "ground"
+		},
+		{
+			"id": "919C56A44AD4F9DB5B25F6BCCCE1988F",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_011",
+			"origin_receipt": "64198964420A0AA6C292BB9BC89C30C1",
+			"location": "ground"
+		},
+		{
+			"id": "30BC18D9446E7E238D6B81B51FA8108D",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_012",
+			"origin_receipt": "98F01FCC466AB147C785E7A67F0DDC32",
+			"location": "ground"
+		},
+		{
+			"id": "E1BD556140215E204E48A18612B402E9",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_013",
+			"origin_receipt": "7969D7EB4DF96DA1905209ACA5DB7989",
+			"location": "ground"
+		},
+		{
+			"id": "A38A9CAF4505D300ABB722BAF4F76D11",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_014",
+			"origin_receipt": "71D8CA94458F12F7373F598CE0EE059B",
+			"location": "ground"
+		},
+		{
+			"id": "7DB7B752405998A3B301A1A43B1E6699",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_015",
+			"origin_receipt": "5D3407CB45B5795E604EAE91E31D46BF",
+			"location": "ground"
+		},
+		{
+			"id": "01546EFE4DCF150205A63C922D7D6FB0",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_016",
+			"origin_receipt": "CBE396884DD4BE24D95017BB535712E8",
+			"location": "ground"
+		},
+		{
+			"id": "4E0FE897490F4F47C2D915A72B6562E9",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_017",
+			"origin_receipt": "5C984F004883737BA4643EA045845F80",
+			"location": "ground"
+		},
+		{
+			"id": "A56AB52344421EABFB14B8882672B6A8",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_018",
+			"origin_receipt": "DAD246C9456612502F6B57A27C03689B",
+			"location": "ground"
+		},
+		{
+			"id": "2A68A4C841DB0DBD522ABFA543724AED",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_019",
+			"origin_receipt": "985CF8BB499A9AF08EDA6D94428873B7",
+			"location": "ground"
+		},
+		{
+			"id": "EC23E22F4346BD21A80AD1B8BB0791A6",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_020",
+			"origin_receipt": "2A5CC38749C2EC7BDCD2218F5D39A6FA",
+			"location": "ground"
+		},
+		{
+			"id": "BC9445274C4955814A6A3FAAB30A5059",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_021",
+			"origin_receipt": "63BDBC9845EFEDFBBFF8499686B171B9",
+			"location": "ground"
+		},
+		{
+			"id": "38B85DE7406781FCFBF968BBC1B66157",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_022",
+			"origin_receipt": "11748B654D8C7E3321586096850A43A2",
+			"location": "ground"
+		},
+		{
+			"id": "7BCB23CE415BD021B5FC4AAAB4958B54",
+			"kind": 94,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_torch_023",
+			"origin_receipt": "5D538EB546DD8D7F9B97ED9A5892E77D",
+			"location": "ground"
+		},
+		{
+			"id": "B927748E461EEC429BF9E2A358614615",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_000",
+			"origin_receipt": "DDC6609B427DFA5D773FFEA2579ED9C7",
+			"location": "ground"
+		},
+		{
+			"id": "1B0B3C9E41C9475EB11E998B53E6A1D7",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_001",
+			"origin_receipt": "E90A918744A8A8E1B9870B9A8B1F98AC",
+			"location": "ground"
+		},
+		{
+			"id": "2ACD182B4F5B47CA36FAECB1D3C68059",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_002",
+			"origin_receipt": "7AAA803B4889A11F88EE54A9D32065A7",
+			"location": "ground"
+		},
+		{
+			"id": "0451DDCC48C14050D868949801304683",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_003",
+			"origin_receipt": "A4116D7A40CFBAE1A888E288663E6496",
+			"location": "ground"
+		},
+		{
+			"id": "8E7E6BA443CA0318CB622FAF5BBE3CED",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_004",
+			"origin_receipt": "338264D7479CD9EAD134C5A1F6721C5B",
+			"location": "ground"
+		},
+		{
+			"id": "2F0345854C3685A835881E871D9AD786",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_005",
+			"origin_receipt": "660AC7104AAC7C081417519214507445",
+			"location": "ground"
+		},
+		{
+			"id": "B912E95C4E45B61313DFD6B465A13C4F",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_006",
+			"origin_receipt": "03C25390468709802CFA9FB07A60BFB8",
+			"location": "ground"
+		},
+		{
+			"id": "0AAD868F462F7E8CD119A3A51C98AA03",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_007",
+			"origin_receipt": "679F1D6D40AC01ABEFF28C8643EEB858",
+			"location": "ground"
+		},
+		{
+			"id": "C6F4A1554319E7FB673567B3BD8255BA",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_008",
+			"origin_receipt": "F83EA8A94D8A4C8B9D8AD8B83F85C536",
+			"location": "ground"
+		},
+		{
+			"id": "90120055477C37C8F56A1BBDFA823521",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_009",
+			"origin_receipt": "DB262814417E4C280D4FCFB678161FC3",
+			"location": "ground"
+		},
+		{
+			"id": "0DDE8FD54F577FCC06AD28A81C404CD6",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_010",
+			"origin_receipt": "48B789704653A13C3BB8BA884FBE9024",
+			"location": "ground"
+		},
+		{
+			"id": "BC10CD354CC5082F2B0F33B92F07DAB8",
+			"kind": 95,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_lantern_011",
+			"origin_receipt": "30DA93BE4BCBF905A9E555B3191D8649",
+			"location": "ground"
+		},
+		{
+			"id": "410A361047C46D1E0468B98916571178",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_000",
+			"origin_receipt": "769F8F504A0940657F9CA594D6F57F05",
+			"location": "ground"
+		},
+		{
+			"id": "227858F6426412F3422FDAB1EFB2039E",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_001",
+			"origin_receipt": "70121ECB42FC7B5DE000FBBEFF2C2BB6",
+			"location": "ground"
+		},
+		{
+			"id": "65EC474E4B7612424A417792E52B491A",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_002",
+			"origin_receipt": "710EE35240BAAC236DF93CBE7B2AF036",
+			"location": "ground"
+		},
+		{
+			"id": "2F5BDEE642C890E997F2FD86ADE5DA31",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_003",
+			"origin_receipt": "7FBBB5864B6081A11F2E9586FDB34DF1",
+			"location": "ground"
+		},
+		{
+			"id": "A47AF0E743B2741933C5FBAC7849BAB0",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_004",
+			"origin_receipt": "6218BCCE4552A4725A002D97AE191FDA",
+			"location": "ground"
+		},
+		{
+			"id": "4877B7E64266E819F160168D912C8209",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_005",
+			"origin_receipt": "C41B7914420F43AA6A3E7589DBE1648C",
+			"location": "ground"
+		},
+		{
+			"id": "63F811D94D3E0D5D3F9043ADE8680C92",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_006",
+			"origin_receipt": "B918D7014A6F7DCF27C69FB31DCC5C7A",
+			"location": "ground"
+		},
+		{
+			"id": "825EA4184397EB66A366AFBFA09950A5",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_007",
+			"origin_receipt": "809936B44E060110900CF09ADA42E22F",
+			"location": "ground"
+		},
+		{
+			"id": "B05CA6CC461A328DD24E65BD377FF830",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_008",
+			"origin_receipt": "0441DC95458C3517259238A5FCBD2BF8",
+			"location": "ground"
+		},
+		{
+			"id": "56BF096F4E34D05D9114168FE5B7A652",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_009",
+			"origin_receipt": "5650CC9B42A593674FD2868831E03AEA",
+			"location": "ground"
+		},
+		{
+			"id": "1689CEAB49073A56F2C4508605DA3AFB",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_010",
+			"origin_receipt": "DE3B6C93495C62E14112929416E6550D",
+			"location": "ground"
+		},
+		{
+			"id": "888F9C5C4B2455EB9BA61E9CCA496834",
+			"kind": 96,
+			"state": 0,
+			"revision": 1,
+			"origin": "prop_rope_011",
+			"origin_receipt": "04D9DF814FCDE0A18AE1488F6F62BBEF",
+			"location": "ground"
+		}
+	]
+}

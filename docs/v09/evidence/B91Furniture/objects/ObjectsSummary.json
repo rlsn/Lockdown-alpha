@@ -1,0 +1,30 @@
+{
+  "stage": "B91",
+  "increment": "finite storage and crate/barrel cargo",
+  "full_stage_acceptance": false,
+  "native_report_sha256_normalized_lf": "cdb1a76f682fd8b1ccd2d46bd64a93b39b289fd41b1363c938fe9e1128d2ee10",
+  "checks": 49,
+  "fitted_objects": 264,
+  "finite_initial_items": 132,
+  "independent_owners": 2,
+  "received_reports": [
+    "A_1.json",
+    "A_2.json",
+    "A_3.json",
+    "A_5.json",
+    "A_6.json",
+    "A_7.json",
+    "A_8.json",
+    "B_1.json",
+    "B_2.json",
+    "B_3.json",
+    "B_4.json",
+    "B_5.json",
+    "B_6.json",
+    "B_7.json"
+  ],
+  "limitations": [
+    "Other B91 systems and whole-stage acceptance require their own evidence.",
+    "This is a native editor server with two independent headless owners; no packaged server, video or human acceptance."
+  ]
+}

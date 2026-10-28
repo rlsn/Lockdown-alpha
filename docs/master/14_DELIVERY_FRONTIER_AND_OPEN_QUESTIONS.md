@@ -47,7 +47,7 @@ fitting priorities.
 | Frontier | Required next work |
 | --- | --- |
 | B90 spatial acceptance | Complete; retain evidence and recheck affected paths/contact/geometry after later mutations |
-| B91 functional environment | Interiors, stairs, doors, storage/cargo, retained portable fuel and approved ladder/rope links implemented; finish socket fire, foliage, paid environment integration and full fitting |
+| B91 functional environment | Interiors, stairs, doors, storage/cargo, retained portable fuel, approved ladder/rope links and fixed furniture implemented; finish socket fire, foliage, paid environment integration and full fitting |
 | B92 living population/economy | Five conserved market pools, shared stock, finite contracts/endowments, roster/routines/security and legal AI progression |
 | B93 route convergence | Full-map earned routes, physical cargo, warnings and exact capital claim endpoints |
 | B94 full-session acceptance | Normal 60/75/90-minute scenarios, restricted clients, density/field stress and human pacing evidence |
@@ -75,9 +75,10 @@ The [optional-link checkpoint](../v09/B91_TRAVERSAL.md) adds all 12 world ladder
 and 16 paired anchors. A single finite prop or Rope instance supports a shared
 two-second route, with ownership checked only for quiet retrieval. Native
 capsules, one-user reservations and safe cancellation connect this mechanic to
-the same input/control/life rules as other commitments. There are now 288/480
-functional sources; the 192 remaining foliage/furniture sources and 3,000
-scenery trees still need fitting. A working roof route does not complete the
+the same input/control/life rules as other commitments. The [fixed-furniture checkpoint](../v09/B91_FURNITURE.md) adds 32 initially
+empty storage fixtures with independent walking/sight behavior. There are now
+320/480 functional sources; 160 foliage sources and 3,000 scenery trees still
+need fitting. A working roof route does not complete the
 reference grass escape or establish final encounter pacing.
 
 Can a new player find income, prepare a useful toolkit and understand the Heart without external coaching? Does a quiet economic opening remain competitive after buying real defenses? Can a weaker defender identify and execute a legal interruption? Does losing cargo create a new plan or erase all motivation? Do travelers/cities support readable uncertainty without confusing reliable services?

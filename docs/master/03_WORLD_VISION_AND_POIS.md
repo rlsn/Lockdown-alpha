@@ -49,6 +49,12 @@ against those addresses.
 
 ## Sight and uncertainty
 
+Physical obstruction and sight obstruction are distinct design choices. A low
+fixed fixture can shape a walking route and hold property while leaving bodies
+visible across it. Its public silhouette does not reveal private stored goods.
+Use these fixtures to create readable local movement decisions without turning
+every solid object into opaque concealment or an implied resource reward.
+
 The full-profile defaults are 18 m own-body sight and 24 m public watch, clipped by geometry. Lower ground cannot see across a tagged upward ledge. Higher ground sees downslope only within ordinary range/blockers. Height grants no automatic range or damage multiplier.
 
 Walls, trunks, doors and smoke have simplified proxies consistent with movement. Grass conceals inside otherwise valid geometry; close observation or authorized detection can reveal it. Detection never penetrates smoke. Camera panning and static map knowledge create no sight. Public infrastructure shares only its explicitly authorized local observations.

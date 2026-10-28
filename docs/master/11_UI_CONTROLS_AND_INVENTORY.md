@@ -81,6 +81,12 @@ pair, landing, hold progress and refusal reason without exposing the hidden
 user or deployer's private identity. Control, damage, release or life change
 must resolve to a supported landing before ordinary input resumes.
 
+Fixed storage should read differently from movable cargo. An empty piece of
+furniture can accept property without promising free stock or a destruction
+reward. Inspection grants the same current, local contents view as other
+storage; take/store feedback identifies the selected physical instance and
+quiet-time commitment. Its shape can block a route without granting concealment.
+
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.

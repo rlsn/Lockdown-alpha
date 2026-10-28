@@ -1,0 +1,59 @@
+{
+	"fixture": "objects",
+	"phase": 5,
+	"completed": true,
+	"receipt_result": 1,
+	"receipt": "CBE1E5394788BFE6CC3E05A6CC0D9922",
+	"reason": "Object transaction committed",
+	"target_handle": "F2A4B9984A0B9B89796674A10F8DCAFB",
+	"duplicate_same": true,
+	"container_count_before": 0,
+	"private_revision_absent": true,
+	"container_count": 0,
+	"carrying": false,
+	"unsafe_place_retained_cargo": false,
+	"broken_proxy_clear": true,
+	"wire_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	],
+	"received_entries": [
+		{
+			"handle": "F2A4B9984A0B9B89796674A10F8DCAFB",
+			"kind": 2,
+			"position": "X=-87711.000 Y=-75859.000 Z=113.000",
+			"revision": 3,
+			"state": 5,
+			"physical_revision": 0
+		},
+		{
+			"handle": "071DFA8D4EAF5BC15E39D993A25C098A",
+			"kind": 7,
+			"position": "X=-88948.000 Y=-75132.000 Z=48.000",
+			"revision": 1,
+			"state": 0,
+			"physical_revision": 1
+		},
+		{
+			"handle": "A49EC5A0499E51AD3B8E6AB98A5D417E",
+			"kind": 6,
+			"position": "X=-87711.000 Y=-75859.000 Z=18.000",
+			"revision": 1,
+			"state": 0,
+			"physical_revision": 6
+		},
+		{
+			"handle": "408BF5B74CBB799EF3598DA65E896C46",
+			"kind": 6,
+			"position": "X=-87711.000 Y=-75859.000 Z=18.000",
+			"revision": 1,
+			"state": 0,
+			"physical_revision": 3
+		}
+	]
+}
