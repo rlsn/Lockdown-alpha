@@ -1,6 +1,8 @@
 #include "Combat/LDEnvironmentRules.h"
 
 using namespace LDEnvironment;
+bool FCell::Supports(FIntPoint Cell,FVector Point) const
+{return SurfaceNormal.Z>0&&FMath::Abs(FVector::DotProduct(Point-LDRiver::Centre(Cell)-FVector(0,0,SurfaceZ),SurfaceNormal))<=12*SurfaceNormal.Z;}
 FRecord& FCell::Get(EState S)
 {switch(S){case EState::Wet:return Wet;case EState::Frozen:return Frozen;case EState::Burning:return Burning;case EState::Electrified:return Electrified;case EState::Obscured:return Obscured;case EState::Overgrown:return Overgrown;default:return Oil;}}
 const FRecord& FCell::Get(EState S) const{return const_cast<FCell*>(this)->Get(S);}
@@ -47,14 +49,14 @@ bool LDEnvironment::Transition(FCell& C,const FCommand& Q,uint8 Base,int64 At)
     default:return false;
     }
 }
-TArray<FIntPoint> LDEnvironment::Mask(FVector Start,FVector Aim,double Length,double Width,bool Disk,int32 Limit,bool Cone)
+TArray<FIntPoint> LDEnvironment::Mask(FVector Start,FVector Aim,double Length,double Width,bool Disk,int32 Limit,bool Cone,bool FullMap)
 {
     // Reuse the deterministic rectangle/disk ordering; cone uses along/perpendicular order.
     TArray<FIntPoint> Out;const FVector Dir=(Aim-Start).GetSafeNormal2D();if(!Disk&&Dir.IsNearlyZero()){return Out;}
     const FVector End=Disk?Aim:Start+Dir*Length;const double Radius=Cone?Length:Width;
     const auto Min=LDRiver::Cell((Disk?Aim:Start).ComponentMin(End)-FVector(Radius,Radius,0));
     const auto Max=LDRiver::Cell((Disk?Aim:Start).ComponentMax(End)+FVector(Radius,Radius,0));
-    for(int32 Y=FMath::Max(0,Min.Y);Y<=FMath::Min(39,Max.Y);++Y){for(int32 X=FMath::Max(0,Min.X);X<=FMath::Min(59,Max.X);++X)
+    for(int32 Y=FMath::Max(FullMap?-580:0,Min.Y);Y<=FMath::Min(FullMap?619:39,Max.Y);++Y){for(int32 X=FMath::Max(FullMap?-570:0,Min.X);X<=FMath::Min(FullMap?629:59,Max.X);++X)
     {const FIntPoint Id(X,Y);const FVector P=LDRiver::Centre(Id),V=P-Start;const double Along=FVector::DotProduct(V,Dir);
         const bool Inside=Disk?FVector::DistSquared2D(P,Aim)<=Width*Width:Cone?V.SizeSquared2D()<=Length*Length&&FVector::DotProduct(V.GetSafeNormal2D(),Dir)>=FMath::Cos(FMath::DegreesToRadians(Width/2)):Along>=0&&Along<=Length&&FVector::DistSquared2D(P,Start+Dir*Along)<=Width*Width;if(Inside){Out.Add(Id);}}}
     Out.Sort([&](FIntPoint A,FIntPoint B){const FVector PA=LDRiver::Centre(A),PB=LDRiver::Centre(B);const double DA=Disk?FVector::DistSquared2D(PA,Aim):FVector::DotProduct(PA-Start,Dir),DB=Disk?FVector::DistSquared2D(PB,Aim):FVector::DotProduct(PB-Start,Dir);if(!FMath::IsNearlyEqual(DA,DB)){return DA<DB;}if(!Disk){const double WA=FVector::DistSquared2D(PA,Start+Dir*DA),WB=FVector::DistSquared2D(PB,Start+Dir*DB);if(!FMath::IsNearlyEqual(WA,WB)){return WA<WB;}}return A.Y!=B.Y?A.Y<B.Y:A.X<B.X;});

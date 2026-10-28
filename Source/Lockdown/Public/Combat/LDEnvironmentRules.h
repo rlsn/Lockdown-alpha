@@ -18,6 +18,9 @@ namespace LDEnvironment
     };
     struct FCell
     {
+        double SurfaceZ=0;
+        FVector SurfaceNormal=FVector::UpVector;
+        bool Supports(FIntPoint Cell,FVector Point) const;
         FRecord Wet,Frozen,Burning,Electrified,Obscured,Overgrown,Oil;
         TWeakObjectPtr<ALDTacticalField> Cue;
         FRecord& Get(EState State);
@@ -28,6 +31,8 @@ namespace LDEnvironment
     };
     struct FCommand
     {
+        TMap<FIntPoint,double> Surfaces;
+        TMap<FIntPoint,FVector> Normals;
         EInput Input=EInput::Water;
         FRecord State;
         TArray<FIntPoint> Cells;
@@ -41,5 +46,5 @@ namespace LDEnvironment
     // Exactly one nonrecursive transition from the input snapshot per selected cell.
     LOCKDOWN_API bool Transition(FCell& Cell,const FCommand& Command,uint8 Substrate,int64 At);
     LOCKDOWN_API bool Occludes(FVector From,FVector To,const TSet<FIntPoint>& Obscured);
-    LOCKDOWN_API TArray<FIntPoint> Mask(FVector Start,FVector Aim,double Length,double Width,bool Disk,int32 Limit=16,bool Cone=false);
+    LOCKDOWN_API TArray<FIntPoint> Mask(FVector Start,FVector Aim,double Length,double Width,bool Disk,int32 Limit=16,bool Cone=false,bool FullMap=false);
 }

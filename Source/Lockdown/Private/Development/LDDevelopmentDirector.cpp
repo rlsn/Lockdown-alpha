@@ -189,6 +189,8 @@ void ALDDevelopmentDirector::Sample(double Now)
 void ALDDevelopmentDirector::DropBooks(ALDPlayerController* PC,const FVector& Position)
 {
     Cancel(PC,TEXT("Life ended; unread books dropped."));
+    bool HasBooks=false;for(TActorIterator<ALDBook> It(GetWorld());It;++It){HasBooks|=It->State==1&&It->Holder==PC;}
+    if(!HasBooks){if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->Books.Reset();GetWorld()->GetAuthGameMode<ALDGameMode>()->SyncOwner(PC);}return;}
     FVector Point(FMath::Clamp(Position.X,-2320.,2320.),FMath::Clamp(Position.Y,-1520.,1520.),12);FHitResult Ground;
     if(GetWorld()->LineTraceSingleByChannel(Ground,Point+FVector(0,0,600),Point-FVector(0,0,100),ECC_GameTraceChannel1)){Point.Z=Ground.ImpactPoint.Z+12;}
     if(GetWorld()->GetAuthGameMode<ALDGameMode>()->Inventory){FVector Surface;if(!LDGround::MapSurface(GetWorld(),Position,Surface)){const bool Valid=LDGround::MapSurface(GetWorld(),LDRegion::Site(GetWorld(),1)+FVector(80,0,0),Surface);check(Valid);}Point=Surface+FVector(0,0,12);}

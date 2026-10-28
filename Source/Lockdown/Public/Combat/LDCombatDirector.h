@@ -244,6 +244,7 @@ private:
     friend class ALDB83Probe;
     friend class ALDB84Probe;
     friend class ALDB86Probe;
+    friend class ALDB91FieldsProbe;
     using FRiverState=LDEnvironment::FRecord;
     using FRiverCell=LDEnvironment::FCell;
     using FRiverCommand=LDEnvironment::FCommand;
@@ -256,6 +257,12 @@ private:
     uint32 EnvironmentRevision=0;
     int64 EnvironmentDamageAt=-1;
     bool EnsureEnvironmentPool();
+    bool FullMapEnvironment() const;
+    int32 EnvironmentCapacity() const;
+    int32 EnvironmentTransitionCapacity() const;
+    double EnvironmentSurfaceHint(ALDCharacter* Body,FVector Aim,FIntPoint Cell,bool Disk,double Length) const;
+    void PublishFullMapSurfaces(int64 At);
+    uint64 SurfaceViewRevision=0;
     FRiverCommand EnvironmentCommand(ALDCharacter* Body,LDEnvironment::EInput Input,int64 At,int64 Duration);
     bool QueueEnvironment(FRiverCommand Command,int64 At,bool Reserved=false);
     void RetireEnvironment(int64 At);

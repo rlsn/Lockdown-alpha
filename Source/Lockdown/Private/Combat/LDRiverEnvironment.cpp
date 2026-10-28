@@ -9,11 +9,18 @@
 #include "World/LDWorldDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
+#include "World/LDEnvironmentDirector.h"
+#include "Region/LDMapDefinition.h"
 
 using namespace LDEnvironment;
+bool ALDCombatDirector::FullMapEnvironment() const{return GetWorld()->GetAuthGameMode<ALDGameMode>()->IsEnvironmentProfile();}
+int32 ALDCombatDirector::EnvironmentCapacity() const{return FullMapEnvironment()?1024:256;}
+int32 ALDCombatDirector::EnvironmentTransitionCapacity() const{return FullMapEnvironment()?2048:512;}
+double ALDCombatDirector::EnvironmentSurfaceHint(ALDCharacter* Body,FVector Aim,FIntPoint Id,bool Disk,double Length) const
+{if(Disk){return Aim.Z;}const FVector Start=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const FVector P=LDRiver::Centre(Id),Dir=(Aim-Start).GetSafeNormal2D();return FMath::Lerp(Start.Z,Aim.Z,FMath::Clamp(FVector::DotProduct(P-Start,Dir)/FMath::Max(1.,Length),0.,1.));}
 bool ALDCombatDirector::EnsureEnvironmentPool()
 {
-    while(EnvironmentPool.Num()<256){auto* F=GetWorld()->SpawnActor<ALDTacticalField>();if(!F){return false;}F->EnvironmentPool=true;F->Kind=ELDTacticalField::WetSurface;EnvironmentPool.Add(F);}return true;
+    while(EnvironmentPool.Num()<EnvironmentCapacity()){auto* F=GetWorld()->SpawnActor<ALDTacticalField>();if(!F){return false;}F->EnvironmentPool=true;F->Kind=ELDTacticalField::WetSurface;EnvironmentPool.Add(F);}return true;
 }
 int32 ALDCombatDirector::HeldEnvironment(FGuid SponsorId) const
 {int32 Count=0;for(const auto& P:EnvironmentLeases){if(!SponsorId.IsValid()||P.Value.Command.State.BudgetOwner==SponsorId){Count+=P.Value.Count;}}return Count;}
@@ -30,24 +37,32 @@ ALDCombatDirector::FRiverCommand ALDCombatDirector::EnvironmentCommand(ALDCharac
 }
 TArray<FIntPoint> ALDCombatDirector::EnvironmentMask(ALDCharacter* Body,FVector Aim,bool Disk,double Length,double Width,int32 Limit,bool Cone) const
 {
-    TArray<FIntPoint> Mask;if(!Body){return Mask;}for(auto Id:LDEnvironment::Mask(Body->GetActorLocation(),Aim,Length,Width,Disk,Limit,Cone))
-    {FVector Ground;if(LDGround::MapSurface(GetWorld(),LDRiver::Centre(Id),Ground)&&LDGround::ClearSegment(GetWorld(),Disk?Aim+FVector(0,0,30):Body->GetActorLocation(),Ground+FVector(0,0,30))){Mask.Add(Id);}}return Mask;
+    TArray<FIntPoint> Mask;if(!Body){return Mask;}const bool Full=FullMapEnvironment();
+    for(auto Id:LDEnvironment::Mask(Body->GetActorLocation(),Aim,Length,Width,Disk,Limit,Cone,Full))
+    {FVector P=LDRiver::Centre(Id),Ground;if(Full){P.Z=EnvironmentSurfaceHint(Body,Aim,Id,Disk,Length);}
+     if(LDGround::MapSurface(GetWorld(),P,Ground)&&(!Full||FMath::Abs(P.Z-Ground.Z)<=80)&&LDGround::ClearSegment(GetWorld(),Disk?Aim+FVector(0,0,30):Body->GetActorLocation(),Ground+FVector(0,0,30))){Mask.Add(Id);}}return Mask;
 }
 bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved)
 {
     RetireEnvironment(At);if(RiverTransitionAt!=At/100){RiverTransitionAt=At/100;RiverEvaluations=0;}
-    if(!Reserved&&RiverEvaluations+HeldEnvironment()+Q.Cells.Num()>512){return false;}
+    if(Q.Cells.IsEmpty()){return false;}
+    if(!Reserved&&RiverEvaluations+HeldEnvironment()+Q.Cells.Num()>EnvironmentTransitionCapacity()){return false;}
     RiverEvaluations+=Q.Cells.Num();
     auto Projected=RiverCommands.IsEmpty()?RiverCells:ProjectedEnvironment;const bool River=GetWorld()->GetMapName().Contains(TEXT("L_V08Region"));
-    for(auto Id:Q.Cells){FCell C=Projected.FindRef(Id);const bool Ice=C.Frozen.Until>At;if(Transition(C,Q,LDEnvironment::Substrate(Id,River),At)){if(Q.Input==EInput::Shatter&&Ice){Q.Shattered.Add(Id);}Q.Outcomes.Add(Id,C);if(C.Mask(At)){Projected.Add(Id,C);}else{Projected.Remove(Id);}}}
+    if(FullMapEnvironment()){for(auto It=Projected.CreateIterator();It;++It){It.Value().Expire(At);if(!It.Value().Mask(At)){It.RemoveCurrent();}}}
+    for(auto Id:Q.Cells){FCell C=Projected.FindRef(Id);
+        if(FullMapEnvironment()){const auto* Z=Q.Surfaces.Find(Id);if(!Z||(C.Mask(At)&&FMath::Abs(C.SurfaceZ-*Z)>12)){return false;}C.SurfaceZ=*Z;C.SurfaceNormal=Q.Normals.Contains(Id)?Q.Normals[Id]:FVector::UpVector;}
+        const bool Ice=C.Frozen.Until>At;if(Transition(C,Q,FullMapEnvironment()?(ULDMapDefinition::Get(GetWorld())->RiverAt(FVector(LDRiver::Centre(Id).X,LDRiver::Centre(Id).Y,C.SurfaceZ))?uint8(LDEnvironment::Water):uint8(LDEnvironment::Stone)):LDEnvironment::Substrate(Id,River),At)){if(Q.Input==EInput::Shatter&&Ice){Q.Shattered.Add(Id);}Q.Outcomes.Add(Id,C);if(C.Mask(At)){Projected.Add(Id,C);}else{Projected.Remove(Id);}}}
     const FGuid Sponsor=Q.State.BudgetOwner.IsValid()?Q.State.BudgetOwner:Q.State.Owner;int32 Owned=0;for(const auto& P:Projected){Owned+=P.Value.Owned(Sponsor,At);}
-    if(!Reserved&&(Projected.Num()+HeldEnvironment()>256||Owned+HeldEnvironment(Sponsor)>64)){return false;}
+    if(!Reserved&&(Projected.Num()+HeldEnvironment()>EnvironmentCapacity()||Owned+HeldEnvironment(Sponsor)>64)){return false;}
+    if(FullMapEnvironment()&&Q.Outcomes.IsEmpty()){return false;}
     if(!EnsureEnvironmentPool()){return false;}ProjectedEnvironment=MoveTemp(Projected);RiverCommands.Add(MoveTemp(Q));return true;
 }
 bool ALDCombatDirector::StageEnvironment(ALDCharacter* Body,FVector Aim,EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit,bool Cone)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M||!M->IsV08Profile()||!BuildFor(Body)){return false;}
-    auto Q=EnvironmentCommand(Body,Input,At,Duration);Q.Cells=EnvironmentMask(Body,Aim,Disk,Length,Input==EInput::Frost&&HasModifier(Body,TEXT("frost_radius"),At)?Width*1.1:Width,Limit,Cone);return QueueEnvironment(MoveTemp(Q),At);
+    auto Q=EnvironmentCommand(Body,Input,At,Duration);Q.Cells=EnvironmentMask(Body,Aim,Disk,Length,Input==EInput::Frost&&HasModifier(Body,TEXT("frost_radius"),At)?Width*1.1:Width,Limit,Cone);if(FullMapEnvironment()){for(auto Id:Q.Cells){FVector P=LDRiver::Centre(Id),Surface,Normal;P.Z=EnvironmentSurfaceHint(Body,Aim,Id,Disk,Length);if(!LDGround::MapSurface(GetWorld(),P,Surface,&Normal)){return false;}Q.Surfaces.Add(Id,Surface.Z);Q.Normals.Add(Id,Normal);}}
+    return QueueEnvironment(MoveTemp(Q),At);
 }
 bool ALDCombatDirector::StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration)
 {return StageEnvironment(Body,Aim,Frozen?EInput::Frost:EInput::Water,Disk,Length,Width,At,Duration);}
@@ -55,7 +70,7 @@ FGuid ALDCombatDirector::ReserveEnvironment(ALDCharacter* Body,int32 Count,int64
 {
     RetireEnvironment(At);if(RiverTransitionAt!=At/100){RiverTransitionAt=At/100;RiverEvaluations=0;}auto Q=EnvironmentCommand(Body,EInput::Fire,At,Duration);const FGuid Sponsor=Q.State.BudgetOwner;
     TSet<FIntPoint> All,Owned;for(const auto& P:RiverCells){All.Add(P.Key);if(P.Value.Owned(Sponsor,At)){Owned.Add(P.Key);}}for(const auto& P:RiverCommands){for(auto Id:P.Cells){All.Add(Id);if(P.State.BudgetOwner==Sponsor){Owned.Add(Id);}}}
-    if(Count<1||Count>32||All.Num()+HeldEnvironment()+Count>256||Owned.Num()+HeldEnvironment(Sponsor)+Count>64||RiverEvaluations+HeldEnvironment()+Count>512||!EnsureEnvironmentPool()){return {};}
+    if(Count<1||Count>32||All.Num()+HeldEnvironment()+Count>EnvironmentCapacity()||Owned.Num()+HeldEnvironment(Sponsor)+Count>64||RiverEvaluations+HeldEnvironment()+Count>EnvironmentTransitionCapacity()||!EnsureEnvironmentPool()){return {};}
     const FGuid Id=FGuid::NewGuid();EnvironmentLeases.Add(Id,{Q,Count,At+10000});return Id;
 }
 void ALDCombatDirector::ReleaseEnvironment(FGuid Lease){EnvironmentLeases.Remove(Lease);}
@@ -64,7 +79,7 @@ bool ALDCombatDirector::ImpactEnvironment(FGuid Lease,FVector Point,ALDCharacter
     auto* Entry=EnvironmentLeases.Find(Lease);if(!Entry){return false;}auto Q=Entry->Command;const int32 Count=Entry->Count;const int64 Span=Q.State.Until-Q.State.Created;
     Q.State.Created=At;Q.State.Until=At+Span;
     if(const auto* S=StateFor(Source);S&&S->Identity!=Q.State.Life){auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Cast<ALDPlayerController>(Source->GetController());Q.State.Owner=PC?M->ContenderId(PC):S->Identity;Q.State.Life=S->Identity;}
-    for(auto Id:LDEnvironment::Mask(Point,Point,0,100,true,Count)){FVector G;if(LDGround::MapSurface(GetWorld(),LDRiver::Centre(Id),G)&&LDGround::ClearSegment(GetWorld(),Point+FVector(0,0,30),G+FVector(0,0,30))){Q.Cells.Add(Id);}}EnvironmentLeases.Remove(Lease);
+    for(auto Id:LDEnvironment::Mask(Point,Point,0,100,true,Count,false,FullMapEnvironment())){FVector G,Normal;FVector P=LDRiver::Centre(Id);if(FullMapEnvironment()){P.Z=Point.Z;}if(LDGround::MapSurface(GetWorld(),P,G,&Normal)&&LDGround::ClearSegment(GetWorld(),Point+FVector(0,0,30),G+FVector(0,0,30))){Q.Cells.Add(Id);if(FullMapEnvironment()){Q.Surfaces.Add(Id,G.Z);Q.Normals.Add(Id,Normal);}}}EnvironmentLeases.Remove(Lease);
     return QueueEnvironment(MoveTemp(Q),At,true);
 }
 void ALDCombatDirector::PublishEnvironmentCues(int64 At)
@@ -88,7 +103,7 @@ void ALDCombatDirector::CommitRiver(int64 At)
             if(Q.Input==EInput::Shatter&&Ice){for(const auto& P:Bodies){auto* B=P.Key.Get();if(B&&P.Value.Hp>0&&LDRiver::Cell(B->GetActorLocation())==Id&&P.Value.Identity!=Q.State.Life&&!Shattered.Contains(P.Value.Identity)&&At>=LDTactical::Milliseconds(P.Value.ProtectionUntil)){Shattered.Add(P.Value.Identity);FLDCombatHit H{nullptr,B,double(Q.State.Magnitude?Q.State.Magnitude:80),LDTactical::EDamage::Physical,false,0,0,Q.State.Life};H.CreditOwner=Q.State.Owner;H.TargetLife=P.Value.Identity;SurfaceBursts.Add(H);}}}
             if(!Candidate.Mask(At)){if(Existing&&Existing->Cue.IsValid()){Existing->Cue->ExpiresAt=0;}RiverCells.Remove(Id);continue;}
             if(!Candidate.Cue.IsValid())
-            {for(auto& F:EnvironmentPool){if(F.IsValid()&&F->ExpiresAt<=At){Candidate.Cue=F;F->ExpiresAt=MAX_int64;FVector G;LDGround::MapSurface(GetWorld(),LDRiver::Centre(Id),G);F->SetActorLocation(G+FVector(0,0,5));break;}}check(Candidate.Cue.IsValid());}
+            {for(auto& F:EnvironmentPool){if(F.IsValid()&&F->ExpiresAt<=At){Candidate.Cue=F;F->ExpiresAt=MAX_int64;FVector G=LDRiver::Centre(Id);if(FullMapEnvironment()){G.Z=Candidate.SurfaceZ;}else{LDGround::MapSurface(GetWorld(),LDRiver::Centre(Id),G);}F->SetActorLocation(G+FVector(0,0,5));break;}}check(Candidate.Cue.IsValid());}
             RiverCells.Add(Id,Candidate);
         }
     }
@@ -97,22 +112,25 @@ void ALDCombatDirector::CommitRiver(int64 At)
     for(auto& P:Bodies){if(P.Key.IsValid()){RefreshRiverContact(P.Key.Get(),At);}}
     if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M->Vision){M->Vision->RefreshEnvironment();}
 }
-bool ALDCombatDirector::EnvironmentOccludes(FVector A,FVector B,bool SurfaceCue) const{if(!LDEnvironment::Occludes(A,B,ObscuredCells)){return false;}if(!SurfaceCue){return true;}auto Boundary=ObscuredCells;Boundary.Remove(LDRiver::Cell(B));return LDEnvironment::Occludes(A,B,Boundary);}
+bool ALDCombatDirector::EnvironmentOccludes(FVector A,FVector B,bool SurfaceCue) const{auto Clouds=ObscuredCells;
+    if(FullMapEnvironment()){for(auto It=Clouds.CreateIterator();It;++It){const auto* C=RiverCells.Find(*It);if(!C||FMath::Max(A.Z,B.Z)<C->SurfaceZ||FMath::Min(A.Z,B.Z)>C->SurfaceZ+300){It.RemoveCurrent();}}}
+    if(!LDEnvironment::Occludes(A,B,Clouds)){return false;}if(!SurfaceCue){return true;}auto Boundary=Clouds;Boundary.Remove(LDRiver::Cell(B));return LDEnvironment::Occludes(A,B,Boundary);}
 void ALDCombatDirector::SampleRiver(int64 At)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M||!M->IsV08Profile()){return;}RetireEnvironment(At);PublishEnvironmentCues(At);
     for(auto It=BurningUnits.CreateIterator();It;++It){if(!It.Key().IsValid()||It.Value().Until<=At){It.RemoveCurrent();}}
     for(auto It=FrostReceipts.CreateIterator();It;++It){if(It.Value()<=At){It.RemoveCurrent();}}
-    const bool Boundary=At/100>RiverBoundary;if(Boundary){RiverBoundary=At/100;}for(auto& P:Bodies){if(P.Key.IsValid()){RefreshRiverContact(P.Key.Get(),At,Boundary);}}
+    const bool Boundary=At/100>RiverBoundary;if(Boundary){RiverBoundary=At/100;if(FullMapEnvironment()){PublishFullMapSurfaces(At);}}for(auto& P:Bodies){if(P.Key.IsValid()){RefreshRiverContact(P.Key.Get(),At,Boundary);}}
     for(auto It=RiverContacts.CreateIterator();It;++It){if(!It.Key().IsValid()){It.RemoveCurrent();}}
 }
 void ALDCombatDirector::RefreshRiverContact(ALDCharacter* Body,int64 At,bool Boundary)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* S=StateFor(Body);if(!M||!M->IsV08Profile()||!S||!Body){return;}auto& Last=RiverContacts.FindOrAdd(Body);if(At<Last.SampledAt){return;}
     const FVector Feet=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const auto* C=RiverCells.Find(LDRiver::Cell(Feet));FVector G;const bool Floor=LDGround::MapSurface(GetWorld(),Feet,G)&&FMath::Abs(Feet.Z-G.Z)<=12;
-    const bool WaterContact=Floor&&((GetWorld()->GetMapName().Contains(TEXT("L_V08Region"))&&LDRiver::InRiver(Feet))||(C&&(C->Wet.Until>At||(C->Frozen.Until>At&&C->Frozen.WetSubstrate))));
+    const bool SameLayer=!FullMapEnvironment()||(C&&C->Supports(LDRiver::Cell(Feet),Feet));
+    const bool WaterContact=Floor&&((FullMapEnvironment()&&ULDMapDefinition::Get(GetWorld())->RiverAt(G))||(GetWorld()->GetMapName().Contains(TEXT("L_V08Region"))&&LDRiver::InRiver(Feet))||(C&&SameLayer&&(C->Wet.Until>At||(C->Frozen.Until>At&&C->Frozen.WetSubstrate))));
     LDRiver::FContactInput Input;
-    Input.Floor=Floor; Input.Water=WaterContact; Input.Frozen=C&&C->Frozen.Until>At; Input.Growth=C&&C->Overgrown.Until>At;
+    Input.Floor=Floor; Input.Water=WaterContact; Input.Frozen=C&&SameLayer&&C->Frozen.Until>At; Input.Growth=C&&SameLayer&&C->Overgrown.Until>At;
     Input.Alive=S->Hp>0; Input.Protected=At<LDTactical::Milliseconds(S->ProtectionUntil); Input.Immune=Body->IsA<ALDWildSentinel>();
     Input.Wading=HasModifier(Body,TEXT("river_wading"),At); Input.IceGrip=HasModifier(Body,TEXT("ice_grip"),At);
     if(LDRiver::RefreshContact(S->Tactical,Last.Wet,Last.SampledAt,Input,At,Boundary)) { BurningUnits.Remove(Body); }
@@ -126,8 +144,8 @@ void ALDCombatDirector::EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits)
         FVector Ground;const FVector Feet=B->GetActorLocation()-FVector(0,0,B->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());const bool Floor=LDGround::MapSurface(GetWorld(),Feet,Ground)&&FMath::Abs(Feet.Z-Ground.Z)<=12;
         auto Add=[&](const FRecord& R,int32 Raw){FLDCombatHit H{nullptr,B,Raw/2.,LDTactical::EDamage::Magical,false,0,0,R.Life};H.Periodic=true;H.EnvironmentKind=Raw==18?2:Raw==12?3:1;H.TargetLife=S.Identity;H.CreditOwner=R.Owner;Hits.Add(H);};
         const auto* Unit=BurningUnits.Find(B);if(!S.Tactical.Has(LDTactical::EStatus::Burning,At)){BurningUnits.Remove(B);Unit=nullptr;}
-        if(Floor&&C&&C->Burning.Until>At){Add(C->Burning,20);}else if(Unit&&Unit->Until>At){Add(*Unit,12);}
-        if(Floor&&C&&C->Electrified.Until>At){Add(C->Electrified,18);}
+        if(Floor&&C&&(!FullMapEnvironment()||C->Supports(LDRiver::Cell(Feet),Feet))&&C->Burning.Until>At){Add(C->Burning,20);}else if(Unit&&Unit->Until>At){Add(*Unit,12);}
+        if(Floor&&C&&(!FullMapEnvironment()||C->Supports(LDRiver::Cell(Feet),Feet))&&C->Electrified.Until>At){Add(C->Electrified,18);}
     }
 }
 void ALDArcProjectile::EndPlay(const EEndPlayReason::Type Reason)

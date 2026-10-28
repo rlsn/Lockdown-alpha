@@ -74,6 +74,8 @@ void ALDB91Controller::PlayerTick(float Delta)
     if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetPortableLight(LDPortableTools::LightFor(this));}
     TickB91Probe();
     const double Now=GetWorld()->GetTimeSeconds();
+    if(Now-SurfaceAt>.5||SurfaceMatch!=OwnerState.Match||SurfaceLife!=OwnerState.Life)
+    {SurfaceView.Reset();for(auto P:SurfaceProxies){if(P.Value.IsValid()){P.Value->Destroy();}}SurfaceProxies.Reset();}
     if(GetNetMode()==NM_Client&&!ALDEnvironmentDirector::Get(GetWorld()))
     {auto* E=GetWorld()->SpawnActor<ALDEnvironmentDirector>();FString Why;if(!E->Initialize(Why)){E->Destroy();IntentFeedback=Why;}}
     if(Now-LastViewAt>.5||OwnerState.Match!=LastViewMatch||OwnerState.Life!=LastViewLife)
@@ -96,8 +98,10 @@ void ALDB91Controller::PlayerTick(float Delta)
     {ReleaseDoor();ToolBindingHeld=true;ToolBindingKey=EKeys::U;StartLoadoutHold(LDInventory::Unequip,OwnerState.Inventory.Items[BagSelection].Id,7);}
     if(ToolBindingHeld&&!IsInputKeyDown(ToolBindingKey)){StopDevelopmentHold();ToolBindingHeld=false;}
     if(WasInputKeyJustPressed(EKeys::L)){ToggleSelectedTool();}
+    if(WasInputKeyJustPressed(EKeys::N)&&OwnerState.Inventory.Items.IsValidIndex(BagSelection))
+    {const auto& Item=OwnerState.Inventory.Items[BagSelection];if(Item.Kind==ELDItemKind::WaterFlask||Item.Kind==ELDItemKind::OilFlask||Item.Kind==ELDItemKind::FrostCapsule){FHitResult Hit;if(GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){ReleaseDoor();Navigation->Stop();SendItemAction(Item.Id,FGuid(),Hit.ImpactPoint);}}}
     if(WasInputKeyJustPressed(EKeys::Z)){HeldKey=EKeys::Z;StartObject(ELDObjectVerb::Chop);}
-    if(WasInputKeyJustPressed(EKeys::E)&&CanWorldCommand()){if(const auto* O=NearestObject();O&&O->Kind==ELDObjectKind::Sapling){ReleaseDoor();Navigation->Stop();ServerCombatAction(OwnerState.Match,OwnerState.Life,++WorldSequence,0,(FVector(O->Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D());}}
+    if(WasInputKeyJustPressed(EKeys::E)&&CanWorldCommand()){if(const auto* O=NearestObject();O&&O->Kind==ELDObjectKind::Sapling){ReleaseDoor();Navigation->Stop();ServerCombatAction(OwnerState.Match,OwnerState.Life,NextCombatToken(),0,(FVector(O->Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D());}}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::H,ELDObjectVerb::Attach},{EKeys::O,ELDObjectVerb::Deploy},{EKeys::K,ELDObjectVerb::Retrieve}})
     {if(WasInputKeyJustPressed(P.Key)){HeldKey=P.Key;StartLink(P.Value);}}
     for(const auto& P:TArray<TPair<FKey,ELDObjectVerb>>{{EKeys::T,ELDObjectVerb::Take},{EKeys::Y,ELDObjectVerb::Store},{EKeys::C,ELDObjectVerb::Carry},{EKeys::P,ELDObjectVerb::Push},{EKeys::X,ELDObjectVerb::Break}})
@@ -113,7 +117,7 @@ void ALDB91Controller::PlayerTick(float Delta)
 void ALDB91HUD::DrawHUD()
 {
     Super::DrawHUD();const auto* PC=Cast<ALDB91Controller>(PlayerOwner);if(!PC){return;}
-    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,318);
+    DrawRect(FLinearColor(0,0,0,.8f),12,12,Canvas->SizeX-24,340);
     DrawText(TEXT("B91 FUNCTIONAL ENVIRONMENT / finite storage, flasks and cargo / remaining systems in development"),FLinearColor::White,22,20);
     DrawText(TEXT("RMB move | S stop | hold F open/close (0.3s) | hold V rear lockpick (3s) | hold B force rear (3s) | Esc cancel"),FLinearColor::White,22,43);
     DrawText(PC->IntentFeedback,FLinearColor::Yellow,22,66);
@@ -128,6 +132,7 @@ void ALDB91HUD::DrawHUD()
     DrawText(FString::Printf(TEXT("Bag %d/24 | selected: %s | cargo: %s"),Bag.Items.Num(),Item?*LDInventory::Name(Item->Kind,Item->Skill):TEXT("empty"),PC->HasObjectCargo()?TEXT("carried"):TEXT("none")),FLinearColor::White,22,204);
     DrawText(TEXT("Hold 1/2/3/4: bind selected item to accessory 1/2/3/4 (quiet + 2s) | hold U unbind | L toggle bound Torch/Lantern"),FLinearColor::White,22,226);
     if(Item&&LDPortableTools::IsTool(Item->Kind)){DrawText(FString::Printf(TEXT("Physical tool | fuel %.1fs | %s | binding mask %u | cosmetic light adds no sight"),Item->FuelMs/1000.,Item->bLit?TEXT("lit"):TEXT("off"),Item->BindingMask),FLinearColor::Yellow,22,248);}
+    DrawText(TEXT("N: use selected bound Water/Oil Flask or Frost Capsule at cursor (inherited range, cooldown and consumption)"),FLinearColor::White,22,314);
     DrawText(TEXT("Sapling: hold F harvest once (4s) | hold Z chop without reward (4s) | E ordinary melee attack"),FLinearColor::White,22,292);
     DrawText(TEXT("Approved anchor: hold H attach bound Rope | O install carried Ladder | F traverse (2s) | K retrieve own unused link"),FLinearColor::White,22,270);
 }

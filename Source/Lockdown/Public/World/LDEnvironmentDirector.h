@@ -50,6 +50,14 @@ struct FLDWorldReceipt
     UPROPERTY() uint32 Revision=0;
     UPROPERTY() FString Reason;
 };
+USTRUCT()
+struct FLDEnvironmentSurface
+{
+    GENERATED_BODY()
+    UPROPERTY() FVector_NetQuantize10 Position=FVector::ZeroVector;
+    UPROPERTY() uint32 Revision=0;
+    UPROPERTY() uint8 States=0;
+};
 
 UCLASS()
 class LOCKDOWN_API ALDEnvironmentDoor:public AActor
@@ -87,7 +95,7 @@ public:
     void Hold(class ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,uint32 Nonce,bool Release);
     void Cancel(class ALDB91Controller* PC,const FString& Reason);
     bool ResidentLock(FName DoorId,FName Resident,bool Locked);
-    bool Ray(FVector From,FVector To,const AActor* Endpoint=nullptr,double Radius=1800) const;
+    bool Ray(FVector From,FVector To,const AActor* Endpoint=nullptr,double Radius=1800,bool SurfaceCue=false) const;
     float SightFor(ALDPlayerController* PC) const;
     bool Visible(ALDPlayerController* PC,AActor* Actor) const;
     AActor* Resolve(ALDPlayerController* PC,FGuid Handle) const;
@@ -183,6 +191,9 @@ public:
     void TickB91ObjectsProbe();
     void TickB91ToolsProbe();
     void TickB91SaplingsProbe();
+    void TickB91FieldsProbe();
+    UFUNCTION(Client,Reliable) void ClientSurfaceView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDEnvironmentSurface>& Entries);
+    TArray<FLDEnvironmentSurface> SurfaceView;
     void TickB91TraversalProbe();
 private:
     uint32 WorldSequence=0,HeldSequence=0,Nonce=0;
@@ -195,6 +206,10 @@ private:
     uint32 ObjectViewMatch=0,ObjectViewLife=0;
     uint32 TraversalSequence=0;
     uint32 TraversalMatch=0,TraversalLife=0;
+    uint64 SurfaceViewRevision=0;
+    uint32 SurfaceMatch=0,SurfaceLife=0;
+    double SurfaceAt=-1000;
+    TMap<FIntVector,TWeakObjectPtr<ALDWorldObject>> SurfaceProxies;
     double ObjectViewAt=0;
     TMap<FGuid,TWeakObjectPtr<ALDWorldObject>> ObjectProxies;
     TMap<FGuid,TWeakObjectPtr<ULDHumanoidVisualComponent>> BodyViews;
@@ -208,6 +223,8 @@ private:
     FLDWorldRequest ProbeRequest;
     FLDObjectRequest ObjectProbeRequest;
     FGuid ToolProbeIdentity;
+    FLDTacticalRequest FieldProbeRequest;
+    uint32 FieldProbeFeedback=0;
     uint32 ToolProbeDevToken=0,ToolProbeDevNonce=0;
     double ToolProbeDevAt=0;
     FVector ObjectProbePad=FVector::ZeroVector,ObjectProbeStart=FVector::ZeroVector;

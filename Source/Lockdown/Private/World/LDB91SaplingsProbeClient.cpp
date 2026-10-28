@@ -16,7 +16,7 @@ void ALDB91Controller::TickB91SaplingsProbe()
     for(const auto& V:ObjectView){const double D=FVector::DistSquared2D(V.Position,GetPawn()->GetActorLocation());if(V.Kind==ELDObjectKind::Sapling&&D<Best){Source=&V;Best=D;}}
     const bool Act=ProbeTask<=2||ProbeTask==7?ProbeTask!=7||SaplingProbeWinner:EnvironmentProbeRole==1;
     if(Act&&ProbeTask==5)
-    {if(Source&&!(Source->State&5)&&Now-ProbeRetryAt>.4){ProbeRetryAt=Now;ServerCombatAction(OwnerState.Match,OwnerState.Life,++WorldSequence,0,(FVector(Source->Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D());}}
+    {if(Source&&!(Source->State&5)&&Now-ProbeRetryAt>.4){ProbeRetryAt=Now;ServerCombatAction(OwnerState.Match,OwnerState.Life,NextCombatToken(),0,(FVector(Source->Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D());}}
     else if(Act&&!ProbeSent&&Source)
     {auto& R=ObjectProbeRequest;R=FLDObjectRequest();R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Observed=Source->Handle;R.ObjectRevision=Source->Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=ProbeTask==2?ELDObjectVerb::Chop:ELDObjectVerb::Harvest;ServerObjectInteraction(R);ProbeSent=true;ProbeHoldAt=Now;}
     if(ProbeSent&&Now-ProbeRetryAt>=.1)

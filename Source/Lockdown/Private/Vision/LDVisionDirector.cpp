@@ -63,7 +63,7 @@ void ALDVisionDirector::RefreshEnvironment(){if(GetWorld()->GetAuthGameMode<ALDG
 bool ALDVisionDirector::Ray(const FLDSightSource& Source, const FVector& Target,bool SurfaceCue) const
 {
     if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsEnvironmentProfile())
-    {const auto* E=ALDEnvironmentDirector::Get(GetWorld());return E&&E->Ray(Source.Position,Target,nullptr,Source.Radius);}
+    {const auto* E=ALDEnvironmentDirector::Get(GetWorld());return E&&E->Ray(Source.Position,Target,nullptr,Source.Radius,SurfaceCue);}
     if (!LDVision::InWorld(Target,Grid()) || FVector::DistSquared2D(Source.Position,Target) > FMath::Square(Source.Radius)) { return false; }
     const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     if(Mode->IsV08Profile()){if(Mode->Combat&&Mode->Combat->EnvironmentOccludes(Source.Position,Target,SurfaceCue)){return false;}}

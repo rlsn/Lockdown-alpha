@@ -1,6 +1,7 @@
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
 #include "World/LDWorldDirector.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -63,7 +64,7 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         if(Skill==ELDSkill::ArcBolt){StagedProjectile=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(!StagedProjectile){return Reject();}}
         if((Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet)&&!StageRiver(Body,R.Point,false,Skill==ELDSkill::Frostline,D->Range,D->Area,At,5000)){Why=TEXT("Field capacity unavailable");return false;}
         if(Skill==ELDSkill::Firebolt)
-        {if(!Cast<ALDCharacter>(First)){return Reject();}StagedProjectile=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(!StagedProjectile){return Reject();}StagedProjectile->EnvironmentLease=ReserveEnvironment(Body,2,At,3000);if(!StagedProjectile->EnvironmentLease.IsValid()){StagedProjectile->Destroy();Why=TEXT("Field capacity unavailable");return false;}}
+        {if(!Cast<ALDCharacter>(First)){return Reject();}StagedProjectile=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(!StagedProjectile){return Reject();}StagedProjectile->EnvironmentLease=ReserveEnvironment(Body,2,At,3000);if(!StagedProjectile->EnvironmentLease.IsValid()){StagedProjectile->Destroy();Why=TEXT("No eligible surface or field capacity available");return false;}}
         if(Skill==ELDSkill::ChainLightning&&!Cast<ALDCharacter>(First)){return Reject();}
         if(Skill==ELDSkill::SmokeVeil&&!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Smoke,true,0,Value,At,5000,32)){return Reject();}
         if(Skill==ELDSkill::Gust&&!StageEnvironment(Body,R.Point,LDEnvironment::EInput::Wind,false,450,60,At,0,16,true)){return Reject();}
@@ -118,7 +119,8 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         if(Op==TEXT("surface_clear")){if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)||!StageEnvironment(Body,R.Point,Item->Kind==ELDItemKind::ElementalPurifier?LDEnvironment::EInput::Purify:LDEnvironment::EInput::Wind,true,0,I->Param(TEXT("radius_cm")),At,0)){return Reject();}}
         if(Op==TEXT("element_item_field"))
         {if(FVector::DistSquared2D(R.Point,Body->GetActorLocation())>FMath::Square(Range)||!LDGround::MapSurface(GetWorld(),R.Point,Surface)){return Reject();}
-            if(!StageEnvironment(Body,R.Point,Item->Kind==ELDItemKind::FrostCapsule?LDEnvironment::EInput::Frost:Item->Kind==ELDItemKind::OilFlask?LDEnvironment::EInput::Oil:LDEnvironment::EInput::Water,true,0,I->Param(TEXT("radius_cm")),At,I->Param(TEXT("lifetime_ms")))){Why=TEXT("Field capacity unavailable");return false;}}
+            if(M->IsEnvironmentProfile()&&(FMath::Abs(Surface.Z-R.Point.Z)>20||!ALDEnvironmentDirector::Get(GetWorld())->Ray(Body->GetActorLocation(),Surface+FVector(0,0,90)))){return Reject();}
+            if(!StageEnvironment(Body,R.Point,Item->Kind==ELDItemKind::FrostCapsule?LDEnvironment::EInput::Frost:Item->Kind==ELDItemKind::OilFlask?LDEnvironment::EInput::Oil:LDEnvironment::EInput::Water,true,0,I->Param(TEXT("radius_cm")),At,I->Param(TEXT("lifetime_ms")))){Why=TEXT("No eligible surface or field capacity available");return false;}}
         const int64 Cooldown=At+I->Cooldown;const FGuid Id=Item->Identity;O->ItemFamilies.FindOrAdd(I->CooldownKey())=Cooldown;Item->ReadyAt=Cooldown;Item->bReserved=false;auto* Entry=const_cast<FLDInventoryItem*>(O->Inventory.Find(Id));Entry->ReadyAt=Cooldown;Entry->bReserved=false;++Item->Revision;Entry->Revision=Item->Revision;++O->Inventory.Revision;S->CoreItem.Invalidate();
         if(I->Family==TEXT("major_protection")){S->Tactical.MajorReadyAt=At+8000;O->MajorProtectionReadyAt=At+8000;}
         if(I->Family==TEXT("cleanse")){S->NullBellReadyAt=Cooldown/1000.;O->NullBellReadyAt=S->NullBellReadyAt;}

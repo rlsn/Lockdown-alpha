@@ -555,8 +555,9 @@ void ALDPlayerController::SendTacticalAction(uint32 Token,uint8 Slot,FVector Dir
 void ALDPlayerController::ServerTacticalAction_Implementation(FLDTacticalRequest R)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;
-    if(O&&O->Build.RulesVersion==8&&R.Schema==8&&R.WireVersion==4&&R.Match==O->Match&&R.Life==O->Life&&R.CatalogDigest==O->Build.CatalogDigest){if(const auto* Receipt=CombatReceipts.Find(R.Token)){ClientIntentResult(R.Token,*Receipt);return;}}
-    if(!O||!M->IsTacticalProfile()||R.Schema!=O->Build.RulesVersion||(O->Build.RulesVersion==8?R.WireVersion!=4:(R.WireVersion!=2&&R.WireVersion!=3))||R.ActionKind>4||R.Point.ContainsNaN()||R.Point.GetAbsMax()>20000||R.SecondPoint.ContainsNaN()||R.SecondPoint.GetAbsMax()>20000||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=LDDevelopment::Slots(O->Build)){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
+    if(O&&O->Build.RulesVersion==8&&R.Schema==8&&R.WireVersion==(M->IsEnvironmentProfile()?5:4)&&R.Match==O->Match&&R.Life==O->Life&&R.CatalogDigest==O->Build.CatalogDigest){if(const auto* Receipt=CombatReceipts.Find(R.Token)){ClientIntentResult(R.Token,*Receipt);return;}}
+    const auto Within=[&](FVector P){return !P.ContainsNaN()&&(M&&M->IsEnvironmentProfile()?FMath::Abs(P.X)<=118000&&FMath::Abs(P.Y)<=118000&&P.Z>=-100&&P.Z<=1600:P.GetAbsMax()<=20000);};
+    if(!O||!M->IsTacticalProfile()||R.Schema!=O->Build.RulesVersion||(O->Build.RulesVersion==8?R.WireVersion!=(M->IsEnvironmentProfile()?5:4):(R.WireVersion!=2&&R.WireVersion!=3))||R.ActionKind>4||!Within(R.Point)||!Within(R.SecondPoint)||R.CatalogDigest!=O->Build.CatalogDigest||R.Slot>=LDDevelopment::Slots(O->Build)){ClientIntentResult(R.Token,TEXT("Wrong tactical schema/profile/catalog"));return;}
     if(O->Build.RulesVersion==8)
     {
         uint8 Derived=R.ActionKind==0?(O->Build.Actions[R.Slot].Source==ELDActionSource::Gear?1:0):R.ActionKind==1?2:R.ActionKind==4?3:4;

@@ -17,6 +17,7 @@
 #include "Objectives/LDObjectiveDirector.h"
 #include "Region/LDRegionDirector.h"
 #include "Region/LDRegionDefinition.h"
+#include "Region/LDMapDefinition.h"
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDGroundQueries.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -44,13 +45,16 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->ForceDrop(Cast<ALDB91Controller>(PC))){return Reject(TEXT("No safe cargo drop; action unavailable"));}
     if(B&&B->RulesVersion==8&&R.ActionKind==0&&B->Actions.IsValidIndex(R.Slot)&&B->Actions[R.Slot].Source==ELDActionSource::Gear){if(R.SourceKind!=1||!O||!LDV08::ItemSource(O->Inventory,*B,R.Item,R.Slot,false)){return Reject(TEXT("Equipped body action source changed"));}R.ActionKind=1;}
     ELDSkill Skill=R.ActionKind==0&&B->Slots.IsValidIndex(R.Slot)?B->Slots[R.Slot]:ELDSkill::None;
+    if(M->IsEnvironmentProfile()&&R.ActionKind!=4)
+    {const auto* Physical=O?M->Inventory->Owned(PC,R.Item):nullptr;
+     if(R.ActionKind!=1||!Physical||(Physical->Kind!=ELDItemKind::WaterFlask&&Physical->Kind!=ELDItemKind::OilFlask&&Physical->Kind!=ELDItemKind::FrostCapsule)){return Reject(TEXT("This full-map action awaits environment integration"));}}
     if(R.ActionKind==4){if(!First||!LegalTarget(Body,First,B->Gear.Reach,nullptr,0)||!RequestBody(Body,0,R.Direction,Why)){return false;}S->bAttackOrder=true;S->AttackTarget=First;S->Target=First;S->AttackLife=Life(this,First);S->AttackToken=R.Token;return true;}
     const auto* Decoy=Cast<ALDTacticalField>(First);const bool IsDecoy=Decoy&&Decoy->Kind==ELDTacticalField::Decoy;
     if(R.ActionKind==0&&!IsContentSkill(Skill)&&!IsDecoy){return RequestEquipped(Body,R.BuildRevision,R.Slot,R.Token,R.Direction,Why,First,R.Point);}
     if(!Allows(Body,R.ActionKind==1?LDTactical::EAction::Item:R.ActionKind>=2?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Why)){return false;}
     FLDTacticalRequest Plan=R;ALDItem* Item=nullptr;const FLDEquipmentDefinition* ID=nullptr;const FLDTacticalDefinition* D=nullptr;
     auto Observe=[&](AActor* T,int32 Range,bool Own=false){if(!T||FVector::DistSquared2D(Body->GetActorLocation(),T->GetActorLocation())>FMath::Square(Range)){return false;}if(T==Body){return true;}if(Own){const auto* F=Cast<ALDTacticalField>(T);return F&&F->Source.Get()==Body&&F->Active(At)&&(!PC||M->Vision->CanObserve(PC,T));}return LegalTarget(Body,T,Range,nullptr,0);};
-    auto Ground=[&](FVector Point,int32 Range){FVector Surface;return !Point.ContainsNaN()&&LDVision::InWorld(Point,M->Vision->Grid())&&FVector::DistSquared2D(Body->GetActorLocation(),Point)<=FMath::Square(Range)&&LDGround::MapSurface(GetWorld(),Point,Surface);};
+    auto Ground=[&](FVector Point,int32 Range){FVector Surface;return !Point.ContainsNaN()&&(M->IsEnvironmentProfile()?ULDMapDefinition::InBounds(Point):LDVision::InWorld(Point,M->Vision->Grid()))&&FVector::DistSquared2D(Body->GetActorLocation(),Point)<=FMath::Square(Range)&&LDGround::MapSurface(GetWorld(),Point,Surface)&&(!M->IsEnvironmentProfile()||(FMath::Abs(Point.Z-Surface.Z)<20&&ALDEnvironmentDirector::Get(GetWorld())->Ray(Body->GetActorLocation(),Surface+FVector(0,0,90))));};
     if(R.ActionKind==0)
     {
         D=M->TacticalCatalog->Find(Skill);if(!D||!LDDevelopment::Equipped(*B,Skill)||!ULDTacticalCatalog::NaturalGate(*D,*B)||B->Cooldowns[uint8(Skill)]>Now){return Reject(TEXT("Knowledge, natural gate, slot or cooldown unavailable"));}

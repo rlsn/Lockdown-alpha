@@ -139,10 +139,10 @@ bool ALDEnvironmentDirector::Initialize(FString& Error)
 }
 ALDEnvironmentDoor* ALDEnvironmentDirector::Door(FName Id) const
 {for(const auto& D:Doors){if(D.IsValid()&&D->Id==Id){return D.Get();}}return nullptr;}
-bool ALDEnvironmentDirector::Ray(FVector From,FVector To,const AActor* Endpoint,double Radius) const
+bool ALDEnvironmentDirector::Ray(FVector From,FVector To,const AActor* Endpoint,double Radius,bool SurfaceCue) const
 {
     if(!ULDMapDefinition::InBounds(From)||!ULDMapDefinition::InBounds(To)||FVector::DistSquared2D(From,To)>Radius*Radius){return false;}
-    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Combat&&M->Combat->EnvironmentOccludes(From,To)){return false;}
+    if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Combat&&M->Combat->EnvironmentOccludes(From,To,SurfaceCue)){return false;}
     FCollisionQueryParams Q(SCENE_QUERY_STAT(B91Sight),false);if(Endpoint){Q.AddIgnoredActor(Endpoint);}
     return !GetWorld()->LineTraceTestByChannel(From+FVector(0,0,60),To+FVector(0,0,60),ECC_GameTraceChannel2,Q);
 }
