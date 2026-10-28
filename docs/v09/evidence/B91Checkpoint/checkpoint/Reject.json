@@ -1,0 +1,71 @@
+{
+	"mode": "Reject",
+	"completed": true,
+	"failures": 0,
+	"checks": [
+		{
+			"case": "Dedicated ownerless environment is settled",
+			"passed": true
+		},
+		{
+			"case": "Capture complete native state",
+			"passed": true
+		},
+		{
+			"case": "Load reference file for adversarial diagnostics",
+			"passed": true
+		},
+		{
+			"case": "Malformed JSON rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Wrong contract rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Duplicate item rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Unknown source rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Excess fuel rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Lost finite good rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Changed source kind rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Unknown provenance rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Door mutation revision regression rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Duplicate provenance receipt rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Wrong scope rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Checksum mismatch rejected before mutation",
+			"passed": true
+		},
+		{
+			"case": "Valid restore still succeeds after all rejected files",
+			"passed": true
+		}
+	]
+}

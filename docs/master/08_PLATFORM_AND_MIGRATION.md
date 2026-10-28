@@ -106,6 +106,18 @@ Preserve v08_integration and older labelled profiles. A fresh match selects one 
 
 ## Verification and operations
 
+Environmental recovery preserves consequences: spent items, exhausted harvests,
+cleared cover and remaining fuel must retain their exact identities and receipts.
+A restart cannot become an acquisition or refill path. Observer handles and UI
+quotes belong to the current connection and must be rebuilt after recovery.
+
+The [B91 checkpoint](../v09/B91_CHECKPOINT.md) currently restores an explicitly
+selected, settled, ownerless environment. It refuses live owners and transient
+effects until their state can also be reconciled. Full match recovery needs stable
+contender/account identity, roster and ledger reconciliation, and a defined
+interruption policy. A fresh match still resets the selected profile; checkpoints
+do not introduce progression between matches or production recovery guarantees.
+
 Build Editor and Game, regenerate/validate changed assets, run relevant native rules and scenario probes, and preserve portable evidence. Native paths, movement, rendering, network privacy, ledgers, performance and human experience are distinct checks.
 
 A packaged dedicated server depends on a compatible source engine; historical headless listen-authority workloads do not establish one. Production hosting, matchmaking, moderation, durable accounts and recovery remain later operating work. Do not infer production readiness from a local package or a four-client fixture.

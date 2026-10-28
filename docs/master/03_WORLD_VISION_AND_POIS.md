@@ -39,6 +39,11 @@ and tall blades while keeping the own character readable; a solid visual wall
 would falsely suggest occlusion and frustrate control. The [B91 grass report](../v09/B91_GRASS.md)
 records current native coverage separately from the complete reference encounter.
 
+Cover loss belongs to the match's world state, independent of the caster or the
+short-lived fire effect. The [settled environment checkpoint](../v09/B91_CHECKPOINT.md)
+now preserves cleared patches, exhausted saplings, partial damage and exact
+physical goods across a server restart. Full live-match recovery remains open.
+
 ## Buildings and streets
 
 The full-demo target is 144 shells with 36 enterable buildings, exactly 25%. Selected services use sparse navigable interiors with public fronts and private rears. Sixteen roof anchors have permanent stairs. Windows are authored openings; roof fading changes rendering while occlusion persists. Closed shells show no fake interaction affordance.

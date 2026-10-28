@@ -74,3 +74,10 @@ removes only the named patch, without creating a reward. Native tests distinguis
 diagnostic detector/claim-state setup from earned acquisition and full-map Heart
 integration. Read [the checkpoint](../v09/B91_GRASS.md) for the exact source and
 remaining saved-state, encounter and density gates.
+
+Revision 17 adds explicit settled-environment recovery. Preserve exact item IDs,
+consume tombstones, finite reward receipts, world damage and fuel rather than
+recreating the starting endowment. The current checkpoint requires no owners or
+transient actions and loads once into a pristine environment. Full contender,
+roster and economy recovery remains a separate dependency. See [scope and
+evidence](../v09/B91_CHECKPOINT.md).

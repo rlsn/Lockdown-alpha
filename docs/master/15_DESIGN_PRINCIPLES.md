@@ -58,6 +58,12 @@ Resources come from named endowments or bounded sources. Transfers create no wea
 
 Retained development supports a long match. Dropped property, wallet loss, position and downtime keep death meaningful. Address recovery failures through explicit design changes rather than concealed gifts or free replacements. Observe whether players can find a useful next action after loss.
 
+Server recovery must preserve the same consequences. Restoring a world keeps
+spent resources, exhausted sources, damaged objects and lost cover. It must not
+mint replacements or refill a surviving item. Match recovery and fresh-match
+reset are explicit, separate operations; neither implies persistent power across
+competitive sessions.
+
 ## The ending is physical and singular
 
 All routes reach one ten-second interaction. Access never excludes defenders from approaching. Warnings communicate opportunity without granting unlawful vision. One authority resolves simultaneous actions and the terminal receipt. No hidden score winner or minimum-win timer replaces stated rules.

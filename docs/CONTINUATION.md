@@ -1,6 +1,23 @@
 # Active continuation — B91 functional environment
 
-The current increment is [authored grass and concealment](v09/B91_GRASS.md),
+The current increment is [settled environment checkpoints](v09/B91_CHECKPOINT.md),
+source **2957b43cb1639d993fd315f61191367a6078b4ca**, with [frozen evidence](v09/evidence/B91Checkpoint/README.md). Explicit startup
+restore retains exact finite item IDs, consume provenance, harvest rewards,
+foliage HP/clearance, stored/ground locations, door revisions and remaining fuel.
+It requires a pristine, ownerless world and runs once; saving refuses live
+controllers, channels, cargo, traversal, installed links and temporary effects.
+53 checks across four separate native server processes exercise diagnostic mutation write, startup
+restore, invalid-file rejection without mutation and a fresh world without flags.
+Companion checks pass: grass44, source/pointer47, ignition42, storage51 and rules55;
+both full-unity targets pass. Two early ignition observations are retained; the
+fixture now waits for admitted combat transitions before checking live fields.
+This is a partial saved-state boundary: contender/account/roster/economy recovery
+and the earned same-source saved-match journey remain open. Master revision17
+records recovery consequences separately from fresh-match reset. Continue B91
+with the complete reference encounter and remaining paid field/foliage paths;
+3,000 scenery trees, layered fields and density/human acceptance remain open.
+
+The previous increment is [authored grass and concealment](v09/B91_GRASS.md),
 source **138fe1b58cc6b36f1ef9b369dfd818dc41fab358**, with [frozen evidence](v09/evidence/B91Grass/README.md).
 All96 finite grass sources are fitted and nonblocking. Enter/rearm requires no
 input; moving inside cover is allowed. Geometry gates two-metre proximity and

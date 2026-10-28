@@ -1,0 +1,763 @@
+{
+	"complete": true,
+	"phase": 16,
+	"failures": 0,
+	"checks": [
+		{
+			"case": "Two independent remote grass owners",
+			"passed": true
+		},
+		{
+			"case": "96 grass patches add no physical goods to435 records and143 items",
+			"passed": true
+		},
+		{
+			"case": "All96 stable grass disks are fitted, non-solid and resource-free",
+			"passed": true
+		},
+		{
+			"case": "Reference fixture chooses an authored flat grass patch with clear observation geometry",
+			"passed": true
+		},
+		{
+			"case": "Fixture moves two existing finite Torches without minting",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase1 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Grass hides its occupant from a distant observer without becoming a sight wall",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase2 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Ordinary clear geometry within200cm reveals grass without deleting concealment",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic timed invisibility is not revealed by the grass proximity exception",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase3 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic wall blocks both proximity and detector authorization",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase4 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic authorized detector reveals distant grass through clear geometry only",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase5 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Real navigation walks inside grass without requiring stationary cover",
+			"passed": true
+		},
+		{
+			"case": "Detector loss hides the body and revokes its old target handle",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase6 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Ordinary remote basic attack reveals the grass occupant",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase7 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "After the2s offense reveal, one further rearm second remains visible",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase8 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "No new offense permits concealment after the full rearm endpoint",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase9 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Leaving the250cm feet-point disk immediately removes grass concealment",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase10 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Re-entry does not conceal before one quiet second",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase11 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Re-entry rearms after one real quiet second",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase12 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic active-claim owner state cannot receive grass concealment",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic sustained casting retains full reveal and rearm after it stops",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase13 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Both clients complete real quiet2s accessory binding of original Torches",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase14 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "One paid Torch wins the same grass socket and disables its cover immediately",
+			"passed": true
+		},
+		{
+			"case": "Race and replay spend exactly1s fuel and release all reservations",
+			"passed": true
+		},
+		{
+			"case": "Grass ignition retains bounded3s Burning cells without spreading",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase15 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Burnt cover stays cleared with synchronized nonblocking proxy revisions",
+			"passed": true
+		},
+		{
+			"case": "Only the named grass burns; warm initialization creates no regrowth or reward",
+			"passed": true
+		},
+		{
+			"case": "Both restricted grass phase16 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Actual life return cannot restore the burnt patch",
+			"passed": true
+		},
+		{
+			"case": "Grass, burn and real life return conserve all143 physical items",
+			"passed": true
+		}
+	],
+	"manifest": [
+		{
+			"id": "prop_tall_grass_000",
+			"source": "X=-80184.000 Y=-71426.000 Z=0.000",
+			"fitted": "X=-80184.000 Y=-71426.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_001",
+			"source": "X=78129.000 Y=-75306.000 Z=400.000",
+			"fitted": "X=78129.000 Y=-75306.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_002",
+			"source": "X=101497.000 Y=49030.000 Z=400.000",
+			"fitted": "X=101497.000 Y=49030.000 Z=329.887",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_003",
+			"source": "X=47020.000 Y=-45095.000 Z=400.000",
+			"fitted": "X=47020.000 Y=-45095.000 Z=220.588",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_004",
+			"source": "X=-11433.000 Y=16841.000 Z=400.000",
+			"fitted": "X=-11433.000 Y=16841.000 Z=399.896",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_005",
+			"source": "X=-32262.000 Y=5558.000 Z=0.000",
+			"fitted": "X=-32262.000 Y=5558.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_006",
+			"source": "X=95131.000 Y=-21724.000 Z=400.000",
+			"fitted": "X=95131.000 Y=-21724.000 Z=396.036",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_007",
+			"source": "X=-51321.000 Y=-98651.000 Z=0.000",
+			"fitted": "X=-51321.000 Y=-98651.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_008",
+			"source": "X=55414.000 Y=-105419.000 Z=400.000",
+			"fitted": "X=55414.000 Y=-105419.000 Z=306.226",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_009",
+			"source": "X=39805.000 Y=65148.000 Z=400.000",
+			"fitted": "X=39805.000 Y=65148.000 Z=360.453",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_010",
+			"source": "X=76780.000 Y=-70341.000 Z=400.000",
+			"fitted": "X=76780.000 Y=-70341.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_011",
+			"source": "X=-4989.000 Y=-6178.000 Z=400.000",
+			"fitted": "X=-4989.000 Y=-6178.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_012",
+			"source": "X=-82777.000 Y=69005.000 Z=800.000",
+			"fitted": "X=-82777.000 Y=69005.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_013",
+			"source": "X=84665.000 Y=74774.000 Z=400.000",
+			"fitted": "X=84665.000 Y=74774.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_014",
+			"source": "X=-85764.000 Y=-57977.000 Z=0.000",
+			"fitted": "X=-85764.000 Y=-57977.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_015",
+			"source": "X=72174.000 Y=-63338.000 Z=400.000",
+			"fitted": "X=72174.000 Y=-63338.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_016",
+			"source": "X=-63736.000 Y=-31656.000 Z=0.000",
+			"fitted": "X=-63736.000 Y=-31656.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_017",
+			"source": "X=-96530.000 Y=104904.000 Z=800.000",
+			"fitted": "X=-96530.000 Y=104904.000 Z=694.690",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_018",
+			"source": "X=-948.000 Y=-12788.000 Z=400.000",
+			"fitted": "X=-948.000 Y=-12788.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_019",
+			"source": "X=-27953.000 Y=-83334.000 Z=0.000",
+			"fitted": "X=-27953.000 Y=-83334.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_020",
+			"source": "X=6323.000 Y=-9884.000 Z=400.000",
+			"fitted": "X=6323.000 Y=-9884.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_021",
+			"source": "X=94520.000 Y=-83232.000 Z=400.000",
+			"fitted": "X=94520.000 Y=-83232.000 Z=393.972",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_022",
+			"source": "X=20732.000 Y=42433.000 Z=400.000",
+			"fitted": "X=20732.000 Y=42433.000 Z=369.998",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_023",
+			"source": "X=-43243.000 Y=-16870.000 Z=0.000",
+			"fitted": "X=-43243.000 Y=-16870.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_024",
+			"source": "X=-38099.000 Y=40944.000 Z=0.000",
+			"fitted": "X=-38099.000 Y=40944.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_025",
+			"source": "X=7309.000 Y=-2823.000 Z=400.000",
+			"fitted": "X=7309.000 Y=-2823.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_026",
+			"source": "X=-88407.000 Y=81630.000 Z=800.000",
+			"fitted": "X=-88407.000 Y=81630.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_027",
+			"source": "X=74240.000 Y=82529.000 Z=400.000",
+			"fitted": "X=74240.000 Y=82529.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_028",
+			"source": "X=-77840.000 Y=-57086.000 Z=0.000",
+			"fitted": "X=-77840.000 Y=-57086.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_029",
+			"source": "X=-101040.000 Y=36055.000 Z=0.000",
+			"fitted": "X=-101040.000 Y=36055.000 Z=38.381",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_030",
+			"source": "X=100898.000 Y=-14491.000 Z=0.000",
+			"fitted": "X=100898.000 Y=-14491.000 Z=13.084",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_031",
+			"source": "X=101289.000 Y=-40336.000 Z=400.000",
+			"fitted": "X=101289.000 Y=-40336.000 Z=376.540",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_032",
+			"source": "X=81.000 Y=1517.000 Z=400.000",
+			"fitted": "X=81.000 Y=1517.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_033",
+			"source": "X=83776.000 Y=20053.000 Z=0.000",
+			"fitted": "X=83776.000 Y=20053.000 Z=11.134",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_034",
+			"source": "X=-93668.000 Y=9610.000 Z=0.000",
+			"fitted": "X=-93668.000 Y=9610.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_035",
+			"source": "X=28216.000 Y=-104340.000 Z=0.000",
+			"fitted": "X=28216.000 Y=-104340.000 Z=1.868",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_036",
+			"source": "X=108091.000 Y=8189.000 Z=400.000",
+			"fitted": "X=108091.000 Y=8189.000 Z=336.594",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_037",
+			"source": "X=-83652.000 Y=73785.000 Z=800.000",
+			"fitted": "X=-83652.000 Y=73785.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_038",
+			"source": "X=37532.000 Y=-86907.000 Z=400.000",
+			"fitted": "X=37532.000 Y=-86907.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_039",
+			"source": "X=-711.000 Y=10623.000 Z=400.000",
+			"fitted": "X=-711.000 Y=10623.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_040",
+			"source": "X=-73714.000 Y=80569.000 Z=800.000",
+			"fitted": "X=-73714.000 Y=80569.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_041",
+			"source": "X=-86228.000 Y=-69339.000 Z=0.000",
+			"fitted": "X=-86228.000 Y=-69339.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_042",
+			"source": "X=74994.000 Y=-76184.000 Z=400.000",
+			"fitted": "X=74994.000 Y=-76184.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_043",
+			"source": "X=38268.000 Y=104432.000 Z=800.000",
+			"fitted": "X=38268.000 Y=104432.000 Z=752.130",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_044",
+			"source": "X=-10771.000 Y=-103052.000 Z=0.000",
+			"fitted": "X=-10771.000 Y=-103052.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_045",
+			"source": "X=38114.000 Y=-34654.000 Z=400.000",
+			"fitted": "X=38114.000 Y=-34654.000 Z=375.093",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_046",
+			"source": "X=-39087.000 Y=34052.000 Z=0.000",
+			"fitted": "X=-39087.000 Y=34052.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_047",
+			"source": "X=-90728.000 Y=39732.000 Z=400.000",
+			"fitted": "X=-90728.000 Y=39732.000 Z=422.402",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_048",
+			"source": "X=95601.000 Y=89255.000 Z=400.000",
+			"fitted": "X=95601.000 Y=89255.000 Z=392.837",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_049",
+			"source": "X=-64243.000 Y=-89814.000 Z=0.000",
+			"fitted": "X=-64243.000 Y=-89814.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_050",
+			"source": "X=98277.000 Y=102319.000 Z=400.000",
+			"fitted": "X=98277.000 Y=102319.000 Z=349.441",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_051",
+			"source": "X=-79854.000 Y=-63514.000 Z=0.000",
+			"fitted": "X=-79854.000 Y=-63514.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_052",
+			"source": "X=-2899.000 Y=84416.000 Z=800.000",
+			"fitted": "X=-2899.000 Y=84416.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_053",
+			"source": "X=-87048.000 Y=62482.000 Z=800.000",
+			"fitted": "X=-87048.000 Y=62482.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_054",
+			"source": "X=73835.000 Y=70338.000 Z=400.000",
+			"fitted": "X=73835.000 Y=70338.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_055",
+			"source": "X=-70788.000 Y=-71322.000 Z=0.000",
+			"fitted": "X=-70788.000 Y=-71322.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_056",
+			"source": "X=68670.000 Y=-58989.000 Z=400.000",
+			"fitted": "X=68670.000 Y=-58989.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_057",
+			"source": "X=-104066.000 Y=-20147.000 Z=0.000",
+			"fitted": "X=-104066.000 Y=-20147.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_058",
+			"source": "X=106440.000 Y=-95524.000 Z=400.000",
+			"fitted": "X=106440.000 Y=-95524.000 Z=306.301",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_059",
+			"source": "X=16917.000 Y=4673.000 Z=400.000",
+			"fitted": "X=16917.000 Y=4673.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_060",
+			"source": "X=-27749.000 Y=-57817.000 Z=0.000",
+			"fitted": "X=-27749.000 Y=-57817.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_061",
+			"source": "X=29252.000 Y=-58895.000 Z=0.000",
+			"fitted": "X=29252.000 Y=-58895.000 Z=0.970",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_062",
+			"source": "X=-111448.000 Y=78598.000 Z=800.000",
+			"fitted": "X=-111448.000 Y=78598.000 Z=554.913",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_063",
+			"source": "X=39579.000 Y=85439.000 Z=800.000",
+			"fitted": "X=39579.000 Y=85439.000 Z=758.546",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_064",
+			"source": "X=63199.000 Y=-17662.000 Z=0.000",
+			"fitted": "X=63199.000 Y=-17662.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_065",
+			"source": "X=-74391.000 Y=7468.000 Z=0.000",
+			"fitted": "X=-74391.000 Y=7468.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_066",
+			"source": "X=1541.000 Y=-2104.000 Z=400.000",
+			"fitted": "X=1541.000 Y=-2104.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_067",
+			"source": "X=-77286.000 Y=70245.000 Z=800.000",
+			"fitted": "X=-77286.000 Y=70245.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_068",
+			"source": "X=66907.000 Y=84291.000 Z=400.000",
+			"fitted": "X=66907.000 Y=84291.000 Z=400.085",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_069",
+			"source": "X=-80399.000 Y=-63639.000 Z=0.000",
+			"fitted": "X=-80399.000 Y=-63639.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_070",
+			"source": "X=80162.000 Y=-66077.000 Z=400.000",
+			"fitted": "X=80162.000 Y=-66077.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_071",
+			"source": "X=47826.000 Y=48492.000 Z=400.000",
+			"fitted": "X=47826.000 Y=48492.000 Z=378.958",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_072",
+			"source": "X=-8670.000 Y=-100768.000 Z=0.000",
+			"fitted": "X=-8670.000 Y=-100768.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_073",
+			"source": "X=4079.000 Y=-128.000 Z=400.000",
+			"fitted": "X=4079.000 Y=-128.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_074",
+			"source": "X=61898.000 Y=32412.000 Z=400.000",
+			"fitted": "X=61898.000 Y=32412.000 Z=250.814",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_075",
+			"source": "X=-23167.000 Y=100040.000 Z=800.000",
+			"fitted": "X=-23167.000 Y=100040.000 Z=607.291",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_076",
+			"source": "X=-100321.000 Y=-36181.000 Z=0.000",
+			"fitted": "X=-100321.000 Y=-36181.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_077",
+			"source": "X=-106724.000 Y=53421.000 Z=400.000",
+			"fitted": "X=-106724.000 Y=53421.000 Z=393.468",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_078",
+			"source": "X=7032.000 Y=2507.000 Z=400.000",
+			"fitted": "X=7032.000 Y=2507.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_079",
+			"source": "X=-47635.000 Y=-60606.000 Z=0.000",
+			"fitted": "X=-47635.000 Y=-60606.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_080",
+			"source": "X=-4270.000 Y=11425.000 Z=400.000",
+			"fitted": "X=-4270.000 Y=11425.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_081",
+			"source": "X=-86093.000 Y=76872.000 Z=800.000",
+			"fitted": "X=-86093.000 Y=76872.000 Z=800.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_082",
+			"source": "X=80576.000 Y=85161.000 Z=400.000",
+			"fitted": "X=80576.000 Y=85161.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_083",
+			"source": "X=64744.000 Y=-71983.000 Z=400.000",
+			"fitted": "X=64744.000 Y=-71983.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_084",
+			"source": "X=-60577.000 Y=93374.000 Z=800.000",
+			"fitted": "X=-60577.000 Y=93374.000 Z=699.115",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_085",
+			"source": "X=-103335.000 Y=-95908.000 Z=0.000",
+			"fitted": "X=-103335.000 Y=-95908.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_086",
+			"source": "X=8814.000 Y=52825.000 Z=400.000",
+			"fitted": "X=8814.000 Y=52825.000 Z=399.986",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_087",
+			"source": "X=-23662.000 Y=64549.000 Z=0.000",
+			"fitted": "X=-23662.000 Y=64549.000 Z=113.574",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_088",
+			"source": "X=-47413.000 Y=103102.000 Z=800.000",
+			"fitted": "X=-47413.000 Y=103102.000 Z=788.568",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_089",
+			"source": "X=25413.000 Y=59500.000 Z=400.000",
+			"fitted": "X=25413.000 Y=59500.000 Z=283.188",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_090",
+			"source": "X=-67344.000 Y=29269.000 Z=0.000",
+			"fitted": "X=-67344.000 Y=29269.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_091",
+			"source": "X=-81271.000 Y=-76980.000 Z=0.000",
+			"fitted": "X=-81271.000 Y=-76980.000 Z=0.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_092",
+			"source": "X=75444.000 Y=76963.000 Z=400.000",
+			"fitted": "X=75444.000 Y=76963.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_093",
+			"source": "X=76623.000 Y=20954.000 Z=400.000",
+			"fitted": "X=76623.000 Y=20954.000 Z=205.083",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_094",
+			"source": "X=14871.000 Y=14574.000 Z=400.000",
+			"fitted": "X=14871.000 Y=14574.000 Z=400.000",
+			"supported": true
+		},
+		{
+			"id": "prop_tall_grass_095",
+			"source": "X=67606.000 Y=69318.000 Z=400.000",
+			"fitted": "X=67606.000 Y=69318.000 Z=400.000",
+			"supported": true
+		}
+	],
+	"contract": "50fc85d3bc127ee76966de772ff24d3b039608361dd9c7664a028e08b9d387be",
+	"scope": "Two remote owners with real clocks, basic attack, quiet Torch binding and paid ignition. Existing Torches and body positions are fixture staging; wall, detector fields, sustained-cast state and claim-state gate are diagnostic, not earned acquisition/full-map Heart admission. Warm initialization and real life return are tested; saved-match restoration, paid detector acquisition, broad fire spells and full B91/human/performance acceptance remain open."
+}
