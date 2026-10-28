@@ -182,6 +182,7 @@ public:
     void TickB91Probe();
     void TickB91ObjectsProbe();
     void TickB91ToolsProbe();
+    void TickB91SaplingsProbe();
     void TickB91TraversalProbe();
 private:
     uint32 WorldSequence=0,HeldSequence=0,Nonce=0;
@@ -201,6 +202,7 @@ private:
     uint8 ProbeRetries=0;
     bool ProbeSent=false;
     bool TraversalProbeDeployer=false;
+    bool SaplingProbeWinner=false;
     double ProbeAt=0,ProbeHoldAt=0;
     double ProbeRetryAt=0;
     FLDWorldRequest ProbeRequest;

@@ -276,6 +276,8 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
             if(Mode->IsTacticalProfile()){BreakConcealment(Body);}
+            if(!Target&&!bAssassin&&!bSpark&&Mode->IsEnvironmentProfile()&&BuildFor(Body)&&!BuildFor(Body)->Gear.Ranged)
+            {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Target=Objects->MeleeTarget(Body,S.CommittedAim,BuildFor(Body)->Gear.Reach);}}
             if(Target&&Mode->IsTacticalProfile()&&!bAssassin&&!bSpark&&BuildFor(Body)&&BuildFor(Body)->Gear.Ranged)
             {auto* P=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(P){P->Source=Body;P->CasterIdentity=S.Identity;P->Victim=Cast<ALDCharacter>(Target);P->ActorVictim=Target;P->VictimLife=Cast<ALDTacticalField>(Target)?Cast<ALDTacticalField>(Target)->Identity:StateFor(Cast<ALDCharacter>(Target))->Identity;P->Endpoint=Target->GetActorLocation();P->Amount=S.CommittedDamage;P->Basic=true;P->AdvancedAt=LDTactical::Milliseconds(Now);P->Token=S.AttackToken;}Target=nullptr;}
             if(Target){const int32 Before=Impacts.Num();Impacts.Add({Body,Target,bAssassin&&S.Skill==ELDSkill::None?60:S.CommittedDamage,bSpark?LDTactical::EDamage::Magical:LDTactical::EDamage::Physical,bSpark||bAssassin});Impacts[Before].Basic=!bSpark&&!bAssassin;}
@@ -293,6 +295,8 @@ void ALDCombatDirector::Sample(double Now)
         if(Mode->Vision&&Mode->Vision->IsPublicSensorActive()&&Mode->Vision->Ray({Mode->Vision->PublicLocation(),600,1},Hit.Target->GetActorLocation()))
         {if(S){S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+12);}}
         if(auto* Field=Cast<ALDTacticalField>(Hit.Target)){Field->Hp-=Hit.Damage;Field->EnemyDestroyed=Hit.Source!=Field->Source.Get();continue;}
+        if(auto* Object=Cast<ALDWorldObject>(Hit.Target))
+        {if(Hit.Basic){if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->StrikeMelee(Hit.Source,Object,Hit.Damage);}}continue;}
         if(auto* Ward=Cast<ALDWard>(Hit.Target)){Ward->Hp-=Hit.Damage;continue;}
         auto* Victim=CastChecked<ALDCharacter>(Hit.Target);auto* T=StateFor(Victim);
         if(Victim->IsA<ALDWildSentinel>()){if(auto* PC=Cast<ALDPlayerController>(Hit.Source?Hit.Source->GetController():nullptr)){SentinelDamage.FindOrAdd(PC)+=Hit.Damage;}}

@@ -29,7 +29,7 @@ namespace
 uint64 ObjectReceiptKey(uint32 Life,uint32 Seq){return (uint64(Life)<<32)|Seq;}
 bool ItemVerb(ELDObjectVerb V){return V==ELDObjectVerb::Take||V==ELDObjectVerb::Store||V==ELDObjectVerb::Drop;}
 double Duration(ELDObjectVerb V)
-{switch(V){case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:case ELDObjectVerb::Attach:case ELDObjectVerb::Deploy:case ELDObjectVerb::Retrieve:return 1.5;case ELDObjectVerb::Use:return 2.;case ELDObjectVerb::Break:return 3.;default:return .5;}}
+{switch(V){case ELDObjectVerb::Harvest:case ELDObjectVerb::Chop:return 4.;case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:case ELDObjectVerb::Attach:case ELDObjectVerb::Deploy:case ELDObjectVerb::Retrieve:return 1.5;case ELDObjectVerb::Use:return 2.;case ELDObjectVerb::Break:return 3.;default:return .5;}}
 }
 ALDWorldObject::ALDWorldObject()
 {
@@ -39,9 +39,9 @@ ALDWorldObject::ALDWorldObject()
     Glow=CreateDefaultSubobject<UPointLightComponent>(TEXT("ObservedCosmeticGlow"));Glow->SetupAttachment(Proxy);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->SetVisibility(false);
 }
 FVector ALDWorldObject::Size() const
-{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);case ELDObjectKind::Furniture:return FVector(200,100,100);default:return FVector(20,20,30);}}
+{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);case ELDObjectKind::Furniture:return FVector(200,100,100);case ELDObjectKind::Sapling:return FVector(120,120,400);default:return FVector(20,20,30);}}
 bool ALDWorldObject::Available() const
-{return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
+{return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Kind==ELDObjectKind::Sapling||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
 int32 ALDWorldObject::Weight() const
 {int32 W=Kind==ELDObjectKind::Crate?12:Kind==ELDObjectKind::Barrel?16:Kind==ELDObjectKind::Ladder?10:0;for(auto P:Contents){if(P.IsValid()){W+=LDInventory::UnitWeight(P->Kind);}}return W;}
 void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
@@ -51,7 +51,7 @@ void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
     Proxy->SetRelativeScale3D(Size()/100.);Proxy->SetVisibility(!(State&5));
     Glow->SetAttenuationRadius(Kind==ELDObjectKind::Torch?600:Kind==ELDObjectKind::Lantern?800:0);Glow->SetVisibility(false);
     Proxy->SetCollisionEnabled(BlocksWalk()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
-    Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,Kind==ELDObjectKind::Crate?ECR_Block:ECR_Ignore);
+    Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,(Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Sapling)?ECR_Block:ECR_Ignore);
     Proxy->SetCanEverAffectNavigation(BlocksWalk()&&!(State&7));
     Revision=CollisionRevision=SightRevision=NavigationRevision=NewRevision;++ProxyUpdates;FNavigationSystem::UpdateComponentData(*Proxy);
 }
@@ -130,7 +130,7 @@ bool ALDWorldObjects::Initialize(FString& Error)
     for(const auto& V:Root->GetArrayField(TEXT("rows")))
     {
         const auto R=V->AsObject();const auto& A=R->GetArrayField(TEXT("position"));const FVector Source(A[0]->AsNumber(),A[1]->AsNumber(),A[2]->AsNumber());
-        auto* O=GetWorld()->SpawnActor<ALDWorldObject>();O->SourceId=FName(*R->GetStringField(TEXT("id")));O->Kind=ELDObjectKind(int32(R->GetNumberField(TEXT("kind"))));O->SourcePosition=Source;
+        auto* O=GetWorld()->SpawnActor<ALDWorldObject>();O->SourceId=FName(*R->GetStringField(TEXT("id")));O->Kind=ELDObjectKind(int32(R->GetNumberField(TEXT("kind"))));O->SourcePosition=Source;O->HarvestSource=FName(*R->GetStringField(TEXT("harvest_source")));
         FVector Surface=Source;const bool Fitted=FitSource(O,Source,Surface);
         if(!Fitted){Error=TEXT("No legal fitted pad within 10m: ")+O->SourceId.ToString();O->Destroy();return false;}
         O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),0,1);Objects.Add(O);
@@ -140,9 +140,9 @@ bool ALDWorldObjects::Initialize(FString& Error)
         if(O->Kind==ELDObjectKind::Water||O->Kind==ELDObjectKind::Oil)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
-    if(Objects.Num()!=188||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
+    if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
     if(!InitializeTools(Error)||!InitializeTraversal(Error)){return false;}Contract=LD_B91_LINK_WORLD_SHA;
-    Ready=Objects.Num()==264&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
+    Ready=Objects.Num()==328&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -167,7 +167,7 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
     const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B&&M&&M->Combat?M->Combat->StateFor(B):nullptr;const double Now=GetWorld()->GetTimeSeconds();
     if(!Ready||!Own||!B||!S||!Own->bActive||!M->IsPlaying()||S->Hp<=0||S->Action||Own->DevelopmentKind||Now<Own->ProtectedUntil||Now<S->ProtectionUntil
        ||!LDTactical::Allows(S->Tactical,LDTactical::EAction::Service,LDTactical::Milliseconds(Now))){return Fail(TEXT("World interaction unavailable"));}
-    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)){return LinkEligible(PC,O,R,Why);}
+    if((uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&uint8(R.Verb)<=uint8(ELDObjectVerb::Retrieve))){return LinkEligible(PC,O,R,Why);}
     if(Traversing(PC)){return Fail(TEXT("Finish traversal before another interaction"));}
     const bool Drop=R.Verb==ELDObjectVerb::Drop;
     if(!Drop&&(!O||!O->Available()||O->Revision!=R.ObjectRevision||O->bCarriedWorld&&O->Carrier!=PC)){return Fail(TEXT("Object changed or unavailable"));}
@@ -193,7 +193,10 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
         if(R.Verb==ELDObjectVerb::Store)
         {int Weight=0;for(auto I:O->Contents){if(I.IsValid()){Weight+=LDInventory::UnitWeight(I->Kind);}}if(O->Contents.Num()>=24||Weight+LDInventory::UnitWeight(P->Kind)>60){return Fail(TEXT("Container is full or too heavy"));}}
     }
-    if(uint8(R.Verb)<1||uint8(R.Verb)>9){return Fail(TEXT("Unknown object verb"));}return true;
+    if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop)
+    {if(O->Kind!=ELDObjectKind::Sapling||O->Hp<=0||O->HarvestReceipt.IsValid()){return Fail(TEXT("A living finite sapling is required"));}
+     if(R.Verb==ELDObjectVerb::Harvest&&(Own->Inventory.Revision!=R.InventoryRevision||!M->Inventory->HasSpace(PC,ELDItemKind::Fiber,&Why))){if(Why.IsEmpty()){Why=TEXT("Inventory changed");}return false;}}
+    if(uint8(R.Verb)<1||uint8(R.Verb)>16){return Fail(TEXT("Unknown object verb"));}return true;
 }
 void ALDWorldObjects::Reply(ALDB91Controller* PC,const FLDObjectRequest& R,uint8 Result,const FString& Why,uint32 Revision)
 {
@@ -217,7 +220,7 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
     for(const auto& P:Holds){if(P.Key!=PC&&(Object&&(P.Value.Object==Object||P.Value.Link==Object)||RequestedAnchor&&(P.Value.Object==RequestedAnchor||P.Value.Link==RequestedAnchor)||R.Item.IsValid()&&P.Value.Request.Item==R.Item)&&!(R.Verb==ELDObjectVerb::Open&&P.Value.Request.Verb==ELDObjectVerb::Open)){Reply(PC,R,2,TEXT("Object reserved; try again"));return;}}
     Cancel(PC,TEXT("Superseded held interaction"));if(auto* E=ALDEnvironmentDirector::Get(GetWorld())){E->Cancel(PC,TEXT("Object interaction started"));}
     FHold H;H.Request=R;H.Object=Object;H.Body=Cast<ALDCharacter>(PC->GetPawn());H.Start=PC->GetPawn()->GetActorLocation();H.Started=H.Heartbeat=Now;H.Ends=Now+Duration(R.Verb);H.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;
-    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&!BeginLink(PC,Object,H,Why)){Reply(PC,R,2,Why);return;}
+    if((uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&uint8(R.Verb)<=uint8(ELDObjectVerb::Retrieve))&&!BeginLink(PC,Object,H,Why)){Reply(PC,R,2,Why);return;}
     if(R.Verb==ELDObjectVerb::Place||R.Verb==ELDObjectVerb::Drop)
     {
         FVector Surface;const double Range=R.Verb==ELDObjectVerb::Place?250:80;
@@ -258,7 +261,15 @@ ALDWorldObject* ALDWorldObjects::Wrap(ALDItem* Item,FVector Surface)
 bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold& H,FString& Why)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto& R=H.Request;auto* Inventory=M->Inventory.Get();
-    if(uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)){return CommitLink(PC,O,H,Why);}
+    if((uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&uint8(R.Verb)<=uint8(ELDObjectVerb::Retrieve))){return CommitLink(PC,O,H,Why);}
+    if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop)
+    {
+        const FGuid Receipt=Clients.FindChecked(PC).Receipts.FindChecked(ObjectReceiptKey(R.Life,R.Sequence)).Id;
+        if(R.Verb==ELDObjectVerb::Harvest)
+        {auto* Item=GetWorld()->SpawnActor<ALDItem>();if(!Item){return false;}Item->Kind=ELDItemKind::Fiber;Item->Institution=O->HarvestSource;Item->OriginReceipt=Receipt;
+         if(!Inventory->Adopt(PC,Item,TEXT("SaplingHarvest"))){Item->Destroy();Why=TEXT("Harvest unavailable; source retained");return false;}Finite.Add(Item->Identity,Item);O->YieldIdentity=Item->Identity;}
+        O->HarvestReceipt=Receipt;O->Hp=0;O->Broken=true;O->Apply(O->GetActorLocation(),O->Flags(),O->Revision+1);return true;
+    }
     if(R.Verb==ELDObjectVerb::Open){Quote(PC,O);return true;}
     if(R.Verb==ELDObjectVerb::Take||R.Verb==ELDObjectVerb::Pickup)
     {

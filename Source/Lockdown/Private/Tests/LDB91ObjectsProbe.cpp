@@ -38,7 +38,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote object owners"));
-        Check(Objects->Objects.Num()==264&&Count(GetWorld())==132,TEXT("Exact 264 objects and 132 finite physical endowments"));
+        Check(Objects->Objects.Num()==328&&Count(GetWorld())==132,TEXT("Exact 328 objects and 132 finite physical endowments"));
         for(TActorIterator<ALDItem> I(GetWorld());I;++I){InitialIds.Add(I->Identity);}
         for(auto O:Objects->Objects)
         {FVector Surface=O->LastClear;const bool Valid=O->Kind==ELDObjectKind::Anchor?Objects->EndpointClear(A,O->Lower)&&Objects->EndpointClear(A,O->Upper):Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);

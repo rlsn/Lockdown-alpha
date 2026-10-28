@@ -41,7 +41,7 @@ void ALDB91ToolsProbe::Tick(float Delta)
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote portable-tool owners"));
         const auto* C=ULDEquipmentCatalog::Load(8);const auto* T=C->Find(ELDItemKind::Torch);const auto* L=C->Find(ELDItemKind::Lantern);const auto* R=C->Find(ELDItemKind::Rope);
         Check(C->Items.Num()==80&&T&&L&&R&&T->Binding==7&&T->Weight==2&&L->Weight==3&&R->Weight==3&&T->Price==-1&&L->Price==-1&&R->Price==-1,TEXT("Three Standard physical tools overlay the unchanged 80-item catalog"));
-        Check(Objects->Objects.Num()==264&&Count(GetWorld())==132&&Item->FuelMs==180000&&!Item->bLit,TEXT("Exact 48 finite tools and initial retained fuel"));
+        Check(Objects->Objects.Num()==328&&Count(GetWorld())==132&&Item->FuelMs==180000&&!Item->bLit,TEXT("Exact 48 finite tools and initial retained fuel"));
         bool FuelValid=true;for(auto O:Objects->Objects){if(O.IsValid()&&O->Physical.IsValid()&&LDPortableTools::IsTool(O->Physical->Kind)){FuelValid&=O->Physical->FuelMs==LDPortableTools::InitialFuel(O->Physical->Kind)&&!O->Physical->bLit&&O->Physical->Quality==0;}}
         Check(FuelValid,TEXT("All24 torches and12 lanterns start full once; ropes have no fuel or stats"));
         for(auto* PC:{A,B}){auto* O=M->StateFor(PC);O->ProtectedUntil=0;M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;M->SyncOwner(PC);}

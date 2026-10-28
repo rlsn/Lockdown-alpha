@@ -8,8 +8,8 @@ class ALDCharacter;
 class UStaticMeshComponent;
 class UPointLightComponent;
 
-UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture };
-UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve };
+UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling };
+UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop };
 USTRUCT()
 struct FLDObjectRequest
 {
@@ -58,7 +58,9 @@ class LOCKDOWN_API ALDWorldObject:public AActor
     GENERATED_BODY()
 public:
     ALDWorldObject();
-    FName SourceId;
+    FName SourceId,HarvestSource;
+    double Hp=80;
+    FGuid HarvestReceipt,YieldIdentity;
     ELDObjectKind Kind=ELDObjectKind::Chest;
     uint32 Revision=1,CollisionRevision=1,SightRevision=1,NavigationRevision=1,ProxyUpdates=0;
     uint8 AppliedState=255;
@@ -75,8 +77,8 @@ public:
     UPROPERTY() TObjectPtr<UPointLightComponent> Glow;
     FVector Size() const;
     bool Heavy() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Ladder;}
-    bool BlocksWalk() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Furniture;}
-    bool Container() const {return Kind==ELDObjectKind::Chest||BlocksWalk();}
+    bool BlocksWalk() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Furniture||Kind==ELDObjectKind::Sapling;}
+    bool Container() const {return Kind==ELDObjectKind::Chest||Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Furniture;}
     bool LinkInstalled() const {return Kind==ELDObjectKind::Anchor&&(LinkedLadder.IsValid()||!Contents.IsEmpty());}
     bool Available() const;
     int32 Weight() const;
@@ -100,6 +102,8 @@ public:
     ALDWorldObject* Find(FName SourceId) const;
     ALDWorldObject* Carried(const ALDB91Controller* PC) const;
     bool ForceDrop(ALDB91Controller* PC);
+    ALDWorldObject* MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach) const;
+    bool StrikeMelee(ALDCharacter* Body,ALDWorldObject* Object,double Damage);
     bool Traversing(const ALDB91Controller* PC) const;
     void Begin(ALDB91Controller* PC,const FLDObjectRequest& Request);
     void Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,uint32 Nonce,bool Release);
@@ -115,6 +119,7 @@ public:
 private:
     friend class ALDB91ObjectsProbe;
     friend class ALDB91TraversalProbe;
+    friend class ALDB91SaplingsProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
