@@ -14,6 +14,7 @@ Start with the [active handoff](docs/CONTINUATION.md),
 [portable tools and retained fuel](docs/v09/B91_TOOLS.md),
 [approved ladder/rope traversal](docs/v09/B91_TRAVERSAL.md),
 [fixed furniture and storage](docs/v09/B91_FURNITURE.md),
+[finite sapling progress](docs/v09/B91_SAPLINGS.md),
 [B90 completion and evidence](docs/v09/B90_COMPLETION.md),
 [v0.9 stage plan](docs/v09/09_IMPLEMENTATION_STAGES.md), and
 [living game design](docs/master/README.md). The master now covers vision,

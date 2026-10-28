@@ -61,6 +61,14 @@ Walls, trunks, doors and smoke have simplified proxies consistent with movement.
 
 ## Travel and density
 
+Small finite resource blockers create a choice between time and clearance.
+Quiet harvesting commits time to recover a material; chopping or fighting a
+sapling clears the route without paying that reward. Losing a body cannot
+restore a spent tree. Keep the source and resulting item's identities connected,
+so recovery and trade move existing property rather than repeat the harvest.
+Burning is a separate paid, bounded environment interaction, not automatic fire
+spread or an excuse for every tree to become a renewable reward source.
+
 At 420 cm/s, 100 m takes about 24 seconds and 1 km about four minutes before detours. Journeys are a strategic cost. Record native path length, estimated travel, walked time, stops and hazards separately. A graph connection is not a native navigation proof.
 
 Test for recognizable major choices every 45–90 seconds outside settlements and useful smaller interactions along routes. These are hypotheses, not movement rewards. Empty stretches, repetitive safe commutes and compulsory choke points call for fitting or layout revision before adding acreage/speed. Rare targets need two usable approaches; Heart needs Wet and dry alternatives.

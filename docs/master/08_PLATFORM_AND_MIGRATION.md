@@ -56,6 +56,16 @@ pending state, followed by separate density stress validation.
 
 ## Static and mutable world
 
+Keep object capabilities independent. A sapling blocks walking and sight without
+being a container; fixed furniture blocks walking while permitting sight; cargo
+adds storage and transport commitments. A collision flag must not silently
+grant storage, destruction rewards or a portable binding to a new object type.
+
+Gather due combat targets against one pre-damage world, then apply the staged
+hits. A falling tree must not change another attack's target halfway through
+the same impact batch. Reauthorize later observations and follow-up commands
+after the mutation; do not let iteration order become hidden targeting access.
+
 Public static geography may be distributed with the map. Hidden units, distant mutable object state and private contents cannot be published as a global registry. Static terrain and required routes remain available to authority. Streaming/LOD cannot unload an active fight, carry binding or pending transaction.
 
 An accepted door/foliage/cargo mutation updates physical collision, sight proxy and local navigation revision atomically. A temporarily stale path stops/replans rather than crossing a blocker. Door changes must not rebuild the entire map. Simplified proxies and instanced scenery control cost while preserving agreement.

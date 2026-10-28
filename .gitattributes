@@ -55,6 +55,8 @@
 /docs/v09/evidence/B91Traversal/*.log -whitespace
 /docs/v09/evidence/B91Furniture/**/*.log -whitespace
 /docs/v09/evidence/B91Furniture/*.log -whitespace
+/docs/v09/evidence/B91Saplings/**/*.log -whitespace
+/docs/v09/evidence/B91Saplings/*.log -whitespace
 /Content/Lockdown/Data/V08/*.json -text
 /Scripts/*V08*.py text eol=lf
 

@@ -1,0 +1,35 @@
+{
+	"fixture": "objects",
+	"phase": 6,
+	"completed": true,
+	"receipt_result": 2,
+	"receipt": "C4E8C2DC47E6781E375978A79DB605CF",
+	"reason": "Object reserved; try again",
+	"target_handle": "F0A1C85A412D34552014F09AD162CB6A",
+	"duplicate_same": true,
+	"container_count_before": 0,
+	"private_revision_absent": true,
+	"container_count": 0,
+	"carrying": false,
+	"unsafe_place_retained_cargo": false,
+	"broken_proxy_clear": true,
+	"wire_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	],
+	"received_entries": [
+		{
+			"handle": "F0A1C85A412D34552014F09AD162CB6A",
+			"kind": 3,
+			"position": "X=-84710.000 Y=-58417.000 Z=73.000",
+			"revision": 2,
+			"state": 5,
+			"physical_revision": 0
+		}
+	]
+}
