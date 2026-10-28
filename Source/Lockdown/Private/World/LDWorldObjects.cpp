@@ -152,7 +152,7 @@ bool ALDWorldObjects::Initialize(FString& Error)
     }
     if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
     if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)||!InitializeGrass(Error)){return false;}Contract=ActiveContract();
-    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
+    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");return false;}Ready=InitializeCheckpoint(Error);return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -343,7 +343,7 @@ bool ALDWorldObjects::Conserved(FString& Error) const
     }return true;
 }
 void ALDWorldObjects::RecordConsumption(ALDItem* Item)
-{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);}}
+{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);Consumption.Add(Item->Identity,{Item->Kind,Item->Institution,Item->OriginReceipt});}}
 void ALDWorldObjects::Publish()
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}++ViewRevision;DiscoverDrops();
@@ -417,5 +417,5 @@ void ALDWorldObjects::Tick(float Delta)
         }
         if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if((H.Request.Verb==ELDObjectVerb::Ignite||H.Request.Verb==ELDObjectVerb::Harvest||H.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(H);}if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
     }
-    if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}
+    if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}TickCheckpoint(Now);
 }

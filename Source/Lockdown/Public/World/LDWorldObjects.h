@@ -7,6 +7,7 @@ class ALDB91Controller;
 class ALDCharacter;
 class UStaticMeshComponent;
 class UPointLightComponent;
+namespace LDCheckpoint {struct FData;}
 
 UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling,ForestryKnife,TallGrass };
 UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop,Ignite };
@@ -123,12 +124,16 @@ public:
     // Explicit physical source census, also used by the native conservation probe.
     bool Conserved(FString& Error) const;
     void RecordConsumption(ALDItem* Item);
+    bool SaveCheckpoint(const FString& Path,FString& Error);
+    bool RestoreCheckpoint(const FString& Path,FString& Error);
+    FString CheckpointFingerprint(FString& Error) const;
 private:
     friend class ALDB91ObjectsProbe;
     friend class ALDB91TraversalProbe;
     friend class ALDB91SaplingsProbe;
     friend class ALDB91IgnitionProbe;
     friend class ALDB91GrassProbe;
+    friend class ALDB91CheckpointProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
@@ -160,6 +165,16 @@ private:
     TMap<TWeakObjectPtr<ALDB91Controller>,FCargo> Cargo;
     TMap<FGuid,TWeakObjectPtr<ALDItem>> Finite;
     TSet<FGuid> Consumed;
+    struct FConsumption{ELDItemKind Kind;FName Origin;FGuid Receipt;};
+    TMap<FGuid,FConsumption> Consumption;
+    FString InitialCheckpointPayload,AutomaticCheckpoint,LastCheckpointHash,LastCheckpointError;
+    double NextCheckpoint=0;
+    bool bCheckpointRestored=false;
+    bool InitializeCheckpoint(FString& Error);
+    bool CheckpointSettled(FString& Error) const;
+    bool CaptureCheckpoint(LDCheckpoint::FData& Data,FString& Error) const;
+    bool ValidateCheckpoint(const LDCheckpoint::FData& Data,FString& Error) const;
+    void TickCheckpoint(double Now);
     uint64 ViewRevision=0;
     double NextPublish=0;
     double NextFuelPublish=0;

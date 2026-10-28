@@ -115,6 +115,7 @@ public:
     void Publish();
     TArray<FLDWorldReceipt> Journal;
 private:
+    friend class ALDWorldObjects;
     struct FObserver
     {
         TMap<TWeakObjectPtr<AActor>,FGuid> Handles;

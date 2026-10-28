@@ -196,6 +196,7 @@ public:
     void AdvanceAuthority(double Through);
     bool QuietForPreparation(ALDCharacter* Body) const;
     bool Concealed(const ALDCharacter* Body,bool IncludeGrass=true) const;
+    bool EnvironmentSettled() const;
     void BreakConcealment(ALDCharacter* Body,bool Offense=false);
     void ExplicitInterrupt(ALDCharacter* Body,double Now);
     bool Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now);

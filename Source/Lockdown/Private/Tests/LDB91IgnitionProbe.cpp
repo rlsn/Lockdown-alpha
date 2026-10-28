@@ -70,6 +70,10 @@ void ALDB91IgnitionProbe::Tick(float Delta)
         auto Q=C->EnvironmentCommand(Cast<ALDCharacter>(A->GetPawn()),LDEnvironment::EInput::Water,Time,1000);const FIntPoint Id(-450,-450);const FVector P=LDRiver::Centre(Id);FHitResult H;const bool Floor=GetWorld()->LineTraceSingleByChannel(H,P+FVector(0,0,1600),P-FVector(0,0,100),ECC_GameTraceChannel1);Q.Cells.Add(Id);Q.Surfaces.Add(Id,H.ImpactPoint.Z);Q.Normals.Add(Id,H.ImpactNormal);Check(Floor&&!C->QueueEnvironment(Q,Time),TEXT("Another allocation cannot steal the accepted ignition reservation"));
     }
     auto Read=[](ALDB91Controller* PC,uint8 Key)->TSharedPtr<FJsonObject>{TSharedPtr<FJsonObject> R;const auto* Text=PC->EnvironmentProbeReports.Find(Key);if(Text){FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(*Text),R);}return R;};const auto RA=Read(A,Phase),RB=Read(B,Phase);if(!RA||!RB){return;}
+    // Object release queues its reserved transition after this frame's combat
+    // update. A receipt can arrive before that queue is applied; inspect the
+    // committed field rather than racing the next combat boundary.
+    if((Phase==5||Phase==7||Phase==8)&&!C->RiverCommands.IsEmpty()){return;}
     Check(RA->GetBoolField(TEXT("completed"))&&RB->GetBoolField(TEXT("completed")),FString::Printf(TEXT("Both remote ignition phase%u reports complete"),Phase));
     if(Phase==1){Check(RA->GetIntegerField(TEXT("result"))==2&&TorchA->FuelMs==180000&&!Tree->BurnReceipt.IsValid()&&C->HeldEnvironment()==0,TEXT("Unbound Torch cannot ignite or reserve fuel/cells"));Task(2);return;}
     if(Phase==2){Check(TorchA->BindingMask==(1<<7)&&TorchB->BindingMask==(1<<7),TEXT("Both owners prepare their real accessory through quiet binding RPC"));C->ApplyStatus(Cast<ALDCharacter>(A->GetPawn()),LDTactical::EStatus::Mute,Time+1200,FGuid::NewGuid());Task(3);return;}
