@@ -91,6 +91,13 @@ server actor lifetime and never creates a second collision, navigation or
 combat authority. Exercise paid RPC paths separately from diagnostic allocator
 fill and transition fixtures; record each boundary in release evidence.
 
+Portable channels reserve both the physical source and their exact allocator
+budget. Keep cancel, death and supersession cleanup in the existing interaction
+lifecycle. At successful release, queue the guaranteed field allocation before
+charging fuel and setting cooldown endpoints. Store vegetation exhaustion on
+the finite world source independently of the short-lived damage field, so
+caster death or field expiry cannot recreate resources.
+
 ## Data and reproducibility
 
 Documentation JSON is design input. Runtime consumes staged, validated payloads/native assets, never arbitrary documentation files. Record source hashes, profile, layout/fitter revision and generated outputs. Closed import contracts reject unsupported fields and semantic drift before admitting a match.

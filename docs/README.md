@@ -28,6 +28,7 @@ with the [living master](master/README.md) for the long-term game design.
 | [Fixed furniture](v09/B91_FURNITURE.md) | Empty private storage with separate walking and sight behavior |
 | [Saplings](v09/B91_SAPLINGS.md) | Finite harvest, chop and ordinary melee; burning/reload still open |
 | [Paid fields](v09/B91_FIELDS.md) | Water/Oil release, support planes, allocator limits and restricted field views |
+| [Socket ignition](v09/B91_IGNITION.md) | Finite Torch fuel, reserved fire cells, sapling clearance and Oil ignition |
 
 The working ledger records remaining acceptance. A checkpoint does not complete
 B91 or admit the later full-map economy and match stages.

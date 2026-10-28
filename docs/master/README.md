@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 12 · 28 October 2026 · Long-term product and design reference
+Revision 13 · 28 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -22,9 +22,11 @@ add shared optional vertical routes with safe interrupted traversal.
 [Fixed furniture](../v09/B91_FURNITURE.md) provides private storage with
 separate walking and sight behavior. [Paid full-map fields](../v09/B91_FIELDS.md)
 now connect Water/Oil Flasks to supported terrain, bounded allocation and
-restricted observation. Socket fire, broader spell fields, foliage and density
-remain. [Saplings](../v09/B91_SAPLINGS.md) now support finite harvest,
-chop and ordinary melee; burning and saved-match restoration remain open. Living population,
+restricted observation. [Torch socket ignition](../v09/B91_IGNITION.md) now
+adds finite fuel commitments, reserved fields and irreversible sapling clearance.
+Grass, broader spell fields, saved-match state and density remain. [Saplings](../v09/B91_SAPLINGS.md) now support finite harvest,
+chop, ordinary melee and paid Torch burning; ranged/spell damage and saved-match
+restoration remain open. Living population,
 full-map economy and earned victory integration remain on the delivery frontier.
 
 ## Reading paths

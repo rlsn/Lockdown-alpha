@@ -78,3 +78,7 @@
 # Preserve raw output in the bounded full-map field evidence bundle.
 /docs/v09/evidence/B91Fields/**/*.log -whitespace
 /docs/v09/evidence/B91Fields/*.log -whitespace
+
+# Preserve raw native output for finite socket ignition.
+/docs/v09/evidence/B91Ignition/**/*.log -whitespace
+/docs/v09/evidence/B91Ignition/*.log -whitespace

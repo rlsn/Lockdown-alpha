@@ -1,0 +1,19 @@
+{
+	"fixture": "saplings",
+	"phase": 4,
+	"completed": true,
+	"acted": true,
+	"result": 1,
+	"reason": "Object transaction committed",
+	"duplicate_same": true,
+	"cleared": false,
+	"wire_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	]
+}

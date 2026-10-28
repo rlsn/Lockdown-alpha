@@ -54,6 +54,22 @@ feedback. A fixture that stages an existing flask or seeds allocator capacity
 isolates correctness; it does not establish scarcity, discoverability or the
 value of occupying that accessory in a full match.
 
+## Trading harvest value for a local hazard
+
+An intact sapling offers material through quiet harvesting. Burning it trades
+that opportunity for temporary area pressure and delayed clearance, spending
+fuel and an accessory commitment. The player should anticipate both the short
+channel and the later moment when the route opens. Losing the caster must not
+make the spent source renewable.
+
+Review a second player igniting an observed Oil field paid for by the first.
+Ask both players who created the opportunity, who owns the resulting fire and
+which alternative they could have chosen. The current six-second Oil lifetime
+and six-second post-cast quiet gate prevent an immediate solo Torch follow-up;
+keep that constraint explicit when evaluating whether the combination is useful.
+A fixture with staged tools isolates authority; normal acquisition and human
+readability still need separate evaluation.
+
 ## Death and returning with a new plan
 
 Show the retained build, dropped categories, wallet loss and fixed return timer clearly. On return, the player identifies a useful action without repeating every opening purchase. Bank/endorsements and learned knowledge remain understandable accomplishments. Objective cargo loss changes which routes remain feasible.

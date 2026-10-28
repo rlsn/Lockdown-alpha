@@ -73,6 +73,14 @@ visible tool without becoming a sight source or exposing a hidden carrier's
 inventory. Public presentation carries a light cue; precise fuel belongs to the
 owner or a legally disclosed transaction view.
 
+Ignition feedback should separate available fuel, elapsed light fuel, the
+channel's explicit cost and its family cooldown. Show the target, short hold,
+reserved item state and cancellation reason before clearance commits. A burning
+sapling still blocks movement until it falls; make that delay readable. A
+flame cue must not promise a harvest reward or imply that every nearby tree
+will burn. R is the current B91 development shortcut for selected-Torch ignition;
+final contextual targeting and non-color cues still need user testing.
+
 Distinguish preparing a portable route from using one. A Rope requires its real
 accessory binding to attach; once installed, traversal is a held world action
 available to rivals. The original item leaves the bag and returns unbound when

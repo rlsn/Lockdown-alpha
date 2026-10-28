@@ -41,6 +41,19 @@ Remembered terrain can remain on the map without granting live knowledge of a
 hidden surface reaction. Cosmetic light changes presentation, while sight
 continues to use its declared sources.
 
+A portable light and an ignition action make different commitments. Lighting
+communicates appearance while a paid channel prepares a local hazard. Reserve
+its capacity before accepting the channel, then charge fuel only when release
+still has a legal source and supporting floor. An accepted field must not be
+lost because another cast took its reserved slot. An interrupted channel must
+not strand the tool or allocator capacity.
+
+Ignition spends the sapling's remaining harvest opportunity. Once committed,
+its clearance persists even if the caster dies; extinguishing the temporary
+hazard does not recreate the source. Oil can become a shared tactical opportunity:
+the character who placed it need not be the character who ignites it. Attribute
+the resulting damage to its actual igniter and originating life.
+
 Only listed saplings/grass are mutable in v0.9. Clearing/burning/harvesting share one source state and cannot repeat rewards after death or reload. Permanent scenery remains scenery. Local geometry mutations must agree across movement, sight and navigation.
 
 ## Private builds and observation

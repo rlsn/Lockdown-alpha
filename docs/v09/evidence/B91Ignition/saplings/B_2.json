@@ -1,0 +1,19 @@
+{
+	"fixture": "saplings",
+	"phase": 2,
+	"completed": true,
+	"acted": true,
+	"result": 2,
+	"reason": "Object reserved; try again",
+	"duplicate_same": true,
+	"cleared": false,
+	"wire_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	]
+}

@@ -37,6 +37,11 @@ a recorded implementation restriction, not a new design rule forbidding layered
 encounters. Paid item use, diagnostic transition setup and later human evaluation
 retain separate evidence claims.
 
+Revision 13 connects finite ignition, reserved capacity and irreversible source
+clearance to the B91 implementation. It records the Oil lifetime/quiet-time
+constraint without silently adding a solo-combo exception. Normal acquisition,
+rendered readability and saved-match restoration remain separate evidence.
+
 Revision 7 remains byte-preserved in release reference copies and the v0.8 master source archive. v0.8 original/adopted hashes and historical audits remain unchanged. v0.9's supplied source package, data and model evidence are kept separate from B90 implementation evidence. For a new decision record its date, rationale, affected contract/profile and tests; do not erase the reason a prior choice existed.
 
 Open issues and delivery gaps belong in [the frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md). A candidate stays a candidate until deliberately selected.
