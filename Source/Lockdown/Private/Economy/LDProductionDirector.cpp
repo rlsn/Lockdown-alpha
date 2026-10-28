@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Economy/LDProductionDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
@@ -139,7 +140,7 @@ void ALDProductionDirector::Sample(double Now)
     for(auto& Pair:States){auto* PC=Pair.Key.Get();auto& S=Pair.Value;if(!PC){continue;}auto* O=M->StateFor(PC);
         if(O&&O->CraftCoupon.IsValid()&&Now>=O->CouponUntil){O->CraftCoupon.Invalidate();O->CouponUntil=0;M->SyncOwner(PC);}
         if(!S.Active){continue;}const auto* B=Cast<ALDCharacter>(PC->GetPawn());const auto* C=M->Combat->StateFor(B);FString Error;
-        if(!O||S.Body.Get()!=B||O->Match!=S.Match||O->Life!=S.Life||!Eligible(PC,S.Plan.Site,S.Plan.Recipe>=20?(M->Acquisition&&M->Acquisition->Quiet(S.Plan)):(S.Plan.Recipe==1||S.Plan.Recipe==2||S.Plan.Recipe>=6),true)||!C||C->Action!=8||C->LastDamage!=S.Damage||C->LastDealt!=S.Dealt||Now-S.LastHold>.25||FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)>4||!Terms(PC,S.Plan,FMath::Max(Now,S.Ends),true,Error))
+        if(!O||S.Body.Get()!=B||O->Match!=S.Match||O->Life!=S.Life||!Eligible(PC,S.Plan.Site,S.Plan.Recipe>=20?(M->Acquisition&&M->Acquisition->Quiet(S.Plan)):(S.Plan.Recipe==1||S.Plan.Recipe==2||S.Plan.Recipe>=6),true)||!C||C->Action!=8||C->LastDamage!=S.Damage||C->LastDealt!=S.Dealt||!LDCommandLiveness::ForProfile(Now,S.LastHold,M->IsUIControlProfile())||FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)>4||!Terms(PC,S.Plan,FMath::Max(Now,S.Ends),true,Error))
         {Cancel(PC,Error.IsEmpty()?TEXT("Production interrupted; nothing spent"):Error);continue;}
         if(Now+1.e-6<S.Ends){continue;}FGuid Output;const bool Good=S.Plan.Recipe>=20?M->Acquisition->Commit(PC,S.Plan,Error):S.Plan.Recipe==8?M->Economy->ActivateCharter(PC,Error):(S.Plan.Recipe==6||S.Plan.Recipe==7)?M->Economy->CommitOrder(PC,S.Plan.Recipe==6,S.Plan.Inputs,Error):S.Plan.Recipe==5?M->Economy->CommitShortage(PC,S.Plan.Inputs[0],Error):M->Economy->CommitProduction(PC,S.Plan.Site,S.Plan.Recipe,S.Plan.Inputs,S.Plan.Fee,Output,Error);
         Cancel(PC,Good?(S.Plan.Recipe>=20?TEXT("Acquisition committed once; no XP, identity and cooldowns retained"):S.Plan.Recipe>=6?TEXT("Civic transaction confirmed; private receipt retained"):S.Plan.Recipe==5?TEXT("Shortage delivery confirmed; +40 gold / +20 XP, no endorsement"):TEXT("Production completed; output owned, no XP")):Error);

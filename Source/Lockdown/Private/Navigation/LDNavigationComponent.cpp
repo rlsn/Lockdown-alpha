@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "World/LDEnvironmentDirector.h"
 #include "Region/LDMapDefinition.h"
@@ -120,7 +121,7 @@ void ULDNavigationComponent::ResetLife()
     if(auto* PC=Controller()){SeenMatch=PC->OwnerState.Match;SeenLife=PC->OwnerState.Life;Local={SeenMatch,SeenLife,++Serial,++Epoch};}
 }
 bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) const
-{return !Enabled()||(bServerActive&&Identity==Server&&GetWorld()->GetTimeSeconds()-LastHeartbeat<=2.);}
+{return !Enabled()||(bServerActive&&Identity==Server&&LDCommandLiveness::Fresh(GetWorld()->GetTimeSeconds(),LastHeartbeat));}
 
 void ULDNavigationComponent::ServerOrder_Implementation(FLDMoveIdentity Identity,FVector_NetQuantize10 Surface,FGuid Observed,uint8 Site)
 {
@@ -242,7 +243,7 @@ void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActo
         const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?const_cast<ALDGameMode*>(M)->StateFor(PC):nullptr;
         if((bServerActive||bPending)&&(!O||!Body||!O->bActive||!M->IsPlaying()||O->Life!=Server.Life||O->Match!=Server.Match))
         {EndServer(Stopped,TEXT("Movement cancelled"));}
-        if((bServerActive||bPending)&&Now-LastHeartbeat>2){EndServer(Stopped,TEXT("Movement stopped: connection inactive"));}
+        if((bServerActive||bPending)&&!LDCommandLiveness::Fresh(Now,LastHeartbeat)){EndServer(Stopped,TEXT("Movement stopped: connection inactive"));}
         if(bPending&&Now>=NextQuery){ProcessOrder();}
         else if(bPending&&PendingAcknowledgedOrder!=Server.Order)
         {PendingAcknowledgedOrder=Server.Order;ClientOrder(Server,0,{},40,TEXT("Move pending"));}

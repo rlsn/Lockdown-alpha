@@ -41,7 +41,7 @@ def check(root):
         # native endpoint checks separately require a supported body within5cm.
         assert extent['x_cm'] >= 385 and extent['z_cm'] >= 390
         assert extent['time_s'] >= 1.85, 'Owner movement was not a two-second traversal'
-    print(f"PASS B91 traversal: {len(report['checks'])} native checks, 16 paired routes, two remote owners, 132 conserved items")
+    print(f"PASS B91 traversal: {len(report['checks'])} native checks, 16 paired routes, two remote owners, {report['finite_items']} conserved items")
 
 
 if __name__ == '__main__':

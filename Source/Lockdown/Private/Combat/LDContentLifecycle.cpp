@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
@@ -76,7 +77,7 @@ void ALDCombatDirector::CompleteContentChannels(int64 At)
         if(S.SalveEnd)
         {if(LDTactical::Milliseconds(S.LastDamage)!=S.SalveDamageAt){S.SalveEnd=0;}else{while(S.SalveTicks<8&&S.SalveNext<=At&&S.SalveNext<=S.SalveEnd){S.Hp=FMath::Min(LDDevelopment::MaxHP(*B),S.Hp+20);++S.SalveTicks;S.SalveNext+=1000;}if(S.SalveTicks>=8){S.SalveEnd=0;}}}
         if(S.Action!=10){continue;}auto* PC=Cast<ALDPlayerController>(Body->GetController());auto* O=PC?M->StateFor(PC):nullptr;const bool Travel=S.ContentChannel==TEXT("gate")||S.ContentChannel==TEXT("scramble")||S.ContentChannel==TEXT("recall");
-        const bool Controlled=Allows(Body,Travel?LDTactical::EAction::Dash:LDTactical::EAction::Item);const bool Legal=M->IsPlaying()&&O&&O->bActive&&B->Revision==S.CoreBuildRevision&&Controlled&&!S.HadPositiveChannelDamage&&At-LDTactical::Milliseconds(S.LastSkillHold)<=250&&FVector::DistSquared2D(S.SkillAnchor,Body->GetActorLocation())<=4&&Body->GetVelocity().SizeSquared2D()<=1;
+        const bool Controlled=Allows(Body,Travel?LDTactical::EAction::Dash:LDTactical::EAction::Item);const bool Legal=M->IsPlaying()&&O&&O->bActive&&B->Revision==S.CoreBuildRevision&&Controlled&&!S.HadPositiveChannelDamage&&LDCommandLiveness::ForProfile(At/1000.,LDTactical::Milliseconds(S.LastSkillHold)/1000.,M->IsUIControlProfile())&&FVector::DistSquared2D(S.SkillAnchor,Body->GetActorLocation())<=4&&Body->GetVelocity().SizeSquared2D()<=1;
         if(!Legal){CancelTactical(Body,TEXT("Held channel interrupted; start costs remain committed"));continue;}if(At<S.CoreEndsAt){continue;}
         FVector End;bool Good=true;const uint32 Token=S.SkillToken;
         if(S.ContentChannel==TEXT("restore_mp")){S.Tactical.MP=FMath::Min(LDTactical::MaxMP(*B),S.Tactical.MP+80);}

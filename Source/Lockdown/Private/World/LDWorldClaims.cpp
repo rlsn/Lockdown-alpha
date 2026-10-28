@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "World/LDWorldDirector.h"
@@ -13,7 +14,7 @@ void ALDObjectiveDirector::SampleWorldClaims(double Now)
     for(auto* PC:Order)
     {
         auto& S=Interactions.FindChecked(PC);auto* O=M->StateFor(PC);auto* B=Cast<ALDCharacter>(PC->GetPawn());const auto* C=M->Combat->StateFor(B);const double End=S.Started+S.Seconds,At=FMath::Min(Now,End);
-        const bool Legal=O&&B&&C&&Eligible(PC,Now)&&S.Life==O->Life&&S.Body.Get()==B&&S.bHeld&&LDObjective::FreshHold(At,S.LastHold)&&S.LastHold<=Now+1.e-7&&Stationary(PC,S)&&Near(PC,S.Target)&&FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)<=4&&!C->Action&&S.LastInterrupt<At-1.e-7;
+        const bool Legal=O&&B&&C&&Eligible(PC,Now)&&S.Life==O->Life&&S.Body.Get()==B&&S.bHeld&&LDCommandLiveness::ForProfile(At,S.LastHold,M->IsUIControlProfile())&&S.LastHold<=Now+1.e-7&&Stationary(PC,S)&&Near(PC,S.Target)&&FVector::DistSquared2D(B->GetActorLocation(),S.Anchor)<=4&&!C->Action&&S.LastInterrupt<At-1.e-7;
         if(!Legal){ClearChannel(PC,S);S.bHeld=false;continue;}
         if(S.Channel>=5)
         {

@@ -261,6 +261,7 @@ void ALDPlayerController::TickAutomaticPOI()
     if(POIMatch!=OwnerState.Match||POILife!=OwnerState.Life){POIMatch=OwnerState.Match;POILife=OwnerState.Life;AutomaticSite=0;EnteredPOI.Invalidate();PointerInteraction.Invalidate();}
     const auto* Relay=LocalView();if(!Relay||Relay->IsStale()){return;}
     const FVector P=GetPawn()->GetActorLocation();
+    const bool Standing=!Navigation->HasMoveOrder()&&GetPawn()->GetVelocity().SizeSquared2D()<=1;
     if(PointerService!=255)
     {if(GetWorld()->GetTimeSeconds()-PointerInteractionAt>20){PointerService=255;}else if(FVector::Dist2D(P,PointerServicePosition)<=120&&LDGround::ClearSegment(GetWorld(),P,PointerServicePosition)){const uint8 Service=PointerService;PointerService=255;Navigation->Stop();if(!Service){OpenVendor();}else{if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(InventoryUI){InventoryUI->ShowService(2);OpenCommerce(Service);}}return;}}
     if(PointerInteraction.IsValid())
@@ -270,14 +271,14 @@ void ALDPlayerController::TickAutomaticPOI()
         else if(FVector::Dist2D(P,E->Position)<=(PointerVendor?120:80)&&LDGround::ClearSegment(GetWorld(),P,E->Position))
         {const auto Copy=*E;const bool Vendor=PointerVendor;PointerInteraction.Invalidate();Navigation->Stop();if(Vendor){ToggleInventoryPanel();}else if(Copy.Kind==ELDObservedKind::Cargo&&Copy.Presentation==1){StartWorldInteraction(14,Copy.Id);}else{BeginPickup(Copy.Id);}return;}
     }
-    if(bProductionArmed&&NearProduction(ProductionPlan.Site)){StartProductionHold();return;}
-    if(bDraftArmed){for(uint8 Site:{uint8(1),uint8(2),uint8(6)}){if(Site==6&&!LDRegion::Definition(GetWorld())){continue;}const auto To=LDRegion::Site(GetWorld(),Site);if(FVector::Dist2D(P,To)<=120&&LDGround::ClearSegment(GetWorld(),P,To)){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}}}
+    if(Standing&&bProductionArmed&&NearProduction(ProductionPlan.Site)){StartProductionHold();return;}
+    if(Standing&&bDraftArmed){for(uint8 Site:{uint8(1),uint8(2),uint8(6)}){if(Site==6&&!LDRegion::Definition(GetWorld())){continue;}const auto To=LDRegion::Site(GetWorld(),Site);if(FVector::Dist2D(P,To)<=120&&LDGround::ClearSegment(GetWorld(),P,To)){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}}}
     const FLDObservedEntity* POI=nullptr;double Distance=80*80;
     for(const auto& E:Relay->LastView().Entities){const bool Keys=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;})&&OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyB;})&&OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyC;});const bool Auto=(E.Kind==ELDObservedKind::WorldSite&&(E.Presentation||Keys))||(E.Kind==ELDObservedKind::TacticalField&&(E.Presentation==11||E.Presentation==14));const double D=FVector::DistSquared2D(P,E.Position);if(Auto&&D<Distance&&LDGround::ClearSegment(GetWorld(),P,E.Position)){POI=&E;Distance=D;}}
-    if(POI){if(EnteredPOI!=POI->Id){EnteredPOI=POI->Id;if(POI->Kind==ELDObservedKind::WorldSite){StartWorldInteraction(POI->Presentation?11+POI->Presentation:10);}else{StartContentInteraction(POI->Id,POI->Presentation==11?2:3);}}return;}
+    if(POI){if(Standing&&EnteredPOI!=POI->Id){EnteredPOI=POI->Id;if(POI->Kind==ELDObservedKind::WorldSite){StartWorldInteraction(POI->Presentation?11+POI->Presentation:10);}else{StartContentInteraction(POI->Id,POI->Presentation==11?2:3);}}return;}
     EnteredPOI.Invalidate();
     uint8 Site=0;FGuid Observed;if(!ChooseContext(Site,Observed)||Observed.IsValid()){AutomaticSite=0;return;}
-    if(AutomaticSite!=Site){AutomaticSite=Site;if(bFabricationArmed){CancelArmed();StartInteraction(true);}else{StartInteraction(false);}}
+    if(Standing&&AutomaticSite!=Site){AutomaticSite=Site;if(bFabricationArmed){CancelArmed();StartInteraction(true);}else{StartInteraction(false);}}
 }
 FString ALDPlayerController::ContextPrompt() const
 {

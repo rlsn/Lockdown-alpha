@@ -36,7 +36,7 @@ def main():
     import re
     link = re.search(r'LD_B91_LINK_WORLD_SHA TEXT\("([0-9a-f]+)"\)',
                      (ROOT/'Source/Lockdown/Private/World/LDB91TraversalContract.h').read_text()).group(1)
-    world = hashlib.sha256((link+sha+':source-click-channel-v1').encode()).hexdigest()
+    world = hashlib.sha256((link+sha+':source-click-channel-v2-liveness2').encode()).hexdigest()
     outputs = {'Content/Lockdown/Data/V09/forestry_b91.json': payload,
                'Source/Lockdown/Private/World/LDB91ForestryContract.h':
                    (f'#pragma once\n#define LD_B91_FORESTRY_SHA TEXT("{sha}")\n'

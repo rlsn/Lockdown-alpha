@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91Contract.h"
 #include "World/LDPortableTools.h"
@@ -285,7 +286,7 @@ void ALDEnvironmentDirector::Tick(float Delta)
         const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=Body?M->Combat->StateFor(Body):nullptr;FString Why;
         if(!PC){Holds.Remove(Weak);continue;}
         if(!O||O->Life!=H.Request.Life||O->Match!=H.Request.Match||!D||D->Revision!=H.Request.ObjectRevision||!S||S->LastDamage!=H.DamageAt
-           ||FVector::DistSquared(H.Start,Body->GetActorLocation())>25||Now-H.Heartbeat>.35||!Eligible(PC,D,H.Request.Verb,Why))
+           ||FVector::DistSquared(H.Start,Body->GetActorLocation())>25||!LDCommandLiveness::Fresh(Now+1.e-6>=H.Ends?FMath::Max(Now,H.Ends):Now,H.Heartbeat)||!Eligible(PC,D,H.Request.Verb,Why))
         {Cancel(PC,TEXT("Held interaction cancelled; state, movement, damage or input changed"));continue;}
         if(Now+1e-6<H.Ends){continue;}
         uint8 Flags=D->State();switch(H.Request.Verb)

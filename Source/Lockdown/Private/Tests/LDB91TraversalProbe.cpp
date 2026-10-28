@@ -57,7 +57,7 @@ void ALDB91TraversalProbe::Tick(float Delta)
     if(Phase==92)
     {if(Now-At<.5){return;}Place(B,Anchor->Lower+FVector(0,0,92.15));Native(ELDObjectVerb::Use,A);Check(!Objects->Traversing(A)&&Anchor->LinkInstalled(),TEXT("Occupied destination rejects traversal before reserving or moving a body"));Place(B,Anchor->Lower+FVector(0,300,92.15));Phase=93;Native(ELDObjectVerb::Use,A);return;}
     if(Phase==93)
-    {if(Now-At<.8){return;}Check(!Objects->Traversing(A)&&!Objects->Holds.Contains(A)&&FVector::Dist(A->GetPawn()->GetActorLocation(),Anchor->Upper+FVector(0,0,92.15))<5,TEXT("Missing heartbeat releases the link and safely restores the last endpoint"));Phase=94;Interrupted=false;Native(ELDObjectVerb::Use,A);return;}
+    {if(Now-At<2.6){return;}Check(!Objects->Traversing(A)&&!Objects->Holds.Contains(A)&&FVector::Dist(A->GetPawn()->GetActorLocation(),Anchor->Upper+FVector(0,0,92.15))<5,TEXT("Missing heartbeat releases the link and safely restores the last endpoint"));Phase=94;Interrupted=false;Native(ELDObjectVerb::Use,A);return;}
     if(Phase==94)
     {Objects->Hold(A,NativeRequest.Match,NativeRequest.Life,NativeRequest.Sequence,++Beat,false);if(!Interrupted&&Now-At>.5){Place(B,Anchor->Lower+FVector(0,0,92.15));Interrupted=true;}if(Now-At<1){return;}Check(Interrupted&&!Objects->Traversing(A)&&FVector::Dist(A->GetPawn()->GetActorLocation(),Anchor->Upper+FVector(0,0,92.15))<5&&FVector::Dist(B->GetPawn()->GetActorLocation(),Anchor->Lower+FVector(0,0,92.15))<5,TEXT("Mid-use destination occupancy cancels without displacing either body"));Place(B,Anchor->Lower+FVector(0,300,92.15));Phase=95;Native(ELDObjectVerb::Use,A);return;}
     if(Phase==95)

@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "Framework/LDCommandLiveness.h"
 #include "Misc/AutomationTest.h"
 #include "Kismet/GameplayStatics.h"
 #if WITH_DEV_AUTOMATION_TESTS
@@ -23,6 +24,17 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Actual SaveGame load preserves local mapping and settings"),Loaded->Key(TEXT("Skill1"))==EKeys::Z&&Loaded->TextScale==1.25f&&!Loaded->bEdgePan);
     Settings->ResetBindings();TestTrue(TEXT("Reset restores keys without resetting other preferences"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->TextScale==1.25f&&!Settings->bEdgePan);
     TestTrue(TEXT("Isolated preferences fixture is removed"),UGameplayStatics::DeleteGameInSlot(Slot,0));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDIssuedLivenessTest,"Lockdown.Rules.IssuedCommandLiveness",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDIssuedLivenessTest::RunTest(const FString& Parameters)
+{
+    TestTrue(TEXT("A351.8ms rendered frame gap is live"),LDCommandLiveness::Fresh(10.3518,10));
+    TestTrue(TEXT("A transient one-second stall is live"),LDCommandLiveness::Fresh(11,10));
+    TestTrue(TEXT("Before the two-second edge"),LDCommandLiveness::Fresh(11.9999,10));
+    TestFalse(TEXT("Expiry is strict at two seconds"),LDCommandLiveness::Fresh(12,10));
+    TestFalse(TEXT("Future heartbeat cannot extend liveness"),LDCommandLiveness::Fresh(10,11));
+    TestFalse(TEXT("Frozen legacy hold profile retains its old expiry"),LDCommandLiveness::ForProfile(10.3518,10,false));
     return true;
 }
 #endif

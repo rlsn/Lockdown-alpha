@@ -37,6 +37,7 @@ public:
     void PanTo(const FVector& Point);
     bool bFollowCamera=true,bEdgePan=true;
     bool IsFollowing() const {return bFollowing;}
+    bool HasMoveOrder() const {return bLocalActive;}
     bool IsAuthorityActive() const {return bServerActive;}
     FLDMoveIdentity LocalIdentity() const {return Local;}
     bool AuthorizesMove(const FLDMoveIdentity& Identity) const;

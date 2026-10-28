@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "World/LDWorldObjects.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91ObjectsContract.h"
@@ -386,8 +387,20 @@ void ALDWorldObjects::Tick(float Delta)
         auto* PC=Weak.Get();auto* Live=Holds.Find(Weak);if(!Live){continue;}const auto H=*Live;auto* O=H.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;FString Why;
         if(!PC){if((H.Request.Verb==ELDObjectVerb::Ignite||H.Request.Verb==ELDObjectVerb::Harvest||H.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(H);}Holds.Remove(Weak);continue;}
         const bool Use=H.Request.Verb==ELDObjectVerb::Use;
-        if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||H.Body!=B||S->LastDamage!=H.Damage||(!Use&&FVector::DistSquared(H.Start,B->GetActorLocation())>25)||Now-H.Heartbeat>.35||(Use&&Now-H.Started>3)||!Eligible(PC,O,H.Request,Why))
-        {Cancel(PC,TEXT("Action cancelled: state, movement, damage or connection changed"));continue;}
+        FName Cause;
+        if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||H.Body!=B){Cause=TEXT("lifecycle");Why=TEXT("Action stopped: character or life changed");}
+        else if(S->LastDamage!=H.Damage){Cause=TEXT("damage");Why=TEXT("Action interrupted by damage");}
+        else if(!Use&&FVector::DistSquared(H.Start,B->GetActorLocation())>25){Cause=TEXT("movement");Why=TEXT("Action interrupted by movement");}
+        else if(!LDCommandLiveness::Fresh(Now+1.e-6>=H.Ends?FMath::Max(Now,H.Ends):Now,H.Heartbeat)){Cause=TEXT("liveness");Why=TEXT("Action stopped: command connection inactive");}
+        else if(Use&&Now-H.Started>3){Cause=TEXT("traversal_timeout");Why=TEXT("Traversal timed out");}
+        else if(!Eligible(PC,O,H.Request,Why)){Cause=TEXT("eligibility");if(Why.IsEmpty()){Why=TEXT("Action is no longer eligible");}}
+        if(!Cause.IsNone())
+        {
+#if !UE_BUILD_SHIPPING
+            UE_LOG(LogTemp,Display,TEXT("LD_OBJECT_CANCEL role=%d sequence=%u verb=%u cause=%s age=%.6f movement_cm=%.6f elapsed=%.6f frame=%.6f reason=%s"),PC->EnvironmentProbeRole,H.Request.Sequence,uint8(H.Request.Verb),*Cause.ToString(),Now-H.Heartbeat,B?FVector::Dist(H.Start,B->GetActorLocation()):-1.,Now-H.Started,double(Delta),*Why);
+#endif
+            Cancel(PC,Why);continue;
+        }
         if(Use&&!MoveTraversal(PC,H,Now,Why)){Cancel(PC,Why);continue;}
         if(H.Request.Verb==ELDObjectVerb::Push&&O)
         {

@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -154,7 +155,7 @@ void ALDDevelopmentDirector::Sample(double Now)
     {
         auto* PC=Pair.Key.Get();auto& S=Pair.Value;if(!PC||!S.Kind){continue;}auto* O=Mode->StateFor(PC);auto* Body=Cast<ALDCharacter>(PC->GetPawn());auto* Combat=Mode->Combat->StateFor(Body);
         const bool Common=O&&O->Match==S.Match&&O->Life==S.Life&&Eligible(PC,Now,true)&&Combat&&Combat->Action==8&&Stationary(PC)
-            &&Now-S.LastHold<=.25&&S.Token>S.CancelledThrough&&FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)<=4;
+            &&LDCommandLiveness::ForProfile(Now+1.e-6>=S.EndsAt?FMath::Max(Now,S.EndsAt):Now,S.LastHold,Mode->IsUIControlProfile())&&S.Token>S.CancelledThrough&&FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)<=4;
         const bool Target=S.Kind==LDDevelopmentTransaction::Loadout?(O&&O->Inventory.Revision==S.InventoryRevision&&O->Build.Revision==S.BuildRevision&&(!(S.Command==LDInventory::Bind||S.Command==LDInventory::Unbind||O->Build.RulesVersion==8&&S.Slot>=7)||Mode->Combat->Allows(Body,LDTactical::EAction::Item))):S.Kind==LDDevelopmentTransaction::Prepare?(NearStation(PC)&&O&&O->Build.Revision==S.Plan.ExpectedRevision)
             :(S.Book.IsValid()&&S.Book->State==1&&S.Book->Holder==PC&&!S.Book->bReserved&&O&&LDDevelopment::Rank(O->Build,S.Book->Skill)==0);
         if(!Common||!Target||(S.Kind==LDDevelopmentTransaction::Loadout&&!BindingAllowed(Mode,Body,*O,S.Loadout))){Cancel(PC,TEXT("Transaction interrupted or changed; nothing spent or consumed."));continue;}

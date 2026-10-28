@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Combat/LDCombatDirector.h"
 #include "World/LDEnvironmentDirector.h"
 #include "Combat/LDCombatRules.h"
@@ -170,7 +171,7 @@ void ALDCombatDirector::CompleteSkillChannels(double Now)
         auto* Body=Pair.Key.Get(); auto& S=Pair.Value; if (!Body||S.Action!=7) { continue; }
         auto* Move=Body->GetCharacterMovement(); auto* Build=BuildFor(Body);
         const bool Valid=Mode->IsPlaying()&&Allows(Body,LDTactical::EAction::Skill)&&Build&&S.Hp>0&&Now>=S.ProtectionUntil&&S.LastDamage<Now-1.e-6
-            &&Now-S.LastSkillHold<=.25&&!S.bHoldMoving&&Body->GetVelocity().SizeSquared2D()<=1&&Move->GetCurrentAcceleration().SizeSquared2D()<=1
+            &&LDCommandLiveness::ForProfile(Now,S.LastSkillHold,Mode->IsUIControlProfile())&&!S.bHoldMoving&&Body->GetVelocity().SizeSquared2D()<=1&&Move->GetCurrentAcceleration().SizeSquared2D()<=1
             &&FVector::DistSquared2D(Body->GetActorLocation(),S.SkillAnchor)<=4
             &&(S.Skill==ELDSkill::Patch||SkillTargetLegal(Body,S.Target.Get(),S.Skill));
         if (!Valid) { CancelSkill(Body,S); continue; }

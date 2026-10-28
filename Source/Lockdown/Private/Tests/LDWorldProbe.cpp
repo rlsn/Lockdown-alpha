@@ -51,7 +51,11 @@ void ALDWorldProbe::Tick(float Delta)
     if(Done){return;}if(FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))){Network();return;}if(!Initialized){Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();A=Cast<ALDPlayerController>(GetWorld()->GetFirstPlayerController());if(!A||!A->GetPawn()){return;}Initialized=true;FParse::Value(FCommandLine::Get(),TEXT("LDWorldRoute="),Route);if(Route==TEXT("Boundary")){Boundary();return;}B=Cast<ALDPlayerController>(UGameplayStatics::CreatePlayer(this,1,true));FString Why;if(!B){Check(false,TEXT("Second normal local contender"));Finish();return;}Mode->SetLobbyChoice(A,Route==TEXT("Charter")?0:4,true,Why);Mode->SetLobbyChoice(B,Mode->IsV08Profile()?5:0,true,Why);if(!Mode->StartDevelopmentMatch(A,Why)||!Mode->WorldRuntime){Check(false,Why);Finish();return;}for(auto* PC:{A.Get(),B.Get()}){PC->bControlsSuppressed=false;PC->bFreshInputRequired=false;PC->NextRequest=Token;}Check(!Mode->Economy->AllowDiagnosticItems()&&Mode->StateFor(A)->Gold==0&&(Mode->StateFor(A)->Inventory.Items.Num()==(!Mode->IsV08Profile()&&Route==TEXT("Charter")?1:0)),TEXT("Native roster begins with zero money and declared starter endowment only; diagnostic grants disabled"));Build();}
     if(Cursor>=Steps.Num()){Finish();return;}if(!Mode->StateFor(A)->bActive){Check(false,TEXT("Normal route actor died; no scripted resurrection or refund"));Finish();return;}
     const double Now=GetWorld()->GetTimeSeconds();if(StepAt<0){StepAt=Now;UE_LOG(LogTemp,Display,TEXT("LD_B76_STEP route=%s step=%d time=%.3f %s"),*Route,Cursor,Now,*Steps[Cursor].Name);}
-    if(Steps[Cursor].Poll()){Check(true,Steps[Cursor].Name);++Cursor;StepAt=-1;}else if(Now-StepAt>Steps[Cursor].Timeout){Check(false,TEXT("Timed out: ")+Steps[Cursor].Name+TEXT(" · ")+A->IntentFeedback);Finish();}
+    // Automatic POI orders share each controller's real request sequence.
+    Token=FMath::Max(Token,FMath::Max(A->NextRequest,B->NextRequest));
+    const bool Completed=Steps[Cursor].Poll();
+    A->NextRequest=FMath::Max(A->NextRequest,Token);B->NextRequest=FMath::Max(B->NextRequest,Token);
+    if(Completed){Check(true,Steps[Cursor].Name);++Cursor;StepAt=-1;}else if(Now-StepAt>Steps[Cursor].Timeout){Check(false,TEXT("Timed out: ")+Steps[Cursor].Name+TEXT(" · ")+A->IntentFeedback);Finish();}
 #endif
 }
 void ALDWorldProbe::Move(ALDPlayerController* PC,TFunction<FVector()> Point,const FString& Name)

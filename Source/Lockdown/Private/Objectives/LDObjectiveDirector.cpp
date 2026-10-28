@@ -1,3 +1,4 @@
+#include "Framework/LDCommandLiveness.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "World/LDWorldDirector.h"
@@ -237,7 +238,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
 void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionState& S,double Now)
 {
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=Mode->StateFor(PC);
-    if(!S.bHeld||!LDObjective::FreshHold(Now,S.LastHold)||S.LastInterrupt>=Now-1.e-6||!Stationary(PC,S)||!Near(PC,S.Target)||!Eligible(PC,Now)){return;}
+    if(!S.bHeld||!LDCommandLiveness::ForProfile(Now,S.LastHold,Mode->IsUIControlProfile())||S.LastInterrupt>=Now-1.e-6||!Stationary(PC,S)||!Near(PC,S.Target)||!Eligible(PC,Now)){return;}
     const auto* Combat=Mode->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));if(Combat->Action||(!(Mode->IsTacticalProfile()&&S.Target==LDObjective::Heart)&&Combat->LastDamage>=Now-1.e-6)){return;}
     uint8 Kind=0,Route=0;
     if(Mode->WorldRuntime&&S.Target==14){FString Why;if(Mode->WorldRuntime->CanActivate(PC,9,Now+3,Why)){Kind=5;Route=9;}else{S.bHeld=false;return;}}
@@ -273,10 +274,10 @@ void ALDObjectiveDirector::Sample(double Now)
         auto* PC=It.Key().Get();if(!PC){It.RemoveCurrent();continue;}auto& S=It.Value();auto* O=Mode->StateFor(PC);if(!O){continue;}
         if(Mode->WorldRuntime&&(S.Channel==LDObjective::Claim||S.Channel>=5)){continue;}
         const auto* Body=Cast<ALDCharacter>(PC->GetPawn());const auto* Combat=Body?Mode->Combat->StateFor(Body):nullptr;
-        const bool Valid=Eligible(PC,Now)&&S.Life==O->Life&&S.bHeld&&LDObjective::FreshHold(Now,S.LastHold)
+        const bool Valid=Eligible(PC,Now)&&S.Life==O->Life&&S.bHeld&&LDCommandLiveness::ForProfile(Now,S.LastHold,Mode->IsUIControlProfile())
             &&Stationary(PC,S)&&Near(PC,S.Target)&&(!S.Channel||(S.Body.Get()==Body&&Combat&&((Mode->IsTacticalProfile()&&S.Channel==LDObjective::Claim)||Combat->LastDamage==S.Damage)))&&Combat&&!Combat->Action&&((Mode->IsTacticalProfile()&&S.Target==LDObjective::Heart)||Combat->LastDamage<Now-1.e-6)&&S.LastInterrupt<Now-1.e-6;
         if(S.Channel&&(!Valid||FVector::DistSquared2D(Body->GetActorLocation(),S.Anchor)>4)){ClearChannel(PC,S);}
-        if(!LDObjective::FreshHold(Now,S.LastHold)){S.bHeld=false;}
+        if(!LDCommandLiveness::ForProfile(Now,S.LastHold,Mode->IsUIControlProfile())){S.bHeld=false;}
         if(!S.Channel&&Valid){BeginChannel(PC,S,Now);}
         if(!S.Channel){continue;}
         if(S.Channel==LDObjective::Fabricate)
