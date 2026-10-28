@@ -13,9 +13,9 @@ def check(root):
     report = json.loads((root/'Objects.json').read_text(encoding='utf-8-sig'))
     assert report['complete'] and report['failures'] == 0
     assert report['phase'] == 101
-    assert len(report['checks']) == 49 and all(c['passed'] for c in report['checks'])
+    assert len(report['checks']) == (51 if report.get('furniture_scenario') else 49) and all(c['passed'] for c in report['checks'])
     size = len(report['fitted_objects'])
-    assert size in (156, 204, 232)
+    assert size in (156, 204, 232, 264)
     finite_count = 84 if size == 156 else 132
     assert report['finite_initial_items'] == finite_count and report['conserved']
     initial = report['initial_item_ids']
@@ -31,8 +31,10 @@ def check(root):
     expected = {1: 48, 2: 36, 3: 24, 4: 24, 5: 24}
     if size >= 204:
         expected.update({7: 24, 8: 12, 9: 12})
-    if size == 232:
+    if size >= 232:
         expected.update({10: 12, 11: 16})
+    if size == 264:
+        expected[12] = 32
     assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
         assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01
@@ -66,11 +68,11 @@ def check(root):
         values = [json.loads((root/f'{role}_{phase}.json').read_text(encoding='utf-8-sig')) for role in ('A', 'B')]
         assert sum(v['receipt_result'] == 1 for v in values) == 1, phase
     digest = hashlib.sha256((root/'Objects.json').read_bytes().replace(b'\r\n', b'\n')).hexdigest()
-    result = dict(stage='B91', increment='finite storage and crate/barrel cargo',
+    result = dict(stage='B91', increment='fixed furniture, finite storage and cargo' if report.get('furniture_scenario') else 'finite storage and crate/barrel cargo',
                   full_stage_acceptance=False, native_report_sha256_normalized_lf=digest,
                   checks=len(report['checks']), fitted_objects=size, finite_initial_items=finite_count,
                   independent_owners=2, received_reports=received,
-                  limitations=['Ladder/rope, new portable light tools, foliage and full-map field integration remain open.',
+                  limitations=['Other B91 systems and whole-stage acceptance require their own evidence.',
                                'This is a native editor server with two independent headless owners; no packaged server, video or human acceptance.'])
     (root/'ObjectsSummary.json').write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
     print(f"PASS B91 objects: {len(report['checks'])} native checks, {size} fitted objects, {finite_count} finite items, two remote owners")

@@ -84,7 +84,7 @@ void ALDB91Controller::PlayerTick(float Delta)
     {ReleaseDoor();FHitResult Hit;if(CanWorldCommand()&&GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){Navigation->Navigate(Hit.ImpactPoint);}}
     if(WasInputKeyJustPressed(EKeys::S)||WasInputKeyJustPressed(EKeys::Escape)){ReleaseDoor();Navigation->Stop();}
     if(WasInputKeyJustPressed(EKeys::F))
-    {HeldKey=EKeys::F;if(const auto* O=NearestObject()){if(O->Kind==ELDObjectKind::Anchor||O->Kind==ELDObjectKind::Ladder&&(O->State&16)){StartLink(ELDObjectVerb::Use);}else{StartObject(O->Kind==ELDObjectKind::Ladder?ELDObjectVerb::Carry:uint8(O->Kind)>=4?ELDObjectVerb::Pickup:ELDObjectVerb::Open);}}
+    {HeldKey=EKeys::F;if(const auto* O=NearestObject()){if(O->Kind==ELDObjectKind::Anchor||O->Kind==ELDObjectKind::Ladder&&(O->State&16)){StartLink(ELDObjectVerb::Use);}else{StartObject(O->Kind==ELDObjectKind::Ladder?ELDObjectVerb::Carry:uint8(O->Kind)>=4&&O->Kind!=ELDObjectKind::Furniture?ELDObjectVerb::Pickup:ELDObjectVerb::Open);}}
      else if(const auto* D=NearestDoor()){StartDoor((D->State&1)?ELDWorldVerb::Close:ELDWorldVerb::Open);}}
     if(WasInputKeyJustPressed(EKeys::V)){HeldKey=EKeys::V;StartDoor(ELDWorldVerb::Lockpick);}
     if(WasInputKeyJustPressed(EKeys::B)){HeldKey=EKeys::B;StartDoor(ELDWorldVerb::Force);}

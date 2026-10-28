@@ -28,7 +28,7 @@ void ALDB91Controller::TickB91ObjectsProbe()
     };
     if(!ProbeSent&&ProbeTask!=8)
     {
-        const auto* V=Find(ProbeTask==1?ELDObjectKind::Water:ProbeTask<=4?ELDObjectKind::Chest:ProbeTask==6?ELDObjectKind::Barrel:ELDObjectKind::Crate);
+        const auto* V=Find(ProbeTask==1?ELDObjectKind::Water:ProbeTask<=4?(FParse::Param(FCommandLine::Get(),TEXT("LDB91FurnitureProbe"))?ELDObjectKind::Furniture:ELDObjectKind::Chest):ProbeTask==6?ELDObjectKind::Barrel:ELDObjectKind::Crate);
         if(!V){if(Now-ProbeAt<15){return;}}
         else
         {

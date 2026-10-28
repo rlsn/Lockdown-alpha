@@ -39,7 +39,7 @@ ALDWorldObject::ALDWorldObject()
     Glow=CreateDefaultSubobject<UPointLightComponent>(TEXT("ObservedCosmeticGlow"));Glow->SetupAttachment(Proxy);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->SetVisibility(false);
 }
 FVector ALDWorldObject::Size() const
-{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);default:return FVector(20,20,30);}}
+{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);case ELDObjectKind::Furniture:return FVector(200,100,100);default:return FVector(20,20,30);}}
 bool ALDWorldObject::Available() const
 {return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
 int32 ALDWorldObject::Weight() const
@@ -115,7 +115,7 @@ bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Su
     // Full solid proxy, every body included. This is never a character push.
     if(GetWorld()->OverlapAnyTestByChannel(Surface+FVector(0,0,Extent.Z+3),FQuat::Identity,ECC_Pawn,FCollisionShape::MakeBox(Extent),Q)){return false;}
     for(auto P:Objects){if(P.IsValid()&&P!=Object&&P->Available()&&!P->Carrier.IsValid())
-    {const double Clearance=FMath::Max(P->Size().X,P->Size().Y)*.5+FMath::Max(Extent.X,Extent.Y)+(Object->Heavy()||P->Heavy()?300:30);
+    {const double Clearance=FMath::Max(P->Size().X,P->Size().Y)*.5+FMath::Max(Extent.X,Extent.Y)+(Object->Heavy()||P->Heavy()||Object->BlocksWalk()||P->BlocksWalk()?300:30);
      if(FVector::Dist2D(P->GetActorLocation(),Surface)<Clearance){return false;}}}
     return true;
 }
@@ -140,9 +140,9 @@ bool ALDWorldObjects::Initialize(FString& Error)
         if(O->Kind==ELDObjectKind::Water||O->Kind==ELDObjectKind::Oil)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
-    if(Objects.Num()!=156||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
+    if(Objects.Num()!=188||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
     if(!InitializeTools(Error)||!InitializeTraversal(Error)){return false;}Contract=LD_B91_LINK_WORLD_SHA;
-    Ready=Objects.Num()==232&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
+    Ready=Objects.Num()==264&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -176,11 +176,11 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
     if(Carried(PC)&&R.Verb!=ELDObjectVerb::Place){return Fail(TEXT("Put down cargo before another interaction"));}
     if(R.Verb==ELDObjectVerb::Open&&(!O->Container()||O->Carrier.IsValid())){return Fail(TEXT("No accessible container"));}
     if(O&&O->InstalledAt.IsValid()){return Fail(TEXT("Use the approved anchor to retrieve an installed ladder"));}
-    if(R.Verb==ELDObjectVerb::Push&&O&&!O->BlocksWalk()){return Fail(TEXT("Only crates and barrels can be pushed"));}
+    if(R.Verb==ELDObjectVerb::Push&&O&&!(O->Heavy()&&O->BlocksWalk())){return Fail(TEXT("Only crates and barrels can be pushed"));}
     if(R.Verb==ELDObjectVerb::Carry||R.Verb==ELDObjectVerb::Push)
     {const int Natural=Own->Build.Attributes.Num()==6?60+2*(Own->Build.Attributes[0]-10):0;if(!O->Heavy()||O->Weight()>Natural||O->Carrier.IsValid()){return Fail(TEXT("Cargo exceeds natural carrying capacity or is occupied"));}}
     if(R.Verb==ELDObjectVerb::Place&&(!O||O->Carrier!=PC||Carried(PC)!=O)){return Fail(TEXT("No carried cargo"));}
-    if(R.Verb==ELDObjectVerb::Break&&(!O->BlocksWalk()||O->Carrier.IsValid())){return Fail(TEXT("Only a placed crate or barrel can break"));}
+    if(R.Verb==ELDObjectVerb::Break&&(!(O->Heavy()&&O->BlocksWalk())||O->Carrier.IsValid())){return Fail(TEXT("Only a placed crate or barrel can break"));}
     if(R.Verb==ELDObjectVerb::Pickup&&(!O->Physical.IsValid()||O->Physical->State!=0||O->Physical->Holder.IsValid()||FVector::Dist(O->Physical->GetActorLocation(),O->GetActorLocation())>10)){return Fail(TEXT("Physical item unavailable"));}
     if(R.Verb==ELDObjectVerb::Take||R.Verb==ELDObjectVerb::Store)
     {const auto* C=Clients.Find(PC);const auto* Quote=C?C->Opened.Find(O):nullptr;if(!O->Container()||!Quote||*Quote!=O->Revision){return Fail(TEXT("Open the current container revision first"));}}

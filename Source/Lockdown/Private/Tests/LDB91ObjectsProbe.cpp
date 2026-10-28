@@ -7,6 +7,7 @@
 #include "Region/LDMapDefinition.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/CommandLine.h"
@@ -31,18 +32,28 @@ void ALDB91ObjectsProbe::Tick(float Delta)
     const double Now=GetWorld()->GetTimeSeconds();if(Phase==99){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}
     if(Failures||FPlatformTime::Seconds()-Started>200){if(!Failures){Check(false,TEXT("Object network fixture timed out"));}Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,3);return;}
     auto Count=[](UWorld* W){int N=0;for(TActorIterator<ALDItem> I(W);I;++I){++N;}return N;};
-    auto Near=[&](ALDWorldObject* O){const FVector Base=O->LastClear+FVector(0,0,92.15);Place(A,Base+FVector(-100,0,0));Place(B,Base+FVector(100,0,0));};
+    auto Near=[&](ALDWorldObject* O){const FVector Base=O->LastClear+FVector(0,0,92.15),Offset=O->Kind==ELDObjectKind::Furniture?FVector(0,100,0):FVector(100,0,0);Place(A,Base-Offset);Place(B,Base+Offset);};
     if(!Phase)
     {
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote object owners"));
-        Check(Objects->Objects.Num()==232&&Count(GetWorld())==132,TEXT("Exact 232 objects and 132 finite physical endowments"));
+        Check(Objects->Objects.Num()==264&&Count(GetWorld())==132,TEXT("Exact 264 objects and 132 finite physical endowments"));
         for(TActorIterator<ALDItem> I(GetWorld());I;++I){InitialIds.Add(I->Identity);}
         for(auto O:Objects->Objects)
         {FVector Surface=O->LastClear;const bool Valid=O->Kind==ELDObjectKind::Anchor?Objects->EndpointClear(A,O->Lower)&&Objects->EndpointClear(A,O->Upper):Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);
          auto Vector=[](FVector P){return TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(P.X),MakeShared<FJsonValueNumber>(P.Y),MakeShared<FJsonValueNumber>(P.Z)};};R->SetArrayField(TEXT("source_cm"),Vector(O->SourcePosition));R->SetArrayField(TEXT("fitted_cm"),Vector(O->LastClear));Manifest.Add(MakeShared<FJsonValueObject>(R));}
         Check(!Manifest.ContainsByPredicate([](const auto& R){return !R->AsObject()->GetBoolField(TEXT("placement_valid"));}),TEXT("All initial pads pass current physical placement and corridor rules"));
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FurnitureProbe")))
+        {
+            int Furniture=0;bool Good=true;
+            for(auto O:Objects->Objects){if(!O.IsValid()||O->Kind!=ELDObjectKind::Furniture){continue;}++Furniture;FHitResult Hit;FCollisionQueryParams Q(SCENE_QUERY_STAT(B91Furniture),false);
+             const FVector Centre=O->GetActorLocation(),Eye=O->LastClear+FVector(0,0,90);
+             Good&=O->Contents.IsEmpty()&&O->Size().Equals(FVector(200,100,100))&&O->Container()&&!O->Heavy()&&O->Proxy->CanEverAffectNavigation();
+             Good&=GetWorld()->OverlapBlockingTestByChannel(Centre,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeBox(FVector(1)),Q);
+             Good&=!GetWorld()->LineTraceSingleByChannel(Hit,Eye-FVector(101,0,0),Eye+FVector(101,0,0),ECC_GameTraceChannel2,Q);}
+            Check(Furniture==32&&Good,TEXT("All32 fixed furniture sources start empty, block walking/navigation and permit an actual sight ray"));
+        }
         auto* Crate=Objects->Find(TEXT("prop_crate_000"));auto* E=ALDEnvironmentDirector::Get(GetWorld());const auto* Map=ULDMapDefinition::Get(GetWorld());FVector Surface;
         int Denied=0;for(auto D:E->Doors){Denied+=!Objects->Placement(Crate,D->GetActorLocation()-FVector(0,0,130),Surface);}Check(Denied==72,TEXT("All72 authored door pads reject cargo placement"));
         Denied=0;for(auto P:E->StairStarts){Denied+=!Objects->Placement(Crate,P,Surface);}Check(Denied==16,TEXT("All16 permanent stair landings reject cargo placement"));
@@ -109,7 +120,17 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         Check(RA->GetBoolField(TEXT("duplicate_same"))&&RB->GetBoolField(TEXT("duplicate_same")),TEXT("Winning and losing duplicate sequences replay the same receipts"));
         Check(!RA->GetIntegerField(TEXT("container_count_before"))&&!RB->GetIntegerField(TEXT("container_count_before")),TEXT("Unopened container inventories are absent on both clients"));
         Check(RA->GetBoolField(TEXT("private_revision_absent"))&&RB->GetBoolField(TEXT("private_revision_absent")),TEXT("Observed empty ground reveals no held-item revision"));
-        Target=Objects->Find(TEXT("prop_chest_002"));Near(Target);Task(2);return;
+        Target=Objects->Find(TEXT("prop_chest_002"));
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FurnitureProbe")))
+        {
+            auto* Furniture=Objects->Find(TEXT("prop_furniture_000"));Near(Furniture);bool Denied=true;
+            for(auto Verb:{ELDObjectVerb::Carry,ELDObjectVerb::Push,ELDObjectVerb::Break}){FLDObjectRequest R;R.Verb=Verb;R.ObjectRevision=Furniture->Revision;FString Why;Denied&=!Objects->Eligible(A,Furniture,R,Why)&&(Why.Contains(TEXT("Only"))||Why.Contains(TEXT("Cargo")));}
+            Check(Denied&&Furniture->Available()&&Furniture->Revision==1,TEXT("Fixed furniture rejects carry, push and break without mutation"));
+            // Stage existing cache goods; furniture has no initial endowment.
+            const auto Items=Target->Contents;Target->Contents.Reset();for(auto Item:Items){Item->Holder=Furniture;++Item->Revision;Furniture->Contents.Add(Item);}
+            Target->Apply(Target->GetActorLocation(),Target->Flags(),Target->Revision+1);Furniture->Apply(Furniture->GetActorLocation(),Furniture->Flags(),Furniture->Revision+1);Target=Furniture;
+        }
+        Near(Target);Task(2);return;
     }
     if(Phase==2)
     {Check(RA->GetIntegerField(TEXT("container_count"))==3&&RB->GetIntegerField(TEXT("container_count"))==3,TEXT("Legal Open quotes exactly two Fiber and one Ore"));Task(3);return;}
@@ -157,7 +178,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
 }
 void ALDB91ObjectsProbe::Save(bool Complete)
 {
-    FString Output;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Output);if(Output.IsEmpty()){return;}auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("failures"),Failures);R->SetStringField(TEXT("stage"),TEXT("B91"));R->SetNumberField(TEXT("phase"),Phase);R->SetStringField(TEXT("contract"),Objects?Objects->Contract:TEXT(""));R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("fitted_objects"),Manifest);R->SetNumberField(TEXT("finite_initial_items"),InitialIds.Num());FString Why;R->SetBoolField(TEXT("conserved"),Objects&&Objects->Conserved(Why));R->SetStringField(TEXT("conservation_reason"),Why);
+    FString Output;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Output);if(Output.IsEmpty()){return;}auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("failures"),Failures);R->SetStringField(TEXT("stage"),TEXT("B91"));R->SetNumberField(TEXT("phase"),Phase);R->SetBoolField(TEXT("furniture_scenario"),FParse::Param(FCommandLine::Get(),TEXT("LDB91FurnitureProbe")));R->SetStringField(TEXT("contract"),Objects?Objects->Contract:TEXT(""));R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("fitted_objects"),Manifest);R->SetNumberField(TEXT("finite_initial_items"),InitialIds.Num());FString Why;R->SetBoolField(TEXT("conserved"),Objects&&Objects->Conserved(Why));R->SetStringField(TEXT("conservation_reason"),Why);
     R->SetStringField(TEXT("scope"),TEXT("Native editor authority with two independent headless remote owners; storage, pickup/break/carry races and physical placement. Remaining B91 systems and full-stage acceptance are open."));
     R->SetStringField(TEXT("push_setup"),TEXT("Positive push refits the same existing crate to a native clear pad; original generated placements remain in fitted_objects. No item or prop is created by this setup."));
     TArray<TSharedPtr<FJsonValue>> StartIds,BreakIds,Items;

@@ -9,9 +9,24 @@ from SyncB91Objects import ROOT, compile_objects
 class ObjectsImport(unittest.TestCase):
     def test_finite_census(self):
         data = json.loads(compile_objects())
-        self.assertEqual(len(data['rows']), 156)
+        self.assertEqual(len(data['rows']), 188)
         self.assertEqual(sum(x['count'] for r in data['rows'] for x in r['contents']), 36)
         self.assertEqual(sum(r['kind'] in (4, 5) for r in data['rows']), 48)
+
+    def test_furniture(self):
+        rows = [r for r in json.loads(compile_objects())['rows'] if r['kind'] == 12]
+        self.assertEqual(len(rows), 32)
+        self.assertTrue(all(not r['contents'] for r in rows))
+
+    def test_reject_furniture_sight_blocker(self):
+        original = json.loads
+        def altered(value):
+            data = original(value)
+            for r in data.get('rows', []):
+                if r.get('id') == 'furniture': r['blocks_sight'] = True
+            return data
+        with patch('SyncB91Objects.json.loads', altered):
+            with self.assertRaises(AssertionError): compile_objects()
 
     def test_source_closure(self):
         data = json.loads(compile_objects())
