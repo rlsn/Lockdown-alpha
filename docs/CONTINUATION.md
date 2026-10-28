@@ -1,6 +1,18 @@
 # Active continuation — B91 functional environment
 
-The current increment is [settled environment checkpoints](v09/B91_CHECKPOINT.md),
+The current increment is [checkpoint placement validation](v09/B91_PLACEMENT.md),
+source **ec529a3c845df2a6562da59b193d4a86e12d8d57**, with [frozen evidence](v09/evidence/B91Placement/README.md).
+It checks complete cargo support, pose/clear-pad agreement, fixed-world collision
+and overlapping saved solid poses before restoration. Four native processes pass
+59 checks, including exact persistence of a legally relocated crate and rejection
+of four invalid placement cases without live mutation. Master revision18 records
+this recovery invariant. Both full-unity targets pass;148 assets and59 supplied
+files remain unchanged. The optional broken Fab integration is excluded from the
+Editor target; engine files and project plugin preferences are unchanged.
+Full contender/economy resume and remaining B91 gameplay,
+scenery, reference encounter and human/density gates remain open.
+
+The previous increment is [settled environment checkpoints](v09/B91_CHECKPOINT.md),
 source **2957b43cb1639d993fd315f61191367a6078b4ca**, with [frozen evidence](v09/evidence/B91Checkpoint/README.md). Explicit startup
 restore retains exact finite item IDs, consume provenance, harvest rewards,
 foliage HP/clearance, stored/ground locations, door revisions and remaining fuel.

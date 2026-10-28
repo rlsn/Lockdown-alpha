@@ -110,6 +110,9 @@ Environmental recovery preserves consequences: spent items, exhausted harvests,
 cleared cover and remaining fuel must retain their exact identities and receipts.
 A restart cannot become an acquisition or refill path. Observer handles and UI
 quotes belong to the current connection and must be rebuilt after recovery.
+Validate restored cargo against its full supporting footprint and the proposed
+saved scene, rather than only its center or obsolete starting poses. Reject
+floating or intersecting obstacles before replacing any live authority.
 
 The [B91 checkpoint](../v09/B91_CHECKPOINT.md) currently restores an explicitly
 selected, settled, ownerless environment. It refuses live owners and transient

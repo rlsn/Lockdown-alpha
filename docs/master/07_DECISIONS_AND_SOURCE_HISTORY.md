@@ -81,3 +81,7 @@ recreating the starting endowment. The current checkpoint requires no owners or
 transient actions and loads once into a pristine environment. Full contender,
 roster and economy recovery remains a separate dependency. See [scope and
 evidence](../v09/B91_CHECKPOINT.md).
+
+Revision 18 validates restored cargo against full support and proposed solid
+poses before actor replacement. Legal relocation survives restart; invalid
+placements reject without changing the live world. See [placement evidence](../v09/B91_PLACEMENT.md).
