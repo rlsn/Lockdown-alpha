@@ -66,3 +66,11 @@ The same revision requires standing without a movement order before automatic
 POI activation. Passing through a POI cannot stop a journey; the cancellation
 latch still rearms through leaving/re-entering. Inherited route fixtures share
 request sequencing with actual automatic orders rather than issuing colliding IDs.
+
+Revision16 connects authored grass to the existing source, sight and item
+authorities. Entering cover needs no input; proximity/detector reveal remains
+geometry-gated and scoped to each observer. Paid Torch clearance permanently
+removes only the named patch, without creating a reward. Native tests distinguish
+diagnostic detector/claim-state setup from earned acquisition and full-map Heart
+integration. Read [the checkpoint](../v09/B91_GRASS.md) for the exact source and
+remaining saved-state, encounter and density gates.

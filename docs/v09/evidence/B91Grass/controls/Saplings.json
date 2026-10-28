@@ -1,0 +1,585 @@
+{
+	"complete": true,
+	"phase": 16,
+	"failures": 0,
+	"checks": [
+		{
+			"case": "Two independent remote sapling owners",
+			"passed": true
+		},
+		{
+			"case": "64 authored saplings add no initial physical reward",
+			"passed": true
+		},
+		{
+			"case": "All64 supported80HP saplings fit and block sight without becoming containers",
+			"passed": true
+		},
+		{
+			"case": "Fixture transfers an existing finite knife; client must bind it through the real channel",
+			"passed": true
+		},
+		{
+			"case": "Fixture transfers an existing finite knife; client must bind it through the real channel",
+			"passed": true
+		},
+		{
+			"case": "Melee selection leaves the shared pre-damage world unchanged",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase1 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Harvest race awards exactly one existing source receipt and one Fiber",
+			"passed": true
+		},
+		{
+			"case": "Harvest commits one physical reward and a shared collision/sight/nav removal",
+			"passed": true
+		},
+		{
+			"case": "Harvest retry replays the original winning or losing receipt",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase2 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Four-second chop clears the blocker without creating Fiber",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase3 reports complete",
+			"passed": true
+		},
+		{
+			"case": "S stops harvest once; source and knife are retained without automatic restart",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase4 reports complete",
+			"passed": true
+		},
+		{
+			"case": "An issued harvest survives an observed heartbeat gap longer than500ms",
+			"passed": true
+		},
+		{
+			"case": "Silence alone permits a real bound item harvest",
+			"passed": true
+		},
+		{
+			"case": "Second source removes its own proxies with one reward only",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase5 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Ordinary RPC melee windups and cooldowns clear80HP through multiple hits without harvest reward",
+			"passed": true
+		},
+		{
+			"case": "Capacity setup moves existing ground items into the bag without minting",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase6 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Full inventory rejects harvest before spending the finite source",
+			"passed": true
+		},
+		{
+			"case": "Capacity setup restores all original item locations without duplication",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase7 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Same-world reinitialization preserves the harvested source and cleared proxies",
+			"passed": true
+		},
+		{
+			"case": "New life cannot harvest a previously exhausted source",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase8 reports complete",
+			"passed": true
+		},
+		{
+			"case": "After capacity recovery a fresh source awards exactly one Fiber",
+			"passed": true
+		},
+		{
+			"case": "All146 physical identities occupy exactly one location",
+			"passed": true
+		},
+		{
+			"case": "Three finite harvests, one chop and one damage clearance never respawn or duplicate outputs",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase9 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Mute blocks the Forestry Knife and leaves its finite sapling untouched",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase10 reports complete",
+			"passed": true
+		},
+		{
+			"case": "A raw source-free harvest cannot bypass the new item requirement",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase11 reports complete",
+			"passed": true
+		},
+		{
+			"case": "One ordinary basic attack consumes the actual ground bottle and preserves finite conservation",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase12 reports complete",
+			"passed": true
+		},
+		{
+			"case": "One right-click opens an ordinary door without a held input",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase13 reports complete",
+			"passed": true
+		},
+		{
+			"case": "One right-click closes the same ordinary doorway",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase14 reports complete",
+			"passed": true
+		},
+		{
+			"case": "One left-click opens observed storage and obtains a private contents view",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase15 reports complete",
+			"passed": true
+		},
+		{
+			"case": "One right-click approaches and picks up the same physical knife",
+			"passed": true
+		},
+		{
+			"case": "Both remote sapling phase16 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Two seconds without command liveness cancel before harvest; late refresh cannot restart or spend its source",
+			"passed": true
+		}
+	],
+	"manifest": [
+		{
+			"id": "prop_sapling_000",
+			"finite_source": "sapling_000",
+			"source": "X=-82515.000 Y=77798.000 Z=800.000",
+			"fitted": "X=-82815.000 Y=77498.000 Z=800.000"
+		},
+		{
+			"id": "prop_sapling_001",
+			"finite_source": "sapling_001",
+			"source": "X=80375.000 Y=82452.000 Z=400.000",
+			"fitted": "X=80375.000 Y=82452.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_002",
+			"finite_source": "sapling_002",
+			"source": "X=70016.000 Y=-76063.000 Z=400.000",
+			"fitted": "X=70016.000 Y=-76063.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_003",
+			"finite_source": "sapling_003",
+			"source": "X=-56341.000 Y=89612.000 Z=800.000",
+			"fitted": "X=-56341.000 Y=89612.000 Z=734.846"
+		},
+		{
+			"id": "prop_sapling_004",
+			"finite_source": "sapling_004",
+			"source": "X=-100507.000 Y=-101133.000 Z=0.000",
+			"fitted": "X=-100507.000 Y=-101133.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_005",
+			"finite_source": "sapling_005",
+			"source": "X=9062.000 Y=60936.000 Z=400.000",
+			"fitted": "X=9062.000 Y=60936.000 Z=413.771"
+		},
+		{
+			"id": "prop_sapling_006",
+			"finite_source": "sapling_006",
+			"source": "X=-25488.000 Y=67558.000 Z=0.000",
+			"fitted": "X=-25988.000 Y=68058.000 Z=94.816"
+		},
+		{
+			"id": "prop_sapling_007",
+			"finite_source": "sapling_007",
+			"source": "X=-46941.000 Y=102039.000 Z=800.000",
+			"fitted": "X=-47441.000 Y=101539.000 Z=799.519"
+		},
+		{
+			"id": "prop_sapling_008",
+			"finite_source": "sapling_008",
+			"source": "X=20235.000 Y=53986.000 Z=400.000",
+			"fitted": "X=20235.000 Y=53986.000 Z=381.215"
+		},
+		{
+			"id": "prop_sapling_009",
+			"finite_source": "sapling_009",
+			"source": "X=-65221.000 Y=28361.000 Z=0.000",
+			"fitted": "X=-65221.000 Y=28361.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_010",
+			"finite_source": "sapling_010",
+			"source": "X=-80713.000 Y=-76406.000 Z=0.000",
+			"fitted": "X=-80713.000 Y=-76406.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_011",
+			"finite_source": "sapling_011",
+			"source": "X=74921.000 Y=77153.000 Z=400.000",
+			"fitted": "X=74921.000 Y=77153.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_012",
+			"finite_source": "sapling_012",
+			"source": "X=71553.000 Y=17458.000 Z=400.000",
+			"fitted": "X=71553.000 Y=17458.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_013",
+			"finite_source": "sapling_013",
+			"source": "X=10236.000 Y=8027.000 Z=400.000",
+			"fitted": "X=10236.000 Y=8027.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_014",
+			"finite_source": "sapling_014",
+			"source": "X=68865.000 Y=74881.000 Z=400.000",
+			"fitted": "X=68865.000 Y=74881.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_015",
+			"finite_source": "sapling_015",
+			"source": "X=-83500.000 Y=-74808.000 Z=0.000",
+			"fitted": "X=-83500.000 Y=-74808.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_016",
+			"finite_source": "sapling_016",
+			"source": "X=79843.000 Y=-72008.000 Z=400.000",
+			"fitted": "X=79843.000 Y=-72008.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_017",
+			"finite_source": "sapling_017",
+			"source": "X=102095.000 Y=50832.000 Z=400.000",
+			"fitted": "X=102095.000 Y=50832.000 Z=396.117"
+		},
+		{
+			"id": "prop_sapling_018",
+			"finite_source": "sapling_018",
+			"source": "X=49514.000 Y=-43843.000 Z=400.000",
+			"fitted": "X=49514.000 Y=-43843.000 Z=380.915"
+		},
+		{
+			"id": "prop_sapling_019",
+			"finite_source": "sapling_019",
+			"source": "X=-6969.000 Y=17178.000 Z=400.000",
+			"fitted": "X=-6869.000 Y=17278.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_020",
+			"finite_source": "sapling_020",
+			"source": "X=-33977.000 Y=7021.000 Z=0.000",
+			"fitted": "X=-34377.000 Y=7421.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_021",
+			"finite_source": "sapling_021",
+			"source": "X=96680.000 Y=-20650.000 Z=400.000",
+			"fitted": "X=96680.000 Y=-20650.000 Z=315.753"
+		},
+		{
+			"id": "prop_sapling_022",
+			"finite_source": "sapling_022",
+			"source": "X=-53286.000 Y=-102687.000 Z=0.000",
+			"fitted": "X=-53286.000 Y=-102687.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_023",
+			"finite_source": "sapling_023",
+			"source": "X=52295.000 Y=-102228.000 Z=400.000",
+			"fitted": "X=52295.000 Y=-102228.000 Z=379.932"
+		},
+		{
+			"id": "prop_sapling_024",
+			"finite_source": "sapling_024",
+			"source": "X=35826.000 Y=69251.000 Z=400.000",
+			"fitted": "X=35826.000 Y=69251.000 Z=318.566"
+		},
+		{
+			"id": "prop_sapling_025",
+			"finite_source": "sapling_025",
+			"source": "X=72907.000 Y=-66459.000 Z=400.000",
+			"fitted": "X=72907.000 Y=-66459.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_026",
+			"finite_source": "sapling_026",
+			"source": "X=-9647.000 Y=-4979.000 Z=400.000",
+			"fitted": "X=-9647.000 Y=-4979.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_027",
+			"finite_source": "sapling_027",
+			"source": "X=-82303.000 Y=62772.000 Z=800.000",
+			"fitted": "X=-82303.000 Y=62772.000 Z=800.000"
+		},
+		{
+			"id": "prop_sapling_028",
+			"finite_source": "sapling_028",
+			"source": "X=84832.000 Y=67864.000 Z=400.000",
+			"fitted": "X=84832.000 Y=67864.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_029",
+			"finite_source": "sapling_029",
+			"source": "X=-89394.000 Y=-56726.000 Z=0.000",
+			"fitted": "X=-89394.000 Y=-56726.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_030",
+			"finite_source": "sapling_030",
+			"source": "X=69658.000 Y=-63916.000 Z=400.000",
+			"fitted": "X=69658.000 Y=-63916.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_031",
+			"finite_source": "sapling_031",
+			"source": "X=-61429.000 Y=-28789.000 Z=0.000",
+			"fitted": "X=-61429.000 Y=-28789.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_032",
+			"finite_source": "sapling_032",
+			"source": "X=-97851.000 Y=100371.000 Z=800.000",
+			"fitted": "X=-97851.000 Y=100371.000 Z=759.885"
+		},
+		{
+			"id": "prop_sapling_033",
+			"finite_source": "sapling_033",
+			"source": "X=1734.000 Y=-17687.000 Z=400.000",
+			"fitted": "X=1734.000 Y=-17687.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_034",
+			"finite_source": "sapling_034",
+			"source": "X=-33657.000 Y=-82965.000 Z=0.000",
+			"fitted": "X=-33657.000 Y=-82965.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_035",
+			"finite_source": "sapling_035",
+			"source": "X=8281.000 Y=-7700.000 Z=400.000",
+			"fitted": "X=8181.000 Y=-7800.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_036",
+			"finite_source": "sapling_036",
+			"source": "X=97421.000 Y=-84095.000 Z=400.000",
+			"fitted": "X=97421.000 Y=-84095.000 Z=374.053"
+		},
+		{
+			"id": "prop_sapling_037",
+			"finite_source": "sapling_037",
+			"source": "X=23908.000 Y=42505.000 Z=400.000",
+			"fitted": "X=23908.000 Y=42505.000 Z=275.114"
+		},
+		{
+			"id": "prop_sapling_038",
+			"finite_source": "sapling_038",
+			"source": "X=-44401.000 Y=-12302.000 Z=0.000",
+			"fitted": "X=-44401.000 Y=-12302.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_039",
+			"finite_source": "sapling_039",
+			"source": "X=-39838.000 Y=47739.000 Z=0.000",
+			"fitted": "X=-39838.000 Y=47739.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_040",
+			"finite_source": "sapling_040",
+			"source": "X=8039.000 Y=-2067.000 Z=400.000",
+			"fitted": "X=8039.000 Y=-2067.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_041",
+			"finite_source": "sapling_041",
+			"source": "X=-88659.000 Y=75555.000 Z=800.000",
+			"fitted": "X=-88659.000 Y=75555.000 Z=800.000"
+		},
+		{
+			"id": "prop_sapling_042",
+			"finite_source": "sapling_042",
+			"source": "X=74852.000 Y=88201.000 Z=400.000",
+			"fitted": "X=74852.000 Y=88201.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_043",
+			"finite_source": "sapling_043",
+			"source": "X=-78006.000 Y=-61671.000 Z=0.000",
+			"fitted": "X=-78006.000 Y=-61671.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_044",
+			"finite_source": "sapling_044",
+			"source": "X=-103635.000 Y=43793.000 Z=0.000",
+			"fitted": "X=-104035.000 Y=43393.000 Z=45.754"
+		},
+		{
+			"id": "prop_sapling_045",
+			"finite_source": "sapling_045",
+			"source": "X=98375.000 Y=-10375.000 Z=0.000",
+			"fitted": "X=98375.000 Y=-10375.000 Z=4.291"
+		},
+		{
+			"id": "prop_sapling_046",
+			"finite_source": "sapling_046",
+			"source": "X=107128.000 Y=-39552.000 Z=400.000",
+			"fitted": "X=107128.000 Y=-39552.000 Z=264.365"
+		},
+		{
+			"id": "prop_sapling_047",
+			"finite_source": "sapling_047",
+			"source": "X=4170.000 Y=-3080.000 Z=400.000",
+			"fitted": "X=4170.000 Y=-3080.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_048",
+			"finite_source": "sapling_048",
+			"source": "X=86070.000 Y=23542.000 Z=0.000",
+			"fitted": "X=85970.000 Y=23642.000 Z=0.035"
+		},
+		{
+			"id": "prop_sapling_049",
+			"finite_source": "sapling_049",
+			"source": "X=-94656.000 Y=8316.000 Z=0.000",
+			"fitted": "X=-94656.000 Y=8316.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_050",
+			"finite_source": "sapling_050",
+			"source": "X=23062.000 Y=-106273.000 Z=0.000",
+			"fitted": "X=23062.000 Y=-106273.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_051",
+			"finite_source": "sapling_051",
+			"source": "X=105744.000 Y=10611.000 Z=400.000",
+			"fitted": "X=105744.000 Y=10611.000 Z=366.014"
+		},
+		{
+			"id": "prop_sapling_052",
+			"finite_source": "sapling_052",
+			"source": "X=-80375.000 Y=70435.000 Z=800.000",
+			"fitted": "X=-80375.000 Y=70435.000 Z=800.000"
+		},
+		{
+			"id": "prop_sapling_053",
+			"finite_source": "sapling_053",
+			"source": "X=37913.000 Y=-86850.000 Z=400.000",
+			"fitted": "X=37913.000 Y=-86850.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_054",
+			"finite_source": "sapling_054",
+			"source": "X=1639.000 Y=16231.000 Z=400.000",
+			"fitted": "X=1639.000 Y=16231.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_055",
+			"finite_source": "sapling_055",
+			"source": "X=-75457.000 Y=82235.000 Z=800.000",
+			"fitted": "X=-75457.000 Y=82235.000 Z=800.000"
+		},
+		{
+			"id": "prop_sapling_056",
+			"finite_source": "sapling_056",
+			"source": "X=-86774.000 Y=-75636.000 Z=0.000",
+			"fitted": "X=-86774.000 Y=-75636.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_057",
+			"finite_source": "sapling_057",
+			"source": "X=77632.000 Y=-75378.000 Z=400.000",
+			"fitted": "X=77632.000 Y=-75378.000 Z=400.000"
+		},
+		{
+			"id": "prop_sapling_058",
+			"finite_source": "sapling_058",
+			"source": "X=41962.000 Y=99952.000 Z=800.000",
+			"fitted": "X=42262.000 Y=100152.000 Z=761.648"
+		},
+		{
+			"id": "prop_sapling_059",
+			"finite_source": "sapling_059",
+			"source": "X=-11673.000 Y=-97882.000 Z=0.000",
+			"fitted": "X=-11373.000 Y=-97582.000 Z=0.000"
+		},
+		{
+			"id": "prop_sapling_060",
+			"finite_source": "sapling_060",
+			"source": "X=42094.000 Y=-31183.000 Z=400.000",
+			"fitted": "X=42094.000 Y=-31183.000 Z=368.040"
+		},
+		{
+			"id": "prop_sapling_061",
+			"finite_source": "sapling_061",
+			"source": "X=-38860.000 Y=33122.000 Z=0.000",
+			"fitted": "X=-38760.000 Y=32622.000 Z=76.344"
+		},
+		{
+			"id": "prop_sapling_062",
+			"finite_source": "sapling_062",
+			"source": "X=-93870.000 Y=36550.000 Z=400.000",
+			"fitted": "X=-94170.000 Y=36250.000 Z=390.356"
+		},
+		{
+			"id": "prop_sapling_063",
+			"finite_source": "sapling_063",
+			"source": "X=97693.000 Y=90841.000 Z=400.000",
+			"fitted": "X=97693.000 Y=90841.000 Z=391.589"
+		}
+	],
+	"contract": "50fc85d3bc127ee76966de772ff24d3b039608361dd9c7664a028e08b9d387be",
+	"conserved": true,
+	"saw_brief_gap": true,
+	"scope": "Two remote owners issue one source command with no physical key held. Real quiet binding, automatic command heartbeats, owner progress, S stop and Mute/source refusal. Knives and full bag are staged from existing finite items. Ordinary melee uses combat RPC. End-life/return and same-world Initialize are tested; cross-process saved-match restoration, burning/socket fields, ranged/projectile or spell sapling damage, grass and full-stage acceptance remain open."
+}

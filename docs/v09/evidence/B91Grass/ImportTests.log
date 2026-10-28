@@ -1,0 +1,45 @@
+PASS grass compiler: 96 finite patches; 7764597564c768cd6b03527c99ab105c04a25111f2f9c8916530b0a687b0b619
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.168s
+
+OK
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.020s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.012s
+
+OK
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.027s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.263s
+
+OK
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.954s
+
+OK
+test_boolean_integer_field_reject (__main__.ImportBoundaries.test_boolean_integer_field_reject) ... ok
+test_changed_adopted_bytes_reject (__main__.ImportBoundaries.test_changed_adopted_bytes_reject) ... ok
+test_deterministic_disabled_contract (__main__.ImportBoundaries.test_deterministic_disabled_contract) ... ok
+test_duplicate_id_reject (__main__.ImportBoundaries.test_duplicate_id_reject) ... ok
+test_renumbered_native_id_reject (__main__.ImportBoundaries.test_renumbered_native_id_reject) ... ok
+test_required_active_binding_reject (__main__.ImportBoundaries.test_required_active_binding_reject) ... ok
+test_retained_recipe_mutation_reject (__main__.ImportBoundaries.test_retained_recipe_mutation_reject) ... ok
+test_unknown_class_reject (__main__.ImportBoundaries.test_unknown_class_reject) ... ok
+test_unknown_operation_reject (__main__.ImportBoundaries.test_unknown_operation_reject) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 9.435s
+
+OK

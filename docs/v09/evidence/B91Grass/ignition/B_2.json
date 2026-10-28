@@ -1,0 +1,27 @@
+{
+	"fixture": "ignition",
+	"phase": 2,
+	"completed": true,
+	"result": 0,
+	"reason": "Loadout committed once; capacity and cooldowns retained.",
+	"fuel_ms": 180000,
+	"reserved": false,
+	"duplicate_same": true,
+	"same_retry_item": true,
+	"surface_count": 0,
+	"states": 0,
+	"object_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	],
+	"surface_fields": [
+		"Position",
+		"Revision",
+		"States"
+	]
+}

@@ -24,6 +24,13 @@ Same statuses do not add arbitrary durations/magnitudes. Use authored strongest/
 
 ## Environment as bounded tactics
 
+Authored grass supplies concealment rather than opaque geometry. Reveal is
+observer-specific: a nearby body or authorized detector may see an occupant,
+while another contender without that source remains uninformed. Observation
+loss removes target authority as well as the rendered body. Temporary Nature
+growth, a cosmetic effect and a remembered target handle do not create grass
+cover or reveal a hidden opponent. A live Heart claim stays exposed.
+
 The six-state elemental model and finite Oil overlay use paid releases, source receipts, geometry masks and capped allocations. Wet river contact precedes same-boundary hits. A qualifying direct Frost hit on a Wet ordinary victim may attempt the inherited short Stun and starts a victim-wide reaction lock. Frozen floors, periodic ticks and Frost Capsule do not qualify.
 
 Ice keeps water contact, slows and never adds sliding, drowning or connectivity changes. Smoke/Steam occludes symmetrically across its union boundary; detectors cannot see through it. A cleared cloud requires observation revalidation before a follow-up unit-target action. Fire does not recursively spread through all scenery.

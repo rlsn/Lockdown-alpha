@@ -23,6 +23,22 @@ Rivers are permanently walkable Wet floors. Bridges are permanent dry decks; for
 
 The 96-POI catalog includes hubs, city services, camps, three ruins, one boss, one Heart forge, three towers, Heart/antechamber, crossings, deposits and landmarks. A POI supports multiple purposes but need not create a separate reward pool. Decorative houses and duplicate counters cannot duplicate sources.
 
+## Concealment and cover
+
+Grass creates an escape and ambush decision without changing the route graph.
+Entering authored cover can hide a body; moving inside it remains possible.
+Leaving, attacking or casting gives opponents a readable opportunity before
+cover rearms. An observer close enough to see through valid geometry can find
+the occupant; a detector extends that option without penetrating walls or smoke.
+Active invisibility retains its own detection rules.
+
+A Torch can permanently clear a named patch at a real fuel and exposure cost.
+That loss of cover also benefits later rivals. The plant supplies no destruction
+reward and never regrows from a contender's death. Render the cover's footprint
+and tall blades while keeping the own character readable; a solid visual wall
+would falsely suggest occlusion and frustrate control. The [B91 grass report](../v09/B91_GRASS.md)
+records current native coverage separately from the complete reference encounter.
+
 ## Buildings and streets
 
 The full-demo target is 144 shells with 36 enterable buildings, exactly 25%. Selected services use sparse navigable interiors with public fronts and private rears. Sixteen roof anchors have permanent stairs. Windows are authored openings; roof fading changes rendering while occlusion persists. Closed shells show no fake interaction affordance.

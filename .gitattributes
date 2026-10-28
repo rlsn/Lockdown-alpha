@@ -90,3 +90,7 @@
 # Raw issued-command liveness acceptance and failed diagnostic reproduction.
 /docs/v09/evidence/B91Liveness/**/*.log -whitespace
 /docs/v09/evidence/B91Liveness/*.log -whitespace
+
+# Authored grass native evidence retains raw engine output.
+/docs/v09/evidence/B91Grass/**/*.log -whitespace
+/docs/v09/evidence/B91Grass/*.log -whitespace

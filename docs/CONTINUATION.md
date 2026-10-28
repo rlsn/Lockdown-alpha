@@ -1,6 +1,20 @@
 # Active continuation — B91 functional environment
 
-The current increment is [issued-command liveness](v09/B91_LIVENESS.md), source
+The current increment is [authored grass and concealment](v09/B91_GRASS.md),
+source **138fe1b58cc6b36f1ef9b369dfd818dc41fab358**, with [frozen evidence](v09/evidence/B91Grass/README.md).
+All96 finite grass sources are fitted and nonblocking. Enter/rearm requires no
+input; moving inside cover is allowed. Geometry gates two-metre proximity and
+detector reveal, observation loss revokes old handles, and actual attack reveals
+for2s plus1s rearming. Real bound Torch ignition disables cover immediately,
+spends1s fuel once, burns for3s and leaves only the named patch permanently burnt.
+The rendered two-owner scenario passes44 checks, including real life return.
+Detector, wall and claim-state setup are diagnostic. Initial records now435,
+physical items remain143, and all491 functional sources are present at their
+recorded scopes. B91 remains open: saved-match mutations,3,000 scenery trees,
+broader paid actions/reactions, layered fields and the full reference encounter
+still need implementation/evidence. Master revision16 reflects these boundaries.
+
+The prior increment is [issued-command liveness](v09/B91_LIVENESS.md), source
 **c069e261c1bb1458dab1d4c94759e51830d38e70**, with [frozen evidence](v09/evidence/B91Liveness/README.md).
 It fixes the rendered harvest cancellation: the old 350 ms heartbeat guard rejected
 an observed 351.784 ms gap with zero movement. Current UI orders use a strict
@@ -101,10 +115,10 @@ have native supported endpoints and capsule routes. Actual RPC movement covers
 ladder ascent/descent and Rope use; Root, Stun, heartbeat, occupancy, retrieval
 and end-life checks preserve supported landings and the original item/prop.
 
-Next B91 work is grass/concealment, saved mutations, broader paid actions,
+Next B91 work is saved mutations, scenery fitting, broader paid actions,
 layered fields and full-map direct-hit reaction evidence. Functional
-initial sources now total395 of491 with the approved forestry overlay, including partial saplings; the remaining 96 grass sources
-and 3,000 scenery trees are still required. Torch source/field reservations now have
+initial sources now total491 of491 with the approved forestry and grass overlays, including partial saplings;
+3,000 scenery trees and full fitting acceptance are still required. Torch source/field reservations now have
 a verified checkpoint; the full-stage gate remains open. T04 and T09 now cover the verified
 ladder race and optional-link boundary. T06/T07/T08 retain fuel, cargo and storage
 scope; the whole stage remains open.
