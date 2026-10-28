@@ -94,6 +94,6 @@ void ULDInventoryPanel::RefreshProduction()
         if(O.CraftCoupon.IsValid()&&ServiceTab==3){Text+=FString::Printf(TEXT("\nCoupon: %s · %.1fs left"),*ALDProductionDirector::SiteName(O.CouponSite),FMath::Max(0.,O.CouponUntil-Now));}
         Text+=FString::Printf(TEXT("\nHold %ds · Release, movement or damage cancels\nAlive/unprotected, stationary, body sight within 120 cm. Craft/orders/activation require 6 quiet seconds."),Seconds);
     }
-    Text+=Why.IsEmpty()?TEXT("\nREADY · Close and arm; release all controls, then hold ")+PC->BindingLabel(TEXT("Context")):TEXT("\nUNAVAILABLE · ")+Why;
+    Text+=Why.IsEmpty()?TEXT("\nREADY · Confirm, then enter the station; S stops the channel"):TEXT("\nUNAVAILABLE · ")+Why;
     ProductionStatus->SetText(FText::FromString(Text));DisplayedProduction=P;ProductionConfirm->SetIsEnabled(bProductionPreview&&Why.IsEmpty()&&Free);
 }

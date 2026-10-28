@@ -22,7 +22,7 @@ def check(root):
     assert not clients['A', 6]['owned_item'] and not clients['A', 8]['owned_item']
     assert clients['A', 8]['capacity_retained'] and clients['B', 8]['surface_count'] == 0
     assert all(not clients['B', p]['owned_item'] for p in range(1, 9))
-    print(f"PASS B91 fields: {len(report['checks'])} native checks; paid Water/Oil, bounded allocator, restricted views, 129 conserved items")
+    print(f"PASS B91 fields: {len(report['checks'])} native checks; paid Water/Oil, bounded allocator, restricted views, 140 conserved items")
 
 
 if __name__ == '__main__':

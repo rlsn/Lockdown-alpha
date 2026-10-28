@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Region/LDMapDefinition.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
@@ -24,6 +25,13 @@
 
 namespace
 {
+    AActor* ResolveMoveTarget(ALDPlayerController* PC,FGuid Handle)
+    {
+        auto* M=PC->GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return nullptr;}
+        if(M->IsEnvironmentProfile())
+        {if(auto* Objects=ALDWorldObjects::Get(PC->GetWorld())){if(auto* O=Objects->Resolve(Cast<ALDB91Controller>(PC),Handle)){return O;}}if(auto* E=ALDEnvironmentDirector::Get(PC->GetWorld())){return E->Resolve(PC,Handle);}return nullptr;}
+        return M->Vision?M->Vision->ResolveObserved(PC,Handle):nullptr;
+    }
     constexpr uint8 NavAccepted=1,Arrived=2,Stopped=3,Rejected=4;
     void HaltLocomotion(ALDCharacter* Body)
     {
@@ -149,11 +157,11 @@ bool ULDNavigationComponent::ResolveOrder(FVector& Goal,float& Acceptance,TArray
     FVector Target=PendingSurface;Acceptance=40;
     if(Approach.IsValid())
     {
-        const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* View=M&&M->Vision?M->Vision->AuthorityViewFor(PC):nullptr;
-        const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;
-        if(!E){return false;}
-        Target=E->Position;
-        Acceptance=LDVision::PickupKind(E->Kind)?64:100;
+        const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        if(M&&M->IsEnvironmentProfile())
+        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor);Object&&Object->Kind==ELDObjectKind::Anchor){Target=Object->EndFor(Body->GetActorLocation())+FVector(0,0,18);}}
+        else
+        {const auto* View=M&&M->Vision?M->Vision->AuthorityViewFor(PC):nullptr;const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;if(!E){return false;}Target=E->Position;Acceptance=LDVision::PickupKind(E->Kind)?64:100;}
     }
     else if(PendingSite)
     {
@@ -240,7 +248,7 @@ void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActo
         {PendingAcknowledgedOrder=Server.Order;ClientOrder(Server,0,{},40,TEXT("Move pending"));}
         if(bServerActive&&Body)
         {
-            if(Approach.IsValid()&&(!M->Vision||!M->Vision->ResolveObserved(PC,Approach))) {EndServer(Stopped,TEXT("Target no longer visible"));}
+            if(Approach.IsValid()&&!ResolveMoveTarget(PC,Approach)) {EndServer(Stopped,TEXT("Target no longer visible"));}
             else if(!Body->GetCharacterMovement()->HasRootMotionSources()&&FVector::DistSquared2D(Body->GetActorLocation(),ServerGoal)<=FMath::Square(ServerAcceptance)&&FMath::Abs(Body->GetNavAgentLocation().Z-ServerGoal.Z)<=50)
             {EndServer(Arrived,TEXT("Arrived"));}
             else

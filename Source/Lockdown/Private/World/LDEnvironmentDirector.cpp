@@ -191,10 +191,7 @@ bool ALDEnvironmentDirector::Eligible(ALDB91Controller* PC,ALDEnvironmentDoor* D
     if(Verb==ELDWorldVerb::Open&&(D->Open||D->Locked)){return Fail(TEXT("Door is already open or locked"));}
     if(Verb==ELDWorldVerb::Close&&(!D->Open||D->Broken||Occupied(D))){return Fail(TEXT("Door cannot close or doorway is occupied"));}
     if(Verb==ELDWorldVerb::Lockpick||Verb==ELDWorldVerb::Force)
-    {
-        if(!D->Rear||D->Broken||D->Open||(Verb==ELDWorldVerb::Lockpick&&!D->Locked)){return Fail(TEXT("No eligible rear lock"));}
-        if(Now-FMath::Max3(S->LastDamage,S->LastDealt,S->QuietSince)<6){return Fail(TEXT("Six combat-quiet seconds required"));}
-    }
+    {return Fail(TEXT("Special lock work needs an authored item or prepared ability source; unavailable in this increment"));}
     if(uint8(Verb)<1||uint8(Verb)>5){return Fail(TEXT("Unknown world verb"));}return true;
 }
 void ALDEnvironmentDirector::Reply(ALDB91Controller* PC,const FLDWorldRequest& R,uint8 Result,const FString& Why,uint32 Revision)
@@ -202,6 +199,7 @@ void ALDEnvironmentDirector::Reply(ALDB91Controller* PC,const FLDWorldRequest& R
     if(!PC){return;}auto& C=Clients.FindOrAdd(PC);auto& Receipt=C.Receipts.FindOrAdd(Key(R.Life,R.Sequence));
     if(!Receipt.Receipt.IsValid()){Receipt.Receipt=FGuid::NewGuid();Receipt.Sequence=R.Sequence;}
     Receipt.Result=Result;Receipt.Reason=Why;Receipt.Revision=Revision;PC->ClientWorldReceipt(Receipt);
+    FLDB91Channel Progress;Progress.Match=R.Match;Progress.Life=R.Life;Progress.Sequence=R.Sequence;Progress.Domain=1;const auto* H=Holds.Find(PC);if(!Result&&H){Progress.Started=H->Started;Progress.Ends=H->Ends;Progress.Label=TEXT("Door action");}PC->ClientB91Channel(Progress,!Result&&H!=nullptr);
     if(Result){Journal.Add(Receipt);}while(C.Receipts.Num()>64)
     {uint64 Old=MAX_uint64;for(const auto& P:C.Receipts){Old=FMath::Min(Old,P.Key);}C.Receipts.Remove(Old);}
 }
@@ -221,14 +219,14 @@ void ALDEnvironmentDirector::Begin(ALDB91Controller* PC,const FLDWorldRequest& R
     if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->Cancel(PC,TEXT("Door interaction started"));}
     H.Started=H.Heartbeat=Now;H.Ends=Now+((R.Verb==ELDWorldVerb::Force||R.Verb==ELDWorldVerb::Lockpick)?3.:.3);
     H.DamageAt=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;Holds.Add(PC,H);
-    Reply(PC,R,0,TEXT("Hold in place; move, damage, release or loss of sight cancels"));
+    Reply(PC,R,0,TEXT("Door action started; S stops. Movement, damage or lost sight cancels"));
 }
 void ALDEnvironmentDirector::Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,uint32 Nonce,bool Release)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;if(!O||O->Match!=Match||O->Life!=Life){return;}
     if(Release){auto& C=Clients.FindOrAdd(PC);C.CancelledThrough=FMath::Max(C.CancelledThrough,Sequence);}
     auto* H=Holds.Find(PC);if(!H||H->Request.Sequence!=Sequence){return;}
-    if(Release){Cancel(PC,TEXT("Held input released"));return;}
+    if(Release){Cancel(PC,TEXT("Action stopped"));return;}
     if(Nonce>H->Nonce){H->Nonce=Nonce;H->Heartbeat=GetWorld()->GetTimeSeconds();}
 }
 void ALDEnvironmentDirector::Cancel(ALDB91Controller* PC,const FString& Why)

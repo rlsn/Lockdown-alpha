@@ -3,6 +3,7 @@
 #include "World/LDB91ObjectsContract.h"
 #include "World/LDB91ToolsContract.h"
 #include "World/LDB91TraversalContract.h"
+#include "World/LDB91ForestryContract.h"
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
@@ -61,6 +62,7 @@ void ALDWorldObject::SetObserved(bool Visible)
 {Proxy->SetVisibility(Visible&&!(AppliedState&5));Glow->SetVisibility(Visible&&!(AppliedState&5)&&(AppliedState&8)&&(Kind==ELDObjectKind::Torch||Kind==ELDObjectKind::Lantern));}
 ALDWorldObjects::ALDWorldObjects()
 {bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
+FString ALDWorldObjects::ActiveContract(){return LD_B91_CONTROL_WORLD_SHA;}
 ALDWorldObjects* ALDWorldObjects::Get(UWorld* W)
 {if(W){for(TActorIterator<ALDWorldObjects> I(W);I;++I){return *I;}}return nullptr;}
 ALDWorldObject* ALDWorldObjects::Find(FName Id) const
@@ -143,8 +145,8 @@ bool ALDWorldObjects::Initialize(FString& Error)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
     if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
-    if(!InitializeTools(Error)||!InitializeTraversal(Error)){return false;}Contract=LD_B91_LINK_WORLD_SHA;
-    Ready=Objects.Num()==328&&Finite.Num()==132;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
+    if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)){return false;}Contract=ActiveContract();
+    Ready=Objects.Num()==339&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -183,6 +185,7 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
     if(R.Verb==ELDObjectVerb::Carry||R.Verb==ELDObjectVerb::Push)
     {const int Natural=Own->Build.Attributes.Num()==6?60+2*(Own->Build.Attributes[0]-10):0;if(!O->Heavy()||O->Weight()>Natural||O->Carrier.IsValid()){return Fail(TEXT("Cargo exceeds natural carrying capacity or is occupied"));}}
     if(R.Verb==ELDObjectVerb::Place&&(!O||O->Carrier!=PC||Carried(PC)!=O)){return Fail(TEXT("No carried cargo"));}
+    if(R.Verb==ELDObjectVerb::Break){return Fail(TEXT("Only an ordinary attack or authored ability can break a placed prop"));}
     if(R.Verb==ELDObjectVerb::Break&&(!(O->Heavy()&&O->BlocksWalk())||O->Carrier.IsValid())){return Fail(TEXT("Only a placed crate or barrel can break"));}
     if(R.Verb==ELDObjectVerb::Pickup&&(!O->Physical.IsValid()||O->Physical->State!=0||O->Physical->Holder.IsValid()||FVector::Dist(O->Physical->GetActorLocation(),O->GetActorLocation())>10)){return Fail(TEXT("Physical item unavailable"));}
     if(R.Verb==ELDObjectVerb::Take||R.Verb==ELDObjectVerb::Store)
@@ -197,7 +200,7 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
         {int Weight=0;for(auto I:O->Contents){if(I.IsValid()){Weight+=LDInventory::UnitWeight(I->Kind);}}if(O->Contents.Num()>=24||Weight+LDInventory::UnitWeight(P->Kind)>60){return Fail(TEXT("Container is full or too heavy"));}}
     }
     if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop)
-    {if(O->Kind!=ELDObjectKind::Sapling||O->Hp<=0||O->HarvestReceipt.IsValid()||O->BurnReceipt.IsValid()){return Fail(TEXT("A living finite sapling is required"));}
+    {if(!ForestryEligible(PC,R,Why)){return false;}if(O->Kind!=ELDObjectKind::Sapling||O->Hp<=0||O->HarvestReceipt.IsValid()||O->BurnReceipt.IsValid()){return Fail(TEXT("A living finite sapling is required"));}
      if(R.Verb==ELDObjectVerb::Harvest&&(Own->Inventory.Revision!=R.InventoryRevision||!M->Inventory->HasSpace(PC,ELDItemKind::Fiber,&Why))){if(Why.IsEmpty()){Why=TEXT("Inventory changed");}return false;}}
     if(uint8(R.Verb)<1||uint8(R.Verb)>16){return Fail(TEXT("Unknown object verb"));}return true;
 }
@@ -205,6 +208,7 @@ void ALDWorldObjects::Reply(ALDB91Controller* PC,const FLDObjectRequest& R,uint8
 {
     if(!PC){return;}auto& C=Clients.FindOrAdd(PC);auto& P=C.Receipts.FindOrAdd(ObjectReceiptKey(R.Life,R.Sequence));if(!P.Id.IsValid()){P.Id=FGuid::NewGuid();}P.Result=Result;P.Why=Why;P.Revision=Revision;
     FLDWorldReceipt Receipt;Receipt.Sequence=R.Sequence;Receipt.Receipt=P.Id;Receipt.Result=Result;Receipt.Reason=Why;Receipt.Revision=Revision;PC->ClientObjectReceipt(Receipt);
+    FLDB91Channel Progress;Progress.Match=R.Match;Progress.Life=R.Life;Progress.Sequence=R.Sequence;Progress.Domain=2;const auto* H=Holds.Find(PC);if(!Result&&H){Progress.Started=H->Started;Progress.Ends=H->Ends;Progress.Label=R.Verb==ELDObjectVerb::Ignite?TEXT("Torch ignition"):R.Verb==ELDObjectVerb::Harvest?TEXT("Harvesting with Forestry Knife"):R.Verb==ELDObjectVerb::Chop?TEXT("Chopping with Forestry Knife"):R.Verb==ELDObjectVerb::Use?TEXT("Traversing installed route"):TEXT("Item / storage action");}PC->ClientB91Channel(Progress,!Result&&H!=nullptr);
     while(C.Receipts.Num()>64){uint64 Old=MAX_uint64;for(const auto& X:C.Receipts){Old=FMath::Min(Old,X.Key);}C.Receipts.Remove(Old);}
 }
 void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
@@ -241,16 +245,17 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
         if(FVector::Dist2D(H.Destination,H.PushStart)<1){Reply(PC,R,2,TEXT("Push blocked"));return;}
     }
     if(R.Verb==ELDObjectVerb::Ignite&&!BeginIgnition(PC,Object,H,Why)){Reply(PC,R,2,Why);return;}
-    Holds.Add(PC,H);Reply(PC,R,0,TEXT("Hold in place; release, movement, damage or stale input cancels"));
+    if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop){ReserveTool(PC,H);}
+    Holds.Add(PC,H);Reply(PC,R,0,TEXT("Action started; S stops. Movement, damage, invalid target or lost connection cancels"));
 }
 void ALDWorldObjects::Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Seq,uint32 Nonce,bool Release)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;if(!O||O->Match!=Match||O->Life!=Life){return;}
     if(Release){Clients.FindOrAdd(PC).Cancelled=FMath::Max(Clients.FindOrAdd(PC).Cancelled,Seq);}auto* H=Holds.Find(PC);if(!H||H->Request.Sequence!=Seq){return;}
-    if(Release){Cancel(PC,TEXT("Held input released"));return;}if(Nonce>H->Nonce){H->Nonce=Nonce;H->Heartbeat=GetWorld()->GetTimeSeconds();}
+    if(Release){Cancel(PC,TEXT("Action stopped"));return;}if(Nonce>H->Nonce){H->Nonce=Nonce;H->Heartbeat=GetWorld()->GetTimeSeconds();}
 }
 void ALDWorldObjects::Cancel(ALDB91Controller* PC,const FString& Why)
-{if(const auto* H=Holds.Find(PC)){const auto Copy=*H;Holds.Remove(PC);if(Copy.Request.Verb==ELDObjectVerb::Use){EndTraversal(PC,Copy,false);}if(Copy.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(Copy);}Reply(PC,Copy.Request,2,Why);}}
+{if(const auto* H=Holds.Find(PC)){const auto Copy=*H;Holds.Remove(PC);if(Copy.Request.Verb==ELDObjectVerb::Use){EndTraversal(PC,Copy,false);}if((Copy.Request.Verb==ELDObjectVerb::Ignite||Copy.Request.Verb==ELDObjectVerb::Harvest||Copy.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(Copy);}Reply(PC,Copy.Request,2,Why);}}
 void ALDWorldObjects::Quote(ALDB91Controller* PC,ALDWorldObject* O)
 {
     if(!PC||!O||!O->Container()||!Visible(PC,O)||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),O->GetActorLocation())>120){return;}
@@ -379,10 +384,10 @@ void ALDWorldObjects::Tick(float Delta)
     for(auto Weak:Active)
     {
         auto* PC=Weak.Get();auto* Live=Holds.Find(Weak);if(!Live){continue;}const auto H=*Live;auto* O=H.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;FString Why;
-        if(!PC){if(H.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(H);}Holds.Remove(Weak);continue;}
+        if(!PC){if((H.Request.Verb==ELDObjectVerb::Ignite||H.Request.Verb==ELDObjectVerb::Harvest||H.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(H);}Holds.Remove(Weak);continue;}
         const bool Use=H.Request.Verb==ELDObjectVerb::Use;
         if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||H.Body!=B||S->LastDamage!=H.Damage||(!Use&&FVector::DistSquared(H.Start,B->GetActorLocation())>25)||Now-H.Heartbeat>.35||(Use&&Now-H.Started>3)||!Eligible(PC,O,H.Request,Why))
-        {Cancel(PC,TEXT("Object hold cancelled; state, movement, damage or input changed"));continue;}
+        {Cancel(PC,TEXT("Action cancelled: state, movement, damage or connection changed"));continue;}
         if(Use&&!MoveTraversal(PC,H,Now,Why)){Cancel(PC,Why);continue;}
         if(H.Request.Verb==ELDObjectVerb::Push&&O)
         {
@@ -392,7 +397,7 @@ void ALDWorldObjects::Tick(float Delta)
             {Cancel(PC,TEXT("Push stopped at an occupied endpoint"));continue;}
             O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);Live=Holds.Find(Weak);if(Live){Live->Request.ObjectRevision=O->Revision;}
         }
-        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if(H.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(H);}if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
+        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if((H.Request.Verb==ELDObjectVerb::Ignite||H.Request.Verb==ELDObjectVerb::Harvest||H.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(H);}if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
     }
     if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}
 }

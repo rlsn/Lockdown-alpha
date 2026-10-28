@@ -45,3 +45,11 @@ rendered readability and saved-match restoration remain separate evidence.
 Revision 7 remains byte-preserved in release reference copies and the v0.8 master source archive. v0.8 original/adopted hashes and historical audits remain unchanged. v0.9's supplied source package, data and model evidence are kept separate from B90 implementation evidence. For a new decision record its date, rationale, affected contract/profile and tests; do not erase the reason a prior choice existed.
 
 Open issues and delivery gaps belong in [the frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md). A candidate stays a candidate until deliberately selected.
+
+
+Revision14 records the28October user decision: no world-interaction keys;
+right-click pickup/doors, left-click storage/traders, actual item/ability sources
+or eligible POI presence, and one-press channels stopped with S. The user
+explicitly approved a finite forestry item, implemented as an11-instance overlay.
+This overrides old F/Z/R and held-input rules while preserving their source
+history. See [decision](../v09/CONTROL_POLICY_OVERRIDE.md).

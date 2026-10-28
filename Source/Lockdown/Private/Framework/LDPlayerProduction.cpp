@@ -10,7 +10,7 @@ bool ALDPlayerController::NearProduction(uint8 Site) const
 void ALDPlayerController::ArmProduction(const FLDProductionPlan& Plan)
 {
     const auto Copy=Plan;if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();}CancelArmed();ProductionPlan=Copy;bProductionArmed=true;bFreshInputRequired=true;
-    IntentFeedback=TEXT("Preview armed. Release all controls, then hold ")+BindingLabel(TEXT("Context"))+TEXT(" at ")+ALDProductionDirector::SiteName(Plan.Site)+TEXT(". Escape cancels.");
+    IntentFeedback=TEXT("Preview confirmed. Enter ")+ALDProductionDirector::SiteName(Plan.Site)+TEXT(" to start once. S cancels.");
 }
 void ALDPlayerController::StartProductionHold()
 {

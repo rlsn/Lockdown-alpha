@@ -6,13 +6,13 @@ The interface combines RPG build detail with tactical spatial awareness. The pla
 
 | Intent | Default input | Behavior |
 | --- | --- | --- |
-| Select | Left click | Inspect an authorized body/object or static location |
-| Move/approach | Right click | Native navigation to ground or a currently observed target |
+| Select / service | Left click | Inspect; open observed storage or trader, approaching first if needed |
+| Move / ordinary interaction | Right click | Move to ground; approach and pick up an ordinary item, or open/close a door once |
 | Basic attack | A | Explicit attack intent; neutral right-click does not attack |
 | Shared actions | Q / W / E / R / D / G | Six prepared learned/profession/body-equipment actions |
 | Accessories | 1 / 2 / 3 / 4 | Exact bound physical accessory actions |
-| Context | Hold F | Available legal world/service interaction |
-| Peer trade | T | Offer to an observed nearby humanoid |
+| Eligible POI | Stand at the POI | Begin its eligible behavior once on entry; no interaction key |
+| Peer trade | Inspector button | Offer to an observed nearby humanoid; explicit transaction review |
 | Stop/cancel | S / contextual cancel | Stop movement or the current cancellable intent |
 
 Bindings are remappable. Labels follow the current mapping and collisions must be visible. Retained preferences migrate without silently overwriting customized keys. Navigation reports arrived/blocked/stopped truthfully and stops stale hidden-target pursuit.
@@ -29,9 +29,9 @@ Inventory and development panels expose detail on demand. Service panels reuse t
 
 An action should communicate source, target mode, range, cost, cooldown, commit point and why it is blocked. Distinguish learned action, body-equipment active, accessory, passive and empty slot. A tooltip must not advertise a verb that has no server operation.
 
-A context choice shows object name, available verb, ownership restriction and hold preview only when authorized. Crowded F selection cannot steal a combat click. Placement shows intended footprint/endpoints and gives generic invalid feedback without revealing a hidden body. Carrying shows the prop, reduced speed, suppressed actions and Place/Drop.
+A source action shows item/ability name, available verb, ownership restriction and channel preview only when authorized. There is no generic Interact key or object-specific shortcut. Placement shows intended footprint/endpoints and gives generic invalid feedback without revealing a hidden body. Carrying shows the prop, reduced speed, suppressed actions and Place/Drop.
 
-Release of a hold, focus loss, moving out of range and lifecycle changes cancel through the same intent authority. Cancelled input is never replayed when focus returns.
+Press or click once to issue a channel. Releasing the input leaves it running. S stops the current action; movement, focus loss, loss of eligibility and lifecycle changes follow the action’s interruption rules. Progress comes from authoritative start/end times. A stopped POI waits until the player leaves and re-enters; focus restoration never replays cancelled input. Network heartbeats belong to the active order, independent of physical key state.
 
 ## Inventory and transactions
 
@@ -59,9 +59,8 @@ requires a safe drop. Dropping a prop cannot displace another character or turn
 an illegal action into a legal one.
 
 Interaction feedback should make those commitments easy to judge: current
-container, selected physical item, hold duration, required quiet time, cargo
-state and a clear reason for refusal. Prototype keyboard shortcuts are delivery
-tools. The long-term interface must support deliberate selection among nearby
+container, selected physical item, channel duration, required quiet time, cargo
+state and a clear reason for refusal. The interface must support deliberate selection among nearby
 objects, readable contents, visible placement footprints and the same input
 cancellation rules as combat.
 
@@ -74,19 +73,18 @@ inventory. Public presentation carries a light cue; precise fuel belongs to the
 owner or a legally disclosed transaction view.
 
 Ignition feedback should separate available fuel, elapsed light fuel, the
-channel's explicit cost and its family cooldown. Show the target, short hold,
+channel's explicit cost and its family cooldown. Show the target, short channel,
 reserved item state and cancellation reason before clearance commits. A burning
 sapling still blocks movement until it falls; make that delay readable. A
 flame cue must not promise a harvest reward or imply that every nearby tree
-will burn. R is the current B91 development shortcut for selected-Torch ignition;
-final contextual targeting and non-color cues still need user testing.
+will burn. Activate the bound Torch, then confirm a target once. Non-color cues and target readability still need user testing.
 
 Distinguish preparing a portable route from using one. A Rope requires its real
-accessory binding to attach; once installed, traversal is a held world action
+accessory binding to attach; once installed, traversal is a single-confirmation world action
 available to rivals. The original item leaves the bag and returns unbound when
 its owner detaches it. A Ladder stays world cargo throughout. Show the approved
-pair, landing, hold progress and refusal reason without exposing the hidden
-user or deployer's private identity. Control, damage, release or life change
+pair, landing, channel progress and refusal reason without exposing the hidden
+user or deployer's private identity. Control, damage, stop or life change
 must resolve to a supported landing before ordinary input resumes.
 
 Fixed storage should read differently from movable cargo. An empty piece of
@@ -110,13 +108,25 @@ material motion alongside a short state label. Oil should communicate preparatio
 for a later reaction, without promising automatic ignition. Ice communicates
 slower grounded movement, without suggesting a direct-hit Stun.
 
-The B91 development keyboard path selects a bag item with I, binds it with a
-held 1–4 and releases it at the cursor with N. These shortcuts establish an
-exercisable implementation path. A complete target preview, contextual item
-selection, remapping and human readability still require product UI work.
+The B91 bag selects exact instances; a binding button issues the2s preparation order once. Keys1–4 activate bound items. Confirm a flask target once through the ordinary targeting path. A complete footprint preview, enlarged text and human readability still require product UI work.
 
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.
 
 Verify practical tasks at 720p, 1080p, enlarged text and OS scaling: find an action reason, remap, navigate, learn/prepare, equip, compare, buy, trade, cancel and recover after death. Observe real users and independent clients. Screenshots establish layout only; native input and restricted payloads establish behavior.
+
+## Source discipline in world design
+
+Do not add an interaction key when adding a tree, bottle, shrine or door. First
+choose whether the behavior is an ordinary pointer interaction, automatic POI,
+basic attack, or an active from a prepared ability/physical item. A reusable
+free “interact ability” is not a valid substitute for a source. Binding and
+six-action limits continue to apply. Specialized extraction and lock work need
+authored sources; ordinary pickup and doors remain convenient.
+
+The approved B91 Forestry Knife makes this concrete: target a living sapling
+with a real bound knife, select Harvest or Chop, confirm once and see the4s
+channel. Harvest yields one finite Fiber; Chop yields none. Neither F nor Z
+exists as a tree command. Binding, storing or transferring the same knife does
+not multiply it. See the [current control decision](../v09/CONTROL_POLICY_OVERRIDE.md).

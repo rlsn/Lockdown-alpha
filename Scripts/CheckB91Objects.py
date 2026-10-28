@@ -15,8 +15,8 @@ def check(root):
     assert report['phase'] == 101
     assert len(report['checks']) == (51 if report.get('furniture_scenario') else 49) and all(c['passed'] for c in report['checks'])
     size = len(report['fitted_objects'])
-    assert size in (156, 204, 232, 264, 328)
-    finite_count = 84 if size == 156 else 132
+    assert size in (156, 204, 232, 264, 328, 339)
+    finite_count = 84 if size == 156 else 143 if size == 339 else 132
     assert report['finite_initial_items'] == finite_count and report['conserved']
     initial = report['initial_item_ids']
     physical = report['physical_items']
@@ -35,8 +35,10 @@ def check(root):
         expected.update({10: 12, 11: 16})
     if size >= 264:
         expected[12] = 32
-    if size == 328:
+    if size >= 328:
         expected[13] = 64
+    if size == 339:
+        expected[14] = 11
     assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
         assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01
@@ -66,7 +68,7 @@ def check(root):
             start = [float(rows[0][n]) for n in ('x_cm', 'y_cm')]
             motion = [math.dist(start, [float(r[n]) for n in ('x_cm', 'y_cm')]) for r in rows]
     assert motion and max(motion) >= 150, 'Carried client did not perform the native walk'
-    for phase in (1, 3, 5, 6, 7):
+    for phase in (1, 3, 7):
         values = [json.loads((root/f'{role}_{phase}.json').read_text(encoding='utf-8-sig')) for role in ('A', 'B')]
         assert sum(v['receipt_result'] == 1 for v in values) == 1, phase
     digest = hashlib.sha256((root/'Objects.json').read_bytes().replace(b'\r\n', b'\n')).hexdigest()

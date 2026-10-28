@@ -20,13 +20,15 @@ void ALDB91Controller::TickB91ObjectsProbe()
     {const FLDObjectView* Best=nullptr;double Distance=125*125;for(const auto& V:ObjectView){const double D=FVector::DistSquared2D(V.Position,P);if(V.Kind==Kind&&D<Distance){Best=&V;Distance=D;}}return Best;};
     auto Issue=[&](ELDObjectVerb Verb,const FLDObjectView* V,FVector Point=FVector::ZeroVector)
     {
-        ObjectProbeRequest=FLDObjectRequest();auto& R=ObjectProbeRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;
+        ObjectProbeRequest=FLDObjectRequest();auto& R=ObjectProbeRequest;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();
         R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;if(V){R.Observed=V->Handle;R.ObjectRevision=V->Revision;R.ItemRevision=V->PhysicalRevision;}
         if(Verb==ELDObjectVerb::Take){R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;for(const auto& I:ContainerView){if(I.Kind==ELDItemKind::Fiber){R.Item=I.Item;R.ItemRevision=I.Revision;break;}}}
         if(Verb==ELDObjectVerb::Store){R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;for(const auto& I:OwnerState.Inventory.Items){if(I.Kind==ELDItemKind::Fiber){R.Item=I.Id;R.ItemRevision=I.Revision;break;}}}
         ServerObjectInteraction(R);ProbeSent=true;ProbeHoldAt=Now;
     };
-    if(!ProbeSent&&ProbeTask!=8)
+    if(ProbeTask==5||ProbeTask==6)
+    {const auto* V=Find(ProbeTask==5?ELDObjectKind::Crate:ELDObjectKind::Barrel);if(V&&!(V->State&1)&&Now-ProbeRetryAt>.5){ProbeRetryAt=Now;BasicAttackArmed=true;ConfirmSource(V->Handle,V->Position);}if(V&&(V->State&1)){ProbeSent=true;ObjectProbeRequest.Sequence=LastObjectReceipt.Sequence;}}
+    if(!ProbeSent&&ProbeTask!=8&&ProbeTask!=5&&ProbeTask!=6)
     {
         const auto* V=Find(ProbeTask==1?ELDObjectKind::Water:ProbeTask<=4?(FParse::Param(FCommandLine::Get(),TEXT("LDB91FurnitureProbe"))?ELDObjectKind::Furniture:ELDObjectKind::Chest):ProbeTask==6?ELDObjectKind::Barrel:ELDObjectKind::Crate);
         if(!V){if(Now-ProbeAt<15){return;}}
@@ -53,6 +55,7 @@ void ALDB91Controller::TickB91ObjectsProbe()
         else if(ProbeStep==4&&LastObjectReceipt.Sequence==ObjectProbeRequest.Sequence&&LastObjectReceipt.Result)
         {Done=LastObjectReceipt.Result==1&&!HasObjectCargo()&&ObjectProbeRejectedPlace;}
     }
+    else if((ProbeTask==5||ProbeTask==6)&&ProbeSent){const auto* V=Find(ProbeTask==5?ELDObjectKind::Crate:ELDObjectKind::Barrel);const auto* W=V?ObjectProxies.Find(V->Handle):nullptr;Done=V&&(V->State&1)&&W&&W->IsValid()&&W->Get()->Proxy->GetCollisionEnabled()==ECollisionEnabled::NoCollision;}
     else if(ProbeSent&&LastObjectReceipt.Sequence==ObjectProbeRequest.Sequence&&LastObjectReceipt.Result)
     {
         if(ProbeTask==1)
@@ -69,7 +72,7 @@ void ALDB91Controller::TickB91ObjectsProbe()
     {ProbeHoldAt=Now;ServerObjectHold(ObjectProbeRequest.Match,ObjectProbeRequest.Life,ObjectProbeRequest.Sequence,++Nonce);}
     if(!Done&&Now-ProbeAt<20){return;}
     auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("fixture"),TEXT("objects"));R->SetNumberField(TEXT("phase"),ProbeTask);R->SetBoolField(TEXT("completed"),Done);
-    R->SetNumberField(TEXT("receipt_result"),LastObjectReceipt.Result);R->SetStringField(TEXT("receipt"),LastObjectReceipt.Receipt.ToString());R->SetStringField(TEXT("reason"),LastObjectReceipt.Reason);
+    R->SetNumberField(TEXT("receipt_result"),ProbeTask==5||ProbeTask==6?0:LastObjectReceipt.Result);R->SetStringField(TEXT("receipt"),LastObjectReceipt.Receipt.ToString());R->SetStringField(TEXT("reason"),LastObjectReceipt.Reason);
     R->SetStringField(TEXT("target_handle"),ObjectProbeRequest.Observed.ToString());
     R->SetBoolField(TEXT("duplicate_same"),ProbeTask!=1||ProbeReceipt==LastObjectReceipt.Receipt);R->SetNumberField(TEXT("container_count_before"),ObjectProbeContainerBefore);
     R->SetBoolField(TEXT("private_revision_absent"),ProbeTask!=1||Done);

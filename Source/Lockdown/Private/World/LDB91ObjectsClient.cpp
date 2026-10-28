@@ -45,7 +45,7 @@ const FLDObjectView* ALDB91Controller::NearestObject() const
 void ALDB91Controller::StartObject(ELDObjectVerb Verb,FVector Point)
 {
     const auto* O=NearestObject();if(!CanWorldCommand()||(!O&&Verb!=ELDObjectVerb::Drop)){return;}ReleaseDoor();Navigation->Stop();
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.InventoryRevision=OwnerState.Inventory.Revision;R.Verb=Verb;R.Point=Point;
     if(O){R.Observed=O->Handle;R.ObjectRevision=O->Revision;R.ItemRevision=O->PhysicalRevision;}
     if(Verb==ELDObjectVerb::Take)
     {if(!ContainerView.IsValidIndex(ContainerSelection)){return;}const auto& I=ContainerView[ContainerSelection];R.Item=I.Item;R.ItemRevision=I.Revision;R.Observed=ContainerHandle;R.ObjectRevision=ContainerRevision;}
@@ -56,14 +56,14 @@ void ALDB91Controller::StartObject(ELDObjectVerb Verb,FVector Point)
 void ALDB91Controller::ToggleSelectedTool()
 {
     if(!CanWorldCommand()||!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}ReleaseDoor();const auto& Item=OwnerState.Inventory.Items[BagSelection];
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.InventoryRevision=OwnerState.Inventory.Revision;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.Verb=ELDObjectVerb::Toggle;R.Accessory=255;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.InventoryRevision=OwnerState.Inventory.Revision;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.Verb=ELDObjectVerb::Toggle;R.Accessory=255;
     for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==R.Item){R.Accessory=N;break;}}ServerObjectInteraction(R);
 }
 void ALDB91Controller::StartLink(ELDObjectVerb Verb)
 {
     if(!CanWorldCommand()||!GetPawn()){return;}const FLDObjectView* Anchor=nullptr;double Best=120*120;
     for(const auto& V:ObjectView){const double D=FVector::DistSquared2D(GetPawn()->GetActorLocation(),V.Position);if(V.Kind==ELDObjectKind::Anchor&&!(V.State&4)&&D<=Best&&FMath::Abs(GetPawn()->GetActorLocation().Z-V.Position.Z)<150){Anchor=&V;Best=D;}}
-    if(!Anchor){return;}FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Verb=Verb;R.Observed=Anchor->Handle;R.ObjectRevision=Anchor->Revision;R.InventoryRevision=OwnerState.Inventory.Revision;
+    if(!Anchor){return;}FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.Verb=Verb;R.Observed=Anchor->Handle;R.ObjectRevision=Anchor->Revision;R.InventoryRevision=OwnerState.Inventory.Revision;
     if(Verb==ELDObjectVerb::Deploy)
     {const auto* Ladder=ObjectView.FindByPredicate([&](const auto& V){return V.Handle==CargoHandle&&V.Kind==ELDObjectKind::Ladder;});if(!Ladder){return;}R.Anchor=Anchor->Handle;R.AnchorRevision=Anchor->Revision;R.Observed=Ladder->Handle;R.ObjectRevision=Ladder->Revision;}
     if(Verb==ELDObjectVerb::Attach)
@@ -82,7 +82,7 @@ void ALDB91Controller::ClientTraversalPose_Implementation(uint32 Match,uint32 Li
 void ALDB91Controller::StartIgnition()
 {
     if(!CanWorldCommand()||!GetPawn()||!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}const auto& Item=OwnerState.Inventory.Items[BagSelection];if(Item.Kind!=ELDItemKind::Torch){IntentFeedback=TEXT("Select a physically bound Torch");return;}
-    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Verb=ELDObjectVerb::Ignite;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.Accessory=255;
+    FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.Verb=ELDObjectVerb::Ignite;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.Accessory=255;
     for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==Item.Id){R.Accessory=N;break;}}
     const auto* Socket=NearestObject();if(Socket&&Socket->Kind==ELDObjectKind::Sapling){R.Observed=Socket->Handle;R.ObjectRevision=Socket->Revision;}
     else{FHitResult Hit;if(!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){return;}R.Point=Hit.ImpactPoint;}

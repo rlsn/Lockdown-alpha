@@ -8,7 +8,7 @@ def check(root):
     report = json.loads((root/'Tools.json').read_text(encoding='utf-8-sig'))
     assert report['complete'] and report['failures'] == 0
     assert report['phase'] == 8 and len(report['checks']) == 32 and all(r['passed'] for r in report['checks'])
-    assert report['initial_items'] == report['final_items'] == 132 and report['conserved']
+    assert report['initial_items'] == report['final_items'] == 143 and report['conserved']
     trace = report['fuel_trace']
     assert len(trace) >= 8 and len({r['item'] for r in trace}) == 1
     assert trace[0]['remaining_ms'] == 180000 and trace[-1]['remaining_ms'] == 0

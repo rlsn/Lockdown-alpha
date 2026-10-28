@@ -5,6 +5,8 @@ $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
 if($Furniture){if($Objects -or $Tools -or $Traversal -or $Saplings -or $Fields -or $Ignition){throw 'Choose one native scenario'};$Objects=$true}
 if(([int]$Objects.IsPresent+[int]$Tools.IsPresent+[int]$Traversal.IsPresent+[int]$Saplings.IsPresent+[int]$Fields.IsPresent+[int]$Ignition.IsPresent) -gt 1){throw 'Choose one native scenario'}
+& python -B (Join-Path $PSScriptRoot 'SyncB91Forestry.py') --check
+if($LASTEXITCODE -ne 0){throw 'B91 forestry/control contract is stale'}
 & python -B (Join-Path $PSScriptRoot 'SyncB91Traversal.py') --check
 if($LASTEXITCODE -ne 0){throw 'B91 traversal contract is stale'}
 if($Objects){

@@ -20,7 +20,7 @@ void ALDB91Controller::TickB91TraversalProbe()
     const bool Upper=Anchor&&FVector(Anchor->Position).Z>FVector(Anchor->Endpoint).Z;
     auto Issue=[&](ELDObjectVerb Verb)
     {
-        auto& R=ObjectProbeRequest;R=FLDObjectRequest();R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Verb=Verb;R.InventoryRevision=OwnerState.Inventory.Revision;
+        auto& R=ObjectProbeRequest;R=FLDObjectRequest();R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.Verb=Verb;R.InventoryRevision=OwnerState.Inventory.Revision;
         const auto* O=Verb==ELDObjectVerb::Carry?Ladder:Anchor;
         if(O){R.Observed=O->Handle;R.ObjectRevision=O->Revision;}
         if(Verb==ELDObjectVerb::Deploy&&Anchor)

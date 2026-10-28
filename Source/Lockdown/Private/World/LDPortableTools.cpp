@@ -14,7 +14,7 @@ THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
 THIRD_PARTY_INCLUDES_END
 bool LDPortableTools::IsTool(ELDItemKind Kind)
-{return Kind==ELDItemKind::Torch||Kind==ELDItemKind::Lantern||Kind==ELDItemKind::Rope;}
+{return Kind==ELDItemKind::Torch||Kind==ELDItemKind::Lantern||Kind==ELDItemKind::Rope||Kind==ELDItemKind::ForestryKnife;}
 int32 LDPortableTools::InitialFuel(ELDItemKind Kind)
 {return Kind==ELDItemKind::Torch?180000:Kind==ELDItemKind::Lantern?300000:0;}
 bool LDPortableTools::Load(FString& Json,FString& Error)
@@ -33,6 +33,8 @@ const FLDEquipmentDefinition* LDPortableTools::Definition(ELDItemKind Kind)
         for(const auto& V:Root->GetArrayField(TEXT("definitions")))
         {const auto Row=V->AsObject();FLDEquipmentDefinition D;D.Kind=ELDItemKind(int32(Row->GetNumberField(TEXT("native_kind"))));D.Id=Row->GetStringField(TEXT("id"));D.Name=Row->GetStringField(TEXT("name"));D.Binding=7;D.Weight=Row->GetIntegerField(TEXT("weight"));D.Price=-1;D.Stats.WeaponBase=0;D.Operation=TEXT("portable_world_tool");D.ModifierHelp=TEXT("Finite Standard world tool; no passive stats, official price or material output");FJsonSerializer::Serialize(Row->GetObjectField(TEXT("active")).ToSharedRef(),TJsonWriterFactory<>::Create(&D.ActiveJson));Definitions.Add(D);}
     }
+    if(Definitions.Num()==3)
+    {FLDEquipmentDefinition D;D.Kind=ELDItemKind::ForestryKnife;D.Id=TEXT("forestry_knife");D.Name=TEXT("Forestry Knife");D.Binding=7;D.Weight=2;D.Price=-1;D.Stats.WeaponBase=0;D.Operation=TEXT("forestry_tool");D.ModifierHelp=TEXT("Finite Standard tool; target a sapling to harvest/chop. No passive stats or refill.");D.ActiveJson=TEXT("{\"op\":\"forestry_tool\",\"range_cm\":120,\"channel_ms\":4000,\"blocked_by\":\"Mute\"}");Definitions.Add(D);}
     return Definitions.FindByPredicate([&](const auto& D){return D.Kind==Kind;});
 }
 int32 LDPortableTools::Remaining(const ALDItem* Item,double Now)

@@ -96,7 +96,7 @@ void ALDDevelopmentDirector::Release(ALDPlayerController* PC,uint32 Life,uint32 
     if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=Mode->StateFor(PC);if(!O||O->Life!=Life){return;}
     auto& S=States.FindOrAdd(PC);S.CancelledThrough=FMath::Max(S.CancelledThrough,Token);
-    if(S.Kind&&S.Token<=Token){Cancel(PC,TEXT("Released; nothing spent or consumed."));}
+    if(S.Kind&&S.Token<=Token){Cancel(PC,TEXT("Stopped; nothing spent or consumed."));}
 }
 void ALDDevelopmentDirector::Cancel(ALDPlayerController* PC,const FString& Reason)
 {
@@ -123,7 +123,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
         if(!NearStation(PC,true)||!LDDevelopmentTransaction::Sold(R.Skill)||O->Gold<40||O->Books.Num()>=4){Reject(TEXT("Buy at Guild: 40 gold and an unread-book space required."));return;}
         auto* Book=GetWorld()->SpawnActor<ALDBook>();if(!Book){Reject(TEXT("Book unavailable; nothing spent."));return;}
         Book->Skill=R.Skill;Book->Holder=PC;O->Gold-=40;Mode->RecordEconomyGold(TEXT("LegacyBookPurchase"),0,40);FLDOwnedBook Entry;Entry.Id=Book->Identity;Entry.Skill=R.Skill;O->Books.Add(Entry);
-        Mode->SyncOwner(PC);FinishRequest(PC,R.Id,TEXT("Purchased one unread book for 40 gold. Select it and hold E to read."));return;
+        Mode->SyncOwner(PC);FinishRequest(PC,R.Id,TEXT("Purchased one unread book for 40 gold. Select it and use once to read; S stops."));return;
     }
     if(R.Kind==LDDevelopmentTransaction::PickUp)
     {
@@ -145,7 +145,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}
     O->DevelopmentKind=S.Kind;O->DevelopmentToken=S.Token;O->DevelopmentEndsAt=S.EndsAt;O->DevelopmentItem=R.Kind==LDDevelopmentTransaction::Loadout?R.Item:Book?Book->Identity:FGuid();Mode->SyncOwner(PC);
-    FinishRequest(PC,R.Id,Book?TEXT("Reading accepted; keep holding E for three seconds."):TEXT("Preparation accepted; keep holding E for two seconds."));
+    FinishRequest(PC,R.Id,Book?TEXT("Reading started for three seconds; S stops."):TEXT("Preparation started for two seconds; S stops."));
 }
 void ALDDevelopmentDirector::Sample(double Now)
 {

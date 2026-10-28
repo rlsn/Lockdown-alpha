@@ -20,8 +20,8 @@ void ALDPlayerController::ToggleDevelopmentPanel()
 }
 void ALDPlayerController::BuyBook(ELDSkill Skill)
 {StopDevelopmentHold();if(Navigation->Enabled()){OpenVendor();return;}ServerDevelopmentRequest(OwnerState.Match,OwnerState.Life,++NextRequest,LDDevelopmentTransaction::Buy,Skill,FGuid(),FLDBuildPlan());}
-void ALDPlayerController::SetInteractionHeld(bool Held){if(Navigation->Enabled()){if(Held&&CanWorldCommand()){ContextV05();}else if(!Held){V05Released(TEXT("Context"));}return;}if(Held){InteractStarted();}else{InteractStopped();}}
-void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(Navigation->Enabled()){if(Held){ArmSkill(Slot,2);}else{EndSkillGesture(Slot,2);}return;}if(Held){SkillStarted(Slot);}else{SkillStopped(Slot);}}
+void ALDPlayerController::SetInteractionHeld(bool Held){/* Removed: interactions require a source or POI. */}
+void ALDPlayerController::SetSkillHeld(uint8 Slot,bool Held){if(!Held){return;}if(Navigation->Enabled()){ArmSkill(Slot,2);}else{SkillStarted(Slot);}}
 void ALDPlayerController::StartDevelopmentHold(uint8 Kind,FGuid Item,const FLDBuildPlan& Plan)
 {
     ClearControls();DevelopmentHoldToken=++NextRequest;DevelopmentHoldSequence=0;LastDevelopmentHoldSent=-1000;
@@ -64,4 +64,4 @@ void ALDPlayerController::ServerDevelopmentRelease_Implementation(uint32 Match,u
     if(O&&O->Match==Match&&O->Life==Life&&Mode->Development){Mode->Development->Release(this,Life,Token);}
 }
 void ALDPlayerController::ClientDevelopmentResult_Implementation(const FLDOwnerState& State,uint32 Request,const FString& Result)
-{ClientLifeReceipt_Implementation(State);ClientIntentResult_Implementation(Request,Result);}
+{ClientLifeReceipt_Implementation(State);if(Request==DevelopmentHoldToken&&State.DevelopmentToken!=Request){DevelopmentHoldToken=0;bLoadoutMouseHeld=false;HeldQuickSlot=-1;}ClientIntentResult_Implementation(Request,Result);}

@@ -70,7 +70,7 @@ void ALDInputProbe::ServerTick()
         Enter(4);
     }
     else if(Phase==4&&E>2.2)
-    {for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(O->Hp==50&&O->Build.Cooldowns[4]>GetWorld()->GetTimeSeconds(),TEXT("Early mapped Patch release cancels healing and retains spent cooldown"));O->Build.Cooldowns[4]=0;M->SyncOwner(PC.Get());}Enter(5);}
+    {for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(O->Hp>50&&O->Build.Cooldowns[4]>GetWorld()->GetTimeSeconds(),TEXT("Mapped Patch continues after release and retains its spent cooldown"));O->Hp=50;M->RefreshBuild(PC.Get());O->Build.Cooldowns[4]=0;M->SyncOwner(PC.Get());}Enter(5);}
     else if(Phase==5&&E>2.7)
     {for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(O->Hp>50&&O->Hp<=O->MaxHp&&O->ContractStage==0,TEXT("Mapped E completes its equipped Patch hold without firing old context action"));}Enter(6);}
     else if(Phase==6)
@@ -79,7 +79,7 @@ void ALDInputProbe::ServerTick()
         if(E>4.5){for(auto PC:{A,B}){Check(!PC->Navigation->IsAuthorityActive()&&M->StateFor(PC.Get())->ContractStage==0,TEXT("Panel input cannot issue navigation or contextual work"));M->AwardExperience(PC.Get(),60);auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());Body->SetActorLocation(LDRegion::Site(GetWorld(),1)+FVector(PC==A?-40:40,50,92));Body->GetCharacterMovement()->StopMovementImmediately();}Enter(7);}
     }
     else if(Phase==7&&E>5.5)
-    {for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(O->Build.Attributes[0]==10&&O->Build.AttributePoints==1,TEXT("Fresh mapped F commits one real two-second station preparation"));}Enter(8);}
+    {for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(O->Build.Attributes[0]==10&&O->Build.AttributePoints==1,TEXT("Confirmed station plan commits one real two-second preparation without an interaction key"));}Enter(8);}
     else if(Phase==8&&E>5)
     {
         int32 I=0;for(auto PC:{A,B}){auto* Body=CastChecked<ALDCharacter>(PC->GetPawn());Near[I]->SetActorLocation(Body->GetActorLocation()+FVector(0,80,0));NearHp[I]=M->Combat->StateFor(Near[I].Get())->Hp;++I;}Enter(9);
@@ -129,15 +129,15 @@ void ALDInputProbe::ClientTick()
         if(!Step&&E>.5){Target=FindTarget();const auto* Own=PC->GetPawn().Get();const float Facing=Body->GetActorRotation().Yaw;PC->Inspect(Target);Check(Target.IsValid()&&PC->GetPawn()==Own&&FMath::IsNearlyEqual(Body->GetActorRotation().Yaw,Facing),TEXT("Selection neither changes ownership nor rotates own body"));PC->ArmSkill(1);Step=1;}
         if(Step==1&&E>2){Check(!PC->Inspected.IsValid()&&!PC->IsTargeting(),TEXT("Lost observation clears inspection and armed targeting"));PC->ToggleControlsPanel();Key(EKeys::Z,true);Key(EKeys::F,true);Step=2;}
         if(Step==2&&E>2.4){PC->Navigation->Navigate(Body->GetNavAgentLocation()+FVector(200,0,0));Check(!PC->IsTargeting()&&!PC->Navigation->IsFollowing(),TEXT("Major panel blocks world shortcuts and navigation everywhere"));Key(EKeys::Z,false);PC->ControlsUI->Close();Step=3;}
-        if(Step==3&&E>2.8){Check(!PC->CanWorldCommand(),TEXT("Closing a panel requires all held physical keys to release"));Key(EKeys::F,false);Step=4;}
+        if(Step==3&&E>2.8){Check(PC->CanWorldCommand(),TEXT("Removed F interaction is not a physical-key barrier after closing a panel"));Key(EKeys::F,false);Step=4;}
     }
     if(Phase==7)
     {
-        if(!Step&&E>.6){InitialRevision=PC->OwnerState.Build.Revision;InitialStrength=PC->OwnerState.Build.Attributes[0];PC->ToggleDevelopmentPanel();PC->DevelopmentUI->Choose(1,0);Key(EKeys::F,true);Step=1;}
+        if(!Step&&E>.6){InitialRevision=PC->OwnerState.Build.Revision;InitialStrength=PC->OwnerState.Build.Attributes[0];PC->ToggleDevelopmentPanel();PC->DevelopmentUI->Choose(1,0);Step=1;}
         if(Step==1&&E>1){PC->DevelopmentUI->Choose(8,0);Step=2;}
-        if(Step==2&&E>1.5){Check(!PC->DevelopmentUI->IsOpen()&&PC->OwnerState.Build.Revision==InitialRevision,TEXT("Apply closes and arms without spend or replaying a held key"));Key(EKeys::F,false);Step=3;}
-        if(Step==3&&E>2){Key(EKeys::F,true);Step=4;}
-        if(Step==4&&E>4.5){Key(EKeys::F,false);Check(PC->OwnerState.Build.Attributes[0]==InitialStrength+1,TEXT("Fresh native F hold receives authoritative preparation commit"));Step=5;}
+        if(Step==2&&E>1.5){Check(!PC->DevelopmentUI->IsOpen()&&PC->OwnerState.Build.Revision==InitialRevision,TEXT("Apply confirms the station plan and starts its native timer once"));Step=3;}
+        if(Step==3&&E>2){Step=4;}
+        if(Step==4&&E>4.5){Check(PC->OwnerState.Build.Attributes[0]==InitialStrength+1,TEXT("Confirmed station plan receives authoritative preparation commit"));Step=5;}
     }
     if(Phase==8)
     {

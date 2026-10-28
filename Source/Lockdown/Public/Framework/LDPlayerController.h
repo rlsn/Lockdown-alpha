@@ -31,7 +31,7 @@ public:
     UFUNCTION(Server,Reliable) void ServerAidConsent(uint32 Match,uint32 Life,bool Allow);
     UFUNCTION(Server,Reliable) void ServerCancelTactical(uint32 Match,uint32 Life,uint32 Through);
     void ClearControls();
-    void CancelInterruptibleHolds();
+    virtual void CancelInterruptibleHolds();
     bool CanWorldCommand() const;
     bool NavigationBindingsActive() const {return bNavigationContextActive;}
     UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
@@ -142,6 +142,7 @@ public:
     FGuid Inspected;
     void ArmPreparation(const FLDBuildPlan& Plan);
     void ArmRead(FGuid Book);
+    void ActivateHeartbreaker(FGuid Item);
     void ArmFabrication();
     UFUNCTION(Server,Reliable) void ServerSkillTargetAction(uint32 Match,uint32 Life,uint32 Request,uint32 BuildRevision,uint8 Slot,FVector_NetQuantizeNormal Direction,FGuid Observed);
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
@@ -250,7 +251,14 @@ private:
     void V05Pressed(FName Action);
     void V05Released(FName Action);
     void V05Zoom(const FInputActionValue& Value);
-    void ContextV05();
+    void TickAutomaticPOI();
+    FGuid PointerInteraction,EnteredPOI;
+    uint8 AutomaticSite=0;
+    uint32 POIMatch=0,POILife=0;
+    double PointerInteractionAt=0;
+    bool PointerVendor=false;
+    uint8 PointerService=255;
+    FVector PointerServicePosition=FVector::ZeroVector;
     void BeginTargetSkill(uint8 Slot,FGuid Observed,const FVector& Aim,uint8 Gesture);
     bool bFreshInputRequired=false,bPrimaryOwned=false,bAttackArmed=false,bDraftArmed=false,bFabricationArmed=false;
     int32 ArmedSkill=-1;

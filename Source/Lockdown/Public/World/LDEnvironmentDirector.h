@@ -59,6 +59,19 @@ struct FLDEnvironmentSurface
     UPROPERTY() uint8 States=0;
 };
 
+USTRUCT()
+struct FLDB91Channel
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 Match=0;
+    UPROPERTY() uint32 Life=0;
+    UPROPERTY() uint32 Sequence=0;
+    UPROPERTY() uint8 Domain=0;
+    UPROPERTY() double Started=0;
+    UPROPERTY() double Ends=0;
+    UPROPERTY() FString Label;
+};
+
 UCLASS()
 class LOCKDOWN_API ALDEnvironmentDoor:public AActor
 {
@@ -142,6 +155,29 @@ public:
     virtual void BeginPlay() override;
     virtual void PlayerTick(float Delta) override;
     virtual void SetupInputComponent() override;
+    virtual void CancelInterruptibleHolds() override;
+    UFUNCTION(Client,Reliable) void ClientB91Channel(FLDB91Channel Progress,bool Active);
+    FLDB91Channel Channel;
+    bool ChannelActive=false;
+    void TickSourceControls();
+    void PointerOrder(bool Right,FGuid Object,FGuid Door,FVector Point);
+    void UseAccessory(uint8 Slot,bool Alternate=false);
+    void ConfirmSource(FGuid Object,FVector Point);
+    void ItemCommand(FName Command,int32 Index=-1);
+    void IssueObject(ELDObjectVerb Verb,FGuid Handle=FGuid(),FGuid Item=FGuid(),FVector Point=FVector::ZeroVector);
+    void IssueDoor(ELDWorldVerb Verb,FGuid Handle);
+    void StopSourceOrder();
+    const FLDObjectView* ObjectUnderPointer() const;
+    const FLDEnvironmentViewEntry* DoorUnderPointer() const;
+    FGuid SelectedObject,ArmedSource;
+    ELDObjectVerb ArmedVerb=ELDObjectVerb::Ignite;
+    bool BasicAttackArmed=false;
+    uint8 ArmedAccessory=0;
+    FGuid PendingObject,PendingDoor;
+    FVector PendingPoint=FVector::ZeroVector;
+    bool PendingRight=false;
+    double PendingIssued=0;
+
     virtual bool EnvironmentUI() const override {return true;}
     UFUNCTION(Server,Reliable) void ServerWorldInteraction(FLDWorldRequest Request);
     UFUNCTION(Server,Unreliable) void ServerWorldHold(uint32 Match,uint32 Life,uint32 Sequence,uint32 NonceValue,bool Release);
@@ -254,4 +290,8 @@ class LOCKDOWN_API ALDB91HUD:public AHUD
     GENERATED_BODY()
 public:
     virtual void DrawHUD() override;
+    virtual void NotifyHitBoxClick(FName BoxName) override;
+    bool PointerOverControls() const;
+    TMap<FName,FIntPoint> Commands;
+    void Command(const FString& Label,FName Name,int32 Value,FVector2D Position,FVector2D Size=FVector2D(160,28));
 };

@@ -26,12 +26,12 @@ void ALDPlayerController::InventoryCommand(uint8 Command,FGuid Item,uint8 Slot,F
 }
 void ALDPlayerController::SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture)
 {
-    if(!Held){if(HeldQuickSlot==Slot&&HeldQuickGesture==Gesture){StopDevelopmentHold();if(ContentHoldToken&&!bContentMouse){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}HeldQuickSlot=-1;}return;}
+    if(!Held){return;} // A released item input leaves its issued channel active.
     if(!CanWorldCommand()||Slot>=(OwnerState.Build.RulesVersion==8?4:OwnerState.Build.RulesVersion>=7?3:4)||InventoryPending()){return;}const auto* Item=OwnerState.Inventory.Find(OwnerState.Build.RulesVersion==8?OwnerState.Inventory.Bindings[7+Slot]:OwnerState.Inventory.Quick[Slot]);
     if(!Item){IntentFeedback=TEXT("Quick item slot is empty");return;}if(Item->bReserved){IntentFeedback=TEXT("Item reserved");return;}
     if(OwnerState.Build.RulesVersion>=7&&Item->Kind!=ELDItemKind::WardCharge)
     {const auto* C=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(Item->Kind):nullptr;if(!D||D->Operation.IsEmpty()){return;}const auto Id=Item->Id;const bool SelfAgain=ArmedWard==Id&&D->Operation==TEXT("basic_dispel");
-        if(!SelfAgain&&(D->Param(TEXT("range_cm"))>0||D->Operation==TEXT("blink")||D->Operation==TEXT("recall"))){CancelArmed();ArmedWard=Id;ArmedItemRevision=Item->Revision;IntentFeedback=D->Operation==TEXT("recall")?TEXT("Confirm a visited service and keep holding mouse for4s"):TEXT("Confirm observed target or ground. Null Staff: press reference again for self.");return;}
+        if(!SelfAgain&&(D->Param(TEXT("range_cm"))>0||D->Operation==TEXT("blink")||D->Operation==TEXT("recall"))){CancelArmed();ArmedWard=Id;ArmedItemRevision=Item->Revision;IntentFeedback=D->Operation==TEXT("recall")?TEXT("Confirm a visited service; channel4s, S stops"):TEXT("Confirm observed target or ground. Null Staff: press reference again for self.");return;}
         CancelArmed();HeldQuickSlot=Slot;HeldQuickGesture=Gesture;bContentMouse=false;SendItemAction(Id,FGuid(),GetPawn()->GetActorLocation());return;}
     if(Item->Kind==ELDItemKind::NullBell){InventoryCommand(LDInventory::Use,Item->Id,Slot);return;}
     if(Item->Kind==ELDItemKind::WardCharge){ArmWard(Item->Id);return;}

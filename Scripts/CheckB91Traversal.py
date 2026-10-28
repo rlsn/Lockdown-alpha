@@ -10,7 +10,7 @@ def check(root):
     report = json.loads((root/'Traversal.json').read_text(encoding='utf-8-sig'))
     assert report['complete'] and report['failures'] == 0 and report['phase'] == 98
     assert len(report['checks']) == 55 and all(r['passed'] for r in report['checks'])
-    assert report['conserved'] and report['finite_items'] == 132 and report['ladders'] == 12
+    assert report['conserved'] and report['finite_items'] == 143 and report['ladders'] == 12
     geometry = report['geometry']
     assert len(geometry) == len({r['anchor'] for r in geometry}) == 16
     assert all(r['supported'] and r['capsule_route_clear'] for r in geometry)

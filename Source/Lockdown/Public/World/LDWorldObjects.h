@@ -8,7 +8,7 @@ class ALDCharacter;
 class UStaticMeshComponent;
 class UPointLightComponent;
 
-UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling };
+UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling,ForestryKnife };
 UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop,Ignite };
 USTRUCT()
 struct FLDObjectRequest
@@ -96,6 +96,7 @@ public:
     ALDWorldObjects();
     virtual void Tick(float Delta) override;
     static ALDWorldObjects* Get(UWorld* World);
+    static FString ActiveContract();
     bool Initialize(FString& Error);
     bool Ready=false;
     FString Contract;
@@ -158,6 +159,9 @@ private:
     double NextFuelPublish=0;
     bool FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const;
     bool InitializeTools(FString& Error);
+    bool InitializeForestry(FString& Error);
+    bool ForestryEligible(ALDB91Controller* PC,const FLDObjectRequest& R,FString& Why) const;
+    void ReserveTool(ALDB91Controller* PC,FHold& H);
     bool InitializeTraversal(FString& Error);
     bool LinkEligible(ALDB91Controller* PC,ALDWorldObject* Object,const FLDObjectRequest& R,FString& Why) const;
     bool BeginLink(ALDB91Controller* PC,ALDWorldObject* Object,FHold& Hold,FString& Why);

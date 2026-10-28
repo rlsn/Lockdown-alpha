@@ -165,9 +165,9 @@ void ALDPlayerController::SetupInputComponent()
     Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Started,this,&ALDPlayerController::Dash);
     Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Completed,this,&ALDPlayerController::RecenterEnded);
     Input->BindAction(Action(TEXT("Dash")),ETriggerEvent::Canceled,this,&ALDPlayerController::RecenterEnded);
-    Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Started,this,&ALDPlayerController::InteractStarted);
-    Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Completed,this,&ALDPlayerController::InteractStopped);
-    Input->BindAction(Action(TEXT("Interact")),ETriggerEvent::Canceled,this,&ALDPlayerController::InteractStopped);
+
+
+
     // A native context adds four slots without changing the frozen migration assets.
     SkillInputContext=NewObject<UInputMappingContext>(this);
     const FKey Keys[]={EKeys::One,EKeys::Two,EKeys::Three,EKeys::Four};
@@ -176,8 +176,8 @@ void ALDPlayerController::SetupInputComponent()
         auto* SkillAction=NewObject<UInputAction>(SkillInputContext);
         SkillInputContext->MapKey(SkillAction,Keys[Slot]);
         Input->BindAction(SkillAction,ETriggerEvent::Started,this,&ALDPlayerController::SkillStarted,Slot);
-        Input->BindAction(SkillAction,ETriggerEvent::Completed,this,&ALDPlayerController::SkillStopped,Slot);
-        Input->BindAction(SkillAction,ETriggerEvent::Canceled,this,&ALDPlayerController::SkillStopped,Slot);
+
+
     }
     auto* DevelopmentAction=NewObject<UInputAction>(SkillInputContext);SkillInputContext->MapKey(DevelopmentAction,EKeys::P);
     Input->BindAction(DevelopmentAction,ETriggerEvent::Started,this,&ALDPlayerController::ToggleDevelopmentPanel);
@@ -298,6 +298,7 @@ void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Re
 void ALDPlayerController::ClientCombatResult_Implementation(const FLDOwnerState& State,uint32 Request,const FString& Result,float Facing)
 {
     ClientLifeReceipt_Implementation(State);
+    if(Request==SkillHoldToken&&State.ActiveSkill==ELDSkill::None){HeldSkillSlot=255;SkillHoldToken=0;}
     if(Request==ContentHoldToken&&(State.ActionCue&15)!=10){ContentHoldToken=0;}
     if(State.Match==OwnerState.Match&&State.Life==OwnerState.Life&&Request==PendingAimRequest)
     {PendingAimRequest=0;if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->SetFacing(Facing);}}
@@ -370,7 +371,7 @@ FString ALDPlayerController::LegacyContextPrompt() const
 void ALDPlayerController::InteractStarted()
 {StartInteraction(IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift));}
 void ALDPlayerController::SetFabricationHeld(bool Held)
-{if(Held){StartInteraction(true);}else{InteractStopped();}}
+{if(Held){StartInteraction(true);}}
 void ALDPlayerController::StartInteraction(bool Fabricate)
 {
     Navigation->Stop();
@@ -419,7 +420,7 @@ void ALDPlayerController::CompleteContextRequest(uint32 Request,const FString& R
     ContextReceipts.Add(Request,Result);ClientTransactionResult(OwnerState,Request,Result);
 }
 void ALDPlayerController::ClientTransactionResult_Implementation(const FLDOwnerState& State,uint32 Request,const FString& Result)
-{ClientLifeReceipt_Implementation(State);ClientIntentResult_Implementation(Request,Result);}
+{ClientLifeReceipt_Implementation(State);if(Request==ContextToken&&!State.ChannelKind){bInteractHeld=false;}ClientIntentResult_Implementation(Request,Result);}
 
 void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 { Super::GetLifetimeReplicatedProps(OutLifetimeProps); DOREPLIFETIME(ALDPlayerController,OwnerState); }
@@ -465,11 +466,13 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
     IntentFeedback=Reason;
     if(Navigation->Enabled())
     {
-        const FString Label=OwnerState.DevelopmentKind?HeldInputLabel():BindingLabel(TEXT("Context"));
-        IntentFeedback.ReplaceInline(TEXT("holding E"),*(TEXT("holding ")+Label));
-        IntentFeedback.ReplaceInline(TEXT("Hold E"),*(TEXT("Hold ")+Label));
-        IntentFeedback.ReplaceInline(TEXT("hold E"),*(TEXT("hold ")+Label));
-        IntentFeedback.ReplaceInline(TEXT("Release E"),*(TEXT("Release ")+Label));
+        const FString Continue=TEXT("channel continues; ")+HeldInputLabel();
+        IntentFeedback.ReplaceInline(TEXT("keep holding the slot key"),*Continue);
+        IntentFeedback.ReplaceInline(TEXT("keep holding E"),*Continue);
+        IntentFeedback.ReplaceInline(TEXT("holding E"),*Continue);
+        IntentFeedback.ReplaceInline(TEXT("Hold E"),TEXT("Enter the eligible POI"));
+        IntentFeedback.ReplaceInline(TEXT("hold E"),TEXT("enter the eligible POI"));
+        IntentFeedback.ReplaceInline(TEXT("Release E"),*BindingLabel(TEXT("Stop")));
     }
 #if !UE_BUILD_SHIPPING
     if(double* Sent=ProbeRequests.Find(Request)){ProbeAckMs.Add((FPlatformTime::Seconds()-*Sent)*1000);ProbeRequests.Remove(Request);}
@@ -544,6 +547,7 @@ void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->
 
 void ALDPlayerController::CancelInterruptibleHolds()
 {
+    PointerInteraction.Invalidate();PointerService=255;
     if(OwnerState.Build.RulesVersion>=7){ServerCancelTactical(OwnerState.Match,OwnerState.Life,NextRequest);}
     if(ContentHoldToken){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}
     InteractStopped();
@@ -599,7 +603,7 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
         bControlsSuppressed = bOpen;
         SetIgnoreMoveInput(bOpen);
     }
-    ClearControls();
+    if(bOpen){ClearControls();}
     if (bOpen)
     {
         FInputModeGameAndUI Mode;

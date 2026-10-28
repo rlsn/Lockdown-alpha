@@ -23,7 +23,7 @@ def check(root):
     assert rows['B', 6]['result'] == 2 and rows['B', 7]['result'] == 1
     assert rows['A', 8]['result'] == 1 and rows['A', 8]['same_retry_item']
     assert rows['B', 8]['surface_count'] == 0
-    print(f"PASS B91 ignition: {len(report['checks'])} native checks, two owners, finite fuel, reserved fields, 131 conserved items")
+    print(f"PASS B91 ignition: {len(report['checks'])} native checks, two owners, finite fuel, reserved fields, 142 conserved items")
 
 
 if __name__ == '__main__':

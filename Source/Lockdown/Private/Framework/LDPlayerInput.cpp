@@ -18,6 +18,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "Region/LDRegionDefinition.h"
+#include "Core/LDGroundQueries.h"
+#include "Economy/LDCommerceDirector.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
@@ -46,18 +49,12 @@ FKey ALDPlayerController::BindingKey(FName Action) const {return Controls?Contro
 FString ALDPlayerController::BindingLabel(FName Action) const {return Controls?Controls->Label(Action):Action.ToString();}
 double ALDPlayerController::ArmedRange() const
 {if(ArmedWard.IsValid()){const auto* I=OwnerState.Inventory.Find(ArmedWard);const auto* C=ULDEquipmentCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=I&&C?C->Find(I->Kind):nullptr;if(D){return D->Param(TEXT("range_cm"),D->Param(TEXT("distance_cm"),96));}}if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0){const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[ArmedSkill]):nullptr;if(D){return D->Range;}}return bAttackArmed||ArmedWard.IsValid()?96:ArmedSkill>=0&&OwnerState.Build.Slots.IsValidIndex(ArmedSkill)?(OwnerState.Build.Slots[ArmedSkill]==ELDSkill::Step?LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Step):LDHUD::Range(OwnerState.Build.Slots[ArmedSkill])):0;}
-FString ALDPlayerController::HeldInputLabel() const
-{
-    if(ContentHoldToken){return bContentMouse?BindingLabel(TEXT("Select")):HeldQuickSlot>=0?BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1))):BindingLabel(TEXT("Context"));}
-    if(bLoadoutMouseHeld){return TEXT("equipment/quick button");}
-    if(OwnerState.DevelopmentKind){return HeldQuickSlot>=0?(HeldQuickGesture==2?TEXT("mouse button"):BindingLabel(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1)))):BindingLabel(TEXT("Context"));}
-    return HeldSkillGesture==1?BindingLabel(TEXT("Select")):HeldSkillGesture==2?TEXT("mouse button"):HeldSkillGesture==3?BindingLabel(TEXT("Context")):BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),HeldSkillSlot+1)));
-}
+FString ALDPlayerController::HeldInputLabel() const{return BindingLabel(TEXT("Stop"))+TEXT(" stops");}
 FString ALDPlayerController::ControlSummary() const
 {
     auto K=[this](const TCHAR* A){return BindingLabel(FName(A));};
     return K(TEXT("Select"))+TEXT(" inspect / confirm · ")+K(TEXT("Navigate"))+TEXT(" move / cancel · ")+K(TEXT("Attack"))+TEXT(" arm attack · ")+K(TEXT("Stop"))+TEXT(" stop · ")+K(TEXT("Sprint"))+TEXT(" sprint\n")
-        +K(TEXT("Skill1"))+TEXT(" / ")+K(TEXT("Skill2"))+TEXT(" / ")+K(TEXT("Skill3"))+TEXT(" / ")+K(TEXT("Skill4"))+TEXT(" equipped skills · ")+K(TEXT("Context"))+TEXT(" hold context · ")+K(TEXT("Development"))+TEXT(" character\n")
+        +K(TEXT("Skill1"))+TEXT(" / ")+K(TEXT("Skill2"))+TEXT(" / ")+K(TEXT("Skill3"))+TEXT(" / ")+K(TEXT("Skill4"))+TEXT(" equipped skills · ")+TEXT("POIs activate when eligible · ")+K(TEXT("Development"))+TEXT(" character\n")
         +K(TEXT("PanUp"))+TEXT(" / ")+K(TEXT("PanDown"))+TEXT(" / ")+K(TEXT("PanLeft"))+TEXT(" / ")+K(TEXT("PanRight"))+TEXT(" camera · ")+K(TEXT("Recenter"))+TEXT(" hold recenter · ")+K(TEXT("Follow"))+TEXT(" follow · ")+K(TEXT("Help"))+TEXT(" controls · ")+K(TEXT("Back"))+TEXT(" Back");
 }
 void ALDPlayerController::PressBasicAttack(){if(Navigation->Enabled()){ArmAttack();}else{Attack();}}
@@ -113,12 +110,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         const FKey Primary=BindingKey(TEXT("Select"));
         if(!PhysicalDown(this,Primary)){V05Released(TEXT("Select"));}
     }
-    if(HeldSkillGesture==2&&HeldSkillSlot!=255&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){SkillStopped(HeldSkillSlot);}
-    if(bLoadoutMouseHeld&&!FApp::IsUnattended()&&!PhysicalDown(this,BindingKey(TEXT("Select")))&&!PhysicalDown(this,EKeys::SpaceBar)&&!PhysicalDown(this,EKeys::Enter)){StopDevelopmentHold();}
-    if(ContentHoldToken&&!FApp::IsUnattended())
-    {const FKey Key=bContentMouse?BindingKey(TEXT("Select")):HeldQuickSlot>=0?(HeldQuickGesture==2?EKeys::LeftMouseButton:BindingKey(FName(*FString::Printf(TEXT("Item%d"),HeldQuickSlot+1)))):BindingKey(TEXT("Context"));if(!PhysicalDown(this,Key)){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}}
-    if(HeldQuickSlot>=0&&HeldQuickGesture==2&&!FApp::IsUnattended()&&!PhysicalDown(this,EKeys::LeftMouseButton)){StopDevelopmentHold();}
     if(ArmedWard.IsValid()||ReadArmed.IsValid()){const auto* Item=OwnerState.Inventory.Find(ArmedWard.IsValid()?ArmedWard:ReadArmed);if(!Item||Item->bReserved||Item->Revision!=ArmedItemRevision){CancelArmed();IntentFeedback=TEXT("Item changed; choose it again");}}
+    TickAutomaticPOI();
     if(InventoryUI){InventoryUI->Refresh();}
     if(HUDUI){HUDUI->RefreshReadModel();}
 }
@@ -146,6 +139,7 @@ void ALDPlayerController::V05Back()
 }
 void ALDPlayerController::V05Pressed(FName Action)
 {
+    if(Action==TEXT("Stop")){Navigation->Stop();CancelInterruptibleHolds();CancelArmed();return;}
     if(Action==TEXT("Back")){V05Back();return;}
     if(Action==TEXT("Help")){ToggleControlsPanel();return;}
     if(Action==TEXT("Development")&&!OwnerState.bActive){ToggleDevelopmentPanel();return;}
@@ -158,27 +152,24 @@ void ALDPlayerController::V05Pressed(FName Action)
         if(RootUI&&RootUI->PointerOverUI()){return;}
         FHitResult Hit;const FGuid Target=ObservedUnderPointer();
         if(GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
-        {bPrimaryOwned=true;if(IsTargeting()){ConfirmArmed(Hit.ImpactPoint,Target);}else{Inspect(Target);}}
+        {bPrimaryOwned=true;if(IsTargeting()){ConfirmArmed(Hit.ImpactPoint,Target);}else{Inspect(Target);FLDObservedEntity E;if(ReadInspected(E)&&E.Kind==ELDObservedKind::Production){Navigation->Navigate(E.Position,E.Id);PointerInteraction=E.Id;PointerVendor=true;PointerInteractionAt=GetWorld()->GetTimeSeconds();}else if(!Target.IsValid()){const auto Guild=LDRegion::Site(GetWorld(),1);if(FVector::Dist2D(Hit.ImpactPoint,Guild)<=75){Navigation->Navigate(Guild,FGuid(),1);PointerService=0;PointerServicePosition=Guild;PointerInteractionAt=GetWorld()->GetTimeSeconds();}else{for(uint8 Site=1;Site<4;++Site){const FVector Market=ALDCommerceDirector::Position(GetWorld(),Site);if(FVector::Dist2D(Hit.ImpactPoint,Market)<=75){Navigation->Navigate(Market);PointerService=Site;PointerServicePosition=Market;PointerInteractionAt=GetWorld()->GetTimeSeconds();break;}}}}}}
     }
-    else if(Action==TEXT("Navigate")){if(RootUI&&RootUI->PointerOverUI()){return;}if(IsTargeting()||bProductionArmed||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{Navigation->ClickMove();}}
+    else if(Action==TEXT("Navigate")){if(RootUI&&RootUI->PointerOverUI()){return;}if(IsTargeting()||bProductionArmed||bDraftArmed||ReadArmed.IsValid()||bFabricationArmed){CancelArmed();}else{const auto Id=ObservedUnderPointer();Navigation->ClickMove();const auto* V=LocalView();const auto* E=V&&!V->IsStale()?V->LastView().Entities.FindByPredicate([&](const auto& X){return X.Id==Id;}):nullptr;if(E&&LDVision::PickupKind(E->Kind)){PointerInteraction=Id;PointerVendor=false;PointerInteractionAt=GetWorld()->GetTimeSeconds();}}}
     else if(Action==TEXT("Attack")){ArmAttack();}
-    else if(Action==TEXT("Context")){ContextV05();}
     else if(Action==TEXT("Stop")){StopOrder();CancelArmed();}
     else if(Action==TEXT("Sprint")){SprintStarted();}
     else if(Action==TEXT("Recenter")){Navigation->Recenter(true);}
     else if(Action==TEXT("Follow")){Navigation->ToggleFollow();}
     else if(Action==TEXT("Development")){ToggleDevelopmentPanel();}
     else if(Action==TEXT("Inventory")){ToggleInventoryPanel();}
-    else if(Action==TEXT("Trade")){OfferTrade();}
+
 }
 void ALDPlayerController::V05Released(FName Action)
 {
     if(Action==TEXT("Sprint")){SprintStopped();}
     if(Action==TEXT("Recenter")){Navigation->Recenter(false);}
-    if(Action==TEXT("Select")){if(ContentHoldToken&&bContentMouse){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;bContentMouse=false;}bPrimaryOwned=false;if(HeldSkillGesture==1&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
-    if(Action==TEXT("Context")){if(ContentHoldToken){ServerContentHold(OwnerState.Match,OwnerState.Life,ContentHoldToken,++ContentHoldSequence,false,true);ContentHoldToken=0;}InteractStopped();StopDevelopmentHold();StopProductionHold();if(HeldSkillGesture==3&&HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}}
-    const int32 Slot=Numbered(Action,TEXT("Skill"));if(Slot>=0&&HeldSkillGesture==0){SkillStopped(uint8(Slot));}
-    const int32 QuickSlot=Numbered(Action,TEXT("Item"));if(QuickSlot>=0){SetQuickItemHeld(uint8(QuickSlot),false);}
+    if(Action==TEXT("Select")){bPrimaryOwned=false;}
+    // Channels belong to the issued order. Input release is not cancellation.
 }
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 {if(CanWorldCommand()&&(!RootUI||!RootUI->PointerOverUI())){if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->Zoom(Value.Get<float>());Controls->Zoom=Body->CameraArm->TargetArmLength;PreferenceSaveAt=GetWorld()->GetTimeSeconds()+.5;}}}
@@ -248,55 +239,49 @@ void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
     if(bAttackArmed){CancelArmed();PendingAimRequest=++NextRequest;PendingSkillSlot=255;CastChecked<ALDCharacter>(GetPawn())->SetFacing(Aim.Rotation().Yaw);ServerCombatAction(OwnerState.Match,OwnerState.Life,PendingAimRequest,0,Aim);}
     else if(ArmedSkill>=0){const uint8 Slot=uint8(ArmedSkill);CancelArmed();BeginTargetSkill(Slot,Target,Aim,1);}
 }
-void ALDPlayerController::EndSkillGesture(uint8 Slot,uint8 Gesture){if(HeldSkillSlot==Slot&&HeldSkillGesture==Gesture){SkillStopped(Slot);}}
+void ALDPlayerController::EndSkillGesture(uint8 Slot,uint8 Gesture){/* Input release leaves the channel running. */}
 void ALDPlayerController::ArmPreparation(const FLDBuildPlan& Plan)
 {
     FLDCharacterBuild Candidate;FString Error;if(!LDDevelopment::Prepare(OwnerState.Build,Plan,Candidate,Error)){IntentFeedback=Error;return;}
     const FLDBuildPlan Copy=Plan;if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
-    CancelArmed();PreparedDraft=Copy;bDraftArmed=true;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at the station to apply your preview.");
+    CancelArmed();PreparedDraft=Copy;bDraftArmed=true;bFreshInputRequired=true;IntentFeedback=TEXT("Preview confirmed. Enter a preparation station to apply it; S cancels.");
 }
 void ALDPlayerController::ArmRead(FGuid Book)
 {
     const auto* Item=OwnerState.Inventory.Find(Book);if(Navigation->Enabled()&&(!Item||Item->Kind!=ELDItemKind::Book||Item->bReserved)){IntentFeedback=TEXT("Owned book unavailable");return;}const uint32 Revision=Item?Item->Revision:0;
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
-    CancelArmed();ReadArmed=Book;ArmedItemRevision=Revision;bFreshInputRequired=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" to read. Closing the panel spends nothing.");
+    CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());IntentFeedback=TEXT("Reading the selected book. S stops; release keeps reading.");
 }
-void ALDPlayerController::ArmFabrication(){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(InventoryUI){InventoryUI->PreviewProduction(8);}return;}CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Hold ")+BindingLabel(TEXT("Context"))+TEXT(" at Guild to fabricate a Seal.");}
-void ALDPlayerController::ContextV05()
+void ALDPlayerController::ActivateHeartbreaker(FGuid Item)
+{const auto* I=OwnerState.Inventory.Find(Item);if(!I||I->Kind!=ELDItemKind::Heartbreaker||I->bReserved){return;}StartWorldInteraction(11);}
+void ALDPlayerController::ArmFabrication(){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(InventoryUI){InventoryUI->PreviewProduction(8);}return;}CancelArmed();bFabricationArmed=true;IntentFeedback=TEXT("Enter Guild to fabricate the confirmed Seal. S cancels.");}
+void ALDPlayerController::TickAutomaticPOI()
 {
-    if(bProductionArmed){StartProductionHold();return;}
-    if(bDraftArmed){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}
-    if(ReadArmed.IsValid()){const FGuid Book=ReadArmed;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Read,Book,FLDBuildPlan());return;}
-    if(bFabricationArmed){CancelArmed();StartInteraction(true);return;}
-    FLDObservedEntity Link;if(OwnerState.Build.RulesVersion>=7&&ReadInspected(Link)&&Link.Kind==ELDObservedKind::TacticalField&&(Link.Presentation==11||Link.Presentation==14)){StartContentInteraction(Link.Id,Link.Presentation==11?2:3);return;}
-    FLDObservedEntity WorldSite;if(OwnerState.Build.RulesVersion>=7&&ReadInspected(WorldSite)&&WorldSite.Kind==ELDObservedKind::WorldSite){const bool Artifact=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Heartbreaker;});const bool Shift=IsInputKeyDown(EKeys::LeftShift)||IsInputKeyDown(EKeys::RightShift);StartWorldInteraction(WorldSite.Presentation?11+WorldSite.Presentation:(Artifact&&(Shift||!OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;}))?11:10));return;}
-    FLDObservedEntity Item;if(ReadInspected(Item)&&LDVision::PickupKind(Item.Kind)){if(Item.Kind==ELDObservedKind::Cargo&&Item.Presentation==1){StartWorldInteraction(14,Item.Id);}else{BeginPickup(Item.Id);}return;}
-    FLDObservedEntity E;
-    if(ReadInspected(E)&&E.Kind==ELDObservedKind::Production){if(E.Presentation<2){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=E.Presentation;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();}else{ToggleInventoryPanel();}return;}
-    if(ReadInspected(E)&&(E.Kind==ELDObservedKind::Charter||E.Kind==ELDObservedKind::WatchControl))
+    if(!CanWorldCommand()||!GetPawn()){return;}
+    if(POIMatch!=OwnerState.Match||POILife!=OwnerState.Life){POIMatch=OwnerState.Match;POILife=OwnerState.Life;AutomaticSite=0;EnteredPOI.Invalidate();PointerInteraction.Invalidate();}
+    const auto* Relay=LocalView();if(!Relay||Relay->IsStale()){return;}
+    const FVector P=GetPawn()->GetActorLocation();
+    if(PointerService!=255)
+    {if(GetWorld()->GetTimeSeconds()-PointerInteractionAt>20){PointerService=255;}else if(FVector::Dist2D(P,PointerServicePosition)<=120&&LDGround::ClearSegment(GetWorld(),P,PointerServicePosition)){const uint8 Service=PointerService;PointerService=255;Navigation->Stop();if(!Service){OpenVendor();}else{if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(InventoryUI){InventoryUI->ShowService(2);OpenCommerce(Service);}}return;}}
+    if(PointerInteraction.IsValid())
     {
-        const auto Skill=E.Kind==ELDObservedKind::WatchControl?ELDSkill::Analyze:LDCharter::Skill(E.Presentation);const int32 Slot=OwnerState.Build.Slots.Find(Skill);
-        if(Slot==INDEX_NONE){IntentFeedback=TEXT("Equip this skill at a preparation station");return;}
-        BeginTargetSkill(uint8(Slot),E.Id,(FVector(E.Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D(),3);return;
+        const auto* E=Relay->LastView().Entities.FindByPredicate([&](const auto& X){return X.Id==PointerInteraction;});
+        if(!E||GetWorld()->GetTimeSeconds()-PointerInteractionAt>20){PointerInteraction.Invalidate();}
+        else if(FVector::Dist2D(P,E->Position)<=(PointerVendor?120:80)&&LDGround::ClearSegment(GetWorld(),P,E->Position))
+        {const auto Copy=*E;const bool Vendor=PointerVendor;PointerInteraction.Invalidate();Navigation->Stop();if(Vendor){ToggleInventoryPanel();}else if(Copy.Kind==ELDObservedKind::Cargo&&Copy.Presentation==1){StartWorldInteraction(14,Copy.Id);}else{BeginPickup(Copy.Id);}return;}
     }
-    for(uint8 Site=0;Site<2;++Site){if(NearProduction(Site)){ProductionPlan=FLDProductionPlan();ProductionPlan.Site=Site;ProductionPlan.InventoryRevision=OwnerState.Inventory.Revision;StartProductionHold();return;}}
-    StartInteraction(false);
+    if(bProductionArmed&&NearProduction(ProductionPlan.Site)){StartProductionHold();return;}
+    if(bDraftArmed){for(uint8 Site:{uint8(1),uint8(2),uint8(6)}){if(Site==6&&!LDRegion::Definition(GetWorld())){continue;}const auto To=LDRegion::Site(GetWorld(),Site);if(FVector::Dist2D(P,To)<=120&&LDGround::ClearSegment(GetWorld(),P,To)){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}}}
+    const FLDObservedEntity* POI=nullptr;double Distance=80*80;
+    for(const auto& E:Relay->LastView().Entities){const bool Keys=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyA;})&&OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyB;})&&OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::AncientKeyC;});const bool Auto=(E.Kind==ELDObservedKind::WorldSite&&(E.Presentation||Keys))||(E.Kind==ELDObservedKind::TacticalField&&(E.Presentation==11||E.Presentation==14));const double D=FVector::DistSquared2D(P,E.Position);if(Auto&&D<Distance&&LDGround::ClearSegment(GetWorld(),P,E.Position)){POI=&E;Distance=D;}}
+    if(POI){if(EnteredPOI!=POI->Id){EnteredPOI=POI->Id;if(POI->Kind==ELDObservedKind::WorldSite){StartWorldInteraction(POI->Presentation?11+POI->Presentation:10);}else{StartContentInteraction(POI->Id,POI->Presentation==11?2:3);}}return;}
+    EnteredPOI.Invalidate();
+    uint8 Site=0;FGuid Observed;if(!ChooseContext(Site,Observed)||Observed.IsValid()){AutomaticSite=0;return;}
+    if(AutomaticSite!=Site){AutomaticSite=Site;if(bFabricationArmed){CancelArmed();StartInteraction(true);}else{StartInteraction(false);}}
 }
 FString ALDPlayerController::ContextPrompt() const
 {
-    FString Text=LegacyContextPrompt();if(!Navigation->Enabled()||!Controls){return Text;}
-    const FString Context=BindingLabel(TEXT("Context"));
-    Text.ReplaceInline(TEXT("Shift+E"),*(FString(TEXT("Fabricate, then hold "))+Context));
-    Text.ReplaceInline(TEXT("Hold E"),*(FString(TEXT("Hold "))+Context));Text.ReplaceInline(TEXT("hold E"),*(FString(TEXT("hold "))+Context));
-    Text.ReplaceInline(TEXT("E:"),*(Context+TEXT(":")));Text.ReplaceInline(TEXT("E remains"),*(Context+TEXT(" remains")));Text.ReplaceInline(TEXT("E work"),*(Context+TEXT(" work")));
-    Text.ReplaceInline(TEXT("P:"),*(BindingLabel(TEXT("Development"))+TEXT(":")));Text.ReplaceInline(TEXT("P build"),*(BindingLabel(TEXT("Development"))+TEXT(" build")));
-    for(int32 I=0;I<4;++I){Text.ReplaceInline(*FString::Printf(TEXT("slot %d"),I+1),*BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))));}
-    Text.ReplaceInline(TEXT("1–4: equipped skills"),*(BindingLabel(TEXT("Skill1"))+TEXT("/")+BindingLabel(TEXT("Skill2"))+TEXT("/")+BindingLabel(TEXT("Skill3"))+TEXT("/")+BindingLabel(TEXT("Skill4"))+TEXT(": equipped skills")));
-    if(bProductionArmed){return TEXT("Production preview armed. Hold ")+Context+TEXT(" at ")+ALDProductionDirector::SiteName(ProductionPlan.Site);}
-    if(bDraftArmed){return TEXT("Preview armed. Hold ")+Context+TEXT(" at the station to apply; Escape cancels.");}
-    if(ReadArmed.IsValid()){return TEXT("Book armed. Hold ")+Context+TEXT(" to learn; Escape cancels.");}
-    if(bFabricationArmed){return TEXT("Fabrication armed. Hold ")+Context+TEXT(" at Guild; Escape cancels.");}
-    if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bUIControlProfile){uint8 Target=0;FGuid Observed;if(ChooseContext(Target,Observed)&&(Target==LDObjective::Guild||Target==LDObjective::Heart||OwnerState.ContractStage)){return Text+TEXT(" · Bag: services");}return LDHUD::EconomyStep(OwnerState,*G,G->GetServerWorldTimeSeconds())+TEXT(" · Bag: services");}
-    for(uint8 Site=0;Site<5;++Site){if(NearProduction(Site)){return Site<2?TEXT("Hold ")+Context+TEXT(" 6s: ")+ALDProductionDirector::SiteName(Site)+TEXT(" · finite match charges · Bag: Survey preview"):ALDProductionDirector::SiteName(Site)+TEXT(" · Bag: choose exact inputs, preview, then arm Hold ")+Context;}}
-    return Text;
+    if(bProductionArmed){return TEXT("Confirmed production: enter ")+ALDProductionDirector::SiteName(ProductionPlan.Site)+TEXT(". S cancels.");}
+    if(bDraftArmed){return TEXT("Confirmed build: enter a preparation station. S cancels.");}
+    return TEXT("RMB picks up ordinary items. LMB opens traders/storage. Eligible POIs start once on entry. Use an item or equipped ability for special actions. S stops channels; leave and re-enter a POI to retry.");
 }

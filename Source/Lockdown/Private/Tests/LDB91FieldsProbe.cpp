@@ -82,7 +82,7 @@ void ALDB91FieldsProbe::Tick(float Delta)
         auto* Body=Cast<ALDCharacter>(A->GetPawn());Check(C->StageEnvironment(Body,Aim,LDEnvironment::EInput::Frost,true,0,180,Time,1000),TEXT("Diagnostic Frost transitions real wet supported cells"));C->CommitRiver(Time);
         auto Conflict=C->EnvironmentCommand(Body,LDEnvironment::EInput::Water,Time,1000);Conflict.Cells.Add(LDRiver::Cell(Aim));Conflict.Surfaces.Add(LDRiver::Cell(Aim),Aim.Z+400);Check(!C->QueueEnvironment(Conflict,Time),TEXT("Conflicting stacked support plane rejects atomically"));
         Place(A,Aim+FVector(100,100,92.15));C->RefreshRiverContact(Body,Time,true);auto* S=C->StateFor(Body);Check(S->Tactical.SurfaceSlow==30&&S->Tactical.Has(LDTactical::EStatus::Wet,Time)&&!S->Tactical.Has(LDTactical::EStatus::Stun,Time),TEXT("Diagnostic wet ice contact slows30 percent and retains Wet without Stun"));
-        FString Why;int Count=0;for(TActorIterator<ALDItem> I(GetWorld());I;++I){++Count;}Check(Objects->Conserved(Why)&&Count==129,TEXT("Exactly three paid consumes leave129 conserved physical items"));
+        FString Why;int Count=0;for(TActorIterator<ALDItem> I(GetWorld());I;++I){++Count;}Check(Objects->Conserved(Why)&&Count==140,TEXT("Exactly three paid consumes leave140 conserved physical items"));
         // Find an actual terrain ramp where using centre height alone would
         // incorrectly miss grounded contact within the same 2m cell.
         bool SlopeContact=false;const auto* Definition=ULDMapDefinition::Get(GetWorld());

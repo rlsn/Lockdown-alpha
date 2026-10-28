@@ -109,7 +109,7 @@ void ALDB91Probe::Tick(float Delta)
     {
         Environment->Hold(PC,Request.Match,Request.Life,Request.Sequence,++Nonce,false);
         if(PC->LastWorldReceipt.Result==0&&Now-At<4){return;}
-        if(Phase==6){Check(PC->LastWorldReceipt.Result==1&&!Rear->Locked&&!Rear->Open,TEXT("Quiet three-second rear lockpick commits"));Issue(ELDWorldVerb::Open);Next(8);return;}
+        if(Phase==6){Check(PC->LastWorldReceipt.Result==2&&Rear->Locked&&!Rear->Open,TEXT("Source-free lockpick is disabled by the control policy"));Environment->ResidentLock(Rear->Id,Rear->Resident,false);Issue(ELDWorldVerb::Open);Next(8);return;}
         if(Phase==8)
         {
             Check(PC->LastWorldReceipt.Result==1&&Rear->Open,TEXT("Held Open commits physical revision"));
@@ -119,7 +119,9 @@ void ALDB91Probe::Tick(float Delta)
         }
         if(Phase==10)
         {Check(PC->LastWorldReceipt.Result==1&&!Rear->Open,TEXT("Unoccupied Close commits"));Issue(ELDWorldVerb::Force);Next(12);return;}
-        Check(PC->LastWorldReceipt.Result==1&&Rear->Open&&Rear->Broken,TEXT("Quiet three-second force persists broken-open"));
+        Check(PC->LastWorldReceipt.Result==2&&!Rear->Open&&!Rear->Broken,TEXT("Source-free force is disabled by the control policy"));
+        // Explicit structural-state setup tests collision, not earned destruction.
+        Rear->Apply(5,++Environment->MutationRevision);
         PriorRevision=Rear->Revision;PriorReceipt=PC->LastWorldReceipt.Receipt;PC->ServerWorldInteraction(Request);
         Check(Rear->Revision==PriorRevision&&PC->LastWorldReceipt.Receipt==PriorReceipt,TEXT("Duplicate sequence replays original receipt without mutation"));
         Issue(ELDWorldVerb::Close);Check(PC->LastWorldReceipt.Result==2&&Rear->Open,TEXT("Broken-open rear cannot close"));

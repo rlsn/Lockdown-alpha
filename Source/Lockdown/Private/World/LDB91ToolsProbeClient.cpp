@@ -21,7 +21,7 @@ void ALDB91Controller::TickB91ToolsProbe()
     const bool GroundLit=ObjectView.ContainsByPredicate([](const auto& E){return E.Kind==ELDObjectKind::Torch&&(E.State&8)&&!(E.State&4);});
     auto Issue=[&](ELDObjectVerb Verb)
     {
-        auto& R=ObjectProbeRequest;R=FLDObjectRequest();R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=LD_B91_LINK_WORLD_SHA;R.Verb=Verb;R.InventoryRevision=OwnerState.Inventory.Revision;R.Accessory=255;
+        auto& R=ObjectProbeRequest;R=FLDObjectRequest();R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.Verb=Verb;R.InventoryRevision=OwnerState.Inventory.Revision;R.Accessory=255;
         if(Ground){R.Observed=Ground->Handle;R.ObjectRevision=Ground->Revision;R.ItemRevision=Ground->PhysicalRevision;}
         if(Item){R.Item=Item->Id;R.ItemRevision=Item->Revision;}else{R.Item=ToolProbeIdentity;}
         for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==R.Item){R.Accessory=N;break;}}

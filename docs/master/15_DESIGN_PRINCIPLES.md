@@ -10,6 +10,20 @@ Combat, work, commerce, theft and exploration should affect each other's opportu
 
 Attributes, knowledge and gear define a toolkit. Limited prepared actions make prediction meaningful. Timing, terrain, observation and response determine outcomes. Reject shortcuts that let an unslotted skill, unbound item or midfight backpack swap bypass the common budget.
 
+## World interactions reuse the character’s toolkit
+
+Never add a keyboard binding for a new world object or interaction. Use a real
+item or prepared ability, ordinary basic attack, ordinary pointer interaction,
+or eligible POI presence. Right-click handles pickup and doors; left-click opens
+storage and traders. A source must retain its physical identity, binding costs
+and action limits. Removing F cannot justify a new free interaction ability.
+
+A channel is one issued order. Press once, show progress, continue after release
+and stop with S or an actual interruption. Automatic POIs start once on entry
+and do not fight the player by restarting after S. Do not make sustained key
+pressure a test of commitment: time, exposure, source reservation and risk are
+the commitments. See [control policy](../v09/CONTROL_POLICY_OVERRIDE.md).
+
 ## Qualitative utility survives numerical growth
 
 Accessible disruption and counters remain relevant. A lower-level defender needs a plausible intervention, though not an equal open duel. Before adding damage or immunity, test whether it removes an entire response category. Powerful equipment may specialize or combine functions; it should not provide every desirable property simultaneously.

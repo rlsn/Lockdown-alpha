@@ -1,6 +1,19 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**. The latest [socket-ignition checkpoint](v09/B91_IGNITION.md),
+The current increment is [source and pointer controls](v09/B91_CONTROLS.md).
+The [28October user decision](v09/CONTROL_POLICY_OVERRIDE.md) supersedes prior
+F/Z/R object shortcuts and physical key-hold cancellation. Right-click handles
+ordinary pickup and doors; left-click opens storage/traders. Special actions use
+real items/abilities or eligible POI entry. The approved11-instance Forestry Knife
+overlay changes the initial census to339 records,143 physical items and395/491
+functional sources. Its4s Harvest/Chop reserve a real bound tool; Mute blocks it.
+Source-free Lockpick/Force and Break are disabled; ordinary attacks handle
+breakable bottles and crates/barrels. Current checks pass44 source/pointer,53 shared input,111 inventory,51 storage/cargo,42 ignition,75 structural checks plus52 walks,54 native rules and616 inherited field assertions. Both full-unity targets pass. The separate rendered sample is not functional/performance acceptance. B91 remains open. The reports below are
+historical checkpoints at their named commits, including their original counts
+and superseded held-input policy.
+
+
+B91 is **in progress**. The prior [socket-ignition checkpoint](v09/B91_IGNITION.md),
 at **37fa1ab3d7501e83a17c4f751959398852bf0269**, adds the one-second bound-Torch item channel,
 one-second fuel cost,12-second owner/instance cooldown and up to four reserved
 three-second Burning cells. Two remote owners pass42 checks for binding/Mute,
@@ -72,7 +85,7 @@ and end-life checks preserve supported landings and the original item/prop.
 
 Next B91 work is grass/concealment, saved mutations, broader paid actions,
 layered fields and full-map direct-hit reaction evidence. Functional
-initial sources now total 384 of 480, including partial saplings; the remaining 96 grass sources
+initial sources now total395 of491 with the approved forestry overlay, including partial saplings; the remaining 96 grass sources
 and 3,000 scenery trees are still required. Torch source/field reservations now have
 a verified checkpoint; the full-stage gate remains open. T04 and T09 now cover the verified
 ladder race and optional-link boundary. T06/T07/T08 retain fuel, cargo and storage
@@ -144,7 +157,7 @@ python -B Scripts/SyncB91Data.py --check
 ./Scripts/RunB91Network.ps1 -Ignition -Port 7947
 ./Scripts/RunB91Network.ps1 -Fields -Port 7931
 ./Scripts/RunB84Check.ps1 -Port 7933
-./Scripts/RunB91Network.ps1 -Saplings -Port 7929
+./Scripts/RunB91Network.ps1 -Saplings -Port 7929 # current source/pointer control scenario
 ./Scripts/RunB91Network.ps1 -Furniture -Port 7927
 ./Scripts/RunB91Network.ps1 -Traversal -Port 7925
 ./Scripts/RunB91Network.ps1 -Objects -Port 7921

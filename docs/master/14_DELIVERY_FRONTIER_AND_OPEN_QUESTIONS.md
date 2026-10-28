@@ -77,7 +77,7 @@ two-second route, with ownership checked only for quiet retrieval. Native
 capsules, one-user reservations and safe cancellation connect this mechanic to
 the same input/control/life rules as other commitments. The [fixed-furniture checkpoint](../v09/B91_FURNITURE.md) adds 32 initially
 empty storage fixtures with independent walking/sight behavior. There are now
-384/480 functional sources present, including the [partial sapling boundary](../v09/B91_SAPLINGS.md). Torch sapling burning now passes; ranged damage and saved-match state still need integration; 96 grass sources and 3,000 scenery trees need fitting. A working roof route does not complete the
+395/491 functional sources present after the approved11-knife overlay, including the [partial sapling boundary](../v09/B91_SAPLINGS.md). Torch sapling burning now passes; ranged damage and saved-match state still need integration; 96 grass sources and 3,000 scenery trees need fitting. A working roof route does not complete the
 reference grass escape or establish final encounter pacing.
 
 The [paid-field increment](../v09/B91_FIELDS.md) connects Water/Oil accessory
@@ -89,7 +89,7 @@ player decisions and information boundary without treating this prototype as
 finished UI or full-session acceptance.
 
 The [ignition checkpoint](../v09/B91_IGNITION.md) adds finite Torch fuel costs,
-exact held field reservations and delayed sapling clearance that survives caster
+exact channel field reservations and delayed sapling clearance that survives caster
 death. Existing Oil can be ignited by a quiet rival; a solo immediate follow-up
 remains constrained by the inherited quiet timer and Oil lifetime. Grass,
 saved-match mutations, ranged foliage damage and broader reactions remain open.
@@ -103,3 +103,11 @@ Does the map deliver encounters and route decisions at its selected size? Are th
 Control diminishing returns, numerical growth, ordinary TTK, counter affordability, route/stock dominance and respawn downtime need measured tuning. Subclasses, spell variants, deeper factions, fully physical caravans, squads and production online services remain candidates. Adding them is not a way to evade unresolved core-loop evidence.
 
 A future squad experiment must explicitly define shared sight, ownership, consent, access and victory. Persistent progression must address fairness across sessions before any power carries over. Do not infer either system from the present solo-contender contract.
+
+
+The [current control increment](../v09/B91_CONTROLS.md) applies the user’s source
+and pointer policy. The older F/Z/R shortcuts and positive source-free
+Lockpick/Force acceptance are superseded. Forestry now needs an actual bound
+finite knife; the original no-item harvest acceptance cannot be reused. B92 live
+traders must use the left-click service convention; ordinary pickup and doors
+use right-click. One-confirmation channels and S stop apply across the design.

@@ -11,9 +11,9 @@ const TArray<FLDControlBinding>& ULDControlSettings::Defaults(bool Tactical)
         {TEXT("Skill3"),TEXT("Equipped skill 3"),EKeys::E},{TEXT("Skill4"),TEXT("Equipped skill 4"),EKeys::R},
         {TEXT("Item1"),TEXT("Quick item 1"),EKeys::One},{TEXT("Item2"),TEXT("Quick item 2"),EKeys::Two},
         {TEXT("Item3"),TEXT("Quick item 3"),EKeys::Three},{TEXT("Item4"),TEXT("Quick item 4"),EKeys::Four},
-        {TEXT("Context"),TEXT("Hold contextual action"),EKeys::F},{TEXT("Stop"),TEXT("Stop movement / held action"),EKeys::S},
+        {TEXT("Stop"),TEXT("Stop movement / current action"),EKeys::S},
         {TEXT("Sprint"),TEXT("Hold sprint"),EKeys::LeftShift},{TEXT("Inventory"),TEXT("Inventory"),EKeys::I},
-        {TEXT("Development"),TEXT("Character / preparation"),EKeys::P},{TEXT("Trade"),TEXT("Offer trade"),EKeys::T},
+        {TEXT("Development"),TEXT("Character / preparation"),EKeys::P},
         {TEXT("PanUp"),TEXT("Pan camera up"),EKeys::Up},{TEXT("PanDown"),TEXT("Pan camera down"),EKeys::Down},
         {TEXT("PanLeft"),TEXT("Pan camera left"),EKeys::Left},{TEXT("PanRight"),TEXT("Pan camera right"),EKeys::Right},
         {TEXT("Recenter"),TEXT("Hold camera recenter"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("Toggle camera follow"),EKeys::Home},
@@ -27,13 +27,14 @@ const TArray<FLDControlBinding>& ULDControlSettings::HybridDefaults()
 {static const TArray<FLDControlBinding> Values=[](){auto V=Defaults(true);V.Insert({TEXT("Skill6"),TEXT("Shared action 6"),EKeys::G},8);V.Insert({TEXT("Item4"),TEXT("Physical accessory 4"),EKeys::Four},12);for(auto& B:V){if(B.Action.ToString().StartsWith(TEXT("Item"))){B.Label=TEXT("Physical accessory ")+B.Action.ToString().Right(1);}}return V;}();return Values;}
 bool ULDControlSettings::MigrateHybrid()
 {
+    Bindings.Remove(TEXT("Context"));Bindings.Remove(TEXT("Trade"));
     if(Profile==8&&Schema==3){return Valid();}auto Old=Bindings;Profile=8;Schema=3;Bindings.Reset();TSet<FKey> Used;
     for(const auto& B:Definitions()){if(const auto* K=Old.Find(B.Action);K&&K->IsValid()&&!K->IsGamepadKey()&&!K->IsAxis2D()&&!K->IsAxis3D()&&(B.Axis?*K==EKeys::MouseWheelAxis:!K->IsAxis1D())&&(B.Action==TEXT("Back")?*K==EKeys::Escape:*K!=EKeys::Escape)&&*K!=EKeys::MouseScrollUp&&*K!=EKeys::MouseScrollDown&&!Used.Contains(*K)){Bindings.Add(B.Action,*K);Used.Add(*K);}}
     const TArray<FKey> Spare={EKeys::B,EKeys::C,EKeys::H,EKeys::J,EKeys::K,EKeys::L,EKeys::M,EKeys::N,EKeys::O,EKeys::U,EKeys::V,EKeys::X,EKeys::Y,EKeys::Z,EKeys::Five,EKeys::Six};
     for(const auto& B:Definitions()){if(Bindings.Contains(B.Action)){continue;}FKey K=B.Key;if(Used.Contains(K)){const auto* Free=Spare.FindByPredicate([&](FKey Value){return !Used.Contains(Value);});if(!Free){return false;}K=*Free;}Bindings.Add(B.Action,K);Used.Add(K);}return Valid();
 }
 FKey ULDControlSettings::Key(FName Action) const
-{if(const FKey* K=Bindings.Find(Action)){return *K;}for(const auto& B:Definitions()){if(B.Action==Action){return B.Key;}}return FKey();}
+{if(Action==TEXT("Context")||Action==TEXT("Trade")){return FKey();}if(const FKey* K=Bindings.Find(Action)){return *K;}for(const auto& B:Definitions()){if(B.Action==Action){return B.Key;}}return FKey();}
 FString ULDControlSettings::Label(FName Action) const {return Key(Action).GetDisplayName().ToString();}
 void ULDControlSettings::ResetBindings(){Bindings.Reset();for(const auto& B:Definitions()){Bindings.Add(B.Action,B.Key);}}
 bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
@@ -61,6 +62,7 @@ bool ULDControlSettings::Valid() const
 }
 bool ULDControlSettings::MigrateTactical()
 {
+    Bindings.Remove(TEXT("Context"));Bindings.Remove(TEXT("Trade"));
     if(Profile==7&&Schema==2){return Valid();}
     const auto Old=Bindings;TMap<FName,FKey> Next;const auto& Def=Defaults(true);TSet<FKey> Used;
     // D belongs to slot five after migration. Existing actions bound to D relocate.
@@ -80,6 +82,7 @@ ULDControlSettings* ULDControlSettings::Load(const FString& Slot,uint8 Requested
     if(!Settings&&Hybrid){const FString Previous=LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07");if(UGameplayStatics::DoesSaveGameExist(Previous,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(Previous,0));}}
     if(!Settings&&Tactical&&UGameplayStatics::DoesSaveGameExist(LegacySlot,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(LegacySlot,0));}
     if(!Settings){Settings=CastChecked<ULDControlSettings>(UGameplayStatics::CreateSaveGameObject(StaticClass()));Settings->ResetBindings();}
+    Settings->Bindings.Remove(TEXT("Context"));Settings->Bindings.Remove(TEXT("Trade"));
     if(!FMath::IsFinite(Settings->TextScale)||Settings->TextScale<1||Settings->TextScale>1.25){Settings->TextScale=1;}if(!FMath::IsFinite(Settings->Zoom)||Settings->Zoom<1100||Settings->Zoom>1700){Settings->Zoom=1400;}
     if(Hybrid){if(!Settings->MigrateHybrid()){Settings->Profile=8;Settings->Schema=3;Settings->ResetBindings();}}
     else if(Tactical){if(!Settings->MigrateTactical()){Settings->Profile=7;Settings->Schema=2;Settings->ResetBindings();}}

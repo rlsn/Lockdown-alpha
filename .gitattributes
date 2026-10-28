@@ -82,3 +82,7 @@
 # Preserve raw native output for finite socket ignition.
 /docs/v09/evidence/B91Ignition/**/*.log -whitespace
 /docs/v09/evidence/B91Ignition/*.log -whitespace
+
+# Native output for the source and pointer control migration.
+/docs/v09/evidence/B91Controls/**/*.log -whitespace
+/docs/v09/evidence/B91Controls/*.log -whitespace

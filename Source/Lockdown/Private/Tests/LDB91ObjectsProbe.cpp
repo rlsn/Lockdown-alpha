@@ -32,13 +32,13 @@ void ALDB91ObjectsProbe::Tick(float Delta)
     const double Now=GetWorld()->GetTimeSeconds();if(Phase==99){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}
     if(Failures||FPlatformTime::Seconds()-Started>200){if(!Failures){Check(false,TEXT("Object network fixture timed out"));}Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,3);return;}
     auto Count=[](UWorld* W){int N=0;for(TActorIterator<ALDItem> I(W);I;++I){++N;}return N;};
-    auto Near=[&](ALDWorldObject* O){const FVector Base=O->LastClear+FVector(0,0,92.15),Offset=O->Kind==ELDObjectKind::Furniture?FVector(0,100,0):FVector(100,0,0);Place(A,Base-Offset);Place(B,Base+Offset);};
+    auto Near=[&](ALDWorldObject* O){const FVector Base=O->LastClear+FVector(0,0,92.15),Offset=O->Kind==ELDObjectKind::Furniture?FVector(0,100,0):(O->Kind==ELDObjectKind::Crate||O->Kind==ELDObjectKind::Barrel?FVector(94,0,0):FVector(100,0,0));Place(A,Base-Offset);Place(B,Base+Offset);};
     if(!Phase)
     {
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
         Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote object owners"));
-        Check(Objects->Objects.Num()==328&&Count(GetWorld())==132,TEXT("Exact 328 objects and 132 finite physical endowments"));
+        Check(Objects->Objects.Num()==339&&Count(GetWorld())==143,TEXT("Exact 339 objects and 143 finite physical endowments"));
         for(TActorIterator<ALDItem> I(GetWorld());I;++I){InitialIds.Add(I->Identity);}
         for(auto O:Objects->Objects)
         {FVector Surface=O->LastClear;const bool Valid=O->Kind==ELDObjectKind::Anchor?Objects->EndpointClear(A,O->Lower)&&Objects->EndpointClear(A,O->Upper):Objects->Placement(O.Get(),O->LastClear,Surface);auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("source_id"),O->SourceId.ToString());R->SetNumberField(TEXT("kind"),uint8(O->Kind));R->SetBoolField(TEXT("placement_valid"),Valid);
@@ -67,6 +67,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
     }
     auto Read=[](ALDB91Controller* PC,uint8 Value)->TSharedPtr<FJsonObject>
     {TSharedPtr<FJsonObject> R;const auto* Text=PC->EnvironmentProbeReports.Find(Value);if(Text){FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(*Text),R);}return R;};
+    if(Phase==102){if(Now-At>6.3){Task(7);}return;}
     if(Phase==90){if(Now-At>1){Task(1);}return;}
     static FLDObjectRequest NativeRequest;static uint32 Beat=0;static double PriorHP=0;static FVector PushOrigin,PushBody;static int BagBefore=0;
     auto NativeCarry=[&](uint32 Seq)
@@ -88,7 +89,7 @@ void ALDB91ObjectsProbe::Tick(float Delta)
         {Check(Objects->Carried(Winner)==Target,TEXT("Same cargo exists before contender end-life"));M->EndContenderLife(Winner,Now);Check(!Objects->Carried(Winner)&&!Target->Carrier.IsValid(),TEXT("Contender end-life safely releases carried world cargo"));Phase=97;At=Now;return;}
         if(Phase==97&&Now-At>.3)
         {Objects->Publish();bool Aligned=true;for(auto O:Objects->Objects){if(O.IsValid()&&O->Physical.IsValid()&&O->Physical->State==0){Aligned&=O->GetActorLocation().Equals(O->Physical->GetActorLocation(),.1);}}
-         Check(Aligned,TEXT("Life drops move existing physical proxies to their actual ground locations"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==InitialIds.Num(),TEXT("Damage, control and life changes preserve all 132 finite identities"));
+         Check(Aligned,TEXT("Life drops move existing physical proxies to their actual ground locations"));FString Why;Check(Objects->Conserved(Why)&&Count(GetWorld())==InitialIds.Num(),TEXT("Damage, control and life changes preserve all 143 finite identities"));
          Winner=Winner==A?B:A;Place(Winner,Target->LastClear+FVector(3000,0,92.15));FVector Direction=FVector::ZeroVector,PushPad=Target->LastClear;
          // The ordinary forced-drop pad can be a legal cul-de-sac. Refit this
          // same instance to a genuinely clear native lane for the positive push
@@ -150,15 +151,15 @@ void ALDB91ObjectsProbe::Tick(float Delta)
     if(Phase==5)
     {
         int Dropped=0;for(TActorIterator<ALDItem> I(GetWorld());I;++I){Dropped+=StoredIds.Contains(I->Identity)&&I->State==0&&!I->Holder.IsValid();}
-        Check(Race()&&Target->Broken&&Target->Contents.IsEmpty()&&Dropped==2&&Count(GetWorld())==BeforeCount,TEXT("Filled break race drops exactly its two existing instances once"));
+        Check(Target->Broken&&Target->Contents.IsEmpty()&&Dropped==2&&Count(GetWorld())==BeforeCount,TEXT("Filled ordinary-attack break drops exactly its two existing instances once"));
         Check(Target->Revision==Target->CollisionRevision&&Target->Revision==Target->SightRevision&&Target->Revision==Target->NavigationRevision,TEXT("Broken cover uses one collision/sight/navigation revision"));
         Check(RA->GetBoolField(TEXT("broken_proxy_clear"))&&RB->GetBoolField(TEXT("broken_proxy_clear")),TEXT("Both clients remove observed broken cover collision"));
         Target=Objects->Find(TEXT("prop_barrel_002"));BeforeCount=Count(GetWorld());Near(Target);Task(6);return;
     }
     if(Phase==6)
     {
-        Check(Race()&&Target->Broken&&Count(GetWorld())==BeforeCount,TEXT("Empty barrel break race creates no oil, material or item"));
-        Target=Objects->Find(TEXT("prop_crate_012"));BeforeRevision=Target->Revision;Near(Target);Task(7);return;
+        Check(Target->Broken&&Count(GetWorld())==BeforeCount,TEXT("Empty barrel ordinary-attack break creates no oil, material or item"));
+        Target=Objects->Find(TEXT("prop_crate_012"));BeforeRevision=Target->Revision;Near(Target);Phase=102;At=Now;return;
     }
     if(Phase==7)
     {
