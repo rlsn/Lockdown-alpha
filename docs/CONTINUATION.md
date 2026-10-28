@@ -1,6 +1,6 @@
 # Active continuation — B91 functional environment
 
-The current increment is [source and pointer controls](v09/B91_CONTROLS.md).
+The current increment is [source and pointer controls](v09/B91_CONTROLS.md), source **714a79fa3f4884f26d103bb14eb4a5523b49bf1d** with [frozen evidence](v09/evidence/B91Controls/README.md).
 The [28October user decision](v09/CONTROL_POLICY_OVERRIDE.md) supersedes prior
 F/Z/R object shortcuts and physical key-hold cancellation. Right-click handles
 ordinary pickup and doors; left-click opens storage/traders. Special actions use

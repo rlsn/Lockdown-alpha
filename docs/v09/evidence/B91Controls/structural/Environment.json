@@ -1,0 +1,675 @@
+{
+	"complete": true,
+	"failures": 0,
+	"stage": "B91",
+	"scope": "Structural/door increment only; later B91 object, foliage, traversal and network gates remain open",
+	"contract": "4137f1de587c7f9577565d218ecfdf02de85711859ff8399282320c159dd9bfc",
+	"checks": [
+		{
+			"case": "Exact structural counts and isolated profile",
+			"passed": true
+		},
+		{
+			"case": "Repeated same-revision snapshots do not dirty navigation",
+			"passed": true
+		},
+		{
+			"case": "All72 doors block capsule/sight closed and admit capsule open",
+			"passed": true
+		},
+		{
+			"case": "All72 windows admit eye ray but reject native capsule",
+			"passed": true
+		},
+		{
+			"case": "Riverport rear has exact authored identity",
+			"passed": true
+		},
+		{
+			"case": "building_capital_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_capital_02_interior",
+			"passed": true
+		},
+		{
+			"case": "building_capital_04_interior",
+			"passed": true
+		},
+		{
+			"case": "building_capital_18_interior",
+			"passed": true
+		},
+		{
+			"case": "building_capital_20_interior",
+			"passed": true
+		},
+		{
+			"case": "building_capital_22_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_02_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_04_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_18_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_20_interior",
+			"passed": true
+		},
+		{
+			"case": "building_highfort_22_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_02_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_04_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_18_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_20_interior",
+			"passed": true
+		},
+		{
+			"case": "building_scholars_22_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_02_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_04_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_18_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_20_interior",
+			"passed": true
+		},
+		{
+			"case": "building_riverport_22_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_02_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_04_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_18_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_20_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ironworks_22_interior",
+			"passed": true
+		},
+		{
+			"case": "building_oakmere_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_millford_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_reedbank_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_ashcross_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_bellwick_00_interior",
+			"passed": true
+		},
+		{
+			"case": "building_stonewake_00_interior",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_00",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_01",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_02",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_03",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_04",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_05",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_06",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_07",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_08",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_09",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_10",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_11",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_12",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_13",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_14",
+			"passed": true
+		},
+		{
+			"case": "permanent_stairs_15",
+			"passed": true
+		},
+		{
+			"case": "Stale object revision changes nothing",
+			"passed": true
+		},
+		{
+			"case": "Contender cannot claim resident lock",
+			"passed": true
+		},
+		{
+			"case": "Resident lock permission is exact",
+			"passed": true
+		},
+		{
+			"case": "Locked rear rejects ordinary Open",
+			"passed": true
+		},
+		{
+			"case": "Source-free lockpick is disabled by the control policy",
+			"passed": true
+		},
+		{
+			"case": "Held Open commits physical revision",
+			"passed": true
+		},
+		{
+			"case": "Occupied closure rejects without revision",
+			"passed": true
+		},
+		{
+			"case": "Unoccupied Close commits",
+			"passed": true
+		},
+		{
+			"case": "Source-free force is disabled by the control policy",
+			"passed": true
+		},
+		{
+			"case": "Duplicate sequence replays original receipt without mutation",
+			"passed": true
+		},
+		{
+			"case": "Broken-open rear cannot close",
+			"passed": true
+		},
+		{
+			"case": "Collision sight and local-nav revision agree",
+			"passed": true
+		},
+		{
+			"case": "Public front cannot lock even through resident authority",
+			"passed": true
+		},
+		{
+			"case": "Protection rejects world start",
+			"passed": true
+		},
+		{
+			"case": "Stun rejects world start",
+			"passed": true
+		},
+		{
+			"case": "Mute and Silence do not prohibit ordinary doors",
+			"passed": true
+		},
+		{
+			"case": "Actual movement cancels held door without mutation",
+			"passed": true
+		},
+		{
+			"case": "Stale life rejects without mutation",
+			"passed": true
+		}
+	],
+	"walks": [
+		{
+			"case": "building_capital_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307669,
+			"falling_s": 0
+		},
+		{
+			"case": "building_capital_02_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307669,
+			"falling_s": 0
+		},
+		{
+			"case": "building_capital_04_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307669,
+			"falling_s": 0
+		},
+		{
+			"case": "building_capital_18_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_capital_20_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_capital_22_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307651,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_02_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307651,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_04_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307651,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_18_interior",
+			"passed": true,
+			"walk_seconds": 5.750000299885869,
+			"walked_cm": 2246.2354320171089,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_20_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_highfort_22_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_02_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_04_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_18_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_20_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_scholars_22_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_02_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_04_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_18_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_20_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_riverport_22_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_02_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_04_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_18_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_20_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ironworks_22_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_oakmere_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307669,
+			"falling_s": 0
+		},
+		{
+			"case": "building_millford_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_reedbank_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_ashcross_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "building_bellwick_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.3053586307724,
+			"falling_s": 0
+		},
+		{
+			"case": "building_stonewake_00_interior",
+			"passed": true,
+			"walk_seconds": 5.4500002842396498,
+			"walked_cm": 2240.305358630736,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_00",
+			"passed": true,
+			"walk_seconds": 4.316666891798377,
+			"walked_cm": 1795.1086865934467,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_01",
+			"passed": true,
+			"walk_seconds": 4.3500002268701792,
+			"walked_cm": 1810.01462463858,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_02",
+			"passed": true,
+			"walk_seconds": 4.6166669074445963,
+			"walked_cm": 1808.567171706401,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_03",
+			"passed": true,
+			"walk_seconds": 4.316666891798377,
+			"walked_cm": 1795.1087072554055,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_04",
+			"passed": true,
+			"walk_seconds": 4.6333335749804974,
+			"walked_cm": 1810.3689599281915,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_05",
+			"passed": true,
+			"walk_seconds": 4.6333335749804974,
+			"walked_cm": 1810.3689599281879,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_06",
+			"passed": true,
+			"walk_seconds": 4.6333335749804974,
+			"walked_cm": 1810.3689580717949,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_07",
+			"passed": true,
+			"walk_seconds": 4.6333335749804974,
+			"walked_cm": 1810.368958071962,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_08",
+			"passed": true,
+			"walk_seconds": 4.3500002268701792,
+			"walked_cm": 1810.0146246384418,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_09",
+			"passed": true,
+			"walk_seconds": 4.3500002268701792,
+			"walked_cm": 1810.0146246384793,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_10",
+			"passed": true,
+			"walk_seconds": 4.3666668944060802,
+			"walked_cm": 1814.3577169220448,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_11",
+			"passed": true,
+			"walk_seconds": 4.3666668944060802,
+			"walked_cm": 1814.3577169223927,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_12",
+			"passed": true,
+			"walk_seconds": 4.3666668944060802,
+			"walked_cm": 1814.3577169225471,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_13",
+			"passed": true,
+			"walk_seconds": 4.3666668944060802,
+			"walked_cm": 1814.3577175433709,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_14",
+			"passed": true,
+			"walk_seconds": 4.3666668944060802,
+			"walked_cm": 1814.3577175428366,
+			"falling_s": 0
+		},
+		{
+			"case": "permanent_stairs_15",
+			"passed": true,
+			"walk_seconds": 4.3333335593342781,
+			"walked_cm": 1803.2510023763887,
+			"falling_s": 0
+		}
+	]
+}

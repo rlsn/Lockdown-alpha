@@ -1,6 +1,6 @@
 # B91 — item and pointer interaction controls
 
-28 October2026 · B91 remains in progress
+28 October2026 · source `714a79fa3f4884f26d103bb14eb4a5523b49bf1d` · B91 remains in progress
 
 The [user control decision](CONTROL_POLICY_OVERRIDE.md) replaces the prototype’s
 object-specific keys and physical button holds. Ordinary right-click commands
@@ -81,5 +81,5 @@ match restoration, grass/concealment and whole-stage B91 acceptance remain open.
 Both full-unity Development targets pass on the pinned toolchain. The native
 frame is a separate visual sample, and the rendered run’s two failed assertions
 remain explicitly recorded. [Audit and raw evidence](evidence/B91Controls/README.md)
-will pin the source commit, all test files, the forestry digest,148 unchanged
+pins the source commit, all test files, the forestry digest,148 unchanged
 saved assets and59 unchanged supplied release files.

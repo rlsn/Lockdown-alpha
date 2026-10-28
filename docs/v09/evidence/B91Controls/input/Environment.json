@@ -1,0 +1,11 @@
+{
+  "oneWayBaseMs": 0,
+  "sourceDirty": true,
+  "sourceRevision": "936438c02df3766c281b5b5303a8f3fb7ff04a8e",
+  "jitterMs": 0,
+  "targetRTT": 0,
+  "topology": "Separate authority and two independent owning clients; headless listen authority for packaged lane",
+  "profile": "V05 native input engineering fixtures",
+  "region": false,
+  "frameCap": 60
+}
