@@ -1,0 +1,7 @@
+{
+  "authorityChecks": 50,
+  "rules": 55,
+  "dirty": true,
+  "sourceRevision": "710bac9acfc887ae0a2dc3a5a34e89408a90bfb6",
+  "scope": "B63 rules and two local owners, controlled clock on one authority; no remote-network/human acceptance"
+}

@@ -33,6 +33,19 @@ A source action shows item/ability name, available verb, ownership restriction a
 
 Press or click once to issue a channel. Releasing the input leaves it running. S stops the current action; movement, focus loss, loss of eligibility and lifecycle changes follow the action’s interruption rules. Progress comes from authoritative start/end times. A stopped POI waits until the player leaves and re-enters; focus restoration never replays cancelled input. Network heartbeats belong to the active order, independent of physical key state.
 
+Brief client stalls should not masquerade as a deliberate stop. The current
+implementation permits a heartbeat gap shorter than two seconds, then cancels
+and frees its reservations; a late refresh never recreates an order. This is
+connection tolerance, not a delay on S or gameplay interruption. Feedback should
+identify whether movement, damage, eligibility or lost command liveness stopped
+the action. The [rendered regression](../v09/B91_LIVENESS.md) checks both gap
+survival and timeout without claiming human usability or performance acceptance.
+
+Automatic POIs wait for a stationary character with no movement order pending
+or following. Crossing a service radius must not take over a movement command.
+Track leaving/re-entering even during movement so stopping an action does not
+make it restart just because the character takes a small step inside the POI.
+
 ## Inventory and transactions
 
 The bag holds at most 24 unique instances and a weight budget. Equipped items are the same instances, referenced by eleven bindings. Accessory actions require a physical binding; body-equipment actives additionally require a shared action slot. Opening a bag is immediate; changing bindings takes quiet plus commitment.

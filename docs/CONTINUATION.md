@@ -1,6 +1,24 @@
 # Active continuation — B91 functional environment
 
-The current increment is [source and pointer controls](v09/B91_CONTROLS.md), source **714a79fa3f4884f26d103bb14eb4a5523b49bf1d** with [frozen evidence](v09/evidence/B91Controls/README.md).
+The current increment is [issued-command liveness](v09/B91_LIVENESS.md), source
+**c069e261c1bb1458dab1d4c94759e51830d38e70**, with [frozen evidence](v09/evidence/B91Liveness/README.md).
+It fixes the rendered harvest cancellation: the old 350 ms heartbeat guard rejected
+an observed 351.784 ms gap with zero movement. Current UI orders use a strict
+two-second expiry; S, focus/lifecycle and gameplay interruption still cancel
+immediately. A late heartbeat cannot revive an expired order. One rendered owner
+and one headless peer pass 47 source/pointer checks, including a deliberate brief
+gap and a true timeout. Traversal passes 55, shared input 53, inventory 111,
+production 50, native rules 55 and inherited fields 616 assertions;
+both full-unity targets pass. SourceChannel.png was inspected, without human
+usability or performance acceptance. The earlier failed rendered sample remains
+historical. No protected asset, supplied release file or finite endowment changed.
+
+Automatic POIs now also wait for a stationary character with no pending/active
+movement order. Crossing a POI cannot stop a journey; leave/re-enter still rearms
+a cancelled action. All four inherited v0.8 Heart-route journeys are checked
+separately from full-map acceptance.
+
+The previous increment is [source and pointer controls](v09/B91_CONTROLS.md), source **714a79fa3f4884f26d103bb14eb4a5523b49bf1d** with [frozen evidence](v09/evidence/B91Controls/README.md).
 The [28October user decision](v09/CONTROL_POLICY_OVERRIDE.md) supersedes prior
 F/Z/R object shortcuts and physical key-hold cancellation. Right-click handles
 ordinary pickup and doors; left-click opens storage/traders. Special actions use
@@ -8,7 +26,7 @@ real items/abilities or eligible POI entry. The approved11-instance Forestry Kni
 overlay changes the initial census to339 records,143 physical items and395/491
 functional sources. Its4s Harvest/Chop reserve a real bound tool; Mute blocks it.
 Source-free Lockpick/Force and Break are disabled; ordinary attacks handle
-breakable bottles and crates/barrels. Current checks pass44 source/pointer,53 shared input,111 inventory,51 storage/cargo,42 ignition,75 structural checks plus52 walks,54 native rules and616 inherited field assertions. Both full-unity targets pass. The separate rendered sample is not functional/performance acceptance. B91 remains open. The reports below are
+breakable bottles and crates/barrels. That checkpoint passed44 headless source/pointer,53 shared input,111 inventory,51 storage/cargo,42 ignition,75 structural checks plus52 walks,54 native rules and616 inherited field assertions. Both full-unity targets passed; its separate rendered sample failed and was not acceptance. The liveness increment above supersedes that specific failure. B91 remains open. The reports below are
 historical checkpoints at their named commits, including their original counts
 and superseded held-input policy.
 

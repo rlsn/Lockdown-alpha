@@ -53,3 +53,16 @@ or eligible POI presence, and one-press channels stopped with S. The user
 explicitly approved a finite forestry item, implemented as an11-instance overlay.
 This overrides old F/Z/R and held-input rules while preserving their source
 history. See [decision](../v09/CONTROL_POLICY_OVERRIDE.md).
+
+Revision15 records the rendered cancellation diagnosis and shared two-second
+issued-order liveness window. The previous350ms object timeout rejected a real
+351.784ms heartbeat gap. The new rendered fixture proves brief-gap survival,
+true expiry and no revival, while S and gameplay interruption retain their
+existing meanings. This engineering tolerance changes no item cost or binding.
+See [source and evidence](../v09/B91_LIVENESS.md); the prior failed sample stays
+frozen as history.
+
+The same revision requires standing without a movement order before automatic
+POI activation. Passing through a POI cannot stop a journey; the cancellation
+latch still rearms through leaving/re-entering. Inherited route fixtures share
+request sequencing with actual automatic orders rather than issuing colliding IDs.

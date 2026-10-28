@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 14 · 28 October 2026 · Long-term product and design reference
+Revision 15 · 28 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -24,7 +24,7 @@ separate walking and sight behavior. [Paid full-map fields](../v09/B91_FIELDS.md
 now connect Water/Oil Flasks to supported terrain, bounded allocation and
 restricted observation. [Torch socket ignition](../v09/B91_IGNITION.md) now
 adds finite fuel commitments, reserved fields and irreversible sapling clearance.
-The [control policy](../v09/CONTROL_POLICY_OVERRIDE.md) supersedes the old held F/Z/R object shortcuts. The [control increment](../v09/B91_CONTROLS.md) adds a finite Forestry Knife and source targeting, pointer interaction and owner progress. Grass, broader spell fields, saved-match state and density remain. [Saplings](../v09/B91_SAPLINGS.md) now support finite harvest,
+The [control policy](../v09/CONTROL_POLICY_OVERRIDE.md) supersedes the old held F/Z/R object shortcuts. The [control increment](../v09/B91_CONTROLS.md) adds a finite Forestry Knife and source targeting, pointer interaction and owner progress. [Issued-command liveness](../v09/B91_LIVENESS.md) now tolerates transient heartbeat gaps and passes the rendered source scenario while preserving immediate stop/interruption. Grass, broader spell fields, saved-match state and density remain. [Saplings](../v09/B91_SAPLINGS.md) now support finite harvest,
 chop, ordinary melee and paid Torch burning; ranged/spell damage and saved-match
 restoration remain open. Living population,
 full-map economy and earned victory integration remain on the delivery frontier.

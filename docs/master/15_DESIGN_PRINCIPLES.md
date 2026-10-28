@@ -24,6 +24,16 @@ and do not fight the player by restarting after S. Do not make sustained key
 pressure a test of commitment: time, exposure, source reservation and risk are
 the commitments. See [control policy](../v09/CONTROL_POLICY_OVERRIDE.md).
 
+Standing at a POI expresses presence; merely crossing it during a movement
+order does not. Automatic work must wait for the character to stop and must
+respect the leave/re-enter latch after cancellation.
+
+An issued order also needs reliable ownership through transient client stalls.
+Keep network liveness independent of physical input, retain authoritative
+interruption checks, and release reservations when the order expires. An old
+heartbeat cannot resurrect a stopped action. Test a brief gap and a real timeout
+alongside normal completion; a headless success alone can miss rendering effects.
+
 ## Qualitative utility survives numerical growth
 
 Accessible disruption and counters remain relevant. A lower-level defender needs a plausible intervention, though not an equal open duel. Before adding damage or immunity, test whether it removes an entire response category. Powerful equipment may specialize or combine functions; it should not provide every desirable property simultaneously.

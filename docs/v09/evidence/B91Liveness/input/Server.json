@@ -1,0 +1,21 @@
+{
+	"profile": "B52 engineering fixture: synthetic native key events and explicit observation/ray fixtures; setup positions, skills, HP, points and one cooldown reset are labelled; holds and authority timers remain real; not human evidence",
+	"failures": 0,
+	"checks": [
+		"PASS Independent V05 input clients retain real private lobby",
+		"PASS Arming/cancelling and old RPC aliases cannot spend cooldown, turn idle facing or bypass equipped targeting",
+		"PASS Arming/cancelling and old RPC aliases cannot spend cooldown, turn idle facing or bypass equipped targeting",
+		"PASS Explicit Spark strikes selected observed body instead of a nearer legal body",
+		"PASS Explicit Spark strikes selected observed body instead of a nearer legal body",
+		"PASS Mapped Patch continues after release and retains its spent cooldown",
+		"PASS Mapped Patch continues after release and retains its spent cooldown",
+		"PASS Mapped E completes its equipped Patch hold without firing old context action",
+		"PASS Mapped E completes its equipped Patch hold without firing old context action",
+		"PASS Panel input cannot issue navigation or contextual work",
+		"PASS Panel input cannot issue navigation or contextual work",
+		"PASS Confirmed station plan commits one real two-second preparation without an interaction key",
+		"PASS Confirmed station plan commits one real two-second preparation without an interaction key",
+		"PASS Native A then explicit world-direction confirmation performs exactly one retained melee strike",
+		"PASS Native A then explicit world-direction confirmation performs exactly one retained melee strike"
+	]
+}

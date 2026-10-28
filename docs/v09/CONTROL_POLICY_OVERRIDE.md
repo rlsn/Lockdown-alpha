@@ -38,13 +38,18 @@ eligibility, focus/lifecycle changes and explicit superseding orders retain
 their category-specific interruption rules.
 
 Network heartbeats remain implementation liveness checks. They are maintained
-by the active command rather than a physical key-down condition. Loss of
-liveness releases reservations. A stopped automatic POI must not restart every
+by the active command rather than a physical key-down condition. Current UI
+profiles tolerate gaps shorter than two seconds; expiry releases reservations
+and a late refresh cannot restart the order. S and gameplay interruptions do
+not wait for that timeout. See [native liveness evidence](B91_LIVENESS.md).
+A stopped automatic POI must not restart every
 frame: rearm it only after leaving/re-entering or issuing a new deliberate order.
+Automatic POIs wait for a stationary character without a pending or active
+movement order; walking through their radius must not stop the player.
 
 ## Current migration
 
-The B91 prototype's F/Z/E/R/V/B/H/O/K/C/J/P/X/T/Y/L/N object shortcuts are being
+The B91 prototype's F/Z/E/R/V/B/H/O/K/C/J/P/X/T/Y/L/N object shortcuts are
 replaced by ordinary navigation, basic attack, prepared ability/item inputs,
 item UI and POI behavior. Six shared actions and four accessories retain their
 normal command bar positions. E/R are shared ability slots, not tree/torch keys.

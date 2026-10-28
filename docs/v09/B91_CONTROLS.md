@@ -2,6 +2,10 @@
 
 28 October2026 · source `714a79fa3f4884f26d103bb14eb4a5523b49bf1d` · B91 remains in progress
 
+The subsequent [issued-command liveness increment](B91_LIVENESS.md) diagnoses
+and fixes this checkpoint's rendered cancellation, with47 passing rendered
+checks. This report and its frozen evidence retain their original source scope.
+
 The [user control decision](CONTROL_POLICY_OVERRIDE.md) replaces the prototype’s
 object-specific keys and physical button holds. Ordinary right-click commands
 approach and pick up ground items or open/close doors. Left-click inspects and

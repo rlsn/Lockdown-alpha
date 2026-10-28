@@ -86,3 +86,7 @@
 # Native output for the source and pointer control migration.
 /docs/v09/evidence/B91Controls/**/*.log -whitespace
 /docs/v09/evidence/B91Controls/*.log -whitespace
+
+# Raw issued-command liveness acceptance and failed diagnostic reproduction.
+/docs/v09/evidence/B91Liveness/**/*.log -whitespace
+/docs/v09/evidence/B91Liveness/*.log -whitespace

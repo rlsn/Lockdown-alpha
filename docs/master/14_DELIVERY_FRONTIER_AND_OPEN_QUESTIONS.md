@@ -54,6 +54,13 @@ fitting priorities.
 
 ## Product questions to answer through play
 
+The [issued-command liveness checkpoint](../v09/B91_LIVENESS.md) resolves the
+control migration's rendered harvest cancellation. One rendered owner and one
+headless peer pass47 source/pointer checks, including an intentional heartbeat
+gap and strict timeout cleanup. Shared regression fixtures and both native
+targets pass. This closes that specific engineering defect; human readability,
+frame-rate and complete B91 encounter acceptance remain open.
+
 The [first B91 increment](../v09/B91_IMPLEMENTATION.md) provides native interior
 and stair walks plus two-owner door transactions and restricted received views.
 Full-map observation uses a separate sparse payload, preserving the old grid
