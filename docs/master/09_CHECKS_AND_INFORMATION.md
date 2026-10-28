@@ -28,6 +28,19 @@ The six-state elemental model and finite Oil overlay use paid releases, source r
 
 Ice keeps water contact, slows and never adds sliding, drowning or connectivity changes. Smoke/Steam occludes symmetrically across its union boundary; detectors cannot see through it. A cleared cloud requires observation revalidation before a follow-up unit-target action. Fire does not recursively spread through all scenery.
 
+A surface effect belongs to a supported floor, not the entire vertical column.
+Water under a bridge must not wet someone crossing its dry deck. If an allocator
+cannot represent two active floors at the same XY location, it must refuse the
+conflicting release before charging the player. Treat that refusal as an explicit
+delivery limit until layered fields are implemented.
+
+A field's owner, originating life, cast and expiry support authority accounting;
+they are not public observation facts. A nearby observer needs its current
+position, visible state and revision. Leaving sight removes that presentation.
+Remembered terrain can remain on the map without granting live knowledge of a
+hidden surface reaction. Cosmetic light changes presentation, while sight
+continues to use its declared sources.
+
 Only listed saplings/grass are mutable in v0.9. Clearing/burning/harvesting share one source state and cannot repeat rewards after death or reload. Permanent scenery remains scenery. Local geometry mutations must agree across movement, sight and navigation.
 
 ## Private builds and observation

@@ -59,6 +59,20 @@ The full-profile defaults are 18 m own-body sight and 24 m public watch, clipped
 
 Walls, trunks, doors and smoke have simplified proxies consistent with movement. Grass conceals inside otherwise valid geometry; close observation or authorized detection can reveal it. Detection never penetrates smoke. Camera panning and static map knowledge create no sight. Public infrastructure shares only its explicitly authorized local observations.
 
+## Terrain as a tactical surface
+
+The map supports ground commitments as well as paths. A consumable can prepare a
+small crossing, make a retreat slower or leave fuel for a later paid ignition.
+Its footprint must follow supported terrain and respect walls, height changes
+and observation. Reuse readable terrain materials and crossing choices so the
+player can anticipate the result before spending a scarce item.
+
+A bridge has two distinct experiences: the deck remains a dry route while the
+water underneath remains a contact hazard. Optional roof access creates another
+observation and approach choice; it grants neither extra range nor permission
+to affect a different floor through solid geometry. Local support queries must
+retain that distinction when a large map replaces the small integration arena.
+
 ## Travel and density
 
 Small finite resource blockers create a choice between time and clearance.

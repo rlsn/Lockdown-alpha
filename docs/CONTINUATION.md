@@ -1,6 +1,15 @@
 # Active continuation — B91 functional environment
 
-B91 is **in progress**. The latest [finite-sapling checkpoint](v09/B91_SAPLINGS.md),
+B91 is **in progress**. The latest [paid-field checkpoint](v09/B91_FIELDS.md),
+at **f51a01adc8573816f4a4399326add53254c14d8a**, connects bound Water/Oil Flasks and inherited Frost
+Capsule dispatch to terrain-supported full-map cells. Two remote owners pass
+33 checks for unbound/Mute refusal, real quiet binding, paid Water/Oil,
+duplicate replay, observed Wet/contact, allocator rejection without spending
+and actual-clock retry. Three paid consumes leave 129 conserved physical items.
+Capacity fill and Frost contact are explicitly diagnostic; paid Frost acquisition,
+stacked-floor fields, direct-hit reactions and socket ignition remain open.
+
+The [finite-sapling checkpoint](v09/B91_SAPLINGS.md),
 at **c483d4398f4148c2aaa57cb891bc92f9c776c3c2**, admits all 64 authored 80 HP saplings with four-second
 harvest/chop and ordinary observed melee clearance. Harvest produces at most
 one Fiber per source; chop/damage produce none. Initial physical items remain 132;
@@ -44,7 +53,7 @@ quotes. Empty ground reveals no held-item revision. Broken cover and observed
 empty space clear stale client obstacles without revealing a hidden destination.
 Native protected-pad tests cover all 72 doors, 16 stair landings, 24 spawns,
 36 service pads, the Heart and 117 route corridors. The 52 interior/stair walks,
-two-client door scenario and all 51 rules tests pass with the new objects active.
+two-client door scenario and all 53 rules tests pass with the current fields/objects active.
 
 Approved links extend that view with one public static paired endpoint, while
 keeping users, reservations, deployers and item identity private. All 16 pairs
@@ -52,8 +61,8 @@ have native supported endpoints and capsule routes. Actual RPC movement covers
 ladder ascent/descent and Rope use; Root, Stun, heartbeat, occupancy, retrieval
 and end-life checks preserve supported landings and the original item/prop.
 
-Next B91 work is socket ignition, full-map flask/action
-integration, foliage/concealment and paid environment fields/contact. Functional
+Next B91 work is socket ignition/reservations, broader paid action integration,
+foliage/concealment, layered fields and full-map direct-hit reaction evidence. Functional
 initial sources now total 384 of 480, including partial saplings; the remaining 96 grass sources
 and 3,000 scenery trees are still required. T04 and T09 now cover the verified
 ladder race and optional-link boundary. T06/T07/T08 retain fuel, cargo and storage
@@ -122,6 +131,8 @@ python -B Scripts/TestB91Import.py
 python -B Scripts/SyncB91Data.py --check
 ./Scripts/RunB91Check.ps1
 ./Scripts/RunB91Network.ps1
+./Scripts/RunB91Network.ps1 -Fields -Port 7931
+./Scripts/RunB84Check.ps1 -Port 7933
 ./Scripts/RunB91Network.ps1 -Saplings -Port 7929
 ./Scripts/RunB91Network.ps1 -Furniture -Port 7927
 ./Scripts/RunB91Network.ps1 -Traversal -Port 7925
@@ -149,8 +160,9 @@ Rebuild this map with BuildB90Map.ps1; do not regenerate old maps. Native output
 ## Next work
 
 Continue **B91 functional environment** with sapling burning/ranged damage and saved-match state, grass,
-concealment/ledge rules, socket fire and paid full-map flask/environment actions
-and capacity. Interiors, stairs, doors, private storage, cargo, portable fuel and
+concealment/ledge rules, socket fire/reservations, layered fields and broader paid
+full-map actions. Bound Water/Oil and bounded terrain-supported fields now have
+a verified checkpoint; paid Frost acquisition and direct-hit reactions remain. Interiors, stairs, doors, private storage, cargo, portable fuel and
 approved links, fixed furniture and finite sapling harvest/chop/melee have verified checkpoints. T05 and T10–T15 remain open, including
 all 480 functional props and 3,000 scenery trees. Extend this dispatcher and inherited inventory/action/
 receipt authority. Do not add cosmetic-only verbs or unbound item shortcuts.

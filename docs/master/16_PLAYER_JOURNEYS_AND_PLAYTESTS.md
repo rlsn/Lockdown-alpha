@@ -36,6 +36,24 @@ At Heart, ordinary damage alone does not cancel. The defender must apply an actu
 
 Test readability and agency separately from equal win rates. A defender who could act but could not understand the timing has not received useful counterplay.
 
+## Preparing a crossing under pressure
+
+A player chooses between carrying another response and preparing a terrain
+consumable. They bind the actual item, identify a supported floor and decide
+whether the short release window is safe. An opponent reads the observed
+surface and chooses a dry route, waits for expiry or commits through it.
+
+Review three moments without coaching: can the player tell which item is
+prepared, predict the affected floor and explain why an attempted release kept
+the item? Compare ice contact with a qualifying direct Frost hit; a player who
+expects the floor itself to stun needs clearer feedback. Check the same place
+from a distant observer to catch visible effects that disclose a hidden fight.
+
+The complete encounter should include normal acquisition and rendered target
+feedback. A fixture that stages an existing flask or seeds allocator capacity
+isolates correctness; it does not establish scarcity, discoverability or the
+value of occupying that accessory in a full match.
+
 ## Death and returning with a new plan
 
 Show the retained build, dropped categories, wallet loss and fixed return timer clearly. On return, the player identifies a useful action without repeating every opening purchase. Bank/endorsements and learned knowledge remain understandable accomplishments. Objective cargo loss changes which routes remain feasible.

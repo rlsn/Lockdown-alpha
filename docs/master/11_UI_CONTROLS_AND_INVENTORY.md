@@ -87,6 +87,26 @@ reward. Inspection grants the same current, local contents view as other
 storage; take/store feedback identifies the selected physical instance and
 quiet-time commitment. Its shape can block a route without granting concealment.
 
+## Aimed consumables and terrain feedback
+
+Preparing a flask binds a real physical instance to an accessory. Aiming shows
+where it can legally release, its range, the selected supporting floor and the
+area affected. Confirmation commits the inherited windup; interruption, invalid
+terrain or exhausted field capacity must leave the item and family cooldown
+unchanged. After success the item disappears once and the family timer remains
+visible through any later binding change.
+
+The result needs a readable shape and state, including Wet, Oil and ice. Color
+alone is insufficient for the final interface; add icons, edge treatment or
+material motion alongside a short state label. Oil should communicate preparation
+for a later reaction, without promising automatic ignition. Ice communicates
+slower grounded movement, without suggesting a direct-hit Stun.
+
+The B91 development keyboard path selects a bag item with I, binds it with a
+held 1–4 and releases it at the cursor with N. These shortcuts establish an
+exercisable implementation path. A complete target preview, contextual item
+selection, remapping and human readability still require product UI work.
+
 ## Input arbitration and accessibility
 
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.

@@ -31,6 +31,12 @@ The full session is 60–90 minutes, with legal earlier wins. The short v0.8 int
 
 Revision 8 follows an actual review of the native ebc19a5 B86 baseline and the supplied untracked v0.9 package. Earlier master claims that no game source was inspected describe that older documentation task; they are not current coverage statements.
 
+Revision 12 connects terrain, aimed consumables, information boundaries and
+player review tasks to the B91 field increment. A one-active-floor allocator is
+a recorded implementation restriction, not a new design rule forbidding layered
+encounters. Paid item use, diagnostic transition setup and later human evaluation
+retain separate evidence claims.
+
 Revision 7 remains byte-preserved in release reference copies and the v0.8 master source archive. v0.8 original/adopted hashes and historical audits remain unchanged. v0.9's supplied source package, data and model evidence are kept separate from B90 implementation evidence. For a new decision record its date, rationale, affected contract/profile and tests; do not erase the reason a prior choice existed.
 
 Open issues and delivery gaps belong in [the frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md). A candidate stays a candidate until deliberately selected.

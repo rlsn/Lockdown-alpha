@@ -47,7 +47,7 @@ fitting priorities.
 | Frontier | Required next work |
 | --- | --- |
 | B90 spatial acceptance | Complete; retain evidence and recheck affected paths/contact/geometry after later mutations |
-| B91 functional environment | Interiors, stairs, doors, storage/cargo, retained portable fuel, approved ladder/rope links and fixed furniture implemented; finite sapling harvest/chop/melee added; finish burning, grass, paid environment integration and full fitting |
+| B91 functional environment | Interiors, stairs, doors, storage/cargo, retained portable fuel, approved ladder/rope links and fixed furniture implemented; finite sapling harvest/chop/melee added; paid Water/Oil fields added; finish burning, grass, broader environment integration and full fitting |
 | B92 living population/economy | Five conserved market pools, shared stock, finite contracts/endowments, roster/routines/security and legal AI progression |
 | B93 route convergence | Full-map earned routes, physical cargo, warnings and exact capital claim endpoints |
 | B94 full-session acceptance | Normal 60/75/90-minute scenarios, restricted clients, density/field stress and human pacing evidence |
@@ -79,6 +79,14 @@ the same input/control/life rules as other commitments. The [fixed-furniture che
 empty storage fixtures with independent walking/sight behavior. There are now
 384/480 functional sources present, including the [partial sapling boundary](../v09/B91_SAPLINGS.md). Sapling burning/ranged damage and saved-match state still need integration; 96 grass sources and 3,000 scenery trees need fitting. A working roof route does not complete the
 reference grass escape or establish final encounter pacing.
+
+The [paid-field increment](../v09/B91_FIELDS.md) connects Water/Oil accessory
+releases to terrain support, actual consumption, bounded allocation and observed
+surface records. Its cap and Frost setup are diagnostic; paid Frost acquisition,
+socket ignition, direct-hit reactions and stacked-floor fields remain open.
+The master chapters on terrain, effects and controls describe the intended
+player decisions and information boundary without treating this prototype as
+finished UI or full-session acceptance.
 
 Can a new player find income, prepare a useful toolkit and understand the Heart without external coaching? Does a quiet economic opening remain competitive after buying real defenses? Can a weaker defender identify and execute a legal interruption? Does losing cargo create a new plan or erase all motivation? Do travelers/cities support readable uncertainty without confusing reliable services?
 

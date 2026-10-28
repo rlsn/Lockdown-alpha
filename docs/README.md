@@ -1,6 +1,9 @@
 # Project Lockdown documentation
 
-The active implementation is **v0.9 B91 functional environment**, starting from native v0.8 B86 at ebc19a5 after completed B90 spatial work. [B91 progress](v09/B91_IMPLEMENTATION.md), [portable tools](v09/B91_TOOLS.md) and [approved traversal](v09/B91_TRAVERSAL.md) and [fixed furniture](v09/B91_FURNITURE.md) and [finite saplings](v09/B91_SAPLINGS.md) distinguish verified checkpoints from remaining acceptance. [Continuation](CONTINUATION.md) gives the next steps and commands.
+The active implementation is **v0.9 B91 functional environment**, following
+completed B90 spatial work from native v0.8 B86 at ebc19a5. Start with the
+[continuation](CONTINUATION.md) for current status, next work and commands, or
+with the [living master](master/README.md) for the long-term game design.
 
 ## Design and active implementation
 
@@ -13,6 +16,21 @@ The active implementation is **v0.9 B91 functional environment**, starting from 
 | [B90 implementation](v09/B90_IMPLEMENTATION.md) | Native changes, commands, measured evidence and remaining gates |
 | [v0.9 working ledger](v09/FeatureLedger.csv) | Per-case actual status; separate from blank source templates |
 | [Source adoption](v09/SOURCE_MANIFEST.json) | Hashes of the supplied untracked specification package |
+
+## B91 checkpoints
+
+| Report | Verified boundary |
+| --- | --- |
+| [Interiors and doors](v09/B91_IMPLEMENTATION.md) | Structural walks, permanent stairs, authoritative doors and restricted observation |
+| [Storage and cargo](v09/B91_OBJECTS.md) | Finite ownership, private storage and legal world-cargo placement |
+| [Portable tools](v09/B91_TOOLS.md) | Retained physical fuel and cosmetic light |
+| [Approved traversal](v09/B91_TRAVERSAL.md) | Shared ladder/Rope links and supported interrupted movement |
+| [Fixed furniture](v09/B91_FURNITURE.md) | Empty private storage with separate walking and sight behavior |
+| [Saplings](v09/B91_SAPLINGS.md) | Finite harvest, chop and ordinary melee; burning/reload still open |
+| [Paid fields](v09/B91_FIELDS.md) | Water/Oil release, support planes, allocator limits and restricted field views |
+
+The working ledger records remaining acceptance. A checkpoint does not complete
+B91 or admit the later full-map economy and match stages.
 
 ## Retained release records
 

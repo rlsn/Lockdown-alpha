@@ -70,6 +70,27 @@ Public static geography may be distributed with the map. Hidden units, distant m
 
 An accepted door/foliage/cargo mutation updates physical collision, sight proxy and local navigation revision atomically. A temporarily stale path stops/replans rather than crossing a blocker. Door changes must not rebuild the entire map. Simplified proxies and instanced scenery control cost while preserving agreement.
 
+## Temporary surfaces and large-map admission
+
+Keep the elemental reducer and item transactions shared across profiles. A larger
+map needs a distinct admitted coordinate format, support-height queries and its
+own bounded allocator capacities. Expanding its bounds must not silently widen
+the old integration profile or reinterpret the old arena's authored substrates.
+
+Terrain support belongs in authority state. A cell follows the local floor
+slope instead of comparing every foot position with a single centre height.
+A field is active at a particular floor; contact, damage and presentation use that floor consistently. Validate
+all selected cells before applying a release so a height conflict or exhausted
+budget cannot produce a partial paid result. Capacity rejection must release
+item reservations and retain both physical instance and family readiness.
+
+Canonical records may retain private sponsor/life/cast attribution for later
+credit and conservation. Publish a separate observed surface format with only
+location, state and revision. Client presentation expires independently of
+server actor lifetime and never creates a second collision, navigation or
+combat authority. Exercise paid RPC paths separately from diagnostic allocator
+fill and transition fixtures; record each boundary in release evidence.
+
 ## Data and reproducibility
 
 Documentation JSON is design input. Runtime consumes staged, validated payloads/native assets, never arbitrary documentation files. Record source hashes, profile, layout/fitter revision and generated outputs. Closed import contracts reject unsupported fields and semantic drift before admitting a match.

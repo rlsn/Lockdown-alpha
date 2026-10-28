@@ -74,3 +74,7 @@
 
 # Preserve raw engine output in the B86 evidence bundle.
 /docs/v08/evidence/B86/*.log -whitespace
+
+# Preserve raw output in the bounded full-map field evidence bundle.
+/docs/v09/evidence/B91Fields/**/*.log -whitespace
+/docs/v09/evidence/B91Fields/*.log -whitespace
