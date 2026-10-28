@@ -8,7 +8,7 @@
 FGuid ALDCombatDirector::ReserveIgnition(ALDCharacter* Body,FVector Point,ALDWorldObject* Socket,int64 At)
 {
     if(!FullMapEnvironment()||!Body||!BuildFor(Body)){return {};}
-    if(Socket&&(Socket->Kind!=ELDObjectKind::Sapling||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid())){return {};}
+    if(Socket&&((Socket->Kind!=ELDObjectKind::Sapling&&Socket->Kind!=ELDObjectKind::TallGrass)||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid())){return {};}
     RetireEnvironment(At);auto Q=EnvironmentCommand(Body,LDEnvironment::EInput::Fire,At,3000);Q.FireDuration=3000;Q.BurningBonus=0;
     const auto& Cells=RiverCommands.IsEmpty()?RiverCells:ProjectedEnvironment;
     for(auto Id:LDEnvironment::Mask(Body->GetActorLocation(),Point,0,180,true,4,false,true))
@@ -27,7 +27,7 @@ bool ALDCombatDirector::CommitIgnition(FGuid Lease,ALDCharacter* Body,ALDWorldOb
 {
     const auto* Entry=EnvironmentLeases.Find(Lease);const auto* S=StateFor(Body);
     if(!Entry||!Entry->Ignition||Entry->Socket.Get()!=Socket||At>=Entry->Expires||!S||S->Identity!=Entry->Command.State.Life){return false;}
-    if(Socket&&(Socket->Kind!=ELDObjectKind::Sapling||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid())){return false;}
+    if(Socket&&((Socket->Kind!=ELDObjectKind::Sapling&&Socket->Kind!=ELDObjectKind::TallGrass)||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid())){return false;}
     auto Q=Entry->Command;const auto& Cells=RiverCommands.IsEmpty()?RiverCells:ProjectedEnvironment;
     const FVector Aim=Socket?Socket->LastClear:FVector(LDRiver::Centre(Q.Cells[0]).X,LDRiver::Centre(Q.Cells[0]).Y,Q.Surfaces.FindChecked(Q.Cells[0]));
     for(auto Id:Q.Cells)

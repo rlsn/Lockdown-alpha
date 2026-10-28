@@ -84,7 +84,7 @@ void ALDB91Controller::StartIgnition()
     if(!CanWorldCommand()||!GetPawn()||!OwnerState.Inventory.Items.IsValidIndex(BagSelection)){return;}const auto& Item=OwnerState.Inventory.Items[BagSelection];if(Item.Kind!=ELDItemKind::Torch){IntentFeedback=TEXT("Select a physically bound Torch");return;}
     FLDObjectRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Sequence=++WorldSequence;R.Contract=ALDWorldObjects::ActiveContract();R.Verb=ELDObjectVerb::Ignite;R.Item=Item.Id;R.ItemRevision=Item.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.Accessory=255;
     for(int N=0;N<4;++N){if(OwnerState.Inventory.Bindings[7+N]==Item.Id){R.Accessory=N;break;}}
-    const auto* Socket=NearestObject();if(Socket&&Socket->Kind==ELDObjectKind::Sapling){R.Observed=Socket->Handle;R.ObjectRevision=Socket->Revision;}
+    const auto* Socket=NearestObject();if(Socket&&(Socket->Kind==ELDObjectKind::Sapling||Socket->Kind==ELDObjectKind::TallGrass)){R.Observed=Socket->Handle;R.ObjectRevision=Socket->Revision;}
     else{FHitResult Hit;if(!GetHitResultUnderCursorByChannel(UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),false,Hit)){return;}R.Point=Hit.ImpactPoint;}
     ReleaseDoor();Navigation->Stop();HeldObject=true;HeldSequence=R.Sequence;Nonce=0;SentAt=GetWorld()->GetTimeSeconds();ServerObjectInteraction(R);
 }

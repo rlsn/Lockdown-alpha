@@ -153,7 +153,7 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
                 Field->Hp=Kind==ELDTacticalField::Ward?40:Kind==ELDTacticalField::Trap?20:Kind==ELDTacticalField::Grounding?Magnitude:1;
             }
             S->Tactical.MP-=D->Mana;B->Cooldowns[uint8(S->Skill)]=Now+(D->RankKey==TEXT("cooldown_ms")?Magnitude:D->Cooldown)/1000.;
-            if(S->Skill!=ELDSkill::VeilStep){BreakConcealment(Body);}
+            if(S->Skill!=ELDSkill::VeilStep){BreakConcealment(Body,true);}
             if(Projectile){Projectile->Source=Body;Projectile->CasterIdentity=S->Identity;Projectile->Victim=Victim;Projectile->VictimLife=V->Identity;Projectile->Endpoint=Victim->GetActorLocation();Projectile->AdvancedAt=At;Projectile->Amount=Magnitude*FMath::Min(1.25,1+.025*FMath::Max(0,LDDevelopment::Effective(*B)[3]-8));Projectile->Amount*=1+B->Gear.SpellPercent/100.;Projectile->Token=Token;}
             else if(S->Skill==ELDSkill::AnchorBash){Hits.Add({Body,Victim,45,LDTactical::EDamage::Physical,true,D->Magnitudes[Rank],Token});}
             else if(S->Skill==ELDSkill::PurgeTouch)

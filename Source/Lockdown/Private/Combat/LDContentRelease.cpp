@@ -146,5 +146,5 @@ bool ALDCombatDirector::ReleaseContent(ALDCharacter* Body,int64 At,TArray<FLDCom
         else{M->Inventory->Changed(PC);}
     }
     for(TActorIterator<ALDTacticalField> It(GetWorld());It;++It){if(It->Source.Get()==Body&&It->Kind==ELDTacticalField::Telegraph){DestroyField(*It);}}
-    BreakConcealment(Body);S->QuietSince=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);Why=TEXT("Released once; no refund for blocked/missed effect");return true;
+    BreakConcealment(Body,true);S->QuietSince=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);Why=TEXT("Released once; no refund for blocked/missed effect");return true;
 }

@@ -15,8 +15,8 @@ def check(root):
     assert report['phase'] == 101
     assert len(report['checks']) == (51 if report.get('furniture_scenario') else 49) and all(c['passed'] for c in report['checks'])
     size = len(report['fitted_objects'])
-    assert size in (156, 204, 232, 264, 328, 339)
-    finite_count = 84 if size == 156 else 143 if size == 339 else 132
+    assert size in (156, 204, 232, 264, 328, 339, 435)
+    finite_count = 84 if size == 156 else 143 if size >= 339 else 132
     assert report['finite_initial_items'] == finite_count and report['conserved']
     initial = report['initial_item_ids']
     physical = report['physical_items']
@@ -37,8 +37,10 @@ def check(root):
         expected[12] = 32
     if size >= 328:
         expected[13] = 64
-    if size == 339:
+    if size >= 339:
         expected[14] = 11
+    if size >= 435:
+        expected[15] = 96
     assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
         assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01

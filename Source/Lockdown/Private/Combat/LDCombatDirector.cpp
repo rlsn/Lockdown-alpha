@@ -275,7 +275,7 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::IsRear(Body->GetActorLocation(),Victim->GetActorLocation(),Victim->GetActorForwardVector())
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
-            if(Mode->IsTacticalProfile()){BreakConcealment(Body);}
+            if(Mode->IsTacticalProfile()){BreakConcealment(Body,true);}
             if(!Target&&!bAssassin&&!bSpark&&Mode->IsEnvironmentProfile()&&BuildFor(Body)&&!BuildFor(Body)->Gear.Ranged)
             {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Target=Objects->MeleeTarget(Body,S.CommittedAim,BuildFor(Body)->Gear.Reach);}}
             if(Target&&Mode->IsTacticalProfile()&&!bAssassin&&!bSpark&&BuildFor(Body)&&BuildFor(Body)->Gear.Ranged)

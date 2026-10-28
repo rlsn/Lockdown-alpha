@@ -52,5 +52,5 @@ bool ALDCombatDirector::ReleaseCatalog(ALDCharacter* Body,int64 At,TArray<FLDCom
         if(K==ELDSkill::Updraft){auto& H=Hit(T,0,LDTactical::EDamage::Magical,false);H.SlowMS=1800;H.SlowMagnitude=35;}
         else{auto& H=Hit(T,K==ELDSkill::PowerStrike?Value:Value*Scale,K==ELDSkill::PowerStrike?LDTactical::EDamage::Physical:LDTactical::EDamage::Magical,false);H.DirectFrost=K==ELDSkill::IceNova;H.DirectFire=K==ELDSkill::Flameburst;H.BarrierBonus=K==ELDSkill::PowerStrike?30:0;}
     }
-    BreakConcealment(Body);S->QuietSince=At/1000.;S->ExposedUntil=FMath::Max(S->ExposedUntil,At/1000.+4);Why=TEXT("Released once; source effects and costs committed");return true;
+    BreakConcealment(Body,true);S->QuietSince=At/1000.;S->ExposedUntil=FMath::Max(S->ExposedUntil,At/1000.+4);Why=TEXT("Released once; source effects and costs committed");return true;
 }

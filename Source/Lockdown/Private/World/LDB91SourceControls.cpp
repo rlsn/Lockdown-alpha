@@ -9,7 +9,7 @@
 namespace
 {
 FVector ObjectFloor(const FLDObjectView& V)
-{const double H=V.Kind==ELDObjectKind::Sapling?203:V.Kind==ELDObjectKind::Crate?113:V.Kind==ELDObjectKind::Barrel?73:V.Kind==ELDObjectKind::Chest?43:V.Kind==ELDObjectKind::Furniture?53:V.Kind==ELDObjectKind::Torch?48:V.Kind==ELDObjectKind::Lantern?33:18;return FVector(V.Position)-FVector(0,0,H);}
+{const double H=V.Kind==ELDObjectKind::TallGrass?78:V.Kind==ELDObjectKind::Sapling?203:V.Kind==ELDObjectKind::Crate?113:V.Kind==ELDObjectKind::Barrel?73:V.Kind==ELDObjectKind::Chest?43:V.Kind==ELDObjectKind::Furniture?53:V.Kind==ELDObjectKind::Torch?48:V.Kind==ELDObjectKind::Lantern?33:18;return FVector(V.Position)-FVector(0,0,H);}
 }
 void ALDB91Controller::ClientB91Channel_Implementation(FLDB91Channel P,bool Active)
 {if(P.Match!=OwnerState.Match||P.Life!=OwnerState.Life||P.Sequence<Channel.Sequence){return;}if(Active){Channel=P;ChannelActive=true;}else if(Channel.Sequence==P.Sequence&&Channel.Domain==P.Domain){ChannelActive=false;}if(!Active&&HeldSequence==P.Sequence&&HeldObject==(P.Domain==2)){HeldSequence=0;}}
@@ -51,7 +51,7 @@ void ALDB91Controller::UseAccessory(uint8 Slot,bool Alternate)
     if(Alternate&&(I->Kind==ELDItemKind::Torch||I->Kind==ELDItemKind::Lantern)){IssueObject(ELDObjectVerb::Toggle,FGuid(),I->Id);return;}
     if(I->Kind==ELDItemKind::Lantern){IssueObject(ELDObjectVerb::Toggle,FGuid(),I->Id);return;}
     ArmedSource=I->Id;ArmedVerb=I->Kind==ELDItemKind::ForestryKnife?(Alternate?ELDObjectVerb::Chop:ELDObjectVerb::Harvest):I->Kind==ELDItemKind::Rope?ELDObjectVerb::Attach:ELDObjectVerb::Ignite;
-    IntentFeedback=I->Kind==ELDItemKind::ForestryKnife?TEXT("Target a sapling. Confirm once; S stops the4s item channel."):I->Kind==ELDItemKind::Torch?TEXT("Target a sapling or Oil ground. Confirm once; S stops ignition."):I->Kind==ELDItemKind::Rope?TEXT("Target an approved anchor to attach this Rope."):TEXT("Confirm the item target once; S stops a channel.");
+    IntentFeedback=I->Kind==ELDItemKind::ForestryKnife?TEXT("Target a sapling. Confirm once; S stops the4s item channel."):I->Kind==ELDItemKind::Torch?TEXT("Target a sapling, grass patch or Oil ground. Confirm once; S stops ignition."):I->Kind==ELDItemKind::Rope?TEXT("Target an approved anchor to attach this Rope."):TEXT("Confirm the item target once; S stops a channel.");
 }
 void ALDB91Controller::ConfirmSource(FGuid Object,FVector Point)
 {
@@ -63,7 +63,7 @@ void ALDB91Controller::ConfirmSource(FGuid Object,FVector Point)
     if(ArmedVerb==ELDObjectVerb::Drop){IssueObject(ELDObjectVerb::Drop,FGuid(),Id,Point);return;}
     const auto* I=OwnerState.Inventory.Find(Id);if(!I){return;}
     if(I->Kind==ELDItemKind::ForestryKnife){IssueObject(ArmedVerb,Object,Id,Point);}
-    else if(I->Kind==ELDItemKind::Torch){IssueObject(ELDObjectVerb::Ignite,V&&V->Kind==ELDObjectKind::Sapling?Object:FGuid(),Id,Point);}
+    else if(I->Kind==ELDItemKind::Torch){IssueObject(ELDObjectVerb::Ignite,V&&(V->Kind==ELDObjectKind::Sapling||V->Kind==ELDObjectKind::TallGrass)?Object:FGuid(),Id,Point);}
     else if(I->Kind==ELDItemKind::Rope){IssueObject(ELDObjectVerb::Attach,Object,Id);}
     else{ReleaseDoor();Navigation->Stop();SendItemAction(Id,FGuid(),Point);}
 }

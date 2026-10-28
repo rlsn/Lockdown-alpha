@@ -1,10 +1,11 @@
-#include "Framework/LDCommandLiveness.h"
 #include "World/LDWorldObjects.h"
+#include "Framework/LDCommandLiveness.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91ObjectsContract.h"
 #include "World/LDB91ToolsContract.h"
 #include "World/LDB91TraversalContract.h"
 #include "World/LDB91ForestryContract.h"
+#include "World/LDB91GrassContract.h"
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
@@ -42,28 +43,29 @@ ALDWorldObject::ALDWorldObject()
     Glow=CreateDefaultSubobject<UPointLightComponent>(TEXT("ObservedCosmeticGlow"));Glow->SetupAttachment(Proxy);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->SetVisibility(false);
 }
 FVector ALDWorldObject::Size() const
-{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);case ELDObjectKind::Furniture:return FVector(200,100,100);case ELDObjectKind::Sapling:return FVector(120,120,400);default:return FVector(20,20,30);}}
+{switch(Kind){case ELDObjectKind::Chest:return FVector(100,80,80);case ELDObjectKind::Crate:return FVector(120,120,220);case ELDObjectKind::Barrel:return FVector(120,120,140);case ELDObjectKind::Torch:return FVector(20,20,90);case ELDObjectKind::Lantern:return FVector(40,40,60);case ELDObjectKind::Rope:return FVector(40,40,30);case ELDObjectKind::Ladder:return AppliedState!=255&&(AppliedState&16)?FVector(70,40,400):FVector(70,500,30);case ELDObjectKind::Anchor:return FVector(30,30,30);case ELDObjectKind::Furniture:return FVector(200,100,100);case ELDObjectKind::Sapling:return FVector(120,120,400);case ELDObjectKind::TallGrass:return FVector(500,500,150);default:return FVector(20,20,30);}}
 bool ALDWorldObject::Available() const
-{return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Kind==ELDObjectKind::Sapling||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
+{return !Broken&&(Container()||Kind==ELDObjectKind::Ladder||Kind==ELDObjectKind::Anchor||Kind==ELDObjectKind::Sapling||Kind==ELDObjectKind::TallGrass||Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid());}
 int32 ALDWorldObject::Weight() const
 {int32 W=Kind==ELDObjectKind::Crate?12:Kind==ELDObjectKind::Barrel?16:Kind==ELDObjectKind::Ladder?10:0;for(auto P:Contents){if(P.IsValid()){W+=LDInventory::UnitWeight(P->Kind);}}return W;}
 void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
 {
     if(NewRevision<Revision||(NewRevision==Revision&&State==AppliedState&&Proxy->GetStaticMesh()&&GetActorLocation().Equals(Position,.01))){return;}AppliedState=State;
-    Broken=State&1;bCarriedWorld=State&2;SetActorLocation(Position);Proxy->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
+    Broken=State&1;bCarriedWorld=State&2;SetActorLocation(Position);Proxy->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Kind==ELDObjectKind::TallGrass?TEXT("/Engine/BasicShapes/Cylinder.Cylinder"):TEXT("/Engine/BasicShapes/Cube.Cube")));
     Proxy->SetRelativeScale3D(Size()/100.);Proxy->SetVisibility(!(State&5));
     Glow->SetAttenuationRadius(Kind==ELDObjectKind::Torch?600:Kind==ELDObjectKind::Lantern?800:0);Glow->SetVisibility(false);
     Proxy->SetCollisionEnabled(BlocksWalk()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
     Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,(Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Sapling)?ECR_Block:ECR_Ignore);
     Proxy->SetCanEverAffectNavigation(BlocksWalk()&&!(State&7));
     if(Kind==ELDObjectKind::Sapling){auto* M=Cast<UMaterialInstanceDynamic>(Proxy->GetMaterial(0));if(!M){M=Proxy->CreateAndSetMaterialInstanceDynamic(0);}if(M){M->SetVectorParameterValue(TEXT("Color"),State&32?FLinearColor(1,.25f,0):FLinearColor(.2f,.5f,.15f));}}
+    if(Kind==ELDObjectKind::TallGrass){ApplyGrassVisuals(State);}
     Revision=CollisionRevision=SightRevision=NavigationRevision=NewRevision;++ProxyUpdates;FNavigationSystem::UpdateComponentData(*Proxy);
 }
 void ALDWorldObject::SetObserved(bool Visible)
-{Proxy->SetVisibility(Visible&&!(AppliedState&5));Glow->SetVisibility(Visible&&!(AppliedState&5)&&(AppliedState&8)&&(Kind==ELDObjectKind::Torch||Kind==ELDObjectKind::Lantern));}
+{Proxy->SetVisibility(Visible&&!(AppliedState&5));for(const auto& Blade:GrassVisuals){Blade->SetVisibility(Visible&&!(AppliedState&5));}Glow->SetVisibility(Visible&&!(AppliedState&5)&&(AppliedState&8)&&(Kind==ELDObjectKind::Torch||Kind==ELDObjectKind::Lantern));}
 ALDWorldObjects::ALDWorldObjects()
 {bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
-FString ALDWorldObjects::ActiveContract(){return LD_B91_CONTROL_WORLD_SHA;}
+FString ALDWorldObjects::ActiveContract(){return LD_B91_GRASS_WORLD_SHA;}
 ALDWorldObjects* ALDWorldObjects::Get(UWorld* W)
 {if(W){for(TActorIterator<ALDWorldObjects> I(W);I;++I){return *I;}}return nullptr;}
 ALDWorldObject* ALDWorldObjects::Find(FName Id) const
@@ -99,7 +101,10 @@ bool ALDWorldObjects::Reserved(FVector P,FVector Size) const
 }
 bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Surface) const
 {
-    if(!Object||!SurfaceAt(Point,Surface)||FMath::Abs(Surface.Z-Point.Z)>80||Reserved(Surface,Object->Size())){return false;}
+    if(!Object||!SurfaceAt(Point,Surface)||FMath::Abs(Surface.Z-Point.Z)>80){return false;}
+    if(Object->Kind==ELDObjectKind::TallGrass)
+    {const auto* D=ULDMapDefinition::Get(GetWorld());if(!D||D->RiverAt(Surface)){return false;}for(const auto& Offset:TArray<FVector>{FVector(250,0,0),FVector(-250,0,0),FVector(0,250,0),FVector(0,-250,0)}){FVector Edge;if(!SurfaceAt(Surface+Offset,Edge)||FMath::Abs(Edge.Z-Surface.Z)>80){return false;}}return !GetWorld()->OverlapAnyTestByChannel(Surface+FVector(0,0,78),FQuat::Identity,ECC_GameTraceChannel2,FCollisionShape::MakeBox(FVector(250,250,74)),FCollisionQueryParams(SCENE_QUERY_STAT(B91GrassPad),false,Object));}
+    if(Reserved(Surface,Object->Size())){return false;}
     const FVector Extent=Object->Size()*.5;
     const double CentreZ=Surface.Z;double PadZ=CentreZ;
     for(int X:{-1,1}){for(int Y:{-1,1}){FVector Corner=Surface;
@@ -119,7 +124,7 @@ bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Su
      if(X*X+Y*Y<=R*R&&FMath::Abs(P.Z-Centre.Z)<Extent.Z+B->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()){return false;}}
     // Full solid proxy, every body included. This is never a character push.
     if(GetWorld()->OverlapAnyTestByChannel(Surface+FVector(0,0,Extent.Z+3),FQuat::Identity,ECC_Pawn,FCollisionShape::MakeBox(Extent),Q)){return false;}
-    for(auto P:Objects){if(P.IsValid()&&P!=Object&&P->Available()&&!P->Carrier.IsValid())
+    for(auto P:Objects){if(P.IsValid()&&P!=Object&&P->Kind!=ELDObjectKind::TallGrass&&P->Available()&&!P->Carrier.IsValid())
     {const double Clearance=FMath::Max(P->Size().X,P->Size().Y)*.5+FMath::Max(Extent.X,Extent.Y)+(Object->Heavy()||P->Heavy()||Object->BlocksWalk()||P->BlocksWalk()?300:30);
      if(FVector::Dist2D(P->GetActorLocation(),Surface)<Clearance){return false;}}}
     return true;
@@ -146,8 +151,8 @@ bool ALDWorldObjects::Initialize(FString& Error)
         {auto* P=GetWorld()->SpawnActor<ALDItem>();P->Kind=O->Kind==ELDObjectKind::Water?ELDItemKind::WaterFlask:ELDItemKind::OilFlask;P->Institution=O->SourceId;P->OriginReceipt=FGuid::NewGuid();P->SetActorLocation(O->GetActorLocation());O->Physical=P;Finite.Add(P->Identity,P);}
     }
     if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
-    if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)){return false;}Contract=ActiveContract();
-    Ready=Objects.Num()==339&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
+    if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)||!InitializeGrass(Error)){return false;}Contract=ActiveContract();
+    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -366,7 +371,7 @@ void ALDWorldObjects::Publish()
 }
 void ALDWorldObjects::Tick(float Delta)
 {
-    Super::Tick(Delta);if(!Ready||GetNetMode()==NM_Client){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}const double Now=GetWorld()->GetTimeSeconds();
+    Super::Tick(Delta);if(!Ready||GetNetMode()==NM_Client){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}const double Now=GetWorld()->GetTimeSeconds();TickGrass(Now);
     TickTools(Now);TickBurning(Now);
     TArray<TWeakObjectPtr<ALDB91Controller>> Returning;Returns.GetKeys(Returning);
     for(auto Weak:Returning){if(!Weak.IsValid()||RestoreTraversal(Weak.Get(),Returns.FindChecked(Weak),false)){Returns.Remove(Weak);}}

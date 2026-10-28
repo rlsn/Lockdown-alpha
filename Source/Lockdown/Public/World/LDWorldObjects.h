@@ -8,7 +8,7 @@ class ALDCharacter;
 class UStaticMeshComponent;
 class UPointLightComponent;
 
-UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling,ForestryKnife };
+UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling,ForestryKnife,TallGrass };
 UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop,Ignite };
 USTRUCT()
 struct FLDObjectRequest
@@ -76,6 +76,8 @@ public:
     FGuid Deployer;
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Proxy;
     UPROPERTY() TObjectPtr<UPointLightComponent> Glow;
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> GrassVisuals;
+    void ApplyGrassVisuals(uint8 State);
     FVector Size() const;
     bool Heavy() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Ladder;}
     bool BlocksWalk() const {return Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Furniture||Kind==ELDObjectKind::Sapling;}
@@ -106,6 +108,9 @@ public:
     bool ForceDrop(ALDB91Controller* PC);
     ALDWorldObject* MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach) const;
     bool StrikeMelee(ALDCharacter* Body,ALDWorldObject* Object,double Damage);
+    bool InsideGrass(const ALDCharacter* Body) const;
+    bool GrassConcealed(const ALDCharacter* Body) const;
+    void InterruptGrass(ALDCharacter* Body,bool Offense);
     bool Traversing(const ALDB91Controller* PC) const;
     void Begin(ALDB91Controller* PC,const FLDObjectRequest& Request);
     void Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,uint32 Nonce,bool Release);
@@ -123,6 +128,7 @@ private:
     friend class ALDB91TraversalProbe;
     friend class ALDB91SaplingsProbe;
     friend class ALDB91IgnitionProbe;
+    friend class ALDB91GrassProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
@@ -160,6 +166,10 @@ private:
     bool FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const;
     bool InitializeTools(FString& Error);
     bool InitializeForestry(FString& Error);
+    bool InitializeGrass(FString& Error);
+    void TickGrass(double Now);
+    struct FGrassBody{FGuid Life;bool Inside=false;double ReadyAt=0,RevealUntil=0;};
+    TMap<TWeakObjectPtr<ALDCharacter>,FGrassBody> GrassBodies;
     bool ForestryEligible(ALDB91Controller* PC,const FLDObjectRequest& R,FString& Why) const;
     void ReserveTool(ALDB91Controller* PC,FHold& H);
     bool InitializeTraversal(FString& Error);

@@ -1,5 +1,5 @@
-#include "Framework/LDCommandLiveness.h"
 #include "Objectives/LDObjectiveDirector.h"
+#include "Framework/LDCommandLiveness.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Navigation/LDNavigationComponent.h"

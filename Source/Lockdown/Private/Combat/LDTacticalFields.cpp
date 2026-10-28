@@ -24,9 +24,9 @@ bool ALDTacticalField::Active(int64 At) const
 }
 bool ALDCombatDirector::QuietForPreparation(ALDCharacter* Body) const
 {const auto* S=StateFor(Body);if(!S||GetWorld()->GetTimeSeconds()-FMath::Max(S->LastDamage,S->LastDealt)<6){return false;}for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){if(It->Source.Get()==Body&&!It->IsActorBeingDestroyed()){return false;}}return true;}
-bool ALDCombatDirector::Concealed(const ALDCharacter* Body) const
-{const auto* S=StateFor(Body);return S&&((S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));}
-void ALDCombatDirector::BreakConcealment(ALDCharacter* Body){if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
+bool ALDCombatDirector::Concealed(const ALDCharacter* Body,bool IncludeGrass) const
+{const auto* S=StateFor(Body);if(!S){return false;}const auto* Grass=IncludeGrass?ALDWorldObjects::Get(GetWorld()):nullptr;return (Grass&&Grass->GrassConcealed(Body))||(S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
+void ALDCombatDirector::BreakConcealment(ALDCharacter* Body,bool Offense){if(auto* Grass=ALDWorldObjects::Get(GetWorld())){Grass->InterruptGrass(Body,Offense);}if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
 void ALDCombatDirector::ExplicitInterrupt(ALDCharacter* Body,double Now)
 {
     auto* S=StateFor(Body);if(!S||S->Hp<=0||Body->IsA<ALDWildSentinel>()||(Cast<ALDWorldPawn>(Body)&&Cast<ALDWorldPawn>(Body)->Immune())){return;}

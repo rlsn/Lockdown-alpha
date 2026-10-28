@@ -195,8 +195,8 @@ public:
     void FlushPastCommand();
     void AdvanceAuthority(double Through);
     bool QuietForPreparation(ALDCharacter* Body) const;
-    bool Concealed(const ALDCharacter* Body) const;
-    void BreakConcealment(ALDCharacter* Body);
+    bool Concealed(const ALDCharacter* Body,bool IncludeGrass=true) const;
+    void BreakConcealment(ALDCharacter* Body,bool Offense=false);
     void ExplicitInterrupt(ALDCharacter* Body,double Now);
     bool Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now);
     void SampleFields(int64 At);
@@ -249,6 +249,7 @@ private:
     friend class ALDB86Probe;
     friend class ALDB91FieldsProbe;
     friend class ALDB91IgnitionProbe;
+    friend class ALDB91GrassProbe;
     using FRiverState=LDEnvironment::FRecord;
     using FRiverCell=LDEnvironment::FCell;
     using FRiverCommand=LDEnvironment::FCommand;

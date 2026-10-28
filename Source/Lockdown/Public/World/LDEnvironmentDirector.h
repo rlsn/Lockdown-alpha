@@ -230,6 +230,7 @@ public:
     void TickB91SaplingsProbe();
     void TickB91FieldsProbe();
     void TickB91IgnitionProbe();
+    void TickB91GrassProbe();
     UFUNCTION(Client,Reliable) void ClientSurfaceView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDEnvironmentSurface>& Entries);
     TArray<FLDEnvironmentSurface> SurfaceView;
     void TickB91TraversalProbe();

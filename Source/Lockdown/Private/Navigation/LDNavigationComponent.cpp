@@ -1,5 +1,5 @@
-#include "Framework/LDCommandLiveness.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Framework/LDCommandLiveness.h"
 #include "World/LDEnvironmentDirector.h"
 #include "Region/LDMapDefinition.h"
 #include "Inventory/LDTradeDirector.h"

@@ -15,7 +15,7 @@ bool ALDWorldObjects::IgnitionEligible(ALDB91Controller* PC,ALDWorldObject* Sock
     if(!Item||Item->Kind!=ELDItemKind::Torch||Item->Quality!=0||R.Accessory>=4||O->Inventory.Bindings[7+R.Accessory]!=R.Item||!(Item->BindingMask&(1<<(7+R.Accessory)))||O->Inventory.Revision!=R.InventoryRevision||Item->Revision!=R.ItemRevision||Item->bReserved!=Held){return Fail(TEXT("Current bound Torch and exact inventory revision required"));}
     if(LDPortableTools::Remaining(Item,Now)<1000||Item->ReadyAt>At||O->ItemFamilies.FindRef(TEXT("torch_socket"))>At){return Fail(TEXT("Ignition needs one second of fuel and a ready12s family"));}
     if(Socket)
-    {if(Socket->Kind!=ELDObjectKind::Sapling||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid()||Socket->Revision!=R.ObjectRevision||!Visible(PC,Socket)||FVector::Dist2D(Body->GetActorLocation(),Socket->GetActorLocation())>120||FMath::Abs(Body->GetActorLocation().Z-Socket->LastClear.Z-90)>100){return Fail(TEXT("A living observed sapling socket within120cm is required"));}}
+    {if((Socket->Kind!=ELDObjectKind::Sapling&&Socket->Kind!=ELDObjectKind::TallGrass)||!Socket->Available()||Socket->Hp<=0||Socket->BurnReceipt.IsValid()||Socket->Revision!=R.ObjectRevision||!Visible(PC,Socket)||FVector::Dist2D(Body->GetActorLocation(),Socket->GetActorLocation())>120||FMath::Abs(Body->GetActorLocation().Z-Socket->LastClear.Z-90)>100){return Fail(TEXT("A living observed sapling or grass socket within120cm is required"));}}
     else
     {FVector Ground;if(R.Observed.IsValid()||FVector::Dist2D(Body->GetActorLocation(),R.Point)>120||!LDGround::MapSurface(GetWorld(),R.Point,Ground)||FMath::Abs(Ground.Z-R.Point.Z)>20||FMath::Abs(Body->GetActorLocation().Z-Ground.Z-90)>100||!ALDEnvironmentDirector::Get(GetWorld())->Ray(Body->GetActorLocation(),Ground+FVector(0,0,90))){return Fail(TEXT("Observed Oil ground within120cm on this floor is required"));}}
     return true;
@@ -24,7 +24,7 @@ bool ALDWorldObjects::BeginIgnition(ALDB91Controller* PC,ALDWorldObject* Socket,
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* Own=M->StateFor(PC);auto* Item=M->Inventory->Owned(PC,H.Request.Item);
     H.FieldLease=M->Combat->ReserveIgnition(H.Body.Get(),Socket?Socket->LastClear:FVector(H.Request.Point),Socket,LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));
-    if(!H.FieldLease.IsValid()){Why=TEXT("No dry sapling/Oil cells or reserved field capacity; nothing spent");return false;}
+    if(!H.FieldLease.IsValid()){Why=TEXT("No dry foliage/Oil cells or reserved field capacity; nothing spent");return false;}
     H.Tool=Item;Item->bReserved=true;++Item->Revision;++Own->Inventory.Revision;
     H.Request.ItemRevision=Item->Revision;H.Request.InventoryRevision=Own->Inventory.Revision;if(auto* E=const_cast<FLDInventoryItem*>(Own->Inventory.Find(Item->Identity))){Item->Project(*E);}M->Inventory->Changed(PC);return true;
 }
@@ -40,8 +40,9 @@ bool ALDWorldObjects::CommitIgnition(ALDB91Controller* PC,ALDWorldObject* Socket
     Item->FuelMs=LDPortableTools::Remaining(Item,Now)-1000;Item->FuelAt=Now;Item->ReadyAt=At+12000;Item->bReserved=false;++Item->Revision;Own->ItemFamilies.FindOrAdd(TEXT("torch_socket"))=Item->ReadyAt;
     if(auto* E=const_cast<FLDInventoryItem*>(Own->Inventory.Find(Item->Identity))){Item->Project(*E);}++Own->Inventory.Revision;M->Inventory->Changed(PC);
     if(auto* S=M->Combat->StateFor(H.Body.Get())){S->LastDealt=Now;S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4);}
+    M->Combat->BreakConcealment(H.Body.Get(),true);
     if(Socket){const uint64 Key=(uint64(H.Request.Life)<<32)|H.Request.Sequence;Socket->BurnReceipt=Clients.FindChecked(PC).Receipts.FindChecked(Key).Id;Socket->BurnClearAt=Now+3;Socket->Apply(Socket->GetActorLocation(),Socket->Flags(),Socket->Revision+1);}
     Why=TEXT("Ignited once:1s fuel,12s cooldown,3s bounded fire; no harvest reward");return true;
 }
 void ALDWorldObjects::TickBurning(double Now)
-{for(auto Weak:Objects){auto* O=Weak.Get();if(O&&O->Kind==ELDObjectKind::Sapling&&!O->Broken&&O->BurnReceipt.IsValid()&&Now>=O->BurnClearAt){O->Hp=0;O->Broken=true;O->Apply(O->GetActorLocation(),O->Flags(),O->Revision+1);}}}
+{for(auto Weak:Objects){auto* O=Weak.Get();if(O&&(O->Kind==ELDObjectKind::Sapling||O->Kind==ELDObjectKind::TallGrass)&&!O->Broken&&O->BurnReceipt.IsValid()&&Now>=O->BurnClearAt){O->Hp=0;O->Broken=true;O->Apply(O->GetActorLocation(),O->Flags(),O->Revision+1);}}}

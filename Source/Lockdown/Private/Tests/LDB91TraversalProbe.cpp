@@ -35,7 +35,7 @@ void ALDB91TraversalProbe::Tick(float Delta)
     {
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<7){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);Ladder=Objects->Find(TEXT("prop_ladder_000"));Anchor=Objects->Find(TEXT("roof_anchor_00"));auto* RopeObject=Objects->Find(TEXT("prop_rope_000"));Rope=RopeObject?RopeObject->Physical.Get():nullptr;
-        Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote traversal owners"));Check(Ladder&&Anchor&&Rope&&Objects->Objects.Num()==339,TEXT("12 finite world ladders and16 approved paired anchors"));if(Failures){return;}
+        Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote traversal owners"));Check(Ladder&&Anchor&&Rope&&Objects->Objects.Num()==435,TEXT("12 finite world ladders and16 approved paired anchors"));if(Failures){return;}
         for(auto* PC:{A,B}){auto* Own=M->StateFor(PC);Own->ProtectedUntil=0;M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->ProtectionUntil=0;M->SyncOwner(PC);}
         Place(A,Ladder->LastClear+FVector(-100,0,92.15));Place(B,Ladder->LastClear+FVector(100,0,92.15));
         auto* Body=Cast<ALDCharacter>(A->GetPawn());const auto* C=Body->GetCapsuleComponent();

@@ -1,5 +1,5 @@
-#include "Framework/LDCommandLiveness.h"
 #include "World/LDEnvironmentDirector.h"
+#include "Framework/LDCommandLiveness.h"
 #include "World/LDB91Contract.h"
 #include "World/LDPortableTools.h"
 #include "Development/LDV08Loadout.h"
@@ -155,7 +155,7 @@ bool ALDEnvironmentDirector::Visible(ALDPlayerController* PC,AActor* A) const
     const double Radius=SightFor(PC);
     if(!Ray(B->GetActorLocation(),Target,A->IsA<ALDEnvironmentDoor>()?A:nullptr,Radius)){return false;}
     if(const auto* Other=Cast<ALDCharacter>(A);Other&&M&&M->Combat&&M->Combat->Concealed(Other)&&Other!=B)
-    {return M->Vision&&M->Vision->Detects(PC,Other->GetActorLocation());}return true;
+    {return (M->Vision&&M->Vision->Detects(PC,Other->GetActorLocation()))||(!M->Combat->Concealed(Other,false)&&FVector::DistSquared(B->GetActorLocation(),Other->GetActorLocation())<=200.*200);}return true;
 }
 float ALDEnvironmentDirector::SightFor(ALDPlayerController* PC) const
 {

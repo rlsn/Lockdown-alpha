@@ -37,7 +37,7 @@ void ALDB91SaplingsProbe::Tick(float Delta)
     {
         for(FConstPlayerControllerIterator I=GetWorld()->GetPlayerControllerIterator();I;++I){if(auto* PC=Cast<ALDB91Controller>(I->Get());PC&&PC->GetPawn()){if(PC->EnvironmentProbeRole==1){A=PC;}if(PC->EnvironmentProbeRole==2){B=PC;}}}
         if(!A||!B||Now<8){return;}Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready){return;}AddTickPrerequisiteActor(Objects);
-        Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote sapling owners"));Check(Objects->Objects.Num()==339&&Count()==143,TEXT("64 authored saplings add no initial physical reward"));
+        Check(A!=B&&!A->IsLocalController()&&!B->IsLocalController(),TEXT("Two independent remote sapling owners"));Check(Objects->Objects.Num()==435&&Count()==143,TEXT("64 authored saplings add no initial physical reward"));
         int Sources=0;bool Good=true;for(auto O:Objects->Objects){if(!O.IsValid()||O->Kind!=ELDObjectKind::Sapling){continue;}++Sources;FVector Surface;Good&=Objects->Placement(O.Get(),O->LastClear,Surface)&&O->Hp==80&&!O->Container()&&!O->Heavy()&&!O->HarvestSource.IsNone();FHitResult Hit;FCollisionQueryParams Q;
          const FVector Eye=O->LastClear+FVector(0,0,90);Good&=GetWorld()->LineTraceSingleByChannel(Hit,Eye-FVector(61,0,0),Eye+FVector(61,0,0),ECC_GameTraceChannel2,Q)&&Hit.GetActor()==O.Get();
          auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),O->SourceId.ToString());Row->SetStringField(TEXT("finite_source"),O->HarvestSource.ToString());Row->SetStringField(TEXT("source"),O->SourcePosition.ToString());Row->SetStringField(TEXT("fitted"),O->LastClear.ToString());Manifest.Add(MakeShared<FJsonValueObject>(Row));}
