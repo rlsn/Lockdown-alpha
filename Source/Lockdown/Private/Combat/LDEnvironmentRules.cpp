@@ -35,8 +35,8 @@ bool LDEnvironment::Transition(FCell& C,const FCommand& Q,uint8 Base,int64 At)
     case EInput::Fire:
         if(Ice){C.Frozen={};Put(EState::Wet,3000);Put(EState::Obscured,3000);return true;}
         if(Wet){Put(EState::Obscured,3000);return true;}
-        if(C.Oil.Until>At){C.Oil={};C.Overgrown={};C.Electrified={};Put(EState::Burning,6000);return true;}
-        if(C.Overgrown.Until>At||(Base&Flammable)){C.Overgrown={};C.Electrified={};Put(EState::Burning,3000);return true;}return false;
+        if(C.Oil.Until>At){C.Oil={};C.Overgrown={};C.Electrified={};Put(EState::Burning,Q.FireDuration?Q.FireDuration:6000);return true;}
+        if(C.Overgrown.Until>At||(Base&Flammable)){C.Overgrown={};C.Electrified={};Put(EState::Burning,Q.FireDuration?Q.FireDuration:3000);return true;}return false;
     case EInput::Lightning:if(!Wet||Ice){return false;}C.Overgrown={};Put(EState::Electrified);return true;
     case EInput::Wind:if(C.Obscured.Until<=At){return false;}C.Obscured={};return true;
     case EInput::Nature:if(!(Base&Soil)||Ice||C.Burning.Until>At){return false;}Put(EState::Overgrown);return true;

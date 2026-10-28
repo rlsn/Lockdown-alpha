@@ -9,7 +9,7 @@ class UStaticMeshComponent;
 class UPointLightComponent;
 
 UENUM() enum class ELDObjectKind:uint8 { Chest=1,Crate,Barrel,Water,Oil,LooseItem,Torch,Lantern,Rope,Ladder,Anchor,Furniture,Sapling };
-UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop };
+UENUM() enum class ELDObjectVerb:uint8 { Open=1,Take,Store,Pickup,Drop,Carry,Place,Push,Break,Toggle,Attach,Deploy,Use,Retrieve,Harvest,Chop,Ignite };
 USTRUCT()
 struct FLDObjectRequest
 {
@@ -60,7 +60,8 @@ public:
     ALDWorldObject();
     FName SourceId,HarvestSource;
     double Hp=80;
-    FGuid HarvestReceipt,YieldIdentity;
+    FGuid HarvestReceipt,YieldIdentity,BurnReceipt;
+    double BurnClearAt=0;
     ELDObjectKind Kind=ELDObjectKind::Chest;
     uint32 Revision=1,CollisionRevision=1,SightRevision=1,NavigationRevision=1,ProxyUpdates=0;
     uint8 AppliedState=255;
@@ -82,7 +83,7 @@ public:
     bool LinkInstalled() const {return Kind==ELDObjectKind::Anchor&&(LinkedLadder.IsValid()||!Contents.IsEmpty());}
     bool Available() const;
     int32 Weight() const;
-    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0)|uint8(Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid()&&Physical->bLit?8:0)|uint8(LinkInstalled()||InstalledAt.IsValid()?16:0);}
+    uint8 Flags() const {return uint8(Broken)|(uint8(bCarriedWorld)<<1)|uint8(!Available()?4:0)|uint8(Physical.IsValid()&&Physical->State==0&&!Physical->Holder.IsValid()&&Physical->bLit?8:0)|uint8(LinkInstalled()||InstalledAt.IsValid()?16:0)|uint8(BurnReceipt.IsValid()&&!Broken?32:0);}
     FVector EndFor(FVector Body) const {return FVector::DistSquared(Body,Lower+FVector(0,0,90))<=FVector::DistSquared(Body,Upper+FVector(0,0,90))?Lower:Upper;}
     void Apply(FVector Position,uint8 State,uint32 NewRevision);
     void SetObserved(bool Visible);
@@ -120,6 +121,7 @@ private:
     friend class ALDB91ObjectsProbe;
     friend class ALDB91TraversalProbe;
     friend class ALDB91SaplingsProbe;
+    friend class ALDB91IgnitionProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
@@ -139,6 +141,8 @@ private:
         TWeakObjectPtr<ALDCharacter> Body;
         FVector Start,Destination,PushStart;
         FVector Via;
+        FGuid FieldLease;
+        TWeakObjectPtr<ALDItem> Tool;
         double Started=0,Ends=0,Heartbeat=0,Damage=0;
         uint32 Nonce=0;
     };
@@ -163,6 +167,11 @@ private:
     bool EndpointClear(ALDB91Controller* PC,FVector Feet) const;
     bool RestoreTraversal(ALDB91Controller* PC,const FHold& Hold,bool Success);
     void TickTools(double Now);
+    void TickBurning(double Now);
+    bool IgnitionEligible(ALDB91Controller* PC,ALDWorldObject* Socket,const FLDObjectRequest& R,FString& Why) const;
+    bool BeginIgnition(ALDB91Controller* PC,ALDWorldObject* Socket,FHold& H,FString& Why);
+    bool CommitIgnition(ALDB91Controller* PC,ALDWorldObject* Socket,const FHold& H,FString& Why);
+    void EndIgnition(const FHold& H);
     bool ToggleTool(ALDB91Controller* PC,const FLDObjectRequest& Request,FString& Why);
     bool SurfaceAt(FVector Point,FVector& Surface) const;
     bool Reserved(FVector Surface,FVector Size) const;

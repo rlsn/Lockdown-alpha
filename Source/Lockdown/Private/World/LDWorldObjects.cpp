@@ -12,6 +12,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Engine/World.h"
@@ -29,7 +30,7 @@ namespace
 uint64 ObjectReceiptKey(uint32 Life,uint32 Seq){return (uint64(Life)<<32)|Seq;}
 bool ItemVerb(ELDObjectVerb V){return V==ELDObjectVerb::Take||V==ELDObjectVerb::Store||V==ELDObjectVerb::Drop;}
 double Duration(ELDObjectVerb V)
-{switch(V){case ELDObjectVerb::Harvest:case ELDObjectVerb::Chop:return 4.;case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:case ELDObjectVerb::Attach:case ELDObjectVerb::Deploy:case ELDObjectVerb::Retrieve:return 1.5;case ELDObjectVerb::Use:return 2.;case ELDObjectVerb::Break:return 3.;default:return .5;}}
+{switch(V){case ELDObjectVerb::Ignite:return 1.;case ELDObjectVerb::Harvest:case ELDObjectVerb::Chop:return 4.;case ELDObjectVerb::Open:return .3;case ELDObjectVerb::Carry:case ELDObjectVerb::Push:return 1.;case ELDObjectVerb::Place:case ELDObjectVerb::Attach:case ELDObjectVerb::Deploy:case ELDObjectVerb::Retrieve:return 1.5;case ELDObjectVerb::Use:return 2.;case ELDObjectVerb::Break:return 3.;default:return .5;}}
 }
 ALDWorldObject::ALDWorldObject()
 {
@@ -53,6 +54,7 @@ void ALDWorldObject::Apply(FVector Position,uint8 State,uint32 NewRevision)
     Proxy->SetCollisionEnabled(BlocksWalk()&&!(State&7)?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
     Proxy->SetCollisionResponseToChannel(ECC_GameTraceChannel2,(Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Sapling)?ECR_Block:ECR_Ignore);
     Proxy->SetCanEverAffectNavigation(BlocksWalk()&&!(State&7));
+    if(Kind==ELDObjectKind::Sapling){auto* M=Cast<UMaterialInstanceDynamic>(Proxy->GetMaterial(0));if(!M){M=Proxy->CreateAndSetMaterialInstanceDynamic(0);}if(M){M->SetVectorParameterValue(TEXT("Color"),State&32?FLinearColor(1,.25f,0):FLinearColor(.2f,.5f,.15f));}}
     Revision=CollisionRevision=SightRevision=NavigationRevision=NewRevision;++ProxyUpdates;FNavigationSystem::UpdateComponentData(*Proxy);
 }
 void ALDWorldObject::SetObserved(bool Visible)
@@ -167,6 +169,7 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
     const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B&&M&&M->Combat?M->Combat->StateFor(B):nullptr;const double Now=GetWorld()->GetTimeSeconds();
     if(!Ready||!Own||!B||!S||!Own->bActive||!M->IsPlaying()||S->Hp<=0||S->Action||Own->DevelopmentKind||Now<Own->ProtectedUntil||Now<S->ProtectionUntil
        ||!LDTactical::Allows(S->Tactical,LDTactical::EAction::Service,LDTactical::Milliseconds(Now))){return Fail(TEXT("World interaction unavailable"));}
+    if(R.Verb==ELDObjectVerb::Ignite){return IgnitionEligible(PC,O,R,Why);}
     if((uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&uint8(R.Verb)<=uint8(ELDObjectVerb::Retrieve))){return LinkEligible(PC,O,R,Why);}
     if(Traversing(PC)){return Fail(TEXT("Finish traversal before another interaction"));}
     const bool Drop=R.Verb==ELDObjectVerb::Drop;
@@ -194,7 +197,7 @@ bool ALDWorldObjects::Eligible(ALDB91Controller* PC,ALDWorldObject* O,const FLDO
         {int Weight=0;for(auto I:O->Contents){if(I.IsValid()){Weight+=LDInventory::UnitWeight(I->Kind);}}if(O->Contents.Num()>=24||Weight+LDInventory::UnitWeight(P->Kind)>60){return Fail(TEXT("Container is full or too heavy"));}}
     }
     if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop)
-    {if(O->Kind!=ELDObjectKind::Sapling||O->Hp<=0||O->HarvestReceipt.IsValid()){return Fail(TEXT("A living finite sapling is required"));}
+    {if(O->Kind!=ELDObjectKind::Sapling||O->Hp<=0||O->HarvestReceipt.IsValid()||O->BurnReceipt.IsValid()){return Fail(TEXT("A living finite sapling is required"));}
      if(R.Verb==ELDObjectVerb::Harvest&&(Own->Inventory.Revision!=R.InventoryRevision||!M->Inventory->HasSpace(PC,ELDItemKind::Fiber,&Why))){if(Why.IsEmpty()){Why=TEXT("Inventory changed");}return false;}}
     if(uint8(R.Verb)<1||uint8(R.Verb)>16){return Fail(TEXT("Unknown object verb"));}return true;
 }
@@ -215,6 +218,7 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
     if(C.Tokens<1){Reply(PC,R,2,TEXT("Object request busy"));return;}--C.Tokens;
     if(R.Verb==ELDObjectVerb::Toggle){FString Why;const bool Done=ToggleTool(PC,R,Why);if(Done){++Committed;}Reply(PC,R,Done?1:2,Why);return;}
     auto* Object=R.Verb==ELDObjectVerb::Drop?nullptr:Resolve(PC,R.Observed);FString Why;
+    if(R.Verb==ELDObjectVerb::Ignite&&!ForceDrop(PC)){Reply(PC,R,2,TEXT("No safe cargo drop; ignition unavailable"));return;}
     if(!Eligible(PC,Object,R,Why)){Reply(PC,R,2,Why);return;}
     const auto* RequestedAnchor=R.Anchor.IsValid()?Resolve(PC,R.Anchor):nullptr;
     for(const auto& P:Holds){if(P.Key!=PC&&(Object&&(P.Value.Object==Object||P.Value.Link==Object)||RequestedAnchor&&(P.Value.Object==RequestedAnchor||P.Value.Link==RequestedAnchor)||R.Item.IsValid()&&P.Value.Request.Item==R.Item)&&!(R.Verb==ELDObjectVerb::Open&&P.Value.Request.Verb==ELDObjectVerb::Open)){Reply(PC,R,2,TEXT("Object reserved; try again"));return;}}
@@ -236,6 +240,7 @@ void ALDWorldObjects::Begin(ALDB91Controller* PC,const FLDObjectRequest& R)
          if(GetWorld()->SweepSingleByChannel(Hit,H.Destination+FVector(0,0,Object->Size().Z*.5+3),Next+FVector(0,0,Object->Size().Z*.5+3),FQuat::Identity,ECC_Pawn,FCollisionShape::MakeBox(Object->Size()*.5),Q)){break;}H.Destination=Next;}
         if(FVector::Dist2D(H.Destination,H.PushStart)<1){Reply(PC,R,2,TEXT("Push blocked"));return;}
     }
+    if(R.Verb==ELDObjectVerb::Ignite&&!BeginIgnition(PC,Object,H,Why)){Reply(PC,R,2,Why);return;}
     Holds.Add(PC,H);Reply(PC,R,0,TEXT("Hold in place; release, movement, damage or stale input cancels"));
 }
 void ALDWorldObjects::Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 Seq,uint32 Nonce,bool Release)
@@ -245,7 +250,7 @@ void ALDWorldObjects::Hold(ALDB91Controller* PC,uint32 Match,uint32 Life,uint32 
     if(Release){Cancel(PC,TEXT("Held input released"));return;}if(Nonce>H->Nonce){H->Nonce=Nonce;H->Heartbeat=GetWorld()->GetTimeSeconds();}
 }
 void ALDWorldObjects::Cancel(ALDB91Controller* PC,const FString& Why)
-{if(const auto* H=Holds.Find(PC)){const auto Copy=*H;Holds.Remove(PC);if(Copy.Request.Verb==ELDObjectVerb::Use){EndTraversal(PC,Copy,false);}Reply(PC,Copy.Request,2,Why);}}
+{if(const auto* H=Holds.Find(PC)){const auto Copy=*H;Holds.Remove(PC);if(Copy.Request.Verb==ELDObjectVerb::Use){EndTraversal(PC,Copy,false);}if(Copy.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(Copy);}Reply(PC,Copy.Request,2,Why);}}
 void ALDWorldObjects::Quote(ALDB91Controller* PC,ALDWorldObject* O)
 {
     if(!PC||!O||!O->Container()||!Visible(PC,O)||FVector::Dist2D(PC->GetPawn()->GetActorLocation(),O->GetActorLocation())>120){return;}
@@ -261,6 +266,7 @@ ALDWorldObject* ALDWorldObjects::Wrap(ALDItem* Item,FVector Surface)
 bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold& H,FString& Why)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto& R=H.Request;auto* Inventory=M->Inventory.Get();
+    if(R.Verb==ELDObjectVerb::Ignite){return CommitIgnition(PC,O,H,Why);}
     if((uint8(R.Verb)>=uint8(ELDObjectVerb::Attach)&&uint8(R.Verb)<=uint8(ELDObjectVerb::Retrieve))){return CommitLink(PC,O,H,Why);}
     if(R.Verb==ELDObjectVerb::Harvest||R.Verb==ELDObjectVerb::Chop)
     {
@@ -355,7 +361,7 @@ void ALDWorldObjects::Publish()
 void ALDWorldObjects::Tick(float Delta)
 {
     Super::Tick(Delta);if(!Ready||GetNetMode()==NM_Client){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}const double Now=GetWorld()->GetTimeSeconds();
-    TickTools(Now);
+    TickTools(Now);TickBurning(Now);
     TArray<TWeakObjectPtr<ALDB91Controller>> Returning;Returns.GetKeys(Returning);
     for(auto Weak:Returning){if(!Weak.IsValid()||RestoreTraversal(Weak.Get(),Returns.FindChecked(Weak),false)){Returns.Remove(Weak);}}
     TArray<TWeakObjectPtr<ALDB91Controller>> Carriers;Cargo.GetKeys(Carriers);
@@ -373,7 +379,7 @@ void ALDWorldObjects::Tick(float Delta)
     for(auto Weak:Active)
     {
         auto* PC=Weak.Get();auto* Live=Holds.Find(Weak);if(!Live){continue;}const auto H=*Live;auto* O=H.Object.Get();const auto* Own=PC?M->StateFor(PC):nullptr;const auto* B=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=B?M->Combat->StateFor(B):nullptr;FString Why;
-        if(!PC){Holds.Remove(Weak);continue;}
+        if(!PC){if(H.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(H);}Holds.Remove(Weak);continue;}
         const bool Use=H.Request.Verb==ELDObjectVerb::Use;
         if(!Own||!B||!S||Own->Match!=H.Request.Match||Own->Life!=H.Request.Life||H.Body!=B||S->LastDamage!=H.Damage||(!Use&&FVector::DistSquared(H.Start,B->GetActorLocation())>25)||Now-H.Heartbeat>.35||(Use&&Now-H.Started>3)||!Eligible(PC,O,H.Request,Why))
         {Cancel(PC,TEXT("Object hold cancelled; state, movement, damage or input changed"));continue;}
@@ -386,7 +392,7 @@ void ALDWorldObjects::Tick(float Delta)
             {Cancel(PC,TEXT("Push stopped at an occupied endpoint"));continue;}
             O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);Live=Holds.Find(Weak);if(Live){Live->Request.ObjectRevision=O->Revision;}
         }
-        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
+        if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if(H.Request.Verb==ELDObjectVerb::Ignite){EndIgnition(H);}if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
     }
     if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}
 }

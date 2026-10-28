@@ -9,6 +9,7 @@
 #include "Inventory/LDInventoryTypes.h"
 #include "LDCombatDirector.generated.h"
 class ALDCharacter;
+class ALDWorldObject;
 class ALDPlayerController;
 enum class ELDSkillTaskPhase : uint8 { Validate, Accept, Commit };
 
@@ -231,6 +232,8 @@ public:
     bool StageEnvironment(ALDCharacter* Body,FVector Aim,LDEnvironment::EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit=16,bool Cone=false);
     FGuid ReserveEnvironment(ALDCharacter* Body,int32 Cells,int64 At,int64 Duration);
     void ReleaseEnvironment(FGuid Lease);
+    FGuid ReserveIgnition(ALDCharacter* Body,FVector Point,ALDWorldObject* Socket,int64 At);
+    bool CommitIgnition(FGuid Lease,ALDCharacter* Body,ALDWorldObject* Socket,int64 At);
     bool ImpactEnvironment(FGuid Lease,FVector Point,ALDCharacter* Source,int64 At);
     bool EnvironmentOccludes(FVector From,FVector To,bool SurfaceCue=false) const;
     void EnvironmentDamage(int64 At,TArray<FLDCombatHit>& Hits);
@@ -245,10 +248,11 @@ private:
     friend class ALDB84Probe;
     friend class ALDB86Probe;
     friend class ALDB91FieldsProbe;
+    friend class ALDB91IgnitionProbe;
     using FRiverState=LDEnvironment::FRecord;
     using FRiverCell=LDEnvironment::FCell;
     using FRiverCommand=LDEnvironment::FCommand;
-    struct FEnvironmentLease {FRiverCommand Command;int32 Count=0;int64 Expires=0;};
+    struct FEnvironmentLease {FRiverCommand Command;int32 Count=0;int64 Expires=0;TWeakObjectPtr<ALDWorldObject> Socket;bool Ignition=false;};
     TMap<FGuid,FEnvironmentLease> EnvironmentLeases;
     TArray<TWeakObjectPtr<ALDTacticalField>> EnvironmentPool;
     TSet<FIntPoint> ObscuredCells;

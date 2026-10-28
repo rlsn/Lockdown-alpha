@@ -171,6 +171,7 @@ public:
     const FLDObjectView* NearestObject() const;
     void StartObject(ELDObjectVerb Verb,FVector Point=FVector::ZeroVector);
     void ToggleSelectedTool();
+    void StartIgnition();
     int32 ContainerSelection=0,BagSelection=0;
     TArray<FLDEnvironmentViewEntry> View;
     FLDWorldReceipt LastWorldReceipt;
@@ -192,6 +193,7 @@ public:
     void TickB91ToolsProbe();
     void TickB91SaplingsProbe();
     void TickB91FieldsProbe();
+    void TickB91IgnitionProbe();
     UFUNCTION(Client,Reliable) void ClientSurfaceView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDEnvironmentSurface>& Entries);
     TArray<FLDEnvironmentSurface> SurfaceView;
     void TickB91TraversalProbe();
@@ -218,6 +220,7 @@ private:
     bool ProbeSent=false;
     bool TraversalProbeDeployer=false;
     bool SaplingProbeWinner=false;
+    bool IgnitionProbeWinner=false;
     double ProbeAt=0,ProbeHoldAt=0;
     double ProbeRetryAt=0;
     FLDWorldRequest ProbeRequest;

@@ -14,14 +14,15 @@ bool LDGround::MapSurface(UWorld* World,const FVector& XY,FVector& Surface,FVect
     // A wall/roof/tree cell is not an order to an unseen floor beneath it.
     return !World->LineTraceTestByChannel(Surface+FVector(0,0,1400),Surface+FVector(0,0,2),ECC_GameTraceChannel2);
 }
-bool LDGround::ClearSegment(UWorld* World,const FVector& From,const FVector& To)
+bool LDGround::ClearSegment(UWorld* World,const FVector& From,const FVector& To,const AActor* Ignore)
 {
     if(!World||From.ContainsNaN()||To.ContainsNaN()){return false;}
+    FCollisionQueryParams Sight(SCENE_QUERY_STAT(GroundReach),false);if(Ignore){Sight.AddIgnoredActor(Ignore);}
     if(ALDEnvironmentDirector::Get(World)!=nullptr)
-    {if(!ULDMapDefinition::InBounds(From)||!ULDMapDefinition::InBounds(To)||World->LineTraceTestByChannel(From,To,ECC_GameTraceChannel2)){return false;}
+    {if(!ULDMapDefinition::InBounds(From)||!ULDMapDefinition::InBounds(To)||World->LineTraceTestByChannel(From,To,ECC_GameTraceChannel2,Sight)){return false;}
      const int32 Count=FMath::Max(1,FMath::CeilToInt(FVector::Dist2D(From,To)/14));double Previous=0;
      for(int32 I=0;I<=Count;++I){FVector Surface;if(!MapSurface(World,FMath::Lerp(From,To,double(I)/Count),Surface)||(I&&FMath::Abs(Surface.Z-Previous)>35)){return false;}Previous=Surface.Z;}return true;}
-    if(World->LineTraceTestByChannel(FVector(From.X,From.Y,120),FVector(To.X,To.Y,120),ECC_GameTraceChannel2)){return false;}
+    if(World->LineTraceTestByChannel(FVector(From.X,From.Y,120),FVector(To.X,To.Y,120),ECC_GameTraceChannel2,Sight)){return false;}
     const int32 Steps=FMath::Max(1,FMath::CeilToInt(FVector::Dist2D(From,To)/14));
     double Previous=0;
     for(int32 I=0;I<=Steps;++I)

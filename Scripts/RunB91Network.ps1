@@ -1,10 +1,10 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[switch]$Capture,[switch]$Objects,[switch]$Tools,[switch]$Traversal,[switch]$Furniture,[switch]$Saplings,[switch]$Fields,[ValidateSet('A','B')][string]$RenderedClient='A',[ValidateRange(1024,65000)][int]$Port=7911,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
+param([string]$EngineRoot,[switch]$Capture,[switch]$Objects,[switch]$Tools,[switch]$Traversal,[switch]$Furniture,[switch]$Saplings,[switch]$Fields,[switch]$Ignition,[ValidateSet('A','B')][string]$RenderedClient='A',[ValidateRange(1024,65000)][int]$Port=7911,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
-if($Furniture){if($Objects -or $Tools -or $Traversal -or $Saplings -or $Fields){throw 'Choose one native scenario'};$Objects=$true}
-if(([int]$Objects.IsPresent+[int]$Tools.IsPresent+[int]$Traversal.IsPresent+[int]$Saplings.IsPresent+[int]$Fields.IsPresent) -gt 1){throw 'Choose one native scenario'}
+if($Furniture){if($Objects -or $Tools -or $Traversal -or $Saplings -or $Fields -or $Ignition){throw 'Choose one native scenario'};$Objects=$true}
+if(([int]$Objects.IsPresent+[int]$Tools.IsPresent+[int]$Traversal.IsPresent+[int]$Saplings.IsPresent+[int]$Fields.IsPresent+[int]$Ignition.IsPresent) -gt 1){throw 'Choose one native scenario'}
 & python -B (Join-Path $PSScriptRoot 'SyncB91Traversal.py') --check
 if($LASTEXITCODE -ne 0){throw 'B91 traversal contract is stale'}
 if($Objects){
@@ -15,7 +15,7 @@ if($Objects -or $Tools){
     & python -B (Join-Path $PSScriptRoot 'SyncB91Tools.py') --check
     if($LASTEXITCODE -ne 0){throw 'B91 tools contract is stale'}
 }
-$output=New-LDArtifactDirectory $(if($Fields){'B91Fields-Network'}elseif($Saplings){'B91Saplings-Network'}elseif($Furniture){'B91Furniture-Network'}elseif($Traversal){'B91Traversal-Network'}elseif($Tools){'B91Tools-Network'}elseif($Objects){'B91Objects-Network'}elseif($Capture){"B91Network-Capture-$RenderedClient"}else{'B91Network'})
+$output=New-LDArtifactDirectory $(if($Ignition){'B91Ignition-Network'}elseif($Fields){'B91Fields-Network'}elseif($Saplings){'B91Saplings-Network'}elseif($Furniture){'B91Furniture-Network'}elseif($Traversal){'B91Traversal-Network'}elseif($Tools){'B91Tools-Network'}elseif($Objects){'B91Objects-Network'}elseif($Capture){"B91Network-Capture-$RenderedClient"}else{'B91Network'})
 $owned=@()
 try {
     foreach($role in @('Server','A','B')){
@@ -30,6 +30,7 @@ try {
         if($Traversal){$arguments+=' -LDB91TraversalProbe'}
         if($Saplings){$arguments+=' -LDB91SaplingsProbe'}
         if($Fields){$arguments+=' -LDB91FieldsProbe'}
+        if($Ignition){$arguments+=' -LDB91IgnitionProbe'}
         $owned+=Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }
@@ -39,7 +40,7 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if(-not $owned[0].HasExited){throw "B91 network fixture timed out: $output"}
-    & python -B (Join-Path $PSScriptRoot $(if($Fields){'CheckB91Fields.py'}elseif($Saplings){'CheckB91Saplings.py'}elseif($Traversal){'CheckB91Traversal.py'}elseif($Tools){'CheckB91Tools.py'}elseif($Objects){'CheckB91Objects.py'}else{'CheckB91Network.py'})) $output
+    & python -B (Join-Path $PSScriptRoot $(if($Ignition){'CheckB91Ignition.py'}elseif($Fields){'CheckB91Fields.py'}elseif($Saplings){'CheckB91Saplings.py'}elseif($Traversal){'CheckB91Traversal.py'}elseif($Tools){'CheckB91Tools.py'}elseif($Objects){'CheckB91Objects.py'}else{'CheckB91Network.py'})) $output
     if($LASTEXITCODE -ne 0){throw "B91 network evidence rejected: $output"}
     Write-Host "B91 network evidence: $output"
 } finally {foreach($process in $owned){if(-not $process.HasExited){$process.Kill();$process.WaitForExit()}}}

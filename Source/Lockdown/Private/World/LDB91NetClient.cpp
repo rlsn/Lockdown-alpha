@@ -26,6 +26,7 @@ void ALDB91Controller::TickB91Probe()
     if(!Probe()||GetNetMode()!=NM_Client||!IsLocalController()||!GetPawn()||!OwnerState.Match){return;}
     if(!EnvironmentProbeRole)
     {FString ProbeLabel;FParse::Value(FCommandLine::Get(),TEXT("B91Role="),ProbeLabel);EnvironmentProbeRole=ProbeLabel==TEXT("A")?1:2;ServerB91ProbeHello(EnvironmentProbeRole);}
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB91IgnitionProbe"))){TickB91IgnitionProbe();return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FieldsProbe"))){TickB91FieldsProbe();return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91SaplingsProbe"))){TickB91SaplingsProbe();return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91TraversalProbe"))){TickB91TraversalProbe();return;}

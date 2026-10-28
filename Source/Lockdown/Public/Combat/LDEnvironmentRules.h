@@ -33,6 +33,8 @@ namespace LDEnvironment
     {
         TMap<FIntPoint,double> Surfaces;
         TMap<FIntPoint,FVector> Normals;
+        TSet<FIntPoint> FuelCells;
+        int32 FireDuration=0;
         EInput Input=EInput::Water;
         FRecord State;
         TArray<FIntPoint> Cells;

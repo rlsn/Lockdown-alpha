@@ -52,7 +52,7 @@ bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved)
     if(FullMapEnvironment()){for(auto It=Projected.CreateIterator();It;++It){It.Value().Expire(At);if(!It.Value().Mask(At)){It.RemoveCurrent();}}}
     for(auto Id:Q.Cells){FCell C=Projected.FindRef(Id);
         if(FullMapEnvironment()){const auto* Z=Q.Surfaces.Find(Id);if(!Z||(C.Mask(At)&&FMath::Abs(C.SurfaceZ-*Z)>12)){return false;}C.SurfaceZ=*Z;C.SurfaceNormal=Q.Normals.Contains(Id)?Q.Normals[Id]:FVector::UpVector;}
-        const bool Ice=C.Frozen.Until>At;if(Transition(C,Q,FullMapEnvironment()?(ULDMapDefinition::Get(GetWorld())->RiverAt(FVector(LDRiver::Centre(Id).X,LDRiver::Centre(Id).Y,C.SurfaceZ))?uint8(LDEnvironment::Water):uint8(LDEnvironment::Stone)):LDEnvironment::Substrate(Id,River),At)){if(Q.Input==EInput::Shatter&&Ice){Q.Shattered.Add(Id);}Q.Outcomes.Add(Id,C);if(C.Mask(At)){Projected.Add(Id,C);}else{Projected.Remove(Id);}}}
+        const bool Ice=C.Frozen.Until>At;if(Transition(C,Q,FullMapEnvironment()?(ULDMapDefinition::Get(GetWorld())->RiverAt(FVector(LDRiver::Centre(Id).X,LDRiver::Centre(Id).Y,C.SurfaceZ))?uint8(LDEnvironment::Water):uint8(Q.FuelCells.Contains(Id)?LDEnvironment::Flammable:LDEnvironment::Stone)):LDEnvironment::Substrate(Id,River),At)){if(Q.Input==EInput::Shatter&&Ice){Q.Shattered.Add(Id);}Q.Outcomes.Add(Id,C);if(C.Mask(At)){Projected.Add(Id,C);}else{Projected.Remove(Id);}}}
     const FGuid Sponsor=Q.State.BudgetOwner.IsValid()?Q.State.BudgetOwner:Q.State.Owner;int32 Owned=0;for(const auto& P:Projected){Owned+=P.Value.Owned(Sponsor,At);}
     if(!Reserved&&(Projected.Num()+HeldEnvironment()>EnvironmentCapacity()||Owned+HeldEnvironment(Sponsor)>64)){return false;}
     if(FullMapEnvironment()&&Q.Outcomes.IsEmpty()){return false;}

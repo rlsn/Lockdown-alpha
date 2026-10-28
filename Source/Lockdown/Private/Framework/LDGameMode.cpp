@@ -7,6 +7,7 @@
 #include "Tests/LDB91ToolsProbe.h"
 #include "Tests/LDB91SaplingsProbe.h"
 #include "Tests/LDB91FieldsProbe.h"
+#include "Tests/LDB91IgnitionProbe.h"
 #include "Tests/LDB91TraversalProbe.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
@@ -225,7 +226,8 @@ void ALDGameMode::StartPlay()
         for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
         {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}
         if(FParse::Param(FCommandLine::Get(),TEXT("LDB91Probe"))){GetWorld()->SpawnActor<ALDB91Probe>();}
-        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FieldsProbe"))){GetWorld()->SpawnActor<ALDB91FieldsProbe>();}
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91IgnitionProbe"))){GetWorld()->SpawnActor<ALDB91IgnitionProbe>();}
+        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FieldsProbe"))){GetWorld()->SpawnActor<ALDB91FieldsProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91SaplingsProbe"))){GetWorld()->SpawnActor<ALDB91SaplingsProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91TraversalProbe"))){GetWorld()->SpawnActor<ALDB91TraversalProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ToolsProbe"))){GetWorld()->SpawnActor<ALDB91ToolsProbe>();}
