@@ -84,7 +84,7 @@ two-second route, with ownership checked only for quiet retrieval. Native
 capsules, one-user reservations and safe cancellation connect this mechanic to
 the same input/control/life rules as other commitments. The [fixed-furniture checkpoint](../v09/B91_FURNITURE.md) adds 32 initially
 empty storage fixtures with independent walking/sight behavior. There are now
-491/491 functional sources present after the approved11-knife and [96-grass extension](../v09/B91_GRASS.md), including the [partial sapling boundary](../v09/B91_SAPLINGS.md). Torch sapling burning now passes; ranged damage and full owner/economy resume still need integration; 3,000 scenery trees still need fitting; paid detector acquisition and the complete reference encounter remain open. A working roof route does not complete the
+491/491 functional sources present after the approved11-knife and [96-grass extension](../v09/B91_GRASS.md), including the [partial sapling boundary](../v09/B91_SAPLINGS.md). Torch sapling burning now passes; spell damage and full owner/economy resume still need integration; 3,000 scenery trees still need fitting; paid detector acquisition and the complete reference encounter remain open. A working roof route does not complete the
 reference grass escape or establish final encounter pacing.
 
 The [paid-field increment](../v09/B91_FIELDS.md) connects Water/Oil accessory
@@ -99,7 +99,7 @@ The [ignition checkpoint](../v09/B91_IGNITION.md) adds finite Torch fuel costs,
 exact channel field reservations and delayed sapling clearance that survives caster
 death. Existing Oil can be ignited by a quiet rival; a solo immediate follow-up
 remains constrained by the inherited quiet timer and Oil lifetime. The grass checkpoint adds paid cover clearance;
-[Settled checkpoints](../v09/B91_CHECKPOINT.md) preserve environment mutations across restart; full live-match recovery, ranged foliage damage and broader reactions remain open.
+[Settled checkpoints](../v09/B91_CHECKPOINT.md) preserve environment mutations across restart; full live-match recovery, spell foliage damage and broader reactions remain open.
 
 Can a new player find income, prepare a useful toolkit and understand the Heart without external coaching? Does a quiet economic opening remain competitive after buying real defenses? Can a weaker defender identify and execute a legal interruption? Does losing cargo create a new plan or erase all motivation? Do travelers/cities support readable uncertainty without confusing reliable services?
 
@@ -118,3 +118,8 @@ Lockpick/Force acceptance are superseded. Forestry now needs an actual bound
 finite knife; the original no-item harvest acceptance cannot be reused. B92 live
 traders must use the left-click service convention; ordinary pickup and doors
 use right-click. One-confirmation channels and S stop apply across the design.
+
+The [ranged basic increment](../v09/B91_RANGED.md) now connects observed saplings
+to traveling basic projectiles and finite damage clearance. Ranged gear setup is
+diagnostic; normal full-map weapon acquisition remains B92. Spell foliage damage,
+other ranged props and the complete reference encounter remain open.

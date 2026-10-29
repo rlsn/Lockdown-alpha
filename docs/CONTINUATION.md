@@ -1,6 +1,18 @@
 # Active continuation — B91 functional environment
 
-The current increment is [checkpoint placement validation](v09/B91_PLACEMENT.md),
+The current increment is [ranged basic sapling damage](v09/B91_RANGED.md),
+source **279d434308c09c8ad8914120f6f010e657f49b27**, with [frozen evidence](v09/evidence/B91Ranged/README.md).
+Two remote owners pass53 native checks, retaining the47 source/control checks
+and adding a grounded firing-pad check, traveling projectile clearance from250cm
+and sight-wall refusal. Native rules55 and inherited fields616 pass, as do both
+full-unity targets. All148 assets and59 supplied files remain unchanged.
+The ranged build and wall are diagnostic; no bow is added
+to the B91 endowment, and normal acquisition remains B92 work. Trunk-height aim
+avoids the203cm proxy-center/150cm support-query mismatch. Master revision19
+records the weapon/clearance distinction. Spells, other ranged props, full
+owner/economy recovery, scenery and the reference encounter remain open.
+
+The previous increment is [checkpoint placement validation](v09/B91_PLACEMENT.md),
 source **ec529a3c845df2a6562da59b193d4a86e12d8d57**, with [frozen evidence](v09/evidence/B91Placement/README.md).
 It checks complete cargo support, pose/clear-pad agreement, fixed-world collision
 and overlapping saved solid poses before restoration. Four native processes pass

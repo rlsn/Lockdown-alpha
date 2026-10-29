@@ -85,3 +85,9 @@ evidence](../v09/B91_CHECKPOINT.md).
 Revision 18 validates restored cargo against full support and proposed solid
 poses before actor replacement. Legal relocation survives restart; invalid
 placements reject without changing the live world. See [placement evidence](../v09/B91_PLACEMENT.md).
+
+Revision 19 connects ordinary ranged basic projectiles to finite saplings.
+Target acquisition requires observation and weapon reach; projectile geometry
+and the existing finite damage authority resolve clearance without Fiber.
+Ranged build setup remains diagnostic until normal weapon acquisition exists.
+See [source and evidence](../v09/B91_RANGED.md).

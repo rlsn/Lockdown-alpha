@@ -125,3 +125,12 @@ in-range cross-branch ray is blocked by current geometry. Distance can put an ob
 outside sight radius; that is not cover. B91 fitting should add readable cover
 and observation choices along actual approaches without closing permanent
 access. Recheck both paths and sight after those additions.
+
+## Damaging finite obstacles
+
+A weapon attack can spend time and reveal its user to clear a finite sapling.
+Ranged attacks travel through the world and respect intervening geometry; they
+are not instant object interactions. Damage produces no harvest reward. Keep
+tool-based harvesting distinct from destructive clearance, without adding a
+world-interaction key. [Current ranged coverage](../v09/B91_RANGED.md) uses a
+diagnostic build until normal full-map weapon acquisition is available.
