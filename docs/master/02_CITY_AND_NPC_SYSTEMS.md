@@ -21,6 +21,35 @@ Ordinary human ownership and resident/contender identity are private. Appearance
 
 The v0.9 target is 24 contender seats, with 1–12 humans replacing AI. At four humans there are 216 NPCs: 196 noncontenders plus 20 AI contenders, for 220 total bodies. These are full-profile capacities, not established performance. Exact assignments live in [v0.9 population](../v09/05_NPCS_SECURITY_AND_SIMULATION.md).
 
+## Identity, control and continuity
+
+A contender is a persistent seat in the match. Its current controller is how
+it receives commands, rather than the source of its money, knowledge, property
+or reward quota. Human admission replaces an AI controller on that seat;
+disconnect does not create a second character or erase the first. Taking over
+an active seat must not become a free heal, fresh kit, new cooldown or spawn
+selection. The character remains where the world last saw it.
+
+Changing control can stop a pending order or vulnerable preparation while
+preserving committed costs and existing consequences. Physical property follows
+the same seat without being copied; unsafe carried cargo needs a valid release.
+A character waiting to return still waits after control changes. A body life
+can end without deleting its contender's account, development or earned proofs.
+Authenticated ownership and reconnect rules require their own explicit policy.
+
+Noncontender source identities also outlive a particular body or planning task.
+A returning guard does not receive another purse or reward budget. A civilian
+routine, institution animation and visual traveler cargo cannot each invent a
+copy of the same economic resource. Keep roles private unless the design makes
+the service intentionally public. A controller implementation is never evidence
+that an observed body is human or autonomous.
+
+The [native roster review](../v09/B92_ROSTER.md) checks real body capacity and
+seat continuity separately from routines and intelligence. That distinction is
+useful in design evaluation: a populated street can establish visual density,
+but only visible decisions, travel, interruption and recovery can establish a
+believable local life.
+
 ## Routines with bounded scope
 
 Civilians move between reachable work, market and rest anchors. Travel takes real time and may overrun a nominal phase. Closed homes use exterior doorsteps. Travelers dwell and return between settlements. Schedules cannot teleport through observed space.

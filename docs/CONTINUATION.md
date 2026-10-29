@@ -1,4 +1,37 @@
-# Active continuation — B92 economy authority in progress
+# Active continuation — B92 native roster and lifecycle in progress
+
+The current increment is [persistent roster/native admission](v09/B92_ROSTER.md),
+native source **60e4dafd84d5d58ac06b22587a15e274424d06a4**, with [frozen evidence](v09/evidence/B92Roster/README.md).
+The explicit `v09_population` review hosts220 real Character bodies:196 role
+bodies and24 persistent contender seats. Native four/twelve-controller fixtures
+pass37/53 checks, retaining20/12 AI seat hosts without adding contenders or
+endowments. Controller destruction/takeover preserves the existing body, life,
+progression, account, cooldowns, bound Torch/fuel, carried crate and combat input
+watermarks. Waiting-life takeover retains the return deadline; actual-clock
+return creates one new body life. Each economy closes five receipts/149 accounts/
+426 institutional identities with zero mint and three death-tax burn. Peer
+accounting remains conserved. These are authority fixtures, not4/12 remote-human
+or autonomous-policy acceptance.
+
+Rules58, economy125 and two-remote-owner B91 source/control53 checks pass;
+both full-unity targets pass. All207 protected inputs remain unchanged. Master
+revision22 records persistent-seat/control continuity. The152 routine assignments
+are imported and anchored; routine execution, guard combat/security/recovery,
+hostile behavior/rewards, contender policy and simulation tiers remain open.
+Role bodies avoid legacy wandering, generic respawn and36-gold lazy purses.
+
+**Next:** validate remote B92 admission/takeover and connect five physical LMB
+services to actual bag/access/capacity gates. Merge B91 world/container/installed
+property and owner/institutional items into one full-match ledger before opening
+`v09_full`. Then shared rare stock, bank access, deposits, physical courier work,
+procurement/crafting, full-map prepared Witness and the earned zero-kill Charter
+journey; execute routines/local security and ordinary legal contender AI. Busy
+traversal/committed-effect ownership, authenticated reconnect and full account/
+economy recovery need integration evidence. B93 victory and B94 full-session/
+human/performance acceptance remain separate. No new world-interaction keys.
+
+## Prior economy authority checkpoint
+
 
 The first B92 increment is [finite economy authority](v09/B92_ECONOMY_FOUNDATION.md),
 native source **b0d8034ec24ea3916d4c8350353615bb7126d2cb**, with [frozen evidence](v09/evidence/B92Economy/README.md).

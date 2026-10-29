@@ -34,8 +34,11 @@ B92's [first economic authority increment](../v09/B92_ECONOMY_FOUNDATION.md)
 verifies five finite pools, exact stock lineage and funded schedules in native
 code. The inherited starter contributes no gold/items, and the real Witness
 skill operation has been located. These settle accounting assumptions; they
-do not demonstrate legal acquisition, physical service access, the population
-roster or contender AI. Those are the next integration gates.
+do not demonstrate legal acquisition or physical service access. The subsequent
+[roster increment](../v09/B92_ROSTER.md) supplies actual role-body capacity and
+persistent seat takeover/death/return, while routines, security and autonomous
+contender progression remain open. Native controller fixtures do not substitute
+for remote takeover or human population testing.
 
 ## Delivery sequence
 
@@ -43,7 +46,7 @@ roster or contender AI. Those are the next integration gates.
 | --- | --- | --- |
 | B90 spatial world | Places can be reached through ordinary movement and alternative approaches | Complete at its spatial boundary; retain affected-route regressions |
 | B91 functional environment | Places can be used, concealed within and changed through authoritative sources | Complete at the functional-environment boundary; retain the source, geometry, privacy and conservation regressions |
-| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Live service/bag integration for the five pools, shared rare stocks, finite contracts/endowments, roster/routines, witnessed local security and legal AI progression |
+| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Live service/bag integration for the five pools, shared rare stocks, finite contracts/endowments, remote roster admission/routines, witnessed local security and legal AI progression |
 | B93 route convergence | Earned preparations produce real capital access, warnings, property risks and a contestable ending | Four full-map routes and exact claim/interruption/deadline behavior |
 | B94 complete-session acceptance | The whole match remains readable, consequential and sustainable over its target duration | Normal 60/75/90-minute scenarios, multiplayer/field/density stress, recorded hardware and human pacing observations |
 
