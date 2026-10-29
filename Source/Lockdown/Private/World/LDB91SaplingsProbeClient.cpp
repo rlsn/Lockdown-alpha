@@ -29,7 +29,9 @@ void ALDB91Controller::TickB91SaplingsProbe()
             ProbeSent=true;ProbeHoldAt=Now;
         }
     }
-    else if(Act&&ProbeTask==5)
+    else if(Act&&ProbeTask==18)
+    {if(Now-ProbeRetryAt>.4){ProbeRetryAt=Now;ServerCombatAction(OwnerState.Match,OwnerState.Life,NextCombatToken(),0,FVector(1,0,0));}}
+    else if(Act&&(ProbeTask==5||ProbeTask==17))
     {if(Source&&!(Source->State&5)&&Now-ProbeRetryAt>.4){ProbeRetryAt=Now;ServerCombatAction(OwnerState.Match,OwnerState.Life,NextCombatToken(),0,(FVector(Source->Position)-GetPawn()->GetActorLocation()).GetSafeNormal2D());}}
     else if(Act&&!ProbeSent&&Source)
     {
@@ -47,7 +49,8 @@ void ALDB91Controller::TickB91SaplingsProbe()
     if(ProbeSent&&ProbeTask==3&&Now-ProbeHoldAt>.5&&ProbeStep!=2){StopSourceOrder();ProbeStep=2;}
     const bool Received=ProbeSent&&LastObjectReceipt.Sequence==ObjectProbeRequest.Sequence&&LastObjectReceipt.Result!=0;
     if(Received&&ProbeTask==1){SaplingProbeWinner=LastObjectReceipt.Result==1;}
-    bool Done=Act?(ProbeTask==5?Source&&(Source->State&5):Received&&Now-ProbeHoldAt>.7):Now-ProbeAt>.7;
+    bool Done=Act?((ProbeTask==5||ProbeTask==17)?Source&&(Source->State&5):Received&&Now-ProbeHoldAt>.7):Now-ProbeAt>.7;
+    if(ProbeTask==18){Done=Now-ProbeAt>2.5;}
     if(Act&&ProbeTask>=11&&ProbeTask<=15)
     {if(ProbeTask==11){Done=Source&&(Source->State&5)&&Now-ProbeHoldAt>1;}else if(ProbeTask==12||ProbeTask==13){const auto* Door=View.FindByPredicate([](const auto& V){return V.PublicDoor==TEXT("building_riverport_00_door_south");});Done=Door&&bool(Door->State&1)==(ProbeTask==12)&&Now-ProbeHoldAt>1;}else if(ProbeTask==14){Done=ContainerHandle.IsValid()&&Now-ProbeHoldAt>1;}else{Done=OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::ForestryKnife&&!I.BindingMask;})&&Now-ProbeHoldAt>1;}}
     if(Received&&(ProbeTask==1||ProbeTask==8))

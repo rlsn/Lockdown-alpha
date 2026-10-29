@@ -16,7 +16,8 @@ private:
     TArray<TWeakObjectPtr<ALDItem>> Staged;
     TArray<TSharedPtr<FJsonValue>> Checks,Manifest;
     uint8 Phase=0;int Failures=0;double Started=0,At=0,Returned=0;
-    bool SawBriefGap=false;
+    bool SawBriefGap=false,SawRangedProjectile=false;
+    TWeakObjectPtr<AActor> RangedWall;
     void Check(bool Good,const FString& Text);
     void Near(int Index,bool Both=true);
     void Task(uint8 Value);

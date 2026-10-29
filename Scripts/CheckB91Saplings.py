@@ -5,10 +5,10 @@ from pathlib import Path
 
 def check(root):
     report = json.loads((root/'Saplings.json').read_text(encoding='utf-8-sig'))
-    assert report['complete'] and not report['failures'] and report['phase'] in (15, 16)
-    assert len(report['checks']) == (47 if report['phase'] == 16 else 44) and all(r['passed'] for r in report['checks'])
+    assert report['complete'] and not report['failures'] and report['phase'] in (15, 16, 18)
+    assert len(report['checks']) == (53 if report['phase'] == 18 else 47 if report['phase'] == 16 else 44) and all(r['passed'] for r in report['checks'])
     assert report['conserved']
-    if report['phase'] == 16:
+    if report['phase'] >= 16:
         assert report['saw_brief_gap']
     rows = report['manifest']
     assert len(rows) == len({r['id'] for r in rows}) == len({r['finite_source'] for r in rows}) == 64
@@ -28,7 +28,7 @@ def check(root):
     assert phases[3][0]['result'] == phases[6][0]['result'] == 2
     assert phases[4][0]['result'] == phases[8][0]['result'] == 1
     assert sum(r['result'] == 2 for r in phases[7]) == 1
-    if report['phase'] == 16:
+    if report['phase'] >= 16:
         assert phases[16][0]['result'] == 2 and phases[16][0]['owner_progress']
         assert 'command connection inactive' in phases[16][0]['reason']
     print(f"PASS B91 saplings: {len(report['checks'])} native checks, 64 finite sources, two owners, 145 conserved items after3 harvests and1 bottle consume")

@@ -18,9 +18,9 @@ bool Probe(){return !UE_BUILD_SHIPPING&&FParse::Param(FCommandLine::Get(),TEXT("
 void ALDB91Controller::ServerB91ProbeHello_Implementation(uint8 ProbeIdentity)
 {if(Probe()&&ProbeIdentity>=1&&ProbeIdentity<=2&&!EnvironmentProbeRole){EnvironmentProbeRole=ProbeIdentity;}}
 void ALDB91Controller::ServerB91ProbeAck_Implementation(uint8 Phase,const FString& Report)
-{if(Probe()&&EnvironmentProbeRole&&Phase>=1&&Phase<=16&&Report.Len()<65536){EnvironmentProbeReports.Add(Phase,Report);}}
+{if(Probe()&&EnvironmentProbeRole&&Phase>=1&&Phase<=18&&Report.Len()<65536){EnvironmentProbeReports.Add(Phase,Report);}}
 void ALDB91Controller::ClientB91ProbeTask_Implementation(uint8 Phase)
-{if(Probe()&&Phase>=1&&Phase<=16){ProbeTask=Phase;ProbeStep=ProbeRetries=0;ProbeSent=false;ProbeAt=ProbeRetryAt=GetWorld()->GetTimeSeconds();ProbeReceipt.Invalidate();ToolProbeDevToken=ToolProbeDevNonce=0;}}
+{if(Probe()&&Phase>=1&&Phase<=18){ProbeTask=Phase;ProbeStep=ProbeRetries=0;ProbeSent=false;ProbeAt=ProbeRetryAt=GetWorld()->GetTimeSeconds();ProbeReceipt.Invalidate();ToolProbeDevToken=ToolProbeDevNonce=0;}}
 void ALDB91Controller::TickB91Probe()
 {
     if(!Probe()||GetNetMode()!=NM_Client||!IsLocalController()||!GetPawn()||!OwnerState.Match){return;}

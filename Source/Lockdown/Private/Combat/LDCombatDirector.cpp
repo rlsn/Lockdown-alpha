@@ -276,10 +276,10 @@ void ALDCombatDirector::Sample(double Now)
                     &&LDCombat::TargetUnalert(Now,T->LastDamage,T->LastDealt)){Target=Victim;}
             }
             if(Mode->IsTacticalProfile()){BreakConcealment(Body,true);}
-            if(!Target&&!bAssassin&&!bSpark&&Mode->IsEnvironmentProfile()&&BuildFor(Body)&&!BuildFor(Body)->Gear.Ranged)
-            {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Target=Objects->MeleeTarget(Body,S.CommittedAim,BuildFor(Body)->Gear.Reach);}}
+            if(!Target&&!bAssassin&&!bSpark&&Mode->IsEnvironmentProfile()&&BuildFor(Body))
+            {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Target=Objects->MeleeTarget(Body,S.CommittedAim,BuildFor(Body)->Gear.Reach,BuildFor(Body)->Gear.Ranged);}}
             if(Target&&Mode->IsTacticalProfile()&&!bAssassin&&!bSpark&&BuildFor(Body)&&BuildFor(Body)->Gear.Ranged)
-            {auto* P=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(P){P->Source=Body;P->CasterIdentity=S.Identity;P->Victim=Cast<ALDCharacter>(Target);P->ActorVictim=Target;P->VictimLife=Cast<ALDTacticalField>(Target)?Cast<ALDTacticalField>(Target)->Identity:StateFor(Cast<ALDCharacter>(Target))->Identity;P->Endpoint=Target->GetActorLocation();P->Amount=S.CommittedDamage;P->Basic=true;P->AdvancedAt=LDTactical::Milliseconds(Now);P->Token=S.AttackToken;}Target=nullptr;}
+            {auto* P=GetWorld()->SpawnActor<ALDArcProjectile>(Body->GetActorLocation(),FRotator::ZeroRotator);if(P){P->Source=Body;P->CasterIdentity=S.Identity;P->Victim=Cast<ALDCharacter>(Target);P->ActorVictim=Target;P->VictimLife=Cast<ALDTacticalField>(Target)?Cast<ALDTacticalField>(Target)->Identity:Cast<ALDWorldObject>(Target)?FGuid():StateFor(Cast<ALDCharacter>(Target))->Identity;P->Endpoint=Cast<ALDWorldObject>(Target)?Cast<ALDWorldObject>(Target)->LastClear+FVector(0,0,90):Target->GetActorLocation();P->Amount=S.CommittedDamage;P->Basic=true;P->AdvancedAt=LDTactical::Milliseconds(Now);P->Token=S.AttackToken;}Target=nullptr;}
             if(Target){const int32 Before=Impacts.Num();Impacts.Add({Body,Target,bAssassin&&S.Skill==ELDSkill::None?60:S.CommittedDamage,bSpark?LDTactical::EDamage::Magical:LDTactical::EDamage::Physical,bSpark||bAssassin});Impacts[Before].Basic=!bSpark&&!bAssassin;}
             S.Action=bAssassin||bSpark?3:0;S.RecoveryUntil=Now+(bSpark?.35:.25);S.Target.Reset();
         }

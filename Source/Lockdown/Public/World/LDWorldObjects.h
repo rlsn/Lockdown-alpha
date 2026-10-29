@@ -107,7 +107,7 @@ public:
     ALDWorldObject* Find(FName SourceId) const;
     ALDWorldObject* Carried(const ALDB91Controller* PC) const;
     bool ForceDrop(ALDB91Controller* PC);
-    ALDWorldObject* MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach) const;
+    ALDWorldObject* MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach,bool SaplingsOnly=false) const;
     bool StrikeMelee(ALDCharacter* Body,ALDWorldObject* Object,double Damage);
     bool InsideGrass(const ALDCharacter* Body) const;
     bool GrassConcealed(const ALDCharacter* Body) const;

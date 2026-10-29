@@ -177,13 +177,13 @@ void ALDCombatDirector::PrepareTactical(double Now,TArray<FLDCombatHit>& Hits)
     }
     for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It)
     {
-        auto* P=*It;auto* Target=P->ActorVictim.IsValid()?P->ActorVictim.Get():static_cast<AActor*>(P->Victim.Get());auto* V=StateFor(Cast<ALDCharacter>(Target));const auto* F=Cast<ALDTacticalField>(Target);
-        if((!V&&!F)||(V&&(V->Identity!=P->VictimLife||V->Hp<=0))||(F&&(F->Identity!=P->VictimLife||!F->Active(At)))){P->Destroy();continue;}
+        auto* P=*It;auto* Target=P->ActorVictim.IsValid()?P->ActorVictim.Get():static_cast<AActor*>(P->Victim.Get());auto* V=StateFor(Cast<ALDCharacter>(Target));const auto* F=Cast<ALDTacticalField>(Target);const auto* Object=Cast<ALDWorldObject>(Target);const bool WorldBasic=P->Basic&&M->IsEnvironmentProfile()&&Object&&Object->Kind==ELDObjectKind::Sapling&&Object->Available()&&Object->Hp>0;
+        if((!V&&!F&&!WorldBasic)||(V&&(V->Identity!=P->VictimLife||V->Hp<=0))||(F&&(F->Identity!=P->VictimLife||!F->Active(At)))){P->Destroy();continue;}
         const FVector From=P->GetActorLocation(),Delta=P->Endpoint-From;const double Distance=Delta.Size();const double Travel=FMath::Max<int64>(0,At-P->AdvancedAt)*1.2;P->AdvancedAt=At;
         const FVector To=Distance<=Travel?P->Endpoint:From+Delta.GetSafeNormal()*Travel;
         if(ProjectileIntercept(P,From,To,At)){continue;}
-        if(!LDGround::ClearSegment(GetWorld(),From,To)){P->Destroy();continue;}
-        if(FMath::PointDistToSegment(Target->GetActorLocation(),From,To)<=40)
+        if(!LDGround::ClearSegment(GetWorld(),From,To,WorldBasic?Target:nullptr)){P->Destroy();continue;}
+        if(FMath::PointDistToSegment(WorldBasic?Object->LastClear+FVector(0,0,90):Target->GetActorLocation(),From,To)<=40)
         {FLDCombatHit H{P->Source.Get(),Target,P->Amount,P->Basic?LDTactical::EDamage::Physical:LDTactical::EDamage::Magical,!P->Basic,0,P->Token,P->CasterIdentity};H.Basic=P->Basic;H.DirectFire=P->Fire;H.TargetLife=P->VictimLife;H.SurfaceLease=P->EnvironmentLease;P->EnvironmentLease.Invalidate();if(P->Fire){if(const auto* Lease=EnvironmentLeases.Find(H.SurfaceLease)){H.CreditOwner=Lease->Command.State.Owner;}if(P->Reflected&&P->Source.IsValid()){auto* CasterPC=Cast<ALDPlayerController>(P->Source->GetController());H.CreditOwner=M->ContenderId(CasterPC);}}Hits.Add(H);P->Destroy();}
         else if(Distance<=Travel){P->Destroy();}else{P->SetActorLocation(To);}
     }

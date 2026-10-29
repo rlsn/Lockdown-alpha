@@ -13,7 +13,7 @@ try {
     foreach($role in @('Server','A','B')) {
         $world=if($role -eq 'Server'){'/Game/Lockdown/Generated/Maps/L_V08Region?Profile=v08_integration'}else{"127.0.0.1:$Port`?Name=B84$role"}
         $mode=if($role -eq 'Server'){'-server'}else{'-game'}
-        $arguments='"{0}" {1} {2} -port={3} -nullrhi -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="t.MaxFPS 60" -LDB84Probe -LDProbeRole={4} -PktLagMin={5} -PktLagMax={6} -LDProbeReportDir="{7}" -abslog="{8}"' -f $project,$world,$mode,$Port,$role,$minimum,$maximum,$output,(Join-Path $output "$role.log")
+        $arguments='"{0}" {1} {2} -port={3} -nullrhi -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -ExecCmds="t.MaxFPS 60" -LDB84Probe -LDProbeRole={4} -PktLagMin={5} -PktLagMax={6} -LDProbeReportDir="{7}" -abslog="{8}"' -f $project,$world,$mode,$Port,$role,$minimum,$maximum,$output,(Join-Path $output "$role.log")
         $ownedProcesses+=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if($role -eq 'Server'){Start-Sleep -Seconds 3}
     }

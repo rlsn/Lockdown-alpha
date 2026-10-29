@@ -27,7 +27,7 @@ try {
         $mode=if($role -eq 'Server'){'-server'}else{'-game'}
         $surface=if($Capture -and $role -eq $RenderedClient){'-RenderOffScreen -windowed -ForceRes -ResX=1280 -ResY=720 -LDB91NetCapture'}else{'-nullrhi'}
         $commands=if($Capture -and $role -eq $RenderedClient){'t.MaxFPS 30,sg.ShadowQuality 1,r.Shadow.Virtual.MaxPhysicalPages 512,sg.GlobalIlluminationQuality 0,sg.ReflectionQuality 0'}else{'t.MaxFPS 60'}
-        $arguments='"{0}" {1} {2} {3} -port={4} -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -ExecCmds="{5}" -LDB91NetProbe -B91Role={6} -B91Output="{7}" -abslog="{8}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'),$destination,$mode,$surface,$Port,$commands,$role,$output,(Join-Path $output "$role.log")
+        $arguments='"{0}" {1} {2} {3} -port={4} -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -ExecCmds="{5}" -LDB91NetProbe -B91Role={6} -B91Output="{7}" -abslog="{8}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'),$destination,$mode,$surface,$Port,$commands,$role,$output,(Join-Path $output "$role.log")
         if($Objects){$arguments+=' -LDB91ObjectsProbe'}
         if($Furniture){$arguments+=' -LDB91FurnitureProbe'}
         if($Tools){$arguments+=' -LDB91ToolsProbe'}

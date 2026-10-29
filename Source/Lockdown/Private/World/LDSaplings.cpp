@@ -11,12 +11,12 @@ namespace
 bool Breakable(const ALDWorldObject* O)
 {return O&&(O->Kind==ELDObjectKind::Sapling||O->Kind==ELDObjectKind::Crate||O->Kind==ELDObjectKind::Barrel||O->Kind==ELDObjectKind::Water||O->Kind==ELDObjectKind::Oil)&&!O->Carrier.IsValid();}
 }
-ALDWorldObject* ALDWorldObjects::MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach) const
+ALDWorldObject* ALDWorldObjects::MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach,bool SaplingsOnly) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Body?Cast<ALDB91Controller>(Body->GetController()):nullptr;
     if(!Ready||!M||!M->IsEnvironmentProfile()||!PC){return nullptr;}
     ALDWorldObject* Best=nullptr;double Distance=Reach*Reach;Aim=Aim.GetSafeNormal2D();
-    for(auto Weak:Objects){auto* O=Weak.Get();if(!O||!Breakable(O)||!O->Available()||O->Hp<=0||!Visible(PC,O)){continue;}
+    for(auto Weak:Objects){auto* O=Weak.Get();if(!O||(SaplingsOnly&&O->Kind!=ELDObjectKind::Sapling)||!Breakable(O)||!O->Available()||O->Hp<=0||!Visible(PC,O)){continue;}
      const FVector Delta=O->GetActorLocation()-Body->GetActorLocation();const double D=Delta.SizeSquared2D();
      if(D<=Distance&&FVector::DotProduct(Delta.GetSafeNormal2D(),Aim)>=FMath::Cos(FMath::DegreesToRadians(40.))&&FMath::Abs(Body->GetActorLocation().Z-O->LastClear.Z-90)<100)
      {if(D<Distance||!Best||O->SourceId.LexicalLess(Best->SourceId)){Best=O;Distance=D;}}}

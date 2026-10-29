@@ -6,7 +6,7 @@ Assert-LDEditorModules
 $output = New-LDArtifactDirectory 'Automation'
 $reportPath = Join-Path $output 'Report'
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
-$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}"' -f $project,$Suite,$reportPath,(Join-Path $output 'Automation.log')
+$editorArgs = '"{0}" -unattended -nop4 -nosound -nullrhi -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -stdout -FullStdOutLogOutput -ExecCmds="Automation RunTests {1}" -TestExit="Automation Test Queue Empty" -ReportExportPath="{2}" -abslog="{3}"' -f $project,$Suite,$reportPath,(Join-Path $output 'Automation.log')
 $process = Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $editorArgs -WindowStyle Hidden -PassThru
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     $process.Kill()
