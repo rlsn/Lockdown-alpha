@@ -22,11 +22,48 @@ Witness remains the audited Heave/Parley/profession operation, not a free reward
 
 A zero-kill Charter demonstration must include actual earnings, inputs, Witness, travel, fees and useful counter purchases. An illustrative arithmetic surplus is not proof that a full combat kit is affordable.
 
+The [B92 baseline audit](../v09/B92_ECONOMY_FOUNDATION.md) locates the real Witness
+operation: a learned, equipped Heave, Analyze, Parley or Survey action against
+its legal service target, with the public score gate and normal action cost.
+It grants a single proof receipt, no income or XP. Starting character knowledge
+does not imply an extra physical book. A threshold that a fresh preset cannot
+meet is a preparation decision to communicate, not permission for the service
+to silently grant the missing score or proof.
+
+## Liquidity, geography and confirmation
+
+Regional price differences create transport decisions. A cheap input is useful
+only if the contender can afford it, carry it and reach the intended customer
+before that customer's cash or stock changes. A nominally rich world can still
+have a poor local buyer. Selling gathers a pool's existing money; reaching a
+different counter is not a new grant of buying power. Commodity access and
+reliable official supply should therefore remain visually distinct.
+
+One confirmation buys or sells one unit at the displayed terms. A competing
+transaction can invalidate the quote before commitment. Reject the stale
+confirmation without spending, show current terms and let the player choose
+again; do not automatically accept a worse price. Repeating an acknowledged
+confirmation returns the same result and instance, rather than charging again.
+Stock capacity and bag capacity are separate, explainable refusal reasons.
+
+Institution access must not reveal distant personal information. A local quote
+can show that counter's authorized price/availability; it grants no rival
+wallet, cargo, build or route knowledge. Diagnostic global ledgers remain
+outside ordinary player and AI observations.
+
 ## Light production and acquisition
 
 Short chains connect Fiber/Ore/Crystal, Toolkits/Cores and specialist equipment. Stations create vulnerable preparation and cargo movement. Work orders can buy missing available official inputs and charge fees, but cannot fabricate rare catalysts or recursively invent components.
 
 Production/consumption uses scheduled bounded opportunities, actual market reserves and stock/capacity checks. A missed opportunity is skipped, without catch-up or deficit funding. Visual travelers do not secretly move economic inventory. A complete physical supply chain is future scope.
+
+An institution's identity outlives its visible cashier, animation and planning
+tier. Returning to a shop, replacing an AI seat, reviving a guard or waking a
+distant schedule must not recreate its stock, money or reward quota. Consumption
+destroys named real goods. Producer expenditure enters a nonspendable sink;
+there is no invisible worker purse from which the money can be stolen back.
+Skipped work remains skipped after funding returns. This keeps absence and
+scarcity consequential without creating a catch-up windfall on wake or reload.
 
 ## Property, banking and loss
 

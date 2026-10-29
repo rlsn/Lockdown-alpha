@@ -1,4 +1,36 @@
-# Active continuation — B92 ready
+# Active continuation — B92 economy authority in progress
+
+The first B92 increment is [finite economy authority](v09/B92_ECONOMY_FOUNDATION.md),
+native source **b0d8034ec24ea3916d4c8350353615bb7126d2cb**, with [frozen evidence](v09/evidence/B92Economy/README.md).
+Five selected pools have426 real commodity instances and3,000 gold;96 civilian
+purses add288, while24 contender wallets/shared banks start empty. These are
+accounting identities, not the220-body roster. Init is once-only, trade uses
+current quotes/exact IDs and replay, and institutional work uses funded real
+creation/consumption with no deferred catch-up. Native authority125 checks,
+rules58, inherited commerce26 and institutions36 pass; both full-unity targets
+pass. Independent ledgers close. All207 protected inputs remain unchanged.
+Master revision21 records liquidity/confirmation/identity principles.
+
+The inherited starter contributes zero gold/items. Witness exists in actual
+Heave/Analyze/Parley/Survey skill tasks with threshold12, normal equipped-skill
+gates, one receipt and no reward. Legacy lazy residents receive36 gold; they
+must not run beside the selected96 ×3-gold population. The audit records this
+and the inherited timer/budget/endpoint mismatches.
+
+**Next:** bind persistent24 seats to real lifecycle/takeover, connect the five
+physical LMB services and remote requests to normal bag/capacity/access guards,
+and merge B91 world/container/installed goods into one full-match ledger before
+opening `v09_full`. Current account-custody transactions are internal authority
+operations, not an ordinary client commerce permit. Add shared rare stock,
+bank access, finite deposits, physical courier tokens/orders and the earned
+zero-kill Witness/Charter journey; then152 routines, witnessed security,
+zero-reward ambient roles, ordinary contender AI and tier transitions.
+Full account/economy recovery follows those systems. All13 B92 acceptance
+cases remain open at their integration boundaries. No90-minute/human/performance
+claim is made by the probe's explicitly advanced schedule clock.
+
+## Completed B91 baseline
+
 
 B91 is [complete at its functional-environment boundary](v09/B91_COMPLETION.md),
 native source **8c591a686b6dc91a4db3ae2e4c9a03cce447f746**, with [frozen evidence](v09/evidence/B91Completion/README.md).
