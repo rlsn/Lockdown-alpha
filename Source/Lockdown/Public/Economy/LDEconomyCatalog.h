@@ -10,6 +10,8 @@ namespace LDEconomy
     struct LOCKDOWN_API FCatalog
     {
         int32 Version=0;
+        int32 Contenders=0,Duration=1500,CourierLimit=8,CourierIssuanceLimit=0;
+        int32 ShortageService=3;
         FString Checksum;
         TArray<FMarketDefinition> Markets;
         int32 Nodes=0,Charges=0;
@@ -24,6 +26,7 @@ namespace LDEconomy
         // Decode to a candidate; a failed reload leaves the existing catalog intact.
         bool Parse(const FString& Json,FString& Error);
         bool Load(FString& Error);
+        bool LoadFull(FString& Error);
     };
     LOCKDOWN_API int32 Ask(const FMarketGood& Good,int32 Stock,int32 Numerator=1,int32 Denominator=1);
     LOCKDOWN_API int32 Bid(const FMarketGood& Good,int32 Stock,int32 Numerator=1,int32 Denominator=1);

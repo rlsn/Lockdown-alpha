@@ -4,6 +4,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
+#include "Economy/LDB92EconomyContract.h"
 
 namespace
 {
@@ -30,23 +31,29 @@ bool LDEconomy::FCatalog::Load(FString& Error)
 {
     FString Json;if(!FFileHelper::LoadFileToString(Json,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/economy_rules.json")))){Error=TEXT("Missing staged economy catalog");return false;}return Parse(Json,Error);
 }
+bool LDEconomy::FCatalog::LoadFull(FString& Error)
+{
+    FString Json;if(!FFileHelper::LoadFileToString(Json,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V09/economy_b92.json")))){Error=TEXT("Missing staged B92 economy catalog");return false;}
+    FCatalog Candidate;if(!Candidate.Parse(Json,Error)||Candidate.Version!=9||Candidate.Checksum!=LDB92Contract::CatalogDigest){Error=TEXT("B92 requires the exact selected schema9 economy; run SyncB92Economy.py: ")+Error;return false;}*this=MoveTemp(Candidate);return true;
+}
 bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
 {
     Error.Reset();auto Reject=[&](const TCHAR* Why){Error=Why;return false;};TSharedPtr<FJsonObject> Root;
     if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Root)||!Root.IsValid()){return Reject(TEXT("Invalid economy JSON"));}
-    FCatalog C;if(!Integer(Root,TEXT("schemaVersion"),1,1,C.Version)){return Reject(TEXT("Unsupported economy schema"));}
+    FCatalog C;if(!Integer(Root,TEXT("schemaVersion"),1,9,C.Version)||(C.Version!=1&&C.Version!=9)){return Reject(TEXT("Unsupported economy schema"));}const bool Full=C.Version==9;C.Duration=Full?5400:1500;C.CourierLimit=Full?20:8;C.ShortageService=Full?5:3;
     TSharedPtr<FJsonObject> Goods,Weights,MarketRows,Gather,Profile;
     if(!Object(Root,TEXT("goods"),Goods)||!Object(Root,TEXT("otherWeights"),Weights)||!Object(Root,TEXT("markets"),MarketRows)||!Object(Root,TEXT("gather"),Gather)||!Object(Root,TEXT("profile"),Profile)){return Reject(TEXT("Missing economy section"));}
     const TCHAR* Names[]={TEXT("Fiber"),TEXT("Ore"),TEXT("Crystal"),TEXT("Toolkit"),TEXT("Core")};
-    if(Goods->Values.Num()!=5||MarketRows->Values.Num()!=3){return Reject(TEXT("Unexpected good or institution count"));}
+    if(Goods->Values.Num()!=5||MarketRows->Values.Num()!=(Full?5:3)){return Reject(TEXT("Unexpected good or institution count"));}
     for(int32 I=0;I<5;++I){TSharedPtr<FJsonObject> Good;int32 Weight=0;if(!Object(Goods,Names[I],Good)||!Integer(Good,TEXT("weight"),0,100,Weight)||Weight!=LDInventory::UnitWeight(ELDItemKind(uint8(ELDItemKind::Fiber)+I))){return Reject(TEXT("Economy weight disagrees with inventory definitions"));}}
     const TCHAR* Other[]={TEXT("book"),TEXT("ward-charge"),TEXT("legacySeal")};
     for(int32 I=0;I<3;++I){int32 W=0;if(!Integer(Weights,Other[I],0,100,W)||W!=LDInventory::UnitWeight(ELDItemKind(I))){return Reject(TEXT("Legacy item weight mismatch"));}}
-    int32 Slots=0,Seconds=0;if(!Integer(Profile,TEXT("inventorySlots"),24,24,Slots)||!Integer(Profile,TEXT("seconds"),1500,1500,Seconds)||!Integer(Gather,TEXT("nodes"),2,2,C.Nodes)||!Integer(Gather,TEXT("chargesPerNode"),3,3,C.Charges)){return Reject(TEXT("Unsupported economy profile or node budget"));}
-    for(const TCHAR* Name:{TEXT("WestTown"),TEXT("EastTown"),TEXT("City")})
+    int32 Slots=0,Seconds=0;if(!Integer(Profile,TEXT("inventorySlots"),24,24,Slots)||!Integer(Profile,TEXT("seconds"),C.Duration,C.Duration,Seconds)||!Integer(Gather,TEXT("nodes"),Full?9:2,Full?9:2,C.Nodes)||!Integer(Gather,TEXT("chargesPerNode"),Full?6:3,Full?6:3,C.Charges)){return Reject(TEXT("Unsupported economy profile or node budget"));}
+    const TArray<const TCHAR*> MarketNames=Full?TArray<const TCHAR*>{TEXT("capital"),TEXT("highfort"),TEXT("scholars"),TEXT("riverport"),TEXT("ironworks")}:TArray<const TCHAR*>{TEXT("WestTown"),TEXT("EastTown"),TEXT("City")};
+    for(const TCHAR* Name:MarketNames)
     {
         TSharedPtr<FJsonObject> M,Stock;int32 Gold=0;
-        if(!Object(MarketRows,Name,M)||!Integer(M,TEXT("gold"),0,1000000,Gold)||!Object(M,TEXT("goods"),Stock)||Stock->Values.Num()!=4){return Reject(TEXT("Invalid institution endowment"));}
+        if(!Object(MarketRows,Name,M)||!Integer(M,TEXT("gold"),Full?600:0,Full?600:1000000,Gold)||!Object(M,TEXT("goods"),Stock)||Stock->Values.Num()!=4){return Reject(TEXT("Invalid institution endowment"));}
         FMarketDefinition Def;Def.Id=Name;Def.Gold=Gold;
         for(int32 I=0;I<4;++I){TSharedPtr<FJsonObject> G;FMarketGood Row;Row.Kind=ELDItemKind(uint8(ELDItemKind::Fiber)+I);if(!Object(Stock,Names[I],G)||!Integer(G,TEXT("stock"),1,1000,Row.Target)||!Integer(G,TEXT("base"),1,1000000,Row.Base)){return Reject(TEXT("Invalid market stock/price"));}Row.Cap=FMath::Max(12,2*Row.Target);Def.Goods.Add(Row);}C.Markets.Add(MoveTemp(Def));
     }
@@ -65,27 +72,28 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
         ||!Integer(Analyze,TEXT("discount"),2,2,C.CouponDiscount)||!Integer(Analyze,TEXT("expiresSeconds"),30,30,C.CouponSeconds))
     {return Reject(TEXT("Invalid production recipe, channel or skill terms"));}
     bool Flag=false;FString GatherGood;
-    if(!Gather->TryGetStringField(TEXT("good"),GatherGood)||GatherGood!=TEXT("Crystal")||!Gather->TryGetBoolField(TEXT("resetOnRespawn"),Flag)||Flag
+    if((!Full&&(!Gather->TryGetStringField(TEXT("good"),GatherGood)||GatherGood!=TEXT("Crystal")))||!Gather->TryGetBoolField(TEXT("resetOnRespawn"),Flag)||Flag
         ||!Analyze->TryGetBoolField(TEXT("stacking"),Flag)||Flag||!Analyze->TryGetBoolField(TEXT("clearOnDeath"),Flag)||!Flag)
     {return Reject(TEXT("Unsupported production reset/coupon policy"));}
     TSharedPtr<FJsonObject> Ticks,Shortage,Bonus,BonusInputs;const TArray<TSharedPtr<FJsonValue>> *Times=nullptr,*Producers=nullptr,*Consumers=nullptr,*Ratio=nullptr;
-    if(!Object(Root,TEXT("npcTicks"),Ticks)||!Ticks->TryGetArrayField(TEXT("times"),Times)||Times->Num()!=8
+    if(!Object(Root,TEXT("npcTicks"),Ticks)||!Ticks->TryGetArrayField(TEXT("times"),Times)||Times->Num()!=(Full?29:8)
         ||!Ticks->TryGetArrayField(TEXT("production"),Producers)||Producers->Num()!=2||!Ticks->TryGetArrayField(TEXT("consumption"),Consumers)||Consumers->Num()!=3
-        ||!Object(Root,TEXT("shortage"),Shortage)||!Integer(Shortage,TEXT("start"),600,600,C.ShortageStart)||!Integer(Shortage,TEXT("end"),780,780,C.ShortageEnd)
+        ||!Object(Root,TEXT("shortage"),Shortage)||!Integer(Shortage,TEXT("start"),Full?1800:600,Full?1800:600,C.ShortageStart)||!Integer(Shortage,TEXT("end"),Full?1980:780,Full?1980:780,C.ShortageEnd)
         ||!Shortage->TryGetArrayField(TEXT("priceRatio"),Ratio)||Ratio->Num()!=2||!Object(Shortage,TEXT("bonusOrder"),Bonus)||!Object(Bonus,TEXT("inputs"),BonusInputs)
         ||BonusInputs->Values.Num()!=1||!Integer(BonusInputs,TEXT("Toolkit"),1,1,N)||!Integer(Bonus,TEXT("gold"),40,40,C.ShortageGold)||!Integer(Bonus,TEXT("xp"),20,20,C.ShortageXp)
         ||!Integer(Bonus,TEXT("holdSeconds"),3,3,C.ShortageSeconds)||!Integer(Bonus,TEXT("globalLimit"),1,1,N)) {return Reject(TEXT("Invalid institution schedule/shortage"));}
-    for(int32 I=0;I<8;++I){double Time=0;if(!(*Times)[I]->TryGetNumber(Time)||Time!=180*(I+1)){return Reject(TEXT("Invalid scheduled tick identity"));}C.InstitutionTimes.Add(int32(Time));}
+    for(int32 I=0;I<Times->Num();++I){double Time=0;if(!(*Times)[I]->TryGetNumber(Time)||Time!=180*(I+1)){return Reject(TEXT("Invalid scheduled tick identity"));}C.InstitutionTimes.Add(int32(Time));}
     double Num=0,Den=0;FString Market,Good;
-    if(!(*Ratio)[0]->TryGetNumber(Num)||Num!=5||!(*Ratio)[1]->TryGetNumber(Den)||Den!=4||!Shortage->TryGetStringField(TEXT("market"),Market)||Market!=TEXT("EastTown")
+    if(!(*Ratio)[0]->TryGetNumber(Num)||Num!=5||!(*Ratio)[1]->TryGetNumber(Den)||Den!=4||!Shortage->TryGetStringField(TEXT("market"),Market)||Market!=(Full?TEXT("ironworks"):TEXT("EastTown"))
         ||!Shortage->TryGetStringField(TEXT("good"),Good)||Good!=TEXT("Toolkit")||!Bonus->TryGetBoolField(TEXT("completionStrictlyBeforeEnd"),Flag)||!Flag
         ||!Bonus->HasField(TEXT("endorsement"))||!Bonus->Values[TEXT("endorsement")]->IsNull()){return Reject(TEXT("Invalid shortage price/expiry policy"));}C.ShortageNumerator=int32(Num);C.ShortageDenominator=int32(Den);
     for(int32 I=0;I<5;++I)
     {
         const bool Producer=I<2;const int32 Index=Producer?I:I-2;const auto J=(Producer?(*Producers)[Index]:(*Consumers)[Index])->AsObject();
         const TCHAR* ExpectedMarket=Producer?(I==0?TEXT("WestTown"):TEXT("EastTown")):(Index==0?TEXT("WestTown"):Index==1?TEXT("EastTown"):TEXT("City"));
+        if(Full){ExpectedMarket=Producer?(I==0?TEXT("riverport"):TEXT("ironworks")):(Index==0?TEXT("riverport"):Index==1?TEXT("ironworks"):TEXT("capital"));}
         const TCHAR* ExpectedGood=Producer?(I==0?TEXT("Fiber"):TEXT("Ore")):(Index==0?TEXT("Fiber"):Index==1?TEXT("Ore"):TEXT("Toolkit"));
-        FInstitutionRule Rule;Rule.Producer=Producer;Rule.Service=Producer?I+2:Index==2?1:Index+2;Rule.Kind=FCString::Strcmp(ExpectedGood,TEXT("Fiber"))==0?ELDItemKind::Fiber:FCString::Strcmp(ExpectedGood,TEXT("Ore"))==0?ELDItemKind::Ore:ELDItemKind::Toolkit;
+        FInstitutionRule Rule;Rule.Producer=Producer;Rule.Service=Full?(Producer?I+4:Index==2?1:Index+4):(Producer?I+2:Index==2?1:Index+2);Rule.Kind=FCString::Strcmp(ExpectedGood,TEXT("Fiber"))==0?ELDItemKind::Fiber:FCString::Strcmp(ExpectedGood,TEXT("Ore"))==0?ELDItemKind::Ore:ELDItemKind::Toolkit;
         if(!J||!J->TryGetStringField(TEXT("market"),Market)||Market!=ExpectedMarket||!J->TryGetStringField(TEXT("good"),Good)||Good!=ExpectedGood||!Integer(J,TEXT("count"),1,1,N)
             ||(Producer&&!Integer(J,TEXT("goldBurn"),I==0?2:3,I==0?2:3,Rule.Cost))){return Reject(TEXT("Invalid funded producer/consumer row"));}C.Institutions.Add(Rule);
     }
@@ -93,14 +101,34 @@ bool LDEconomy::FCatalog::Parse(const FString& Json,FString& Error)
     if(!Object(Root,TEXT("contracts"),Contracts)||!Object(Contracts,TEXT("courier"),Courier)||!Object(Contracts,TEXT("coreProcurement"),Procurement)||!Object(Contracts,TEXT("supply"),SupplyOrder)||!Object(Root,TEXT("charter"),Charter)) {return Reject(TEXT("Missing procurement/Charter rules"));}
     for(const auto& Row:TArray<TSharedPtr<FJsonObject>>{Courier,Procurement,SupplyOrder})
     {
-        const int32 Gold=Row==Courier?25:Row==Procurement?80:50,XP=Row==Courier?45:Row==Procurement?60:30,Limit=Row==Courier?8:Row==Procurement?3:1;
+        const int32 Gold=Row==Courier?25:Row==Procurement?80:50,XP=Row==Courier?45:Row==Procurement?60:30,Limit=Row==Courier?C.CourierLimit:Row==Procurement?3:1;
         if(!Integer(Row,TEXT("gold"),Gold,Gold,N)||!Integer(Row,TEXT("xp"),XP,XP,N)||!Integer(Row,TEXT("perContender"),Limit,Limit,N)){return Reject(TEXT("Unsupported bounded reward"));}
         if(Row==Courier){if(!Integer(Row,TEXT("legacyCredits"),0,0,N)){return Reject(TEXT("Legacy credits disabled"));}}
         else if(!Integer(Row,TEXT("holdSeconds"),3,3,N)||!Object(Row,TEXT("inputs"),Inputs)||Inputs->Values.Num()!=1||!Integer(Inputs,Row==Procurement?TEXT("Core"):TEXT("Toolkit"),Row==Procurement?1:2,Row==Procurement?1:2,N)){return Reject(TEXT("Invalid exact procurement input"));}
     }
     for(const auto& Pair:TMap<FString,int32>{{TEXT("price"),100},{TEXT("purchaseLimit"),1},{TEXT("activationLimit"),1},{TEXT("activationHoldSeconds"),4},{TEXT("warningSeconds"),30},{TEXT("openSeconds"),60},{TEXT("claimSeconds"),10},{TEXT("claimRangeCm"),120},{TEXT("contestRangeCm"),240},{TEXT("maxConcurrentGlobal"),1}})
-    {if(!Integer(Charter,*Pair.Key,Pair.Value,Pair.Value,N)){return Reject(TEXT("Unsupported registered Charter timing/price"));}}
+    {if(Full&&Pair.Key==TEXT("contestRangeCm")){continue;}if(!Integer(Charter,*Pair.Key,Pair.Value,Pair.Value,N)){return Reject(TEXT("Unsupported registered Charter timing/price"));}}
     for(const auto& Pair:TMap<FString,bool>{{TEXT("requiresWitness"),true},{TEXT("physicalItem"),false},{TEXT("transferable"),false},{TEXT("everyoneEligible"),true},{TEXT("fullWindowBeforeDeadlineRequired"),true},{TEXT("claimCompletionAtCloseAllowed"),true},{TEXT("legacySealBypass"),false}})
     {if(!Charter->TryGetBoolField(Pair.Key,Flag)||Flag!=Pair.Value){return Reject(TEXT("Unsupported Charter access policy"));}}
+    if(Full)
+    {
+        FString Id;TSharedPtr<FJsonObject> Accounting,Endpoints,Bank;
+        if(!Profile->TryGetStringField(TEXT("id"),Id)||Id!=TEXT("v09_full")||!Integer(Profile,TEXT("contendersMin"),24,24,C.Contenders)||!Integer(Profile,TEXT("contendersMax"),24,24,N)
+           ||!Integer(Profile,TEXT("levelCap"),15,15,N)||!Integer(Profile,TEXT("skillSlots"),6,6,N)||!Integer(Profile,TEXT("accessorySlots"),4,4,N)
+           ||!Integer(Courier,TEXT("issuance_limit"),40,40,C.CourierIssuanceLimit)||!Integer(Courier,TEXT("active_limit"),1,1,N)
+           ||!Object(Root,TEXT("accounting"),Accounting)||!Object(Root,TEXT("market_poi_ids"),Endpoints)||Endpoints->Values.Num()!=5||!Object(Root,TEXT("bank"),Bank))
+        {return Reject(TEXT("Invalid full-profile identity, fixed roster, courier bounds or endpoints"));}
+        for(const auto& P:TMap<FString,int32>{{TEXT("initialMarketGold"),3000},{TEXT("initialResidentGold"),288},{TEXT("initialTotalGold"),3288},{TEXT("maxProducerBurn"),145},{TEXT("N"),24},{TEXT("rewardMintUpperBound"),20074},{TEXT("totalGoldBeforeBurnUpperBound"),23362}})
+        {if(!Integer(Accounting,*P.Key,P.Value,P.Value,N)){return Reject(TEXT("Invalid full-profile accounting bound; audit starters before changing it"));}}
+        const TArray<const TCHAR*> Pois={TEXT("capital_treasury"),TEXT("highfort_market"),TEXT("scholars_market"),TEXT("riverport_market"),TEXT("ironworks_market")};
+        for(int32 I=0;I<5;++I){if(!Endpoints->TryGetStringField(MarketNames[I],Id)||Id!=Pois[I]){return Reject(TEXT("Market endpoint identity mismatch"));}}
+        const TArray<TSharedPtr<FJsonValue>>* Access=nullptr;
+        if(!Bank->TryGetBoolField(TEXT("shared_per_contender_account"),Flag)||!Flag||!Bank->TryGetArrayField(TEXT("access_poi_ids"),Access)||Access->Num()!=5){return Reject(TEXT("Bank account must be shared across five exact counters"));}
+        for(int32 I=0;I<5;++I){if((*Access)[I]->AsString()!=Pois[I]){return Reject(TEXT("Bank access endpoint mismatch"));}}
+        const TArray<TSharedPtr<FJsonValue>>* Distance=nullptr;
+        if(!Courier->TryGetArrayField(TEXT("paid_distance_band_cm"),Distance)||Distance->Num()!=2||(*Distance)[0]->AsNumber()!=25000||(*Distance)[1]->AsNumber()!=80000
+           ||!Courier->TryGetStringField(TEXT("quota_commit"),Id)||Id!=TEXT("successful_delivery")||!Courier->TryGetStringField(TEXT("distance_metric"),Id)||Id!=TEXT("shortest_strategic_graph_cm"))
+        {return Reject(TEXT("Courier needs bounded strategic distance and successful-delivery quota"));}
+    }
     C.Checksum=FMD5::HashAnsiString(*Json);*this=MoveTemp(C);return true;
 }

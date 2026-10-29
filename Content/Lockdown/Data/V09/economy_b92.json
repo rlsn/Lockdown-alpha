@@ -1,0 +1,426 @@
+{
+  "schemaVersion": 9,
+  "package": "Project Lockdown v0.9 full profile",
+  "date": "2026-10-27",
+  "status": "Proposed specification; actual v0.5 deviations must be recorded",
+  "profile": {
+    "id": "v09_full",
+    "contendersMin": 24,
+    "contendersMax": 24,
+    "seconds": 5400,
+    "levelCap": 15,
+    "skillSlots": 6,
+    "inventorySlots": 24,
+    "accessorySlots": 4
+  },
+  "goods": {
+    "Fiber": {
+      "weight": 1
+    },
+    "Ore": {
+      "weight": 3
+    },
+    "Crystal": {
+      "weight": 2
+    },
+    "Toolkit": {
+      "weight": 4
+    },
+    "Core": {
+      "weight": 6
+    }
+  },
+  "otherWeights": {
+    "book": 1,
+    "ward-charge": 1,
+    "legacySeal": 2
+  },
+  "weightCapacity": "60 + 2*(STR-10)",
+  "weightPolicy": "Hard final-state cap; no speed/stealth penalties; reject overcapacity preparation",
+  "officialSupply": {
+    "Fiber": 4,
+    "Ore": 6,
+    "StepBook": 40,
+    "SparkBook": 40,
+    "PatchBook": 40,
+    "ParleyBook": 40
+  },
+  "markets": {
+    "capital": {
+      "gold": 600,
+      "goods": {
+        "Fiber": {
+          "stock": 54,
+          "base": 4
+        },
+        "Ore": {
+          "stock": 18,
+          "base": 10
+        },
+        "Crystal": {
+          "stock": 9,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 6,
+          "base": 26
+        }
+      }
+    },
+    "highfort": {
+      "gold": 600,
+      "goods": {
+        "Fiber": {
+          "stock": 18,
+          "base": 8
+        },
+        "Ore": {
+          "stock": 54,
+          "base": 6
+        },
+        "Crystal": {
+          "stock": 9,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 6,
+          "base": 26
+        }
+      }
+    },
+    "scholars": {
+      "gold": 600,
+      "goods": {
+        "Fiber": {
+          "stock": 24,
+          "base": 6
+        },
+        "Ore": {
+          "stock": 24,
+          "base": 8
+        },
+        "Crystal": {
+          "stock": 24,
+          "base": 12
+        },
+        "Toolkit": {
+          "stock": 6,
+          "base": 24
+        }
+      }
+    },
+    "riverport": {
+      "gold": 600,
+      "goods": {
+        "Fiber": {
+          "stock": 54,
+          "base": 4
+        },
+        "Ore": {
+          "stock": 18,
+          "base": 10
+        },
+        "Crystal": {
+          "stock": 9,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 6,
+          "base": 26
+        }
+      }
+    },
+    "ironworks": {
+      "gold": 600,
+      "goods": {
+        "Fiber": {
+          "stock": 18,
+          "base": 8
+        },
+        "Ore": {
+          "stock": 54,
+          "base": 6
+        },
+        "Crystal": {
+          "stock": 9,
+          "base": 16
+        },
+        "Toolkit": {
+          "stock": 6,
+          "base": 26
+        }
+      }
+    }
+  },
+  "pricing": {
+    "target": "initial stock",
+    "stockCap": "max(12,2*T)",
+    "ask": "clamp(ceil(B*(3*T-S)*eventNumerator/(2*T*eventDenominator)),ceil(B/2),ceil(3*B/2))",
+    "bid": "min(floor(7*ask(S)/10), max(0,ask(S+1)-1)) under same event ratio",
+    "normalEventRatio": [
+      1,
+      1
+    ],
+    "quoteRequired": true,
+    "unitTransactions": true
+  },
+  "recipes": {
+    "Toolkit": {
+      "inputs": {
+        "Fiber": 2,
+        "Ore": 1
+      },
+      "fee": 4,
+      "seconds": 4,
+      "outputCount": 1
+    },
+    "Core": {
+      "inputs": {
+        "Toolkit": 2,
+        "Crystal": 1
+      },
+      "fee": 6,
+      "seconds": 6,
+      "outputCount": 1
+    }
+  },
+  "gather": {
+    "chargesPerNode": 6,
+    "nodes": 9,
+    "basicSeconds": 6,
+    "rangeCm": 120,
+    "xp": 0,
+    "resetOnRespawn": false
+  },
+  "skillUses": {
+    "Survey": {
+      "scoreMin": 12,
+      "seconds": 1,
+      "effect": "one Crystal extraction using same charge/capacity rules"
+    },
+    "Analyze": {
+      "scoreMin": 14,
+      "seconds": 2,
+      "effect": "one workshop-bound coupon",
+      "discount": 2,
+      "expiresSeconds": 30,
+      "stacking": false,
+      "clearOnDeath": true
+    }
+  },
+  "npcTicks": {
+    "times": [
+      180,
+      360,
+      540,
+      720,
+      900,
+      1080,
+      1260,
+      1440,
+      1620,
+      1800,
+      1980,
+      2160,
+      2340,
+      2520,
+      2700,
+      2880,
+      3060,
+      3240,
+      3420,
+      3600,
+      3780,
+      3960,
+      4140,
+      4320,
+      4500,
+      4680,
+      4860,
+      5040,
+      5220
+    ],
+    "production": [
+      {
+        "market": "riverport",
+        "good": "Fiber",
+        "count": 1,
+        "goldBurn": 2
+      },
+      {
+        "market": "ironworks",
+        "good": "Ore",
+        "count": 1,
+        "goldBurn": 3
+      }
+    ],
+    "consumption": [
+      {
+        "market": "riverport",
+        "good": "Fiber",
+        "count": 1
+      },
+      {
+        "market": "ironworks",
+        "good": "Ore",
+        "count": 1
+      },
+      {
+        "market": "capital",
+        "good": "Toolkit",
+        "count": 1
+      }
+    ],
+    "order": "bounded funded production then available consumption; skip without catch-up"
+  },
+  "contracts": {
+    "courier": {
+      "gold": 25,
+      "xp": 45,
+      "perContender": 20,
+      "legacyCredits": 0,
+      "paid_distance_band_cm": [
+        25000,
+        80000
+      ],
+      "minimum_distinct_endpoints": true,
+      "proof": "server-issued sealed contract token; one delivery receipt; no ordinary item sale or duplicate credit",
+      "active_limit": 1,
+      "issuance_limit": 40,
+      "quota_commit": "successful_delivery",
+      "death_policy": "token_drops_same_owner_can_recover_no_free_replacement",
+      "distance_metric": "shortest_strategic_graph_cm"
+    },
+    "coreProcurement": {
+      "inputs": {
+        "Core": 1
+      },
+      "gold": 80,
+      "xp": 60,
+      "perContender": 3,
+      "global": "3*N",
+      "firstEndorsement": "Industrial",
+      "holdSeconds": 3
+    },
+    "supply": {
+      "inputs": {
+        "Toolkit": 2
+      },
+      "gold": 50,
+      "xp": 30,
+      "perContender": 1,
+      "global": "N",
+      "endorsement": "Supply",
+      "holdSeconds": 3
+    }
+  },
+  "shortage": {
+    "start": 1800,
+    "end": 1980,
+    "market": "ironworks",
+    "good": "Toolkit",
+    "priceRatio": [
+      5,
+      4
+    ],
+    "bonusOrder": {
+      "inputs": {
+        "Toolkit": 1
+      },
+      "gold": 40,
+      "xp": 20,
+      "globalLimit": 1,
+      "holdSeconds": 3,
+      "completionStrictlyBeforeEnd": true,
+      "endorsement": null
+    }
+  },
+  "bank": {
+    "location": "capital_treasury",
+    "rangeCm": 120,
+    "quietSeconds": 6,
+    "depositFee": "ceil(2*A/100)",
+    "depositCredit": "A-fee",
+    "rejectZeroCredit": true,
+    "withdrawFee": 0,
+    "interest": 0,
+    "deathOrTheftAffectsBank": false,
+    "treasurySplitDebit": true,
+    "access_poi_ids": [
+      "capital_treasury",
+      "highfort_market",
+      "scholars_market",
+      "riverport_market",
+      "ironworks_market"
+    ],
+    "shared_per_contender_account": true
+  },
+  "charter": {
+    "requiredEndorsements": [
+      "Supply",
+      "Industrial"
+    ],
+    "requiresWitness": true,
+    "price": 100,
+    "purchaseLimit": 1,
+    "activationLimit": 1,
+    "physicalItem": false,
+    "transferable": false,
+    "activationHoldSeconds": 4,
+    "warningSeconds": 30,
+    "openSeconds": 60,
+    "everyoneEligible": true,
+    "claimSeconds": 10,
+    "claimRangeCm": 120,
+    "deathBeforeActivation": "ready at actual respawn completion +30 seconds",
+    "deathAfterActivation": "window continues, spent remains",
+    "maxConcurrentGlobal": 1,
+    "fullWindowBeforeDeadlineRequired": true,
+    "claimCompletionAtCloseAllowed": true,
+    "legacySealBypass": false,
+    "activation_poi_id": "antechamber",
+    "purchase_poi_id": "capital_treasury",
+    "claim_cancellation": "v09 inherits v08 actual control/displacement; no ordinary damage or proximity cancellation"
+  },
+  "accounting": {
+    "maxRewardMints": "790*N+1114",
+    "initialMarketGold": 3000,
+    "initialResidentGold": 288,
+    "initialTotalGold": 3288,
+    "maxProducerBurn": 145,
+    "goldIdentity": "end=start+minted-burned",
+    "worldRewardGold": 1074,
+    "contractRewardGoldPerContender": 790,
+    "shortageRewardGold": 40,
+    "N": 24,
+    "rewardMintUpperBound": 20074,
+    "totalGoldBeforeBurnUpperBound": 23362
+  },
+  "feasibility": {
+    "jobs": 3,
+    "jobGold": 75,
+    "supplyCost": 36,
+    "supplyReward": 50,
+    "firstCoreCost": 54,
+    "coreReward": 80,
+    "charterCost": 100,
+    "remainingGold": 15,
+    "xpBeforeVisits": 225,
+    "xpWithThreeVisits": 300,
+    "status": "inherited arithmetic only; use v09 native travel/current quotes; not guaranteed starting market quote"
+  },
+  "deferred": [
+    "loans_interest",
+    "general_dialogue",
+    "free_physics",
+    "fully_physical_caravan_supply_chains",
+    "human_60_90_minute_balance_evidence"
+  ],
+  "market_poi_ids": {
+    "capital": "capital_treasury",
+    "highfort": "highfort_market",
+    "scholars": "scholars_market",
+    "riverport": "riverport_market",
+    "ironworks": "ironworks_market"
+  }
+}
