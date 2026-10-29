@@ -43,7 +43,14 @@ def check(root):
         expected[15] = 96
     assert collections.Counter(r['kind'] for r in manifest) == expected
     for row in manifest:
-        assert math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) <= 1000.01
+        if math.dist(row['source_cm'][:2], row['fitted_cm'][:2]) > 1000.01:
+            # One selected indoor warehouse pad; every other source keeps the10m fitter bound.
+            assert row['source_id'] == 'prop_crate_002' and row['kind'] == 2
+            data = Path(__file__).resolve().parents[1]/'Content/Lockdown/Data/V09'
+            building = next(b for b in json.loads((data/'map_b90.json').read_bytes())['buildings'] if b['id']=='building_riverport_00')
+            original = next(r for r in json.loads((data/'objects_b91.json').read_bytes())['rows'] if r['id']=='prop_crate_002')
+            assert row['source_cm'] == original['position']
+            assert math.dist(row['fitted_cm'],[v+d for v,d in zip(building['position'],(-350,500,0))]) <= .1
         assert row['placement_valid']
     fields = {'Handle', 'Kind', 'Position', 'Revision', 'State', 'PhysicalRevision'}
     received = []

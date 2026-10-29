@@ -12,7 +12,8 @@ public:
     virtual void Tick(float Delta) override;
 private:
     ALDB91Controller *A=nullptr,*B=nullptr;
-    FVector Arena;
+    FVector Arena,DryArena;
+    double DryHP=0;
     uint8 Phase=0;
     double Started=0,At=0,MP=0;
     int Failures=0;

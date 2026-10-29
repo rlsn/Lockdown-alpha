@@ -160,7 +160,7 @@ bool ULDNavigationComponent::ResolveOrder(FVector& Goal,float& Acceptance,TArray
     {
         const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
         if(M&&M->IsEnvironmentProfile())
-        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor)){Target=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation())+FVector(0,0,18):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);}}
+        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor)){Acceptance=120;Target=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation())+FVector(0,0,18):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);}else if(Actor->IsA<ALDEnvironmentDoor>()){Acceptance=120;Target=Actor->GetActorLocation()-FVector(0,0,130);}}
         else
         {const auto* View=M&&M->Vision?M->Vision->AuthorityViewFor(PC):nullptr;const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;if(!E){return false;}Target=E->Position;Acceptance=LDVision::PickupKind(E->Kind)?64:100;}
     }
@@ -200,10 +200,11 @@ void ULDNavigationComponent::ProcessOrder()
     ServerProgressAnchor=Controller()->GetPawn()->GetActorLocation();ServerLastProgress=GetWorld()->GetTimeSeconds();
     ServerBestProgress=AlongPath(ServerPoints,ServerProgressAnchor);
     ClientOrder(Server,NavAccepted,ServerGoal,ServerAcceptance,TEXT("Move accepted"));
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u"),Server.Match,Server.Life,Server.Order,Server.Epoch);
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u goal=%s tolerance=%.3f"),Server.Match,Server.Life,Server.Order,Server.Epoch,*ServerGoal.ToString(),ServerAcceptance);
 }
 void ULDNavigationComponent::EndServer(uint8 Result,const FString& Reason)
 {
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u result=%u reason=%s goal=%s tolerance=%.3f body=%s"),Server.Order,Result,*Reason,*ServerGoal.ToString(),ServerAcceptance,Controller()->GetPawn()?*Controller()->GetPawn()->GetActorLocation().ToString():TEXT("none"));
     bPending=bServerActive=false;LastResult=Result;Approach.Invalidate();
     HaltLocomotion(Cast<ALDCharacter>(Controller()->GetPawn()));
     ClientOrder(Server,Result,ServerGoal,ServerAcceptance,Reason);
@@ -249,8 +250,19 @@ void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActo
         {PendingAcknowledgedOrder=Server.Order;ClientOrder(Server,0,{},40,TEXT("Move pending"));}
         if(bServerActive&&Body)
         {
-            if(Approach.IsValid()&&!ResolveMoveTarget(PC,Approach)) {EndServer(Stopped,TEXT("Target no longer visible"));}
-            else if(!Body->GetCharacterMovement()->HasRootMotionSources()&&FVector::DistSquared2D(Body->GetActorLocation(),ServerGoal)<=FMath::Square(ServerAcceptance)&&FMath::Abs(Body->GetNavAgentLocation().Z-ServerGoal.Z)<=50)
+            AActor* Observed=Approach.IsValid()?ResolveMoveTarget(PC,Approach):nullptr;
+            bool InInteractionReach=false;
+            if(M&&M->IsEnvironmentProfile()&&Observed)
+            {
+                FVector Floor;bool WorldTarget=false;
+                if(const auto* Object=Cast<ALDWorldObject>(Observed)){Floor=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation()):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);WorldTarget=true;}
+                else if(Observed->IsA<ALDEnvironmentDoor>()){Floor=Observed->GetActorLocation()-FVector(0,0,130);WorldTarget=true;}
+                // An interaction approach ends at authoritative reach, not at a
+                // sub-centimetre waypoint on an independently rebuilt navmesh.
+                InInteractionReach=WorldTarget&&FVector::DistSquared2D(Body->GetActorLocation(),Floor)<=120.*120&&FMath::Abs(Body->GetNavAgentLocation().Z-Floor.Z)<=100;
+            }
+            if(Approach.IsValid()&&!Observed) {EndServer(Stopped,TEXT("Target no longer visible"));}
+            else if(!Body->GetCharacterMovement()->HasRootMotionSources()&&(InInteractionReach||(FVector::DistSquared2D(Body->GetActorLocation(),ServerGoal)<=FMath::Square(ServerAcceptance)&&FMath::Abs(Body->GetNavAgentLocation().Z-ServerGoal.Z)<=50)))
             {EndServer(Arrived,TEXT("Arrived"));}
             else
             {

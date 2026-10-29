@@ -42,7 +42,7 @@ TArray<FIntPoint> ALDCombatDirector::EnvironmentMask(ALDCharacter* Body,FVector 
     {FVector P=LDRiver::Centre(Id),Ground;if(Full){P.Z=EnvironmentSurfaceHint(Body,Aim,Id,Disk,Length);}
      if(LDGround::MapSurface(GetWorld(),P,Ground)&&(!Full||FMath::Abs(P.Z-Ground.Z)<=80)&&LDGround::ClearSegment(GetWorld(),Disk?Aim+FVector(0,0,30):Body->GetActorLocation(),Ground+FVector(0,0,30))){Mask.Add(Id);}}return Mask;
 }
-bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved)
+bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved,bool AllowEmptyFrost)
 {
     RetireEnvironment(At);if(RiverTransitionAt!=At/100){RiverTransitionAt=At/100;RiverEvaluations=0;}
     if(Q.Cells.IsEmpty()){return false;}
@@ -55,17 +55,19 @@ bool ALDCombatDirector::QueueEnvironment(FRiverCommand Q,int64 At,bool Reserved)
         const bool Ice=C.Frozen.Until>At;if(Transition(C,Q,FullMapEnvironment()?(ULDMapDefinition::Get(GetWorld())->RiverAt(FVector(LDRiver::Centre(Id).X,LDRiver::Centre(Id).Y,C.SurfaceZ))?uint8(LDEnvironment::Water):uint8(Q.FuelCells.Contains(Id)?LDEnvironment::Flammable:LDEnvironment::Stone)):LDEnvironment::Substrate(Id,River),At)){if(Q.Input==EInput::Shatter&&Ice){Q.Shattered.Add(Id);}Q.Outcomes.Add(Id,C);if(C.Mask(At)){Projected.Add(Id,C);}else{Projected.Remove(Id);}}}
     const FGuid Sponsor=Q.State.BudgetOwner.IsValid()?Q.State.BudgetOwner:Q.State.Owner;int32 Owned=0;for(const auto& P:Projected){Owned+=P.Value.Owned(Sponsor,At);}
     if(!Reserved&&(Projected.Num()+HeldEnvironment()>EnvironmentCapacity()||Owned+HeldEnvironment(Sponsor)>64)){return false;}
-    if(FullMapEnvironment()&&Q.Outcomes.IsEmpty()){return false;}
+    // A supported Frostline still damages dry bodies; it does not invent ice.
+    // Item-only surface requests retain strict outcome admission.
+    if(FullMapEnvironment()&&Q.Outcomes.IsEmpty()){return AllowEmptyFrost&&Q.Input==EInput::Frost;}
     if(!EnsureEnvironmentPool()){return false;}ProjectedEnvironment=MoveTemp(Projected);RiverCommands.Add(MoveTemp(Q));return true;
 }
-bool ALDCombatDirector::StageEnvironment(ALDCharacter* Body,FVector Aim,EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit,bool Cone)
+bool ALDCombatDirector::StageEnvironment(ALDCharacter* Body,FVector Aim,EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit,bool Cone,bool AllowEmptyFrost)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M||!M->IsV08Profile()||!BuildFor(Body)){return false;}
     auto Q=EnvironmentCommand(Body,Input,At,Duration);Q.Cells=EnvironmentMask(Body,Aim,Disk,Length,Input==EInput::Frost&&HasModifier(Body,TEXT("frost_radius"),At)?Width*1.1:Width,Limit,Cone);if(FullMapEnvironment()){for(auto Id:Q.Cells){FVector P=LDRiver::Centre(Id),Surface,Normal;P.Z=EnvironmentSurfaceHint(Body,Aim,Id,Disk,Length);if(!LDGround::MapSurface(GetWorld(),P,Surface,&Normal)){return false;}Q.Surfaces.Add(Id,Surface.Z);Q.Normals.Add(Id,Normal);}}
-    return QueueEnvironment(MoveTemp(Q),At);
+    return QueueEnvironment(MoveTemp(Q),At,false,AllowEmptyFrost);
 }
 bool ALDCombatDirector::StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration)
-{return StageEnvironment(Body,Aim,Frozen?EInput::Frost:EInput::Water,Disk,Length,Width,At,Duration);}
+{return StageEnvironment(Body,Aim,Frozen?EInput::Frost:EInput::Water,Disk,Length,Width,At,Duration,16,false,Frozen&&FullMapEnvironment());}
 FGuid ALDCombatDirector::ReserveEnvironment(ALDCharacter* Body,int32 Count,int64 At,int64 Duration)
 {
     RetireEnvironment(At);if(RiverTransitionAt!=At/100){RiverTransitionAt=At/100;RiverEvaluations=0;}auto Q=EnvironmentCommand(Body,EInput::Fire,At,Duration);const FGuid Sponsor=Q.State.BudgetOwner;

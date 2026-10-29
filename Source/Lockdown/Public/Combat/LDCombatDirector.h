@@ -230,7 +230,7 @@ public:
     void SampleRiver(int64 At);
     void CommitRiver(int64 At);
     bool StageRiver(ALDCharacter* Body,FVector Aim,bool Disk,bool Frozen,double Length,double Width,int64 At,int64 Duration);
-    bool StageEnvironment(ALDCharacter* Body,FVector Aim,LDEnvironment::EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit=16,bool Cone=false);
+    bool StageEnvironment(ALDCharacter* Body,FVector Aim,LDEnvironment::EInput Input,bool Disk,double Length,double Width,int64 At,int64 Duration,int32 Limit=16,bool Cone=false,bool AllowEmptyFrost=false);
     FGuid ReserveEnvironment(ALDCharacter* Body,int32 Cells,int64 At,int64 Duration);
     void ReleaseEnvironment(FGuid Lease);
     FGuid ReserveIgnition(ALDCharacter* Body,FVector Point,ALDWorldObject* Socket,int64 At);
@@ -271,7 +271,7 @@ private:
     void PublishFullMapSurfaces(int64 At);
     uint64 SurfaceViewRevision=0;
     FRiverCommand EnvironmentCommand(ALDCharacter* Body,LDEnvironment::EInput Input,int64 At,int64 Duration);
-    bool QueueEnvironment(FRiverCommand Command,int64 At,bool Reserved=false);
+    bool QueueEnvironment(FRiverCommand Command,int64 At,bool Reserved=false,bool AllowEmptyFrost=false);
     void RetireEnvironment(int64 At);
     int32 HeldEnvironment(FGuid Owner=FGuid()) const;
     TMap<FIntPoint,FRiverCell> RiverCells;

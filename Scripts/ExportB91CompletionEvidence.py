@@ -15,7 +15,8 @@ from CheckB91Fields import check as fields
 from CheckB91Checkpoint import check as checkpoint
 from CheckEconomyEvidence import verify
 
-def read(path):return json.loads(path.read_text(encoding='utf-8-sig'))
+def read(path):
+    raw=path.read_bytes();return json.loads(raw.decode('utf-16' if raw[:2] in (b'\xff\xfe',b'\xfe\xff') else 'utf-8-sig'))
 def validate(runs):
     for name,fn in [('combat',combat),('structural',structural),('doors',doors),('saplings',saplings),('grass',grass),('ignition',ignition),('tools',tools),('traversal',traversal),('objects',objects),('furniture',objects),('fields',fields)]:fn(runs[name])
     checkpoint(runs['checkpoint'],placement=True)

@@ -24,7 +24,7 @@ void ALDB91Controller::TickB91CombatProbe()
         else if(ProbeTask==2||ProbeTask==3){const auto Kind=ProbeTask==2?ELDItemKind::FrostPrism:ELDItemKind::FrostCapsule;const auto* Item=OwnerState.Inventory.Items.FindByPredicate([&](const auto& I){return I.Kind==Kind;});if(!Item||ProbeTask==2&&!Target){return;}SendItemAction(Item->Id,Target?Target->Handle:FGuid(),Ground);}
         else
         {
-            const uint8 Slot=ProbeTask==1||ProbeTask==4||ProbeTask==16?0:ProbeTask==6||ProbeTask==14?1:ProbeTask==7||ProbeTask==15?2:3;if((ProbeTask==7||ProbeTask==15)&&!Target){return;}const auto* D=ULDTacticalCatalog::Load(8)->Find(OwnerState.Build.Slots[Slot]);if(!D){return;}
+            const uint8 Slot=ProbeTask==1||ProbeTask==4||ProbeTask==16||ProbeTask==17?0:ProbeTask==6||ProbeTask==14?1:ProbeTask==7||ProbeTask==15?2:3;if((ProbeTask==7||ProbeTask==15)&&!Target){return;}const auto* D=ULDTacticalCatalog::Load(8)->Find(OwnerState.Build.Slots[Slot]);if(!D){return;}
             FLDTacticalRequest R;R.Schema=8;R.WireVersion=5;R.ActionKind=0;R.SourceKind=0;R.SourceDefinition=FName(*D->Id);R.TargetMode=uint8(D->Target);R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=NextCombatToken();R.BuildRevision=OwnerState.Build.Revision;R.InventoryRevision=OwnerState.Inventory.Revision;R.CatalogDigest=OwnerState.Build.CatalogDigest;R.Slot=Slot;R.Point=Ground;R.Direction=(Ground-GetPawn()->GetActorLocation()).GetSafeNormal2D();if(Target){R.Observed=Target->Handle;}FieldProbeRequest=R;ServerTacticalAction(R);
         }
         ProbeSent=true;FieldProbeFeedback=FeedbackSerial();ProbeHoldAt=Now;

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[ValidateRange(1,8)][int]$MaxParallelActions=2)
+param([string]$EngineRoot,[switch]$StopOnFailure,[ValidateRange(1,8)][int]$MaxParallelActions=2)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $completionOutput=New-LDArtifactDirectory 'B91-CompletionRun'
 $completionRuns=@{}
@@ -13,6 +13,7 @@ function Invoke-CompletionCase([string]$Name,[string]$Script,[hashtable]$Options
     $script:completionResults+=@{case=$Name;passed=$passed;detail=$detail}
     $completionRuns | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $completionOutput 'Runs.json') -Encoding utf8
     $completionResults | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $completionOutput 'Results.json') -Encoding utf8
+    if($StopOnFailure -and -not $passed){throw "B91 case $Name failed: $completionOutput"}
 }
 Invoke-CompletionCase 'editor' 'BuildEditor' @{MaxParallelActions=$MaxParallelActions;FullUnity=$true}
 if(-not $completionResults[-1].passed){throw "B91 editor build failed: $completionOutput"}
