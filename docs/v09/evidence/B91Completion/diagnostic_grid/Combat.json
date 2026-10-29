@@ -1,0 +1,176 @@
+{
+	"complete": true,
+	"phase": 15,
+	"failures": 1,
+	"checks": [
+		{
+			"case": "Two remote owners use full-map combat sources",
+			"passed": true
+		},
+		{
+			"case": "Tagged plateau side edge blocks only uphill sight with clear physical downslope ray",
+			"passed": true
+		},
+		{
+			"case": "Same-band river sight retains ordinary geometry",
+			"passed": true
+		},
+		{
+			"case": "Fixture selects a clear physical river floor beyond legacy bounds",
+			"passed": true
+		},
+		{
+			"case": "Labelled combat fixture creates one physical catalog item",
+			"passed": true
+		},
+		{
+			"case": "Labelled combat fixture creates one physical catalog item",
+			"passed": true
+		},
+		{
+			"case": "Labelled combat fixture creates one physical catalog item",
+			"passed": true
+		},
+		{
+			"case": "Labelled combat fixture creates one physical catalog item",
+			"passed": true
+		},
+		{
+			"case": "Labelled combat fixture creates one physical catalog item",
+			"passed": true
+		},
+		{
+			"case": "Actual full-map river contact applies Wet before casting",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase1 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Direct Frost on river Wet attempts600ms Stun with6000ms victim lock",
+			"passed": true
+		},
+		{
+			"case": "Prepared Frostline spends real MP and starts cooldown",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase2 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Bound Frost Prism cannot repeat the victim reaction inside its lock",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase3 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Consumed Frost Capsule adds frozen-floor slow without direct Stun or lock refresh",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase4 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Diagnostic Control Guard blocks Stun while consuming the next reaction attempt",
+			"passed": true
+		},
+		{
+			"case": "Reaction endpoint is stored outside the destroyed body",
+			"passed": true
+		},
+		{
+			"case": "Actual life return retains the victim reaction endpoint",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase6 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Paid Water Jet refreshes actual full-map Wet",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase7 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Paid direct Fire on Wet creates symmetric Steam union occlusion",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase8 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Stale unit handle across Steam spends no MP and has no hidden body payload",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase9 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Prepared Gust clears the selected Steam corridor and recalculates authorization",
+			"passed": true
+		},
+		{
+			"case": "Paid detector fixture selects fitted flat grass",
+			"passed": true
+		},
+		{
+			"case": "Real grass outside proximity hides before the paid detector",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase10 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Bound Seers Dust consumes once and its real catalog detector reveals grass beyond200cm",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase11 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Physical wall blocks the paid detector and suppresses restricted body payload",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase12 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Actual detector expiry revokes grass authorization without manual field deletion",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase13 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Ordinary remote basic attack reveals grass after the real detector has expired",
+			"passed": true
+		},
+		{
+			"case": "Native dry Heart approach has supported clear combat geometry",
+			"passed": true
+		},
+		{
+			"case": "Both restricted combat phase14 snapshots complete",
+			"passed": true
+		},
+		{
+			"case": "Prepared Water Jet pays for Wet on the dry Heart approach",
+			"passed": false
+		}
+	],
+	"scope": "Diagnostic catalog items, learned build and bindings; actual remote requests, MP/cooldowns, consumption, physical river and life return. Normal acquisition is B92."
+}

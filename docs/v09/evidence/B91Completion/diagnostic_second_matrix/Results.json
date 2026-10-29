@@ -1,0 +1,22 @@
+[
+  {
+    "passed": true,
+    "case": "editor",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "rules",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "combat",
+    "detail": ""
+  },
+  {
+    "passed": false,
+    "case": "encounter",
+    "detail": "Encounter evidence rejected: D:\\Unreal Projects\\Lockdown\\Artifacts\\20261029-170102-565-B91Encounter-Network"
+  }
+]

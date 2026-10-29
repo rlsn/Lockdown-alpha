@@ -1,0 +1,13 @@
+{
+	"completed": true,
+	"phase": 7,
+	"reason": "Stopped",
+	"body_count": 1,
+	"old_handle_resolved": false,
+	"surface_count": 2,
+	"surface_fields": [
+		"Position",
+		"Revision",
+		"States"
+	]
+}

@@ -1,0 +1,15 @@
+{
+	"fixture": "fields",
+	"phase": 4,
+	"completed": true,
+	"reason": "Released once; no refund for blocked/missed effect",
+	"owned_item": false,
+	"surface_count": 4,
+	"states": 1,
+	"capacity_retained": true,
+	"wire_fields": [
+		"Position",
+		"Revision",
+		"States"
+	]
+}

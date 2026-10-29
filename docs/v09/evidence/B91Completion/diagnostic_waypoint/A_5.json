@@ -1,0 +1,9 @@
+{
+	"phase": 5,
+	"completed": true,
+	"reason": "Move accepted",
+	"result": 0,
+	"other_body_seen": false,
+	"position": "X=-88104.444 Y=-71295.648 Z=92.150",
+	"navigation": "Move accepted"
+}

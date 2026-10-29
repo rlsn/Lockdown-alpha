@@ -93,3 +93,14 @@ Separate four conclusions: does the mechanic function, do users understand it, d
 ## Presentation direction
 
 Prioritize silhouette, target category, range/ground footprint and effect timing over visual spectacle. Reuse recognizable cues for Silence/Mute/Root/Stun rather than differentiating only by color. Ambient city activity should make service fronts legible; music/audio intensity may support convergence without disclosing hidden positions. Final art/audio production remains a later pass on a verified interaction language.
+
+## Reference journey as a development check
+
+The [B91 Riverport reference](../v09/B91_COMPLETION.md) now tests one connected
+sequence: public frontage, rear entry, warehouse storage, a shared roof link,
+permanent-stair return, source-based harvest and grass escape. Its starting tools
+are existing finite instances staged for the test. Native movement, private
+quotes, bindings, channels, concealment and saved consequences establish the
+mechanic boundary. They leave the human questions open: whether the route is
+readable, whether the tools are worth obtaining, and whether an actual rival
+makes the choice interesting. B92 must supply that acquisition and opposition.

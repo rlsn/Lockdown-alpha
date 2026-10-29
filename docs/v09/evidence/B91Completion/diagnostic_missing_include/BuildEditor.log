@@ -1,0 +1,85 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -MaxParallelActions=3
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Executing up to 3 actions based on MaxProcessorCount override
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+Creating makefile for LockdownEditor (command line arguments changed)
+UbaServer - Listening on 0.0.0.0:1345
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+[Adaptive Build] Excluded from Lockdown unity file: LDCombatCheckpoint.cpp, LDCombatDirector.cpp, LDContentActions.cpp, LDContentGeometry.cpp, LDElementContact.cpp, LDFullMapSurfaces.cpp, LDIgnitionEnvironment.cpp, LDRiverEnvironment.cpp, LDTacticalExecution.cpp, LDTacticalFields.cpp, LDV08Catalog.cpp, LDGameMode.cpp, LDNavigationComponent.cpp, LDMapDefinition.cpp, LDB90RulesTests.cpp, LDB91CombatProbe.cpp, LDB91CombatProbeClient.cpp, LDB91Controller.cpp, LDB91FieldsProbeClient.cpp, LDB91Forest.cpp, LDB91GrassProbeClient.cpp, LDB91IgnitionProbeClient.cpp, LDB91NetClient.cpp, LDB91ObjectsClient.cpp, LDB91ObjectsProbeClient.cpp, LDB91SaplingsProbeClient.cpp, LDB91SourceControls.cpp, LDB91SourceHUD.cpp, LDB91SurfaceClient.cpp, LDB91ToolsProbeClient.cpp, LDB91TraversalProbeClient.cpp, LDEnvironmentDirector.cpp, LDWorldClock.cpp, LDWorldObjects.cpp
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 46 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 31.15 GB/39.84 GB committed
+  UBA Storage capacity 40 GB
+[1/46] Compile [x64] LDB90RulesTests.cpp
+[2/46] Compile [x64] LDB91CombatProbe.cpp
+[3/46] Compile [x64] LDB91CombatProbeClient.cpp
+[4/46] Compile [x64] LDB91Controller.cpp
+[5/46] Compile [x64] LDB91FieldsProbeClient.cpp
+[6/46] Compile [x64] LDB91Forest.cpp
+[7/46] Compile [x64] LDB91GrassProbeClient.cpp
+[8/46] Compile [x64] LDB91IgnitionProbeClient.cpp
+[9/46] Compile [x64] LDB91NetClient.cpp
+[10/46] Compile [x64] LDB91ObjectsClient.cpp
+[11/46] Compile [x64] LDB91ObjectsProbeClient.cpp
+[12/46] Compile [x64] LDB91SaplingsProbeClient.cpp
+[13/46] Compile [x64] LDB91SourceControls.cpp
+[14/46] Compile [x64] LDB91SourceHUD.cpp
+[15/46] Compile [x64] LDB91SurfaceClient.cpp
+[16/46] Compile [x64] LDB91ToolsProbeClient.cpp
+[17/46] Compile [x64] LDB91TraversalProbeClient.cpp
+[18/46] Compile [x64] LDCombatCheckpoint.cpp
+[19/46] Compile [x64] LDCombatDirector.cpp
+[20/46] Compile [x64] LDContentActions.cpp
+[21/46] Compile [x64] LDContentGeometry.cpp
+[22/46] Compile [x64] LDElementContact.cpp
+[23/46] Compile [x64] LDEnvironmentDirector.cpp
+[24/46] Compile [x64] LDFullMapSurfaces.cpp
+[25/46] Compile [x64] LDGameMode.cpp
+[26/46] Compile [x64] LDIgnitionEnvironment.cpp
+[27/46] Compile [x64] LDMapDefinition.cpp
+[28/46] Compile [x64] LDNavigationComponent.cpp
+[29/46] Compile [x64] LDRiverEnvironment.cpp
+[30/46] Compile [x64] LDTacticalExecution.cpp
+[31/46] Compile [x64] LDTacticalFields.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(28,83): error C2653: 'ALDWorldObjects': is not a class or namespace name
+{const auto* S=StateFor(Body);if(!S){return false;}const auto* Grass=IncludeGrass?ALDWorldObjects::Get(GetWorld()):nullptr;return (Grass&&Grass->GrassConcealed(Body))||(S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
+                                                                                  ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(28,100): error C3861: 'Get': identifier not found
+{const auto* S=StateFor(Body);if(!S){return false;}const auto* Grass=IncludeGrass?ALDWorldObjects::Get(GetWorld()):nullptr;return (Grass&&Grass->GrassConcealed(Body))||(S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
+                                                                                                   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(28,132): error C3536: 'Grass': cannot be used before it is initialized
+{const auto* S=StateFor(Body);if(!S){return false;}const auto* Grass=IncludeGrass?ALDWorldObjects::Get(GetWorld()):nullptr;return (Grass&&Grass->GrassConcealed(Body))||(S->CoverConcealed&&HasModifier(Body,TEXT("cover_concealment"),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())))||S->Tactical.ConcealedUntil>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());}
+                                                                                                                                   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(29,90): error C2653: 'ALDWorldObjects': is not a class or namespace name
+void ALDCombatDirector::BreakConcealment(ALDCharacter* Body,bool Offense){if(auto* Grass=ALDWorldObjects::Get(GetWorld())){Grass->InterruptGrass(Body,Offense);}if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
+                                                                                         ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(29,107): error C3861: 'Get': identifier not found
+void ALDCombatDirector::BreakConcealment(ALDCharacter* Body,bool Offense){if(auto* Grass=ALDWorldObjects::Get(GetWorld())){Grass->InterruptGrass(Body,Offense);}if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
+                                                                                                          ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDTacticalFields.cpp(29,89): error C3535: cannot deduce type for 'auto *' from '<error type>'
+void ALDCombatDirector::BreakConcealment(ALDCharacter* Body,bool Offense){if(auto* Grass=ALDWorldObjects::Get(GetWorld())){Grass->InterruptGrass(Body,Offense);}if(auto* S=StateFor(Body)){S->Tactical.ConcealedUntil=0;S->CoverConcealed=false;S->CoverSince=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());S->CoverAnchor=Body->GetActorLocation();}}
+                                                                                        ^
+[32/46] Compile [x64] LDV08Catalog.cpp
+[33/46] Compile [x64] LDWorldClock.cpp
+[34/46] Compile [x64] LDWorldObjects.cpp
+[35/46] Compile [x64] Module.Lockdown.1.cpp
+[36/46] Compile [x64] Module.Lockdown.2.cpp
+[37/46] Compile [x64] Module.Lockdown.3.cpp
+[38/46] Compile [x64] Module.Lockdown.4.cpp
+[39/46] Compile [x64] Module.Lockdown.7.cpp
+[40/46] Compile [x64] Module.Lockdown.8.cpp
+[41/46] Compile [x64] LDB90BootstrapCommandlet.cpp
+[42/46] Link [x64] UnrealEditor-LockdownEditor.lib
+Total time in Unreal Build Accelerator local executor: 295.94 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 304.63 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 48.9kb

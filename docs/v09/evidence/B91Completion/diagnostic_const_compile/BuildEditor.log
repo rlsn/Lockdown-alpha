@@ -1,0 +1,40 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -MaxParallelActions=3
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Executing up to 3 actions based on MaxProcessorCount override
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+[Adaptive Build] Excluded from Lockdown unity file: LDCombatCheckpoint.cpp, LDCombatDirector.cpp, LDContentActions.cpp, LDContentGeometry.cpp, LDElementContact.cpp, LDEnvironmentRules.cpp, LDFullMapSurfaces.cpp, LDIgnitionEnvironment.cpp, LDRiverEnvironment.cpp, LDTacticalExecution.cpp, LDTacticalFields.cpp, LDV08Catalog.cpp, LDGameMode.cpp, LDNavigationComponent.cpp, LDMapDefinition.cpp, LDB90RulesTests.cpp, LDB91CombatProbe.cpp, LDB91EncounterProbe.cpp, LDB91SurfaceRulesTests.cpp, LDB91CombatProbeClient.cpp, LDB91Controller.cpp, LDB91EncounterProbeClient.cpp, LDB91FieldsProbeClient.cpp, LDB91Forest.cpp, LDB91GrassProbeClient.cpp, LDB91IgnitionProbeClient.cpp, LDB91NetClient.cpp, LDB91ObjectsClient.cpp, LDB91ObjectsProbeClient.cpp, LDB91SaplingsProbeClient.cpp, LDB91SourceControls.cpp, LDB91SourceHUD.cpp, LDB91SurfaceClient.cpp, LDB91ToolsProbeClient.cpp, LDB91TraversalProbeClient.cpp, LDCheckpointGeometry.cpp, LDEnvironmentDirector.cpp, LDSaplings.cpp, LDWorldCheckpoint.cpp, LDWorldClock.cpp, LDWorldForestry.cpp, LDWorldGrass.cpp, LDWorldIgnition.cpp, LDWorldObjects.cpp, LDWorldTools.cpp, LDWorldTraversal.cpp
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 13 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 35.67 GB/39.84 GB committed
+  UBA Storage capacity 40 GB
+[1/13] Compile [x64] LDB91EncounterProbeClient.cpp
+[2/13] Compile [x64] LDB91SurfaceRulesTests.cpp
+[3/13] Compile [x64] LDEnvironmentRules.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDEnvironmentRules.cpp(66,13): error C3892: 'Inside': you cannot assign to a variable that is const
+            Inside=FMath::LineBoxIntersection(Box,A,B,B-A);
+            ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Combat\LDEnvironmentRules.cpp(68,167): error C3892: 'Inside': you cannot assign to a variable that is const
+            for(int Edge=0;Edge<4&&!Inside;++Edge){FVector NearBeam,NearEdge;FMath::SegmentDistToSegmentSafe(A,B,Corners[Edge],Corners[(Edge+1)%4],NearBeam,NearEdge);Inside=FVector::DistSquared(NearBeam,NearEdge)<=Width*Width;}
+                                                                                                                                                                      ^
+[4/13] Compile [x64] LDRiverEnvironment.cpp
+[5/13] Compile [x64] Module.Lockdown.2.cpp
+[6/13] Compile [x64] Module.Lockdown.3.cpp
+[7/13] Compile [x64] Module.Lockdown.4.cpp
+[8/13] Compile [x64] Module.Lockdown.5.cpp
+[9/13] Compile [x64] Module.Lockdown.6.cpp
+[10/13] Compile [x64] Module.Lockdown.7.cpp
+Total time in Unreal Build Accelerator local executor: 430.75 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 463.20 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 52.2kb

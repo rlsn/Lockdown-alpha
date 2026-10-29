@@ -1,0 +1,14 @@
+{
+  "stage": "B91",
+  "status": "Structural/door increment passed; full stage remains open",
+  "contract": "4137f1de587c7f9577565d218ecfdf02de85711859ff8399282320c159dd9bfc",
+  "native_checks": 75,
+  "interior_walks": 36,
+  "stair_walks": 16,
+  "actual_walk_seconds": 267.21668060310185,
+  "closed_door_capsules": 72,
+  "closed_door_rays": 72,
+  "open_door_capsules": 72,
+  "windows_with_eye_clearance_and_capsule_block": 72,
+  "falling_seconds": 0
+}

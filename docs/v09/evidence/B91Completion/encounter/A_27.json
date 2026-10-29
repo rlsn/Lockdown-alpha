@@ -1,0 +1,10 @@
+{
+	"phase": 27,
+	"completed": true,
+	"reason": "Ignited once:1s fuel,12s cooldown,3s bounded fire; no harvest reward",
+	"result": 1,
+	"other_body_seen": false,
+	"position": "X=-86230.725 Y=-69369.824 Z=92.150",
+	"navigation": "Stopped",
+	"explicit_move_retries": 0
+}

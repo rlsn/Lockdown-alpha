@@ -143,3 +143,10 @@ with a real bound knife, select Harvest or Chop, confirm once and see the4s
 channel. Harvest yields one finite Fiber; Chop yields none. Neither F nor Z
 exists as a tree command. Binding, storing or transferring the same knife does
 not multiply it. See the [current control decision](../v09/CONTROL_POLICY_OVERRIDE.md).
+
+An issued source order should preserve the player's intention while approaching.
+For a visible target outside item reach, confirm once, walk into legal range,
+then begin the channel and its progress display. Reserve or spend at the proper
+authoritative start/commit, rather than charging for the walk. S, a new movement
+order or lost eligibility can end the approach. The target's current observed
+handle, item binding and eligibility must be rechecked on arrival.

@@ -1,0 +1,264 @@
+{
+	"complete": true,
+	"failures": 0,
+	"phase": 8,
+	"checks": [
+		{
+			"case": "Two independent remote portable-tool owners",
+			"passed": true
+		},
+		{
+			"case": "Three Standard physical tools overlay the unchanged 80-item catalog",
+			"passed": true
+		},
+		{
+			"case": "Exact 48 finite tools and initial retained fuel",
+			"passed": true
+		},
+		{
+			"case": "All24 torches and12 lanterns start full once; ropes have no fuel or stats",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 1 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Pickup adopts the original finite Torch instance",
+			"passed": true
+		},
+		{
+			"case": "Observer receives no foreign physical item identity",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 2 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Quiet binding consumes no fuel and creates no extra quick reference",
+			"passed": true
+		},
+		{
+			"case": "Bound tools grant no passive sight, detection or armor",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 3 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Bound toggle and duplicate replay light the same instance once",
+			"passed": true
+		},
+		{
+			"case": "Cosmetic light preserves the authoritative 18m sight radius",
+			"passed": true
+		},
+		{
+			"case": "Lit tools do not expand Blind sight",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 4 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Mute rejects activation without extinguishing or refilling the item",
+			"passed": true
+		},
+		{
+			"case": "Light grants no out-of-range body observation",
+			"passed": true
+		},
+		{
+			"case": "Lit unbinding retains one physical fuel clock",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 5 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Dropped Torch remains lit at its actual observed ground proxy",
+			"passed": true
+		},
+		{
+			"case": "Known dropped identity cannot remotely activate the ground emitter",
+			"passed": true
+		},
+		{
+			"case": "Cosmetic ground light creates no automatic fire or combat field",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 6 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Repickup and accessory swap retain the same burning fuel instance",
+			"passed": true
+		},
+		{
+			"case": "Bound tool drops on end-life without resetting fuel",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 7 reports complete",
+			"passed": true
+		},
+		{
+			"case": "New life recovers the original still-burning instance",
+			"passed": true
+		},
+		{
+			"case": "Expiry fixture only reduces existing retained fuel",
+			"passed": true
+		},
+		{
+			"case": "Both remote portable phase 8 reports complete",
+			"passed": true
+		},
+		{
+			"case": "Actual expiry stays empty; later activation cannot refill fuel",
+			"passed": true
+		},
+		{
+			"case": "Expired light disappears from owner and observed body presentation",
+			"passed": true
+		},
+		{
+			"case": "All143 finite physical identities survive binding, fuel and life changes",
+			"passed": true
+		}
+	],
+	"fuel_trace": [
+		{
+			"tag": "initial",
+			"world_seconds": 7.0291765034198761,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 180000,
+			"lit": false,
+			"revision": 1,
+			"binding_mask": 0,
+			"location": "ground"
+		},
+		{
+			"tag": "pickup",
+			"world_seconds": 8.6173099018633366,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 180000,
+			"lit": false,
+			"revision": 2,
+			"binding_mask": 0,
+			"location": "owner:A"
+		},
+		{
+			"tag": "bound",
+			"world_seconds": 10.724890902638435,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 180000,
+			"lit": false,
+			"revision": 3,
+			"binding_mask": 128,
+			"location": "owner:A"
+		},
+		{
+			"tag": "lit",
+			"world_seconds": 11.279365204274654,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 179478,
+			"lit": true,
+			"revision": 4,
+			"binding_mask": 128,
+			"location": "owner:A"
+		},
+		{
+			"tag": "unbound",
+			"world_seconds": 15.580706104636192,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 175177,
+			"lit": true,
+			"revision": 5,
+			"binding_mask": 0,
+			"location": "owner:A"
+		},
+		{
+			"tag": "ground",
+			"world_seconds": 16.259747501462698,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 174498,
+			"lit": true,
+			"revision": 6,
+			"binding_mask": 0,
+			"location": "ground"
+		},
+		{
+			"tag": "swapped",
+			"world_seconds": 18.927663404494524,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 171830,
+			"lit": true,
+			"revision": 8,
+			"binding_mask": 256,
+			"location": "owner:A"
+		},
+		{
+			"tag": "life_drop",
+			"world_seconds": 18.927663404494524,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 171830,
+			"lit": true,
+			"revision": 9,
+			"binding_mask": 0,
+			"location": "ground"
+		},
+		{
+			"tag": "life_return",
+			"world_seconds": 35.246741201728582,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 155511,
+			"lit": true,
+			"revision": 9,
+			"binding_mask": 0,
+			"location": "ground"
+		},
+		{
+			"tag": "recovered",
+			"world_seconds": 35.952975302934647,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 154805,
+			"lit": true,
+			"revision": 10,
+			"binding_mask": 0,
+			"location": "owner:A"
+		},
+		{
+			"tag": "diagnostic_fuel_burn",
+			"world_seconds": 38.042993701994419,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 1400,
+			"lit": true,
+			"revision": 12,
+			"binding_mask": 128,
+			"location": "owner:A"
+		},
+		{
+			"tag": "empty",
+			"world_seconds": 39.580782804638147,
+			"item": "BD817F0143FCCA95864DBBA6BC9B3A85",
+			"remaining_ms": 0,
+			"lit": false,
+			"revision": 13,
+			"binding_mask": 128,
+			"location": "owner:A"
+		}
+	],
+	"initial_items": 143,
+	"final_items": 143,
+	"conserved": true,
+	"base_equipment_count": 80,
+	"bindings": 11,
+	"actions": 6,
+	"scope": "Two independent headless owners, real RPC/quiet preparation and actual-clock fuel. Expiry setup consumes remaining fuel down to 1400ms; it never refills or creates an item. Socket fire, rope/ladder links and full-stage acceptance remain open."
+}

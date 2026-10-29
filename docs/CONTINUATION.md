@@ -1,4 +1,33 @@
-# Active continuation — B91 functional environment
+# Active continuation — B92 ready
+
+B91 is [complete at its functional-environment boundary](v09/B91_COMPLETION.md),
+native source **8c591a686b6dc91a4db3ae2e4c9a03cce447f746**, with [frozen evidence](v09/evidence/B91Completion/README.md).
+The final21-entry native matrix and both full-unity Development targets pass.
+Results include56 rule tests,50 full-map combat checks,44 rendered connected-journey
+checks plus3 earned-restart checks,75 structural checks/52 walks,3,000 scenery
+trunks,6,000 blocker rays,864 spawn/service-front paths, and the retained object,
+tool, traversal, source, field, grass and59-check checkpoint suites. Inherited
+fields retain616 assertions;414 receipts replay to9 accounts,323 unique items and
+4482 gold. All148 protected assets and59 supplied files remain unchanged.
+
+The rendered journey records231.342m, zero falling and zero explicit movement
+retries. One source confirmation approaches, waits for authoritative reach and
+channels; S cancels. RMB handles ordinary pickup/doors and LMB handles storage/
+traders. Free contextual lockpick/force is superseded by the user's source policy;
+no breaching item is selected. Source-backed harvest, paid detector/Steam/Gust,
+Wet/dry Heart approaches, persistent cover consequences and a fresh native world
+reload are verified. Master revision20 consolidates the product frontier.
+
+Proceed with B92's bounded economy and living population: audit inherited
+starters against the full-profile endowments, initialize five market pools and
+shared stocks once, connect normal acquisition/contracts and finite sources,
+then roster/routines/local security and legal AI progression. Preserve B91's
+identity, observation, placement and input guarantees. Full account/economy
+recovery follows those systems. B93 victory and B94 full-session/human/hardware
+acceptance remain open; B91's review profile has four owner seats and no live
+population/economy/Heart executor.
+
+## Prior B91 checkpoints
 
 The current increment is [ranged basic sapling damage](v09/B91_RANGED.md),
 source **279d434308c09c8ad8914120f6f010e657f49b27**, with [frozen evidence](v09/evidence/B91Ranged/README.md).

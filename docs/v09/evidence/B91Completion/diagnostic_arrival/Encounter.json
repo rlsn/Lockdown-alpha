@@ -1,0 +1,139 @@
+{
+	"complete": true,
+	"phase": 22,
+	"failures": 1,
+	"checks": [
+		{
+			"case": "Reference uses named finite storage, foliage, grass, roof anchor and existing tools",
+			"passed": true
+		},
+		{
+			"case": "Riverport warehouse crate is physically indoors with its original empty storage",
+			"passed": true
+		},
+		{
+			"case": "Labelled starting-tool fixture transfers three existing instances without minting",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase1 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase2 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase3 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase4 completes",
+			"passed": true
+		},
+		{
+			"case": "One RMB order opens the rear after walking from public frontage",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase5 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase6 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase7 completes",
+			"passed": true
+		},
+		{
+			"case": "Real storage transaction places the original Knife inside the warehouse crate",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase8 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase9 completes",
+			"passed": true
+		},
+		{
+			"case": "Current private container quote recovers exactly the stored Knife identity",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase10 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase11 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase12 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase13 completes",
+			"passed": true
+		},
+		{
+			"case": "Prepared original Rope installs at the approved Riverport roof pair",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase14 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual optional link takes the same owner onto the supported roof landing",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase15 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase16 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase17 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase18 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase19 completes",
+			"passed": true
+		},
+		{
+			"case": "Deployer recovers the same portable Rope after a permanent-stair return",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase20 completes",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase21 completes",
+			"passed": true
+		},
+		{
+			"case": "Harvest confirmation begins outside item reach",
+			"passed": true
+		},
+		{
+			"case": "Actual remote reference phase22 completes",
+			"passed": false
+		}
+	],
+	"routes": [],
+	"walked_cm": 17022.891652931106,
+	"falling_s": 0,
+	"scope": "Named existing tools are staged in the initial inventory; one remote owner then walks and uses real pointer/item/storage/traversal/channel commands continuously. Peer watches grass. Settled ownerless checkpoint preserves world consequences; account/economy resume and normal item acquisition are later-stage."
+}

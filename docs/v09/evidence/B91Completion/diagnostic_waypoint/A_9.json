@@ -1,0 +1,9 @@
+{
+	"phase": 9,
+	"completed": true,
+	"reason": "Object transaction committed",
+	"result": 1,
+	"other_body_seen": false,
+	"position": "X=-88130.420 Y=-71386.085 Z=92.150",
+	"navigation": "Stopped"
+}

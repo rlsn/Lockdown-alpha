@@ -1,5 +1,9 @@
 # B91 — functional environment
 
+Current stage status and consolidated acceptance belong to the
+[B91 completion record](B91_COMPLETION.md); the [control override](CONTROL_POLICY_OVERRIDE.md)
+supersedes the free/held shortcuts described below.
+
 This is the historical structural/door checkpoint. The later
 [finite storage/cargo](B91_OBJECTS.md), [portable fuel](B91_TOOLS.md) and
 [approved traversal](B91_TRAVERSAL.md) reports record later object progress;

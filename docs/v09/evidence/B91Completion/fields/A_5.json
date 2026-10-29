@@ -1,0 +1,15 @@
+{
+	"fixture": "fields",
+	"phase": 5,
+	"completed": true,
+	"reason": "Accepted; authoritative release/held channel revalidates legality",
+	"owned_item": true,
+	"surface_count": 4,
+	"states": 1,
+	"capacity_retained": true,
+	"wire_fields": [
+		"Position",
+		"Revision",
+		"States"
+	]
+}

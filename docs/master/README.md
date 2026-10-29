@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 19 · 29 October 2026 · Long-term product and design reference
+Revision 20 · 29 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -8,26 +8,27 @@ The intended experience is **stealth developing into chaos**: establish a life a
 
 This directory explains the game across releases. Exact current rules belong to active release contracts; actual coverage belongs to implementation reports and evidence. The native baseline reviewed for this revision is **v0.8 B86, commit ebc19a5**. v0.9 adds the full-map contract and B90 spatial implementation; later gameplay and full-session gates remain open. See [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md) and [continuation](../CONTINUATION.md).
 
-The [B90 world skeleton is complete](../v09/B90_COMPLETION.md) at its spatial
-boundary: native journeys, movement boundaries, river/ice contact, key-target
-approaches, settlement/service mapping, doorway clearance, deterministic saved
-geometry and actual reset/profile isolation. F6 exposes public settlement
-geography and policy outlines; live services and guards remain B92 work. The
-current implementation stage is [B91's functional environment](../v09/B91_IMPLEMENTATION.md),
-with structural interiors, permanent stairs and native door authority verified.
-The [storage/cargo checkpoint](../v09/B91_OBJECTS.md) adds finite ownership and
-crate/barrel transport. [Portable tools](../v09/B91_TOOLS.md) now retain fuel and
-provide cosmetic light. [Approved ladder/rope links](../v09/B91_TRAVERSAL.md)
-add shared optional vertical routes with safe interrupted traversal.
-[Fixed furniture](../v09/B91_FURNITURE.md) provides private storage with
-separate walking and sight behavior. [Paid full-map fields](../v09/B91_FIELDS.md)
-now connect Water/Oil Flasks to supported terrain, bounded allocation and
-restricted observation. [Torch socket ignition](../v09/B91_IGNITION.md) now
-adds finite fuel commitments, reserved fields and irreversible sapling clearance.
-The [control policy](../v09/CONTROL_POLICY_OVERRIDE.md) supersedes the old held F/Z/R object shortcuts. The [control increment](../v09/B91_CONTROLS.md) adds a finite Forestry Knife and source targeting, pointer interaction and owner progress. [Issued-command liveness](../v09/B91_LIVENESS.md) now tolerates transient heartbeat gaps and passes the rendered source scenario while preserving immediate stop/interruption. The [grass checkpoint](../v09/B91_GRASS.md) adds all96 finite patches with geometry-gated concealment and paid Torch clearance. [Checkpoint placement validation](../v09/B91_PLACEMENT.md) checks full cargo footprints before restoration. [Settled checkpoints](../v09/B91_CHECKPOINT.md) now preserve exact environment mutations across restart; full owner/economy resume, broader spell fields and density remain. [Ranged basic attacks](../v09/B91_RANGED.md) now damage finite saplings through traveling projectiles; normal bow acquisition remains later-stage work. [Saplings](../v09/B91_SAPLINGS.md) now support finite harvest,
-chop, ordinary melee and paid Torch burning; spell damage and full live-match
-restoration remain open. Living population,
-full-map economy and earned victory integration remain on the delivery frontier.
+The [B90 world skeleton](../v09/B90_COMPLETION.md) establishes connected native
+terrain, roads, rivers, settlements and permanent approaches. The
+[B91 completion review](../v09/B91_COMPLETION.md) now brings those places into the
+interaction system: interiors and doors, finite storage/cargo, portable tools,
+optional roof links, mutable foliage, grass concealment, directional ledges,
+paid environment reactions and 3,000 fixed scenery trunks. Its connected
+Riverport journey, earned environment reload and final native regression matrix
+pass. B91 is complete at its functional-environment boundary.
+
+The [control decision](../v09/CONTROL_POLICY_OVERRIDE.md) governs every new object:
+ordinary pointer interactions, real prepared abilities/items, normal attacks or
+eligible automatic POIs. There is no generic world-interaction key. One
+confirmation can approach and channel; S stops the order. World consequences
+persist through a [settled checkpoint](../v09/B91_CHECKPOINT.md), while full
+account/economy recovery belongs to later integration.
+
+The next product layer is B92: make the environment support an actual life,
+finite acquisition, local services and believable opposition. B93 connects
+those earned preparations to victory; B94 tests duration, multiplayer stress,
+readability and human pacing. A functioning environment alone does not establish
+that the complete match is engaging or balanced.
 
 ## Reading paths
 

@@ -1,0 +1,21 @@
+{
+	"fixture": "grass",
+	"phase": 3,
+	"completed": true,
+	"body_seen": false,
+	"body_handle": "",
+	"result": 0,
+	"duplicate_same": true,
+	"object_count": 0,
+	"surface_count": 0,
+	"wire_fields": [
+		"Handle",
+		"PublicDoor",
+		"Position",
+		"Revision",
+		"State",
+		"Presentation",
+		"Facing",
+		"Light"
+	]
+}

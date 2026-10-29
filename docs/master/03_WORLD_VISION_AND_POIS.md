@@ -134,3 +134,18 @@ are not instant object interactions. Damage produces no harvest reward. Keep
 tool-based harvesting distinct from destructive clearance, without adding a
 world-interaction key. [Current ranged coverage](../v09/B91_RANGED.md) uses a
 diagnostic build until normal full-map weapon acquisition is available.
+
+## Functional cover and scenery
+
+Separate an obstacle's visual category from its resource promise. Finite saplings
+and grass can be changed by their authored sources; fixed forest scenery blocks
+walking and sight without producing loot or accepting a harvest/burn socket.
+Keep essential roads, service fronts, spawns and traversal landings clear. A
+procedural placement must preserve those routes in the native world.
+
+High ground grants a directional information advantage at tagged side ledges,
+subject to ordinary walls, trees, smoke and range. Ramps remain readable openings
+in those edges. Height does not add range, damage or miss chance. An elevated
+roof is a route and observation choice, not permission to see through its shell.
+Permanent stairs and optional shared links should create alternatives rather
+than inventory checks on ordinary access.

@@ -1,0 +1,107 @@
+[
+  {
+    "passed": true,
+    "case": "editor",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "rules",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "combat",
+    "detail": ""
+  },
+  {
+    "passed": false,
+    "case": "encounter",
+    "detail": "Encounter evidence rejected: D:\\Unreal Projects\\Lockdown\\Artifacts\\20261029-163017-946-B91Encounter-Network"
+  },
+  {
+    "passed": true,
+    "case": "fit_a",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "fit_b",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "forest",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "routes",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "structural",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "doors",
+    "detail": ""
+  },
+  {
+    "passed": false,
+    "case": "objects",
+    "detail": "B91 network evidence rejected: D:\\Unreal Projects\\Lockdown\\Artifacts\\20261029-163533-419-B91Objects-Network"
+  },
+  {
+    "passed": false,
+    "case": "furniture",
+    "detail": "B91 network evidence rejected: D:\\Unreal Projects\\Lockdown\\Artifacts\\20261029-163645-284-B91Furniture-Network"
+  },
+  {
+    "passed": true,
+    "case": "tools",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "traversal",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "saplings",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "fields",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "ignition",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "grass",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "checkpoint",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "legacy",
+    "detail": ""
+  },
+  {
+    "passed": true,
+    "case": "game",
+    "detail": ""
+  }
+]
