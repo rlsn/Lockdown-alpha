@@ -79,7 +79,10 @@ bool ALDCombatDirector::ImpactEnvironment(FGuid Lease,FVector Point,ALDCharacter
     auto* Entry=EnvironmentLeases.Find(Lease);if(!Entry){return false;}auto Q=Entry->Command;const int32 Count=Entry->Count;const int64 Span=Q.State.Until-Q.State.Created;
     Q.State.Created=At;Q.State.Until=At+Span;
     if(const auto* S=StateFor(Source);S&&S->Identity!=Q.State.Life){auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* PC=Cast<ALDPlayerController>(Source->GetController());Q.State.Owner=PC?M->ContenderId(PC):S->Identity;Q.State.Life=S->Identity;}
-    for(auto Id:LDEnvironment::Mask(Point,Point,0,100,true,Count,false,FullMapEnvironment())){FVector G,Normal;FVector P=LDRiver::Centre(Id);if(FullMapEnvironment()){P.Z=Point.Z;}if(LDGround::MapSurface(GetWorld(),P,G,&Normal)&&LDGround::ClearSegment(GetWorld(),Point+FVector(0,0,30),G+FVector(0,0,30))){Q.Cells.Add(Id);if(FullMapEnvironment()){Q.Surfaces.Add(Id,G.Z);Q.Normals.Add(Id,Normal);}}}EnvironmentLeases.Remove(Lease);
+    auto ContactCells=LDEnvironment::Mask(Point,Point,0,100,true,Count,false,FullMapEnvironment());
+    if(FullMapEnvironment()&&ContactCells.IsEmpty())
+    {const FVector Incoming=Source?(Point-Source->GetActorLocation()).GetSafeNormal2D():FVector::ZeroVector;ContactCells.Add(LDRiver::Cell(Point-Incoming));if(Count>1){ContactCells.AddUnique(LDRiver::Cell(Point));}}
+    for(auto Id:ContactCells){FVector G,Normal;FVector P=LDRiver::Centre(Id);if(FullMapEnvironment()){P.Z=Point.Z;}if(LDGround::MapSurface(GetWorld(),P,G,&Normal)&&LDGround::ClearSegment(GetWorld(),Point+FVector(0,0,30),G+FVector(0,0,30))){Q.Cells.Add(Id);if(FullMapEnvironment()){Q.Surfaces.Add(Id,G.Z);Q.Normals.Add(Id,Normal);}}}EnvironmentLeases.Remove(Lease);
     return QueueEnvironment(MoveTemp(Q),At,true);
 }
 void ALDCombatDirector::PublishEnvironmentCues(int64 At)

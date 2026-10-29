@@ -278,3 +278,23 @@ const ULDMapDefinition* ULDMapDefinition::Get(const UWorld* W)
 { if (W) { for (TActorIterator<ALDMapAnchor> It(W); It; ++It) { return It->Definition; } } return nullptr; }
 ALDMapAnchor::ALDMapAnchor()
 { bReplicates = false; RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root")); }
+
+// Semantic side-ledge tags sit halfway across each authored plateau apron.
+// Approved route aprons are ramp openings in the ring, never opaque edges.
+bool ULDMapDefinition::UpwardLedge(const FVector& From,const FVector& To) const
+{
+    if(To.Z-From.Z<100){return false;}
+    const double Low=Height(FVector2D(From)),High=Height(FVector2D(To));
+    if(High-Low<100||From.Z>Low+200){return false;}
+    for(const auto& P:Plateaus)
+    {
+        const FVector2D C(P.Position),A(From),B(To);const double R=P.Radius+3000;
+        if((A-C).Size()<=R||(B-C).Size()>=R){continue;}
+        const FVector2D V=B-A,D=A-C;const double AA=V.SizeSquared(),BB=2*FVector2D::DotProduct(D,V),CC=D.SizeSquared()-R*R,Disc=BB*BB-4*AA*CC;
+        if(AA<1||Disc<0){continue;}const double T=(-BB-FMath::Sqrt(Disc))/(2*AA);if(T<0||T>1){continue;}
+        const FVector2D Edge=A+V*T;bool Ramp=false;
+        for(const auto& Road:Routes){for(int I=1;I<Road.Points.Num();++I){const FVector Q(Edge,0),L(Road.Points[I-1].X,Road.Points[I-1].Y,0),U(Road.Points[I].X,Road.Points[I].Y,0);if(FMath::PointDistToSegment(Q,L,U)<=Road.Width*.5+6000){Ramp=true;break;}}if(Ramp){break;}}
+        if(!Ramp){return true;}
+    }
+    return false;
+}

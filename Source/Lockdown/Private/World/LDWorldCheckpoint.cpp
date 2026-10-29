@@ -74,7 +74,7 @@ bool ALDWorldObjects::ValidateCheckpoint(const LDCheckpoint::FData& D,FString& E
         }
         if(!Map||!ULDMapDefinition::InBounds(R.Position)){return Fail(TEXT("Source outside map"));}
         if(Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Ladder)
-        {auto* O=Find(FName(*R.Id));FVector Surface;const FVector Floor=R.Position-FVector(0,0,O->Size().Z*.5+3);if(!SurfaceAt(Floor,Surface)||FMath::Abs(Surface.Z-Floor.Z)>80||Reserved(Surface,O->Size())){return Fail(TEXT("Saved solid prop has no legal supporting pad"));}}
+        {auto* O=Find(FName(*R.Id));FVector Surface;const FVector Floor=R.Position-FVector(0,0,O->Size().Z*.5+3);if(!SurfaceAt(Floor,Surface)||FMath::Abs(Surface.Z-Floor.Z)>80||(Reserved(Surface,O->Size())&&!InteriorStoragePad(O,Surface))){return Fail(TEXT("Saved solid prop has no legal supporting pad"));}}
         const bool Container=Kind==ELDObjectKind::Chest||Kind==ELDObjectKind::Crate||Kind==ELDObjectKind::Barrel||Kind==ELDObjectKind::Furniture;if(!R.Contents.IsEmpty()&&(!Container||R.Broken)){return Fail(TEXT("Invalid container contents"));}
         int Weight=0;for(auto G:R.Contents){const auto* const* I=Items.Find(G);if(!I||(*I)->Location!=R.Id){return Fail(TEXT("Container reference mismatch"));}Weight+=LDInventory::UnitWeight(ELDItemKind((*I)->Kind));++Locations.FindOrAdd(G);}if(Weight>60){return Fail(TEXT("Saved storage overweight"));}
         if(R.Physical.IsValid()){const auto* const* I=Items.Find(R.Physical);if(!I||++PhysicalRefs.FindOrAdd(R.Physical)>1){return Fail(TEXT("Missing or duplicate physical proxy"));}if((*I)->Location.IsEmpty()){if(!(*I)->Position.Equals(R.Position,.1)){return Fail(TEXT("Ground physical/proxy mismatch"));}++Locations.FindOrAdd(R.Physical);}}

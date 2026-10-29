@@ -14,7 +14,7 @@ FVector ObjectFloor(const FLDObjectView& V)
 void ALDB91Controller::ClientB91Channel_Implementation(FLDB91Channel P,bool Active)
 {if(P.Match!=OwnerState.Match||P.Life!=OwnerState.Life||P.Sequence<Channel.Sequence){return;}if(Active){Channel=P;ChannelActive=true;}else if(Channel.Sequence==P.Sequence&&Channel.Domain==P.Domain){ChannelActive=false;}if(!Active&&HeldSequence==P.Sequence&&HeldObject==(P.Domain==2)){HeldSequence=0;}}
 void ALDB91Controller::CancelInterruptibleHolds()
-{ReleaseDoor();PendingObject.Invalidate();PendingDoor.Invalidate();ArmedSource.Invalidate();BasicAttackArmed=false;ChannelActive=false;ALDPlayerController::CancelInterruptibleHolds();}
+{ReleaseDoor();PendingObject.Invalidate();PendingDoor.Invalidate();PendingSource.Invalidate();ArmedSource.Invalidate();BasicAttackArmed=false;ChannelActive=false;ALDPlayerController::CancelInterruptibleHolds();}
 void ALDB91Controller::StopSourceOrder(){CancelInterruptibleHolds();Navigation->Stop();CancelArmed();}
 const FLDObjectView* ALDB91Controller::ObjectUnderPointer() const
 {float X,Y;if(!GetMousePosition(X,Y)){return nullptr;}const FLDObjectView* Best=nullptr;double D=44*44;for(const auto& V:ObjectView){if(V.State&5){continue;}FVector2D P;if(ProjectWorldLocationToScreen(V.Position,P)){const double N=FVector2D::DistSquared(P,FVector2D(X,Y));if(N<D){D=N;Best=&V;}}}return Best;}
@@ -62,6 +62,8 @@ void ALDB91Controller::ConfirmSource(FGuid Object,FVector Point)
     if(ArmedVerb==ELDObjectVerb::Deploy&&HasObjectCargo()){IssueObject(ELDObjectVerb::Deploy,Object);return;}
     if(ArmedVerb==ELDObjectVerb::Drop){IssueObject(ELDObjectVerb::Drop,FGuid(),Id,Point);return;}
     const auto* I=OwnerState.Inventory.Find(Id);if(!I){return;}
+    if(V&&(I->Kind==ELDItemKind::ForestryKnife||I->Kind==ELDItemKind::Torch)&&FVector::Dist2D(GetPawn()->GetActorLocation(),V->Position)>120)
+    {const auto Handle=V->Handle;const FVector Floor=ObjectFloor(*V);const auto Verb=ArmedVerb;Navigation->Navigate(Floor,Handle);PendingObject=Handle;PendingSource=Id;PendingSourceVerb=Verb;PendingIssued=GetWorld()->GetTimeSeconds();return;}
     if(I->Kind==ELDItemKind::ForestryKnife){IssueObject(ArmedVerb,Object,Id,Point);}
     else if(I->Kind==ELDItemKind::Torch){IssueObject(ELDObjectVerb::Ignite,V&&(V->Kind==ELDObjectKind::Sapling||V->Kind==ELDObjectKind::TallGrass)?Object:FGuid(),Id,Point);}
     else if(I->Kind==ELDItemKind::Rope){IssueObject(ELDObjectVerb::Attach,Object,Id);}
@@ -95,7 +97,7 @@ void ALDB91Controller::TickSourceControls()
     if(!PendingObject.IsValid()&&!PendingDoor.IsValid()){return;}if(Now-PendingIssued>20){StopSourceOrder();IntentFeedback=TEXT("Approach timed out");return;}
     if(PendingObject.IsValid())
     {const auto* V=ObjectView.FindByPredicate([&](const auto& E){return E.Handle==PendingObject&&!(E.State&5);});if(!V){StopSourceOrder();return;}if(FVector::Dist2D(GetPawn()->GetActorLocation(),V->Position)<=120&&FMath::Abs(GetPawn()->GetActorLocation().Z-ObjectFloor(*V).Z-90)<100)
-     {const auto Copy=*V;PendingObject.Invalidate();Navigation->Stop();if(!PendingRight){SelectedObject=Copy.Handle;IssueObject(ELDObjectVerb::Open,Copy.Handle);}else{IssueObject(Copy.Kind==ELDObjectKind::Anchor?ELDObjectVerb::Use:Copy.Kind==ELDObjectKind::Ladder?ELDObjectVerb::Carry:ELDObjectVerb::Pickup,Copy.Handle);}}}
+     {const auto Copy=*V;const auto Source=PendingSource;const auto Verb=PendingSourceVerb;PendingSource.Invalidate();PendingObject.Invalidate();Navigation->Stop();if(Source.IsValid()){IssueObject(Verb,Copy.Handle,Source);}else if(!PendingRight){SelectedObject=Copy.Handle;IssueObject(ELDObjectVerb::Open,Copy.Handle);}else{IssueObject(Copy.Kind==ELDObjectKind::Anchor?ELDObjectVerb::Use:Copy.Kind==ELDObjectKind::Ladder?ELDObjectVerb::Carry:ELDObjectVerb::Pickup,Copy.Handle);}}}
     else if(PendingDoor.IsValid())
     {const auto* D=View.FindByPredicate([&](const auto& E){return E.Handle==PendingDoor;});if(!D){StopSourceOrder();return;}if(FVector::Dist2D(GetPawn()->GetActorLocation(),D->Position)<=120){const auto Copy=*D;PendingDoor.Invalidate();IssueDoor(Copy.State&1?ELDWorldVerb::Close:ELDWorldVerb::Open,Copy.Handle);}}
 }

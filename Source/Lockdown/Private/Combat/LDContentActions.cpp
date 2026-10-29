@@ -47,14 +47,16 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     ELDSkill Skill=R.ActionKind==0&&B->Slots.IsValidIndex(R.Slot)?B->Slots[R.Slot]:ELDSkill::None;
     if(M->IsEnvironmentProfile()&&R.ActionKind!=4)
     {const auto* Physical=O?M->Inventory->Owned(PC,R.Item):nullptr;
-     if(R.ActionKind!=1||!Physical||(Physical->Kind!=ELDItemKind::WaterFlask&&Physical->Kind!=ELDItemKind::OilFlask&&Physical->Kind!=ELDItemKind::FrostCapsule)){return Reject(TEXT("This full-map action awaits environment integration"));}}
+     const bool SkillReady=R.ActionKind==0&&(Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet||Skill==ELDSkill::Firebolt||Skill==ELDSkill::Gust||Skill==ELDSkill::SmokeVeil);
+     const bool ItemReady=R.ActionKind==1&&Physical&&(Physical->Kind==ELDItemKind::WaterFlask||Physical->Kind==ELDItemKind::OilFlask||Physical->Kind==ELDItemKind::FrostCapsule||Physical->Kind==ELDItemKind::FrostPrism||Physical->Kind==ELDItemKind::GustVial||Physical->Kind==ELDItemKind::SmokeFlask||Physical->Kind==ELDItemKind::SeersDust);
+     if(!SkillReady&&!ItemReady){return Reject(TEXT("This full-map action awaits environment integration"));}}
     if(R.ActionKind==4){if(!First||!LegalTarget(Body,First,B->Gear.Reach,nullptr,0)||!RequestBody(Body,0,R.Direction,Why)){return false;}S->bAttackOrder=true;S->AttackTarget=First;S->Target=First;S->AttackLife=Life(this,First);S->AttackToken=R.Token;return true;}
     const auto* Decoy=Cast<ALDTacticalField>(First);const bool IsDecoy=Decoy&&Decoy->Kind==ELDTacticalField::Decoy;
     if(R.ActionKind==0&&!IsContentSkill(Skill)&&!IsDecoy){return RequestEquipped(Body,R.BuildRevision,R.Slot,R.Token,R.Direction,Why,First,R.Point);}
     if(!Allows(Body,R.ActionKind==1?LDTactical::EAction::Item:R.ActionKind>=2?LDTactical::EAction::Dash:LDTactical::EAction::Skill,&Why)){return false;}
     FLDTacticalRequest Plan=R;ALDItem* Item=nullptr;const FLDEquipmentDefinition* ID=nullptr;const FLDTacticalDefinition* D=nullptr;
     auto Observe=[&](AActor* T,int32 Range,bool Own=false){if(!T||FVector::DistSquared2D(Body->GetActorLocation(),T->GetActorLocation())>FMath::Square(Range)){return false;}if(T==Body){return true;}if(Own){const auto* F=Cast<ALDTacticalField>(T);return F&&F->Source.Get()==Body&&F->Active(At)&&(!PC||M->Vision->CanObserve(PC,T));}return LegalTarget(Body,T,Range,nullptr,0);};
-    auto Ground=[&](FVector Point,int32 Range){FVector Surface;return !Point.ContainsNaN()&&(M->IsEnvironmentProfile()?ULDMapDefinition::InBounds(Point):LDVision::InWorld(Point,M->Vision->Grid()))&&FVector::DistSquared2D(Body->GetActorLocation(),Point)<=FMath::Square(Range)&&LDGround::MapSurface(GetWorld(),Point,Surface)&&(!M->IsEnvironmentProfile()||(FMath::Abs(Point.Z-Surface.Z)<20&&ALDEnvironmentDirector::Get(GetWorld())->Ray(Body->GetActorLocation(),Surface+FVector(0,0,90))));};
+    auto Ground=[&](FVector Point,int32 Range){FVector Surface;return !Point.ContainsNaN()&&(M->IsEnvironmentProfile()?ULDMapDefinition::InBounds(Point):LDVision::InWorld(Point,M->Vision->Grid()))&&FVector::DistSquared2D(Body->GetActorLocation(),Point)<=FMath::Square(Range)&&LDGround::MapSurface(GetWorld(),Point,Surface)&&(!M->IsEnvironmentProfile()||(FMath::Abs(Point.Z-Surface.Z)<20&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Surface+FVector(0,0,90))));};
     if(R.ActionKind==0)
     {
         D=M->TacticalCatalog->Find(Skill);if(!D||!LDDevelopment::Equipped(*B,Skill)||!ULDTacticalCatalog::NaturalGate(*D,*B)||B->Cooldowns[uint8(Skill)]>Now){return Reject(TEXT("Knowledge, natural gate, slot or cooldown unavailable"));}

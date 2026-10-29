@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "World/LDWorldDirector.h"
+#include "World/LDWorldObjects.h"
 #include "Region/LDRegionDirector.h"
 #include "Combat/LDTacticalGeometry.h"
 #include "Character/LDCharacter.h"

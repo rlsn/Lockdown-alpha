@@ -1,5 +1,6 @@
 #include "World/LDEnvironmentDirector.h"
 #include "Framework/LDCommandLiveness.h"
+#include "World/LDB91Forest.h"
 #include "World/LDB91Contract.h"
 #include "World/LDPortableTools.h"
 #include "Development/LDV08Loadout.h"
@@ -40,7 +41,7 @@ UStaticMeshComponent* Box(UWorld* W,FName Id,FVector P,FVector Size,bool Floor)
     C->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
     C->SetWorldScale3D(Size/100.);C->SetCollisionProfileName(TEXT("BlockAll"));
     C->SetCollisionResponseToChannel(ECC_GameTraceChannel1,Floor?ECR_Block:ECR_Ignore);
-    C->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Block);C->SetCanEverAffectNavigation(true);return C;
+    C->SetCollisionResponseToChannel(ECC_GameTraceChannel2,ECR_Block);C->SetCanEverAffectNavigation(true);if(Floor){C->ComponentTags.Add(TEXT("B91PermanentFloor"));}return C;
 }
 uint64 Key(uint32 Life,uint32 Sequence){return (uint64(Life)<<32)|Sequence;}
 }
@@ -129,6 +130,9 @@ bool ALDEnvironmentDirector::Initialize(FString& Error)
             StairStarts.Add(P+FVector(430,-750,0));RoofGoals.Add(P+FVector(0,740,400));
         }
     }
+    // These floors never move. World-space character corrections must not refer
+    // to a nonreplicated dynamic base on an independently reconstructed client.
+    for(TActorIterator<AStaticMeshActor> I(GetWorld());I;++I){auto* C=I->GetStaticMeshComponent();if(C->ComponentTags.Contains(TEXT("B91PermanentFloor"))){C->SetMobility(EComponentMobility::Static);}}
     for(const auto& V:Root->GetArrayField(TEXT("doors")))
     {
         const auto O=V->AsObject();auto* DoorActor=GetWorld()->SpawnActor<ALDEnvironmentDoor>(Point(O,TEXT("position"))+FVector(0,0,130),FRotator::ZeroRotator);
@@ -136,13 +140,14 @@ bool ALDEnvironmentDirector::Initialize(FString& Error)
         DoorActor->Resident=FName(*O->GetStringField(TEXT("resident")));DoorActor->Rear=O->GetBoolField(TEXT("rear"));
         DoorActor->Tags.Add(DoorActor->Id);DoorActor->Apply(0,1);Doors.Add(DoorActor);
     }
-    Ready=Doors.Num()==72&&RoofGoals.Num()==16;return Ready;
+    Ready=Doors.Num()==72&&RoofGoals.Num()==16;if(Ready&&GetNetMode()==NM_Client){Ready=ALDB91Forest::Ensure(GetWorld(),Error);}return Ready;
 }
 ALDEnvironmentDoor* ALDEnvironmentDirector::Door(FName Id) const
 {for(const auto& D:Doors){if(D.IsValid()&&D->Id==Id){return D.Get();}}return nullptr;}
 bool ALDEnvironmentDirector::Ray(FVector From,FVector To,const AActor* Endpoint,double Radius,bool SurfaceCue) const
 {
     if(!ULDMapDefinition::InBounds(From)||!ULDMapDefinition::InBounds(To)||FVector::DistSquared2D(From,To)>Radius*Radius){return false;}
+    if(const auto* Map=ULDMapDefinition::Get(GetWorld());Map&&Map->UpwardLedge(From,To)){return false;}
     if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Combat&&M->Combat->EnvironmentOccludes(From,To,SurfaceCue)){return false;}
     FCollisionQueryParams Q(SCENE_QUERY_STAT(B91Sight),false);if(Endpoint){Q.AddIgnoredActor(Endpoint);}
     return !GetWorld()->LineTraceTestByChannel(From+FVector(0,0,60),To+FVector(0,0,60),ECC_GameTraceChannel2,Q);

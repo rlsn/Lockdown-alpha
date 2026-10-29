@@ -1,5 +1,7 @@
 #include "World/LDWorldObjects.h"
 #include "Framework/LDCommandLiveness.h"
+#include "World/LDB91Forest.h"
+#include "World/LDB91ForestContract.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDB91ObjectsContract.h"
 #include "World/LDB91ToolsContract.h"
@@ -65,7 +67,7 @@ void ALDWorldObject::SetObserved(bool Visible)
 {Proxy->SetVisibility(Visible&&!(AppliedState&5));for(const auto& Blade:GrassVisuals){Blade->SetVisibility(Visible&&!(AppliedState&5));}Glow->SetVisibility(Visible&&!(AppliedState&5)&&(AppliedState&8)&&(Kind==ELDObjectKind::Torch||Kind==ELDObjectKind::Lantern));}
 ALDWorldObjects::ALDWorldObjects()
 {bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
-FString ALDWorldObjects::ActiveContract(){return LD_B91_GRASS_WORLD_SHA;}
+FString ALDWorldObjects::ActiveContract(){return LD_B91_FOREST_WORLD_SHA;}
 ALDWorldObjects* ALDWorldObjects::Get(UWorld* W)
 {if(W){for(TActorIterator<ALDWorldObjects> I(W);I;++I){return *I;}}return nullptr;}
 ALDWorldObject* ALDWorldObjects::Find(FName Id) const
@@ -99,12 +101,17 @@ bool ALDWorldObjects::Reserved(FVector P,FVector Size) const
      if(B.Roof&&FVector::Dist2D(P,B.Position+FVector(950,740,0))<200+R){return true;}}
     return D->RiverAt(P);
 }
+bool ALDWorldObjects::InteriorStoragePad(const ALDWorldObject* Object,FVector Point) const
+{
+    const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* Building=Map?Map->Buildings.FindByPredicate([](const auto& B){return B.Id==TEXT("building_riverport_00");}):nullptr;
+    return Building&&Object&&Object->SourceId==TEXT("prop_crate_002")&&Point.Equals(Building->Position+FVector(-350,500,0),1);
+}
 bool ALDWorldObjects::Placement(ALDWorldObject* Object,FVector Point,FVector& Surface) const
 {
     if(!Object||!SurfaceAt(Point,Surface)||FMath::Abs(Surface.Z-Point.Z)>80){return false;}
     if(Object->Kind==ELDObjectKind::TallGrass)
     {const auto* D=ULDMapDefinition::Get(GetWorld());if(!D||D->RiverAt(Surface)){return false;}for(const auto& Offset:TArray<FVector>{FVector(250,0,0),FVector(-250,0,0),FVector(0,250,0),FVector(0,-250,0)}){FVector Edge;if(!SurfaceAt(Surface+Offset,Edge)||FMath::Abs(Edge.Z-Surface.Z)>80){return false;}}return !GetWorld()->OverlapAnyTestByChannel(Surface+FVector(0,0,78),FQuat::Identity,ECC_GameTraceChannel2,FCollisionShape::MakeBox(FVector(250,250,74)),FCollisionQueryParams(SCENE_QUERY_STAT(B91GrassPad),false,Object));}
-    if(Reserved(Surface,Object->Size())){return false;}
+    if(Reserved(Surface,Object->Size())&&!InteriorStoragePad(Object,Surface)){return false;}
     const FVector Extent=Object->Size()*.5;
     const double CentreZ=Surface.Z;double PadZ=CentreZ;
     for(int X:{-1,1}){for(int Y:{-1,1}){FVector Corner=Surface;
@@ -152,11 +159,12 @@ bool ALDWorldObjects::Initialize(FString& Error)
     }
     if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
     if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)||!InitializeGrass(Error)){return false;}Contract=ActiveContract();
-    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");return false;}Ready=InitializeCheckpoint(Error);return Ready;
+    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");return false;}if(!ALDB91Forest::Ensure(GetWorld(),Error)){Ready=false;return false;}Ready=InitializeCheckpoint(Error);return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
     const auto* D=ULDMapDefinition::Get(GetWorld());if(!D){return false;}
+    if(Object->SourceId==TEXT("prop_crate_002")){const auto* B=D->Buildings.FindByPredicate([](const auto& B){return B.Id==TEXT("building_riverport_00");});return B&&Placement(Object,B->Position+FVector(-350,500,0),Surface);}
     for(int Ring=0;Ring<=10;++Ring){for(int Y=-Ring;Y<=Ring;++Y){for(int X=-Ring;X<=Ring;++X)
     {if(FMath::Max(FMath::Abs(X),FMath::Abs(Y))!=Ring||X*X+Y*Y>100){continue;}FVector P=Source+FVector(X*100,Y*100,0);P.Z=D->Height(FVector2D(P));if(Placement(Object,P,Surface)){return true;}}}}return false;
 }

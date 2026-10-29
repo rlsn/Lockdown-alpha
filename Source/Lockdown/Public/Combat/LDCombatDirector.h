@@ -249,6 +249,7 @@ private:
     friend class ALDB84Probe;
     friend class ALDB86Probe;
     friend class ALDB91FieldsProbe;
+    friend class ALDB91CombatProbe;
     friend class ALDB91IgnitionProbe;
     friend class ALDB91GrassProbe;
     using FRiverState=LDEnvironment::FRecord;

@@ -85,6 +85,7 @@ public:
     FName CivicPolicy(const FVector& Point) const;
     double Height(const FVector2D& XY) const;
     bool RiverAt(const FVector& Surface) const;
+    bool UpwardLedge(const FVector& From,const FVector& To) const;
     static bool InBounds(const FVector& Point);
     static const ULDMapDefinition* Get(const UWorld* World);
 };

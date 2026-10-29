@@ -10,6 +10,8 @@
 #include "Tests/LDB91IgnitionProbe.h"
 #include "Tests/LDB91GrassProbe.h"
 #include "Tests/LDB91CheckpointProbe.h"
+#include "Tests/LDB91CombatProbe.h"
+#include "Tests/LDB91EncounterProbe.h"
 #include "Tests/LDB91TraversalProbe.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
@@ -229,6 +231,8 @@ void ALDGameMode::StartPlay()
         {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}
         if(FParse::Param(FCommandLine::Get(),TEXT("LDB91Probe"))){GetWorld()->SpawnActor<ALDB91Probe>();}
         if(FParse::Param(FCommandLine::Get(),TEXT("LDB91CheckpointProbe"))){GetWorld()->SpawnActor<ALDB91CheckpointProbe>();}
+        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterResume"))||FParse::Param(FCommandLine::Get(),TEXT("LDB91ForestRoutes"))){GetWorld()->SpawnActor<ALDB91EncounterProbe>();}
+        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91CombatProbe"))){GetWorld()->SpawnActor<ALDB91CombatProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91GrassProbe"))){GetWorld()->SpawnActor<ALDB91GrassProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91IgnitionProbe"))){GetWorld()->SpawnActor<ALDB91IgnitionProbe>();}
         else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FieldsProbe"))){GetWorld()->SpawnActor<ALDB91FieldsProbe>();}

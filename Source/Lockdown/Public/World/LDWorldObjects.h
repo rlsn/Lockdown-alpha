@@ -120,6 +120,7 @@ public:
     bool Visible(ALDB91Controller* PC,ALDWorldObject* Object) const;
     ALDWorldObject* Resolve(ALDB91Controller* PC,FGuid Handle) const;
     bool Placement(ALDWorldObject* Object,FVector Point,FVector& Surface) const;
+    bool InteriorStoragePad(const ALDWorldObject* Object,FVector Point) const;
     uint32 Committed=0;
     // Explicit physical source census, also used by the native conservation probe.
     bool Conserved(FString& Error) const;
@@ -134,6 +135,7 @@ private:
     friend class ALDB91IgnitionProbe;
     friend class ALDB91GrassProbe;
     friend class ALDB91CheckpointProbe;
+    friend class ALDB91EncounterProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {

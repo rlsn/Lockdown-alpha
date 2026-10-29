@@ -58,7 +58,17 @@ TArray<FIntPoint> LDEnvironment::Mask(FVector Start,FVector Aim,double Length,do
     const auto Max=LDRiver::Cell((Disk?Aim:Start).ComponentMax(End)+FVector(Radius,Radius,0));
     for(int32 Y=FMath::Max(FullMap?-580:0,Min.Y);Y<=FMath::Min(FullMap?619:39,Max.Y);++Y){for(int32 X=FMath::Max(FullMap?-570:0,Min.X);X<=FMath::Min(FullMap?629:59,Max.X);++X)
     {const FIntPoint Id(X,Y);const FVector P=LDRiver::Centre(Id),V=P-Start;const double Along=FVector::DotProduct(V,Dir);
-        const bool Inside=Disk?FVector::DistSquared2D(P,Aim)<=Width*Width:Cone?V.SizeSquared2D()<=Length*Length&&FVector::DotProduct(V.GetSafeNormal2D(),Dir)>=FMath::Cos(FMath::DegreesToRadians(Width/2)):Along>=0&&Along<=Length&&FVector::DistSquared2D(P,Start+Dir*Along)<=Width*Width;if(Inside){Out.Add(Id);}}}
+        bool Inside=Disk?FVector::DistSquared2D(P,Aim)<=Width*Width:Cone?V.SizeSquared2D()<=Length*Length&&FVector::DotProduct(V.GetSafeNormal2D(),Dir)>=FMath::Cos(FMath::DegreesToRadians(Width/2)):Along>=0&&Along<=Length&&FVector::DistSquared2D(P,Start+Dir*Along)<=Width*Width;
+        if(FullMap&&!Disk&&!Cone)
+        {
+            // A narrow beam can lie between every pair of2m cell centres.
+            // Select touched cell footprints; direct body width remains unchanged.
+            const FVector A(Start.X,Start.Y,0),B(End.X,End.Y,0),C(P.X,P.Y,0);const FBox Box(C-FVector(100,100,1),C+FVector(100,100,1));
+            Inside=FMath::LineBoxIntersection(Box,A,B,B-A);
+            const FVector Corners[4]={C+FVector(-100,-100,0),C+FVector(100,-100,0),C+FVector(100,100,0),C+FVector(-100,100,0)};
+            for(int Edge=0;Edge<4&&!Inside;++Edge){FVector NearBeam,NearEdge;FMath::SegmentDistToSegmentSafe(A,B,Corners[Edge],Corners[(Edge+1)%4],NearBeam,NearEdge);Inside=FVector::DistSquared(NearBeam,NearEdge)<=Width*Width;}
+        }
+        if(Inside){Out.Add(Id);}}}
     Out.Sort([&](FIntPoint A,FIntPoint B){const FVector PA=LDRiver::Centre(A),PB=LDRiver::Centre(B);const double DA=Disk?FVector::DistSquared2D(PA,Aim):FVector::DotProduct(PA-Start,Dir),DB=Disk?FVector::DistSquared2D(PB,Aim):FVector::DotProduct(PB-Start,Dir);if(!FMath::IsNearlyEqual(DA,DB)){return DA<DB;}if(!Disk){const double WA=FVector::DistSquared2D(PA,Start+Dir*DA),WB=FVector::DistSquared2D(PB,Start+Dir*DB);if(!FMath::IsNearlyEqual(WA,WB)){return WA<WB;}}return A.Y!=B.Y?A.Y<B.Y:A.X<B.X;});
     if(Out.Num()>Limit){Out.SetNum(Limit);}return Out;
 }

@@ -174,7 +174,8 @@ public:
     ELDObjectVerb ArmedVerb=ELDObjectVerb::Ignite;
     bool BasicAttackArmed=false;
     uint8 ArmedAccessory=0;
-    FGuid PendingObject,PendingDoor;
+    FGuid PendingObject,PendingDoor,PendingSource;
+    ELDObjectVerb PendingSourceVerb=ELDObjectVerb::Harvest;
     FVector PendingPoint=FVector::ZeroVector;
     bool PendingRight=false;
     double PendingIssued=0;
@@ -230,6 +231,9 @@ public:
     void TickB91ToolsProbe();
     void TickB91SaplingsProbe();
     void TickB91FieldsProbe();
+    void TickB91CombatProbe();
+    void TickB91EncounterProbe();
+    UFUNCTION(Client,Reliable) void ClientB91ReferencePoint(FVector_NetQuantize10 Point);
     void TickB91IgnitionProbe();
     void TickB91GrassProbe();
     UFUNCTION(Client,Reliable) void ClientSurfaceView(uint32 Match,uint32 Life,uint64 Revision,const TArray<FLDEnvironmentSurface>& Entries);

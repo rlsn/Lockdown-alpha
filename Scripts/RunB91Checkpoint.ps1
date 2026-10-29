@@ -2,6 +2,8 @@
 param([string]$EngineRoot,[ValidateRange(30,900)][int]$TimeoutSeconds=180)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
+& python -B (Join-Path $PSScriptRoot 'SyncB91Forest.py') --check
+if($LASTEXITCODE -ne 0){throw 'B91 fitted forest contract is stale'}
 Assert-LDEditorModules
 $output=New-LDArtifactDirectory 'B91Checkpoint'
 foreach($case in @('Write','Read','Reject','Fresh')){

@@ -160,7 +160,7 @@ bool ULDNavigationComponent::ResolveOrder(FVector& Goal,float& Acceptance,TArray
     {
         const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
         if(M&&M->IsEnvironmentProfile())
-        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor);Object&&Object->Kind==ELDObjectKind::Anchor){Target=Object->EndFor(Body->GetActorLocation())+FVector(0,0,18);}}
+        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor)){Target=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation())+FVector(0,0,18):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);}}
         else
         {const auto* View=M&&M->Vision?M->Vision->AuthorityViewFor(PC):nullptr;const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;if(!E){return false;}Target=E->Position;Acceptance=LDVision::PickupKind(E->Kind)?64:100;}
     }

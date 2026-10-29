@@ -2,6 +2,8 @@
 param([string]$EngineRoot,[switch]$Capture,[switch]$Objects,[switch]$Tools,[switch]$Traversal,[switch]$Furniture,[switch]$Saplings,[switch]$Fields,[switch]$Ignition,[switch]$Grass,[ValidateSet('A','B')][string]$RenderedClient='A',[ValidateRange(1024,65000)][int]$Port=7911,[ValidateRange(60,900)][int]$TimeoutSeconds=300)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
+& python -B (Join-Path $PSScriptRoot 'SyncB91Forest.py') --check
+if($LASTEXITCODE -ne 0){throw 'B91 fitted forest contract is stale'}
 Assert-LDEditorModules
 if($Furniture){if($Objects -or $Tools -or $Traversal -or $Saplings -or $Fields -or $Ignition -or $Grass){throw 'Choose one native scenario'};$Objects=$true}
 if(([int]$Objects.IsPresent+[int]$Tools.IsPresent+[int]$Traversal.IsPresent+[int]$Saplings.IsPresent+[int]$Fields.IsPresent+[int]$Ignition.IsPresent+[int]$Grass.IsPresent) -gt 1){throw 'Choose one native scenario'}
