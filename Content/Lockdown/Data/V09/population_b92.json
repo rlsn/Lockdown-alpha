@@ -1,0 +1,65 @@
+{
+  "schema_version": 9,
+  "roles": [
+    {
+      "role": "civilian",
+      "default_npc_count": 96,
+      "is_contender": false,
+      "purpose": "work_rest_trade",
+      "new_kill_rewards": false,
+      "stage_id": "B92"
+    },
+    {
+      "role": "traveler",
+      "default_npc_count": 32,
+      "is_contender": false,
+      "purpose": "visible_logistics",
+      "new_kill_rewards": false,
+      "stage_id": "B92"
+    },
+    {
+      "role": "guard",
+      "default_npc_count": 24,
+      "is_contender": false,
+      "purpose": "local_witness_response",
+      "new_kill_rewards": false,
+      "stage_id": "B92"
+    },
+    {
+      "role": "official",
+      "default_npc_count": 20,
+      "is_contender": false,
+      "purpose": "fixed_noncontender_service",
+      "new_kill_rewards": false,
+      "stage_id": "B92"
+    },
+    {
+      "role": "hostile",
+      "default_npc_count": 24,
+      "is_contender": false,
+      "purpose": "camp_or_wildlife",
+      "new_kill_rewards": true,
+      "stage_id": "B92"
+    },
+    {
+      "role": "competitor",
+      "default_npc_count": 20,
+      "is_contender": true,
+      "purpose": "ordinary_contender_progression",
+      "new_kill_rewards": true,
+      "stage_id": "B92"
+    }
+  ],
+  "baseline_npcs": 216,
+  "default_total_bodies": 220,
+  "noncontender_npcs": 196,
+  "contenders_total": 24,
+  "human_replaces_ai_contender": true,
+  "hostile_split": {
+    "camp_max_live": 12,
+    "boss": 1,
+    "ambient_wildlife": 11
+  },
+  "ambient_wildlife_reward": 0,
+  "service_actors_are_components_or_shared_agents": true
+}

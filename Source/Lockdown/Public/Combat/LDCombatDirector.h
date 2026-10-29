@@ -244,6 +244,7 @@ public:
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
+    friend class ALDB92RosterProbe;
     friend class ALDB82Probe;
     friend class ALDB83Probe;
     friend class ALDB84Probe;

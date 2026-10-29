@@ -13,6 +13,8 @@
 #include "Tests/LDB91CombatProbe.h"
 #include "Tests/LDB91EncounterProbe.h"
 #include "Tests/LDB92EconomyProbe.h"
+#include "Population/LDB92Roster.h"
+#include "Tests/LDB92RosterProbe.h"
 #include "Tests/LDB91TraversalProbe.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
@@ -141,8 +143,11 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
 {
     Super::InitGame(MapName,Options,ErrorMessage);
     const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
-    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")&&Profile!=TEXT("v08_integration")&&Profile!=TEXT("v09_environment")){ErrorMessage=TEXT("Unknown rules profile");return;}
-    bEnvironmentProfile=Profile==TEXT("v09_environment");
+    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")&&Profile!=TEXT("v08_integration")&&Profile!=TEXT("v09_environment")&&Profile!=TEXT("v09_population")){ErrorMessage=TEXT("Unknown rules profile");return;}
+    bPopulationProfile=Profile==TEXT("v09_population");
+    if(bPopulationProfile!=IsA<ALDB92GameMode>()){ErrorMessage=TEXT("v09_population requires its B92 game mode; full-match admission remains closed");return;}
+    if(bPopulationProfile){const FString Humans=UGameplayStatics::ParseOption(Options,TEXT("Humans"));if(!Humans.IsEmpty()&&(!LexTryParseString(PopulationHumanLimit,*Humans)||Humans!=LexToString(PopulationHumanLimit)||PopulationHumanLimit<1||PopulationHumanLimit>12)){ErrorMessage=TEXT("B92 human capacity must be an integer from 1 to 12");return;}}
+    bEnvironmentProfile=bPopulationProfile||Profile==TEXT("v09_environment");
     bV08Profile=bEnvironmentProfile||Profile==TEXT("v08_integration");bTacticalProfile=bV08Profile||Profile==TEXT("v07_integration");
     if(bEnvironmentProfile)
     {
@@ -160,7 +165,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
         bScaffoldProfile=false;
         if (GameSession)
         {
-            GameSession->MaxPlayers=4;
+            GameSession->MaxPlayers=bPopulationProfile?36:4; // authority seat controllers do not constitute extra human admissions
 #if !UE_BUILD_SHIPPING
             // The packaged diagnostic listen host is infrastructure, not a contender.
             if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){GameSession->MaxPlayers=5;}
@@ -190,6 +195,7 @@ FVector ALDGameMode::TakeSpawn()
 
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
+    if(bPopulationProfile){return;} // admission possesses an existing persistent seat
 #if !UE_BUILD_SHIPPING
     // A packaged Game target uses a headless listen world for the two-remote-client
     // topology. Its local connection is diagnostic infrastructure, not a contender.
@@ -228,6 +234,14 @@ void ALDGameMode::StartPlay()
         auto* Objects=GetWorld()->SpawnActor<ALDWorldObjects>();
         if(!Objects->Initialize(Why)){UE_LOG(LogTemp,Fatal,TEXT("B91 world objects rejected: %s"),*Why);return;}
         Objects->AddTickPrerequisiteActor(Environment);
+        if(bPopulationProfile)
+        {
+            Population=GetWorld()->SpawnActor<ALDB92Roster>();
+            if(!Population||!Population->Configure(PopulationHumanLimit,Why)){UE_LOG(LogTemp,Fatal,TEXT("B92 roster rejected: %s"),*Why);return;}
+            Population->AddTickPrerequisiteActor(Combat);
+            if(FParse::Param(FCommandLine::Get(),TEXT("LDB92RosterProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92RosterProbe>();Probe->AddTickPrerequisiteActor(Population);}
+            UE_LOG(LogTemp,Display,TEXT("LD_B92_POPULATION_REVIEW 24 persistent seats; role-body admission; autonomous policy/services remain pending"));return;
+        }
         for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
         {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}
         if(FParse::Param(FCommandLine::Get(),TEXT("LDB92EconomyProbe"))){GetWorld()->SpawnActor<ALDB92EconomyProbe>();}
@@ -297,6 +311,7 @@ void ALDGameMode::StartPlay()
 void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage)
 {
     Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
+    if(bPopulationProfile){if(Population&&!Population->CanAdmit()){ErrorMessage=TEXT("All configured human seats are occupied");}return;}
     if(IsFinished()){ErrorMessage=TEXT("Demo finished. Host a new run.");}
     if (bDevelopmentProfile)
     {
@@ -309,6 +324,8 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
+    if(bPopulationProfile)
+    {if(Population){FString Why;if(!Population->Admit(Cast<ALDPlayerController>(NewPlayer),Why)){if(!GameSession||!GameSession->KickPlayer(NewPlayer,FText::FromString(Why))){NewPlayer->Destroy();}}}return;}
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
     {
 #if !UE_BUILD_SHIPPING
@@ -339,6 +356,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 }
 void ALDGameMode::Logout(AController* Exiting)
 {
+    if(bPopulationProfile){if(Population){FString Why;Population->Release(Cast<ALDPlayerController>(Exiting),Why);}Super::Logout(Exiting);return;}
     if(Combat){Combat->FlushPastCommand();}
     if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
     {
@@ -388,6 +406,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
 }
 FVector ALDGameMode::ReturnSpawn(ALDPlayerController* PC)
 {
+    if(bPopulationProfile&&Population){return Population->StartFor(PC);}
     if(bEnvironmentProfile){return TakeSpawn();}
     TArray<FVector> Candidates={{-1700,-1000,100},{-1300,-1000,100},{-500,-1000,100},{-200,700,100},
         {-1800,0,100},{100,1000,100},{1000,1000,100},{1900,-500,100},{1900,1000,100},
@@ -523,4 +542,4 @@ void ALDGameMode::AwardExperience(ALDPlayerController* PC,int64 Amount)
 void ALDGameMode::EconomyWallets(TMap<FName,int64>& Out) const
 {for(const auto& Pair:Contenders){Out.Add(ALDEconomyDirector::Wallet(Pair.Value.Session),Pair.Value.State.Gold);Out.Add(ALDEconomyDirector::BankAccount(Pair.Value.Session),Pair.Value.State.BankGold);}}
 void ALDGameMode::RecordEconomyGold(FName Cause,int64 Mint,int64 Burn)
-{if(Economy){Economy->GoldChanged(Cause,Mint,Burn);}}
+{if(bPopulationProfile&&Population){FString Why;if(!Population->RecordGold(Cause,Mint,Burn,Why)){UE_LOG(LogTemp,Fatal,TEXT("B92 unclassified wallet mutation: %s"),*Why);}return;}if(Economy){Economy->GoldChanged(Cause,Mint,Burn);}}

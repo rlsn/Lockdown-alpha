@@ -106,6 +106,8 @@ public:
     bool IsTacticalProfile() const {return bTacticalProfile;}
     bool IsV08Profile() const {return bV08Profile;}
     bool IsEnvironmentProfile() const {return bEnvironmentProfile;}
+    bool IsPopulationProfile() const {return bPopulationProfile;}
+    UPROPERTY() TObjectPtr<class ALDB92Roster> Population;
     uint8 RulesVersion() const {return bV08Profile?8:bTacticalProfile?7:6;}
     UPROPERTY() TObjectPtr<class ULDTacticalCatalog> TacticalCatalog;
     bool IsUIControlProfile() const {return bUIControlProfile;}
@@ -131,6 +133,10 @@ public:
     UPROPERTY() TObjectPtr<class ALDProductionDirector> Production;
     UPROPERTY(Config) bool bScaffoldProfile = true;
 private:
+    friend class ALDB92Roster;
+    friend class ALDB92RosterProbe;
+    bool bPopulationProfile=false;
+    int32 PopulationHumanLimit=4;
     bool bTacticalProfile=false;
     bool bEnvironmentProfile=false;
     bool bV08Profile=false;

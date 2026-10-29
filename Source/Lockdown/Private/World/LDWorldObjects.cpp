@@ -333,6 +333,14 @@ bool ALDWorldObjects::ForceDrop(ALDB91Controller* PC)
     if(!Found){Found=Placement(O,O->LastClear,Surface);}if(!Found){return false;}
     O->Carrier.Reset();O->bCarriedWorld=false;Cargo.Remove(PC);if(PC){PC->ClientCargoState(PC->OwnerState.Match,PC->OwnerState.Life,false,FGuid());}O->LastClear=Surface;O->Apply(Surface+FVector(0,0,O->Size().Z*.5+3),O->Flags(),O->Revision+1);return true;
 }
+bool ALDWorldObjects::TransferCarrier(ALDB91Controller* Previous,ALDB91Controller* Next)
+{
+    if(!Previous||!Next||Previous==Next||Cargo.Contains(Next)){return false;}const auto* Binding=Cargo.Find(Previous);if(!Binding){return true;}
+    const auto Copy=*Binding;auto* Object=Copy.Object.Get();if(!Object||Object->Carrier!=Previous||!Object->bCarriedWorld||Copy.Life!=Next->OwnerState.Life){return false;}
+    Cargo.Remove(Previous);Cargo.Add(Next,Copy);Object->Carrier=Next;
+    auto& Handle=Clients.FindOrAdd(Next).Handles.FindOrAdd(Object);if(!Handle.IsValid()){Handle=FGuid::NewGuid();}
+    Next->ClientCargoState(Next->OwnerState.Match,Next->OwnerState.Life,true,Handle);return true;
+}
 void ALDWorldObjects::DiscoverDrops()
 {
     for(TActorIterator<ALDItem> P(GetWorld());P;++P){if(P->State==0&&!P->Holder.IsValid())

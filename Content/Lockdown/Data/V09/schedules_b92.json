@@ -1,0 +1,4069 @@
+{
+  "schema_version": 9,
+  "rows": [
+    {
+      "id": "civilian_000",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 0,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_001",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 37,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_002",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 74,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_003",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 111,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_004",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 148,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_005",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 185,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_006",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 222,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_007",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 259,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_008",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 296,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_009",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 333,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_010",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 370,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_011",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 407,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_012",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 444,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_013",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 481,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_014",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 518,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_015",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 555,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_016",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 592,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_017",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 29,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_018",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 66,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_019",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 103,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_020",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 140,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_021",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 177,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_022",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 214,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_023",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 251,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_024",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 288,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_025",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 325,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_026",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 362,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_027",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 399,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_028",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 436,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_029",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 473,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_030",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 510,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_031",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 547,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_032",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 584,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_033",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 21,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_034",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 58,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_035",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 95,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_036",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 132,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_037",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 169,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_038",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 206,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_039",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 243,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_040",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 280,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_041",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 317,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_042",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 354,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_043",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 391,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_044",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 428,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_045",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 465,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_046",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 502,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_047",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 539,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_048",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 576,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_049",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 13,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_050",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 50,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_051",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 87,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_052",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 124,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_053",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 161,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_054",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 198,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_055",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 235,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_056",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 272,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_057",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 309,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_058",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 346,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_059",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 383,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_060",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 420,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_061",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 457,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_062",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 494,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_063",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 531,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_064",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 568,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_065",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 5,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_066",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 42,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_067",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 79,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_068",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 116,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_069",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 153,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_070",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 190,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_071",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 227,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_072",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 264,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_073",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 301,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_074",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 338,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_075",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 375,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_076",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 412,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_077",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 449,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_078",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 486,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_079",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 523,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_080",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 560,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_081",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 597,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_082",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 34,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_083",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 71,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_084",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 108,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_085",
+      "role": "civilian",
+      "home_building_id": "building_ashcross_01",
+      "home_public_anchor": "ashcross",
+      "work_poi_id": "ashcross",
+      "rest_poi_id": "ashcross",
+      "loop_s": 600,
+      "phase_offset_s": 145,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_086",
+      "role": "civilian",
+      "home_building_id": "building_bellwick_01",
+      "home_public_anchor": "bellwick",
+      "work_poi_id": "bellwick",
+      "rest_poi_id": "bellwick",
+      "loop_s": 600,
+      "phase_offset_s": 182,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_087",
+      "role": "civilian",
+      "home_building_id": "building_stonewake_01",
+      "home_public_anchor": "stonewake",
+      "work_poi_id": "stonewake",
+      "rest_poi_id": "stonewake",
+      "loop_s": 600,
+      "phase_offset_s": 219,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_088",
+      "role": "civilian",
+      "home_building_id": "building_capital_01",
+      "home_public_anchor": "capital",
+      "work_poi_id": "capital_workshop",
+      "rest_poi_id": "capital",
+      "loop_s": 600,
+      "phase_offset_s": 256,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_089",
+      "role": "civilian",
+      "home_building_id": "building_highfort_01",
+      "home_public_anchor": "highfort",
+      "work_poi_id": "highfort_workshop",
+      "rest_poi_id": "highfort",
+      "loop_s": 600,
+      "phase_offset_s": 293,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_090",
+      "role": "civilian",
+      "home_building_id": "building_scholars_01",
+      "home_public_anchor": "scholars",
+      "work_poi_id": "scholars_workshop",
+      "rest_poi_id": "scholars",
+      "loop_s": 600,
+      "phase_offset_s": 330,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_091",
+      "role": "civilian",
+      "home_building_id": "building_riverport_01",
+      "home_public_anchor": "riverport",
+      "work_poi_id": "riverport_workshop",
+      "rest_poi_id": "riverport",
+      "loop_s": 600,
+      "phase_offset_s": 367,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_092",
+      "role": "civilian",
+      "home_building_id": "building_ironworks_01",
+      "home_public_anchor": "ironworks",
+      "work_poi_id": "ironworks_workshop",
+      "rest_poi_id": "ironworks",
+      "loop_s": 600,
+      "phase_offset_s": 404,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_093",
+      "role": "civilian",
+      "home_building_id": "building_oakmere_01",
+      "home_public_anchor": "oakmere",
+      "work_poi_id": "oakmere",
+      "rest_poi_id": "oakmere",
+      "loop_s": 600,
+      "phase_offset_s": 441,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_094",
+      "role": "civilian",
+      "home_building_id": "building_millford_01",
+      "home_public_anchor": "millford",
+      "work_poi_id": "millford",
+      "rest_poi_id": "millford",
+      "loop_s": 600,
+      "phase_offset_s": 478,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "civilian_095",
+      "role": "civilian",
+      "home_building_id": "building_reedbank_01",
+      "home_public_anchor": "reedbank",
+      "work_poi_id": "reedbank",
+      "rest_poi_id": "reedbank",
+      "loop_s": 600,
+      "phase_offset_s": 515,
+      "segments": [
+        {
+          "start_s": 0,
+          "end_s": 240,
+          "state": "work"
+        },
+        {
+          "start_s": 240,
+          "end_s": 360,
+          "state": "market_visit"
+        },
+        {
+          "start_s": 360,
+          "end_s": 480,
+          "state": "rest"
+        },
+        {
+          "start_s": 480,
+          "end_s": 600,
+          "state": "return_to_work"
+        }
+      ],
+      "threat_policy": "flee_to_local_guard_then_resume",
+      "wallet_initial_gold": 3,
+      "reward_budget": 0
+    },
+    {
+      "id": "traveler_000",
+      "role": "traveler",
+      "from_poi_id": "capital",
+      "to_poi_id": "riverport",
+      "dwell_s": 45,
+      "phase_offset_s": 0,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_001",
+      "role": "traveler",
+      "from_poi_id": "highfort",
+      "to_poi_id": "ironworks",
+      "dwell_s": 45,
+      "phase_offset_s": 11,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_002",
+      "role": "traveler",
+      "from_poi_id": "scholars",
+      "to_poi_id": "oakmere",
+      "dwell_s": 45,
+      "phase_offset_s": 22,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_003",
+      "role": "traveler",
+      "from_poi_id": "riverport",
+      "to_poi_id": "millford",
+      "dwell_s": 45,
+      "phase_offset_s": 33,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_004",
+      "role": "traveler",
+      "from_poi_id": "ironworks",
+      "to_poi_id": "reedbank",
+      "dwell_s": 45,
+      "phase_offset_s": 44,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_005",
+      "role": "traveler",
+      "from_poi_id": "oakmere",
+      "to_poi_id": "ashcross",
+      "dwell_s": 45,
+      "phase_offset_s": 55,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_006",
+      "role": "traveler",
+      "from_poi_id": "millford",
+      "to_poi_id": "bellwick",
+      "dwell_s": 45,
+      "phase_offset_s": 66,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_007",
+      "role": "traveler",
+      "from_poi_id": "reedbank",
+      "to_poi_id": "stonewake",
+      "dwell_s": 45,
+      "phase_offset_s": 77,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_008",
+      "role": "traveler",
+      "from_poi_id": "ashcross",
+      "to_poi_id": "capital",
+      "dwell_s": 45,
+      "phase_offset_s": 88,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_009",
+      "role": "traveler",
+      "from_poi_id": "bellwick",
+      "to_poi_id": "highfort",
+      "dwell_s": 45,
+      "phase_offset_s": 99,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_010",
+      "role": "traveler",
+      "from_poi_id": "stonewake",
+      "to_poi_id": "scholars",
+      "dwell_s": 45,
+      "phase_offset_s": 110,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_011",
+      "role": "traveler",
+      "from_poi_id": "capital",
+      "to_poi_id": "riverport",
+      "dwell_s": 45,
+      "phase_offset_s": 121,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_012",
+      "role": "traveler",
+      "from_poi_id": "highfort",
+      "to_poi_id": "ironworks",
+      "dwell_s": 45,
+      "phase_offset_s": 132,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_013",
+      "role": "traveler",
+      "from_poi_id": "scholars",
+      "to_poi_id": "oakmere",
+      "dwell_s": 45,
+      "phase_offset_s": 143,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_014",
+      "role": "traveler",
+      "from_poi_id": "riverport",
+      "to_poi_id": "millford",
+      "dwell_s": 45,
+      "phase_offset_s": 154,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_015",
+      "role": "traveler",
+      "from_poi_id": "ironworks",
+      "to_poi_id": "reedbank",
+      "dwell_s": 45,
+      "phase_offset_s": 165,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_016",
+      "role": "traveler",
+      "from_poi_id": "oakmere",
+      "to_poi_id": "ashcross",
+      "dwell_s": 45,
+      "phase_offset_s": 176,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_017",
+      "role": "traveler",
+      "from_poi_id": "millford",
+      "to_poi_id": "bellwick",
+      "dwell_s": 45,
+      "phase_offset_s": 187,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_018",
+      "role": "traveler",
+      "from_poi_id": "reedbank",
+      "to_poi_id": "stonewake",
+      "dwell_s": 45,
+      "phase_offset_s": 198,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_019",
+      "role": "traveler",
+      "from_poi_id": "ashcross",
+      "to_poi_id": "capital",
+      "dwell_s": 45,
+      "phase_offset_s": 209,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_020",
+      "role": "traveler",
+      "from_poi_id": "bellwick",
+      "to_poi_id": "highfort",
+      "dwell_s": 45,
+      "phase_offset_s": 220,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_021",
+      "role": "traveler",
+      "from_poi_id": "stonewake",
+      "to_poi_id": "scholars",
+      "dwell_s": 45,
+      "phase_offset_s": 231,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_022",
+      "role": "traveler",
+      "from_poi_id": "capital",
+      "to_poi_id": "riverport",
+      "dwell_s": 45,
+      "phase_offset_s": 242,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_023",
+      "role": "traveler",
+      "from_poi_id": "highfort",
+      "to_poi_id": "ironworks",
+      "dwell_s": 45,
+      "phase_offset_s": 253,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_024",
+      "role": "traveler",
+      "from_poi_id": "scholars",
+      "to_poi_id": "oakmere",
+      "dwell_s": 45,
+      "phase_offset_s": 264,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_025",
+      "role": "traveler",
+      "from_poi_id": "riverport",
+      "to_poi_id": "millford",
+      "dwell_s": 45,
+      "phase_offset_s": 275,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_026",
+      "role": "traveler",
+      "from_poi_id": "ironworks",
+      "to_poi_id": "reedbank",
+      "dwell_s": 45,
+      "phase_offset_s": 286,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_027",
+      "role": "traveler",
+      "from_poi_id": "oakmere",
+      "to_poi_id": "ashcross",
+      "dwell_s": 45,
+      "phase_offset_s": 297,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_028",
+      "role": "traveler",
+      "from_poi_id": "millford",
+      "to_poi_id": "bellwick",
+      "dwell_s": 45,
+      "phase_offset_s": 308,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_029",
+      "role": "traveler",
+      "from_poi_id": "reedbank",
+      "to_poi_id": "stonewake",
+      "dwell_s": 45,
+      "phase_offset_s": 319,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_030",
+      "role": "traveler",
+      "from_poi_id": "ashcross",
+      "to_poi_id": "capital",
+      "dwell_s": 45,
+      "phase_offset_s": 330,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "traveler_031",
+      "role": "traveler",
+      "from_poi_id": "bellwick",
+      "to_poi_id": "highfort",
+      "dwell_s": 45,
+      "phase_offset_s": 341,
+      "loop": "origin_to_destination_to_origin_by_route_graph",
+      "cargo": "visual_only_manifest_sealed_not_lootable_not_stock",
+      "wallet_initial_gold": 0,
+      "reward_budget": 0,
+      "threat_policy": "flee_then_resume"
+    },
+    {
+      "id": "guard_000",
+      "role": "guard",
+      "home_poi_id": "capital_guard",
+      "patrol_nodes": [
+        "capital_guard",
+        "capital_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_001",
+      "role": "guard",
+      "home_poi_id": "highfort_guard",
+      "patrol_nodes": [
+        "highfort_guard",
+        "highfort_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_002",
+      "role": "guard",
+      "home_poi_id": "scholars_guard",
+      "patrol_nodes": [
+        "scholars_guard",
+        "scholars_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_003",
+      "role": "guard",
+      "home_poi_id": "riverport_guard",
+      "patrol_nodes": [
+        "riverport_guard",
+        "riverport_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_004",
+      "role": "guard",
+      "home_poi_id": "ironworks_guard",
+      "patrol_nodes": [
+        "ironworks_guard",
+        "ironworks_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_005",
+      "role": "guard",
+      "home_poi_id": "oakmere",
+      "patrol_nodes": [
+        "oakmere",
+        "oakmere"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_006",
+      "role": "guard",
+      "home_poi_id": "millford",
+      "patrol_nodes": [
+        "millford",
+        "millford"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_007",
+      "role": "guard",
+      "home_poi_id": "reedbank",
+      "patrol_nodes": [
+        "reedbank",
+        "reedbank"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_008",
+      "role": "guard",
+      "home_poi_id": "ashcross",
+      "patrol_nodes": [
+        "ashcross",
+        "ashcross"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_009",
+      "role": "guard",
+      "home_poi_id": "bellwick",
+      "patrol_nodes": [
+        "bellwick",
+        "bellwick"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_010",
+      "role": "guard",
+      "home_poi_id": "stonewake",
+      "patrol_nodes": [
+        "stonewake",
+        "stonewake"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_011",
+      "role": "guard",
+      "home_poi_id": "capital_guard",
+      "patrol_nodes": [
+        "capital_guard",
+        "capital_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_012",
+      "role": "guard",
+      "home_poi_id": "highfort_guard",
+      "patrol_nodes": [
+        "highfort_guard",
+        "highfort_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_013",
+      "role": "guard",
+      "home_poi_id": "scholars_guard",
+      "patrol_nodes": [
+        "scholars_guard",
+        "scholars_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_014",
+      "role": "guard",
+      "home_poi_id": "riverport_guard",
+      "patrol_nodes": [
+        "riverport_guard",
+        "riverport_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_015",
+      "role": "guard",
+      "home_poi_id": "ironworks_guard",
+      "patrol_nodes": [
+        "ironworks_guard",
+        "ironworks_guard"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_016",
+      "role": "guard",
+      "home_poi_id": "oakmere",
+      "patrol_nodes": [
+        "oakmere",
+        "oakmere"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_017",
+      "role": "guard",
+      "home_poi_id": "millford",
+      "patrol_nodes": [
+        "millford",
+        "millford"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_018",
+      "role": "guard",
+      "home_poi_id": "reedbank",
+      "patrol_nodes": [
+        "reedbank",
+        "reedbank"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_019",
+      "role": "guard",
+      "home_poi_id": "ashcross",
+      "patrol_nodes": [
+        "ashcross",
+        "ashcross"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_020",
+      "role": "guard",
+      "home_poi_id": "bellwick",
+      "patrol_nodes": [
+        "bellwick",
+        "stonewake"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_021",
+      "role": "guard",
+      "home_poi_id": "stonewake",
+      "patrol_nodes": [
+        "stonewake",
+        "capital"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_022",
+      "role": "guard",
+      "home_poi_id": "capital_guard",
+      "patrol_nodes": [
+        "capital_guard",
+        "highfort"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    },
+    {
+      "id": "guard_023",
+      "role": "guard",
+      "home_poi_id": "highfort_guard",
+      "patrol_nodes": [
+        "highfort_guard",
+        "scholars"
+      ],
+      "dwell_s": 20,
+      "local_response_radius_cm": 3000,
+      "reward_budget": 0
+    }
+  ]
+}

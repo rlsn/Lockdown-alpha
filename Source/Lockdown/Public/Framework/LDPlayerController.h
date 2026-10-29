@@ -100,6 +100,8 @@ public:
     UFUNCTION(Client,Reliable) void ClientVendorResult(const FLDOwnerState& State,uint32 Request,const FLDVendorQuote& Quote,FGuid Item,const FString& Reason);
     void InventoryCommand(uint8 Command,FGuid Item=FGuid(),uint8 Slot=0,FVector Point=FVector::ZeroVector);
     uint32 NextCombatToken(){return ++NextRequest;}
+    uint32 CombatTokenFloor() const {return FMath::Max3(NextRequest,LastCombatRequest,FMath::Max(LastContextRequest,LastWardRequest));}
+    void RaiseCombatTokenFloor(uint32 Floor){NextRequest=FMath::Max(NextRequest,Floor);}
     void SendItemAction(FGuid Item,FGuid Target,FVector Point);
     void StartContentInteraction(FGuid Observed,uint8 Kind);
     UFUNCTION(Server,Unreliable) void ServerContentHold(uint32 Match,uint32 Life,uint32 Token,uint32 Sequence,bool Moving,bool Release);

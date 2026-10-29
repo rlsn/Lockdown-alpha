@@ -56,6 +56,8 @@ public:
     static FName Bank(FGuid Id);
 private:
     friend class ALDB92EconomyProbe;
+    friend class ALDB92Roster;
+    friend class ALDB92RosterProbe;
     bool Ready=false,Closed=false;
     int32 Cursor=0;
     double LastSample=0;

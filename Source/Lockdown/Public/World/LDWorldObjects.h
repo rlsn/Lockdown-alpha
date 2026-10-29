@@ -107,6 +107,7 @@ public:
     ALDWorldObject* Find(FName SourceId) const;
     ALDWorldObject* Carried(const ALDB91Controller* PC) const;
     bool ForceDrop(ALDB91Controller* PC);
+    bool TransferCarrier(ALDB91Controller* Previous,ALDB91Controller* Next);
     ALDWorldObject* MeleeTarget(ALDCharacter* Body,FVector Aim,double Reach,bool SaplingsOnly=false) const;
     bool StrikeMelee(ALDCharacter* Body,ALDWorldObject* Object,double Damage);
     bool InsideGrass(const ALDCharacter* Body) const;
@@ -136,6 +137,7 @@ private:
     friend class ALDB91GrassProbe;
     friend class ALDB91CheckpointProbe;
     friend class ALDB91EncounterProbe;
+    friend class ALDB92RosterProbe;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {
