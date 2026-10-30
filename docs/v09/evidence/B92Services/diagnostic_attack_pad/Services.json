@@ -1,0 +1,82 @@
+{
+	"stage": "B92",
+	"scope": "remote_takeover_and_five_physical_markets",
+	"complete": true,
+	"full_stage_acceptance": false,
+	"phase": 92,
+	"failures": 1,
+	"checks": [
+		{
+			"case": "Two real remote owning clients admitted to existing seats",
+			"passed": true
+		},
+		{
+			"case": "One ledger covers426 market plus143 finite world goods and24 persistent accounts",
+			"passed": true
+		},
+		{
+			"case": "Two existing common caches supply original Ore; no diagnostic money/items created",
+			"passed": true
+		},
+		{
+			"case": "Remote LMB storage/Open and exact Take transfer two original Ore identities into real bags",
+			"passed": true
+		},
+		{
+			"case": "First zero-wallet contender sells an actual cached Ore for finite Capital cash",
+			"passed": true
+		},
+		{
+			"case": "Other remote contender independently earns from a different finite source",
+			"passed": true
+		},
+		{
+			"case": "Forged price rejects before spending or allocating",
+			"passed": true
+		},
+		{
+			"case": "Stale inventory confirmation rejects without payment",
+			"passed": true
+		},
+		{
+			"case": "Duplicate remote Buy allocates one existing stock identity and returns one receipt",
+			"passed": true
+		},
+		{
+			"case": "Resale preserves original identity and a same-pool cycle loses gold",
+			"passed": true
+		},
+		{
+			"case": "Both remote contenders confirm the same current Capital quote",
+			"passed": true
+		},
+		{
+			"case": "Two real remote purchases serialize to one winner; stale loser keeps funds",
+			"passed": true
+		},
+		{
+			"case": "Remote other-city Open returns no stock or quote outside physical access",
+			"passed": true
+		},
+		{
+			"case": "Actual network disconnect retains the same body, life and wallet under AI control",
+			"passed": true
+		},
+		{
+			"case": "Disconnect preserves exact purchased goods and canonical lineage without a new grant",
+			"passed": true
+		},
+		{
+			"case": "Replacement remote connection takes the available original seat/body/account",
+			"passed": true
+		},
+		{
+			"case": "Replacement client receives input floor and executes an actual ordinary attack on its retained body",
+			"passed": false
+		},
+		{
+			"case": "City fixture transfers two existing cached Ore; no hidden funding or item creation",
+			"passed": true
+		}
+	]
+}

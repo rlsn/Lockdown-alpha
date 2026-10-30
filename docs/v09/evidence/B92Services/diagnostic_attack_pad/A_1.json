@@ -1,0 +1,18 @@
+{
+	"completed": true,
+	"accepted": true,
+	"gold": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "E1827E124A6306512F7039A50E531106",
+			"kind": 4
+		}
+	]
+}

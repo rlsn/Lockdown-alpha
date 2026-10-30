@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 22 · 29 October 2026 · Long-term product and design reference
+Revision 23 · 30 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -32,15 +32,19 @@ that the complete match is engaging or balanced.
 
 B92's [economy authority foundation](../v09/B92_ECONOMY_FOUNDATION.md) now audits
 the actual zero-money/empty-inventory starter and existing Witness operation,
-and verifies five finite pools and funded institutional schedules. It remains
-an isolated native authority boundary. Normal service access, work, population behavior
-and earned progression still need the full-match integration.
+and verifies five finite pools and funded institutional schedules. That report
+isolates the authority boundary. Subsequent integration must connect services,
+work, population behavior and earned progression to the same finite resources.
 
 The [B92 roster review](../v09/B92_ROSTER.md) now connects 24 persistent seats,
 196 role bodies and the economic identities. Control changes preserve a seat's
 body and development; death/return retain its accounts and finite sources.
-Role routines, security, autonomous progression and ordinary service access
-remain open. Body counts alone do not establish a living-world experience.
+The [remote service increment](../v09/B92_SERVICES.md) connects commodity counters
+to actual bags and finite cash, with one accounting domain for world/container
+goods and market stock. Two remote owners and replacement-seat takeover are
+verified. Role routines, security, autonomous progression, rare/bank/work services
+and authenticated reconnect remain open. Body counts and isolated trading do
+not establish a living-world experience.
 
 ## Reading paths
 

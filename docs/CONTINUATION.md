@@ -1,4 +1,34 @@
-# Active continuation — B92 native roster and lifecycle in progress
+# Active continuation — B92 physical services and remote takeover
+
+The current increment is [remote takeover and physical markets](v09/B92_SERVICES.md),
+native source **66a1c50b46c2adb8988346d163afb46676dd49c8**, with [frozen evidence](v09/evidence/B92Services/README.md).
+Two actual remote owners trade original finite goods; disconnect and replacement
+connection preserve the original seat/body/life/account/property and seed a valid
+next combat command. Five physical LMB commodity counters use actual bags,
+capacity, quiet/access gates and revision-bound confirmations. One canonical
+ledger imports426 market units plus143 original world goods and preserves source
+receipts through storage, bags, sale, harvest and consume. `v09_full` remains
+closed; `v09_population` with `LDB92GameMode` is the explicit review profile.
+
+Connected41 checks/21 market receipts pass; independent replay closes175 receipts,
+149 accounts,570 historical identities and3288gold, zero mint. The720p capture
+shows current prices and full-bag refusal. Roster4/12 authority fixtures37/53,
+economy125, rules59, two-remote B91 sources53 and both full-unity targets pass.
+All207 protected inputs remain unchanged. Master revision23 records physical
+local terms, exact retry and persistent property principles.
+
+**Next:** shared rare stocks and physical banks; finite deposits, courier and
+procurement/crafting; prepared full-map Witness and an earned zero-kill Charter
+journey. Execute152 routines, witnessed local security, hostile behavior and
+ordinary legal contender AI/tier transitions. New sources must join the canonical
+ledger rather than introducing a parallel accounting domain. Available-seat
+takeover is not authenticated account reclaim. Four/twelve remote humans,
+active committed-effect ownership, full account/economy recovery, B93 victory
+and B94 session/human/performance acceptance remain open. Counter travel and
+later-city source preparation were fixtures; no normal earnings/pacing claim.
+No new world-interaction keys or physical channel-button holds.
+
+## Prior native roster checkpoint
 
 The current increment is [persistent roster/native admission](v09/B92_ROSTER.md),
 native source **60e4dafd84d5d58ac06b22587a15e274424d06a4**, with [frozen evidence](v09/evidence/B92Roster/README.md).

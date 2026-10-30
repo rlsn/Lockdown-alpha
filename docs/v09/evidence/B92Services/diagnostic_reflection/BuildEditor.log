@@ -1,0 +1,15 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -DisableAdaptiveUnity -MaxParallelActions=2
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Executing up to 2 actions based on MaxProcessorCount override
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Population\LDB92Roster.h(38): Error: Function parameter: 'Owner' cannot be defined in 'ClientB92Market' as it is already defined in scope 'AActor' (shadowing is not allowed)
+Unhandled 1 aggregate exceptions
+
+Result: Failed (OtherCompilationError)
+Total execution time: 5.32 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 2.6kb

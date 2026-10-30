@@ -73,6 +73,22 @@ Banking is physical and quiet, shares one account across counters and burns the 
 
 ## Accounting and design evaluation
 
+A market is a physical opportunity. Seeing a public location on the map does
+not grant remote stock knowledge or permission to transact. The player approaches
+the counter, sees its current local terms, and confirms one unit from the actual
+bag or pool. The server rechecks access, price, capacity and money together.
+If terms change, show the refusal and current quote before another confirmation.
+Keep a retry attached to the same receipt so uncertain delivery cannot charge
+twice. A full bag should explain the blocked purchase before moving any cash.
+
+The [B92 commodity counters](../v09/B92_SERVICES.md) implement this boundary across
+five pools. Their unified ledger preserves the original goods through cache,
+bag, ground, market, harvest and consumption. The connected tests stage travel
+and later source preparation; finding opportunities and earning a useful build
+remain separate design questions. Rare official supply, banks and work need
+their own physical access and consequence rules rather than an expanded generic
+shop panel.
+
 Global gold end equals start + named mints − burns; transfers cancel. Item end equals start + creation − consumption − explicit cleanup. Recipes retain lineage and finite sources retain receipt identity across actor recreation/death/rejoin.
 
 Measure stockouts, cash exhaustion, net travel margins, wealth concentration, counter affordability and first access timing. Economic depth comes from meaningful choices and competition; repeated unopposed errands are a pacing failure. The public Charter converts economic achievement into a contested opening, never a remote money victory.

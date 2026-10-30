@@ -91,3 +91,10 @@ Target acquisition requires observation and weapon reach; projectile geometry
 and the existing finite damage authority resolve clearance without Fiber.
 Ranged build setup remains diagnostic until normal weapon acquisition exists.
 See [source and evidence](../v09/B91_RANGED.md).
+
+Revision 23 connects physical commodity services to persistent seats and one
+world/market item ledger. A quote is local permission with current terms, and
+one confirmation commits both cash and a real unit. Retries keep the original
+receipt. Source creation and consumption preserve provenance across storage,
+bags and pools. Remote available-seat takeover is verified separately from
+authenticated reconnect and autonomous life. See [scope and evidence](../v09/B92_SERVICES.md).

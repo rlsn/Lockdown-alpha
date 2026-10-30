@@ -37,6 +37,12 @@ A character waiting to return still waits after control changes. A body life
 can end without deleting its contender's account, development or earned proofs.
 Authenticated ownership and reconnect rules require their own explicit policy.
 
+The [B92 remote takeover review](../v09/B92_SERVICES.md) now exercises this over
+real connections, including a normal command after replacement. Receiving an
+available seat is distinct from proving account ownership: a future authenticated
+reconnect must identify the intended seat, refuse competing claims and preserve
+the same world consequences without replaying its starting endowment.
+
 Noncontender source identities also outlive a particular body or planning task.
 A returning guard does not receive another purse or reward budget. A civilian
 routine, institution animation and visual traveler cargo cannot each invent a

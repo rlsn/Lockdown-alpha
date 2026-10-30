@@ -1,4 +1,11 @@
-# Project Lockdown — v0.9 B91 functional environment in progress
+# Project Lockdown — v0.9 B92 population and economy in progress
+
+B91 is complete at its functional-environment boundary. B92 now connects 24
+persistent contender seats and 196 role bodies to five physical commodity
+markets and one world/market item ledger. Two remote owners and replacement-seat
+takeover pass connected checks; routines, security, work, bank/rare services and
+complete-match acceptance remain open. See the [current service review](docs/v09/B92_SERVICES.md),
+[roster review](docs/v09/B92_ROSTER.md) and [active handoff](docs/CONTINUATION.md).
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
@@ -6,7 +13,7 @@ deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
 stage is complete, including settlement/service mapping, fitted road/doorway
 geometry, native travel heat and actual world-reset/profile isolation. Its
 standalone spatial preview is separate from full-match gameplay, which still
-requires the dependent B91–B94 work.
+requires the remaining B92–B94 work.
 
 Start with the [active handoff](docs/CONTINUATION.md),
 [B91 functional-environment progress](docs/v09/B91_IMPLEMENTATION.md),

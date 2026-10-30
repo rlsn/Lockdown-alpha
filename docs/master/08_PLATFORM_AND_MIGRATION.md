@@ -1,5 +1,15 @@
 # Platform, architecture and continuity
 
+The [B92 service integration](../v09/B92_SERVICES.md) now uses one ledger for
+original environment goods and market stock. Locations reference persistent
+seat accounts or exact world containers; binding and controller changes are
+projections of the same physical identities. Synchronization must run after
+settled world mutations and before operations that depend on current ownership.
+New source types require an explicit creation/consume boundary and preserved
+provenance. A subsystem cannot legitimize a missing item by rebuilding its
+starting supply. Partial ownerless-environment saves remain distinct from full
+active-match recovery.
+
 ## Native foundations
 
 The selected platform is Windows-first Unreal, a 3D world and controlled top-down camera. The inspected engine is pinned to Unreal 5.8.4 CL 58902052. Keep the working C++/UMG/Enhanced Input architecture and saved native geometry. No migration to GAS, World Partition, PCG or another UI stack is implied by map expansion.

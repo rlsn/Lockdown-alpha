@@ -125,6 +125,15 @@ The B91 bag selects exact instances; a binding button issues the2s preparation o
 
 ## Input arbitration and accessibility
 
+Commodity trading uses LMB on the physical counter and one click on a priced
+Buy/Sell row for one unit. Show local stock and the owner's wallet beside the
+terms. A refusal should identify what changed: access, quote, inventory, funds
+or capacity. Refreshing a quote never confirms a purchase on the player's behalf.
+Close stale sessions when their body leaves or becomes ineligible; preserve the
+receipt for an already completed transaction. The [B92 counter review](../v09/B92_SERVICES.md)
+checks native remote requests and a 720p layout, while enlarged text and human
+usability remain open.
+
 Text entry, modal, drag, targeting, panel, minimap and world each own input explicitly. A click cannot also pass through to a world command. UI does not pause opponents. Distinguish selection, attack and interaction visually and use text/icon/timing cues alongside color.
 
 Verify practical tasks at 720p, 1080p, enlarged text and OS scaling: find an action reason, remap, navigate, learn/prepare, equip, compare, buy, trade, cancel and recover after death. Observe real users and independent clients. Screenshots establish layout only; native input and restricted payloads establish behavior.
