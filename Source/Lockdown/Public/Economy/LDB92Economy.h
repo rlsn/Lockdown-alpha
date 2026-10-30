@@ -45,6 +45,9 @@ public:
     bool Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error,bool IncludeWorld=false);
     FLDB92MarketQuote Quote(FName Market) const;
     bool Trade(const FLDB92Trade& Request,FGuid& Received,FString& Error);
+    static FName BookBudget(ELDSkill Skill);
+    uint32 OfficialRevision=1;
+    bool PurchaseOfficial(class ALDB92Controller* PC,FName POI,FGuid Receipt,const struct FLDB92MarketOrder& Order,FString& Error);
     // Called by one authority clock, never by clients. Missed intervals are
     // discarded rather than compressed into a production burst on wake/reload.
     bool Sample(double Elapsed,FString& Error);

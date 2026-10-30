@@ -43,6 +43,16 @@ void ALDB92Controller::TickServicesProbe()
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task>=19&&Task<=23)
+    {
+        if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}
+        if(ServicesProbeStep==1){if(MarketReceiptSequence!=ServicesProbeSequence||!MarketView.Session.IsValid()){return;}const auto* V=MarketView.Offers.FindByPredicate([&](const auto& X){return Task==22?X.Kind==ELDItemKind::Fiber:X.Kind==ELDItemKind::Book&&X.Stock>=0;});FLDB92MarketOrder R;
+            if(Task==23){R=MarketOrder(true,ELDItemKind::Book);R.Skill=ELDSkill::None;for(const auto& X:OwnerState.Inventory.Items){if(X.Kind==ELDItemKind::Book){R.Skill=X.Skill;break;}}R.Price=90;}
+            else{if(!V){Complete(false);return;}R=MarketOrder(true,V->Kind);R.Skill=V->Skill;R.Price=V->Ask;}R.Supply=true;Send(R);if(Task==19){ServerB92Order(R);}ServicesProbeStep=2;return;}
+        if(MarketReceiptSequence==ServicesProbeSequence&&(Task!=19||ServicesProbeReceiptCounts.FindRef(ServicesProbeSequence)>=2)){Complete(MarketAccepted);}return;
+    }
+    if(Task==24)
+    {if(!ServicesProbeStep){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Output;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FScreenshotRequest::RequestScreenshot(Output/TEXT("Supply.png"),true,false);}ServicesProbeStep=1;ServicesProbeAt=Now;}else if(Now-ServicesProbeAt>1){Complete(true);}return;}
     if(Task>=15&&Task<=18)
     {
         if(!ServicesProbeStep)

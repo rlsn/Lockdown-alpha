@@ -20,7 +20,27 @@ def check(root):
     assert len(ledger['accounts']) == 149 and int(ledger['start']) == 3288
     assert int(ledger['minted']) == 0 and int(ledger['end']) == 3288 - int(ledger['burned'])
     bank = data.get('bank_integration', False)
-    assert int(ledger['burned']) % 5 == (1 if bank else 0)
+    official = data.get('official_integration', False)
+    purchases = [r for r in ledger['receipts'] if r['cause'] == 'B92OfficialPurchase']
+    official_burn = sum(int(r['burn']) for r in purchases)
+    assert (int(ledger['burned']) - official_burn) % 5 == (1 if bank else 0)
+    if official:
+        assert len(data['checks']) >= 52 and len(purchases) == 3 and official_burn == 184
+        books = [r for r in purchases if r['budget'].startswith('B92OfficialBook')]
+        assert len(books) == 2 and books[0]['budget'] == books[1]['budget']
+        assert all(r['units'] == 1 and int(r['burn']) == 90 for r in books)
+        assert all(len(r['items']) == 1 and r['items'][0]['kind'] == 0
+                   and r['items'][0]['skill'] == int(r['budget'].removeprefix('B92OfficialBook')) for r in books)
+        assert len({r['items'][0]['to'] for r in books}) == 2
+        for r, report in zip(books, ('A2_19.json', 'B_20.json')):
+            item_id = r['items'][0]['id']
+            assert any(i['id'] == item_id and i['kind'] == 0 for i in read(root / report)['items'])
+            assert any(i['id'] == item_id and i['origin'] == r['id'] for i in ledger['items'])
+        budgets = [b for b in ledger['budgets'] if b['id'] == books[0]['budget']]
+        assert len(budgets) == 1 and budgets[0]['initial'] == 2 and budgets[0]['remaining'] == 0
+        for role, task in [('A2',19),('B',20),('A2',21),('A2',22),('A2',23),('A2',24)]:
+            assert read(root / f'{role}_{task}.json')['completed']
+        assert not read(root / 'A2_21.json')['accepted'] and not read(root / 'A2_23.json')['accepted']
     if bank:
         assert len(data['checks']) >= 45
         for role, task in [('A', 15), ('A', 17), ('A', 18), ('A2', 16)]:
@@ -50,10 +70,15 @@ def check(root):
     assert all(int(r['mint']) == int(r['burn']) == 0 for r in market)
     producers = sum(r['cause'] == 'B92InstitutionProduction' for r in events)
     consumes = sum(r['cause'] == 'B92InstitutionConsumption' for r in events)
-    assert len(ledger['items']) == 570 + producers
+    assert len(ledger['items']) == 570 + producers + len(purchases)
     assert sum(i['consumed'] for i in ledger['items']) == 1 + consumes
-    assert sum(not i['consumed'] for i in ledger['items']) == 569 + producers - consumes
-    assert all(r['cause'] not in ('DiagnosticFixtureTransfer', 'DiagnosticReward') for r in events)
+    assert sum(not i['consumed'] for i in ledger['items']) == 569 + producers - consumes + len(purchases)
+    assert all(r['cause'] != 'DiagnosticReward' for r in events)
+    fixtures = [r for r in events if r['cause'] == 'DiagnosticFixtureTransfer']
+    assert len(fixtures) == (1 if official else 0)
+    if fixtures:
+        assert int(fixtures[0]['mint']) == int(fixtures[0]['burn']) == 0
+        assert sorted(int(g['delta']) for g in fixtures[0]['gold']) == [-400, 100, 300]
     for role, phases in {'A': (1, 2, 10, 11, 3, 4, 5, 6, 8), 'B': (1, 2, 5, 6, 7), 'A2': (9, 2, 3, 4, 12, 13, 5, 14)}.items():
         for phase in phases:
             report = read(root / f'{role}_{phase}.json')

@@ -1,6 +1,7 @@
 #include "Tests/LDB92ServicesProbe.h"
 #include "Population/LDB92Roster.h"
 #include "Economy/LDB92Economy.h"
+#include "Economy/LDB92Services.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "World/LDWorldObjects.h"
@@ -26,7 +27,7 @@ void ALDB92ServicesProbe::Task(ALDB92Controller* PC,uint8 Value,FName POI)
 {PC->ServicesProbeReports.Remove(Value);PC->ClientB92ProbeTask(Value,POI);At=GetWorld()->GetTimeSeconds();}
 void ALDB92ServicesProbe::Save(bool Complete)
 {
-    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetBoolField(TEXT("official_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     if(Complete){const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();FFileHelper::SaveStringToFile(M->Population->Economy->Accounting().ExportJson(TEXT("B92RemoteServices")),*(Output/TEXT("Ledger.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
 }
 void ALDB92ServicesProbe::Tick(float Delta)
@@ -116,6 +117,23 @@ void ALDB92ServicesProbe::Tick(float Delta)
         if(!Good(Read(Replacement.Get(),13))){return;}Check(E->SynchronizeWorld(Error)&&E->Audit(Error)&&Objects->Conserved(Error)&&R->Audit(Error),TEXT("One canonical ledger closes bags, containers, markets, source creation, consume and network takeover"));
         int32 Consumed=0;for(const auto& P:E->Accounting().ItemRecords()){Consumed+=P.Value.Consumed;}
         Check(Consumed>=1&&E->Accounting().TotalGold()==3288-E->Accounting().Burned()&&E->Accounting().Minted()==0,TEXT("Paid Water consumption and scheduled institutional sinks conserve every item and gold; no work/life refill"));
+        Phase=40;return;
+    }
+    if(Phase==40)
+    {
+        auto* PC=Replacement.Get();const auto WA=E->Wallet(M->ContenderId(PC)),WB=E->Wallet(M->ContenderId(B.Get()));LDEconomy::FTransaction Fund;Fund.Id=FGuid::NewGuid();Fund.Cause=TEXT("DiagnosticFixtureTransfer");Fund.Gold={{TEXT("capital"),E->Ledger.Account(TEXT("capital"))->Revision,-400},{WA,E->Ledger.Account(WA)->Revision,300},{WB,E->Ledger.Account(WB)->Revision,100}};
+        Check(E->Ledger.Commit(Fund,Error),TEXT("Official supply fixture transfers400 existing reserve gold; no mint or earned-acquisition claim"));M->StateFor(PC)->Gold=E->Ledger.Account(WA)->Gold;M->StateFor(B.Get())->Gold=E->Ledger.Account(WB)->Gold;Place(PC,ALDB92Services::Counter(GetWorld(),TEXT("scholars_archive"))+FVector(60,0,0));Place(B.Get(),ALDB92Services::Counter(GetWorld(),TEXT("scholars_archive"))-FVector(60,0,0));At=Now;Phase=95;return;
+    }
+    if(Phase==95){if(Now-At<1){return;}Task(Replacement.Get(),19,TEXT("scholars_archive"));Phase=41;return;}
+    if(Phase==41){const auto J=Read(Replacement.Get(),19);if(!Good(J)){return;}Check(J->GetBoolField(TEXT("accepted"))&&J->GetBoolField(TEXT("duplicate_same")),TEXT("Remote archive duplicate creates one paid CircleIII book with one90-gold burn"));Task(B.Get(),20,TEXT("scholars_archive"));Phase=42;return;}
+    if(Phase==42){const auto J=Read(B.Get(),20);if(!Good(J)){return;}Check(J->GetBoolField(TEXT("accepted")),TEXT("Second remote owner purchases the second global copy of the same definition"));SavedGold=M->StateFor(Replacement.Get())->Gold;Task(Replacement.Get(),21,TEXT("scholars_archive"));Phase=43;return;}
+    if(Phase==43){const auto J=Read(Replacement.Get(),21);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==SavedGold,TEXT("Third CircleIII purchase refuses without spending after two globally shared copies"));Place(Replacement.Get(),ALDB92Services::Counter(GetWorld(),TEXT("capital_supply"))+FVector(60,0,0));At=Now;Phase=96;return;}
+    if(Phase==96){if(Now-At<1){return;}Task(Replacement.Get(),22,TEXT("capital_supply"));Phase=44;return;}
+    if(Phase==44){const auto J=Read(Replacement.Get(),22);if(!Good(J)){return;}Check(J->GetBoolField(TEXT("accepted")),TEXT("Ordinary supply creates one real Fiber for4 burned gold in the canonical ledger"));SavedGold=M->StateFor(Replacement.Get())->Gold;Task(Replacement.Get(),23,TEXT("capital_supply"));Phase=45;return;}
+    if(Phase==45){const auto J=Read(Replacement.Get(),23);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==SavedGold,TEXT("Supply counter refuses forged CircleIII order outside its endpoint role"));Task(Replacement.Get(),24,NAME_None);Phase=46;return;}
+    if(Phase==46)
+    {
+        if(!Good(Read(Replacement.Get(),24))){return;}Check(E->SynchronizeWorld(Error)&&E->Audit(Error)&&R->Audit(Error),TEXT("Official outputs preserve original receipt, exact bag projections and global stock through source synchronization"));
         auto* PC=Replacement.Get();auto* O=M->StateFor(PC);
         for(auto Obj:Objects->Objects){if(!Obj.IsValid()){continue;}for(int32 I=Obj->Contents.Num()-1;I>=0&&O->Inventory.Items.Num()<24;--I){auto* P=Obj->Contents[I].Get();if(P&&P->Kind==ELDItemKind::Fiber){Obj->Contents.RemoveAt(I);P->Holder.Reset();P->State=0;M->Inventory->Adopt(PC,P,NAME_None,false);}}if(O->Inventory.Items.Num()==24){break;}}
         Check(O->Inventory.Items.Num()==24&&E->SynchronizeWorld(Error),TEXT("Capacity fixture fills the bag from existing cached Fiber; no new goods"));Place(PC,ALDB92Services::Counter(GetWorld(),Markets.Last())+FVector(60,0,0));At=Now;Phase=94;return;

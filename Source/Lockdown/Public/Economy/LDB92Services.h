@@ -9,6 +9,7 @@ struct FLDB92Offer
 {
     GENERATED_BODY()
     UPROPERTY() ELDItemKind Kind=ELDItemKind::Fiber;
+    UPROPERTY() ELDSkill Skill=ELDSkill::None;
     UPROPERTY() int32 Stock=0; UPROPERTY() int32 Ask=0; UPROPERTY() int32 Bid=0;
 };
 // Owner-only local counter quote. No roster, remote inventory or stock IDs.
@@ -31,8 +32,10 @@ struct FLDB92MarketOrder
     UPROPERTY() FGuid Session; UPROPERTY() FGuid Item;
     UPROPERTY() uint64 Revision=0;
     UPROPERTY() ELDItemKind Kind=ELDItemKind::Fiber;
+    UPROPERTY() ELDSkill Skill=ELDSkill::None;
     UPROPERTY() bool Buy=true;
     UPROPERTY() int32 Price=0;
+    UPROPERTY() bool Supply=false;
     // 0 commodity, 1 deposit, 2 withdraw. Amount is total wallet debit on deposit.
     UPROPERTY() uint8 BankAction=0;
     UPROPERTY() int64 Amount=0;
@@ -47,6 +50,9 @@ public:
     ALDB92Services();
     virtual void Tick(float Delta) override;
     static const TArray<FName>& Markets();
+    static TArray<FName> Endpoints();
+    static bool Official(FName POI);
+    static TArray<FLDB92Offer> SupplyOffers(FName POI,const class ALDB92Economy* Economy);
     static FVector Counter(const UWorld* World,FName POI);
     bool Eligible(ALDB92Controller* PC,FName POI) const;
     void Open(ALDB92Controller* PC,uint32 Match,uint32 Life,uint32 Sequence,FName POI);
