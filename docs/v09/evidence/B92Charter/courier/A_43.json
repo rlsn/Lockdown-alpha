@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "",
+	"market_feedback": "One active contract, paid/issuance limits and the displayed route are required",
+	"accepted": false,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "94DA70EA4194BC77E478919C72BDC557",
+			"kind": 98
+		}
+	]
+}

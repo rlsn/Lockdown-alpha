@@ -1,0 +1,45 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Work or exact recipe terms changed",
+	"accepted": false,
+	"gold": "222",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100012,
+	"duplicate_same": true,
+	"bag_count": 7,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "A40B82BC421FBAABE775AFA37CF905EF",
+			"kind": 97
+		},
+		{
+			"id": "F6D4EB734A17383E97C88784D8906442",
+			"kind": 0
+		},
+		{
+			"id": "8188944C4020ECF3F25C07BE352BBCC3",
+			"kind": 5
+		},
+		{
+			"id": "483F9C9345B58372E814809207252E81",
+			"kind": 5
+		},
+		{
+			"id": "FDE0E20C4D83CE09E92EA3B0DE255205",
+			"kind": 6
+		},
+		{
+			"id": "D52097A144CB8B30E071F1AE74ABAF26",
+			"kind": 6
+		},
+		{
+			"id": "0AD90BA2408DE26286727E83CA3135C8",
+			"kind": 7
+		}
+	]
+}

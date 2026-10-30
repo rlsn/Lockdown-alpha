@@ -1,0 +1,37 @@
+{
+	"completed": true,
+	"feedback": "Witness already recorded; no duplicate reward or receipt",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": true,
+	"gold": "38",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 5,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "0D5A501043228BF802022881608A4BE6",
+			"kind": 6
+		},
+		{
+			"id": "8DBE33AF418AC6681748738185EA2983",
+			"kind": 6
+		},
+		{
+			"id": "423555FB43DA010C19936895811A34BC",
+			"kind": 6
+		},
+		{
+			"id": "46ABEFA24A2490E3B77B0D90718F7274",
+			"kind": 6
+		},
+		{
+			"id": "5974CF4746156CACC8F28CAE764922B8",
+			"kind": 5
+		}
+	]
+}

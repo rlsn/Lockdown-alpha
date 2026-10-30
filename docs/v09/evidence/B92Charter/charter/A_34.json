@@ -1,0 +1,29 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Craft complete; fee burned, real output in bag, no XP",
+	"accepted": true,
+	"gold": "32",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 3,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "423555FB43DA010C19936895811A34BC",
+			"kind": 6
+		},
+		{
+			"id": "46ABEFA24A2490E3B77B0D90718F7274",
+			"kind": 6
+		},
+		{
+			"id": "FDBB78C6414D784513C61BA4B2703A5F",
+			"kind": 7
+		}
+	]
+}

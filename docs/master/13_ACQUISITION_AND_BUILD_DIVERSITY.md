@@ -41,3 +41,9 @@ Class traits are narrow immutable starting identity. Signature suggestions still
 Test whether different builds offer distinct plans, whether cheap answers remain useful late, and whether players can explain an upgrade's sacrifice. Record actual purchases, preparation changes, unused skills, common pairings and route outcomes.
 
 Catalog quantity is not diversity. If players repeatedly choose one generalist kit, inspect slot compression, opportunity cost, affordability and counter access before adding more items. Spell variants, subclasses and random affixes remain proposals unless selected with explicit budgets.
+
+## An earned knowledge-to-capability chain
+
+Acquisition must close the gap between a book appearing in a bag and an ability changing the player's options. The chain is purchase or find a real unknown book, read it through its timed item action, prepare the learned ability in a shared slot, and meet its natural/rank gate. Show each transition and its cost separately. Avoid granting ranks or attributes merely to make a showcase work.
+
+The [earned B92 route](../v09/B92_CHARTER.md) exercises this with Parley: four courier payouts fund a40gold book; reading teaches rank1; earned level3 points permit+2CHA and rank2; preparation produces score12 for Witness. That is one feasible progression chain. It does not establish that Parley is a generally useful combat investment, that all starting presets have the same shortest path, or that repeated courier work is satisfying. Evaluate alternate purchases, survival tools and contested sources before drawing balance conclusions.

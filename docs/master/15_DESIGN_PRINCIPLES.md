@@ -88,3 +88,9 @@ Deliver a representative encounter with real decisions before spreading componen
 ## Feature review
 
 Answer: What decision is added? Who pays, and when? What can an opponent perceive and do? Which existing authority owns it? What survives cancel, death, trade and reset? Can AI do it without privileged data? Which small native test and human observation will evaluate it? Missing answers mean the feature is still a proposal.
+
+## Prove progression without hiding its investment
+
+A connected journey should account for the starting state, each source of money/XP, each acquired physical input and each preparation cost. Separate travel or status setup used to isolate engineering from granted development that bypasses the journey. A fixture can verify an alternative mechanic; it cannot demonstrate that players can afford or discover it.
+
+Knowledge, preparation, qualification, registration and activation are distinct accomplishments. A successful skill check should not silently teach the skill, grant free income or open Heart. A paid registration should not silently select a payment source or create a remote victory. Keep those transitions legible so players can plan and rivals can respond.

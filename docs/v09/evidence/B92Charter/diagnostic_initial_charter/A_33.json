@@ -1,0 +1,33 @@
+{
+	"completed": true,
+	"feedback": "Witness already recorded; no duplicate reward or receipt",
+	"market_feedback": "Craft complete; fee burned, real output in bag, no XP",
+	"accepted": true,
+	"gold": "38",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 4,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "6C05A4F74F19D7BB68215E984F1AB518",
+			"kind": 6
+		},
+		{
+			"id": "6B2CC92448774BE558763AB0EC929AED",
+			"kind": 6
+		},
+		{
+			"id": "73B383A74F21E27C82BEE595D881A18B",
+			"kind": 6
+		},
+		{
+			"id": "B7387B214ADCE697EB3DCBB6FE79716B",
+			"kind": 6
+		}
+	]
+}

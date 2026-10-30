@@ -21,7 +21,7 @@ A warning exposes objective timing/static location, not a private build or fogge
 
 ## Tactical claim
 
-Claiming requires permission and a ten-second hold within 120 cm. The claimant breaks concealment and cannot attack, cast, use an item or trade while maintaining it. Prepared defenses may help, but they do not create universal immunity.
+Claiming requires permission and a ten-second channel within 120 cm, started with one confirmation. The claimant breaks concealment and cannot attack, cast, use an item or trade while maintaining it. Prepared defenses may help, but they do not create universal immunity.
 
 Death, Stun, Hex, explicit Interrupt, actual forced displacement, leaving range, self-cancel or authorization loss cancel. Ordinary nonlethal damage, proximity, Root, Slow, Wet, Silence and Mute alone do not cancel an existing generic Heart interaction. A prevented Stun does not become a fake interruption. This is why a lower-level defender can matter without winning a damage race.
 

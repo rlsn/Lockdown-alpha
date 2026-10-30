@@ -122,3 +122,9 @@ quotes, bindings, channels, concealment and saved consequences establish the
 mechanic boundary. They leave the human questions open: whether the route is
 readable, whether the tools are worth obtaining, and whether an actual rival
 makes the choice interesting. B92 must supply that acquisition and opposition.
+
+## Earned registration as a repeatable acceptance route
+
+The [B92 connected review](../v09/B92_CHARTER.md) now provides a reproducible empty-bag/zero-wallet route through actual earnings, book reading, legal point spending, prepared Witness, paid work inputs, automatic Crystal gathering, procurement and an explicit100gold wallet/bank purchase. Six actual courier channels fund it. Travel, quiet and protection setup are staged; alternative profession builds remain labelled fixtures. The owner disconnects and a replacement connection retains the same accomplishments.
+
+Use this as the next human playtest's transaction baseline. Remove staged travel and coaching, record time spent travelling, waiting and repeating work, and ask the player to explain the next investment after every transition. Add an opponent who can observe and contest a parcel or source through ordinary rules. Record abandoned builds and unaffordable counters. A successful purchase alone is insufficient: the player should understand that registration still needs activation near Heart and creates an opportunity rivals can contest.

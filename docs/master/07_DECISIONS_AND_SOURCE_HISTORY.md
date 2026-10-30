@@ -119,3 +119,11 @@ Issuance and payment are separately bounded; death changes possession without
 resetting the job. A rival cannot inherit the reward claim, and abandonment
 voids the contract without remotely deleting cargo. Strategic-distance coverage
 gaps remain explicit. See [scope and evidence](../v09/B92_COURIER.md).
+
+Revision 30 connects authored four-profession Witness and registered Treasury
+purchase through actual paid book learning and earned preparation. Registration
+requires real delivery/profession receipts, and an explicit wallet/bank split
+burns100gold atomically. Ordinary ground movement preserves a confirmed draft
+until stationary preparation; S still cancels. The master index now leads with
+the durable core loop, interaction language and delivery boundary, with detailed
+increment history in release reports. See [scope and evidence](../v09/B92_CHARTER.md).

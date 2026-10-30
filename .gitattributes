@@ -112,3 +112,6 @@
 
 /docs/v09/evidence/B92Courier/**/*.log -whitespace
 /docs/v09/evidence/B92Courier/*.log -whitespace
+
+/docs/v09/evidence/B92Charter/**/*.log -whitespace
+/docs/v09/evidence/B92Charter/*.log -whitespace

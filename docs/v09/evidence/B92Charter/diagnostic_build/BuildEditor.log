@@ -1,0 +1,55 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -gather -DisableAdaptiveUnity
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (16 physical cores, 32 logical cores)
+  Executing up to 16 processes, one per physical core
+  Requested 1.5 GB memory per action, 15.69 GB available: limiting max parallel actions to 10
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 12 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 22.56 GB/29.36 GB committed
+  UBA Storage capacity 40 GB
+[1/12] Compile [x64] Module.Lockdown.1.cpp
+[2/12] Compile [x64] Module.Lockdown.2.cpp
+[3/12] Compile [x64] Module.Lockdown.3.cpp
+[4/12] Compile [x64] Module.Lockdown.4.cpp
+[5/12] Compile [x64] Module.Lockdown.5.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Tests\LDB92CharterProbe.cpp(17,79): error C2662: 'FLDOwnerState *ALDGameMode::StateFor(ALDPlayerController *)': cannot convert 'this' pointer from 'const T' to 'ALDGameMode &'
+        with
+        [
+            T=ALDGameMode
+        ]
+    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(A.Get());auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),Label);J->SetStringField(TEXT("seat"),M->ContenderId(A.Get()).ToString());J->SetNumberField(TEXT("gold"),O->Gold);J->SetNumberField(TEXT("bank"),O->BankGold);J->SetNumberField(TEXT("xp"),O->Xp);J->SetNumberField(TEXT("level"),O->Build.Level);J->SetNumberField(TEXT("ap"),O->Build.AttributePoints);J->SetNumberField(TEXT("sp"),O->Build.SkillPoints);J->SetNumberField(TEXT("cha"),O->Build.Attributes[LDDevelopment::CHA]);J->SetNumberField(TEXT("parley_rank"),LDDevelopment::Rank(O->Build,ELDSkill::Parley));J->SetNumberField(TEXT("slot0"),uint8(O->Build.Slots[0]));J->SetNumberField(TEXT("life"),O->Life);J->SetStringField(TEXT("witness"),O->Witness.ToString());J->SetStringField(TEXT("industrial"),O->IndustrialEndorsement.ToString());J->SetStringField(TEXT("supply"),O->SupplyEndorsement.ToString());J->SetStringField(TEXT("charter"),O->CharterPurchase.ToString());TArray<TSharedPtr<FJsonValue>> Items;for(const auto& I:O->Inventory.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),I.Id.ToString());V->SetNumberField(TEXT("kind"),uint8(I.Kind));Items.Add(MakeShared<FJsonValueObject>(V));}J->SetArrayField(TEXT("items"),Items);CharterStages.Add(MakeShared<FJsonValueObject>(J));
+                                                                              ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Tests\LDB92CharterProbe.cpp(17,76): note: Conversion loses qualifiers
+    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(A.Get());auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),Label);J->SetStringField(TEXT("seat"),M->ContenderId(A.Get()).ToString());J->SetNumberField(TEXT("gold"),O->Gold);J->SetNumberField(TEXT("bank"),O->BankGold);J->SetNumberField(TEXT("xp"),O->Xp);J->SetNumberField(TEXT("level"),O->Build.Level);J->SetNumberField(TEXT("ap"),O->Build.AttributePoints);J->SetNumberField(TEXT("sp"),O->Build.SkillPoints);J->SetNumberField(TEXT("cha"),O->Build.Attributes[LDDevelopment::CHA]);J->SetNumberField(TEXT("parley_rank"),LDDevelopment::Rank(O->Build,ELDSkill::Parley));J->SetNumberField(TEXT("slot0"),uint8(O->Build.Slots[0]));J->SetNumberField(TEXT("life"),O->Life);J->SetStringField(TEXT("witness"),O->Witness.ToString());J->SetStringField(TEXT("industrial"),O->IndustrialEndorsement.ToString());J->SetStringField(TEXT("supply"),O->SupplyEndorsement.ToString());J->SetStringField(TEXT("charter"),O->CharterPurchase.ToString());TArray<TSharedPtr<FJsonValue>> Items;for(const auto& I:O->Inventory.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),I.Id.ToString());V->SetNumberField(TEXT("kind"),uint8(I.Kind));Items.Add(MakeShared<FJsonValueObject>(V));}J->SetArrayField(TEXT("items"),Items);CharterStages.Add(MakeShared<FJsonValueObject>(J));
+                                                                           ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Framework\LDGameMode.h(92,20): note: see declaration of 'ALDGameMode::StateFor'
+    FLDOwnerState* StateFor(ALDPlayerController* Controller);
+                   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Tests\LDB92CharterProbe.cpp(17,79): note: while trying to match the argument list '(T *)'
+        with
+        [
+            T=ALDB92Controller
+        ]
+    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(A.Get());auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),Label);J->SetStringField(TEXT("seat"),M->ContenderId(A.Get()).ToString());J->SetNumberField(TEXT("gold"),O->Gold);J->SetNumberField(TEXT("bank"),O->BankGold);J->SetNumberField(TEXT("xp"),O->Xp);J->SetNumberField(TEXT("level"),O->Build.Level);J->SetNumberField(TEXT("ap"),O->Build.AttributePoints);J->SetNumberField(TEXT("sp"),O->Build.SkillPoints);J->SetNumberField(TEXT("cha"),O->Build.Attributes[LDDevelopment::CHA]);J->SetNumberField(TEXT("parley_rank"),LDDevelopment::Rank(O->Build,ELDSkill::Parley));J->SetNumberField(TEXT("slot0"),uint8(O->Build.Slots[0]));J->SetNumberField(TEXT("life"),O->Life);J->SetStringField(TEXT("witness"),O->Witness.ToString());J->SetStringField(TEXT("industrial"),O->IndustrialEndorsement.ToString());J->SetStringField(TEXT("supply"),O->SupplyEndorsement.ToString());J->SetStringField(TEXT("charter"),O->CharterPurchase.ToString());TArray<TSharedPtr<FJsonValue>> Items;for(const auto& I:O->Inventory.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),I.Id.ToString());V->SetNumberField(TEXT("kind"),uint8(I.Kind));Items.Add(MakeShared<FJsonValueObject>(V));}J->SetArrayField(TEXT("items"),Items);CharterStages.Add(MakeShared<FJsonValueObject>(J));
+                                                                              ^
+[6/12] Compile [x64] Module.Lockdown.6.cpp
+[7/12] Compile [x64] Module.Lockdown.7.cpp
+[8/12] Compile [x64] Module.Lockdown.8.cpp
+[9/12] Compile [x64] Module.Lockdown.9.cpp
+Total time in Unreal Build Accelerator local executor: 137.86 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 148.13 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 24.7kb

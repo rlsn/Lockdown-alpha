@@ -1,7 +1,7 @@
 # Project Lockdown documentation
 
-The active implementation is **v0.9 B91 functional environment**, following
-completed B90 spatial work from native v0.8 B86 at ebc19a5. Start with the
+The active implementation is **v0.9 B92 population/economy**, following
+completed B90 spatial and B91 functional-environment work from native v0.8 B86. Start with the
 [continuation](CONTINUATION.md) for current status, next work and commands, or
 with the [living master](master/README.md) for the long-term game design.
 
@@ -26,12 +26,25 @@ with the [living master](master/README.md) for the long-term game design.
 | [Portable tools](v09/B91_TOOLS.md) | Retained physical fuel and cosmetic light |
 | [Approved traversal](v09/B91_TRAVERSAL.md) | Shared ladder/Rope links and supported interrupted movement |
 | [Fixed furniture](v09/B91_FURNITURE.md) | Empty private storage with separate walking and sight behavior |
-| [Saplings](v09/B91_SAPLINGS.md) | Finite harvest, chop and ordinary melee; burning/reload still open |
+| [Saplings](v09/B91_SAPLINGS.md) | Original finite harvest/chop/melee milestone; later ignition/completion and source controls supersede its original hold-key binding |
 | [Paid fields](v09/B91_FIELDS.md) | Water/Oil release, support planes, allocator limits and restricted field views |
 | [Socket ignition](v09/B91_IGNITION.md) | Finite Torch fuel, reserved fire cells, sapling clearance and Oil ignition |
 
-The working ledger records remaining acceptance. A checkpoint does not complete
-B91 or admit the later full-map economy and match stages.
+The [B91 completion review](v09/B91_COMPLETION.md) closes the functional-environment boundary. The working ledger keeps later population, economy and match acceptance separate.
+
+## B92 progression checkpoints
+
+| Report | Verified boundary |
+| --- | --- |
+| [Roster](v09/B92_ROSTER.md) / [services](v09/B92_SERVICES.md) | Persistent seats and role bodies, remote ownership, physical finite commodity transactions |
+| [Bank](v09/B92_BANK.md) / [supply](v09/B92_SUPPLY.md) | Persistent protected money, explicit fees, paid catalog goods/books and shared rare quotas |
+| [Deposits](v09/B92_DEPOSITS.md) / [Survey](v09/B92_SURVEY.md) | Automatic eligible extraction and a real prepared skill using the same finite budget |
+| [Work](v09/B92_WORK.md) / [courier](v09/B92_COURIER.md) | Exact crafting/procurement and persistent physical parcel lifecycle |
+| [Earned Witness/Charter](v09/B92_CHARTER.md) | One earned book/preparation/work/proof/registration chain; macro travel remains staged |
+
+B92 remains in progress. Routines, security, legal autonomous contenders, natural
+pacing and broad stress/recovery remain open. B93 activation/Heart and B94 full
+session/human acceptance are separate; `v09_full` stays closed.
 
 ## Retained release records
 

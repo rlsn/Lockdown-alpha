@@ -1,0 +1,16 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": false,
+	"gold": "60",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 6,
+	"duplicate_same": true,
+	"bag_count": 0,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "2",
+	"items": []
+}

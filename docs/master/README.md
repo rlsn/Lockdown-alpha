@@ -1,79 +1,38 @@
 # Project Lockdown — living game design
 
-Revision 29 · 30 October 2026 · Long-term product and design reference
+Revision 30 · 30 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
 The intended experience is **stealth developing into chaos**: establish a life among believable residents, discover opportunities and rivals, commit to a strategy, then decide when to reveal yourself and contest the final acquisition. The winner physically takes the Heart. Wealth, kills, survival and level are means of gaining opportunity, never substitute victory scores.
 
-This directory explains the game across releases. Exact current rules belong to active release contracts; actual coverage belongs to implementation reports and evidence. The native baseline reviewed for this revision is **v0.8 B86, commit ebc19a5**. v0.9 adds the full-map contract and B90 spatial implementation; later gameplay and full-session gates remain open. See [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md) and [continuation](../CONTINUATION.md).
+This directory explains the game across releases. Exact current rules belong to active release contracts; actual coverage belongs to implementation reports and evidence. The inherited mechanics baseline is **v0.8 B86, commit ebc19a5**. Current v0.9 delivery covers the B90 world, B91 environment and incremental B92 economy/progression; population behavior, route convergence and full-session gates remain open. See [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md) and [continuation](../CONTINUATION.md).
 
-The [B90 world skeleton](../v09/B90_COMPLETION.md) establishes connected native
-terrain, roads, rivers, settlements and permanent approaches. The
-[B91 completion review](../v09/B91_COMPLETION.md) now brings those places into the
-interaction system: interiors and doors, finite storage/cargo, portable tools,
-optional roof links, mutable foliage, grass concealment, directional ledges,
-paid environment reactions and 3,000 fixed scenery trunks. Its connected
-Riverport journey, earned environment reload and final native regression matrix
-pass. B91 is complete at its functional-environment boundary.
+## Core loop and commitments
 
-The [control decision](../v09/CONTROL_POLICY_OVERRIDE.md) governs every new object:
-ordinary pointer interactions, real prepared abilities/items, normal attacks or
-eligible automatic POIs. There is no generic world-interaction key. One
-confirmation can approach and channel; S stops the order. World consequences
-persist through a [settled checkpoint](../v09/B91_CHECKPOINT.md), while full
-account/economy recovery belongs to later integration.
+Find a local opportunity, acquire knowledge or physical goods, prepare a limited toolkit, then expose that investment in pursuit of a larger opportunity. Work and trade make equipment possible; equipment changes which work, routes and opponents are worth confronting. Observation lets rivals respond without receiving private builds or inventories. Death retains development while risking exposed property, carried wealth, position and time.
 
-The next product layer is B92: make the environment support an actual life,
-finite acquisition, local services and believable opposition. B93 connects
-those earned preparations to victory; B94 tests duration, multiplayer stress,
-readability and human pacing. A functioning environment alone does not establish
-that the complete match is engaging or balanced.
+The loop should branch. A player can sell a material, keep it for a transform, invest in a counter, bank money or advance an objective. The game loses depth when one safe repetitive job dominates these choices. Every system should explain what it costs, what persists, what an opponent can perceive and how that opponent can respond.
 
-B92's [economy authority foundation](../v09/B92_ECONOMY_FOUNDATION.md) now audits
-the actual zero-money/empty-inventory starter and existing Witness operation,
-and verifies five finite pools and funded institutional schedules. That report
-isolates the authority boundary. Subsequent integration must connect services,
-work, population behavior and earned progression to the same finite resources.
+Preparation and execution are separate decisions. Knowing an ability does not place it on the action bar. Owning an item does not grant immediate backpack access. Quiet preparation at an authored station commits shared action/binding capacity; execution uses that real source with its ordinary timing and limits.
 
-The [B92 roster review](../v09/B92_ROSTER.md) now connects 24 persistent seats,
-196 role bodies and the economic identities. Control changes preserve a seat's
-body and development; death/return retain its accounts and finite sources.
-The [remote service increment](../v09/B92_SERVICES.md) connects commodity counters
-to actual bags and finite cash, with one accounting domain for world/container
-goods and market stock. Two remote owners and replacement-seat takeover are
-verified. Role routines, security, autonomous progression, earned work/acquisition
-and authenticated reconnect remain open. Body counts and isolated trading do
-not establish a living-world experience.
+## Interaction language
 
-The [physical banking increment](../v09/B92_BANK.md) extends the five counters with one persistent bank account. Deposits burn a rounded fee; withdrawals make savings carried and exposed again. Ordinary work, earned acquisition and useful build preparation remain the next economic dependencies.
+Right-click handles movement, ordinary pickup and doors. Left-click opens storage, traders and service panels. Specialized world actions use a prepared ability or actual item; eligible automatic POIs use stationary presence. Never add a world-interaction key or a free generic interaction ability. Confirm a channel once, show its progress, continue after release and stop with S or an authoritative interruption. See the [control decision](../v09/CONTROL_POLICY_OVERRIDE.md) and [design principles](15_DESIGN_PRINCIPLES.md).
 
-The [official supply increment](../v09/B92_SUPPLY.md) connects paid catalog goods
-and tiered books to authored supply/trainer/archive endpoints. Circle-III stock
-belongs to the whole match, with two purchases per definition. Normal earnings,
-learning and useful build acquisition still need connected progression evidence.
+## Current delivery boundary
 
-The [finite deposit increment](../v09/B92_DEPOSITS.md) adds automatic eligible
-six-second extraction at nine resource POIs. Stop must remain effective while
-standing there; leaving/re-entering restores automatic eligibility. All54 charges
-join the canonical item ledger. Earned progression remains separate work.
+| Layer | Established boundary | Still to establish |
+| --- | --- | --- |
+| B90 spatial world | Connected terrain, routes, settlements and ordinary approaches | Retain affected-route regressions |
+| B91 functional environment | Doors/interiors, finite storage/cargo/tools, foliage/grass, ledges, paid reactions and settled environmental checkpoints | Full active-match account/economy recovery belongs to later integration |
+| B92 population and economy | Persistent seats and role bodies; finite physical services, bank, supply, deposits, work and courier lifecycle; earned Witness and registered Charter transaction route | Natural travel/teaching/pacing, resident/security/hostile behavior, legal autonomous contenders, broad race/admission/recovery stress |
+| B93 convergence | Selected four-route design | Full-map activation, warnings/access and the physical Heart ending |
+| B94 session acceptance | Defined evaluation tasks | Sustained multiplayer, recorded performance, human readability and 60–90-minute pacing |
 
-The [prepared Survey increment](../v09/B92_SURVEY.md) now connects the inherited
-one-second skill to Crystal deposits and their existing charges. The player
-prepares and confirms a real skill; it is not a free interaction shortcut.
-Earned preparation and the work/Witness/Charter journey remain open.
+The [earned Charter review](../v09/B92_CHARTER.md) connects six normal courier channels, actual paid book reading, legal preparation, real crafting/gathering and both procurement proofs to a registered purchase for 100 gold. Travel and protection/quiet setup are staged; three alternative Witness builds are explicit fixtures. It establishes an earned transaction path without establishing a normal session or useful build diversity. Registration does not activate an opening or win the game. B92 remains in progress and `v09_full` remains closed.
 
-The [physical work increment](../v09/B92_WORK.md) connects exact-input Toolkit/Core
-crafting and Core/Supply deliveries. Reservation holds real goods through a
-one-confirmation channel; commitment burns a fee or pays a named finite reward
-and endorsement. This adds an earning mechanism. Natural acquisition, broader work
-lifecycle/race stress, Witness and the complete zero-kill Charter journey remain open.
-
-The [physical courier increment](../v09/B92_COURIER.md) connects sealed contract
-cargo, bounded issuance/payment, death recovery and controller continuity. A rival
-can interfere with the parcel without gaining its owner's entitlement to payment.
-Three authored boards currently lack an eligible route inside the selected distance
-band. Natural travel, useful earned preparation and Witness/Charter remain open.
+Keep implementation chronology, exact test counts and source hashes in the [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md), release reports and [continuation](../CONTINUATION.md). This directory supplies the lasting product model and decision criteria.
 
 ## Reading paths
 

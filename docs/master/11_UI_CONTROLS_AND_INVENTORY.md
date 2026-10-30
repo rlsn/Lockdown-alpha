@@ -182,3 +182,11 @@ delivery should distinguish wrong endpoint, missing original parcel and exhauste
 allowance. Abandonment explicitly says there is no payout; a void parcel is not
 a replacement contract. The [native courier review](../v09/B92_COURIER.md) establishes
 this baseline, while natural route teaching and larger-text usability remain open.
+
+## Books, preparation and registration
+
+Selecting an unread book exposes its existing3s Read action. One click starts it; release continues and S interrupts. The build panel previews attributes/ranks, six shared actions and bindings. Confirming outside a preparation station arms a draft; entering an authored station while stationary starts its2s application. A changed plan, inventory or eligibility must refuse clearly rather than apply a partial build.
+
+Witness targets at the two guilds name the matching profession and score12 requirement. The player prepares that learned ability, targets the observed task and confirms once. Progress and accepted-start cooldown communicate the commitment. No generic interaction key substitutes for that capability.
+
+Treasury registration shows Industrial, Supply and Witness proof status plus carried/protected money. The selected wallet/bank split is explicit and atomically charged. Repeated confirmation retains one receipt. Owning the registration is acknowledged separately from activation near Heart. The [B92 review](../v09/B92_CHARTER.md) validates the chain; human discoverability, comparison feedback and unrestricted payment-split UI remain review work.

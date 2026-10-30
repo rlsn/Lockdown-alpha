@@ -1,4 +1,38 @@
-# Active continuation — B92 physical courier lifecycle
+# Active continuation — B92 earned Witness and registered Charter
+
+The [earned Charter increment](v09/B92_CHARTER.md), source **5720891fb677aa65e133cf703046d90c8a445a4c**,
+connects authored guild Witness targets for all four prepared professions and
+Treasury registration using three actual proof receipts plus one burn of 100 gold.
+One empty-bag zero-wallet remote hero earns six courier payouts, buys/reads
+Parley, legally prepares score12, earns Witness, buys/crafts inputs, gathers
+Crystal and completes both procurement channels before paying50wallet/50bank.
+Final hero60gold/0bank/360XP/life1;280 named mint and220 route burn. Macro travel,
+quiet and protection setup are staged; three alternative profession builds are
+separate labelled fixtures. Ordinary RMB preparation approach, Stop/status/score/
+repeat refusals and actual disconnect/replacement continuity are exercised.
+No new interaction key or physical button hold. Reading/preparation are exposed
+through existing UI; registration does not activate a warning or acquire Heart.
+
+Charter62 checks close189 receipts/149 accounts/596 identities (568 live),
+3,343gold =3,288start +280mint −220 route burn −5 funded institution burn.
+Rules59/courier23/services-work83/economy125/roster37 pass; B91 source53/combat50 and both full-unity targets pass.
+All207 protected inputs unchanged.
+
+**Next:** resident/traveler routines, witnessed local security and ambient
+hostiles, legal observation-limited contender progression/tier transitions.
+Also retain natural route discovery/pacing, courier coverage (three boards lack
+an in-band peer), broader work interruption/death/last-quota races, useful build
+diversity, broader remote admission, authenticated reconnect and full recovery.
+B92 remains in progress; `v09_full` stays closed. Full-map activation/windows/
+Heart remain B93, full-session/human acceptance B94. Master revision30.
+
+Build/run sequentially; keep Source/Config immutable while native work runs.
+Use the report's native regression commands and frozen evidence verifier.
+Both build targets exclude optional Fab; native runners disable the unrelated
+AllToolsets/ModelContextProtocol/Fab startup plugins. Never edit the engine.
+Work only in `D:\Unreal Projects\Lockdown`, not the legacy checkout.
+
+# Prior physical courier checkpoint
 
 The [courier increment](v09/B92_COURIER.md), source **d0b9163a7d7a956d374bc727beea6fa30f23b406**, connects
 sealed physical parcels and private endpoint offers to twelve authored boards.

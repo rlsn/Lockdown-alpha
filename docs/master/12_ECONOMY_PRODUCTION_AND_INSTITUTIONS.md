@@ -179,3 +179,9 @@ Global gold end equals start + named mints − burns; transfers cancel. Item end
 Measure stockouts, cash exhaustion, net travel margins, wealth concentration, counter affordability and first access timing. Economic depth comes from meaningful choices and competition; repeated unopposed errands are a pacing failure. The public Charter converts economic achievement into a contested opening, never a remote money victory.
 
 Prepared [Survey extraction](../v09/B92_SURVEY.md) now uses the same Crystal charge as basic gathering. Its one-second channel and six-second accepted-start cooldown preserve a real preparation advantage without creating a second resource allowance. Buying or extracting goods grants neither Witness nor passive XP; the Witness operation remains a distinct task at an authored site.
+
+## From earned wealth to objective commitment
+
+A registered Charter converts one contender's economic preparation into a future contestable public opportunity. Require the actual Industrial, Supply and Witness receipts and charge exactly100gold at Treasury. A chosen split may use carried and banked funds; insufficient money or stale terms cancels the whole exchange. Do not silently withdraw extra bank money or debit whichever account happens to work.
+
+The [connected earned route](../v09/B92_CHARTER.md) starts empty with zero gold and reaches registration using six25gold/45XP courier deliveries, real paid Parley learning/preparation, paid Toolkit/Core crafting, one actual Crystal gather and both procurement channels. Its final60wallet/0bank and360XP reconcile280 named mint against220 explicit burn. Positions and quiet/protection setup are staged, so this is an affordability/accounting existence proof, not a route-time or economy-balance claim. Registration remains separate from the B93 activation/window/Heart work.

@@ -1,0 +1,610 @@
+{
+	"scope": "earned_witness_registered_charter",
+	"complete": true,
+	"full_stage_acceptance": false,
+	"staged_travel": true,
+	"phase": 12,
+	"failures": 0,
+	"checks": [
+		{
+			"case": "Real remote hero starts empty and unlearned; no diagnostic money, materials, points or ranks",
+			"passed": true
+		},
+		{
+			"case": "Authored courier route supplies the earned journey; only travel is staged",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "Actual40gold Parley book purchase burns earned funds once",
+			"passed": true
+		},
+		{
+			"case": "One Read command channels3s, consumes the physical book and learnsR1 without equipping or XP",
+			"passed": true
+		},
+		{
+			"case": "Confirmed build waits outside an authored preparation POI",
+			"passed": true
+		},
+		{
+			"case": "Entering authored workshop applies the same confirmed draft after2s; no button hold",
+			"passed": true
+		},
+		{
+			"case": "Learned prepared Parley at score8 refuses Witness before cooldown",
+			"passed": true
+		},
+		{
+			"case": "Earned level3 points purchase+2CHA and ParleyR2 at a real preparation station",
+			"passed": true
+		},
+		{
+			"case": "Silence blocks learned Witness without cooldown or proof",
+			"passed": true
+		},
+		{
+			"case": "S interrupts accepted Witness; no proof/output and accepted-start cooldown remains",
+			"passed": true
+		},
+		{
+			"case": "Mute permits earned prepared Parley Witness: canonical proof, zero gold/XP/material output",
+			"passed": true
+		},
+		{
+			"case": "Other guild cannot duplicate Witness or restart cooldown",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "Remote courier acceptance creates one paid-route token despite duplicate confirmation",
+			"passed": true
+		},
+		{
+			"case": "Normal remote three-second delivery pays25gold/45XP once",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "A real official material purchase spends earned money and creates one registered input",
+			"passed": true
+		},
+		{
+			"case": "Eight Fiber/four Ore cost56gold with no cache or material grants",
+			"passed": true
+		},
+		{
+			"case": "Normal remote Toolkit channel consumes exact paid inputs and4gold",
+			"passed": true
+		},
+		{
+			"case": "Normal remote Toolkit channel consumes exact paid inputs and4gold",
+			"passed": true
+		},
+		{
+			"case": "Normal remote Toolkit channel consumes exact paid inputs and4gold",
+			"passed": true
+		},
+		{
+			"case": "Normal remote Toolkit channel consumes exact paid inputs and4gold",
+			"passed": true
+		},
+		{
+			"case": "Four crafted Toolkits retain input lineage and grant no crafting XP",
+			"passed": true
+		},
+		{
+			"case": "Eligible automatic6s gather creates one Crystal from the real shared deposit budget",
+			"passed": true
+		},
+		{
+			"case": "Normal6s Core craft consumes two Toolkits/Crystal and6gold",
+			"passed": true
+		},
+		{
+			"case": "Normal Supply channel consumes remaining two Toolkits and earns50gold/30XP plus proof",
+			"passed": true
+		},
+		{
+			"case": "Normal Core delivery earns80gold/60XP and Industrial proof; zero kills throughout",
+			"passed": true
+		},
+		{
+			"case": "Wrong endpoint cannot sell the Charter",
+			"passed": true
+		},
+		{
+			"case": "Stale wallet revision refuses Charter before charging",
+			"passed": true
+		},
+		{
+			"case": "Invalid101gold wallet share refuses without charging",
+			"passed": true
+		},
+		{
+			"case": "Explicit50/50 split refuses insufficient bank rather than changing payment source",
+			"passed": true
+		},
+		{
+			"case": "Duplicate52gold bank deposit credits50 and burns2 exactly once",
+			"passed": true
+		},
+		{
+			"case": "Duplicate Charter confirmation burns exactly50wallet+50bank once using three actual proofs",
+			"passed": true
+		},
+		{
+			"case": "A fresh repeat Charter purchase refuses without another burn",
+			"passed": true
+		},
+		{
+			"case": "Earned route closes280 named mint and220 explicit burn without diagnostic funding",
+			"passed": true
+		},
+		{
+			"case": "Separate labelled AI-seat prepared-build fixture starts an alternative profession Witness",
+			"passed": true
+		},
+		{
+			"case": "Alternative profession commits one proof through normal channel, without gold/XP/material output; build remains a fixture",
+			"passed": true
+		},
+		{
+			"case": "Separate labelled AI-seat prepared-build fixture starts an alternative profession Witness",
+			"passed": true
+		},
+		{
+			"case": "Alternative profession commits one proof through normal channel, without gold/XP/material output; build remains a fixture",
+			"passed": true
+		},
+		{
+			"case": "Separate labelled AI-seat prepared-build fixture starts an alternative profession Witness",
+			"passed": true
+		},
+		{
+			"case": "Alternative profession commits one proof through normal channel, without gold/XP/material output; build remains a fixture",
+			"passed": true
+		},
+		{
+			"case": "Actual disconnect/replacement preserves same seat/body, earned build, wallet and all private proofs",
+			"passed": true
+		},
+		{
+			"case": "Canonical ledger, world identity and persistent roster close after the earned journey",
+			"passed": true
+		}
+	],
+	"stages": [
+		{
+			"stage": "initial",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 0,
+			"bank": 0,
+			"xp": 0,
+			"level": 1,
+			"ap": 0,
+			"sp": 0,
+			"cha": 8,
+			"parley_rank": 0,
+			"slot0": 5,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "four_couriers",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 100,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 2,
+			"sp": 2,
+			"cha": 8,
+			"parley_rank": 0,
+			"slot0": 5,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "book_bought",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 2,
+			"sp": 2,
+			"cha": 8,
+			"parley_rank": 0,
+			"slot0": 5,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": [
+				{
+					"id": "FDB8ADE54AD3E0192537CD955FB3604B",
+					"kind": 0
+				}
+			]
+		},
+		{
+			"stage": "book_read",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 2,
+			"sp": 2,
+			"cha": 8,
+			"parley_rank": 1,
+			"slot0": 5,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "prepared_rank1",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 2,
+			"sp": 2,
+			"cha": 8,
+			"parley_rank": 1,
+			"slot0": 6,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "earned_score12",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "00000000000000000000000000000000",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "earned_witness",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 180,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "six_couriers",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 110,
+			"bank": 0,
+			"xp": 270,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "bought_inputs",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 54,
+			"bank": 0,
+			"xp": 270,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": [
+				{
+					"id": "A836C22644DD9371B007E99558FF85E1",
+					"kind": 3
+				},
+				{
+					"id": "70C21E3343931D137ECDE09581C0BDE3",
+					"kind": 3
+				},
+				{
+					"id": "07FF9D9F4D4A744021C24A935D4993D4",
+					"kind": 3
+				},
+				{
+					"id": "78269216481C996C3082A0B615C3FD32",
+					"kind": 3
+				},
+				{
+					"id": "013A98D34D8E3748C9C5A68638790A43",
+					"kind": 3
+				},
+				{
+					"id": "D7CE94314050C8B6D8B2A7B15BBFEB92",
+					"kind": 3
+				},
+				{
+					"id": "085D192B49EA8EC903222DA4B21C2E71",
+					"kind": 3
+				},
+				{
+					"id": "31DA214542BD20593452ABB194372FBB",
+					"kind": 3
+				},
+				{
+					"id": "79A1BB2F4D7A4B73EA8378B0912D0226",
+					"kind": 4
+				},
+				{
+					"id": "EDE72A8B4AD590DF9507E08F55E29175",
+					"kind": 4
+				},
+				{
+					"id": "0646B11A4447BB70F3E02EBAE458D499",
+					"kind": 4
+				},
+				{
+					"id": "865CD8E140F10AA604BEB999E632282A",
+					"kind": 4
+				}
+			]
+		},
+		{
+			"stage": "four_toolkits",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 38,
+			"bank": 0,
+			"xp": 270,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": [
+				{
+					"id": "6C05A4F74F19D7BB68215E984F1AB518",
+					"kind": 6
+				},
+				{
+					"id": "6B2CC92448774BE558763AB0EC929AED",
+					"kind": 6
+				},
+				{
+					"id": "73B383A74F21E27C82BEE595D881A18B",
+					"kind": 6
+				},
+				{
+					"id": "B7387B214ADCE697EB3DCBB6FE79716B",
+					"kind": 6
+				}
+			]
+		},
+		{
+			"stage": "core_crafted",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 32,
+			"bank": 0,
+			"xp": 270,
+			"level": 3,
+			"ap": 0,
+			"sp": 1,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "00000000000000000000000000000000",
+			"supply": "00000000000000000000000000000000",
+			"charter": "00000000000000000000000000000000",
+			"items": [
+				{
+					"id": "73B383A74F21E27C82BEE595D881A18B",
+					"kind": 6
+				},
+				{
+					"id": "B7387B214ADCE697EB3DCBB6FE79716B",
+					"kind": 6
+				},
+				{
+					"id": "57A2E7ED4CA8DA6ED61467941326E24D",
+					"kind": 7
+				}
+			]
+		},
+		{
+			"stage": "endorsements",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 162,
+			"bank": 0,
+			"xp": 360,
+			"level": 4,
+			"ap": 1,
+			"sp": 2,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "F002F7D74522DFD695D5EF839D0B39FD",
+			"supply": "8C99DA014E61D55BB58360B018583C1A",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "bank_funded",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 110,
+			"bank": 50,
+			"xp": 360,
+			"level": 4,
+			"ap": 1,
+			"sp": 2,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "F002F7D74522DFD695D5EF839D0B39FD",
+			"supply": "8C99DA014E61D55BB58360B018583C1A",
+			"charter": "00000000000000000000000000000000",
+			"items": []
+		},
+		{
+			"stage": "registered_charter",
+			"seat": "21E1456F49A3EB5D6A7E5E81BEA244F0",
+			"gold": 60,
+			"bank": 0,
+			"xp": 360,
+			"level": 4,
+			"ap": 1,
+			"sp": 2,
+			"cha": 10,
+			"parley_rank": 2,
+			"slot0": 6,
+			"life": 1,
+			"witness": "3FED7A2040FAE7EC2D4A4CBF14DD69B6",
+			"industrial": "F002F7D74522DFD695D5EF839D0B39FD",
+			"supply": "8C99DA014E61D55BB58360B018583C1A",
+			"charter": "8A2D74454DF381DE94E090A1834B43CA",
+			"items": []
+		}
+	]
+}

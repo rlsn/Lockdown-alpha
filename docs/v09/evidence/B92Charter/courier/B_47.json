@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "This is not your current sealed contract",
+	"accepted": false,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "0C9ECE3F4FE8D64CF2DE5FA8F54A3C9B",
+			"kind": 98
+		}
+	]
+}

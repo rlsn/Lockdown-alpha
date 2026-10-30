@@ -1,0 +1,45 @@
+{
+	"completed": true,
+	"feedback": "Survey needs prepared learned score12, quiet sight/reach, capacity and a live Crystal charge",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": false,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100007,
+	"duplicate_same": true,
+	"bag_count": 7,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "A40B82BC421FBAABE775AFA37CF905EF",
+			"kind": 97
+		},
+		{
+			"id": "F6003CE3428D3AC65F004AB41EABF9E1",
+			"kind": 3
+		},
+		{
+			"id": "F6D4EB734A17383E97C88784D8906442",
+			"kind": 0
+		},
+		{
+			"id": "2832C82C4F4D0DD222BF028F0633001F",
+			"kind": 3
+		},
+		{
+			"id": "33BCC71A4373D18C700841AA078DFD73",
+			"kind": 4
+		},
+		{
+			"id": "950183CE441D4831B69E5E8C5376823F",
+			"kind": 5
+		},
+		{
+			"id": "7D387DB04D2D5F9ACF90B1B72DB4B2F8",
+			"kind": 3
+		}
+	]
+}

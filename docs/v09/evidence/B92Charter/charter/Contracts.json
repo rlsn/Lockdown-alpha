@@ -1,0 +1,64 @@
+{
+	"contracts": [
+		{
+			"contract": "20422CD64EAACBE30B08A78CCD67C833",
+			"token": "623622B64DF6AB53CB003CB4FCFA3FFF",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "04E9B4E14F131591F78B909CD29CE4F6",
+			"active": false
+		},
+		{
+			"contract": "449314AB42F6D6523EEDF8A81EEFB776",
+			"token": "B72CB3644A3D2CA07C87809B3005B54F",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "A0BCADBC402E4BFB3FA407AE1D54279F",
+			"active": false
+		},
+		{
+			"contract": "50454DA04F23B1441031998D4F69449F",
+			"token": "8D92272943E6242331CA4D8B7FBD67D4",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "ADBFC16D47CB08B010C861960EFC548E",
+			"active": false
+		},
+		{
+			"contract": "D5E88D284284BE11D8257C85B619D895",
+			"token": "2315E2FF45E8A760BDEFC68907B25103",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "1A9029704A1434C1A86073ACE288C544",
+			"active": false
+		},
+		{
+			"contract": "283E9FC546B5108B2BF4BBB0C622DF3E",
+			"token": "857F3C544F21B78223D2C09A72D4A5A4",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "B5ABF843490EDD04A770D1BA163FC28A",
+			"active": false
+		},
+		{
+			"contract": "4B4BA6804615A7D21B0C149DE2E77628",
+			"token": "8BB59C174CA7AAE990FD55927FE4DA23",
+			"owner": "Wallet:90F596B548FE4EE64E1179B4DF6BEF50",
+			"origin": "riverport_market",
+			"destination": "reedbank",
+			"distance_cm": 42856,
+			"terminal": "9F878DA64C651261E24A39B827FFD46D",
+			"active": false
+		}
+	]
+}

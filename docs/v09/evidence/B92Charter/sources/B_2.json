@@ -1,0 +1,22 @@
+{
+	"fixture": "saplings",
+	"phase": 2,
+	"completed": true,
+	"acted": true,
+	"result": 2,
+	"reason": "Object reserved; try again",
+	"duplicate_same": true,
+	"cleared": false,
+	"owner_progress": false,
+	"context_removed": true,
+	"input": "One source confirmation; no physical key held; player command maintains liveness",
+	"wire_fields": [
+		"Handle",
+		"Kind",
+		"Position",
+		"Revision",
+		"State",
+		"PhysicalRevision",
+		"Endpoint"
+	]
+}

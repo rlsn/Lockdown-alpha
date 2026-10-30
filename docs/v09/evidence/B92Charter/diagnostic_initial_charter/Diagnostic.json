@@ -1,0 +1,6 @@
+{
+  "scope": "diagnostic_not_acceptance",
+  "runner_exit": 1,
+  "reason": "Initial independent checker incorrectly asserted220 global burn; actual225 includes5 scheduled institutional production burn during reconnect. The native scenario passed62 checks. Before the later RMB draft-preservation fix.",
+  "accepted_run": "20261030-233847-743-B92Charter-Network"
+}

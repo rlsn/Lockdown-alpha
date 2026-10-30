@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": true,
+	"gold": "21",
+	"bank": "0",
+	"life": 2,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "0C9ECE3F4FE8D64CF2DE5FA8F54A3C9B",
+			"kind": 98
+		}
+	]
+}
