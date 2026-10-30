@@ -45,7 +45,7 @@ public:
     bool Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error,bool IncludeWorld=false);
     FLDB92MarketQuote Quote(FName Market) const;
     bool Trade(const FLDB92Trade& Request,FGuid& Received,FString& Error);
-    bool ExtractDeposit(class ALDB92Controller* PC,int32 Node,FString& Error);
+    bool ExtractDeposit(class ALDB92Controller* PC,int32 Node,FString& Error,bool Survey=false);
     static FName BookBudget(ELDSkill Skill);
     uint32 OfficialRevision=1;
     bool PurchaseOfficial(class ALDB92Controller* PC,FName POI,FGuid Receipt,const struct FLDB92MarketOrder& Order,FString& Error);

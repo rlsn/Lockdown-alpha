@@ -22,7 +22,16 @@ def check(root):
     bank = data.get('bank_integration', False)
     official = data.get('official_integration', False)
     deposits_enabled = data.get('deposit_integration', False)
-    extraction = [r for r in ledger['receipts'] if r['cause'] == 'B92DepositExtraction']
+    survey_enabled = data.get('survey_integration', False)
+    extraction = [r for r in ledger['receipts'] if r['cause'] in ('B92DepositExtraction', 'B92SurveyExtraction')]
+    if survey_enabled:
+        assert len(data['checks']) >= 67
+        survey = [r for r in extraction if r['cause'] == 'B92SurveyExtraction']
+        assert len(survey) == 2 and all(r['items'][0]['kind'] == 5 for r in survey)
+        for task in (27,28,29,30,31,32):
+            assert read(root / f'A2_{task}.json')['completed']
+        assert read(root / 'A2_28.json')['accepted'] and read(root / 'A2_30.json')['accepted']
+        assert all(not read(root / f'A2_{task}.json')['accepted'] for task in (27,29,31,32))
     if deposits_enabled:
         from collections import Counter
         assert len(data['checks']) >= 59 and len(extraction) == 54

@@ -134,6 +134,8 @@ public:
     FString HeldInputLabel() const;
     void ArmSkill(uint8 Slot,uint8 Gesture=0);
     void ArmAttack();
+    virtual bool ConfirmProfession(uint8 Slot,FVector Ground) {return false;}
+    void BeginGroundSkillTask(uint8 Slot,FVector Ground);
     void ConfirmArmed(const FVector& Ground,FGuid Observed);
     void EndSkillGesture(uint8 Slot,uint8 Gesture);
     bool HasPendingAim() const {return PendingAimRequest!=0;}

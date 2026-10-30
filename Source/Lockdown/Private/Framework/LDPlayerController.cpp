@@ -294,7 +294,11 @@ void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,
     else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
 }
 void ALDPlayerController::CompleteCombatRequest(uint32 Request,const FString& Result)
-{CombatReceipts.Add(Request,Result);if(Request==LastCombatRequest){LastCombatResult=Result;}ClientCombatResult(OwnerState,Request,Result,GetPawn()?GetPawn()->GetActorRotation().Yaw:0);}
+{
+#if !UE_BUILD_SHIPPING
+    if(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))){UE_LOG(LogTemp,Display,TEXT("LD_B92_ACTION token=%u result=%s"),Request,*Result);}
+#endif
+    CombatReceipts.Add(Request,Result);if(Request==LastCombatRequest){LastCombatResult=Result;}ClientCombatResult(OwnerState,Request,Result,GetPawn()?GetPawn()->GetActorRotation().Yaw:0);}
 void ALDPlayerController::ClientCombatResult_Implementation(const FLDOwnerState& State,uint32 Request,const FString& Result,float Facing)
 {
     ClientLifeReceipt_Implementation(State);
@@ -555,7 +559,7 @@ void ALDPlayerController::CancelInterruptibleHolds()
     if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}
 }
 void ALDPlayerController::SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point,FGuid Second,FVector SecondPoint)
-{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Point=Point;R.SecondObserved=Second;R.SecondPoint=SecondPoint;if(OwnerState.Build.Slots.IsValidIndex(Slot)){if(const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion)){if(const auto* D=C->Find(OwnerState.Build.Slots[Slot])){R.TargetMode=uint8(D->Target);}}}R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=4;R.InventoryRevision=OwnerState.Inventory.Revision;const auto* C=ULDTacticalCatalog::Load(8);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;R.SourceDefinition=D?FName(*D->Id):FName(*FString::Printf(TEXT("legacy_%s"),*FString(LDDevelopment::SkillName(OwnerState.Build.Slots[Slot])).ToLower()));}ServerTacticalAction(R);}
+{FLDTacticalRequest R;R.Match=OwnerState.Match;R.Life=OwnerState.Life;R.Token=Token;R.BuildRevision=OwnerState.Build.Revision;R.Slot=Slot;R.Point=Point;R.SecondObserved=Second;R.SecondPoint=SecondPoint;if(OwnerState.Build.Slots.IsValidIndex(Slot)){if(const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion)){if(const auto* D=C->Find(OwnerState.Build.Slots[Slot])){R.TargetMode=uint8(D->Target);}}}R.Direction=Direction;R.Observed=Target;R.CatalogDigest=OwnerState.Build.CatalogDigest;if(OwnerState.Build.RulesVersion==8){R.Schema=8;R.WireVersion=EnvironmentUI()?5:4;R.InventoryRevision=OwnerState.Inventory.Revision;const auto* C=ULDTacticalCatalog::Load(8);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;R.SourceDefinition=D?FName(*D->Id):FName(*FString::Printf(TEXT("legacy_%s"),*FString(LDDevelopment::SkillName(OwnerState.Build.Slots[Slot])).ToLower()));}ServerTacticalAction(R);}
 void ALDPlayerController::ServerTacticalAction_Implementation(FLDTacticalRequest R)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;

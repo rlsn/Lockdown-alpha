@@ -31,6 +31,7 @@ public:
     virtual void Destroyed() override;
     virtual void PlayerTick(float Delta) override;
     virtual void CancelInterruptibleHolds() override;
+    virtual bool ConfirmProfession(uint8 Slot,FVector Ground) override;
     UFUNCTION(Server,Reliable) void ServerB92StopGather(uint32 Match,uint32 Life);
     TArray<TWeakObjectPtr<AActor>> DepositMarkers;
     virtual bool PointerService(FVector Point) override;

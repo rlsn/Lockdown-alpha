@@ -21,6 +21,7 @@ private:
     FGuid Seat,BodyLife;
     int64 SavedGold=0;
     int32 DepositXp=0;
+    double SurveyCooldown=0;
     TArray<FGuid> SavedItems;
     TArray<TSharedPtr<FJsonValue>> Checks;
     void Check(bool Good,const FString& Name);

@@ -10,6 +10,8 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
+bool ALDB92Controller::ConfirmProfession(uint8 Slot,FVector Ground)
+{if(!OwnerState.Build.Slots.IsValidIndex(Slot)||OwnerState.Build.Slots[Slot]!=ELDSkill::Survey){return false;}BeginGroundSkillTask(Slot,Ground);return true;}
 void ALDB92Controller::CancelInterruptibleHolds()
 {Super::CancelInterruptibleHolds();ServerB92StopGather(OwnerState.Match,OwnerState.Life);}
 void ALDB92Controller::ServerB92StopGather_Implementation(uint32 Match,uint32 Life)

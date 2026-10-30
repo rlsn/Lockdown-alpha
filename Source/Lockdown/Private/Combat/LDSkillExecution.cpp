@@ -49,6 +49,7 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
     const FVector From=Source->GetActorLocation(),To=Target->GetActorLocation();
     if (FVector::DistSquared2D(From,To)>120*120||!LDGround::ClearSegment(GetWorld(),From,To)) { return false; }
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(Mode->IsPopulationProfile()&&Skill==ELDSkill::Survey&&HasSkillTask(Target)){auto* PC=Cast<ALDPlayerController>(Source->GetController());const auto* E=ALDEnvironmentDirector::Get(GetWorld());return PC&&E&&E->Ray(From,To,nullptr,E->SightFor(PC));}
     if (!Mode->Vision) { return false; }
     if (auto* PC=Cast<ALDPlayerController>(Source->GetController())) { return Mode->Vision->CanSee(PC,To); }
     return Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To);
@@ -132,6 +133,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
         {
             AActor* Candidate=Pair.Key.Get(); auto& Task=Pair.Value;
             if(ExplicitTarget&&Candidate!=ExplicitTarget){continue;}
+            if(Mode->IsPopulationProfile()&&Skill==ELDSkill::Survey&&(Point.ContainsNaN()||FVector::DistSquared2D(Point,Candidate->GetActorLocation())>80*80)){continue;}
             if (!Task.Skills.Contains(Skill)||!SkillTargetLegal(Body,Candidate,Skill)) { continue; }
             const double D=FVector::DistSquared2D(Body->GetActorLocation(),Candidate->GetActorLocation());
             if (D<Distance||(D==Distance&&Task.Identity.ToString()<BestId.ToString())) { Target=Candidate;Distance=D;BestId=Task.Identity; }

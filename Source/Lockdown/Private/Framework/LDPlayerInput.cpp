@@ -216,10 +216,15 @@ void ALDPlayerController::BeginTargetSkill(uint8 Slot,FGuid Target,const FVector
     if(LDDevelopment::Held(Skill)){HeldSkillSlot=Slot;HeldSkillGesture=Gesture;HeldObserved=Target;SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;}
     if(OwnerState.Build.RulesVersion>=7){Navigation->Stop();SendTacticalAction(Token,Slot,Aim,Target);}else{ServerSkillTargetAction(OwnerState.Match,OwnerState.Life,Token,OwnerState.Build.Revision,Slot,Aim,Target);}
 }
+void ALDPlayerController::BeginGroundSkillTask(uint8 Slot,FVector Ground)
+{
+    if(!CanWorldCommand()||!GetPawn()||!OwnerState.Build.Slots.IsValidIndex(Slot)){return;}if(HeldSkillSlot!=255){SkillStopped(HeldSkillSlot);}Navigation->Stop();CancelInterruptibleHolds();CancelArmed();const uint32 Token=++NextRequest;PendingAimRequest=Token;PendingSkillSlot=Slot;HeldSkillSlot=Slot;HeldSkillGesture=1;HeldObserved.Invalidate();SkillHoldToken=Token;SkillHoldSequence=0;LastSkillHoldSent=-1000;FVector Aim=(Ground-GetPawn()->GetActorLocation()).GetSafeNormal2D();if(Aim.IsNearlyZero()){Aim=FVector::ForwardVector;}SendTacticalAction(Token,Slot,Aim,FGuid(),Ground);
+}
 void ALDPlayerController::ConfirmArmed(const FVector& Ground,FGuid Target)
 {
     if(!CanWorldCommand()||!GetPawn()){return;}
     if(ArmedWard.IsValid()){const FGuid Id=ArmedWard;const auto* Item=OwnerState.Inventory.Find(Id);const bool Legacy=Item&&Item->Kind==ELDItemKind::WardCharge;CancelArmed();if(Legacy){InventoryCommand(LDInventory::Place,Id,0,Ground);}else{SendItemAction(Id,Target,Ground);bContentMouse=true;}return;}
+    if(ArmedSkill>=0&&ConfirmProfession(uint8(ArmedSkill),Ground)){return;}
     if(OwnerState.Build.RulesVersion>=7&&ArmedSkill>=0)
     {
         const uint8 Slot=uint8(ArmedSkill);const auto* C=ULDTacticalCatalog::Load(OwnerState.Build.RulesVersion);const auto* D=C?C->Find(OwnerState.Build.Slots[Slot]):nullptr;
