@@ -39,17 +39,37 @@ void ALDB92Controller::TickServicesProbe()
     const double Now=GetWorld()->GetTimeSeconds();const uint8 Task=ServicesProbeTask;if(!Task){return;}
     auto Complete=[&](bool Accepted)
     {
-        auto J=MakeShared<FJsonObject>();J->SetBoolField(TEXT("completed"),true);J->SetStringField(TEXT("feedback"),IntentFeedback);J->SetBoolField(TEXT("accepted"),Accepted);J->SetStringField(TEXT("gold"),LexToString(OwnerState.Gold));J->SetStringField(TEXT("bank"),LexToString(OwnerState.BankGold));J->SetNumberField(TEXT("life"),OwnerState.Life);J->SetNumberField(TEXT("combat_floor"),CombatTokenFloor());J->SetBoolField(TEXT("duplicate_same"),ServicesProbeReplaySame);J->SetNumberField(TEXT("bag_count"),OwnerState.Inventory.Items.Num());J->SetBoolField(TEXT("has_quote"),MarketView.Session.IsValid());J->SetNumberField(TEXT("offers"),MarketView.Offers.Num());J->SetStringField(TEXT("quote_revision"),LexToString(MarketView.Revision));
+        auto J=MakeShared<FJsonObject>();J->SetBoolField(TEXT("completed"),true);J->SetStringField(TEXT("feedback"),IntentFeedback);J->SetStringField(TEXT("market_feedback"),MarketMessage);J->SetBoolField(TEXT("accepted"),Accepted);J->SetStringField(TEXT("gold"),LexToString(OwnerState.Gold));J->SetStringField(TEXT("bank"),LexToString(OwnerState.BankGold));J->SetNumberField(TEXT("life"),OwnerState.Life);J->SetNumberField(TEXT("combat_floor"),CombatTokenFloor());J->SetBoolField(TEXT("duplicate_same"),ServicesProbeReplaySame);J->SetNumberField(TEXT("bag_count"),OwnerState.Inventory.Items.Num());J->SetBoolField(TEXT("has_quote"),MarketView.Session.IsValid());J->SetNumberField(TEXT("offers"),MarketView.Offers.Num());J->SetStringField(TEXT("quote_revision"),LexToString(MarketView.Revision));
         TArray<TSharedPtr<FJsonValue>> Items;for(const auto& I:OwnerState.Inventory.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),I.Id.ToString());V->SetNumberField(TEXT("kind"),uint8(I.Kind));Items.Add(MakeShared<FJsonValueObject>(V));}J->SetArrayField(TEXT("items"),Items);
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task>=33&&Task<=41)
+    {
+        if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}
+        if(ServicesProbeStep==1)
+        {
+            if(MarketReceiptSequence!=ServicesProbeSequence||!MarketView.Session.IsValid()){return;}
+            const uint8 Recipe=Task==34?2:Task==35||Task==40?6:Task==36||Task==41?7:1;auto R=WorkOrder(Recipe);
+            if(Task==38){--R.InventoryRevision;}if(Task==39){++R.Price;}
+            if(Task==41){R.Inputs=ServicesProbeSaved.Inputs;}
+            if(Task==33||Task==36){ServicesProbeSaved=R;}Send(R);if(Task==33){ServerB92Order(R);}ServicesProbeStep=2;return;
+        }
+        if(Task==37&&ServicesProbeStep==2&&ChannelActive&&Channel.Domain==6){StopSourceOrder();ServicesProbeStep=3;}
+        if(Task==34&&ServicesProbeStep==2&&ChannelActive&&Channel.Domain==6){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Output;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FScreenshotRequest::RequestScreenshot(Output/TEXT("Work.png"),true,false);}ServicesProbeStep=3;}
+        if(Task>=38){if(MarketReceiptSequence==ServicesProbeSequence){Complete(MarketAccepted);}return;}
+        const double Wait=Task==34?7:Task==33||Task==37?5.2:4;
+        if(Now-ServicesProbeAt>Wait&&!OwnerState.DevelopmentKind&&MarketReceiptSequence==ServicesProbeSequence)
+        {if(Task==33&&ServicesProbeStep==2){ServerB92Order(ServicesProbeSaved);ServicesProbeStep=4;ServicesProbeAt=Now-5;return;}Complete(MarketAccepted);}return;
+    }
     if(Task>=27&&Task<=32)
     {
         if(!ServicesProbeStep){ArmSkill(0);ConfirmArmed(ALDB92Deposits::Position(GetWorld(),Task==32?1:0),FGuid());ServicesProbeStep=1;ServicesProbeAt=Now;return;}
         if(Task==28&&ServicesProbeStep==1&&ChannelActive&&Channel.Domain==5){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Output;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FScreenshotRequest::RequestScreenshot(Output/TEXT("Survey.png"),true,false);}ServicesProbeStep=2;}
         if(Task==31&&ServicesProbeStep==1&&ChannelActive&&Channel.Domain==5){StopSourceOrder();ServicesProbeStep=2;}
-        if(Now-ServicesProbeAt>1.8){Complete(OwnerState.Inventory.Items.ContainsByPredicate([&](const auto& I){return !ServicesProbeBefore.Contains(I.Id);}));}return;
+        const bool Received=OwnerState.Inventory.Items.ContainsByPredicate([&](const auto& I){return !ServicesProbeBefore.Contains(I.Id);});
+        if(Task==28||Task==30){if(Received||Now-ServicesProbeAt>4.5){Complete(Received);}}
+        else if(Now-ServicesProbeAt>1.8){Complete(Received);}return;
     }
     if(Task==25)
     {

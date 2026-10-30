@@ -21,6 +21,9 @@ private:
     FGuid Seat,BodyLife;
     int64 SavedGold=0;
     int32 DepositXp=0;
+    int32 WorkStep=0,WorkXp=0;
+    int64 WorkGold=0,WorkBGold=0;
+    int32 WorkBXp=0;
     double SurveyCooldown=0;
     TArray<FGuid> SavedItems;
     TArray<TSharedPtr<FJsonValue>> Checks;

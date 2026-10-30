@@ -48,6 +48,10 @@ public:
     bool ExtractDeposit(class ALDB92Controller* PC,int32 Node,FString& Error,bool Survey=false);
     static FName BookBudget(ELDSkill Skill);
     uint32 OfficialRevision=1;
+    uint32 WorkRevision=1;
+    static FName WorkBudget(FGuid Id,uint8 Recipe);
+    bool WorkTerms(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,bool Reserved,FString& Error) const;
+    bool CommitWork(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,FGuid Receipt,FString& Error);
     bool PurchaseOfficial(class ALDB92Controller* PC,FName POI,FGuid Receipt,const struct FLDB92MarketOrder& Order,FString& Error);
     // Called by one authority clock, never by clients. Missed intervals are
     // discarded rather than compressed into a production burst on wake/reload.

@@ -11,10 +11,10 @@
 TArray<FName> ALDB92Services::Endpoints()
 {
     auto Out=Markets();
-    Out.Append({TEXT("capital_supply"),TEXT("highfort_supply"),TEXT("scholars_supply"),TEXT("riverport_supply"),TEXT("ironworks_supply"),TEXT("highfort_barracks"),TEXT("scholars_archive")});return Out;
+    Out.Append({TEXT("capital_supply"),TEXT("highfort_supply"),TEXT("scholars_supply"),TEXT("riverport_supply"),TEXT("ironworks_supply"),TEXT("highfort_barracks"),TEXT("scholars_archive"),TEXT("capital_workshop"),TEXT("highfort_workshop"),TEXT("scholars_workshop"),TEXT("riverport_workshop"),TEXT("ironworks_workshop"),TEXT("oakmere"),TEXT("millford"),TEXT("reedbank"),TEXT("ashcross"),TEXT("bellwick"),TEXT("stonewake"),TEXT("capital_guild"),TEXT("riverport_guild")});return Out;
 }
 bool ALDB92Services::Official(FName POI)
-{return Endpoints().Contains(POI)&&!Markets().Contains(POI);}
+{return POI==TEXT("capital_supply")||POI==TEXT("highfort_supply")||POI==TEXT("scholars_supply")||POI==TEXT("riverport_supply")||POI==TEXT("ironworks_supply")||POI==TEXT("highfort_barracks")||POI==TEXT("scholars_archive");}
 FName ALDB92Economy::BookBudget(ELDSkill Skill)
 {return FName(*FString::Printf(TEXT("B92OfficialBook%d"),uint8(Skill)));}
 TArray<FLDB92Offer> ALDB92Services::SupplyOffers(FName POI,const ALDB92Economy* E)

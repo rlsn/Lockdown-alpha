@@ -37,6 +37,6 @@ void ALDB91HUD::DrawHUD()
     if(const auto* O=PC->ObjectView.FindByPredicate([&](const auto& V){return V.Handle==PC->SelectedObject;});O&&O->Kind==ELDObjectKind::Anchor&&(O->State&16)){Command(TEXT("Retrieve installed tool"),TEXT("Retrieve"),0,FVector2D(800,140),FVector2D(195,28));}
     const double Now=GetWorld()->GetGameState()?GetWorld()->GetGameState()->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();
     double Start=PC->Channel.Started,End=PC->Channel.Ends;FString Action=PC->Channel.Label;bool Active=PC->ChannelActive;
-    if(PC->OwnerState.DevelopmentKind){Active=true;End=PC->OwnerState.DevelopmentEndsAt;Start=End-2;Action=TEXT("Preparing item binding");}
+    if(PC->OwnerState.DevelopmentKind&&(!Active||PC->Channel.Domain!=6)){const uint8 Kind=PC->OwnerState.DevelopmentKind;Active=true;End=PC->OwnerState.DevelopmentEndsAt;Start=End-(Kind==5||Kind==7?PC->OwnerState.ProductionSeconds:2);Action=Kind==5?TEXT("Crafting"):Kind==7?TEXT("Civic delivery"):TEXT("Preparing item binding");}
     if(Active){const float X=460,Y=Canvas->SizeY-145,W=Canvas->SizeX-X-20;const double T=FMath::Clamp((Now-Start)/FMath::Max(.01,End-Start),0.,1.);DrawRect(FLinearColor(.02f,.05f,.06f,.95f),X,Y,W,36);DrawRect(FLinearColor(.15f,.65f,.5f,.8f),X,Y+28,W*T,8);DrawText(Action+FString::Printf(TEXT(" · %.1fs · S stops"),FMath::Max(0.,End-Now)),FLinearColor::White,X+8,Y+4,nullptr,.9f);}
 }

@@ -45,6 +45,9 @@ public:
     void SubmitMarket(bool Buy,ELDItemKind Kind);
     void SubmitBank(bool Deposit,int64 Amount);
     void SubmitSupply(int32 Index);
+    FLDB92MarketOrder WorkOrder(uint8 Recipe);
+    void SubmitWork(uint8 Recipe);
+    bool WorkPage=false;
     int32 SupplyPage=0;
     FLDB92MarketView MarketView;
     uint32 MarketSequence=0,MarketReceiptSequence=0,MarketReceiptSerial=0;

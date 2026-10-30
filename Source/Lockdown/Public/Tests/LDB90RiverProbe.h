@@ -32,6 +32,6 @@ private:
     bool Capture=false,Shot=false;
     bool Initialize();
     void BeginCase();
-    void EndCase(bool Arrived,const FString& Why);
+    void EndCase(bool ReachedRiverGoal,const FString& Why);
     void Finish();
 };

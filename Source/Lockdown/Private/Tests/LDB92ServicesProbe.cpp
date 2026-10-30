@@ -15,6 +15,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 
 ALDB92ServicesProbe::ALDB92ServicesProbe(){bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;Started=FPlatformTime::Seconds();}
 void ALDB92ServicesProbe::Check(bool Good,const FString& Name)
@@ -25,10 +26,10 @@ void ALDB92ServicesProbe::Place(ALDB92Controller* PC,FVector Floor)
     auto* S=M->Combat->StateFor(Body);S->ProtectionUntil=0;S->LastDamage=S->LastDealt=S->QuietSince=-1000;M->StateFor(PC)->ProtectedUntil=0;M->SyncOwner(PC);ALDEnvironmentDirector::Get(GetWorld())->Publish();ALDWorldObjects::Get(GetWorld())->Publish();
 }
 void ALDB92ServicesProbe::Task(ALDB92Controller* PC,uint8 Value,FName POI)
-{PC->ServicesProbeReports.Remove(Value);PC->ClientB92ProbeTask(Value,POI);At=GetWorld()->GetTimeSeconds();}
+{PC->ServicesProbeReports.Remove(Value);if(const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){PC->ClientLifeReceipt(*O);}PC->ClientB92ProbeTask(Value,POI);At=GetWorld()->GetTimeSeconds();}
 void ALDB92ServicesProbe::Save(bool Complete)
 {
-    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetBoolField(TEXT("official_integration"),true);J->SetBoolField(TEXT("deposit_integration"),true);J->SetBoolField(TEXT("survey_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetBoolField(TEXT("official_integration"),true);J->SetBoolField(TEXT("deposit_integration"),true);J->SetBoolField(TEXT("survey_integration"),true);J->SetBoolField(TEXT("work_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     if(Complete){const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();FFileHelper::SaveStringToFile(M->Population->Economy->Accounting().ExportJson(TEXT("B92RemoteServices")),*(Output/TEXT("Ledger.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
 }
 void ALDB92ServicesProbe::Tick(float Delta)
@@ -154,7 +155,39 @@ void ALDB92ServicesProbe::Tick(float Delta)
     if(Phase==75){if(Now<SurveyCooldown+.2){return;}M->Combat->ApplyStatus(Cast<ALDCharacter>(Replacement->GetPawn()),LDTactical::EStatus::Silence,LDTactical::Milliseconds(Now)+3000,FGuid::NewGuid());Task(Replacement.Get(),29,NAME_None);At=Now;Phase=76;return;}
     if(Phase==76){const auto J=Read(Replacement.Get(),29);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&E->Accounting().Remaining(ALDB92Deposits::Budget(0))==3,TEXT("Silence blocks learned Survey without spending its source"));Phase=77;}
     if(Phase==77){if(Now-At<3.3){return;}Task(Replacement.Get(),31,NAME_None);Phase=78;return;}
-    if(Phase==78){const auto J=Read(Replacement.Get(),31);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&E->Accounting().Remaining(ALDB92Deposits::Budget(0))==3&&M->StateFor(Replacement.Get())->Build.Cooldowns[uint8(ELDSkill::Survey)]>Now,TEXT("S interrupts Survey before its one-second commit; accepted-start cooldown remains and charge is retained"));Phase=65;}
+    if(Phase==78){const auto J=Read(Replacement.Get(),31);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&E->Accounting().Remaining(ALDB92Deposits::Budget(0))==3&&M->StateFor(Replacement.Get())->Build.Cooldowns[uint8(ELDSkill::Survey)]>Now,TEXT("S interrupts Survey before its one-second commit; accepted-start cooldown remains and charge is retained"));Phase=100;}
+    if(Phase==100)
+    {
+        auto* PC=Replacement.Get();auto* O=M->StateFor(PC);WorkGold=O->Gold;WorkXp=O->Xp;
+        for(auto Kind:{ELDItemKind::Fiber,ELDItemKind::Ore}){const int32 Need=Kind==ELDItemKind::Fiber?8:4;int32 Count=O->Inventory.Items.FilterByPredicate([&](const auto& I){return I.Kind==Kind&&!I.BindingMask;}).Num();for(auto Obj:Objects->Objects){if(!Obj.IsValid()){continue;}for(int32 I=Obj->Contents.Num()-1;I>=0&&Count<Need;--I){auto* P=Obj->Contents[I].Get();if(P&&P->Kind==Kind){Obj->Contents.RemoveAt(I);P->Holder.Reset();P->State=0;if(M->Inventory->Adopt(PC,P,NAME_None,false)){++Count;}}}if(Count>=Need){break;}}}
+        Check(O->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Fiber;}).Num()>=8&&O->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Ore;}).Num()==3&&E->SynchronizeWorld(Error)&&E->Audit(Error),TEXT("Work fixture transfers existing cache Fiber/Ore, with no new goods, money or quota"));
+        Place(PC,ALDB92Deposits::Position(GetWorld(),5)+FVector(60,0,0));Task(PC,25,NAME_None);Phase=110;return;
+    }
+    if(Phase==110)
+    {
+        auto* PC=Replacement.Get();if(!Good(Read(PC,25))){return;}Check(M->StateFor(PC)->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Ore;}).Num()==4&&E->Accounting().Remaining(ALDB92Deposits::Budget(5))==4&&M->StateFor(PC)->Xp==WorkXp,TEXT("Remote contender gathers the missing fourth Ore through another real six-second automatic channel"));
+        // Three diagnostic input extractions spend existing finite charges;
+        // they do not add a new endowment or move either actor's wallet.
+        bool Prepared=E->ExtractDeposit(B.Get(),8,Error)&&E->ExtractDeposit(B.Get(),8,Error)&&E->ExtractDeposit(B.Get(),6,Error);WorkBGold=M->StateFor(B.Get())->Gold;WorkBXp=M->StateFor(B.Get())->Xp;
+        Check(Prepared&&E->SynchronizeWorld(Error)&&E->Audit(Error),TEXT("Second work owner receives three labelled finite-charge inputs without a new allowance or gold"));
+        Place(B.Get(),ALDB92Services::Counter(GetWorld(),TEXT("capital_workshop"))-FVector(60,0,0));
+        Place(PC,ALDB92Services::Counter(GetWorld(),TEXT("capital_workshop"))+FVector(60,0,0));Task(PC,38,TEXT("capital_workshop"));Phase=101;return;
+    }
+    if(Phase==101){const auto J=Read(Replacement.Get(),38);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==WorkGold,TEXT("Stale bag refuses crafting before reserving or charging"));Task(Replacement.Get(),39,TEXT("capital_workshop"));Phase=102;return;}
+    if(Phase==102){const auto J=Read(Replacement.Get(),39);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==WorkGold,TEXT("Forged crafting fee refuses without creating output"));Task(Replacement.Get(),37,TEXT("capital_workshop"));Phase=103;return;}
+    if(Phase==103){const auto J=Read(Replacement.Get(),37);if(!Good(J)){return;}const auto* O=M->StateFor(Replacement.Get());Check(!J->GetBoolField(TEXT("accepted"))&&O->Gold==WorkGold&&O->Xp==WorkXp&&!O->Inventory.Items.ContainsByPredicate([](const auto& I){return I.bReserved;}),TEXT("One confirmation starts work; S stops it, releases exact inputs and prevents delayed spend"));Task(Replacement.Get(),33,TEXT("capital_workshop"));Task(B.Get(),33,TEXT("capital_workshop"));WorkStep=0;Phase=104;return;}
+    if(Phase==104)
+    {
+        const auto J=Read(Replacement.Get(),33);if(!Good(J)||WorkStep==0&&!Good(Read(B.Get(),33))){return;}
+        if(WorkStep==0){const auto JB=Read(B.Get(),33);const auto* OB=M->StateFor(B.Get());Check(JB->GetBoolField(TEXT("accepted"))&&OB->Gold==WorkBGold-4&&OB->Xp==WorkBXp&&OB->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Toolkit;}).Num()==1,TEXT("Two real owners finish independent concurrent Toolkit channels; another craft does not invalidate accepted work"));}
+        ++WorkStep;const auto* O=M->StateFor(Replacement.Get());Check(J->GetBoolField(TEXT("accepted"))&&J->GetBoolField(TEXT("duplicate_same"))&&O->Gold==WorkGold-4*WorkStep&&O->Xp==WorkXp&&O->Inventory.Items.FilterByPredicate([](const auto& I){return I.Kind==ELDItemKind::Toolkit;}).Num()==WorkStep,FString::Printf(TEXT("Toolkit%d: real four-second channel consumes2 Fiber/1 Ore and4gold once despite duplicate/replay; no XP"),WorkStep));
+        if(WorkStep<4){Task(Replacement.Get(),33,TEXT("capital_workshop"));return;}Task(Replacement.Get(),34,TEXT("capital_workshop"));Phase=105;return;
+    }
+    if(Phase==105){const auto J=Read(Replacement.Get(),34);if(!Good(J)){return;}const auto* O=M->StateFor(Replacement.Get());Check(J->GetBoolField(TEXT("accepted"))&&O->Gold==WorkGold-22&&O->Xp==WorkXp&&O->Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Core;}),TEXT("Core six-second channel consumes2 physical Toolkit/1 Crystal plus6gold; output retains causal parents"));Task(Replacement.Get(),40,TEXT("capital_workshop"));Phase=106;return;}
+    if(Phase==106){const auto J=Read(Replacement.Get(),40);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==WorkGold-22,TEXT("Workshop rejects procurement even with the actual Core in bag"));Place(Replacement.Get(),ALDB92Services::Counter(GetWorld(),TEXT("capital_treasury"))+FVector(60,0,0));Task(Replacement.Get(),35,TEXT("capital_treasury"));Phase=107;return;}
+    if(Phase==107){const auto J=Read(Replacement.Get(),35);if(!Good(J)){return;}const auto* O=M->StateFor(Replacement.Get());Check(J->GetBoolField(TEXT("accepted"))&&O->Gold==WorkGold+58&&O->Xp==WorkXp+60&&O->CoreOrders==1&&O->IndustrialEndorsement.IsValid()&&E->Accounting().Remaining(TEXT("CoreOrders"))==71&&E->Accounting().Remaining(E->WorkBudget(Seat,6))==2,TEXT("Physical Core delivery channels3s, mints80/awards60XP and Industrial receipt while atomically spending shared/persistent quota"));Place(Replacement.Get(),ALDB92Services::Counter(GetWorld(),TEXT("capital_guild"))+FVector(60,0,0));Task(Replacement.Get(),36,TEXT("capital_guild"));Phase=108;return;}
+    if(Phase==108){const auto J=Read(Replacement.Get(),36);if(!Good(J)){return;}const auto* O=M->StateFor(Replacement.Get());Check(J->GetBoolField(TEXT("accepted"))&&O->Gold==WorkGold+108&&O->Xp==WorkXp+90&&O->SupplyOrders==1&&O->SupplyEndorsement.IsValid()&&E->Accounting().Remaining(TEXT("SupplyOrders"))==23&&E->Accounting().Remaining(E->WorkBudget(Seat,7))==0,TEXT("Two actual Toolkit delivery channels3s, mints50/awards30XP and Supply receipt with one persistent commission"));Task(Replacement.Get(),41,TEXT("capital_guild"));Phase=109;return;}
+    if(Phase==109){const auto J=Read(Replacement.Get(),41);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==WorkGold+108&&E->Audit(Error)&&Objects->Conserved(Error),TEXT("Exhausted persistent Supply quota rejects another exact-shaped request; physical and gold ledgers reconcile"));DepositXp=M->StateFor(Replacement.Get())->Xp;Phase=65;}
     if(Phase==65)
     {
         // Isolate all-nine budget closure from long-duration/human/channel pacing.
@@ -165,7 +198,8 @@ void ALDB92ServicesProbe::Tick(float Delta)
     {
         auto* PC=Replacement.Get();auto* O=M->StateFor(PC);
         for(auto Obj:Objects->Objects){if(!Obj.IsValid()){continue;}for(int32 I=Obj->Contents.Num()-1;I>=0&&O->Inventory.Items.Num()<24;--I){auto* P=Obj->Contents[I].Get();if(P&&P->Kind==ELDItemKind::Fiber){Obj->Contents.RemoveAt(I);P->Holder.Reset();P->State=0;M->Inventory->Adopt(PC,P,NAME_None,false);}}if(O->Inventory.Items.Num()==24){break;}}
-        Check(O->Inventory.Items.Num()==24&&E->SynchronizeWorld(Error),TEXT("Capacity fixture fills the bag from existing cached Fiber; no new goods"));Place(PC,ALDB92Services::Counter(GetWorld(),Markets.Last())+FVector(60,0,0));At=Now;Phase=94;return;
+        Objects->Publish();for(TActorIterator<ALDItem> It(GetWorld());It&&O->Inventory.Items.Num()<24;++It){auto* P=*It;if(P->State==0&&!P->Holder.IsValid()&&P->Kind==ELDItemKind::Fiber){M->Inventory->Adopt(PC,P,NAME_None,false);}}
+        Check(O->Inventory.Items.Num()==24&&E->SynchronizeWorld(Error),TEXT("Capacity fixture fills the bag from existing cache/deposit Fiber; no new goods"));Place(PC,ALDB92Services::Counter(GetWorld(),Markets.Last())+FVector(60,0,0));At=Now;Phase=94;return;
     }
     if(Phase==94){if(Now-At<1){return;}Task(Replacement.Get(),5,Markets.Last());Phase=20;return;}
     if(Phase==20){if(!Good(Read(Replacement.Get(),5))){return;}SavedGold=M->StateFor(Replacement.Get())->Gold;Task(Replacement.Get(),3,NAME_None);Phase=21;return;}

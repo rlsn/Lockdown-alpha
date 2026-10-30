@@ -15,7 +15,7 @@ bool ALDB92Controller::ConfirmProfession(uint8 Slot,FVector Ground)
 void ALDB92Controller::CancelInterruptibleHolds()
 {Super::CancelInterruptibleHolds();ServerB92StopGather(OwnerState.Match,OwnerState.Life);}
 void ALDB92Controller::ServerB92StopGather_Implementation(uint32 Match,uint32 Life)
-{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Population&&M->Population->Deposits){M->Population->Deposits->Stop(this);}}
+{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Population){if(M->Population->Deposits){M->Population->Deposits->Stop(this);}if(M->Population->Services){M->Population->Services->StopWork(this);}}}
 void ALDB92Controller::ServerB92Open_Implementation(uint32 Match,uint32 Life,uint32 Sequence,FName POI)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M&&M->Population&&M->Population->Services){M->Population->Services->Open(this,Match,Life,Sequence,POI);}}
 void ALDB92Controller::ServerB92Order_Implementation(FLDB92MarketOrder Order)
@@ -50,6 +50,16 @@ void ALDB92Controller::SubmitBank(bool Deposit,int64 Amount)
 {if(!MarketView.Session.IsValid()){return;}auto R=MarketOrder(true,ELDItemKind::Fiber);R.BankAction=Deposit?1:2;R.Amount=Amount;R.BankRevision=MarketView.BankRevision;R.Price=0;R.Revision=0;ServerB92Order(R);}
 void ALDB92Controller::SubmitSupply(int32 Index)
 {if(!MarketView.Session.IsValid()||!MarketView.Offers.IsValidIndex(Index)){return;}const auto& V=MarketView.Offers[Index];auto R=MarketOrder(true,V.Kind);R.Skill=V.Skill;R.Price=V.Ask;R.Supply=true;ServerB92Order(R);}
+FLDB92MarketOrder ALDB92Controller::WorkOrder(uint8 Recipe)
+{
+    auto R=MarketOrder(true,Recipe==1||Recipe==7?ELDItemKind::Toolkit:ELDItemKind::Core);R.WorkRecipe=Recipe;R.Revision=MarketView.WorkRevision;R.Price=0;
+    for(const auto& V:MarketView.WorkOffers){if(V.Recipe==Recipe){R.Price=V.Ask;}}
+    const TArray<ELDItemKind> Required=Recipe==1?TArray<ELDItemKind>{ELDItemKind::Fiber,ELDItemKind::Fiber,ELDItemKind::Ore}:Recipe==2?TArray<ELDItemKind>{ELDItemKind::Toolkit,ELDItemKind::Toolkit,ELDItemKind::Crystal}:Recipe==6?TArray<ELDItemKind>{ELDItemKind::Core}:TArray<ELDItemKind>{ELDItemKind::Toolkit,ELDItemKind::Toolkit};
+    for(auto Kind:Required){const auto* I=OwnerState.Inventory.Items.FindByPredicate([&](const auto& V){return V.Kind==Kind&&!V.bReserved&&!V.BindingMask&&!R.Inputs.ContainsByPredicate([&](const auto& P){return P.Id==V.Id;});});if(I){R.Inputs.Add(*I);}}
+    return R;
+}
+void ALDB92Controller::SubmitWork(uint8 Recipe)
+{if(MarketView.Session.IsValid()){ServerB92Order(WorkOrder(Recipe));}}
 bool ALDB92Controller::PointerService(FVector Point)
 {
     if(!IsLocalController()||!GetPawn()){return false;}float X,Y;if(!GetMousePosition(X,Y)){return false;}const auto* E=ALDEnvironmentDirector::Get(GetWorld());
@@ -82,6 +92,15 @@ void ALDB92HUD::DrawHUD()
     const float X=FMath::Max(460.f,float(Canvas->SizeX)-400.f),Y=180;DrawRect(FLinearColor(0,.03f,.05f,.96f),X,Y,390,365);
     const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* P=Map?Map->Find(Q.POI):nullptr;DrawText(P?P->Name:TEXT("Regional market"),FLinearColor::White,X+10,Y+8,nullptr,.85f);
     DrawText(FString::Printf(TEXT("Wallet: %lld gold | one unit per confirmation"),PC->OwnerState.Gold),FLinearColor::White,X+10,Y+30,nullptr,.8f);
+    if(!Q.WorkOffers.IsEmpty())
+    {
+        const bool OnlyWork=Q.Offers.IsEmpty();AddHitBox(FVector2D(X+10,Y+330),FVector2D(230,25),TEXT("Work_Toggle"),true,200);DrawText(OnlyWork||!PC->WorkPage?TEXT("Crafting / contracts"):TEXT("Market / bank"),FLinearColor::White,X+10,Y+332,nullptr,.8f);
+        if(OnlyWork||PC->WorkPage)
+        {
+            for(int32 I=0;I<Q.WorkOffers.Num();++I){const auto& V=Q.WorkOffers[I];const float Row=Y+60+I*85;DrawText(ALDB92Services::WorkName(V.Recipe),FLinearColor::White,X+10,Row,nullptr,.9f);const FString Terms=V.Recipe==1?TEXT("2 Fiber + 1 Ore | 4 gold | 4s"):V.Recipe==2?TEXT("2 Toolkit + 1 Crystal | 6 gold | 6s"):V.Recipe==6?TEXT("1 Core | +80 gold / 60 XP | 3s"):TEXT("2 Toolkit | +50 gold / 30 XP | 3s");DrawText(Terms,FLinearColor::White,X+10,Row+22,nullptr,.8f);if(V.Stock>=0){DrawText(FString::Printf(TEXT("Orders remaining: %d"),V.Stock),FLinearColor::Yellow,X+10,Row+43,nullptr,.75f);}const FName Name(*FString::Printf(TEXT("Work_%d"),V.Recipe));AddHitBox(FVector2D(X+270,Row+40),FVector2D(105,28),Name,true,200);DrawRect(FLinearColor(.08f,.2f,.23f,1),X+270,Row+40,105,28);DrawText(TEXT("Confirm"),FLinearColor::White,X+278,Row+44,nullptr,.8f);}
+            DrawText(TEXT("Exact unbound bag inputs. Press once; S stops."),FLinearColor::White,X+10,Y+265,nullptr,.75f);DrawText(PC->MarketMessage.Left(55),FLinearColor::Yellow,X+10,Y+305,nullptr,.75f);AddHitBox(FVector2D(X+270,Y+330),FVector2D(105,25),TEXT("Market_Close"),true,200);DrawText(TEXT("Close"),FLinearColor::White,X+290,Y+332);return;
+        }
+    }
     if(ALDB92Services::Official(Q.POI))
     {
         const int32 Pages=FMath::Max(1,FMath::DivideAndRoundUp(Q.Offers.Num(),5));PC->SupplyPage=FMath::Clamp(PC->SupplyPage,0,Pages-1);
@@ -100,6 +119,7 @@ void ALDB92HUD::DrawHUD()
 }
 void ALDB92HUD::NotifyHitBoxClick(FName Name)
 {
+    if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Work_"))){if(Name==TEXT("Work_Toggle")){PC->WorkPage=!PC->WorkPage;}else{PC->SubmitWork(FCString::Atoi(*Name.ToString().Mid(5)));}return;}
     auto* PC=Cast<ALDB92Controller>(PlayerOwner);const FString Text=Name.ToString();if(PC&&Text.StartsWith(TEXT("Supply_"))){if(Text==TEXT("Supply_Next")){++PC->SupplyPage;}else if(Text==TEXT("Supply_Previous")){--PC->SupplyPage;}else{PC->SubmitSupply(FCString::Atoi(*Text.Mid(7)));}return;}if(PC&&Text.StartsWith(TEXT("Bank_"))){TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitBank(FCString::Atoi(*Fields[1])==0,FCString::Atoi64(*Fields[2]));}return;}if(PC&&Text.StartsWith(TEXT("Market_")))
     {if(Text==TEXT("Market_Close")){PC->ServerB92Close();return;}TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitMarket(FCString::Atoi(*Fields[1])==0,ELDItemKind(FCString::Atoi(*Fields[2])));}return;}Super::NotifyHitBoxClick(Name);
 }

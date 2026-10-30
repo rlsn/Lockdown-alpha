@@ -132,8 +132,8 @@ void ALDB90RiverProbe::Tick(float Delta)
         Trace+=FString::Printf(TEXT("%s,%.6f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d\n"),*C.Id,Now-WalkAt,P.X,P.Y,P.Z,Speed,Body->GetCharacterMovement()->GetMaxSpeed(),Contact->Wet,Contact->State.Has(LDTactical::EStatus::Wet,At),Contact->Frozen,Contact->State.SurfaceSlow,Contact->State.Has(LDTactical::EStatus::Stun,At));
         if(!Controller->IsNavigating())
         {
-            const bool Arrived=FVector::Dist2D(P,Goal)<60;
-            if(!Arrived||!C.Residual) { EndCase(Arrived,Arrived?TEXT("Native arrival"):TEXT("Navigation stopped early")); return; }
+            const bool ReachedRiverGoal=FVector::Dist2D(P,Goal)<60;
+            if(!ReachedRiverGoal||!C.Residual) { EndCase(ReachedRiverGoal,ReachedRiverGoal?TEXT("Native arrival"):TEXT("Navigation stopped early")); return; }
             ExitWet=!Contact->Wet&&Contact->State.Has(LDTactical::EStatus::Wet,At);
             Phase=3; PhaseAt=Now;
         }
@@ -143,14 +143,14 @@ void ALDB90RiverProbe::Tick(float Delta)
     { Surface->Refresh(Body,At); const auto* Contact=Surface->Contact(Body); ExpiryClear=Contact&&!Contact->State.Has(LDTactical::EStatus::Wet,At); EndCase(true,TEXT("Native exit and residual expiry")); }
 }
 
-void ALDB90RiverProbe::EndCase(bool Arrived,const FString& Why)
+void ALDB90RiverProbe::EndCase(bool ReachedRiverGoal,const FString& Why)
 {
     const auto& C=Cases[Index]; Controller->StopNavigation();
     const bool IceOkay=C.Freeze&&C.Water?IceSamples>10&&IcePeak>=293&&IcePeak<=295:IceSamples==0&&SlowSamples==0;
-    const bool Passed=Setup&&Arrived&&PathStable&&(C.Water?WetSamples>10:WetSamples==0)&&IceOkay&&StunSamples==0&&FallingSamples==0&&(!C.Residual||(ExitWet&&ExpiryClear));
+    const bool Passed=Setup&&ReachedRiverGoal&&PathStable&&(C.Water?WetSamples>10:WetSamples==0)&&IceOkay&&StunSamples==0&&FallingSamples==0&&(!C.Residual||(ExitWet&&ExpiryClear));
     if(!Passed) { ++Failures; }
     auto R=MakeShared<FJsonObject>(); R->SetStringField(TEXT("id"),C.Id); R->SetBoolField(TEXT("passed"),Passed); R->SetStringField(TEXT("reason"),Why);
-    R->SetBoolField(TEXT("arrived"),Arrived); R->SetBoolField(TEXT("frozen_fixture"),C.Freeze); R->SetBoolField(TEXT("water_expected"),C.Water);
+    R->SetBoolField(TEXT("arrived"),ReachedRiverGoal); R->SetBoolField(TEXT("frozen_fixture"),C.Freeze); R->SetBoolField(TEXT("water_expected"),C.Water);
     R->SetStringField(TEXT("centre_cm"),C.Centre.ToString());
     R->SetBoolField(TEXT("path_unchanged"),PathStable); R->SetBoolField(TEXT("residual_expected"),C.Residual); R->SetBoolField(TEXT("exit_wet"),ExitWet); R->SetBoolField(TEXT("expiry_clear"),ExpiryClear);
     R->SetNumberField(TEXT("wet_samples"),WetSamples); R->SetNumberField(TEXT("ice_samples"),IceSamples); R->SetNumberField(TEXT("slow_samples"),SlowSamples);
