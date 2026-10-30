@@ -35,6 +35,7 @@ void ALDB92ServicesProbe::Save(bool Complete)
 void ALDB92ServicesProbe::Tick(float Delta)
 {
     Super::Tick(Delta);
+    if(FParse::Param(FCommandLine::Get(),TEXT("B92CharterOnly"))){TickCharter();return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("B92CourierOnly"))){TickCourier();return;}
 #if !UE_BUILD_SHIPPING
     if(Phase==99){return;}if(Failures||FPlatformTime::Seconds()-Started>420){if(!Failures){Check(false,TEXT("Remote service scenario timed out"));}Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,3);return;}

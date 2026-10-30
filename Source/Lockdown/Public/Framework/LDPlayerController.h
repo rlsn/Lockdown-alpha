@@ -145,6 +145,7 @@ public:
     bool ReadInspected(FLDObservedEntity& Out) const;
     FGuid Inspected;
     void ArmPreparation(const FLDBuildPlan& Plan);
+    bool NavigatePreparation(FVector Point);
     void ArmRead(FGuid Book);
     void ActivateHeartbreaker(FGuid Item);
     void ArmFabrication();

@@ -1,6 +1,7 @@
 #include "Population/LDB92Roster.h"
 #include "Economy/LDB92Services.h"
 #include "Economy/LDB92Deposits.h"
+#include "Economy/LDB92Witness.h"
 #include "Region/LDMapDefinition.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Engine/World.h"
@@ -11,7 +12,7 @@
 #include "Misc/Parse.h"
 
 bool ALDB92Controller::ConfirmProfession(uint8 Slot,FVector Ground)
-{if(!OwnerState.Build.Slots.IsValidIndex(Slot)||OwnerState.Build.Slots[Slot]!=ELDSkill::Survey){return false;}BeginGroundSkillTask(Slot,Ground);return true;}
+{if(!OwnerState.Build.Slots.IsValidIndex(Slot)||!ALDB92Witness::Profession(OwnerState.Build.Slots[Slot])){return false;}BeginGroundSkillTask(Slot,Ground);return true;}
 void ALDB92Controller::CancelInterruptibleHolds()
 {Super::CancelInterruptibleHolds();ServerB92StopGather(OwnerState.Match,OwnerState.Life);}
 void ALDB92Controller::ServerB92StopGather_Implementation(uint32 Match,uint32 Life)
@@ -60,6 +61,8 @@ FLDB92MarketOrder ALDB92Controller::WorkOrder(uint8 Recipe)
 }
 void ALDB92Controller::SubmitWork(uint8 Recipe)
 {if(MarketView.Session.IsValid()){ServerB92Order(WorkOrder(Recipe));}}
+void ALDB92Controller::SubmitCharter(int64 WalletShare)
+{if(!MarketView.Session.IsValid()){return;}auto R=MarketOrder(true,ELDItemKind::Fiber);R.Charter=true;R.Amount=WalletShare;R.BankRevision=MarketView.BankRevision;R.Price=100;R.Revision=0;ServerB92Order(R);}
 FLDB92MarketOrder ALDB92Controller::CourierOrder(uint8 Action)
 {
     auto R=MarketOrder(true,ELDItemKind::SealedParcel);R.Revision=0;R.Price=0;R.CourierAction=Action;R.CourierRevision=MarketView.Courier.Revision;R.CourierToken=Action==1?FGuid():MarketView.Courier.Token;R.Destination=Action==1?MarketView.Courier.Offer:MarketView.Courier.Destination;
@@ -85,6 +88,7 @@ void ALDB92Controller::PlayerTick(float Delta)
         for(FName POI:ALDB92Services::Endpoints())
         {auto* Marker=GetWorld()->SpawnActor<AStaticMeshActor>();Marker->SetReplicates(false);auto* Mesh=Marker->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCanEverAffectNavigation(false);Mesh->SetWorldScale3D(FVector(.55,.55,.7));Marker->SetActorLocation(ALDB92Services::Counter(GetWorld(),POI)+FVector(0,0,35));MarketMarkers.Add(Marker);}
     }
+    if(WitnessMarkers.IsEmpty()&&ULDMapDefinition::Get(GetWorld())){for(int32 G=0;G<2;++G){for(uint8 I=0;I<4;++I){auto* Marker=GetWorld()->SpawnActor<AStaticMeshActor>();auto* Mesh=Marker->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCanEverAffectNavigation(false);Mesh->SetWorldScale3D(FVector(.38));Marker->SetActorLocation(ALDB92Witness::Position(GetWorld(),G,I)+FVector(0,0,30));WitnessMarkers.Add(Marker);}}}
     if(DepositMarkers.IsEmpty()&&ULDMapDefinition::Get(GetWorld())){for(int32 I=0;I<ALDB92Deposits::Nodes().Num();++I){auto* Marker=GetWorld()->SpawnActor<AStaticMeshActor>();Marker->SetReplicates(false);auto* Mesh=Marker->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cone.Cone")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCanEverAffectNavigation(false);Mesh->SetWorldScale3D(FVector(.6,.6,.5));Marker->SetActorLocation(ALDB92Deposits::Position(GetWorld(),I)+FVector(0,0,25));DepositMarkers.Add(Marker);}}
     if(!PendingMarket.IsNone())
     {
@@ -95,10 +99,22 @@ void ALDB92Controller::PlayerTick(float Delta)
 }
 void ALDB92HUD::DrawHUD()
 {
-    Super::DrawHUD();auto* PC=Cast<ALDB92Controller>(PlayerOwner);if(!PC||!Canvas){return;}const auto& Q=PC->MarketView;if(Q.Courier.Contract.IsValid()){const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* To=Map?Map->Find(Q.Courier.Destination):nullptr;DrawText(TEXT("Courier: ")+(To?To->Name:Q.Courier.Destination.ToString())+TEXT(" | recover / carry your sealed parcel"),FLinearColor::Yellow,460,20,nullptr,.8f);}if(!Q.Session.IsValid()){return;}
+    Super::DrawHUD();auto* PC=Cast<ALDB92Controller>(PlayerOwner);if(!PC||!Canvas){return;}const auto& Q=PC->MarketView;if(Q.Courier.Contract.IsValid()){const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* To=Map?Map->Find(Q.Courier.Destination):nullptr;DrawText(TEXT("Courier: ")+(To?To->Name:Q.Courier.Destination.ToString())+TEXT(" | recover / carry your sealed parcel"),FLinearColor::Yellow,460,20,nullptr,.8f);}
+    if(const auto* Env=ALDEnvironmentDirector::Get(GetWorld());Env&&PC->GetPawn()){for(int32 G=0;G<2;++G){for(uint8 I=0;I<4;++I){const FVector P=ALDB92Witness::Position(GetWorld(),G,I)+FVector(0,0,60);FVector2D Screen;if(Env->Ray(PC->GetPawn()->GetActorLocation(),P,nullptr,Env->SightFor(PC))&&PC->ProjectWorldLocationToScreen(P,Screen)){DrawText(FString(TEXT("Witness: "))+LDDevelopment::SkillName(LDCharter::Skill(I))+TEXT(" (12)"),FLinearColor::Yellow,Screen.X,Screen.Y,nullptr,.7f);}}}}
+    if(!Q.Session.IsValid()){return;}
     const float X=FMath::Max(460.f,float(Canvas->SizeX)-400.f),Y=180;DrawRect(FLinearColor(0,.03f,.05f,.96f),X,Y,390,365);
     const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* P=Map?Map->Find(Q.POI):nullptr;DrawText(P?P->Name:TEXT("Regional market"),FLinearColor::White,X+10,Y+8,nullptr,.85f);
     DrawText(FString::Printf(TEXT("Wallet: %lld gold | one unit per confirmation"),PC->OwnerState.Gold),FLinearColor::White,X+10,Y+30,nullptr,.8f);
+    if(Q.POI==TEXT("capital_treasury"))
+    {
+        AddHitBox(FVector2D(X+140,Y+330),FVector2D(120,25),TEXT("Charter_Toggle"),true,200);DrawText(PC->CharterPage?TEXT("Other services"):TEXT("Charter"),FLinearColor::White,X+140,Y+332,nullptr,.8f);
+        if(PC->CharterPage)
+        {
+            const auto& O=PC->OwnerState;DrawText(TEXT("Registered Charter |100 gold"),FLinearColor::White,X+10,Y+70,nullptr,.9f);DrawText(FString::Printf(TEXT("Industrial: %s | Supply: %s | Witness: %s"),O.IndustrialEndorsement.IsValid()?TEXT("yes"):TEXT("no"),O.SupplyEndorsement.IsValid()?TEXT("yes"):TEXT("no"),O.Witness.IsValid()?TEXT("yes"):TEXT("no")),FLinearColor::White,X+10,Y+105,nullptr,.7f);DrawText(FString::Printf(TEXT("Wallet %lld | Bank %lld"),O.Gold,O.BankGold),FLinearColor::White,X+10,Y+135,nullptr,.85f);
+            if(O.CharterPurchase.IsValid()){DrawText(TEXT("Registered Charter owned"),FLinearColor::Yellow,X+10,Y+185,nullptr,.9f);}else{for(int32 I=0;I<3;++I){const int64 Share=I==0?100:I==1?50:0;const float Row=Y+175+I*35;AddHitBox(FVector2D(X+10,Row),FVector2D(350,30),FName(*FString::Printf(TEXT("Charter_%lld"),Share)),true,200);DrawText(FString::Printf(TEXT("Buy: %lld wallet + %lld bank"),Share,100-Share),FLinearColor::White,X+10,Row+4,nullptr,.85f);}}
+            DrawText(PC->MarketMessage.Left(55),FLinearColor::Yellow,X+10,Y+305,nullptr,.75f);AddHitBox(FVector2D(X+270,Y+330),FVector2D(105,25),TEXT("Market_Close"),true,200);DrawText(TEXT("Close"),FLinearColor::White,X+290,Y+332);return;
+        }
+    }
     if(Q.Courier.Board)
     {
         AddHitBox(FVector2D(X+140,Y+330),FVector2D(120,25),TEXT("Courier_Toggle"),true,200);DrawText(PC->CourierPage?TEXT("Other services"):TEXT("Courier"),FLinearColor::White,X+140,Y+332,nullptr,.8f);
@@ -141,6 +157,7 @@ void ALDB92HUD::DrawHUD()
 }
 void ALDB92HUD::NotifyHitBoxClick(FName Name)
 {
+    if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Charter_"))){if(Name==TEXT("Charter_Toggle")){PC->CharterPage=!PC->CharterPage;}else{PC->SubmitCharter(FCString::Atoi64(*Name.ToString().Mid(8)));}return;}
     if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Courier_"))){if(Name==TEXT("Courier_Toggle")){PC->CourierPage=!PC->CourierPage;}else{PC->SubmitCourier(FCString::Atoi(*Name.ToString().Mid(8)));}return;}
     if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Work_"))){if(Name==TEXT("Work_Toggle")){PC->WorkPage=!PC->WorkPage;}else{PC->SubmitWork(FCString::Atoi(*Name.ToString().Mid(5)));}return;}
     auto* PC=Cast<ALDB92Controller>(PlayerOwner);const FString Text=Name.ToString();if(PC&&Text.StartsWith(TEXT("Supply_"))){if(Text==TEXT("Supply_Next")){++PC->SupplyPage;}else if(Text==TEXT("Supply_Previous")){--PC->SupplyPage;}else{PC->SubmitSupply(FCString::Atoi(*Text.Mid(7)));}return;}if(PC&&Text.StartsWith(TEXT("Bank_"))){TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitBank(FCString::Atoi(*Fields[1])==0,FCString::Atoi64(*Fields[2]));}return;}if(PC&&Text.StartsWith(TEXT("Market_")))

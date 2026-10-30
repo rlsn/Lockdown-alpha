@@ -19,6 +19,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Region/LDRegionDefinition.h"
+#include "Region/LDMapDefinition.h"
+#include "World/LDEnvironmentDirector.h"
 #include "Core/LDGroundQueries.h"
 #include "Economy/LDCommerceDirector.h"
 #include "InputAction.h"
@@ -85,7 +87,7 @@ void ALDPlayerController::RebuildV05Mappings()
 }
 void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
-    if(EnvironmentUI()){return;}
+    if(EnvironmentUI()){if(IsLocalController()){TickAutomaticPOI();}return;}
     if(!IsLocalController()||(!Navigation->Enabled()&&!IsFrontend())){return;}
     if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
     if(Controls->Profile!=OwnerState.Build.RulesVersion&&!IsFrontend()){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);RebuildV05Mappings();}
@@ -251,6 +253,11 @@ void ALDPlayerController::ArmPreparation(const FLDBuildPlan& Plan)
     const FLDBuildPlan Copy=Plan;if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     CancelArmed();PreparedDraft=Copy;bDraftArmed=true;bFreshInputRequired=true;IntentFeedback=TEXT("Preview confirmed. Enter a preparation station to apply it; S cancels.");
 }
+bool ALDPlayerController::NavigatePreparation(FVector Point)
+{
+    if(!EnvironmentUI()||!bDraftArmed){return false;}
+    Navigation->Navigate(Point);IntentFeedback=TEXT("Confirmed build: approaching. Preparation starts when stationary at a station; S cancels.");return true;
+}
 void ALDPlayerController::ArmRead(FGuid Book)
 {
     const auto* Item=OwnerState.Inventory.Find(Book);if(Navigation->Enabled()&&(!Item||Item->Kind!=ELDItemKind::Book||Item->bReserved)){IntentFeedback=TEXT("Owned book unavailable");return;}const uint32 Revision=Item?Item->Revision:0;
@@ -264,6 +271,11 @@ void ALDPlayerController::TickAutomaticPOI()
 {
     if(!CanWorldCommand()||!GetPawn()){return;}
     if(POIMatch!=OwnerState.Match||POILife!=OwnerState.Life){POIMatch=OwnerState.Match;POILife=OwnerState.Life;AutomaticSite=0;EnteredPOI.Invalidate();PointerInteraction.Invalidate();}
+    if(EnvironmentUI())
+    {
+        const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* Env=ALDEnvironmentDirector::Get(GetWorld());const FVector P=GetPawn()->GetActorLocation();
+        if(bDraftArmed&&Map&&Env&&!Navigation->HasMoveOrder()&&GetPawn()->GetVelocity().SizeSquared2D()<=1){for(const auto& S:Map->Services){if(S.Functions.Contains(TEXT("preparation"))&&FVector::Dist2D(P,S.Position)<=120&&FMath::Abs(P.Z-S.Position.Z-90)<100&&Env->Ray(P,S.Position+FVector(0,0,90),nullptr,Env->SightFor(this))){const auto Plan=PreparedDraft;CancelArmed();StartDevelopmentHold(LDDevelopmentTransaction::Prepare,FGuid(),Plan);return;}}}return;
+    }
     const auto* Relay=LocalView();if(!Relay||Relay->IsStale()){return;}
     const FVector P=GetPawn()->GetActorLocation();
     const bool Standing=!Navigation->HasMoveOrder()&&GetPawn()->GetVelocity().SizeSquared2D()<=1;

@@ -65,6 +65,7 @@ struct FLDB92MarketOrder
     UPROPERTY() uint32 CourierRevision=0;
     UPROPERTY() FGuid CourierToken;
     UPROPERTY() FName Destination;
+    UPROPERTY() bool Charter=false;
     bool operator==(const FLDB92MarketOrder& B) const;
 };
 UCLASS()

@@ -47,7 +47,7 @@ FLDB92CourierView ALDB92Economy::CourierView(ALDB92Controller* PC,FName Board) c
 bool ALDB92Economy::CourierTerms(ALDB92Controller* PC,FName POI,const FLDB92MarketOrder& R,bool Reserved,FString& Error) const
 {
     auto Reject=[&](const TCHAR* Why){Error=Why;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;const auto Id=M?M->ContenderId(PC):FGuid();const auto* A=Ledger.Account(Wallet(Id));
-    if(!HasAuthority()||!Ready||!FullWorld||Closed||!O||!O->bActive||!Seats.Contains(Id)||!CourierBoards(GetWorld()).Contains(POI)||R.CourierAction<1||R.CourierAction>3||R.WorkRecipe||R.Supply||R.BankAction||R.Amount||R.BankRevision||R.Price||R.Revision||R.Item.IsValid()||R.ItemRevision||!R.Buy||R.Kind!=ELDItemKind::SealedParcel||R.Skill!=ELDSkill::None||O->Inventory.Revision>=MAX_uint32-4||R.InventoryRevision!=O->Inventory.Revision||!A||A->Gold!=O->Gold||A->Revision!=R.WalletRevision)
+    if(!HasAuthority()||!Ready||!FullWorld||Closed||!O||!O->bActive||!Seats.Contains(Id)||!CourierBoards(GetWorld()).Contains(POI)||R.CourierAction<1||R.CourierAction>3||R.Charter||R.WorkRecipe||R.Supply||R.BankAction||R.Amount||R.BankRevision||R.Price||R.Revision||R.Item.IsValid()||R.ItemRevision||!R.Buy||R.Kind!=ELDItemKind::SealedParcel||R.Skill!=ELDSkill::None||O->Inventory.Revision>=MAX_uint32-4||R.InventoryRevision!=O->Inventory.Revision||!A||A->Gold!=O->Gold||A->Revision!=R.WalletRevision)
     {return Reject(TEXT("Courier access, bag, wallet or request terms changed"));}
     const auto V=CourierView(PC,POI);if(R.CourierRevision!=V.Revision||V.Revision==MAX_uint32){return Reject(TEXT("Courier contract changed; refresh the board"));}
     if(R.CourierAction==1)

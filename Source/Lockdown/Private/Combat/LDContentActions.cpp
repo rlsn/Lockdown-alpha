@@ -1,5 +1,6 @@
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDCombatDirector.h"
+#include "Economy/LDB92Witness.h"
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
@@ -47,7 +48,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
     ELDSkill Skill=R.ActionKind==0&&B->Slots.IsValidIndex(R.Slot)?B->Slots[R.Slot]:ELDSkill::None;
     if(M->IsEnvironmentProfile()&&R.ActionKind!=4)
     {const auto* Physical=O?M->Inventory->Owned(PC,R.Item):nullptr;
-     const bool SkillReady=R.ActionKind==0&&((M->IsPopulationProfile()&&Skill==ELDSkill::Survey)||Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet||Skill==ELDSkill::Firebolt||Skill==ELDSkill::Gust||Skill==ELDSkill::SmokeVeil);
+     const bool SkillReady=R.ActionKind==0&&((M->IsPopulationProfile()&&ALDB92Witness::Profession(Skill))||Skill==ELDSkill::Frostline||Skill==ELDSkill::WaterJet||Skill==ELDSkill::Firebolt||Skill==ELDSkill::Gust||Skill==ELDSkill::SmokeVeil);
      const bool ItemReady=R.ActionKind==1&&Physical&&(Physical->Kind==ELDItemKind::WaterFlask||Physical->Kind==ELDItemKind::OilFlask||Physical->Kind==ELDItemKind::FrostCapsule||Physical->Kind==ELDItemKind::FrostPrism||Physical->Kind==ELDItemKind::GustVial||Physical->Kind==ELDItemKind::SmokeFlask||Physical->Kind==ELDItemKind::SeersDust);
      if(!SkillReady&&!ItemReady){return Reject(TEXT("This full-map action awaits environment integration"));}}
     if(R.ActionKind==4){if(!First||!LegalTarget(Body,First,B->Gear.Reach,nullptr,0)||!RequestBody(Body,0,R.Direction,Why)){return false;}S->bAttackOrder=true;S->AttackTarget=First;S->Target=First;S->AttackLife=Life(this,First);S->AttackToken=R.Token;return true;}

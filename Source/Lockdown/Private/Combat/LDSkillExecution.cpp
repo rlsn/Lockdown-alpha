@@ -11,6 +11,7 @@
 #include "Core/LDGroundQueries.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
+#include "Economy/LDB92Witness.h"
 #include "Engine/World.h"
 
 FLDCharacterBuild* ALDCombatDirector::BuildFor(ALDCharacter* Body)
@@ -49,7 +50,7 @@ bool ALDCombatDirector::SkillTargetLegal(ALDCharacter* Source,AActor* Target,ELD
     const FVector From=Source->GetActorLocation(),To=Target->GetActorLocation();
     if (FVector::DistSquared2D(From,To)>120*120||!LDGround::ClearSegment(GetWorld(),From,To)) { return false; }
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
-    if(Mode->IsPopulationProfile()&&Skill==ELDSkill::Survey&&HasSkillTask(Target)){auto* PC=Cast<ALDPlayerController>(Source->GetController());const auto* E=ALDEnvironmentDirector::Get(GetWorld());return PC&&E&&E->Ray(From,To,nullptr,E->SightFor(PC));}
+    if(Mode->IsPopulationProfile()&&ALDB92Witness::Profession(Skill)&&HasSkillTask(Target)){auto* PC=Cast<ALDPlayerController>(Source->GetController());const auto* E=ALDEnvironmentDirector::Get(GetWorld());return PC&&E&&E->Ray(From,To,nullptr,E->SightFor(PC));}
     if (!Mode->Vision) { return false; }
     if (auto* PC=Cast<ALDPlayerController>(Source->GetController())) { return Mode->Vision->CanSee(PC,To); }
     return Mode->Vision->Ray({From,720,Mode->Vision->LevelAt(From)},To);
@@ -108,7 +109,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     if (S->Action==4&&Now>=S->DashUntil) { CancelSkill(Body,*S); Move->bCanWalkOffLedges=true; }
     if (S->Action&&Skill!=ELDSkill::Step) { Result=TEXT("Finish the current action first."); return false; }
     if (Held&&(Body->GetVelocity().SizeSquared2D()>1||Move->GetCurrentAcceleration().SizeSquared2D()>1||!Body->GetLastMovementInputVector().IsNearlyZero()))
-    { Result=TEXT("Stand still and hold the slot key."); return false; }
+    { Result=TEXT("Stand still and confirm the skill."); return false; }
     if (Skill==ELDSkill::Patch&&S->Hp>=LDDevelopment::MaxHP(*Build)) { Result=TEXT("Already at full HP."); return false; }
     AActor* Target=nullptr; const FVector Aim=Direction.GetSafeNormal2D();
     if (Skill==ELDSkill::Ambush)
@@ -133,7 +134,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
         {
             AActor* Candidate=Pair.Key.Get(); auto& Task=Pair.Value;
             if(ExplicitTarget&&Candidate!=ExplicitTarget){continue;}
-            if(Mode->IsPopulationProfile()&&Skill==ELDSkill::Survey&&(Point.ContainsNaN()||FVector::DistSquared2D(Point,Candidate->GetActorLocation())>80*80)){continue;}
+            if(Mode->IsPopulationProfile()&&ALDB92Witness::Profession(Skill)&&(Point.ContainsNaN()||FVector::DistSquared2D(Point,Candidate->GetActorLocation())>80*80)){continue;}
             if (!Task.Skills.Contains(Skill)||!SkillTargetLegal(Body,Candidate,Skill)) { continue; }
             const double D=FVector::DistSquared2D(Body->GetActorLocation(),Candidate->GetActorLocation());
             if (D<Distance||(D==Distance&&Task.Identity.ToString()<BestId.ToString())) { Target=Candidate;Distance=D;BestId=Task.Identity; }
@@ -163,7 +164,7 @@ bool ALDCombatDirector::RequestEquipped(ALDCharacter* Body,uint32 Revision,uint8
     if (!Held) { S->QuietSince=Now; S->ExposedUntil=FMath::Max(S->ExposedUntil,Now+4); }
     Move->bCombatWalkOnly=S->Action==2||S->Action==6;
     if (PC) { if (Mode->Objectives) { Mode->Objectives->Interrupt(PC,Now,true); }if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Interrupted by skill."));} Mode->SyncOwner(PC); }
-    Sync(Body,*S); Result=FString::Printf(TEXT("%s accepted%s."),LDDevelopment::SkillName(Skill),Held?TEXT("; keep holding the slot key"):TEXT("")); return true;
+    Sync(Body,*S); Result=FString::Printf(TEXT("%s accepted%s."),LDDevelopment::SkillName(Skill),Held?TEXT("; channeling, S stops"):TEXT("")); return true;
 }
 void ALDCombatDirector::CompleteSkillChannels(double Now)
 {

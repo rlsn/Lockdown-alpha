@@ -24,7 +24,7 @@ bool ALDB92Economy::WorkTerms(ALDB92Controller* PC,FName POI,const FLDB92MarketO
 {
     if(R.CourierAction){return R.CourierAction==2&&CourierTerms(PC,POI,R,Reserved,Error);}
     auto Reject=[&](const TCHAR* Why){Error=Why;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;
-    if(!HasAuthority()||!Ready||!FullWorld||Closed||!O||!O->bActive||!Seats.Contains(M->ContenderId(PC))||!ALDB92Services::WorkRecipes(POI).Contains(R.WorkRecipe)||R.Inputs.Num()>3||!ALDProductionDirector::RecipeInputs(R.WorkRecipe,R.Inputs)||R.Supply||R.BankAction||R.Amount||R.BankRevision||R.Item.IsValid()||R.ItemRevision||!R.Buy||R.Skill!=ELDSkill::None||(!Reserved&&R.Revision!=WorkRevision)||WorkRevision==MAX_uint32||O->Inventory.Revision>=MAX_uint32-4)
+    if(!HasAuthority()||!Ready||!FullWorld||Closed||!O||!O->bActive||!Seats.Contains(M->ContenderId(PC))||!ALDB92Services::WorkRecipes(POI).Contains(R.WorkRecipe)||R.Inputs.Num()>3||!ALDProductionDirector::RecipeInputs(R.WorkRecipe,R.Inputs)||R.Charter||R.Supply||R.BankAction||R.Amount||R.BankRevision||R.Item.IsValid()||R.ItemRevision||!R.Buy||R.Skill!=ELDSkill::None||(!Reserved&&R.Revision!=WorkRevision)||WorkRevision==MAX_uint32||O->Inventory.Revision>=MAX_uint32-4)
     {return Reject(TEXT("Work or exact recipe terms changed"));}
     const uint8 Recipe=R.WorkRecipe;const int32 Fee=Recipe==1?Catalog.ToolkitFee:Recipe==2?Catalog.CoreFee:0,Reward=Recipe==6?80:Recipe==7?50:0;
     const auto W=Wallet(M->ContenderId(PC));const auto* A=Ledger.Account(W);

@@ -36,4 +36,11 @@ private:
     FName CourierOrigin,CourierTarget;
     FGuid CourierToken;
     int32 CourierXp=0;
+    void TickCharter();
+    void SaveCharter(bool Complete);
+    void CharterStage(const FString& Label);
+    TArray<TSharedPtr<FJsonValue>> CharterStages;
+    FGuid EarnedWitness,EarnedCharter;
+    int32 InputStep=0;
+    uint32 FixtureHold=0;
 };

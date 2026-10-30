@@ -1,5 +1,6 @@
 #include "World/LDEnvironmentDirector.h"
 #include "World/LDPortableTools.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Character/LDCharacter.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
@@ -26,6 +27,7 @@ void ALDB91Controller::PointerOrder(bool Right,FGuid Object,FGuid Door,FVector P
     if(!Right&&(ArmedSource.IsValid()||BasicAttackArmed)){ConfirmSource(Object,Point);return;}
     if(!Right&&!IsTargeting()&&PointerService(Point)){return;}
     if(!Right){SelectedObject=Object;if(!V||!(V->Kind==ELDObjectKind::Chest||V->Kind==ELDObjectKind::Crate||V->Kind==ELDObjectKind::Barrel||V->Kind==ELDObjectKind::Furniture)){return;}}
+    if(Right&&!Object.IsValid()&&!Door.IsValid()&&NavigatePreparation(Point)){return;}
     StopSourceOrder();
     if(V)
     {const bool Pickup=V->Kind==ELDObjectKind::Water||V->Kind==ELDObjectKind::Oil||V->Kind==ELDObjectKind::LooseItem||V->Kind==ELDObjectKind::Torch||V->Kind==ELDObjectKind::Lantern||V->Kind==ELDObjectKind::Rope||V->Kind==ELDObjectKind::ForestryKnife||V->Kind==ELDObjectKind::Ladder||V->Kind==ELDObjectKind::Anchor;
@@ -72,9 +74,11 @@ void ALDB91Controller::ConfirmSource(FGuid Object,FVector Point)
 }
 void ALDB91Controller::ItemCommand(FName Command,int32 Index)
 {
+    if(Command==TEXT("Build")){ToggleDevelopmentPanel();return;}
     if(Command==TEXT("Carry")){IssueObject(ELDObjectVerb::Carry,SelectedObject);return;}if(Command==TEXT("Select")){BagSelection=Index;return;}if(Command==TEXT("Use")){UseAccessory(Index);return;}if(Command==TEXT("Alternate")){UseAccessory(Index,true);return;}
     const auto* I=OwnerState.Inventory.Items.IsValidIndex(BagSelection)?&OwnerState.Inventory.Items[BagSelection]:nullptr;
-    if(Command==TEXT("Equip")&&I){StopSourceOrder();StartLoadoutHold(LDInventory::Equip,I->Id,7+Index);}
+    if(Command==TEXT("Read")&&I&&I->Kind==ELDItemKind::Book){StopSourceOrder();StartDevelopmentHold(LDDevelopmentTransaction::Read,I->Id,FLDBuildPlan());}
+    else if(Command==TEXT("Equip")&&I){StopSourceOrder();StartLoadoutHold(LDInventory::Equip,I->Id,7+Index);}
     else if(Command==TEXT("Unequip")&&I){StopSourceOrder();StartLoadoutHold(LDInventory::Unequip,I->Id,7);}
     else if(Command==TEXT("Drop")&&I){StopSourceOrder();ArmedSource=I->Id;ArmedVerb=ELDObjectVerb::Drop;IntentFeedback=TEXT("Confirm a nearby drop point");}
     else if(Command==TEXT("Store")&&I&&ContainerHandle.IsValid()){IssueObject(ELDObjectVerb::Store,ContainerHandle,I->Id);}

@@ -2,6 +2,8 @@
 #include "World/LDWorldObjects.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Economy/LDB92Deposits.h"
+#include "Economy/LDB92Witness.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/CommandLine.h"
@@ -44,6 +46,38 @@ void ALDB92Controller::TickServicesProbe()
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task>=51&&Task<=69)
+    {
+        if(Task==52)
+        {
+            if(!ServicesProbeStep){const auto* Book=OwnerState.Inventory.Items.FindByPredicate([](const auto& I){return I.Kind==ELDItemKind::Book&&I.Skill==ELDSkill::Parley;});if(!Book){Complete(false);return;}BagSelection=OwnerState.Inventory.Items.IndexOfByPredicate([&](const auto& I){return I.Id==Book->Id;});ItemCommand(TEXT("Read"),0);ServicesProbeStep=1;ServicesProbeAt=Now;}
+            if(Now-ServicesProbeAt>4&&!OwnerState.DevelopmentKind){Complete(LDDevelopment::Rank(OwnerState.Build,ELDSkill::Parley)==1);}return;
+        }
+        if(Task==53||Task==54||Task==56)
+        {
+            if(!ServicesProbeStep){if(Task!=54){auto P=LDDevelopment::PlanFrom(OwnerState.Build);P.InventoryRevision=OwnerState.Inventory.Revision;P.Bindings=OwnerState.Inventory.Bindings;for(int32 I=0;I<P.Slots.Num();++I){if(P.Slots[I]==ELDSkill::Parley){P.Slots[I]=ELDSkill::None;P.Actions[I]=FLDActionRef();}}P.Slots[0]=ELDSkill::Parley;P.Actions[0]=FLDActionRef();P.Actions[0].Skill=ELDSkill::Parley;if(Task==56){P.Attributes[LDDevelopment::CHA]+=2;P.Ranks[uint8(ELDSkill::Parley)]=2;}ArmPreparation(P);}else{PointerOrder(true,FGuid(),FGuid(),ALDB92Services::Counter(GetWorld(),TEXT("riverport_workshop")));}ServicesProbeStep=1;ServicesProbeAt=Now;}
+            if(Now-ServicesProbeAt>(Task==53?3:4)&&!OwnerState.DevelopmentKind){Complete(OwnerState.Build.Slots[0]==ELDSkill::Parley&&(Task!=56||LDDevelopment::SkillValue(OwnerState.Build,ELDSkill::Parley)>=12));}return;
+        }
+        if(Task==55||Task==57||Task==58)
+        {
+            if(!ServicesProbeStep){ArmSkill(0);ConfirmArmed(ALDB92Witness::Position(GetWorld(),ServicesProbePOI==TEXT("capital_guild")?0:1,2),FGuid());ServicesProbeStep=1;ServicesProbeAt=Now;return;}
+            if(Task==57&&ServicesProbeStep==1&&ChannelActive&&Channel.Domain==7){StopSourceOrder();ServicesProbeStep=2;}
+            if(Task==58&&ServicesProbeStep==1&&ChannelActive&&Channel.Domain==7){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Out;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Out);FScreenshotRequest::RequestScreenshot(Out/TEXT("Witness.png"),true,false);}ServicesProbeStep=2;}
+            if(Now-ServicesProbeAt>3.2){Complete(OwnerState.Witness.IsValid());}return;
+        }
+        if(Task==69)
+        {if(!ServicesProbeStep){CharterPage=true;if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Out;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Out);FScreenshotRequest::RequestScreenshot(Out/TEXT("Charter.png"),true,false);}ServicesProbeStep=1;ServicesProbeAt=Now;}else if(Now-ServicesProbeAt>1){Complete(OwnerState.CharterPurchase.IsValid());}return;}
+        if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}
+        if(ServicesProbeStep==1)
+        {
+            if(MarketReceiptSequence!=ServicesProbeSequence||!MarketView.Session.IsValid()||Now-ServicesProbeAt<.65){return;}FLDB92MarketOrder R;
+            if(Task==51||Task==60||Task==61){const auto* Offer=MarketView.Offers.FindByPredicate([&](const auto& V){return Task==51?V.Kind==ELDItemKind::Book&&V.Skill==ELDSkill::Parley:V.Kind==(Task==60?ELDItemKind::Fiber:ELDItemKind::Ore);});if(!Offer){Complete(false);return;}R=MarketOrder(true,Offer->Kind);R.Skill=Offer->Skill;R.Price=Offer->Ask;R.Supply=true;}
+            else if(Task==66){R=MarketOrder(true,ELDItemKind::Fiber);R.BankAction=1;R.Amount=52;R.BankRevision=MarketView.BankRevision;R.Price=0;R.Revision=0;}
+            else{R=MarketOrder(true,ELDItemKind::Fiber);R.Charter=true;R.Price=100;R.Amount=Task==67||Task==68?50:Task==64?101:Task==65?50:100;R.BankRevision=MarketView.BankRevision;R.Revision=0;if(Task==63){--R.WalletRevision;}}
+            Send(R);if(Task==51||Task==66||Task==67){ServerB92Order(R);}ServicesProbeStep=2;return;
+        }
+        if(MarketReceiptSequence==ServicesProbeSequence&&((Task!=51&&Task!=66&&Task!=67)||ServicesProbeReceiptCounts.FindRef(ServicesProbeSequence)>=2)){Complete(MarketAccepted);}return;
+    }
     if(Task>=42&&Task<=50)
     {
         if(Task==48)

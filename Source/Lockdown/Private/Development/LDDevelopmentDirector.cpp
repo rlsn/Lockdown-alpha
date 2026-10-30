@@ -13,6 +13,8 @@
 #include "Vision/LDVisionDirector.h"
 #include "Core/LDGroundQueries.h"
 #include "Region/LDRegionDefinition.h"
+#include "Region/LDMapDefinition.h"
+#include "World/LDEnvironmentDirector.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "Misc/CommandLine.h"
@@ -42,6 +44,12 @@ bool ALDDevelopmentDirector::NearStation(ALDPlayerController* PC,bool GuildOnly)
 {
     const APawn* Body=PC?PC->GetPawn():nullptr;if(!Body){return false;}
     const FVector From=Body->GetActorLocation();
+    if(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsPopulationProfile())
+    {
+        const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* Env=ALDEnvironmentDirector::Get(GetWorld());if(!Map||!Env||GuildOnly){return false;}
+        for(const auto& S:Map->Services){if(S.Functions.Contains(TEXT("preparation"))&&FVector::DistSquared2D(From,S.Position)<=120*120&&FMath::Abs(From.Z-S.Position.Z-90)<100&&LDGround::ClearSegment(GetWorld(),From,S.Position+FVector(0,0,90))&&Env->Ray(From,S.Position+FVector(0,0,90),nullptr,Env->SightFor(PC))){return true;}}return false;
+    }
+
     for(uint8 Site:{uint8(LDObjective::Guild),uint8(LDObjective::Station),uint8(6)})
     {if(Site==6&&!LDRegion::Definition(GetWorld())){continue;}if(GuildOnly&&Site!=LDObjective::Guild){continue;}const FVector To=LDRegion::Site(GetWorld(),Site);if(FVector::DistSquared2D(From,To)<=120*120&&LDGround::ClearSegment(GetWorld(),From,To)){return true;}}
     return false;

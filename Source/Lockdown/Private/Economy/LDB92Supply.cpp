@@ -39,7 +39,7 @@ bool ALDB92Economy::PurchaseOfficial(ALDB92Controller* PC,FName POI,FGuid Receip
 {
     Error.Reset();auto Reject=[&](const TCHAR* Why){Error=Why;return false;};
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(PC):nullptr;
-    if(!HasAuthority()||!Ready||Closed||!FullWorld||!O||!O->bActive||!Seats.Contains(M->ContenderId(PC))||!Receipt.IsValid()||Ledger.Receipt(Receipt)||!R.Supply||!R.Buy||R.BankAction||R.Amount||R.BankRevision||R.Item.IsValid()||R.ItemRevision||OfficialRevision==MAX_uint32||O->Inventory.Revision==MAX_uint32)
+    if(!HasAuthority()||!Ready||Closed||!FullWorld||!O||!O->bActive||!Seats.Contains(M->ContenderId(PC))||!Receipt.IsValid()||Ledger.Receipt(Receipt)||R.Charter||!R.Supply||!R.Buy||R.BankAction||R.Amount||R.BankRevision||R.Item.IsValid()||R.ItemRevision||OfficialRevision==MAX_uint32||O->Inventory.Revision==MAX_uint32)
     {return Reject(TEXT("Official purchase unavailable or invalid terms"));}
     if(!SynchronizeWorld(Error)||!Audit(Error)){return false;}
     const auto Offers=ALDB92Services::SupplyOffers(POI,this);const auto* Offer=Offers.FindByPredicate([&](const auto& V){return V.Kind==R.Kind&&V.Skill==R.Skill;});

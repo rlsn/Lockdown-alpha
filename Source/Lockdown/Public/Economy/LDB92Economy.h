@@ -50,6 +50,8 @@ public:
     static FName BookBudget(ELDSkill Skill);
     uint32 OfficialRevision=1;
     uint32 WorkRevision=1;
+    bool RecordWitness(class ALDB92Controller* PC,FGuid& Receipt,FString& Error);
+    bool PurchaseCharter(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,FGuid Receipt,FString& Error);
     FString ExportCouriers() const;
     static TArray<FName> CourierBoards(const UWorld* World);
     static int32 CourierDistance(const UWorld* World,FName From,FName To);

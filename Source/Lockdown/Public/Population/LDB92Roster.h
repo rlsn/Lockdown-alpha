@@ -49,6 +49,9 @@ public:
     void SubmitWork(uint8 Recipe);
     bool WorkPage=false;
     bool CourierPage=false;
+    bool CharterPage=false;
+    void SubmitCharter(int64 WalletShare);
+    TArray<TWeakObjectPtr<AActor>> WitnessMarkers;
     FLDB92MarketOrder CourierOrder(uint8 Action);
     void SubmitCourier(uint8 Action);
     int32 SupplyPage=0;
@@ -127,6 +130,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDB92Economy> Economy;
     UPROPERTY() TObjectPtr<ALDB92Services> Services;
     UPROPERTY() TObjectPtr<class ALDB92Deposits> Deposits;
+    UPROPERTY() TObjectPtr<class ALDB92Witness> Witness;
 private:
     friend class ALDB92RosterProbe;
     friend class ALDB92ServicesProbe;
