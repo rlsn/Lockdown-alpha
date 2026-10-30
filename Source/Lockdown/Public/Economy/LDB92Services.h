@@ -20,6 +20,7 @@ struct FLDB92MarketView
     UPROPERTY() FName POI;
     UPROPERTY() uint32 Match=0; UPROPERTY() uint32 Life=0; UPROPERTY() uint32 WalletRevision=0;
     UPROPERTY() uint64 Revision=0;
+    UPROPERTY() uint32 BankRevision=0;
     UPROPERTY() TArray<FLDB92Offer> Offers;
 };
 USTRUCT()
@@ -32,6 +33,10 @@ struct FLDB92MarketOrder
     UPROPERTY() ELDItemKind Kind=ELDItemKind::Fiber;
     UPROPERTY() bool Buy=true;
     UPROPERTY() int32 Price=0;
+    // 0 commodity, 1 deposit, 2 withdraw. Amount is total wallet debit on deposit.
+    UPROPERTY() uint8 BankAction=0;
+    UPROPERTY() int64 Amount=0;
+    UPROPERTY() uint32 BankRevision=0;
     bool operator==(const FLDB92MarketOrder& B) const;
 };
 UCLASS()

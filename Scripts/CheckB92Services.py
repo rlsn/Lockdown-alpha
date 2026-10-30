@@ -19,7 +19,25 @@ def check(root):
     ledger = read(root / 'Ledger.json')
     assert len(ledger['accounts']) == 149 and int(ledger['start']) == 3288
     assert int(ledger['minted']) == 0 and int(ledger['end']) == 3288 - int(ledger['burned'])
-    assert int(ledger['burned']) % 5 == 0
+    bank = data.get('bank_integration', False)
+    assert int(ledger['burned']) % 5 == (1 if bank else 0)
+    if bank:
+        assert len(data['checks']) >= 45
+        for role, task in [('A', 15), ('A', 17), ('A', 18), ('A2', 16)]:
+            assert read(root / f'{role}_{task}.json')['completed']
+        deposits = [r for r in ledger['receipts'] if r['cause'] == 'BankDeposit']
+        withdrawals = [r for r in ledger['receipts'] if r['cause'] == 'BankWithdrawal']
+        assert len(deposits) == len(withdrawals) == 1
+        assert int(deposits[0]['burn']) == 1 and int(withdrawals[0]['burn']) == 0
+        assert len(deposits[0]['gold']) == len(withdrawals[0]['gold']) == 2
+        debit = {g['account']: int(g['delta']) for g in deposits[0]['gold']}
+        credit = {g['account']: int(g['delta']) for g in withdrawals[0]['gold']}
+        assert debit.keys() == credit.keys()
+        assert sorted(debit.values()) == [-3, 2] and sorted(credit.values()) == [-2, 2]
+        bank_account = next(a for a in debit if a.startswith('Bank:'))
+        assert debit[bank_account] == 2 and credit[bank_account] == -2
+        assert not read(root / 'A_17.json')['accepted'] and not read(root / 'A_18.json')['accepted']
+        assert read(root / 'A_15.json')['bank'] == '2' and read(root / 'A2_16.json')['bank'] == '0'
     events = ledger['receipts']
     initial = [r for r in events if r['cause'] == 'B92WorldEndowment']
     assert len(initial) == 143 and sum(len(r['items']) for r in initial) == 143

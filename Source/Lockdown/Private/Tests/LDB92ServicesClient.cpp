@@ -38,11 +38,17 @@ void ALDB92Controller::TickServicesProbe()
     const double Now=GetWorld()->GetTimeSeconds();const uint8 Task=ServicesProbeTask;if(!Task){return;}
     auto Complete=[&](bool Accepted)
     {
-        auto J=MakeShared<FJsonObject>();J->SetBoolField(TEXT("completed"),true);J->SetBoolField(TEXT("accepted"),Accepted);J->SetStringField(TEXT("gold"),LexToString(OwnerState.Gold));J->SetNumberField(TEXT("life"),OwnerState.Life);J->SetNumberField(TEXT("combat_floor"),CombatTokenFloor());J->SetBoolField(TEXT("duplicate_same"),ServicesProbeReplaySame);J->SetNumberField(TEXT("bag_count"),OwnerState.Inventory.Items.Num());J->SetBoolField(TEXT("has_quote"),MarketView.Session.IsValid());J->SetNumberField(TEXT("offers"),MarketView.Offers.Num());J->SetStringField(TEXT("quote_revision"),LexToString(MarketView.Revision));
+        auto J=MakeShared<FJsonObject>();J->SetBoolField(TEXT("completed"),true);J->SetBoolField(TEXT("accepted"),Accepted);J->SetStringField(TEXT("gold"),LexToString(OwnerState.Gold));J->SetStringField(TEXT("bank"),LexToString(OwnerState.BankGold));J->SetNumberField(TEXT("life"),OwnerState.Life);J->SetNumberField(TEXT("combat_floor"),CombatTokenFloor());J->SetBoolField(TEXT("duplicate_same"),ServicesProbeReplaySame);J->SetNumberField(TEXT("bag_count"),OwnerState.Inventory.Items.Num());J->SetBoolField(TEXT("has_quote"),MarketView.Session.IsValid());J->SetNumberField(TEXT("offers"),MarketView.Offers.Num());J->SetStringField(TEXT("quote_revision"),LexToString(MarketView.Revision));
         TArray<TSharedPtr<FJsonValue>> Items;for(const auto& I:OwnerState.Inventory.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),I.Id.ToString());V->SetNumberField(TEXT("kind"),uint8(I.Kind));Items.Add(MakeShared<FJsonValueObject>(V));}J->SetArrayField(TEXT("items"),Items);
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task>=15&&Task<=18)
+    {
+        if(!ServicesProbeStep)
+        {auto R=MarketOrder(true,ELDItemKind::Fiber);R.BankAction=Task==16?2:1;R.Amount=Task==15?3:Task==18?1:2;R.BankRevision=MarketView.BankRevision;R.Price=0;R.Revision=0;if(Task==17){--R.BankRevision;}Send(R);if(Task==15||Task==16){ServerB92Order(R);}ServicesProbeStep=1;}
+        else if(MarketReceiptSequence==ServicesProbeSequence&&((Task!=15&&Task!=16)||ServicesProbeReceiptCounts.FindRef(ServicesProbeSequence)>=2)){Complete(MarketAccepted);}return;
+    }
     if(Task==1)
     {
         if(OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::Ore;})){Complete(true);return;}

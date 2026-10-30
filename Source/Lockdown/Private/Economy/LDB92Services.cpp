@@ -8,7 +8,7 @@
 #include "Engine/World.h"
 
 bool FLDB92MarketOrder::operator==(const FLDB92MarketOrder& B) const
-{return Match==B.Match&&Life==B.Life&&Sequence==B.Sequence&&InventoryRevision==B.InventoryRevision&&ItemRevision==B.ItemRevision&&WalletRevision==B.WalletRevision&&Session==B.Session&&Item==B.Item&&Revision==B.Revision&&Kind==B.Kind&&Buy==B.Buy&&Price==B.Price;}
+{return Match==B.Match&&Life==B.Life&&Sequence==B.Sequence&&InventoryRevision==B.InventoryRevision&&ItemRevision==B.ItemRevision&&WalletRevision==B.WalletRevision&&Session==B.Session&&Item==B.Item&&Revision==B.Revision&&Kind==B.Kind&&Buy==B.Buy&&Price==B.Price&&BankAction==B.BankAction&&Amount==B.Amount&&BankRevision==B.BankRevision;}
 ALDB92Services::ALDB92Services(){bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
 const TArray<FName>& ALDB92Services::Markets()
 {static const TArray<FName> Values={TEXT("capital_treasury"),TEXT("highfort_market"),TEXT("scholars_market"),TEXT("riverport_market"),TEXT("ironworks_market")};return Values;}
@@ -32,7 +32,7 @@ void ALDB92Services::Reply(ALDB92Controller* PC,uint32 Sequence,FGuid Receipt,bo
     else
     {
         const int32 Index=Markets().Find(C.View.POI);const auto* E=M->Population->Economy.Get();const auto Q=E->Quote(E->Rules().Markets[Index].Id);
-        C.View.Revision=Q.Revision;C.View.WalletRevision=E->Accounting().Account(E->Wallet(M->ContenderId(PC)))->Revision;C.View.Offers.Reset();
+        C.View.Revision=Q.Revision;C.View.WalletRevision=E->Accounting().Account(E->Wallet(M->ContenderId(PC)))->Revision;C.View.BankRevision=E->Accounting().Account(E->Bank(M->ContenderId(PC)))->Revision;C.View.Offers.Reset();
         for(const auto& G:Q.Goods){FLDB92Offer V;V.Kind=G.Kind;V.Stock=G.Stock;V.Ask=G.Ask;V.Bid=G.Bid;C.View.Offers.Add(V);}
     }
     PC->ClientB92Market(*O,C.View,Sequence,Receipt,Accepted,Message);
@@ -57,7 +57,15 @@ void ALDB92Services::Order(ALDB92Controller* PC,const FLDB92MarketOrder& R)
     else
     {
         auto* E=M->Population->Economy.Get();FLDB92Trade T;T.Request=Result.Receipt;T.Contender=M->ContenderId(PC);T.Market=E->Rules().Markets[Markets().Find(C.View.POI)].Id;T.Item=R.Item;T.Kind=R.Kind;T.Buy=R.Buy;T.QuoteRevision=R.Revision;T.WalletRevision=R.WalletRevision;T.ItemRevision=R.ItemRevision;T.InventoryRevision=R.InventoryRevision;T.Price=R.Price;FGuid Received;
-        Result.Accepted=E->Trade(T,Received,Result.Message);if(Result.Accepted){Result.Message=R.Buy?TEXT("Bought one unit"):TEXT("Sold one unit");}
+        if(R.BankAction)
+        {
+            const auto Id=M->ContenderId(PC);const auto* W=E->Ledger.Account(E->Wallet(Id));const auto* B=E->Ledger.Account(E->Bank(Id));LDEconomy::FTransaction Transaction;
+            if(R.BankAction>2||R.Item.IsValid()||R.ItemRevision||R.Price||R.Revision||R.InventoryRevision!=O->Inventory.Revision||!W||!B||W->Gold!=O->Gold||B->Gold!=O->BankGold)
+            {Result.Message=TEXT("Invalid or changed bank terms");}
+            else if(E->SynchronizeWorld(Result.Message)&&E->Audit(Result.Message)&&LDEconomy::BankTransaction(E->Ledger,Result.Receipt,E->Wallet(Id),E->Bank(Id),R.WalletRevision,R.BankRevision,R.Amount,R.BankAction==1,Transaction,Result.Message)&&E->Ledger.Commit(Transaction,Result.Message))
+            {auto* OwnerState=M->StateFor(PC);OwnerState->Gold=E->Ledger.Account(E->Wallet(Id))->Gold;OwnerState->BankGold=E->Ledger.Account(E->Bank(Id))->Gold;M->SyncOwner(PC);Result.Accepted=true;}
+        }
+        else if(!R.Amount&&!R.BankRevision){Result.Accepted=E->Trade(T,Received,Result.Message);}if(Result.Accepted){Result.Message=R.BankAction==1?TEXT("Deposit confirmed; fee burned"):R.BankAction==2?TEXT("Withdrawal confirmed; gold now carried"):R.Buy?TEXT("Bought one unit"):TEXT("Sold one unit");}
     }
     C.Receipts.Add(R.Sequence,Result);while(C.Receipts.Num()>96){uint32 Oldest=MAX_uint32;for(const auto& P:C.Receipts){Oldest=FMath::Min(Oldest,P.Key);}C.Receipts.Remove(Oldest);}
     Reply(PC,R.Sequence,Result.Receipt,Result.Accepted,Result.Message);
@@ -70,6 +78,6 @@ void ALDB92Services::Tick(float Delta)
         auto* PC=It.Key().Get();if(!PC){It.RemoveCurrent();continue;}auto& C=It.Value();if(!C.View.Session.IsValid()){continue;}
         if(!Eligible(PC,C.View.POI)){C.View.Session.Invalidate();Reply(PC,0,FGuid(),false,TEXT("Counter closed: range, sight, life or action changed"));continue;}
         auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* E=M->Population->Economy.Get();const auto Q=E->Quote(E->Rules().Markets[Markets().Find(C.View.POI)].Id);
-        if(Q.Revision!=C.View.Revision){Reply(PC,0,FGuid(),true,TEXT("Prices changed; review the current terms"));}
+        if(Q.Revision!=C.View.Revision||E->Accounting().Account(E->Wallet(M->ContenderId(PC)))->Revision!=C.View.WalletRevision||E->Accounting().Account(E->Bank(M->ContenderId(PC)))->Revision!=C.View.BankRevision){Reply(PC,0,FGuid(),true,TEXT("Prices changed; review the current terms"));}
     }
 }

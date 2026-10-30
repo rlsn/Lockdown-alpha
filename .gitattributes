@@ -98,3 +98,5 @@
 # Raw remote market/takeover and regression diagnostics.
 /docs/v09/evidence/B92Services/**/*.log -whitespace
 /docs/v09/evidence/B92Services/*.log -whitespace
+/docs/v09/evidence/B92Bank/**/*.log -whitespace
+/docs/v09/evidence/B92Bank/*.log -whitespace

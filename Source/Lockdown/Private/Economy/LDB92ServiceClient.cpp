@@ -39,6 +39,8 @@ void ALDB92Controller::SubmitMarket(bool Buy,ELDItemKind Kind)
     if(!Buy){for(const auto& I:OwnerState.Inventory.Items){if(I.Kind==Kind&&!I.BindingMask&&!I.bReserved){Item=I.Id;break;}}if(!Item.IsValid()){MarketMessage=TEXT("No available unit in your bag");return;}}
     ServerB92Order(MarketOrder(Buy,Kind,Item));
 }
+void ALDB92Controller::SubmitBank(bool Deposit,int64 Amount)
+{if(!MarketView.Session.IsValid()){return;}auto R=MarketOrder(true,ELDItemKind::Fiber);R.BankAction=Deposit?1:2;R.Amount=Amount;R.BankRevision=MarketView.BankRevision;R.Price=0;R.Revision=0;ServerB92Order(R);}
 bool ALDB92Controller::PointerService(FVector Point)
 {
     if(!IsLocalController()||!GetPawn()){return false;}float X,Y;if(!GetMousePosition(X,Y)){return false;}const auto* E=ALDEnvironmentDirector::Get(GetWorld());
@@ -67,7 +69,7 @@ void ALDB92Controller::PlayerTick(float Delta)
 void ALDB92HUD::DrawHUD()
 {
     Super::DrawHUD();auto* PC=Cast<ALDB92Controller>(PlayerOwner);if(!PC||!Canvas){return;}const auto& Q=PC->MarketView;if(!Q.Session.IsValid()){return;}
-    const float X=FMath::Max(460.f,float(Canvas->SizeX)-400.f),Y=180;DrawRect(FLinearColor(0,.03f,.05f,.96f),X,Y,390,285);
+    const float X=FMath::Max(460.f,float(Canvas->SizeX)-400.f),Y=180;DrawRect(FLinearColor(0,.03f,.05f,.96f),X,Y,390,365);
     const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* P=Map?Map->Find(Q.POI):nullptr;DrawText(P?P->Name:TEXT("Regional market"),FLinearColor::White,X+10,Y+8,nullptr,.85f);
     DrawText(FString::Printf(TEXT("Wallet: %lld gold | one unit per confirmation"),PC->OwnerState.Gold),FLinearColor::White,X+10,Y+30,nullptr,.8f);
     for(int32 I=0;I<Q.Offers.Num();++I)
@@ -76,10 +78,12 @@ void ALDB92HUD::DrawHUD()
         for(int32 Action=0;Action<2;++Action)
         {const FName Name(*FString::Printf(TEXT("Market_%d_%d"),Action,uint8(O.Kind)));const float Left=X+150+Action*112;AddHitBox(FVector2D(Left,Row-3),FVector2D(105,27),Name,true,200);DrawRect(FLinearColor(.08f,.2f,.23f,1),Left,Row-3,105,27);DrawText(FString::Printf(TEXT("%s1: %d"),Action?TEXT("Sell "):TEXT("Buy "),Action?O.Bid:O.Ask),FLinearColor::White,Left+5,Row+2,nullptr,.8f);}
     }
-    DrawText(PC->MarketMessage.Left(55),FLinearColor::Yellow,X+10,Y+225,nullptr,.75f);AddHitBox(FVector2D(X+270,Y+250),FVector2D(105,25),TEXT("Market_Close"),true,200);DrawText(TEXT("Close"),FLinearColor::White,X+290,Y+252);
+    DrawText(FString::Printf(TEXT("Bank: %lld | Deposit fee: ceil(2%%), no withdrawal fee"),PC->OwnerState.BankGold),FLinearColor::White,X+10,Y+220,nullptr,.73f);
+    for(int32 Row=0;Row<2;++Row){for(int32 Col=0;Col<3;++Col){const int32 Amount=Col==0?2:Col==1?10:50;const float Left=X+10+Col*125,Top=Y+244+Row*28;const FName Name(*FString::Printf(TEXT("Bank_%d_%d"),Row,Amount));AddHitBox(FVector2D(Left,Top),FVector2D(120,24),Name,true,200);DrawRect(FLinearColor(.08f,.2f,.23f,1),Left,Top,120,24);DrawText(FString::Printf(TEXT("%s %d"),Row?TEXT("Withdraw"):TEXT("Deposit"),Amount),FLinearColor::White,Left+4,Top+3,nullptr,.8f);}}
+    DrawText(PC->MarketMessage.Left(55),FLinearColor::Yellow,X+10,Y+305,nullptr,.75f);AddHitBox(FVector2D(X+270,Y+330),FVector2D(105,25),TEXT("Market_Close"),true,200);DrawText(TEXT("Close"),FLinearColor::White,X+290,Y+332);
 }
 void ALDB92HUD::NotifyHitBoxClick(FName Name)
 {
-    auto* PC=Cast<ALDB92Controller>(PlayerOwner);const FString Text=Name.ToString();if(PC&&Text.StartsWith(TEXT("Market_")))
+    auto* PC=Cast<ALDB92Controller>(PlayerOwner);const FString Text=Name.ToString();if(PC&&Text.StartsWith(TEXT("Bank_"))){TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitBank(FCString::Atoi(*Fields[1])==0,FCString::Atoi64(*Fields[2]));}return;}if(PC&&Text.StartsWith(TEXT("Market_")))
     {if(Text==TEXT("Market_Close")){PC->ServerB92Close();return;}TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitMarket(FCString::Atoi(*Fields[1])==0,ELDItemKind(FCString::Atoi(*Fields[2])));}return;}Super::NotifyHitBoxClick(Name);
 }

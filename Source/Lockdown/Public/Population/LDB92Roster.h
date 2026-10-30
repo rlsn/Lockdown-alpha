@@ -39,6 +39,7 @@ public:
     void OpenMarket(FName POI);
     FLDB92MarketOrder MarketOrder(bool Buy,ELDItemKind Kind,FGuid Item=FGuid());
     void SubmitMarket(bool Buy,ELDItemKind Kind);
+    void SubmitBank(bool Deposit,int64 Amount);
     FLDB92MarketView MarketView;
     uint32 MarketSequence=0,MarketReceiptSequence=0,MarketReceiptSerial=0;
     FGuid MarketReceipt;
