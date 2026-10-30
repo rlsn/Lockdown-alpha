@@ -1,0 +1,33 @@
+{
+	"completed": true,
+	"feedback": "Released once; no refund for blocked/missed effect",
+	"market_feedback": "Stock, price, wallet or bag changed; review official terms",
+	"accepted": false,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100006,
+	"duplicate_same": true,
+	"bag_count": 4,
+	"has_quote": true,
+	"offers": 103,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "927C05504053891C80DC31A34D4262F0",
+			"kind": 97
+		},
+		{
+			"id": "7935AED24221710564B8048FA1646A49",
+			"kind": 3
+		},
+		{
+			"id": "29973E474DE7FB5CFF78E1B828C67DEA",
+			"kind": 0
+		},
+		{
+			"id": "1DDAE88B4DB40D0E2F6501A3E0B903C6",
+			"kind": 3
+		}
+	]
+}

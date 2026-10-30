@@ -53,13 +53,20 @@ The [basic deposit extension](../v09/B92_DEPOSITS.md) now connects nine six-char
 
 The [prepared Survey extension](../v09/B92_SURVEY.md) now uses ordinary slot/ground confirmation, inherited score/channel/cooldown and the same Crystal budget. Its staged build verifies mechanics, status categories and interruption; natural skill acquisition and earned progression remain open.
 
+The [physical work extension](../v09/B92_WORK.md) connects Toolkit/Core crafting
+and Industrial/Supply deliveries with exact reservations, timed confirmation,
+fees, causal outputs and shared/persistent quotas. Normal discovery/funding,
+courier token lifecycle, broader procurement interruption/death races, Witness
+and registered Charter remain acceptance work. Cache inputs and travel in the
+connected transaction scenario are explicitly prepared fixtures.
+
 ## Delivery sequence
 
 | Layer | Player-facing outcome | Remaining acceptance |
 | --- | --- | --- |
 | B90 spatial world | Places can be reached through ordinary movement and alternative approaches | Complete at its spatial boundary; retain affected-route regressions |
 | B91 functional environment | Places can be used, concealed within and changed through authoritative sources | Complete at the functional-environment boundary; retain the source, geometry, privacy and conservation regressions |
-| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Earned official acquisition/learning, finite contracts/deposits/crafting, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
+| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Earned acquisition/learning and normal work pacing, courier lifecycle and procurement stress, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
 | B93 route convergence | Earned preparations produce real capital access, warnings, property risks and a contestable ending | Four full-map routes and exact claim/interruption/deadline behavior |
 | B94 complete-session acceptance | The whole match remains readable, consequential and sustainable over its target duration | Normal 60/75/90-minute scenarios, multiplayer/field/density stress, recorded hardware and human pacing observations |
 

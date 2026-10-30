@@ -1,4 +1,29 @@
-# Active continuation — B92 prepared Survey extraction
+# Active continuation — B92 physical crafting and procurement
+
+The [physical work increment](v09/B92_WORK.md), source **0d93aeec8a11f657409bf3b4cd8ad64fca788fd7**,
+connects city/town workshops and Capital/Riverport contracts to exact real
+inputs. One confirmation channels4s Toolkit/6s Core or3s delivery; release
+continues and S stops. Reserved inputs, fee/output lineage or named reward,
+shared/persistent quotas and private endorsements commit together. No new
+interaction key, passive crafting XP or per-life refill.
+
+Connected83 checks pass. Independent replay closes295 receipts/149 accounts/
+635 historical identities (610 live),3,202 gold =3,288start +130 procurement
+mint -216burn (26 craft,185 bank/official,5 funded institutions). Six crafting receipts (including two concurrent owners)
+retain parents; both delivery receipts spend shared/personal quotas and award
+90XP. Four automatic channels plus two Survey outputs share54 total deposit
+charges; remaining depletion remains a fixture. Rules59/economy125/roster37/B91 source53/combat50 and both targets pass;207 protected inputs unchanged. Master revision28.
+
+**Next:** physical courier lifecycle, authored full-map Witness and an earned
+zero-kill Charter journey, including book acquisition/learning/preparation.
+Broader procurement interruption/death/race checks, ordinary discovery and
+funding/pacing, routines/security/hostiles, legal contender AI/tier transitions,
+authenticated reconnect and full recovery remain open. B92 in progress;
+`v09_full` closed. Travel/cache inputs, Survey build and remaining depletion
+are labelled fixtures. The earlier400gold reserve transfer conserves existing
+cash; successful work payouts do not establish a naturally earned journey.
+
+# Prior prepared Survey checkpoint
 
 The [prepared Survey increment](v09/B92_SURVEY.md), source **dd3545f31344099087a6ac2d26c4ebbce4b8c2cf**,
 connects one learned/prepared slot and ground confirmation to all five Crystal

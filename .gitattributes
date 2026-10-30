@@ -106,3 +106,6 @@
 /docs/v09/evidence/B92Deposits/*.log -whitespace
 /docs/v09/evidence/B92Survey/**/*.log -whitespace
 /docs/v09/evidence/B92Survey/*.log -whitespace
+
+/docs/v09/evidence/B92Work/**/*.log -whitespace
+/docs/v09/evidence/B92Work/*.log -whitespace

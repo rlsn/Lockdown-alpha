@@ -55,6 +55,34 @@ outside ordinary player and AI observations.
 
 Short chains connect Fiber/Ore/Crystal, Toolkits/Cores and specialist equipment. Stations create vulnerable preparation and cargo movement. Work orders can buy missing available official inputs and charge fees, but cannot fabricate rare catalysts or recursively invent components.
 
+Treat crafting and employment as different decisions. A workshop sells a
+transformation: the player supplies exact goods, time and a fee, then owns a
+new physical output. A procurement counter buys a specified delivery through
+a bounded reward source. The same Toolkit can become equipment, a Core input,
+market cargo or a Supply delivery; committing it to one path gives up the others.
+Neither crafting nor repeated trading grants experience merely for turnover.
+
+A channel reserves selected goods while the character remains exposed. Starting
+work must not consume the materials; stopping releases those same instances.
+At completion, payment, consumption, output lineage and any shared quota form
+one result. A failed or stale confirmation cannot partly charge the player.
+Show requirements, duration, fee or reward, and remaining personal/shared
+availability before the player chooses. Release of the initiating click is
+irrelevant; S and real interruptions stop the order.
+
+Service queues are nonexclusive. Independent contenders can craft at the same
+time; another customer's successful work must not invalidate an accepted recipe
+whose fee, inputs and eligibility remain valid. Recheck scarce order capacity
+at commitment so the final available reward can still have only one winner.
+
+The [B92 physical work review](../v09/B92_WORK.md) connects basic Toolkit/Core
+crafting and the Industrial/Supply deliveries to this boundary. It establishes
+the first work rewards in the full-map accounting domain. Input placement and
+travel in its connected test are staged, so normal discovery, funding and
+competition still need an earned journey. Procurement pays for physical goods;
+an endorsement alone cannot purchase or activate the Charter without its other
+requirements and payment.
+
 Production/consumption uses scheduled bounded opportunities, actual market reserves and stock/capacity checks. A missed opportunity is skipped, without catch-up or deficit funding. Visual travelers do not secretly move economic inventory. A complete physical supply chain is future scope.
 
 An institution's identity outlives its visible cashier, animation and planning

@@ -163,3 +163,13 @@ handle, item binding and eligibility must be rechecked on arrival.
 Automatic deposit POIs now channel while the body is eligible and stationary. Their [six-second basic extraction](../v09/B92_DEPOSITS.md) needs no button. S cancels without spending and suppresses restart until the player leaves the POI. Progress should explain the commitment; depletion, capacity and restart cues still need human readability review.
 
 Survey now follows ordinary prepared-slot then ground confirmation at Crystal deposits. One confirmation starts its one-second channel; releasing input keeps it running. S interrupts, retaining the cooldown committed at acceptance. The [integration review](../v09/B92_SURVEY.md) separates this actual ability path from the automatic six-second gathering operation and from earned skill acquisition.
+
+Workshop and contract panels use the same LMB counter approach. A work row
+shows exact material quantities, fee or reward, and duration before one Confirm
+click starts the channel. Selected unbound bag instances become reserved, and
+the progress display identifies the work and S cancellation. Closing a counter
+also stops unfinished work. A completed delivery remains acknowledged even if
+the player closes the panel or retries its confirmation. The [B92 work panel](../v09/B92_WORK.md)
+keeps Treasury contracts distinct from its market and bank transactions. Recipe
+buttons should eventually explain missing ingredients and compare alternative
+uses; the current native panel is a functional baseline for usability review.

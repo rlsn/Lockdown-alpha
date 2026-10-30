@@ -106,3 +106,10 @@ Revision 25 connects official catalog goods and tiered books to selected physica
 Revision 26 implements finite deposits as eligible automatic POIs, following the source/pointer control decision. Stop suppresses automatic restart until leaving; one completed channel creates one canonical item and spends one match-wide charge. Survey remains a prepared-ability dependency. See [scope and evidence](../v09/B92_DEPOSITS.md).
 
 Revision 27 connects prepared Survey through ordinary slot/ground confirmation and the full-map request format. Inherited score, one-second channel and six-second cooldown remain; the same Crystal charge commits once. Silence/Mute keep learned/item distinctions. See [scope and evidence](../v09/B92_SURVEY.md).
+
+Revision 28 connects physical Toolkit/Core transformation and Core/Supply
+procurement. Beginning work reserves exact goods; completion consumes them with
+one output/fee or quota-bound reward receipt. S releases the reservation without
+spending. Endorsements belong to successful delivery, not opening a service.
+The long-term economy/control chapters now distinguish these choices and their
+opportunity costs. See [scope and evidence](../v09/B92_WORK.md).

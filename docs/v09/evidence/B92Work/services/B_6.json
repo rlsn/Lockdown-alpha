@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Bought one unit",
+	"accepted": true,
+	"gold": "3",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "44",
+	"items": [
+		{
+			"id": "005C3521446E10D4AAB76F947CDE261C",
+			"kind": 3
+		}
+	]
+}

@@ -15,7 +15,10 @@ endpoints; work and living-world behavior remain in progress. See the
 
 The [deposit increment](docs/v09/B92_DEPOSITS.md) adds finite automatic gathering
 at nine POIs, with six-second progress, durable Stop and one canonical charge
-per item. The [prepared Survey path](docs/v09/B92_SURVEY.md) is now connected to the same Crystal charges. Earned work/Charter progression remains open.
+per item. The [prepared Survey path](docs/v09/B92_SURVEY.md) is now connected to the same Crystal charges.
+The [physical work increment](docs/v09/B92_WORK.md) adds Toolkit/Core crafting and
+quota-bound Core/Supply delivery rewards. Courier lifecycle, earned acquisition,
+Witness and the complete zero-kill Charter journey remain open.
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,

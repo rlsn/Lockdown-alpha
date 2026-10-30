@@ -20,6 +20,15 @@ Eventually choose between financing equipment, obtaining rare property through t
 
 Success evidence is an earned zero-kill path with receipts, travel and meaningful choices. Failure signals include compulsory repetitive jobs, no affordable response to aggression, free Witness substitutes or a purchase that secretly wins remotely.
 
+Ask the player to compare selling raw materials, making a Toolkit, saving two
+for a Core, and delivering them for a bounded reward. They should recognize the
+shared inputs, required fee and vulnerable work time before committing. Observe
+whether stopping a channel and recovering its materials is understandable, and
+whether the next useful investment remains legible after a quota is exhausted.
+The [physical work test](../v09/B92_WORK.md) isolates these transactions with
+staged inputs; its successful rewards do not establish the journey's travel
+margin, affordability or discoverability.
+
 ## The opportunist who learns from observation
 
 Explore a covered approach, see another body use a capability, and infer a limited threat. Prepare detection, mobility, theft or control within the shared budget. Use observation to select an opportunity without knowing human identity, exact HP or hidden cargo.

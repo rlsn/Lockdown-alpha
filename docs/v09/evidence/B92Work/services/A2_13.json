@@ -1,0 +1,25 @@
+{
+	"completed": true,
+	"feedback": "Released once; no refund for blocked/missed effect",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": true,
+	"gold": "38",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100006,
+	"duplicate_same": true,
+	"bag_count": 2,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "36",
+	"items": [
+		{
+			"id": "927C05504053891C80DC31A34D4262F0",
+			"kind": 97
+		},
+		{
+			"id": "7935AED24221710564B8048FA1646A49",
+			"kind": 3
+		}
+	]
+}

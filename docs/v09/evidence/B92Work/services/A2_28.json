@@ -1,0 +1,49 @@
+{
+	"completed": true,
+	"feedback": "Survey complete; one finite Crystal, no gold or XP",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": true,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100008,
+	"duplicate_same": true,
+	"bag_count": 8,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "927C05504053891C80DC31A34D4262F0",
+			"kind": 97
+		},
+		{
+			"id": "7935AED24221710564B8048FA1646A49",
+			"kind": 3
+		},
+		{
+			"id": "29973E474DE7FB5CFF78E1B828C67DEA",
+			"kind": 0
+		},
+		{
+			"id": "1DDAE88B4DB40D0E2F6501A3E0B903C6",
+			"kind": 3
+		},
+		{
+			"id": "C6D90B1B44C58AE744DA299C93691295",
+			"kind": 4
+		},
+		{
+			"id": "221D883A45FFF0EC47A025BFD1B69C71",
+			"kind": 5
+		},
+		{
+			"id": "E517D2A347A75C8E022CB49C0E9E2E8D",
+			"kind": 3
+		},
+		{
+			"id": "C1F75C654F937E9EFADCD08E74A3B4C2",
+			"kind": 5
+		}
+	]
+}

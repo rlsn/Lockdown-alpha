@@ -54,6 +54,14 @@ Public roads, covered approaches, elevation, water and interiors should offer re
 
 Resources come from named endowments or bounded sources. Transfers create no wealth; respawn creates no rare goods. A physical instance has one location even when equipped, reserved or installed. AI uses ordinary legal requests. Scenery must not masquerade as an economic system.
 
+Reserve commitment separately from consumption. Beginning timed work can lock
+the selected material while leaving its ownership intact; completion consumes
+it only with the promised result. Cancellation releases it. Bind quotas to the
+persistent contender and match, so another cashier, life or controller cannot
+grant the same opportunity again. Communicate the difference between selling
+to a funded market and earning a bounded delivery reward: both grant carried
+gold, but they have different sources and scarcity.
+
 ## Recovery preserves investment and changes the plan
 
 Retained development supports a long match. Dropped property, wallet loss, position and downtime keep death meaningful. Address recovery failures through explicit design changes rather than concealed gifts or free replacements. Observe whether players can find a useful next action after loss.
