@@ -11,7 +11,7 @@ bool FLDB92MarketOrder::operator==(const FLDB92MarketOrder& B) const
 {
     if(Inputs.Num()!=B.Inputs.Num()){return false;}
     for(int32 N=0;N<Inputs.Num();++N){const auto& I=Inputs[N];const auto& J=B.Inputs[N];if(I.Id!=J.Id||I.Kind!=J.Kind||I.Revision!=J.Revision||I.Skill!=J.Skill||I.Slot!=J.Slot||I.bReserved!=J.bReserved||I.BindingMask!=J.BindingMask||I.ReadyAt!=J.ReadyAt||I.ProcReadyAt!=J.ProcReadyAt||I.Quality!=J.Quality||I.FuelMs!=J.FuelMs||I.bLit!=J.bLit){return false;}}
-    return Match==B.Match&&Life==B.Life&&Sequence==B.Sequence&&InventoryRevision==B.InventoryRevision&&ItemRevision==B.ItemRevision&&WalletRevision==B.WalletRevision&&Session==B.Session&&Item==B.Item&&Revision==B.Revision&&Kind==B.Kind&&Buy==B.Buy&&Price==B.Price&&BankAction==B.BankAction&&Amount==B.Amount&&BankRevision==B.BankRevision&&Skill==B.Skill&&Supply==B.Supply&&WorkRecipe==B.WorkRecipe;
+    return Match==B.Match&&Life==B.Life&&Sequence==B.Sequence&&InventoryRevision==B.InventoryRevision&&ItemRevision==B.ItemRevision&&WalletRevision==B.WalletRevision&&Session==B.Session&&Item==B.Item&&Revision==B.Revision&&Kind==B.Kind&&Buy==B.Buy&&Price==B.Price&&BankAction==B.BankAction&&Amount==B.Amount&&BankRevision==B.BankRevision&&Skill==B.Skill&&Supply==B.Supply&&WorkRecipe==B.WorkRecipe&&CourierAction==B.CourierAction&&CourierRevision==B.CourierRevision&&CourierToken==B.CourierToken&&Destination==B.Destination;
 }
 ALDB92Services::ALDB92Services(){bReplicates=false;PrimaryActorTick.bCanEverTick=true;PrimaryActorTick.TickGroup=TG_PostUpdateWork;}
 const TArray<FName>& ALDB92Services::Markets()
@@ -32,7 +32,7 @@ bool ALDB92Services::Token(FClient& C)
 {const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(4.,C.Tokens+FMath::Max(0.,Now-C.At)*4);C.At=Now;if(C.Tokens<1){return false;}--C.Tokens;return true;}
 void ALDB92Services::Reply(ALDB92Controller* PC,uint32 Sequence,FGuid Receipt,bool Accepted,const FString& Message)
 {
-    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;if(!O){return;}auto& C=Clients.FindOrAdd(PC);
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;if(!O){return;}auto& C=Clients.FindOrAdd(PC);C.View.Courier=M->Population->Economy->CourierView(PC,C.View.POI);
     if(!C.View.Session.IsValid()||C.View.Match!=O->Match||C.View.Life!=O->Life||!Eligible(PC,C.View.POI,C.Work.Active)){C.View.Session.Invalidate();C.View.Offers.Reset();C.View.WorkOffers.Reset();}
     else
     {
@@ -67,7 +67,9 @@ void ALDB92Services::Order(ALDB92Controller* PC,const FLDB92MarketOrder& R)
     else
     {
         auto* E=M->Population->Economy.Get();FLDB92Trade T;T.Request=Result.Receipt;T.Contender=M->ContenderId(PC);const int32 Pool=Markets().Find(C.View.POI);T.Market=E->Rules().Markets.IsValidIndex(Pool)?E->Rules().Markets[Pool].Id:NAME_None;T.Item=R.Item;T.Kind=R.Kind;T.Buy=R.Buy;T.QuoteRevision=R.Revision;T.WalletRevision=R.WalletRevision;T.ItemRevision=R.ItemRevision;T.InventoryRevision=R.InventoryRevision;T.Price=R.Price;FGuid Received;
-        if(R.WorkRecipe)
+        if(R.CourierAction){Result.Accepted=R.CourierAction==2?BeginWork(PC,C,R,Result.Receipt,Result.Message):E->CourierCommand(PC,C.View.POI,R,Result.Receipt,Result.Message);}
+        else if(R.CourierRevision||R.CourierToken.IsValid()||!R.Destination.IsNone()){Result.Message=TEXT("Unexpected courier terms");}
+        else if(R.WorkRecipe)
         {Result.Accepted=BeginWork(PC,C,R,Result.Receipt,Result.Message);}
         else if(!R.Inputs.IsEmpty()){Result.Message=TEXT("Unexpected work inputs");}
         else if(R.Supply)
@@ -81,7 +83,7 @@ void ALDB92Services::Order(ALDB92Controller* PC,const FLDB92MarketOrder& R)
             else if(E->SynchronizeWorld(Result.Message)&&E->Audit(Result.Message)&&LDEconomy::BankTransaction(E->Ledger,Result.Receipt,E->Wallet(Id),E->Bank(Id),R.WalletRevision,R.BankRevision,R.Amount,R.BankAction==1,Transaction,Result.Message)&&E->Ledger.Commit(Transaction,Result.Message))
             {auto* OwnerState=M->StateFor(PC);OwnerState->Gold=E->Ledger.Account(E->Wallet(Id))->Gold;OwnerState->BankGold=E->Ledger.Account(E->Bank(Id))->Gold;M->SyncOwner(PC);Result.Accepted=true;}
         }
-        else if(!R.Amount&&!R.BankRevision&&R.Skill==ELDSkill::None){Result.Accepted=E->Trade(T,Received,Result.Message);}if(Result.Accepted&&!R.WorkRecipe){Result.Message=R.Supply?TEXT("Official purchase confirmed; price burned"):R.BankAction==1?TEXT("Deposit confirmed; fee burned"):R.BankAction==2?TEXT("Withdrawal confirmed; gold now carried"):R.Buy?TEXT("Bought one unit"):TEXT("Sold one unit");}
+        else if(!R.Amount&&!R.BankRevision&&R.Skill==ELDSkill::None){Result.Accepted=E->Trade(T,Received,Result.Message);}if(Result.Accepted&&!R.WorkRecipe&&!R.CourierAction){Result.Message=R.Supply?TEXT("Official purchase confirmed; price burned"):R.BankAction==1?TEXT("Deposit confirmed; fee burned"):R.BankAction==2?TEXT("Withdrawal confirmed; gold now carried"):R.Buy?TEXT("Bought one unit"):TEXT("Sold one unit");}
     }
     C.Receipts.Add(R.Sequence,Result);while(C.Receipts.Num()>96){uint32 Oldest=MAX_uint32;for(const auto& P:C.Receipts){Oldest=FMath::Min(Oldest,P.Key);}C.Receipts.Remove(Oldest);}
     Reply(PC,R.Sequence,Result.Receipt,Result.Accepted,Result.Message);

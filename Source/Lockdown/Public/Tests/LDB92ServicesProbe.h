@@ -31,4 +31,9 @@ private:
     void Task(ALDB92Controller* PC,uint8 Task,FName POI);
     void Place(ALDB92Controller* PC,FVector Floor);
     void Save(bool Complete);
+    void TickCourier();
+    void SaveCourier(bool Complete);
+    FName CourierOrigin,CourierTarget;
+    FGuid CourierToken;
+    int32 CourierXp=0;
 };

@@ -11,6 +11,7 @@ FString LDInventory::Name(ELDItemKind Kind,ELDSkill Skill)
 {
     switch(Kind)
     {
+    case ELDItemKind::SealedParcel:return TEXT("Sealed courier parcel");
     case ELDItemKind::Book:return FString(TEXT("Book: "))+LDDevelopment::SkillName(Skill);
     case ELDItemKind::WardCharge:return TEXT("Ward charge");
     case ELDItemKind::Seal:return TEXT("Concord Seal");
@@ -37,7 +38,7 @@ int32 LDInventory::UnitWeight(ELDItemKind Kind)
 {
     switch(Kind)
     {
-    case ELDItemKind::NullBell:case ELDItemKind::Book:case ELDItemKind::WardCharge:case ELDItemKind::Fiber:return 1;
+    case ELDItemKind::SealedParcel:case ELDItemKind::NullBell:case ELDItemKind::Book:case ELDItemKind::WardCharge:case ELDItemKind::Fiber:return 1;
     case ELDItemKind::Seal:case ELDItemKind::Crystal:return 2;
     case ELDItemKind::Ore:return 3;
     case ELDItemKind::Toolkit:return 4;

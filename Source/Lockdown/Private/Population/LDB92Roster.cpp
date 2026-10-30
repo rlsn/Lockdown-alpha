@@ -170,6 +170,7 @@ bool ALDB92Roster::Transfer(int32 Index,ALDPlayerController* Next,bool Human,FSt
     M->SyncOwner(Next);Next->RaiseCombatTokenFloor(CombatFloor);
     CastChecked<ALDB92Controller>(Next)->ClientB92Admission(Next->OwnerState,CombatFloor); // state and input floor precede sequence-bound cargo presentation
     if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->TransferCarrier(Cast<ALDB91Controller>(Old),Cast<ALDB91Controller>(Next))){UE_LOG(LogTemp,Fatal,TEXT("B92 carrier binding invariant failed during control transfer"));}
+    if(Services){Services->Close(CastChecked<ALDB92Controller>(Next));}
     if(Next->Navigation){Next->Navigation->ResetLife();}if(M->Vision){M->Vision->Register(Next);}
     if(!Human){Next->SetReplicates(false);}if(Old->IsA<ALDB92SeatController>()){Old->Destroy();}
     UE_LOG(LogTemp,Display,TEXT("LD_B92_CONTROL_TRANSFER seat=%s human=%d life=%u inventory=%u"),*Seat.Id.ToString(),Human,Next->OwnerState.Life,Next->OwnerState.Inventory.Revision);return true;

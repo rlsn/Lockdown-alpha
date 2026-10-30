@@ -22,6 +22,7 @@ FName ALDB92Economy::WorkBudget(FGuid Id,uint8 Recipe)
 {return FName(*((Recipe==6?TEXT("Core:"):TEXT("Supply:"))+Id.ToString(EGuidFormats::Digits)));}
 bool ALDB92Economy::WorkTerms(ALDB92Controller* PC,FName POI,const FLDB92MarketOrder& R,bool Reserved,FString& Error) const
 {
+    if(R.CourierAction){return R.CourierAction==2&&CourierTerms(PC,POI,R,Reserved,Error);}
     auto Reject=[&](const TCHAR* Why){Error=Why;return false;};auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;
     if(!HasAuthority()||!Ready||!FullWorld||Closed||!O||!O->bActive||!Seats.Contains(M->ContenderId(PC))||!ALDB92Services::WorkRecipes(POI).Contains(R.WorkRecipe)||R.Inputs.Num()>3||!ALDProductionDirector::RecipeInputs(R.WorkRecipe,R.Inputs)||R.Supply||R.BankAction||R.Amount||R.BankRevision||R.Item.IsValid()||R.ItemRevision||!R.Buy||R.Skill!=ELDSkill::None||(!Reserved&&R.Revision!=WorkRevision)||WorkRevision==MAX_uint32||O->Inventory.Revision>=MAX_uint32-4)
     {return Reject(TEXT("Work or exact recipe terms changed"));}
@@ -42,6 +43,7 @@ bool ALDB92Economy::WorkTerms(ALDB92Controller* PC,FName POI,const FLDB92MarketO
 }
 bool ALDB92Economy::CommitWork(ALDB92Controller* PC,FName POI,const FLDB92MarketOrder& R,FGuid Receipt,FString& Error)
 {
+    if(R.CourierAction){return R.CourierAction==2&&CourierCommand(PC,POI,R,Receipt,Error,true);}
     if(!Receipt.IsValid()||Ledger.Receipt(Receipt)||!SynchronizeWorld(Error)||!Audit(Error)||!WorkTerms(PC,POI,R,true,Error)){return false;}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);const uint8 Recipe=R.WorkRecipe;const auto Id=M->ContenderId(PC);const auto W=Wallet(Id);const auto* A=Ledger.Account(W);
     const int32 Reward=Recipe==6?80:Recipe==7?50:0;
@@ -65,17 +67,17 @@ bool ALDB92Economy::CommitWork(ALDB92Controller* PC,FName POI,const FLDB92Market
     Error=Reward?TEXT("Delivery complete; reward and endorsement recorded once"):TEXT("Craft complete; fee burned, real output in bag, no XP");return true;
 }
 void ALDB92Services::WorkProgress(ALDB92Controller* PC,const FWork& W,bool Active)
-{FLDB91Channel P;P.Match=W.Match;P.Life=W.Life;P.Domain=6;P.Sequence=W.Order.Sequence;P.Started=W.Started;P.Ends=W.Ends;P.Label=WorkName(W.Order.WorkRecipe)+TEXT(" (S to stop)");PC->ClientB91Channel(P,Active);}
+{FLDB91Channel P;P.Match=W.Match;P.Life=W.Life;P.Domain=6;P.Sequence=W.Order.Sequence;P.Started=W.Started;P.Ends=W.Ends;P.Label=(W.Order.CourierAction?FString(TEXT("Courier delivery")):WorkName(W.Order.WorkRecipe))+TEXT(" (S to stop)");PC->ClientB91Channel(P,Active);}
 bool ALDB92Services::BeginWork(ALDB92Controller* PC,FClient& C,const FLDB92MarketOrder& R,FGuid Receipt,FString& Error)
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=M->Population->Economy.Get();auto* O=M->StateFor(PC);auto* B=Cast<ALDCharacter>(PC->GetPawn());
     if(C.Work.Active||!B->GetCharacterMovement()->IsMovingOnGround()||B->GetVelocity().SizeSquared2D()>1||B->GetCharacterMovement()->GetCurrentAcceleration().SizeSquared2D()>1||!B->GetLastMovementInputVector().IsNearlyZero()||!M->Combat->QuietForPreparation(B)||!E->SynchronizeWorld(Error)||!E->Audit(Error)||!E->WorkTerms(PC,C.View.POI,R,false,Error))
     {if(Error.IsEmpty()){Error=TEXT("Stop moving and finish other actions before work");}return false;}
-    const auto& Rules=E->Rules();FWork W;W.Active=true;W.Match=O->Match;W.Life=O->Life;W.BuildRevision=O->Build.Revision;W.Body=B;W.Anchor=B->GetActorLocation();W.Started=GetWorld()->GetTimeSeconds();W.Ends=W.Started+(R.WorkRecipe==1?Rules.ToolkitSeconds:R.WorkRecipe==2?Rules.CoreSeconds:3);W.Order=R;W.Receipt=Receipt;
+    const auto& Rules=E->Rules();FWork W;W.Active=true;W.Match=O->Match;W.Life=O->Life;W.BuildRevision=O->Build.Revision;W.Body=B;W.Anchor=B->GetActorLocation();W.Started=GetWorld()->GetTimeSeconds();W.Ends=W.Started+(!R.CourierAction&&R.WorkRecipe==1?Rules.ToolkitSeconds:!R.CourierAction&&R.WorkRecipe==2?Rules.CoreSeconds:3);W.Order=R;W.Receipt=Receipt;
     if(W.Ends>=M->GetGameState<ALDGameState>()->MatchDeadline){Error=TEXT("Not enough match time to finish");return false;}
     auto* Combat=M->Combat->StateFor(B);W.Damage=Combat->LastDamage;W.Dealt=Combat->LastDealt;
     for(auto& I:W.Order.Inputs){auto* P=M->Inventory->Owned(PC,I.Id);P->bReserved=true;++P->Revision;auto* Own=O->Inventory.Items.FindByPredicate([&](const auto& V){return V.Id==I.Id;});P->Project(*Own);I=*Own;}
-    ++O->Inventory.Revision;W.Order.InventoryRevision=O->Inventory.Revision;C.Work=W;Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=W.Ends;O->DevelopmentKind=R.WorkRecipe<6?5:7;O->ProductionSeconds=W.Ends-W.Started;O->DevelopmentToken=R.Sequence;O->DevelopmentEndsAt=W.Ends;
+    ++O->Inventory.Revision;W.Order.InventoryRevision=O->Inventory.Revision;C.Work=W;Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=W.Ends;O->DevelopmentKind=!R.CourierAction&&R.WorkRecipe<6?5:7;O->ProductionSeconds=W.Ends-W.Started;O->DevelopmentToken=R.Sequence;O->DevelopmentEndsAt=W.Ends;
     M->Inventory->Changed(PC);WorkProgress(PC,W,true);Error=TEXT("Work started; release the button. S stops without spending");return true;
 }
 void ALDB92Services::StopWork(ALDB92Controller* PC,const FString& Reason)

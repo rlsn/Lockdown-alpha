@@ -5,6 +5,21 @@
 #include "LDB92Services.generated.h"
 class ALDB92Controller;
 USTRUCT()
+struct FLDB92CourierView
+{
+    GENERATED_BODY()
+    UPROPERTY() bool Board=false;
+    UPROPERTY() uint32 Revision=1;
+    UPROPERTY() FGuid Contract;
+    UPROPERTY() FGuid Token;
+    UPROPERTY() FName Origin;
+    UPROPERTY() FName Destination;
+    UPROPERTY() FName Offer;
+    UPROPERTY() int32 Distance=0;
+    UPROPERTY() int32 Issuances=0;
+    UPROPERTY() int32 Payments=0;
+};
+USTRUCT()
 struct FLDB92Offer
 {
     GENERATED_BODY()
@@ -26,6 +41,7 @@ struct FLDB92MarketView
     UPROPERTY() TArray<FLDB92Offer> Offers;
     UPROPERTY() uint32 WorkRevision=0;
     UPROPERTY() TArray<FLDB92Offer> WorkOffers;
+    UPROPERTY() FLDB92CourierView Courier;
 };
 USTRUCT()
 struct FLDB92MarketOrder
@@ -45,6 +61,10 @@ struct FLDB92MarketOrder
     UPROPERTY() uint32 BankRevision=0;
     UPROPERTY() uint8 WorkRecipe=0;
     UPROPERTY() TArray<FLDInventoryItem> Inputs;
+    UPROPERTY() uint8 CourierAction=0; // accept, deliver, abandon
+    UPROPERTY() uint32 CourierRevision=0;
+    UPROPERTY() FGuid CourierToken;
+    UPROPERTY() FName Destination;
     bool operator==(const FLDB92MarketOrder& B) const;
 };
 UCLASS()

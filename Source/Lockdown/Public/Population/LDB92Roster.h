@@ -48,6 +48,9 @@ public:
     FLDB92MarketOrder WorkOrder(uint8 Recipe);
     void SubmitWork(uint8 Recipe);
     bool WorkPage=false;
+    bool CourierPage=false;
+    FLDB92MarketOrder CourierOrder(uint8 Action);
+    void SubmitCourier(uint8 Action);
     int32 SupplyPage=0;
     FLDB92MarketView MarketView;
     uint32 MarketSequence=0,MarketReceiptSequence=0,MarketReceiptSerial=0;

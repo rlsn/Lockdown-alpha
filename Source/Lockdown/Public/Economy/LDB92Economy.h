@@ -4,6 +4,7 @@
 #include "Economy/LDEconomyCatalog.h"
 #include "Economy/LDEconomyLedger.h"
 #include "LDB92Economy.generated.h"
+struct FLDB92CourierView;
 
 // Authority domain, intentionally not a client payload. Physical stock remains
 // in institutional custody until an admitted service projects it to a real bag.
@@ -49,6 +50,13 @@ public:
     static FName BookBudget(ELDSkill Skill);
     uint32 OfficialRevision=1;
     uint32 WorkRevision=1;
+    FString ExportCouriers() const;
+    static TArray<FName> CourierBoards(const UWorld* World);
+    static int32 CourierDistance(const UWorld* World,FName From,FName To);
+    static FName CourierBudget(FGuid Id,bool Issuance);
+    FLDB92CourierView CourierView(class ALDB92Controller* PC,FName Board) const;
+    bool CourierTerms(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,bool Reserved,FString& Error) const;
+    bool CourierCommand(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,FGuid Receipt,FString& Error,bool Reserved=false);
     static FName WorkBudget(FGuid Id,uint8 Recipe);
     bool WorkTerms(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,bool Reserved,FString& Error) const;
     bool CommitWork(class ALDB92Controller* PC,FName POI,const struct FLDB92MarketOrder& Order,FGuid Receipt,FString& Error);
@@ -73,6 +81,9 @@ private:
     friend class ALDB92ServicesProbe;
     bool Ready=false,Closed=false;
     bool FullWorld=false;
+    struct FCourierJob {FGuid Contract,Token,Owner,Terminal;FName Origin,Destination;int32 Distance=0;uint32 Revision=1;bool Active=false;};
+    TMap<FGuid,FCourierJob> Couriers;
+    TMap<FGuid,FCourierJob> CourierArchive;
     TSet<FGuid> ConsumedWorld;
     FName PhysicalLocation(const ALDItem* Item,FString& Error) const;
     bool ImportWorld(LDEconomy::FLedger& Candidate,TArray<TObjectPtr<ALDItem>>& Items,FString& Error);

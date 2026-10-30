@@ -60,6 +60,13 @@ FLDB92MarketOrder ALDB92Controller::WorkOrder(uint8 Recipe)
 }
 void ALDB92Controller::SubmitWork(uint8 Recipe)
 {if(MarketView.Session.IsValid()){ServerB92Order(WorkOrder(Recipe));}}
+FLDB92MarketOrder ALDB92Controller::CourierOrder(uint8 Action)
+{
+    auto R=MarketOrder(true,ELDItemKind::SealedParcel);R.Revision=0;R.Price=0;R.CourierAction=Action;R.CourierRevision=MarketView.Courier.Revision;R.CourierToken=Action==1?FGuid():MarketView.Courier.Token;R.Destination=Action==1?MarketView.Courier.Offer:MarketView.Courier.Destination;
+    if(Action==2){if(const auto* I=OwnerState.Inventory.Find(R.CourierToken)){R.Inputs.Add(*I);}}return R;
+}
+void ALDB92Controller::SubmitCourier(uint8 Action)
+{if(MarketView.Session.IsValid()){ServerB92Order(CourierOrder(Action));}}
 bool ALDB92Controller::PointerService(FVector Point)
 {
     if(!IsLocalController()||!GetPawn()){return false;}float X,Y;if(!GetMousePosition(X,Y)){return false;}const auto* E=ALDEnvironmentDirector::Get(GetWorld());
@@ -88,13 +95,28 @@ void ALDB92Controller::PlayerTick(float Delta)
 }
 void ALDB92HUD::DrawHUD()
 {
-    Super::DrawHUD();auto* PC=Cast<ALDB92Controller>(PlayerOwner);if(!PC||!Canvas){return;}const auto& Q=PC->MarketView;if(!Q.Session.IsValid()){return;}
+    Super::DrawHUD();auto* PC=Cast<ALDB92Controller>(PlayerOwner);if(!PC||!Canvas){return;}const auto& Q=PC->MarketView;if(Q.Courier.Contract.IsValid()){const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* To=Map?Map->Find(Q.Courier.Destination):nullptr;DrawText(TEXT("Courier: ")+(To?To->Name:Q.Courier.Destination.ToString())+TEXT(" | recover / carry your sealed parcel"),FLinearColor::Yellow,460,20,nullptr,.8f);}if(!Q.Session.IsValid()){return;}
     const float X=FMath::Max(460.f,float(Canvas->SizeX)-400.f),Y=180;DrawRect(FLinearColor(0,.03f,.05f,.96f),X,Y,390,365);
     const auto* Map=ULDMapDefinition::Get(GetWorld());const auto* P=Map?Map->Find(Q.POI):nullptr;DrawText(P?P->Name:TEXT("Regional market"),FLinearColor::White,X+10,Y+8,nullptr,.85f);
     DrawText(FString::Printf(TEXT("Wallet: %lld gold | one unit per confirmation"),PC->OwnerState.Gold),FLinearColor::White,X+10,Y+30,nullptr,.8f);
+    if(Q.Courier.Board)
+    {
+        AddHitBox(FVector2D(X+140,Y+330),FVector2D(120,25),TEXT("Courier_Toggle"),true,200);DrawText(PC->CourierPage?TEXT("Other services"):TEXT("Courier"),FLinearColor::White,X+140,Y+332,nullptr,.8f);
+        if(PC->CourierPage)
+        {
+            const auto& C=Q.Courier;const FName To=C.Contract.IsValid()?C.Destination:C.Offer;const auto* Target=Map?Map->Find(To):nullptr;
+            DrawText(C.Contract.IsValid()?TEXT("Active sealed contract"):TEXT("Available courier contract"),FLinearColor::White,X+10,Y+65,nullptr,.9f);
+            DrawText(Target?Target->Name:C.Payments<=0?TEXT("Paid contract limit reached"):C.Issuances<=0?TEXT("Issuance limit reached"):TEXT("No board within250-800m by roads"),FLinearColor::White,X+10,Y+95,nullptr,.85f);
+            DrawText(FString::Printf(TEXT("Route: %dm | +25 gold / 45 XP | delivery 3s"),C.Distance/100),FLinearColor::White,X+10,Y+125,nullptr,.75f);
+            DrawText(FString::Printf(TEXT("Paid jobs left: %d | Issuances left: %d"),C.Payments,C.Issuances),FLinearColor::White,X+10,Y+155,nullptr,.8f);
+            const uint8 Action=C.Contract.IsValid()?2:1;AddHitBox(FVector2D(X+10,Y+195),FVector2D(250,30),FName(*FString::Printf(TEXT("Courier_%d"),Action)),true,200);DrawText(Action==1?TEXT("Accept sealed parcel"):TEXT("Deliver original parcel (3s)"),FLinearColor::White,X+10,Y+200,nullptr,.85f);
+            if(C.Contract.IsValid()){AddHitBox(FVector2D(X+10,Y+235),FVector2D(250,30),TEXT("Courier_3"),true,200);DrawText(TEXT("Abandon contract (no payout)"),FLinearColor::White,X+10,Y+240,nullptr,.8f);}
+            DrawText(PC->MarketMessage.Left(55),FLinearColor::Yellow,X+10,Y+305,nullptr,.75f);AddHitBox(FVector2D(X+270,Y+330),FVector2D(105,25),TEXT("Market_Close"),true,200);DrawText(TEXT("Close"),FLinearColor::White,X+290,Y+332);return;
+        }
+    }
     if(!Q.WorkOffers.IsEmpty())
     {
-        const bool OnlyWork=Q.Offers.IsEmpty();AddHitBox(FVector2D(X+10,Y+330),FVector2D(230,25),TEXT("Work_Toggle"),true,200);DrawText(OnlyWork||!PC->WorkPage?TEXT("Crafting / contracts"):TEXT("Market / bank"),FLinearColor::White,X+10,Y+332,nullptr,.8f);
+        const bool OnlyWork=Q.Offers.IsEmpty();AddHitBox(FVector2D(X+10,Y+330),FVector2D(120,25),TEXT("Work_Toggle"),true,200);DrawText(OnlyWork||!PC->WorkPage?TEXT("Work"):TEXT("Market / bank"),FLinearColor::White,X+10,Y+332,nullptr,.8f);
         if(OnlyWork||PC->WorkPage)
         {
             for(int32 I=0;I<Q.WorkOffers.Num();++I){const auto& V=Q.WorkOffers[I];const float Row=Y+60+I*85;DrawText(ALDB92Services::WorkName(V.Recipe),FLinearColor::White,X+10,Row,nullptr,.9f);const FString Terms=V.Recipe==1?TEXT("2 Fiber + 1 Ore | 4 gold | 4s"):V.Recipe==2?TEXT("2 Toolkit + 1 Crystal | 6 gold | 6s"):V.Recipe==6?TEXT("1 Core | +80 gold / 60 XP | 3s"):TEXT("2 Toolkit | +50 gold / 30 XP | 3s");DrawText(Terms,FLinearColor::White,X+10,Row+22,nullptr,.8f);if(V.Stock>=0){DrawText(FString::Printf(TEXT("Orders remaining: %d"),V.Stock),FLinearColor::Yellow,X+10,Row+43,nullptr,.75f);}const FName Name(*FString::Printf(TEXT("Work_%d"),V.Recipe));AddHitBox(FVector2D(X+270,Row+40),FVector2D(105,28),Name,true,200);DrawRect(FLinearColor(.08f,.2f,.23f,1),X+270,Row+40,105,28);DrawText(TEXT("Confirm"),FLinearColor::White,X+278,Row+44,nullptr,.8f);}
@@ -119,6 +141,7 @@ void ALDB92HUD::DrawHUD()
 }
 void ALDB92HUD::NotifyHitBoxClick(FName Name)
 {
+    if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Courier_"))){if(Name==TEXT("Courier_Toggle")){PC->CourierPage=!PC->CourierPage;}else{PC->SubmitCourier(FCString::Atoi(*Name.ToString().Mid(8)));}return;}
     if(auto* PC=Cast<ALDB92Controller>(PlayerOwner);PC&&Name.ToString().StartsWith(TEXT("Work_"))){if(Name==TEXT("Work_Toggle")){PC->WorkPage=!PC->WorkPage;}else{PC->SubmitWork(FCString::Atoi(*Name.ToString().Mid(5)));}return;}
     auto* PC=Cast<ALDB92Controller>(PlayerOwner);const FString Text=Name.ToString();if(PC&&Text.StartsWith(TEXT("Supply_"))){if(Text==TEXT("Supply_Next")){++PC->SupplyPage;}else if(Text==TEXT("Supply_Previous")){--PC->SupplyPage;}else{PC->SubmitSupply(FCString::Atoi(*Text.Mid(7)));}return;}if(PC&&Text.StartsWith(TEXT("Bank_"))){TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitBank(FCString::Atoi(*Fields[1])==0,FCString::Atoi64(*Fields[2]));}return;}if(PC&&Text.StartsWith(TEXT("Market_")))
     {if(Text==TEXT("Market_Close")){PC->ServerB92Close();return;}TArray<FString> Fields;Text.ParseIntoArray(Fields,TEXT("_"));if(Fields.Num()==3){PC->SubmitMarket(FCString::Atoi(*Fields[1])==0,ELDItemKind(FCString::Atoi(*Fields[2])));}return;}Super::NotifyHitBoxClick(Name);

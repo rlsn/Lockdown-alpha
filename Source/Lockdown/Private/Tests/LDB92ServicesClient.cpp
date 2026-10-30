@@ -44,6 +44,29 @@ void ALDB92Controller::TickServicesProbe()
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task>=42&&Task<=50)
+    {
+        if(Task==48)
+        {
+            if(!ServicesProbeStep){for(const auto& V:ObjectView){if(V.Kind==ELDObjectKind::LooseItem&&FVector::Dist2D(GetPawn()->GetActorLocation(),V.Position)<150){IssueObject(ELDObjectVerb::Pickup,V.Handle);ServicesProbeStep=1;ServicesProbeAt=Now;break;}}}
+            if(OwnerState.Inventory.Items.ContainsByPredicate([](const auto& I){return I.Kind==ELDItemKind::SealedParcel;})){Complete(true);}return;
+        }
+        if(Task==49)
+        {
+            const auto* P=OwnerState.Inventory.Items.FindByPredicate([](const auto& I){return I.Kind==ELDItemKind::SealedParcel;});if(!P){Complete(ServicesProbeStep!=0);return;}if(!ServicesProbeStep){BagSelection=OwnerState.Inventory.Items.IndexOfByPredicate([&](const auto& I){return I.Id==P->Id;});ItemCommand(TEXT("Drop"),0);ConfirmSource(FGuid(),GetPawn()->GetActorLocation()-FVector(0,0,95)+FVector(70,0,0));ServicesProbeStep=1;}return;
+        }
+        if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}
+        if(ServicesProbeStep==1)
+        {
+            if(MarketReceiptSequence!=ServicesProbeSequence||!MarketView.Session.IsValid()){return;}auto R=CourierOrder(Task==42||Task==43?1:Task==50?3:2);
+            if(Task==47){const auto* P=OwnerState.Inventory.Items.FindByPredicate([](const auto& I){return I.Kind==ELDItemKind::SealedParcel;});if(P){R.CourierToken=P->Id;R.Inputs={*P};R.Destination=ServicesProbePOI;}}
+            ServicesProbeSaved=R;Send(R);if(Task==42||Task==46){ServerB92Order(R);}ServicesProbeStep=2;return;
+        }
+        if(Task==45&&ServicesProbeStep==2&&ChannelActive&&Channel.Domain==6){StopSourceOrder();ServicesProbeStep=3;}
+        if(Task==46&&ServicesProbeStep==2&&ChannelActive&&Channel.Domain==6){CourierPage=true;if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Output;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FScreenshotRequest::RequestScreenshot(Output/TEXT("Courier.png"),true,false);}ServicesProbeStep=3;}
+        if(Task==45||Task==46){if(Now-ServicesProbeAt>4.8&&!OwnerState.DevelopmentKind&&MarketReceiptSequence==ServicesProbeSequence){Complete(MarketAccepted);}return;}
+        if(MarketReceiptSequence==ServicesProbeSequence&&(Task!=42||ServicesProbeReceiptCounts.FindRef(ServicesProbeSequence)>=2)){Complete(MarketAccepted);}return;
+    }
     if(Task>=33&&Task<=41)
     {
         if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}
