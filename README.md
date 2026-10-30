@@ -15,7 +15,7 @@ endpoints; work and living-world behavior remain in progress. See the
 
 The [deposit increment](docs/v09/B92_DEPOSITS.md) adds finite automatic gathering
 at nine POIs, with six-second progress, durable Stop and one canonical charge
-per item. Prepared Survey and earned work/Charter progression remain open.
+per item. The [prepared Survey path](docs/v09/B92_SURVEY.md) is now connected to the same Crystal charges. Earned work/Charter progression remains open.
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,

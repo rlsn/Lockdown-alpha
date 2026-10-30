@@ -1,0 +1,43 @@
+{
+	"completed": true,
+	"accepted": false,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100008,
+	"duplicate_same": true,
+	"bag_count": 7,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "177CED5F48EB700A1E7389A9095B5382",
+			"kind": 97
+		},
+		{
+			"id": "6402B3174D0C21EA041C0F80F4D5A3BE",
+			"kind": 3
+		},
+		{
+			"id": "A1D38B8248ED7AE19FF6F4B3DBF24E28",
+			"kind": 0
+		},
+		{
+			"id": "62EDD0ED435B0E4E2F41058699587F80",
+			"kind": 3
+		},
+		{
+			"id": "A7F17743460F2A2D787E298C5B05B3F2",
+			"kind": 4
+		},
+		{
+			"id": "295D9FCB4BBE1C01EBCC568E85A8FB59",
+			"kind": 5
+		},
+		{
+			"id": "EB1C3C374CE34957A502ABBA715882B7",
+			"kind": 3
+		}
+	]
+}

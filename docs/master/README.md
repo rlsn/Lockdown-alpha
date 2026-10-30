@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 26 · 30 October 2026 · Long-term product and design reference
+Revision 27 · 30 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -56,8 +56,12 @@ learning and useful build acquisition still need connected progression evidence.
 The [finite deposit increment](../v09/B92_DEPOSITS.md) adds automatic eligible
 six-second extraction at nine resource POIs. Stop must remain effective while
 standing there; leaving/re-entering restores automatic eligibility. All54 charges
-join the canonical item ledger. Prepared Survey and earned progression remain
-separate work.
+join the canonical item ledger. Earned progression remains separate work.
+
+The [prepared Survey increment](../v09/B92_SURVEY.md) now connects the inherited
+one-second skill to Crystal deposits and their existing charges. The player
+prepares and confirms a real skill; it is not a free interaction shortcut.
+Earned preparation and the work/Witness/Charter journey remain open.
 
 ## Reading paths
 

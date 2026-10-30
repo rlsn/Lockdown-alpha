@@ -104,3 +104,5 @@ Revision 24 connects the same persistent bank account to all five physical marke
 Revision 25 connects official catalog goods and tiered books to selected physical endpoints. Global Circle-III quotas are per definition and paid creation is atomic with burn and receipt. Endpoint roles remain explicit; extra shops cannot silently multiply rare supply. See [scope and evidence](../v09/B92_SUPPLY.md).
 
 Revision 26 implements finite deposits as eligible automatic POIs, following the source/pointer control decision. Stop suppresses automatic restart until leaving; one completed channel creates one canonical item and spends one match-wide charge. Survey remains a prepared-ability dependency. See [scope and evidence](../v09/B92_DEPOSITS.md).
+
+Revision 27 connects prepared Survey through ordinary slot/ground confirmation and the full-map request format. Inherited score, one-second channel and six-second cooldown remain; the same Crystal charge commits once. Silence/Mute keep learned/item distinctions. See [scope and evidence](../v09/B92_SURVEY.md).

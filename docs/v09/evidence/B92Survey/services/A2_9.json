@@ -1,0 +1,15 @@
+{
+	"completed": true,
+	"feedback": "Attack committed.",
+	"accepted": true,
+	"gold": "3",
+	"bank": "2",
+	"life": 1,
+	"combat_floor": 100003,
+	"duplicate_same": true,
+	"bag_count": 0,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": []
+}

@@ -1,0 +1,24 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"accepted": true,
+	"gold": "38",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100004,
+	"duplicate_same": true,
+	"bag_count": 2,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "36",
+	"items": [
+		{
+			"id": "79D88C024112C86360304BAEED0BF45D",
+			"kind": 97
+		},
+		{
+			"id": "2481A8464EB78D94F6283DA760314A51",
+			"kind": 3
+		}
+	]
+}

@@ -49,7 +49,9 @@ The [banking extension](../v09/B92_BANK.md) connects the same protected account 
 
 The [official supply extension](../v09/B92_SUPPLY.md) now connects catalog goods and tiered books to selected endpoints with one global Circle-III budget per definition. Two remote owners exhaust one definition in a funded fixture; normal earnings, learning and multiple distinct Circle-III sale sites remain separate acceptance.
 
-The [basic deposit extension](../v09/B92_DEPOSITS.md) now connects nine six-charge POIs to automatic eligible channels and canonical outputs. Three real channels and an explicit all-budget drain validate mechanics/quantity separately. Prepared Survey and natural-session gathering competition remain open.
+The [basic deposit extension](../v09/B92_DEPOSITS.md) now connects nine six-charge POIs to automatic eligible channels and canonical outputs. Three real channels and an explicit all-budget drain validate mechanics/quantity separately. The prepared Survey path is now integrated separately; natural-session gathering competition remains open.
+
+The [prepared Survey extension](../v09/B92_SURVEY.md) now uses ordinary slot/ground confirmation, inherited score/channel/cooldown and the same Crystal budget. Its staged build verifies mechanics, status categories and interruption; natural skill acquisition and earned progression remain open.
 
 ## Delivery sequence
 

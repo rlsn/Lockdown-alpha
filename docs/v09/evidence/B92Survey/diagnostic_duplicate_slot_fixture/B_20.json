@@ -1,0 +1,23 @@
+{
+	"completed": true,
+	"accepted": true,
+	"gold": "13",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 2,
+	"has_quote": true,
+	"offers": 19,
+	"quote_revision": "3",
+	"items": [
+		{
+			"id": "01A4299A46F752401BEE6E814E7D3110",
+			"kind": 3
+		},
+		{
+			"id": "686935924EBED4943ECF6F8F4E64C65C",
+			"kind": 0
+		}
+	]
+}

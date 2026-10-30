@@ -1,0 +1,3 @@
+# B92 finite deposits
+
+See [scope and limitations](../../B92_SURVEY.md). The connected scenario includes commodity regression, two remote owners and replacement-seat takeover. Travel and later source preparation remain fixtures. Three remote basic POI channels execute normally; an explicit authority fixture drains the remaining charges into real ground items for budget closure. Prepared Survey shares those same charges and uses the inherited one-second/six-second channel/cooldown path. Official goods and global CircleIII stock use ordinary remote service requests. A labelled fixture transfers400 existing reserve gold without mint; this is not an earned-acquisition journey. Full B92 acceptance remains open.

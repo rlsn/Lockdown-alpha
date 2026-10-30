@@ -82,7 +82,7 @@ must retain their real source charges rather than grant a compensating reward.
 
 The [B92 deposit review](../v09/B92_DEPOSITS.md) implements the basic six-second
 operation for Crystal, Ore and Fiber. No gold or XP comes from extraction itself;
-sale draws a market's finite cash. A learned Survey shortcut remains a distinct
+sale draws a market's finite cash. The learned Survey shortcut remains a distinct
 ability operation with its own preparation, score and costs. Both paths must
 spend the same source budget. Quantity closure and prepared-state checks do not
 establish whether natural travel, competition and gathering feel worthwhile.
@@ -135,3 +135,5 @@ shop panel.
 Global gold end equals start + named mints − burns; transfers cancel. Item end equals start + creation − consumption − explicit cleanup. Recipes retain lineage and finite sources retain receipt identity across actor recreation/death/rejoin.
 
 Measure stockouts, cash exhaustion, net travel margins, wealth concentration, counter affordability and first access timing. Economic depth comes from meaningful choices and competition; repeated unopposed errands are a pacing failure. The public Charter converts economic achievement into a contested opening, never a remote money victory.
+
+Prepared [Survey extraction](../v09/B92_SURVEY.md) now uses the same Crystal charge as basic gathering. Its one-second channel and six-second accepted-start cooldown preserve a real preparation advantage without creating a second resource allowance. Buying or extracting goods grants neither Witness nor passive XP; the Witness operation remains a distinct task at an authored site.

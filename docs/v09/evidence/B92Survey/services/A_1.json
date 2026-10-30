@@ -1,0 +1,20 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"accepted": true,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "FB3824664FA3878BC054FBBF970EE58B",
+			"kind": 4
+		}
+	]
+}

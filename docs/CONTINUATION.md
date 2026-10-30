@@ -1,4 +1,26 @@
-# Active continuation — B92 finite automatic deposits
+# Active continuation — B92 prepared Survey extraction
+
+The [prepared Survey increment](v09/B92_SURVEY.md), source **dd3545f31344099087a6ac2d26c4ebbce4b8c2cf**,
+connects one learned/prepared slot and ground confirmation to all five Crystal
+deposit targets. It uses the existing one-second skill task, score12 and six-
+second cooldown (no inherited MP/gold cost), full-map body sight/reach, quiet,
+capacity and the same finite source budget. Silence blocks; Mute permits.
+S interruption retains accepted-start cooldown and spends no Crystal charge.
+Connected67 checks/285 receipts/627 identities close3103gold with zero mint
+and185 prior burn. Two Survey receipts share the54 total deposit outputs.
+Rules59, economy125, roster37, B91 source53/combat50 and both full-unity targets
+pass;207 protected inputs unchanged. Master revision27.
+
+**Next:** physical contracts/crafting, authored full-map Witness and an earned
+zero-kill Charter journey, including actual book acquisition/learning/preparation.
+Routines/security/hostiles, legal contender AI/tier transitions, authenticated
+reconnect and full recovery remain open. B92 in progress; `v09_full` closed.
+Survey attributes/preparation and remaining source depletion are labelled
+fixtures. This is not normal earnings, a completed progression route or human
+acceptance. No new interaction keys or physical channel-button holds.
+
+## Prior basic deposit checkpoint
+
 
 The [deposit increment](v09/B92_DEPOSITS.md), source **d09a76bbe551eed20855bf6f11fd30bf187c1f3d**,
 adds nine six-charge Crystal/Ore/Fiber POIs. Basic extraction starts automatically
