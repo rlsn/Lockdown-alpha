@@ -62,6 +62,11 @@ grant the same opportunity again. Communicate the difference between selling
 to a funded market and earning a bounded delivery reward: both grant carried
 gold, but they have different sources and scarcity.
 
+Separate physical possession from contractual entitlement. Theft can change
+who controls an opportunity without transferring a personal reward claim.
+Cancellation must not become a remote deletion tool against another carrier;
+retire the promise and preserve the real cargo and its bounded provenance.
+
 ## Recovery preserves investment and changes the plan
 
 Retained development supports a long match. Dropped property, wallet loss, position and downtime keep death meaningful. Address recovery failures through explicit design changes rather than concealed gifts or free replacements. Observe whether players can find a useful next action after loss.

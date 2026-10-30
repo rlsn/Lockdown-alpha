@@ -1,0 +1,16 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Bank terms changed or invalid amount",
+	"accepted": false,
+	"gold": "4",
+	"bank": "2",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 0,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "20",
+	"items": []
+}

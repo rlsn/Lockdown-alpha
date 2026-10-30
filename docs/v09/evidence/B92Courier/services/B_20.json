@@ -1,0 +1,25 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Official purchase confirmed; price burned",
+	"accepted": true,
+	"gold": "13",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 2,
+	"has_quote": true,
+	"offers": 19,
+	"quote_revision": "3",
+	"items": [
+		{
+			"id": "08D7B3774FE3A0FF97D00E98A727517A",
+			"kind": 3
+		},
+		{
+			"id": "290C582F46D81EDD64DF7C868FB3C1B5",
+			"kind": 0
+		}
+	]
+}

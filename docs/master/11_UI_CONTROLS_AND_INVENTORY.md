@@ -173,3 +173,12 @@ the player closes the panel or retries its confirmation. The [B92 work panel](..
 keeps Treasury contracts distinct from its market and bank transactions. Recipe
 buttons should eventually explain missing ingredients and compare alternative
 uses; the current native panel is a functional baseline for usability review.
+
+The Courier tab shows the offered or active destination, strategic distance,
+reward and remaining issuance/payment opportunities. Acceptance creates a real
+sealed parcel; delivery confirms one timed order. Keep the destination visible
+after closing the panel, without revealing a rival carrier's location. A failed
+delivery should distinguish wrong endpoint, missing original parcel and exhausted
+allowance. Abandonment explicitly says there is no payout; a void parcel is not
+a replacement contract. The [native courier review](../v09/B92_COURIER.md) establishes
+this baseline, while natural route teaching and larger-text usability remain open.

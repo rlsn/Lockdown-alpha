@@ -1,4 +1,29 @@
-# Active continuation — B92 physical crafting and procurement
+# Active continuation — B92 physical courier lifecycle
+
+The [courier increment](v09/B92_COURIER.md), source **d0b9163a7d7a956d374bc727beea6fa30f23b406**, connects
+sealed physical parcels and private endpoint offers to twelve authored boards.
+One active job,40 issuance units and20 paid jobs belong to the persistent seat.
+One confirmation channels3s delivery; S stops without payout or quota spend.
+Rivals can take/drop but cannot redeem the owner's token. Death, recovery and
+actual disconnect/replacement preserve the same job and parcel. Abandonment
+voids the promise without remote cargo deletion, payout or issuance refund.
+
+Courier23 checks close307 receipts/149 accounts/629 identities (607 live),
+3,834gold =3,288start +550 named mint -4 death tax. Two deliveries are normal
+remote channels;20 other payouts and38 abandonments are labelled physical-token
+quota fixtures. Travel remains staged; no natural-trip or earnings/pacing claim.
+Rules59/services-work83/economy125/roster37/B91 source53/combat50 and both targets pass;207 protected inputs unchanged. Master revision29.
+
+**Next:** authored full-map Witness and an earned zero-kill registered Charter
+journey, including actual book acquisition/learning/preparation and useful builds.
+Capital Guild, Scholars Market and Bellwick have no peer board inside the selected
+25000-80000cm strategic band; they correctly expose no offer. Route coverage and
+normal courier travel/teaching/competition need review. Broader work interruption/
+race stress, routines/security/hostiles, legal contender AI/tier transitions,
+authenticated reconnect and full recovery remain open. B92 in progress;
+`v09_full` closed. No new interaction keys or physical button holds.
+
+# Prior physical work checkpoint
 
 The [physical work increment](v09/B92_WORK.md), source **0d93aeec8a11f657409bf3b4cd8ad64fca788fd7**,
 connects city/town workshops and Capital/Riverport contracts to exact real

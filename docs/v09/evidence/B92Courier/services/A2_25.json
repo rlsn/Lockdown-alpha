@@ -1,0 +1,85 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Counter closed: range, sight, life or action changed",
+	"accepted": true,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100012,
+	"duplicate_same": true,
+	"bag_count": 17,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "301C9EE1449EA836334BC59D9D33B8FE",
+			"kind": 97
+		},
+		{
+			"id": "7A423C7840E7400712BA2AB69649AB50",
+			"kind": 3
+		},
+		{
+			"id": "D592DDAD4C649678EF960FB50538B6F0",
+			"kind": 0
+		},
+		{
+			"id": "700A9CE54F118FB69FC2329E96726E3F",
+			"kind": 3
+		},
+		{
+			"id": "2D6A62F0420C4A5B425D7B8CDEC41A11",
+			"kind": 4
+		},
+		{
+			"id": "4DEB132D442AF16796D2A6B2AE67C957",
+			"kind": 5
+		},
+		{
+			"id": "8D15E8914A9085A4FA949D85208951F7",
+			"kind": 3
+		},
+		{
+			"id": "7AB5B41840B88AD07E1FB08AC02036E1",
+			"kind": 5
+		},
+		{
+			"id": "36E14C1E49FD3530086A1482A77E36BD",
+			"kind": 5
+		},
+		{
+			"id": "05BB24AE4CCD62FDE26EB18FDA678C19",
+			"kind": 3
+		},
+		{
+			"id": "F8DC677B4DD1EC2F7558459A5FB2744B",
+			"kind": 3
+		},
+		{
+			"id": "204DE36944C016934E4E9E988F6E299F",
+			"kind": 3
+		},
+		{
+			"id": "585C62F74E772E56958BADB627946354",
+			"kind": 3
+		},
+		{
+			"id": "3A8745904146A0D9C3CBC2906337F4F8",
+			"kind": 3
+		},
+		{
+			"id": "FCCE83A24FCDB713397CBCBD4D5EDBED",
+			"kind": 4
+		},
+		{
+			"id": "4A46E46C4CFDACABE69882991E26A4F1",
+			"kind": 4
+		},
+		{
+			"id": "62C466CB41D8B0AA15070CBA08628C62",
+			"kind": 4
+		}
+	]
+}

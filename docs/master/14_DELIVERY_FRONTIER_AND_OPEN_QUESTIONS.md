@@ -56,9 +56,16 @@ The [prepared Survey extension](../v09/B92_SURVEY.md) now uses ordinary slot/gro
 The [physical work extension](../v09/B92_WORK.md) connects Toolkit/Core crafting
 and Industrial/Supply deliveries with exact reservations, timed confirmation,
 fees, causal outputs and shared/persistent quotas. Normal discovery/funding,
-courier token lifecycle, broader procurement interruption/death races, Witness
+courier route coverage and broader work interruption/death races, Witness
 and registered Charter remain acceptance work. Cache inputs and travel in the
 connected transaction scenario are explicitly prepared fixtures.
+
+The [courier lifecycle](../v09/B92_COURIER.md) now connects unique sealed parcels,
+two remote deliveries, interruption, death/rival recovery and actual replacement
+admission. Separate physical-token fixtures close20 payments and40 issuances;
+they do not demonstrate20 ordinary journeys. Three authored boards lack in-band
+peer routes. Normal route access/teaching, procurement/courier race stress,
+earned book learning and Witness/registered Charter remain open.
 
 ## Delivery sequence
 
@@ -66,7 +73,7 @@ connected transaction scenario are explicitly prepared fixtures.
 | --- | --- | --- |
 | B90 spatial world | Places can be reached through ordinary movement and alternative approaches | Complete at its spatial boundary; retain affected-route regressions |
 | B91 functional environment | Places can be used, concealed within and changed through authoritative sources | Complete at the functional-environment boundary; retain the source, geometry, privacy and conservation regressions |
-| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Earned acquisition/learning and normal work pacing, courier lifecycle and procurement stress, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
+| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Earned acquisition/learning and normal work pacing, courier route coverage/pacing and work race stress, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
 | B93 route convergence | Earned preparations produce real capital access, warnings, property risks and a contestable ending | Four full-map routes and exact claim/interruption/deadline behavior |
 | B94 complete-session acceptance | The whole match remains readable, consequential and sustainable over its target duration | Normal 60/75/90-minute scenarios, multiplayer/field/density stress, recorded hardware and human pacing observations |
 

@@ -1,0 +1,3 @@
+# B92 physical courier lifecycle
+
+See [scope and limitations](../../B92_COURIER.md). Two normal remote delivery channels bracket S cancellation, real death, rival pickup/drop, owner recovery and actual disconnect/replacement. Travel is staged. Separate labelled authority fixtures close20 payments and40 issuances using real canonical tokens; these are not20 normal trips/channels. No diagnostic gold/reserve transfer is used in the courier scenario. Void parcels remain finite physical cargo. The separate services suite retains its labelled work/material/funding fixtures. B92/full-session/human acceptance remains open.

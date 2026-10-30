@@ -109,3 +109,6 @@
 
 /docs/v09/evidence/B92Work/**/*.log -whitespace
 /docs/v09/evidence/B92Work/*.log -whitespace
+
+/docs/v09/evidence/B92Courier/**/*.log -whitespace
+/docs/v09/evidence/B92Courier/*.log -whitespace

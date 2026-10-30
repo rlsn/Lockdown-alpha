@@ -32,6 +32,20 @@ to silently grant the missing score or proof.
 
 ## Liquidity, geography and confirmation
 
+Courier work exchanges transport risk for a bounded reward. The sealed parcel
+must remain real through pickup, storage, theft, dropping, death and recovery.
+Possession and entitlement are separate: a rival may deny or move the cargo but
+cannot redeem another contender's contract. Abandonment ends the promise of
+payment without refunding issuance or erasing a rival carrier's property.
+Separate active-job, issuance and payment bounds prevent acceptance spam from
+becoming replacement cargo or free income. See [the physical lifecycle](../v09/B92_COURIER.md).
+
+Distance rules must use their selected metric. Strategic graph distance measures
+an authored opportunity; it is neither a direct line nor an observed walked path.
+If a board has no qualifying destination, expose that fact rather than inventing
+a job or quietly relaxing the band. Current Capital Guild, Scholars Market and
+Bellwick gaps need a route/placement decision and normal-session observation.
+
 Regional price differences create transport decisions. A cheap input is useful
 only if the contender can afford it, carry it and reach the intended customer
 before that customer's cash or stock changes. A nominally rich world can still

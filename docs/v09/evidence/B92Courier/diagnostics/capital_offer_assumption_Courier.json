@@ -1,0 +1,21 @@
+{
+	"scope": "physical_courier_contracts",
+	"complete": true,
+	"full_stage_acceptance": false,
+	"phase": 1,
+	"failures": 1,
+	"checks": [
+		{
+			"case": "Two real zero-wallet empty-bag owners; no diagnostic funding or courier endowment",
+			"passed": true
+		},
+		{
+			"case": "Twelve authored courier boards; towns add access without a new market",
+			"passed": true
+		},
+		{
+			"case": "Private offer has distinct reachable endpoints in25000-80000cm shortest strategic band",
+			"passed": false
+		}
+	]
+}

@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Work stopped; nothing spent",
+	"accepted": false,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "57DFE3984CA42C8175F187B44E547930",
+			"kind": 98
+		}
+	]
+}

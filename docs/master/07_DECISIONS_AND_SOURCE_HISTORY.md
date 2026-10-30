@@ -113,3 +113,9 @@ one output/fee or quota-bound reward receipt. S releases the reservation without
 spending. Endorsements belong to successful delivery, not opening a service.
 The long-term economy/control chapters now distinguish these choices and their
 opportunity costs. See [scope and evidence](../v09/B92_WORK.md).
+
+Revision 29 connects sealed courier cargo to a persistent personal contract.
+Issuance and payment are separately bounded; death changes possession without
+resetting the job. A rival cannot inherit the reward claim, and abandonment
+voids the contract without remotely deleting cargo. Strategic-distance coverage
+gaps remain explicit. See [scope and evidence](../v09/B92_COURIER.md).

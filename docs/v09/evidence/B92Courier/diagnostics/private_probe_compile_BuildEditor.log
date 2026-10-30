@@ -1,0 +1,46 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -gather -DisableAdaptiveUnity
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (16 physical cores, 32 logical cores)
+  Executing up to 16 processes, one per physical core
+  Requested 1.5 GB memory per action, 15.69 GB available: limiting max parallel actions to 10
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 15 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 22.66 GB/29.38 GB committed
+  UBA Storage capacity 40 GB
+[1/15] Compile [x64] Module.Lockdown.1.cpp
+[2/15] Compile [x64] Module.Lockdown.2.cpp
+[3/15] Compile [x64] Module.Lockdown.3.cpp
+[4/15] Compile [x64] Module.Lockdown.4.cpp
+[5/15] Compile [x64] Module.Lockdown.5.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Tests\LDB92CourierProbe.cpp(42,334): error C2248: 'ALDCombatDirector::Die': cannot access private member declared in class 'ALDCombatDirector'
+        if(!Good(Read(A.Get(),42))){return;}const auto V=E->CourierView(A.Get(),CourierOrigin);Check(V.Token.IsValid()&&V.Token!=CourierToken&&V.Issuances==38&&V.Payments==19,TEXT("A second legal job has a fresh token and the persistent remaining quotas"));CourierToken=V.Token;auto* Body=Cast<ALDCharacter>(A->GetPawn());M->Combat->Die(Body,Now);Objects->Publish();Phase=7;return;
+                                                                                                                                                                                                                                                                                                                                             ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Combat\LDCombatDirector.h(309,10): note: see declaration of 'ALDCombatDirector::Die'
+    void Die(ALDCharacter* Body,double Now);
+         ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Combat\LDCombatDirector.h(165,20): note: see declaration of 'ALDCombatDirector'
+class LOCKDOWN_API ALDCombatDirector : public AActor
+                   ^
+[6/15] Compile [x64] Module.Lockdown.6.cpp
+[7/15] Compile [x64] Module.Lockdown.7.cpp
+[8/15] Compile [x64] Module.Lockdown.8.cpp
+[9/15] Compile [x64] LDRegionBootstrap.cpp
+[10/15] Compile [x64] LDScaffoldBootstrapCommandlet.cpp
+[11/15] Link [x64] UnrealEditor-LockdownEditor.lib
+Total time in Unreal Build Accelerator local executor: 137.27 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 142.77 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 21.2kb

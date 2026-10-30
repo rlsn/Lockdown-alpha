@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Counter closed",
+	"accepted": true,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "500D21FE48F5A65AD3D8EDADC5362F8E",
+			"kind": 98
+		}
+	]
+}

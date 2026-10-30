@@ -29,6 +29,15 @@ The [physical work test](../v09/B92_WORK.md) isolates these transactions with
 staged inputs; its successful rewards do not establish the journey's travel
 margin, affordability or discoverability.
 
+During courier work, lose the sealed parcel to a rival and decide whether to
+recover it or abandon the job. The rival should understand that controlling
+the cargo can deny progress without inheriting payment. After death, the owner
+should recognize the same outstanding job and locate the parcel through legal
+observation. Observe whether void cargo, remaining issuance and exhausted paid
+opportunities are understandable. The [courier lifecycle review](../v09/B92_COURIER.md)
+stages travel and isolates these mechanics; normal route choices and pursuit
+still need an earned, uncoached journey.
+
 ## The opportunist who learns from observation
 
 Explore a covered approach, see another body use a capability, and infer a limited threat. Prepare detection, mobility, theft or control within the shared budget. Use observation to select an opportunity without knowing human identity, exact HP or hidden cargo.
