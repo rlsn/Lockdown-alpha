@@ -1,4 +1,5 @@
 #include "World/LDWorldObjects.h"
+// Requires the complete controller type for weak-pointer key lookup.
 #include "Population/LDB92Roster.h"
 #include "Economy/LDB92Economy.h"
 #include "Framework/LDCommandLiveness.h"
@@ -439,3 +440,6 @@ void ALDWorldObjects::Tick(float Delta)
     }
     if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}TickCheckpoint(Now);
 }
+
+bool ALDWorldObjects::HasInteraction(ALDB91Controller* PC) const
+{return Holds.Contains(PC)||Returns.Contains(PC);}

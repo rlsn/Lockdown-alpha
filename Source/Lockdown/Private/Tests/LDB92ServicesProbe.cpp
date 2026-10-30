@@ -2,6 +2,7 @@
 #include "Population/LDB92Roster.h"
 #include "Economy/LDB92Economy.h"
 #include "Economy/LDB92Services.h"
+#include "Economy/LDB92Deposits.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "World/LDWorldObjects.h"
@@ -27,7 +28,7 @@ void ALDB92ServicesProbe::Task(ALDB92Controller* PC,uint8 Value,FName POI)
 {PC->ServicesProbeReports.Remove(Value);PC->ClientB92ProbeTask(Value,POI);At=GetWorld()->GetTimeSeconds();}
 void ALDB92ServicesProbe::Save(bool Complete)
 {
-    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetBoolField(TEXT("official_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FString Output,Json;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("stage"),TEXT("B92"));J->SetBoolField(TEXT("bank_integration"),true);J->SetBoolField(TEXT("official_integration"),true);J->SetBoolField(TEXT("deposit_integration"),true);J->SetStringField(TEXT("scope"),TEXT("remote_takeover_and_five_physical_markets"));J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("full_stage_acceptance"),false);J->SetNumberField(TEXT("phase"),Phase);J->SetNumberField(TEXT("failures"),Failures);J->SetArrayField(TEXT("checks"),Checks);FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Output/TEXT("Services.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     if(Complete){const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();FFileHelper::SaveStringToFile(M->Population->Economy->Accounting().ExportJson(TEXT("B92RemoteServices")),*(Output/TEXT("Ledger.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
 }
 void ALDB92ServicesProbe::Tick(float Delta)
@@ -134,6 +135,21 @@ void ALDB92ServicesProbe::Tick(float Delta)
     if(Phase==46)
     {
         if(!Good(Read(Replacement.Get(),24))){return;}Check(E->SynchronizeWorld(Error)&&E->Audit(Error)&&R->Audit(Error),TEXT("Official outputs preserve original receipt, exact bag projections and global stock through source synchronization"));
+        auto* PC=Replacement.Get();DepositXp=M->StateFor(PC)->Xp;Place(PC,ALDB92Deposits::Position(GetWorld(),0)+FVector(60,0,0));Task(PC,26,NAME_None);Phase=60;return;
+    }
+    if(Phase==60){if(!Good(Read(Replacement.Get(),26))){return;}At=Now;Phase=61;return;}
+    if(Phase==61){if(Now-At<7){return;}Check(E->Accounting().Remaining(ALDB92Deposits::Budget(0))==6&&!R->Deposits->Active(Replacement.Get()),TEXT("One S command stops automatic extraction; staying inside does not restart or spend a charge"));Place(Replacement.Get(),ALDB92Deposits::Position(GetWorld(),5)+FVector(60,0,0));Task(Replacement.Get(),25,NAME_None);Phase=62;return;}
+    if(Phase==62){if(!Good(Read(Replacement.Get(),25))){return;}Check(E->Accounting().Remaining(ALDB92Deposits::Budget(5))==5,TEXT("Standing eligible at Ore completes one real six-second automatic extraction without any interaction button"));Place(Replacement.Get(),ALDB92Deposits::Position(GetWorld(),0)+FVector(60,0,0));Task(Replacement.Get(),25,NAME_None);Phase=63;return;}
+    if(Phase==63){if(!Good(Read(Replacement.Get(),25))){return;}Check(E->Accounting().Remaining(ALDB92Deposits::Budget(0))==5,TEXT("Crystal uses the same finite six-second automatic POI channel"));Place(Replacement.Get(),ALDB92Deposits::Position(GetWorld(),7)+FVector(60,0,0));Task(Replacement.Get(),25,NAME_None);Phase=64;return;}
+    if(Phase==64)
+    {
+        if(!Good(Read(Replacement.Get(),25))){return;}Check(E->Accounting().Remaining(ALDB92Deposits::Budget(7))==5&&M->StateFor(Replacement.Get())->Xp==DepositXp,TEXT("Fiber extraction creates one item and no XP; all three outputs have canonical identities"));
+        // Isolate all-nine budget closure from long-duration/human/channel pacing.
+        auto* PC=Replacement.Get();bool Closed=true;for(int32 Node=0;Node<9;++Node){if(Node==1){continue;}while(E->Accounting().Remaining(ALDB92Deposits::Budget(Node))>0){TSet<FGuid> Before;for(const auto& I:M->StateFor(PC)->Inventory.Items){Before.Add(I.Id);}if(!E->ExtractDeposit(PC,Node,Error)){Closed=false;break;}const auto Items=M->StateFor(PC)->Inventory.Items;for(const auto& I:Items){if(!Before.Contains(I.Id)){auto* P=M->Inventory->Owned(PC,I.Id);M->Inventory->Remove(PC,P,false);P->SetActorLocation(ALDB92Deposits::Position(GetWorld(),7)+FVector(300+Node*30,300,12));}}}}
+        Check(Closed&&E->SynchronizeWorld(Error)&&E->Audit(Error),TEXT("Explicit authority fixture drains eight deposit budgets to real ground goods without advancing the channel clock"));Phase=47;
+    }
+    if(Phase==47)
+    {
         auto* PC=Replacement.Get();auto* O=M->StateFor(PC);
         for(auto Obj:Objects->Objects){if(!Obj.IsValid()){continue;}for(int32 I=Obj->Contents.Num()-1;I>=0&&O->Inventory.Items.Num()<24;--I){auto* P=Obj->Contents[I].Get();if(P&&P->Kind==ELDItemKind::Fiber){Obj->Contents.RemoveAt(I);P->Holder.Reset();P->State=0;M->Inventory->Adopt(PC,P,NAME_None,false);}}if(O->Inventory.Items.Num()==24){break;}}
         Check(O->Inventory.Items.Num()==24&&E->SynchronizeWorld(Error),TEXT("Capacity fixture fills the bag from existing cached Fiber; no new goods"));Place(PC,ALDB92Services::Counter(GetWorld(),Markets.Last())+FVector(60,0,0));At=Now;Phase=94;return;
@@ -143,6 +159,14 @@ void ALDB92ServicesProbe::Tick(float Delta)
     if(Phase==21)
     {const auto J=Read(Replacement.Get(),3);if(!Good(J)){return;}Check(!J->GetBoolField(TEXT("accepted"))&&M->StateFor(Replacement.Get())->Gold==SavedGold&&M->StateFor(Replacement.Get())->Inventory.Items.Num()==24,TEXT("Real full bag and duplicate confirmation reject before payment or stock movement"));Task(Replacement.Get(),14,NAME_None);Phase=22;return;}
     if(Phase==22)
-    {if(!Good(Read(Replacement.Get(),14))){return;}Check(E->SynchronizeWorld(Error)&&E->Audit(Error)&&Objects->Conserved(Error)&&R->Audit(Error),TEXT("Final canonical item/gold identity closure after all refusals"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;}
+    {if(!Good(Read(Replacement.Get(),14))){return;}Place(Replacement.Get(),ALDB92Deposits::Position(GetWorld(),1)+FVector(60,0,0));At=Now;Phase=98;return;}
+    if(Phase==98)
+    {
+        if(Now-At<7){return;}auto* PC=Replacement.Get();Check(E->Accounting().Remaining(ALDB92Deposits::Budget(1))==6&&!R->Deposits->Active(PC),TEXT("A full real bag prevents automatic channel start and retains all six deposit charges"));
+        const auto Items=M->StateFor(PC)->Inventory.Items;for(const auto& I:Items){if(I.Kind==ELDItemKind::Fiber&&!I.BindingMask){auto* P=M->Inventory->Owned(PC,I.Id);M->Inventory->Remove(PC,P,false);P->SetActorLocation(ALDB92Deposits::Position(GetWorld(),1)+FVector(300,300,12));break;}}
+        bool Closed=true;while(E->Accounting().Remaining(ALDB92Deposits::Budget(1))>0){TSet<FGuid> Before;for(const auto& I:M->StateFor(PC)->Inventory.Items){Before.Add(I.Id);}if(!E->ExtractDeposit(PC,1,Error)){Closed=false;break;}const auto Bag=M->StateFor(PC)->Inventory.Items;for(const auto& I:Bag){if(!Before.Contains(I.Id)){auto* P=M->Inventory->Owned(PC,I.Id);M->Inventory->Remove(PC,P,false);P->SetActorLocation(ALDB92Deposits::Position(GetWorld(),1)+FVector(300,300,12));}}}
+        int32 Units=0;for(const auto& Pair:E->Accounting().ItemRecords()){const auto* Receipt=E->Accounting().Receipt(Pair.Value.Origin);Units+=Receipt&&Receipt->Transaction.Cause==TEXT("B92DepositExtraction");}
+        Objects->Publish();Check(Closed&&Units==54&&M->StateFor(PC)->Xp==DepositXp&&!E->ExtractDeposit(PC,1,Error),TEXT("All nine six-charge budgets produce exactly54 real units; depletion cannot create another or grant XP"));Check(E->SynchronizeWorld(Error)&&E->Audit(Error)&&Objects->Conserved(Error)&&R->Audit(Error),TEXT("Final canonical item/gold identity closure after deposit extraction and all refusals"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;
+    }
 #endif
 }

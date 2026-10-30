@@ -4,6 +4,7 @@
 #include "Inventory/LDInventoryDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDVendorDirector.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Engine/World.h"
 

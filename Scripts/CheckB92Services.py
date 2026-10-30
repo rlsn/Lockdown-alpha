@@ -21,6 +21,23 @@ def check(root):
     assert int(ledger['minted']) == 0 and int(ledger['end']) == 3288 - int(ledger['burned'])
     bank = data.get('bank_integration', False)
     official = data.get('official_integration', False)
+    deposits_enabled = data.get('deposit_integration', False)
+    extraction = [r for r in ledger['receipts'] if r['cause'] == 'B92DepositExtraction']
+    if deposits_enabled:
+        from collections import Counter
+        assert len(data['checks']) >= 59 and len(extraction) == 54
+        assert len({r['budget'] for r in extraction}) == 9
+        assert set(Counter(r['budget'] for r in extraction).values()) == {6}
+        assert Counter(r['items'][0]['kind'] for r in extraction) == {5: 30, 4: 12, 3: 12}
+        assert all(r['units'] == 1 and int(r['mint']) == int(r['burn']) == 0 for r in extraction)
+        for r in extraction:
+            assert not r['gold'] and len(r['items']) == 1
+            expected_kind = 5 if ':crystal_' in r['budget'] else 4 if ':ore_' in r['budget'] else 3
+            assert r['items'][0]['kind'] == expected_kind
+            assert any(i['id'] == r['items'][0]['id'] and i['origin'] == r['id'] for i in ledger['items'])
+        assert all(b['initial'] == 6 and b['remaining'] == 0 for b in ledger['budgets'] if b['id'].startswith('B92Deposit:'))
+        assert len([b for b in ledger['budgets'] if b['id'].startswith('B92Deposit:')]) == 9
+        assert read(root / 'A2_26.json')['completed'] and read(root / 'A2_25.json')['completed']
     purchases = [r for r in ledger['receipts'] if r['cause'] == 'B92OfficialPurchase']
     official_burn = sum(int(r['burn']) for r in purchases)
     assert (int(ledger['burned']) - official_burn) % 5 == (1 if bank else 0)
@@ -70,9 +87,9 @@ def check(root):
     assert all(int(r['mint']) == int(r['burn']) == 0 for r in market)
     producers = sum(r['cause'] == 'B92InstitutionProduction' for r in events)
     consumes = sum(r['cause'] == 'B92InstitutionConsumption' for r in events)
-    assert len(ledger['items']) == 570 + producers + len(purchases)
+    assert len(ledger['items']) == 570 + producers + len(purchases) + len(extraction)
     assert sum(i['consumed'] for i in ledger['items']) == 1 + consumes
-    assert sum(not i['consumed'] for i in ledger['items']) == 569 + producers - consumes + len(purchases)
+    assert sum(not i['consumed'] for i in ledger['items']) == 569 + producers - consumes + len(purchases) + len(extraction)
     assert all(r['cause'] != 'DiagnosticReward' for r in events)
     fixtures = [r for r in events if r['cause'] == 'DiagnosticFixtureTransfer']
     assert len(fixtures) == (1 if official else 0)

@@ -1,5 +1,6 @@
 #include "Economy/LDB92Economy.h"
 #include "Combat/LDTacticalCatalog.h"
+#include "Economy/LDB92Deposits.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Engine/World.h"
@@ -37,7 +38,7 @@ bool ALDB92Economy::Initialize(FGuid Match,const TArray<FGuid>& Contenders,const
     Budgets.Add(TEXT("CoreOrders"),72);Budgets.Add(TEXT("SupplyOrders"),24);Budgets.Add(TEXT("ShortageOrder"),1);
     Budgets.Add(TEXT("ProducerRiverport"),29);Budgets.Add(TEXT("ProducerIronworks"),29);
     for(const auto& M:C.Markets){Accounts.Add(M.Id,M.Gold);}
-    if(IncludeWorld){const auto* Skills=ULDTacticalCatalog::Load(8);if(!Skills){return false;}for(const auto& D:Skills->Abilities){if(D.Circle==3){Budgets.Add(BookBudget(D.Skill),2);}}}
+    if(IncludeWorld){for(int32 I=0;I<ALDB92Deposits::Nodes().Num();++I){Budgets.Add(ALDB92Deposits::Budget(I),6);}const auto* Skills=ULDTacticalCatalog::Load(8);if(!Skills){return false;}for(const auto& D:Skills->Abilities){if(D.Circle==3){Budgets.Add(BookBudget(D.Skill),2);}}}
     LDEconomy::FLedger Candidate;if(!Candidate.Initialize(Match,Accounts,Budgets,Error)){return false;}
     LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=TEXT("B92MarketStockEndowment");
     TArray<TObjectPtr<ALDItem>> Created;

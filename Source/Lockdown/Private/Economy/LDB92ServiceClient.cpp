@@ -1,5 +1,6 @@
 #include "Population/LDB92Roster.h"
 #include "Economy/LDB92Services.h"
+#include "Economy/LDB92Deposits.h"
 #include "Region/LDMapDefinition.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Engine/World.h"
@@ -9,6 +10,10 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
+void ALDB92Controller::CancelInterruptibleHolds()
+{Super::CancelInterruptibleHolds();ServerB92StopGather(OwnerState.Match,OwnerState.Life);}
+void ALDB92Controller::ServerB92StopGather_Implementation(uint32 Match,uint32 Life)
+{auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Population&&M->Population->Deposits){M->Population->Deposits->Stop(this);}}
 void ALDB92Controller::ServerB92Open_Implementation(uint32 Match,uint32 Life,uint32 Sequence,FName POI)
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M&&M->Population&&M->Population->Services){M->Population->Services->Open(this,Match,Life,Sequence,POI);}}
 void ALDB92Controller::ServerB92Order_Implementation(FLDB92MarketOrder Order)
@@ -61,6 +66,7 @@ void ALDB92Controller::PlayerTick(float Delta)
         for(FName POI:ALDB92Services::Endpoints())
         {auto* Marker=GetWorld()->SpawnActor<AStaticMeshActor>();Marker->SetReplicates(false);auto* Mesh=Marker->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCanEverAffectNavigation(false);Mesh->SetWorldScale3D(FVector(.55,.55,.7));Marker->SetActorLocation(ALDB92Services::Counter(GetWorld(),POI)+FVector(0,0,35));MarketMarkers.Add(Marker);}
     }
+    if(DepositMarkers.IsEmpty()&&ULDMapDefinition::Get(GetWorld())){for(int32 I=0;I<ALDB92Deposits::Nodes().Num();++I){auto* Marker=GetWorld()->SpawnActor<AStaticMeshActor>();Marker->SetReplicates(false);auto* Mesh=Marker->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cone.Cone")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCanEverAffectNavigation(false);Mesh->SetWorldScale3D(FVector(.6,.6,.5));Marker->SetActorLocation(ALDB92Deposits::Position(GetWorld(),I)+FVector(0,0,25));DepositMarkers.Add(Marker);}}
     if(!PendingMarket.IsNone())
     {
         const FVector P=ALDB92Services::Counter(GetWorld(),PendingMarket);

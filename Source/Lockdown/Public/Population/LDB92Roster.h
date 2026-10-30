@@ -30,6 +30,9 @@ public:
     virtual void PawnLeavingGame() override;
     virtual void Destroyed() override;
     virtual void PlayerTick(float Delta) override;
+    virtual void CancelInterruptibleHolds() override;
+    UFUNCTION(Server,Reliable) void ServerB92StopGather(uint32 Match,uint32 Life);
+    TArray<TWeakObjectPtr<AActor>> DepositMarkers;
     virtual bool PointerService(FVector Point) override;
     UFUNCTION(Client,Reliable) void ClientB92Admission(const FLDOwnerState& State,uint32 CombatFloor);
     UFUNCTION(Server,Reliable) void ServerB92Open(uint32 Match,uint32 Life,uint32 Sequence,FName POI);
@@ -116,6 +119,7 @@ public:
     bool RecordGold(FName Cause,int64 Mint,int64 Burn,FString& Error);
     UPROPERTY() TObjectPtr<class ALDB92Economy> Economy;
     UPROPERTY() TObjectPtr<ALDB92Services> Services;
+    UPROPERTY() TObjectPtr<class ALDB92Deposits> Deposits;
 private:
     friend class ALDB92RosterProbe;
     friend class ALDB92ServicesProbe;

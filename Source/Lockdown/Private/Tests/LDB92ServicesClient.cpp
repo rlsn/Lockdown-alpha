@@ -43,6 +43,15 @@ void ALDB92Controller::TickServicesProbe()
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task==25)
+    {
+        if(OwnerState.Inventory.Items.ContainsByPredicate([&](const auto& I){return !ServicesProbeBefore.Contains(I.Id);})){StopSourceOrder();Complete(true);}return;
+    }
+    if(Task==26)
+    {
+        if(ChannelActive&&Channel.Domain==4&&!ServicesProbeStep){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Output;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FScreenshotRequest::RequestScreenshot(Output/TEXT("Deposit.png"),true,false);}ServicesProbeStep=1;ServicesProbeAt=Now;}
+        if(ServicesProbeStep&&Now-ServicesProbeAt>.7){StopSourceOrder();Complete(true);}return;
+    }
     if(Task>=19&&Task<=23)
     {
         if(!ServicesProbeStep){ServicesProbeSequence=++MarketSequence;ServerB92Open(OwnerState.Match,OwnerState.Life,ServicesProbeSequence,ServicesProbePOI);ServicesProbeStep=1;return;}

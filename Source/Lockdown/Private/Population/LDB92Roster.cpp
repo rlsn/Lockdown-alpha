@@ -1,4 +1,5 @@
 #include "Population/LDB92Roster.h"
+#include "Economy/LDB92Deposits.h"
 #include "Population/LDB92PopulationContract.h"
 #include "Economy/LDB92Economy.h"
 #include "Combat/LDCombatDirector.h"
@@ -137,7 +138,7 @@ bool ALDB92Roster::Initialize(FString& Error)
     }
     Economy=GetWorld()->SpawnActor<ALDB92Economy>();if(!Economy){Error=TEXT("Economy allocation failed");Cleanup();return false;}Created.Add(Economy);
     if(!Economy->Initialize(Match,SeatIds,Civilians,Error,true)){Economy=nullptr;Cleanup();return false;}
-    Population=MoveTemp(People);Ready=true;Initializing=false;Services=GetWorld()->SpawnActor<ALDB92Services>();if(!Services){Error=TEXT("Service authority allocation failed");return false;}Services->AddTickPrerequisiteActor(this);M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
+    Population=MoveTemp(People);Ready=true;Initializing=false;Services=GetWorld()->SpawnActor<ALDB92Services>();if(!Services){Error=TEXT("Service authority allocation failed");return false;}Services->AddTickPrerequisiteActor(this);Deposits=GetWorld()->SpawnActor<ALDB92Deposits>();if(!Deposits){Error=TEXT("Deposit authority allocation failed");return false;}Deposits->AddTickPrerequisiteActor(this);M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
     UE_LOG(LogTemp,Display,TEXT("LD_B92_ROSTER_READY contenders=24 noncontenders=196 humanCapacity=%d civilianGold=288 routines=not_implemented contenderPolicy=not_implemented"),Limit);
     return Audit(Error);
 }
@@ -242,5 +243,5 @@ void ALDB92Roster::Tick(float Delta)
 void ALDB92Roster::EndPlay(const EEndPlayReason::Type Reason)
 {
     Ending=true;for(const auto& S:Contenders){if(S.Body.IsValid()){S.Body->Destroy();}if(S.Controller.IsValid()&&S.Controller->IsA<ALDB92SeatController>()){S.Controller->Destroy();}}
-    for(const auto& P:Population){if(P.Body.IsValid()){P.Body->Destroy();}}if(Services){Services->Destroy();}if(Economy){Economy->Destroy();}Super::EndPlay(Reason);
+    for(const auto& P:Population){if(P.Body.IsValid()){P.Body->Destroy();}}if(Deposits){Deposits->Destroy();}if(Services){Services->Destroy();}if(Economy){Economy->Destroy();}Super::EndPlay(Reason);
 }

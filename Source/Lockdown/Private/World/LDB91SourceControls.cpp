@@ -12,7 +12,7 @@ FVector ObjectFloor(const FLDObjectView& V)
 {const double H=V.Kind==ELDObjectKind::TallGrass?78:V.Kind==ELDObjectKind::Sapling?203:V.Kind==ELDObjectKind::Crate?113:V.Kind==ELDObjectKind::Barrel?73:V.Kind==ELDObjectKind::Chest?43:V.Kind==ELDObjectKind::Furniture?53:V.Kind==ELDObjectKind::Torch?48:V.Kind==ELDObjectKind::Lantern?33:18;return FVector(V.Position)-FVector(0,0,H);}
 }
 void ALDB91Controller::ClientB91Channel_Implementation(FLDB91Channel P,bool Active)
-{if(P.Match!=OwnerState.Match||P.Life!=OwnerState.Life||P.Sequence<Channel.Sequence){return;}if(Active){Channel=P;ChannelActive=true;}else if(Channel.Sequence==P.Sequence&&Channel.Domain==P.Domain){ChannelActive=false;}if(!Active&&HeldSequence==P.Sequence&&HeldObject==(P.Domain==2)){HeldSequence=0;}}
+{if(P.Match!=OwnerState.Match||P.Life!=OwnerState.Life||(P.Domain==Channel.Domain&&P.Sequence<Channel.Sequence)){return;}if(Active){Channel=P;ChannelActive=true;}else if(Channel.Sequence==P.Sequence&&Channel.Domain==P.Domain){ChannelActive=false;}if(!Active&&HeldSequence==P.Sequence&&HeldObject==(P.Domain==2)){HeldSequence=0;}}
 void ALDB91Controller::CancelInterruptibleHolds()
 {ReleaseDoor();PendingObject.Invalidate();PendingDoor.Invalidate();PendingSource.Invalidate();ArmedSource.Invalidate();BasicAttackArmed=false;ChannelActive=false;ALDPlayerController::CancelInterruptibleHolds();}
 void ALDB91Controller::StopSourceOrder(){CancelInterruptibleHolds();Navigation->Stop();CancelArmed();}

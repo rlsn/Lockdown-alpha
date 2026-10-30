@@ -102,6 +102,7 @@ public:
     static FString ActiveContract();
     bool Initialize(FString& Error);
     bool Ready=false;
+    bool HasInteraction(ALDB91Controller* PC) const;
     FString Contract;
     TArray<TWeakObjectPtr<ALDWorldObject>> Objects;
     ALDWorldObject* Find(FName SourceId) const;
