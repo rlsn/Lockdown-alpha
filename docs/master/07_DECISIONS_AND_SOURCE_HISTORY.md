@@ -102,3 +102,5 @@ authenticated reconnect and autonomous life. See [scope and evidence](../v09/B92
 Revision 24 connects the same persistent bank account to all five physical market counters. Deposit debits include the rounded fee; withdrawal has no fee or interest. Exact retries retain their original receipt. See [bank scope and evidence](../v09/B92_BANK.md).
 
 Revision 25 connects official catalog goods and tiered books to selected physical endpoints. Global Circle-III quotas are per definition and paid creation is atomic with burn and receipt. Endpoint roles remain explicit; extra shops cannot silently multiply rare supply. See [scope and evidence](../v09/B92_SUPPLY.md).
+
+Revision 26 implements finite deposits as eligible automatic POIs, following the source/pointer control decision. Stop suppresses automatic restart until leaving; one completed channel creates one canonical item and spends one match-wide charge. Survey remains a prepared-ability dependency. See [scope and evidence](../v09/B92_DEPOSITS.md).

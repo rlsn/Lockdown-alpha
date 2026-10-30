@@ -1,0 +1,100 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -gather -DisableAdaptiveUnity
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (16 physical cores, 32 logical cores)
+  Executing up to 16 processes, one per physical core
+  Requested 1.5 GB memory per action, 15.69 GB available: limiting max parallel actions to 10
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 11 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 23.07 GB/25.82 GB committed
+  UBA Storage capacity 40 GB
+[1/11] Compile [x64] Module.Lockdown.1.cpp
+[2/11] Compile [x64] Module.Lockdown.2.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Deposits.cpp(19,15): error C3535: cannot deduce type for 'const auto *' from 'TObjectPtr<APawn>'
+{const auto* B=PC?PC->GetPawn():nullptr;if(!B){return INDEX_NONE;}for(int32 I=0;I<Nodes().Num();++I){const auto P=Position(GetWorld(),I);if(FVector::DistSquared2D(B->GetActorLocation(),P)<=120*120&&FMath::Abs(B->GetActorLocation().Z-P.Z-90)<100){return I;}}return INDEX_NONE;}
+              ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Deposits.cpp(19,15): error C2440: 'initializing': cannot convert from 'TObjectPtr<APawn>' to 'const <error type> *'
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Deposits.cpp(19,15): note: No user-defined-conversion operator available that can perform this conversion, or the operator cannot be called
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Deposits.cpp(19,206): error C2672: 'FGenericPlatformMath::Abs': no matching overloaded function found
+{const auto* B=PC?PC->GetPawn():nullptr;if(!B){return INDEX_NONE;}for(int32 I=0;I<Nodes().Num();++I){const auto P=Position(GetWorld(),I);if(FVector::DistSquared2D(B->GetActorLocation(),P)<=120*120&&FMath::Abs(B->GetActorLocation().Z-P.Z-90)<100){return I;}}return INDEX_NONE;}
+                                                                                                                                                                                                             ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Core\Public\GenericPlatform\GenericPlatformMath.h(930,55): note: could be 'T FGenericPlatformMath::Abs(const T)'
+	[[nodiscard]] static constexpr UE_FORCEINLINE_HINT T Abs( const T A )
+	                                                     ^
+[3/11] Compile [x64] Module.Lockdown.3.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): error C2065: 'ALDBook': undeclared identifier
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,54): error C2672: 'UWorld::SpawnActor': no matching overloaded function found
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                     ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\Engine\World.h(3823,5): note: could be 'T *UWorld::SpawnActor(UClass *,const FTransform &,const FActorSpawnParameters &)'
+	T* SpawnActor(UClass* Class, FTransform const& Transform,const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters())
+	   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): note: 'UWorld::SpawnActor': invalid template argument for 'T', type expected
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\Engine\World.h(3814,5): note: or       'T *UWorld::SpawnActor(UClass *,const FVector &,const FRotator &,const FActorSpawnParameters &)'
+	T* SpawnActor( UClass* Class, FVector const& Location, FRotator const& Rotation, const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters() )
+	   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): note: 'UWorld::SpawnActor': invalid template argument for 'T', type expected
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\Engine\World.h(3804,5): note: or       'T *UWorld::SpawnActor(UClass *,const FActorSpawnParameters &)'
+	T* SpawnActor( UClass* Class, const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters() )
+	   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): note: 'UWorld::SpawnActor': invalid template argument for 'T', type expected
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\Engine\World.h(3797,5): note: or       'T *UWorld::SpawnActor(const FVector &,const FRotator &,const FActorSpawnParameters &)'
+	T* SpawnActor( FVector const& Location, FRotator const& Rotation, const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters() )
+	   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): note: 'UWorld::SpawnActor': invalid template argument for 'T', type expected
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\Engine\World.h(3790,5): note: or       'T *UWorld::SpawnActor(const FActorSpawnParameters &)'
+	T* SpawnActor( const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters() )
+	   ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Economy\LDB92Supply.cpp(49,65): note: 'UWorld::SpawnActor': invalid template argument for 'T', type expected
+    ALDItem* P=R.Kind==ELDItemKind::Book?GetWorld()->SpawnActor<ALDBook>():GetWorld()->SpawnActor<ALDItem>();if(!P){return Reject(TEXT("Allocation failed; nothing spent"));}
+                                                                ^
+[4/11] Compile [x64] Module.Lockdown.4.cpp
+[5/11] Compile [x64] Module.Lockdown.5.cpp
+[6/11] Compile [x64] Module.Lockdown.6.cpp
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Core\Public\UObject\WeakObjectPtrTemplates.h(67,17): error C2338: static_assert failed: 'TWeakObjectPtr can only be constructed with UObject types'
+		static_assert(std::is_convertible_v<T*, const volatile UObject*>, "TWeakObjectPtr can only be constructed with UObject types");
+		              ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Core\Public\UObject\WeakObjectPtrTemplates.h(67,17): note: the template instantiation context (the oldest one first) is
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\World\LDWorldObjects.h(105,76): note: see reference to function template instantiation 'TWeakObjectPtr<const T,FWeakObjectPtr>::TWeakObjectPtr<ALDB91Controller*>(U)' being compiled
+        with
+        [
+            T=ALDB91Controller,
+            U=ALDB91Controller *
+        ]
+    bool HasInteraction(ALDB91Controller* PC) const {return Holds.Contains(PC)||Returns.Contains(PC);}
+                                                                           ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\World\LDWorldObjects.h(105,54): note: see the first reference to 'TWeakObjectPtr<const T,FWeakObjectPtr>::TWeakObjectPtr' in 'ALDWorldObjects::HasInteraction'
+        with
+        [
+            T=ALDB91Controller
+        ]
+    bool HasInteraction(ALDB91Controller* PC) const {return Holds.Contains(PC)||Returns.Contains(PC);}
+                                                     ^
+[7/11] Compile [x64] Module.Lockdown.7.cpp
+[8/11] Compile [x64] Module.Lockdown.8.cpp
+Total time in Unreal Build Accelerator local executor: 98.41 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 105.00 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 23.2kb

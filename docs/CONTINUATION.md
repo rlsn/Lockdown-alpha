@@ -1,4 +1,25 @@
-# Active continuation — B92 official supply and shared books
+# Active continuation — B92 finite automatic deposits
+
+The [deposit increment](v09/B92_DEPOSITS.md), source **d09a76bbe551eed20855bf6f11fd30bf187c1f3d**,
+adds nine six-charge Crystal/Ore/Fiber POIs. Basic extraction starts automatically
+while stationary/quiet/in range with sight, free hands and capacity;6s completes
+one item and starts another full channel only while still eligible. S/interruption
+spends nothing and blocks restart until leaving. All charges/outputs use the
+canonical ledger, with no XP, gold, per-life refill or new interaction key.
+Connected59 checks/287 receipts/627 identities close3103gold, zero mint and
+185 prior bank/official burn. Rules59, economy125, roster37, B91 source/control53
+and both full-unity targets pass;207 protected inputs unchanged. Master revision26.
+
+**Next:** prepared Survey at Crystal deposits, physical contracts/crafting,
+full-map Witness and earned zero-kill Charter progression. Exercise natural
+acquisition, learning/preparation and useful builds. Routines/security/hostiles,
+legal contender AI/tier transitions, authenticated reconnect and full recovery
+remain open. B92 remains in progress; `v09_full` closed. The all-nine budget drain
+is an explicit authority fixture; only three real six-second channels and Stop/
+capacity refusals are established here, not54 ordinary channels or human pacing.
+
+## Prior official supply checkpoint
+
 
 The [official supply increment](v09/B92_SUPPLY.md), source **4835f7b05e88b9096184e98bad6cca8cb5fa0de5**,
 adds five supply counters, Highfort Circle-II trainer and Scholars Circle-II/III

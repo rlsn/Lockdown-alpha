@@ -71,6 +71,22 @@ One physical instance occupies one place: bag/equipment, world/container, market
 
 Banking is physical and quiet, shares one account across counters and burns the deposit fee. Treasury Charter payment may explicitly split wallet and bank. There are no assumed loans, insurance or interest. Peer offers do not create protected gold escrow.
 
+## Automatic gathering and finite opportunity
+
+An automatic resource POI removes a needless interaction key while preserving
+commitment. Enter its small legal area, become quiet and stationary, and watch
+the character channel. The stop decision must be durable: remaining inside after
+S cannot immediately start another channel against the player's intention. Make
+the restart condition and progress clear. Capacity, interruption and depletion
+must retain their real source charges rather than grant a compensating reward.
+
+The [B92 deposit review](../v09/B92_DEPOSITS.md) implements the basic six-second
+operation for Crystal, Ore and Fiber. No gold or XP comes from extraction itself;
+sale draws a market's finite cash. A learned Survey shortcut remains a distinct
+ability operation with its own preparation, score and costs. Both paths must
+spend the same source budget. Quantity closure and prepared-state checks do not
+establish whether natural travel, competition and gathering feel worthwhile.
+
 ## Official access and shared scarcity
 
 A reliable official source exchanges carried gold for a defined item; it is not

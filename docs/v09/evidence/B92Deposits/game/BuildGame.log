@@ -1,0 +1,37 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" Lockdown Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -gather -DisableAdaptiveUnity
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (16 physical cores, 32 logical cores)
+  Executing up to 16 processes, one per physical core
+  Requested 1.5 GB memory per action, 15.69 GB available: limiting max parallel actions to 10
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for Lockdown (source file added)
+UHT compiled-in object format Default
+Building Lockdown...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 10 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 22.9 GB/28.31 GB committed
+  UBA Storage capacity 40 GB
+[1/10] Compile [x64] Module.Lockdown.1.cpp
+[2/10] Compile [x64] Module.Lockdown.2.cpp
+[3/10] Compile [x64] Module.Lockdown.3.cpp
+[4/10] Compile [x64] Module.Lockdown.4.cpp
+[5/10] Compile [x64] Module.Lockdown.5.cpp
+[6/10] Compile [x64] Module.Lockdown.6.cpp
+[7/10] Compile [x64] Module.Lockdown.7.cpp
+[8/10] Compile [x64] Module.Lockdown.8.cpp
+[9/10] Link [x64] Lockdown.exe
+[10/10] WriteMetadata Lockdown.target [NoUba]
+
+Total time in Unreal Build Accelerator local executor: 119.94 seconds
+Output binary: D:\Unreal Projects\Lockdown\Binaries\Win64\Lockdown.exe
+
+Result: Succeeded
+Total execution time: 125.57 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 17.7kb

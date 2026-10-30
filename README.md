@@ -13,6 +13,10 @@ withdrawal after remote takeover. Official catalog supply and shared book quotas
 endpoints; work and living-world behavior remain in progress. See the
 [official supply review](docs/v09/B92_SUPPLY.md).
 
+The [deposit increment](docs/v09/B92_DEPOSITS.md) adds finite automatic gathering
+at nine POIs, with six-second progress, durable Stop and one canonical charge
+per item. Prepared Survey and earned work/Charter progression remain open.
+
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,
 144 building blocks, 24 spawn pads and native navigation evidence. B90's spatial

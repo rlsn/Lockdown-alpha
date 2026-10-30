@@ -1,0 +1,19 @@
+{
+	"completed": true,
+	"accepted": true,
+	"gold": "0",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": false,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "5F52D25E417DB7B964421784BD022B67",
+			"kind": 4
+		}
+	]
+}

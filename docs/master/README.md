@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 25 · 30 October 2026 · Long-term product and design reference
+Revision 26 · 30 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -52,6 +52,12 @@ The [official supply increment](../v09/B92_SUPPLY.md) connects paid catalog good
 and tiered books to authored supply/trainer/archive endpoints. Circle-III stock
 belongs to the whole match, with two purchases per definition. Normal earnings,
 learning and useful build acquisition still need connected progression evidence.
+
+The [finite deposit increment](../v09/B92_DEPOSITS.md) adds automatic eligible
+six-second extraction at nine resource POIs. Stop must remain effective while
+standing there; leaving/re-entering restores automatic eligibility. All54 charges
+join the canonical item ledger. Prepared Survey and earned progression remain
+separate work.
 
 ## Reading paths
 

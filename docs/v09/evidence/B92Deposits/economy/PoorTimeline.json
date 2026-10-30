@@ -1,0 +1,74 @@
+{
+	"events": [
+		{
+			"at": 180,
+			"row": 0,
+			"status": "InsufficientCash",
+			"receipt": "00000000000000000000000000000000",
+			"item": "00000000000000000000000000000000"
+		},
+		{
+			"at": 180,
+			"row": 1,
+			"status": "StockFull",
+			"receipt": "00000000000000000000000000000000",
+			"item": "00000000000000000000000000000000"
+		},
+		{
+			"at": 180,
+			"row": 2,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000100000003",
+			"item": "00071887480215A9E6139B851C3818BB"
+		},
+		{
+			"at": 180,
+			"row": 3,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000100000004",
+			"item": "0387C792407FF4EFA84E4EA1A75EBAAD"
+		},
+		{
+			"at": 180,
+			"row": 4,
+			"status": "Empty",
+			"receipt": "00000000000000000000000000000000",
+			"item": "00000000000000000000000000000000"
+		},
+		{
+			"at": 360,
+			"row": 0,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000200000001",
+			"item": "6550AED743AE8E26E8CB679304C3B733"
+		},
+		{
+			"at": 360,
+			"row": 1,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000200000002",
+			"item": "6871D385484E67C10266678E8A2EEE01"
+		},
+		{
+			"at": 360,
+			"row": 2,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000200000003",
+			"item": "00818D0F49A2A55B9704C1A5F0C431A2"
+		},
+		{
+			"at": 360,
+			"row": 3,
+			"status": "Committed",
+			"receipt": "3ACDC33B4D240C1C0000000200000004",
+			"item": "03DCDABC40D56FA0440254A5CE329981"
+		},
+		{
+			"at": 360,
+			"row": 4,
+			"status": "Empty",
+			"receipt": "00000000000000000000000000000000",
+			"item": "00000000000000000000000000000000"
+		}
+	]
+}

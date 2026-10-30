@@ -159,3 +159,5 @@ then begin the channel and its progress display. Reserve or spend at the proper
 authoritative start/commit, rather than charging for the walk. S, a new movement
 order or lost eligibility can end the approach. The target's current observed
 handle, item binding and eligibility must be rechecked on arrival.
+
+Automatic deposit POIs now channel while the body is eligible and stationary. Their [six-second basic extraction](../v09/B92_DEPOSITS.md) needs no button. S cancels without spending and suppresses restart until the player leaves the POI. Progress should explain the commitment; depletion, capacity and restart cues still need human readability review.
