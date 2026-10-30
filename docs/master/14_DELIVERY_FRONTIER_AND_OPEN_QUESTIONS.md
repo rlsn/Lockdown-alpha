@@ -47,13 +47,15 @@ capacity and authenticated ownership remain open.
 
 The [banking extension](../v09/B92_BANK.md) connects the same protected account to all five counters, with rounded deposit burn and fee-free withdrawals. Ordinary work, shared rare supply and full recovery remain separate dependencies.
 
+The [official supply extension](../v09/B92_SUPPLY.md) now connects catalog goods and tiered books to selected endpoints with one global Circle-III budget per definition. Two remote owners exhaust one definition in a funded fixture; normal earnings, learning and multiple distinct Circle-III sale sites remain separate acceptance.
+
 ## Delivery sequence
 
 | Layer | Player-facing outcome | Remaining acceptance |
 | --- | --- | --- |
 | B90 spatial world | Places can be reached through ordinary movement and alternative approaches | Complete at its spatial boundary; retain affected-route regressions |
 | B91 functional environment | Places can be used, concealed within and changed through authoritative sources | Complete at the functional-environment boundary; retain the source, geometry, privacy and conservation regressions |
-| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Shared rare services, finite contracts/deposits/crafting, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
+| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Earned official acquisition/learning, finite contracts/deposits/crafting, earned Witness/Charter, broader remote admission, routines, witnessed local security and legal AI progression |
 | B93 route convergence | Earned preparations produce real capital access, warnings, property risks and a contestable ending | Four full-map routes and exact claim/interruption/deadline behavior |
 | B94 complete-session acceptance | The whole match remains readable, consequential and sustainable over its target duration | Normal 60/75/90-minute scenarios, multiplayer/field/density stress, recorded hardware and human pacing observations |
 

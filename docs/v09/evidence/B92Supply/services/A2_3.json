@@ -1,0 +1,111 @@
+{
+	"completed": true,
+	"accepted": false,
+	"gold": "244",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100006,
+	"duplicate_same": true,
+	"bag_count": 24,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "36",
+	"items": [
+		{
+			"id": "9E16100F41CF7E87846C39976ED34979",
+			"kind": 97
+		},
+		{
+			"id": "BCCC3043493B0E32A6D86486756EE405",
+			"kind": 3
+		},
+		{
+			"id": "FF1562994BB75D27DCC2A5983E821FE5",
+			"kind": 0
+		},
+		{
+			"id": "9CF4610547E53B35DAE13FB9306F7186",
+			"kind": 3
+		},
+		{
+			"id": "1FC36D1C4EB184F9766FBB928E453EB7",
+			"kind": 3
+		},
+		{
+			"id": "E58450C447839CDEC4754492D20E31A3",
+			"kind": 3
+		},
+		{
+			"id": "3B98D9AA4827CD87AD3A889BD1A22778",
+			"kind": 3
+		},
+		{
+			"id": "0479AFD4460A6DDF01B056ADD0141F37",
+			"kind": 3
+		},
+		{
+			"id": "808BB14C44BB64073299E4BDAE5A4B70",
+			"kind": 3
+		},
+		{
+			"id": "182F24E240C3D23036724594FEA4A69B",
+			"kind": 3
+		},
+		{
+			"id": "97D4E92C410E11FBFEF26B80CFA11F54",
+			"kind": 3
+		},
+		{
+			"id": "EF2E067C4859E5043AD7978B825F23FA",
+			"kind": 3
+		},
+		{
+			"id": "EEC2C1C74CCFBE5366627799298C95B2",
+			"kind": 3
+		},
+		{
+			"id": "D945D2DF4735F74B3F73E2A389505ADD",
+			"kind": 3
+		},
+		{
+			"id": "19CB3D2241F89A6C7E75DB8607AC745D",
+			"kind": 3
+		},
+		{
+			"id": "4FA802EF441C5B7010BCA9B16D5E9BD7",
+			"kind": 3
+		},
+		{
+			"id": "9EB42FED4B69F193432F60923D8B074B",
+			"kind": 3
+		},
+		{
+			"id": "0C3984764175E1D3FC37CB9F69532EE2",
+			"kind": 3
+		},
+		{
+			"id": "A5795F264B3F6A52F4911CA553A50880",
+			"kind": 3
+		},
+		{
+			"id": "6A2DFFA24268841E4413298958736AF3",
+			"kind": 3
+		},
+		{
+			"id": "351C2C7449C84E4A7E9B36B16435638A",
+			"kind": 3
+		},
+		{
+			"id": "84814A994747A3418FC50F849D9872A6",
+			"kind": 3
+		},
+		{
+			"id": "3B2431E74EA9E8F100BB9F842DB01136",
+			"kind": 3
+		},
+		{
+			"id": "98023B0F46838AE676E711BDB260CF20",
+			"kind": 3
+		}
+	]
+}

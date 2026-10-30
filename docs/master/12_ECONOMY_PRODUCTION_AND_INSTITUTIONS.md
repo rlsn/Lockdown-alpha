@@ -71,6 +71,21 @@ One physical instance occupies one place: bag/equipment, world/container, market
 
 Banking is physical and quiet, shares one account across counters and burns the deposit fee. Treasury Charter payment may explicitly split wallet and bank. There are no assumed loans, insurance or interest. Peer offers do not create protected gold escrow.
 
+## Official access and shared scarcity
+
+A reliable official source exchanges carried gold for a defined item; it is not
+a funded regional buyer. Distinguish these roles in the service UI. Limited
+stock belongs to the match and definition, not the shop window, body or current
+controller. A new endpoint must expose the same remaining quantity rather than
+initialize another allowance. Reopening, death, trade and return cannot restock it.
+
+The [B92 supply review](../v09/B92_SUPPLY.md) now implements priced catalog goods,
+Circle-I supply, Circle-II training/archive and Circle-III archive purchases.
+Each payment, created instance and quota debit share one receipt. Circle-IV
+retains its unique-world-source boundary. Purchasing a book does not prove that
+its owner can learn or prepare the ability; show the requirements and evaluate
+that next step through ordinary progression.
+
 ## Banking as a risk decision
 
 Banking changes exposure rather than producing wealth. Choosing when to carry

@@ -100,3 +100,5 @@ bags and pools. Remote available-seat takeover is verified separately from
 authenticated reconnect and autonomous life. See [scope and evidence](../v09/B92_SERVICES.md).
 
 Revision 24 connects the same persistent bank account to all five physical market counters. Deposit debits include the rounded fee; withdrawal has no fee or interest. Exact retries retain their original receipt. See [bank scope and evidence](../v09/B92_BANK.md).
+
+Revision 25 connects official catalog goods and tiered books to selected physical endpoints. Global Circle-III quotas are per definition and paid creation is atomic with burn and receipt. Endpoint roles remain explicit; extra shops cannot silently multiply rare supply. See [scope and evidence](../v09/B92_SUPPLY.md).

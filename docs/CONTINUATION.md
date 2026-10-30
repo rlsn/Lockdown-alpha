@@ -1,4 +1,27 @@
-# Active continuation — B92 physical banking
+# Active continuation — B92 official supply and shared books
+
+The [official supply increment](v09/B92_SUPPLY.md), source **4835f7b05e88b9096184e98bad6cca8cb5fa0de5**,
+adds five supply counters, Highfort Circle-II trainer and Scholars Circle-II/III
+archive to the existing LMB/approach/access flow. Priced inherited items and books
+create one canonical physical instance when payment burns; Circle-III additionally
+spends one of two global quota units per definition. No Circle-IV official sales,
+gear/book buyback, XP or starting grant is added. Endpoint roles remain selected;
+Circle-III at multiple distinct sale sites is not yet a validated case.
+Connected52 checks/181 receipts/573 identities close3103gold with zero mint
+and185 burn. Rules59, economy125, four-controller roster37 and both full-unity
+targets pass;207 protected inputs unchanged. Master revision25.
+
+**Next:** finite deposits, physical contracts/crafting, full-map prepared Witness
+and earned zero-kill Charter progression. Exercise learning/preparation of paid
+books and useful build acquisition through normal earnings. Routines/security/
+hostiles, legal contender AI/tier transitions, authenticated reconnect and full
+active-match recovery remain open. B92 remains in progress; `v09_full` closed.
+No new world-interaction keys or physical button holds. The official purchase
+fixture transfers400 existing reserve gold without mint; it does not prove
+normal earnings, affordability, pacing or human acceptance.
+
+## Prior bank checkpoint
+
 
 The [physical bank increment](v09/B92_BANK.md), source **37ad129866053f92ba59c272ae248b373eeed9aa**,
 adds deposit/withdrawal access at all five existing LMB market counters. It uses
