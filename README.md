@@ -3,9 +3,14 @@
 B91 is complete at its functional-environment boundary. B92 now connects 24
 persistent contender seats and 196 role bodies to five physical commodity
 markets and one world/market item ledger. Two remote owners and replacement-seat
-takeover pass connected checks; routines, security, work, bank/rare services and
+takeover pass connected checks; routines, security, work, rare services and
 complete-match acceptance remain open. See the [current service review](docs/v09/B92_SERVICES.md),
 [roster review](docs/v09/B92_ROSTER.md) and [active handoff](docs/CONTINUATION.md).
+
+The [banking extension](docs/v09/B92_BANK.md) now connects one persistent bank
+account to all five counters, including fee-bearing deposit and cross-city
+withdrawal after remote takeover. Shared official stock, work and living-world
+behavior remain in progress.
 
 The full-map work starts from the native v0.8 B86 baseline. B90 adds a
 deterministic 2.4 km terrain/river/bridge/settlement skeleton, 96 stable POIs,

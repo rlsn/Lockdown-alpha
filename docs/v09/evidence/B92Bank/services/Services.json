@@ -1,0 +1,191 @@
+{
+	"stage": "B92",
+	"bank_integration": true,
+	"scope": "remote_takeover_and_five_physical_markets",
+	"complete": true,
+	"full_stage_acceptance": false,
+	"phase": 22,
+	"failures": 0,
+	"checks": [
+		{
+			"case": "Two real remote owning clients admitted to existing seats",
+			"passed": true
+		},
+		{
+			"case": "One ledger covers426 market plus143 finite world goods and24 persistent accounts",
+			"passed": true
+		},
+		{
+			"case": "Two existing common caches supply original Ore; no diagnostic money/items created",
+			"passed": true
+		},
+		{
+			"case": "Remote LMB storage/Open and exact Take transfer two original Ore identities into real bags",
+			"passed": true
+		},
+		{
+			"case": "First zero-wallet contender sells an actual cached Ore for finite Capital cash",
+			"passed": true
+		},
+		{
+			"case": "Other remote contender independently earns from a different finite source",
+			"passed": true
+		},
+		{
+			"case": "Remote duplicate deposit debits3 once, credits2 to persistent bank and burns1",
+			"passed": true
+		},
+		{
+			"case": "Stale bank revision refuses without money movement",
+			"passed": true
+		},
+		{
+			"case": "Zero-credit deposit refuses and another contender has an independent bank",
+			"passed": true
+		},
+		{
+			"case": "Forged price rejects before spending or allocating",
+			"passed": true
+		},
+		{
+			"case": "Stale inventory confirmation rejects without payment",
+			"passed": true
+		},
+		{
+			"case": "Duplicate remote Buy allocates one existing stock identity and returns one receipt",
+			"passed": true
+		},
+		{
+			"case": "Resale preserves original identity and a same-pool cycle loses gold",
+			"passed": true
+		},
+		{
+			"case": "Both remote contenders confirm the same current Capital quote",
+			"passed": true
+		},
+		{
+			"case": "Two real remote purchases serialize to one winner; stale loser keeps funds",
+			"passed": true
+		},
+		{
+			"case": "Remote other-city Open returns no stock or quote outside physical access",
+			"passed": true
+		},
+		{
+			"case": "Actual network disconnect retains the same body, life and wallet under AI control",
+			"passed": true
+		},
+		{
+			"case": "Disconnect preserves exact purchased goods and canonical lineage without a new grant",
+			"passed": true
+		},
+		{
+			"case": "Replacement remote connection takes the available original seat/body/account",
+			"passed": true
+		},
+		{
+			"case": "Replacement client receives input floor and executes an actual ordinary attack on its retained body",
+			"passed": true
+		},
+		{
+			"case": "City fixture transfers two existing cached Ore; no hidden funding or item creation",
+			"passed": true
+		},
+		{
+			"case": "highfort_market: real remote sales pay from this pool",
+			"passed": true
+		},
+		{
+			"case": "Replacement owner withdraws Capital deposit at Highfort exactly once without fee",
+			"passed": true
+		},
+		{
+			"case": "highfort_market: remote duplicate Buy receives one existing stock unit",
+			"passed": true
+		},
+		{
+			"case": "highfort_market: resale returns original item to this same pool",
+			"passed": true
+		},
+		{
+			"case": "City fixture transfers two existing cached Ore; no hidden funding or item creation",
+			"passed": true
+		},
+		{
+			"case": "scholars_market: real remote sales pay from this pool",
+			"passed": true
+		},
+		{
+			"case": "scholars_market: remote duplicate Buy receives one existing stock unit",
+			"passed": true
+		},
+		{
+			"case": "scholars_market: resale returns original item to this same pool",
+			"passed": true
+		},
+		{
+			"case": "City fixture transfers two existing cached Ore; no hidden funding or item creation",
+			"passed": true
+		},
+		{
+			"case": "riverport_market: real remote sales pay from this pool",
+			"passed": true
+		},
+		{
+			"case": "riverport_market: remote duplicate Buy receives one existing stock unit",
+			"passed": true
+		},
+		{
+			"case": "riverport_market: resale returns original item to this same pool",
+			"passed": true
+		},
+		{
+			"case": "City fixture transfers two existing cached Ore; no hidden funding or item creation",
+			"passed": true
+		},
+		{
+			"case": "ironworks_market: real remote sales pay from this pool",
+			"passed": true
+		},
+		{
+			"case": "ironworks_market: remote duplicate Buy receives one existing stock unit",
+			"passed": true
+		},
+		{
+			"case": "ironworks_market: resale returns original item to this same pool",
+			"passed": true
+		},
+		{
+			"case": "Harvest fixture prepares one existing finite Knife without creating another source",
+			"passed": true
+		},
+		{
+			"case": "Remote paid Knife binding and one-confirmation harvest create one canonical Fiber with the original source receipt",
+			"passed": true
+		},
+		{
+			"case": "Consumption fixture transfers one original finite Water Flask",
+			"passed": true
+		},
+		{
+			"case": "One canonical ledger closes bags, containers, markets, source creation, consume and network takeover",
+			"passed": true
+		},
+		{
+			"case": "Paid Water consumption and scheduled institutional sinks conserve every item and gold; no work/life refill",
+			"passed": true
+		},
+		{
+			"case": "Capacity fixture fills the bag from existing cached Fiber; no new goods",
+			"passed": true
+		},
+		{
+			"case": "Real full bag and duplicate confirmation reject before payment or stock movement",
+			"passed": true
+		},
+		{
+			"case": "Final canonical item/gold identity closure after all refusals",
+			"passed": true
+		}
+	]
+}

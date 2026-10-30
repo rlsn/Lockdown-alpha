@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 23 · 30 October 2026 · Long-term product and design reference
+Revision 24 · 30 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -42,9 +42,11 @@ body and development; death/return retain its accounts and finite sources.
 The [remote service increment](../v09/B92_SERVICES.md) connects commodity counters
 to actual bags and finite cash, with one accounting domain for world/container
 goods and market stock. Two remote owners and replacement-seat takeover are
-verified. Role routines, security, autonomous progression, rare/bank/work services
+verified. Role routines, security, autonomous progression, rare/work services
 and authenticated reconnect remain open. Body counts and isolated trading do
 not establish a living-world experience.
+
+The [physical banking increment](../v09/B92_BANK.md) extends the five counters with one persistent bank account. Deposits burn a rounded fee; withdrawals make savings carried and exposed again. Shared official stock and ordinary work/acquisition remain the next economic dependencies.
 
 ## Reading paths
 

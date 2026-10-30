@@ -1,4 +1,25 @@
-# Active continuation — B92 physical services and remote takeover
+# Active continuation — B92 physical banking
+
+The [physical bank increment](v09/B92_BANK.md), source **37ad129866053f92ba59c272ae248b373eeed9aa**,
+adds deposit/withdrawal access at all five existing LMB market counters. It uses
+one persistent bank account and the canonical ledger, exact revision/session
+checks, duplicate receipts and the existing body/quiet/range/sight gates. Deposit
+burns ceil2% of total debit; zero credit rejects; withdrawals have no fee/interest.
+Capital deposit survives actual disconnect/replacement and withdraws at Highfort.
+Connected45 checks and59 rules pass;177 receipts/149 accounts/570 historical
+identities close3287gold, with exactly1 bank-fee burn and zero mint. Both full-
+unity targets pass;207 protected inputs unchanged. Master revision24.
+
+**Next:** shared official rare stock and paid supply/books, then finite deposits,
+contracts/crafting, full-map prepared Witness and an earned zero-kill Charter.
+Routines/security/hostiles, legal contender AI, simulation tiers, authenticated
+reconnect and active-match recovery remain open. B92 remains in progress and
+`v09_full` stays closed. Retain the source/pointer policy; no new interaction key
+or physical button hold. Travel/source preparation in the connected scenario
+remains explicitly diagnostic; no earnings/pacing or human acceptance claim.
+
+## Prior physical service checkpoint
+
 
 The current increment is [remote takeover and physical markets](v09/B92_SERVICES.md),
 native source **66a1c50b46c2adb8988346d163afb46676dd49c8**, with [frozen evidence](v09/evidence/B92Services/README.md).

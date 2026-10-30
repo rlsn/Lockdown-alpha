@@ -98,3 +98,5 @@ one confirmation commits both cash and a real unit. Retries keep the original
 receipt. Source creation and consumption preserve provenance across storage,
 bags and pools. Remote available-seat takeover is verified separately from
 authenticated reconnect and autonomous life. See [scope and evidence](../v09/B92_SERVICES.md).
+
+Revision 24 connects the same persistent bank account to all five physical market counters. Deposit debits include the rounded fee; withdrawal has no fee or interest. Exact retries retain their original receipt. See [bank scope and evidence](../v09/B92_BANK.md).

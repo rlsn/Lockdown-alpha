@@ -71,6 +71,18 @@ One physical instance occupies one place: bag/equipment, world/container, market
 
 Banking is physical and quiet, shares one account across counters and burns the deposit fee. Treasury Charter payment may explicitly split wallet and bank. There are no assumed loans, insurance or interest. Peer offers do not create protected gold escrow.
 
+## Banking as a risk decision
+
+Banking changes exposure rather than producing wealth. Choosing when to carry
+gold, pay the deposit fee or travel to a quiet counter should matter to the
+next purchase and the chance of losing carried money. Small repeated deposits
+pay rounding costs repeatedly; explain the total wallet debit, protected credit
+and fee before confirmation. A withdrawal restores purchasing power to the
+carried wallet and its ordinary risks. Visiting another city must never multiply
+the account or reset its limits. The [B92 banking review](../v09/B92_BANK.md)
+connects this persistent account to actual counter requests; route safety and
+player banking habits still require normal-session observation.
+
 ## Accounting and design evaluation
 
 A market is a physical opportunity. Seeing a public location on the map does
