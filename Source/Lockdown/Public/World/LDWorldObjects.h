@@ -138,6 +138,7 @@ private:
     friend class ALDB91CheckpointProbe;
     friend class ALDB91EncounterProbe;
     friend class ALDB92RosterProbe;
+    friend class ALDB92Economy;
     struct FReceipt{FGuid Id;uint8 Result=0;uint32 Revision=0;FString Why;};
     struct FClient
     {

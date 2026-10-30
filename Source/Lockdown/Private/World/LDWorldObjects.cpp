@@ -1,4 +1,6 @@
 #include "World/LDWorldObjects.h"
+#include "Population/LDB92Roster.h"
+#include "Economy/LDB92Economy.h"
 #include "Framework/LDCommandLiveness.h"
 #include "World/LDB91Forest.h"
 #include "World/LDB91ForestContract.h"
@@ -355,11 +357,13 @@ bool ALDWorldObjects::Conserved(FString& Error) const
         int Locations=0;
         for(auto O:Objects){if(O.IsValid()){Locations+=O->Contents.ContainsByPredicate([&](auto I){return I.Get()==P;});Locations+=O->Physical.Get()==P&&P->State==0&&!P->Holder.IsValid();}}
         if(auto* PC=Cast<ALDPlayerController>(P->Holder.Get())){const auto* Own=M->StateFor(PC);Locations+=Own&&Own->Inventory.Find(P->Identity)!=nullptr;}
+        if(M->Population&&M->Population->Ready&&P->State==1&&P->Holder==M->Population->Economy)
+        {const auto* E=M->Population->Economy.Get();const auto* I=E->Accounting().Item(P->Identity);Locations+=I&&!I->Consumed&&I->Location==P->Institution&&E->Rules().Markets.ContainsByPredicate([&](const auto& Pool){return Pool.Id==P->Institution;});}
         if(Locations!=1){Error=FString::Printf(TEXT("Finite item %s has %d locations"),*Pair.Key.ToString(),Locations);return false;}
     }return true;
 }
 void ALDWorldObjects::RecordConsumption(ALDItem* Item)
-{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);Consumption.Add(Item->Identity,{Item->Kind,Item->Institution,Item->OriginReceipt});}}
+{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);Consumption.Add(Item->Identity,{Item->Kind,Item->Institution,Item->OriginReceipt});}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M&&M->Population&&M->Population->Ready){M->Population->Economy->RecordConsumption(Item);}}
 void ALDWorldObjects::Publish()
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}++ViewRevision;DiscoverDrops();

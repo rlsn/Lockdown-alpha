@@ -23,7 +23,7 @@
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
 
-ALDB92GameMode::ALDB92GameMode(){PlayerControllerClass=ALDB92Controller::StaticClass();}
+ALDB92GameMode::ALDB92GameMode(){PlayerControllerClass=ALDB92Controller::StaticClass();HUDClass=ALDB92HUD::StaticClass();}
 void ALDB92Controller::ClientB92Admission_Implementation(const FLDOwnerState& State,uint32 CombatFloor)
 {ClientLifeReceipt_Implementation(State);RaiseCombatTokenFloor(CombatFloor);}
 ALDB92SeatController::ALDB92SeatController(){bReplicates=false;}
@@ -136,8 +136,8 @@ bool ALDB92Roster::Initialize(FString& Error)
         if(P.Role==ELDB92Role::Civilian){Civilians.Add(P.Id);}if(P.Role==ELDB92Role::Official){M->Combat->StateFor(Body)->ProtectionUntil=MAX_dbl;}
     }
     Economy=GetWorld()->SpawnActor<ALDB92Economy>();if(!Economy){Error=TEXT("Economy allocation failed");Cleanup();return false;}Created.Add(Economy);
-    if(!Economy->Initialize(Match,SeatIds,Civilians,Error)){Economy=nullptr;Cleanup();return false;}
-    Population=MoveTemp(People);Ready=true;Initializing=false;M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
+    if(!Economy->Initialize(Match,SeatIds,Civilians,Error,true)){Economy=nullptr;Cleanup();return false;}
+    Population=MoveTemp(People);Ready=true;Initializing=false;Services=GetWorld()->SpawnActor<ALDB92Services>();if(!Services){Error=TEXT("Service authority allocation failed");return false;}Services->AddTickPrerequisiteActor(this);M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
     UE_LOG(LogTemp,Display,TEXT("LD_B92_ROSTER_READY contenders=24 noncontenders=196 humanCapacity=%d civilianGold=288 routines=not_implemented contenderPolicy=not_implemented"),Limit);
     return Audit(Error);
 }
@@ -148,9 +148,11 @@ bool ALDB92Roster::Transfer(int32 Index,ALDPlayerController* Next,bool Human,FSt
     auto& Seat=Contenders[Index];auto* Old=Previous?Previous:Seat.Controller.Get();const auto* Record=M->Contenders.Find(Seat.Controller);
     if(!Old||!Record||Record->Session!=Seat.Id){Error=TEXT("Persistent seat lost its previous authority record");return false;}
     M->Combat->FlushPastCommand(); // settle accepted past events before cancelling future orders
+    if(!Economy->SynchronizeWorld(Error)){return false;}
     auto* Body=Cast<ALDCharacter>(Old->GetPawn());if(!Body&&Record->State.bActive){Body=Seat.Body.Get();}
     uint32 CombatFloor=Old->CombatTokenFloor();
     if(const auto* S=M->Combat->StateFor(Body)){CombatFloor=FMath::Max(CombatFloor,FMath::Max3(S->LastCoreToken,S->CancelledCoreThrough,FMath::Max(S->AttackToken,S->SkillToken)));}
+    if(Services){Services->Close(Cast<ALDB92Controller>(Old));}
     Old->CancelInterruptibleHolds();if(Old->Navigation){Old->Navigation->Stop();Old->Navigation->ResetLife();}
     if(auto* B91=Cast<ALDB91Controller>(Old))
     {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->Cancel(B91,TEXT("Control changed"));}if(auto* E=ALDEnvironmentDirector::Get(GetWorld())){E->Cancel(B91,TEXT("Control changed"));}}
@@ -163,7 +165,7 @@ bool ALDB92Roster::Transfer(int32 Index,ALDPlayerController* Next,bool Human,FSt
     if(M->Vision){M->Vision->Unregister(Old);}Old->UnPossess();M->Contenders.Remove(Seat.Controller);M->Contenders.Add(Next,MoveTemp(Saved));
     for(TActorIterator<ALDItem> It(GetWorld());It;++It){if(It->Holder==Old){It->Holder=Next;}}
     Seat.Controller=Next;Seat.Human=Human;Seat.Body=Body;
-    if(Body){Next->Possess(Body);Body->bOnlyRelevantToOwner=true;Body->bAlwaysRelevant=false;Body->SetReplicates(Human);}
+    if(Body){Body->bOnlyRelevantToOwner=true;Body->bAlwaysRelevant=false;Body->SetReplicates(Human);Next->Possess(Body);}
     M->SyncOwner(Next);Next->RaiseCombatTokenFloor(CombatFloor);
     CastChecked<ALDB92Controller>(Next)->ClientB92Admission(Next->OwnerState,CombatFloor); // state and input floor precede sequence-bound cargo presentation
     if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->TransferCarrier(Cast<ALDB91Controller>(Old),Cast<ALDB91Controller>(Next))){UE_LOG(LogTemp,Fatal,TEXT("B92 carrier binding invariant failed during control transfer"));}
@@ -205,6 +207,7 @@ bool ALDB92Roster::Audit(FString& Error) const
 }
 bool ALDB92Roster::RecordGold(FName Cause,int64 Mint,int64 Burn,FString& Error)
 {
+    if(Ready&&!Economy->SynchronizeWorld(Error)){return false;}
     if(Ready&&Cause==TEXT("PeerTransfer")&&!Mint&&!Burn)
     {
         auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Cause;
@@ -239,5 +242,5 @@ void ALDB92Roster::Tick(float Delta)
 void ALDB92Roster::EndPlay(const EEndPlayReason::Type Reason)
 {
     Ending=true;for(const auto& S:Contenders){if(S.Body.IsValid()){S.Body->Destroy();}if(S.Controller.IsValid()&&S.Controller->IsA<ALDB92SeatController>()){S.Controller->Destroy();}}
-    for(const auto& P:Population){if(P.Body.IsValid()){P.Body->Destroy();}}if(Economy){Economy->Destroy();}Super::EndPlay(Reason);
+    for(const auto& P:Population){if(P.Body.IsValid()){P.Body->Destroy();}}if(Services){Services->Destroy();}if(Economy){Economy->Destroy();}Super::EndPlay(Reason);
 }

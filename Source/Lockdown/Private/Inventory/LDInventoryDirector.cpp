@@ -4,6 +4,8 @@
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Economy/LDEconomyDirector.h"
+#include "Economy/LDB92Economy.h"
+#include "Population/LDB92Roster.h"
 #include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Framework/LDGameMode.h"
@@ -68,7 +70,9 @@ bool ALDInventoryDirector::Adopt(ALDPlayerController* PC,ALDItem* Item,FName Cre
 }
 void ALDInventoryDirector::Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause)
 {
-    if(!Item||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}if(Item->BindingMask){const auto* C=ULDEquipmentCatalog::Load(O->Build.RulesVersion);const auto* D=C?C->Find(Item->Kind):nullptr;if(!Consume||O->Build.RulesVersion!=8||!D||!D->Consumable){return;}Item->BindingMask=0;}
+    if(!Item||Item->Holder!=PC||Item->State!=1){return;}auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);if(!O){return;}
+    if(Consume){auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M->Population&&M->Population->Ready){FString Why;if(!M->Population->Economy->SynchronizeWorld(Why)){UE_LOG(LogTemp,Fatal,TEXT("B92 pre-consume accounting: %s"),*Why);return;}}}
+    if(Item->BindingMask){const auto* C=ULDEquipmentCatalog::Load(O->Build.RulesVersion);const auto* D=C?C->Find(Item->Kind):nullptr;if(!Consume||O->Build.RulesVersion!=8||!D||!D->Consumable){return;}Item->BindingMask=0;}
     LDInventory::Remove(O->Inventory,Item->Identity);Item->Holder.Reset();Item->State=Consume?2:0;Item->bReserved=false;++Item->Revision;Changed(PC);if(auto* E=GetWorld()->GetAuthGameMode<ALDGameMode>()->Economy.Get()){if(!E->Record(Cause.IsNone()?FName(Consume?TEXT("ItemConsumed"):TEXT("Drop")):Cause,0,0,Consume?TArray<FGuid>{Item->Identity}:TArray<FGuid>{})){++E->AuditFailures;}}if(Consume){if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->RecordConsumption(Item);}Item->Destroy();}
 }
 void ALDInventoryDirector::EndLife(ALDPlayerController* PC,bool Retiring)

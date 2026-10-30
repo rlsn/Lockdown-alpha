@@ -94,3 +94,7 @@
 # Authored grass native evidence retains raw engine output.
 /docs/v09/evidence/B91Grass/**/*.log -whitespace
 /docs/v09/evidence/B91Grass/*.log -whitespace
+
+# Raw remote market/takeover and regression diagnostics.
+/docs/v09/evidence/B92Services/**/*.log -whitespace
+/docs/v09/evidence/B92Services/*.log -whitespace

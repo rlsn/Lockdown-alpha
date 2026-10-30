@@ -2,11 +2,15 @@
 #include "Economy/LDEconomyDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Engine/World.h"
+#include "Population/LDB92Roster.h"
+#include "World/LDWorldObjects.h"
+#include "Framework/LDGameMode.h"
+#include "Framework/LDPlayerController.h"
 
 bool FLDB92Trade::operator==(const FLDB92Trade& B) const
 {
     return Request==B.Request&&Contender==B.Contender&&Item==B.Item&&Market==B.Market&&Kind==B.Kind&&Buy==B.Buy
-        &&QuoteRevision==B.QuoteRevision&&WalletRevision==B.WalletRevision&&ItemRevision==B.ItemRevision&&Price==B.Price;
+        &&QuoteRevision==B.QuoteRevision&&WalletRevision==B.WalletRevision&&ItemRevision==B.ItemRevision&&InventoryRevision==B.InventoryRevision&&Price==B.Price;
 }
 ALDB92Economy::ALDB92Economy(){bReplicates=false;PrimaryActorTick.bCanEverTick=false;}
 void ALDB92Economy::EndPlay(const EEndPlayReason::Type Reason)
@@ -14,7 +18,7 @@ void ALDB92Economy::EndPlay(const EEndPlayReason::Type Reason)
 FName ALDB92Economy::Wallet(FGuid Id){return ALDEconomyDirector::Wallet(Id);}
 FName ALDB92Economy::Bank(FGuid Id){return ALDEconomyDirector::BankAccount(Id);}
 
-bool ALDB92Economy::Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error)
+bool ALDB92Economy::Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error,bool IncludeWorld)
 {
     Error.Reset();auto Fail=[&](const TCHAR* Why){Error=Why;return false;};
     if(!HasAuthority()||Ready||!Match.IsValid()||Contenders.Num()!=24||Civilians.Num()!=96){return Fail(TEXT("B92 requires authority, one fresh match, 24 persistent contender IDs and 96 civilian IDs"));}
@@ -35,14 +39,15 @@ bool ALDB92Economy::Initialize(FGuid Match,const TArray<FGuid>& Contenders,const
     LDEconomy::FLedger Candidate;if(!Candidate.Initialize(Match,Accounts,Budgets,Error)){return false;}
     LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=TEXT("B92MarketStockEndowment");
     TArray<TObjectPtr<ALDItem>> Created;
-    auto Cleanup=[&](){for(auto P:Created){if(P){P->Destroy();}}};
+    auto Cleanup=[&](){for(auto P:Created){if(P&&P->Holder==this){P->Destroy();}}};
     for(const auto& M:C.Markets){for(const auto& G:M.Goods){for(int32 I=0;I<G.Target;++I)
     {
         auto* P=GetWorld()->SpawnActor<ALDItem>();if(!P){Cleanup();return Fail(TEXT("Market stock allocation failed; no accounts or partial endowment published"));}
         Created.Add(P);P->Kind=G.Kind;P->State=1;P->Holder=this;P->Institution=M.Id;P->OriginReceipt=T.Id;
         LDEconomy::FItemDelta D;D.Id=P->Identity;D.Kind=G.Kind;D.Op=LDEconomy::EItemOp::Create;D.To=M.Id;T.Items.Add(D);
     }}}
-    if(!Candidate.Commit(T,Error)||!Candidate.Reconcile(Error)){Cleanup();return false;}
+    FullWorld=IncludeWorld;
+    if(!Candidate.Commit(T,Error)||(FullWorld&&!ImportWorld(Candidate,Created,Error))||!Candidate.Reconcile(Error)){Cleanup();FullWorld=false;return false;}
     Catalog=MoveTemp(C);Ledger=MoveTemp(Candidate);Custody=MoveTemp(Created);Seats.Reset();for(FGuid Id:Contenders){Seats.Add(Id);}
     for(const auto& M:Catalog.Markets){MarketRevisions.Add(M.Id,1);}Schedule=FGuid::NewGuid();Ready=true;
     UE_LOG(LogTemp,Display,TEXT("LD_B92_ECONOMY_INITIALIZED gold=%lld items=%d contenders=%d civilianAccounts=%d nativeServiceAdmission=pending"),Ledger.TotalGold(),Custody.Num(),Seats.Num(),Civilians.Num());
@@ -77,7 +82,10 @@ bool ALDB92Economy::Trade(const FLDB92Trade& R,FGuid& Received,FString& Error)
     if(!HasAuthority()||!Ready||!R.Request.IsValid()||!Seats.Contains(R.Contender)){return Fail(TEXT("Trade requires an admitted persistent contender and authority"));}
     if(const auto* Old=Replays.Find(R.Request)){if(!(Old->Request==R)){return Fail(TEXT("Receipt reused with different terms"));}Received=Old->Received;return true;}
     if(Closed||Ledger.Receipt(R.Request)){return Fail(TEXT("Match closed or receipt already belongs to another event"));}
-    if(!Audit(Error)){return false;}
+    if(!SynchronizeWorld(Error)||!Audit(Error)){return false;}
+    auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();ALDPlayerController* Buyer=nullptr;FLDOwnerState* BuyerState=nullptr;
+    if(FullWorld&&M&&M->Population){for(const auto& Seat:M->Population->Seats()){if(Seat.Id==R.Contender){Buyer=Seat.Controller.Get();break;}}BuyerState=M->StateFor(Buyer);}
+    if(FullWorld&&(!Buyer||!BuyerState||!BuyerState->bActive||BuyerState->Inventory.Revision!=R.InventoryRevision)){return Fail(TEXT("BuyerState inventory changed"));}
     const auto Q=Quote(R.Market);const auto* Offer=Q.Goods.FindByPredicate([&](const auto& G){return G.Kind==R.Kind;});
     const FName W=Wallet(R.Contender);const auto* A=Ledger.Account(W);const auto* Market=Ledger.Account(R.Market);
     if(!Offer||!Q.Revision||Q.Revision!=R.QuoteRevision||R.Price!=(R.Buy?Offer->Ask:Offer->Bid)||!A||!Market||A->Revision!=R.WalletRevision)
@@ -92,16 +100,24 @@ bool ALDB92Economy::Trade(const FLDB92Trade& R,FGuid& Received,FString& Error)
     else
     {
         for(auto P:Custody){if(P&&P->Identity==R.Item){Physical=P;break;}}
-        if(!Physical||Physical->Kind!=R.Kind||Physical->State!=1||Physical->Holder!=this||Physical->Institution!=W||Physical->Revision!=R.ItemRevision||Physical->bReserved||Physical->BindingMask
+        if(!Physical||Physical->Kind!=R.Kind||Physical->State!=1||(FullWorld?Physical->Holder!=Buyer:Physical->Holder!=this||Physical->Institution!=W)||Physical->Revision!=R.ItemRevision||Physical->bReserved||Physical->BindingMask
             ||Offer->Stock>=Offer->Cap||Market->Gold<R.Price){return Fail(TEXT("Sell needs exact available owned commodity, stock capacity and funded market"));}
     }
+    if(FullWorld&&R.Buy&&!LDInventory::Fits(BuyerState->Inventory,BuyerState->Build,{}, {R.Kind},&Error)){return false;}
     const auto* I=Ledger.Item(Physical->Identity);
     if(!I||I->Consumed||I->Location!=(R.Buy?R.Market:W)||Physical->Revision==MAX_uint32){return Fail(TEXT("Stock lineage or physical revision changed"));}
     LDEconomy::FTransaction T;T.Id=R.Request;T.Cause=R.Buy?TEXT("B92MarketBuy"):TEXT("B92MarketSell");
     T.Gold={{W,A->Revision,R.Buy?-int64(R.Price):int64(R.Price)},{R.Market,Market->Revision,R.Buy?int64(R.Price):-int64(R.Price)}};
     LDEconomy::FItemDelta D;D.Id=Physical->Identity;D.Kind=Physical->Kind;D.Op=LDEconomy::EItemOp::Transfer;D.Expected=I->Revision;D.From=I->Location;D.To=R.Buy?W:R.Market;T.Items.Add(D);
     if(!Ledger.Commit(T,Error)){return false;}
-    Physical->Institution=D.To;++Physical->Revision;++MarketRevisions.FindChecked(R.Market);Received=R.Buy?Physical->Identity:FGuid();Replays.Add(R.Request,{R,Received});return true;
+    Physical->Institution=D.To;++Physical->Revision;
+    if(FullWorld)
+    {
+        if(R.Buy){uint8 Slot=0;while(BuyerState->Inventory.Items.ContainsByPredicate([&](const auto& X){return X.Slot==Slot;})){++Slot;}Physical->Holder=Buyer;Physical->Institution=NAME_None;Physical->Slot=Slot;FLDInventoryItem Entry;Physical->Project(Entry);BuyerState->Inventory.Items.Add(Entry);++BuyerState->Inventory.Revision;}
+        else{LDInventory::Remove(BuyerState->Inventory,Physical->Identity);Physical->Holder=this;Physical->Slot=0;}
+        BuyerState->Gold=Ledger.Account(W)->Gold;M->Inventory->Changed(Buyer);
+    }
+    ++MarketRevisions.FindChecked(R.Market);Received=R.Buy?Physical->Identity:FGuid();Replays.Add(R.Request,{R,Received});return true;
 }
 bool ALDB92Economy::ApplyInstitution(int32 Tick,int32 Row,FString& Error)
 {
@@ -124,13 +140,13 @@ bool ALDB92Economy::ApplyInstitution(int32 Tick,int32 Row,FString& Error)
     {P=Items[0];const auto* I=Ledger.Item(P->Identity);if(!I||I->Consumed){Error=TEXT("Consumed stock lacks lineage");return false;}D.Id=P->Identity;D.Op=LDEconomy::EItemOp::Consume;D.Expected=I->Revision;D.From=Market;}
     T.Items.Add(D);if(!Ledger.Commit(T,Error)){if(Rule.Producer){P->Destroy();}return false;}
     if(Rule.Producer){P->Holder=this;P->Institution=Market;P->State=1;P->OriginReceipt=T.Id;Custody.Add(P);}
-    else{Custody.Remove(P);P->State=2;P->Holder.Reset();P->Destroy();}
+    else{Custody.Remove(P);P->State=2;P->Holder.Reset();if(FullWorld){ALDWorldObjects::Get(GetWorld())->RecordConsumption(P);}P->Destroy();}
     ++MarketRevisions.FindChecked(Market);Event.Status=TEXT("Committed");Event.Receipt=T.Id;Event.Item=P->Identity;Events.Add(Event);return true;
 }
 bool ALDB92Economy::Sample(double Elapsed,FString& Error)
 {
     Error.Reset();if(!HasAuthority()||!Ready||!FMath::IsFinite(Elapsed)||Elapsed<LastSample){Error=TEXT("Institution clock must be authoritative, finite and monotonic");return false;}
-    if(Closed){return true;}if(!Audit(Error)){return false;}LastSample=Elapsed;
+    if(Closed){return true;}if(!SynchronizeWorld(Error)||!Audit(Error)){return false;}LastSample=Elapsed;
     if(Elapsed>=Catalog.Duration){Closed=true;return true;}
     while(Cursor<Catalog.InstitutionTimes.Num()&&Elapsed>=Catalog.InstitutionTimes[Cursor])
     {
@@ -149,7 +165,7 @@ bool ALDB92Economy::Audit(FString& Error) const
     for(auto P:Custody)
     {
         const auto* I=IsValid(P)?Ledger.Item(P->Identity):nullptr;
-        if(!I||I->Consumed||Seen.Contains(P->Identity)||P->State!=1||P->Holder!=this||P->Institution!=I->Location||P->Kind!=I->Kind||P->OriginReceipt!=I->Origin||P->ParentIds!=I->Parents||P->Quality!=I->Quality||uint8(P->Skill)!=I->Skill)
+        if(!I||I->Consumed||Seen.Contains(P->Identity)||(FullWorld?PhysicalLocation(P,Error)!=I->Location:P->State!=1||P->Holder!=this||P->Institution!=I->Location)||P->Kind!=I->Kind||P->OriginReceipt!=I->Origin||P->ParentIds!=I->Parents||P->Quality!=I->Quality||uint8(P->Skill)!=I->Skill)
         {Error=TEXT("B92 physical custody/lineage mismatch");return false;}Seen.Add(P->Identity);
     }
     int32 Live=0;for(const auto& Pair:Ledger.ItemRecords()){if(!Pair.Value.Consumed){++Live;}}

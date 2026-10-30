@@ -24,6 +24,7 @@ void ALDB91Controller::PointerOrder(bool Right,FGuid Object,FGuid Door,FVector P
 {
     if(!CanWorldCommand()){return;}const auto* V=ObjectView.FindByPredicate([&](const auto& E){return E.Handle==Object;});
     if(!Right&&(ArmedSource.IsValid()||BasicAttackArmed)){ConfirmSource(Object,Point);return;}
+    if(!Right&&!IsTargeting()&&PointerService(Point)){return;}
     if(!Right){SelectedObject=Object;if(!V||!(V->Kind==ELDObjectKind::Chest||V->Kind==ELDObjectKind::Crate||V->Kind==ELDObjectKind::Barrel||V->Kind==ELDObjectKind::Furniture)){return;}}
     StopSourceOrder();
     if(V)

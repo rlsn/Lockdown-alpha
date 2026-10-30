@@ -22,7 +22,7 @@ struct FLDB92Trade
     ELDItemKind Kind=ELDItemKind::Fiber;
     bool Buy=true;
     uint64 QuoteRevision=0;
-    uint32 WalletRevision=0,ItemRevision=0;
+    uint32 WalletRevision=0,ItemRevision=0,InventoryRevision=0;
     int32 Price=0;
     bool operator==(const FLDB92Trade& B) const;
 };
@@ -42,13 +42,16 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     // IDs are supplied by the eventual roster authority. No identity is inferred
     // from a controller count, body respawn, or the selected human/AI split.
-    bool Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error);
+    bool Initialize(FGuid Match,const TArray<FGuid>& Contenders,const TArray<FGuid>& Civilians,FString& Error,bool IncludeWorld=false);
     FLDB92MarketQuote Quote(FName Market) const;
     bool Trade(const FLDB92Trade& Request,FGuid& Received,FString& Error);
     // Called by one authority clock, never by clients. Missed intervals are
     // discarded rather than compressed into a production burst on wake/reload.
     bool Sample(double Elapsed,FString& Error);
     bool Audit(FString& Error) const;
+    bool SynchronizeWorld(FString& Error);
+    void RecordConsumption(class ALDItem* Item);
+    bool HasWorldLedger() const {return FullWorld;}
     const LDEconomy::FLedger& Accounting() const {return Ledger;}
     const LDEconomy::FCatalog& Rules() const {return Catalog;}
     const TArray<FLDB92InstitutionEvent>& Timeline() const {return Events;}
@@ -58,7 +61,13 @@ private:
     friend class ALDB92EconomyProbe;
     friend class ALDB92Roster;
     friend class ALDB92RosterProbe;
+    friend class ALDB92Services;
+    friend class ALDB92ServicesProbe;
     bool Ready=false,Closed=false;
+    bool FullWorld=false;
+    TSet<FGuid> ConsumedWorld;
+    FName PhysicalLocation(const ALDItem* Item,FString& Error) const;
+    bool ImportWorld(LDEconomy::FLedger& Candidate,TArray<TObjectPtr<ALDItem>>& Items,FString& Error);
     int32 Cursor=0;
     double LastSample=0;
     FGuid Schedule;

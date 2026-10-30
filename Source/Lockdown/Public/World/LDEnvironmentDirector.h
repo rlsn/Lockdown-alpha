@@ -157,6 +157,7 @@ public:
     virtual void PlayerTick(float Delta) override;
     virtual void SetupInputComponent() override;
     virtual void CancelInterruptibleHolds() override;
+    virtual bool PointerService(FVector Point) {return false;}
     UFUNCTION(Client,Reliable) void ClientB91Channel(FLDB91Channel Progress,bool Active);
     FLDB91Channel Channel;
     bool ChannelActive=false;

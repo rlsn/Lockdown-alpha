@@ -24,9 +24,16 @@ def check(root):
     verify(root / 'Ledger.json')
     ledger = json.loads((root / 'Ledger.json').read_text(encoding='utf-8-sig'))
     assert (int(ledger['start']), int(ledger['minted']), int(ledger['burned']), int(ledger['end'])) == (3288, 0, 3, 3285)
-    assert len(ledger['accounts']) == 149 and len(ledger['items']) == 426
-    assert len(ledger['receipts']) == 5
-    assert [r['cause'] for r in ledger['receipts']] == ['B92MarketStockEndowment', 'DiagnosticFixtureTransfer', 'PeerTransfer', 'PeerTransfer', 'DeathTax']
+    assert len(ledger['accounts']) == 149
+    causes = Counter(r['cause'] for r in ledger['receipts'])
+    if causes['B92WorldEndowment']:
+        assert len(ledger['items']) == 569 and causes['B92WorldEndowment'] == 143
+        assert causes == {'B92MarketStockEndowment': 1, 'B92WorldEndowment': 143,
+                          'DiagnosticFixtureTransfer': 1, 'PeerTransfer': 2,
+                          'DeathTax': 1, 'B92WorldProjection': 2}
+    else:  # Frozen pre-integration authority evidence remains independently checkable.
+        assert len(ledger['items']) == 426 and len(ledger['receipts']) == 5
+        assert [r['cause'] for r in ledger['receipts']] == ['B92MarketStockEndowment', 'DiagnosticFixtureTransfer', 'PeerTransfer', 'PeerTransfer', 'DeathTax']
     assert all(not i['consumed'] for i in ledger['items'])
     assert all(b['initial'] == b['remaining'] for b in ledger['budgets'])
     print(f'PASS B92 native roster: {len(data["checks"])} checks, {humans} human-controller fixtures, {24-humans} AI seats, 196 role bodies; no autonomous routine/policy or remote transport claim')
