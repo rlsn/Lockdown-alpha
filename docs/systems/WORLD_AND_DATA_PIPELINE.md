@@ -89,3 +89,7 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 `RunB91Network.ps1` 等既有场景按需覆盖。
 `RunB91Completion.ps1` 使用当前运行结果汇总，不依赖冻结文档档案。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
+
+工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。
+`VerifyCleanCheckout.ps1` 通过 `git lfs env` 的 `LocalMediaDir` 定位实际缓存，
+复制到隔离检出后再验证；这与从远端下载验证是不同的边界。

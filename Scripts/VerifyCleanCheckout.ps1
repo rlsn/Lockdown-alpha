@@ -14,8 +14,13 @@ try {
 } finally {$env:GIT_LFS_SKIP_SMUDGE=$previousSmudge}
 # This lane deliberately hydrates binary content from the audited local LFS
 # object cache; this verifies checkout/build reproducibility, not remote LFS delivery.
-$objects=& git -C $root rev-parse --git-path lfs/objects
+$lfsEnvironment=& git -C $root lfs env
+if($LASTEXITCODE -ne 0){throw 'Cannot discover the Git LFS object cache'}
+$mediaDirectories=@($lfsEnvironment | Where-Object {$_ -like 'LocalMediaDir=*'})
+if($mediaDirectories.Count -ne 1){throw 'Git LFS did not report one LocalMediaDir'}
+$objects=$mediaDirectories[0].Substring('LocalMediaDir='.Length)
 if(-not [IO.Path]::IsPathRooted($objects)){$objects=Join-Path $root $objects}
+if(-not(Test-Path -LiteralPath $objects -PathType Container)){throw 'Git LFS object cache is missing; hydrate the source checkout first'}
 $targetLfs=Join-Path $checkout '.git/lfs'
 $targetObjects=Join-Path $targetLfs 'objects'
 # Git LFS may already have created the empty objects directory during clone.
