@@ -23,7 +23,9 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         Parts.Add(Part);
         if(Index==7){Part->SetVisibility(false);Part->SetCastShadow(false);}
     }
+    auto* Pack=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CosmeticSealedPack"));Pack->SetupAttachment(this);Pack->SetStaticMesh(Cube.Object);Pack->SetRelativeLocation(FVector(-24,0,5));Pack->SetRelativeScale3D(FVector(.25,.3,.32));Pack->SetCollisionEnabled(ECollisionEnabled::NoCollision);Pack->SetCanEverAffectNavigation(false);Pack->SetVisibility(false);Pack->SetHiddenInGame(true);Parts.Add(Pack);
 }
+void ULDHumanoidVisualComponent::SetSealedCargo(bool Visible){Parts[8]->SetVisibility(Visible);Parts[8]->SetHiddenInGame(!Visible);}
 
 void ULDHumanoidVisualComponent::OnRegister()
 {

@@ -102,7 +102,10 @@ void ULDCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds,const F
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
     if(GetWorld()) { if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>();Surface&&Surface->Enabled())
-    { const auto* C=Surface->Contact(Cast<ALDCharacter>(CharacterOwner)); return Super::GetMaxSpeed()*(1-(C?C->State.SurfaceSlow:0)/100.f); } }
+    { const auto* C=Surface->Contact(Cast<ALDCharacter>(CharacterOwner));
+      if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsPopulationProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
+      {auto* B=Cast<ALDCharacter>(CharacterOwner);const auto* S=M->Combat?M->Combat->StateFor(B):nullptr;if(!S||!M->Combat->Allows(B,LDTactical::EAction::Move)){return 0;}const int64 At=LDTactical::Milliseconds(GetWorld()->GetTimeSeconds());int32 Slow=C?C->State.SurfaceSlow:0;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>At){Slow=FMath::Max(Slow,T.Magnitude);}}return Super::GetMaxSpeed()*FMath::Min(S->Tactical.Has(LDTactical::EStatus::Hex,At)?.5f:1.f,1-FMath::Clamp(Slow,0,60)/100.f);}
+      return Super::GetMaxSpeed()*(1-(C?C->State.SurfaceSlow:0)/100.f); } }
     // Ordinary native NPCs use the same root/stun/hex movement contract.
     if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsTacticalProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
     {if(const auto* S=M->Combat?M->Combat->StateFor(Cast<ALDCharacter>(CharacterOwner)):nullptr){const uint16 Tags=S->Tactical.Mask(LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));if(Tags&((1<<0)|(1<<3))){return 0;}int32 Slow=S->Tactical.SurfaceSlow;for(const auto& T:S->Tactical.Statuses){if(T.Kind==LDTactical::EStatus::Slow&&T.Until>LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())){Slow=FMath::Max(Slow,T.Magnitude);}}return Super::GetMaxSpeed()*FMath::Min((Tags&(1<<5))?.5f:1.f,1-FMath::Clamp(Slow,0,60)/100.f);}}

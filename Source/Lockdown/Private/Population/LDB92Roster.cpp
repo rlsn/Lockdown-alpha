@@ -1,4 +1,5 @@
 #include "Population/LDB92Roster.h"
+#include "Population/LDB92Routines.h"
 #include "Economy/LDB92Deposits.h"
 #include "Economy/LDB92Witness.h"
 #include "Population/LDB92PopulationContract.h"
@@ -139,8 +140,8 @@ bool ALDB92Roster::Initialize(FString& Error)
     }
     Economy=GetWorld()->SpawnActor<ALDB92Economy>();if(!Economy){Error=TEXT("Economy allocation failed");Cleanup();return false;}Created.Add(Economy);
     if(!Economy->Initialize(Match,SeatIds,Civilians,Error,true)){Economy=nullptr;Cleanup();return false;}
-    Population=MoveTemp(People);Ready=true;Initializing=false;Services=GetWorld()->SpawnActor<ALDB92Services>();if(!Services){Error=TEXT("Service authority allocation failed");return false;}Services->AddTickPrerequisiteActor(this);Deposits=GetWorld()->SpawnActor<ALDB92Deposits>();if(!Deposits){Error=TEXT("Deposit authority allocation failed");return false;}Deposits->AddTickPrerequisiteActor(this);Witness=GetWorld()->SpawnActor<ALDB92Witness>();if(!Witness){Error=TEXT("Witness authority allocation failed");return false;}Witness->AddTickPrerequisiteActor(this);M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
-    UE_LOG(LogTemp,Display,TEXT("LD_B92_ROSTER_READY contenders=24 noncontenders=196 humanCapacity=%d civilianGold=288 routines=not_implemented contenderPolicy=not_implemented"),Limit);
+    Population=MoveTemp(People);Ready=true;Initializing=false;Services=GetWorld()->SpawnActor<ALDB92Services>();if(!Services){Error=TEXT("Service authority allocation failed");return false;}Services->AddTickPrerequisiteActor(this);Deposits=GetWorld()->SpawnActor<ALDB92Deposits>();if(!Deposits){Error=TEXT("Deposit authority allocation failed");return false;}Deposits->AddTickPrerequisiteActor(this);Witness=GetWorld()->SpawnActor<ALDB92Witness>();if(!Witness){Error=TEXT("Witness authority allocation failed");return false;}Witness->AddTickPrerequisiteActor(this);Routines=GetWorld()->SpawnActor<ALDB92Routines>();if(!Routines||!Routines->Initialize(this,Error)){return false;}Routines->AddTickPrerequisiteActor(this);M->MatchStartedAt=GetWorld()->GetTimeSeconds();M->GetGameState<ALDGameState>()->MatchDeadline=M->StartedAt()+5400;
+    UE_LOG(LogTemp,Display,TEXT("LD_B92_ROSTER_READY contenders=24 noncontenders=196 humanCapacity=%d civilianGold=288 routines=128_native_schedules contenderPolicy=not_implemented"),Limit);
     return Audit(Error);
 }
 
@@ -205,8 +206,12 @@ bool ALDB92Roster::Audit(FString& Error) const
         Ids.Add(S.Id);if(B){Bodies.Add(B);}if(!Economy->Accounting().Account(ALDB92Economy::Wallet(S.Id))||!Economy->Accounting().Account(ALDB92Economy::Bank(S.Id))){Error=TEXT("Seat account missing");return false;}
         if(R->State.Gold!=Economy->Accounting().Account(ALDB92Economy::Wallet(S.Id))->Gold||R->State.BankGold!=Economy->Accounting().Account(ALDB92Economy::Bank(S.Id))->Gold){Error=TEXT("Seat balances differ from persistent accounts");return false;}
     }
-    for(const auto& P:Population){auto* B=P.Body.Get();if(!P.Id.IsValid()||Ids.Contains(P.Id)||!B||Bodies.Contains(B)||B->GetIsReplicated()||B->IsA<ALDResident>()){Error=TEXT("Role body/source invariant failed");return false;}Ids.Add(P.Id);Bodies.Add(B);}
-    return true;
+    for(const auto& P:Population){auto* B=P.Body.Get();if(!P.Id.IsValid()||Ids.Contains(P.Id)||(!P.Defeated&&(!B||Bodies.Contains(B)||B->GetIsReplicated()||B->IsA<ALDResident>()))){Error=TEXT("Role body/source invariant failed");return false;}Ids.Add(P.Id);if(B&&!P.Defeated){Bodies.Add(B);}}
+    return !Routines||Routines->Audit(Error);
+}
+bool ALDB92Roster::RoleDied(ALDCharacter* Body)
+{
+    for(auto& P:Population){if(P.Body==Body&&!P.Defeated){P.Defeated=true;if(Routines){Routines->RoleDied(Body);}return true;}}return false;
 }
 bool ALDB92Roster::RecordGold(FName Cause,int64 Mint,int64 Burn,FString& Error)
 {
@@ -244,6 +249,6 @@ void ALDB92Roster::Tick(float Delta)
 }
 void ALDB92Roster::EndPlay(const EEndPlayReason::Type Reason)
 {
-    Ending=true;for(const auto& S:Contenders){if(S.Body.IsValid()){S.Body->Destroy();}if(S.Controller.IsValid()&&S.Controller->IsA<ALDB92SeatController>()){S.Controller->Destroy();}}
+    Ending=true;if(Routines){Routines->Destroy();}for(const auto& S:Contenders){if(S.Body.IsValid()){S.Body->Destroy();}if(S.Controller.IsValid()&&S.Controller->IsA<ALDB92SeatController>()){S.Controller->Destroy();}}
     for(const auto& P:Population){if(P.Body.IsValid()){P.Body->Destroy();}}if(Witness){Witness->Destroy();}if(Deposits){Deposits->Destroy();}if(Services){Services->Destroy();}if(Economy){Economy->Destroy();}Super::EndPlay(Reason);
 }

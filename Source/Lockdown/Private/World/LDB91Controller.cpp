@@ -43,7 +43,7 @@ void ALDB91Controller::ClientEnvironmentView_Implementation(uint32 Match,uint32 
             auto* Glow=NewObject<UPointLightComponent>(A);A->AddInstanceComponent(Glow);Glow->SetupAttachment(Visual);Glow->SetMobility(EComponentMobility::Movable);Glow->SetCastShadows(false);Glow->SetIntensity(1500);Glow->SetLightColor(FLinearColor(1.f,.65f,.25f));Glow->RegisterComponent();Glow->SetVisibility(false);
         }
         Visual->SetWorldLocationAndRotation(Entry.Position,FRotator(0,Entry.Facing/65535.*360,0));
-        Visual->ApplyPalette(Entry.Presentation%4);Visual->SetCue(Entry.State);Visual->SetVisibility(true,true);
+        Visual->ApplyPalette(Entry.Presentation%4);Visual->SetCue(Entry.State);Visual->SetVisibility(true,true);Visual->SetSealedCargo(Entry.SealedCargo);
         if(auto* Glow=Visual->GetOwner()->FindComponentByClass<UPointLightComponent>()){Glow->SetAttenuationRadius(Entry.Light==2?800:600);Glow->SetVisibility(Entry.Light==1||Entry.Light==2);}
     }
     for(auto I=BodyViews.CreateIterator();I;++I)
@@ -83,6 +83,7 @@ void ALDB91Controller::PlayerTick(float Delta)
     {View.Reset();for(auto& P:BodyViews){if(P.Value.IsValid()){P.Value->GetOwner()->Destroy();}}BodyViews.Reset();}
     if(Now-ObjectViewAt>.5||OwnerState.Match!=ObjectViewMatch||OwnerState.Life!=ObjectViewLife)
     {ObjectView.Reset();ContainerView.Reset();ContainerHandle.Invalidate();for(auto& P:ObjectProxies){if(P.Value.IsValid()){P.Value->SetObserved(false);}}}
+    for(const auto& Entry:View){if(Entry.PublicDoor.IsNone()){if(auto* Visual=BodyViews.FindRef(Entry.Handle).Get()){Visual->Animate(Entry.Velocity,Delta);}}}
     TickSourceControls();
     if(auto* Body=Cast<ALDCharacter>(GetPawn()))
     {const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);if(Zoom){Body->Zoom(Zoom);}}

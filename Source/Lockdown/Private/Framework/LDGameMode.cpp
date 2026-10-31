@@ -15,6 +15,7 @@
 #include "Tests/LDB92EconomyProbe.h"
 #include "Population/LDB92Roster.h"
 #include "Tests/LDB92RosterProbe.h"
+#include "Tests/LDB92RoutinesProbe.h"
 #include "Tests/LDB92ServicesProbe.h"
 #include "Tests/LDB91TraversalProbe.h"
 #include "Development/LDV08Loadout.h"
@@ -240,9 +241,10 @@ void ALDGameMode::StartPlay()
             Population=GetWorld()->SpawnActor<ALDB92Roster>();
             if(!Population||!Population->Configure(PopulationHumanLimit,Why)){UE_LOG(LogTemp,Fatal,TEXT("B92 roster rejected: %s"),*Why);return;}
             Population->AddTickPrerequisiteActor(Combat);Population->AddTickPrerequisiteActor(Objects);
+            if(FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92RoutinesProbe>();Probe->AddTickPrerequisiteActor(Population);}
             if(FParse::Param(FCommandLine::Get(),TEXT("LDB92RosterProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92RosterProbe>();Probe->AddTickPrerequisiteActor(Population);}
             if(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92ServicesProbe>();Probe->AddTickPrerequisiteActor(Population);}
-            UE_LOG(LogTemp,Display,TEXT("LD_B92_POPULATION_REVIEW 24 persistent seats; role-body admission; autonomous policy/services remain pending"));return;
+            UE_LOG(LogTemp,Display,TEXT("LD_B92_POPULATION_REVIEW 24 persistent seats; physical services and native civilian/traveler schedules; security/contender policy remain pending"));return;
         }
         for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
         {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}

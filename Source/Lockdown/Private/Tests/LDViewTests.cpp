@@ -49,10 +49,10 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
     {++PublicCount;TestTrue(TEXT("Only approved public objective facts"),Public.Contains(It->GetFName()));TestNull(TEXT("No claimant/carrier canonical references"),CastField<FObjectPropertyBase>(*It));}
     TestEqual(TEXT("Public schema complete"),PublicCount,36);
-    const TSet<FName> FullMap={TEXT("Handle"),TEXT("PublicDoor"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("Presentation"),TEXT("Facing"),TEXT("Light")};
+    const TSet<FName> FullMap={TEXT("Handle"),TEXT("PublicDoor"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("Presentation"),TEXT("Facing"),TEXT("Light"),TEXT("Velocity"),TEXT("SealedCargo")};
     int32 FullCount=0;for(TFieldIterator<FProperty> It(FLDEnvironmentViewEntry::StaticStruct());It;++It)
     {++FullCount;TestTrue(TEXT("Full-map view contains only approved observed fields"),FullMap.Contains(It->GetFName()));TestNull(TEXT("Full-map view has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Full-map observed schema complete"),FullCount,8);
+    TestEqual(TEXT("Full-map observed schema complete"),FullCount,10);
     const TSet<FName> Objects={TEXT("Handle"),TEXT("Kind"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("PhysicalRevision"),TEXT("Endpoint")};
     int32 ObjectCount=0;for(TFieldIterator<FProperty> It(FLDObjectView::StaticStruct());It;++It)
     {++ObjectCount;TestTrue(TEXT("World-object view contains only public observed fields"),Objects.Contains(It->GetFName()));TestNull(TEXT("World-object view has no canonical actor reference"),CastField<FObjectPropertyBase>(*It));}

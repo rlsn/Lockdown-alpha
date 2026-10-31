@@ -19,6 +19,7 @@ struct FLDB92Person
     FGuid Id;
     ELDB92Role Role=ELDB92Role::Civilian;
     FVector Home=FVector::ZeroVector;
+    bool Defeated=false;
     TWeakObjectPtr<ALDCharacter> Body;
 };
 
@@ -127,10 +128,12 @@ public:
     FVector StartFor(ALDPlayerController* Controller) const;
     bool Audit(FString& Error) const;
     bool RecordGold(FName Cause,int64 Mint,int64 Burn,FString& Error);
+    bool RoleDied(ALDCharacter* Body);
     UPROPERTY() TObjectPtr<class ALDB92Economy> Economy;
     UPROPERTY() TObjectPtr<ALDB92Services> Services;
     UPROPERTY() TObjectPtr<class ALDB92Deposits> Deposits;
     UPROPERTY() TObjectPtr<class ALDB92Witness> Witness;
+    UPROPERTY() TObjectPtr<class ALDB92Routines> Routines;
 private:
     friend class ALDB92RosterProbe;
     friend class ALDB92ServicesProbe;

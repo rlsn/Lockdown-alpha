@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Population/LDB92Roster.h"
 #include "World/LDEnvironmentDirector.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
@@ -368,6 +369,7 @@ void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
     auto* WorldMode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(auto* P=Cast<ALDWorldPawn>(Body)){if(WorldMode->WorldRuntime&&!WorldMode->WorldRuntime->Defeated(P,Now)){return;}EndContentLife(P);}else if(WorldMode->WorldRuntime){WorldMode->WorldRuntime->PvPKill(Body,Now);}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){if(auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){O->bAidConsent=false;}}
     auto* S=StateFor(Body);if(!S){return;}
+    if(WorldMode->Population){WorldMode->Population->RoleDied(Body);}
     if(ALDCorpse* Corpse=GetWorld()->SpawnActor<ALDCorpse>(Body->GetActorLocation()-FVector(0,0,65),Body->GetActorRotation())){Corpse->Presentation=Body->PresentationKey;}
     if(auto* PC=Cast<ALDPlayerController>(Body->GetController())){GetWorld()->GetAuthGameMode<ALDGameMode>()->EndContenderLife(PC,Now);}
     else if(Body->IsA<ALDResident>()){if(auto* R=GetWorld()->GetAuthGameMode<ALDGameMode>()->Region.Get()){++R->PeacefulDeaths;}auto* W=GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldChecks.Get();Residents.Add({Now+20,S->Home,W?W->WalletId(Body):FGuid(),S->bHasNPCBuild,S->NPCBuild});}

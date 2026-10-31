@@ -39,6 +39,8 @@ struct FLDEnvironmentViewEntry
     UPROPERTY() uint8 Presentation=0;
     UPROPERTY() uint16 Facing=0;
     UPROPERTY() uint8 Light=0; // observed cosmetic cue only; never a sight source
+    UPROPERTY() FVector_NetQuantize10 Velocity=FVector::ZeroVector;
+    UPROPERTY() bool SealedCargo=false; // observed cosmetic pack; no inventory/stock identity
 };
 USTRUCT()
 struct FLDWorldReceipt

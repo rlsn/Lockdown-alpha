@@ -1,4 +1,6 @@
 #include "World/LDEnvironmentDirector.h"
+#include "Population/LDB92Roster.h"
+#include "Population/LDB92Routines.h"
 #include "Framework/LDCommandLiveness.h"
 #include "World/LDB91Forest.h"
 #include "World/LDB91Contract.h"
@@ -260,7 +262,7 @@ void ALDEnvironmentDirector::Publish()
             auto& Id=Observer.Handles.FindOrAdd(A);if(!Id.IsValid()){Id=FGuid::NewGuid();}Observer.Visible.Add(Id);
             FLDEnvironmentViewEntry E;E.Handle=Id;E.Position=A->GetActorLocation();
             if(const auto* D=Cast<ALDEnvironmentDoor>(A)){E.PublicDoor=D->Id;E.Revision=D->Revision;E.State=D->State();}
-            else if(const auto* B=Cast<ALDCharacter>(A)){E.Presentation=B->PresentationKey%4;E.State=M->Combat->CueFor(B);E.Facing=uint16(FRotator::ClampAxis(B->GetActorRotation().Yaw)/360*65535);E.Light=LDPortableTools::LightFor(Cast<ALDPlayerController>(B->GetController()));}
+            else if(const auto* B=Cast<ALDCharacter>(A)){E.Velocity=B->GetVelocity();E.SealedCargo=M->Population&&M->Population->Routines&&M->Population->Routines->SealedCargo(B);E.Presentation=B->PresentationKey%4;E.State=M->Combat->CueFor(B);E.Facing=uint16(FRotator::ClampAxis(B->GetActorRotation().Yaw)/360*65535);E.Light=LDPortableTools::LightFor(Cast<ALDPlayerController>(B->GetController()));}
             Entries.Add(E);
         };
         for(auto D:Doors){if(D.IsValid()){Add(D.Get());}}

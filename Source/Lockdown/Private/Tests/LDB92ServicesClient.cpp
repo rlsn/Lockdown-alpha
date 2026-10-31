@@ -1,4 +1,5 @@
 #include "Population/LDB92Roster.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "World/LDWorldObjects.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Economy/LDB92Deposits.h"
@@ -16,26 +17,26 @@
 void ALDB92Controller::ServerB92ProbeHello_Implementation(uint8 ClientRole)
 {
 #if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))&&ClientRole>=1&&ClientRole<=3){ServicesProbeRole=ClientRole;}
+    if((FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe")))&&ClientRole>=1&&ClientRole<=3){ServicesProbeRole=ClientRole;}
 #endif
 }
 void ALDB92Controller::ServerB92ProbeReport_Implementation(uint8 Task,const FString& Report)
 {
 #if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))&&Report.Len()<12000){ServicesProbeReports.Add(Task,Report);}
+    if((FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe")))&&Report.Len()<12000){ServicesProbeReports.Add(Task,Report);}
 #endif
 }
 void ALDB92Controller::ClientB92ProbeTask_Implementation(uint8 Task,FName POI)
 {
 #if !UE_BUILD_SHIPPING
-    if(!FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))){return;}
+    if(!(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe")))){return;}
     ServicesProbeTask=Task;ServicesProbeStep=0;ServicesProbePOI=POI;ServicesProbeAt=GetWorld()->GetTimeSeconds();ServicesProbeBefore.Reset();for(const auto& I:OwnerState.Inventory.Items){ServicesProbeBefore.Add(I.Id);}
 #endif
 }
 void ALDB92Controller::TickServicesProbe()
 {
 #if !UE_BUILD_SHIPPING
-    if(GetNetMode()!=NM_Client||!FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))||!OwnerState.Match||!GetPawn()){return;}
+    if(GetNetMode()!=NM_Client||!(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe")))||!OwnerState.Match||!GetPawn()){return;}
     FString ProbeLabel;FParse::Value(FCommandLine::Get(),TEXT("B92Role="),ProbeLabel);
     if(!ServicesProbeRole){ServicesProbeRole=ProbeLabel==TEXT("B")?2:ProbeLabel==TEXT("A2")?3:1;ServerB92ProbeHello(ServicesProbeRole);}
     const double Now=GetWorld()->GetTimeSeconds();const uint8 Task=ServicesProbeTask;if(!Task){return;}
@@ -46,6 +47,12 @@ void ALDB92Controller::TickServicesProbe()
         FString Json,Output;FJsonSerializer::Serialize(J,TJsonWriterFactory<>::Create(&Json));FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Output);FFileHelper::SaveStringToFile(Json,*(Output/FString::Printf(TEXT("%s_%d.json"),*ProbeLabel,Task)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ServerB92ProbeReport(Task,Json);ServicesProbeTask=0;
     };
     auto Send=[&](FLDB92MarketOrder R){ServicesProbeSequence=R.Sequence;ServicesProbeSerial=MarketReceiptSerial;ServerB92Order(R);ServicesProbeAt=Now;};
+    if(Task==70||Task==71)
+    {
+        const bool Cargo=View.ContainsByPredicate([](const auto& V){return V.SealedCargo&&FVector(V.Velocity).Size2D()>40;});
+        if(Task==70&&Cargo&&!ServicesProbeStep){if(FParse::Param(FCommandLine::Get(),TEXT("B92Capture"))){FString Out;FParse::Value(FCommandLine::Get(),TEXT("B92Output="),Out);FScreenshotRequest::RequestScreenshot(Out/TEXT("Routines.png"),true,false);}ServicesProbeStep=1;ServicesProbeAt=Now;}
+        if(Task==70&&ServicesProbeStep&&Now-ServicesProbeAt>1){TArray<USceneComponent*> Parts;CastChecked<ALDCharacter>(GetPawn())->Body->GetChildrenComponents(true,Parts);const bool Hidden=Parts.ContainsByPredicate([](const auto* V){return V->GetFName()==TEXT("CosmeticSealedPack")&&!V->ShouldRender();});if(!Hidden){IntentFeedback=TEXT("Cosmetic pack leaked onto an ordinary owner avatar");}Complete(Hidden);}if(Task==71&&Now-ServicesProbeAt>1){Complete(!View.ContainsByPredicate([](const auto& V){return V.SealedCargo;}));}return;
+    }
     if(Task>=51&&Task<=69)
     {
         if(Task==52)

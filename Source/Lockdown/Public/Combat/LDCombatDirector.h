@@ -245,6 +245,7 @@ public:
     uint64 SampleSerial=0;
 private:
     friend class ALDB92RosterProbe;
+    friend class ALDB92RoutinesProbe;
     friend class ALDB92ServicesProbe;
     friend class ALDB82Probe;
     friend class ALDB83Probe;
