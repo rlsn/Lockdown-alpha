@@ -5,7 +5,8 @@ $engine=Resolve-LDEngine $EngineRoot
 $root=Get-LDProjectRoot
 if(& git -C $root status --porcelain){throw 'Commit the checkpoint before verifying a clean clone.'}
 $output=New-LDArtifactDirectory 'CleanCheckout'
-$checkout=Join-Path $output 'Checkout'
+# UBT action paths must also fit when this command runs from a long worktree path.
+$checkout=Join-Path (Join-Path $root 'Artifacts') ('cc-'+[guid]::NewGuid().ToString('N').Substring(0,8))
 $previousSmudge=$env:GIT_LFS_SKIP_SMUDGE
 try {
     $env:GIT_LFS_SKIP_SMUDGE='1'

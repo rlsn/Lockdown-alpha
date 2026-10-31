@@ -93,3 +93,4 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。
 `VerifyCleanCheckout.ps1` 通过 `git lfs env` 的 `LocalMediaDir` 定位实际缓存，
 复制到隔离检出后再验证；这与从远端下载验证是不同的边界。
+验证检出使用 `Artifacts` 下的短目录，避免长工作树路径触发 UBT 的 Windows action 路径长度限制。
