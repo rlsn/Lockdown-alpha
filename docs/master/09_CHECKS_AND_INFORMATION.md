@@ -76,3 +76,9 @@ Requests carry match/life/sequence/revision identities. Duplicate requests retur
 Cooldowns can belong to an owner family and/or a physical instance. Swap, trade, quality, assembly and death preserve the authored endpoints. Effects retaining source-life attribution cannot credit a later life. Due combat and control resolve before same-time claim completion.
 
 Test exact endpoints, overlapping routes, simultaneous pickup/trade, cancelled holds, death/rejoin and stale targets. These are core mechanics, not optional implementation details.
+
+## Routine observation
+
+A moving body's observed velocity and visible sealed pack are public appearance, like facing or an attack pose. Its schedule, source ID, destination, controller type, purse and market relationship remain private. A sealed pack carries no item identity and must not gain a loot glint or pickup prompt. Rendering and observation retire together when the body leaves sight.
+
+Routine reactions read the current public cue at their own perception sample. Caching candidates is an optimization, not permission to carry a hidden or expired attack into a later visible scene. Remember only legally observed danger; a public post may be a flee destination without tracking a hidden guard or attacker.

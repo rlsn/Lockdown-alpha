@@ -1,0 +1,16 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Exact wallet/bank split or balances changed; nothing charged",
+	"accepted": false,
+	"gold": "162",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 0,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "4",
+	"items": []
+}

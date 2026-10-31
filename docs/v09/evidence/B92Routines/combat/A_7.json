@@ -1,0 +1,13 @@
+{
+	"completed": true,
+	"phase": 7,
+	"reason": "Released once; no refund for blocked/missed effect",
+	"body_count": 0,
+	"old_handle_resolved": false,
+	"surface_count": 2,
+	"surface_fields": [
+		"Position",
+		"Revision",
+		"States"
+	]
+}

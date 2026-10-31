@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Witness already recorded; no duplicate reward or receipt",
+	"market_feedback": "Sealed parcel issued; deliver it at the assigned board",
+	"accepted": true,
+	"gold": "85",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "165AA84947370B77F767B4A33482809F",
+			"kind": 98
+		}
+	]
+}

@@ -1,0 +1,29 @@
+{
+	"completed": true,
+	"feedback": "Released once; no refund for blocked/missed effect",
+	"market_feedback": "Official purchase confirmed; price burned",
+	"accepted": true,
+	"gold": "248",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100006,
+	"duplicate_same": true,
+	"bag_count": 3,
+	"has_quote": true,
+	"offers": 19,
+	"quote_revision": "2",
+	"items": [
+		{
+			"id": "6A84C94144E83F91DDDA87B7E851A9F8",
+			"kind": 97
+		},
+		{
+			"id": "B287275B4957EEADA11370A9CEDF9F86",
+			"kind": 3
+		},
+		{
+			"id": "087D0C4E4C771845AAF6348ACB16D385",
+			"kind": 0
+		}
+	]
+}

@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Sealed parcel issued; deliver it at the assigned board",
+	"accepted": true,
+	"gold": "25",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 4,
+	"quote_revision": "4",
+	"items": [
+		{
+			"id": "8F9851B24AD0F0B71A6B548DFBFF3F26",
+			"kind": 98
+		}
+	]
+}

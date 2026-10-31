@@ -1,0 +1,16 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Courier delivered once: +25 gold / +45 XP",
+	"accepted": true,
+	"gold": "25",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 0,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": []
+}

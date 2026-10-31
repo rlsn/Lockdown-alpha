@@ -1,6 +1,6 @@
 # Project Lockdown — living game design
 
-Revision 30 · 30 October 2026 · Long-term product and design reference
+Revision 31 · 31 October 2026 · Long-term product and design reference
 
 Lockdown is a competitive session RPG in a living world, viewed and controlled from above. Ordinary work, exploration, trade, theft and combat develop into a struggle for the Grand Heart. A class gives a starting identity; the player builds their capabilities during the match. Information, preparation and timing let a weaker duelist change the result of a stronger contender's plan.
 
@@ -26,11 +26,13 @@ Right-click handles movement, ordinary pickup and doors. Left-click opens storag
 | --- | --- | --- |
 | B90 spatial world | Connected terrain, routes, settlements and ordinary approaches | Retain affected-route regressions |
 | B91 functional environment | Doors/interiors, finite storage/cargo/tools, foliage/grass, ledges, paid reactions and settled environmental checkpoints | Full active-match account/economy recovery belongs to later integration |
-| B92 population and economy | Persistent seats and role bodies; finite physical services, bank, supply, deposits, work and courier lifecycle; earned Witness and registered Charter transaction route | Natural travel/teaching/pacing, resident/security/hostile behavior, legal autonomous contenders, broad race/admission/recovery stress |
+| B92 population and economy | Persistent seats and role bodies; finite physical services, bank, supply, deposits, work and courier lifecycle; earned Witness and registered Charter transaction route | Natural travel/teaching/pacing, local security/hostile behavior, routine readability, legal autonomous contenders, broad race/admission/recovery stress |
 | B93 convergence | Selected four-route design | Full-map activation, warnings/access and the physical Heart ending |
 | B94 session acceptance | Defined evaluation tasks | Sustained multiplayer, recorded performance, human readability and 60–90-minute pacing |
 
 The [earned Charter review](../v09/B92_CHARTER.md) connects six normal courier channels, actual paid book reading, legal preparation, real crafting/gathering and both procurement proofs to a registered purchase for 100 gold. Travel and protection/quiet setup are staged; three alternative Witness builds are explicit fixtures. It establishes an earned transaction path without establishing a normal session or useful build diversity. Registration does not activate an opening or win the game. B92 remains in progress and `v09_full` remains closed.
+
+The [routine increment](../v09/B92_ROUTINES.md) connects the existing civilian and traveler bodies to native walking, staggered activity and observed flee/resume. Sealed traveler packs are visible logistics scenery, with no loot or market stock. Guard/security, hostile behavior, autonomous contender policy and simulation tiers remain separate dependencies. A moving crowd alone does not establish a believable, sustainable match.
 
 Keep implementation chronology, exact test counts and source hashes in the [delivery frontier](14_DELIVERY_FRONTIER_AND_OPEN_QUESTIONS.md), release reports and [continuation](../CONTINUATION.md). This directory supplies the lasting product model and decision criteria.
 

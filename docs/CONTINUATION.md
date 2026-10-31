@@ -1,4 +1,41 @@
-# Active continuation — B92 earned Witness and registered Charter
+# Active continuation — B92 native civilian/traveler routines
+
+The [routine increment](v09/B92_ROUTINES.md), source **a556ae738f7bb0ccd1a6c6db9bef4ec2d67f1d59**,
+connects96 civilian/32 traveler source bodies to nonreplicated native AI
+controllers and CharacterMovement. Staggered desired activities follow actual
+arrival, so walking may extend the nominal600-second loop. Travelers dwell45s
+and walk ordered strategic route points in both directions. Failed paths retry;
+there is no NPC schedule teleport, economic output or replacement endowment.
+
+Current observed cues/own impacts can trigger fleeing toward a known public
+post; ten quiet seconds resume the retained activity. Client views add visible
+velocity and a cosmetic sealed pack only. No role/source ID, wallet, destination,
+stock or loot identity is sent. One labelled defeated source retires without
+another body/reward/purse. Full-map native NPC movement respects status limits.
+
+Smoke21/full23 checks pass. The full run records900.095game/900.163wall seconds
+and89 snapshots:95 surviving civilians complete a full activity cycle; all32
+travelers arrive,17 return,54 total legs. All128 moved>10m before one labelled
+death; no request failures or sampled stationary travel. Ledger169 receipts/
+149 accounts/579 identities (564 live),3,263gold =3,288start −25 institution burn,
+zero mint. Rules59/Charter62/courier23/services83/economy125/roster37 pass; B91 source/control53 and combat50 plus both full-unity targets pass. All207 protected inputs unchanged.
+
+**Next:** witnessed local security: lawful/unlawful incidents, same-settlement
+alarms, bounded pursuit/search/home return and the24 persistent guard identities
+with selected stats/down/return behavior. Ambient hostile/source budgets,
+observation-limited contender policy, near/mid/far planning, broad races/recovery
+and human believability remain open. Late authority samples remain visible;
+this routine observation does not establish the30Hz performance target.
+B92 remains in progress; `v09_full` closed. B93 activation/routes/Heart and B94
+full-session/human/performance acceptance remain separate. Master revision31.
+
+Build/run sequentially; Source/Config immutable while native work runs. Use the
+report's commands and frozen verifier. Work only in `D:\Unreal Projects\Lockdown`.
+Do not edit the engine or the legacy checkout. Optional Fab stays excluded;
+native runners disable AllToolsets/ModelContextProtocol/Fab. No interaction keys
+or physical channel-button holds are added.
+
+# Prior earned Witness and registered Charter checkpoint
 
 The [earned Charter increment](v09/B92_CHARTER.md), source **5720891fb677aa65e133cf703046d90c8a445a4c**,
 connects authored guild Witness targets for all four prepared professions and

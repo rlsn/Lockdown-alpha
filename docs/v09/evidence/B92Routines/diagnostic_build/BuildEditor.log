@@ -1,0 +1,52 @@
+Using bundled DotNet SDK version: 10.0 win-x64
+Running UnrealBuildTool: dotnet "..\..\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.dll" LockdownEditor Win64 Development "-Project=D:\Unreal Projects\Lockdown\Lockdown.uproject" -WaitMutex -NoHotReloadFromIDE -Unattended -gather -DisableAdaptiveUnity
+Log file: C:\Users\Megad\AppData\Local\UnrealBuildTool\Log.txt
+Determining max actions to execute in parallel (16 physical cores, 32 logical cores)
+  Executing up to 16 processes, one per physical core
+  Requested 1.5 GB memory per action, 15.69 GB available: limiting max parallel actions to 10
+Using 'git status' to determine working set for adaptive non-unity build (D:\Unreal Projects\Lockdown).
+UbaServer - Listening on 0.0.0.0:1345
+Invalidating makefile for LockdownEditor (source file added)
+WARNING: Unable to find Visual Studio SDK. Editor integration will be disabled
+UHT compiled-in object format Default
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\World\LDEnvironmentDirector.cpp(1): error: Expected LDEnvironmentDirector.h to be first header included.
+UHT processed LockdownEditor in 5.3698489 seconds (9 generated files written)
+Building LockdownEditor...
+===== Toolchain Information =====
+Using ISPC compiler (D:\Epic Games\UE_5.8\Engine\Source\ThirdParty\Intel\ISPC\bin\Windows\ispc.exe)
+  Intel(r) Implicit SPMD Program Compiler (Intel(r) ISPC), 1.24.0 (build commit  @ 20250404, LLVM 18.1.2) 
+Using Visual Studio 14.44.35229 toolchain (D:\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207) and Windows 10.0.26100.0 SDK (C:\Program Files (x86)\Windows Kits\10).
+===== End Toolchain Information =====
+Using Unreal Build Accelerator local executor to run 12 action(s)
+  CPU 16 physical cores, 32 logical cores
+  Memory 15.69 GB physical, 23.98 GB/29.36 GB committed
+  UBA Storage capacity 40 GB
+[1/12] Compile [x64] Module.Lockdown.1.cpp
+[2/12] Compile [x64] Module.Lockdown.2.cpp
+[3/12] Compile [x64] Module.Lockdown.3.cpp
+[4/12] Compile [x64] Module.Lockdown.4.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Population\LDB92Routines.cpp(44,50): error C4458: declaration of 'Role' hides class member
+        const auto J=V->AsObject();const FString Role=J->GetStringField(TEXT("role"));if(Role==TEXT("guard")){continue;}FLDB92Routine S;S.Source=*J->GetStringField(TEXT("id"));const auto* P=R->People().FindByPredicate([&](const auto& Person){return Person.Source==S.Source;});if(!P||!P->Body.IsValid()||P->Body->GetController()){Error=TEXT("Routine source/body already controlled or absent");return false;}S.Identity=P->Id;S.Body=P->Body;S.Previous=P->Body->GetActorLocation();S.Traveler=Role==TEXT("traveler");
+                                                 ^
+D:\Epic Games\UE_5.8\Engine\Source\Runtime\Engine\Classes\GameFramework\Actor.h(864,29): note: see declaration of 'AActor::Role'
+	TEnumAsByte<enum ENetRole> Role;
+	                           ^
+[5/12] Compile [x64] Module.Lockdown.5.cpp
+D:\Unreal Projects\Lockdown\Source\Lockdown\Private\Tests\LDB92RoutinesProbe.cpp(56,358): error C2248: 'ALDCombatDirector::Die': cannot access private member declared in class 'ALDCombatDirector'
+    if(Phase==9){if(!Done(71)){if(Now-At>10){Check(false,TEXT("Remote hidden-body view retirement timed out"));}return;}Check(true,TEXT("Leaving sight retires observed cargo/body proxies; full role actors remain unreplicated"));const auto* P=R->People().FindByPredicate([&](const auto& Person){return Person.Source==Subject;});const FGuid Identity=P->Id;C->Die(S->Body.Get(),Now);Check(A->States().FindByPredicate([&](const auto& T){return T.Source==Subject;})->Dead&&R->People().FindByPredicate([&](const auto& Person){return Person.Id==Identity;})->Defeated&&R->Economy->Accounting().Account(ALDB92Economy::Wallet(Identity))->Gold==3&&R->Audit(Error),TEXT("Labelled native death retains source/purse, retires its routine and grants no replacement body or reward"));Phase=10;}
+                                                                                                                                                                                                                                                                                                                                                                     ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Combat\LDCombatDirector.h(310,10): note: see declaration of 'ALDCombatDirector::Die'
+    void Die(ALDCharacter* Body,double Now);
+         ^
+D:\Unreal Projects\Lockdown\Source\Lockdown\Public\Combat\LDCombatDirector.h(165,20): note: see declaration of 'ALDCombatDirector'
+class LOCKDOWN_API ALDCombatDirector : public AActor
+                   ^
+[6/12] Compile [x64] Module.Lockdown.6.cpp
+[7/12] Compile [x64] Module.Lockdown.7.cpp
+[8/12] Compile [x64] Module.Lockdown.8.cpp
+[9/12] Compile [x64] Module.Lockdown.9.cpp
+Total time in Unreal Build Accelerator local executor: 257.76 seconds
+
+Result: Failed (OtherCompilationError)
+Total execution time: 269.14 seconds
+Trace written to file C:\Users\Megad\AppData\Local\UnrealBuildTool\Trace.uba with size 35.0kb

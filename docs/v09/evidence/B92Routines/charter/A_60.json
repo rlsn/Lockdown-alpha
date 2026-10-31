@@ -1,0 +1,49 @@
+{
+	"completed": true,
+	"feedback": "Witness already recorded; no duplicate reward or receipt",
+	"market_feedback": "Official purchase confirmed; price burned",
+	"accepted": true,
+	"gold": "78",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 8,
+	"has_quote": true,
+	"offers": 103,
+	"quote_revision": "10",
+	"items": [
+		{
+			"id": "996069A34C2005F7B76A9E99709C2BB4",
+			"kind": 3
+		},
+		{
+			"id": "A6A4C841412F06B1529692BBCB6AC23D",
+			"kind": 3
+		},
+		{
+			"id": "701AB29F4C98418320A665B91CA5FD62",
+			"kind": 3
+		},
+		{
+			"id": "731F6AF6435F242EB512029331E0C026",
+			"kind": 3
+		},
+		{
+			"id": "549CF23A4EDC727937B22BB42C8ED69C",
+			"kind": 3
+		},
+		{
+			"id": "9457C1EF4340A519C9DADA8CE6E35E30",
+			"kind": 3
+		},
+		{
+			"id": "FD6F46324493E1DF435798A7ABAA1756",
+			"kind": 3
+		},
+		{
+			"id": "BD453F694A4AB15F3FEE0F82028D77CD",
+			"kind": 3
+		}
+	]
+}

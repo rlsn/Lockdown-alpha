@@ -1,0 +1,29 @@
+{
+	"completed": true,
+	"feedback": "Object transaction committed",
+	"market_feedback": "Craft complete; fee burned, real output in bag, no XP",
+	"accepted": true,
+	"gold": "9",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 3,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "EE19028544DAB5AABAA9149FA2C7ABEB",
+			"kind": 0
+		},
+		{
+			"id": "1293CA6F4CF169D6E36DFB875B94E04F",
+			"kind": 3
+		},
+		{
+			"id": "37281B7142C82CFF0B28A2ADFCD8BAD2",
+			"kind": 6
+		}
+	]
+}

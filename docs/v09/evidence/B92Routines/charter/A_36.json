@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Delivery complete; reward and endorsement recorded once",
+	"accepted": true,
+	"gold": "82",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 8,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "DDE0EE144011ADEA033EB99168671ADD",
+			"kind": 7
+		}
+	]
+}

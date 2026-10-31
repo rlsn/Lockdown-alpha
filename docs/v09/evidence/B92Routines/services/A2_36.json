@@ -1,0 +1,33 @@
+{
+	"completed": true,
+	"feedback": "Stopped",
+	"market_feedback": "Delivery complete; reward and endorsement recorded once",
+	"accepted": true,
+	"gold": "352",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 100012,
+	"duplicate_same": true,
+	"bag_count": 4,
+	"has_quote": true,
+	"offers": 0,
+	"quote_revision": "0",
+	"items": [
+		{
+			"id": "6A84C94144E83F91DDDA87B7E851A9F8",
+			"kind": 97
+		},
+		{
+			"id": "087D0C4E4C771845AAF6348ACB16D385",
+			"kind": 0
+		},
+		{
+			"id": "AF42336749911A2E4B0DEFAF162FE64A",
+			"kind": 5
+		},
+		{
+			"id": "10966CB34E3DAFB8C37E6890277191D1",
+			"kind": 5
+		}
+	]
+}

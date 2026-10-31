@@ -94,3 +94,9 @@ Answer: What decision is added? Who pays, and when? What can an opponent perceiv
 A connected journey should account for the starting state, each source of money/XP, each acquired physical input and each preparation cost. Separate travel or status setup used to isolate engineering from granted development that bypasses the journey. A fixture can verify an alternative mechanic; it cannot demonstrate that players can afford or discover it.
 
 Knowledge, preparation, qualification, registration and activation are distinct accomplishments. A successful skill check should not silently teach the skill, grant free income or open Heart. A paid registration should not silently select a payment source or create a remote victory. Keep those transitions legible so players can plan and rivals can respond.
+
+## Visible life respects time and ownership
+
+A routine may miss its planned arrival because walking, obstruction or danger takes real time. Keep the same body and unfinished activity; never hide a schedule error with a teleport or replacement. Cosmetic work/cargo communicates activity without inventing a second source of wealth. Make any interceptable property a real owned instance with its own conservation rules.
+
+A reaction needs an observed cause. A visible attack or received impact may frighten a resident; an authority-only target pointer, hidden wallet or distant fight cannot select its goal. Preserve the distinction between noticing danger, asking a local guard for safety and a guard legally witnessing an incident.

@@ -41,8 +41,9 @@ The [B91 completion review](v09/B91_COMPLETION.md) closes the functional-environ
 | [Deposits](v09/B92_DEPOSITS.md) / [Survey](v09/B92_SURVEY.md) | Automatic eligible extraction and a real prepared skill using the same finite budget |
 | [Work](v09/B92_WORK.md) / [courier](v09/B92_COURIER.md) | Exact crafting/procurement and persistent physical parcel lifecycle |
 | [Earned Witness/Charter](v09/B92_CHARTER.md) | One earned book/preparation/work/proof/registration chain; macro travel remains staged |
+| [Civilian/traveler routines](v09/B92_ROUTINES.md) | Native path-following, staggered activity, observed flee/resume and visual-only sealed logistics |
 
-B92 remains in progress. Routines, security, legal autonomous contenders, natural
+B92 remains in progress. Security, hostile behavior, legal autonomous contenders, natural
 pacing and broad stress/recovery remain open. B93 activation/Heart and B94 full
 session/human acceptance are separate; `v09_full` stays closed.
 

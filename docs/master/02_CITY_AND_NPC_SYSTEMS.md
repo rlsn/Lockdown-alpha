@@ -62,6 +62,27 @@ Civilians move between reachable work, market and rest anchors. Travel takes rea
 
 Production/consumption uses bounded institution ledgers. Animation illustrates receipts rather than justifying hidden wallets or magical replenishment. Full physical caravans, hiring armies, faction diplomacy and generated dialogue remain future candidates.
 
+The [B92 routine review](../v09/B92_ROUTINES.md) now connects all96 civilian and32 traveler assignments to their existing bodies and native path-following. The civilian phase offset selects a starting activity and remaining dwell; walking precedes the next dwell, so a nominal600-second activity loop may take longer. Travelers dwell45seconds and walk the strategic route's ordered points in both directions. A blocked trip waits/replans; it does not skip a road or replace its actor at the destination.
+
+Activity and production are different promises. Standing at a workshop does not create materials or XP. Institution receipts remain the source of bounded production and consumption. A traveler pack is observed cosmetic geometry with no loot identity, private sheet or implied market stock. Review whether players understand these cues before calling the crowd's purpose legible.
+
+Observed danger can pause an activity. A body flees toward a known public post, remembers its current activity/remaining dwell and resumes after ten quiet seconds. Concealed or distant actions do not become steering targets. A defeated source remains the same economic identity without a replacement endowment; guard return rules require their own implementation.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Travel
+    Travel --> Activity: arrive through native movement
+    Activity --> Travel: desired dwell ends; next phase
+    Travel --> Flee: observe danger
+    Activity --> Flee: observe danger
+    Flee --> Travel: ten quiet seconds; resume retained goal
+    Travel --> Defeated: death
+    Activity --> Defeated: death
+    Flee --> Defeated: death
+```
+
+Travel and fear consume real time. Resuming reaches the retained goal before its remaining activity dwell; defeat preserves the source account and ends this body's routine.
+
 ## Local security
 
 Public fronts remain usable; selected rear doors create riskier entry. Guards respond to legally witnessed attacks/forced access using last-seen evidence and limited pursuit. Lack of observation must matter. Feedback explains a local response without exposing hidden witnesses.

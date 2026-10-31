@@ -1,6 +1,6 @@
 # Delivery frontier and open questions
 
-Updated 30 October 2026. This chapter describes development priorities and the
+Updated 31 October 2026. This chapter describes development priorities and the
 questions that should guide them. Release reports retain source commits,
 commands, counts, failures and immutable evidence.
 
@@ -72,13 +72,19 @@ The [Charter increment](../v09/B92_CHARTER.md) connects all four learned/prepare
 
 Travel and protection/quiet setup are staged. This establishes one earned acquisition/preparation/registration chain, leaving natural route teaching/pacing, rival interference, broad work races, useful build diversity and full-session acceptance open. Registration does not implement B93 activation/windows/Heart.
 
+## Civilian and traveler routine checkpoint
+
+The [native routine increment](../v09/B92_ROUTINES.md) attaches96 civilian and32 traveler schedules to existing source bodies through native path-following. Activity dwells follow real travel; no schedule can teleport or duplicate a body to catch up. Current visible cues or received impacts can trigger a bounded flee/resume decision. Observed velocity and a cosmetic sealed pack add no destination, role ID, stock or loot to client payloads. A defeated source retires its body/controller without a new purse or reward.
+
+The native observation and source/accounting checks cover that engineering boundary. Human believability, complete home/interior behavior, local guard incidents/pursuit/return, hostiles, legal contender policy and near/mid/far planning remain open. Institution activity and role animation are not additional economic sources.
+
 ## Delivery sequence
 
 | Layer | Player-facing outcome | Remaining acceptance |
 | --- | --- | --- |
 | B90 spatial world | Places can be reached through ordinary movement and alternative approaches | Complete at its spatial boundary; retain affected-route regressions |
 | B91 functional environment | Places can be used, concealed within and changed through authoritative sources | Complete at the functional-environment boundary; retain the source, geometry, privacy and conservation regressions |
-| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Normal acquisition/work pacing, courier route coverage, work race stress, useful build diversity, broader remote admission, routines, witnessed local security and legal AI progression |
+| B92 living population and economy | A contender can earn a build and resources through finite institutions, work, exploration and rivalry | Normal acquisition/work pacing, courier route coverage, work race stress, useful build diversity, broader remote admission, witnessed local security, hostile behavior, routine readability and legal AI progression |
 | B93 route convergence | Earned preparations produce real capital access, warnings, property risks and a contestable ending | Four full-map routes and exact claim/interruption/deadline behavior |
 | B94 complete-session acceptance | The whole match remains readable, consequential and sustainable over its target duration | Normal 60/75/90-minute scenarios, multiplayer/field/density stress, recorded hardware and human pacing observations |
 

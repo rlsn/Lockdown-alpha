@@ -127,3 +127,5 @@ burns100gold atomically. Ordinary ground movement preserves a confirmed draft
 until stationary preparation; S still cancels. The master index now leads with
 the durable core loop, interaction language and delivery boundary, with detailed
 increment history in release reports. See [scope and evidence](../v09/B92_CHARTER.md).
+
+Revision 31 connects the128 civilian/traveler assignments to native movement and current observed danger. Desired activity time follows arrival, so travel may extend a nominal loop without a teleport. Cosmetic sealed packs carry no economic entitlement. Noncontender source identity survives death without a replacement endowment. The [routine review](../v09/B92_ROUTINES.md) separates engineering observation from future local security, contender AI, simulation tiers and human believability.

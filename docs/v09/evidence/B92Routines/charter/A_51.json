@@ -1,0 +1,21 @@
+{
+	"completed": true,
+	"feedback": "",
+	"market_feedback": "Official purchase confirmed; price burned",
+	"accepted": true,
+	"gold": "60",
+	"bank": "0",
+	"life": 1,
+	"combat_floor": 0,
+	"duplicate_same": true,
+	"bag_count": 1,
+	"has_quote": true,
+	"offers": 103,
+	"quote_revision": "2",
+	"items": [
+		{
+			"id": "6B9FA6184BC1A84FA4C02AA30164FCA7",
+			"kind": 0
+		}
+	]
+}

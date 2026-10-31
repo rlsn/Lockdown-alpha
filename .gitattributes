@@ -115,3 +115,6 @@
 
 /docs/v09/evidence/B92Charter/**/*.log -whitespace
 /docs/v09/evidence/B92Charter/*.log -whitespace
+
+/docs/v09/evidence/B92Routines/**/*.log -whitespace
+/docs/v09/evidence/B92Routines/*.log -whitespace

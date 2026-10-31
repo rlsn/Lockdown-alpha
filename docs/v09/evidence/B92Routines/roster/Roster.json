@@ -1,0 +1,1678 @@
+{
+	"stage": "B92",
+	"scope": "native_population_admission_and_lifecycle",
+	"full_stage_acceptance": false,
+	"completed": true,
+	"failures": 0,
+	"human_capacity": 4,
+	"checks": [
+		{
+			"passed": true,
+			"case": "Explicit population review excludes legacy economy, lazy purses and victory rewards"
+		},
+		{
+			"passed": true,
+			"case": "220 actual native bodies:196 noncontenders and24 contenders"
+		},
+		{
+			"passed": true,
+			"case": "Roster identities/role/control labels and full ledger stay server-only"
+		},
+		{
+			"passed": true,
+			"case": "Unoccupied human capacity is controlled by24 AI seats without extra endowments"
+		},
+		{
+			"passed": true,
+			"case": "Exact role capacities and96 three-gold purses; no legacy wandering/lazy purse or duplicate identity"
+		},
+		{
+			"passed": true,
+			"case": "All24 native contender starts retain the audited empty kit and normal six/eleven preparation"
+		},
+		{
+			"passed": true,
+			"case": "Human admission1 takes the existing ID/body/life"
+		},
+		{
+			"passed": true,
+			"case": "Repeated admission neither rekeys nor grants again"
+		},
+		{
+			"passed": true,
+			"case": "Human admission2 takes the existing ID/body/life"
+		},
+		{
+			"passed": true,
+			"case": "Repeated admission neither rekeys nor grants again"
+		},
+		{
+			"passed": true,
+			"case": "Human admission3 takes the existing ID/body/life"
+		},
+		{
+			"passed": true,
+			"case": "Repeated admission neither rekeys nor grants again"
+		},
+		{
+			"passed": true,
+			"case": "Human admission4 takes the existing ID/body/life"
+		},
+		{
+			"passed": true,
+			"case": "Repeated admission neither rekeys nor grants again"
+		},
+		{
+			"passed": true,
+			"case": "Configured4/12 humans replace20/12 AI; no double contender/body count"
+		},
+		{
+			"passed": true,
+			"case": "All admissions leave every account, stock item, budget and receipt untouched"
+		},
+		{
+			"passed": true,
+			"case": "Overcapacity admission rejects before state/body/endowment allocation"
+		},
+		{
+			"passed": true,
+			"case": "Fixture moves30 existing reserve gold into wallet20/bank10 without mint"
+		},
+		{
+			"passed": true,
+			"case": "Inherited peer accounting transfers existing gold and accepts item-only exchange without a tax or mint"
+		},
+		{
+			"passed": true,
+			"case": "Diagnostic source preparation takes one existing finite Torch rather than creating an item"
+		},
+		{
+			"passed": true,
+			"case": "Diagnostic cargo preparation reserves one existing crate, not a bag clone"
+		},
+		{
+			"passed": true,
+			"case": "Controller destruction takes over the same body before native PawnLeavingGame can delete it"
+		},
+		{
+			"passed": true,
+			"case": "AI takeover retains funds, bank, XP, build, life, cooldown and work/proof counters"
+		},
+		{
+			"passed": true,
+			"case": "One exact bound Torch/fuel and its physical holder follow the persistent seat"
+		},
+		{
+			"passed": true,
+			"case": "Existing carried crate follows the same body without requesting a new ground pad"
+		},
+		{
+			"passed": true,
+			"case": "New controller advances above existing body input/cancellation watermarks without rewinding them"
+		},
+		{
+			"passed": true,
+			"case": "Retired controller cannot authorize old requests or create a second account"
+		},
+		{
+			"passed": true,
+			"case": "Repeated disconnect/logout cannot grant, retire or tax the seat twice"
+		},
+		{
+			"passed": true,
+			"case": "Actual contender death path burns ceiling15% wallet and schedules native return"
+		},
+		{
+			"passed": true,
+			"case": "Death tax commits once to the same full-profile wallet without touching protected bank"
+		},
+		{
+			"passed": true,
+			"case": "A waiting-life takeover retains the exact return deadline and grants no early body"
+		},
+		{
+			"passed": true,
+			"case": "Ordinary return creates one new body life while retaining contender identity"
+		},
+		{
+			"passed": true,
+			"case": "Return retains money/progression/counters; dropped tool is not granted again"
+		},
+		{
+			"passed": true,
+			"case": "Death drops one original Torch with spent fuel and no restored binding"
+		},
+		{
+			"passed": true,
+			"case": "Death safely releases the same carried crate without a second instance"
+		},
+		{
+			"passed": true,
+			"case": "After death/return, exactly220 bodies and24 stable economic seats remain"
+		},
+		{
+			"passed": true,
+			"case": "Admission/takeover/return never refresh global quotas or mint rewards"
+		}
+	],
+	"population": [
+		{
+			"source": "civilian_000",
+			"id": "933F4A544D364F318A1E5BA3D849911A",
+			"role": 0,
+			"body": "LDCharacter_24",
+			"home": "X=-3280.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "civilian_001",
+			"id": "1D492AE540D6558A0AA1378ECA0F89B0",
+			"role": 0,
+			"body": "LDCharacter_25",
+			"home": "X=-87200.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "civilian_002",
+			"id": "4CF799A048D54337D1CB0C9C3720E11D",
+			"role": 0,
+			"body": "LDCharacter_26",
+			"home": "X=72800.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "civilian_003",
+			"id": "961451CA481AD94C5206C79EDB6719CA",
+			"role": 0,
+			"body": "LDCharacter_27",
+			"home": "X=-85200.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "civilian_004",
+			"id": "96334EE942E331784A9D1A95B0A16027",
+			"role": 0,
+			"body": "LDCharacter_28",
+			"home": "X=70800.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "civilian_005",
+			"id": "23942D38457C28EFF580C6B7E827A4DC",
+			"role": 0,
+			"body": "LDCharacter_29",
+			"home": "X=-74500.000 Y=4100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_006",
+			"id": "C716526B4E9F2E15D3F1C6B9A0FCA254",
+			"role": 0,
+			"body": "LDCharacter_30",
+			"home": "X=-36500.000 Y=41100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_007",
+			"id": "410320694E1E23C4E8882981485D3848",
+			"role": 0,
+			"body": "LDCharacter_31",
+			"home": "X=-44500.000 Y=-68900.000 Z=95.000"
+		},
+		{
+			"source": "civilian_008",
+			"id": "5D283F3143B8BBEFCAD8749FF6015B6E",
+			"role": 0,
+			"body": "LDCharacter_32",
+			"home": "X=40500.000 Y=-88900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_009",
+			"id": "27D22CCD499997BACFD2CBB53BAEE9C4",
+			"role": 0,
+			"body": "LDCharacter_33",
+			"home": "X=75500.000 Y=16100.000 Z=495.000"
+		},
+		{
+			"source": "civilian_010",
+			"id": "E260CD024145934AAFB61AB39FB9B16A",
+			"role": 0,
+			"body": "LDCharacter_34",
+			"home": "X=2500.000 Y=80100.000 Z=895.000"
+		},
+		{
+			"source": "civilian_011",
+			"id": "EF581EBC45B0E471DDF85D899381ABB0",
+			"role": 0,
+			"body": "LDCharacter_35",
+			"home": "X=-3380.000 Y=-5900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_012",
+			"id": "79768F2746E0A1ADF5973BA4644C89A9",
+			"role": 0,
+			"body": "LDCharacter_36",
+			"home": "X=-87300.000 Y=64500.000 Z=895.000"
+		},
+		{
+			"source": "civilian_013",
+			"id": "E15DED2244341ABBE8A5ECB73104514F",
+			"role": 0,
+			"body": "LDCharacter_37",
+			"home": "X=72700.000 Y=70500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_014",
+			"id": "3E16DBF44DB20908CE2B8D8A669F00D3",
+			"role": 0,
+			"body": "LDCharacter_38",
+			"home": "X=-85300.000 Y=-73500.000 Z=95.000"
+		},
+		{
+			"source": "civilian_015",
+			"id": "004ED384441C9271C447228738111716",
+			"role": 0,
+			"body": "LDCharacter_39",
+			"home": "X=70700.000 Y=-75500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_016",
+			"id": "86932EA543AF96D8A7E3CBA19C43A3A2",
+			"role": 0,
+			"body": "LDCharacter_40",
+			"home": "X=-74600.000 Y=4000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_017",
+			"id": "B25CB75C4D4CE86A8B7ACD8515A9B673",
+			"role": 0,
+			"body": "LDCharacter_41",
+			"home": "X=-36600.000 Y=41000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_018",
+			"id": "2635245A495634CED7AE48B64FDE8F45",
+			"role": 0,
+			"body": "LDCharacter_42",
+			"home": "X=-44600.000 Y=-69000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_019",
+			"id": "A974A010409981E2058B9FBEAC66483B",
+			"role": 0,
+			"body": "LDCharacter_43",
+			"home": "X=40400.000 Y=-89000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_020",
+			"id": "6A7A8D25403EFD1333D529A2F4E5743A",
+			"role": 0,
+			"body": "LDCharacter_44",
+			"home": "X=75400.000 Y=16000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_021",
+			"id": "B46E0D6341001C0F0DC4969672B31DA2",
+			"role": 0,
+			"body": "LDCharacter_45",
+			"home": "X=2400.000 Y=80000.000 Z=895.000"
+		},
+		{
+			"source": "civilian_022",
+			"id": "E7B3E73C450A282E483CE98BAFEE7F69",
+			"role": 0,
+			"body": "LDCharacter_46",
+			"home": "X=-3380.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "civilian_023",
+			"id": "FA67D5054AF43187E28AF68C65E506E9",
+			"role": 0,
+			"body": "LDCharacter_47",
+			"home": "X=-87300.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "civilian_024",
+			"id": "5F50388748B0D5DC53BFFF8424A6FE51",
+			"role": 0,
+			"body": "LDCharacter_48",
+			"home": "X=72700.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "civilian_025",
+			"id": "88D61ECA48D99896F327A592592E76A8",
+			"role": 0,
+			"body": "LDCharacter_49",
+			"home": "X=-85300.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "civilian_026",
+			"id": "07D278084E1CF80A61D9B1AE0A917073",
+			"role": 0,
+			"body": "LDCharacter_50",
+			"home": "X=70700.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "civilian_027",
+			"id": "53354A4C42143721FE03DFAE90AF705C",
+			"role": 0,
+			"body": "LDCharacter_51",
+			"home": "X=-74600.000 Y=4100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_028",
+			"id": "BE67EEF14E086FFDFE8EA385AD30CC55",
+			"role": 0,
+			"body": "LDCharacter_52",
+			"home": "X=-36600.000 Y=41100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_029",
+			"id": "E2A2AB0B4BCD0C5B5B3F37A3B7229308",
+			"role": 0,
+			"body": "LDCharacter_53",
+			"home": "X=-44600.000 Y=-68900.000 Z=95.000"
+		},
+		{
+			"source": "civilian_030",
+			"id": "A16B160F433356FED494FC9D8FB3485E",
+			"role": 0,
+			"body": "LDCharacter_54",
+			"home": "X=40400.000 Y=-88900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_031",
+			"id": "8FC38D954410A52D603178AB02E8B406",
+			"role": 0,
+			"body": "LDCharacter_55",
+			"home": "X=75400.000 Y=16100.000 Z=495.000"
+		},
+		{
+			"source": "civilian_032",
+			"id": "DBC7B8024FC96016B85544AF9605F1A7",
+			"role": 0,
+			"body": "LDCharacter_56",
+			"home": "X=2400.000 Y=80100.000 Z=895.000"
+		},
+		{
+			"source": "civilian_033",
+			"id": "9FCBF7464FB5838C02D2C78D46350677",
+			"role": 0,
+			"body": "LDCharacter_57",
+			"home": "X=-3380.000 Y=-5700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_034",
+			"id": "1A64A11F44D7EF9F3C229D9E798125EE",
+			"role": 0,
+			"body": "LDCharacter_58",
+			"home": "X=-87300.000 Y=64700.000 Z=895.000"
+		},
+		{
+			"source": "civilian_035",
+			"id": "223ABA2B431A9BD2D861479D80CC7DF5",
+			"role": 0,
+			"body": "LDCharacter_59",
+			"home": "X=72700.000 Y=70700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_036",
+			"id": "CFA81F78401EBB50339255AD71B923D1",
+			"role": 0,
+			"body": "LDCharacter_60",
+			"home": "X=-85300.000 Y=-73300.000 Z=95.000"
+		},
+		{
+			"source": "civilian_037",
+			"id": "4A0F33DE432B4928308B8DAFA0DEE19D",
+			"role": 0,
+			"body": "LDCharacter_61",
+			"home": "X=70700.000 Y=-75300.000 Z=495.000"
+		},
+		{
+			"source": "civilian_038",
+			"id": "2C16FC524C8DE1F49104EC8B667100C3",
+			"role": 0,
+			"body": "LDCharacter_62",
+			"home": "X=-74600.000 Y=4200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_039",
+			"id": "9AC1941A481869289BC8CCB4D6B9A5D0",
+			"role": 0,
+			"body": "LDCharacter_63",
+			"home": "X=-36600.000 Y=41200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_040",
+			"id": "9D0A0B2E41C47EDC488C899C1422863C",
+			"role": 0,
+			"body": "LDCharacter_64",
+			"home": "X=-44600.000 Y=-68800.000 Z=95.000"
+		},
+		{
+			"source": "civilian_041",
+			"id": "076A0BDB4540F85980AF7E9697AE9689",
+			"role": 0,
+			"body": "LDCharacter_65",
+			"home": "X=40400.000 Y=-88800.000 Z=495.000"
+		},
+		{
+			"source": "civilian_042",
+			"id": "D4CE1A1A447C53E0ECF1B0B210DC665E",
+			"role": 0,
+			"body": "LDCharacter_66",
+			"home": "X=75400.000 Y=16200.000 Z=495.000"
+		},
+		{
+			"source": "civilian_043",
+			"id": "9A3CB343481929C6B76561B7E17EF032",
+			"role": 0,
+			"body": "LDCharacter_67",
+			"home": "X=2400.000 Y=80200.000 Z=895.000"
+		},
+		{
+			"source": "civilian_044",
+			"id": "654AA8734F985D1E7D6591B8C08CD35C",
+			"role": 0,
+			"body": "LDCharacter_68",
+			"home": "X=-3280.000 Y=-5900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_045",
+			"id": "FD10B59546425338B90C13A132150125",
+			"role": 0,
+			"body": "LDCharacter_69",
+			"home": "X=-87200.000 Y=64500.000 Z=895.000"
+		},
+		{
+			"source": "civilian_046",
+			"id": "90B578034426E95BFF3DD89FA2FB4E5A",
+			"role": 0,
+			"body": "LDCharacter_70",
+			"home": "X=72800.000 Y=70500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_047",
+			"id": "AB499E434043CAE8FFA86BAB1B19FB15",
+			"role": 0,
+			"body": "LDCharacter_71",
+			"home": "X=-85200.000 Y=-73500.000 Z=95.000"
+		},
+		{
+			"source": "civilian_048",
+			"id": "5E52878A434A4DAE77C36296E77BC189",
+			"role": 0,
+			"body": "LDCharacter_72",
+			"home": "X=70800.000 Y=-75500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_049",
+			"id": "2CD9F74143AA83E1203B6D87621F4917",
+			"role": 0,
+			"body": "LDCharacter_73",
+			"home": "X=-74500.000 Y=4000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_050",
+			"id": "4F3B267C49B3B117D3773881F090A9E4",
+			"role": 0,
+			"body": "LDCharacter_74",
+			"home": "X=-36500.000 Y=41000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_051",
+			"id": "5FB4AF4A48AD85FFDA46439FC34FB848",
+			"role": 0,
+			"body": "LDCharacter_75",
+			"home": "X=-44500.000 Y=-69000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_052",
+			"id": "A074ADA642142C350B84A98300870A2D",
+			"role": 0,
+			"body": "LDCharacter_76",
+			"home": "X=40500.000 Y=-89000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_053",
+			"id": "411FB7E2491F703E0E4D14A5D092BA38",
+			"role": 0,
+			"body": "LDCharacter_77",
+			"home": "X=75500.000 Y=16000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_054",
+			"id": "0B43110A42A349C4BE4C64872BC10845",
+			"role": 0,
+			"body": "LDCharacter_78",
+			"home": "X=2500.000 Y=80000.000 Z=895.000"
+		},
+		{
+			"source": "civilian_055",
+			"id": "01FEC6944999AB6F94515593930260F8",
+			"role": 0,
+			"body": "LDCharacter_79",
+			"home": "X=-3280.000 Y=-5700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_056",
+			"id": "87AB015E4DDA3BE85B1959AFF678F129",
+			"role": 0,
+			"body": "LDCharacter_80",
+			"home": "X=-87200.000 Y=64700.000 Z=895.000"
+		},
+		{
+			"source": "civilian_057",
+			"id": "121012934B0B4060D2E60787BD14B287",
+			"role": 0,
+			"body": "LDCharacter_81",
+			"home": "X=72800.000 Y=70700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_058",
+			"id": "B3E39310487B24913D93548B965EE348",
+			"role": 0,
+			"body": "LDCharacter_82",
+			"home": "X=-85200.000 Y=-73300.000 Z=95.000"
+		},
+		{
+			"source": "civilian_059",
+			"id": "A3CCE26F417F853F6A3842998CF8224E",
+			"role": 0,
+			"body": "LDCharacter_83",
+			"home": "X=70800.000 Y=-75300.000 Z=495.000"
+		},
+		{
+			"source": "civilian_060",
+			"id": "F4969D5E4F3B39CBCF5CB182998085DC",
+			"role": 0,
+			"body": "LDCharacter_84",
+			"home": "X=-74500.000 Y=4200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_061",
+			"id": "8FCBB0464C0CCB0D9E3A618D8DDE361C",
+			"role": 0,
+			"body": "LDCharacter_85",
+			"home": "X=-36500.000 Y=41200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_062",
+			"id": "96E7249C4A27F59627F214ABE09687ED",
+			"role": 0,
+			"body": "LDCharacter_86",
+			"home": "X=-44500.000 Y=-68800.000 Z=95.000"
+		},
+		{
+			"source": "civilian_063",
+			"id": "FAEC5DA9419497D9C8A9F18F3B3FF93E",
+			"role": 0,
+			"body": "LDCharacter_87",
+			"home": "X=40500.000 Y=-88800.000 Z=495.000"
+		},
+		{
+			"source": "civilian_064",
+			"id": "9CE1E7AF4E4DF9FEDAE55E9A34B8C847",
+			"role": 0,
+			"body": "LDCharacter_88",
+			"home": "X=75500.000 Y=16200.000 Z=495.000"
+		},
+		{
+			"source": "civilian_065",
+			"id": "F5B5C4A24EC52C0B8B9024918573944E",
+			"role": 0,
+			"body": "LDCharacter_89",
+			"home": "X=2500.000 Y=80200.000 Z=895.000"
+		},
+		{
+			"source": "civilian_066",
+			"id": "AFC5FF414379CCCAD49750ABA5A817E8",
+			"role": 0,
+			"body": "LDCharacter_90",
+			"home": "X=-3180.000 Y=-5900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_067",
+			"id": "03FF8D7B4AB1BC2F3EF042939C9A5D4A",
+			"role": 0,
+			"body": "LDCharacter_91",
+			"home": "X=-87100.000 Y=64500.000 Z=895.000"
+		},
+		{
+			"source": "civilian_068",
+			"id": "09B89AA04D5E25CDB90C50A8319C0CA7",
+			"role": 0,
+			"body": "LDCharacter_92",
+			"home": "X=72900.000 Y=70500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_069",
+			"id": "D2E65D474512D76ABCA2EA86223B878A",
+			"role": 0,
+			"body": "LDCharacter_93",
+			"home": "X=-85100.000 Y=-73500.000 Z=95.000"
+		},
+		{
+			"source": "civilian_070",
+			"id": "A77F1FDA4C78330C53A622A8D0F04988",
+			"role": 0,
+			"body": "LDCharacter_94",
+			"home": "X=70900.000 Y=-75500.000 Z=495.000"
+		},
+		{
+			"source": "civilian_071",
+			"id": "157ECD164AB6118AD56510ACC8FEB2F9",
+			"role": 0,
+			"body": "LDCharacter_95",
+			"home": "X=-74400.000 Y=4000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_072",
+			"id": "219D74664455B7DC58EFA3834BD46975",
+			"role": 0,
+			"body": "LDCharacter_96",
+			"home": "X=-36400.000 Y=41000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_073",
+			"id": "DFC48D1748A0EE074823DB8570F8CEC4",
+			"role": 0,
+			"body": "LDCharacter_97",
+			"home": "X=-44400.000 Y=-69000.000 Z=95.000"
+		},
+		{
+			"source": "civilian_074",
+			"id": "ACA701714DCA95B300FBD79E27D02B73",
+			"role": 0,
+			"body": "LDCharacter_98",
+			"home": "X=40600.000 Y=-89000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_075",
+			"id": "7C427A2648C12F0898FFC6AAB0BCFD21",
+			"role": 0,
+			"body": "LDCharacter_99",
+			"home": "X=75600.000 Y=16000.000 Z=495.000"
+		},
+		{
+			"source": "civilian_076",
+			"id": "89B7FCB14DB79055702F9988CA1D1B50",
+			"role": 0,
+			"body": "LDCharacter_100",
+			"home": "X=2600.000 Y=80000.000 Z=895.000"
+		},
+		{
+			"source": "civilian_077",
+			"id": "CB4C0B0B46B7734A96E21980BBF9AB29",
+			"role": 0,
+			"body": "LDCharacter_101",
+			"home": "X=-3180.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "civilian_078",
+			"id": "FBD8265E48EF9FE177BD3C92B5154E1C",
+			"role": 0,
+			"body": "LDCharacter_102",
+			"home": "X=-87100.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "civilian_079",
+			"id": "AC3D37F64DC7CA79F0F7B2B7C838C7B6",
+			"role": 0,
+			"body": "LDCharacter_103",
+			"home": "X=72900.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "civilian_080",
+			"id": "FD51E2D04DF04EC42AA7A7B57D1C1D3F",
+			"role": 0,
+			"body": "LDCharacter_104",
+			"home": "X=-85100.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "civilian_081",
+			"id": "5E625C5F4B3F472742C948995AB89693",
+			"role": 0,
+			"body": "LDCharacter_105",
+			"home": "X=70900.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "civilian_082",
+			"id": "05F0EDBC4B549F0D8BB09DB5DFD90FFE",
+			"role": 0,
+			"body": "LDCharacter_106",
+			"home": "X=-74400.000 Y=4100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_083",
+			"id": "31FB110A4F72E8C99ADE4E8670D25CE1",
+			"role": 0,
+			"body": "LDCharacter_107",
+			"home": "X=-36400.000 Y=41100.000 Z=95.000"
+		},
+		{
+			"source": "civilian_084",
+			"id": "66DE77F1493E9D353028CA94EC84440A",
+			"role": 0,
+			"body": "LDCharacter_108",
+			"home": "X=-44400.000 Y=-68900.000 Z=95.000"
+		},
+		{
+			"source": "civilian_085",
+			"id": "5BF910714FB54A64A595F5B35F0A5889",
+			"role": 0,
+			"body": "LDCharacter_109",
+			"home": "X=40600.000 Y=-88900.000 Z=495.000"
+		},
+		{
+			"source": "civilian_086",
+			"id": "0E31655449CF220C3F07798BF6910B11",
+			"role": 0,
+			"body": "LDCharacter_110",
+			"home": "X=75600.000 Y=16100.000 Z=495.000"
+		},
+		{
+			"source": "civilian_087",
+			"id": "A7744B904ADB597F603A1BAF34F4F1D2",
+			"role": 0,
+			"body": "LDCharacter_111",
+			"home": "X=2600.000 Y=80100.000 Z=895.000"
+		},
+		{
+			"source": "civilian_088",
+			"id": "A58E23274728583F774F3682F9B74A6D",
+			"role": 0,
+			"body": "LDCharacter_112",
+			"home": "X=-3180.000 Y=-5700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_089",
+			"id": "CB4A979042B21B683A98B4AE02A62DAF",
+			"role": 0,
+			"body": "LDCharacter_113",
+			"home": "X=-87100.000 Y=64700.000 Z=895.000"
+		},
+		{
+			"source": "civilian_090",
+			"id": "56AFE9F84419D14FE29276AE443E6F53",
+			"role": 0,
+			"body": "LDCharacter_114",
+			"home": "X=72900.000 Y=70700.000 Z=495.000"
+		},
+		{
+			"source": "civilian_091",
+			"id": "68E61152456670B05C83DDA91C7E488D",
+			"role": 0,
+			"body": "LDCharacter_115",
+			"home": "X=-85100.000 Y=-73300.000 Z=95.000"
+		},
+		{
+			"source": "civilian_092",
+			"id": "442341A5434EA66A10FCD7A172E44FD9",
+			"role": 0,
+			"body": "LDCharacter_116",
+			"home": "X=70900.000 Y=-75300.000 Z=495.000"
+		},
+		{
+			"source": "civilian_093",
+			"id": "B1357498404479B521886DB28AC79702",
+			"role": 0,
+			"body": "LDCharacter_117",
+			"home": "X=-74400.000 Y=4200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_094",
+			"id": "4E961A2543FCD1863AD9E4B1871984D5",
+			"role": 0,
+			"body": "LDCharacter_118",
+			"home": "X=-36400.000 Y=41200.000 Z=95.000"
+		},
+		{
+			"source": "civilian_095",
+			"id": "A47C6BDC444DDE90B0D85AA22FAA6D64",
+			"role": 0,
+			"body": "LDCharacter_119",
+			"home": "X=-44400.000 Y=-68800.000 Z=95.000"
+		},
+		{
+			"source": "traveler_000",
+			"id": "BCF6641D4D74A429B08025BEED4ED040",
+			"role": 1,
+			"body": "LDCharacter_120",
+			"home": "X=4000.000 Y=4000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_001",
+			"id": "2E3904604BD30BF7BBB98D8E5A8C6312",
+			"role": 1,
+			"body": "LDCharacter_121",
+			"home": "X=-82100.000 Y=71900.000 Z=895.000"
+		},
+		{
+			"source": "traveler_002",
+			"id": "5E83C818438CDCFF3369C982C7EED4E8",
+			"role": 1,
+			"body": "LDCharacter_122",
+			"home": "X=77900.000 Y=77900.000 Z=495.000"
+		},
+		{
+			"source": "traveler_003",
+			"id": "1308420B49E1C893A1D7D4847DD134B4",
+			"role": 1,
+			"body": "LDCharacter_123",
+			"home": "X=-80100.000 Y=-66100.000 Z=95.000"
+		},
+		{
+			"source": "traveler_004",
+			"id": "6F62656A4178A80E0D0FB49941AC71E3",
+			"role": 1,
+			"body": "LDCharacter_124",
+			"home": "X=75900.000 Y=-68100.000 Z=495.000"
+		},
+		{
+			"source": "traveler_005",
+			"id": "F4C6FA054618D1F3A25F83BAADFA8895",
+			"role": 1,
+			"body": "LDCharacter_125",
+			"home": "X=-79500.000 Y=4100.000 Z=95.000"
+		},
+		{
+			"source": "traveler_006",
+			"id": "CF31944F4A9574461068E18DC59CCBA8",
+			"role": 1,
+			"body": "LDCharacter_126",
+			"home": "X=-41500.000 Y=41100.000 Z=95.000"
+		},
+		{
+			"source": "traveler_007",
+			"id": "40689B844F722B57C51873B27C16DBDA",
+			"role": 1,
+			"body": "LDCharacter_127",
+			"home": "X=-49500.000 Y=-68900.000 Z=95.000"
+		},
+		{
+			"source": "traveler_008",
+			"id": "D5362E3C44E1B5AD9BC9A78BE0632943",
+			"role": 1,
+			"body": "LDCharacter_128",
+			"home": "X=35500.000 Y=-88900.000 Z=495.000"
+		},
+		{
+			"source": "traveler_009",
+			"id": "9FD5EF454702322BB269179D6CA578A0",
+			"role": 1,
+			"body": "LDCharacter_129",
+			"home": "X=70500.000 Y=16100.000 Z=495.000"
+		},
+		{
+			"source": "traveler_010",
+			"id": "0DBDF125404C047EE7F6D7AD5BABAD61",
+			"role": 1,
+			"body": "LDCharacter_130",
+			"home": "X=-2500.000 Y=80100.000 Z=895.000"
+		},
+		{
+			"source": "traveler_011",
+			"id": "AD338FC04DE3BB2842CAA7AEB9E90456",
+			"role": 1,
+			"body": "LDCharacter_131",
+			"home": "X=3900.000 Y=3900.000 Z=495.000"
+		},
+		{
+			"source": "traveler_012",
+			"id": "F248BBE741B0B90826601DA4453FBA98",
+			"role": 1,
+			"body": "LDCharacter_132",
+			"home": "X=-82100.000 Y=72000.000 Z=895.000"
+		},
+		{
+			"source": "traveler_013",
+			"id": "29D48D8C4B4FB56FC751B88FF5B7B463",
+			"role": 1,
+			"body": "LDCharacter_133",
+			"home": "X=77900.000 Y=78000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_014",
+			"id": "4BD420B24E22DAF756CB759AA9DA86ED",
+			"role": 1,
+			"body": "LDCharacter_134",
+			"home": "X=-80100.000 Y=-66000.000 Z=95.000"
+		},
+		{
+			"source": "traveler_015",
+			"id": "432006C84CCCF458CE4D43A6F7BBE35C",
+			"role": 1,
+			"body": "LDCharacter_135",
+			"home": "X=75900.000 Y=-68000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_016",
+			"id": "7BE506E546FC72DE6C4DBABBBD8AF35B",
+			"role": 1,
+			"body": "LDCharacter_136",
+			"home": "X=-79600.000 Y=4000.000 Z=95.000"
+		},
+		{
+			"source": "traveler_017",
+			"id": "7BB9C5584DBEEFFDDEEA3F9C56E418B3",
+			"role": 1,
+			"body": "LDCharacter_137",
+			"home": "X=-41600.000 Y=41000.000 Z=95.000"
+		},
+		{
+			"source": "traveler_018",
+			"id": "65135A754DB004943A28A79C7CA14449",
+			"role": 1,
+			"body": "LDCharacter_138",
+			"home": "X=-49600.000 Y=-69000.000 Z=95.000"
+		},
+		{
+			"source": "traveler_019",
+			"id": "9A82DDEF4D8569939FB548BAABFAA0DA",
+			"role": 1,
+			"body": "LDCharacter_139",
+			"home": "X=35400.000 Y=-89000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_020",
+			"id": "C60E729641EFF58087B40CA5B3831E13",
+			"role": 1,
+			"body": "LDCharacter_140",
+			"home": "X=70400.000 Y=16000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_021",
+			"id": "F836010E4C387D4D6F074FBB8388015C",
+			"role": 1,
+			"body": "LDCharacter_141",
+			"home": "X=-2600.000 Y=80000.000 Z=895.000"
+		},
+		{
+			"source": "traveler_022",
+			"id": "92AB76E64056DC51B0145B906F9291BE",
+			"role": 1,
+			"body": "LDCharacter_142",
+			"home": "X=3900.000 Y=4000.000 Z=495.000"
+		},
+		{
+			"source": "traveler_023",
+			"id": "D82FE74E484EFDB9235676B447945018",
+			"role": 1,
+			"body": "LDCharacter_143",
+			"home": "X=-82100.000 Y=72100.000 Z=895.000"
+		},
+		{
+			"source": "traveler_024",
+			"id": "F734FF9148F99AF1B248BCAF5CA85B32",
+			"role": 1,
+			"body": "LDCharacter_144",
+			"home": "X=77900.000 Y=78100.000 Z=495.000"
+		},
+		{
+			"source": "traveler_025",
+			"id": "EFE08C8B4E6E9F894F3BC5B980E63EBF",
+			"role": 1,
+			"body": "LDCharacter_145",
+			"home": "X=-80100.000 Y=-65900.000 Z=95.000"
+		},
+		{
+			"source": "traveler_026",
+			"id": "2BA096504284890087C932BD41A9EE36",
+			"role": 1,
+			"body": "LDCharacter_146",
+			"home": "X=75900.000 Y=-67900.000 Z=495.000"
+		},
+		{
+			"source": "traveler_027",
+			"id": "0781709B4A22777736E95A8D7BA4B7CB",
+			"role": 1,
+			"body": "LDCharacter_147",
+			"home": "X=-79600.000 Y=4100.000 Z=95.000"
+		},
+		{
+			"source": "traveler_028",
+			"id": "1869273E4C2B094A7BCFA29B93C3DC78",
+			"role": 1,
+			"body": "LDCharacter_148",
+			"home": "X=-41600.000 Y=41100.000 Z=95.000"
+		},
+		{
+			"source": "traveler_029",
+			"id": "ED7211A048E890C983C88D9628D4AB6F",
+			"role": 1,
+			"body": "LDCharacter_149",
+			"home": "X=-49600.000 Y=-68900.000 Z=95.000"
+		},
+		{
+			"source": "traveler_030",
+			"id": "7069151B45E357A08D3BB38A4FC056B7",
+			"role": 1,
+			"body": "LDCharacter_150",
+			"home": "X=35400.000 Y=-88900.000 Z=495.000"
+		},
+		{
+			"source": "traveler_031",
+			"id": "BAD362834345612687936DA35653F076",
+			"role": 1,
+			"body": "LDCharacter_151",
+			"home": "X=70400.000 Y=16100.000 Z=495.000"
+		},
+		{
+			"source": "guard_000",
+			"id": "545573E1415D1DAC822306841BAA1511",
+			"role": 2,
+			"body": "LDCharacter_152",
+			"home": "X=11280.000 Y=11000.000 Z=495.000"
+		},
+		{
+			"source": "guard_001",
+			"id": "DA49FC9640D25DA98B1292A643F1EB8A",
+			"role": 2,
+			"body": "LDCharacter_153",
+			"home": "X=-76800.000 Y=76600.000 Z=895.000"
+		},
+		{
+			"source": "guard_002",
+			"id": "F98AE2184E0104ACFFE5339E79167735",
+			"role": 2,
+			"body": "LDCharacter_154",
+			"home": "X=83200.000 Y=82600.000 Z=495.000"
+		},
+		{
+			"source": "guard_003",
+			"id": "7CE00BD74CC7B779956D5D9AF8CB5770",
+			"role": 2,
+			"body": "LDCharacter_155",
+			"home": "X=-74800.000 Y=-61400.000 Z=95.000"
+		},
+		{
+			"source": "guard_004",
+			"id": "5EA818BE4E237057A085C6913B3CA899",
+			"role": 2,
+			"body": "LDCharacter_156",
+			"home": "X=81200.000 Y=-63400.000 Z=495.000"
+		},
+		{
+			"source": "guard_005",
+			"id": "AD7816C44142BE525303059EE5C34546",
+			"role": 2,
+			"body": "LDCharacter_157",
+			"home": "X=-79600.000 Y=4200.000 Z=95.000"
+		},
+		{
+			"source": "guard_006",
+			"id": "63AD5EFA4FC1682269F2F3AB5455EAF4",
+			"role": 2,
+			"body": "LDCharacter_158",
+			"home": "X=-41600.000 Y=41200.000 Z=95.000"
+		},
+		{
+			"source": "guard_007",
+			"id": "88464B8748A55703377F84BE61702C7B",
+			"role": 2,
+			"body": "LDCharacter_159",
+			"home": "X=-49600.000 Y=-68800.000 Z=95.000"
+		},
+		{
+			"source": "guard_008",
+			"id": "97321EAC4D13B0124E2A57890DFCCBBA",
+			"role": 2,
+			"body": "LDCharacter_160",
+			"home": "X=35400.000 Y=-88800.000 Z=495.000"
+		},
+		{
+			"source": "guard_009",
+			"id": "7B9496254F0EDCA2916D9DA3BA3A0EC9",
+			"role": 2,
+			"body": "LDCharacter_161",
+			"home": "X=70400.000 Y=16200.000 Z=495.000"
+		},
+		{
+			"source": "guard_010",
+			"id": "DD59C7004F219F450B571AA4E0C10F4A",
+			"role": 2,
+			"body": "LDCharacter_162",
+			"home": "X=-2600.000 Y=80100.000 Z=895.000"
+		},
+		{
+			"source": "guard_011",
+			"id": "596CD32449BB4AC651CA1FB425BE1059",
+			"role": 2,
+			"body": "LDCharacter_163",
+			"home": "X=11180.000 Y=10900.000 Z=495.000"
+		},
+		{
+			"source": "guard_012",
+			"id": "86B37B324A590057B6B9B091E80367D5",
+			"role": 2,
+			"body": "LDCharacter_164",
+			"home": "X=-76900.000 Y=76500.000 Z=895.000"
+		},
+		{
+			"source": "guard_013",
+			"id": "E55265B14DB4F3880E218A8E33F9F62A",
+			"role": 2,
+			"body": "LDCharacter_165",
+			"home": "X=83100.000 Y=82500.000 Z=495.000"
+		},
+		{
+			"source": "guard_014",
+			"id": "4B6C3685459C0F9C833DDA8A73AB4C0A",
+			"role": 2,
+			"body": "LDCharacter_166",
+			"home": "X=-74900.000 Y=-61500.000 Z=95.000"
+		},
+		{
+			"source": "guard_015",
+			"id": "CF2952614B8B65A8C1D00C9BEFB8CFF8",
+			"role": 2,
+			"body": "LDCharacter_167",
+			"home": "X=81100.000 Y=-63500.000 Z=495.000"
+		},
+		{
+			"source": "guard_016",
+			"id": "0C636B50486462188CD7D98ADE74241C",
+			"role": 2,
+			"body": "LDCharacter_168",
+			"home": "X=-79500.000 Y=4000.000 Z=95.000"
+		},
+		{
+			"source": "guard_017",
+			"id": "2A0BEACA4DCB55EF106B48AA74EB338C",
+			"role": 2,
+			"body": "LDCharacter_169",
+			"home": "X=-41500.000 Y=41000.000 Z=95.000"
+		},
+		{
+			"source": "guard_018",
+			"id": "D54977994A7EB63120C704A6D13DF569",
+			"role": 2,
+			"body": "LDCharacter_170",
+			"home": "X=-49500.000 Y=-69000.000 Z=95.000"
+		},
+		{
+			"source": "guard_019",
+			"id": "703398BB45EA3475CF377C8AF11D50A0",
+			"role": 2,
+			"body": "LDCharacter_171",
+			"home": "X=35500.000 Y=-89000.000 Z=495.000"
+		},
+		{
+			"source": "guard_020",
+			"id": "FC01EB7B41620568A102F4904A9C848C",
+			"role": 2,
+			"body": "LDCharacter_172",
+			"home": "X=70500.000 Y=16000.000 Z=495.000"
+		},
+		{
+			"source": "guard_021",
+			"id": "036BD3A947977E4A482693A81346127B",
+			"role": 2,
+			"body": "LDCharacter_173",
+			"home": "X=-2600.000 Y=80200.000 Z=895.000"
+		},
+		{
+			"source": "guard_022",
+			"id": "07496BD2444FBF909F810C9BD19421A2",
+			"role": 2,
+			"body": "LDCharacter_174",
+			"home": "X=11180.000 Y=11000.000 Z=495.000"
+		},
+		{
+			"source": "guard_023",
+			"id": "169899F44D81B33620D0CEA531918289",
+			"role": 2,
+			"body": "LDCharacter_175",
+			"home": "X=-76900.000 Y=76600.000 Z=895.000"
+		},
+		{
+			"source": "official_00",
+			"id": "C1073E2445D2EB010F13D5BF490F34A0",
+			"role": 3,
+			"body": "LDCharacter_176",
+			"home": "X=-6920.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "official_01",
+			"id": "87562B4C4DF1EFB26E22659F47CE7384",
+			"role": 3,
+			"body": "LDCharacter_177",
+			"home": "X=360.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "official_02",
+			"id": "8A67258748A9369EEB7F459DED8B4519",
+			"role": 3,
+			"body": "LDCharacter_178",
+			"home": "X=11280.000 Y=-5800.000 Z=495.000"
+		},
+		{
+			"source": "official_03",
+			"id": "725004A5471045E1E3817BB36C29F85F",
+			"role": 3,
+			"body": "LDCharacter_179",
+			"home": "X=-6920.000 Y=11000.000 Z=495.000"
+		},
+		{
+			"source": "official_04",
+			"id": "E663323544A8B889C28D0D880B82566C",
+			"role": 3,
+			"body": "LDCharacter_180",
+			"home": "X=-89800.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "official_05",
+			"id": "DBDD55294A0C82897C86A991F0E9E19E",
+			"role": 3,
+			"body": "LDCharacter_181",
+			"home": "X=-84600.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "official_06",
+			"id": "8B89EE8046C146CB76C1DD8DF4910243",
+			"role": 3,
+			"body": "LDCharacter_182",
+			"home": "X=-76800.000 Y=64600.000 Z=895.000"
+		},
+		{
+			"source": "official_07",
+			"id": "A8F2E21D41A98DB5ABE737B03414C89A",
+			"role": 3,
+			"body": "LDCharacter_183",
+			"home": "X=-89800.000 Y=76600.000 Z=895.000"
+		},
+		{
+			"source": "official_08",
+			"id": "2E7A8DCD469FDC3DAD446CA99CAB53D4",
+			"role": 3,
+			"body": "LDCharacter_184",
+			"home": "X=70200.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "official_09",
+			"id": "9A60640243BF5ECF25DFCCB7E6B23A3D",
+			"role": 3,
+			"body": "LDCharacter_185",
+			"home": "X=75400.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "official_10",
+			"id": "D69407AF4524FB9E0123B68489D52320",
+			"role": 3,
+			"body": "LDCharacter_186",
+			"home": "X=83200.000 Y=70600.000 Z=495.000"
+		},
+		{
+			"source": "official_11",
+			"id": "7665855B45AC49B36D0EFEAD86EF04FE",
+			"role": 3,
+			"body": "LDCharacter_187",
+			"home": "X=70200.000 Y=82600.000 Z=495.000"
+		},
+		{
+			"source": "official_12",
+			"id": "4590969F4F67CC85FCF4F08BFD0622BE",
+			"role": 3,
+			"body": "LDCharacter_188",
+			"home": "X=-87800.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "official_13",
+			"id": "017F8B1B41FFA6515954F0990DD2F19B",
+			"role": 3,
+			"body": "LDCharacter_189",
+			"home": "X=-82600.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "official_14",
+			"id": "B2F97BAB4AB558700981A69F3234F28D",
+			"role": 3,
+			"body": "LDCharacter_190",
+			"home": "X=-74800.000 Y=-73400.000 Z=95.000"
+		},
+		{
+			"source": "official_15",
+			"id": "A99CBD02437FF35D738523A1B4DF5125",
+			"role": 3,
+			"body": "LDCharacter_191",
+			"home": "X=-87800.000 Y=-61400.000 Z=95.000"
+		},
+		{
+			"source": "official_16",
+			"id": "31ACC6B145CFCA3B7A78A09FA0B2A93B",
+			"role": 3,
+			"body": "LDCharacter_192",
+			"home": "X=68200.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "official_17",
+			"id": "467074ED4B9D0EB2BFCDDB82A9941A76",
+			"role": 3,
+			"body": "LDCharacter_193",
+			"home": "X=73400.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "official_18",
+			"id": "89FD970E4865D9C0D0F13E89338A623A",
+			"role": 3,
+			"body": "LDCharacter_194",
+			"home": "X=81200.000 Y=-75400.000 Z=495.000"
+		},
+		{
+			"source": "official_19",
+			"id": "64AE09A04DDC1392F7300C9F75358B5D",
+			"role": 3,
+			"body": "LDCharacter_195",
+			"home": "X=68200.000 Y=-63400.000 Z=495.000"
+		},
+		{
+			"source": "hostile_00",
+			"id": "DB73383F459C66F4A35D3A8F16484D2C",
+			"role": 4,
+			"body": "LDCharacter_196",
+			"home": "X=-103000.000 Y=40000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_01",
+			"id": "04A5111D4B90D4CE63C04FB8EC33872C",
+			"role": 4,
+			"body": "LDCharacter_197",
+			"home": "X=-58000.000 Y=92000.000 Z=895.000"
+		},
+		{
+			"source": "hostile_02",
+			"id": "D6B93B20423FD1A99F27C7A6924607EC",
+			"role": 4,
+			"body": "LDCharacter_198",
+			"home": "X=38000.000 Y=102000.000 Z=895.000"
+		},
+		{
+			"source": "hostile_03",
+			"id": "189C820C4462C7EFC4DED793AFCFEB9D",
+			"role": 4,
+			"body": "LDCharacter_199",
+			"home": "X=104000.000 Y=51000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_04",
+			"id": "BB8956F6420562C5EF6CA2AE6AE8BA67",
+			"role": 4,
+			"body": "LDCharacter_200",
+			"home": "X=-104000.000 Y=-18000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_05",
+			"id": "7988596444FE9D9D8DD22BA72710314A",
+			"role": 4,
+			"body": "LDCharacter_201",
+			"home": "X=-60000.000 Y=-32000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_06",
+			"id": "C18ACCB5482D76DA8856FFA7A7F3BAFB",
+			"role": 4,
+			"body": "LDCharacter_202",
+			"home": "X=46000.000 Y=47000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_07",
+			"id": "3211E5E6498BFF736DAB019AB149E571",
+			"role": 4,
+			"body": "LDCharacter_203",
+			"home": "X=101000.000 Y=-12000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_08",
+			"id": "910BAA6147E0E58D8DDB758721A42224",
+			"role": 4,
+			"body": "LDCharacter_204",
+			"home": "X=-102000.000 Y=-99000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_09",
+			"id": "3AEB61794B62E646AFC04488D8FFC278",
+			"role": 4,
+			"body": "LDCharacter_205",
+			"home": "X=-10000.000 Y=-100000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_10",
+			"id": "48D9B21C4C777AD6ECF0F9B375C2BBF3",
+			"role": 4,
+			"body": "LDCharacter_206",
+			"home": "X=48000.000 Y=-41000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_11",
+			"id": "044611F44D48AABF350FD791A6630657",
+			"role": 4,
+			"body": "LDCharacter_207",
+			"home": "X=104000.000 Y=-98000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_12",
+			"id": "EB4EE61B41F5282DF6535CA0E373D845",
+			"role": 4,
+			"body": "LDCharacter_208",
+			"home": "X=9000.000 Y=57000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_13",
+			"id": "BEBE6018448F150E757896A3503CC823",
+			"role": 4,
+			"body": "LDCharacter_209",
+			"home": "X=6200.000 Y=4000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_14",
+			"id": "7BB871F44622384322235DA617BB6A4B",
+			"role": 4,
+			"body": "LDCharacter_210",
+			"home": "X=-79800.000 Y=72000.000 Z=895.000"
+		},
+		{
+			"source": "hostile_15",
+			"id": "052C96984CC924A8624752999AD44142",
+			"role": 4,
+			"body": "LDCharacter_211",
+			"home": "X=80200.000 Y=78000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_16",
+			"id": "5CAAF6FF49F08E786CC27B82E85F082E",
+			"role": 4,
+			"body": "LDCharacter_212",
+			"home": "X=-77800.000 Y=-66000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_17",
+			"id": "C54921D24C1D75E4A4D7B6849FA4C951",
+			"role": 4,
+			"body": "LDCharacter_213",
+			"home": "X=78200.000 Y=-68000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_18",
+			"id": "E217E64944CB4B3FD61919823533B29E",
+			"role": 4,
+			"body": "LDCharacter_214",
+			"home": "X=-74800.000 Y=8000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_19",
+			"id": "7577CA664BF15320E8ACD794E50C9DF1",
+			"role": 4,
+			"body": "LDCharacter_215",
+			"home": "X=-36800.000 Y=45000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_20",
+			"id": "9E63F20042FDD51240745790D2EB0090",
+			"role": 4,
+			"body": "LDCharacter_216",
+			"home": "X=-44800.000 Y=-65000.000 Z=95.000"
+		},
+		{
+			"source": "hostile_21",
+			"id": "5C02D3A9449A3208FCE7F7B68BE2681D",
+			"role": 4,
+			"body": "LDCharacter_217",
+			"home": "X=40200.000 Y=-85000.000 Z=495.000"
+		},
+		{
+			"source": "hostile_22",
+			"id": "F590004B4134FB35844B58B86670DFD0",
+			"role": 4,
+			"body": "LDCharacter_218",
+			"home": "X=75200.000 Y=20000.000 Z=494.521"
+		},
+		{
+			"source": "hostile_23",
+			"id": "726B1B5942006B4BD1EEED96F34F3EBA",
+			"role": 4,
+			"body": "LDCharacter_219",
+			"home": "X=2200.000 Y=84000.000 Z=895.000"
+		}
+	],
+	"seats": [
+		{
+			"id": "E984C46144C461730CD00A853BC3A876",
+			"human": true,
+			"life": 2,
+			"body": "LDCharacter_220"
+		},
+		{
+			"id": "BB2F42574E487324E126D6BA602C71F7",
+			"human": true,
+			"life": 1,
+			"body": "LDCharacter_1"
+		},
+		{
+			"id": "6803F6514B9F1920496BDDAC39D8763D",
+			"human": true,
+			"life": 1,
+			"body": "LDCharacter_2"
+		},
+		{
+			"id": "CC305162494485AC65E01EA72E1C2594",
+			"human": true,
+			"life": 1,
+			"body": "LDCharacter_3"
+		},
+		{
+			"id": "14A560F841BB2B8F5D7A57BD6CC4277A",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_4"
+		},
+		{
+			"id": "033BEBFF4A9A4E408B3DE38902241840",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_5"
+		},
+		{
+			"id": "EEA94F694A0BF7B5D6E0308EF28102EE",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_6"
+		},
+		{
+			"id": "B5A109C144B5132517323E9948417972",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_7"
+		},
+		{
+			"id": "5D51840140A2455EA7E517AFB86668FE",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_8"
+		},
+		{
+			"id": "5C55AD1A4EB2CD1DBB86B48D3C24A32B",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_9"
+		},
+		{
+			"id": "4F590FDB4C5E19A4AD04998A960C8E94",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_10"
+		},
+		{
+			"id": "C75F62B94AF9D165F31732983261EFFF",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_11"
+		},
+		{
+			"id": "58F76AC14D54FD08287D47906ECCA943",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_12"
+		},
+		{
+			"id": "D90E3FED46B8594C62F09E810B2A1CD2",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_13"
+		},
+		{
+			"id": "0FE88C6C425096468D5D8EA95E13B8AD",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_14"
+		},
+		{
+			"id": "AE14B4C0421083049E951280AA6855A8",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_15"
+		},
+		{
+			"id": "021DBE0D499E6D179FF7A5B42156537F",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_16"
+		},
+		{
+			"id": "AE1603834798D5CF8A4F7D90364E3C77",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_17"
+		},
+		{
+			"id": "B7E09FD641A3840B426CBAB526583674",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_18"
+		},
+		{
+			"id": "53ECC8DD40DF97FA165678AA80BF8371",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_19"
+		},
+		{
+			"id": "204EC1014B147C554AD86BB065CDF4BF",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_20"
+		},
+		{
+			"id": "0E352B6348A0BF152AFB06818D8814EE",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_21"
+		},
+		{
+			"id": "674F9C4E43A0CEDC998FB2B93C1A5D53",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_22"
+		},
+		{
+			"id": "03CB48B4450B7F5EFA1C29BBE5330F60",
+			"human": false,
+			"life": 1,
+			"body": "LDCharacter_23"
+		}
+	]
+}
