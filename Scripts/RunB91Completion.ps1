@@ -38,6 +38,6 @@ Invoke-CompletionCase 'checkpoint' 'RunB91Checkpoint' @{TimeoutSeconds=300}
 Invoke-CompletionCase 'legacy' 'RunB84Check'
 Invoke-CompletionCase 'game' 'BuildGame' @{MaxParallelActions=$MaxParallelActions;FullUnity=$true}
 if(@($completionResults | Where-Object {-not $_.passed}).Count){throw "B91 final matrix has failures: $completionOutput"}
-& python -B (Join-Path $PSScriptRoot 'ExportB91CompletionEvidence.py') (Join-Path $completionOutput 'Runs.json') --check
+& python -B (Join-Path $PSScriptRoot 'CheckB91Completion.py') (Join-Path $completionOutput 'Runs.json')
 if($LASTEXITCODE -ne 0){throw "B91 final evidence rejected: $completionOutput"}
 Write-Host "PASS B91 completion matrix: $completionOutput"

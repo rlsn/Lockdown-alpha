@@ -1,1 +1,0 @@
-Failed v0.8 Keys regression before the stationary-POI guard. Passing through an automatic context stopped the first native journey. This failure is retained as diagnosis, not route acceptance. The passing world/ rerun is separate.

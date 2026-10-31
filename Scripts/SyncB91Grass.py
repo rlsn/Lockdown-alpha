@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def compile_grass():
     names = ('props', 'object_types', 'world_objects_rules')
-    raw = {n: (ROOT/'docs/v09/data'/(n+'.json')).read_bytes() for n in names}
+    raw = {n: (ROOT/'SourceData/World'/(n+'.json')).read_bytes() for n in names}
     data = {n: json.loads(v) for n, v in raw.items()}
     assert all(v['schema_version'] == 9 for v in data.values())
     rows = [r for r in data['props']['rows'] if r['type_id'] == 'tall_grass']

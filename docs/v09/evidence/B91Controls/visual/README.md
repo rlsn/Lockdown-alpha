@@ -1,1 +1,0 @@
-The720p frame predates the final friendly binding caption. It is visual inspection only. This rendered scenario cancelled its phase4 channel through the existing state/movement/damage/connection guard and failed two assertions. It is not a passed functional fixture or performance acceptance. The separate controls/ headless scenario is the functional check.

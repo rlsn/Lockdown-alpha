@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def compile_objects():
     names = ('props', 'object_types', 'world_objects_rules')
-    raw = {n: (ROOT/'docs/v09/data'/(n+'.json')).read_bytes() for n in names}
+    raw = {n: (ROOT/'SourceData/World'/(n+'.json')).read_bytes() for n in names}
     data = {n: json.loads(v) for n, v in raw.items()}
     assert all(v['schema_version'] == 9 for v in data.values())
     kinds = dict(chest=1, crate=2, barrel=3, water_flask=4, oil_flask=5, furniture=12, sapling=13)

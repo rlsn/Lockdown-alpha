@@ -1,2 +1,0 @@
-start,end,kind,strategic_graph_m,graph_estimate_seconds,native_path_m,path_estimate_seconds,measured_walk_seconds,measured_walk_m,longest_poi_anchor_gap_seconds,navigation_replans
-antechamber,heart,prescribed,45.0,10.71,45.0,10.7143,10.6833,44.415,0,0

@@ -1,3 +1,0 @@
-# B92 native roster and lifecycle
-
-See [implementation scope](../../B92_ROSTER.md). The four/twelve-human configurations use actual authority controller fixtures, not four/twelve remote humans. All220 character bodies and persistent economy identities are real native objects. Source/money/progression preparation is explicitly diagnostic. Normal destruction/takeover, death tax, actual-clock return and finite Torch drops are exercised. Population routines, autonomous contender policy, witnessed security, live services and complete B92 acceptance remain open. Diagnostic folders preserve failed attempts; passing runs have separate names.

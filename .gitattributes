@@ -1,120 +1,13 @@
-# Store Unreal binary packages through Git LFS as content is added.
+# Unreal packages remain binary and are stored through Git LFS.
 *.uasset filter=lfs diff=lfs merge=lfs -text
 *.umap filter=lfs diff=lfs merge=lfs -text
 
-# Generated package signatures hash this layout text; keep checkout bytes stable.
+# Human-readable documentation uses one portable text format.
+*.md text eol=lf
+
+# These inputs and payloads participate in native content signatures.
 /Config/BootstrapLayout.json text eol=lf
-
-# Supplied discussion copies have published byte hashes; preserve their bytes.
-/docs/v06/reference-discussion/0*_ASSISTANT_MESSAGE.txt -text -whitespace
-
-# Adopted v0.7 specs and portable evidence publish physical-byte hashes.
-# Prevent core.autocrlf from changing those bytes on a fresh checkout.
-/docs/master/** -text whitespace=cr-at-eol
-/docs/v07/** -text whitespace=cr-at-eol
-# Verbatim source discussions retain their published formatting as well.
-/docs/v07/reference-discussion/** -whitespace
-/docs/v07/reference-v06/reference-discussion/** -whitespace
-# Preserve raw tool output, including engine-emitted trailing spaces.
-/docs/v07/evidence/B70/*.log -whitespace
-/docs/v07/evidence/B71/*.log -whitespace
+/SourceData/** -text
 /Content/Lockdown/Data/V07/*.json text eol=lf
-
-/docs/v07/evidence/B72/*.log -whitespace
-
-/docs/v07/evidence/B73/*.log -whitespace
-
-/docs/v07/evidence/B74/*.log -whitespace
-
-/docs/v07/evidence/B75/*.log -whitespace
-
-/docs/v07/evidence/B76/*.log -whitespace
-
-# B80 adoption/import manifests hash physical bytes, including source archives.
-/docs/v08/** -text whitespace=cr-at-eol
-/docs/v09/** -text whitespace=cr-at-eol,-blank-at-eof
-# Retain byte-hashed incoming Matplotlib SVG path formatting.
-/docs/v09/atlas/*.svg -whitespace
-/Content/Lockdown/Data/V09/*.json -text
-/docs/v09/evidence/B90/*.log -whitespace
-/docs/v09/evidence/B90Traversal/*.log -whitespace
-/docs/v09/evidence/B90River/**/*.log -whitespace
-/docs/v09/evidence/B90River/*.log -whitespace
-/docs/v09/evidence/B90Approaches/**/*.log -whitespace
-/docs/v09/evidence/B90Approaches/*.log -whitespace
-/docs/v09/evidence/B90Completion/**/*.log -whitespace
-/docs/v09/evidence/B90Completion/*.log -whitespace
-/docs/v09/evidence/B90Completion/**/*.svg -whitespace
-/docs/v09/evidence/B91/**/*.log -whitespace
-/docs/v09/evidence/B91/*.log -whitespace
-/docs/v09/evidence/B91Objects/**/*.log -whitespace
-/docs/v09/evidence/B91Objects/*.log -whitespace
-/docs/v09/evidence/B91Tools/**/*.log -whitespace
-/docs/v09/evidence/B91Tools/*.log -whitespace
-/docs/v09/evidence/B91Traversal/**/*.log -whitespace
-/docs/v09/evidence/B91Traversal/*.log -whitespace
-/docs/v09/evidence/B91Furniture/**/*.log -whitespace
-/docs/v09/evidence/B91Furniture/*.log -whitespace
-/docs/v09/evidence/B91Saplings/**/*.log -whitespace
-/docs/v09/evidence/B91Saplings/*.log -whitespace
 /Content/Lockdown/Data/V08/*.json -text
-/Scripts/*V08*.py text eol=lf
-
-# Preserve raw engine output in the B82 evidence bundle.
-/docs/v08/evidence/B82/*.log -whitespace
-
-# Preserve raw engine output in the B83 evidence bundle.
-/docs/v08/evidence/B83/*.log -whitespace
-
-# Preserve raw engine output in the B84 evidence bundle.
-/docs/v08/evidence/B84/*.log -whitespace
-
-# Preserve raw engine output in the B85 evidence bundle.
-/docs/v08/evidence/B85/*.log -whitespace
-
-# Preserve raw engine output in the B86 evidence bundle.
-/docs/v08/evidence/B86/*.log -whitespace
-
-# Preserve raw output in the bounded full-map field evidence bundle.
-/docs/v09/evidence/B91Fields/**/*.log -whitespace
-/docs/v09/evidence/B91Fields/*.log -whitespace
-
-# Preserve raw native output for finite socket ignition.
-/docs/v09/evidence/B91Ignition/**/*.log -whitespace
-/docs/v09/evidence/B91Ignition/*.log -whitespace
-
-# Native output for the source and pointer control migration.
-/docs/v09/evidence/B91Controls/**/*.log -whitespace
-/docs/v09/evidence/B91Controls/*.log -whitespace
-
-# Raw issued-command liveness acceptance and failed diagnostic reproduction.
-/docs/v09/evidence/B91Liveness/**/*.log -whitespace
-/docs/v09/evidence/B91Liveness/*.log -whitespace
-
-# Authored grass native evidence retains raw engine output.
-/docs/v09/evidence/B91Grass/**/*.log -whitespace
-/docs/v09/evidence/B91Grass/*.log -whitespace
-
-# Raw remote market/takeover and regression diagnostics.
-/docs/v09/evidence/B92Services/**/*.log -whitespace
-/docs/v09/evidence/B92Services/*.log -whitespace
-/docs/v09/evidence/B92Bank/**/*.log -whitespace
-/docs/v09/evidence/B92Bank/*.log -whitespace
-/docs/v09/evidence/B92Supply/**/*.log -whitespace
-/docs/v09/evidence/B92Supply/*.log -whitespace
-/docs/v09/evidence/B92Deposits/**/*.log -whitespace
-/docs/v09/evidence/B92Deposits/*.log -whitespace
-/docs/v09/evidence/B92Survey/**/*.log -whitespace
-/docs/v09/evidence/B92Survey/*.log -whitespace
-
-/docs/v09/evidence/B92Work/**/*.log -whitespace
-/docs/v09/evidence/B92Work/*.log -whitespace
-
-/docs/v09/evidence/B92Courier/**/*.log -whitespace
-/docs/v09/evidence/B92Courier/*.log -whitespace
-
-/docs/v09/evidence/B92Charter/**/*.log -whitespace
-/docs/v09/evidence/B92Charter/*.log -whitespace
-
-/docs/v09/evidence/B92Routines/**/*.log -whitespace
-/docs/v09/evidence/B92Routines/*.log -whitespace
+/Content/Lockdown/Data/V09/*.json -text

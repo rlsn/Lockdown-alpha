@@ -1,4 +1,0 @@
-PASS docs/v07/evidence/B76/RouteKeysLedger.json: 10 receipts, 9 accounts, 94 unique items, 450 gold
-PASS docs/v07/evidence/B76/RouteSiegeLedger.json: 37 receipts, 9 accounts, 106 unique items, 712 gold
-PASS docs/v07/evidence/B76/RouteArtifactLedger.json: 56 receipts, 9 accounts, 124 unique items, 566 gold
-PASS docs/v07/evidence/B76/RouteCharterLedger.json: 44 receipts, 9 accounts, 116 unique items, 592 gold

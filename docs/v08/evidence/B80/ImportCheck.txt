@@ -1,8 +1,0 @@
-..................
-----------------------------------------------------------------------
-Ran 18 tests in 0.001s
-
-OK
-1812 specification assertions; 0 failures; 18 reference boundary tests
-PASS: specification models only. Native/engine/network/human tests NOT RUN.
-PASS B80 schema8 import: 52 abilities / 80 items / 20 recipes / 9 traits / 10 reactions; runtime disabled

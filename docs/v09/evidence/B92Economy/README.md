@@ -1,3 +1,0 @@
-# B92 economy authority foundation
-
-See [scope and remaining gates](../../B92_ECONOMY_FOUNDATION.md). This is an isolated native authority test, not full-stage acceptance. Account-custody transactions use real ALDItem stock; diagnostic funding transfers existing reserves and is not earned progression. Three independent fixture domains must not be added together as one match. Scheduled event times are advanced by the probe; no 90-minute performance or pacing claim. Live service/RPC/bag integration, roster bodies, work, sources, rare official stock, security and AI remain open. The failed first compile is retained under diagnostic_editor; final editor/game builds pass.

@@ -1,1 +1,0 @@
-PASS B81: 27 retained abilities, 54 enabled items, 8 presets; Ember Line surface and elemental content hidden

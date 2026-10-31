@@ -13,18 +13,18 @@ class GrassImport(unittest.TestCase):
         self.original = compiler.ROOT
         self.temp = tempfile.TemporaryDirectory()
         compiler.ROOT = Path(self.temp.name)
-        target = compiler.ROOT/'docs/v09/data'
+        target = compiler.ROOT/'SourceData/World'
         target.mkdir(parents=True)
         for name in ('props', 'object_types', 'world_objects_rules'):
-            shutil.copyfile(self.original/'docs/v09/data'/(name+'.json'), target/(name+'.json'))
+            shutil.copyfile(self.original/'SourceData/World'/(name+'.json'), target/(name+'.json'))
 
     def tearDown(self):
         compiler.ROOT = self.original
         self.temp.cleanup()
 
     def mutate(self, name, change):
-        path = compiler.ROOT/'docs/v09/data'/(name+'.json')
-        data = json.loads(path.read_text())
+        path = compiler.ROOT/'SourceData/World'/(name+'.json')
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
         change(data)
         path.write_text(json.dumps(data), encoding='utf-8')
         with self.assertRaises(AssertionError):

@@ -1,1 +1,0 @@
-PASS docs\v08\evidence\B84\Ledger.json: 414 receipts, 9 accounts, 323 unique items, 4482 gold

@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'docs/v09/data'
+SOURCE = ROOT / 'SourceData/World'
+TRAVEL = SOURCE / 'travel_table.csv'
 INPUTS = ('rules', 'pois', 'routes', 'settlements', 'spawn_pads', 'buildings', 'terrain',
           'services', 'security', 'legacy_aliases')
 
@@ -88,8 +89,8 @@ def compile_map():
     assert security['heart_contested_override_radius_cm'] == 7000
     points = lambda rows: [{'id': r['id'], 'position': r['position_cm']} for r in rows]
     terrain = data['terrain']
-    travel_path = ROOT / 'docs/v09/atlas/TRAVEL_TABLE.csv'
-    travel = list(csv.DictReader(travel_path.read_text().splitlines()))
+    travel_path = TRAVEL
+    travel = list(csv.DictReader(travel_path.read_text(encoding='utf-8-sig').splitlines()))
     payload = dict(schema=9, stage='B90', profile='v09_full', seed=9001, revision=1,
                    bounds=world['bounds_cm'], speed=420, inset=2000,
                    # A fitted mesh is a separate versioned product; source coordinates stay intact.
