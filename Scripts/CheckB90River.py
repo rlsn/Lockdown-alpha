@@ -22,7 +22,7 @@ def check(directory):
     for p in data['pois']:
         if p['kind'] == 'crossing':
             expected.update(p['id'] + s for s in (('_deck', '_under_wet', '_under_frozen') if p['id'] in bridges else ('_wet', '_frozen')))
-    source_routes = json.loads((ROOT / 'docs/v09/data/routes.json').read_text(encoding='utf-8-sig'))['rows']
+    source_routes = json.loads((ROOT / 'SourceData/World/routes.json').read_text(encoding='utf-8-sig'))['rows']
     contacts = {}
     cross = lambda a, b: a[0]*b[1] - a[1]*b[0]
     for route in data['routes']:

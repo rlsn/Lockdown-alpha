@@ -1,3 +1,0 @@
-# B91 final environment evidence
-
-See ../../B91_COMPLETION.md for scopes, user control-policy supersession and per-case evidence. Native source inputs are pinned by Audit.json. Initial tools/builds and diagnostic wall/Guard fixtures are labelled; ordinary movement, requests, item costs, reactions, life return and earned environment reload use native authority. One reference owner is rendered with a headless peer; captures are not performance or human pacing evidence. 3,000 scenery instances and864 native service-front paths are checked. B92 acquisition/population/economy, B93 victory and B94 full-session acceptance remain separate. Historical failed attempts are preserved in diagnostic folders; final scenario folders contain passing runs.

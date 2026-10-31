@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def compile_tools():
-    raw = {n: (ROOT/'docs/v09/data'/(n+'.json')).read_bytes()
+    raw = {n: (ROOT/'SourceData/World'/(n+'.json')).read_bytes()
            for n in ('map_items', 'object_types', 'props', 'world_objects_rules')}
     data = {n: json.loads(v) for n, v in raw.items()}
     assert all(v['schema_version'] == 9 for v in data.values())

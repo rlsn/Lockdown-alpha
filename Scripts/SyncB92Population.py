@@ -14,7 +14,7 @@ def main():
     declarations = []
     for source, target, symbol in (('population.json', 'population_b92.json', 'Population'),
                                    ('npc_schedules.json', 'schedules_b92.json', 'Schedules')):
-        data = (ROOT / 'docs/v09/data' / source).read_bytes().replace(b'\r\n', b'\n')
+        data = (ROOT / 'SourceData/World' / source).read_bytes().replace(b'\r\n', b'\n')
         outputs[ROOT / 'Content/Lockdown/Data/V09' / target] = data
         declarations.append(f'    inline constexpr const TCHAR* {symbol}=TEXT("{hashlib.md5(data).hexdigest()}");')
     outputs[ROOT / 'Source/Lockdown/Private/Population/LDB92PopulationContract.h'] = (

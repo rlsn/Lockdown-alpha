@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Materialize the implemented B75 catalog; runtime never reads docs.
+"""Materialize the implemented schema7 catalog from SourceData.
 
 Use --check in validation. Rebuild/import native assets after an authorized sync.
 This does not implement operations or certify gameplay.
@@ -13,10 +13,10 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--check', action='store_true')
 args = parser.parse_args()
-data = root / 'docs/v07/data'
-abilities = json.loads((data / 'abilities.json').read_text())['abilities']
-items = json.loads((data / 'items.json').read_text())['items']
-payload = {'schema_version':7,'milestone':'B75 complete tactical content','starter_kits':json.loads((data / 'starter_kits.json').read_text())['templates'],'abilities':abilities,'null_bell':next(row for row in items if row['id']=='null_bell')}
+data = root / 'SourceData/Catalogs/V07'
+abilities = json.loads((data / 'abilities.json').read_text(encoding='utf-8-sig'))['abilities']
+items = json.loads((data / 'items.json').read_text(encoding='utf-8-sig'))['items']
+payload = {'schema_version':7,'milestone':'B75 complete tactical content','starter_kits':json.loads((data / 'starter_kits.json').read_text(encoding='utf-8-sig'))['templates'],'abilities':abilities,'null_bell':next(row for row in items if row['id']=='null_bell')}
 encoded = (json.dumps(payload, indent=2) + '\n').encode('utf-8')
 target = root / 'Content/Lockdown/Data/V07/combat.json'
 if args.check:

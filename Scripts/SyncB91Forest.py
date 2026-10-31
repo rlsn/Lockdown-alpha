@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser();p.add_argument('--fit',type=Path);p.add_argument('--check',action='store_true');a=p.parse_args()
-    raw=(ROOT/'docs/v09/data/terrain.json').read_bytes();d=json.loads(raw)
+    raw=(ROOT/'SourceData/World/terrain.json').read_bytes();d=json.loads(raw)
     patches=[dict(id=r['id'],center=r['center_cm'],radius=r['radius_cm'],count=r['scenery_tree_target']) for r in d['forest_patches']]
     assert len(patches)==12 and len({r['id'] for r in patches})==12 and all(r['count']==250 for r in patches)
     config=(json.dumps(dict(schema=9,seed=9001,patches=patches,source_sha256=hashlib.sha256(raw).hexdigest()),sort_keys=True,separators=(',',':'))+'\n').encode()

@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'docs/v09/data/economy.json'
+SOURCE = ROOT / 'SourceData/World/economy.json'
 TARGET = ROOT / 'Content/Lockdown/Data/V09/economy_b92.json'
 HEADER = ROOT / 'Source/Lockdown/Private/Economy/LDB92EconomyContract.h'
 

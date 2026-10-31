@@ -31,7 +31,7 @@ class ObjectsImport(unittest.TestCase):
     def test_source_closure(self):
         data = json.loads(compile_objects())
         for name, digest in data['source_sha256'].items():
-            self.assertEqual(hashlib.sha256((ROOT/'docs/v09/data'/(name+'.json')).read_bytes()).hexdigest(), digest)
+            self.assertEqual(hashlib.sha256((ROOT/'SourceData/World'/(name+'.json')).read_bytes()).hexdigest(), digest)
 
     def test_sapling_sources(self):
         rows = [r for r in json.loads(compile_objects())['rows'] if r['kind'] == 13]

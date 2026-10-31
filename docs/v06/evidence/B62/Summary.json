@@ -1,7 +1,0 @@
-{
-  "authorityChecks": 26,
-  "sourceRevision": "9bdc2bb446a83d000f35e6af45e645f58c46a0f5",
-  "rules": 22,
-  "dirty": true,
-  "scope": "B62 rules and two local owners on one authority; no remote-network/human acceptance"
-}

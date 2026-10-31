@@ -1,1 +1,0 @@
-The stationary guard restores nine native journeys. This subsequent failed Keys fixture still used an independent counter that could collide with new automatic POI request IDs. The probe now synchronizes its counters with both real controllers. This failed report is not acceptance.

@@ -1,5 +1,0 @@
-[2026.10.26-05.33.25:314][  0]LogTemp: Display: LD_REGION_VALIDATED /Game/Lockdown/Generated/Maps/L_DevelopmentRegion signature=b45:8aa7770695bce00d953f707ca922d347 nodes=4 edges=6
-[2026.10.26-05.33.25:378][  0]LogTemp: Display: LD_REGION_VALIDATED /Game/Lockdown/Generated/Maps/L_RegionAlternate signature=b45:d595efc07b70c49475ca866279436021 nodes=5 edges=7
-[2026.10.26-05.33.25:443][  0]LogTemp: Display: LD_REGION_VALIDATED /Game/Lockdown/Generated/Maps/L_V07Region signature=b45:8e734680f32a701a7d78f8f339c7f807 nodes=11 edges=16
-[2026.10.26-05.33.25:620][  0]LogTemp: Display: LD_REGION_VALIDATED /Game/Lockdown/Generated/Maps/L_V08Region signature=b45:60be02e621de11a5598dbd6d2f64b00b nodes=11 edges=16
-[2026.10.26-05.33.25:621][  0]LogTemp: Display: LD_BOOTSTRAP_SUCCESS b33.1:f76a90a709fc16e8e0d0fd72782a156a (migration assets, four regional topologies and v07 native catalogs validated)

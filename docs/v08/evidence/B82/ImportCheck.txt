@@ -1,1 +1,0 @@
-PASS B82: 29 abilities, 59 items, all 9 presets; reserved Firebolt identity39 remains disabled

@@ -1,1 +1,0 @@
-Failed diagnostic reproduction before the fix: two phase4 failures. The log identifies liveness expiry at351.784ms, zero movement and a16.510ms server frame. This is root-cause evidence, not a passing scenario.

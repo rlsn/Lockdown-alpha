@@ -24,7 +24,7 @@ def check(root, full=False):
     if full:
         assert report['requested_s'] >= 900
     assert report['duration_s'] >= report['requested_s'] and report['wall_duration_s'] >= report['requested_s'] - 1
-    schedules = {r['id']: r for r in read(ROOT / 'docs/v09/data/npc_schedules.json')['rows'] if r['role'] != 'guard'}
+    schedules = {r['id']: r for r in read(ROOT / 'SourceData/World/npc_schedules.json')['rows'] if r['role'] != 'guard'}
     rows = {r['source']: r for r in final['routines']}
     assert rows.keys() == schedules.keys() and len(rows) == 128
     assert sum(r['traveler'] for r in rows.values()) == 32

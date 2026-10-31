@@ -11,18 +11,22 @@ import SyncV09Data as sync
 class SpatialImportTests(unittest.TestCase):
     def setUp(self):
         self.original = sync.SOURCE
+        self.original_travel = sync.TRAVEL
         self.temp = tempfile.TemporaryDirectory()
         sync.SOURCE = Path(self.temp.name)
         for name in sync.INPUTS:
             shutil.copyfile(self.original / (name + '.json'), sync.SOURCE / (name + '.json'))
+        sync.TRAVEL = sync.SOURCE / 'travel_table.csv'
+        shutil.copyfile(self.original_travel, sync.TRAVEL)
 
     def tearDown(self):
         sync.SOURCE = self.original
+        sync.TRAVEL = self.original_travel
         self.temp.cleanup()
 
     def reject(self, name, edit):
         path = sync.SOURCE / (name + '.json')
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
         edit(data)
         path.write_text(json.dumps(data))
         with self.assertRaises((AssertionError, KeyError)):

@@ -1,2 +1,0 @@
-PASS D:\Unreal Projects\Lockdown\docs\v07\evidence\B71\Ledger.json: 12 receipts, 7 accounts, 89 unique items, 467 gold
-PASS D:\Unreal Projects\Lockdown\docs\v07\evidence\B71\V06Ledger.json: 38 receipts, 7 accounts, 97 unique items, 1580 gold

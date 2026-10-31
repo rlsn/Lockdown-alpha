@@ -5,6 +5,23 @@ function Get-LDProjectRoot {
     (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 }
 
+function Get-LDProjectVersion {
+    $inProjectSettings = $false
+    $versions = @()
+    foreach ($line in Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Config/DefaultGame.ini') -Encoding utf8) {
+        $value = $line.Trim()
+        if ($value -match '^\[(.+)\]$') {
+            $inProjectSettings = $Matches[1] -eq '/Script/EngineSettings.GeneralProjectSettings'
+        } elseif ($inProjectSettings -and $value -match '^ProjectVersion\s*=\s*(.*)$') {
+            $version = $Matches[1].Trim()
+            if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'ProjectVersion must use major.minor.patch.' }
+            $versions += $version
+        }
+    }
+    if ($versions.Count -ne 1) { throw 'Expected exactly one ProjectVersion in GeneralProjectSettings.' }
+    $versions[0]
+}
+
 function Resolve-LDEngine {
     param([string]$EngineRoot)
     $projectRoot = Get-LDProjectRoot

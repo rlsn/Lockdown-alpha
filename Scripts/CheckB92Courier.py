@@ -14,7 +14,7 @@ def read(path):
 
 def distance(start, target):
     graph = {}
-    for r in read(ROOT / 'docs/v09/data/routes.json')['rows']:
+    for r in read(ROOT / 'SourceData/World/routes.json')['rows']:
         graph.setdefault(r['from'], []).append((r['to'], r['length_cm']))
         graph.setdefault(r['to'], []).append((r['from'], r['length_cm']))
     best = {start: 0}
@@ -48,7 +48,7 @@ def check(root):
     assert len({j['contract'] for j in contracts}) == 60
     assert len({j['terminal'] for j in contracts}) == 60
     assert Counter(r['cause'] for r in receipts.values())['B92CourierAbandon'] == 38
-    boards = {r['poi_id'] for r in read(ROOT / 'docs/v09/data/services.json')['rows'] if 'courier_board' in r['functions']}
+    boards = {r['poi_id'] for r in read(ROOT / 'SourceData/World/services.json')['rows'] if 'courier_board' in r['functions']}
     terminals = Counter()
     owners = Counter()
     for j in contracts:

@@ -1,3 +1,0 @@
-# B92 remote takeover and physical markets
-
-See [scope and limitations](../../B92_SERVICES.md). Two actual remote owners trade existing goods; a replacement connection takes the available original seat/body/account. This is not authenticated account reclaim. Five physical commodity counters use real bags and one canonical world/market ledger. Counter travel pads, later-city cached goods and prepared source tools are explicit fixtures, without grants or hidden funding. Market.png records the full-bag refusal. Historical baselines remain unchanged. Diagnostic folders retain failed attempts. Routines, security, work, bank/rare services and complete B92/B94 acceptance remain open.

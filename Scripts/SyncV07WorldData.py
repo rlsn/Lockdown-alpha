@@ -2,11 +2,11 @@
 from pathlib import Path
 import json,hashlib,argparse,copy
 r=Path(__file__).resolve().parents[1];p=argparse.ArgumentParser();p.add_argument('--check',action='store_true');a=p.parse_args()
-world=json.loads((r/'docs/v07/data/world_and_routes.json').read_text());rules=json.loads((r/'docs/v07/data/v07_rules.json').read_text())
+world=json.loads((r/'SourceData/Catalogs/V07/world_and_routes.json').read_text(encoding='utf-8-sig'));rules=json.loads((r/'SourceData/Catalogs/V07/v07_rules.json').read_text(encoding='utf-8-sig'))
 layout={'RuinA':[-3000,1000,0],'RuinB':[0,2300,0],'RuinC':[3000,0,0],'BossLair':[2200,2700,0],'HeartForge':[2500,1400,0],'HeartAntechamber':[0,-500,0],'CampA':[-2500,2200,0],'CampB':[4800,2500,0],'CampC':[4800,-2800,0],'ShrineWest':[-3000,-700,0],'ShrineEast':[3000,1500,0],'GrandTowerA':[-650,300,0],'GrandTowerB':[650,300,0],'GrandTowerC':[0,850,0]}
 payload={'schema_version':7,'world':world,'rewards':rules['world_rewards'],'layout':layout}
 raw=(json.dumps(payload,indent=2)+'\n').encode();digest=hashlib.sha256(raw).hexdigest()
-base=json.loads((r/'Config/RegionLayout.json').read_text())['regions'][:2];region=copy.deepcopy(base[0]);region['name']='B76 Civic Reach';node={n['name']:n for n in region['nodes']};node['City']['position']=region['guild'];
+base=json.loads((r/'Config/RegionLayout.json').read_text(encoding='utf-8-sig'))['regions'][:2];region=copy.deepcopy(base[0]);region['name']='B76 Civic Reach';node={n['name']:n for n in region['nodes']};node['City']['position']=region['guild'];
 for route in region['routes']:
  if route['from']==region['cityId']:route['points'][0]=region['guild']
  if route['to']==region['cityId']:route['points'][-1]=region['guild']

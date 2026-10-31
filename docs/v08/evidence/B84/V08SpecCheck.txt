@@ -1,7 +1,0 @@
-1812 specification assertions; 0 failures; 18 reference boundary tests
-PASS: specification models only. Native/engine/network/human tests NOT RUN.
-..................
-----------------------------------------------------------------------
-Ran 18 tests in 0.001s
-
-OK

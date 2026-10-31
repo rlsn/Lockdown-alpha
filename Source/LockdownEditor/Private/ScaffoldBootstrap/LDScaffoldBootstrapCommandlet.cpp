@@ -237,7 +237,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!HasSignature(Tuning, Signature) || !Tuning->Validate(TuningError)) { UE_LOG(LogTemp, Error, TEXT("Missing/stale tuning: %s"), *TuningError); return 3; }
 
     FString CharacterJson,CharacterError;
-    if (!FFileHelper::LoadFileToString(CharacterJson,*(FPaths::ProjectDir()/TEXT("docs/v04/data/prototype_rules.json")))) { return 3; }
+    if (!FFileHelper::LoadFileToString(CharacterJson,*(FPaths::ProjectDir()/TEXT("SourceData/Character/prototype_rules.json")))) { UE_LOG(LogTemp,Error,TEXT("Missing SourceData character catalog")); return 3; }
     ULDCharacterCatalog* ExpectedCatalog=NewObject<ULDCharacterCatalog>();
     if (!ExpectedCatalog->Import(CharacterJson,CharacterError)) { UE_LOG(LogTemp,Error,TEXT("Invalid character source: %s"),*CharacterError); return 3; }
     const FString CatalogPath=FString(GeneratedRoot)+TEXT("Data/DA_CharacterCatalog");
