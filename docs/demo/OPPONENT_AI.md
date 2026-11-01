@@ -136,17 +136,25 @@ Pending/Queued 不等于成功，ActionFinished 也不等于所有已释放效�
 Rejected 可以有 ProtectionRemoved 而没有 ActionId。
 
 成长/商店的正式查询是
-`QueryChoiceReceipt(ContenderId, const FLDReceiptQuery&)` /
-`QueryShopReceipt(ContenderId, const FLDReceiptQuery&)`；
+`QueryChoiceReceipt(const FGuid& ContenderId, const FLDReceiptQuery&) -> FLDChoiceReceiptQueryResult` /
+`QueryShopReceipt(const FGuid& ContenderId, const FLDReceiptQuery&) -> FLDShopReceiptQueryResult`；
 ContenderId 仍由绑定 adapter 解析。Query 带 Generation:uint32、
 Family:Choice/Shop、RequestId:uint64，**先拒旧 Generation 再查记录**；
-回执保留 OriginalLife/OriginalLifePhase，不能把新局 RequestId=1 映射到上局记录。
+不能把新局 RequestId=1 映射到上局记录。查询返回包装结果，不是业务终态 Receipt：
+LookupStatus=Pending 时仅 PendingInfo 存在，其中 OriginalLife/OriginalLifePhase
+来自已受理请求，没有 Outcome/CommitOrdinal 或成功载荷；
+Final 时仅匹配原查询键的对应业务 Receipt 存在；
+NotFound/ReceiptExpired/InvalidContext 时两种载荷均不存在，只返回原查询键和状态。
+不存在的数据不补默认 OriginalLife，也不伪造 Applied/Rejected、物品或选择结果。
 Queue 结果区分 AcceptedPending、Final、AdmissionRejected，并携 SequenceReserved。
 未受理且 SequenceReserved=false 的拒绝不占用未来序号；
 已受理的最终拒绝也消耗该序号，已保留 ID 的异条款仍冲突。
 Pending 只查询/重发同条款，不先送下一笔业务。
 Build/Inventory/Item/Account/Offer/Progression/SourceBinding/Readiness 修订均为 uint64；
 Instance/Offer/Option/IssuedCooldownId 均为 FGuid。
+技能/装备 DefinitionId 服务端为 FName，wire 使用固定 64 字节 UTF-8 缓冲：
+最多 63 字节内容、NUL 终止、余字节零填充；批准 ID 使用 `[a-z][a-z0-9_]*` ASCII 子集。
+先检查编码、长度、终止/填充、规范和目录，不截断未知/非法 ID，也不降级成默认能力。
 CatalogDigest 使用读模型给定的根摘要，wire 为 SHA256 的 32 raw bytes，
 显示为 64 位小写 hex；AI 不自行重算或拼接另一摘要。
 
@@ -526,7 +534,7 @@ AI03 的动作覆盖可以用明确标注的源/Offer 夹具穷举稀有分支�
 | AI-A04 字段白名单/死亡视野 | 当前可见时检查姓名/等级/HP/MP/状态/展示装备；遮挡、死亡、拖静态镜头、公开圈与击杀通知 | 动态字段撤销，无技能/CD/内部实例/属性/金币或 LastSeen；死亡无新身体视野；公共信息不附精确隐藏坐标。 |
 | AI-A05 目标撤销/可见死亡 | 在提交前、追击、前摇中 Conceal/stale；晚到旧视图/ACK；另给予匹配原订单/handle epoch 的 FLDObservedUnitTermination 授权死亡 | 失视野终结 AttackUnit/追敌 A，无旧 A 目的地/LastSeen 续走；再次可见须新 Order。只有未取消原单的授权死亡能走操作域原 A 继续；隐藏死亡/移除/离局不行。 |
 | AI-A06 不可达/卡路 | 无完整路径、阻挡更新、投影地面非法、受控停走、目标换生命、异观察者 handle | 无 partial 成功/穿墙/传送；路径错误不暴露隐藏障碍实体；控制不误计卡路；有限重试后换合法 POI，原 identity 明确终结。 |
-| AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，超过回执窗，Query 已取消单 | Queued 不替旧单；准入 handoff 原子；旧包不能续走/续打/延寿；冲突/过窗明确，零重复业务提交。 |
+| AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Choice/Shop 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、满 Q/W 替换、全部技能三级、死前 Alive 请求延到 Dead、Dead 选择与复活竞争 | 同一机会只消费一次，原卡保留不重抽；九次/十级/三级边界；明确遗忘/再学一级。当前 Dead 选择不治疗/提前复活；旧 LifePhase 确认拒绝而候选不变。 |
 | AI-A09 买卖资格/失败 | 合法区域/交互距离内但 LOS 被挡；对照旧路径票据、非法区域、无钱/满槽/旧报价/越界/死亡/终局/实例分配失败；Sell 后 Buy 被拒；重复/过窗重放 | 前者不额外因 LOS 拒绝；提交时仍重查全部实际资格，路径票据不保成交。失败事务不部分改钱物，已 Sell 不倒回；无免费实例、超两件或预支收益；有界恢复不被自造 revision 刷新预算。 |
 | AI-A10 来源与全目录 | 穷举三角色主动、phase_anchor Direction/Dash、arcane_battery Self/回蓝+护盾；两个同款主动连续用；换槽、遗忘重学、卖买和死亡；另检查五件无主动装备 | 每次为真实来源，通过同一 Combat；双主动独立、基础属性两份/同名被动一次；原结束时间保留；店外/圈内/无钱/满槽仍可合法释放，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
