@@ -17,7 +17,7 @@
 | --- | --- |
 | 名单 | Host 选择零至三个 AI；与最多三名真人（含 Host）共存，各自 FFA，不补满、不组队、不接管断线真人。 |
 | 起步与成长 | 同一基础角色，初始近战单体物理普攻；正常打野/对抗获得最后一击的经验和金币，再三选一、购物、争圈。装备/属性可以增加攻击距离或群攻。 |
-| 营地反击与回位 | 未受攻击营地不主动攻击路过者；攻击一只后同组共同反击，但不共享隐藏位置。Returning 仍可受伤、控制、被杀，不回头追击；存活成员到家满血蓝、清临时状态/仇恨、技能就绪，不复活已死成员、不因回位发奖。 |
+| 营地反击与回位 | 未受攻击营地不主动攻击路过者；确认的合法命中触发同组存活成员反击，即使被击成员当次死亡，也不共享隐藏位置。预览/挥空/被拒命令/单纯碰撞不触发。Returning 仍可受伤、控制、被杀，不回头追击；存活成员到家满血蓝、清临时状态/仇恨、技能就绪，不复活已死成员、不因回位发奖。 |
 | 技能与装备 | Q/W 两个角色主动槽；装备 1/2 不占 Q/W；角色被动无额外槽位上限；最多九次选择、每技能最高三级。满 Q/W 学新主动必须明确确认替换并遗忘旧技能及等级。 |
 | 同款装备与冷却 | 两件同款合法，基础属性相加，同名被动只生效一次；两份主动有独立冷却、可以连续使用。换槽、售出重买、遗忘重学和死亡不能洗冷却；失去来源期间原期限继续流逝。 |
 | 死亡 | 保留成长、财产、候选和冷却；死亡等待可以确认三选一，只更新持久构筑，不治疗尸体或提前复活。最大血蓝变化按统一公式保持原百分比；AI 不另算公式。 |
@@ -71,6 +71,7 @@ GameMode 的注册/注销仍是唯一入口，不让新 AI 获得旧 Roster 的 
 | AI 名额、Contender、Match、Life、阶段和复活 | GameMode 生命周期域 | 复用 `FLDMatchContext{Generation,LedgerMatch}`、`FLDVictimKey{Kind,EntityId,Life}`、`FLDCombatBodyRef{Victim,BodyIdentity}`；AI 的 Victim.Kind 必须为 Contender。 |
 | 策略状态 | 本 AI 的 `ALDOpponentController` | 同文件内 `FLDOpponentPolicyState`：当前模式、公共 POI、当前合法目标句柄、请求游标、有限失败记录及下次决策期限。不是第二份权威身体或成长。 |
 | 一次决策输入 | 各领域投影；AI 只读副本 | `FLDOpponentDecisionFrame`：本人 owner/progression/equipment/readiness、已发布 WorldView、公共 MatchView、只读公共目录。纯策略不接 UWorld/Actor/Ledger 指针。 |
+| 营地成本估计 | AI 同文件内纯值策略计算，不是玩法写入 | `EstimateCampCost(Frame, CampId) -> FLDCampCostEstimate`；CampId 仅引用公共 POI。结果区分有数值的 Ok、预算/生存条件不允许的 NotFeasible、输入/公式失败的 EstimateUnavailable；数值原语复用 R07，不推进世界、RNG、CD 或真实血量。 |
 | 意图 | AI 产生；对应领域验证/提交 | `FLDOpponentDecision` 是 Order/Action/Choice/Shop 的有界判别结果，不含可写权限或另一个参赛者 ID。 |
 | 绑定 | GameMode 唯一注册、核心注册后通知 | `RegisterAIContender(AController&, uint8 RosterSlot, const FLDMatchContext&) -> FLDAIRegistrationResult` 仅 Starting 使用冻结 AI 名额；返回核心 `FLDAIContenderBinding{Match,ContenderId}`，再调用 adapter 的 `BindRegisteredSelf(const FLDAIContenderBinding&)`。不得让策略任意选择 ID。 |
 | 本人快照 | 核心与原领域只读投影 | 核心 `ReadAISelf(binding) -> FLDAISelfReadResult` 与 `ReadPublicMatch() -> FLDPublicMatchView`；adapter 的 `RequestAISnapshot` 组合这两个和 Observer/领域投影，不在核心另建快照真相。缺服务/旧局/已离局是失败，不返回成功形状空快照。 |
@@ -131,7 +132,8 @@ NotGrounded 是明确否定结果，原域仍完成已处理边界，不是缺�
 | `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction`、`OnActionFinished` | `FLDCombatRequestKey` 为 `Direct{Generation,Contender,Life,DirectSequence:uint64}` 或 `Nav{Generation,Contender,Life,MoveIdentity,AttackCycle}`；前者由绑定本人的 AI 直接意图生产，后者仅服务器 Navigation 内部生产。另带 Basic/Learned/Gear SourceRef、Gear 精确实例、TypedTarget 和必要 Build/Inventory/Item/SourceBindingRevision、CatalogDigest。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键；Gear 不检查商店条件。 |
 | `ALDDevelopmentDirector::ReadProgression`、`QueueChoice`、`QueryChoiceReceipt` | Generation、当前 Life、ExpectedLifePhase、独立 RequestId、队头 OfferId/Revision、OptionId、ExpectedBuildRevision；满槽明确 ReplacementSlot、ExpectedOldSkillId/Rank。 | 原候选不重抽；原子遗忘/装槽/消费一次机会后才生成下一组。死亡阶段合法确认可成功；死前 Alive 请求不能冒充当前 Dead 确认。 |
 | `ALDInventoryDirector::ReadEquipment` | 绑定本人的读取上下文。 | 返回 Gold/AccountRevision、两个 Instance/Definition/ItemRevision、InventoryRevision/SourceBindingRevision、IssuedCooldownId/ReadyAtMs；纯投影，不授予修改权。 |
-| `ALDVendorDirector::OpenShop`、`QueueShopCommand`、`QueryShopReceipt` | Generation/Life/RequestId、ShopSession/QuoteRevision/CatalogDigest、预期 Account/Inventory/Build/SourceBindingRevision；Buy 商品与展示价，Sell 精确实例/ItemRevision 与展示卖价。 | Transactions 经 World.QueryShopEligibility 重查存活、进行中、真实位置的合法区域/交互距离和版本，不额外加 LOS，不用旧路径票据替代资格；再原子改钱物。先确认 Sell 真成功，重读再另发 Buy；不是自动替换一体事务。 |
+| 开店意图进入现有核心队列；`ALDVendorDirector::QueueShopCommand`、`QueryShopReceipt` | 开店 `FLDShopOpenCommand{Generation,Life,ShopId,ExpectedWorldRevision}` 不携 Permit。Buy/Sell 另带 RequestId、ShopSession/QuoteRevision/CatalogDigest、ExpectedWorldRevision 和预期 Account/Inventory/Build/SourceBindingRevision；Buy 商品/展示价，Sell 精确实例/ItemRevision/展示卖价。 | Transactions 才调用内部 `OpenShop(ContenderId, Command, Permit)`；每次开店/Buy/Sell 都由核心借当次 Permit，经 `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision)` 重查当前身体、合法区域/距离与版本，不额外加 LOS。AI 不直接调用内部 OpenShop 或受许可几何；Sell 真成功后重读再单独 Buy。 |
+| `LDTactical::EvaluateDamage(const FLDDamageEvaluationInput&, const FLDCombatFormulaSet&) -> FLDDamageEvaluationResult`；`EvaluateBasicTiming(const FLDBasicTimingInput&, const FLDCombatFormulaSet&) -> FLDBasicTimingResult` | 仅数值假设：公开编译定义、本人所需属性、显式非暴击假设、匿名模板抗性/HP/盾/保护；Timing 用对应单位普攻定义及已解析 AS。FormulaSet 是该 CatalogDigest 下批准编译的不可变参数。 | 位于原 LDTacticalRules，成功给数值/时长，定义域失败显式返回错误；无 Actor/World/Bodies/Camp 查询、时钟、RNG、状态或 Token。真实 ApplyHit/AttackStart 也必须调用这两个同源纯函数，再经 Permit 提交；估计结果不是 Hit/Death/奖励事实。 |
 
 每域独立请求空间和有界回执窗口：同 ID 同条款只重放原结果；同 ID 异条款
 RequestConflict；过窗仍保留拒旧高水位并明确 ReceiptExpired。没有收到回执不能改新 ID
@@ -165,6 +167,13 @@ Instance/Offer/Option/IssuedCooldownId 均为 FGuid。
 先检查编码、长度、终止/填充、规范和目录，不截断未知/非法 ID，也不降级成默认能力。
 CatalogDigest 使用读模型给定的根摘要，wire 为 SHA256 的 32 raw bytes，
 显示为 64 位小写 hex；AI 不自行重算或拼接另一摘要。
+
+开店复用当前交互绑定/取消和核心权威队列，每人最多一个未办理意图，同一意图重复受理合并；
+不另建开店请求流或第二 Pending 队列。
+`FLDShopOpenResult{Generation,Life,ShopId,OpenStatus,Reason,可选ShopView}` 中，
+Pending 只表示队列受理，Opened 只来自 Transactions 成功且独占合法会话/报价 View；
+Rejected 可来自受理或阶段拒绝，Pending/Rejected 均没有 View。
+旧订单/生命的 Opened 不给新身体会话执行权，AI 不把排队回执当成已开店。
 
 Stop 提高 Order 和 Epoch；服务器因目标失效结束原 Identity，不制造调用者未知的新 Epoch。
 接受回执时核对局、生命、域、请求身份与单调修订；旧 ACK、旧 Offer 确认和旧 Outcome
@@ -222,7 +231,7 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | 局部原样复用 R01/R02 | `S\Public\Navigation\LDNavigationComponent.h` 的 FLDMoveIdentity；`S\Private\Character\LDCharacterMovementComponent.cpp` 的 SavedMove/Serialize；`S\Public\Framework\LDCommandLiveness.h` | 保留代次/取消/拒旧与原生运动，不复制身份或位置系统；输入、导航、Combat、AI 共用。 |
 | 改造 R05/N06 | `S\Public\Navigation\LDNavigationComponent.h`、`S\Private\Navigation\LDNavigationComponent.cpp` | 原组件承载 SubmitOrder/CancelOrder/QueryOrder 与 server adapter 的方向跟随；拆 local UI 限制，移除 B91/旧 Site 分派；Combat 的旧 `PC->Navigation->Stop()` 改接同一 handoff/cancel。 |
 | 改造 R04/R06 | `S\Public\Framework\LDGameMode.h`、`S\Private\Framework\LDGameMode.cpp`、`S\Public\Framework\LDPlayerController.h`、`S\Private\Framework\LDPlayerController.cpp`、`S\Private\Character\LDCharacter.cpp`、`S\Private\Character\LDCharacterMovementComponent.cpp` | 核心 RegisterAIContender/ELDContenderKind/ReadAISelf/ReadPublicMatch 与提交后通知；基类的 UI、网络与本地运动隔离；删除居民、人口速度和搬运政策。不能只新增一个 Controller 然后保留 local-only 假设。 |
-| 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Private\Development\LDDevelopmentDirector.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDVendorDirector.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。保留条款比较、全验证后提交、来源失效；去旧职业/书籍/槽位政策。 |
+| 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDDevelopmentDirector.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDVendorDirector.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策。 |
 | 抽取/改造 R10–R12 | `S\Private\World\LDWorldDirector.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供五营地、正常致死信用、静态查询和唯一受限帧；AI 不消费全表，不保留旧完整地图第二身体流。 |
 | 新增 N06/M12 | `S\Public\Population\LDOpponentController.h`、`S\Private\Population\LDOpponentController.cpp` | 放 §3 的 adapter、value policy、决策输入/结果与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
 | 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
@@ -322,7 +331,7 @@ P4 构建/UHT、Bootstrap、生成拒绝及对应真实场景确认闭包。
 | P3 DefendOrHold | 自己正在合法守圈，或公开独占即将达到自身回防预算；走公开圈入口、处理当前可见威胁 | 压过新的打野/购物；阶段、CaptureEpoch、有效资格、路线或风险改变时重评；公开占领者不能直接变成单位目标。 |
 | P4 Choose | 队头 Offer 存在且无在途构筑变更；用 §6.4 选择一次 | 不冻结正在进行的合法运动或紧急反应；成功后才读下一组，冲突不重抽。 |
 | P5 Engage | 当前合法可见目标、本人可用资源/动作、未超投入预算；Nav 攻击订单与 §6.3 主动 | 失视野、无效目标、危险、回防、超预算或生命变化时退出；不读对手内部战力来保证击杀。 |
-| P6 Shop | 有当前可负担的实际构筑改善；ApproachShop、Open、Buy 或明确 Sell→Buy | 危险/越界/死亡/终局打断未提交步骤；已成交不回滚。无改善就离店，不为更换排序 ID 循环买卖。 |
+| P6 Shop | 自身余额与同目录公开价格/出售规则支持一个非约束性改善计划，不要求已有 ShopView；ApproachShop 到位后将开店意图入核心队列，Opened 后按真实报价重新判断 Buy 或 Sell→Buy | Pending 不等于有会话；危险/越界/死亡/终局打断未提交步骤，已成交不回滚。无改善就离店，不为更换排序 ID 循环买卖。 |
 | P7 Contest | 圈已开放，无更高可执行目标；自身风险门允许进入公开圈 | 到位转守圈；不能有效入场时换静态合法入口或继续成长/探索，不用保护者骗争夺人数。 |
 | P8 Farm | 没有更高目标；根据公开档位与自身状态选择营地，观察到合法成员才攻击 | 无合法目标、止损、预算到期或紧急回防即结束。Returning 不等于无敌；只继续 §6.2 允许的当前射程内攻击，不新起回营追逐。 |
 | P9 Explore | 其他目标不可执行；选择未被失败抑制的公共 POI | 新合法观察、资源/Offer/公共圈变化、订单终态触发重评；不为移动而扫描全图身体。 |
@@ -342,10 +351,31 @@ P4 构建/UHT、Bootstrap、生成拒绝及对应真实场景确认闭包。
 ### 6.2 营地、目标与公开回防
 
 **营地。** 原始构筑优先低档；有真实成长选择或装备后才把高档加入主动尝试候选。
-这只是机器人的保守偏好，不限制真人进入高档。高档入口用 HighCampEntryHPRatio，
-交战分别使用 HighCampReserveHPRatio/LowCampReserveHPRatio 止损。
+这只是机器人的保守偏好，不限制真人进入高档。高档入口先查 HighCampEntryHPRatio，
+两档都要评估本人实际构筑的保守打野成本：**预测清营后的剩余 HP 比例**
+须达到相应 HighCampReserveHPRatio/LowCampReserveHPRatio。
+它们是入场成本门槛，不是当前 HP 止损线；实际受压/危险退出继续使用 RetreatHPRatio、
+当前可见压力及 EngagementBudgetSec，不把同一参数改作另一个规则。
 排除无完整路径或失败抑制的 POI，优先继续有效访问，其次当前可见的合适成员，
 再按访问新鲜度、合法接近成本和稳定键选择公共地点。
+
+`EstimateCampCost` 只做一次有界、匿名的公共目录成本计算：以本人当前 HP/MaxHP、
+真实派生 AD/护甲/AS 与普攻 readiness 为输入，按目标公开档位的 CountPerCamp、
+HP/Armor/Attack/AttackSpeed/AttackWindupSec 采用满营地模板。
+模板是假设的保守上限，不声明实际隐藏成员存活/残血/已刷新；不靠未观察死亡减成员数。
+通过 §3.3 的 `LDTactical::EvaluateDamage/EvaluateBasicTiming` 消费同一
+`FORMULA.Damage/Resistance/AttackIntervalMs/AttackWindupMs` 原语，
+根据各成员所需普通主击数、预计击杀时刻以及存活窗口内可到期的反击数累计成本，
+不另抄伤害/减伤/取整算法。首个确认命中后才起存活成员反击前摇，同刻到期反击计入，
+不靠“玩家先结算”抹掉成本。首版两种野怪只有普通物理攻击，没有待猜测的技能/CD。
+
+这是 `CONTENT_AND_BALANCE.md` §7.2 限定站桩成本模型的保守决策用途：
+不计暴击、技能/护盾、吸血/群攻与回复的额外收益，不运行真实效果或消耗随机流。
+预计投入超过 EngagementBudgetSec、预测 HP 耗尽、单击无有效伤害或不能得到有限清营结果时，
+停止并输出 NotFeasible；缺公式/非法输入则显式 EstimateUnavailable，不补最低伤害或成功估计。
+模型只适用于合法互攻距离、无第三方/额外走位的假设，不是实际伤害结算或必胜保证。
+估计不每次攻击按“完整新营地”重算；实际战斗按当前危险/预算退出，
+构筑变化或重新开始一次营地访问时才重新评估，不形成另一套世界 Tick 或持久怪物状态。
 
 到地点未见目标只记录“本次未发现可见可打目标”，不能声明整组已清空。
 ExploreRevisitIntervalSec 是自己的探索节奏，不是从 CAMP.RespawnSec 推算隐藏倒计时。
@@ -412,7 +442,7 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 | 公开角色定义 | 目标与使用规则 |
 | --- | --- |
 | `active_arc_bolt` | Direction；用当前合法可见目标形成方向，归一化/几何由 Combat 重验；不随隐藏目标持续修正。 |
-| `active_guard_pulse` | Self；在本人需要目录明确提供的防护时使用，不因名称猜测它还能治疗、无敌或解除控制。 |
+| `active_guard_pulse` | Self；真实效果为屏障并移除本人当前全部 Root 来源。需要防护，或 Root 妨碍脱险/入圈且 Skill/资源/readiness 允许时优先使用；Root 不禁止 Skill，但不能越过其他施法限制。不治疗、不免疫伤害，不清其他控制/CD/死亡或重新保护。 |
 | `active_binding_snare` | Unit；当前可见威胁的观察句柄，执行时重查；不是凭公开占领者 ID 施法。 |
 
 首版七个装备定义逐项绑定；当前只有两种非空 Active，不以一个“会用装备”的泛化断言代替：
@@ -462,7 +492,13 @@ Direction 使用当时获准方向，Self 检查本人状态。
 
 满槽换装必须让完整候选装备对的上述实质偏好严格改善；
 只有稳定 ID 排名改变不允许卖买，不因某件主动当前冷却而卖出。
-价格与出售回报用真实报价，计划不得预支未来击杀收益。
+到店前可用同 CatalogDigest 的公开 `ITEM.<id>.BuyPrice`、出售规则及本人余额/装备
+作非约束性预算，也可评估公开规则下的预计卖出回报；不需要 ShopView、会话或 Permit。
+这只是决定是否值得前往，不改钱包、不授予装备、不预支未来击杀或实际成交，
+所以首次购物或旧报价失效时仍能主动到店。
+实际交易必须等待 Transactions 返回 Opened，再用合法报价和当前本人状态重新评估价格、
+出售回报与完整换装结果；不符合就重新计划或离店。
+开店 Pending/Rejected 没有可用 View，不发 Buy/Sell；AI 也不持有或制造 Permit。
 先明确 Sell 具体实例，收到最终成功后重读余额/库存/来源/报价再用新请求 Buy。
 后买失败保留已售事实和空槽，不恢复旧物、不补钱、不伪造新实例。
 同一失败换装计划的预算不因自己导致的库存 revision 自动重置。
@@ -498,8 +534,8 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | --- | --- | --- |
 | `AI.RetreatHPRatio` | 无量纲比例；受压脱险线 | 在零至一的有效健康比例域内，低于 ResumeFarmHPRatio，避免往返振荡。 |
 | `AI.ResumeFarmHPRatio` | 无量纲比例；恢复后重新主动刷野 | 不要求满蓝、不阻止死时选卡/公开回防；与低档止损和入场能力一致。 |
-| `AI.HighCampEntryHPRatio` | 无量纲比例；高档主动入场 | 高于 HighCampReserveHPRatio；还须实际成长/装备，不保证“进了就能打赢”。 |
-| `AI.HighCampReserveHPRatio`、`AI.LowCampReserveHPRatio` | 无量纲比例；相应营地当前自身 HP 止损 | 清楚区分入场与止损，不能把保留血量解释成额外免伤；与正常基础角色可开始低档打野的模型一致。 |
+| `AI.HighCampEntryHPRatio` | 无量纲比例；高档入场的当前 HP 门槛 | 还须实际成长/装备及保守成本评估，不只看等级或当前血量，不保证“进了就能打赢”。 |
+| `AI.HighCampReserveHPRatio`、`AI.LowCampReserveHPRatio` | 无量纲比例；相应营地预测清空后的剩余 HP 门槛 | 使用本人实际构筑与公共目录的限定成本模型，不读隐藏血量；不是当前 HP 止损线/额外免伤。实际止损沿 RetreatHPRatio，模型不能保证第三方干扰下安全。 |
 | `AI.CaptureReactionBudgetSec` | 正有限秒数；回防估计余量 | 包含常规规划/排队的不利延迟，不是等待此时长才行动；不得改变 Capture 的真实截止。 |
 | `AI.DecisionIntervalSec` | 正有限秒数；常规策略节拍 | 三 AI 最坏调度可纳入回防预算；终局/身份/观察失效立即处理，长帧不补算旧决定。 |
 | `AI.RetryPolicy.MaxAttempts` | 正整数，含首次 | 有界业务/路径尝试；缓存过窗不是重新发起同一操作的理由。 |
@@ -508,7 +544,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | `AI.EngagementBudgetSec` | 正有限秒数 | 覆盖批准基础低档战斗的合理投入；同一次目标/营地过程累计，不随普通攻击、Order 或帧重置。 |
 | `STAT.AttackRangeCm`、本人移速/血蓝/readiness | 原领域权威派生；厘米、厘米/秒、资源 P2、绝对服务器毫秒 | AI 不用初始射程覆盖成长，不另存技能 CD；字段单位由提供者定义并集中转换。 |
 | `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/Rank[r].ManaCost/CooldownSec`；`ITEM.<id>.BuyPrice/Stats/Passive/Active` | 公共定义；按字段单位/类型读取；装备效果子字段见 §6.3 | 技能最高三级；按实际三种目标覆盖全部非空来源；未知 enum/缺作用条件拒绝而非默认为普攻，不虚构 Ground 内容。 |
-| `CAMP.Low/High`、公开地点；`FORMULA.ResourceMaxChange` | 只读公共定义/统一公式引用 | AI 不读隐藏当前营地成员、HP或刷新期限；资源比例变化只消费 Combat 最终投影。 |
+| `CAMP.Low/High`、公开地点；`FORMULA.Damage/Resistance/AttackIntervalMs/AttackWindupMs/ResourceMaxChange` | 只读公共定义/统一数值原语 | 成本估计复用原语但不执行战斗，不读隐藏当前营地成员/HP/刷新期限；资源比例变化只消费 Combat 最终投影。 |
 
 工程级回执容量、订单 liveness、无进展/求路预算沿操作/领域合同集中定义，
 不再加 AI 私有攻击周期、卡路阈值、单位历史 TTL 或敌方战力权重。
@@ -547,13 +583,13 @@ AI03 的动作覆盖可以用明确标注的源/Offer 夹具穷举稀有分支�
 | AI-A06 支持面/不可达/卡路 | None/未知/错误 SurfaceHint、无真实 CurrentFloor 但 XY 在圈内；无完整路径、阻挡更新、受控停走、目标换生命、异观察者 handle | 四参 QueryGround 明确拒绝 InvalidSurface/WrongSurface/NotGrounded，无空 hint/默认面/向下投影兜底；无 floor 不具占领资格但不冻结已处理边界。无 partial/穿墙/传送/隐藏实体泄露；控制不误计卡路，有限重试后换合法 POI。 |
 | AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Choice/Shop 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、满 Q/W 替换、全部技能三级、死前 Alive 请求延到 Dead、Dead 选择与复活竞争 | 同一机会只消费一次，原卡保留不重抽；九次/十级/三级边界；明确遗忘/再学一级。当前 Dead 选择不治疗/提前复活；旧 LifePhase 确认拒绝而候选不变。 |
-| AI-A09 买卖资格/失败 | 合法区域/交互距离内但 LOS 被挡；对照旧路径票据、非法区域、无钱/满槽/旧报价/越界/死亡/终局/实例分配失败；Sell 后 Buy 被拒；重复/过窗重放 | 前者不额外因 LOS 拒绝；提交时仍重查全部实际资格，路径票据不保成交。失败事务不部分改钱物，已 Sell 不倒回；无免费实例、超两件或预支收益；有界恢复不被自造 revision 刷新预算。 |
-| AI-A10 来源与全目录 | 穷举三角色主动、phase_anchor Direction/Dash、arcane_battery Self/回蓝+护盾；两个同款主动连续用；换槽、遗忘重学、卖买和死亡；另检查五件无主动装备 | 每次为真实来源，通过同一 Combat；双主动独立、基础属性两份/同名被动一次；原结束时间保留；店外/圈内/无钱/满槽仍可合法释放，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
+| AI-A09 买卖资格/失败 | 无 ShopView 但公开目录预算足够的首次/旧报价失效购物；开店 Pending/重复/取消/Opened/Rejected；LOS 被挡；旧路径、非法区域、无钱/满槽/旧报价/旧世界修订/越界/死亡/终局/分配失败；Sell 后 Buy 被拒及重放 | 无 ShopView 仍会据非约束预算主动到店；Pending 不提交 Buy/Sell。每人一个待办，只有核心 Transactions 借当次 Permit 进内部 OpenShop/资格查询；只有 Opened 带 View并触发重新预算，后续交易再验当前条件且无额外 LOS。失败不部分改钱物，已 Sell 不倒回，无免费实例或预算刷新。 |
+| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；phase_anchor、arcane_battery；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/圈内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
 | AI-A11 进攻解除保护 | 圈内保护 AI 发当前有效新意图，分别 Missing 目标/错误支持面/未接地/无路/距离远/蓝少/CD未到；对照 Query、旧包、异生命、终局 | 前组为语义执行失败，即使 Rejected 也 ProtectionRemoved/LifeRevision 更新，失败不扣动作 MP/CD；资格事件在 Capture 前生效，保护时段不追算占领，未接地仍无资格；后组不解除。 |
 | AI-A12 死亡/离局效果 | 正常死亡时有已释放独立效果，效果击杀合法目标；另在效果存续时正式离局 | 正常死亡继续原期限并正常发给仍在局死者奖励，可产生 Dead Offer；离局立刻移除身体/效果且离开不发奖；均不能打中同 ID 新生命。 |
-| AI-A13 发育/回防/恢复 | 开放前发育；公开独占临近回防预算；低血/零移速/保护/无回复；守圈时敌人出圈 | 无除零/假安全/全知锁定；不为一只怪拖延，不无期限等回满；圈内可动可打，必要离圈接受清零；失败可解释而非作弊保胜。 |
+| AI-A13 发育/回防/恢复 | 当前 HP 达高营入口但预测剩余不足 Reserve；合适低营；同刻反击/零伤害/超预算/隐藏成员变化；公开占领紧急，低血/零移速/保护/无回复，守圈敌人离圈 | Reserve 只控制模型入场，实际止损沿 Retreat；成本估计不写 HP/CD/RNG、不读隐藏状态、不补最低伤害或抹同刻反击，不将估计当实战保证。回防无除零/全知/等回满死锁，不为一只怪拖延；必要离圈接受清零。 |
 | AI-A14 终局/新局/长帧 | 结果边界同时有在途攻击、奖励、选卡、Sell/Buy、复活和 AI 决策；延迟旧通知到下一局；长帧/长期运行 | Close 后新增玩法提交为零；不补跑历史决策；缓存/队列/每 AI 工作有界；仅新 Match 的上下文可继续，旧回包不唤醒策略。 |
-| AI-A15 营地反击/Returning | 先路过未受攻击营地，再攻击一只；遮挡同组成员/目标；回位途中 Root/伤害/击杀；另让存活者到家并核对 Statuses | 路过不自动挨打，同组反击不授予隐藏位置。可见 Returning 只发布只读 camp_returning，无仇恨/期限/路径；Root 期间保留，退出或 Conceal 撤销。Returning 可伤控杀不回头追击，不是无敌或真人追杀限制。死亡正常恰一次奖励；存活到家重置不发奖/不复活死者，隐藏重置不作为 AI 输入。 |
+| AI-A15 营地反击/Returning | 路过/碰撞/预览/挥空/被拒命令，对照确认合法命中且首个成员当次死亡；遮挡同组/目标；回位途中 Root/伤害/击杀、存活到家 | 只有确认命中触发存活同营反击，各自重查观察不共享坐标。可见 camp_returning 无仇恨/期限/路径，Root 保留、退出或 Conceal 撤销；Returning 可伤控杀不重追，不限制真人追杀。死亡正常恰一次奖励；到家重置不发奖/不复活死者，隐藏重置不进入 AI 输入。 |
 
 运行产物写忽略的 Artifacts。每条证据至少带本次 commit/内容摘要、真实连接拓扑、
 Match/Contender/BodyRef、授权 Frame/Map 修订、策略原因/公共目标、
@@ -572,7 +608,7 @@ RunInventoryCheck、RunVendorCheck、RunLoadoutCheck、RunTests 的有效部分�
 | --- | --- | --- |
 | `demo-ai-strategy-expert`，agent `efd9bd03-4282-4e47-bfac-739b37e88e7a` | 独立提出单一策略、完整自主闭环、参数需求和正反覆盖，不兼任工程或最终 QA | 策略研究完整交付；不存单位历史、不建通用规划平台，已按全部已确认生命周期/观察规则收敛。 |
 | `demo-ai-authority-engineer`，agent `72a21c5b-fcc2-4894-8676-bcd5927d7064` | 独立核对实际生产者/消费者、Controller/导航/领域耦合、精确退役集合和检查入口 | 静态工程研究完整交付；B92 不能充当自主 AI，无连接 adapter 与原域验证是选定最小接线。 |
-| `demo-ai-fairness-integration-qa`，agent `c614cdd1-e582-4f12-82d1-5d06ce143477` | 两份研究和整合稿完成后独立只读审核；未参与策略、工程研究或整合写作 | **静态文档审核通过，未发现必须修正的显著问题。** 包含营地反击/Returning 权限与奖励边界；不代表已实施、已运行或数值已批准。 |
+| `demo-ai-fairness-integration-qa`，agent `c614cdd1-e582-4f12-82d1-5d06ce143477` | 两份研究和整合稿完成后独立只读审核；未参与策略、工程研究或整合写作 | **静态文档审核通过，无剩余必须修正问题。** 覆盖营地反击/Returning、纯值成本估计、到店前规划与开店/成交权限边界；不代表已实施、已运行或数值已批准。 |
 
 模块设计和对接输入已通过独立静态审核，可用于分派后续实施切片。
 权限/身份/拒旧基础可以先接线；自主闭环完成仍以批准内容、原生接口、
