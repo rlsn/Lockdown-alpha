@@ -111,7 +111,7 @@ Settings 是当前页面的主面板；属性、Choices、Shop 也各占同一�
 | 公共圈 | 发育期/剩余开放时间、开放无人、独占者名/进度、争夺、清零反馈 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放/胜利。 |
 | 击杀通知 | 去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、可理解死因 | 普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。 |
 | 属性 P | 本人所有 Spec 属性；基础、等级成长、永久选择、装备/被动/临时贡献及最终值；相关单位/公式说明 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
-| Shop | 商品名/图标、已批准说明、买卖价格、本人金币、恰两装备、Buy/Sell、回绑冷却说明 | 只消费合法交互区域/距离及存活/进行中条件的 QueryShopEligibility，不额外检查 LOS/个人视野；Pending 不减钱/造物。受伤本身不自动关店；越界失效交易并说明原因，死亡/终局关店。 |
+| Shop | 开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价、本人金币、恰两装备、Buy/Sell、回绑冷却说明 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤不自动关店；越界失效交易，死亡/终局关店。 |
 | Choices | 同一持久 Offer 的三张不同合法卡、效果/目标等级、待选次数；先选卡再明确确认；可暂时关闭 | 不自动选择、计时逼选、重抽或消费机会。stale 刷新同卡的保护版本后再次确认；死亡可用当前阶段提交。 |
 | 主动替换子确认 | 新技能、Q/W 两旧技能及等级，明确选要遗忘的槽，再“确认替换并遗忘” | 不默认替换第一个槽；取消返回原三卡，无消耗。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
 | 死亡/保护 | 死因、复活等待、保留构筑与待选入口；复活保护图标/期限与“进攻意图即解除，失败亦解除” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗/购物。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
@@ -244,7 +244,7 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | 拟建接口/所在组件 | 责任与消费者 |
 | --- | --- |
 | `ALDPlayerController::ReadOwnState() const -> const FLDOwnerState*` | 只返回本 local player 已接受投影；未初始化/失效无有效指针，Root 必须呈现 Loading/Stale/Unavailable 及已分类错误，不把缺失变成全零状态。 |
-| `ReadOwnProgression() const -> const FLDProgressionView*`、`ReadOwnEquipment() const -> const FLDEquipmentView*`、`ReadOwnShop() const -> const FLDShopView*` | 是 owner/本人合法报价的 const 访问器，没有可传他人 ContenderId 的参数，不另存可写金币/冷却。 |
+| `ReadOwnProgression() const -> const FLDProgressionView*`、`ReadOwnEquipment() const -> const FLDEquipmentView*`、`ReadOwnShop() const -> const FLDShopView*` | 是 owner/本人合法报价的 const 访问器；Shop 只有当前原交互绑定下已接受的 Opened 结果可安装 View，不把 Pending/Rejected 或旧报价当本次开店成功。没有可传他人 ContenderId 的参数，不另存可写金币/冷却。 |
 | `ULDUIRoot::TopInputLayer() const`、`CloseTopPanel() -> bool`、`OpenMainPanel(ELDUIMainPanel)`、`OpenChildConfirmation(...)` | `ELDUIMainPanel` 仅本地导航枚举；唯一主面板/子确认/焦点状态，Controller 消费输入层。进入子确认先撤冲突 Armed 并保持释放抑制，Back 不越过模态，不反向创造第二栈。 |
 | `ULDUIRoot::RefreshFromController()`、`ResetPresentation()` | 从已接受的投影更新；离局/换代解除 delegates、捕获、异步图标回调和旧 Widget 引用。只清本地呈现，不写领域数据。 |
 | `ULDHUD::RefreshReadModel()`、`LDHUD::Action(...) -> FActionView`、`LDHUD::Attribute(const FLDAttributeBreakdown&) -> FText` | 纯本人/公共格式化；Action 消费 BindingView 与同步 ServerNowMs，输出意图可提交性和执行限制，不查询敌 Actor 或重算派生公式。 |
@@ -277,7 +277,8 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | 本人状态 / Combat | `StatusFamily, ExpiresAtMs, ControlBlocks, IsPassive, OwnSourceCount/OwnSourceRefs, AppliedEffectReason` | `ControlBlocks` 明确 Move/Basic/Cast/Gear/Displacement，按内容实际限制显示，不从状态名称猜规则。敌方施加状态不附隐藏 caster 私有构筑/坐标。 |
 | `FLDProgressionView` / Development → owner | 当前 Life/选择阶段保护、`Level, CumulativeXP, BuildRevision, PendingChoiceCount`；单一 `OfferId/OfferRevision` 及恰三项 `OptionId/Definition/确切内容/Rank` | 关窗/死亡/购物引起 BuildRevision 变化不改三卡身份正文；只更新确认保护。等级十显示 MAX，不制造十一级阈值。 |
 | `FLDEquipmentView` / Inventory + 唯一账本 → owner | `Gold, AccountRevision`、恰两槽 `Instance, Definition, ItemRevision`、`InventoryRevision, SourceBindingRevision`、本人来源/CD 引用 | 实例可不同而 Definition 相同；不是两份金币真相。本人装备视图不能直接复用成敌方视图。 |
-| `FLDShopView` / Vendor → 本人合法会话 | `Session, QuoteRevision, CatalogDigest, WorldRevision`、明确 Buy/Sell 价、商品定义说明、重新绑定的冷却债说明 | 与本人装备投影配合。没有合法报价显示“商店不可交易”，不是空成功；范围/生命/阶段由服务重查。 |
+| `FLDShopOpenResult` / 原权威交互队列 → Vendor Transactions → 本人结果 | `Generation:uint32, Life:uint32, ShopId, OpenStatus:uint8(Pending/Opened/Rejected), Reason`，可选 `FLDShopView` | Pending 仅来自排队受理；Opened 仅来自阶段成功，才携 View/Session/Quote；Pending/Rejected 无 View。按原交互绑定及 owner 发布修订拒旧，迟到结果不强制重弹面板。 |
+| `FLDShopView` / Vendor → 本人合法会话 | `Session, QuoteRevision, CatalogDigest, WorldRevision`、明确 Buy/Sell 价、商品定义说明、重新绑定的冷却债说明 | 与本人装备投影配合。Pending 显示“等待开店结果”，Rejected 显示明确原因；无合法报价不构造空成功 View。范围/生命/阶段由服务重查，Opened 也不是买入成功。 |
 | 静态世界 / 世界定义 | MapId/WorldRevision 的坐标变换、地形、固定营地档位/商店/圈位置 | 不持续公布隐藏营地存量、刷新时间、隐藏身体状态；地图平移不增视野。 |
 | 本地设置 / `ULDControlSettings` 与 `UGameUserSettings` | §8 的白名单；控制标签只读同一注册表 | 不复制网络，不保存 match/life/成长/候选/装备/CD/结果。 |
 
@@ -346,10 +347,19 @@ Host 原生非本人身体及附件**从创建起默认不向本机曝光**，�
 | `ServerSetReady / SetAICount / StartMatch` | `SessionCommandKey{Generation,RequestSequence}`；`ExpectedRosterRevision`，Ready/Count；caller 从拥有连接解析，Host 权限由 GameMode 验证 | 单连接会话命令单在途。`FLDSessionReceipt` 的 Pending/Committed/Rejected、拒绝码、CurrentPhase/RosterRevision 驱动页面；不能通过改按钮制造 Host 权限。 |
 | `EndMatch / ReturnToLobby / LeaveRoom` | 当前 SessionKey；回 Lobby 带 `ExpectedResultReceipt`，只能由真正 Host 在适用阶段执行；旅行和新 Generation 归会话域 | HostEnd 无胜者且可回 Lobby；Host Leave 结束房间。确认弹窗区分后果，不用本地 OpenLevel 假装带房间返回。 |
 | `ALDDevelopmentDirector::QueueChoice(ContenderId,FLDChoiceCommand)` | Generation、当前 Life+ExpectedLifePhase、递增 RequestId、OfferId/Revision、OptionId、ExpectedBuildRevision；满 Q/W 加 ReplacementSlot/ExpectedOldSkillId/Rank/明确确认 | 一次原子兑现、遗忘/装槽与机会消费；只有终态和新投影确认后展示完成。旧阶段/修订刷新同卡后新确认，不能改旧请求条款或自动换卡。 |
-| `ALDVendorDirector::OpenShop(...) / QueueShopCommand(...,FLDShopCommand)` | Open 使用 ShopId/ExpectedWorldRevision；Buy/Sell 使用 Generation/Life/RequestId、Session/QuoteRevision/CatalogDigest、预期 account/inventory/build/source-binding/world 版本；Buy 商品+显示价，Sell 精确 Instance/ItemRevision+显示卖价 | 事务阶段重查 World.QueryShopEligibility、存活/进行中/余额/容量/所有权，不增加 LOS/个人视野条件；失败不部分改钱物。卖成功后再单独买；后买失败不撤回真实出售。 |
+| 开店原交互意图 → 内部 `ALDVendorDirector::OpenShop(ContenderId,const FLDShopOpenCommand&,const FLDGameplayWritePermit&)` | UI 只提交 `FLDShopOpenCommand{Generation,Life,ShopId,ExpectedWorldRevision}`，沿现有权威队列等待；不提交/缓存 Permit，不另建开店请求流或 Pending 队列 | 每参赛者至多一个未办理开店意图，同意图重复受理合并。仅 Transactions 分派解析当前身体、借当次 Permit 调 OpenShop；返回 §5.2 的 Pending/Opened/Rejected，取消/晚结果沿原交互身份处理。 |
+| `ALDVendorDirector::QueueShopCommand(...,FLDShopCommand)` | Buy/Sell 使用 Generation/Life/RequestId、Session/QuoteRevision/CatalogDigest、预期 account/inventory/build/source-binding/world 版本；Buy 商品+显示价，Sell 精确 Instance/ItemRevision+显示卖价 | Transactions 重查正式世界资格、存活/进行中/余额/容量/所有权，不增加 LOS/个人视野条件；失败不部分改钱物。卖成功后再单独买；后买失败不撤回真实出售。 |
 | Combat `SubmitAction(Caller,FLDCombatActionRequest)` | `RequestKey{Generation,Contender,Life,DirectSequence:uint64}`，Contender 必须匹配服务器从 caller 解析的本人；规范化 ActivationSlot/SourceRef、相关 source/build/inventory/item/catalog 版本及目标模式；单位只用当前 handle+epoch，地面/方向/自身分别校验 | 1/2 不含 Shop 参数，满槽、店外/圈内仍可激活。Queued 不等于 Accepted/Released；release 前复验成功才原子提交 MP/CD/effect。 |
 | Stop / `CancelAction` / `CancelArmed` | 已发送订单按 `FLDMoveIdentity{Match,Life,Order,Epoch}` 取消；本地 Armed 仅清预览 | 不回滚已释放效果、不退款、不清来源 CD；迟到 ACK 不复活旧订单，普通 panel 关闭不隐式 Stop。 |
-| `QueryChoiceReceipt / QueryShopReceipt / QueryActionReceipt` | Choice/Shop 使用 `QueryChoiceReceipt/QueryShopReceipt(ContenderId,const FLDReceiptQuery&)`，分别返回 `FLDChoiceReceiptQueryResult/FLDShopReceiptQueryResult`；query 显式 `Generation:uint32, Family, RequestId:uint64`，先拒旧局再查。Combat 使用原 RequestKey | 查询的 Pending/Final/NotFound/Expired/InvalidContext 分开，不创建操作或占用请求序号；timeout/查无记录不准换新 ID 自动重买/重选。提交的同键重放/异条款冲突和拒旧水位仍由原业务域维护。 |
+| `QueryChoiceReceipt / QueryShopReceipt / QueryActionReceipt` | Choice/Shop 使用 `QueryChoiceReceipt/QueryShopReceipt(ContenderId,const FLDReceiptQuery&)`，分别返回 `FLDChoiceReceiptQueryResult/FLDShopReceiptQueryResult`；query 显式 `Generation:uint32, Family, RequestId:uint64`，先拒旧局再查。Combat 使用原 RequestKey | LookupStatus 的 Pending/Final/NotFound/ReceiptExpired/InvalidContext 分开，不创建操作或占用请求序号；timeout/查无记录不准换新 ID 自动重买/重选。提交的同键重放/异条款冲突和拒旧水位仍由原业务域维护。 |
+
+开店与买卖的几何入口统一为
+`World.QueryShopEligibility(const FLDGameplayWritePermit& Permit, const FLDCombatBodyRef& BuyerBody,
+FName ShopId, const FLDWorldRevision& ExpectedWorldRevision)`。
+Permit 只借用于当前 Transactions 调用栈，Body 从真实 caller 重新解析；World 先验证阶段许可，
+再读取该真实子时刻的合法脚点/支持面/XY 距离/区域。UI/preview 不复制距离或资格算法，
+不能同步提前调用需要 Permit 的查询，不能把 Permit 放进等待队列或下一 callback。
+几何通过也不替代最终提交前的 Permit/原资格/版本重查；已提交回执重放不重新查询几何或创建会话。
 
 客户端先记录不可变条款和本地 panel 显示代次再发请求；回包先验 match/life/主体、请求/条款、
 本域修订及相应生命阶段，再处理 toast、清 pending 或跳页。不能只让 OwnerState 拒旧，
@@ -358,11 +368,12 @@ Host 原生非本人身体及附件**从创建起默认不向本机曝光**，�
 
 Choice/Shop 的 Queue 结果区分 `AcceptedPending / Final / AdmissionRejected` 与 `SequenceReserved`：
 未受理不占序号；已受理后最终拒绝仍占序号；Pending 不改数据。
-查询结果明确携 `Generation/Family/RequestId` 与结果标签；Pending 只含 `PendingInfo`，
-Final 才含业务 Receipt，NotFound/Expired/InvalidContext 不填伪造的 OriginalLife 或 Applied。
+查询结果明确携 `Generation/Family/RequestId` 与 LookupStatus；Pending 只含 `FLDPendingReceiptInfo`
+中已受理请求真实的 OriginalLife/OriginalLifePhase，没有业务 Outcome/CommitOrdinal/成功载荷；
+Final 才含业务 Receipt，NotFound/ReceiptExpired/InvalidContext 不填伪造的 OriginalLife 或 Applied。
 已生成的业务 Receipt 携原 `OriginalLife/OriginalLifePhase`，允许查询同局历史结果，
 但不能驱动当前身体/当前确认，只能答复原请求；不能把“旧 life 不可执行”误做“同局不可查询”。
-Expired 表示已无可重放回执，不表示操作未发生；NotFound 也不是允许 UI 自动重执行的成功证明。
+ReceiptExpired 表示已无可重放回执，不表示操作未发生；NotFound 也不是允许 UI 自动重执行的成功证明。
 Offer/Option/ItemInstance/IssuedCooldownId 均为 FGuid，领域修订 uint64；
 CatalogDigest 使用统一 32-byte SHA-256，日志为 64 位小写 hex，UI 不另算子摘要。
 DefinitionId 的编码与 64-byte 缓冲沿成长/Combat 同一合同，不能截断成另一个有效目录 ID。
@@ -592,8 +603,9 @@ Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstr
 | 被动/属性 | 同款属性相加，同名被动一次且可解释来源；完整属性分解/单位 | 超过单屏行数仍生效可读；来源效果不能按 UI 行重复计算；MaxHP/MP 变更只由一次 Combat 投影保比例，死者不回血/复活。 |
 | Offer/替换 | 连升逐组、三不同合法卡、最多九机会/十级/技能三级；死时可选 | 关窗/重复/购物/死亡不重抽；旧 LifePhase/BuildRevision 拒绝不丢卡。满 Q/W 无默认遗忘，旧技能/等级改变撤销确认；取消无消耗。 |
 | Shop/原子性 | 普攻正常收益买两件同款，先卖再买；合法区域/距离内，即使 LOS/个人视野不满足也不额外阻止交易 | 第三件、金币不足、越界/死亡/终局、各 revision/catalog 冲突、实例创建失败均无部分钱物提交；Sell 已成功而后 Buy 失败不回滚 Sell；伤害本身不关店。 |
+| 开店排队/许可/结果 | 原交互意图受理 Pending，Transactions 用当前 Permit 与 BuyerBody 查询，成功才 Opened；同意图重复合并 | Pending/Rejected 不携 ShopView/Session/Quote；UI 不提交/保存 Permit、不自行计算范围。取消、换 Life/交互绑定、较新 owner 修订或关面板后，晚 Opened 不恢复旧执行权/强制重弹，也不冒充买入成功。 |
 | 回执与重放 | 同键同 payload 只回原结果，合法查询不再提交 | 异 payload 冲突；过窗拒旧；新 snapshot 先到/旧 receipt 后到不回盖；关窗/重生/新局不清新 pending、重弹旧面板或重复 toast。Host 同栈回包不被随后写 pending 覆盖。 |
-| 查询结果形状/数值失败 | Choice/Shop 分别返回 PendingInfo 或 Final 业务 Receipt；同局可查历史、当前身体不受旧 Receipt 影响 | NotFound/Expired/InvalidContext 无伪造 OriginalLife/Applied，不自动重执行；旧 Generation 先拒。NumericUnderflow/NumericDomain 零业务提交，不消费钱物/机会或制造成功默认值。 |
+| 查询结果形状/数值失败 | Choice/Shop 分别返回真实 PendingInfo 或 Final 业务 Receipt；同局可查历史、当前身体不受旧 Receipt 影响 | NotFound/ReceiptExpired/InvalidContext 无伪造 OriginalLife/Applied；PendingInfo 无业务成功/CommitOrdinal；不自动重执行，旧 Generation 先拒。NumericUnderflow/NumericDomain 零业务提交，不消费钱物/机会或制造成功默认值。 |
 | 可见目标 | A 可见 B 时名称/等级/精确血蓝/状态/两装备实时授权更新；NPC 不适用字段正确 | 技能/CD/最终属性/Gold/XP/私有实例/版本从不入对手 DTO；隐藏后变化不再更新任何缓存/附件；停原追击无 LastSeen移动。 |
 | 观察传输 | 同帧/epoch 合法增量表现与可靠 conceal | 旧 full 不能撤 conceal，旧 conceal 不擦新重现；普通 revision 不错误撤锁；wrong schema/world/observer life、超容量/非法数值明确拒绝。未知定义不造默认有效对象。 |
 | 正常 Host | 不带诊断特免，非本人出生当帧/首采样前、隐藏/重现、相机切换 | 本体/代理不双画；附件/阴影/灯光/声音/提示无旁路；关后处理/低画质不显示隐藏单位。观察只读表本身也无未授权字段。 |
