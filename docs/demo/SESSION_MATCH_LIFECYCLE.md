@@ -787,8 +787,10 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 时长的可接受范围、资源公式、叠加及初始值由内容定义；本域只规定有限值、单位、
 精度和安全加法必须验证，溢出不能产生“立即到期”或无限保护。
-从 docs 到运行输入必须沿批准定义 → SourceData → 对应 Sync → 载荷/contract →
-原生导入和开局校验的同一链路；不让游戏读取本文，不手填生成哈希。
+内容输入沿批准定义 → `SourceData\Demo` 唯一作者域 → 统一内容 compiler →
+`Data\Demo` 内容载荷/根 manifest/contract → `ULDDemoContentCatalog` 导入与开局校验。
+世界几何仍使用 §9.3 的独立 `demo_world` / `SyncDemoWorldData` 链；
+不让游戏读取本文，不手填生成哈希，也不回落旧 prototype/V08 目录。
 
 死亡静态自由镜头、不新增活体视野、无LastSeen标记、可见对手字段及终局统计
 已确认，按§4白名单接线，不能继续列为未定。
@@ -930,6 +932,11 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 终态世界根由 M9G `WORLD_CAMPS_AND_VISION.md` 单点确定：
 `Content\Lockdown\Generated\Maps\L_Demo.umap` 与
 `Content\Lockdown\Generated\Data\DA_DemoWorld.uasset`，均为拟生成资产。
+对应的 Unreal travel 包名为 `/Game/Lockdown/Generated/Maps/L_Demo`；
+DataAsset 完整对象路径为 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`，
+类型是改造后的 `ULDMapDefinition`，由唯一 `ALDMapAnchor` 引用。
+入口、Builder/Validate 及 Cook/包内加载回核使用同一组包/对象标识，而非只核对磁盘文件名。
+`L_Frontend` 仅作菜单；Lobby/Match/Results 仍在同一个 `L_Demo` Listen 世界内转换。
 Frontend 与共享 UI 继续复用；旧 `L_DevelopmentRegion`/`DA_CivicRegion` 只在 C3
 引用迁移期间保持可加载，迁移完成后退役，不能同时列为第二套终态根。
 这是唯一世界资产/生成接线的校准，不新增 mode/profile 或改变本报告的核心类型、对局调度。
@@ -944,13 +951,22 @@ Reflected Reach，`Config\V07RegionLayout.json` 的 B76 Civic Reach，
 | --- | --- |
 | 改造 `Config\DefaultEngine.ini`、`DefaultGame.ini`、`BootstrapLayout.json` | 前端/唯一Demo的默认map/mode、旧容量、AlwaysCook及生成清单同改；C4核对有效配置。BootstrapLayout签名还影响共享材质/Input/UI，不能因换世界整份盲删。 |
 | 裁剪 `Config\RegionLayout.json`、`V07RegionLayout.json`、`V08RegionLayout.json` 的旧布局输入；`SourceData\Catalogs\V07\world_and_routes.json`、`v07_rules.json` | 旧Region/Anchor、Scaffold及SyncV07WorldData有消费者；先改接M9G唯一世界输入/生成，再按C3/P0–P5删除旧输入和相关依赖，不保留Civic布局分支。 |
-| 改造 `SourceData\Character\prototype_rules.json` 与架构 D21 的 V08 有限目录文件 | Scaffold 导入 CharacterCatalog；`SyncB84Data.py` 还读取 `LDAcquisitionCatalog.cpp`。C1 定保留集并沿 Sync 生成，不把旧参数认定批准。 |
+| 拟建唯一内容作者域 `SourceData\Demo\content.json`、`content.schema.json`、`native_ids.json` | 按中央内容报告迁入获审定义和必要稳定编号；统一Demo内容compiler生成demo_content.json/根manifest/contract，经ULDDemoContentCatalog导入，不把旧prototype/V08当第二目标作者域。 |
+| 迁移后退役 `SourceData\Character\prototype_rules.json`、架构D21及中央内容清单中的旧V07/V08目录、`Scripts\SyncB84Data.py` 等旧内容生成/导入链 | 它们只作当前消费和迁移证据。Scaffold旧CharacterCatalog导入、SyncB84读取LDAcquisitionCatalog.cpp的耦合须先解除；必要机制/ID迁入新域，C1/C3及消费者切换后按中央CB-D01–04真删，不留fallback。 |
 | 复用/改造 `Content\Lockdown\Generated\Maps\L_Frontend.umap`、`UI\WBP_UIRoot.uasset` | 保留前端和共享UI根，Host/加入/结果入口改接同一Demo会话，不承接旧世界DataAsset加载。 |
 | 拟生成 `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | M9G资产负责人通过唯一Builder生成；改造ULDMapDefinition/ULDMapRegistry/ALDMapAnchor，默认GameMode、Anchor、加载路径及签名一致，不另建Core地图Builder。 |
 | 迁移后退役 `Content\Lockdown\Generated\Maps\L_DevelopmentRegion.umap`、`Content\Lockdown\Generated\Data\DA_CivicRegion.uasset` | C3迁移期间旧包/必要反射类保持可加载，以便重存当前消费者；新根可用且引用迁移完成后真删旧包/旧入口，不作运行fallback或终态Cook根。 |
-| 必查当前引用 `Content\Lockdown\Generated\Data\DA_PrototypeTuning.uasset`、`Data\DA_CharacterCatalog.uasset`、`Input\IMC_Gameplay.uasset`、`Materials\M_Character.uasset`、`Materials\M_Fog.uasset`、`Materials\T_FogClosed.uasset` | Character、UI、Relay 有消费者；`T_FogClosed` 实际在 Materials。先确认 Demo 当前依赖，不因占位或技术旧名盲删。 |
+| 迁移后退役 `Content\Lockdown\Generated\Data\DA_CharacterCatalog.uasset` 及中央内容CB-D03中的旧目录资产/contract | 先接统一内容compiler、根manifest和ULDDemoContentCatalog，改接Bootstrap/loader/Stage并完成C3，再删除；旧资产可加载的迁移阶段不是第二终态目录。 |
+| 必查当前引用 `Content\Lockdown\Generated\Data\DA_PrototypeTuning.uasset`、`Input\IMC_Gameplay.uasset`、`Materials\M_Character.uasset`、`Materials\M_Fog.uasset`、`Materials\T_FogClosed.uasset` | Character、UI、Relay有消费者；T_FogClosed在Materials。必要技术/表现配置按C1/C3复用，旧玩法数值不作为第二作者源，不因占位或技术旧名盲删。 |
 | 退役候选 `Content\Lockdown\Generated\Maps\L_MigrationSandbox.umap`、`L_FunctionalTests.umap`、`L_RegionAlternate.umap`、`L_V07Region.umap`、`L_V08Region.umap`；`Data\DA_AlternateRegion.uasset`、`DA_TacticalRegion.uasset`、`DA_ElementalRegion.uasset` | 当前磁盘存在，Scaffold/RegionBootstrap 仍生产；按 D18/C2/C3 先迁存活根/WorldSettings/WBP/反射引用和生成清单，再删除旧包，不能靠文本无命中宣称安全。 |
 | 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`、`BuildB90Map.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | Bootstrap及复用的地图工具显式调用同一Demo Builder；删旧profile/多图分派，更新UAT地图、RuntimeDependencies/AlwaysCook和Validate清单。开发与包内都使用新根，不以脚本技术旧名保留旧世界。 |
+
+中央内容生产链按 `CONTENT_AND_BALANCE.md` 的唯一作者域/内容compiler生成
+`Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json` 和
+`LDDemoContentContract.h`，由 `ULDDemoContentCatalog` 持有不可变定义；
+Bootstrap核对其完整派生字段，M1及战斗/成长/商店等加载同一根身份，不保留旧catalog兜底。
+这不合并或替代世界几何作者域：内容根manifest按中央合同引用世界载荷/合同摘要，
+几何的独立输入与生成仍由M9G负责，本模块不创建第二份内容或世界生成器。
 
 唯一世界生产链是 M9G 拟建的 `SourceData\World\demo_world.json` / closed schema →
 `Scripts\SyncDemoWorldData.py` → `Content\Lockdown\Data\Demo\world.json` /
@@ -1052,6 +1068,7 @@ Editor/Game 构建、Bootstrap Validate 及所需真实场景。
 结果统计与故障关闭在文档层面自洽。源代码、资产和实际连接的后续证据门槛仍按 §8–10 执行。
 CurrentFloor 的确定负结果与未知证据分流、同 XY 落地恢复及 CP-10/14 也已由同一 QA 定点复核，无新增文档阻塞。
 INT-01/P2 的唯一 `L_Demo`/`DA_DemoWorld` 根、旧包 C3 迁移后退役及 Builder/Bootstrap/Cook 责任已对照 M9G 原文复核，无新增文档阻塞；不代表资产迁移或原生验证已执行。
+正式 Unreal 包/对象标识及 INT-02 相关的唯一内容作者域、根 manifest/catalog 和旧内容链退役已由同一 QA 窄复核；World 独立几何链不变，无新增文档阻塞。
 
 普通事务固定在 Capture 之前，采用 §6 的唯一完整批次；本报告不保留第二种排序方案。
 研究、整合与独立审核不代替原生实现验证；本文只对已列静态证据和目标设计负责。
