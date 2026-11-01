@@ -367,6 +367,19 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 模型和 SVG 是这一候选输入的证据，不是原生资产或已批准数值。
 下表是必须交付的参数语义，不是额外默认值，也不是已存在的 JSON 字段。
 
+目标作者域与加载根只按正式提供者索引，不形成另一套可选路径：
+
+| 域 | 唯一拟实施作者域/生产者 | 唯一目标载荷或资产根 |
+| --- | --- | --- |
+| 内容/公式 | [内容 §10.1](CONTENT_AND_BALANCE.md) 的 `SourceData\Demo`（content/schema/native_ids）与唯一 Demo compiler | `Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json`、`LDDemoContentContract.h`、`ULDDemoContentCatalog` |
+| 世界几何 | [世界 §6](WORLD_CAMPS_AND_VISION.md) 的 `SourceData\World\demo_world.json`、`SyncDemoWorldData.py` 与唯一 Builder | `Content\Lockdown\Data\Demo\world.json`、`LDDemoWorldContract.h`；`/Game/Lockdown/Generated/Maps/L_Demo` 与 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`（`ULDMapDefinition`，唯一 `ALDMapAnchor`） |
+| 前端/会话 | [生命周期](SESSION_MATCH_LIFECYCLE.md) 的前端与同世界阶段接线 | `L_Frontend` 仅菜单，Lobby/Match/Results 在同一 `L_Demo`；不是第二个战局根 |
+
+这些都是尚待实施的路径，不是本 PR 已创建的 SourceData、载荷或原生资产。
+旧 V08/B84/prototype 输入只可作抽取迁移材料，不能继续承载另一份目标内容；
+旧 L_DevelopmentRegion/DA_CivicRegion 仅在 C3 迁移期间可加载，之后退役，不作 fallback 或最终 Cook 根。
+稳定技术编号和真正共享组件仍按所有者依赖保留，不能把退旧路径误做全库重命名。
+
 | 参数组 | 必须提供的精确信息 | 主要消费者 |
 | --- | --- | --- |
 | 对局/生命 | 发育时长、连续独占时长、复活延迟及适用变量、保护时长；全用明确时间单位 | 生命周期、占领、UI、AI |
