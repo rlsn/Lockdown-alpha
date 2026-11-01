@@ -11,7 +11,8 @@
 
 ## 1. 结论与责任边界
 
-选择**现有 Listen 世界内的单一会话/对局流程**：前端创建或 IP 加入，进入 Lobby；
+选择**同一 Listen 世界内的单一会话/对局流程**：现有会话组件改接 M9G 的唯一 `L_Demo` 世界，
+从前端创建或 IP 加入后进入 Lobby；
 Host 在真人全部准备后开始；发育期结束开放唯一圈；连续独占成功锁定唯一结果；
 Host 带仍连接的房间回 Lobby，再完整初始化新局。Lobby 和结果是该世界的阶段，
 不是另外保留旧 profile、额外玩法地图或世界检查点恢复模式。
@@ -105,7 +106,8 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 
 ### 3.3 同世界回 Lobby，不复原旧世界快照
 
-初次建房需要从前端进入 Listen 世界；在房间存在期间，Lobby、比赛和结果转换留在
+初次建房从 `L_Frontend` 进入唯一 `L_Demo` Listen 世界，由其 `DA_DemoWorld` 和
+MapRegistry/Anchor 提供世界定义；在房间存在期间，Lobby、比赛和结果转换留在
 这个世界内，由 GameMode 阶段驱动身体/服务的创建和清理，连接不换归属。
 不把 `OpenLevel` 本地重载当成保持其他玩家连接的返回方案，也不引入
 checkpoint/restore、席位交接或第二套跨旅行的战力保存对象。
@@ -823,6 +825,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | SM-08 | Starting 中注入必要输入/身体/落地准备失败或成员离开 | 没有局部玩家可战斗、部分初始资源、旧营地和计时残留；失败 Match 退休，回新 Lobby 重准备；旧启动回调不能污染重试。 |
 | SM-09 | C1 在 Lobby/活跃局分别离开，再用同名同 IP 加入 | Lobby 可为下一局新准入；活跃局拒绝晚加入/重连，无席位接管或 AI 补人；离开不发奖、不按剩余人数判胜。 |
 | SM-10 | 对照 H 正常死亡、H 主动结束、H 离开、H 进程丢失 | 死亡不关闭服务器；主动结束无赢家且可回 Lobby；连接丢失时 C1/C2 回前端并获原因，不移交 Host。 |
+| SM-11 | 默认开发入口和包内入口从Frontend建房；Bootstrap Generate/Validate与新隔离Cook/Stage | 都进入L_Demo并绑定DA_DemoWorld；项目终态地图根仅Frontend与唯一Demo，旧DevelopmentRegion/CivicRegion不作fallback，不再生成或进入最终包；缺新根明确失败。 |
 
 ### 8.2 生命和保护
 
@@ -886,7 +889,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | 编号 / 当前真实入口 | 已核验事实 | 改造/抽取/删除与前置 |
 | --- | --- | --- |
-| E01 [LDUIRoot.cpp:368–396](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L396)、[DefaultEngine.ini:3–7](../../Config/DefaultEngine.ini#L3-L7) | Host 固定旧 `L_DevelopmentRegion?listen?Profile=V05`；Join 走 ClientTravel；Leave 本地 OpenLevel 前端，没有同房间新局入口 | 改造 R13/N01/D01/D16。首次建房 travel 保留，旧 Profile 选择真删；回 Lobby 改同世界权威重置，不保留本地重载兜底。 |
+| E01 [LDUIRoot.cpp:368–396](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L396)、[DefaultEngine.ini:3–7](../../Config/DefaultEngine.ini#L3-L7) | Host 固定旧 `L_DevelopmentRegion?listen?Profile=V05`；Join 走 ClientTravel；Leave 本地 OpenLevel 前端，没有同房间新局入口 | 改造R13/N01/D01/D16：首次建房改入L_Demo，GameMode接DA_DemoWorld/MapRegistry；删旧Profile/Civic加载路径。回Lobby仍同世界重置，不保留旧图或本地重载兜底。 |
 | E02 [LDGameInstance.cpp:8–45](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp#L8-L45) | 有网络/旅行失败委托及 pending-driver 的 GameInstance 归属核对；NetworkFailed 丢弃传入 Error，反馈仍粗略 | 保留归属/弱回调，改造连接 Attempt、错误分类和旧回调隔离。不能把一次失败归到其他 PIE 世界。 |
 | E03 [LDGameMode.cpp:144–179](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L144-L179)、[315–359](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L315-L359) | 多 profile、旧四人上限、PreLogin/PostLogin 二次检查，项目未覆写 Login；PostLogin 初始化职业 Build | R06/N01：三真人准入的共用检查、Starting 锁、最终注册前复查。职业初始化和旧容量删除，AI 独立计数，不从已有 Pawn 数推席位。 |
 | E04 [LDGameMode.cpp:211–310](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L211-L310)、[490–519](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L490-L519) | 世界启动生成旧服务/居民；开始启用旧经济/银行/制作和 MatchDeadline，没有为全体重新随机初生 | D01/N01：明确 Starting 预备/全量提交；不再次调用 StartPlay 冒充 Reset，不启旧世界来获得圈时钟。 |
@@ -924,6 +927,13 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 ### 9.3 配置、生成输入和资产根
 
+终态世界根由 M9G `WORLD_CAMPS_AND_VISION.md` 单点确定：
+`Content\Lockdown\Generated\Maps\L_Demo.umap` 与
+`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset`，均为拟生成资产。
+Frontend 与共享 UI 继续复用；旧 `L_DevelopmentRegion`/`DA_CivicRegion` 只在 C3
+引用迁移期间保持可加载，迁移完成后退役，不能同时列为第二套终态根。
+这是唯一世界资产/生成接线的校准，不新增 mode/profile 或改变本报告的核心类型、对局调度。
+
 当前三个配置文件有四份区域定义：`Config\RegionLayout.json` 的 Civic Reach、
 Reflected Reach，`Config\V07RegionLayout.json` 的 B76 Civic Reach，
 `Config\V08RegionLayout.json` 的 B82 River Reach，均为六个 spawn。
@@ -932,16 +942,33 @@ Reflected Reach，`Config\V07RegionLayout.json` 的 B76 Civic Reach，
 
 | 处置 / 有限路径 | 当前生产者/消费者与前提 |
 | --- | --- |
-| 改造 `Config\DefaultEngine.ini`、`DefaultGame.ini`、`RegionLayout.json`、`BootstrapLayout.json` | 默认 map/mode、旧容量、广域 AlwaysCook 和地图生成一起改；C4 核对合并后有效值，保留真实所需导航/碰撞与平台锁。 |
-| 裁剪 `Config\V07RegionLayout.json`、`V08RegionLayout.json`；`SourceData\Catalogs\V07\world_and_routes.json`、`v07_rules.json` | `Scripts\SyncV07WorldData.py` 同时生成旧 payload/contract/布局；先改 producer/loader，再删除闭包，不能先断其中一端。 |
+| 改造 `Config\DefaultEngine.ini`、`DefaultGame.ini`、`BootstrapLayout.json` | 前端/唯一Demo的默认map/mode、旧容量、AlwaysCook及生成清单同改；C4核对有效配置。BootstrapLayout签名还影响共享材质/Input/UI，不能因换世界整份盲删。 |
+| 裁剪 `Config\RegionLayout.json`、`V07RegionLayout.json`、`V08RegionLayout.json` 的旧布局输入；`SourceData\Catalogs\V07\world_and_routes.json`、`v07_rules.json` | 旧Region/Anchor、Scaffold及SyncV07WorldData有消费者；先改接M9G唯一世界输入/生成，再按C3/P0–P5删除旧输入和相关依赖，不保留Civic布局分支。 |
 | 改造 `SourceData\Character\prototype_rules.json` 与架构 D21 的 V08 有限目录文件 | Scaffold 导入 CharacterCatalog；`SyncB84Data.py` 还读取 `LDAcquisitionCatalog.cpp`。C1 定保留集并沿 Sync 生成，不把旧参数认定批准。 |
-| 保留资产身份并改造 `Content\Lockdown\Generated\Maps\L_Frontend.umap`、`Maps\L_DevelopmentRegion.umap`、`Data\DA_CivicRegion.uasset`、`UI\WBP_UIRoot.uasset` | 它们是已有入口根；“保留身份”不等于保留旧布局/规则。C2/C3 后修改生成器并重存/加载。 |
+| 复用/改造 `Content\Lockdown\Generated\Maps\L_Frontend.umap`、`UI\WBP_UIRoot.uasset` | 保留前端和共享UI根，Host/加入/结果入口改接同一Demo会话，不承接旧世界DataAsset加载。 |
+| 拟生成 `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | M9G资产负责人通过唯一Builder生成；改造ULDMapDefinition/ULDMapRegistry/ALDMapAnchor，默认GameMode、Anchor、加载路径及签名一致，不另建Core地图Builder。 |
+| 迁移后退役 `Content\Lockdown\Generated\Maps\L_DevelopmentRegion.umap`、`Content\Lockdown\Generated\Data\DA_CivicRegion.uasset` | C3迁移期间旧包/必要反射类保持可加载，以便重存当前消费者；新根可用且引用迁移完成后真删旧包/旧入口，不作运行fallback或终态Cook根。 |
 | 必查当前引用 `Content\Lockdown\Generated\Data\DA_PrototypeTuning.uasset`、`Data\DA_CharacterCatalog.uasset`、`Input\IMC_Gameplay.uasset`、`Materials\M_Character.uasset`、`Materials\M_Fog.uasset`、`Materials\T_FogClosed.uasset` | Character、UI、Relay 有消费者；`T_FogClosed` 实际在 Materials。先确认 Demo 当前依赖，不因占位或技术旧名盲删。 |
 | 退役候选 `Content\Lockdown\Generated\Maps\L_MigrationSandbox.umap`、`L_FunctionalTests.umap`、`L_RegionAlternate.umap`、`L_V07Region.umap`、`L_V08Region.umap`；`Data\DA_AlternateRegion.uasset`、`DA_TacticalRegion.uasset`、`DA_ElementalRegion.uasset` | 当前磁盘存在，Scaffold/RegionBootstrap 仍生产；按 D18/C2/C3 先迁存活根/WorldSettings/WBP/反射引用和生成清单，再删除旧包，不能靠文本无命中宣称安全。 |
-| 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | 旧 profile、多图 UAT 列表、RuntimeDependencies/AlwaysCook 和 Bootstrap 目录须同批收敛；开发与包内入口同一套规则，不保留旧启动参数暗门。 |
+| 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`、`BuildB90Map.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | Bootstrap及复用的地图工具显式调用同一Demo Builder；删旧profile/多图分派，更新UAT地图、RuntimeDependencies/AlwaysCook和Validate清单。开发与包内都使用新根，不以脚本技术旧名保留旧世界。 |
 
-缩写路径沿同一 `Generated` 子目录展开；上述十八个资产只确认文件存在和静态引用，
-未验证 LFS 实体完整性、AssetRegistry、Blueprint/CDO、WorldSettings、动态加载或 cook。
+唯一世界生产链是 M9G 拟建的 `SourceData\World\demo_world.json` / closed schema →
+`Scripts\SyncDemoWorldData.py` → `Content\Lockdown\Data\Demo\world.json` /
+`Source\Lockdown\Private\World\LDDemoWorldContract.h` →
+`Source\LockdownEditor\Private\ScaffoldBootstrap` 内收敛后的唯一世界 Builder →
+`L_Demo` / `DA_DemoWorld`。现有 Scaffold 的共享材质/Input/UI职责可复用，
+但其Generate/Validate必须显式接入该Builder，不能假定当前Scaffold已覆盖另一地图生成器，
+也不能继续重建计划删除的旧Region图。
+
+M1负责前端/GameMode/默认配置和世界Registry的消费改接，M9G负责输入/Builder/资产迁移，
+构建与发布负责人核对Bootstrap、Cook/Stage及包内注册表。
+最终必须证明项目地图根仅Frontend和L_Demo，DA_DemoWorld可被唯一Anchor/Registry加载，
+旧根/重定向/动态字符串无当前消费者且不再生成或进入最终包；
+仅修改UAT的map参数不能排除广域AlwaysCook残留，须核对新隔离输出。
+
+缩写路径沿同一 `Generated` 子目录展开；表中现有资产仅确认文件存在和静态引用，
+新Demo根/生成链尚未创建或运行。未验证LFS实体、AssetRegistry、Blueprint/CDO、
+WorldSettings、动态加载或cook，不能据此宣布旧包已可安全删除。
 最终删除必须按架构 P0–P5：展开引用 → 接回必需组件 → 改生成/加载和迁移存活资产
 → 真删 → 同步门禁/手册 → 实际加载/构建/cook/场景证明。
 不以本报告授权无条件删除旧 V07 loader、完整 B84、整图、材质、IMC 或插件。
@@ -979,7 +1006,7 @@ Editor/Game 构建、Bootstrap Validate 及所需真实场景。
 | SM-T04 致死、保留、复活和保护 | M5，Combat/成长/世界协作：首次事实、复合奖励、死者资格、同点 Reserve/提交/Finalize、全部冷却保留 | SM-T02/03；Combat 致死/成长准备提交/World 预留；批准的相关 LIFE 参数及受影响政策 | LF-01–09；金币/XP 不半奖，成功新生命不回退；真实拥有连接下的到期/重放/故障。政策未定分支单列阻塞。 |
 | SM-T05 单圈归约和唯一结果 | M2：Objective 替换 Claim/deadline；事件序列/连续段、完成提案和先锁闸 | SM-T02/03；SM-T04 的生命事件；批准的发育/圈参数 | CP 全组和 FN-01–04；接入成长后补奖励/交易竞争，不能只用 Host 调试强制赢。 |
 | SM-T06 同房间回 Lobby/新局 | M1/M5，各状态所有者共同 Reset：不重进 StartPlay、不 travel、不 restore checkpoint | SM-T01/02；各域明确 retire/reset/新初始化；完整验收依赖 SM-T04/05 | FN-05/06，连接保持、旧服务不在 Lobby 偷跑，Vision 服务器表与客户端代理都清，旧 Guid/Generation/回执无执行权。 |
-| SM-T07 生产链与裁剪闭合 | 地图/资产负责人及各域：§9 精确源调用/数据/生成/资产/runner 闭包；更新真实系统说明 | 本闭包 P0–P4 和适用 C1–C4，不等无关模块参数 | 资产引用、加载、构建、Bootstrap/cook 和当前用例集合；旧专属符号/输入/图/runner 无存活消费者，正常完整 FN-08。 |
+| SM-T07 生产链与裁剪闭合 | M9G唯一Builder生成L_Demo/DA_DemoWorld，M1改接入口/Registry，发布负责人收敛Bootstrap/Cook/Stage；处理§9闭包 | 本闭包P0–P4和适用C1–C4；旧根保持可加载至C3迁移完成，不等无关参数 | SM-11单根/无旧图fallback或最终包残留，资产/构建/Bootstrap/cook真实证据，旧符号/输入/图/runner无消费者及FN-08。 |
 
 **B01–B03 与 C1–C4 的界线：**
 
@@ -1024,6 +1051,7 @@ Editor/Game 构建、Bootstrap Validate 及所需真实场景。
 子时刻阶段推进、整数封桶、致死资格冻结、settlement-only、原子复活、
 结果统计与故障关闭在文档层面自洽。源代码、资产和实际连接的后续证据门槛仍按 §8–10 执行。
 CurrentFloor 的确定负结果与未知证据分流、同 XY 落地恢复及 CP-10/14 也已由同一 QA 定点复核，无新增文档阻塞。
+INT-01/P2 的唯一 `L_Demo`/`DA_DemoWorld` 根、旧包 C3 迁移后退役及 Builder/Bootstrap/Cook 责任已对照 M9G 原文复核，无新增文档阻塞；不代表资产迁移或原生验证已执行。
 
 普通事务固定在 Capture 之前，采用 §6 的唯一完整批次；本报告不保留第二种排序方案。
 研究、整合与独立审核不代替原生实现验证；本文只对已列静态证据和目标设计负责。
