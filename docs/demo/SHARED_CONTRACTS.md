@@ -8,6 +8,8 @@
 **这是目标接线契约，不是已实现 API 清单。** 标为“现有”的字段已经核对源码；
 语义字段用于模块对接，不宣称同名 C++ 类型、RPC 或数据 schema 已存在。
 正式类型/容器/函数由经审核的领域设计绑定到现有组件，不能据此再造一个通用状态系统。
+核心类型和提交接口现在以 [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) §4–6 为唯一正式提供者；
+下列映射和领域转引必须与它一致，不建立同义的第二个核心头、时钟或驱动。
 首版参数数值只由内容与数值设计集中维护，本文件不设置数值默认值。
 [架构审计](ARCHITECTURE.md) §4 保留这些边界的源码证据和裁剪理由；
 本文件集中共同语义，领域报告提供正式签名，不维护互相独立的契约版本。
@@ -46,6 +48,17 @@ OwnerState、GameState、UI 和 AI 消费适当投影，不能互相回写成多
 | 交易与奖励提交 | 商店 `Request/Session/QuoteRevision`；账本 `FTransaction.Id/Cause` | 每次业务结果有稳定去重身份；重放不再次改金币、装备或奖励 |
 | 状态与观察修订 | 自身/构筑/库存的 revision；观测的 generation/revision | 各领域版本含义独立；不得用一个“最新版本”代替全部合法性 |
 
+目标核心映射如下，完整字段定义只在生命周期报告 §4/§6 维护：
+
+| 跨域语义 | 正式拟建类型/入口 | 集成约束 |
+| --- | --- | --- |
+| 比赛双身份 | `FLDMatchContext` / `GetMatchContext()` | Generation 为网络 `uint32`，LedgerMatch 为同局 `FGuid`，一一绑定；不得强转 |
+| 主体与身体 | `FLDVictimKey` / `FLDCombatBodyRef` | Kind/EntityId/Life 标识参赛者或营地成员生命，BodyIdentity 标识实际身体；不使用 Controller/槽位替代 |
+| 死亡去重 | `FLDDeathKey` | 仅 LedgerMatch + Victim；来源、效果、DeathSerial、时间和 CampGeneration 不进入可领奖主键 |
+| 生命阶段与变化 | `ELDLifePhase` / `FLDLifeNotice` | 阶段与 Life 不混同；LifeRevision 为生命通知版本，不代替订单/动作版本 |
+| 时间与事件 | `FLDAuthorityStep`、`FLDAuthorityEventStamp`、`FLDProviderFence`、`FLDAuthorityBoundary` | 使用核心定义的原始秒、发生桶、完整前缀和消费边界，不重建另一组 timestamp/watermark 字段 |
+| 写权限与保护意图 | `FLDGameplayWritePermit`、`FLDAggressiveIntent`、`FLDProtectionReceipt` | 核心发放当前借用作用域，最终提交再验证；禁止网络自填/跨帧保存许可 |
+
 每个目标命令必须交付：调用者由谁确定、所需 match/life、领域请求 ID、
 预期版本、目标/来源身份、入参上限、接受条件、最终回执、去重范围和失效条件。
 只传该命令确实需要的字段，不给所有请求机械套一个庞大公共封包。
@@ -53,7 +66,15 @@ OwnerState、GameState、UI 和 AI 消费适当投影，不能互相回写成多
 生命周期敏感性必须逐命令说明。候选和选择机会可以跨死亡保留，
 不表示死亡前的施法、购买或移动请求可以操作新身体。
 死亡等待可确认三选一/主动替换，走当前参赛者的构筑提交，不要求伪造一个存活 Pawn。
-身份、Match/Life、候选/构筑版本、去重和终局闸仍须校验；旧生命的确认不能应用到新身体。
+身份、Match/Life、`ExpectedLifePhase`、候选/构筑版本、去重和终局闸仍须校验；
+Alive 时发出的旧确认不能在同 Life 的 Dead 阶段消费，旧生命确认也不能应用到新身体。
+
+动作请求与服务器动作身份分开：`FLDCombatRequestKey` 的 Direct 使用调用者的
+`DirectSequence`，Nav 使用服务器 Navigation 绑定的 MoveIdentity/AttackCycle。
+完整准入后才由 Combat 分配 authority Token；Queued 可无 Token，取消/查询不得拿
+server Token 代替原 RequestKey 或本地已发出的 Direct 上界。Nav 键不能由客户端/AI伪造。
+保护意图的 OriginCombat 序列对应 DirectSequence，Nav 对应原 Order/Epoch；
+不会为了同一次派生普攻再生成一条全域序号。正式动作键由战斗域定义，M3/AI只消费。
 
 保留窗口内重复提交已接受的请求只重放其既有结果；过窗后明确拒旧并提供当前状态或合法查询，
 不能因清除有界回执缓存而重新执行。领域须说明查询/重放窗口及拒旧水位，
@@ -90,20 +111,29 @@ Pending 只表示等待，不是成功。拒绝必须有可理解且不泄露隐
 | --- | --- |
 | 运动/位移、生命/离开/保护提供者 | 局代次、参赛者与身体生命、事件来源、本流单调序号、服务器实际发生时间、圈内/有效资格变更 |
 | 权威调度 | 区分事件实际时间与补算采样时间；固定同刻提交次序；记录每个提供者已发布到哪个时间边界 |
-| 唯一占领归约器 | 等相关提供者水位就绪后消费到期边界，保留进入又离开/离开又返回的中间事件；判定后推进消费水位并释放记录，拒绝重复/旧局/旧生命事件 |
+| 唯一占领归约器 | 等相关提供者水位就绪后消费到期边界，保留中间进出；已合法接受的旧生命未消费前缀仍按真实生命区间处理，拒绝重复/旧局及退休后新到的旧生命事件 |
 
 不能用已完成运动的当前姿态回填过去，也不能用被补算逻辑临时回拨的 World 时间给新事件打戳。
 这不要求永久事件日志、第二套运动积分或网络回滚世界。事件产生点/时间所属由相关领域正式接线，
 而不是占领 UI 猜测。先锁定结果并关闭写闸，再执行取消/清理和结果发布；
 清理回调也不能产生新的玩法提交，已完成事务的只读回执重放不算再次提交。
 
-生命周期、战斗、成长三个领域必须联合给出一个确定的批次顺序：
-命令接受/释放、到期效果、死亡与奖励、复活、事务、占领重查、终局闸门、对外发布。
-上述列表是需要排序的阶段，不预先声称当前代码已经按这个目标顺序执行。
-特别要解释“奖励或交易与胜利同刻”落在哪侧，不能由各领域各自解释。
+唯一目标阶段序由 [生命周期 §6.4](SESSION_MATCH_LIFECYCLE.md) 定义：
+Session → Motion → Actions → Effects → DeathsAndRewards → RespawnsAndWorld →
+Transactions → Capture → Close → Publish。先按真实秒推进，真正同刻才使用核心已分配的
+CommitOrdinal；消费者不得再按 Provider/Phase 重排已提交事实。
+当前 Combat 的 `AdvanceAuthority/Sample` 改造为
+`AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs)` /
+`SampleBoundary(const FLDAuthorityBoundary&)` 唯一驱动。
+GameMode 只拥有时钟、BeginAuthorityStep、permit、生命与闸门，不另建并行调度器；
+旧 deadline/Heart 和回拨 World 时间的路径不进入目标链。
 
-复用入口是 `ALDCombatDirector::Sample` 与适用的 `AdvanceAuthority`；
-不能保留旧 deadline/Heart 规则作为另一套目标时钟。
+可用性 NowMs 使用核心同一时域的 checked floor/已实际到达整数边界，事件以 ceil 分桶，
+仍保留 OccurredAtSeconds；RecordedAtMs 是记录时刻的审计桶，不能直接复制 floor NowMs。
+ThroughMs 只能取实际完整处理的整数 Boundary.AtMs，不能 ceil 小数完成点。
+已有整数期限不经 double 往返再取整；第一次 CompleteBodyMotion 不是最终 Fence，
+晚因果位移/复活落地仍进入同一身体 Motion 流，Sealing 后前缀闭合才 Capture。
+这些精度与封闭规则以生命周期 §6.1–6.4 为准，不让显示时间或独立 Actor Tick 判胜。
 RPC/服务器入口的收件不等于获得写权限。操作合同的 `SubmitOrder` 只排队，
 `CommitPendingOrders` 在核心 Actions 阶段重新校验当前 permit 才处理保护解除和订单激活；
 动作/导航交接也在同一有效许可中原子提交。全域阶段序与核心类型由生命周期域唯一定义，
@@ -157,12 +187,27 @@ Host 离开是会话结束，不执行普通客户端离开的继续对局路径
 自杀、离开清理、营地回位均不发奖。无主致死不能继承前一次伤害的所有者；
 来源已经阵亡但仍在本局时，若存续效果确实击杀合法对象，奖励仍归实际所有者。
 无奖励的死亡也记录已处理，不能稍后以新来源重试发奖。
+正式输入是核心接受的 `FLDCommittedDeath`，其中不可变 RewardBasis 包含
+`CreditOwnerEligibleAtDeath`、NoRewardReason、奖励定义以及适用的受害等级/构筑版本。
+同一 Effects 致死集合先锁定全部基准再派奖；不在派奖/重试时重读已经变化的等级或在局资格。
+离局后仅为离局前已锁事实保留 settlement-only 接收记录，不恢复身体、被动、动作或参赛资格，
+也不让离局后的残留效果生成新死亡。必需奖励无法完成时走核心
+`FailAuthorityBoundary`：明确未支付并关闭写闸，不伪造 NoReward/Fence/胜者，不永久 Pending。
+真实终局后不能补付旧局；完整恢复/故障处理按生命周期 §5.1/§6.6，不另设经济时钟。
 候选生成的随机状态属于服务器；关闭页面、死亡和重发不重新抽取。
 
 合法候选覆盖必须用实际首版目录验证：满技能等级、满 Q/W、连升多级及不同被动组合下，
 仍能给出三张不同可兑现的卡。不能用三个相同属性卡、隐藏重抽或免费的自动选择补洞。
 新技能候选只含未学技能，已学技能只能升级且最高三级，满级不再进入候选；
 角色被动没有独立槽位上限，UI 容量不能增加隐含限制。
+
+营地只索引固定 CampId/成员与同一个核心 Victim.Life，不另外生成死亡或奖励身份。
+未受攻击不主动攻击，同组受击共同反击但不共享隐藏坐标；Returning 可受伤/控制/击杀，
+不因受击回头重追。实际到家且仍存活的成员满血蓝、清临时效果/仇恨、技能就绪，
+不复活死成员、不增 Life、不发奖励。这一野怪重置不适用于参赛者的冷却/比例保留规则。
+
+商店资格不额外要求视线：世界提供当前实际脚点、合法接近区与交互距离的只读结果，
+Vendor 在同次提交重查存活、进行中、会话/版本、钱物与容量；旧路径成功不替代提交时资格。
 
 ## SC-06：能力来源、冷却与派生属性
 
@@ -222,6 +267,10 @@ Host 离开是会话结束，不执行普通客户端离开的继续对局路径
 每观察者可撤销句柄和失去视野后的拒绝。输入、AI、商店与占领域调用这些接口，
 不各自扫描全局 Actor 或复制一套世界状态。核心只约束共同代次、提交顺序和公共读模型责任；
 具体采用的单一路径与网格/稀疏协议接线由世界设计和架构裁剪共同封口。
+已审核的 [世界报告](WORLD_CAMPS_AND_VISION.md) 选择一个有界稀疏 `FLDWorldView`，
+复用 Relay 的可靠撤销/不可靠全量与接受游标，不保留并行 B91 身体协议。
+它拥有 `QueryGround/QueryCompletePath/FindApproach/TraceSight`、当前观察与圈几何定义；
+实际布局和参数仍是待审提案，原生/资产接线并未完成。
 
 | 读模型 | 允许字段来源 | 明确禁止 |
 | --- | --- | --- |
@@ -262,13 +311,15 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 ## SC-08：内容定义与参数引用
 
 `CONTENT_AND_BALANCE.md` 是约定的领域交付文件名；正式接入后由它维护首版目录、
-数值、公式、依据和审核状态。其他报告只引用它的稳定键，不复制另一份可独立修改的数值表。
+战斗/经济/AI参数、公式、依据和审核状态。世界报告的唯一坐标/阻挡/连接表定义候选几何，
+并引用共同半径/视距等参数；不把坐标或参数复制成可独立修改的第二份表。
+模型和 SVG 是这一候选输入的证据，不是原生资产或已批准数值。
 下表是必须交付的参数语义，不是额外默认值，也不是已存在的 JSON 字段。
 
 | 参数组 | 必须提供的精确信息 | 主要消费者 |
 | --- | --- | --- |
 | 对局/生命 | 发育时长、连续独占时长、复活延迟及适用变量、保护时长；全用明确时间单位 | 生命周期、占领、UI、AI |
-| 空间/世界 | 地图尺度、圈几何参数、十点位置参数、商店范围、视野范围；可行走/视线/圈边界算法由世界模块定义并引用这些参数 | 世界、输入、战斗、视野、AI |
+| 空间/世界 | 世界单点坐标/阻挡/连接与内容单点半径/视距/商店距离引用一致；十锚点抽样和锚点内部碰撞解算分开，不把局部槽当额外出生点 | 世界、输入、战斗、视野、AI |
 | 基础角色/属性 | 每项基值、等级成长、上下限、派生公式、资源回复；初始近战单体普攻射程/时序，以及装备或属性提供群攻/增程的首版路径，不强制投射物 | 战斗、成长、UI、AI |
 | 伤害/概率/冷却 | 伤害类型与加成、抗性/暴击/攻速/冷却算法、叠加顺序、取整与边界例子 | 战斗、内容导入、UI |
 | 经验/金币 | 初始资源、逐级经验阈值、参赛者/野怪奖励、无所有者致死处理引用 | 成长、营地、奖励、UI |
@@ -321,3 +372,6 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 | 领域 | 唯一定义入口 | 关键交接与剩余门槛 |
 | --- | --- | --- |
 | 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder`、`CommitPendingOrders(permit)`、`CommitActionHandoff` 归现有 Navigation；只收件不激活，动作交接原子；文档静态审核已完成，跨域核心收口、CT06 原生运动、内容/资产和真实连接验证仍需完成 |
+| 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可，Objective 单圈归约；不新增第二核心 |
+| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；候选坐标/尺寸不等于批准，实际场景与资产仍需验证 |
+| AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；全部12个AI叶参数须落入唯一内容表 |
