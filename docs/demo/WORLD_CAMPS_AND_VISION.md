@@ -190,6 +190,9 @@ commit与Finalize在同一权威提交作用域完成，中间不异步让出并
 若必要不变式被破坏，进入显式 `AuthorityFault` 并阻止错误继续发布，
 不回滚已公布Life、不重抽点、不返回假成功。
 整组营地刷新采用同一“全部预留完成→核心生命/组提交→无正常失败Finalize→一次发布”边界。
+参赛者的 `Respawned` 原子携带Alive与复活保护，不先发布短暂的未保护Alive。
+即使新身体位置先到，核心仍将该生命视为不具资格，直到完整复活事件提交；
+世界几何就绪不是恢复占领/战斗资格的替代信号。
 
 ### 2.5 可复算路线表
 
@@ -427,6 +430,8 @@ root motion 从实际运动采集；碰撞截短不能按请求距离产生虚�
 时序适配采用核心的服务器**游戏模拟step时间**，不是另一个墙钟。
 `Occurred` 按核心规则入毫秒桶；`ThroughMs` 只能取已完整处理的精确整数 `Boundary.AtMs`，
 不能ceil任意完成秒数：完成到1.0002s不足以封住1001ms，后续1.0008s仍属于该桶。
+用于“截止是否已到”的 `NowMs` 按核心safe-floor可用性规则取得，不能把尚未完成的时间ceil成已到期；
+它与事件入桶的checked ceil、Fence的实际闭合整数边界是三个不同用途。
 首次Motion结束只报告 `CompleteBodyMotion`，Effects/Respawn/事务派生位移与落地仍要纳入同流；
 Capture前Sealing阶段才 `PublishThrough`，最终退休事件所在桶闭合后才退役。
 已有整数毫秒期限不经double往返再ceil。
@@ -442,9 +447,14 @@ Boundary带 `Match/uint64 BatchSerial/int64 AtMs`。
 核心顺序为
 `Session -> Motion -> Actions -> Effects -> DeathsAndRewards -> RespawnsAndWorld -> Transactions -> Capture -> Close -> Publish`。
 这是生成/提交阶段责任，不能把不同实际时刻的事件按phase倒序。
-共同归约先比较保留下来的 `OccurredAtSeconds`，真正同刻才用phase/因果序；
+共同归约先比较保留下来的 `OccurredAtSeconds`，真正同刻才用核心已生成的 `CommitOrdinal`；
+消费者不能再各自按phase或接收顺序重排同刻事件。
 毫秒只用于ceil桶和Fence，不能丢掉真实秒数后把同桶不同时间视作同时。
 保护到期在其t本身生效；中间进出不能因最终死亡/离开而删除。
+例如保护者在1000.8ms已离圈、保护在1001ms到期，不能因同属1001ms桶而倒排成先到期再离圈，
+制造一次不存在的争夺；整桶晚离局也不能因Session阶段而抢在较早的死亡之前。
+实际运动段序与发布事件序分开：一段可产生零、一或两个圈边界事件，
+每条事件独立递增 `ProducerSequence`，不能用段序去重而吞掉第二个交点。
 Motion按每Body封流，世界参与营地/刷新流封闭；`PublishCapturePresence/Eligibility` 与 `PublishThrough` 归核心，
 Combat边界pose和Capture均消费后才 `AckConsumed` 释放暂存数据。
 
@@ -502,6 +512,9 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 目标绑定的旧命中仍检查其TargetLife；范围效果的新合法接触由Combat按原效果定义绑定当前受害生命，
 不能把“源已死亡”误作所有独立效果失效，或让旧目标绑定伤害新生命。
 金币与经验由同一已提交死亡事实幂等落账，不由营地分别发放。
+已成立的DeathFact冻结 `CreditOwnerEligibleAtDeath`，不能在较晚结算时按当前Pawn/离局状态重新归因。
+核心保留的settlement-only记录只用于完成该既成事实，不恢复身体、碰撞、占领资格或视野；
+它也不授权离局后的新命中、效果或奖励请求。
 账本同 receipt/同条款重放、异条款拒绝可复用：
 `Source\Lockdown\Private\Economy\LDEconomyLedger.cpp:36-84`；
 不能把现有有限 B76 来源预算当作无限局刷新的去重机制。
@@ -823,11 +836,12 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 可走/视线 | 障碍分类、地面/路径/LOS独立；几何模型路径不穿外扩障碍 | Recast agent与真实capsule一致，墙角/地板接缝、实际行走和视效可辨 |
 | 十点公平 | 抽样仅使用同十点无偏有放回；确定性RNG夹具证明不会移除点或读危险度；分布统计只作诊断 | 服务器开局/每次复活和真实并发接线确实走同函数 |
 | 同点重叠 | 六人同时抽同点、重复请求、动态占用、全局部落点不可用；保留选中ID且不部分成功 | native ground/nav/capsule/预约、同帧并发与拥挤恢复 |
+| 原子复活 | Respawned同时携Alive+保护；位置先到的新生命仍不具资格 | 不出现未保护Alive中间态，Finalize不在生命commit后正常失败 |
 | 攻击/Shop接近 | 中心距刚内/等号/刚外；本体中心阻走；部分路径/另一层/已失明句柄拒绝 | 真实命令、原生位移、UI点击不穿透及交易提交期重查 |
 | 圈边界 | 脚点内/等号/外、胶囊擦圈、墙后/空中/错patch、保护无效 | 真实短弦穿越、滑墙折返、被截短位移、同刻死亡/离开/保护变化和水位 |
 | 进攻意图解除保护 | 当前身份的无效目标/不足射程/没蓝仍先解除；旧局/旧生命/未授权包不解除新生命 | 失败回执与圈资格事件同刻一致，不能等成功攻击；死亡选卡不恢复身体/视野 |
 | Camp组生命周期 | 两Low成员单独死亡；幸存回位不复活死者；最后死亡才计时；ticket重放/旧局/半组失败拒绝 | 合法回位路、动态占位、基础普攻起步和高档风险价值 |
-| 奖励 | 无主致死不继承LastOwner、来源先死后合法DoT、重复回调/提交、旧生命命中、零奖励终态 | XP/金币联合结果、死亡与交易/终局竞争、真实拥有连接回执 |
+| 奖励 | 无主致死不继承LastOwner、来源先死后合法DoT、重复回调/提交、旧生命命中、零奖励终态；既成DeathFact冻结归属资格 | XP/金币联合结果、死亡后离局与延后结算、settlement-only不恢复身体/视野、交易/终局竞争 |
 | 视图/句柄 | full/conceal乱序、丢包/stale、observer/target换life、epoch、错误schema/枚举/计数/重复handle | Host与两客户端可访问记录/画面均不泄漏、无原生/代理双显 |
 | 可见对手字段 | 名称/等级/P2血蓝/状态/两槽定义完整；同款两件合法；NPC NotApplicable；无实例/私有版本/技能/CD/最终属性/金币 | 交易后可见装备更新、失明立即停更/清目标停追击；死亡自由静态平移无活体来源或隐藏跟随 |
 | 可见死亡与离局 | ObservedDeath须实际可见见证；Conceal/stale不能当死亡；正常死亡独立效果到原期限，离局立即取消并去身体碰撞 | 终止乱序不恢复旧A订单，断线无残体/隐形阻挡/残留伤害cue；只撤对应所有者 |
