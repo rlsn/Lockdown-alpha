@@ -142,7 +142,7 @@ ShopId、世界修订/观察句柄、Permit、EventStamp 和 ELDLifePhase 直接
 对规范化manifest树经现有 `CatalogTools.encode` 产生的完整字节计算SHA-256，contract保存结果。
 覆盖角色/成长、技能、装备、奖励/价格/政策、稳定ID/schema、handler投影和声明的世界/
 显示/payload摘要。
-子目录摘要仍由同一Sync生成/核验，但不能将Combat子摘要与Equipment子摘要都当此根比较。
+子载荷摘要由唯一Demo compiler生成/核验，但不能将Combat子摘要与Equipment子摘要都当此根比较。
 根manifest的实际生成输入/输出由内容域维护，本域不复制生成器、哈希常量或第二份数值。
 
 ## 4. 共同身份、提交阶段、原子性与失败恢复
@@ -722,8 +722,14 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 UI 到零不授权。属性和派生数值的计算类型、上下界、截断与来源快照均沿 Combat 的单一公式。
 金钱、XP、构筑、来源与显示格式化不能相互代算。
 
-内容审批后由同一 Sync/loader 管线将正式键映射到 SourceData、稳定原生 ID、
-Content 载荷及 contract；未知/缺失 ID、非法值、无处理器/图标/触发定义必须拒绝。
+作者域和生成终态以 `CONTENT_AND_BALANCE.md` §10.1/§11.2 为唯一口径：
+内容获批准后，角色/成长、技能、装备、奖励/价格及政策写入 `SourceData\Demo\content.json`，
+由同域严格 `content.schema.json` 和稳定 `native_ids.json` 约束，不继续维护旧V08记录为第二作者源。
+唯一Demo Sync/compiler同步生成 `Content\Lockdown\Data\Demo\demo_content.json`、
+同目录的 `manifest.json`，以及生成的原生 `LDDemoContentContract.h`；新 `ULDDemoContentCatalog`
+统一不可变内容定义，沿原生类型/DataAsset/Bootstrap Validate链替换旧目录入口，
+不拥有另一份角色、金币、HP或运行状态。地图坐标仍归世界作者域，本内容仅引用稳定锚点及世界合同。
+这些是待实施目标，不是已经存在的目录/命令；未知/缺失ID、非法值、无处理器/图标/触发定义必须拒绝。
 数值reader按内容合同保留Decimal/原词法，先检查精度、有限性、范围与量纲，再转规范
 定点原生树交encode；不能先转float使非法精度塌缩或大数变inf，encode也不直接接Decimal。
 这是共享输入管线的改造前提，不在本域另写校验器或复制数值输入表。
@@ -776,7 +782,7 @@ Content 载荷及 contract；未知/缺失 ID、非法值、无处理器/图标/
 | N05 + D16 Vendor | `LDVendorDirector.* / LDVendorTypes.h`、`LDPlayerVendor.cpp`、InventoryPanel 的书店页 | 先新会话/报价/Buy/Sell/回执、世界资格、no-fail 来源绑定；再删 Skill/BookPrice、OfferedSkills、ServerVendorBuy 旧形状和受伤/安静/旧 Ray 附加条件。 |
 | R07/R09 局部抽取，D14/D15 | `LDV08Loadout::Validate/ItemSource/InvalidateSources/Project`、`LDContentActions/LDContentRelease/LDV08Modifiers` | 先实例→IssuedCooldownId、SourceBindingRevision、被动来源集合；再删重复 family 禁止、ItemFamilies 共享主动 CD、施法伪库存修订和无关 modifier。按 C1 保留获准射程/余波 handler，不留整套旧效果。 |
 | B02/D04 玩家交易整链 | `LDTradeDirector.* / LDTradeTypes.h / LDPlayerTrade.cpp / LDInventoryTradePanel.cpp`；Controller TradeView/Pending、GameMode Trade、Combat/Navigation/Development/Vendor 的取消链 | 先把最终容量、精确版本、条款幂等与隐私断言抽回 Ledger/Vendor/Inventory；再断所有 RPC/成员/Delegate/CancelFor/Pending，删除类型、页签和专测。无须等待新价格，但须适用 C3。 |
-| D05 Acquisition 整链 | `LDAcquisitionDirector/Catalog`、`LDSupplyRequest`、`LDLoadoutRequest`、生产/采购 RPC | 先抽创建失败前置与先账后投影；改 SyncB84 对 Acquisition adapter 的源码读取；再删书籍/材料/制作/品质/旧请求和缓存报价，不能为 compiler 留空旧文件。 |
+| D05 Acquisition 整链 | `LDAcquisitionDirector/Catalog`、`LDSupplyRequest`、`LDLoadoutRequest`、生产/采购 RPC | 先抽创建失败前置与先账后投影，将必需ID/投影校验迁入唯一Demo compiler；先断SyncB84对Acquisition adapter的源码读取，再随旧生成链退出。删除书籍/材料/制作/品质/旧请求和缓存报价，不为compiler留空旧文件。 |
 | D02/D06 其他经济消费者 | Bank/Commerce/Production/Institution、B92 钱包/Supply/Work/Courier/Extraction/WorldLedger；GameMode 服务接线 | 目标奖励/买卖已回同一 Ledger 后，按架构闭包断消费并删除；不给 AI 保留第二经济栈。各自有效事务断言先迁移。 |
 | D16/N07 UI、RPC 与投影 | `LDPlayerController.h`、`LDPlayerDevelopment/Inventory/Vendor.cpp`、`LDDevelopmentPanel/LDInventoryPanel/LDV08HUDModel.cpp`、`LDViewTypes.h` | 先接 §8 的窄 DTO/请求/错误与同次发布；再删整份 Build 草稿、书籍/六动作/四附件/旧服务页、wire/Delegate/Pending 及旧控制映射。不留不可执行空按钮。 |
 
@@ -795,14 +801,18 @@ Vision、Objective、Population 及 probe 消费，不能仅在 Inventory 内无
 
 | 当前链 / 证据 | 必须一同迁移的边 |
 | --- | --- |
-| [SyncB84Data.py:32–103](../../Scripts/SyncB84Data.py#L32-L103) | 读取 ELDSkill/ELDItemKind、`LDEquipmentCatalog.cpp` adapter，**还读 `LDAcquisitionCatalog.cpp`**；固定旧数量/starter kits；输出 combat/equipment/acquisition_b84、Manifest、LDB84Contract。先改读取/输出合同再删 Acquisition 和未选输入。 |
-| [LDEquipmentCatalog.cpp:15–54](../../Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp#L15-L54)、[LDAcquisitionCatalog.cpp:20–39](../../Source/Lockdown/Private/Inventory/LDAcquisitionCatalog.cpp#L20-L39) | 去掉摘要决定 RulesVersion 和 V07 fallback；只留下批准目录的单一路径，缺输入明确失败。 |
+| [SyncB84Data.py:32–103](../../Scripts/SyncB84Data.py#L32-L103) | 旧链读取ELDSkill/ELDItemKind、`LDEquipmentCatalog.cpp` adapter，**还读 `LDAcquisitionCatalog.cpp`**；固定旧数量/starter kits，输出combat/equipment/acquisition_b84、Manifest、LDB84Contract。仅抽所需确定性编码/ID/哈希校验机制到Demo compiler；替换消费者与输出合同后删除旧SyncB84及B84产物，不将它作为终态入口。 |
+| [LDEquipmentCatalog.cpp:15–54](../../Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp#L15-L54)、[LDAcquisitionCatalog.cpp:20–39](../../Source/Lockdown/Private/Inventory/LDAcquisitionCatalog.cpp#L20-L39) | 必要导入/查询能力迁到ULDDemoContentCatalog；旧目录类/loader及按摘要选择RulesVersion、V07 fallback随消费者切换退出。缺新输入明确失败，不回读旧目录。 |
 | [LDSupplyRequest.cpp:2–6](../../Source/Lockdown/Private/Inventory/LDSupplyRequest.cpp#L2-L6)、[LDPlayerProduction.cpp:37–40](../../Source/Lockdown/Private/Framework/LDPlayerProduction.cpp#L37-L40) | 旧 serializer 以历史枚举上界截断，不可用于新商店请求。替换生产者/decoder/白名单/测试后删旧供给请求。保留存活技术编号，不机械重编号。 |
 | [LDScaffoldBootstrapCommandlet.cpp:240–270](../../Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp#L240-L270) | CharacterCatalog 与 V07 Combat/Equipment/Acquisition/World 无条件资产加载/生成边要改，不因前端不再传旧 profile 就盲删载荷/资产。 |
 | [DefaultGame.ini](../../Config/DefaultGame.ini)、[Lockdown.Build.cs:10–22](../../Source/Lockdown/Lockdown.Build.cs#L10-L22)、[PackageWin64.ps1:7–13](../../Scripts/PackageWin64.ps1#L7-L13) | 去旧容量/BookPrice、广域 AlwaysCook、显式旧载荷和多图 staging；只保留当前实际消费者，确认有效配置不会回落引擎旧默认。 |
 
-对应 D20/D21/D23/D32：内容审批后修改 `SourceData\Catalogs\V08` 的实际存活记录，
-同步生成 Content 载荷/manifest/contract；删除未选 starter kits/acquisition/旧 schema 分派与独占输出。
+对应D20/D21/D23/D32及内容CB-D01–04：`SourceData\Catalogs\V08` 等旧记录只用于抽取/迁移审计，
+必要稳定编号和获审定义迁入§9的唯一Demo作者域；不能在V08中继续编辑一套“存活记录”并与新域并行生成。
+新Demo compiler/catalog、typed投影、精度/拒绝夹具及DataAsset/载荷/root manifest/contract先就绪，
+再切换运行、Bootstrap和staging/cook消费者，删除旧V08/B84作者输入、载荷/manifest/contract、
+旧catalog/importer、SyncB84及其旧数量/schema专测。旧机制可抽取，旧生成器不是最终受支持入口。
+保留有依据的稳定技术编号，不以保留编号为理由保留第二作者源或备用旧产物。
 V07 删除仍需关闭 Bootstrap、loader fallback、Sync/native contract、staging/cook 四条边。
 本轮不修改 SourceData 字节、不运行生成器、不手改任何摘要或二进制。
 
@@ -873,7 +883,7 @@ LAN 与正确配置的公网直连按集成计划分别验证，输出写忽略�
 | --- | --- | --- |
 | RPG/肉鸽/经济设计 `rpg-economy-designer` | `4e69c842-6510-4107-afca-caecf1a484ef` | 独立完成有限选择、持久候选/替换、经济取舍与双轨研究；最终报告服从用户已确认的死亡选择和资源同比规则。未审计源码、未复跑内容模型或游戏。 |
 | UE权威事务/数据工程 `ue-transaction-auditor` | `1f0538aa-051e-4bdd-b8ea-fd2dddba696c` | 静态核验真实写路径/修订/消费者/裁剪；确认必须改造先改钱物后补账及XP拆分，提出致死等级快照、Prepare/Apply和有限故障收口。 |
-| 独立事务/生命周期 QA `progression-transaction-qa` | `49aff7d7-6acb-4a57-824f-a777a46eee26` | 完整审查与定点复核完成，**通过本模块文档设计独立QA，无剩余必修**；确认压缩/退休可复算、完整型别和查询包装、冻结资格/生命周期/双轨及正式商店查询/开店阶段边界。未兼任研究作者或修改报告。 |
+| 独立事务/生命周期 QA `progression-transaction-qa` | `49aff7d7-6acb-4a57-824f-a777a46eee26` | 完整审查与定点复核完成，**通过本模块文档设计独立QA，无剩余必修**；确认压缩/退休可复算、完整型别/查询包装、生命周期/双轨、商店阶段及唯一作者域/生成迁移边界。未兼任研究作者或修改报告。 |
 
 工程专家另执行了**合成输入的纯内存协议模型**：复合准备/重放/Offer保护等65条断言，
 双轨发行/绑定/截止43个状态、229条断言；不代表 UE 实现或新内容3/3/5/7池已验证。
