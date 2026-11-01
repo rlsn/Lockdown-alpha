@@ -133,7 +133,8 @@ Account revisions 均为 `uint32`，目标统一升为 `uint64`；Combat 已采�
 | Kind / Family / Outcome / Reason / bool | 领域Kind/Family/Outcome为`uint8`枚举，Reason为`uint16`，bool wire仅0/1 | 唯一领域头文件声明明确支持值；decoder逐值白名单，不用历史最大枚举包住废弃值。可选值编码为存在位+存在时的值。Family仅Choice/Shop，不能伪造Reward RPC。 |
 
 ShopId、世界修订/观察句柄、Permit、EventStamp 和 ELDLifePhase 直接引用其拥有域正式类型，
-不在本域另声明同名身份。`ExpectedLifePhase`只接受核心Alive/Dead；其余状态明确拒绝。
+不在本域另声明同名身份。`FLDWorldRevision`沿世界的MapId/LayoutRevision/GeometryRevision组合，
+不压成另一个全局修订号。`ExpectedLifePhase`只接受核心Alive/Dead；其余状态明确拒绝。
 所有DTO和回执的结构修订使用本表的同一宽度；未涉及的修订不虚增。
 
 现有B84各载荷分别有SHA-256，并非已存在统一根摘要。目标请求的 CatalogDigest
@@ -455,10 +456,23 @@ Inventory 从 Ledger 解析两个真实位置，Combat 引用实例/定义，视
 目录固定价和 `FORMULA.SellGold` 必须证明任意卖买循环无正金币收益，且每个精确实例最多售出一次。
 开局初始化只在核心新 Match 中执行；复活、打开商店、读取 projection 不初始化钱包。
 
-交易提交直接调用世界域
-`QueryShopEligibility(CoreCommandContext, OwnerBodyLifeKey, ShopId, ExpectedWorldRevision)`，
-读取当前真实身体的合法脚点/支持面、DistanceXYCm、InsideInteractionRange 和采样修订。
-输入核心身份绑定共同 Body/Victim，不保留另一 OwnerBodyLife 计数；上下文由服务器适配。
+交易提交直接调用世界域的唯一正式签名：
+
+```cpp
+FLDShopEligibilityResult QueryShopEligibility(
+    const FLDGameplayWritePermit& Permit,
+    const FLDCombatBodyRef& BuyerBody,
+    FName ShopId,
+    const FLDWorldRevision& ExpectedWorldRevision);
+```
+
+Vendor从真实连接/AI意图绑定买家并取得当前核心BuyerBody，不接受调用者指定另一身体。
+Permit只借用于当前Transactions调用栈，World先ValidateWritePermit(Transactions)，
+再匹配身体/世界修订并只读查询合法脚点/支持面、DistanceXYCm、InsideInteractionRange。
+采样取核心GetAuthorityNowSeconds及该真实子时刻的运动证据，
+不能拿AtMs封桶上界当实际时刻或用较晚姿态回填。
+几何成功不代替交易提交权：最终安装资源前Vendor仍重验Permit、原交易资格与全部预期版本。
+只读回执重放不再调用资格查询或新交易，不保存旧Permit。
 `SHOP.InteractRadiusCm` 是脚点到固定交互锚点的 XY 中心距，不增减胶囊半径。
 FindApproach/曾经开店只提供接近能力，不构成提交期长期授权。
 
@@ -541,7 +555,8 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitChoice(
 
 FLDEquipmentView ALDInventoryDirector::ReadEquipment(const FGuid& ContenderId) const;
 FLDShopOpenResult ALDVendorDirector::OpenShop(
-    const FGuid& ContenderId, const FLDShopOpenCommand& Command);
+    const FGuid& ContenderId, const FLDShopOpenCommand& Command,
+    const FLDGameplayWritePermit& Permit);
 FLDSubmitResult ALDVendorDirector::QueueShopCommand(
     const FGuid& ContenderId, const FLDShopCommand& Command);
 FLDShopReceiptQueryResult ALDVendorDirector::QueryShopReceipt(
@@ -555,7 +570,15 @@ FLDShopReceipt ALDVendorDirector::CommitShopCommand(
 `AcceptedPending / Final / AdmissionRejected`；不是立即扣钱/成长的函数。
 `Commit*` 为相应核心阶段内部入口，不直接暴露成 RPC。
 Query 返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，不存在“查不到就再执行”。
-OpenShop 创建/复用当前身体的私有商店会话，不授购买成功；只提供当前合法报价。
+OpenShop是Transactions阶段内部的开店处理器：网络/AI入口先把开店意图交现有权威队列，
+等待阶段返回FLDShopOpenResult的Pending，不提前同步调用受Permit约束的世界查询。
+复用当前交互绑定及取消机制，每名参赛者最多一个未办理开店意图，同一意图重复受理合并；
+不另建商店请求流或第二套Pending队列。
+核心分派时重新解析当前身体并借用当次Permit，OpenShop通过同一资格查询后才创建/复用
+私有会话并返回Opened与合法报价，失败返回Rejected；处理器本身不伪造新的Pending或Permit。
+不把Permit放进队列，不新增一套预览资格算法。
+关闭/取消开店表现沿操作域现有交互规则，不把迟到开店结果强制弹回已关闭面板，
+结果沿原交互绑定和owner发布修订拒旧，也不把开店成功当作买入成功。
 `FLDReceiptQuery` 必须携带 `Generation / Family / RequestId`，查找键是
 当前已验证 Match、服务器解析的 ContenderId、命令族和请求号。
 先拒绝旧 Generation 再查询，不能由当前 Controller 替旧查询补新局上下文。
@@ -566,6 +589,7 @@ OpenShop 创建/复用当前身体的私有商店会话，不授购买成功；�
 | 正式结果类型 | 必须包含的字段与语义 |
 | --- | --- |
 | `FLDSubmitResult` | Generation:uint32、Family、RequestId:uint64、上述AdmissionStatus、Reason、SequenceReserved:bool、可选FinalReceipt。AdmissionRejected不保留未来序号；AcceptedPending已固定条款但未成功；Final重放既有终态。 |
+| `FLDShopOpenResult` | Generation:uint32、Life:uint32、ShopId、OpenStatus:uint8（Pending/Opened/Rejected）、Reason、可选FLDShopView；Pending由队列受理返回，Opened仅来自阶段成功，Rejected来自受理或阶段拒绝。只有Opened携带会话/报价，另两态View不存在。 |
 | `FLDChoiceReceipt / FLDShopReceipt` 的共同头 | Generation:uint32、Family、RequestId:uint64、OriginalLife:uint32、OriginalLifePhase、Outcome（Applied/Rejected）、Reason、可选CommitOrdinal:uint64、结果版本集合。只读重放标志属于传输外壳，不改原业务结果。 |
 | 结果版本集合 | Account/Progression/Build/Inventory/SourceBinding/Offer revisions均uint64，按存在位标明本次适用字段；Applied给提交后的版本，Rejected的当前guard只作同步提示、不宣称曾提交。 |
 | `FLDChoiceReceipt` 载荷 | 原OfferId/OptionId、OpportunityOrdinal:uint8、消费后ConsumedThrough:uint8、实际新学/升阶/永久属性引用及替换旧技能/rank、可选下一OfferId；Rejected不伪造消费或下一卡。 |
@@ -584,7 +608,7 @@ OpenShop 创建/复用当前身体的私有商店会话，不授购买成功；�
 | 命令 / 类型 | 必要输入与上限 | 提交、拒绝与回执 |
 | --- | --- | --- |
 | `FLDChoiceCommand` | Generation、当前参赛记录 Life、ExpectedLifePhase（Alive/Dead）、递增 RequestId；OfferId/OfferRevision、OptionId、ExpectedBuildRevision、CatalogDigest；满槽时 Slot 0/1、ExpectedOldSkillId/Rank、明确 ReplaceConfirmed。 | Transactions 阶段查当前成员/生命状态、队首及原卡/版本；成功回旧 Offer 的唯一结果及新状态修订。最多一个 Option，不收任意 Build、rank/属性数组或奖励金额。 |
-| `FLDShopOpenCommand` | Generation/Life、公共 ShopId、ExpectedWorldRevision。 | 存活/进行中且当前世界资格成功才给 SessionId/QuoteRevision；失败不给默认商店或旧会话执行权。 |
+| `FLDShopOpenCommand` | Generation/Life、公共ShopId、FLDWorldRevision ExpectedWorldRevision；请求不携Permit。 | 先进入权威队列，在Transactions借当次Permit重验存活/进行中及世界资格后给SessionId/QuoteRevision；失败不给默认商店或旧会话执行权。 |
 | `FLDShopCommand::Buy` | Generation/Life/RequestId、ShopSession、QuoteRevision、CatalogDigest、ExpectedWorldRevision；ExpectedAccount/Inventory/Build/SourceBindingRevision；商品 DefinitionId、明确展示 BuyPrice。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订和继承 CD。一次只买一件。 |
 | `FLDShopCommand::Sell` | 上述上下文与预期版本；精确 ItemInstance、ExpectedItemRevision、展示 SellPrice。 | 重查所有权/位置/卖价，Consume+回款+解绑一次提交；回具体已卖实例及修订。一次只卖一件。 |
 | `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原Generation/Family/RequestId/OriginalLife。本局历史生命与终局已有结果可查，但不覆盖当前身体/新局。 |
@@ -825,7 +849,7 @@ IssuedCooldownId、Permit/fence/故障恢复与 owner 投影。不要求新建�
 | A14 生死选择 | 死前Alive确认不能借同Life在Dead应用，死时新确认允许且不需要活Pawn、不治疗尸体，复活旧确认拒绝，机会不丢。 |
 | A15 两装备/真实例 | 两次显式购买同款产生两个实例，第三件拒绝；满槽先Sell后Buy，后Buy失败不回滚真实出售；无隐藏背包。 |
 | A16 原子买卖/新修订 | 钱不足、旧价/旧库存/旧实例、创建/投影/绑定失败均无扣钱/物品/CD席泄漏；统一 ItemRevision 不混用旧物理与Ledger计数。 |
-| A17 商店同刻 | 移出范围/死亡/复活/终局/离局与排队买卖同刻；按核心阶段和当前世界采样判定，无迟到成交。受击但仍合法不额外禁止。 |
+| A17 商店同刻 | 开店/买卖仅Transactions借当次Permit调用正式世界查询，拒跨栈/旧许可；同ceil桶内不同真实子时刻用对应运动证据。移出范围/死亡/复活/终局/离局均重验，几何通过后最终安装仍复验，无迟到成交；受击本身不禁止。 |
 | A18 双属性/单被动 | 同款两实例属性相加、同名被动一次；卖一份不断另一份、不重置触发，卖最后一份移除贡献；装备被动不消耗成长选择。 |
 | A19 独立双主动 | 两就绪同款在店外/圈内、满两槽时分别合法使用，可连续两次；各自截止不同，不存在family共享锁，不忽略法力/控制/目标。 |
 | A20 回绑反例 | ready旧轨与未结债并存先取债；长短债优先最长，平局稳定；售双重买两债分别继承；反复卖买不出第三ID，失败不发行。 |
@@ -848,7 +872,7 @@ LAN 与正确配置的公网直连按集成计划分别验证，输出写忽略�
 | --- | --- | --- |
 | RPG/肉鸽/经济设计 `rpg-economy-designer` | `4e69c842-6510-4107-afca-caecf1a484ef` | 独立完成有限选择、持久候选/替换、经济取舍与双轨研究；最终报告服从用户已确认的死亡选择和资源同比规则。未审计源码、未复跑内容模型或游戏。 |
 | UE权威事务/数据工程 `ue-transaction-auditor` | `1f0538aa-051e-4bdd-b8ea-fd2dddba696c` | 静态核验真实写路径/修订/消费者/裁剪；确认必须改造先改钱物后补账及XP拆分，提出致死等级快照、Prepare/Apply和有限故障收口。 |
-| 独立事务/生命周期 QA `progression-transaction-qa` | `49aff7d7-6acb-4a57-824f-a777a46eee26` | 完整审查与定点复核完成，**通过本模块文档设计独立QA，无剩余必修**；确认压缩/退休可复算、完整型别和查询包装、冻结资格/生命周期/双轨边界。未兼任研究作者或修改报告。 |
+| 独立事务/生命周期 QA `progression-transaction-qa` | `49aff7d7-6acb-4a57-824f-a777a46eee26` | 完整审查与定点复核完成，**通过本模块文档设计独立QA，无剩余必修**；确认压缩/退休可复算、完整型别和查询包装、冻结资格/生命周期/双轨及正式商店查询/开店阶段边界。未兼任研究作者或修改报告。 |
 
 工程专家另执行了**合成输入的纯内存协议模型**：复合准备/重放/Offer保护等65条断言，
 双轨发行/绑定/截止43个状态、229条断言；不代表 UE 实现或新内容3/3/5/7池已验证。
