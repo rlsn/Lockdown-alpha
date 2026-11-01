@@ -319,9 +319,11 @@ miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模
 
 | 值 | 含义与约束 |
 | --- | --- |
-| `CoreCommandContext` | 核心绑定的当前局、实际调用者、提交阶段、实际服务器时间与终局写闸；不是客户端自填上下文 |
-| `BodyLifeKey` / `CombatVictimLifeKey` | 引用核心共同类型；当前 OwnerState 的 `uint32 Life` 与 Combat `FGuid Identity` 必须显式映射，不强转，也不另建营地生命计数 |
-| `WorldRevision` | `MapId + LayoutRevision + GeometryRevision`；不替代 Match、Life、Order、Epoch、ViewRevision 或协议 schema |
+| `FLDMatchContext` | 直接引用已审核心合同的局身份类型；提交期从借用Permit的Boundary.Match取得，不另造核心Context或客户端自填调用上下文 |
+| `FLDVictimKey` | 生命身份统一为核心的Kind/EntityId/Life；不以原生Combat Identity的FGuid冒充Life，也不另建营地生命计数 |
+| `FLDCombatBodyRef` | 需要对应实际身体时使用核心的Victim+BodyIdentity；OwnerState uint32 Life与Combat FGuid Identity的映射由核心维护 |
+| `FLDGameplayWritePermit` | 核心为当前提交调用栈签发的借用许可，绑定Boundary/Phase/GateRevision；不含调用者所有权证明，不得复制、保存、网络传入或自行构造 |
+| `FLDWorldRevision`（其他世界签名简写为`WorldRevision`） | 世界域拟建纯值：`FName MapId; uint32 LayoutRevision; uint32 GeometryRevision`；不是核心Context，不替代Match/Life/Order/Epoch/ViewRevision/schema |
 | `GroundedFootSample` | 从当前权威身体和原生 walkable floor 取得的脚点、支持面/连续地面 patch、grounded 事实；不是把任意点击投影到地面后的“假落地” |
 | `ObserverContext` | 服务器绑定的真人拥有连接、对应参赛AI，或仅供营地反击校验的CampMember上下文；无身体／新生命／换局须更新。营地成员不创建参赛席位/PlayerState/钱包或另一网络视图，不能给玩家或同营共享视野 |
 | `ObservedHandle` | 观察者局部的 opaque token 与观察 epoch；服务器映射到目标共同生命，客户端不能用 Actor 指针、公开参赛 ID 或 CampId 代替它 |
@@ -365,10 +367,35 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> Result<ObservedFrame>` | 同一 Vision 生产者；只输出当前授权目标及已批准字段 | UI、攻击移动候选和 AI 策略；禁止返回 canonical Bodies 或隐藏目标路径 |
 | `FindApproach(ObserverContext, Origin, UnitHandle or PublicPOI, RangeCm, Capsule) -> Result<Approach>` | 单位先重新解析；固定地点从地图注册表取；在碰撞外、范围内找合法完整路径 | 攻击接近/商店接近；单位失明不更新真实隐藏坐标，路径成功不授予交易权 |
 | `TraceSight(SourceGround, TargetSample, WorldRevision) -> Result<SightResult>` | World/Vision；有限、同层与固定 eye/target sample、范围及阻视线几何；与阻走分开 | 授权层与 Combat 几何；公开地点/静态 ray 结果不是单位锁定权限 |
-| `QueryShopEligibility(CoreCommandContext, OwnerBodyLifeKey, ShopId, ExpectedWorldRevision) -> Result<ShopEligibilitySample>` | 当前实际脚点、合法地面/同层接近区、到公开交互锚点的中心距；范围由服务器取 | Vendor 在与买卖同一提交阶段调用；仍由核心/交易域检查存活、进行中、余额、槽位、quote/request/revision |
+| `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision) -> FLDShopEligibilityResult` | 下方唯一四参类型；Transactions借用作用域内按当前实际子时刻验证身体/世界、合法脚点/区域与中心距；不增加LOS条件 | Vendor绑定真实调用者与BuyerBody，最终安装前仍核permit/生命/会话/quote/余额/槽位/revision；结果不是长期交易授权 |
 | `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、连续独占和唯一胜负归核心，不受观察权限影响 |
 | `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 运动/位移生产者封装身份、序号、实际时间并发布水位；不得从代理插值或最终帧位置补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
+
+`QueryShopEligibility` 是拟建在现有MapRegistry边界的服务器提交期只读查询，唯一实参类型如下：
+
+```cpp
+FLDShopEligibilityResult QueryShopEligibility(
+    const FLDGameplayWritePermit& Permit,
+    const FLDCombatBodyRef& BuyerBody,
+    FName ShopId,
+    const FLDWorldRevision& ExpectedWorldRevision) const;
+```
+
+`FLDShopEligibilityResult` 是本世界域原有“ShopEligibilitySample或类型错误”结果形状的具体拟名，
+不是新增核心封包/状态。成功样本只含对应ShopId/WorldRevision、实际采样时刻、合法脚点/支持面及距离；
+非成功没有可当作通过的默认样本。此处声明尚未实现，不创建新Manager或时钟。
+
+| 检查层 | 当前调用/阶段的确切责任 |
+| --- | --- |
+| Vendor/事务受理入口 | 从真实拥有连接或经过同一验证的AI服务器入口绑定当前参赛者，并通过核心取得其当前`FLDCombatBodyRef`；请求不能任意指定BuyerBody/Permit。匹配调用者与`BuyerBody.Victim.EntityId`是这一层的责任，不能从permit推导所有权 |
+| 核心签发与World查询入口 | 核心只借出当前调用栈的permit；World调用`ValidateWritePermit(Permit, ELDCommitPhase::Transactions)`核当前Match/批次/阶段/GateRevision/写闸，再核Buyer是当前有效Contender身体且Victim/Life/BodyIdentity映射未变、WorldRevision匹配 |
+| World几何取样 | 局身份取`Permit.Boundary.Match`；实际子时刻取核心`GetAuthorityNowSeconds()`及其覆盖的真实运动/支持面证据。不能用`Boundary.AtMs`封桶上界、Step.End、帧末Actor姿态或旧FindApproach结果冒充当前交易姿态；必要证据缺失明确失败 |
+| Vendor最终安装 | 查询通过后仍按同一不可跨回调保存的借用作用域准备买卖，在最终安装点再次验证permit及当前生命/会话/quote/余额/容量/版本；World只重查几何，不提交钱/装备，也不替代这些检查 |
+
+导航/展示预览继续走公开静态查询和自身只读投影，不向UI或策略AI发放该permit或新增authority getter。
+已提交交易的只读回执重放沿原事务协议处理，不因重放再执行首次交易或把旧资格样本重新当授权。
+权限/阶段拒绝沿核心`ELDCommitReject`契约处理，几何拒绝沿§3.3；不得补空Context、假Body或默认permit填平调用。
 
 `QueryGround` 的第四参 **`SurfaceHint: FName` 必填**，表示该WorldRevision中已注册的稳定SurfaceId，
 不是Actor名称、组件指针或“默认地面”。没有默认值或三参重载；
@@ -435,7 +462,8 @@ root motion 从实际运动采集；碰撞截短不能按请求距离产生虚�
 | `Source\Lockdown\Private\Framework\LDGameMode.cpp:363-378,388-452` | 核心/生命周期提供离开、死亡、复活与保护资格变更；失败出生不产生成功进圈 |
 | `Source\Lockdown\Private\World\LDWorldClock.cpp:9-28` | 旧临时回拨 `World.TimeSeconds` 的路径必须解除；不能以当前姿态或补算时间给新事件伪造旧时间戳 |
 
-共同事件为 `Match + Contender + BodyLifeKey + ProviderId + ProviderSequence + OccurredAtSec + 变化`。
+共同事件引用核心的 `FLDMatchContext + FLDCombatBodyRef + ProviderId + ProviderSequence + OccurredAtSec + 变化`；
+其中生命身份就是BodyRef内的`FLDVictimKey`，不另定义生命键别名。
 核心等运动/位移、生命/离开/保护等相关提供者水位齐备，再处理同刻到期命中、死亡及圈变化并判定连续性。
 缺水位或已消费边界之前的新事件必须显式报错、阻止错误判胜；不能回滚物理世界“补证明”。
 世界不决定最终同刻事务次序；核心先锁定结果、关闭写闸，再取消/清理。
@@ -900,7 +928,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- | --- |
 | W1 世界数据/Builder负责人 | 审查本报告单一布局、内容参数键与几何分类 | closed schema、数量/ID/成员/范围拒绝、payload/contract一致，唯一地图/Anchor/支持面 |
 | W2 导航/操作负责人 + 世界负责人 | W1、实际Capsule/NavAgent统一 | QueryGround/完整路径/Approach；十点及全部成员/商店/圈真实可达，Stop和旧life拒绝，无第二运动系统 |
-| W3 生命周期负责人 + 世界负责人 | W1/W2、核心共同BodyLifeKey | 一次均匀选点、局部预约/原子出生、同点并发、blocked反馈，旧请求不重抽/重复出生 |
+| W3 生命周期负责人 + 世界负责人 | W1/W2、核心FLDVictimKey/FLDCombatBodyRef | 一次均匀选点、局部预约/原子出生、同点并发、blocked反馈，旧请求不重抽/重复出生 |
 | W4 营地负责人 + Combat/奖励负责人 | W1/W2、已确认反击/重置规则、两档有效内容/数值、共同HostileContact/DeathKey/ResetKey | 仅真实受击触发、同营独立观察、Returning正常受伤控制、幂等Prepare/Apply回营重置；无新生命/重复奖励 |
 | W5 Vision/表现负责人 | W1、字段权限审查、身体/效果同时量上限 | 一个稀疏codec和接受游标，逐观察者撤销、stale、Host原生/代理清理、小地图覆盖一致 |
 | W6 操作/位移 + 生命周期负责人 | W2、SC-03实际时间/水位契约 | 真实运动中间圈事件、资格事件、同刻完成竞争；不以末帧快照或回拨时间判胜 |
