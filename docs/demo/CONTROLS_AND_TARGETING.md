@@ -64,7 +64,7 @@ Source、Config、Content、SourceData、Scripts 与源码基线无差异。
 | Space | 回中；按住期间临时跟住自身，释放后恢复原跟随/自由状态 | 复用现有 Recenter 输入，不修改持久 Follow 偏好、不停止角色订单，不新增可选镜头模式。 |
 | Home/镜头跟随开关 | 切换本地跟随，界面反映真实模式 | 不是角色控制模式或服务器状态。 |
 | 滚轮 | 世界区域内按允许范围缩放 | 指针在可滚动面板上时仅滚动面板，不同时缩放世界。 |
-| Esc | 先取消正在编辑/准备的动作，再关顶层面板，否则开设置/退出菜单 | 取消本地预览不等于回滚已接受动作；要停止已提交追击用 S。退出实际会话另走会话域。 |
+| Esc | 编辑/重绑/拖拽捕获 → 顶层子确认/模态 → 未被高层消费的 Armed → 普通主面板 → 设置 | 绝不越过模态取消背后 Armed；每次只一个 Handled。本次 Esc 不 Stop 已接受订单、不发命令 RPC、不消费 Offer；退出实际会话另走会话域。 |
 | 重新绑定/恢复默认 | 校验冲突后一次替换映射，帮助/HUD 同步 | 保存的是本地设置，不保存技能、钱、冷却、订单或候选。 |
 
 **明确建议的鼠标取消规则：** 已有准备态时，第一次右键只取消准备并消费整次手势；
@@ -85,7 +85,7 @@ A 复用同一“准备后点击确认”边界，不要求一直按住 A，不�
 | 目标模式 | 准备/预览与确认 | 服务器重查/失败 |
 | --- | --- | --- |
 | Unit | 高亮当前允许的单位与射程；左键提交该观察句柄 | 当前观察权限、目标生命、关系、距离/LOS 与内容条件。失效不选附近目标、不改成地面、不自动改为自身。 |
-| Ground | 地面落点与范围预览；左键提交合法脚点坐标 | 地面/层高/地图版本、完整定义范围和作用几何；不静默吸附到另一层或把越距点夹成另一次施法。 |
+| Ground | 地面落点与范围预览；左键提交脚点坐标及公开地面 trace 得到的 SurfaceId | 通过带必填 SurfaceHint 的 QueryGround 重查地面/支持面/地图版本，再查内容范围与几何；hint 不证明合法落地，不静默吸附别层或把越距点夹成另一次施法。 |
 | Direction | 以自身脚点为起点的方向/长度预览；左键确认方向 | 有限、非零的平面方向及内容几何；单位只是画面上的参考，不能伪装成持续锁定。 |
 | Self | 图标/自身范围预览说明作用；一次按键或图标点击提交 | 目标固定为当前自己的身体；不借当前检查对象改变目标，不要求多余世界点击。 |
 
@@ -93,7 +93,8 @@ A 复用同一“准备后点击确认”边界，不要求一直按住 A，不�
 首版采用明确确认，不另加智能施法、长按蓄力或双目标连选。
 能力确认时越距直接反馈，**不自动走近施法**；只有右键普攻和商店订单具有这里批准的接近职责。
 **明确确认、Self 直接使用及普攻/攻击移动命令必须发送规范化意图**：
-客户端预测目标无效、范围/MP/CD 不足不能吞掉请求；这些失败也可能按 §4.4 解除保护。
+客户端预测目标无效、无支持面、SurfaceHint 无效或范围/MP/CD 不足不能吞掉请求；
+这些世界/可执行性失败也可能按 §4.4 解除保护，不能伪装成 Malformed。
 无效确认可保留仍可修正的预览并显示原因，不能显示为施放成功；来源、生命或权限失效则撤销预览。
 空来源或过期绑定是可识别激活尝试的执行失败，不是畸形包。
 发送哪个 Q/W/1/2 入口由明确的 activation slot 标签描述；标签不是来源/实例或冷却身份，
@@ -117,7 +118,7 @@ Q/W 升级、遗忘或替换，装备出售/解绑，或准备期间同槽换成
 记录设备/按键或鼠标按钮、按下时的消费者、捕获代次和释放前抑制状态。
 它只是本地输入状态，不是另一份服务器订单。
 
-消费顺序为：文本/重绑捕获 → 模态界面/拖拽 → 命中的普通面板 →
+指针/世界确认手势的消费顺序为：文本/重绑/拖拽捕获 → 模态界面 → 命中的普通面板 →
 准备中的目标确认 → 小地图 → 世界。**按下时确定的消费者保持到释放**，
 不能在按下/释放之间关闭窗口后把释放转发给世界。
 开面板的点击不会继续激活新面板按钮，关面板/重绑后的仍按住按键必须先释放。
@@ -135,16 +136,26 @@ UI 模块提供 `TopInputLayer/CloseTopPanel`，Controls 只消费，不再维�
 不让两个主要面板争抢键盘。下表是该主面板内部的实际输入层级；
 同层以最后打开/获得显式焦点者为顶层，关闭后回到仍有效的下一层。
 
+**Esc 使用单独的 Back 路由，不把指针命中顺序或无条件 Armed-first 直接套过来：**
+编辑/重绑/拖拽捕获 → 顶层子确认/模态 → 未被高层消费的 Armed → 普通主面板 → 设置。
+高层捕获或模态存在时先由该层处理并截断，绝不越过它取消背后 Armed；
+只有没有高层阻挡的普通主面板，Back 才允许先取消 Armed 而保留主面板。
+每次 Esc 在首次 Handled 后立即返回，不连续关闭两层，不调用 StopOrder、
+世界命令 RPC 或候选提交。已经发送的其他请求仍按真实域回执处理，不由 Esc 回滚。
+
 | 层 | 当前 Demo 界面 | Esc/输入边界 |
 | --- | --- | --- |
-| 局部编辑捕获 | 重绑、文本编辑/输入法组合、替换确认子对话框 | 先退出当前编辑/确认，消费本次 Esc，不顺带关下层或发世界命令。 |
-| 模态交互 | 设置/退出菜单、三选一及其替换流程 | 阻止全视口新世界命令；关闭三选一只隐藏页面，不取消候选/机会。 |
-| 普通面板 | 商店、自身属性 | 指针命中消费，文本焦点消费键盘；关闭最上面一页，不暂停、不改订单。 |
+| 局部编辑/拖拽捕获 | 重绑、文本编辑/输入法组合、拖拽 | 先退出当前捕获并消费 Esc；不顺带关下层、取消背后 Armed 或发世界命令。 |
+| 顶层子确认/模态 | 替换/买卖等明确子确认、设置/退出菜单 | 先处理该层并截断，不让 Armed 抢先；阻止全视口新世界命令。关闭页面不提交候选或消费机会。 |
+| 普通主面板 | 商店、自身属性、三选一主页面（不含子确认） | 卡片/按钮命中消费、文本焦点消费键盘，面板外仍可操作世界；没有高层时 Back 可先取消 Armed，否则只关主面板，不暂停、不改已接受订单。 |
 | 不可用 Esc 清除的状态呈现 | 战斗 HUD、击杀通知、死亡状态、结算结果、小地图底层 | 不把状态层当可关闭面板；继续按当前阶段的设置/退出或结果导航处理，不恢复游戏输入。 |
 
 开属性/商店等面板不暂停联网世界、不保护身体，不自行撤销已经接受的订单。
 打开会捕获目标确认的界面时撤销本地准备态；现有订单在没有 S/替换/失效的情况下继续，
 当前连接的订单心跳与 Widget 焦点分开。购物仍可能被击杀或击退离店。
+`OpenChildConfirmation` 在建立子层前调用 `CancelArmed`，但保留打开它的原手势所有者
+及释放前抑制；不能清空 capture 后把同次鼠标释放交给世界。
+子确认存在期间，所有 Arm 入口都检查同一高层 gate，不新建背后 Armed。
 操作系统失焦则走明确的输入失焦取消：清准备/按钮锁存/相机轴，提交一次新 Stop，
 停止旧心跳；重新获得焦点不重放物理按住键、不恢复旧订单。
 
@@ -297,6 +308,9 @@ AttackUnit（含追击）、AttackMove，以及可识别的角色/装备主动�
 不能伪装成 Malformed 绕过已识别意图。
 
 请求目标允许显式 Missing；不以零向量、附近对象或其他目标类型填补。
+地面确认无可用支持面时，保留显式 Missing，或在已有地面点上携带实际无效的 SurfaceHint；
+不补造 SurfaceId，不做空 hint 向下投影。InvalidSurface/WrongSurface/NotGrounded
+属于世界语义拒绝，不在客户端吞掉规范化进攻确认，也不跳过已经识别意图的解除保护。
 UI 对资源/目标不足显示原因和“发出进攻意图即解除保护，失败亦解除”提示，
 但确认事件仍进入既有 SubmitOrder/SubmitAction，不另发一条独立的“解除保护 RPC”。
 仅因处于保护就禁止按钮或先在客户端吞掉确认，会错误保留保护，因此不得这样实现。
@@ -334,8 +348,8 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 | 拟建类型/签名 | 字段和意义 |
 | --- | --- |
 | `FLDOrderCaller`（仅服务器，不序列化） | 采用核心 `FLDMatchContext Match` 和 `FLDCombatBodyRef Body`，不独存第二份 Match/Life。Body.Victim.Kind 必须为 Contender，EntityId 是参赛者，BodyIdentity 是该次身体 FGuid；由拥有连接或已注册 AI 解析，并取得世界 ObserverContext。 |
-| `ELDSpatialOrderKind` / `FLDSpatialOrderRequest` | kind 仅 `MoveGround/AttackUnit/AttackMove/ApproachShop`；完整现有 `FLDMoveIdentity`；按 kind 只携带一个地面、ObservedUnit 或公共 Shop 目标。地面/POI 带地图修订，单位使用世界域句柄代次；不携带无关 build/inventory revision、路径数组或服务器 Actor。 |
-| `FLDOrderTarget` | 有判别字段的单一载荷。Ground=脚点 cm；ObservedUnit=句柄/世界签发的 ObservationEpoch 与代次；Shop=公共 POI ID/地图修订；可显式 Missing。decoder 拒绝多臂、未知 kind、非有限数等畸形；目标缺失/过期/不存在属于可执行性失败，不伪造替代目标。 |
+| `ELDSpatialOrderKind` / `FLDSpatialOrderRequest` | kind 仅 `MoveGround/AttackUnit/AttackMove/ApproachShop`；完整现有 `FLDMoveIdentity`；按 kind 仅一个地面、ObservedUnit 或公共 Shop 目标。地面带地图修订/SurfaceHint，POI 由注册记录给支持面；单位用观察代次，不传无关构筑版本、路径数组或服务器 Actor。 |
+| `FLDOrderTarget` | 单一判别载荷：Ground=脚点 cm+必填 FName SurfaceHint（注册 SurfaceId）；ObservedUnit=句柄/ObservationEpoch/代次；Shop=公共 POI ID/地图修订；可显式 Missing。多臂/未知 kind/非有限数是畸形，缺目标/过期/错误支持面是后续执行失败，不伪造替代值。 |
 | `FLDOrderReceipt` / `FLDOrderView` | 原请求 identity、uint32 OrderRevision、uint64 ReceiptSerial、`Queued/Rejected/Activated/Progress/Completed/Cancelled/Expired`、安全错误码及合法目标/端点；动作关联携 RequestKey，准入后才有可选 ActionId，不用0冒充已分配 Token；另含 ProtectionRemoved/LifeRevision，不含隐藏坐标。 |
 | `FLDCombatRequestKey`（Combat 所有） | 判别二形：Direct{Generation, Contender, Life, uint64 DirectSequence}；Nav{Generation, Contender, Life, FLDMoveIdentity, uint64 AttackCycle}。Direct 由该参赛者输入/AI适配产生；Nav 仅由当前服务器 Navigation 订单推进产生，不相信外部提交的 Nav 标签。 |
 | `uint64 CombatToken` / ActionId / 内容 AttackId | Combat 完整准入时唯一分配，回执绑定 RequestKey→Token；ActionId/AttackId 是该 Token 在 Match/Caller 下的同一身份，不另增动作/攻击序列。ActionRevision 是发布修订，不是新动作 ID。 |
@@ -363,7 +377,7 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 
 | 命令 | 必要校验/提交阶段 | 回执与拒旧 |
 | --- | --- | --- |
-| MoveGround/AttackMove | 拥有者、Match/Life、Order/Epoch、进行中/存活及 permit；AttackMove 此时先解保护，MoveGround 不解；再验地图/地面/完整路径，A 候选另查观察 | Queued ≠ Activated，Activated ≠ Arrived；同 identity 同条款重放，异条款拒绝；A 的路径失败不回滚已解除保护。 |
+| MoveGround/AttackMove | 拥有者、Match/Life、Order/Epoch、进行中/存活及 permit；AttackMove 先解保护，MoveGround 不解；再验地图/必填 SurfaceHint/真实地面/完整路径，A 候选另查观察 | Queued ≠ Activated，Activated ≠ Arrived；同 identity 重放/异条款拒绝；A 的 InvalidSurface/WrongSurface/NotGrounded/路径失败不回滚已解除保护。 |
 | AttackUnit | 当前身份/阶段/新鲜性及 permit 后先解保护；再验观察者/句柄/目标 life、可见、关系及完整接近路径；每次接近/AttackStart 再验 | 隐藏/失效句柄统一 TargetUnavailable，不泄露真实目标，也不保留已解除的保护。旧观察不能重新锁定。 |
 | ApproachShop/Open | 空间身份、地图/公共 POI、合法路径；到达真实交互距离后，在当前订单内申请商店会话 | Open/报价由商店域回执；旧 order/life 返回不能打开新会话或使 UI 宣告购买。 |
 | Q/W、1/2 | 用 Direct 形 RequestKey 提交；当前身份/新请求/shape/permit 后先解保护，再验来源/版本/目标/资源；完整准入才分配 Token，release 再查 | Queued/准入前 Rejected 可以没有 Token，以 RequestKey 等待/重放/取消；Rejected 可含 ProtectionRemoved。来源变化不改释为新内容，空来源/过期绑定不伪装 Malformed。 |
@@ -394,7 +408,8 @@ DirectSequence 由该参赛者的唯一输入/服务器 AI 适配单调分配，
 拟建 `ELDOrderFailure` 集中由输入/UI/AI 消费：
 `InvalidRequest`、`NotOwner`、`StaleMatch`、`StaleLife`、`StaleOrder`、`CancelledEpoch`、
 `SequenceExhausted`、`MapChanged`、`InvalidGround`、`NoCompletePath`、`PathBlocked`、
-`NoProgress`、`TargetUnavailable`、`SourceChanged`、`UnavailableAction`、`Controlled`、
+`InvalidSurface`、`WrongSurface`、`NotGrounded`、`NoProgress`、`TargetUnavailable`、
+`SourceChanged`、`UnavailableAction`、`Controlled`、
 `Dead`、`NotPlaying`、`MatchEnded`、`Expired`。
 Combat 的资源/冷却/来源原因和 Vendor 的范围/报价错误沿其正式错误类型映射，
 不复制一套费用/距离校验。玩家得到可理解提示和失败标记；AI 得到明确可重试类别，
@@ -404,7 +419,7 @@ Combat 的资源/冷却/来源原因和 Vendor 的范围/报价错误沿其正�
 
 | 事件 | 本地输入/检查/镜头 | 权威订单/动作 | 回执/已释放效果 |
 | --- | --- | --- | --- |
-| Esc 取消准备 | 清当前准备及其手势，不清自身构筑；普通检查可保留在权限内 | 尚未提交则无 Combat 取消/退款；不把 Esc 当作对所有追击的隐式 S | 已发请求由真实当前状态处理，不能伪造 Cancelled/Success。 |
+| Esc/子确认 | 按捕获→子确认/模态→Armed→普通主面板→设置逐层一次 Handled；高层不可被 Armed 越过；打开子确认先清 Armed 但保留释放抑制 | 不 Stop 已接受订单、不发世界/候选命令、不退款或消费 Offer；不把 Esc 当 S | 已发的其他请求由真实域回执处理，不能伪造 Cancelled/Success 或用关闭子层撤回已提交结果。 |
 | S | 清准备与自愿运动预测，生成新 epoch，并记录已发 DirectSequence 的取消上界 | Navigation/Combat 分别按 MoveIdentity 或 RequestKey/Direct水位清路线/追击/可中断动作与旧未接受请求 | 无 Token 也可取消；旧 ACK/saved move/ActionRevision 不续行，已 release 按 Combat 生命周期。 |
 | 合法新订单/动作替换 | 新意图有独立待确认显示 | 完整准入后原子替换；旧路径/待 Open/重复普攻关联失效 | 新动作失败不恢复历史单；旧回执仅可查阅，不改变当前操作。 |
 | 无效新意图 | 显示原因和已解除保护的真实结果；本地预测失败不吞确认 | 不替换原已接受订单；可识别进攻意图在当前前置通过后仍解保护；更老 Pending 不迟到激活 | 不扣未提交资源、不重置节拍；重复不再发资格变化或动作。 |
@@ -443,7 +458,7 @@ dash/击退仍经同一个 CMC/root-motion 能力边界，不调用逐帧 Telepo
 
 | 世界域唯一接口 | 操作域用途/不能越界的职责 |
 | --- | --- |
-| `QueryGround(WorldRevision, FootCm, Capsule)` | 合法落点/层高；不把查询失败映射为零向量或旧默认点。 |
+| `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)` | SurfaceHint 是必填 FName 注册 SurfaceId，无默认、无三参重载。None/未知返回 InvalidSurface，实际支持面不匹配返回 WrongSurface；服务器重验真实地面/capsule，hint 不是落地证明。 |
 | `QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule)` | 地面移动；静态预览不用隐藏单位做动态障碍，partial path 明确失败。 |
 | `ResolveObservedUnit(ObserverContext, Handle, Purpose)` | 请求收到、每次追击/AttackStart/单位施法时当前重查；内部目标只在服务端作用域使用。 |
 | `EnumerateVisibleUnits(ObserverContext, Purpose)` | A 的合法候选帧；含 Match/ObserverLife/ViewGeneration/ViewRevision/MapRevision/ServerTime 和授权字段；帧不是永久执行权限。 |
@@ -451,6 +466,15 @@ dash/击退仍经同一个 CMC/root-motion 能力边界，不调用逐帧 Telepo
 | `FindApproach(ObserverContext, Origin, UnitHandle 或 PublicPOI, RangeCm, Capsule)` | 单位/商店的合法端点和完整路径；净空不扩大玩法范围，不能借目标真实隐藏位置求路径。 |
 | `TraceSight(SourceGround, TargetSample, WorldRevision)` | 与阻挡行走分开的 LOS 结果/明确失败；最终攻击/效果几何合法性仍由 Combat 决定。 |
 | `QueryCircleMembership` / `ExtractCircleCrossings` | 对实际已提交运动给出圈内/有序进出；世界不据此自己判胜，输入也不结算占领。 |
+
+SurfaceHint 的类型/来源只有一套：地面点击从**公开地图地面 trace**取得当前 WorldRevision
+中注册的 SurfaceId；小地图坐标转换后也取该公开支持面，不猜默认平面。
+服务器重新检查地面与胶囊，客户端 hint 只是期望，不是权限或接地证明。
+当前身体的支持面由权威 CMC.CurrentFloor 的真实有效 floor 映射 Registry，
+不能使用历史缓存、屏幕落点或空 hint 向下投影；无合法 floor 返回 NotGrounded/不具占领资格。
+POI 接近规划使用该 POI 注册的 SurfaceId。Ground-Present 载荷显式携带必填 FName；
+NAME_None/未知值仍是可解析的失败输入，由世界返回 InvalidSurface，不能靠三参重载补默认。
+Missing 目标不伪造脚点或支持面；其进攻意图前置仍遵守 §4.4。
 
 终止记录沿现有可靠撤销/终止及全量恢复路径维护 Generation、ObservationEpoch、
 TerminationSequence 的去重和因果，不另开能绕过撤销的影子通道。
@@ -475,6 +499,9 @@ FromFootCm/ToFootCm、double StartServerSeconds/EndServerSeconds 和运动类别
   不能在本边界仍可能发生动作位移/击退/落地时，仅因首个 CMC 更新结束就提前封口。
 - 生命周期运动适配将世界提取的圈进出连同本流序号交给唯一占领 reducer；
   死亡、离局、保护变更由各自实际写入者另发资格事件和水位，不由 Input 猜测。
+  无合法 CurrentFloor 的 NotGrounded 是明确的否定结果，应发布不具占领资格/离开有效集合，
+  并完成已处理边界，不因投影 XY 在圈内继续计时。它不是查询系统故障；
+  真正缺数据/查询未完成才不能造成功或推进缺失证据的水位。
 
 与 `SESSION_MATCH_LIFECYCLE.md` §4/6 收敛的核心接口如下，均是拟建，定义由核心单点维护：
 
@@ -661,7 +688,7 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 
 | 用例 | 前置与操作 | 可观测正例/反例 |
 | --- | --- | --- |
-| CT-A01 地面/路径 | 真拥有客户端沿墙/坡/转角点击，另点错层/越界/不可达/非有限输入 | 只有完整合法路径 Activated/Arrived；CMC 无穿墙/瞬移；失败明确且不生成成功端点。 |
+| CT-A01 地面/路径 | 真拥有客户端沿墙/坡/转角点击；None/未知 SurfaceHint、错误支持面、错层/越界/不可达/非有限输入；核对 trace、CurrentFloor、POI 三种来源 | 四参 QueryGround 显式拒绝 InvalidSurface/WrongSurface/NotGrounded，不靠三参/空hint投影兜底；仅完整合法路径 Activated/Arrived，CMC无穿墙/瞬移。 |
 | CT-A02 追击普攻 | 可见合法目标在射程外，右键后移动目标 | 实际接近、范围内 AttackStart、按 Combat 节拍重复；目标走远可合法重算；旧“只到快照不追击”断言被替换。 |
 | CT-A03 A 搜敌 | A 尚未点击；确认地面后出现两个等距可见候选，随后收到原订单匹配 epoch 的授权 ObservedDeath/空集 | 按下 A 不攻击；只在批准 acquisition 范围内确定选择；合法终止仅推进服务器绑定的原单，空集续行/完成，不永久挂机。 |
 | CT-A04 视野撤销 | 追击/前摇中 Conceal；注入 FullSetRemoved、旧快照/ACK、重复或旧 epoch 的终止、早于新订单接受的 ObservedDeath，再次可见 | 取消锁定、停止当前追击；不走 LastSeen/旧 A 目的地、不留单位标记。非授权死亡不能触发 A 重选；旧终止/显示消息及重现都不驱动新订单或绕过命中权限。 |
@@ -672,17 +699,17 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 | CT-A09 来源变化 | 准备后升级/换槽/遗忘/出售，确认后 release 前再次改变；等候后重购/重学 | 旧来源请求失败而不是施放新内容；零部分耗费/免费刷新；失源期间继续计时，重新持有沿用原结束时刻，不冻结、不因清 UI 消失。 |
 | CT-A10 四目标 | 使用实际目录和必要显式夹具验证 Unit/Ground/Direction/Self；越距/零方向/错层/失效句柄 | 预览模式与定义一致，无效不消费；不改目标类型、不自动近邻/地面/自身回退、不自动走近施法。 |
 | CT-A11 装备主动非交易 | 店外、圈内、装备满槽使用 1/2；资源不足/控制禁用 | 符合战斗准入可 release，不查报价/购买余额/空槽；失败是正确战斗原因，未解绑装备。 |
-| CT-A12 UI 手势 | 文本输入 S/A/Q；鼠标按 UI 后拖出/关闭，开面板后同次释放；滚轮悬停列表 | 全周期仅一个消费者；零世界/双点击泄漏；联机时间照常，身体仍可受伤。 |
+| CT-A12 UI 手势/Esc | 文本 S/A/Q、按下跨 UI/世界与列表滚轮；Shop/Choices 主页外 Armed 后开买卖/替换子确认，再 Esc，并注入残留 Armed | Choices主页外仍可世界操作；OpenChildConfirmation清Armed且capture抑制至释放，模态不再Arm。Esc只关子层、不越模态、不Stop/RPC/消费Offer；普通panel可先取消Armed，无穿透/暂停。 |
 | CT-A13 重绑/失焦 | 多次重绑同一动作、键仍按住时重建映射、保存失败/重启、Alt-Tab 再回来 | 一个物理周期一个动作/委托；退休键不再触发；明确未保存；恢复焦点不自动移动/施法。 |
 | CT-A14 相机/小地图 | 边缘/方向键/Space 短按与按住/Home/滚轮和 UI 捕获组合，镜头移到迷雾外 | 固定俯视角，临时回中不改变持久跟随；准备瞄准时边缘不平移；视野/角色位置/射程不变，不借地标下达隐藏目标命令。 |
 | CT-A15 商店 | 右键接近；实际距离边界内/外、被击退、死亡、替换订单后接收旧 Open | 内可 Open、外拒绝；路由 acceptance 不放宽商店半径；旧回包不开店，交易仅由 Vendor 当前会话成功。 |
 | CT-A16 生命/终局/新局 | 旧生命有 Pending/追击时死亡；终局后重放；同房间新局 | 旧动作不能操作新身体；构筑/钱/冷却按 Spec 保留或新局重置；终局先关闸，清理无新副作用。 |
 | CT-A17 AI/Host 等价 | 普通参赛 Listen Host、拥有客户端、真实服务器 AI 给等价合法/非法意图 | 同一准入/错误/资源/距离/权限；AI 不造连接/LocalPlayer；Host 不全知、不产生重复原生+proxy 表现。 |
-| CT-A18 连续占领 | 真实 CMC 走路/滑移/位移，单批离圈又回、入圈又出；对照帧末位置相同 | 全部真实进出被消费并清零；试探后回退的段不产生假事件；圈内移动/受伤不误清零。 |
+| CT-A18 连续占领 | 真实 CMC 走路/滑移/位移，单批出入且帧末相同；CurrentFloor失效但投影XY仍在圈内，再合法落地 | 全部真实进出被消费，回退试探不造事件；NotGrounded发布不具资格而非假接地或冻结水位；圈内合法移动/受伤不误清零。 |
 | CT-A19 同刻/水位 | 截止前缺运动、同刻死亡/争夺、截止后进入；单段穿圈入/出；同毫秒桶先离圈后保护到期；晚因果阶段位移 | 先按实际秒区分先后，再用真正同刻 phase；不能把先离圈者错误算成曾有效占领。两事件独立去重；仅闭合桶 Fence，初次 Motion 不提前封口；旧 life/重复无效且结果一次。 |
 | CT-A20 资产/运行闭包 | 重启 Editor/包，逐个实际动作/重绑/新局；读取 staged 输入包清单 | 没有废弃 IA/IMC/旧入口依赖和 MissingClass/加载警告；Bootstrap 不重造删除资产；无旧 profile “兼容通过”。 |
 | CT-A21 射程/群攻成长 | 初始近战单体打野后，用真实属性选择/装备取得射程和群攻；在追击中增减射程 | 预览/接近/实际 AttackStart/A 搜索都读 STAT.AttackRangeCm；不清已付攻击节拍；一次主命中产生 Combat 群攻，不生成隐藏次目标订单或新快捷键。 |
-| CT-A22 进攻意图与保护 | 保护期确认无效目标/越距/无蓝/CD中/空来源/过期绑定；A 无合法路径；对照仅 Armed、Move/Shop/Stop 及旧包/畸形 | 本地不吞规范意图；当前前置后仍解保护并发一次资格事件，Rejected 明示变化且不释放/扣资源；对照操作/旧包不解保护，旧 life 不影响新生命。 |
+| CT-A22 进攻意图与保护 | 保护期确认无效目标/无支持面/InvalidSurface/越距/无蓝/CD/空来源/过期绑定；A无路；对照Armed、Move/Shop/Stop及旧包/畸形 | 世界语义失败不伪装Malformed或被本地吞掉；当前前置后仍解保护并发一次资格事件，Rejected明示变化且不释放/扣资源；对照/旧包不解，旧life不影响新生命。 |
 | CT-A23 死亡选择 | 死亡时打开保留的三选一并确认/替换，再在复活前后重发旧确认 | 合法一次构筑变化，候选不重抽、机会不丢失；不复活/治疗、不以无 Pawn 拒绝合法选择；旧请求/重复仍按成长契约拒旧。 |
 | CT-A24 检查/死亡白名单 | 可见对手变化装备/血蓝/状态后离开视野；自身死亡后拖镜头、回中/跟随、查看公开圈 | 可见时仅许可名称/等级/血蓝/状态/装备；无技能/CD/其他属性/金币。隐藏即清选择和单位标记；死亡自由看静态图但不跟踪玩家/获得活体视野。 |
 
