@@ -959,7 +959,8 @@ Reflected Reach，`Config\V07RegionLayout.json` 的 B76 Civic Reach，
 | 迁移后退役 `Content\Lockdown\Generated\Data\DA_CharacterCatalog.uasset` 及中央内容CB-D03中的旧目录资产/contract | 先接统一内容compiler、根manifest和ULDDemoContentCatalog，改接Bootstrap/loader/Stage并完成C3，再删除；旧资产可加载的迁移阶段不是第二终态目录。 |
 | 必查当前引用 `Content\Lockdown\Generated\Data\DA_PrototypeTuning.uasset`、`Input\IMC_Gameplay.uasset`、`Materials\M_Character.uasset`、`Materials\M_Fog.uasset`、`Materials\T_FogClosed.uasset` | Character、UI、Relay有消费者；T_FogClosed在Materials。必要技术/表现配置按C1/C3复用，旧玩法数值不作为第二作者源，不因占位或技术旧名盲删。 |
 | 退役候选 `Content\Lockdown\Generated\Maps\L_MigrationSandbox.umap`、`L_FunctionalTests.umap`、`L_RegionAlternate.umap`、`L_V07Region.umap`、`L_V08Region.umap`；`Data\DA_AlternateRegion.uasset`、`DA_TacticalRegion.uasset`、`DA_ElementalRegion.uasset` | 当前磁盘存在，Scaffold/RegionBootstrap 仍生产；按 D18/C2/C3 先迁存活根/WorldSettings/WBP/反射引用和生成清单，再删除旧包，不能靠文本无命中宣称安全。 |
-| 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`、`BuildB90Map.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | Bootstrap及复用的地图工具显式调用同一Demo Builder；删旧profile/多图分派，更新UAT地图、RuntimeDependencies/AlwaysCook和Validate清单。开发与包内都使用新根，不以脚本技术旧名保留旧世界。 |
+| 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | 保留的启动/打包入口改接新根，统一Bootstrap显式调用唯一Demo Builder并承接必要生成/验证机制；删旧profile/多图分派，更新UAT地图、RuntimeDependencies/AlwaysCook和Validate清单。 |
+| 仅迁移参考/机制抽取，随后删除 `Scripts\BuildB90Map.ps1` | 所需机制先迁入统一Demo Bootstrap；调用者及生成/验证依赖完成改接、C3迁移完成后，按World处置和架构D31删除旧专用脚本，不留独立入口、转发壳或备用脚本。 |
 
 中央内容生产链按 `CONTENT_AND_BALANCE.md` 的唯一作者域/内容compiler生成
 `Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json` 和
