@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="848" height="912" viewBox="0 0 1060 1140" role="img" aria-labelledby="title description">
+  <title id="title">Demo world layout proposal</title>
+  <desc id="description">A 100 metre square, ten spawn anchors, five camps, five solid inner walls with five gaps, one central capture circle and one shop. Proposal geometry, not an Unreal screenshot.</desc>
+  <rect width="1060" height="1140" fill="#f8fafc"/>
+  <g transform="translate(530 530) scale(0.1 -0.1)">
+    <rect x="-5300" y="-5300" width="10600" height="10600" fill="#475569"/>
+    <rect x="-5000" y="-5000" width="10000" height="10000" fill="#e7eee5"/>
+    <circle r="2600" fill="none" stroke="#a5b99e" stroke-width="18" stroke-dasharray="80 80"/>
+    <circle r="4400" fill="none" stroke="#abc1d6" stroke-width="14" stroke-dasharray="60 80"/>
+    <g fill="#475569">
+      <polygon points="1748,832 1983,1155 486,2243 251,1919"/>
+      <polygon points="-251,1919 -486,2243 -1983,1155 -1748,832"/>
+      <polygon points="-1903,354 -2283,231 -1711,-1529 -1331,-1405"/>
+      <polygon points="-925,-1700 -925,-2100 925,-2100 925,-1700"/>
+      <polygon points="1331,-1405 1711,-1529 2283,231 1903,354"/>
+    </g>
+    <circle r="600" fill="#fef3c7" stroke="#a16207" stroke-width="25"/>
+    <circle cx="778" cy="778" r="350" fill="#ddd6fe" fill-opacity="0.55" stroke="#7c3aed" stroke-width="15" stroke-dasharray="50 40"/>
+    <rect x="718" y="718" width="120" height="120" fill="#7c3aed"/>
+    <g fill="#bbf7d0" fill-opacity="0.5" stroke="#15803d" stroke-width="15">
+      <circle cx="2473" cy="803" r="500"/>
+      <circle cx="-2473" cy="803" r="500"/>
+      <circle cx="1528" cy="-2103" r="500"/>
+    </g>
+    <g fill="#fed7aa" fill-opacity="0.5" stroke="#c2410c" stroke-width="15">
+      <circle cx="0" cy="2600" r="500"/>
+      <circle cx="-1528" cy="-2103" r="500"/>
+    </g>
+    <g fill="#15803d">
+      <circle cx="2450" cy="874" r="40"/><circle cx="2496" cy="732" r="40"/>
+      <circle cx="-2496" cy="732" r="40"/><circle cx="-2450" cy="874" r="40"/>
+      <circle cx="1589" cy="-2059" r="40"/><circle cx="1467" cy="-2147" r="40"/>
+    </g>
+    <g fill="#c2410c"><circle cx="0" cy="2600" r="40"/><circle cx="-1528" cy="-2103" r="40"/></g>
+    <g fill="#dbeafe" stroke="#1d4ed8" stroke-width="20">
+      <circle cx="4400" cy="0" r="100"/><circle cx="3560" cy="2586" r="100"/>
+      <circle cx="1360" cy="4185" r="100"/><circle cx="-1360" cy="4185" r="100"/>
+      <circle cx="-3560" cy="2586" r="100"/><circle cx="-4400" cy="0" r="100"/>
+      <circle cx="-3560" cy="-2586" r="100"/><circle cx="-1360" cy="-4185" r="100"/>
+      <circle cx="1360" cy="-4185" r="100"/><circle cx="3560" cy="-2586" r="100"/>
+    </g>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="21" fill="#0f172a">
+    <text x="946" y="566">S00</text><text x="867" y="248">S01</text>
+    <text x="646" y="88">S02</text><text x="374" y="88">S03</text>
+    <text x="154" y="248">S04</text><text x="68" y="566">S05</text>
+    <text x="154" y="826">S06</text><text x="374" y="984">S07</text>
+    <text x="646" y="984">S08</text><text x="867" y="826">S09</text>
+    <text x="761" y="425">L1</text><text x="266" y="425">L2</text><text x="669" y="780">L3</text>
+    <text x="515" y="240">H1</text><text x="361" y="780">H2</text>
+    <text x="487" y="537">CAPTURE</text><text x="621" y="439">SHOP</text>
+    <text x="24" y="1091">S: uniform spawn anchors   L: low camp (2)   H: high camp (1)</text>
+    <text x="24" y="1121">Proposal only. XY scale: 1 px = 10 cm. Spawn symbols are not collider sizes.</text>
+  </g>
+</svg>
