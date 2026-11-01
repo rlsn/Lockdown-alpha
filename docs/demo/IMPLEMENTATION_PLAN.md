@@ -29,7 +29,7 @@
 | --- | --- | --- |
 | [架构审计](ARCHITECTURE.md) | R/D/N、C1–C4、B01–B03 | 唯一运行链；可复用、改造、抽取和真实删除的精确闭包；配置/资产/数据/工具/测试联动及验证 |
 | `SESSION_MATCH_LIFECYCLE.md` | M1、M2、M5 | 会话/房间/准入/旅行/断线、名单、对局阶段、占点事件/水位与同刻顺序、死亡/复活/保护、终局和新局矩阵 |
-| `CONTROLS_AND_TARGETING.md` | M3 | 全部 Spec 输入、点击分派、持续攻击/攻击移动、目标模式、可见性重查、取消、UI 捕获与镜头/绑定接线 |
+| [操作与目标](CONTROLS_AND_TARGETING.md) | M3 | 全部 Spec 输入、点击分派、持续攻击/攻击移动、目标模式、可见性重查、取消、UI 捕获与镜头/绑定接线；文档静态审核已完成，CT06/内容/资产及运行门槛仍保留 |
 | `COMBAT_AND_ATTRIBUTES.md` | M4 | 属性来源与投影、公式引用、动作/命中/控制、效果归属与生命周期、伤害和死亡提交边界 |
 | `PROGRESSION_EQUIPMENT_ECONOMY.md` | M6、M7、M8 | 奖励归属/去重、逐级选择队列、持久候选、替换/遗忘、两装备、买卖原子性、来源冷却和死亡保留 |
 | `WORLD_CAMPS_AND_VISION.md` | M9G、M9C、M10 | 单图地点/合法路径、十点等概率落地、五组两难度营地、回位/刷新、观察协议、公开例外和隐私验证 |
@@ -105,7 +105,7 @@ I4 与 I5 在 I3 提供的身体/事件契约稳定后可并行；占点规则�
 | 内容/生成 | 对应 `Sync* --check`、`Test*Import.py`；现有例子为 `SyncB84Data.py`、`SyncV09Data.py` | 实际首版目录/参数可生成；非法值/不合法引用拒绝；载荷/contract 一致；禁止手改摘要 |
 | 原生与资产 | `BuildEditor.ps1`、`BuildGame.ps1`、`BootstrapAssets.ps1 -Mode Validate` | 删除后没有反射/链接/Cook 悬空依赖；唯一入口和地图资产仍可加载 |
 | 规则 | `RunTests.ps1` 和相关原生规则测试 | 新属性/成长/装备/胜利断言；上限变化保持原血蓝百分比、最终投影一次且往返不获益；保留身份/取消/事务不变量；按实际用例更新旧门槛，不只降低数量 |
-| 输入/路径/UI | `RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1`、`RunHUDCheck.ps1` | A/右键/S/Esc、目标重查、失视取消锁定并停该追击；无 LastSeen，死亡可拖静态/公共镜头；UI手势唯一消费者、阻挡/失焦/迟到确认 |
+| 输入/路径/UI | [操作报告 §10](CONTROLS_AND_TARGETING.md) 的 CT-A01–24；现有 Movement/Navigation/Input/HUD runner 的可复用夹具 | A/右键/S/Esc、目标重查、失视停追击；授权死亡终止不由 Conceal 推断；无 LastSeen、死亡静态镜头、UI 手势独占和迟到拒绝；原生 CT06/资产/真实网络另行完成 |
 | 战斗/观察/来源 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`、`RunLoadoutCheck.ps1` | 真客户端命中/重复拒绝、隐藏/过期；同款两份主动独立冷却且可连续使用两次；失源期间继续计时，重购/重学沿用原结束时间，换槽/死亡不刷新；控制与保护 |
 | 奖励/买卖 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`，复用有效事务规则 | 一次死亡一次金币+经验；两件同款实例不混同、基础属性加成相加、同名被动只生效一次；死亡可选卡/替换但不复活/治疗，交易仍拒绝死亡；第三件/不足/离店/终局/旧报价/重复/创建失败无部分提交 |
 | 生命/胜利 | `RunResetCheck.ps1`、`RunObjectiveCheck.ps1`、`RunObjectiveNetworkCheck.ps1` 的可复用夹具 | 进攻意图准入后解除保护，动作无效亦然，旧包/终局无副作用；资格变化参与圈判定；死亡或出售/遗忘后独立效果继续，离局立即移除身体并取消效果；复活满血蓝、新局隔离 |
