@@ -14,6 +14,7 @@
 | 需要 | 入口 |
 | --- | --- |
 | 理解游戏目标与验收范围 | [App Spec](docs/APP_SPEC.md) |
+| 判断 Demo 开工门槛、缺口与实施依赖 | [实施就绪评估](docs/demo/READINESS.md) · [实施计划](docs/demo/IMPLEMENTATION_PLAN.md) |
 | 配置环境、构建和运行 | [开发指南](docs/DEVELOPMENT.md) |
 | 让 AI 开始工作、了解协作规则 | [AGENTS](AGENTS.md) |
 | 理解现有组件并复用 | [系统手册索引](docs/DEVELOPMENT.md#按任务读取系统手册) |
@@ -41,4 +42,5 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 人和 AI 阅读 `docs`；生成器读取 `SourceData`；游戏读取 `Content` 载荷和原生资产。
 系统手册保留当前有效的实现知识，失效设计和过程档案不在当前文档树中保留副本。
+目标实施将直接收敛现有入口，只维护 Demo 一条流程；实施准备文档不代表这项代码裁剪已完成。
 贡献通过独立工作区与 PR 集成，禁止 force push；具体约束见 AGENTS。

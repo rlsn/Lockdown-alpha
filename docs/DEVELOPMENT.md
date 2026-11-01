@@ -3,6 +3,9 @@
 产品目标见 [App Spec](APP_SPEC.md)，共同开发约束见 [AGENTS](../AGENTS.md)。
 当前仓库具备原生工程和可复用组件，但尚未完整实现该 Demo。
 下面的命令运行当前工程，不是新玩法已经完成的保证。
+目标 Demo 的开工门槛与依赖见 [实施就绪评估](demo/READINESS.md)、
+[实施计划](demo/IMPLEMENTATION_PLAN.md) 和 [共享契约](demo/SHARED_CONTRACTS.md)。
+目标是收敛当前入口为单一 Demo 流程；本文如实说明尚未裁剪的现有工程，不保留第二套产品模式。
 
 ## 环境与首次启动
 
