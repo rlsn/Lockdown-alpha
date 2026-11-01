@@ -261,8 +261,10 @@ Conceal/stale/TargetUnavailable 不可被当作“已观察到目标死亡”来
 客户端 Relay/WorldView 的显示消息不调用 Navigate/SubmitOrder，不能自行重启导航；
 合法订单变化仍走服务器绑定后的命令回执。
 
-每次重复普攻由服务器订单驱动产生独立 `AttackCycle` 和 CombatToken，
-完整 `FLDMoveIdentity + AttackCycle` 只负责关联/去重，不替代 CombatToken。
+每次重复普攻由当前服务器订单推进产生 `AttackCycle`，组成 Nav 形 `FLDCombatRequestKey`；
+Navigation 不分配 CombatToken。完整准入通过后由 Combat 统一分配服务器 Token，
+并将请求键绑定到该 Token；完整 MoveIdentity/AttackCycle 只负责请求关联和去重。
+派生重复普攻继承原 Navigation 进攻意图身份，不为解除保护再次生成序号。
 被控制时，Combat 的 Move/Attack/Skill/Item 等准入类别分别决定可执行性；
 Root 不自动代表不能普攻或施法，受伤也不等于取消占领。
 可中断与已释放动作的区别以 Combat 合同为准，不用单个“Busy”布尔值覆盖全部控制。
@@ -319,7 +321,7 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 
 | 状态/拟建类型 | 唯一写入者与落点 | 消费者/不允许回写的投影 |
 | --- | --- | --- |
-| 当前订单 `FLDOrderState` | 现有 `ULDNavigationComponent`，由权威准入/取消/动作结果更新 | 含 ActiveIdentity、kind/phase、typed target、当前路径游标、uint32 OrderRevision、uint64 AttackCycle、当前 ActionId/ActionRevision；拥有者 `FLDOrderView`、AI 只读。 |
+| 当前订单 `FLDOrderState` | 现有 `ULDNavigationComponent`，由权威准入/取消/动作结果更新 | 含 ActiveIdentity、kind/phase、typed target、当前路径游标、uint32 OrderRevision、uint64 AttackCycle、关联 RequestKey 与接受后的 ActionId/ActionRevision；拥有者 `FLDOrderView`、AI 只读。 |
 | 路径与自愿运动输入 | Navigation 计算合法方向；实际位置/速度由现有 CMC 写 | 自身预测/saved moves；不由 UI、路径节点或 Combat 直接逐帧 SetActorLocation。 |
 | 本地准备 `FLDArmedTarget`、检查 `FLDInspectionSelection`、捕获 `FLDInputCaptureState` | `ALDPlayerController` 输入层 | HUD/光标/预览；不复制成服务器真实目标或状态。 |
 | 输入注册/本地偏好 | `ULDControlSettings`；Navigation/Character 应用镜头设置 | ControlsPanel、HUD 标签；不写局内数值。 |
@@ -334,19 +336,22 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 | `FLDOrderCaller`（仅服务器，不序列化） | 采用核心 `FLDMatchContext Match` 和 `FLDCombatBodyRef Body`，不独存第二份 Match/Life。Body.Victim.Kind 必须为 Contender，EntityId 是参赛者，BodyIdentity 是该次身体 FGuid；由拥有连接或已注册 AI 解析，并取得世界 ObserverContext。 |
 | `ELDSpatialOrderKind` / `FLDSpatialOrderRequest` | kind 仅 `MoveGround/AttackUnit/AttackMove/ApproachShop`；完整现有 `FLDMoveIdentity`；按 kind 只携带一个地面、ObservedUnit 或公共 Shop 目标。地面/POI 带地图修订，单位使用世界域句柄代次；不携带无关 build/inventory revision、路径数组或服务器 Actor。 |
 | `FLDOrderTarget` | 有判别字段的单一载荷。Ground=脚点 cm；ObservedUnit=句柄/世界签发的 ObservationEpoch 与代次；Shop=公共 POI ID/地图修订；可显式 Missing。decoder 拒绝多臂、未知 kind、非有限数等畸形；目标缺失/过期/不存在属于可执行性失败，不伪造替代目标。 |
-| `FLDOrderReceipt` / `FLDOrderView` | 原请求 identity、uint32 OrderRevision、uint64 ReceiptSerial、`Queued/Rejected/Activated/Progress/Completed/Cancelled/Expired`、安全错误码、合法目标/端点和 ActionId；另含 ProtectionRemoved 和 uint64 LifeRevision 以表示被拒意图的真实副作用，不含隐藏坐标。 |
+| `FLDOrderReceipt` / `FLDOrderView` | 原请求 identity、uint32 OrderRevision、uint64 ReceiptSerial、`Queued/Rejected/Activated/Progress/Completed/Cancelled/Expired`、安全错误码及合法目标/端点；动作关联携 RequestKey，准入后才有可选 ActionId，不用0冒充已分配 Token；另含 ProtectionRemoved/LifeRevision，不含隐藏坐标。 |
+| `FLDCombatRequestKey`（Combat 所有） | 判别二形：Direct{Generation, Contender, Life, uint64 DirectSequence}；Nav{Generation, Contender, Life, FLDMoveIdentity, uint64 AttackCycle}。Direct 由该参赛者输入/AI适配产生；Nav 仅由当前服务器 Navigation 订单推进产生，不相信外部提交的 Nav 标签。 |
+| `uint64 CombatToken` / ActionId / 内容 AttackId | Combat 完整准入时唯一分配，回执绑定 RequestKey→Token；ActionId/AttackId 是该 Token 在 Match/Caller 下的同一身份，不另增动作/攻击序列。ActionRevision 是发布修订，不是新动作 ID。 |
 | `ULDNavigationComponent::SubmitOrder(const FLDOrderCaller&, const FLDSpatialOrderRequest&) -> FLDOrderReceipt` | 真人 ServerOrder wrapper 与服务器 AI 共用的收件/排队入口；只做身份/形状/拒旧/去重等前置，返回 Queued 或前置 Rejected。不得激活/替换/解除保护，不因本地或提前路径/资源失败吞掉可识别进攻意图。 |
 | `CommitPendingOrders(const FLDGameplayWritePermit&) -> void` | 核心 Actions 阶段重新校验当前前置/permit，识别进攻意图并先经 Life 解除保护，再做完整当前状态/世界/路径准入及原子激活。结果写 receipt；不跨帧保存 permit，不用 IsGameplayWriteOpen 的一次读值冒充许可。 |
 | `ServerOrder(FLDSpatialOrderRequest)` / `ClientOrder(FLDOrderReceipt)` | 替换现有旧 RPC 签名，不保留旧 Surface+Observed+Site wrapper。owning RPC 只负责解身份/传输，不能由 payload 指定 owner。 |
 | `CancelOrder(Caller, FLDMoveIdentity, ELDOrderCancelReason) -> FLDOrderReceipt` | ServerStop、失焦、生命/离局/终局清理的统一订单取消；提高水位，通知 Combat 取消适用动作，清路径/接近/待 Open；不退资源。 |
 | `ServerHeartbeat(FLDMoveIdentity, uint32 Sequence)` | 复用现有非可靠心跳，只刷新完整当前已接受 identity 且 sequence 更新的租约；不创建订单、不重新激活已取消路线。 |
-| `CommitActionHandoff(const FLDGameplayWritePermit&, Caller, ProposedIdentity, ActionId) -> FLDOrderCommitResult` | Combat 完成新动作准入后，在同一权威提交边界调用 Navigation 原子替换旧单；Queued 不调用。结果含接受或安全拒绝；ValidateWritePermit 与旧 epoch/较新意图检查同属原子交接，失败不能只让 Combat 接受半边。 |
-| `OnCombatOutcome(const FLDCombatActionOutcome&) -> void` | 消费 Combat 的 `OnActionFinished`；仅接受当前 ActionId/关联订单和更新 ActionRevision，终结或继续合法订单，不凭旧通知续打。 |
+| `CommitActionHandoff(const FLDGameplayWritePermit&, Caller, ProposedIdentity, ActionId) -> FLDOrderCommitResult` | 完整准入时使用 Combat 分配的 Token 同身份 ActionId，在同一权威边界原子替换旧单；Queued 不调用。ValidateWritePermit/旧 epoch/较新意图检查同属原子交接，失败不能只提交 Combat 半边。 |
+| `OnCombatOutcome(const FLDCombatActionOutcome&) -> void` | 消费 OnActionFinished；核对原 RequestKey→CombatToken 绑定、当前 ActionId/关联订单和更新 ActionRevision，终结或继续合法订单，不凭未知映射或旧通知续打。 |
 | `QueryOrder(const FLDOrderCaller&, const FLDMoveIdentity&) -> FLDOrderReceipt` | 只读当前/保留回执或明确 Expired，供 UI/AI 恢复丢回包；查询不能推进订单/动作/租约，也不能观察其他参赛者。 |
 
 `FLDArmedTarget` 只保存本次来源、必要修订、目标模式和本地预览；
 真正施法继续使用战斗域的 `FLDCombatActionRequest`，不塞进空间订单的大封包。
 当前 `FLDTacticalRequest` 的字段/序列化由 Combat 改造为该合同，输入不另定义同义 wire。
+旧的客户端 Token 输入语义改为明确 RequestKey，不把 DirectSequence 当成服务器 CombatToken。
 新 wire/动作支持集必须同步生产者、decoder、拒旧、拥有者回执和实际兼容检查；
 产品版本号不能替代协议版本。计数不回绕复用旧执行身份；耗尽或非法序号明确拒绝。
 现有移动 wire 的 Match 对应 `Caller.Match.Generation`，Life 对应 `Caller.Body.Victim.Life`；
@@ -361,8 +366,8 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 | MoveGround/AttackMove | 拥有者、Match/Life、Order/Epoch、进行中/存活及 permit；AttackMove 此时先解保护，MoveGround 不解；再验地图/地面/完整路径，A 候选另查观察 | Queued ≠ Activated，Activated ≠ Arrived；同 identity 同条款重放，异条款拒绝；A 的路径失败不回滚已解除保护。 |
 | AttackUnit | 当前身份/阶段/新鲜性及 permit 后先解保护；再验观察者/句柄/目标 life、可见、关系及完整接近路径；每次接近/AttackStart 再验 | 隐藏/失效句柄统一 TargetUnavailable，不泄露真实目标，也不保留已解除的保护。旧观察不能重新锁定。 |
 | ApproachShop/Open | 空间身份、地图/公共 POI、合法路径；到达真实交互距离后，在当前订单内申请商店会话 | Open/报价由商店域回执；旧 order/life 返回不能打开新会话或使 UI 宣告购买。 |
-| Q/W、1/2 | SubmitAction 收件；当前身份/新请求/shape/permit 后，识别激活尝试先解保护，再验 SourceRef/build/inventory/item/catalog 与 typed Target、资源等；release 完整重查 | Queued/Rejected 与实际接受/release/terminal 分开；Rejected 可含 ProtectionRemoved。来源变化不改释为新槽位内容，空来源/过期绑定也不伪装 Malformed。 |
-| Stop/适用取消 | 当前拥有者、局/生命、递增 Order/Epoch；Combat `CancelAction(Caller, FLDCombatCancelRequest)` 校验其独立取消水位 | 取消不依赖来源仍存在或有蓝；取消前已 release 不撤回效果，不提前 NextAttackAt。迟到 ACK/动作通知不能越过取消水位。 |
+| Q/W、1/2 | 用 Direct 形 RequestKey 提交；当前身份/新请求/shape/permit 后先解保护，再验来源/版本/目标/资源；完整准入才分配 Token，release 再查 | Queued/准入前 Rejected 可以没有 Token，以 RequestKey 等待/重放/取消；Rejected 可含 ProtectionRemoved。来源变化不改释为新内容，空来源/过期绑定不伪装 Malformed。 |
+| Stop/适用取消 | 当前拥有者/局/生命和新 Order/Epoch；CancelAction 可指原 RequestKey 或 ThroughDirectSequence，尚未收到 Token 也可取消；Nav 按原 MoveIdentity/Epoch 失效并取消已关联请求 | Direct 水位只比较该调用者/局/生命内的 DirectSequence，绝不数值比较服务器 Token。已 release 不撤回/不提前节拍；迟到请求、ACK和通知不能越过各自取消域。 |
 | Heartbeat/AI 租约 | 真人当前订单及递增心跳序号；AI 使用服务器绑定仍存活的策略/参赛记录，不发送伪造 RPC | 旧序号不延寿，过期终结；失去 controller/record/生命时失效。UI 焦点不是拥有连接身份。 |
 | 只读订单查询 | 当前调用者和当前局；查自身当前状态/保留回执 | 回执缓存过窗返回 Expired 并给合法当前状态，不重新执行，不无限保存全局日志。 |
 
@@ -371,6 +376,18 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 比缓存上限更多请求之后，重放最早包仍不得执行；同 ID 异条款不成为第二次操作。
 本地输入边沿消重与网络幂等都要实现，不能用其中之一替代另一个。
 Movement ACK 只确认导航，Combat receipt 只确认相应动作；两者不能互相充当命中或交易成功。
+
+Direct 与 Nav 的判别形本身参与请求键，不能将 DirectSequence 与 AttackCycle 扁平化成一个整数空间。
+两形的 Generation/Contender/Life 都须匹配实际 Caller；Nav 外层 Generation/Life
+还必须与 MoveIdentity.Match/Life 一致，不能保留两份互相矛盾的身份上下文。
+真人 RPC 和 AI 策略不得伪造 Nav 形请求；HasAuthority 不等于当前 Navigation 生产者权限。
+DirectSequence 由该参赛者的唯一输入/服务器 AI 适配单调分配，Q/W、1/2 等 Direct 激活共享此域；
+关闭面板或重绑不重置计数。StopOrder 在按下时记录本地已发出的 DirectSequence 上界，
+通过 FLDCombatCancelRequest 提交 ThroughDirectSequence，并独立发出新的 Navigation Order/Epoch；
+不能用服务器当时“已收到的最大请求”代替仍在途的客户端上界。
+取消早于请求到达时，保留相应 RequestKey 拒绝记录或 Direct 高水位，
+不因尚无 Token/回执就忽略取消。Nav 的取消 epoch 和 Direct 的 ThroughDirectSequence 分别维护；
+只通过已保存的 RequestKey→Token 映射找到被取消动作，不跨序号域大小比较。
 
 ### 5.4 拒绝与可观测反馈
 
@@ -388,7 +405,7 @@ Combat 的资源/冷却/来源原因和 Vendor 的范围/报价错误沿其正�
 | 事件 | 本地输入/检查/镜头 | 权威订单/动作 | 回执/已释放效果 |
 | --- | --- | --- | --- |
 | Esc 取消准备 | 清当前准备及其手势，不清自身构筑；普通检查可保留在权限内 | 尚未提交则无 Combat 取消/退款；不把 Esc 当作对所有追击的隐式 S | 已发请求由真实当前状态处理，不能伪造 Cancelled/Success。 |
-| S | 清准备与自愿运动预测，生成新 epoch | 清路线/追击/待商店接近，取消可中断动作及未接受旧请求 | 旧 ACK/旧 saved move/旧 ActionRevision 不续行；已 release 按 Combat 生命周期。 |
+| S | 清准备与自愿运动预测，生成新 epoch，并记录已发 DirectSequence 的取消上界 | Navigation/Combat 分别按 MoveIdentity 或 RequestKey/Direct水位清路线/追击/可中断动作与旧未接受请求 | 无 Token 也可取消；旧 ACK/saved move/ActionRevision 不续行，已 release 按 Combat 生命周期。 |
 | 合法新订单/动作替换 | 新意图有独立待确认显示 | 完整准入后原子替换；旧路径/待 Open/重复普攻关联失效 | 新动作失败不恢复历史单；旧回执仅可查阅，不改变当前操作。 |
 | 无效新意图 | 显示原因和已解除保护的真实结果；本地预测失败不吞确认 | 不替换原已接受订单；可识别进攻意图在当前前置通过后仍解保护；更老 Pending 不迟到激活 | 不扣未提交资源、不重置节拍；重复不再发资格变化或动作。 |
 | 死亡/复活 | 清准备、生命相关检查/捕获/路径/单位标记；保留三选一并允许确认；相机仅自由看静态图，无新活体视野 | 旧 life 的移动/追击/待 Open/未释放动作失效；复活从 Idle 新 life 开始；死亡选择只改构筑 | 等级/技能/装备/金币/候选和应持续冷却归原所有者保留；选择不复活/治疗，旧动作不击中新 life。 |
@@ -474,7 +491,7 @@ FromFootCm/ToFootCm、double StartServerSeconds/EndServerSeconds 和运动类别
 | `AckConsumed(const FLDAuthorityBoundary{Match, BatchSerial, AtMs}&)` | 等 Combat 边界姿态读取及 Objective 均完成才释放已消费运动记录，不只等一个消费者。 |
 | `FLDGameplayWritePermit{Boundary, Phase, GateRevision}`；`ValidateWritePermit`；`TryCloseMatch` | permit 只在当前提交栈有效。核心先关闸再取消；Navigation cleanup 不发新 Gameplay，快速 IsGameplayWriteOpen 不代替最终校验。 |
 | `ALDGameMode::EndProtectionForAggressiveIntent(AController&, const FLDMatchContext&, const FLDCombatBodyRef&, const FLDAggressiveIntent&, const FLDGameplayWritePermit&) -> FLDProtectionReceipt` | 提交点从注册记录重新解析真实 Controller；Life 再核当前 Caller/Match/Body/Life/Alive/permit，从 Actions 真实边界生成资格 Stamp，不能由调用者伪造发生时间。后续执行拒绝仍保留其解除结果。 |
-| `FLDAggressiveIntent{Kind, Request}` / `FLDAggressionRequestKey{Origin, Sequence, CancelEpoch}` | Kind 限 AttackUnit/AttackMove/BasicAttack/ActivateCharacter/ActivateEquipment；Origin=Navigation/Combat，uint64 Sequence 复用原 Order/Token，不另发全域序；Nav 用原 Epoch，Combat 无适用字段为0。域先核新鲜性/同请求异条款，再调用 Life。 |
+| `FLDAggressiveIntent{Kind, Request}` / `FLDAggressionRequestKey{Origin, Sequence, CancelEpoch}` | Kind 限 AttackUnit/AttackMove/BasicAttack/ActivateCharacter/ActivateEquipment；OriginCombat.Sequence 用 DirectSequence，不用尚未分配的服务器 Token，CancelEpoch=0；OriginNavigation 用原 Order/Epoch。派生 RepeatAttack 继承原进攻意图，不另发解除序。域先核新鲜性/异条款再调用 Life。 |
 | `FLDProtectionReceipt{Generation, Body, Request, Outcome, ProtectionRemoved, LifeRevision, EventStamp?, Reason}` | LifeRevision 为 uint64；重复只重放，不能再发资格事件。动作/订单 Rejected 回执保留 ProtectionRemoved/LifeRevision；不与 OrderRevision/ActionRevision 混用。 |
 
 核心在真正同一实际时刻的阶段序是 Session（离开/HostEnd/保护到期）→ Motion 证据 → Actions
@@ -638,7 +655,8 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 ### 10.2 正反场景
 
 下列是**拟新增/替换用例 ID**，不是现有自动化 selector。
-各场景记录输入 identity、权威 OrderRevision/ActionId、拒绝码、实际脚点、必要观察游标，
+各场景记录输入 identity、Combat RequestKey→Token 绑定、OrderRevision/ActionId、拒绝码、
+实际脚点及必要观察游标，
 正好覆盖所述不变量；不能记录或广播对手私有构筑来“帮助 UI 调试”。
 
 | 用例 | 前置与操作 | 可观测正例/反例 |
@@ -647,9 +665,9 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 | CT-A02 追击普攻 | 可见合法目标在射程外，右键后移动目标 | 实际接近、范围内 AttackStart、按 Combat 节拍重复；目标走远可合法重算；旧“只到快照不追击”断言被替换。 |
 | CT-A03 A 搜敌 | A 尚未点击；确认地面后出现两个等距可见候选，随后收到原订单匹配 epoch 的授权 ObservedDeath/空集 | 按下 A 不攻击；只在批准 acquisition 范围内确定选择；合法终止仅推进服务器绑定的原单，空集续行/完成，不永久挂机。 |
 | CT-A04 视野撤销 | 追击/前摇中 Conceal；注入 FullSetRemoved、旧快照/ACK、重复或旧 epoch 的终止、早于新订单接受的 ObservedDeath，再次可见 | 取消锁定、停止当前追击；不走 LastSeen/旧 A 目的地、不留单位标记。非授权死亡不能触发 A 重选；旧终止/显示消息及重现都不驱动新订单或绕过命中权限。 |
-| CT-A05 停止/乱序 | 先发路线/能力再 S，延后旧 ACK/旧 Order/旧心跳/旧 saved move/旧 ActionOutcome | 一次取消水位支配所有关联旧意图；不续走/续打，合法重力与已释放内容不被错误抹除。 |
+| CT-A05 停止/乱序 | 发路线/能力后在 Token 回包前 S；取消比请求先到；延后旧 ACK/Order/心跳/saved move/ActionOutcome | 按 RequestKey/Direct水位或Nav epoch取消；不拿 ThroughDirectSequence 比 Token，不因无 Token 漏取消；不续走/续打，合法重力和已释放内容保留。 |
 | CT-A06 Queued/准入 | 原合法路线进行时发无效新施法；另让新施法合法准入后在 release 前失效 | Queued 不先停旧路线或解保护；Actions 当前前置通过后进攻意图先解保护；执行拒绝不替换旧单，release 失败不恢复历史路线/扣未提交 MP/CD。 |
-| CT-A07 身份/重复/过窗 | 同请求同条款、异条款、缓存容量以上后重放，伪造他人/旧 Match/Life/Epoch | 仅同域已有结果重放；异条款与过窗明确拒绝，零重复动作；字段不通过数组槽/名字推断 owner。 |
+| CT-A07 身份/重复/过窗 | 同条款/异条款/过窗重放、旧身份；DirectSequence与AttackCycle数值相同；外部伪造Nav键 | Direct/Nav完整判别键不撞号，独立准入由Combat分配Token；同键只重放原映射；旧/异条款/伪造拒绝，不按槽位或名字解owner，RepeatAttack不重复生成解除保护事件。 |
 | CT-A08 Q/W 与 1/2 | 学两个角色主动、装备两件同款主动；连续按1/2，再把一件替换为无主动装备 | 两份主动可分别释放且仅进入自己的 CD，不误用同名 family 共CD；属性相加、同名被动一次由装备域证明；无主动不可用。 |
 | CT-A09 来源变化 | 准备后升级/换槽/遗忘/出售，确认后 release 前再次改变；等候后重购/重学 | 旧来源请求失败而不是施放新内容；零部分耗费/免费刷新；失源期间继续计时，重新持有沿用原结束时刻，不冻结、不因清 UI 消失。 |
 | CT-A10 四目标 | 使用实际目录和必要显式夹具验证 Unit/Ground/Direction/Self；越距/零方向/错层/失效句柄 | 预览模式与定义一致，无效不消费；不改目标类型、不自动近邻/地面/自身回退、不自动走近施法。 |
