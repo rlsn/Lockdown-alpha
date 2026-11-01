@@ -253,6 +253,14 @@ AttackUnit 和已经锁定目标的 AttackMove 均终结当前订单，清路径
 Conceal/stale/TargetUnavailable 不可被当作“已观察到目标死亡”来继续 A，
 否则会借恢复地面或重新索敌绕过停止规则。
 
+授权死亡的唯一证据是世界域的 `FLDObservedUnitTermination`，其 Kind 为 ObservedDeath，
+并在实际死亡时取得合法 pose/观察权限见证；不是隐藏 Death 表、旧视图或全量集合删项推断。
+服务器操作域将它绑定到事件发生时原有的完整 `FLDMoveIdentity`；
+消费时原单必须仍未取消，目标句柄/ObservationEpoch 匹配，且真实事件时间不早于原单接受。
+它只能完成该原单的当前交战；旧 epoch、重放或早于新订单接受的终止不能驱动新订单。
+客户端 Relay/WorldView 的显示消息不调用 Navigate/SubmitOrder，不能自行重启导航；
+合法订单变化仍走服务器绑定后的命令回执。
+
 每次重复普攻由服务器订单驱动产生独立 `AttackCycle` 和 CombatToken，
 完整 `FLDMoveIdentity + AttackCycle` 只负责关联/去重，不替代 CombatToken。
 被控制时，Combat 的 Move/Attack/Skill/Item 等准入类别分别决定可执行性；
@@ -325,7 +333,7 @@ AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerControlle
 | --- | --- |
 | `FLDOrderCaller`（仅服务器，不序列化） | 采用核心 `FLDMatchContext Match` 和 `FLDCombatBodyRef Body`，不独存第二份 Match/Life。Body.Victim.Kind 必须为 Contender，EntityId 是参赛者，BodyIdentity 是该次身体 FGuid；由拥有连接或已注册 AI 解析，并取得世界 ObserverContext。 |
 | `ELDSpatialOrderKind` / `FLDSpatialOrderRequest` | kind 仅 `MoveGround/AttackUnit/AttackMove/ApproachShop`；完整现有 `FLDMoveIdentity`；按 kind 只携带一个地面、ObservedUnit 或公共 Shop 目标。地面/POI 带地图修订，单位使用世界域句柄代次；不携带无关 build/inventory revision、路径数组或服务器 Actor。 |
-| `FLDOrderTarget` | 有判别字段的单一载荷。Ground=脚点 cm；ObservedUnit=句柄/观察代次；Shop=公共 POI ID/地图修订；可显式 Missing。decoder 拒绝多臂、未知 kind、非有限数等畸形；目标缺失/过期/不存在属于后续可执行性失败，不伪造替代目标。 |
+| `FLDOrderTarget` | 有判别字段的单一载荷。Ground=脚点 cm；ObservedUnit=句柄/世界签发的 ObservationEpoch 与代次；Shop=公共 POI ID/地图修订；可显式 Missing。decoder 拒绝多臂、未知 kind、非有限数等畸形；目标缺失/过期/不存在属于可执行性失败，不伪造替代目标。 |
 | `FLDOrderReceipt` / `FLDOrderView` | 原请求 identity、uint32 OrderRevision、uint64 ReceiptSerial、`Queued/Rejected/Activated/Progress/Completed/Cancelled/Expired`、安全错误码、合法目标/端点和 ActionId；另含 ProtectionRemoved 和 uint64 LifeRevision 以表示被拒意图的真实副作用，不含隐藏坐标。 |
 | `ULDNavigationComponent::SubmitOrder(const FLDOrderCaller&, const FLDSpatialOrderRequest&) -> FLDOrderReceipt` | 真人 ServerOrder wrapper 与服务器 AI 共用的收件/排队入口；只做身份/形状/拒旧/去重等前置，返回 Queued 或前置 Rejected。不得激活/替换/解除保护，不因本地或提前路径/资源失败吞掉可识别进攻意图。 |
 | `CommitPendingOrders(const FLDGameplayWritePermit&) -> void` | 核心 Actions 阶段重新校验当前前置/permit，识别进攻意图并先经 Life 解除保护，再做完整当前状态/世界/路径准入及原子激活。结果写 receipt；不跨帧保存 permit，不用 IsGameplayWriteOpen 的一次读值冒充许可。 |
@@ -422,9 +430,15 @@ dash/击退仍经同一个 CMC/root-motion 能力边界，不调用逐帧 Telepo
 | `QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule)` | 地面移动；静态预览不用隐藏单位做动态障碍，partial path 明确失败。 |
 | `ResolveObservedUnit(ObserverContext, Handle, Purpose)` | 请求收到、每次追击/AttackStart/单位施法时当前重查；内部目标只在服务端作用域使用。 |
 | `EnumerateVisibleUnits(ObserverContext, Purpose)` | A 的合法候选帧；含 Match/ObserverLife/ViewGeneration/ViewRevision/MapRevision/ServerTime 和授权字段；帧不是永久执行权限。 |
+| `FLDObservedUnitTermination{Handle, ObservationEpoch, Generation, TerminationSequence, OccurredAtServerMs, Kind=ObservedDeath}` | 世界在实际死亡时记录合法 pose/权限见证，经同一 Relay/WorldView 路径发布；服务器操作域绑定原订单后处理，客户端仅表现。不得由隐藏死亡状态、Conceal/stale/TargetUnavailable/FullSetRemoved 或离局清理合成。 |
 | `FindApproach(ObserverContext, Origin, UnitHandle 或 PublicPOI, RangeCm, Capsule)` | 单位/商店的合法端点和完整路径；净空不扩大玩法范围，不能借目标真实隐藏位置求路径。 |
 | `TraceSight(SourceGround, TargetSample, WorldRevision)` | 与阻挡行走分开的 LOS 结果/明确失败；最终攻击/效果几何合法性仍由 Combat 决定。 |
 | `QueryCircleMembership` / `ExtractCircleCrossings` | 对实际已提交运动给出圈内/有序进出；世界不据此自己判胜，输入也不结算占领。 |
+
+终止记录沿现有可靠撤销/终止及全量恢复路径维护 Generation、ObservationEpoch、
+TerminationSequence 的去重和因果，不另开能绕过撤销的影子通道。
+OccurredAtServerMs 只供条目传输/显示；服务器绑定订单与提交顺序仍保留核心
+OccurredAtSeconds 的真实时间，不能用同毫秒桶相等证明事件发生在新订单之后。
 
 ### 7.3 实际运动与连续占领
 
@@ -631,8 +645,8 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 | --- | --- | --- |
 | CT-A01 地面/路径 | 真拥有客户端沿墙/坡/转角点击，另点错层/越界/不可达/非有限输入 | 只有完整合法路径 Activated/Arrived；CMC 无穿墙/瞬移；失败明确且不生成成功端点。 |
 | CT-A02 追击普攻 | 可见合法目标在射程外，右键后移动目标 | 实际接近、范围内 AttackStart、按 Combat 节拍重复；目标走远可合法重算；旧“只到快照不追击”断言被替换。 |
-| CT-A03 A 搜敌 | A 尚未点击；确认地面后出现两个等距可见候选，随后目标死亡/空集 | 按下 A 不攻击；只在批准 acquisition 范围内确定选择，等距规则可复算；空集按当前订单续行/完成，不永久挂机。 |
-| CT-A04 视野撤销 | 目标在请求到达前、AttackUnit/AttackMove追击中、前摇中分别 Conceal；延后旧全量快照后再次可见 | 取消锁定、停止当前追击；不走 LastSeen/旧 A 目的地、不留单位标记；旧快照/ACK及重新可见都不恢复订单或绕过命中权限。 |
+| CT-A03 A 搜敌 | A 尚未点击；确认地面后出现两个等距可见候选，随后收到原订单匹配 epoch 的授权 ObservedDeath/空集 | 按下 A 不攻击；只在批准 acquisition 范围内确定选择；合法终止仅推进服务器绑定的原单，空集续行/完成，不永久挂机。 |
+| CT-A04 视野撤销 | 追击/前摇中 Conceal；注入 FullSetRemoved、旧快照/ACK、重复或旧 epoch 的终止、早于新订单接受的 ObservedDeath，再次可见 | 取消锁定、停止当前追击；不走 LastSeen/旧 A 目的地、不留单位标记。非授权死亡不能触发 A 重选；旧终止/显示消息及重现都不驱动新订单或绕过命中权限。 |
 | CT-A05 停止/乱序 | 先发路线/能力再 S，延后旧 ACK/旧 Order/旧心跳/旧 saved move/旧 ActionOutcome | 一次取消水位支配所有关联旧意图；不续走/续打，合法重力与已释放内容不被错误抹除。 |
 | CT-A06 Queued/准入 | 原合法路线进行时发无效新施法；另让新施法合法准入后在 release 前失效 | Queued 不先停旧路线或解保护；Actions 当前前置通过后进攻意图先解保护；执行拒绝不替换旧单，release 失败不恢复历史路线/扣未提交 MP/CD。 |
 | CT-A07 身份/重复/过窗 | 同请求同条款、异条款、缓存容量以上后重放，伪造他人/旧 Match/Life/Epoch | 仅同域已有结果重放；异条款与过窗明确拒绝，零重复动作；字段不通过数组槽/名字推断 owner。 |
