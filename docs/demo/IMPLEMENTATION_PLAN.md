@@ -104,11 +104,12 @@ I4 与 I5 在 I3 提供的身体/事件契约稳定后可并行；占点规则�
 | 文档 | 相对链接、源码/脚本符号核对、`git diff --check` | 不存在空模块/失效链接；目标/现状/建议分明；参数单点；评估结论不过度 |
 | 内容/生成 | 对应 `Sync* --check`、`Test*Import.py`；现有例子为 `SyncB84Data.py`、`SyncV09Data.py` | 实际首版目录/参数可生成；非法值/不合法引用拒绝；载荷/contract 一致；禁止手改摘要 |
 | 原生与资产 | `BuildEditor.ps1`、`BuildGame.ps1`、`BootstrapAssets.ps1 -Mode Validate` | 删除后没有反射/链接/Cook 悬空依赖；唯一入口和地图资产仍可加载 |
-| 规则 | `RunTests.ps1` 和相关原生规则测试 | 新属性/成长/装备/胜利断言；保留身份/取消/事务不变量；更新旧测试数量与专用测试名门槛，而非仅降低要求 |
-| 输入/路径/UI | `RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1`、`RunHUDCheck.ps1` | A/右键/S/Esc、目标预览与重查、UI 手势唯一消费者、阻挡/失焦/死亡/迟到确认 |
+| 规则 | `RunTests.ps1` 和相关原生规则测试 | 新属性/成长/装备/胜利断言；上限变化保持原血蓝百分比、最终投影一次且往返不获益；保留身份/取消/事务不变量；按实际用例更新旧门槛，不只降低数量 |
+| 输入/路径/UI | `RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1`、`RunHUDCheck.ps1` | A/右键/S/Esc、目标重查、失视取消锁定并停该追击；无 LastSeen，死亡可拖静态/公共镜头；UI手势唯一消费者、阻挡/失焦/迟到确认 |
 | 战斗/观察/来源 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`、`RunLoadoutCheck.ps1` | 真客户端命中/重复拒绝、隐藏/过期；同款两份主动独立冷却且可连续使用两次；失源期间继续计时，重购/重学沿用原结束时间，换槽/死亡不刷新；控制与保护 |
-| 奖励/买卖 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`，复用有效事务规则 | 一次死亡一次金币+经验；两件同款实例不混同、基础属性加成相加、同名被动只生效一次；第三件/金币不足/离店/死亡/终局/旧报价/重复/创建失败均无部分提交 |
-| 生命/胜利 | `RunResetCheck.ps1`、`RunObjectiveCheck.ps1`、`RunObjectiveNetworkCheck.ps1` 的可复用夹具 | 用 Demo 断言替换旧 Heart/deadline/死亡税：同刻争夺、保护、保留、新局拒绝；不保留旧玩法验收入口 |
+| 奖励/买卖 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`，复用有效事务规则 | 一次死亡一次金币+经验；两件同款实例不混同、基础属性加成相加、同名被动只生效一次；死亡可选卡/替换但不复活/治疗，交易仍拒绝死亡；第三件/不足/离店/终局/旧报价/重复/创建失败无部分提交 |
+| 生命/胜利 | `RunResetCheck.ps1`、`RunObjectiveCheck.ps1`、`RunObjectiveNetworkCheck.ps1` 的可复用夹具 | 进攻意图准入后解除保护，动作无效亦然，旧包/终局无副作用；资格变化参与圈判定；死亡或出售/遗忘后独立效果继续，离局立即移除身体并取消效果；复活满血蓝、新局隔离 |
+| 观察/结算字段 | 迁移后的 `RunViewNetworkCheck.ps1`、`RunHUDCheck.ps1` 与生命周期场景 | 可见对手名称/等级/血蓝/状态/装备白名单，无技能/冷却/完整属性/金币；终局才发布全体结果含离局记录、赢家/原因/用时，统计不判胜；不以字段显示替代载荷权限检查 |
 | 世界/AI/完整对局 | 相关当前地图/网络夹具与新增目标场景 | 五营地两难度、十点等概率、AI 非全知完整循环、无调试授予；不能把现有世界或席位检查直接改名为通过 |
 | 交付 | `VerifyCleanCheckout.ps1`、`PackageWin64.ps1`、`OpenPackaged.ps1` | 明确本地 LFS 缓存检出不证明远端下载；发布包实际运行/连接/完整对局后才认定可用 |
 
