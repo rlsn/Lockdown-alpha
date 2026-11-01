@@ -171,7 +171,10 @@ CatalogDigest 覆盖本局整套批准的公式/角色/技能/装备/政策输�
 
 采用与成长相同的 `FLDCatalogDigest { uint8 Bytes[32]; }`：SHA-256 的 32 原始字节进 wire，
 日志/文档为 64 位小写 hex，不把 64 字符当 64 字节。现有 tactical wire 已采用这一字节形状，
-但旧 combat/equipment/acquisition 是各自摘要，目标须由唯一 Demo manifest 根绑定完整内容。
+但旧 combat/equipment/acquisition 是各自摘要，目标统一读取
+`Content\Lockdown\Data\Demo\manifest.json` 的规范文件字节 SHA-256。
+该根 manifest 不含自身摘要，由唯一 Demo compiler 生成并写入 `LDDemoContentContract.h` 及加载身份，
+绑定完整内容；Combat/纯值 FormulaSet 不再选择旧子目录摘要或旧 catalog 作为数据入口。
 证据见 [LDTacticalRequest.cpp:5–17](../../Source/Lockdown/Private/Combat/LDTacticalRequest.cpp#L5-L17)、
 [CatalogTools.py:20–21](../../Scripts/CatalogTools.py#L20-L21)、
 [SyncB84Data.py:82–103](../../Scripts/SyncB84Data.py#L82-L103)。
@@ -684,7 +687,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | R10/R11 改造/抽取 | `World\LDWorldDirector.{h,cpp}` 的注册/目标/回位；`CharacterMovement` 的 RootMotionSource、`LDTacticalFields.cpp` swept capsule、`LDContentGeometry.cpp` 合法落点 | 怪物执行接同 Combat，世界负责真正几何/生命映射；位移不是寻路瞬移替代，默认旧距离/地图分支删除。 |
 | R12/R13 改造 | `Vision\LDVisionDirector/LDWorldViewRelay/LDViewTypes`、`Framework\LDPlayerController`、`UI\LDV08HUDModel` | 当前 owner/observer 白名单、typed 结果、正常 Host 附件过滤；保持 cursor/Conceal 不变量。 |
 | N03/N04/N05 必要新增 | 拟 `Public\Combat\LDCombatTypes.h`、`Public\Combat\LDCombatAttributes.h`、`Private\Combat\LDCombatAttributes.cpp` | 放置本文窄 DTO/纯规则和检查结果；执行留现有 Director/拆分 cpp，不加第二 Director、GAS 状态层或通用事件平台。 |
-| N02/N09 配套 | 现有 CombatTests/TacticalTests/LoadoutTests/ViewTests、相关 runner；已有 compiler/importer | 新增下节实际断言、typed effects/rank/MP/属性读取，旧门槛迁移；不靠一张类型表宣称效果已接通。 |
+| N02/N09 配套 | 现有 CombatTests/TacticalTests/LoadoutTests/ViewTests、相关 runner；旧 compiler/importer 的必要严格校验机制 | 机制抽取到内容域唯一 Demo compiler/`ULDDemoContentCatalog`，补 typed effects/rank/MP/属性读取及下节断言；旧生成/加载入口退出，不靠类型表宣称效果已接通。 |
 
 ### 11.2 确定删除与 C1 条件删除
 
@@ -695,7 +698,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | D14 确定项 | `LDCombatDirector.cpp` 的暗杀/quiet/sprint入口；`LDSkillExecution.cpp` 旧职业/服务分支；`LDContentLifecycle.cpp` 的 Scramble、自动 Footstep/Mark Trail | 同时删除 AssassinReady/Quiet/Watch/Salve 等失去消费者字段、旧 cue 和授权例外，不只停按钮。 |
 | D14 C1 项 | `LDContentActions/Release/Lifecycle/Geometry.cpp`、`LDTacticalExecution/Fields/Geometry/Rules.cpp`、`LDV08Catalog/Modifiers.cpp` 的未选 switch/状态/handler | 批准 ID→handler→字段→wire→资产→测试映射后，只保留所选原语；双目标交换、channel、DoT、侦察、反射、免死、旧场机制无消费者即真删。 |
 | D14/D11 C1 项 | `LDRiverEnvironment.cpp/LDRiverRules.cpp/LDEnvironmentRules.cpp/LDElementContact.cpp/LDIgnitionEnvironment.cpp/LDFullMapSurfaces.cpp` 及对应 Public 头/Director 字段 | 当前小目录无需天气、电火水冰、租约池、RiverCells/BurningUnits/FrostReceipts。先把必要静态地面/LOS 接世界，断 Movement/Vision/WorldObjects/Checkpoint 消费；不抽备用环境服务。 |
-| D15 | `LDCharacterBuild.h/.cpp` 六属性/职业/点数/书籍/天然门槛、旧构造/start/profile/整体 Prepare 草稿；`LDGearRules.cpp` 六点预算 | 同基础角色、MOBA 投影、持久成长和 CD 分离先接好；native Validate 的旧公式字符串/职业任务要求、prototype 输入一并更新。 |
+| D15 | `LDCharacterBuild.h/.cpp` 六属性/职业/点数/书籍/天然门槛、旧构造/start/profile/整体 Prepare 草稿；`LDGearRules.cpp` 六点预算 | 同基础角色、MOBA 投影、持久成长和 CD 分离先接好；必要角色记录迁入 Demo 作者域，旧 native Validate 的公式字符串/职业任务要求与 prototype 作者输入随旧链退出。 |
 | D15 | `LDV08Loadout.cpp` 重复 active-family 拒绝/十一绑定/六共享动作；`LDInventoryTypes/Director` 背包/重量/Quick/掉落/旧 metadata | 两实例/QW/12/来源事务替代；删旧 family-max 的 Actions/Release/HUD 三端，不只换保管 CD 的字段。 |
 | D16/D27 | `LDPlayerController.h/.cpp`、`LDPlayerInventory.cpp` 旧多个 RPC/字符串回执/hold/probe/Pending；DevelopmentPanel/InventoryPanel 的旧 UFUNCTION Route、OnClicked/AddDynamic 和 Press/Release | 新 void RPC、双请求域、typed 回执、规范空入口先解保护及窄 UI 动作接通；删六属性/旧服务页签及绑定，不留死委托。 |
 | D17 | `LDVisionDirector/LDViewTypes/LDWorldViewRelay` 旧来源/kind/AuthorizedCue；`LDCharacter/LDHumanoidVisualComponent` 旧居民/工具/状态 marker | 生产→授权→发布→proxy/HUD/Host 附件→wire 白名单闭合，保留必要身体/碰撞/观测游标。 |
@@ -707,9 +710,10 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | --- | --- |
 | D20 V07 | `Content\Lockdown\Data\V07\combat/equipment/acquisition/world.json` → Bootstrap 无条件导入 → `Generated\V07\DA_*Catalog` → catalog 非当前 loader fallback。先改 Bootstrap、Sync/native contract、Load、RuntimeDependencies/cook 四边，再删无用载荷/资产。 |
 | D20 历史输出 | V08 的 `combat_b81/b82/b83.json`、`equipment_b81/b82/b83.json`、对应 manifest、`catalog.json/ImportManifest.json` 与 `LDB81/82/83Contract.h`；文本无消费者不等于二进制安全，C3 后才删。 |
-| D21 唯一编译器 | `SourceData\Catalogs\V08\abilities/items/acquisition/starter_kits/environment/modifier_contracts/native_ids/catalog.schema.json` → `SyncB84Data.py` → 三载荷/manifest/`LDB84Contract.h` → native Import/Validate/Load。compiler 还读取 CharacterBuild、InventoryTypes、EquipmentCatalog、AcquisitionCatalog 原生文件，不能先删被读文件。 |
-| D21 语义输入 | 删除固定旧数量/未选记录；补真正 typed 多字段 Rank/effects、装备非零 MP、属性/政策。每个被接受字段必须有 handler 和行为断言；导入只保存 JSON 字符串不算支持。技术路径可原位承载唯一合同，不留旧 schema fallback，不手改摘要。 |
-| D22/D23 | 断 Combat 对完整世界/人口/物件输入的消费；地图/C2 归世界。`prototype_rules.json → ULDCharacterCatalog::Import/Validate → DA_CharacterCatalog` 与 `DA_PrototypeTuning → Character.BeginPlay` 只留批准基础输入；缺 tuning 显式失败。 |
+| D21 旧链与迁移前提 | 当前 `SourceData\Catalogs\V08` 的 abilities/items/acquisition/starter_kits/environment/modifier_contracts/native_ids/catalog.schema → `SyncB84Data.py` → B84 三载荷/manifest/`LDB84Contract.h` → 旧 native Import/Validate/Load 是审计基线，不是目标生成链。旧 compiler 还读 CharacterBuild、InventoryTypes、EquipmentCatalog、AcquisitionCatalog 原生文件；先提取实际需要的记录、稳定编号和校验机制、改接消费者，不能先删依赖后掩盖失败。 |
+| D21 唯一 Demo 内容链 | 按 `CONTENT_AND_BALANCE.md` §10.1，作者域固定为 `SourceData\Demo\content.json/content.schema.json/native_ids.json`，经内容域唯一 Demo compiler 生成 `Content\Lockdown\Data\Demo\demo_content.json`、同目录 `manifest.json` 及 `LDDemoContentContract.h`，由 `ULDDemoContentCatalog` 统一 typed Import/Validate/Load 和 DataAsset/Bootstrap 接入。战斗、属性/纯值公式、成长、装备、商店、奖励、RPC、UI/AI 都消费这一个目录/根身份；不向 V08/B84 再生成一份 Demo，不另造 Combat 专属 compiler。 |
+| D21/D32 语义与旧链退出 | 多字段 Rank/effects、非零装备 MP、属性/政策必须真实投影到统一目录和 handler，并有行为断言；只保存 JSON 不算支持。新链/拒绝夹具/全部加载和 staging/cook 迁移完成后，删除旧 V08 作者输入、B84 载荷/manifest/contract、`SyncB84Data.py` 及无消费者旧 importer/多 schema fallback。可抽取旧代码和记录，不能保留旧目录继续生成或加载另一套 Demo；不手改摘要。 |
+| D22/D23 | 断 Combat 对完整世界/人口/物件输入的消费，地图/C2 归世界。`prototype_rules.json → ULDCharacterCatalog::Import/Validate → DA_CharacterCatalog` 是待退出旧链；必要角色参数迁到唯一 Demo 作者域/目录，完成 Bootstrap/资产引用迁移后删除旧原型输入、旧角色目录资产及无消费者导入器。`DA_PrototypeTuning/Character.BeginPlay` 的必要几何/引擎接线由对应所有者核验复用，不作为旧战斗内容回退入口；缺必要输入显式失败。 |
 | D24/C3 | 旧 IA_Assassinate/Dash/Interact/Ward/Sprint 与 Bootstrap 十三固定映射、旧 IMC/Widget 回调按当前输入迁移；键仍可有新用途。M_Character/M_Fog/T_FogClosed/WBP_UIRoot 先查真实引用，不能因占位资源盲删。 |
 | 反射/C3 | CombatDirector/ArcProjectile/TacticalField/Corpse/Character/Resident/WorldPawn/WorldSite/catalog 的 UCLASS；Build/Plan/ActionRef/GearStats/TacticalRequest/Inventory/Owner/View 的 USTRUCT/UPROPERTY、RPC、dynamic delegate、CDO/Blueprint/地图引用都核查。旧类仍可加载时先迁移重存存活资产，再删类型。 |
 | D26/C4 | Runtime/Editor Build.cs、DefaultGame 广泛 AlwaysCook、Package/OpenStandalone/Bootstrap 的旧图/profile/staging 需按实际消费者收敛。保留确需的 NetCore/Json/UMG/Nav/AI/Fog/OpenSSL 等，不为掩盖问题改共享引擎/插件安装。 |
@@ -726,7 +730,7 @@ UHT/Blueprint 重存、Cook 及包内清单证据，**不声明任何资产已�
 | 切片 | 前置与范围 | 最小退出证据 |
 | --- | --- | --- |
 | C01 身份/请求/统一调度 | 核心共享类型、操作/世界接口；改双请求域、取消、一次身体注册、SampleBoundary/permit | 序列/生命/重放/新局拒绝，Queued/意图/Accepted/Release 及原子 Nav 交接成立，旧时钟不再被调用。 |
-| C02 纯属性及内容导入 | 内容公式/字段和实际目录批准；改 CharacterBuild/GearRules/catalog/Sync，同一 Prepare/Apply | 所有属性真实投影，非法输入/多字段 Rank/非零装备成本可验证，P2/比例/回复/AS/CD 精度与来源解释一致。 |
+| C02 纯属性及内容导入 | 内容公式/字段和实际目录批准；改 CharacterBuild/GearRules 消费者，接唯一 Demo compiler/`ULDDemoContentCatalog`，同一 Prepare/Apply | 所有属性真实投影，Demo 载荷/根 manifest/contract 一致，非法输入/多字段 Rank/非零装备成本可验证；旧 V08/B84/SyncB84 生产加载退出，P2/比例/回复/AS/CD 精度与来源解释一致。 |
 | C03 来源/两主动/被动 | C01、C02，成长最终两装备事务 | 两条 IssuedCooldownId 独立、债优先回绑，无旧 family-max；被动代表换位不重复，失败无半绑定/半扣费。 |
 | C04 效果/死亡/奖励 | C01–C03、世界真实接触、生命/成长 sink | 统一保护/Hit/PendingDeath/RewardBasis，独立效果与离局语义、主次击不递归，Gold+XP+机会一次逻辑提交。 |
 | C05 观察/界面/圈联接 | C04 与 World DTO、真实运动/资格提供者 | 正常 Host/客户端不透雾，typed 回执包含失败失保；真实秒、完整 Sealing/fence、同刻死亡/圈竞争正确。 |
