@@ -186,6 +186,41 @@ AI 经服务器绑定上下文直接调用同一服务，不调用下层 `Reques
 普通怪物也复用动作/伤害原语，营地只决定意图、回位与刷新，不另写平行命中/奖励。
 CampReset 是世界域提供到家证据后调用的服务器内部专用操作，不是玩家 RPC 或通用满恢复布尔开关。
 
+### 3.4 真实执行与 AI 估计共用的纯值接口
+
+拟在现有 `Public\Combat\LDTacticalRules.h` / `Private\Combat\LDTacticalRules.cpp`
+抽取以下纯函数，输入/结果类型归同一 `LDCombatTypes.h`，不另建预测伤害公式或世界扫描服务：
+
+```cpp
+namespace LDTactical
+{
+    FLDDamageEvaluationResult EvaluateDamage(
+        const FLDDamageEvaluationInput& Input, const FLDCombatFormulaSet& Formulas);
+    FLDBasicTimingResult EvaluateBasicTiming(
+        const FLDBasicTimingInput& Input, const FLDCombatFormulaSet& Formulas);
+}
+```
+
+| 值类型 | 最小输入/输出与使用边界 |
+| --- | --- |
+| `FLDCombatFormulaSet` | 对应 CatalogDigest 的已批准、编译后不可变公式参数/定义集合；不执行任意公式字符串，不持 Actor/World/Bodies 指针。 |
+| `FLDDamageEvaluationInput` | 已解析伤害定义/等级参数、DamageType、HitClass、实际所需源属性、显式本次暴击结果，以及目标抗性/HP/盾/保护的值。执行器填真实合法快照；估计器填获准信息下的明确假设。 |
+| `FLDDamageEvaluationResult` | 明确成功或定义/数值域错误；成功时给减伤量化量、盾吸收、实际 HP 损失、过量及结果资源。只是数值结果，不是已提交 Hit、PendingDeath 或奖励。 |
+| `FLDBasicTimingInput` | 已编译单位普攻定义中的基础攻击速度/前摇，以及已解析当前攻击速度；玩家来自 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物来自 `CAMP.Low/High.AttackSpeed/AttackWindupSec`，均接相同公式语义。 |
+| `FLDBasicTimingResult` | 明确成功或错误，成功给 IntervalMs/WindupMs 时长；不生成绝对 NextAttackAt、ReadyAt 或权威时间。 |
+
+P2/R4/Rate/Sec 的精度、检查和取整只取内容合同，`EvaluateDamage` 复用
+`FORMULA.Crit/Resistance/Damage`，`EvaluateBasicTiming` 复用
+`FORMULA.AttackIntervalMs/AttackWindupMs`。旧 Damage/间隔算法需由此替换或抽取，
+不能留一套实际执行算法再为 AI 包一套近似算法。
+真实 `ApplyHit/AttackStart` 调用同一纯函数后，仍须自己完成身份、几何、来源和 permit 验证及原子提交。
+纯函数不查世界/营地运行表、不读时钟、不采随机数、不发事件、不分配 Token 或修改任何状态。
+
+AI 只以自身派生属性、合法可见成员及公共模板构造保守满营地假设，
+使用显式“不暴击”等估计条件，不取得权威随机样本或隐藏实际状态。
+营地受击后的行动时间线、策略循环和预测后剩余 HP 门槛归 AI；缺合法输入或计算失败返回
+EstimateUnavailable，不当成零风险/必胜。预测不表示实际命中、真实生存保证或实战已通过。
+
 ## 4. 属性聚合、资源及更新
 
 ### 4.1 完整属性的消费者与内容键
@@ -197,7 +232,7 @@ CampReset 是世界域提供到家证据后调用的服务器内部专用操作�
 | AD/AP | `STAT.AD/AP.Base/PerLevel`；`FORMULA.StatProjection/Damage` | 点；AD 供声明物理加成，AP 仅供明确的法术加成，不自动改普攻类型。 |
 | Armor/MR | `STAT.Armor/MagicResist.Base/PerLevel`；`FORMULA.Resistance` | 抗性点；每次 Hit 取目标当前值，不能混用旧比率和新抗性点。 |
 | AS/攻击间隔/前摇 | `STAT.BaseAttackSpeed/AttackSpeedPerLevelRatio`；`FORMULA.AttackSpeed/AttackIntervalMs/AttackWindupMs` | AS 为次/秒；时长输出毫秒；在合法 AttackStart 快照，不默认缩短所有能力前摇。 |
-| MS | `UNIT.MoveSpeedCmPerSec` 与合法属性贡献 | 厘米/秒；最终值接现有 CharacterMovement，导航不再计算一份速度。 |
+| MS | `UNIT.MoveSpeedCmPerSec` 与合法属性贡献；`FORMULA.MoveSpeed → STAT.MoveSpeedCmPerSec` | 厘米/秒；最终值接现有 CharacterMovement，导航不再计算一份速度。 |
 | 攻击距离 | `UNIT.BasicAttackRangeCm`、`CHOICE.attr_reach.AttackRangeCmFlat`、装备同名贡献；`FORMULA.AttackRange → STAT.AttackRangeCm` | 厘米；脚点 XY 中心距，不增减胶囊。FindApproach、AttackStart、Release、预览同源；不等于能力 Range 或群攻 Radius。 |
 | 最大 HP/MP | `STAT.MaxHP/MaxMP.Base/PerLevel`；`FORMULA.StatProjection` | P2 点；构筑属性，不是当前资源；一次最终变更调用 `FORMULA.ResourceMaxChange`。 |
 | 当前 HP/MP | `FORMULA.Damage/Regen/ResourceMaxChange` 及已批准效果/成本 | Combat 唯一 P2 真值；伤害、回复、花费、比例变更、正常复活分别有明确提交原因。 |
@@ -249,6 +284,8 @@ Prepare 本身不偷偷 Tick；死亡/新生命清瞬时余数。
 失败尝试即使已失保也不刷新；纯移动/位移、自保盾/回蓝、购物和选卡不刷新。
 达到该定义的脱战期限后才启额外回复，基础回复仍按资源规则；
 时钟事件先结清旧速率到实际发生时刻，再切换有效速率，不另取帧 dt 默认值。
+正常复活时以该次复活的实际时刻初始化新身体的脱战时间起点，不沿用上一生命的就绪窗口；
+这不修改已保留的技能/装备 cooldown 或普攻端点。
 
 ## 5. 来源、独立冷却与反套利
 
@@ -744,6 +781,10 @@ A34 的纯投影夹具另覆盖临时上限增益/压低效果移除后的顺序
 再算最终 Max、最后填满；结果既不超新上限也不少补，失败前不改活体。
 这不将未选临时 Max 内容加入首版目录。清旧 Root/盾后再施加同类型新实例，
 旧到期回调不得复生旧状态或删除新实例；同 Life 的外部独立新接触仍按正常规则作用。
+
+A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公式集时，数值结果逐字段一致；
+重复求值不采 RNG、不读 Actor/营地运行表、不推进时钟或写入资源/Token/Hit/Death。
+错误显式返回且估计不伪装零风险；A26 另核对复活后的脱战基准取本次实际复活时刻。
 
 现有最小入口可迁移，而非直接宣称已验证上述目标：
 `RunTests.ps1` 的 Lockdown.Rules、`RunCombatCheck.ps1`、
