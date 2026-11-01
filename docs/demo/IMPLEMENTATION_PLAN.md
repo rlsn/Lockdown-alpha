@@ -107,7 +107,7 @@ I4 与 I5 在 I3 提供的身体/事件契约稳定后可并行；占点规则�
 | 规则 | `RunTests.ps1` 和相关原生规则测试 | 新属性/成长/装备/胜利断言；保留身份/取消/事务不变量；更新旧测试数量与专用测试名门槛，而非仅降低要求 |
 | 输入/路径/UI | `RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1`、`RunHUDCheck.ps1` | A/右键/S/Esc、目标预览与重查、UI 手势唯一消费者、阻挡/失焦/死亡/迟到确认 |
 | 战斗/观察/来源 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`、`RunLoadoutCheck.ps1` | 真客户端命中/重复拒绝、隐藏/过期、冷却换槽/遗忘/重购/死亡、控制与保护 |
-| 奖励/买卖 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`，复用有效事务规则 | 一次死亡一次金币+经验；两件容量；金币不足/离店/死亡/终局/旧报价/重复/创建失败均无部分提交 |
+| 奖励/买卖 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`，复用有效事务规则 | 一次死亡一次金币+经验；两件容量且允许两件同款、实例不混同；金币不足/离店/死亡/终局/旧报价/重复/创建失败均无部分提交 |
 | 生命/胜利 | `RunResetCheck.ps1`、`RunObjectiveCheck.ps1`、`RunObjectiveNetworkCheck.ps1` 的可复用夹具 | 用 Demo 断言替换旧 Heart/deadline/死亡税：同刻争夺、保护、保留、新局拒绝；不保留旧玩法验收入口 |
 | 世界/AI/完整对局 | 相关当前地图/网络夹具与新增目标场景 | 五营地两难度、十点等概率、AI 非全知完整循环、无调试授予；不能把现有世界或席位检查直接改名为通过 |
 | 交付 | `VerifyCleanCheckout.ps1`、`PackageWin64.ps1`、`OpenPackaged.ps1` | 明确本地 LFS 缓存检出不证明远端下载；发布包实际运行/连接/完整对局后才认定可用 |
