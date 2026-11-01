@@ -369,7 +369,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `TraceSight(SourceGround, TargetSample, WorldRevision) -> Result<SightResult>` | World/Vision；有限、同层与固定 eye/target sample、范围及阻视线几何；与阻走分开 | 授权层与 Combat 几何；公开地点/静态 ray 结果不是单位锁定权限 |
 | `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision) -> FLDShopEligibilityResult` | 下方唯一四参类型；Transactions借用作用域内按当前实际子时刻验证身体/世界、合法脚点/区域与中心距；不增加LOS条件 | Vendor绑定真实调用者与BuyerBody，最终安装前仍核permit/生命/会话/quote/余额/槽位/revision；结果不是长期交易授权 |
 | `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、连续独占和唯一胜负归核心，不受观察权限影响 |
-| `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 运动/位移生产者封装身份、序号、实际时间并发布水位；不得从代理插值或最终帧位置补历史 |
+| `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 生产者封装实际身份/序号/时间；最终水位须等同批晚因果工作闭合后Sealing，不能随首段运动提前发布；不从代理或末帧补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
 
 `QueryShopEligibility` 是拟建在现有MapRegistry边界的服务器提交期只读查询，唯一实参类型如下：
@@ -464,8 +464,13 @@ root motion 从实际运动采集；碰撞截短不能按请求距离产生虚�
 
 共同事件引用核心的 `FLDMatchContext + FLDCombatBodyRef + ProviderId + ProviderSequence + OccurredAtSec + 变化`；
 其中生命身份就是BodyRef内的`FLDVictimKey`，不另定义生命键别名。
-核心等运动/位移、生命/离开/保护等相关提供者水位齐备，再处理同刻到期命中、死亡及圈变化并判定连续性。
-缺水位或已消费边界之前的新事件必须显式报错、阻止错误判胜；不能回滚物理世界“补证明”。
+命中前只需确认该真实子时刻、相关身体的实际运动/几何证据齐备，**不等待整批最终Fence**。
+核心随后按真实子时刻处理Effects/DeathsAndRewards及后续世界/事务工作；
+由这些工作产生的晚因果位移、落地和生命/资格变化全部纳入原流后，Sealing才接受最终提供者水位。
+**Capture阶段**才等待该边界必需的最终Fence，归约所有中间圈/资格事件并判定连续性。
+不能先等最终Fence才执行会产生其后续证据的命中/死亡，否则构成循环前置条件。
+Capture仍缺必需最终水位、或出现已消费边界之前的新事件时，按核心故障合同处理并阻止错误判胜；
+不能回滚物理世界“补证明”，也不能把Sealing之前尚未产生最终Fence本身当作命中故障。
 世界不决定最终同刻事务次序；核心先锁定结果、关闭写闸，再取消/清理。
 只保存有界待消费事件，不建立永久运动日志或第二套占领状态。
 
@@ -860,7 +865,7 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 | 改造保留 | `Vision\LDVisionDirector`、`LDViewTypes`、`LDWorldViewRelay`、`ALDObservedEntityProxy` | 代理定义就在Relay文件中；无单独 `LDObservedEntityProxy.cpp`。统一稀疏codec、字段、生命周期与Host呈现 |
 | 拟新增 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 复用确定性编码/哈希校验；只引用内容定义，不在世界输入复制战斗数值。这些路径/脚本当前不存在 |
 | 拟新增 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生，不手写hash；运行模块声明准确 payload 依赖，不把整份SourceData打包 |
-| 拟生成 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Generated\Data\DA_DemoWorld.uasset` | 由一个地图资产负责人在锁定UE中生成；唯一Anchor/默认类/加载路径/签名一致，不文本拼接资产 |
+| 唯一终态根，待生成 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 工程命名/根已固定，资源尚未创建或验证；一个资产负责人在锁定UE中生成，唯一Anchor/默认类/加载路径/签名一致 |
 | 共享表现保留/改造 | `M_Character`、`M_Ground/M_Stone`、`DA_PrototypeTuning`、`WBP_UIRoot`、保留输入动作、`M_Fog/T_FogClosed` | Character、代理、PlayerController、Bootstrap字符串和Blueprint默认值仍引用；雾栅格改造不等于可以删全部材质/UI/Input |
 
 本表简写原生路径均对应 `Source\Lockdown\Public` 的头或 `Source\Lockdown\Private` 的实现；
@@ -894,7 +899,42 @@ Grass 再依赖 Forestry，Forest 再依赖 Grass；
 `Private\World\LDWorldObjects.cpp:73` 的 ActiveContract 最终取 ForestWorld hash。
 必须按依赖向上解除并同步删除，不能篡改一个最终宏跳过断言。
 
-### 6.3 二进制和 Cook 的硬门槛
+### 6.3 唯一终态世界根与生成/加载/Cook改接
+
+**工程终态固定为 `L_Demo.umap + DA_DemoWorld.uasset`，不是待用户二选一的命名。**
+架构、核心与构建清单均使用下表；`L_DevelopmentRegion/DA_CivicRegion`只作为迁移/删除对象，
+不保留为并行根、兼容壳、重定向玩法或缺新资产时的回退。
+这里确定的是根和依赖归属，不代表新资源已生成；布局/数值仍按本文候选接受PR审查。
+
+| 对象 | 唯一最终标识与责任 |
+| --- | --- |
+| 战局地图 | 包名`/Game/Lockdown/Generated/Maps/L_Demo`；UWorld对象路径`/Game/Lockdown/Generated/Maps/L_Demo.L_Demo`；磁盘`Content\Lockdown\Generated\Maps\L_Demo.umap` |
+| 世界定义 | 对象路径`/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`；类型为改造后的`ULDMapDefinition`，不是把旧`ULDRegionDefinition`或Civic包改成空壳 |
+| 场景绑定/运行读取 | L_Demo恰有一个`ALDMapAnchor`，其Definition引用上述DataAsset；GameMode/MapRegistry/世界查询统一读取并校验该绑定、根身份及payload/contract，不另保留Civic/FullMap加载回退 |
+| 前端与对局阶段 | 保留`L_Frontend`作为菜单入口；Host进入`L_Demo?listen`，Lobby/Match/Results按核心在同一战局世界切阶段，不新增另一Lobby/结果玩法根或旧Profile |
+
+以下列的是本次静态研究已定位的**当前引用/生成入口**及后续改接责任，
+不是声称该基线已实现新根：
+
+| 引用入口 | 必须改接到唯一根的内容 |
+| --- | --- |
+| `Scripts\BootstrapAssets.ps1:1-14`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:270-326,330-405` | 保留统一Bootstrap门面，Generate/Validate均生成或校验L_Demo、DA_DemoWorld及必要共享资产；不再默认生成/要求旧Region地图与Civic资产 |
+| `Source\LockdownEditor\Private\ScaffoldBootstrap\LDRegionBootstrap.cpp:79-94`；`LDB90BootstrapCommandlet.cpp:42-45,234-298` | 将需要的MapDefinition、mesh/nav、保存/签名机制归入上述Demo生成路径，移除旧四Region/完整城市根与独立生成清单；不留另一B90发布根 |
+| `Source\Lockdown\Private\UI\LDUIRoot.cpp:368-371`；`Scripts\OpenStandalone.ps1:2-8`及旧OpenB90/OpenB91 URL入口 | 前端Host与正式启动指向L_Demo；删除`L_DevelopmentRegion?Profile=V05`、旧`?game=`世界跳转/兼容启动分支；无Profile启动前端仍合法 |
+| `Source\Lockdown\Private\Framework\LDGameMode.cpp:145-180,214-277`；`Region\LDMapDefinition.cpp:275-281`、`LDMapRegistry.cpp:14-61` | 唯一战局初始化、Anchor/Definition查询和Registry绑定使用新根；解除旧profile/standalone/城市数量门槛，不以旧目录填充缺失定义 |
+| `Config\DefaultEngine.ini:4-7`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236` | 前端默认入口可保留；仍指旧地图的Editor启动配置改接Demo根；新图WorldSettings绑定唯一核心`ALDGameMode`，不保存旧Preview/B91/B92模式作为默认类 |
+| `Source\Lockdown\Lockdown.Build.cs:8-22` | Stage唯一世界payload `Content\Lockdown\Data\Demo\world.json`及实际保留内容；同步生成`LDDemoWorldContract.h`，移除旧world载荷依赖，不将SourceData整包运行时分发 |
+| `Scripts\PackageWin64.ps1:7-19`；`Config\DefaultGame.ini:25-29` | 发布map清单只有前端与L_Demo所需入口，DataAsset经新根引用/明确Cook闭包纳入；收窄Generated的宽Cook规则，不让旧地图/DataAsset因残存引用或CookAlways混入 |
+| 旧LoadObject/LoadClass、Blueprint默认值、地图Actor/WorldSettings、测试地图与启动脚本 | 原生替换引用并重存；保留测试机制但改用唯一Demo夹具，C3完成后移除旧包及专用入口，不用空类、旧名包或永久redirector维持假兼容 |
+
+缺少新根、绑定不唯一、类型/摘要/反射值不符时，初始化/Bootstrap明确失败；
+不尝试旧L_DevelopmentRegion、DA_CivicRegion或DA_FullMap作为第二候选。
+C3先完成新根生成、真实引用替换与必要原生验证，再退旧包和生成/加载/校验入口；
+迁移中为替换引用存在的旧资产不构成可发布模式，终态不能保留双根。
+再次运行Generate不得把已删除旧包重新造回，最终Cook/Stage/包内注册表还须核对无旧根。
+这不改变共享技术标识保留原则，也不以工程命名为理由全库替换Bxx/Vxx或重写资产哈希。
+
+### 6.4 二进制和 Cook 的硬门槛
 
 本轮没有反序列化/编译任何 uasset/umap，**静态研究不能证明资产已无引用**。
 地图默认GameMode、Blueprint父类/GeneratedClass、USTRUCT/UENUM默认值、材质纹理、
@@ -905,7 +945,7 @@ IMC InputAction、DataAsset UPROPERTY 和字符串 LoadObject/LoadClass 都可�
 | --- | --- |
 | `Source\Lockdown\Lockdown.Build.cs:8-22` | 明确 runtime JSON清单；旧路径删除与新载荷 Stage 同步，不能把缺文件当自动剔除 |
 | `Config\DefaultGame.ini:25-29` | 当前 CookAlways 覆盖 Generated 资产根；这不等价于任意非资产 JSON 都被 Stage，也不能只靠显式map列表证明旧图不进包 |
-| `Scripts\PackageWin64.ps1:7-19`、`OpenStandalone.ps1:2-8` | Bootstrap、七张旧map列表和profile，替换为Frontend/必要Lobby入口与唯一Demo闭包 |
+| `Scripts\PackageWin64.ps1:7-19`、`OpenStandalone.ps1:2-8` | Bootstrap、七张旧map列表和profile，替换为Frontend菜单与L_Demo战局闭包；Lobby/Match/Results在该同一战局世界，不另留Lobby地图根 |
 | `ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:118-126,166-237,270-326,330-405` | 整体配置MD5影响共享材质/Input/UI；生成/Validate必须不再重建已删除旧地图/动作 |
 | `ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236,283-298` | 旧umap保存的默认类及NavAgent参数；不是只改全局DefaultGameMode就完成迁移 |
 
@@ -954,6 +994,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 攻击/Shop接近 | 中心距刚内/等号/刚外；本体中心阻走；部分路径/另一层/已失明句柄拒绝 | 真实命令、原生位移、UI点击不穿透及交易提交期重查 |
 | Shop无额外LOS | 合法区域/距离/生命/进行中成立时，观察/LOS不可见夹具不阻止交易；此查询不调用单位可见性门槛 | 不增烟雾/隐身玩法来造场景，使用查询隔离夹具；越界/非法地面仍拒绝，公开标记不扩大交互范围 |
 | 圈边界 | 脚点内/等号/外、胶囊擦圈、墙后/空中/错patch、保护无效 | 真实短弦穿越、滑墙折返、被截短位移、同刻死亡/离开/保护变化和水位 |
+| 证据与最终Fence顺序 | 有对应实际运动证据但尚无最终Fence时可处理命中；Effects/Deaths/世界/事务的晚因果工作完成后才能Sealing；Capture才等待最终Fence | 防止命中等待自身后续工作才能产生的Fence；晚因果位移不被首次Motion完成漏掉，缺实际运动证据不能伪造Miss |
 | 进攻意图解除保护 | 当前身份的无效目标/不足射程/没蓝仍先解除；旧局/旧生命/未授权包不解除新生命 | 失败回执与圈资格事件同刻一致，不能等成功攻击；死亡选卡不恢复身体/视野 |
 | Camp组生命周期 | 两Low成员单独死亡；幸存回位不复活死者；最后死亡才计时；ticket重放/旧局/半组失败拒绝 | 合法回位路、动态占位、基础普攻起步和高档风险价值 |
 | 仅受击/同营反击 | 未受攻击路过不先手；无效意图/Miss不触发；合法接触/控制唤起同营，死亡/Returning成员不发新追击；重复事实幂等 | 首次攻击前摇不得早于英雄首个合法作用，不能把通知当第二Damage路径；一名可见一名不可见时不共享隐藏坐标 |
@@ -966,6 +1007,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 提示例外 | 公共占领/击杀DTO字段白名单；隐藏单位坐标/构筑/动态营地状态不存在 | 空间音源、阴影、特效、选中轮廓与远处相机不泄漏 |
 | 同规则AI | 固定自身/公共/可见投影，扰动隐藏世界后策略输入不变；命令仍验证资格 | AI实际通过同一规则完成发育、购物、争圈、死亡与重新参与 |
 | 删除闭包 | 文本/生成/Stage清单无旧模式入口，保留符号仍可解析 | Asset Registry/Blueprint默认值/构建/Bootstrap/Cook/实际包加载 |
+| 唯一世界根 | 仅L_Demo/DA_DemoWorld作为战局根，Frontend为菜单；新根缺失明确失败，无Civic/Development回退 | C3引用替换/退旧后再次Generate不重造旧包，Cook/Stage和包内Registry无双根、兼容壳或旧默认类 |
 
 连续占领必须额外测试：一段实际运动首尾都在圈外但穿过短弦；
 同帧入圈后离圈；完成时刻恰好发生争夺/死亡；同刻回位不能发奖；
@@ -981,7 +1023,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- |
 | 对应Sync `--check` + 单一受影响 `Test*Import.py` | 数据变更先查确定性、来源/contract及拒绝输入；旧World JSON一致不证明新布局可达 |
 | `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | `Scripts\BootstrapAssets.ps1:1-14`；当前Scaffold入口不自动替代B90 Builder，也不创建缺失资产 |
-| `.\Scripts\BuildB90Map.ps1 -Validate` | `Scripts\BuildB90Map.ps1:1-16`；现有完整图的原生验证入口，不支持 `-Mode Validate`；迁移后指向唯一Demo |
+| `.\Scripts\BuildB90Map.ps1 -Validate` | `Scripts\BuildB90Map.ps1:1-16`；仅记录现有完整图原生检查，不支持 `-Mode Validate`；机制迁入统一Demo Bootstrap后删除旧专用入口，不保留独立根或兼容启动壳 |
 | `.\Scripts\RunNavigationCheck.ps1 -Region -RoundTripMs 100 -JitterMs 10` | `Scripts\RunNavigationCheck.ps1:1-32`；独立连接框架可复用，现有V05/无可见Host夹具不能证明Demo Host |
 | `.\Scripts\RunViewNetworkCheck.ps1` | `Scripts\RunViewNetworkCheck.ps1:1-35`；只支持其现有参数，旧ward/public sensor/小图场景须改；没有任意RTT参数 |
 | `.\Scripts\RunCombatNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10 -Rendered -RenderRole B` | `Scripts\RunCombatNetworkCheck.ps1:1-38`；复用真实连接传输框架，不自动覆盖新Camp/Shop/圈 |
