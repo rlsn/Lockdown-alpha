@@ -103,6 +103,7 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 CommitPendingOrder
 | 自身 | 核心 ReadAISelf、adapter RequestAISnapshot；ReadProgression、ReadEquipment、QueryAvailability | 可以读本人血蓝/资源/等级/技能/装备、控制、真实 readiness、候选和回执；不能取得可写 StateFor 或全账本。 |
 | 公共对局 | `FLDPublicMatchView` | Phase、OpenAtMs、CircleState、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、Result；占领者身份和进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
+| 可见营地回位提示 | 同一 `ObservedFrame/FLDObservedUnitView.Statuses` 中只读 `StatusDefinitionId=camp_returning` | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回位中”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
 | 可见装备与资源 | 上述观察帧的展示定义 | 装备只有两个展示 DefinitionId，不含内部 ItemInstance、IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level/Equipment 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
 | 静态世界与内容 | 世界公开地图/POI、公共目录 | Camp/Shop/Capture 固定位置、营地档位、地形和公开定义可知；不能把定义里的原始营地人数/刷新周期当作当前存活人数或剩余刷新时间。 |
 | 路径 | `QueryGround`、`QueryCompletePath`、`FindApproach(ObserverContext, Origin, UnitHandle或PublicPOI, RangeCm, Capsule)` | 使用自身真实位置和当前地图；完整路径，脚点 XY 中心距，厘米。预览不含隐藏动态身体定位；无路/地面非法/旧地图显式失败。 |
@@ -335,9 +336,11 @@ ExploreRevisitIntervalSec 是自己的探索节奏，不是从 CAMP.RespawnSec �
 未受攻击营地不主动进攻路过者，策略不能把“接近营地”当成已发生伤害或敌方仇恨。
 主动打野前将**可能的同组反击**作为公开营地规则纳入保守入场/止损，
 但不查询隐藏成员坐标、当前仇恨或把同组响应变成共享感知。
+Returning 只从同一授权观察的只读 `camp_returning` 状态提示识别，不访问营地运行表。
 当前目标进入 Returning 后仍可受伤/控制/被杀：
 若它仍合法可见、在本人当前攻击范围内，且止损/投入预算允许，则可完成合法攻击；
 否则取消追击并结束访问，不新建回营追逐订单。
+这只是 AI 的止损偏好，不给真人增加“不能追杀回位者”的世界限制。
 回位者不回头追击也不等于店旁/回位路线成为安全区，其他参赛者仍可能攻击。
 存活成员到家重置血蓝、临时状态、仇恨及技能 readiness 属于世界的营地规则；
 AI 只能消费获准表现，不能推断隐藏的到家时刻或借回位索要奖励/复活已死成员。
@@ -531,7 +534,7 @@ AI03 的动作覆盖可以用明确标注的源/Offer 夹具穷举稀有分支�
 | AI-A12 死亡/离局效果 | 正常死亡时有已释放独立效果，效果击杀合法目标；另在效果存续时正式离局 | 正常死亡继续原期限并正常发给仍在局死者奖励，可产生 Dead Offer；离局立刻移除身体/效果且离开不发奖；均不能打中同 ID 新生命。 |
 | AI-A13 发育/回防/恢复 | 开放前发育；公开独占临近回防预算；低血/零移速/保护/无回复；守圈时敌人出圈 | 无除零/假安全/全知锁定；不为一只怪拖延，不无期限等回满；圈内可动可打，必要离圈接受清零；失败可解释而非作弊保胜。 |
 | AI-A14 终局/新局/长帧 | 结果边界同时有在途攻击、奖励、选卡、Sell/Buy、复活和 AI 决策；延迟旧通知到下一局；长帧/长期运行 | Close 后新增玩法提交为零；不补跑历史决策；缓存/队列/每 AI 工作有界；仅新 Match 的上下文可继续，旧回包不唤醒策略。 |
-| AI-A15 营地反击/Returning | 先路过未受攻击营地，再攻击一只；遮挡同组成员/目标；让受伤成员回位并在途中控制或击杀，另让存活者到家 | 路过不自动挨打；同组反击不授予隐藏位置；Returning 可伤控杀但不回头追击，AI 不把它当无敌或恢复旧隐藏追踪。真实死亡正常恰一次奖励；存活到家按世界规则重置、无奖励/死者复活，隐藏重置不作为 AI 输入。 |
+| AI-A15 营地反击/Returning | 先路过未受攻击营地，再攻击一只；遮挡同组成员/目标；回位途中 Root/伤害/击杀；另让存活者到家并核对 Statuses | 路过不自动挨打，同组反击不授予隐藏位置。可见 Returning 只发布只读 camp_returning，无仇恨/期限/路径；Root 期间保留，退出或 Conceal 撤销。Returning 可伤控杀不回头追击，不是无敌或真人追杀限制。死亡正常恰一次奖励；存活到家重置不发奖/不复活死者，隐藏重置不作为 AI 输入。 |
 
 运行产物写忽略的 Artifacts。每条证据至少带本次 commit/内容摘要、真实连接拓扑、
 Match/Contender/BodyRef、授权 Frame/Map 修订、策略原因/公共目标、
