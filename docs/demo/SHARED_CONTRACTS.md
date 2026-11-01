@@ -350,7 +350,7 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 
 ## SC-08：内容定义与参数引用
 
-`CONTENT_AND_BALANCE.md` 是约定的领域交付文件名；正式接入后由它维护首版目录、
+[内容与数值报告](CONTENT_AND_BALANCE.md) 维护首版目录、
 战斗/经济/AI参数、公式、依据和审核状态。世界报告的唯一坐标/阻挡/连接表定义候选几何，
 并引用共同半径/视距等参数；不把坐标或参数复制成可独立修改的第二份表。
 模型和 SVG 是这一候选输入的证据，不是原生资产或已批准数值。
@@ -428,3 +428,4 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 | 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query/OnActionFinished、准入后Token、Prepare/ApplyBuildChange及CampReset；正文区分持久来源与独立已释放效果，不复用旧family-max |
 | 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
 | UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
+| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一候选目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；数值与精度仍供PR审查，不是已生成运行输入 |

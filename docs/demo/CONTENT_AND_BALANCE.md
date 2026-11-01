@@ -604,7 +604,7 @@ S00/S03购物前HP分别704.52/709.29；期间野怪一直按首击后共同反�
 | E02 | `Scripts\CatalogTools.py:8–31,34–116`，尤其 `read_json:13–17` | 可复用规范编码/重复ID/原生映射；reader拒显式NaN/Infinity常量，但普通数值先变float会丢词法精度，且1e309可先变inf，须改造。schema验证器也仅支持显式子集 |
 | E03 | `Public\Development\LDCharacterBuild.h:8–69,106–145`；`Private\Development\LDCharacterBuild.cpp:20–56,92–137,162–211` | 六维属性、15 级旧曲线、职业起手技能、点数/等级门槛及禁止降 rank 均需替换；旧 wire 的 62 ranks、6 actions、11 bindings、5-bit 属性不能直接塞入新模型 |
 | E04 | `Public\Inventory\LDInventoryTypes.h:8–73`；`Private\Combat\LDTacticalRequest.cpp:2–25`；`Private\Framework\LDPlayerController.cpp:563–580` | 保留物理实例、revision、来源重解析与回执；定义 ID 当前最多 63 UTF-8 bytes。坐标 wire 自设上限与 slot 位宽须跟世界/新协议一起修改 |
-| E05 | `Private\Combat\LDTacticalCatalog.cpp:16–61`；`Public\Combat\LDTacticalCatalog.h:8–26` | importer 不执行 `effects`，每技能只投影一个三级整数 RankKey，且把 magnitude 截成 int32；仅改 JSON/SHA 不会改变硬编码效果 |
+| E05 | `Private\Combat\LDTacticalCatalog.cpp:16–61`；`Public\Combat\LDTacticalCatalog.h:8–26` | importer 不解析 `effects`；RankKey 是 FString，Magnitudes 才是 int32 数组。每技能只接受一个 rank_scaling 键，并把其数值转成 int32；仅改 JSON/SHA 不会改变硬编码效果 |
 | E06 | `Private\Inventory\LDEquipmentCatalog.cpp:15–59`；`Private\Inventory\LDGearRules.cpp:4–78` | 当前装备按部位、六维预算和特定武器类型派生；`active_mana_cost` 没有通用投影。任意新装备字段都必须有真实消费者 |
 | E07 | `Public\Combat\LDTacticalRules.h:7–41`；`Private\Combat\LDTacticalRules.cpp:4–53`；`Private\Combat\LDCombatDirector.cpp:73–94,261–389` | 有物理/魔法伤害、状态矩阵、减伤后屏障和回复余数底座；现有护甲为点、MR 为比例，没有完整 AP/暴击/冷却属性模型。`Damage` 返回 Contact，不能直接当吸血所需 HP 损失 |
 | E08 | `Private\Combat\LDContentActions.cpp:34–113`；`LDContentRelease.cpp:22–150`；`LDV08Catalog.cpp:12–58` | 多数效果按技能名/operation 分支写死，部分先分配地表环境。应抽取所需伤害、几何、状态原语，不继承整套 Fire/Wet/环境玩法 |
