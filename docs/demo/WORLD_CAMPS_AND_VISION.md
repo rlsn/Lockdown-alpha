@@ -68,7 +68,9 @@
 | `CAPTURE.RadiusCm`、`CAPTURE.HoldSec` | 脚点是否进入闭圆盘和连续独占时长；脚点入圈不等于整胶囊入圈 |
 | `MATCH.DevelopmentSec`、`LIFE.RespawnSec`、`LIFE.ProtectionSec` | 发育、死亡和复活资格由核心控制；保护可以主动解除，不能当作固定额外回防延迟 |
 | `CAMP.Low/High.CountPerCamp`、`HP/Armor/Attack/RewardXP/RewardGold` | 世界只绑定内容定义及成员；血量和奖励不在营地管理器另存另一真相 |
-| `CAMP.Low/High.RespawnSec/LeashRadiusCm/LoseTargetGraceSec/ResetPolicy` | 清营计时、活动域与重置行为；源参数变化须重算回位、出生和争圈关系 |
+| `CAMP.Low/High.RespawnSec/LeashRadiusCm/LoseTargetGraceSec` | 清营计时、活动域与失目标等待；源参数变化须重算回位、出生和争圈关系 |
+| `CAMP.ResetArrivalRadiusCm` | 成员真实脚点至其固定MemberHome的归位区域；不加减胶囊半径，不强snap被占中心 |
+| `CAMP.AggroTrigger=ConfirmedCombatHit`、`CAMP.GroupRetaliation=true`、`CAMP.ResetPolicy` | 用户已定的仅受击触发/同营共同反击及回营重置规则，不是可切换模式；不保留自动获取半径或关闭值 |
 
 正式距离口径为厘米、单层脚点 XY 中心距；地面支持、身体碰撞和路径是另外的检查。
 `FindApproach` 的范围由服务器当前合法属性／地点参数提供，不信客户端自报 Range 或 Capsule。
@@ -114,7 +116,7 @@
 Low成员位置已收敛为整数厘米，组内实际中心距分别为149.265、149.265、150.426cm，
 不是声称取整后仍“精确150cm”。当前角色/野怪半径候选40cm，三组均不重叠；
 也为内容候选180cm余波提供同组两个合法受害生命的正例。
-营地预留500cm半径的静态清空地面，但这不是Aggro或Leash的新上限，更不是安全区。
+营地预留500cm半径的静态清空地面，但这不是自动警戒范围或Leash的新上限，更不是安全区。
 高档增加风险/收益来自内容和战斗，不靠额外封锁道路或隐藏地点。
 开局同样允许多人竞争同一 Low；本图不为每名玩家分配专属营地。
 
@@ -285,8 +287,8 @@ Low组内149.265..150.426cm间距提供两名受害者均可被合法余波覆�
 复用Combat同一Bodies，每名受害者仍有独立生命、命中和DeathKey；
 次击目标过滤、逐目标LOS、伤害与不递归由Combat/内容确定。
 不能让UI/AI获得次击候选表、隐藏受害者位置或全局受伤回执。
-初始Aggro与受击反击分开，避免成长射程超过初始Aggro后怪物永久挨打不响应；
-反击仍不得读取视线外的实时目标。
+未受攻击的野怪不因玩家走近而获取目标；成长射程内的合法攻击事实按同一受击入口触发反击，
+不再经过自动获取半径门槛。反击仍不得读取视线外的实时目标。
 
 ### 2.8 本轮机械依据与剩余误差
 
@@ -321,7 +323,7 @@ miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模
 | `BodyLifeKey` / `CombatVictimLifeKey` | 引用核心共同类型；当前 OwnerState 的 `uint32 Life` 与 Combat `FGuid Identity` 必须显式映射，不强转，也不另建营地生命计数 |
 | `WorldRevision` | `MapId + LayoutRevision + GeometryRevision`；不替代 Match、Life、Order、Epoch、ViewRevision 或协议 schema |
 | `GroundedFootSample` | 从当前权威身体和原生 walkable floor 取得的脚点、支持面/连续地面 patch、grounded 事实；不是把任意点击投影到地面后的“假落地” |
-| `ObserverContext` | 服务器绑定的真人拥有连接或对应参赛 AI；无身体／新生命／换局须更新授权上下文，AI 不伪造客户端连接 |
+| `ObserverContext` | 服务器绑定的真人拥有连接、对应参赛AI，或仅供营地反击校验的CampMember上下文；无身体／新生命／换局须更新。营地成员不创建参赛席位/PlayerState/钱包或另一网络视图，不能给玩家或同营共享视野 |
 | `ObservedHandle` | 观察者局部的 opaque token 与观察 epoch；服务器映射到目标共同生命，客户端不能用 Actor 指针、公开参赛 ID 或 CampId 代替它 |
 | `ObservedFrame` | 当前授权字段及 generation/revision；快照不是永久命令授权，合法的新帧不应使仍可见的旧句柄每帧无故失效 |
 | `AuthorityEffectContext` | 仅 Combat 已接受效果的 ID、实际归属、来源生命、定义/权限与求值时刻；不能由 UI 或 AI 请求获得此权限 |
@@ -368,6 +370,18 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 运动/位移生产者封装身份、序号、实际时间并发布水位；不得从代理插值或最终帧位置补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
 
+`QueryGround` 的第四参 **`SurfaceHint: FName` 必填**，表示该WorldRevision中已注册的稳定SurfaceId，
+不是Actor名称、组件指针或“默认地面”。没有默认值或三参重载；
+`NAME_None`/未知ID返回 `InvalidSurface`，实际支持面不匹配返回 `WrongSurface`。
+地面点击由当前公开地图的地面trace取得注册SurfaceId随意图提交；
+服务器仍重新验证地面/完整capsule，客户端hint只是期望面，不是接地或权限证明。
+当前身体调用由权威CMC.CurrentFloor的walkable支持面经Registry映射取得；
+无合法floor应报告NotGrounded/圈几何不具资格，不以空hint向下投影伪装已落地。
+出生/营地/Shop/圈的规划点使用该静态地点已注册SurfaceId。
+各调用者必须显式供给来源，不能以零值/最近另一层/Guild填平接口差异。
+合法编码下的InvalidSurface/WrongSurface/NotGrounded是语义结果，不伪装为Malformed或被客户端吞掉；
+当前身份的进攻意图已通过核心前置时，后续地面失败不撤销已发生的解除保护。
+
 `TraceSight` 里的观察范围与 Combat 的攻击/技能范围不是同一个参数。
 单位新锁定必须可见；效果接受、释放、命中哪些阶段重查视线/目标生命，由战斗与内容定义逐类明确。
 空间层不擅自令所有范围伤害只能命中可见单位，也不据此允许 AI 盲读隐藏身体。
@@ -379,10 +393,10 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 用户已确认失视野即取消锁定并停止该追击订单，不自动转成前往最后已知位置的地面订单，
 也不保留LastSeen单位静态标记。AI只能依据新的合法观察、静态地点或公共圈状态另作决策。
 
-商店的**待审建议**是不附加“个人当前视野／LDVision 直线”资格：
-固定商店可公开，Spec 明确要求存活、进行中和交互距离。
+用户已确认商店**不额外检查视线**：满足合法区域与真实交互距离即可，不附加个人当前视野或LDVision直线资格。
+固定商店可公开，存活、进行中、真实位置、合法接近区及交易版本检查保持不变。
 地图须保证交互盘除本体外是同一合法接近区；隔墙或跨楼层口袋是生成/几何错误，
-不是扩大半径或沿用路径票据的理由。若产品要求额外 LOS，先批准并统一接入该查询，不能由 Vendor 自行发明。
+不是扩大半径、自动搬移锚点或沿用路径票据的理由；Vendor不调用单位观察解析或额外LOS来添加购物条件。
 装备 1/2 主动只走 Combat，不依赖商店查询。
 
 ### 3.3 错误、回执与撤销
@@ -390,7 +404,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | 内部结果 | 调用方处理 |
 | --- | --- |
 | `DataNotReady / StaleContext / StaleWorld / UnknownSite` | 不接受命令、不变更资源；地图初始化错误阻止开局，记录具体 ID/修订 |
-| `InvalidPoint / InvalidGround / NotGrounded / WrongSurface / Blocked` | 不把 ZeroVector、Guild、旧目标或最近另一楼层当成功 |
+| `InvalidPoint / InvalidSurface / InvalidGround / NotGrounded / WrongSurface / Blocked` | 不把 ZeroVector、空SurfaceHint、Guild、旧目标或最近另一楼层当成功 |
 | `NoCompletePath / OutsideRange / InvalidApproachRegion` | 区分“无合法路”和“未在范围”；导航停止并明确反馈，交易不部分提交 |
 | `TargetUnavailable` | 对外合并隐藏、过期、已销毁/换生命等原因，避免探测隐藏存在性；服务端诊断保留详细原因 |
 | `CapacityExceeded / InvalidPayload` | 解码/生成失败显式诊断；关闭未授权呈现，不能静默漏掉可见单位后继续声称完整 |
@@ -460,7 +474,12 @@ Combat边界pose和Capture均消费后才 `AckConsumed` 释放暂存数据。
 
 已知真实“圈外/不grounded”是可报告的几何不具资格状态，不等于数据查询失败；
 不能把空中身体投影进圈，也不能为正常离地丢掉资格变更。
+同XY重新取得合法floor也必须发布占用/几何资格变化，不能只监听位置位移；
+错误目标SurfaceHint只拒绝该目标请求，不代表本人真实离圈或失去支持面。
 真正的地面/修订/身体查询失败不能封水位，必须明确故障而非伪造Outside成功。
+这里的阻塞指必要权威证据缺失、无法判断真实边界；已确定的InvalidSurface请求、
+OutsideRange/NoCompletePath/NotAtHome或旧请求拒绝只结束该业务，不能借客户端错误参数冻结整局水位。
+正常不具资格/尚未到家也要完成已处理边界，只有证据缺失故障才阻止对应流封闭并明确报错。
 同世界Lobby/Results重置时，本域必须退役旧流/ticket/观察绑定并参加新Match初始化，
 不能只重置UI或局部生成计数。
 
@@ -519,36 +538,94 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 `Source\Lockdown\Private\Economy\LDEconomyLedger.cpp:36-84`；
 不能把现有有限 B76 来源预算当作无限局刷新的去重机制。
 
-### 4.3 行为状态与待审首版建议
+### 4.3 用户已确认的反击、回位与重置规则
 
-以下策略是首版建议，需与内容报告 `ResetPolicy`、仇恨/追击参数一起批准；
-不是把居民日程、旧免疫物种或旧有限生命预算当现成方案。
+首版固定为**仅受攻击后反击、同营共同反击但不共享隐藏位置、Returning可正常受伤/控制且不回头追击、
+成功回营重置存活成员满已定义血蓝/清临时效果与仇恨/技能就绪**。
+这些行为不再是待选方案；具体内容数值与空间尺寸仍须PR审查。
+不保留居民日程、自动近距警戒、回位无敌或旧有限生命预算作为运行模式。
 
 | 状态/事件 | 拟实施行为 | 不能出现的结果 |
 | --- | --- | --- |
-| 组生成 → Idle | 在全部成员锚点完成 ground/nav/capsule 预约后，一次发布整组；每名成员独立身体生命和 Combat 状态 | 两只 Low 叠在同一点、半组可战斗/可领奖后另一只生成失败 |
-| 初始获取 | 建议使用内容定义的局部 Aggro 范围、合法视线和有效参赛者过滤；组内分享警戒，不分享隐藏目标坐标 | 每帧把全 Controller 表直接交给决策策略，按攻击者钱包或隐藏构筑选目标 |
-| 受击反击 | 致伤事实触发仇恨建立，但目标位置仍须当前获准可见；受击触发与初始 Aggro 半径分开 | 合法远程打击位于初始 Aggro 外时，怪物永久挨打而不进入反击/返回逻辑 |
+| 组生成 → IdleAwaitAttack | 全部成员完成ground/nav/capsule预约后一次发布整组，每名成员独立生命/Combat状态；未受攻击不先手 | 两只Low叠点、半组可战斗/可领奖、仅因玩家走近/路过就获取目标 |
+| 已确认受击 → 同营反击评估 | Combat已提交敌对接触事实通知同一Camp；所有仍存活且不在Returning的成员各自验证合法目标/视线/来源生命后发意图 | 用无效攻击意图/Miss/TargetUnavailable触发；共享隐藏坐标/Actor；把无主伤害指给最近玩家 |
+| 共同反击 | 只共享攻击事件及来源身份/因果，每名成员从自身合法观察取得目标；有控制/无合法目标者不能绕过规则动作 | 同营共同反击变成共享视野、全地图警戒或邻营连锁；旧源重生身体自动成为报复目标 |
 | 接近/攻击 | 同一导航/CharacterMovement 路径和 Combat 动作执行器；接近到对应中心距，检查状态/冷却/视线 | 另写位置积分或直接扣 HP，忽略 partial path、MoveTo 失败或攻击前摇 |
 | 失去目标/失去视野 | 即刻取消锁定和原追击订单；`LoseTargetGraceSec` 只决定无目标等待到返回的阶段，不继续追踪 | grace期间继续读隐藏Pawn、自动续走LastSeen坐标或恢复过期句柄 |
 | 超 Leash / grace 到期 → Returning | Leash 统一以 Camp 锚点的脚点 XY 距离判定；合法路径回各 MemberHome，取消未来追击/攻击 | 用整个 Leash 圆当无障碍直线区；被反复攻击就无限重置 leash、拖离营地 |
-| Returning | 采用内容报告的待审建议：可被合法伤害/控制/杀死，不新开目标/不攻击，受击不取消返回；受控制时尊重同一移动限制 | 隐式新增回位无敌，或把回位途中死亡丢成普通 reset |
-| 已实际返回 → Reset | 同刻先处理已到期命中/死亡，仍存活才恢复内容定义资源/临时状态、清仇恨/旧目标；能力时钟按ResetPolicy | 用回血抢先覆盖同刻死亡、远处直接回满血、回位增Life、伪造死亡/奖励、留下LastOwner |
+| Returning | 正常可受伤/控制/杀死，不新开目标/不攻击/不回头追击；受击不取消返回，受控制时尊重同一移动限制 | 回位无敌、受击重开追逐、把回位途中死亡丢成普通reset |
+| 成功回营 → Reset | 同刻先见已到期命中/死亡；只对真实合法到家且仍存活的成员，满已定义HP/MP、清临时效果/仇恨与目标、该怪技能就绪 | 抢先回血覆盖死亡、远处重置、复活死组员、增加Life、清Hit/Death拒重、发奖励或刷新玩家CD |
 | 成员真实死亡 | Combat 结束一次生命，奖励域处理一次死亡事实；营地只标该成员死亡 | 一名成员死亡就重刷它、把两只 Low 合并成一个奖励源 |
 | 最后一名死亡 → WaitingRespawn | 固化 ClearAt；按该档 `RespawnSec` 生成一次组刷新 ticket | 从上次生成时间计算，或每个死亡回调重复创建 ticket |
 | ticket 到期 | 重查 Match/终局闸、CampGeneration 和全组落点；成功后全组绑定新共同生命 | 旧弹道命中新生体，旧 death/ticket 重放，生成失败留下半组或静默跳过 |
 | 局结束/重开 | 先关闭写闸再取消目标、行为/ticket与观察；新局重新初始化成员索引 | 清理回调发奖、上一局 ClearAt 触发新局刷新 |
 
 Low 部分清理后，已死亡成员保持死亡，直到该组真正清空再整组刷新；
-剩余成员回位只重置幸存者，不复活已死成员。
+回位仅重置已成功到家的存活成员，未到家的成员继续自己的Returning，已死亡成员不复活。
+没有MP资源定义的怪物保持NotApplicable，不为“满蓝”补一份临时Mana默认值。
 回位无路／无进展必须停止不合法动作并报 `NoCompletePath`/诊断，
 按有界重试策略处理；不得通过穿墙、瞬移回家或静默永久悬挂伪装成功。
 刷新落点被动态占用时保留同一 ticket，在原营地局部合法落点处理，不随机换营地。
 无法完整生成的状态不公开成“已刷新”。
 
-尚需集中审查的行为是：初始主动仇恨、组内警戒/目标选择、
-Returning可受伤/控制的候选条款、到家资源/状态/冷却重置条款、被占刷新点的有界等待反馈。
-本报告的建议不批准这些产品字段；数值报告不能用已有 SourceData 值替代批准。
+攻击事实重复或失视野后的隐藏伤害不能无限重启LoseTargetGrace；没有新合法观察时，只等待到期后回位，
+不盲追最后位置。Returning收到新受击/同营通知也不转回追逐，回营重置后不重放旧通知重开仇恨。
+旧自动获取扫描、`CAMP.Low/High.AggroRadiusCm`及其别名/开关从有效实现与schema删除，
+不能设为0后保留另一模式；只保留已确认规则和真实使用的Leash/等待/刷新/归位参数。
+SpawnBlocked、动态占位、回位失败的原子性/反馈/恢复属于工程合同和验证风险，
+不是仅因存在错误码就待定的玩法。若解决方式要重抽出生点、改变分布或增加玩家能力，必须另报。
+
+### 4.4 与Combat共用的受击事实与原子回营重置
+
+下列为与战斗域收敛的**唯一拟建内部接口**，不是当前已存在的API，更不是客户端RPC：
+
+| 交接 | 正式契约 |
+| --- | --- |
+| 受击事实 | `FLDCombatHostileContact` 在内部ApplyHit成功提交后生成：`HitKey, VictimBody, ReleasedSourceRef, SourceBodyAtRelease, CreditOwner（可空）, EventStamp, 已提交敌对接触/控制结果` |
+| 世界消费 | `ALDWorldDirector::OnCombatHostileContact(const FLDCombatHostileContact&, Permit)` 幂等消费，只改变合法反击意图，不伤害/发奖 |
+| 重置准备 | `Combat::PrepareCampReset(const FLDCampResetInput&, const FLDGameplayWritePermit&) -> FLDCampResetPrepareResult` |
+| 同次安装 | `Combat::ApplyCampReset(FLDPreparedCampReset&&, Permit)` 与世界成员状态安装同次提交；可失败检查在Prepare，安装无正常失败路径 |
+
+触发必须是内容认可并已经成功作用于该野怪的敌对接触/控制结果，不把玩家解除保护用的
+`AggressiveIntent`、未命中、不可达或资源不足请求当成怪物受击。
+也不以“HP必须下降”为唯一判断替代Combat对护盾吸收/控制等合法敌对接触的判定。
+击杀一名成员的攻击仍可通知其存活同伴；死亡/PendingDeath成员不能发反击动作。
+World先按VictimBody验证本营成员与代次，再给同营投递最小攻击身份/因果通知，
+不把完整ReleasedSourceRef中的私有来源、攻击者位置或Actor传给策略。
+每个成员复用同一授权服务/TraceSight与观察上限独立重查；营地成员的观察不向真人/对手AI共享。
+目标只能来自已实际攻击本营地且当前合法可见/有效的来源，不能从全Controller表补一个近敌。
+重复事实幂等；早于该成员已完成reset/已消费水位的旧通知不能重开仇恨。
+来源新生命不能替换事实中的旧来源生命；真正较晚发生的新合法接触则按其新HitKey/实际时刻处理，
+不能只因独立效果释放较早就误丢掉后续合法命中。
+反击进入现有Combat动作链与前摇，不能回填到触发命中之前的Actions阶段，也不能在通知里直接追加第二套Hit。
+
+`FLDCampResetInput` 由世界提供 `CampId/MemberId`、当前 `FLDCombatBodyRef`、
+Returning与真实 `HomeProof`、当前ReturnOrder、World/Member/Resource/CombatState修订及 `ReturnEpoch:uint64`。
+这里MemberId是本营稳定成员序号，不是观察句柄或新的生命编号。
+`HomeProof` 必须来自实际回位订单与当前权威脚点/支持面/完整capsule，
+在同一WorldRevision下证明脚点至固定MemberHome中心距不超过 `CAMP.ResetArrivalRadiusCm`。
+该参数当前候选100cm：按原八个home和40cm外扩静态模型，整个100cm脚点归位区域均无静态阻挡，
+最小额外余量401.769409cm；这不是原生或多人动态围堵已经通过。
+不能让导航的agent-overlap自动再加半径而停在范围外，也不强snap被占中心、穿人或漂移MemberHome。
+两个Low的归位区域可以重叠，实际实体仍须合法动态站位；近家不等于无条件通过HomeProof。
+
+重置键固定为 `ResetKey={LedgerMatch, 完整FLDVictimKey, ReturnEpoch}`。
+ReturnEpoch只在进入新的Returning周期时递增，路径重算/普通受击不重启它；
+受击只更新相应Resource/CombatState修订并使过期prepared结果失效。
+Prepare先查已完成键：已执行只读重放原结果，绝不再次Apply；
+新遭遇之后的新Returning用新epoch，晚到旧key不能在新伤害后补满HP/MP或刷新技能。
+`RespawnsAndWorld`按真实子时刻、在同刻Effects/DeathsAndRewards之后检查HP>0、非PendingDeath、
+当前生命/BodyIdentity/HomeProof/所有修订/写许可，再联合提交Combat和世界状态。
+World不得直接写Combat资源或先清仇恨再让Combat失败。
+Prepared结果先移除应清临时状态并投影重置后的最终资源上限，再将HP/MP恢复到该最终Max；
+不能用清除前的临时增益上限造成超上限，也不能因上限回升而只补到旧Max。
+
+成功只恢复该存活CampMember已定义资源、清其临时受体效果/仇恨和适用未提交动作、
+让该怪物技能来源重新就绪；清除的Root/盾等旧回调不得复生，也不能按状态种类误删后来新施加的效果。
+不改变Entity/Body/Life，不清Hit/Death拒重，不复活死者，不发奖励；
+不提供玩家调用入口，不改变参赛者的IssuedCooldownId或死亡/换装冷却规则。
+外部已成功释放的独立效果不因野怪回营而被全局抹除，之后新合法接触仍在同一Life正常验证；
+它不同于被重置清除的旧临时效果/回调。
 
 ## 5. 视野、字段、提示与 Listen Host
 
@@ -637,6 +714,14 @@ DefinitionId用匹配的公开catalog解析名称、图标和静态说明，未�
 必需数据暂不可用是查询/协议错误，不是合法NotApplicable。
 HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性。
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
+
+可见Returning统一使用同一 `Statuses` 中拟注册的公共显示定义
+`StatusDefinitionId=camp_returning`（“回位中”）。
+它仅由发布端在当前获准可见的CampMember确处于Returning时派生，
+无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
+被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。
+该cue不增加无敌、不可攻击或玩家追击限制；AI可据它按自身当前视野/射程/投入预算做止损，
+但不能读取Camp运行表或把自己的策略限制写成玩家规则。
 
 Vision在当前授权的同一发布阶段才调用Inventory内部
 `ProjectObservedEquipment(ContenderId) -> FLDObservedEquipmentView`，
@@ -761,7 +846,7 @@ Builder 位于 `Source\LockdownEditor\Private\ScaffoldBootstrap`。
 | --- | --- | --- |
 | 旧区域/服务地址 | `Public\Region\LDRegionDefinition.h`、`Private\Region\LDRegionDefinition.cpp`、`LDRegion::*`、旧RegionAnchor | `Objectives\LDObjectiveDirector.cpp:14,71-75,224-227`、`Navigation\LDNavigationComponent.cpp:15,77,168-173`、`Inventory\LDVendorDirector.cpp:13,19-33`、`UI\LDMinimap.cpp:25-28,46-78`、`Framework\LDGameMode.cpp:187,227,275,418` |
 | 居民/哨卫/WatchControl | `Region\LDRegionDirector.h/.cpp`；`LDCharacter.h:35-44` 与 `.cpp:98-123` 的 `ALDResident`，而非整个Character | Combat/Sentinel特判、GameMode居民生成、Vision分类、角色Tick回调；`Private\Combat\LDCombatDirector.cpp:106-107,159-161,303,349,375` |
-| 旧营地预算及Heart | `CampIds[3][12]`、`ULDWorldCatalog`、固定Kind/Immune、discovery/PvP上限、TowerSight、`Private\World\LDWorldLeases.cpp`、`LDWorldClaims.cpp` 旧授权规则 | Combat、Objectives、Inventory、Production与Vision仍调用 WorldDirector；`LDWorldClock.cpp` 调用的通用到期函数先归置，不能直接留下未定义符号 |
+| 旧营地预算及Heart | `CampIds[3][12]`、`ULDWorldCatalog`、固定Kind/Immune、自动近距获取扫描及对应半径/开关、discovery/PvP上限、TowerSight、`Private\World\LDWorldLeases.cpp`、`LDWorldClaims.cpp` 旧授权规则 | Combat、Objectives、Inventory、Production与Vision仍调用 WorldDirector；反击改接唯一HostileContact事实，旧自动获取字段从有效schema删除而非置0；`LDWorldClock.cpp`通用到期函数先归置 |
 | 独立B90模式/第二surface | `Region\LDB90Preview.h/.cpp`、`LDMapSurfaceSubsystem.h/.cpp` 的preview wet/frozen切片 | Registry/CMC、B90 probes与旧脚本仍依赖；保留所需几何测试后删模式，不保留F9/F10旧玩法入口 |
 | B91第二观测与室内/门 | `Public\World\LDEnvironmentDirector.h` 中B91 GameMode/Controller/HUD和旧DTO/RPC；`Private\World\LDEnvironmentDirector.cpp`、`LDB91Controller.cpp`、`LDB91ObjectsClient.cpp`、`LDB91SurfaceClient.cpp`、`LDB91SourceControls.cpp`、`LDB91SourceHUD.cpp` | 先将Ray/当前授权/稀疏坐标接唯一Vision；Ground、Movement、Navigation中的Cast及B92继承类必须替换；不能只删cpp留UHT父类 |
 | 可搬运/森林/工具/恢复 | `LDWorldObjects`、`LDPortableTools`、`LDB91Forest`；Private World下 `LDWorldTools/Traversal/Forestry/Ignition/Grass.cpp`、`LDSaplings.cpp`、`LDWorldCheckpoint.cpp`、`LDCheckpointGeometry.cpp`、`LDB91Checkpoint.h/.cpp` | `LDWorldObjects.cpp:144-166,361-389` 依赖全套Objects/Tools/Traversal/Forest/人口服务；Combat命中/ForceDrop、Movement cargo与client代理先摘除 |
@@ -816,7 +901,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | W1 世界数据/Builder负责人 | 审查本报告单一布局、内容参数键与几何分类 | closed schema、数量/ID/成员/范围拒绝、payload/contract一致，唯一地图/Anchor/支持面 |
 | W2 导航/操作负责人 + 世界负责人 | W1、实际Capsule/NavAgent统一 | QueryGround/完整路径/Approach；十点及全部成员/商店/圈真实可达，Stop和旧life拒绝，无第二运动系统 |
 | W3 生命周期负责人 + 世界负责人 | W1/W2、核心共同BodyLifeKey | 一次均匀选点、局部预约/原子出生、同点并发、blocked反馈，旧请求不重抽/重复出生 |
-| W4 营地负责人 + Combat/奖励负责人 | W1/W2、已批准两档内容与ResetPolicy、共同DeathKey | 单体动作复用、可检查phase、回位/部分死亡/清营/组刷新与一次奖励闭环 |
+| W4 营地负责人 + Combat/奖励负责人 | W1/W2、已确认反击/重置规则、两档有效内容/数值、共同HostileContact/DeathKey/ResetKey | 仅真实受击触发、同营独立观察、Returning正常受伤控制、幂等Prepare/Apply回营重置；无新生命/重复奖励 |
 | W5 Vision/表现负责人 | W1、字段权限审查、身体/效果同时量上限 | 一个稀疏codec和接受游标，逐观察者撤销、stale、Host原生/代理清理、小地图覆盖一致 |
 | W6 操作/位移 + 生命周期负责人 | W2、SC-03实际时间/水位契约 | 真实运动中间圈事件、资格事件、同刻完成竞争；不以末帧快照或回拨时间判胜 |
 | W7 AI负责人 | W2/W4/W5、成长与Shop同一命令入口 | 只用自身/授权/公共投影完成打野、成长、购物、战斗、复活和争圈；不继承居民日程 |
@@ -834,13 +919,18 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- | --- |
 | 数量/目录 | 1圈、5组且恰两档、1店、10唯一锚点、成员数引用合法；重复/未知ID、NaN、错单位/层拒绝 | 生成地图实际Actor/资产无重复或缺失 |
 | 可走/视线 | 障碍分类、地面/路径/LOS独立；几何模型路径不穿外扩障碍 | Recast agent与真实capsule一致，墙角/地板接缝、实际行走和视效可辨 |
+| SurfaceHint | 第四参必填注册FName；None/未知InvalidSurface，支持面不符WrongSurface；无三参/空值兜底 | 点击来源与服务器重查、当前CMC floor/POI供给，同一面绑定与实际接地不混用 |
 | 十点公平 | 抽样仅使用同十点无偏有放回；确定性RNG夹具证明不会移除点或读危险度；分布统计只作诊断 | 服务器开局/每次复活和真实并发接线确实走同函数 |
 | 同点重叠 | 六人同时抽同点、重复请求、动态占用、全局部落点不可用；保留选中ID且不部分成功 | native ground/nav/capsule/预约、同帧并发与拥挤恢复 |
 | 原子复活 | Respawned同时携Alive+保护；位置先到的新生命仍不具资格 | 不出现未保护Alive中间态，Finalize不在生命commit后正常失败 |
 | 攻击/Shop接近 | 中心距刚内/等号/刚外；本体中心阻走；部分路径/另一层/已失明句柄拒绝 | 真实命令、原生位移、UI点击不穿透及交易提交期重查 |
+| Shop无额外LOS | 合法区域/距离/生命/进行中成立时，观察/LOS不可见夹具不阻止交易；此查询不调用单位可见性门槛 | 不增烟雾/隐身玩法来造场景，使用查询隔离夹具；越界/非法地面仍拒绝，公开标记不扩大交互范围 |
 | 圈边界 | 脚点内/等号/外、胶囊擦圈、墙后/空中/错patch、保护无效 | 真实短弦穿越、滑墙折返、被截短位移、同刻死亡/离开/保护变化和水位 |
 | 进攻意图解除保护 | 当前身份的无效目标/不足射程/没蓝仍先解除；旧局/旧生命/未授权包不解除新生命 | 失败回执与圈资格事件同刻一致，不能等成功攻击；死亡选卡不恢复身体/视野 |
 | Camp组生命周期 | 两Low成员单独死亡；幸存回位不复活死者；最后死亡才计时；ticket重放/旧局/半组失败拒绝 | 合法回位路、动态占位、基础普攻起步和高档风险价值 |
+| 仅受击/同营反击 | 未受攻击路过不先手；无效意图/Miss不触发；合法接触/控制唤起同营，死亡/Returning成员不发新追击；重复事实幂等 | 首次攻击前摇不得早于英雄首个合法作用，不能把通知当第二Damage路径；一名可见一名不可见时不共享隐藏坐标 |
+| 成功回营重置 | 真实HomeProof/当前归位范围、HP>0非PendingDeath；满定义血蓝/清临时仇恨/该怪技能就绪，不改Life/Hit/Death水位、不奖/复活死者 | 控制下回位、到家同刻先死亡；旧Root/盾回调失效，旧ResetKey在新伤害后不重复Apply，玩家CD债务不受影响 |
+| Returning展示 | 仅当前合法可见成员有camp_returning；无Home/到期/仇恨/隐藏phase，失明删除 | cue不授无敌或禁止玩家追杀；AI只消费公开当前状态并按自身预算决策 |
 | 奖励 | 无主致死不继承LastOwner、来源先死后合法DoT、重复回调/提交、旧生命命中、零奖励终态；既成DeathFact冻结归属资格 | XP/金币联合结果、死亡后离局与延后结算、settlement-only不恢复身体/视野、交易/终局竞争 |
 | 视图/句柄 | full/conceal乱序、丢包/stale、observer/target换life、epoch、错误schema/枚举/计数/重复handle | Host与两客户端可访问记录/画面均不泄漏、无原生/代理双显 |
 | 可见对手字段 | 名称/等级/P2血蓝/状态/两槽定义完整；同款两件合法；NPC NotApplicable；无实例/私有版本/技能/CD/最终属性/金币 | 交易后可见装备更新、失明立即停更/清目标停追击；死亡自由静态平移无活体来源或隐藏跟随 |
@@ -887,13 +977,15 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- | --- |
 | 关卡/PVE/空间体验研究 `world-level-pve-expert` | 提出单层外环/五入口、十点、三低两高、中央圈与唯一商店；给出障碍和成员布局基础 | 空间提案，不批准战斗数值，不证明原生可达或可玩平衡 |
 | Unreal世界/导航/观测研究 `world-unreal-engine-expert` | 追踪真实Map/Builder/Ground/Nav/Combat/Camp/View与生成依赖，收敛单一世界/稀疏观测及实际删除顺序 | 静态源证据与旧生成一致性；未反序列化资产或运行引擎，不宣称二进制删除闭包已证明 |
-| 独立关卡/网络可见性QA `world-network-qa-expert` | **可集成准备文档；未发现阻塞稿件的高置信错误。** 独立重建几何算法，核对整合稿、两份研究相关章节、模型/SVG和高风险源码接点；用户定案后的字段/失明/死亡-离局/时序契约亦完成定点审查 | 只批准文档在该研究/模型范围内可供实施审查；不是原生验收、数值批准或全库逐行审计 |
+| 独立关卡/网络可见性QA `world-network-qa-expert` | **可集成准备文档；未发现阻塞稿件的高置信错误。** 独立重建几何算法，核对整合稿、两份研究相关章节、模型/SVG和高风险源码接点；用户定案后的字段/失明/死亡-离局/时序、营地反击/重置、Shop、SurfaceHint和Returning cue亦完成定点审查 | 只批准文档在该研究/模型范围内可供实施审查；不是原生验收、数值批准或全库逐行审计 |
 
 独立QA确认全图构造上界约9224.660907cm，70候选的模型圈边距离约
 3775.610821..3976.064482cm，欧氏下界3700cm及4.263441s理想返场下界的口径正确。
 它另以独立内存脚本重算75项锚点查询，报告打印的60个距离均符合三位小数舍入，
 最大差约0.000463cm；核对表/JSON/SVG一致，并在保守固定成员占位排除下核验十点到五个近战接近点的50条路线。
 这不同于只重跑作者脚本后声称独立验证。
+对八个既有MemberHome的100cm归位区域，独立QA另确认最小额外静态余量约401.769409288cm；
+此项仅复用未改变的几何输入做圆区净空检查，没有把动态占位、联合安装或原生回位记成通过。
 
 | 验证层 | 本轮状态 |
 | --- | --- |
@@ -902,7 +994,8 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 当前旧数据一致性 | 工程研究执行 `SyncV07WorldData.py --check`、`SyncV09Data.py --check`、`SyncB91Data.py --check` 通过；只证明旧输入/输出一致，绝不是Demo新生成链已完成 |
 | 未实现 | 本文拟建查询/DTO接线、唯一Demo输入/生成资产、完整营地/对手AI与相关新场景；本轮没有写入这些实现 |
 | 未运行 | UE启动、Editor/Game构建、Bootstrap、原生NavMesh、真实Listen Host/两个拥有客户端、AI/人类完整对局、Reference Viewer/Asset Registry、Cook/Stage/包加载 |
-| 待PR审查 | 布局/高度/显示分辨率、内容候选数值、仇恨/警戒/ResetPolicy、受阻落地/刷新反馈、商店不额外要求LOS的建议；已确认的可见字段、失明停追击、死亡镜头和独立效果规则不再作为待选方案 |
+| 已确认、待实现 | 仅受击后同营反击且不共享隐藏位置、Returning正常伤害/控制不重新追击、成功回营满定义资源/清临时仇恨/技能就绪且无新生命/奖励、Shop无额外LOS；可见字段/失明停追击/死亡镜头/独立效果规则亦不再待选 |
+| 待PR审查 | 布局/高度/显示分辨率、内容候选数值及具体工程实现方案；SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
 
 仍有效的风险必须随任务分派保留：
 
