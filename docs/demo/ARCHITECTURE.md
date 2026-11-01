@@ -177,6 +177,11 @@ Editor 文件位于 `Source\LockdownEditor\Private\ScaffoldBootstrap`。这些�
 
 ## 4. 选定架构与共享契约
 
+跨模块共同语义集中维护于 [共享契约](SHARED_CONTRACTS.md)；
+本节保留对应的源码证据、架构理由与接线约束。正式签名由领域报告定义，
+八领域与下文 M 编号的覆盖关系见 [实施计划](IMPLEMENTATION_PLAN.md)。
+修改共同边界时同时更新集中契约，不把本节维护成第二套不同的协议。
+
 ### 4.1 保留真实状态所有者，收紧唯一写入口
 
 ```mermaid
