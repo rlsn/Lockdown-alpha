@@ -76,6 +76,24 @@ server Token 代替原 RequestKey 或本地已发出的 Direct 上界。Nav 键�
 保护意图的 OriginCombat 序列对应 DirectSequence，Nav 对应原 Order/Epoch；
 不会为了同一次派生普攻再生成一条全域序号。正式动作键由战斗域定义，M3/AI只消费。
 
+跨战斗/成长/装备/UI/AI 的标量与编码以
+[成长 §3.1](PROGRESSION_EQUIPMENT_ECONOMY.md) 和
+[战斗 §3.2–3.3](COMBAT_AND_ATTRIBUTES.md) 的同一合同为准：
+业务实例/Offer/Option/IssuedCooldownId 是 FGuid；对应 Build/Inventory/Item/Account/
+Progression/Offer/Quote/SourceBinding/Readiness 修订为 uint64，资源 P2 与钱/XP 为 int64。
+`FLDCatalogDigest` 在 wire 中为 32 raw SHA-256 bytes，显示才是64个小写十六进制字符；
+技能/装备 DefinitionId 使用固定64字节UTF-8缓冲，最多63字节内容、NUL终止、余字节零填充，
+严格校验后再构造FName。坏编码属于前置shape拒绝，合法编码但未知/非规范的目录引用
+按所属领域语义拒绝；Combat不能借此跳过已识别进攻意图的保护解除。
+此规则不擅自覆盖世界ID、观察修订或现有MoveIdentity的独立类型。
+
+Choice/Shop 查询统一使用 `FLDReceiptQuery{Generation, Family, RequestId}`，
+先拒旧局/错误Family，再返回对应 `FLDChoiceReceiptQueryResult` 或 `FLDShopReceiptQueryResult`。
+LookupStatus 为 Pending 时只有 PendingInfo，Final 时只有匹配业务 Receipt；
+NotFound/ReceiptExpired/InvalidContext 均不携带两者，不伪造 OriginalLife 或 Applied/Rejected。
+业务历史只读结果不能覆盖新身体；Queued/查询/缓存过窗都不授权用新ID重做同一操作。
+精确载荷和枚举由 [成长 §8](PROGRESSION_EQUIPMENT_ECONOMY.md) 单点定义，不混用订单查询的 Expired 名称。
+
 保留窗口内重复提交已接受的请求只重放其既有结果；过窗后明确拒旧并提供当前状态或合法查询，
 不能因清除有界回执缓存而重新执行。领域须说明查询/重放窗口及拒旧水位，
 不把无限时长对局解释成无限保存表现回包。同一请求 ID 携带不同内容不能作为新操作。
@@ -134,6 +152,10 @@ ThroughMs 只能取实际完整处理的整数 Boundary.AtMs，不能 ceil 小�
 已有整数期限不经 double 往返再取整；第一次 CompleteBodyMotion 不是最终 Fence，
 晚因果位移/复活落地仍进入同一身体 Motion 流，Sealing 后前缀闭合才 Capture。
 这些精度与封闭规则以生命周期 §6.1–6.4 为准，不让显示时间或独立 Actor Tick 判胜。
+已完成的权威 CurrentFloor 查询明确得到 NotGrounded 时，是确定的非占用几何事实：
+发布既有 Inside=false，可完成该边界；同XY重新落地也须报告变化。
+真正缺数据/查询未完成才阻挡 Fence。错误目标的 InvalidSurface/WrongSurface 不代表本人离圈，
+不能用目标规划投影伪造本人接地，也不能把普通语义拒绝升级为整局故障。
 RPC/服务器入口的收件不等于获得写权限。操作合同的 `SubmitOrder` 只排队，
 `CommitPendingOrders` 在核心 Actions 阶段重新校验当前 permit 才处理保护解除和订单激活；
 动作/导航交接也在同一有效许可中原子提交。全域阶段序与核心类型由生命周期域唯一定义，
@@ -205,6 +227,17 @@ Host 离开是会话结束，不执行普通客户端离开的继续对局路径
 未受攻击不主动攻击，同组受击共同反击但不共享隐藏坐标；Returning 可受伤/控制/击杀，
 不因受击回头重追。实际到家且仍存活的成员满血蓝、清临时效果/仇恨、技能就绪，
 不复活死成员、不增 Life、不发奖励。这一野怪重置不适用于参赛者的冷却/比例保留规则。
+具体反击输入只消费 Combat 成功提交的 `FLDCombatHostileContact`，
+由 World 的 `OnCombatHostileContact` 幂等生成反击意图；Miss/无效攻击意图不触发反击。
+`PrepareCampReset/ApplyCampReset` 归 Combat，World 提供实际 HomeProof 和 ReturnEpoch；
+重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只有新 Returning 周期才推进epoch。
+纯Prepare先清局部候选临时状态，再计算最终上限并准备满资源，最后与World状态原子安装；
+同键只读重放、旧状态回调按EffectId/目标生命拒旧，不能补旧Max、复生旧Root或误删新效果。
+
+账本幂等与经济复算不是同一条“最新序号”：独立 Ledger Serial、精确快照前缀/尾部、
+发行与拒旧水位按 [成长 §4.4](PROGRESSION_EQUIPMENT_ECONOMY.md) 维护。
+AccountRetire 也经带原LeaveStamp的受控提交写入journal/replay，不直接翻 Retired 标志；
+生命周期 CommitOrdinal 不能替代完整经济journal，不为有界缓存丢失去重依据。
 
 商店资格不额外要求视线：世界提供当前实际脚点、合法接近区与交互距离的只读结果，
 Vendor 在同次提交重查存活、进行中、会话/版本、钱物与容量；旧路径成功不替代提交时资格。
@@ -271,6 +304,10 @@ Vendor 在同次提交重查存活、进行中、会话/版本、钱物与容量
 复用 Relay 的可靠撤销/不可靠全量与接受游标，不保留并行 B91 身体协议。
 它拥有 `QueryGround/QueryCompletePath/FindApproach/TraceSight`、当前观察与圈几何定义；
 实际布局和参数仍是待审提案，原生/资产接线并未完成。
+`QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)` 的 SurfaceHint 为必填FName注册SurfaceId，
+无默认值或三参重载。点击来自公开地面trace，POI来自注册表，当前身体来自权威CurrentFloor→Registry；
+hint只是期望，不能代替实际支持面/接地证明。NAME_None/未知为InvalidSurface，
+错面为WrongSurface，无合法floor明确NotGrounded，不向下投影或填零兜底。
 
 | 读模型 | 允许字段来源 | 明确禁止 |
 | --- | --- | --- |
@@ -296,6 +333,9 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 操作消费与真实时间排序见 [操作与目标](CONTROLS_AND_TARGETING.md) §4.2/§7.2/§7.3。
 对手字段白名单适用于 UI/AI 读取，不附带私有技能、冷却、属性或钱包表；
 合法动作/外观表现和公开装备定义不等于披露这些私有状态。
+其中 `camp_returning` 由Vision仅为当前可见Returning成员派生到同一Statuses，
+是只读展示cue，不是可写Combat状态，不携带Home/路径/仇恨/期限；Root暂停不清该提示，
+离开Returning或隐匿即撤销。AI据此止损不代表禁止真人继续追杀。
 死亡镜头移动不改变视野来源；其世界观察仅静态/公共信息，不能利用存续独立效果或旧代理继续侦察。
 结算统计从权威已提交事实和保留参赛记录投影；本局用时由服务器开局/结束边界确定，
 终局前不发布全体隐藏等级，没有胜者时不按统计补选。
@@ -349,6 +389,16 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 拒绝具体动作不等于进攻意图没有任何状态后果：SC-06 的保护解除要独立反馈；
 鉴权、代次或终局闸拒绝则不得产生该副作用。死亡期选择的成功只表示构筑提交，
 不表示复活、治疗或主动技能已经执行。
+UI Root 的 `TopInputLayer` 是唯一输入层来源：Choices主页面为普通panel，子确认才是模态；
+`OpenChildConfirmation` 先清冲突Armed，但保持按下手势的capture到释放。
+Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settings处理，一次Handled，
+不能让Armed越过模态，也不隐式Stop订单、发RPC或消费Offer。完整本地边界见
+[UI §4](UI_AND_SETTINGS.md) 与 [操作 §3](CONTROLS_AND_TARGETING.md)。
+
+本地显示试用不是玩法时钟：GameInstance持有短期TrialId和单调超时，
+只试分辨率/窗口模式，VSync/画质在确认后应用；终局/HostLost/旅行/销毁先恢复未确认试用再flush。
+仅已确认应用且可核验的本地值可保存，不把草稿/试用或局内数据持久化。
+完整应用、回滚与保存验证由 [UI §8](UI_AND_SETTINGS.md) 单点定义。
 
 每份领域设计交付时附下列对接信息，缺一项就不得宣称相关接口已可无歧义实施：
 
@@ -375,3 +425,6 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 | 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可，Objective 单圈归约；不新增第二核心 |
 | 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；候选坐标/尺寸不等于批准，实际场景与资产仍需验证 |
 | AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；全部12个AI叶参数须落入唯一内容表 |
+| 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query/OnActionFinished、准入后Token、Prepare/ApplyBuildChange及CampReset；正文区分持久来源与独立已释放效果，不复用旧family-max |
+| 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
+| UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
