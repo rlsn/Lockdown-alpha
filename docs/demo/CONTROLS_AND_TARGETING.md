@@ -510,7 +510,7 @@ FromFootCm/ToFootCm、double StartServerSeconds/EndServerSeconds 和运动类别
 | `FLDMatchContext{Generation, LedgerMatch}`；`FLDVictimKey{Kind, EntityId, Life}`；`FLDCombatBodyRef{Victim, BodyIdentity}` | 不将 ContenderId、身体 GUID、life 数字或 LedgerMatch 混为同一身份；旧 body 退休有最终事件/水位。 |
 | `GetMatchContext/GetAuthorityStep/GetAuthorityNowMs`；`FLDAuthorityStep{Match, StepSerial, StartServerSeconds, EndServerSeconds}` | GameMode 唯一实际时钟/步边界，CMC 使用此 step 而不是被补算回拨的 World 时间或客户端时间。 |
 | `BeginAuthorityStep(Match, int64 EndAtMs) -> FLDStepPermitResult`；`ValidateMotionStep(Step, Body) -> ELDCommitReject` | 核心在真实已到达的整数毫秒边界推进原生 step；每次 authority CMC 处理都校验 step/body，包括 packed/saved moves，不能绕过或重复积分。 |
-| `FLDCapturePresenceEvent.Stamp`：Generation/Provider/StreamId/ProducerSequence/OccurredAtSeconds/OccurredAtMs/RecordedAtMs/CommitOrdinal | 使用核心共有事件头；原始 double OccurredAtSeconds 保留真实先后，毫秒字段只分桶。先按真实秒排序，只有真正同刻才用 phase/因果/CommitOrdinal，不将同毫秒桶误作同时发生。 |
+| `FLDCapturePresenceEvent.Stamp`：Generation/Provider/StreamId/ProducerSequence/OccurredAtSeconds/OccurredAtMs/RecordedAtMs/CommitOrdinal | 使用核心共有事件头；原始 double OccurredAtSeconds 保留真实先后，毫秒字段只分桶。核心按同刻阶段/因果分配 CommitOrdinal；消费者先按真实秒、再按已分配 Ordinal，不按 Provider/Phase 重排，不将同毫秒桶误作同时发生。 |
 | `AuthoritySecondsToEventMs` | 核心 checked 向上取整的秒→毫秒转换，仅用于发生时刻，避免截止后的实际事件向前回填。水位只声明真正完成的时间，不能把此 ceil 直接用于任意小数秒的完成边界。 |
 | `PublishCapturePresence(FLDCapturePresenceEvent{Body, Stamp, Inside}) -> FLDEventReceipt` | 世界 ExtractCircleCrossings 的真实变更逐项发布；单次事件失败不得继续报告已处理成功。 |
 | `CompleteBodyMotion(const FLDAuthorityStep&, const FLDCombatBodyRef&, uint64 LastSegmentSequence) -> FLDMotionReceipt` | 仅确认初次原生基础姿态/段记录完成，不是提供者 Fence，也不宣布后续因果位移不存在。 |
@@ -706,7 +706,7 @@ CT06 的时钟/提交挂接是明确技术集成门槛，不应包装成要求�
 | CT-A16 生命/终局/新局 | 旧生命有 Pending/追击时死亡；终局后重放；同房间新局 | 旧动作不能操作新身体；构筑/钱/冷却按 Spec 保留或新局重置；终局先关闸，清理无新副作用。 |
 | CT-A17 AI/Host 等价 | 普通参赛 Listen Host、拥有客户端、真实服务器 AI 给等价合法/非法意图 | 同一准入/错误/资源/距离/权限；AI 不造连接/LocalPlayer；Host 不全知、不产生重复原生+proxy 表现。 |
 | CT-A18 连续占领 | 真实 CMC 走路/滑移/位移，单批出入且帧末相同；CurrentFloor失效但投影XY仍在圈内，再合法落地 | 全部真实进出被消费，回退试探不造事件；NotGrounded发布不具资格而非假接地或冻结水位；圈内合法移动/受伤不误清零。 |
-| CT-A19 同刻/水位 | 截止前缺运动、同刻死亡/争夺、截止后进入；单段穿圈入/出；同毫秒桶先离圈后保护到期；晚因果阶段位移 | 先按实际秒区分先后，再用真正同刻 phase；不能把先离圈者错误算成曾有效占领。两事件独立去重；仅闭合桶 Fence，初次 Motion 不提前封口；旧 life/重复无效且结果一次。 |
+| CT-A19 同刻/水位 | 截止前缺运动、同刻死亡/争夺、截止后进入；单段穿圈入/出；同毫秒桶先离圈后保护到期；晚因果阶段位移 | 先按实际秒区分先后，再用核心已分配 CommitOrdinal，不按 phase 重排因果子批；不能把先离圈者算成曾有效占领。两事件独立去重；仅闭合桶 Fence，初次 Motion 不提前封口；旧请求/重复无效，已接受前缀仍完整消费且结果一次。 |
 | CT-A20 资产/运行闭包 | 重启 Editor/包，逐个实际动作/重绑/新局；读取 staged 输入包清单 | 没有废弃 IA/IMC/旧入口依赖和 MissingClass/加载警告；Bootstrap 不重造删除资产；无旧 profile “兼容通过”。 |
 | CT-A21 射程/群攻成长 | 初始近战单体打野后，用真实属性选择/装备取得射程和群攻；在追击中增减射程 | 预览/接近/实际 AttackStart/A 搜索都读 STAT.AttackRangeCm；不清已付攻击节拍；一次主命中产生 Combat 群攻，不生成隐藏次目标订单或新快捷键。 |
 | CT-A22 进攻意图与保护 | 保护期确认无效目标/无支持面/InvalidSurface/越距/无蓝/CD/空来源/过期绑定；A无路；对照Armed、Move/Shop/Stop及旧包/畸形 | 世界语义失败不伪装Malformed或被本地吞掉；当前前置后仍解保护并发一次资格事件，Rejected明示变化且不释放/扣资源；对照/旧包不解，旧life不影响新生命。 |

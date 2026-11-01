@@ -170,7 +170,8 @@ ShopId、世界修订/观察句柄、Permit、EventStamp 和 ELDLifePhase 直接
 
 EventStamp 采用核心的 Generation、Provider、StreamId、ProducerSequence、
 `double OccurredAtSeconds`、OccurredAtMs、RecordedAtMs、CommitOrdinal。
-先按原始实际发生时间排序，真正同刻才按 phase/ordinal；毫秒只是向上投影的桶，
+先按原始实际发生时间排序，真正同刻按核心已分配 CommitOrdinal；
+phase/因果仅由核心在生产提交时用于分配该序，消费者不再按阶段重排。毫秒只是向上投影的桶，
 不能把同一毫秒中较晚事件提前。重试不改原始死亡戳；
 新奖励输出使用 Progression 的正式流，不拿 RequestId 或 Ledger Serial 冒充生产者序列。
 世界的 CampId/MemberId/CampGeneration 只映射同一 Victim/Life，不有第二条 MemberLife 或发奖链。
@@ -587,7 +588,7 @@ OpenShop 创建/复用当前身体的私有商店会话，不授购买成功；�
 | `FLDShopOpenCommand` | Generation/Life、公共 ShopId、ExpectedWorldRevision。 | 存活/进行中且当前世界资格成功才给 SessionId/QuoteRevision；失败不给默认商店或旧会话执行权。 |
 | `FLDShopCommand::Buy` | Generation/Life/RequestId、ShopSession、QuoteRevision、CatalogDigest、ExpectedWorldRevision；ExpectedAccount/Inventory/Build/SourceBindingRevision；商品 DefinitionId、明确展示 BuyPrice。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订和继承 CD。一次只买一件。 |
 | `FLDShopCommand::Sell` | 上述上下文与预期版本；精确 ItemInstance、ExpectedItemRevision、展示 SellPrice。 | 重查所有权/位置/卖价，Consume+回款+解绑一次提交；回具体已卖实例及修订。一次只卖一件。 |
-| `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原Generation/Family/RequestId/OriginalLife。本局历史生命与终局已有结果可查，但不覆盖当前身体/新局。 |
+| `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原查询键与LookupStatus，OriginalLife仅来自实际存在的PendingInfo或Final业务Receipt。本局历史与终局已有结果可查，不覆盖当前身体/新局。 |
 | 装备/角色施法 | 按 Combat 正式请求及当前来源版本。 | 不走本表 Shop/Choice 许可；1/2 与 Q/W 分别真实来源，失败不耗资源。 |
 
 ID/枚举由当前批准 catalog 支持集解码；不是接受到历史最大枚举为止。
