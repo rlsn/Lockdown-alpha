@@ -241,6 +241,17 @@ AccountRetire 也经带原LeaveStamp的受控提交写入journal/replay，不直
 
 商店资格不额外要求视线：世界提供当前实际脚点、合法接近区与交互距离的只读结果，
 Vendor 在同次提交重查存活、进行中、会话/版本、钱物与容量；旧路径成功不替代提交时资格。
+正式四参 `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision)` 返回
+`FLDShopEligibilityResult`，完整类型见 [世界 §3.2](WORLD_CAMPS_AND_VISION.md)。
+它只在服务器Transactions借用作用域查询，使用核心Permit/BodyRef和世界纯值WorldRevision，
+不再定义CoreCommandContext或另一BodyLife类型。Vendor从真实连接/AI绑定当前买家；
+World校permit/body/world，Vendor最终安装前再次核许可和业务条件，不从permit推导调用者身份。
+
+开店意图也先进入原权威/交互队列，不能在UI/AI/导航预览期直接取得上述许可。
+`OpenShop(ContenderId, Command, Permit)` 是Transactions内部处理器：
+`FLDShopOpenResult` 的Pending只表示尚未办理，Opened才含ShopView，Rejected不含默认报价。
+Open/Buy/Sell均重查对应当前资格；已经提交的历史回执重放不重新检查当时几何、不重复交易。
+不开另一条请求流，不持久保存permit，也不为Open复制一套预览距离算法。
 
 ## SC-06：能力来源、冷却与派生属性
 
