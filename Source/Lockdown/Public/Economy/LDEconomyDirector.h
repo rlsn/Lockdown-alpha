@@ -42,6 +42,10 @@ public:
     FLDGrowthOwnerView ReadOwnerView(const FGuid& ContenderId) const;
     // Committed level for the frozen result rows; contenders that left keep their record until the match ends.
     bool ReadFinalLevel(const FGuid& ContenderId, uint8& Level, FString& Error) const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV scenarios: this match's ledger evidence for Scripts\CheckEconomyEvidence.py (LDEconomy::ExportEvidence).
+    bool ExportLedgerEvidence(FString& OutJson, FString& Error) const;
+#endif
 
     // ---- Module internals ----
     const LDEconomy::FLedger& GetLedger() const { return Ledger; }

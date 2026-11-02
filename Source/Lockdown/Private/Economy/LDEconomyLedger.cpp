@@ -1,5 +1,12 @@
 #include "Economy/LDEconomyLedger.h"
 
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#endif
+
 namespace
 {
 
@@ -583,3 +590,209 @@ LDEconomy::ECompactResult LDEconomy::FLedger::TryCompactResolvedPrefix(uint64 Ex
     Tail.Reset();
     return ECompactResult::Compacted;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+namespace
+{
+FString LedgerJsonGuid(const FGuid& Id)
+{
+    return Id.ToString(EGuidFormats::DigitsWithHyphensLower);
+}
+
+FString LedgerJsonU64(uint64 Value)
+{
+    return FString::Printf(TEXT("%llu"), Value);
+}
+
+FString LedgerJsonI64(int64 Value)
+{
+    return FString::Printf(TEXT("%lld"), Value);
+}
+
+const TCHAR* LedgerJsonCause(LDEconomy::ECause Cause)
+{
+    switch (Cause)
+    {
+    case LDEconomy::ECause::DeathReward: return TEXT("DeathReward");
+    case LDEconomy::ECause::Buy: return TEXT("Buy");
+    case LDEconomy::ECause::Sell: return TEXT("Sell");
+    case LDEconomy::ECause::AccountRetire: return TEXT("AccountRetire");
+    case LDEconomy::ECause::None: break;
+    }
+    return TEXT("None");
+}
+
+TSharedRef<FJsonObject> LedgerJsonState(const LDEconomy::FAuditState& State)
+{
+    TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+    Out->SetStringField(TEXT("throughSerial"), LedgerJsonU64(State.ThroughSerial));
+    Out->SetStringField(TEXT("issuedThrough"), LedgerJsonU64(State.IssuedThrough));
+    Out->SetStringField(TEXT("initialGoldTotal"), LedgerJsonI64(State.InitialGoldTotal));
+    Out->SetStringField(TEXT("minted"), LedgerJsonI64(State.Minted));
+    Out->SetStringField(TEXT("burned"), LedgerJsonI64(State.Burned));
+
+    TArray<FGuid> AccountIds;
+    State.Accounts.GetKeys(AccountIds);
+    AccountIds.Sort();
+    TArray<TSharedPtr<FJsonValue>> Accounts;
+    for (const FGuid& Id : AccountIds)
+    {
+        const LDEconomy::FAccount& Account = State.Accounts.FindChecked(Id);
+        TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("id"), LedgerJsonGuid(Id));
+        Row->SetStringField(TEXT("gold"), LedgerJsonI64(Account.Gold));
+        Row->SetStringField(TEXT("revision"), LedgerJsonU64(Account.Revision));
+        Row->SetBoolField(TEXT("retired"), Account.bRetired);
+        Row->SetStringField(TEXT("retireSerial"), LedgerJsonU64(Account.RetireSerial));
+        Row->SetNumberField(TEXT("retireLife"), Account.RetireStamp.Life);
+        Row->SetStringField(TEXT("retireLifeRevision"), LedgerJsonU64(Account.RetireStamp.LifeRevision));
+        Accounts.Add(MakeShared<FJsonValueObject>(Row));
+    }
+    Out->SetArrayField(TEXT("accounts"), Accounts);
+
+    TArray<FGuid> Owners;
+    State.InventoryRevisions.GetKeys(Owners);
+    Owners.Sort();
+    TArray<TSharedPtr<FJsonValue>> Inventories;
+    for (const FGuid& OwnerId : Owners)
+    {
+        TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("owner"), LedgerJsonGuid(OwnerId));
+        Row->SetStringField(TEXT("revision"), LedgerJsonU64(State.InventoryRevisions.FindChecked(OwnerId)));
+        Inventories.Add(MakeShared<FJsonValueObject>(Row));
+    }
+    Out->SetArrayField(TEXT("inventories"), Inventories);
+
+    TArray<TPair<FGuid, LDEconomy::FItem>> Live;
+    for (const auto& Pair : State.LiveItems)
+    {
+        Live.Emplace(Pair.Key, Pair.Value);
+    }
+    Live.Sort([](const TPair<FGuid, LDEconomy::FItem>& A, const TPair<FGuid, LDEconomy::FItem>& B)
+    {
+        return A.Value.IssueSerial < B.Value.IssueSerial;
+    });
+    TArray<TSharedPtr<FJsonValue>> Items;
+    for (const TPair<FGuid, LDEconomy::FItem>& Pair : Live)
+    {
+        TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("instance"), LedgerJsonGuid(Pair.Key));
+        Row->SetStringField(TEXT("issueSerial"), LedgerJsonU64(Pair.Value.IssueSerial));
+        Row->SetStringField(TEXT("definition"), Pair.Value.Definition.ToString());
+        Row->SetStringField(TEXT("owner"), LedgerJsonGuid(Pair.Value.Owner));
+        Row->SetNumberField(TEXT("slot"), Pair.Value.Slot);
+        Row->SetStringField(TEXT("revision"), LedgerJsonU64(Pair.Value.Revision));
+        Items.Add(MakeShared<FJsonValueObject>(Row));
+    }
+    Out->SetArrayField(TEXT("items"), Items);
+    return Out;
+}
+
+TSharedRef<FJsonObject> LedgerJsonEntry(const LDEconomy::FJournalEntry& Entry)
+{
+    const LDEconomy::FTransaction& T = Entry.Transaction;
+    TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+    Out->SetStringField(TEXT("serial"), LedgerJsonU64(Entry.Serial));
+    Out->SetStringField(TEXT("cause"), LedgerJsonCause(T.Cause));
+    Out->SetStringField(TEXT("businessKey"), LedgerJsonGuid(T.BusinessKey));
+    Out->SetStringField(TEXT("terms"), BytesToHex(T.Terms, UE_ARRAY_COUNT(T.Terms)).ToLower());
+    Out->SetStringField(TEXT("commitBatch"), LedgerJsonU64(T.CommitBatch));
+    Out->SetStringField(TEXT("mint"), LedgerJsonI64(T.Mint));
+    Out->SetStringField(TEXT("burn"), LedgerJsonI64(T.Burn));
+    if (T.Gold.IsSet())
+    {
+        TSharedRef<FJsonObject> Gold = MakeShared<FJsonObject>();
+        Gold->SetStringField(TEXT("account"), LedgerJsonGuid(T.Gold->Account));
+        Gold->SetStringField(TEXT("expectedRevision"), LedgerJsonU64(T.Gold->ExpectedRevision));
+        Gold->SetStringField(TEXT("delta"), LedgerJsonI64(T.Gold->Delta));
+        Out->SetObjectField(TEXT("gold"), Gold);
+    }
+    else
+    {
+        Out->SetField(TEXT("gold"), MakeShared<FJsonValueNull>());
+    }
+    if (T.Create.IsSet())
+    {
+        TSharedRef<FJsonObject> Create = MakeShared<FJsonObject>();
+        Create->SetStringField(TEXT("owner"), LedgerJsonGuid(T.Create->Owner));
+        Create->SetStringField(TEXT("expectedInventoryRevision"), LedgerJsonU64(T.Create->ExpectedInventoryRevision));
+        Create->SetStringField(TEXT("definition"), T.Create->Definition.ToString());
+        Create->SetNumberField(TEXT("slot"), T.Create->Slot);
+        Out->SetObjectField(TEXT("create"), Create);
+    }
+    else
+    {
+        Out->SetField(TEXT("create"), MakeShared<FJsonValueNull>());
+    }
+    if (T.Consume.IsSet())
+    {
+        TSharedRef<FJsonObject> Consume = MakeShared<FJsonObject>();
+        Consume->SetStringField(TEXT("instance"), LedgerJsonGuid(T.Consume->Instance));
+        Consume->SetStringField(TEXT("expectedItemRevision"), LedgerJsonU64(T.Consume->ExpectedItemRevision));
+        Consume->SetStringField(TEXT("owner"), LedgerJsonGuid(T.Consume->Owner));
+        Consume->SetStringField(TEXT("expectedInventoryRevision"), LedgerJsonU64(T.Consume->ExpectedInventoryRevision));
+        Out->SetObjectField(TEXT("consume"), Consume);
+    }
+    else
+    {
+        Out->SetField(TEXT("consume"), MakeShared<FJsonValueNull>());
+    }
+    if (T.Retire.IsSet())
+    {
+        TSharedRef<FJsonObject> Retire = MakeShared<FJsonObject>();
+        Retire->SetStringField(TEXT("account"), LedgerJsonGuid(T.Retire->Account));
+        Retire->SetStringField(TEXT("expectedRevision"), LedgerJsonU64(T.Retire->ExpectedRevision));
+        Retire->SetNumberField(TEXT("life"), T.Retire->Stamp.Life);
+        Retire->SetStringField(TEXT("lifeRevision"), LedgerJsonU64(T.Retire->Stamp.LifeRevision));
+        Out->SetObjectField(TEXT("retire"), Retire);
+    }
+    else
+    {
+        Out->SetField(TEXT("retire"), MakeShared<FJsonValueNull>());
+    }
+    Out->SetStringField(TEXT("resultAccountRevision"), LedgerJsonU64(Entry.ResultAccountRevision));
+    Out->SetStringField(TEXT("resultInventoryRevision"), LedgerJsonU64(Entry.ResultInventoryRevision));
+    if (Entry.CreatedInstance.IsValid())
+    {
+        Out->SetStringField(TEXT("createdInstance"), LedgerJsonGuid(Entry.CreatedInstance));
+    }
+    else
+    {
+        Out->SetField(TEXT("createdInstance"), MakeShared<FJsonValueNull>());
+    }
+    Out->SetStringField(TEXT("createdIssueSerial"), LedgerJsonU64(Entry.CreatedIssueSerial));
+    return Out;
+}
+}
+
+bool LDEconomy::ExportEvidence(const FLedger& Ledger, int64 StartingGold, FString& OutJson, FString& Error)
+{
+    OutJson.Reset();
+    Error.Reset();
+    if (!Ledger.IsInitialized())
+    {
+        Error = TEXT("Ledger is not initialized for a match.");
+        return false;
+    }
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetNumberField(TEXT("schemaVersion"), 2);
+    Root->SetStringField(TEXT("match"), LedgerJsonGuid(Ledger.GetMatch()));
+    Root->SetStringField(TEXT("startingGold"), LedgerJsonI64(StartingGold));
+    Root->SetObjectField(TEXT("prefix"), LedgerJsonState(Ledger.AuditPrefix()));
+    TArray<TSharedPtr<FJsonValue>> Tail;
+    for (const FJournalEntry& Entry : Ledger.JournalTail())
+    {
+        Tail.Add(MakeShared<FJsonValueObject>(LedgerJsonEntry(Entry)));
+    }
+    Root->SetArrayField(TEXT("tail"), Tail);
+    Root->SetObjectField(TEXT("current"), LedgerJsonState(Ledger.State()));
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutJson);
+    if (!FJsonSerializer::Serialize(Root, Writer))
+    {
+        OutJson.Reset();
+        Error = TEXT("Ledger evidence could not be serialized.");
+        return false;
+    }
+    return true;
+}
+#endif

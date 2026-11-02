@@ -841,7 +841,7 @@ V07 删除仍需关闭 Bootstrap、loader fallback、Sync/native contract、stag
 | [LDInventoryRulesTests.cpp:9–16](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp#L9-L16)、[LDV08LoadoutTests.cpp:25–60](../../Source/Lockdown/Private/Tests/LDV08LoadoutTests.cpp#L25-L60) | 保留来源/旧修订/wire/引用失效；替换背包/Quick/多绑定/六动作/四附件、旧 family 共享与旧属性预算断言。 |
 | [LDInventoryRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp)、[LDEconomyRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp) | 身份、投影容量、精确条款、原子拒绝与账本复算保留；原生创建失败、过期回执、满容量、越界和生死竞争仍须 §12 A16/A17/A24/A25 的 N05 场景。 |
 | N04/N05 拥有连接场景 | 使用真实参赛 Listen Host 和拥有客户端验证两装备/选择/1/2；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
-| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py:15–66](../../Scripts/CheckEconomyEvidence.py#L15-L66) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；复算新增钱物/奖励/前缀尾部，删无消费者 budget/quality/parents。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 2 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，旧 budget/quality/parents 分支已删除。 |
 | D29–D34 的剩余专测/runner/手册 | 必要 Ledger/Inventory/来源不变量先迁，再删除相应旧生产者与专测；同步系统手册的真实接口，不保存废弃方案。 |
 
 本域建议新增的规则测试职责落在现有 Tests 体系：死亡复合奖励、Offer/替换、两装备事务、
