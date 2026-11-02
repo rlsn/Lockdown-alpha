@@ -264,7 +264,7 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
     if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n胆量消耗 %lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
-    if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入被界面占用");}
+    if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
 }
 

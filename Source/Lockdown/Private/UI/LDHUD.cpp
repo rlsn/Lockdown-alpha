@@ -360,9 +360,9 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(SelfStatusText,!SelfStatusText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(PassiveText,LDHUD::PassiveLine(Progression,OwnCombat,Content));
 
-    // A child confirmation owns input: an armed preview behind it is cancelled locally, never kept for a later click.
-    const ELDUIInputLayer Layer=PC->RootUI?PC->RootUI->TopInputLayer():ELDUIInputLayer::None;
-    if(Layer==ELDUIInputLayer::ChildConfirmation){PC->CancelArmedCombat();}
+    // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
+    // Combat itself refuses and cancels any armed preview while input is captured.
+    const bool bInputSuppressed=PC->IsWorldInputSuppressed();
     if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
     if(ChoicesPanel){ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
     if(ShopPanel)
@@ -398,7 +398,7 @@ void ULDHUD::RefreshReadModel()
         if(Source){Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;}
         LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);Context.bOwnContext=bOwnMatch&&O.Life!=0;
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
-        Context.bInputCaptured=Layer==ELDUIInputLayer::ChildConfirmation||Layer==ELDUIInputLayer::TextEditing;
+        Context.bInputCaptured=bInputSuppressed;
         Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
@@ -426,7 +426,8 @@ void ULDHUD::RefreshReadModel()
             if(!Notice.IsEmpty()){ShowToast(Notice);}
         }
     }
-    for(auto& Pair:Commands){Pair.Value->SetIsEnabled(Pair.Key!=TEXT("Stop")||bAlive);}
+    // Stop is a new world command (same halves as S); the panel buttons open own panels and stay available while dead.
+    for(auto& Pair:Commands){Pair.Value->SetIsEnabled(Pair.Key!=TEXT("Stop")||PC->CanWorldCommand());}
     if(ULDCommandButton* Stop=Commands.FindRef(TEXT("Stop"))){HudSetText(CastChecked<UTextBlock>(Stop->GetContent()),TEXT("停止 [")+PC->BindingLabel(TEXT("Stop"))+TEXT("]"));}
     HudSetText(CameraText,PC->Navigation->bFollowCamera?FString(TEXT("镜头：跟随")):TEXT("镜头：自由 · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" 跟随"));
 
