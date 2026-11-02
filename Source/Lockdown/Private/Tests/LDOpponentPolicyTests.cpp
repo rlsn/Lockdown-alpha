@@ -557,6 +557,73 @@ bool RunPriorities(FAutomationTestBase& Test)
     bGood &= Expect(Test, TEXT("Recovering without threats stops investing and waits on regeneration"), Decision,
         EMode::Disengage, EBody::Stop) && Test.TestTrue(TEXT("Recovery reason"), Decision.Reason == ELDOpponentReason::Recover);
 
+    {
+        // A committed escape keeps its place while that still leads away, finishes its walk once the pursuer drops
+        // out of sight, waits on arrival and moves on only when seen again.
+        FLDOpponentPolicyState Escape;
+        Frame = Base;
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+        Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 300, 0)};
+        const auto First = LDOpponentPolicy::Decide(Frame, C, Escape);
+        Frame.Units[0].FootCm = FVector(300, -100, 0);
+        Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Frame.Order.Status = ELDOpponentOrderStatus::Active;
+        Frame.Order.POI = First.Body.POI;
+        const auto Fresh = Decide(Frame);
+        const auto Kept = LDOpponentPolicy::Decide(Frame, C, Escape);
+        Frame.Units.Reset();
+        const auto Unseen = LDOpponentPolicy::Decide(Frame, C, Escape);
+        Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+        const auto Arrived = LDOpponentPolicy::Decide(Frame, C, Escape);
+        Frame.Self.FootCm = FVector(-2000, -2000, 0);
+        Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, -1700, -2000)};
+        const auto Again = LDOpponentPolicy::Decide(Frame, C, Escape);
+        bGood &= Expect(Test, TEXT("The escape takes the widest lead beyond the pursuer's sight"), First, EMode::Disengage,
+            EBody::MoveGround, TEXT("l3"));
+        bGood &= Expect(Test, TEXT("A fresh ranking after the pursuer moved would prefer another place"), Fresh,
+            EMode::Disengage, EBody::MoveGround, TEXT("h2"));
+        bGood &= Expect(Test, TEXT("The committed escape keeps walking instead of re-ranking every decision"), Kept,
+            EMode::Disengage, EBody::Keep, TEXT("l3"));
+        bGood &= Expect(Test, TEXT("A pursuer dropping out of sight does not stop the escape"), Unseen, EMode::Disengage,
+            EBody::Keep, TEXT("l3"));
+        bGood &= Expect(Test, TEXT("Arrived and unseen, the body waits on regeneration"), Arrived, EMode::Disengage,
+            EBody::None);
+        bGood &= Expect(Test, TEXT("Seen again at the reached place, the escape moves on"), Again, EMode::Disengage,
+            EBody::MoveGround, TEXT("h2"));
+    }
+    {
+        // §6.2: recovering above the stop-loss line still answers an urgent public defence; below it only a ready
+        // shield lets the body walk back in, otherwise it escapes instead of charging the holder.
+        FLDOpponentPolicyState Defence;
+        Frame = Base;
+        Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Frame.Public.Circle = ELDOpponentCircle::Solo;
+        Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+        Frame.CapturePathCm = 3000.;
+        Frame.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+        const auto Low = LDOpponentPolicy::Decide(Frame, C, Defence);
+        Frame.Self.Skills = {Skill(TEXT("active_guard_pulse"), 1, ELDOpponentSkillSlot::Q)};
+        FLDOpponentSource Guard;
+        Guard.Slot = ELDOpponentSourceSlot::Q;
+        Guard.DefinitionId = TEXT("active_guard_pulse");
+        Guard.bReady = true;
+        Frame.Self.Sources = {Guard};
+        const auto Shielded = LDOpponentPolicy::Decide(Frame, C, Defence);
+        Frame.Self.Skills.Reset();
+        Frame.Self.Sources.Reset();
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+        const auto Band = LDOpponentPolicy::Decide(Frame, C, Defence);
+        bGood &= Expect(Test, TEXT("Below the stop-loss line without a ready shield the AI escapes instead of charging"), Low,
+            EMode::Disengage, EBody::MoveGround);
+        bGood &= Expect(Test, TEXT("A ready shield lets a low body answer the urgent defence, shielding first"), Shielded,
+            EMode::DefendOrHold, EBody::Activate) && Test.TestTrue(TEXT("The shield is the activated source"),
+                Shielded.Body.Source == ELDOpponentSourceSlot::Q);
+        bGood &= Expect(Test, TEXT("Recovering above the stop-loss line still answers an urgent public defence"), Band,
+            EMode::DefendOrHold, EBody::MoveGround, TEXT("capture"));
+    }
+
     Frame = Base;
     Frame.Self.Gold = 330;
     bGood &= Expect(Test, TEXT("An affordable strict improvement goes to the public shop"), Decide(Frame), EMode::Shop,

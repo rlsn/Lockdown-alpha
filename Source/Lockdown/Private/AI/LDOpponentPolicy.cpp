@@ -178,6 +178,7 @@ struct FContext
     double CaptureRadiusCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
+    double VisionRadiusCm = 0;
     bool bCaptureOpen = false;
     bool bInsideCircle = false;
     TArray<const FLDOpponentUnit*> Enemies;
@@ -193,13 +194,13 @@ struct FContext
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
-        const double Vision = ToDouble(Content.Parameters.VisionRadiusCm);
+        VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(Vision > 0) || !(CaptureRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !Capture || !Shop)
         {
             return false;
         }
-        AcquireRadiusCm = FMath::Min(Vision, 2. * AttackRangeCm);
+        AcquireRadiusCm = FMath::Min(VisionRadiusCm, 2. * AttackRangeCm);
         bCaptureOpen = Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
         bInsideCircle = FVector::Dist2D(Self.FootCm, Capture->FootCm) <= CaptureRadiusCm;
         for (const auto& Unit : Frame.Units)
@@ -303,6 +304,7 @@ void ForgetBody(FLDOpponentPolicyState& State)
 {
     EndVisit(State);
     State.ExplorePOI = NAME_None;
+    State.RetreatPOI = NAME_None;
     State.bRecovering = false;
 }
 
@@ -452,6 +454,24 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
     return {};
 }
 
+// §6.2 stop-loss: a ready self shield is the usable self-protection that still lets a low body answer defence.
+bool ProtectionReady(const FContext& C)
+{
+    for (const auto& Source : C.Self.Sources)
+    {
+        FSourceShape Shape;
+        if (!Source.bReady || !ResolveSource(Source, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self || !Shape.bShield)
+        {
+            continue;
+        }
+        FLDOpponentRetryKey Key;
+        Key.Category = ELDOpponentFailure::Activation;
+        Key.Slot = uint8(Source.Slot);
+        if (C.CanAttempt(Key)) { return true; }
+    }
+    return false;
+}
+
 FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Target, bool bAllowDamage = true)
 {
     Engage(C, Target);
@@ -514,23 +534,55 @@ bool CircleBody(const FContext& C, bool bUrgent, FLDOpponentBodyIntent& Out)
     return true;
 }
 
+bool ReachedPOI(const FContext& C, FName POI)
+{
+    const auto& Order = C.Frame.Order;
+    return Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == POI && Order.Status == ELDOpponentOrderStatus::Completed;
+}
+
 const FLDOpponentPOI* PickRetreat(const FContext& C)
 {
     FVector Centroid = FVector::ZeroVector;
     for (const auto* Threat : C.Threats) { Centroid += Threat->FootCm; }
     Centroid /= double(C.Threats.Num());
     const FVector Away = (C.Self.FootCm - Centroid).GetSafeNormal2D();
+    const auto LeadsAway = [&C, &Away](const FLDOpponentPOI& POI)
+    {
+        return Away.IsNearlyZero() || FVector::DotProduct((POI.FootCm - C.Self.FootCm).GetSafeNormal2D(), Away) >= 0;
+    };
+    // Public ground only: never the circle, the shop building, the abandoned camp, a camp with visible members or
+    // the place this body has just reached.
+    const auto Usable = [&C](const FLDOpponentPOI& POI)
+    {
+        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop || POI.Id == C.State.VisitPOI
+            || C.Suppressed(FContext::PathKey(POI.Id)) || ReachedPOI(C, POI.Id)) { return false; }
+        for (const auto& Unit : C.Frame.Units)
+        {
+            if (Unit.Kind == ELDOpponentUnitKind::CampMember && C.CampOf(Unit) == &POI) { return false; }
+        }
+        return true;
+    };
+    // An escape commits to its place while that still leads away; re-ranking near-equal places on every decision
+    // would turn it into circling around the pursuer.
+    if (const FLDOpponentPOI* Kept = C.State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(C.State.RetreatPOI);
+        Kept && Usable(*Kept) && LeadsAway(*Kept))
+    {
+        return Kept;
+    }
     struct FRank
     {
         bool bAway = false;
-        double ThreatDistance = 0;
+        bool bBeyondSight = false;
+        double Lead = 0;
         double SelfDistance = 0;
     };
-    // Leading away from every visible threat first, then farthest from them, then nearest, then stable id.
+    // Leading away first, then ending beyond the nearest threat's sight, then the widest lead over that threat,
+    // then nearest, then stable id.
     const auto Before = [](const FRank& A, const FLDOpponentPOI& APOI, const FRank& B, const FLDOpponentPOI& BPOI)
     {
         if (A.bAway != B.bAway) { return A.bAway; }
-        if (A.ThreatDistance != B.ThreatDistance) { return A.ThreatDistance > B.ThreatDistance; }
+        if (A.bBeyondSight != B.bBeyondSight) { return A.bBeyondSight; }
+        if (A.Lead != B.Lead) { return A.Lead > B.Lead; }
         if (A.SelfDistance != B.SelfDistance) { return A.SelfDistance < B.SelfDistance; }
         return APOI.Id.Compare(BPOI.Id) < 0;
     };
@@ -538,26 +590,21 @@ const FLDOpponentPOI* PickRetreat(const FContext& C)
     FRank BestRank;
     for (const auto& POI : C.Frame.POIs)
     {
-        // The shop anchor is a building reached only through ApproachShop; it is never a ground destination.
-        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop || POI.Id == C.State.VisitPOI
-            || C.Suppressed(FContext::PathKey(POI.Id))) { continue; }
-        bool bOccupiedCamp = false;
-        for (const auto& Unit : C.Frame.Units)
-        {
-            bOccupiedCamp |= Unit.Kind == ELDOpponentUnitKind::CampMember && C.CampOf(Unit) == &POI;
-        }
-        if (bOccupiedCamp) { continue; }
+        if (!Usable(POI)) { continue; }
+        double ThreatDistance = TNumericLimits<double>::Max();
+        for (const auto* Threat : C.Threats) { ThreatDistance = FMath::Min(ThreatDistance, FVector::Dist2D(POI.FootCm, Threat->FootCm)); }
         FRank Rank;
-        Rank.ThreatDistance = TNumericLimits<double>::Max();
-        for (const auto* Threat : C.Threats) { Rank.ThreatDistance = FMath::Min(Rank.ThreatDistance, FVector::Dist2D(POI.FootCm, Threat->FootCm)); }
-        Rank.bAway = Away.IsNearlyZero() || FVector::DotProduct((POI.FootCm - C.Self.FootCm).GetSafeNormal2D(), Away) >= 0;
+        Rank.bAway = LeadsAway(POI);
+        Rank.bBeyondSight = ThreatDistance > C.VisionRadiusCm;
         Rank.SelfDistance = C.Distance(POI.FootCm);
+        Rank.Lead = ThreatDistance - Rank.SelfDistance;
         if (!Best || Before(Rank, POI, BestRank, *Best))
         {
             Best = &POI;
             BestRank = Rank;
         }
     }
+    C.State.RetreatPOI = Best ? Best->Id : NAME_None;
     return Best;
 }
 
@@ -1287,6 +1334,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         }
         EndVisit(State);
     }
+    if (!State.bRecovering) { State.RetreatPOI = NAME_None; }
     const auto Body = [&Out, bActionLive](const FLDOpponentBodyIntent& Intent)
     {
         Out.Body = Intent;
@@ -1295,12 +1343,8 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
 
     const bool bHoldingSolo = C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo
         && Frame.Public.Occupier == Self.ContenderId;
-    if (State.bRecovering && !C.Threats.IsEmpty() && !bHoldingSolo)
-    {
-        Body(DisengageBody(C));
-        return Finish(EMode::Disengage, EReason::Recover);
-    }
-    if (C.bCaptureOpen)
+    bool bUrgent = false;
+    if (C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo)
     {
         FLDCaptureUrgencyInput Urgency;
         Urgency.NowMs = C.Now;
@@ -1310,14 +1354,22 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Urgency.MoveSpeedCmPerSec = Self.Attributes.MoveSpeedCmPerSec;
         Urgency.MoveBlockedUntilMs = Self.MoveBlockedUntilMs;
         Urgency.ReactionBudgetMs = C.AI.CaptureReactionBudgetMs;
-        const bool bUrgent = Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo && IsCaptureDefenseUrgent(Urgency);
-        FLDOpponentBodyIntent Intent;
-        if ((bHoldingSolo || bUrgent) && CircleBody(C, bUrgent, Intent))
-        {
-            EndVisit(State, false);
-            Body(Intent);
-            return Finish(EMode::DefendOrHold, bHoldingSolo ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
-        }
+        bUrgent = IsCaptureDefenseUrgent(Urgency);
+    }
+    // §6.2: recovering still answers an urgent public defence. Only below the stop-loss line without ready
+    // self-protection does escaping come first, and such a body does not charge the holder at all.
+    const bool bStopLoss = State.bRecovering && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp) && !ProtectionReady(C);
+    FLDOpponentBodyIntent Intent;
+    if ((bHoldingSolo || (bUrgent && !bStopLoss)) && CircleBody(C, bUrgent, Intent))
+    {
+        EndVisit(State, false);
+        Body(Intent);
+        return Finish(EMode::DefendOrHold, bHoldingSolo ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
+    }
+    if (State.bRecovering && !C.Threats.IsEmpty() && !bHoldingSolo)
+    {
+        Body(DisengageBody(C));
+        return Finish(EMode::Disengage, EReason::Recover);
     }
     if (!State.bRecovering)
     {
@@ -1357,22 +1409,25 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     if (State.bRecovering)
     {
         // No free healing zone exists: wait on genuine regeneration, but still answer defence and shopping above.
+        // An escape under way finishes its walk instead of stopping as soon as the pursuer drops out of sight.
+        const auto& Order = Frame.Order;
+        const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
+        if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
+        {
+            Body(MoveTo(C, *Retreat));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
         FActivationNeed Need;
         auto Activation = PickActivation(C, Need);
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));
         return Finish(EMode::Disengage, EReason::Recover);
     }
-    if (C.bCaptureOpen)
+    if (C.bCaptureOpen && CircleBody(C, false, Intent))
     {
-        FLDOpponentBodyIntent Intent;
-        if (CircleBody(C, false, Intent))
-        {
-            EndVisit(State, false);
-            Body(Intent);
-            return Finish(EMode::Contest, EReason::ContestCapture);
-        }
+        EndVisit(State, false);
+        Body(Intent);
+        return Finish(EMode::Contest, EReason::ContestCapture);
     }
-    FLDOpponentBodyIntent Intent;
     if (FarmBody(C, Intent))
     {
         Body(Intent);

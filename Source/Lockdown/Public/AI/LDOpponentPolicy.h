@@ -279,6 +279,8 @@ struct FLDOpponentPolicyState
     uint32 Life = 0;
     ELDOpponentMode Mode = ELDOpponentMode::Stopped;
     bool bRecovering = false;
+    // The public place this recovery escapes toward; kept while it still leads away from visible threats.
+    FName RetreatPOI;
     FName VisitPOI;
     int64 VisitEngagedAtMs = 0;
     FName ExplorePOI;
