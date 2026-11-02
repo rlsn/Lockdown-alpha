@@ -125,7 +125,7 @@ FString LDHUD::LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     case ELDLifePhase::Alive:
         if(Own.ProtectedUntilMs<=0){return TEXT("存活");}
         if(!bClock){return TEXT("复活保护 · 时间同步中");}
-        return Own.ProtectedUntilMs>NowMs?TEXT("复活保护 ")+TenthsUp(Own.ProtectedUntilMs-NowMs)+TEXT(" · 发起进攻即解除"):FString(TEXT("存活"));
+        return Own.ProtectedUntilMs>NowMs?TEXT("复活保护 ")+TenthsUp(Own.ProtectedUntilMs-NowMs)+TEXT(" · 发起进攻即解除，失败也解除"):FString(TEXT("存活"));
     case ELDLifePhase::Dead:
         if(Own.RespawnAtMs<=0){return TEXT("社死");}
         if(!bClock){return TEXT("社死 · 回宿舍冷静（时间同步中）");}
@@ -142,7 +142,7 @@ LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     View.bVisible=true;View.Title=TEXT("社死");
     View.Countdown=Own.RespawnAtMs<=0?FString(TEXT("回宿舍冷静 · 等待复活时间"))
         :!bClock?FString(TEXT("回宿舍冷静 · 时间同步中")):TEXT("回宿舍冷静 ")+TenthsUp(Own.RespawnAtMs-NowMs);
-    View.Note=TEXT("等级、经验、技能、装备和零花钱全部保留；复活后随机回到出生点");
+    View.Note=TEXT("等级、经验、技能、装备和零花钱全部保留；待选奖励照常可确认，选卡不影响复活；复活后随机回到出生点");
     return View;
 }
 FString LDHUD::PhaseLine(ELDMatchPhase Phase)

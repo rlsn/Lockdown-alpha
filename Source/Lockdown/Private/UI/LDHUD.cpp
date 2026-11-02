@@ -218,6 +218,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
         if(ShopPanel){ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
+        if(ChoicesPanel){ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
         if(ChoicesPanel)
