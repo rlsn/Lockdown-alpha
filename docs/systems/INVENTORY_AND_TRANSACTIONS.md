@@ -32,7 +32,8 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 
 每件装备实例由账本发行：`InstanceId` 一一编码本局 `LedgerMatch` 与 `IssueSerial`，
 记录定义、拥有者、槽位（0/1）与 ItemRevision。一个实例只有一个位置，两槽之外没有背包或地面位置。
-同款两件是两个实例；第三件在准备阶段以 `EquipmentFull` 拒绝，不自动出售或替换。
+同款两件是两个实例；第三件在准备阶段以 `EquipmentFull` 拒绝（先于余额检查，满槽时先卖是唯一出路），
+不自动出售或替换。
 来源冷却身份（`IssuedCooldownId`）与回绑由 Combat 持有，买卖只把变更后的完整装备列表交给 Combat 准备。
 
 ## 复合事务
@@ -73,7 +74,17 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 ## 检查入口
 
-`RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`
-与 `DemoGrowthProgression` 覆盖线编码、账本守恒/压缩/退休、请求窗口与等级/候选/替换纯规则。
+`RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
+`DemoGrowthProgression` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
+等级/候选/替换纯规则与本人视图隐私白名单。
+账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
+导出 schema 2 证据（审计前缀、其后日志尾与当前状态），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
+时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
+`RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者，一个真实拥有客户端
+经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
+买两件同款、满槽 `EquipmentFull`、同号重放、出售与离店 `OutsideRange`；Host 导出账本证据由
+`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。开局在营地提供者注册前经核心 `StartDemoMatch`，
+不覆盖营地、AI、抢圈或终局。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。

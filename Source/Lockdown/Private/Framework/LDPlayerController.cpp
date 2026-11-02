@@ -6,6 +6,8 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Tests/LDDemoVisionProbe.h"
+#include "Tests/LDDemoGrowthProbe.h"
+#include "Tests/LDDemoCampProbe.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDInventoryPanel.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -51,6 +53,8 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);
     LDDemoTests::StartVisionProbe(*this);
+    LDDemoTests::StartGrowthProbe(*this);
+    LDDemoTests::StartCampProbe(*this);
 #endif
 }
 
