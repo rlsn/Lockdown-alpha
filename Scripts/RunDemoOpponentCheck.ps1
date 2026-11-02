@@ -66,7 +66,8 @@ try {
     Wait-OpponentReports @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
         $r = Get-Content -LiteralPath (Join-Path $output "$_.json") -Raw | ConvertFrom-Json
-        if (-not $r.passed -or $r.role -ne $_ -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
+        # A check this match gave no occasion for is listed below as not exercised; it is neither a pass nor a failure.
+        if (-not $r.passed -or $r.role -ne $_ -or @($r.checks | Where-Object { $_.status -ne 'passed' -and $_.status -ne 'not_exercised' }).Count -ne 0) {
             throw "Opponent scenario evidence failed for $_`: $($r.detail). Evidence: $output"
         }
         $r
@@ -92,7 +93,11 @@ try {
             $ai.slot,$ai.level,$ai.choices,$ai.items_max,$ai.gear,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
             $ai.actions,$ai.trades,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }))
     }
-    Write-Host "DEV-only full-room opponent AI scenario passed on real owned connections: the humans stayed out of play and an AI won by capture after $([math]::Round($first.duration_ms / 1000)) s. Not hidden-state non-interference, a leaving human or network faults. Evidence: $output"
+    $notExercised = @($reports | ForEach-Object { @($_.checks) } | Where-Object { $_.status -eq 'not_exercised' } |
+        ForEach-Object { [string]$_.name } | Sort-Object -Unique)
+    foreach ($name in $notExercised) { Write-Host "NOT EXERCISED (not counted as passed): $name" }
+    $coverage = if ($notExercised.Count) { " $($notExercised.Count) check(s) were not exercised by this match; they are listed above and are not passes." } else { '' }
+    Write-Host "DEV-only full-room opponent AI scenario passed on real owned connections: the humans stayed out of play and an AI won by capture after $([math]::Round($first.duration_ms / 1000)) s.$coverage Not hidden-state non-interference, a leaving human or network faults. Evidence: $output"
 }
 finally {
     foreach ($process in $processes) {
