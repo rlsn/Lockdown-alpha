@@ -632,7 +632,7 @@ bool RunPriorities(FAutomationTestBase& Test)
     return bGood;
 }
 
-FLDDemoWorldAnchor Anchor(const TCHAR* Id, ELDDemoWorldAnchorKind Kind, int64 X, int64 Y)
+FLDDemoWorldAnchor Anchor(const TCHAR* Id, ELDDemoWorldAnchorKind Kind, int64 X, int64 Y, int32 Members = 0)
 {
     FLDDemoWorldAnchor Out;
     Out.Id = Id;
@@ -640,6 +640,14 @@ FLDDemoWorldAnchor Anchor(const TCHAR* Id, ELDDemoWorldAnchorKind Kind, int64 X,
     Out.SurfaceId = TEXT("ground");
     Out.PositionCm.X.Numerator = X;
     Out.PositionCm.Y.Numerator = Y;
+    for (int32 Index = 0; Index < Members; ++Index)
+    {
+        FLDDemoWorldMemberHome Home;
+        Home.Id = FString::Printf(TEXT("%s_m%d"), Id, Index);
+        Home.PositionCm.X.Numerator = X + 100 * Index;
+        Home.PositionCm.Y.Numerator = Y;
+        Out.Members.Add(MoveTemp(Home));
+    }
     return Out;
 }
 
@@ -698,10 +706,12 @@ bool RunProjections(FAutomationTestBase& Test)
     FLDDemoWorldGeometry World;
     World.Anchors = {Anchor(TEXT("capture"), ELDDemoWorldAnchorKind::Capture, 0, 3000),
         Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
-        Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500)};
+        Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
+        Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
+        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2)};
     TArray<FLDOpponentPOI> POIs;
-    bool bGood = Test.TestTrue(TEXT("Approved anchors join the content camp placement: ") + Error,
-        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 5);
+    bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 8);
     const auto* High = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("h1"); });
     const auto* Low = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("l2"); });
     const auto* Spawn = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("s00"); });
@@ -710,11 +720,17 @@ bool RunProjections(FAutomationTestBase& Test)
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
     auto Unplaced = World;
-    Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0));
-    bGood &= Test.TestFalse(TEXT("A camp anchor without an approved placement is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
+    Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));
+    bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
+    auto MissingCamp = World;
+    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 1);
+    bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"), LDOpponentFrame::ReadPublicPOIs(MissingCamp, C, POIs, Error));
     auto NoShop = World;
     NoShop.Anchors.RemoveAt(1);
     bGood &= Test.TestFalse(TEXT("A world without its single shop is refused"), LDOpponentFrame::ReadPublicPOIs(NoShop, C, POIs, Error));
+    auto Unknown = World;
+    Unknown.Anchors.Add(Anchor(TEXT("s99"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
+    bGood &= Test.TestFalse(TEXT("An unapproved public anchor is refused"), LDOpponentFrame::ReadPublicPOIs(Unknown, C, POIs, Error));
     auto Duplicate = World;
     Duplicate.Anchors.Add(Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
     bGood &= Test.TestFalse(TEXT("Duplicate public ids are refused"), LDOpponentFrame::ReadPublicPOIs(Duplicate, C, POIs, Error));

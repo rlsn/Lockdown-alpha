@@ -7,6 +7,7 @@
 #include "Navigation/LDOrderTypes.h"
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDViewTypes.h"
+#include "World/LDCampLifecycle.h"
 
 namespace LDOpponentFrame
 {
@@ -49,48 +50,66 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
 {
     using namespace Detail;
     Out.Reset();
-    const auto& Content = Catalog.Get();
+    const auto& References = Catalog.Get().World;
+    // Camps come from the camp domain's single read-only roster of the validated roots.
+    FLDCampRoster Roster;
+    if (!LDCamp::BuildRoster(Catalog.Get(), World, Roster, Error)) { return false; }
+    for (const auto& Camp : Roster.Camps)
+    {
+        FLDOpponentPOI POI;
+        POI.Id = Camp.CampId;
+        POI.Kind = ELDOpponentPOIKind::Camp;
+        POI.SurfaceId = Camp.SurfaceId;
+        POI.FootCm = Camp.AnchorCm;
+        POI.MonsterId = Camp.MonsterId.ToString();
+        POI.Tier = Camp.Tier;
+        Out.Add(MoveTemp(POI));
+    }
     int32 Shops = 0, Captures = 0;
     for (const auto& Anchor : World.Anchors)
     {
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
+        {
+            if (Roster.FindCamp(FName(*Anchor.Id)) == INDEX_NONE)
+            {
+                Out.Reset();
+                return Fail(Error, FString::Printf(TEXT("Camp anchor '%s' is not an approved camp."), *Anchor.Id));
+            }
+            continue;
+        }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);
-        if (POI.Id.IsNone() || POI.SurfaceId.IsNone() || Out.ContainsByPredicate([&POI](const FLDOpponentPOI& Existing)
-            { return Existing.Id == POI.Id; }))
-        {
-            return Fail(Error, FString::Printf(TEXT("Public anchor '%s' needs a unique id and a registered surface."), *Anchor.Id));
-        }
-        if (!Anchor.PositionCm.ToVector(POI.FootCm, Error)) { return false; }
+        bool bApproved = false;
         switch (Anchor.Kind)
         {
         case ELDDemoWorldAnchorKind::Spawn:
             POI.Kind = ELDOpponentPOIKind::Spawn;
+            bApproved = References.SpawnIds.Contains(Anchor.Id);
             break;
         case ELDDemoWorldAnchorKind::Shop:
             POI.Kind = ELDOpponentPOIKind::Shop;
+            bApproved = Anchor.Id.Equals(References.ShopId, ESearchCase::CaseSensitive);
             ++Shops;
             break;
         case ELDDemoWorldAnchorKind::Capture:
             POI.Kind = ELDOpponentPOIKind::Capture;
+            bApproved = Anchor.Id.Equals(References.CaptureId, ESearchCase::CaseSensitive);
             ++Captures;
             break;
-        case ELDDemoWorldAnchorKind::Camp:
-        {
-            POI.Kind = ELDOpponentPOIKind::Camp;
-            const auto* Placement = Content.Camps.FindByPredicate([&Anchor](const FLDDemoCampPlacement& Camp)
-            { return Camp.AnchorId.Equals(Anchor.Id, ESearchCase::CaseSensitive); });
-            const FLDDemoMonsterDefinition* Monster = nullptr;
-            if (!Placement || !Catalog.FindMonster(Placement->MonsterId, Monster, Error) || !Monster)
-            {
-                return Fail(Error, FString::Printf(TEXT("Camp anchor '%s' has no approved camp placement."), *Anchor.Id));
-            }
-            POI.MonsterId = Monster->Id;
-            POI.Tier = Monster->Tier;
+        default:
             break;
         }
-        default:
-            return Fail(Error, FString::Printf(TEXT("Public anchor '%s' has an unknown kind."), *Anchor.Id));
+        if (!bApproved || POI.Id.IsNone() || POI.SurfaceId.IsNone()
+            || Out.ContainsByPredicate([&POI](const FLDOpponentPOI& Existing) { return Existing.Id == POI.Id; }))
+        {
+            Out.Reset();
+            return Fail(Error, FString::Printf(TEXT("Public anchor '%s' is not a unique approved place with a registered surface."), *Anchor.Id));
+        }
+        if (!Anchor.PositionCm.ToVector(POI.FootCm, Error))
+        {
+            Out.Reset();
+            return false;
         }
         Out.Add(MoveTemp(POI));
     }
