@@ -61,7 +61,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Kind = ELDOpponentPOIKind::Camp;
         POI.SurfaceId = Camp.SurfaceId;
         POI.FootCm = Camp.AnchorCm;
-        POI.MonsterId = Camp.MonsterId.ToString();
+        POI.MonsterId = CanonicalId(Camp.MonsterId);
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
@@ -189,7 +189,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
     for (const auto& Skill : Progression.Skills)
     {
         FLDOpponentSkill Mapped;
-        Mapped.DefinitionId = Skill.DefinitionId.ToString();
+        Mapped.DefinitionId = CanonicalId(Skill.DefinitionId);
         Mapped.Rank = Skill.Rank;
         if (Skill.bActive)
         {
@@ -204,7 +204,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         Out.Skills.Add(MoveTemp(Mapped));
     }
     TArray<FLDAttributeCardValue> Cards;
-    for (const auto& Card : Progression.AttributeCards) { Cards.Emplace(Card.DefinitionId.ToString(), Card.Count); }
+    for (const auto& Card : Progression.AttributeCards) { Cards.Emplace(CanonicalId(Card.DefinitionId), Card.Count); }
     if (Progression.bHasOffer && Progression.bCanChoose)
     {
         FLDOpponentOffer Offer;
@@ -215,7 +215,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
             FLDOpponentOption Mapped;
             Mapped.OptionId = Option.OptionId;
             if (!OptionKind(Option.Kind, Mapped.Kind)) { return Fail(Error, TEXT("The own offer has an unknown option kind.")); }
-            Mapped.DefinitionId = Option.DefinitionId.ToString();
+            Mapped.DefinitionId = CanonicalId(Option.DefinitionId);
             Mapped.FromRank = Option.FromRank;
             Mapped.ToRank = Option.ToRank;
             Offer.Options.Add(MoveTemp(Mapped));
@@ -230,7 +230,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         {
             return Fail(Error, TEXT("Own equipment slots must be the two ordered positions."));
         }
-        Out.Equipment[Slot] = View.bOccupied ? View.DefinitionId.ToString() : FString();
+        Out.Equipment[Slot] = View.bOccupied ? CanonicalId(View.DefinitionId) : FString();
         if (View.bOccupied) { Equipped.Add(Out.Equipment[Slot]); }
     }
     const auto Projection = LDAttributeProjection::Project(
@@ -274,7 +274,7 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
         if (!bActiveSource) { continue; }
         FLDOpponentSource Source;
         Source.Slot = Slot;
-        Source.DefinitionId = Entry.DefinitionId.ToString();
+        Source.DefinitionId = CanonicalId(Entry.DefinitionId);
         Source.bReady = Entry.Unavailable == ELDCombatReject::None && Entry.ReadyAtMs <= NowMs;
         Out.Sources.Add(MoveTemp(Source));
     }
@@ -293,5 +293,10 @@ ELDOpponentOrderStatus OrderStatus(ELDOrderStatus Status)
     case ELDOrderStatus::Cancelled: return ELDOpponentOrderStatus::Cancelled;
     default: return ELDOpponentOrderStatus::Failed;
     }
+}
+
+FString CanonicalId(FName Id)
+{
+    return Id.IsNone() ? FString() : Id.ToString().ToLower();
 }
 }
