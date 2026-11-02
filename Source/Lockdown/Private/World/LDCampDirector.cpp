@@ -650,9 +650,11 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
             }
         }
     };
+    // Contender placement's support gap: the capsule rests inside CMC's stable floor band, not on the surface itself.
+    const double FloorGap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
     for (int32 Slot = 0; Slot < Spec.Members.Num(); ++Slot)
     {
-        const FVector Origin = Grounds[Slot].FootCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight());
+        const FVector Origin = Grounds[Slot].SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + FloorGap);
         const FTransform Transform(FRotator::ZeroRotator, Origin);
         auto* Body = GetWorld()->SpawnActorDeferred<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(), Transform,
             this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
@@ -679,7 +681,10 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         if (!Movement->CurrentFloor.IsWalkableFloor() || Movement->CurrentFloor.HitResult.GetComponent() != Grounds[Slot].Floor.Get()
             || !Body->GetActorLocation().Equals(Origin, .000001))
         {
-            Error = TEXT("Prepared camp body does not occupy its registered placement.");
+            Error = FString::Printf(TEXT("Prepared camp body does not occupy its registered placement: camp %s member %d walkable=%d floor=%s expected=%s location=%s origin=%s."),
+                *Spec.CampId.ToString(), Slot, Movement->CurrentFloor.IsWalkableFloor(),
+                *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()), *GetNameSafe(Grounds[Slot].Floor.Get()),
+                *Body->GetActorLocation().ToString(), *Origin.ToString());
             return false;
         }
     }
