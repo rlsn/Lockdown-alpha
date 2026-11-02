@@ -636,6 +636,38 @@ bool RunPriorities(FAutomationTestBase& Test)
         bGood &= Expect(Test, TEXT("Below the stop-loss line without a ready shield it leaves the contest"), Spent,
             EMode::Disengage, EBody::MoveGround);
     }
+    {
+        // §6.5: each contest that ends in a stop-loss exit is one failed attempt on the capture under this build; after
+        // RetryPolicy.MaxAttempts the body stops answering the circle until its build changes.
+        FLDOpponentPolicyState Bounded;
+        Frame = Base;
+        Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Frame.Public.Circle = ELDOpponentCircle::Solo;
+        Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Frame.CapturePathCm = 3000.;
+        Frame.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
+        bool bAnswered = Catalog->Get().Parameters.AI.RetryMaxAttempts > 0;
+        for (int64 Attempt = 0; Attempt < Catalog->Get().Parameters.AI.RetryMaxAttempts; ++Attempt)
+        {
+            Frame.Public.NowMs += 10000;
+            Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+            Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+            bAnswered &= LDOpponentPolicy::Decide(Frame, C, Bounded).Mode == EMode::DefendOrHold;
+            Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+            bAnswered &= LDOpponentPolicy::Decide(Frame, C, Bounded).Mode == EMode::Disengage;
+        }
+        Frame.Public.NowMs += 10000;
+        Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
+        const auto Exhausted = LDOpponentPolicy::Decide(Frame, C, Bounded);
+        Frame.Self.BuildRevision += 1;
+        const auto Grown = LDOpponentPolicy::Decide(Frame, C, Bounded);
+        bGood &= Test.TestTrue(TEXT("Each allowed contest is answered and ends in a stop-loss exit"), bAnswered);
+        bGood &= Expect(Test, TEXT("After the allowed attempts the body stops answering the circle under this build"),
+            Exhausted, EMode::Disengage, EBody::MoveGround);
+        bGood &= Expect(Test, TEXT("A changed build may contest the circle again"), Grown, EMode::DefendOrHold,
+            EBody::MoveGround, TEXT("capture"));
+    }
 
     Frame = Base;
     Frame.Self.Gold = 330;

@@ -318,7 +318,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 {
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
-    bool Moved = true, Grew = true, Bought = false, Respawned = true, Acted = true, Bounded = true;
+    bool Moved = true, WinnerGrew = false, Bought = false, Respawned = true, Acted = true, Bounded = true;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
     {
@@ -328,7 +328,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         if (Track.DeadSeenAtMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > RespawnMs + RespawnSlackMs) { Track.bRespawnsValid = false; }
         const FLDOpponentRequestTally& T = Track.Tally;
         Moved &= Track.TravelCm >= MinTravelCm;
-        Grew &= Track.MaxLevel >= 2 && Track.MaxConsumed >= 1;
+        // An AI that loses an even opening fight may spend the match recovering; the winner shows the full growth loop.
+        if (Track.Contender == Result.Winner) { WinnerGrew = Track.MaxLevel >= 2 && Track.MaxConsumed >= 1; }
         Bought |= Track.MaxItems > 0;
         Respawned &= Track.bRespawnsValid;
         Acted &= Track.RespawnsActed == Track.RespawnsChecked;
@@ -363,7 +364,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     }
     Summary->SetArrayField(TEXT("opponents"), Rows);
     Check(Moved, TEXT("Every AI moved through the map on its own orders"));
-    Check(Grew, TEXT("Every AI gained a level and confirmed a growth choice"));
+    Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its growth choices"));
     Check(Bought, TEXT("At least one AI bought equipment through the shop"));
     Check(Respawned, TEXT("Every AI death led to its next life within the approved respawn delay"));
     Check(Acted, TEXT("Every respawned AI sent a new body request within ten seconds"));

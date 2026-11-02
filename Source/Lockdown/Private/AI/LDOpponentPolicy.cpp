@@ -1362,8 +1362,17 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // fleeing would only restart the holder's timer.
     const bool bStopLoss = State.bRecovering && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp) && !ProtectionReady(C);
     const bool bContesting = C.bCaptureOpen && C.bInsideCircle && Frame.Public.Circle == ELDOpponentCircle::Contested;
+    // §6.5 bounded investment: a contest of the circle that ends in a stop-loss exit is one failed attempt on the capture
+    // under this build. After RetryPolicy.MaxAttempts the body stops answering the circle until its build changes, so a
+    // weaker body recovers and grows instead of entering again and again only to be pushed out.
+    const FLDOpponentRetryKey CaptureKey = FContext::EngagementKey(C.Capture->Id, FGuid());
+    if (bStopLoss && !bHoldingSolo && (State.Mode == EMode::DefendOrHold || State.Mode == EMode::Contest))
+    {
+        State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
+    }
+    const bool bMayContest = C.CanAttempt(CaptureKey);
     FLDOpponentBodyIntent Intent;
-    if ((bHoldingSolo || ((bUrgent || bContesting) && !bStopLoss)) && CircleBody(C, bUrgent, Intent))
+    if ((bHoldingSolo || ((bUrgent || bContesting) && !bStopLoss && bMayContest)) && CircleBody(C, bUrgent, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
@@ -1429,7 +1438,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));
         return Finish(EMode::Disengage, EReason::Recover);
     }
-    if (C.bCaptureOpen && CircleBody(C, false, Intent))
+    if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
