@@ -460,7 +460,10 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         const auto* OldAbility = Ability;
         TestFalse(TEXT("Unknown definition is explicit failure"), Snapshot->FindAbility(TEXT("active_unknown"), Ability, Error));
         TestTrue(TEXT("Lookup failure is not a default definition"), !Error.IsEmpty() && Ability == OldAbility);
-        TestFalse(TEXT("Case aliases are rejected before native name construction"), Snapshot->FindAbility(TEXT("Active_arc_bolt"), Ability, Error));
+        // Without case-preserving names a packaged build returns the first registered spelling; lookups fold to the
+        // canonical identity instead of refusing it. Author input stays strictly lowercase at import.
+        TestTrue(TEXT("A case alias resolves to the canonical definition"),
+            Snapshot->FindAbility(TEXT("Active_arc_bolt"), Ability, Error) && Ability == OldAbility);
     }
     TestEqual(TEXT("Every rank's typed quantity has a compiler-backed native change case"), UnchangedRankQuantities.Num(), 0);
 
@@ -934,6 +937,98 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Conflict refusal is explicit: ") + ConflictError, ConflictError.Contains(TEXT("already registered")));
     const bool bRestored = LDDemoContentText::Register(*Runtime, Error);
     TestTrue(TEXT("The verified table is restored and accepted again: ") + Error, bRestored);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentCaseFoldedLookupTest, "Lockdown.Rules.DemoContent.CaseFoldedLookup",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    // A packaged build hands back the first registered casing of a name; the editor keeps each spelling,
+    // so these explicit variants reproduce that input here.
+    const auto Variants = [](const FString& Id)
+    {
+        FString Capitalized = Id;
+        Capitalized[0] = FChar::ToUpper(Capitalized[0]);
+        return TArray<FString>{Id.ToUpper(), Capitalized, FName(*Capitalized).ToString()};
+    };
+    int32 Identities = 0;
+    const auto Expect = [&](const TCHAR* Kind, const FString& Id, auto Lookup)
+    {
+        ++Identities;
+        const auto* Canonical = Lookup(Id);
+        TestNotNull(FString::Printf(TEXT("%s %s resolves canonically: %s"), Kind, *Id, *Error), Canonical);
+        for (const FString& Variant : Variants(Id))
+        {
+            const auto* Folded = Lookup(Variant);
+            TestTrue(FString::Printf(TEXT("%s %s resolves from %s: %s"), Kind, *Id, *Variant, *Error),
+                Canonical != nullptr && Folded == Canonical);
+        }
+    };
+    for (const FLDDemoAbilityDefinition& Row : Definitions.Abilities)
+    {
+        Expect(TEXT("Ability"), Row.Id, [&](const FString& Id)
+        { const FLDDemoAbilityDefinition* Out = nullptr; return Snapshot->FindAbility(Id, Out, Error) ? Out : nullptr; });
+    }
+    for (const FLDDemoAttributeDefinition& Row : Definitions.Attributes)
+    {
+        Expect(TEXT("Attribute"), Row.Id, [&](const FString& Id)
+        { const FLDDemoAttributeDefinition* Out = nullptr; return Snapshot->FindAttribute(Id, Out, Error) ? Out : nullptr; });
+    }
+    for (const FLDDemoEquipmentDefinition& Row : Definitions.Equipment)
+    {
+        Expect(TEXT("Equipment"), Row.Id, [&](const FString& Id)
+        { const FLDDemoEquipmentDefinition* Out = nullptr; return Snapshot->FindEquipment(Id, Out, Error) ? Out : nullptr; });
+    }
+    for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
+    {
+        Expect(TEXT("Monster"), Row.Id, [&](const FString& Id)
+        { const FLDDemoMonsterDefinition* Out = nullptr; return Snapshot->FindMonster(Id, Out, Error) ? Out : nullptr; });
+    }
+    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
+    {
+        Expect(TEXT("Display"), Row.Id, [&](const FString& Id)
+        { const FLDDemoDisplayDefinition* Out = nullptr; return Snapshot->FindDisplay(Id, Out, Error) ? Out : nullptr; });
+    }
+    TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
+        !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.Equipment.IsEmpty()
+        && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
+        + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+    for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
+    {
+        const FLDDemoDisplayDefinition* Out = nullptr;
+        TestTrue(FString::Printf(TEXT("Display %s resolves from an engine-style registered spelling"), Common),
+            Snapshot->FindDisplay(FName(Common).ToString(), Out, Error) && Out
+            && Out->Id.Equals(FString(Common).ToLower(), ESearchCase::CaseSensitive));
+    }
+    for (const TCHAR* Bad : {TEXT(""), TEXT("Root!"), TEXT("1root"), TEXT("root shield"), TEXT("\uFF32oot")})
+    {
+        const FLDDemoDisplayDefinition* Out = nullptr;
+        TestFalse(FString::Printf(TEXT("Malformed lookup '%s' is refused, not folded into a match"), Bad),
+            Snapshot->FindDisplay(Bad, Out, Error));
+        TestTrue(FString::Printf(TEXT("Malformed lookup '%s' is explicit"), Bad), Out == nullptr && !Error.IsEmpty());
+    }
+    const FLDDemoEquipmentDefinition* Missing = nullptr;
+    TestFalse(TEXT("A well-formed but absent identity stays absent in any casing"),
+        Snapshot->FindEquipment(TEXT("Item_Absent"), Missing, Error));
+    TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
     return true;
 }
 #endif

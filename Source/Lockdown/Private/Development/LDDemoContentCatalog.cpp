@@ -13,12 +13,16 @@ template <typename T>
 bool Find(const TArray<T>& Rows, const FString& Id, const T*& Out, FString& Error)
 {
     LDDemoContent::FCheck Check(Error);
-    if (!LDDemoContent::Id(Id, Check, TEXT("definition lookup")))
+    // Callers often pass FName::ToString(). Without case-preserving names (every non-editor build) a common word comes
+    // back in the casing it was first registered with, such as "Root" or "Shield". Catalog identities are canonical
+    // lowercase, so a lookup folds first; author input is still validated strictly at import.
+    const FString Canonical = Id.ToLower();
+    if (!LDDemoContent::Id(Canonical, Check, TEXT("definition lookup")))
     {
         return false;
     }
-    const T* Row = Rows.FindByPredicate([&](const T& Candidate) { return Candidate.Id == Id; });
-    if (!Check.Require(Row != nullptr, Id, TEXT("definition is not present in this validated catalog")))
+    const T* Row = Rows.FindByPredicate([&](const T& Candidate) { return Candidate.Id.Equals(Canonical, ESearchCase::CaseSensitive); });
+    if (!Check.Require(Row != nullptr, Canonical, TEXT("definition is not present in this validated catalog")))
     {
         return false;
     }

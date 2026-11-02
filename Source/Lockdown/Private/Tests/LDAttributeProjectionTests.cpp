@@ -946,8 +946,17 @@ bool RunRefusals(FAutomationTestBase& Test)
         {TEXT("item_missing"), TEXT("item_missing"), TEXT("item_missing")}), EError::InputDomain, TEXT("EquippedItems"));
     bGood &= Refused(TEXT("Unknown equipment"), MakeBuild(1, {}, {}, {TEXT("item_iron_plate"), TEXT("item_missing")}),
         EError::UnknownDefinition, TEXT("EquippedItems[1]"));
-    bGood &= Refused(TEXT("Case-folded equipment ID"), MakeBuild(1, {}, {}, {TEXT("Item_Echo_Maul")}),
-        EError::UnknownDefinition, TEXT("EquippedItems[0]"));
+    // A packaged build can return an FName in its first registered casing; equipment lookups fold to the canonical ID.
+    FLDAttributeProjection Folded, Canonical;
+    bGood &= ProjectBuild(Test, TEXT("Case-folded equipment ID"), MakeBuild(1, {}, {}, {TEXT("Item_Echo_Maul")}), *Catalog, Folded)
+        && ProjectBuild(Test, TEXT("Canonical equipment ID"), MakeBuild(1, {}, {}, {TEXT("item_echo_maul")}), *Catalog, Canonical)
+        && Test.TestTrue(TEXT("Case-folded equipment projects exactly like its canonical identity"),
+            Folded.Final.MaxHPP2 == Canonical.Final.MaxHPP2 && Folded.Final.MaxMPP2 == Canonical.Final.MaxMPP2
+            && Folded.Final.ADP2 == Canonical.Final.ADP2 && Folded.Final.APP2 == Canonical.Final.APP2
+            && Folded.Final.ArmorP2 == Canonical.Final.ArmorP2 && Folded.Final.MagicResistP2 == Canonical.Final.MagicResistP2
+            && Folded.Final.CritChanceBp == Canonical.Final.CritChanceBp && Folded.Final.CooldownHasteP2 == Canonical.Final.CooldownHasteP2
+            && Folded.EquipmentPassives.Num() == Canonical.EquipmentPassives.Num()
+            && Folded.Contributions.Num() == Canonical.Contributions.Num());
     bGood &= Refused(TEXT("An empty ID is not an empty slot"), MakeBuild(1, {}, {}, {FString()}),
         EError::UnknownDefinition, TEXT("EquippedItems[0]"));
     bGood &= Refused(TEXT("An attribute card is not equipment"), MakeBuild(1, {}, {}, {TEXT("attr_might")}),
