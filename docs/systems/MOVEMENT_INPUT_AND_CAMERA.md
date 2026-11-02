@@ -54,32 +54,35 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
 都不是最终 Motion Fence、Sealing 或占领完成证明；圈穿越、实际 Combat 因果消费、
 root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 旧 `StartAuthorityDash` / `StartContentDash`、Sprint 自定义压缩位与旧地表慢速分派已删除，
-不保留可调用的拒绝壳；批准装备的位移须从真实来源/释放提交接回同一原生运动记录链。
+不保留可调用的拒绝壳；装备位移只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
+由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
 
 ## 命令与取消
 
 `FLDMoveIdentity` 包含 `Match`、`Life`、`Order`、`Epoch`；
 拥有连接隐含在组件的 Controller 中，不接受客户端指定另一个所有者。
 
-1. `NavigateGround` 建立新 order，发送脚点和显式注册 SurfaceHint；当前只接地面订单。
-2. `ServerOrder` 先用核心当前 BodyRef/拥有 Controller 核对身份和顺序，再进入有限待处理窗口；
-   实际合法地面/完整路径及激活由 driver 的 Actions permit 消费。
-3. `ClientOrder` 只接受当前身份的结果，避免迟到确认重启已取消路线。
+1. `NavigateGround`、`AttackUnit`、`AttackMove`、`ApproachShop` 各建立新 order，发送一份
+   `FLDSpatialOrderRequest`（Kind 为 MoveGround/AttackUnit/AttackMove/ApproachShop，带脚点与注册
+   SurfaceHint、观察句柄+Epoch 或商店 ID）。右键按“可见单位 → 公共商店 → 地面”的顺序只取一类。
+2. `ServerSubmitOrder` 与对手 AI 的服务器入口 `SubmitOrder(FLDOrderCaller, Request)` 共用同一订单簿：
+   先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
+   进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
+   在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
+3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。
 4. `Stop` 提升 order 和取消 epoch，清本地预测跟随；服务器在获准 Actions 阶段停止，
    不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
 5. `ResetLife` 不倒退序列号；新的 Owner 生命投影先发布再清理导航，不发送一条伪装成用户意图的
-   新生命 Stop，也不等下一次 Tick 清掉已经收到的新生命首单。
+   新生命 Stop，也不等下一次 Tick 清掉已经收到的新生命首单。死亡由 `EndLifeOrders` 结束全部订单。
 
-地面 RPC 仅有 `ServerOrder(FLDMoveIdentity, FVector_NetQuantize10, FName SurfaceHint)`，
-不再携旧 Site 或无观察 epoch 的 Observed 字段；wire 版本随完整切换为 3。
-`Navigate(FVector)` 只从唯一注册地面取得 SurfaceHint。单位点击不能偷偷降成地面命令；
-尚未接通的单位追击明确拒绝，普通 Start 继续由完整提供者门禁关闭。
+AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
+搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，
+到点且无目标即结束。失去视野终止订单并解除锁定，不恢复原目的地。
+真人订单需要拥有连接心跳续租；没有 LocalPlayer 的服务器 AI 控制器以注册绑定为租约。
 
 已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。
 接收时间由核心按同一比赛原点生成 NotBefore 审计桶，不能把帧间迟到命令放进更早补进的运动区间。
 心跳只刷新当前已激活 identity，不创建订单；序列与取消计数耗尽明确失败，不回绕。
-`Enabled` 不再以旧 UI profile 开免验证路径；当前观察目标、A/追击和商店订单仍待接线，
-不是以旧 Site/Observed 分支充当 Demo 行为。
 
 目标句柄由相应世界的观察服务重新解析。地面点击可以使用静态地图信息，
 但动态目标必须当前获准可见；不能以寻路预览、自动追踪或避障反馈泄露隐藏单位。

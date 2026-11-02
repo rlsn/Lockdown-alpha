@@ -7,11 +7,13 @@
 
 | 入口 | 责任 |
 | --- | --- |
-| `Combat\LDCombatDirector` | 唯一 Bodies/P2 资源记录、初次身体准备/绑定与既有 Combat driver；对外只读身体状态 |
-| `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming`，从同一不可变 Demo 内容求值，不提交资源或产生效果 |
+| `Combat\LDCombatDirector` | 唯一 Bodies/P2 资源记录与按实体保留的 Combat 记录（构筑投影、来源冷却轨道、普攻节拍、Direct 请求窗口）；真人、对手 AI 与营地成员共用的动作入口；对外只读身体状态 |
+| `Combat\LDCombatDriver.cpp` | 唯一权威 driver：按真实到期点切步，按契约顺序执行各阶段，步后发布视野与本人 `CombatView` |
+| `Combat\LDCombatActions/Effects/Sources/Life.cpp` | 准入/释放/回执；命中、投射物、状态到期、回复与致死锁存；构筑安装、来源绑定与可用性读模型；身体准备/安装/退役 |
+| `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming` / `CooldownDurationMs`，以及 Root/屏障/净化/定点回复纯规则；不提交资源或产生效果 |
 | `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
 | `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
-| `World\LDWorldClock.cpp` | 同一 Combat driver 的带 Match/毫秒上界推进入口，无旧世界时钟重写分支 |
+| `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
 | `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励，实际 N03 接线未完成 |
 | `Development\LDCharacterBuild` | 当前构筑纯值与候选投影；不是已接通的三选一服务 |
 | `Development\LDV08Loadout`、`LDV08Modifiers` | 来源绑定、装备派生与修正器 |
@@ -31,20 +33,27 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
 已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
 
-当前实际执行仅接通初次身体与地面命令；普攻、技能、装备来源、控制与命中提交尚未接通。
+普攻、Q/W 与装备 1/2 经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
+本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
+未准入不付费，已解除的保护不恢复。释放时重验来源与目标，成功才扣蓝并按 `FORMULA.CooldownMs`
+写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
+已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
+Root/屏障/Root 净化/定点回复的规则从 d70211a 的 `LDTactical` 抽取为纯函数：
+Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
+不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
 旧 `LDTactical::Allows/FState` 及未选状态不能作为新 Demo 的兼容入口。
-后续动作仍须按类别和批准定义判断允许性，不能靠客户端来源标签绕过核心许可。
 
 ## 权威时序
 
-`AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在
-`World\LDWorldClock.cpp` 中逐步调用同一 Core 的 Motion、地面 Actions 和完成边界，
-仅推进原生游戏时间已经提供的预算。原生 CMC 每身体每步只执行一次；
-Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
+`AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
+中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
+普攻节拍、脱战回复起点、保护到期、复活时刻）。每步依次执行 Motion → Session（保护半开到期）→
+Actions → Effects → DeathsAndRewards → RespawnsAndWorld 和完成边界，仅推进原生游戏时间已经提供的预算。
+原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
-Effects、DeathsAndRewards、Transactions、Capture/结果归约及全部提供者封桶仍需接通；
-当前完成边界不是它们的空成功或最终 Fence，普通 Start 因此仍关闭。
+奖励、Transactions、Capture/Close/Publish 由成长、营地与终局提供者接入后才在同一分派中开启；
+在此之前这些阶段明确拒绝，不是空成功或最终 Fence，普通 Start 因此仍关闭。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
 新争圈的归约与结果归 GameMode 核心（N02，尚未实现），不能沿用已退役的 Heart 授权或旧交互中断条件。
@@ -57,7 +66,9 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 也不代替拥有 permit 的命中/死亡提交。
 `ReadObservedPublicFacts` 只读当前已绑定身体上明确提交的公开构筑/状态投影。
 复活保护仅由 Alive/current Body 且 Core NowMs 小于 Lives.ProtectedUntilMs 派生
-`RespawnProtection` 的单层状态及精确期限，不存成可驱散的 Combat buff，不在读取时补默认等级。
+`RespawnProtection` 的单层状态及精确期限，不存成可驱散的 Combat buff，不在读取时补默认等级；
+命中点以同一生命状态做统一保护闸（免伤免控，群攻副目标排除保护者）。
+公开 Root/Shield 提示同样在读取时由当前 Combat 状态派生，不另存一份可漂移的公开状态。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
 
@@ -86,8 +97,8 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 检查入口
 
-`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
-分别覆盖纯数值、属性及核心身份/许可/时间/投影边界；`LDV08LoadoutTests`、
+`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
+分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；`LDV08LoadoutTests`、
 `LDPreparationRulesTests` 仍验证保留纯来源模型的候选和拒绝，不能解释为 Demo 多槽已经批准。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 旧 Combat/Content probe 与 runner 已删除。

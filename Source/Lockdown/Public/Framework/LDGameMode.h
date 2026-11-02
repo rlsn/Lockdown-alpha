@@ -36,6 +36,17 @@ class ALDPlayerController;
 class ALDCharacter;
 class FLDDemoContentSnapshot;
 struct FLDNativeMotionBatch;
+struct FLDCommittedDeath;
+struct FLDAggressiveIntent;
+struct FLDProtectionReceipt;
+struct FLDBodyCombatState;
+// One camp member body prepared by the camp owner for a group-atomic life commit.
+struct FLDCampMemberSpawn
+{
+    FGuid EntityId;
+    ALDCharacter* Body=nullptr;
+    FName MonsterId;
+};
 struct FLDContenderRecord
 {
     FGuid Session;
@@ -87,6 +98,19 @@ public:
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
+    // The only protection-removal entry: an admitted aggressive intent removes protection before
+    // the action itself is checked; a later action rejection never restores it.
+    FLDProtectionReceipt EndProtectionForAggressiveIntent(AController& Caller, const FLDMatchContext& Match,
+        const FLDCombatBodyRef& Body, const FLDAggressiveIntent& Intent, const FLDGameplayWritePermit& Permit);
+    // Current contender controller binding (human or registered opponent AI); never a camp member.
+    ALDPlayerController* FindContenderController(const FGuid& ContenderId) const;
+    // Life-domain protection (immune to damage and control); Combat reads it at the hit point.
+    bool IsContenderProtected(const FGuid& ContenderId) const;
+    // Camps: registers members on first use and commits one whole group's new lives atomically
+    // inside RespawnsAndWorld (no partial group). Bodies are prepared, hidden and unpossessed by camps.
+    bool SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, const FLDGameplayWritePermit& Permit,
+        TArray<FLDCombatBodyRef>& OutBodies, FString& Error);
 private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
@@ -166,4 +190,33 @@ private:
     TWeakObjectPtr<ALDPlayerController> LobbyHost;
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
     FRandomStream SpawnRandom;
+    // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
+    // Locked Combat death -> life ends once; the body leaves combat and the capture set, growth is kept.
+    bool EndContenderLife(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool EndCampMemberLife(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Session: natural protection expiry at ProtectedUntilMs (half-open), before this boundary's hits.
+    bool ExpireProtections(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld: due contenders draw one of the ten anchors with equal probability.
+    bool RespawnDueContenders(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Earliest future protection expiry or respawn, for the driver's step boundaries.
+    int64 NextLifeDueMs() const;
+    struct FLDPlacedBody
+    {
+        FGuid Contender;
+        uint32 Life=0;
+        TWeakObjectPtr<ALDPlayerController> Controller;
+        TWeakObjectPtr<ALDCharacter> Body;
+        TSharedPtr<const class FLDSpawnReservation> Reservation;
+    };
+    // Draws, reserves and physically places one contender body without committing any life state.
+    bool PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife, const FLDGameplayWritePermit& Permit,
+        FLDPlacedBody& Out, FString& Error);
+    void ReleasePlacedBody(FLDPlacedBody& Placed);
+    // Life commit after every preparation succeeded; a failure here is an authority fault, never a retry.
+    bool CommitPlacedLife(FLDPlacedBody& Placed, FLDBodyCombatState&& CombatState, int64 ProtectedUntilMs,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ActivatePlacedBody(FLDPlacedBody& Placed, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Installs one committed life's motion stream at its placed foot.
+    void BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body);
+    static int32 PhaseOrder(ELDCommitPhase Phase);
 };

@@ -109,6 +109,7 @@ void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ALDPlayerController,OwnerState);
+    DOREPLIFETIME_CONDITION(ALDPlayerController,CombatView,COND_OwnerOnly);
 }
 
 ALDWorldViewRelay* ALDPlayerController::LocalView() const

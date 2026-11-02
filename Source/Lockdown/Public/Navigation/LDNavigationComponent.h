@@ -2,12 +2,20 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Combat/LDCombatTypes.h"
 #include "Navigation/LDOrderTypes.h"
+#include "World/LDWorldQueryTypes.h"
 #include "LDNavigationComponent.generated.h"
 
 class ALDPlayerController;
 class ALDCharacter;
+class ALDGameMode;
+class FLDDemoContentSnapshot;
+struct FLDAuthorityTargetSample;
+struct FCollisionShape;
 
+// The only writer of a contender body's current order. The owning client sends typed intents and predicts
+// its own accepted order; the server queues, admits and advances it inside the core Actions/Motion permits.
 UCLASS()
 class LOCKDOWN_API ULDNavigationComponent : public UActorComponent
 {
@@ -16,11 +24,18 @@ public:
     ULDNavigationComponent();
     virtual void TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* ThisTickFunction) override;
     bool Enabled() const;
+    // ---- Owning client intents; each takes a fresh local identity.
     void Navigate(const FVector& Surface);
     void NavigateGround(const FVector& Surface, FName SurfaceHint);
+    void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch);
+    void AttackMove(const FVector& Surface, FName SurfaceHint);
+    void ApproachShop(FName ShopId);
     void Stop();
     void ResetLife();
+    // Right click: visible unit under the pointer, else the public shop, else ground. One class per click.
     void ClickMove();
+    // Registered id of the single Demo ground surface; None when the world is unavailable.
+    FName GroundSurfaceHint() const;
     void PanCamera(const FVector2D& Axis,float Delta);
     void Recenter(bool Held);
     void ToggleFollow();
@@ -28,8 +43,18 @@ public:
     bool bFollowCamera=true,bEdgePan=true;
     bool IsFollowing() const {return bFollowing;}
     bool HasMoveOrder() const {return bLocalActive;}
-    bool IsAuthorityActive() const {return bServerActive;}
+    bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
+    // Latest owner receipt applied by the owning client (Serial 0 before the first one).
+    const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
+    // ---- Server entries shared by the owning RPCs and the registered opponent AI.
+    // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
+    FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
+    // Stop semantics: Identity must advance both the order and the cancellation epoch.
+    FLDOrderReceipt CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderCancelReason Reason);
+    FLDOrderReceipt QueryOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity) const;
+    // Death, leave or match close: ends pending and active orders without any new movement.
+    void EndLifeOrders(ELDOrderCancelReason Reason=ELDOrderCancelReason::LifeEnded);
     bool AuthorizesMove(const FLDMoveIdentity& Identity) const;
     bool AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
@@ -41,40 +66,129 @@ public:
     FString Status;
     FVector Destination=FVector::ZeroVector;
     // Explicitly callable for deterministic adversarial RPC probes; all validation is authority-side.
-    UFUNCTION(Server,Reliable) void ServerOrder(FLDMoveIdentity Identity,FVector_NetQuantize10 Surface,FName SurfaceHint);
+    UFUNCTION(Server,Reliable) void ServerSubmitOrder(const FLDSpatialOrderRequest& Request);
     UFUNCTION(Server,Reliable) void ServerStop(FLDMoveIdentity Identity);
     UFUNCTION(Server,Unreliable) void ServerHeartbeat(FLDMoveIdentity Identity,uint32 Sequence);
-    UFUNCTION(Client,Reliable) void ClientOrder(FLDMoveIdentity Identity,uint8 Result,FVector_NetQuantize10 Goal,float Acceptance,const FString& Reason);
+    UFUNCTION(Client,Reliable) void ClientOrderReceipt(const FLDOrderReceipt& Receipt);
 private:
+    static constexpr double OrderQueryIntervalSeconds=.1;
+    static constexpr double OrderNoProgressSeconds=2.;
+    static constexpr double GoalShiftCm=50.;
+    static constexpr double GoalAcceptanceCm=40.;
+    static constexpr int32 MaxOrderRecords=16;
+    struct FPendingOrder
+    {
+        FLDSpatialOrderRequest Request;
+        FLDMatchContext Match;
+        FLDCombatBodyRef Body;
+        int64 NotBeforeMs=0;
+        bool bStop=false;
+        ELDOrderCancelReason Reason=ELDOrderCancelReason::Stop;
+        // Earliest aggressive intent of this life that a newer pending request superseded.
+        TOptional<FLDAggressiveIntent> OwedAggression;
+    };
+    struct FActiveOrder
+    {
+        FLDSpatialOrderRequest Request;
+        FLDMatchContext Match;
+        FLDCombatBodyRef Body;
+        TArray<FVector> Points;
+        int32 PointIndex=0;
+        FVector Goal=FVector::ZeroVector;          // end of the current path
+        FVector Destination=FVector::ZeroVector;   // fixed ground destination (MoveGround/AttackMove)
+        FVector ShopCentre=FVector::ZeroVector;
+        FVector TargetFoot=FVector::ZeroVector;    // pinned target at the latest authorized sample
+        FVector PlannedTargetFoot=FVector::ZeroVector;
+        FVector SentGoal=FVector::ZeroVector;
+        FName Surface;
+        float Acceptance=40;
+        double RangeCm=0;
+        FGuid Target;
+        uint32 TargetEpoch=0;
+        uint32 HeartbeatSequence=0;
+        uint64 AttackCycle=0;
+        uint64 LifeRevision=0;
+        double LastHeartbeat=0, LastProgress=0, BestProgress=0, NextChasePlan=0;
+        bool bHumanLease=false, bPinned=false, bEngaged=false, bCloseIn=false;
+        bool bReplanned=false, bForceReplan=false, bProgressReplan=false;
+        bool bProtectionRemoved=false, bSentGoal=false, bSentEngaged=false;
+    };
+    struct FOrderRecord
+    {
+        FLDSpatialOrderRequest Request;
+        bool bStop=false;
+        FLDOrderReceipt Receipt;
+    };
     ALDPlayerController* Controller() const;
-    bool Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected, FString& Error);
-    bool AcceptEnvelope(const FLDMoveIdentity& Identity, FString& Error) const;
+    ALDGameMode* AuthorityMode() const;
+    bool IsLocalOwner() const;
+    bool IsHumanOwner() const;
+    const FLDDemoContentSnapshot* DemoContent();
+    bool QueryBodyGround(FLDLegalGround& Out, FCollisionShape& Capsule, ELDWorldQueryFailure& Failure, FString& Error) const;
+    bool Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected,
+        ELDWorldQueryFailure& Failure, FString& Error);
+    bool ShopAt(const FVector& GroundPoint, FName& OutShop);
+    // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
-    void EndServer(uint8 Result,const FString& Reason);
+    void SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
+    void ApplyPrediction();
+    void RefreshLocalActive();
     void TickCamera(float Delta);
     void Face(const FVector& Direction);
-    FLDMoveIdentity Local,Server,Received,Pending;
-    uint32 Serial=0,Epoch=0,AcceptedOrder=0,HeartbeatSequence=0,ServerHeartbeatSequence=0;
-    uint32 AcknowledgedOrder=0;
+    // ---- Authority order book (LDNavigationOrders.cpp).
+    bool ResolveOwnerCaller(FLDOrderCaller& Out, ELDOrderFailure& Failure) const;
+    bool ValidateCaller(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderFailure& Failure) const;
+    void EnsureBook(const FLDMoveIdentity& Identity);
+    void EndStaleServerOrders();
+    const FOrderRecord* FindRecord(const FLDMoveIdentity& Identity) const;
+    FOrderRecord* FindRecord(const FLDMoveIdentity& Identity);
+    void AddRecord(const FLDSpatialOrderRequest& Request, bool bStop);
+    FLDOrderReceipt Enqueue(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request, bool bStop,
+        ELDOrderCancelReason Reason);
+    FLDOrderReceipt Reply(const FLDSpatialOrderRequest& Request, ELDOrderStatus Outcome, ELDOrderFailure Failure,
+        bool bStore, bool bProtectionRemoved=false, uint64 LifeRevision=0);
+    FLDOrderReceipt Replay(const FOrderRecord& Record);
+    FLDOrderReceipt Publish(FLDOrderReceipt Receipt, bool bStore);
+    FLDOrderReceipt MakeReceipt(const FActiveOrder& Order, ELDOrderStatus Outcome, ELDOrderFailure Failure) const;
+    void PublishActive(ELDOrderStatus Outcome);
+    bool LeaseFresh(const ALDGameMode& Mode, const FActiveOrder& Order) const;
+    bool ActivatePending(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FActiveOrder& Order,
+        ELDOrderFailure& Failure, FString& Error);
+    bool AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit,
+        FLDAuthorityTargetSample& Out, bool& bFound, FString& Error);
+    bool EngageTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    FVector AuthoritySteering(const ALDCharacter& Body);
+    void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
+    void EndActive(ELDOrderStatus Outcome, ELDOrderFailure Failure, bool bHalt);
+    void ReleaseOrderLinks(const FActiveOrder& Order, bool bReleasePin);
+    // ---- Owning-client state.
+    FLDMoveIdentity Local, ClientActive;
+    ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
+    FLDOrderReceipt LastReceipt;
+    uint64 LastReceiptSerial=0;
+    uint32 Serial=0,Epoch=0,AcceptedOrder=0,AcknowledgedOrder=0,HeartbeatSequence=0;
     uint32 SeenMatch=0,SeenLife=0;
-    bool bFollowing=false,bLocalActive=false,bServerActive=false,bPending=false,bReplanned=false,bServerReplanned=false;
-    bool bPendingStop=false,bReceivedStop=false;
+    bool bFollowing=false,bLocalActive=false,bLocalPending=false,bLocalStop=false,bReplanned=false;
+    bool bActiveHasGoal=false,bActiveEngaged=false;
     bool bRecenterHeld=false,bCameraInitialized=false;
     bool bHadFocus=true;
     TArray<FVector> Points;
-    TArray<FVector> ServerPoints;
     int32 PointIndex=0;
-    int32 ServerPointIndex=0;
-    FVector ServerGoal=FVector::ZeroVector,PendingSurface=FVector::ZeroVector;
+    FVector ActiveGoal=FVector::ZeroVector;
     FVector CameraCentre=FVector::ZeroVector;
-    FName LocalSurfaceHint, ServerSurfaceHint, PendingSurfaceHint, ReceivedSurfaceHint;
-    FVector ReceivedSurface=FVector::ZeroVector;
-    uint8 LastResult=0;
-    FString LastReason;
-    int64 PendingNotBeforeMs=0;
-    float AcceptanceRadius=40,ServerAcceptance=40;
-    double LastHeartbeatSent=-1000,LastHeartbeat=0,NextQuery=0,LastProgress=0,ServerLastProgress=0;
-    double BestProgress=0,ServerBestProgress=0;
-    double LocalSentAt=0;
+    float AcceptanceRadius=40,ActiveAcceptance=40;
+    double LastHeartbeatSent=-1000,LastProgress=0,BestProgress=0,LocalSentAt=0;
     TWeakObjectPtr<ALDCharacter> LastPawn;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    // ---- Authority order book (server only).
+    TOptional<FPendingOrder> PendingOrder;
+    TOptional<FActiveOrder> ActiveOrder;
+    TArray<FOrderRecord> Records;
+    FLDMoveIdentity Received;
+    uint32 BookMatch=0,BookLife=0;
+    uint64 NextReceiptSerial=0;
+    double NextQuery=0;
 };

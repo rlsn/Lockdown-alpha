@@ -82,14 +82,17 @@ UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执�
 
 Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当前成员失效；
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
-旧 `EndContenderLife`/`ReturnDueContenders`、成长和场景组件仍有待各自闭包迁移，
-不代表 Demo 死亡保留、十点复活、终局或同世界新局已经接通。
+死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
+（撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
+到 `RespawnAtMs` 时从十个出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
+`SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
+成长、商店、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
 GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
 初次身体绑定只接受已登记的 Unspawned 主体、当前 Starting permit 和重新核验的真实合法位置，
-重复调用不再初始化资源。完整十点抽样/预留、死亡事实及复活链仍待对应切片。
+重复调用不再初始化资源。初次出生与复活共用同一抽点/落地/准备/提交路径；初次出生不附加保护。
 
 GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Combat driver 按真实可达整数上界
 推进同一 CMC 区间；不写 `UWorld::TimeSeconds`。`AuthoritySecondsToNowMs` 使用受检 floor，
@@ -97,8 +100,9 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 迟收地面意图携核心生成的 NotBefore 时间，不能作用于更早原生区间。
 `FLDGameplayWritePermit` 仅由核心在当前调用栈构造，禁止复制/移动；
 最终写入重查 Owner、Match、边界、阶段、GateRevision 和当前借用地址，重入不能再发许可。
-当前执行切片仅接 Starting 身体、Motion、地面 Actions，不为未实现的 Effects/奖励/占领等阶段
-签发成功证明。当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
+阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld 的契约顺序
+每步各执行一次；Transactions、Capture、Close 在对应提供者接入调度前明确拒绝，
+不为未接通阶段签发成功证明。当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
 和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
 不允许两次记录之间的无凭据位置写悄悄成为新起点。退休后的已接纳批次不因弱 Pawn 指针失效而丢弃。
 精确前缀确认、原生记录和完成计数都不是提供者 Fence 或可关闭比赛的凭据；
