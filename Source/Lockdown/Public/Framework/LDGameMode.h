@@ -49,6 +49,17 @@ class ALDPlayerController;
 class ALDCharacter;
 class FLDDemoContentSnapshot;
 struct FLDNativeMotionBatch;
+struct FLDCommittedDeath;
+struct FLDAggressiveIntent;
+struct FLDProtectionReceipt;
+struct FLDBodyCombatState;
+// One camp member body prepared by the camp owner for a group-atomic life commit.
+struct FLDCampMemberSpawn
+{
+    FGuid EntityId;
+    ALDCharacter* Body=nullptr;
+    FName MonsterId;
+};
 struct FLDContenderRecord
 {
     FGuid Session;
@@ -97,8 +108,6 @@ public:
     FGuid ContenderId(ALDPlayerController* Controller) const;
     void SyncOwner(ALDPlayerController* Controller);
     bool IsPlaying() const;
-    void EconomyWallets(TMap<FName,int64>& Out) const;
-    int32 EconomyContenderCount() const {return Contenders.Num();}
     bool IsFinished() const;
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
@@ -119,8 +128,29 @@ public:
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
+    // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    UPROPERTY() TObjectPtr<class ALDDevelopmentDirector> Development;
+    UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
+    // ---- end Growth/Shop ----
+    // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
+    // The only protection-removal entry: an admitted aggressive intent removes protection before
+    // the action itself is checked; a later action rejection never restores it.
+    FLDProtectionReceipt EndProtectionForAggressiveIntent(AController& Caller, const FLDMatchContext& Match,
+        const FLDCombatBodyRef& Body, const FLDAggressiveIntent& Intent, const FLDGameplayWritePermit& Permit);
+    // Current contender controller binding (human or registered opponent AI); never a camp member.
+    ALDPlayerController* FindContenderController(const FGuid& ContenderId) const;
+    // Life-domain protection (immune to damage and control); Combat reads it at the hit point.
+    bool IsContenderProtected(const FGuid& ContenderId) const;
+    // Camps: registers members on first use and commits one whole group's new lives atomically
+    // inside RespawnsAndWorld (no partial group). Bodies are prepared, hidden and unpossessed by camps.
+    bool SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, const FLDGameplayWritePermit& Permit,
+        TArray<FLDCombatBodyRef>& OutBodies, FString& Error);
+    // Combat provider hooks (Combat\LDCombatProvider.cpp): close cancels live orders; reset drops
+    // old-match owner views and camp lives before the core retires bodies and the driver.
+    void CloseCombatMatch(const FLDMatchClosed& Closed);
+    bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
 private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
@@ -200,6 +230,44 @@ private:
     TWeakObjectPtr<ALDPlayerController> LobbyHost;
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
     FRandomStream SpawnRandom;
+    // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
+    // Locked Combat death -> life ends once; the body leaves combat and the capture set, growth is kept.
+    bool EndContenderLife(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool EndCampMemberLife(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Session: natural protection expiry at ProtectedUntilMs (half-open), before this boundary's hits.
+    bool ExpireProtections(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld: due contenders draw one of the ten anchors with equal probability.
+    bool RespawnDueContenders(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Earliest future protection expiry or respawn, for the driver's step boundaries.
+    int64 NextLifeDueMs() const;
+    struct FLDPlacedBody
+    {
+        FGuid Contender;
+        uint32 Life=0;
+        TWeakObjectPtr<ALDPlayerController> Controller;
+        TWeakObjectPtr<ALDCharacter> Body;
+        TSharedPtr<const class FLDSpawnReservation> Reservation;
+    };
+    // Draws, reserves and physically places one contender body without committing any life state.
+    bool PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife, const FLDGameplayWritePermit& Permit,
+        FLDPlacedBody& Out, FString& Error);
+    void ReleasePlacedBody(FLDPlacedBody& Placed);
+    // Life commit after every preparation succeeded; a failure here is an authority fault, never a retry.
+    bool CommitPlacedLife(FLDPlacedBody& Placed, FLDBodyCombatState&& CombatState, int64 ProtectedUntilMs,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ActivatePlacedBody(FLDPlacedBody& Placed, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Installs one committed life's motion stream at its placed foot.
+    void BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body);
+    // Capture eligibility fact of a contender life change. Published before the life mutation where the
+    // change can still be refused; a refusal after a committed life is an authority fault.
+    bool PublishEligibility(const FLDGameplayWritePermit& Permit, const FLDCaptureEligibilityEvent& Event, FString& Error);
+    void NotifyLife(const FLDCombatBodyRef& Body, ELDLifeChange Change, uint64 LifeRevision, int64 AtMs);
+    // Public cause of a contender death for the kill feed and K/D.
+    bool KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCause, FGuid& OutCredit, FString& Error) const;
+    // Start of each step: native batches of earlier steps were consumed when accepted (capture reads them
+    // synchronously; camp members have no consumer), so the retained prefixes are released.
+    void ReleaseConsumedMotion();
+    static int32 PhaseOrder(ELDCommitPhase Phase);
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     struct FLDCaptureTrack
     {

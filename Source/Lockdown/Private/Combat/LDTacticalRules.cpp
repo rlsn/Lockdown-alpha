@@ -246,4 +246,140 @@ namespace LDTactical
         return Result;
     }
 
+    bool CooldownDurationMs(int64 BaseMs, int64 HasteP2, int64 HasteScaleP2, int64& OutMs, FString& Error)
+    {
+        OutMs = 0;
+        if (HasteScaleP2 <= 0 || HasteP2 < 0 || BaseMs < 0 || BaseMs > MAX_int64 / HasteScaleP2
+            || HasteP2 > MAX_int64 - HasteScaleP2)
+        {
+            Error = TEXT("Cooldown inputs are outside the checked numeric domain.");
+            return false;
+        }
+        const int64 Numerator = BaseMs * HasteScaleP2;
+        const int64 Denominator = HasteScaleP2 + HasteP2;
+        OutMs = Numerator / Denominator + (Numerator % Denominator != 0 ? 1 : 0);
+        Error.Reset();
+        return true;
+    }
+
+    bool HasActiveRoot(const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+    {
+        return Roots.ContainsByPredicate([AtMs](const FLDCombatRoot& Root) { return Root.ExpiresAtMs > AtMs; });
+    }
+
+    int64 ActiveRootUntilMs(const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+    {
+        int64 Until = 0;
+        for (const auto& Root : Roots)
+        {
+            if (Root.ExpiresAtMs > AtMs) { Until = FMath::Max(Until, Root.ExpiresAtMs); }
+        }
+        return Until;
+    }
+
+    bool RootBlocks(const TArray<FLDCombatRoot>& Roots, int64 AtMs, const FLDDemoPolicies& Policies, ELDDemoRootBlock Action)
+    {
+        return Policies.RootBlocks.Contains(Action) && HasActiveRoot(Roots, AtMs);
+    }
+
+    bool ApplyRoot(TArray<FLDCombatRoot>& Roots, const FLDCombatRoot& Instance, int64 AtMs)
+    {
+        if (!Instance.EffectId.IsValid() || Instance.ExpiresAtMs <= AtMs
+            || Roots.ContainsByPredicate([&Instance](const FLDCombatRoot& Root) { return Root.EffectId == Instance.EffectId; }))
+        {
+            return false;
+        }
+        Roots.Add(Instance);
+        return true;
+    }
+
+    int32 DispelRoots(TArray<FLDCombatRoot>& Roots)
+    {
+        const int32 Removed = Roots.Num();
+        Roots.Reset();
+        return Removed;
+    }
+
+    bool ApplyShield(TOptional<FLDCombatShield>& Shield, int64& ShieldP2, const FLDCombatShield& Candidate, int64 AmountP2, int64 AtMs)
+    {
+        if (AmountP2 <= 0 || !Candidate.EffectId.IsValid() || Candidate.ExpiresAtMs <= AtMs) { return false; }
+        const int64 Remaining = Shield.IsSet() && Shield->ExpiresAtMs > AtMs ? FMath::Max<int64>(ShieldP2, 0) : 0;
+        if (AmountP2 < Remaining) { return false; }
+        Shield = Candidate;
+        ShieldP2 = AmountP2;
+        return true;
+    }
+
+    FLDStatusExpiry ExpireTimedStatuses(TArray<FLDCombatRoot>& Roots, TOptional<FLDCombatShield>& Shield, int64& ShieldP2, int64 AtMs)
+    {
+        FLDStatusExpiry Result;
+        Result.bRootsChanged = Roots.RemoveAll([AtMs](const FLDCombatRoot& Root) { return Root.ExpiresAtMs <= AtMs; }) > 0;
+        if (Shield.IsSet() ? (Shield->ExpiresAtMs <= AtMs || ShieldP2 <= 0) : ShieldP2 != 0)
+        {
+            Shield.Reset();
+            ShieldP2 = 0;
+            Result.bShieldChanged = true;
+        }
+        return Result;
+    }
+
+    bool IntegrateRegen(const FLDDemoRational& RatePerSec, int64 ElapsedMs, int64 MaxP2,
+        int64& InOutP2, int64& InOutRemainderMicroP2, FString& Error)
+    {
+        constexpr int64 MicroPerP2 = 1000000;
+        // One point per second is 100 P2 per 1000 ms, i.e. 1e5 micro-P2 per millisecond.
+        constexpr int64 MicroPerPointMs = 100000;
+        int64 Numerator = RatePerSec.Numerator;
+        int64 Denominator = RatePerSec.Denominator;
+        if (Numerator < 0 || Denominator <= 0 || ElapsedMs < 0 || MaxP2 < 0 || InOutP2 < 0 || InOutP2 > MaxP2
+            || InOutRemainderMicroP2 < 0 || InOutRemainderMicroP2 >= MicroPerP2)
+        {
+            Error = TEXT("Regeneration input is outside its numeric domain.");
+            return false;
+        }
+        if (InOutP2 == MaxP2)
+        {
+            InOutRemainderMicroP2 = 0;
+            Error.Reset();
+            return true;
+        }
+        if (Numerator == 0 || ElapsedMs == 0)
+        {
+            Error.Reset();
+            return true;
+        }
+        for (int64 A = Numerator, B = Denominator; ; )
+        {
+            const int64 Next = A % B;
+            if (Next == 0) { Numerator /= B; Denominator /= B; break; }
+            A = B;
+            B = Next;
+        }
+        if (Numerator > MAX_int64 / MicroPerPointMs || (Numerator * MicroPerPointMs) % Denominator != 0)
+        {
+            Error = TEXT("Regeneration rate is not representable in 1e-6 P2 per millisecond.");
+            return false;
+        }
+        const int64 PerMs = Numerator * MicroPerPointMs / Denominator;
+        if (ElapsedMs > (MAX_int64 - InOutRemainderMicroP2) / PerMs)
+        {
+            Error = TEXT("Regeneration integral overflowed.");
+            return false;
+        }
+        const int64 Total = PerMs * ElapsedMs + InOutRemainderMicroP2;
+        const int64 Gain = Total / MicroPerP2;
+        if (Gain >= MaxP2 - InOutP2)
+        {
+            // A full pool discards the overflow, including the sub-P2 part.
+            InOutP2 = MaxP2;
+            InOutRemainderMicroP2 = 0;
+        }
+        else
+        {
+            InOutP2 += Gain;
+            InOutRemainderMicroP2 = Total % MicroPerP2;
+        }
+        Error.Reset();
+        return true;
+    }
 }

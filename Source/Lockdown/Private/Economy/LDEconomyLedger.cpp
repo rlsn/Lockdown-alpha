@@ -1,133 +1,585 @@
 #include "Economy/LDEconomyLedger.h"
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
 
 namespace
 {
-    bool Bounded(int64 N){return N>=0&&N<=LDEconomy::MaxBalance;}
-    bool Add(int64 A,int64 B,int64& Out)
-    {if((B>0&&A>MAX_int64-B)||(B<0&&A<MIN_int64-B)){return false;}Out=A+B;return true;}
-    bool Same(const LDEconomy::FTransaction& A,const LDEconomy::FTransaction& B)
-    {
-        if(A.Id!=B.Id||A.Cause!=B.Cause||A.Mint!=B.Mint||A.Burn!=B.Burn||A.Budget!=B.Budget||A.Units!=B.Units||A.Gold.Num()!=B.Gold.Num()||A.Items.Num()!=B.Items.Num()||A.Budgets.Num()!=B.Budgets.Num()){return false;}
-        for(int32 I=0;I<A.Budgets.Num();++I){if(A.Budgets[I].Id!=B.Budgets[I].Id||A.Budgets[I].Units!=B.Budgets[I].Units){return false;}}
-        for(int32 I=0;I<A.Gold.Num();++I){const auto& X=A.Gold[I];const auto& Y=B.Gold[I];if(X.Account!=Y.Account||X.Expected!=Y.Expected||X.Delta!=Y.Delta){return false;}}
-        for(int32 I=0;I<A.Items.Num();++I){const auto& X=A.Items[I];const auto& Y=B.Items[I];if(X.Id!=Y.Id||X.Op!=Y.Op||X.Kind!=Y.Kind||X.Expected!=Y.Expected||X.From!=Y.From||X.To!=Y.To||X.Parents!=Y.Parents||X.Quality!=Y.Quality||X.Skill!=Y.Skill){return false;}}
-        return true;
-    }
-}
-bool LDEconomy::FLedger::Initialize(FGuid Epoch,const TMap<FName,int64>& Initial,const TMap<FName,int32>& Limits,FString& Error)
+
+bool LedgerCheckedAdd(int64 A, int64 B, int64& Out)
 {
-    Error.Reset();if(Match.IsValid()||!Epoch.IsValid()){Error=TEXT("Ledger already initialized or invalid match");return false;}
-    int64 Total=0;
-    for(const auto& P:Initial){if(P.Key.IsNone()||!Bounded(P.Value)||Total>MaxBalance-P.Value){Error=TEXT("Invalid endowment");return false;}Total+=P.Value;}
-    for(const auto& P:Limits){if(P.Key.IsNone()||P.Value<0){Error=TEXT("Invalid finite budget");return false;}}
-    Match=Epoch;Start=Total;Budgets=Limits;InitialAccounts=Initial;InitialBudgets=Limits;
-    for(const auto& P:Initial){FAccount A;A.Gold=P.Value;Accounts.Add(P.Key,A);}return true;
-}
-bool LDEconomy::FLedger::OpenAccount(FName Id)
-{if(!Match.IsValid()||Id.IsNone()){return false;}if(!Accounts.Contains(Id)){Accounts.Add(Id,FAccount());}return true;}
-bool LDEconomy::FLedger::EndowAccount(FName Id,int64 Gold)
-{if(!Match.IsValid()||Id.IsNone()||Accounts.Contains(Id)||!Bounded(Gold)||Start>MaxBalance-Gold||Start+Gold>MaxBalance-Mints||TotalGold()>MaxBalance-Gold){return false;}FAccount A;A.Gold=Gold;Accounts.Add(Id,A);InitialAccounts.Add(Id,Gold);Start+=Gold;return true;}
-bool LDEconomy::FLedger::Retire(FName Id)
-{auto* A=Accounts.Find(Id);if(!A){return false;}if(!A->Retired){if(A->Revision==MAX_uint32){return false;}A->Retired=true;++A->Revision;}return true;}
-int64 LDEconomy::FLedger::TotalGold() const
-{int64 Sum=0;for(const auto& P:Accounts){if(!Bounded(P.Value.Gold)||Sum>MaxBalance-P.Value.Gold){return -1;}Sum+=P.Value.Gold;}return Sum;}
-bool LDEconomy::FLedger::Commit(const FTransaction& T,FString& Error)
-{
-    Error.Reset();auto Reject=[&](const TCHAR* Why){Error=Why;return false;};
-    if(!Match.IsValid()||!T.Id.IsValid()||T.Cause.IsNone()){return Reject(TEXT("Invalid transaction identity"));}
-    if(const auto* R=Receipts.Find(T.Id)){return Same(R->Transaction,T)?true:Reject(TEXT("Receipt identity reused with different terms"));}
-    if(!Bounded(T.Mint)||!Bounded(T.Burn)||Mints>MaxBalance-T.Mint||Burns>MaxBalance-T.Burn||Start>MaxBalance-(Mints+T.Mint)){return Reject(TEXT("Invalid gold classification"));}
-    if(T.Budget.IsNone()!= (T.Units==0)||T.Units<0){return Reject(TEXT("Invalid budget debit"));}
-    if(!T.Budget.IsNone()){const auto* N=Budgets.Find(T.Budget);if(!N||*N<T.Units){return Reject(TEXT("Finite budget exhausted"));}}
-    TSet<FName> SeenBudgets;if(!T.Budget.IsNone()){SeenBudgets.Add(T.Budget);}
-    for(const auto& D:T.Budgets){const auto* N=Budgets.Find(D.Id);if(D.Id.IsNone()||D.Units<=0||SeenBudgets.Contains(D.Id)||!N||*N<D.Units){return Reject(TEXT("Invalid or exhausted additional budget"));}SeenBudgets.Add(D.Id);}
-    TSet<FName> SeenAccounts;int64 Net=0;
-    for(const auto& D:T.Gold)
+    if ((B > 0 && A > MAX_int64 - B) || (B < 0 && A < MIN_int64 - B))
     {
-        const auto* A=Accounts.Find(D.Account);int64 After=0;
-        if(!A||A->Retired||SeenAccounts.Contains(D.Account)||A->Revision!=D.Expected||A->Revision==MAX_uint32||!Add(A->Gold,D.Delta,After)||!Bounded(After)){return Reject(TEXT("Stale, retired or insufficient account"));}
-        SeenAccounts.Add(D.Account);
-        // Bounded intermediate sums also reject pathological server requests.
-        int64 Next=0;if(!Add(Net,D.Delta,Next)){return Reject(TEXT("Gold delta overflow"));}Net=Next;
+        return false;
     }
-    const int64 Total=TotalGold();
-    int64 Final=0;if(Net!=T.Mint-T.Burn||Total<0||!Add(Total,Net,Final)||!Bounded(Final)){return Reject(TEXT("Gold deltas do not reconcile"));}
-    TSet<FGuid> SeenItems,Consumed;
-    for(const auto& D:T.Items){if((D.Op==EItemOp::Consume||D.Op==EItemOp::Transient)){Consumed.Add(D.Id);}}
-    for(const auto& D:T.Items)
-    {
-        if(!D.Id.IsValid()||SeenItems.Contains(D.Id)||LDInventory::UnitWeight(D.Kind)<0){return Reject(TEXT("Invalid or duplicate item transition"));}SeenItems.Add(D.Id);
-        const auto* I=Items.Find(D.Id);
-        if(D.Op==EItemOp::Create||D.Op==EItemOp::Transient)
-        {
-            if(D.Quality>2||(D.Op==EItemOp::Transient&&(!D.Parents.IsEmpty()||D.Quality||T.Cause!=TEXT("EquipmentWorkOrder")))||I||D.Expected||!D.From.IsNone()||D.To.IsNone()){return Reject(TEXT("Item creation identity already exists or invalid location"));}
-            TSet<FGuid> Parents;
-            for(auto Parent:D.Parents){const auto* P=Items.Find(Parent);if((!P&&!T.Items.ContainsByPredicate([&](const auto& X){return X.Id==Parent&&X.Op==EItemOp::Transient;}))||(P&&P->Consumed)||!Consumed.Contains(Parent)||Parents.Contains(Parent)){return Reject(TEXT("Output parents must be distinct inputs consumed in this receipt"));}Parents.Add(Parent);}
-        }
-        else
-        {
-            if((D.Op!=EItemOp::Transfer&&D.Op!=EItemOp::Consume&&D.Op!=EItemOp::Quality)||!I||I->Consumed||I->Kind!=D.Kind||I->Location!=D.From||I->Revision!=D.Expected||I->Revision==MAX_uint32||!D.Parents.IsEmpty()){return Reject(TEXT("Item ownership or revision changed"));}
-            if(D.Op==EItemOp::Quality?(D.To!=D.From||D.Quality!=I->Quality+1||D.Quality>2):(D.Op==EItemOp::Transfer?(D.To.IsNone()||D.To==D.From):!D.To.IsNone())){return Reject(TEXT("Invalid item destination"));}
-        }
-    }
-    // All validation completes before any mutation. Allocations of physical output
-    // actors must be completed by the caller before committing this domain receipt.
-    for(const auto& D:T.Gold){auto& A=Accounts.FindChecked(D.Account);A.Gold+=D.Delta;++A.Revision;}
-    for(const auto& D:T.Items)
-    {
-        if(D.Op==EItemOp::Create||D.Op==EItemOp::Transient){FItem I;I.Kind=D.Kind;I.Location=D.To;I.Origin=T.Id;I.Parents=D.Parents;I.Quality=D.Quality;I.Skill=D.Skill;I.Consumed=D.Op==EItemOp::Transient;if(I.Consumed){I.Location=NAME_None;}Items.Add(D.Id,MoveTemp(I));}
-        else{auto& I=Items.FindChecked(D.Id);I.Location=D.To;I.Consumed=D.Op==EItemOp::Consume;if(D.Op==EItemOp::Quality){I.Quality=D.Quality;}++I.Revision;}
-    }
-    if(!T.Budget.IsNone()){Budgets.FindChecked(T.Budget)-=T.Units;}for(const auto& D:T.Budgets){Budgets.FindChecked(D.Id)-=D.Units;}Mints+=T.Mint;Burns+=T.Burn;
-    FReceipt R;R.Transaction=T;R.Serial=uint64(Receipts.Num())+1;Receipts.Add(T.Id,MoveTemp(R));return true;
-}
-bool LDEconomy::FLedger::Reconcile(FString& Error) const
-{
-    Error.Reset();if(!Match.IsValid()){Error=TEXT("Ledger not initialized");return false;}
-    // Replay causal history independently, checking every revision and item lineage.
-    FLedger Replay;if(!Replay.Initialize(Match,InitialAccounts,InitialBudgets,Error)){return false;}
-    for(const auto& P:Accounts){Replay.OpenAccount(P.Key);}
-    TArray<const FReceipt*> Ordered;for(const auto& P:Receipts){Ordered.Add(&P.Value);}
-    Ordered.Sort([](const FReceipt& A,const FReceipt& B){return A.Serial<B.Serial;});
-    for(const auto* R:Ordered){if(!Replay.Commit(R->Transaction,Error)){return false;}}
-    for(const auto& P:Accounts){if(P.Value.Retired){Replay.Retire(P.Key);}const auto* A=Replay.Account(P.Key);if(!A||A->Gold!=P.Value.Gold||A->Revision!=P.Value.Revision||A->Retired!=P.Value.Retired){Error=TEXT("Account replay mismatch");return false;}}
-    for(const auto& P:Budgets){if(Replay.Remaining(P.Key)!=P.Value){Error=TEXT("Finite budget replay mismatch");return false;}}
-    if(TotalGold()<0||Start+Mints-Burns!=TotalGold()||Replay.TotalGold()!=TotalGold()||Replay.Mints!=Mints||Replay.Burns!=Burns||Replay.Items.Num()!=Items.Num()){Error=TEXT("Aggregate conservation mismatch");return false;}
-    for(const auto& P:Items){const auto* I=Replay.Items.Find(P.Key);const auto& J=P.Value;if(!I||I->Kind!=J.Kind||I->Location!=J.Location||I->Revision!=J.Revision||I->Origin!=J.Origin||I->Parents!=J.Parents||I->Consumed!=J.Consumed||I->Quality!=J.Quality||I->Skill!=J.Skill){Error=TEXT("Item lineage mismatch");return false;}}
+    Out = A + B;
     return true;
 }
-int64 LDEconomy::DepositFee(int64 Gross)
-{return Gross>0&&Gross<=MaxBalance?Gross/50+(Gross%50!=0):-1;}
-bool LDEconomy::BankTransaction(const FLedger& L,FGuid Request,FName Wallet,FName Bank,uint32 WR,uint32 BR,int64 Amount,bool Deposit,FTransaction& Out,FString& Error)
+
+bool LedgerCheckedIncrement(uint64 Value, uint64& Out)
 {
-    Error.Reset();const auto* W=L.Account(Wallet);const auto* B=L.Account(Bank);const int64 Fee=Deposit?DepositFee(Amount):0;
-    if(!Request.IsValid()||Wallet==Bank||!W||!B||W->Retired||B->Retired||WR!=W->Revision||BR!=B->Revision||Amount<=0||Amount>MaxBalance||Fee<0||(Deposit&&Amount<=Fee)) {Error=TEXT("Bank terms changed or invalid amount");return false;}
-    const int64 WD=Deposit?-Amount:Amount,BD=Deposit?Amount-Fee:-Amount;
-    int64 WalletAfter=0,BankAfter=0;if(!Add(W->Gold,WD,WalletAfter)||!Add(B->Gold,BD,BankAfter)||!Bounded(WalletAfter)||!Bounded(BankAfter)){Error=TEXT("Insufficient funds or bank overflow");return false;}
-    FTransaction T;T.Id=Request;T.Cause=Deposit?TEXT("BankDeposit"):TEXT("BankWithdrawal");T.Burn=Fee;T.Gold={{Wallet,WR,WD},{Bank,BR,BD}};Out=MoveTemp(T);return true;
+    if (Value == MAX_uint64)
+    {
+        return false;
+    }
+    Out = Value + 1;
+    return true;
 }
 
-FString LDEconomy::FLedger::ExportJson(FName Event) const
+bool LedgerFail(LDEconomy::EPrepareError& Error, FString& Message, LDEconomy::EPrepareError Code, const TCHAR* Text)
 {
-    auto Root=MakeShared<FJsonObject>();Root->SetNumberField(TEXT("schemaVersion"),1);Root->SetStringField(TEXT("event"),Event.ToString());Root->SetStringField(TEXT("match"),Match.ToString());
-    auto Number=[](const TSharedRef<FJsonObject>& O,const TCHAR* Key,int64 N){O->SetStringField(Key,LexToString(N));};
-    Number(Root,TEXT("start"),Start);Number(Root,TEXT("minted"),Mints);Number(Root,TEXT("burned"),Burns);Number(Root,TEXT("end"),TotalGold());
-    TArray<TSharedPtr<FJsonValue>> AccountRows,ItemRows,BudgetRows,History;
-    for(const auto& P:Accounts){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());Number(O,TEXT("gold"),P.Value.Gold);Number(O,TEXT("endowment"),InitialAccounts.FindRef(P.Key));O->SetBoolField(TEXT("retired"),P.Value.Retired);O->SetNumberField(TEXT("revision"),P.Value.Revision);AccountRows.Add(MakeShared<FJsonValueObject>(O));}
-    for(const auto& P:Items){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());O->SetNumberField(TEXT("kind"),uint8(P.Value.Kind));O->SetStringField(TEXT("location"),P.Value.Location.ToString());O->SetStringField(TEXT("origin"),P.Value.Origin.ToString());O->SetBoolField(TEXT("consumed"),P.Value.Consumed);O->SetNumberField(TEXT("quality"),P.Value.Quality);O->SetNumberField(TEXT("skill"),P.Value.Skill);TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:P.Value.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}O->SetArrayField(TEXT("parents"),Parents);ItemRows.Add(MakeShared<FJsonValueObject>(O));}
-    for(const auto& P:Budgets){auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),P.Key.ToString());O->SetNumberField(TEXT("initial"),InitialBudgets.FindRef(P.Key));O->SetNumberField(TEXT("remaining"),P.Value);BudgetRows.Add(MakeShared<FJsonValueObject>(O));}
-    TArray<const FReceipt*> Ordered;for(const auto& P:Receipts){Ordered.Add(&P.Value);}Ordered.Sort([](const FReceipt& A,const FReceipt& B){return A.Serial<B.Serial;});
-    for(const auto* R:Ordered)
+    Error = Code;
+    Message = Text;
+    return false;
+}
+
+bool LedgerSumGold(const TMap<FGuid, LDEconomy::FAccount>& Accounts, int64& Out)
+{
+    Out = 0;
+    for (const auto& Pair : Accounts)
     {
-        const auto& T=R->Transaction;auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("id"),T.Id.ToString());O->SetStringField(TEXT("cause"),T.Cause.ToString());Number(O,TEXT("serial"),R->Serial);Number(O,TEXT("mint"),T.Mint);Number(O,TEXT("burn"),T.Burn);O->SetStringField(TEXT("budget"),T.Budget.ToString());O->SetNumberField(TEXT("units"),T.Units);
-        TArray<TSharedPtr<FJsonValue>> Debits;for(const auto& D:T.Budgets){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("units"),D.Units);Debits.Add(MakeShared<FJsonValueObject>(V));}O->SetArrayField(TEXT("additionalBudgets"),Debits);
-        TArray<TSharedPtr<FJsonValue>> Gold,Transitions;
-        for(const auto& D:T.Gold){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("account"),D.Account.ToString());Number(V,TEXT("delta"),D.Delta);V->SetNumberField(TEXT("expected"),D.Expected);Gold.Add(MakeShared<FJsonValueObject>(V));}
-        for(const auto& D:T.Items){auto V=MakeShared<FJsonObject>();V->SetStringField(TEXT("id"),D.Id.ToString());V->SetNumberField(TEXT("op"),uint8(D.Op));V->SetNumberField(TEXT("quality"),D.Quality);V->SetNumberField(TEXT("skill"),D.Skill);V->SetNumberField(TEXT("kind"),uint8(D.Kind));V->SetNumberField(TEXT("expected"),D.Expected);V->SetStringField(TEXT("from"),D.From.ToString());V->SetStringField(TEXT("to"),D.To.ToString());TArray<TSharedPtr<FJsonValue>> Parents;for(auto Id:D.Parents){Parents.Add(MakeShared<FJsonValueString>(Id.ToString()));}V->SetArrayField(TEXT("parents"),Parents);Transitions.Add(MakeShared<FJsonValueObject>(V));}
-        O->SetArrayField(TEXT("gold"),Gold);O->SetArrayField(TEXT("items"),Transitions);History.Add(MakeShared<FJsonValueObject>(O));
+        if (Pair.Value.Gold < 0 || !LedgerCheckedAdd(Out, Pair.Value.Gold, Out))
+        {
+            return false;
+        }
     }
-    Root->SetArrayField(TEXT("accounts"),AccountRows);Root->SetArrayField(TEXT("items"),ItemRows);Root->SetArrayField(TEXT("budgets"),BudgetRows);Root->SetArrayField(TEXT("receipts"),History);
-    FString Json;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Json));return Json;
+    return true;
+}
+
+template <typename TValue>
+bool LedgerSameMap(const TMap<FGuid, TValue>& A, const TMap<FGuid, TValue>& B)
+{
+    if (A.Num() != B.Num())
+    {
+        return false;
+    }
+    for (const auto& Pair : A)
+    {
+        const TValue* Other = B.Find(Pair.Key);
+        if (!Other || !(Pair.Value == *Other))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+}
+
+FGuid LDEconomy::FLedger::InstanceFor(const FGuid& Match, uint64 IssueSerial)
+{
+    return FGuid(Match.A, Match.B, uint32(IssueSerial >> 32), uint32(IssueSerial & 0xffffffffull));
+}
+
+const TCHAR* LDEconomy::FLedger::ErrorName(EPrepareError Error)
+{
+    switch (Error)
+    {
+    case EPrepareError::None: return TEXT("None");
+    case EPrepareError::NotInitialized: return TEXT("NotInitialized");
+    case EPrepareError::InvalidTransaction: return TEXT("InvalidTransaction");
+    case EPrepareError::UnknownAccount: return TEXT("UnknownAccount");
+    case EPrepareError::RetiredAccount: return TEXT("RetiredAccount");
+    case EPrepareError::AccountStale: return TEXT("AccountStale");
+    case EPrepareError::InsufficientGold: return TEXT("InsufficientGold");
+    case EPrepareError::Overflow: return TEXT("Overflow");
+    case EPrepareError::UnknownItem: return TEXT("UnknownItem");
+    case EPrepareError::NotOwner: return TEXT("NotOwner");
+    case EPrepareError::ItemStale: return TEXT("ItemStale");
+    case EPrepareError::InventoryStale: return TEXT("InventoryStale");
+    case EPrepareError::SlotOccupied: return TEXT("SlotOccupied");
+    case EPrepareError::EquipmentFull: return TEXT("EquipmentFull");
+    case EPrepareError::AlreadyRetired: return TEXT("AlreadyRetired");
+    case EPrepareError::DuplicateBusinessKey: return TEXT("DuplicateBusinessKey");
+    case EPrepareError::BusinessKeyConflict: return TEXT("BusinessKeyConflict");
+    case EPrepareError::JournalFull: return TEXT("JournalFull");
+    }
+    return TEXT("Unknown");
+}
+
+bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bReplay, EPrepareError& Error, FString& Message)
+{
+    using E = EPrepareError;
+    Error = E::None;
+    Message.Reset();
+    if (!State.Match.IsValid())
+    {
+        return LedgerFail(Error, Message, E::NotInitialized, TEXT("Ledger is not initialized for a match."));
+    }
+    const FTransaction& T = Entry.Transaction;
+    uint64 Serial = 0;
+    if (!LedgerCheckedIncrement(State.ThroughSerial, Serial))
+    {
+        return LedgerFail(Error, Message, E::Overflow, TEXT("Ledger commit serial is exhausted."));
+    }
+    if (bReplay && Entry.Serial != Serial)
+    {
+        return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Journal serial is not the next contiguous commit."));
+    }
+    if (!T.BusinessKey.IsValid() || T.Mint < 0 || T.Burn < 0)
+    {
+        return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Transaction identity or classification is invalid."));
+    }
+    const bool bGold = T.Gold.IsSet();
+    const bool bCreate = T.Create.IsSet();
+    const bool bConsume = T.Consume.IsSet();
+    const bool bRetire = T.Retire.IsSet();
+    bool bShape = false;
+    switch (T.Cause)
+    {
+    case ECause::DeathReward:
+        bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
+        break;
+    case ECause::Buy:
+        bShape = bGold && bCreate && !bConsume && !bRetire && T.Gold->Delta < 0 && T.Gold->Delta != MIN_int64
+            && T.Burn == -T.Gold->Delta && T.Mint == 0 && T.Create->Owner == T.Gold->Account;
+        break;
+    case ECause::Sell:
+        bShape = bGold && bConsume && !bCreate && !bRetire && T.Gold->Delta >= 0 && T.Mint == T.Gold->Delta && T.Burn == 0
+            && T.Consume->Owner == T.Gold->Account;
+        break;
+    case ECause::AccountRetire:
+        bShape = bRetire && !bGold && !bCreate && !bConsume && T.Mint == 0 && T.Burn == 0;
+        break;
+    default:
+        break;
+    }
+    if (!bShape)
+    {
+        return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Transaction shape does not match its cause."));
+    }
+    int64 Minted = 0;
+    int64 Burned = 0;
+    if (!LedgerCheckedAdd(State.Minted, T.Mint, Minted) || !LedgerCheckedAdd(State.Burned, T.Burn, Burned))
+    {
+        return LedgerFail(Error, Message, E::Overflow, TEXT("Ledger mint or burn total would overflow."));
+    }
+
+    uint64 ResultAccountRevision = 0;
+    FAccount* ChangedAccount = nullptr;
+    FAccount NewAccount;
+    if (bGold)
+    {
+        const FGoldChange& G = *T.Gold;
+        FAccount* Account = State.Accounts.Find(G.Account);
+        if (!Account)
+        {
+            return LedgerFail(Error, Message, E::UnknownAccount, TEXT("Gold account is not part of this match."));
+        }
+        if (Account->bRetired)
+        {
+            return LedgerFail(Error, Message, E::RetiredAccount, TEXT("Gold account is retired."));
+        }
+        if (Account->Revision != G.ExpectedRevision)
+        {
+            return LedgerFail(Error, Message, E::AccountStale, TEXT("Gold account revision changed."));
+        }
+        int64 NewGold = 0;
+        if (!LedgerCheckedAdd(Account->Gold, G.Delta, NewGold) || !LedgerCheckedIncrement(Account->Revision, ResultAccountRevision))
+        {
+            return LedgerFail(Error, Message, E::Overflow, TEXT("Gold balance or account revision would overflow."));
+        }
+        if (NewGold < 0)
+        {
+            return LedgerFail(Error, Message, E::InsufficientGold, TEXT("Gold balance is insufficient."));
+        }
+        NewAccount = *Account;
+        NewAccount.Gold = NewGold;
+        NewAccount.Revision = ResultAccountRevision;
+        ChangedAccount = Account;
+    }
+
+    uint64* Inventory = nullptr;
+    uint64 NewInventory = 0;
+    uint64 CreatedSerial = 0;
+    FGuid CreatedInstance;
+    FItem NewItem;
+    if (bCreate)
+    {
+        const FCreateItem& C = *T.Create;
+        const FAccount* Owner = State.Accounts.Find(C.Owner);
+        Inventory = State.InventoryRevisions.Find(C.Owner);
+        if (!Owner || !Inventory)
+        {
+            return LedgerFail(Error, Message, E::UnknownAccount, TEXT("Equipment owner is not part of this match."));
+        }
+        if (Owner->bRetired)
+        {
+            return LedgerFail(Error, Message, E::RetiredAccount, TEXT("Equipment owner is retired."));
+        }
+        if (*Inventory != C.ExpectedInventoryRevision)
+        {
+            return LedgerFail(Error, Message, E::InventoryStale, TEXT("Inventory revision changed."));
+        }
+        if (C.Definition.IsNone() || C.Slot >= EquipmentSlots)
+        {
+            return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Created equipment needs a definition and slot 0 or 1."));
+        }
+        int32 Held = 0;
+        bool bSlotTaken = false;
+        for (const auto& Pair : State.LiveItems)
+        {
+            if (Pair.Value.Owner == C.Owner)
+            {
+                ++Held;
+                bSlotTaken |= Pair.Value.Slot == C.Slot;
+            }
+        }
+        if (Held >= EquipmentSlots)
+        {
+            return LedgerFail(Error, Message, E::EquipmentFull, TEXT("Both equipment slots are occupied."));
+        }
+        if (bSlotTaken)
+        {
+            return LedgerFail(Error, Message, E::SlotOccupied, TEXT("The target equipment slot is occupied."));
+        }
+        if (!LedgerCheckedIncrement(State.IssuedThrough, CreatedSerial) || !LedgerCheckedIncrement(*Inventory, NewInventory))
+        {
+            return LedgerFail(Error, Message, E::Overflow, TEXT("Issue serial or inventory revision would overflow."));
+        }
+        CreatedInstance = FLedger::InstanceFor(State.Match, CreatedSerial);
+        if (State.LiveItems.Contains(CreatedInstance))
+        {
+            return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Issued equipment identity is already live."));
+        }
+        NewItem.IssueSerial = CreatedSerial;
+        NewItem.Definition = C.Definition;
+        NewItem.Owner = C.Owner;
+        NewItem.Slot = C.Slot;
+        NewItem.Revision = 1;
+    }
+
+    FGuid ConsumedInstance;
+    if (bConsume)
+    {
+        const FConsumeItem& C = *T.Consume;
+        const FItem* Item = State.LiveItems.Find(C.Instance);
+        if (!Item)
+        {
+            return LedgerFail(Error, Message, E::UnknownItem, TEXT("Equipment instance is not live."));
+        }
+        if (Item->Owner != C.Owner)
+        {
+            return LedgerFail(Error, Message, E::NotOwner, TEXT("Equipment instance belongs to another owner."));
+        }
+        if (Item->Revision != C.ExpectedItemRevision)
+        {
+            return LedgerFail(Error, Message, E::ItemStale, TEXT("Equipment item revision changed."));
+        }
+        const FAccount* Owner = State.Accounts.Find(C.Owner);
+        Inventory = State.InventoryRevisions.Find(C.Owner);
+        if (!Owner || !Inventory)
+        {
+            return LedgerFail(Error, Message, E::UnknownAccount, TEXT("Equipment owner is not part of this match."));
+        }
+        if (Owner->bRetired)
+        {
+            return LedgerFail(Error, Message, E::RetiredAccount, TEXT("Equipment owner is retired."));
+        }
+        if (*Inventory != C.ExpectedInventoryRevision)
+        {
+            return LedgerFail(Error, Message, E::InventoryStale, TEXT("Inventory revision changed."));
+        }
+        if (!LedgerCheckedIncrement(*Inventory, NewInventory))
+        {
+            return LedgerFail(Error, Message, E::Overflow, TEXT("Inventory revision would overflow."));
+        }
+        ConsumedInstance = C.Instance;
+    }
+
+    if (bRetire)
+    {
+        const FRetireAccount& R = *T.Retire;
+        FAccount* Account = State.Accounts.Find(R.Account);
+        if (!Account)
+        {
+            return LedgerFail(Error, Message, E::UnknownAccount, TEXT("Retired account is not part of this match."));
+        }
+        if (Account->bRetired)
+        {
+            return LedgerFail(Error, Message, E::AlreadyRetired, TEXT("Account is already retired."));
+        }
+        if (Account->Revision != R.ExpectedRevision)
+        {
+            return LedgerFail(Error, Message, E::AccountStale, TEXT("Account revision changed before retirement."));
+        }
+        if (R.Stamp.Life == 0 || R.Stamp.LifeRevision == 0 || !LedgerCheckedIncrement(Account->Revision, ResultAccountRevision))
+        {
+            return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Retirement needs the core leave stamp."));
+        }
+        NewAccount = *Account;
+        NewAccount.bRetired = true;
+        NewAccount.Revision = ResultAccountRevision;
+        NewAccount.RetireSerial = Serial;
+        NewAccount.RetireStamp = R.Stamp;
+        ChangedAccount = Account;
+    }
+
+    int64 Total = 0;
+    for (const auto& Pair : State.Accounts)
+    {
+        const int64 Gold = &Pair.Value == ChangedAccount ? NewAccount.Gold : Pair.Value.Gold;
+        if (!LedgerCheckedAdd(Total, Gold, Total))
+        {
+            return LedgerFail(Error, Message, E::Overflow, TEXT("Total gold would overflow."));
+        }
+    }
+    int64 Expected = 0;
+    if (!LedgerCheckedAdd(State.InitialGoldTotal, Minted, Expected) || !LedgerCheckedAdd(Expected, -Burned, Expected) || Total != Expected)
+    {
+        return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Gold does not reconcile with the initial total, mint and burn."));
+    }
+    if (bReplay && (Entry.ResultAccountRevision != ResultAccountRevision || Entry.ResultInventoryRevision != NewInventory
+        || Entry.CreatedInstance != CreatedInstance || Entry.CreatedIssueSerial != CreatedSerial))
+    {
+        return LedgerFail(Error, Message, E::InvalidTransaction, TEXT("Recorded journal results differ from the independent replay."));
+    }
+
+    // Validation is complete; the remaining steps cannot fail.
+    if (ChangedAccount)
+    {
+        *ChangedAccount = NewAccount;
+    }
+    if (Inventory)
+    {
+        *Inventory = NewInventory;
+    }
+    if (bCreate)
+    {
+        State.LiveItems.Add(CreatedInstance, NewItem);
+        State.IssuedThrough = CreatedSerial;
+    }
+    if (bConsume)
+    {
+        State.LiveItems.Remove(ConsumedInstance);
+    }
+    State.Minted = Minted;
+    State.Burned = Burned;
+    State.ThroughSerial = Serial;
+    if (!bReplay)
+    {
+        Entry.Serial = Serial;
+        Entry.ResultAccountRevision = ResultAccountRevision;
+        Entry.ResultInventoryRevision = NewInventory;
+        Entry.CreatedInstance = CreatedInstance;
+        Entry.CreatedIssueSerial = CreatedSerial;
+    }
+    return true;
+}
+
+bool LDEconomy::SameState(const FAuditState& A, const FAuditState& B, FString& Difference)
+{
+    Difference.Reset();
+    if (A.Match != B.Match || A.ThroughSerial != B.ThroughSerial)
+    {
+        Difference = TEXT("Match or committed serial differs.");
+    }
+    else if (A.IssuedThrough != B.IssuedThrough)
+    {
+        Difference = TEXT("Issued equipment serial differs.");
+    }
+    else if (A.InitialGoldTotal != B.InitialGoldTotal || A.Minted != B.Minted || A.Burned != B.Burned)
+    {
+        Difference = TEXT("Initial, mint or burn totals differ.");
+    }
+    else if (!LedgerSameMap(A.Accounts, B.Accounts))
+    {
+        Difference = TEXT("Account balances, revisions or retirement differ.");
+    }
+    else if (!LedgerSameMap(A.InventoryRevisions, B.InventoryRevisions))
+    {
+        Difference = TEXT("Inventory revisions differ.");
+    }
+    else if (!LedgerSameMap(A.LiveItems, B.LiveItems))
+    {
+        Difference = TEXT("Live equipment instances differ.");
+    }
+    return Difference.IsEmpty();
+}
+
+bool LDEconomy::FLedger::Initialize(const FGuid& Match, const TArray<FGuid>& Accounts, int64 StartingGold, FString& Error)
+{
+    Error.Reset();
+    if (IsInitialized())
+    {
+        Error = TEXT("Ledger already belongs to a match; a new match needs a new ledger.");
+        return false;
+    }
+    if (!Match.IsValid() || Accounts.IsEmpty() || StartingGold < 0)
+    {
+        Error = TEXT("Ledger initialization needs a match, roster accounts and non-negative starting gold.");
+        return false;
+    }
+    FAuditState State;
+    State.Match = Match;
+    int64 Total = 0;
+    for (const FGuid& Id : Accounts)
+    {
+        if (!Id.IsValid() || State.Accounts.Contains(Id))
+        {
+            Error = TEXT("Ledger roster accounts must be valid and distinct.");
+            return false;
+        }
+        if (!LedgerCheckedAdd(Total, StartingGold, Total))
+        {
+            Error = TEXT("Initial gold total would overflow.");
+            return false;
+        }
+        FAccount Account;
+        Account.Gold = StartingGold;
+        State.Accounts.Add(Id, Account);
+        State.InventoryRevisions.Add(Id, 1);
+    }
+    State.InitialGoldTotal = Total;
+    Prefix = State;
+    Current = MoveTemp(State);
+    Tail.Reset();
+    Tail.Reserve(JournalTailCapacity);
+    Pins = 0;
+    return true;
+}
+
+void LDEconomy::FLedger::Reset()
+{
+    Prefix = FAuditState();
+    Current = FAuditState();
+    Tail.Reset();
+    Pins = 0;
+}
+
+uint64 LDEconomy::FLedger::InventoryRevision(const FGuid& Owner) const
+{
+    const uint64* Revision = Current.InventoryRevisions.Find(Owner);
+    return Revision ? *Revision : 0;
+}
+
+void LDEconomy::FLedger::OwnerItems(const FGuid& Owner, TArray<TPair<FGuid, FItem>>& Out) const
+{
+    Out.Reset();
+    for (const auto& Pair : Current.LiveItems)
+    {
+        if (Pair.Value.Owner == Owner)
+        {
+            Out.Emplace(Pair.Key, Pair.Value);
+        }
+    }
+    Out.Sort([](const TPair<FGuid, FItem>& A, const TPair<FGuid, FItem>& B) { return A.Value.Slot < B.Value.Slot; });
+}
+
+int64 LDEconomy::FLedger::TotalGold() const
+{
+    int64 Total = 0;
+    return LedgerSumGold(Current.Accounts, Total) ? Total : -1;
+}
+
+LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transaction) const
+{
+    FPrepareResult Result;
+    if (!IsInitialized())
+    {
+        Result.Error = EPrepareError::NotInitialized;
+        Result.Message = TEXT("Ledger is not initialized for a match.");
+        return Result;
+    }
+    if (Tail.Num() >= JournalTailCapacity)
+    {
+        Result.Error = EPrepareError::JournalFull;
+        Result.Message = TEXT("Ledger journal tail is full; compact the resolved prefix first.");
+        return Result;
+    }
+    for (const FJournalEntry& Old : Tail)
+    {
+        if (Old.Transaction.BusinessKey == Transaction.BusinessKey)
+        {
+            const bool bSameTerms = FMemory::Memcmp(Old.Transaction.Terms, Transaction.Terms, sizeof(Transaction.Terms)) == 0;
+            Result.Error = bSameTerms ? EPrepareError::DuplicateBusinessKey : EPrepareError::BusinessKeyConflict;
+            Result.Message = bSameTerms ? TEXT("Business operation is already committed.")
+                : TEXT("Business key was committed with different terms.");
+            return Result;
+        }
+    }
+    FPreparedCommit Prepared;
+    Prepared.ExpectedCommittedSerial = Current.ThroughSerial;
+    Prepared.Journal.Transaction = Transaction;
+    Prepared.AfterState = Current;
+    if (!ApplyEntry(Prepared.AfterState, Prepared.Journal, false, Result.Error, Result.Message))
+    {
+        return Result;
+    }
+    Result.Value.Emplace(MoveTemp(Prepared));
+    return Result;
+}
+
+void LDEconomy::FLedger::ApplyPrepared(FPreparedCommit&& Prepared)
+{
+    checkf(IsInitialized() && Prepared.ExpectedCommittedSerial == Current.ThroughSerial
+        && Prepared.Journal.Serial == Current.ThroughSerial + 1 && Tail.Num() < JournalTailCapacity,
+        TEXT("Ledger plan does not match the current serial; prepare and apply must be one uninterrupted commit."));
+    Current = MoveTemp(Prepared.AfterState);
+    Tail.Add(MoveTemp(Prepared.Journal));
+}
+
+bool LDEconomy::FLedger::Reconcile(FString& Error) const
+{
+    Error.Reset();
+    if (!IsInitialized())
+    {
+        Error = TEXT("Ledger is not initialized for a match.");
+        return false;
+    }
+    int64 PrefixGold = 0;
+    int64 PrefixExpected = 0;
+    if (!LedgerSumGold(Prefix.Accounts, PrefixGold) || !LedgerCheckedAdd(Prefix.InitialGoldTotal, Prefix.Minted, PrefixExpected)
+        || !LedgerCheckedAdd(PrefixExpected, -Prefix.Burned, PrefixExpected) || PrefixGold != PrefixExpected)
+    {
+        Error = TEXT("Audit prefix gold does not reconcile with its initial, mint and burn totals.");
+        return false;
+    }
+    FAuditState Replay = Prefix;
+    for (const FJournalEntry& Entry : Tail)
+    {
+        FJournalEntry Copy = Entry;
+        EPrepareError Code = EPrepareError::None;
+        FString Message;
+        if (!ApplyEntry(Replay, Copy, true, Code, Message))
+        {
+            Error = FString::Printf(TEXT("Journal serial %llu does not replay: %s"), Entry.Serial, *Message);
+            return false;
+        }
+    }
+    return SameState(Replay, Current, Error);
+}
+
+LDEconomy::ECompactResult LDEconomy::FLedger::TryCompactResolvedPrefix(uint64 ExpectedCommittedSerial, FString& Error)
+{
+    Error.Reset();
+    if (!IsInitialized())
+    {
+        Error = TEXT("Ledger is not initialized for a match.");
+        return ECompactResult::PrepareUnavailable;
+    }
+    if (Pins > 0 || ExpectedCommittedSerial != Current.ThroughSerial)
+    {
+        Error = TEXT("A composite commit still holds the ledger, or the caller saw another serial.");
+        return ECompactResult::Pinned;
+    }
+    if (Tail.IsEmpty())
+    {
+        return ECompactResult::NothingToCompact;
+    }
+    FAuditState Replay = Prefix;
+    for (const FJournalEntry& Entry : Tail)
+    {
+        FJournalEntry Copy = Entry;
+        EPrepareError Code = EPrepareError::None;
+        FString Message;
+        if (!ApplyEntry(Replay, Copy, true, Code, Message))
+        {
+            Error = FString::Printf(TEXT("Journal serial %llu does not replay: %s"), Entry.Serial, *Message);
+            return ECompactResult::CorruptHistory;
+        }
+    }
+    if (!SameState(Replay, Current, Error))
+    {
+        return ECompactResult::CorruptHistory;
+    }
+    Prefix = MoveTemp(Replay);
+    Tail.Reset();
+    return ECompactResult::Compacted;
 }

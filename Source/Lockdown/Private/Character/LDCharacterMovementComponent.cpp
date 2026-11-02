@@ -1,6 +1,9 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/RootMotionSource.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
+#include "Combat/LDCombatDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
@@ -8,10 +11,12 @@
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapRegistry.h"
 
-namespace
+namespace LDCharacterMovementDetail
 {
     bool IsDemoMovement(const UWorld* World)
     { return World && UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap; }
+
+    const FName DashSourceName(TEXT("LDDemoDash"));
 }
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
@@ -20,7 +25,7 @@ void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictio
     Super::OnClientCorrectionReceived(ClientData,TimeStamp,NewLocation,NewVelocity,NewBase,NewBaseBoneName,bHasBase,bBaseRelativePosition,ServerMovementMode,ServerGravityDirection);
 }
 
-namespace
+namespace LDCharacterMovementDetail
 {
     class FLDSavedMove : public FSavedMove_Character
     {
@@ -49,7 +54,7 @@ namespace
 
 ULDCharacterMovementComponent::ULDCharacterMovementComponent(){SetNetworkMoveDataContainer(NetworkMoves);}
 void FLDNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move,ENetworkMoveType Type)
-{FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move,Type);Navigation=static_cast<const FLDSavedMove&>(Move).Navigation;}
+{FCharacterNetworkMoveData::ClientFillNetworkMoveData(Move,Type);Navigation=static_cast<const LDCharacterMovementDetail::FLDSavedMove&>(Move).Navigation;}
 bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchive& Ar,UPackageMap* Map,ENetworkMoveType Type)
 {
     const bool Valid=FCharacterNetworkMoveData::Serialize(Movement,Ar,Map,Type);
@@ -59,7 +64,7 @@ bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchiv
 }
 void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,uint8 Flags,const FVector& Accel)
 {
-    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    if (CharacterOwner && CharacterOwner->HasAuthority() && LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
     {
         ++SuppressedNetworkSimulationMoves;
         return;
@@ -83,7 +88,7 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
 
 void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
 {
-    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    if (CharacterOwner && CharacterOwner->HasAuthority() && LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
     {
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
         if (!bAuthorityMovementRunning || bNativeIntegrationActive || !NativeWritePermit || !Mode
@@ -102,28 +107,99 @@ void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
     }
     Super::PerformMovement(DeltaSeconds);
 }
+// Demo speed is the sole Combat projection: the authority reads it for every registered body (contenders and
+// camp members), the owning client predicts from its own owner view; nothing else may move voluntarily.
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
-    if (IsDemoMovement(GetWorld()))
+    if (!LDCharacterMovementDetail::IsDemoMovement(GetWorld())) { return Super::GetMaxSpeed(); }
+    const auto* Body=Cast<ALDCharacter>(CharacterOwner);
+    if (!Body) { return 0; }
+    if (Body->HasAuthority())
     {
-        const auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;
-        return PC && PC->OwnerState.BodyRef.IsValid() && PC->OwnerState.bActive ? MaxWalkSpeed : 0;
+        const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        float Speed=0;
+        return Mode && Mode->Combat && !Mode->Combat->IsRooted(*Body) && Mode->Combat->ReadMoveSpeed(*Body,Speed)
+            && FMath::IsFinite(Speed) && Speed>0 ? Speed : 0;
     }
-    return Super::GetMaxSpeed();
+    const auto* PC=Cast<ALDPlayerController>(Body->GetController());
+    if (!PC || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive) { return 0; }
+    const FLDCombatOwnerView& View=PC->CombatView;
+    return View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life && View.bHasBody && !View.bRooted
+        && FMath::IsFinite(View.MoveSpeedCmPerSec) && View.MoveSpeedCmPerSec>0 ? View.MoveSpeedCmPerSec : 0;
+}
+
+bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)
+{
+    const FVector Planar(Direction.X,Direction.Y,0);
+    const double Speed=DistanceCm/DurationSeconds;
+    if (!CharacterOwner || !CharacterOwner->HasAuthority() || !UpdatedComponent
+        || !LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
+    {
+        Error=TEXT("A Demo dash runs only on the server authority body.");
+        return false;
+    }
+    if (Direction.ContainsNaN() || FMath::Abs(Direction.Z)>UE_KINDA_SMALL_NUMBER || Planar.IsNearlyZero()
+        || !FMath::IsFinite(DistanceCm) || DistanceCm<=0 || !FMath::IsFinite(DurationSeconds) || DurationSeconds<=0
+        || DurationSeconds>MAX_flt || !FMath::IsFinite(Speed) || Speed>MAX_flt)
+    {
+        Error=TEXT("A Demo dash needs a finite non-zero planar direction, distance and duration.");
+        return false;
+    }
+    // Displacement is native root motion integrated by the issued authority steps; never a teleport.
+    auto Source=MakeShared<FRootMotionSource_ConstantForce>();
+    Source->InstanceName=LDCharacterMovementDetail::DashSourceName;
+    Source->AccumulateMode=ERootMotionAccumulateMode::Override;
+    Source->Priority=5;
+    Source->Force=Planar.GetSafeNormal()*Speed;
+    Source->Duration=float(DurationSeconds);
+    Source->StrengthOverTime=nullptr;
+    Source->Settings.SetFlag(ERootMotionSourceSettingsFlags::IgnoreZAccumulate);
+    Source->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;
+    Source->FinishVelocityParams.SetVelocity=FVector::ZeroVector;
+    // The driver integrates authority motion itself: start with the next issued step, not a client timestamp.
+    Source->StartTime=0.f;
+    RemoveRootMotionSource(LDCharacterMovementDetail::DashSourceName);
+    if (ApplyRootMotionSource(Source)==uint16(ERootMotionSourceID::Invalid))
+    {
+        Error=TEXT("The native movement component refused the dash root motion.");
+        return false;
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ULDCharacterMovementComponent::CanStartDash(const FVector& Direction, double ProbeCm) const
+{
+    const FVector Planar(Direction.X,Direction.Y,0);
+    if (!CharacterOwner || !UpdatedPrimitive || !GetWorld() || Direction.ContainsNaN()
+        || FMath::Abs(Direction.Z)>UE_KINDA_SMALL_NUMBER || Planar.IsNearlyZero() || !FMath::IsFinite(ProbeCm) || ProbeCm<=0)
+    { return false; }
+    const FVector Heading=Planar.GetSafeNormal();
+    const FVector Start=UpdatedComponent->GetComponentLocation();
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(LDDemoDashProbe),false,CharacterOwner);
+    FCollisionResponseParams Response;
+    UpdatedPrimitive->InitSweepCollisionParams(Query,Response);
+    // Static geometry only: other bodies never decide whether a dash may start.
+    Response.CollisionResponse.SetResponse(ECC_Pawn,ECR_Ignore);
+    FHitResult Hit;
+    if (!GetWorld()->SweepSingleByChannel(Hit,Start,Start+Heading*ProbeCm,UpdatedComponent->GetComponentQuat(),
+        UpdatedPrimitive->GetCollisionObjectType(),UpdatedPrimitive->GetCollisionShape(),Query,Response)) { return true; }
+    // Walkable support and grazing contacts let the native movement slide; only a surface facing the dash blocks it.
+    return IsWalkable(Hit) || FVector::DotProduct(FVector(Hit.Normal.X,Hit.Normal.Y,0).GetSafeNormal(),Heading)>-.1;
 }
 
 FNetworkPredictionData_Client* ULDCharacterMovementComponent::GetPredictionData_Client() const
 {
     if (!ClientPredictionData)
     {
-        const_cast<ULDCharacterMovementComponent*>(this)->ClientPredictionData = new FLDClientPrediction(*this);
+        const_cast<ULDCharacterMovementComponent*>(this)->ClientPredictionData = new LDCharacterMovementDetail::FLDClientPrediction(*this);
     }
     return ClientPredictionData;
 }
 
 void ULDCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData)
 {
-    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    if (CharacterOwner && CharacterOwner->HasAuthority() && LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
     {
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
         const auto* Body=Cast<ALDCharacter>(CharacterOwner);
@@ -147,7 +223,7 @@ bool ULDCharacterMovementComponent::ServerShouldUseAuthoritativePosition(float C
     const FVector& Accel, const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
     FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode)
 {
-    if (IsDemoMovement(GetWorld())) { return false; }
+    if (LDCharacterMovementDetail::IsDemoMovement(GetWorld())) { return false; }
     return Super::ServerShouldUseAuthoritativePosition(ClientTimeStamp,DeltaTime,Accel,ClientWorldLocation,
         RelativeClientLocation,ClientBase,ClientBaseBoneName,ClientMovementMode);
 }
