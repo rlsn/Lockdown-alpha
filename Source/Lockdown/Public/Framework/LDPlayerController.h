@@ -36,14 +36,12 @@ public:
     UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
     UPROPERTY() TObjectPtr<class ULDControlsPanel> ControlsUI;
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
-    UPROPERTY() TObjectPtr<class ULDInventoryPanel> InventoryUI;
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
     UPROPERTY(ReplicatedUsing=OnRep_OwnerState) FLDOwnerState OwnerState;
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
-    void ToggleInventoryPanel();
     // ---- Growth/Shop (growth module; implementation in LDPlayerGrowth.cpp) ----
     // The caller fills the business fields; Submit fills Generation, Life (and ExpectedLifePhase for a choice) from
     // the accepted OwnerState at call time, assigns the RequestId, records it in flight before the RPC and returns
