@@ -48,31 +48,35 @@ namespace
         TWeakObjectPtr<ULDGameInstance> Owner;
     };
 
-    FString DescribeNetworkFailure(ENetworkFailure::Type Type, const FString& Detail)
+    // A pending connection that fails is a failed join; an established game connection that fails interrupts
+    // a session. The frontend adds its own context prefix, so these texts carry only the reason. The engine's raw
+    // detail (addresses, connection names, timers) stays in its own log line and is not shown to the player.
+    FString DescribeNetworkFailure(ENetworkFailure::Type Type, bool bInSession)
     {
         const TCHAR* Reason = TEXT("网络连接失败");
-        bool bCheckHost = false;
+        bool bSessionLoss = bInSession;
         switch (Type)
         {
-        case ENetworkFailure::ConnectionLost: Reason = TEXT("与房间的连接已断开"); bCheckHost = true; break;
-        case ENetworkFailure::ConnectionTimeout: Reason = TEXT("连接超时"); bCheckHost = true; break;
-        case ENetworkFailure::PendingConnectionFailure: Reason = TEXT("无法与房间建立连接"); bCheckHost = true; break;
-        case ENetworkFailure::FailureReceived: Reason = TEXT("房主拒绝了连接"); break;
+        case ENetworkFailure::ConnectionLost: Reason = bInSession ? TEXT("与房主的连接已断开") : TEXT("与房间的连接已断开"); break;
+        case ENetworkFailure::ConnectionTimeout: Reason = bInSession ? TEXT("与房主的连接超时") : TEXT("连接超时"); break;
+        case ENetworkFailure::PendingConnectionFailure: Reason = TEXT("无法与房间建立连接"); bSessionLoss = false; break;
+        case ENetworkFailure::FailureReceived: Reason = bInSession ? TEXT("房主结束了连接") : TEXT("房主拒绝了加入"); break;
         case ENetworkFailure::OutdatedClient: Reason = TEXT("本机版本比房主旧"); break;
         case ENetworkFailure::OutdatedServer: Reason = TEXT("房主版本比本机旧"); break;
         case ENetworkFailure::NetGuidMismatch:
         case ENetworkFailure::NetChecksumMismatch: Reason = TEXT("与房主的数据不一致"); break;
         case ENetworkFailure::NetDriverAlreadyExists:
         case ENetworkFailure::NetDriverCreateFailure:
-        case ENetworkFailure::NetDriverListenFailure: Reason = TEXT("本机网络初始化失败"); break;
+        case ENetworkFailure::NetDriverListenFailure: Reason = TEXT("本机网络初始化失败"); bSessionLoss = false; break;
         default: break;
         }
-        FString Text = FString::Printf(TEXT("%s（%s）"), Reason, ENetworkFailure::ToString(Type));
-        if (!Detail.IsEmpty()) { Text += TEXT("：") + Detail; }
-        return Text + (bCheckHost ? TEXT("。请检查地址，并确认房主正在运行。") : TEXT("。"));
+        const FString Text = FString::Printf(TEXT("%s%s（%s）"), bSessionLoss ? TEXT("会话中断：") : TEXT(""), Reason, ENetworkFailure::ToString(Type));
+        const bool bJoinHint = !bInSession && (Type == ENetworkFailure::ConnectionLost || Type == ENetworkFailure::ConnectionTimeout
+            || Type == ENetworkFailure::PendingConnectionFailure);
+        return Text + (bJoinHint ? TEXT("。请检查地址，并确认房主正在运行。") : TEXT("。"));
     }
 
-    FString DescribeTravelFailure(ETravelFailure::Type Type, const FString& Detail)
+    FString DescribeTravelFailure(ETravelFailure::Type Type)
     {
         const TCHAR* Reason = TEXT("进入房间失败");
         switch (Type)
@@ -88,9 +92,8 @@ namespace
         case ETravelFailure::ClientTravelFailure: Reason = TEXT("切换地图失败"); break;
         default: break;
         }
-        FString Text = FString::Printf(TEXT("%s（%s）"), Reason, ETravelFailure::ToString(Type));
-        if (!Detail.IsEmpty()) { Text += TEXT("：") + Detail; }
-        return Text + TEXT("。");
+        return FString::Printf(TEXT("%s（%s）"), Reason, ETravelFailure::ToString(Type))
+            + (Type == ETravelFailure::PendingNetGameCreateFailure ? TEXT("。请检查地址，并确认房主正在运行。") : TEXT("。"));
     }
 }
 
@@ -237,26 +240,29 @@ void ULDGameInstance::Shutdown()
     GEngine->OnTravelFailure().Remove(TravelHandle);
     Super::Shutdown();
 }
-void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& Error)
+void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString&)
 {
     // Pending connections have no world on the driver yet. Resolve their actual
     // owning context rather than losing the message or leaking it to another PIE instance.
+    bool bPending = false;
     if (!World && Driver)
     {
         if (const FWorldContext* Context = GEngine->GetWorldContextFromPendingNetGameNetDriver(Driver))
         {
             if (Context->OwningGameInstance != this) { return; }
             World = Context->World();
+            bPending = true;
         }
     }
-    ReturnAfterFailure(World, DescribeNetworkFailure(Type, Error));
+    const bool bInSession = !bPending && World && !World->GetMapName().Contains(TEXT("L_Frontend"));
+    ReturnAfterFailure(World, DescribeNetworkFailure(Type, bInSession));
 }
-void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error) { ReturnAfterFailure(World, DescribeTravelFailure(Type, Error)); }
+void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString&) { ReturnAfterFailure(World, DescribeTravelFailure(Type)); }
 void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
 {
     if (!World || World->GetGameInstance() != this) { return; }
     PrepareLocalSettingsForTravel();
-    ConnectionMessage = TEXT("连接失败：") + Error;
+    ConnectionMessage = Error;
     if (!World->GetMapName().Contains(TEXT("L_Frontend")))
     {
         World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
