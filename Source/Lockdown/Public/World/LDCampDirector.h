@@ -1,0 +1,89 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Framework/LDMatchLifecycleTypes.h"
+#include "World/LDCampLifecycle.h"
+#include "World/LDWorldQueryTypes.h"
+#include "LDCampDirector.generated.h"
+
+class ALDCampMemberCharacter;
+class ALDGameMode;
+class FLDDemoContentSnapshot;
+struct FLDCombatHostileContact;
+struct FLDCommittedDeath;
+struct FLDObservedPublicFacts;
+
+// Server-only owner of the five Demo camps: whole-group spawn and refresh, retaliation brains,
+// native-motion steering and home resets. The Camps match provider spawns it during Starting and
+// destroys it on MatchReset; every write entry runs inside the Combat-driven phase named on it.
+UCLASS(NotBlueprintable)
+class LOCKDOWN_API ALDCampDirector : public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDCampDirector();
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+    // Provider Prepare (Starting, no permit): approved roster and per-match member identities.
+    bool BeginMatch(const FLDMatchContext& Match, FString& Error);
+    // RespawnsAndWorld (Starting initialization), after the contenders spawned.
+    bool SpawnInitialCamps(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Motion: exactly one native integration for one registered living camp body.
+    bool AdvanceMemberMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    // Actions: evaluate every living member and submit basic attacks through Combat.
+    bool ProcessAuthorityIntents(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Effects: one committed hostile contact against a camp member. False only for a broken invariant.
+    bool OnCombatHostileContact(const FLDCombatHostileContact& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards, after the core ended the life: bookkeeping only; rewards use the single growth sink.
+    bool ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld: home resets, then due whole-group refreshes.
+    bool AdvanceCamps(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Provider MatchReset: removes every camp body and forgets the match.
+    void EndMatch();
+
+    // Vision publication of a currently registered camp member; see FLDCampMatchState::AppendObservedFacts.
+    bool AppendObservedFacts(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
+        FLDObservedPublicFacts& InOut, FString& Error) const;
+    TArray<FLDCampPublicView> PublicViews() const { return State.BuildPublicViews(); }
+    const FLDCampMatchState& GetState() const { return State; }
+
+private:
+    struct FMotion
+    {
+        TArray<FVector> Points;
+        int32 Index = 0;
+        FVector Goal = FVector::ZeroVector;
+        bool bActive = false;
+        double BestProgress = 0;
+        double LastProgressSeconds = 0;
+        uint64 WarnedReturnEpoch = 0;
+    };
+    struct FMemberRead
+    {
+        ALDCampMemberCharacter* Body = nullptr;
+        FVector FootCm = FVector::ZeroVector;
+        bool bGrounded = false;
+        FName SurfaceId;
+    };
+
+    ALDGameMode* AuthorityMode() const;
+    bool CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const;
+    bool ReadMember(const FLDCampSpec& Spec, const FLDCombatBodyRef& Ref, FMemberRead& Out, FString& Error) const;
+    bool BuildCandidates(const FLDCampMemberState& Member, const FMemberRead& Self, double NowSeconds,
+        TArray<FLDAuthorityTargetSample>& Out, FString& Error) const;
+    bool PlanPath(const FMemberRead& Self, FName SurfaceId, const FVector& Goal, double NowSeconds,
+        FMotion& Out, FString& Error) const;
+    void StopMotion(const FGuid& EntityId);
+    bool FindPlacement(const FLDCampSpec& Spec, int32 Slot, const TArray<FVector>& Reserved,
+        FLDLegalGround& Out, bool& bBlocked, FString& Error) const;
+    bool SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
+    bool TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePermit& Permit, FString& Error);
+
+    FLDCampMatchState State;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TMap<FGuid, TWeakObjectPtr<ALDCampMemberCharacter>> Bodies;
+    TMap<FGuid, FMotion> Motion;
+    TSet<int32> BlockedRefresh;
+};

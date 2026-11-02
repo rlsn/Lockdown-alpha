@@ -151,6 +151,8 @@ public:
     // old-match owner views and camp lives before the core retires bodies and the driver.
     void CloseCombatMatch(const FLDMatchClosed& Closed);
     bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
+    // Camps: spawned and destroyed by the Camps match provider (World/LDCampDirector.cpp).
+    UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
 private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
