@@ -529,7 +529,9 @@ const FLDOpponentPOI* PickRetreat(const FContext& C)
     FRank BestRank;
     for (const auto& POI : C.Frame.POIs)
     {
-        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Id == C.State.VisitPOI || C.Suppressed(FContext::PathKey(POI.Id))) { continue; }
+        // The shop anchor is a building reached only through ApproachShop; it is never a ground destination.
+        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop || POI.Id == C.State.VisitPOI
+            || C.Suppressed(FContext::PathKey(POI.Id))) { continue; }
         bool bOccupiedCamp = false;
         for (const auto& Unit : C.Frame.Units)
         {
@@ -750,7 +752,8 @@ bool ExploreBody(const FContext& C, FLDOpponentBodyIntent& Out)
     {
         for (const auto& POI : C.Frame.POIs)
         {
-            if (POI.Kind == ELDOpponentPOIKind::Capture || !C.CanAttempt(FContext::PathKey(POI.Id))) { continue; }
+            if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop
+                || !C.CanAttempt(FContext::PathKey(POI.Id))) { continue; }
             // Least recently visited public place first, then nearest, then stable id.
             bool bBetter = !Target;
             if (Target)

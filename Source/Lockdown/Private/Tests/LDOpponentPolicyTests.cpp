@@ -542,7 +542,13 @@ bool RunPriorities(FAutomationTestBase& Test)
     Decision = Decide(Frame);
     const FLDOpponentPOI* Retreat = Frame.POIs.FindByPredicate([&](const FLDOpponentPOI& P) { return P.Id == Decision.Body.POI; });
     bGood &= Expect(Test, TEXT("Below the retreat line with a visible threat the AI disengages"), Decision, EMode::Disengage,
-        EBody::MoveGround) && Test.TestTrue(TEXT("The retreat leads away from the threat"), Retreat && Retreat->FootCm.X < 0);
+        EBody::MoveGround) && Test.TestTrue(TEXT("The retreat leads away from the threat"), Retreat && Retreat->FootCm.X < 0)
+        && Test.TestTrue(TEXT("The retreat never targets the shop building as ground"), Retreat && Retreat->Kind != ELDOpponentPOIKind::Shop);
+    auto ShopOnly = Frame;
+    ShopOnly.POIs = {POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000), POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -4400, 0),
+        POI(TEXT("s05"), ELDOpponentPOIKind::Spawn, -3000, 500)};
+    bGood &= Expect(Test, TEXT("Even with the shop farthest from the threat, the retreat walks to public ground"), Decide(ShopOnly),
+        EMode::Disengage, EBody::MoveGround, TEXT("s05"));
     Frame.Units.Reset();
     Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
@@ -594,6 +600,11 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
     Frame.Order.POI = TEXT("l1");
     bGood &= Expect(Test, TEXT("A still-valid order is kept, not re-sent"), Decide(Frame), EMode::Farm, EBody::Keep, TEXT("l1"));
+    auto Explore = Base;
+    Explore.POIs = {POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000), POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -300, 0),
+        POI(TEXT("s00"), ELDOpponentPOIKind::Spawn, 4000, 4000)};
+    bGood &= Expect(Test, TEXT("Exploring never walks onto the shop anchor"), Decide(Explore), EMode::Explore, EBody::MoveGround,
+        TEXT("s00"));
     Frame.Order.Kind = ELDOpponentOrderKind::Action;
     bGood &= Expect(Test, TEXT("A live accepted action is never cancelled by a new body intent"), Decide(Frame), EMode::Farm,
         EBody::Keep);
