@@ -11,6 +11,10 @@ $port = $socket.Client.LocalEndPoint.Port
 $socket.Dispose()
 $digest = (Get-FileHash -LiteralPath (Join-Path (Get-LDProjectRoot) 'Content\Lockdown\Data\Demo\manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
 $version = Get-LDProjectVersion
+# The wire version is read from the native source, so this runner cannot drift from the build it launches.
+$entryHeader = Get-Content -LiteralPath (Join-Path (Get-LDProjectRoot) 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
+if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
+$wire = [int]$Matches[1]
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $binary = Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
@@ -42,7 +46,7 @@ try {
     Start-Role 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoWorldHost'
     Wait-Reports @('HostReady.json')
     foreach ($index in 1..2) {
-        $url = '127.0.0.1:{0}?Name=DemoWorldClient{1}?LDWire=3?LDProduct={2}?LDCatalog={3}' -f $port,$index,$version,$digest
+        $url = '127.0.0.1:{0}?Name=DemoWorldClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-Role "Client$index" $url
     }
     Wait-Reports @('Host.json','Client1.json','Client2.json')
