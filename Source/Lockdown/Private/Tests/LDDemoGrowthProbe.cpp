@@ -2,11 +2,13 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDEconomyLedger.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchProviders.h"
@@ -44,6 +46,8 @@ constexpr double GrowthProbeArrivalCm = 150.0;
 constexpr double GrowthProbeRequestSeconds = 20.0;
 constexpr double GrowthProbeKillSeconds = 90.0;
 constexpr double GrowthProbeReturnSeconds = 75.0;
+// Ending a match, returning the room to a new Lobby generation or starting the next match.
+constexpr double GrowthProbeTransitionSeconds = 60.0;
 // A replay that must change nothing is watched this long before the owner state is compared again.
 constexpr double GrowthProbeQuietSeconds = 1.5;
 
@@ -123,6 +127,35 @@ const FLDEquipmentSlotView* GrowthProbeSlot(const TArray<FLDEquipmentSlotView>& 
     return Rows.FindByPredicate([Wanted](const FLDEquipmentSlotView& SlotRow) { return SlotRow.SlotIndex == Wanted; });
 }
 
+// Equipment slot 0 is the Item1 entry and slot 1 is Item2 (the Combat projection input of the growth module).
+ELDCombatEntry GrowthProbeItemEntry(uint8 SlotIndex)
+{
+    return SlotIndex == 0 ? ELDCombatEntry::Item1 : ELDCombatEntry::Item2;
+}
+
+const FLDCombatEntryView* GrowthProbeEntry(const FLDCombatOwnerView& Own, ELDCombatEntry Wanted)
+{
+    return Own.Entries.FindByPredicate([Wanted](const FLDCombatEntryView& EntryRow) { return EntryRow.Entry == Wanted; });
+}
+
+// Owner growth state a stale request must leave untouched: level, XP, opportunities, build, gold, revisions and slots.
+bool GrowthProbeSameOwner(const FLDProgressionView& ProgA, const FLDEquipmentView& EquipA, const FLDProgressionView& ProgB,
+    const FLDEquipmentView& EquipB)
+{
+    bool bSame = ProgA.Level == ProgB.Level && ProgA.CumulativeXP == ProgB.CumulativeXP
+        && ProgA.ProgressionRevision == ProgB.ProgressionRevision && ProgA.BuildRevision == ProgB.BuildRevision
+        && ProgA.EarnedThrough == ProgB.EarnedThrough && ProgA.ConsumedThrough == ProgB.ConsumedThrough
+        && ProgA.PendingChoiceCount == ProgB.PendingChoiceCount && ProgA.bHasOffer == ProgB.bHasOffer
+        && ProgA.Skills.Num() == ProgB.Skills.Num() && ProgA.AttributeCards.Num() == ProgB.AttributeCards.Num()
+        && EquipA.Gold == EquipB.Gold && EquipA.AccountRevision == EquipB.AccountRevision
+        && EquipA.InventoryRevision == EquipB.InventoryRevision && EquipA.Slots.Num() == EquipB.Slots.Num();
+    for (int32 SlotIndex = 0; bSame && SlotIndex < EquipA.Slots.Num(); ++SlotIndex)
+    {
+        bSame = GrowthProbeSameSlot(EquipA.Slots[SlotIndex], EquipB.Slots[SlotIndex]);
+    }
+    return bSame;
+}
+
 // The viewer's current authorized observation frame, or null while it is unavailable or stale.
 const FLDWorldView* GrowthProbeFrame(const ALDPlayerController& Viewer)
 {
@@ -172,7 +205,10 @@ public:
     {
         Join, Lobby, Spawned, Victim,
         ToSite, KillSeek, KillWait, Choice, ChoiceQuery,
-        ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Sell, WalkOut, Outside
+        ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Activate, Sell, WalkOut, Outside,
+        // New-match isolation: the Host ends the first match, the room returns to a new Lobby generation and a
+        // second normal match must start from clean owner state.
+        EndFirst, AwaitLobby, SecondLobby, SecondSpawned, SecondReplay, SecondQuote, SecondAudit
     };
 
     // One shop request: the exact terms sent and the owner state it must change or leave untouched.
@@ -248,8 +284,27 @@ public:
     FLDShopCommand Buy1Sent;
     FLDShopReceipt Buy1Receipt, Buy2Receipt;
 
+    // Client1: the first copy's active puts only its own persistent track on cooldown; selling it leaves Combat's debt.
+    bool bActivateSent = false;
+    uint32 ActivateReceiptMark = 0;
+    FGuid UsedTrack, KeptTrack;
+    int64 UsedReadyAtMs = 0, FirstDebtReadyAtMs = 0;
+
     // Host: the victim's current life.
     uint32 VictimLife = 0;
+
+    // New-match isolation. The first match's identities and dirty owner state, then the second match's checks.
+    bool bSecondMatch = false, bResultChecked = false, bReplaySent = false;
+    uint32 FirstGeneration = 0, SecondGeneration = 0;
+    FLDCombatBodyRef FirstBody;
+    FGuid FirstLedgerMatch, FirstSessionId;
+    TSharedPtr<FJsonObject> FirstMatchRow;
+    FLDProgressionView FirstProgression;
+    FLDEquipmentView FirstEquipment;
+    FLDProgressionView ReplayProgBefore;
+    FLDEquipmentView ReplayEquipBefore;
+    int32 ReplaySubmitMark = 0, ReplayResultMark = 0;
+    double ReplaySentAt = 0, ReplayQuietUntil = 0;
 
     bool IsHost() const
     {
@@ -420,12 +475,22 @@ public:
             if (!bConnected) { return Fail(TEXT("Net"), TEXT("The owning connection dropped before the scenario finished")); }
         }
         const FLDLobbyView& Lobby = Public->DemoLobby;
+        // The buyer stopped early on a failed check: the Host closes its own report instead of waiting for markers.
+        if (IsHost() && Exists(TEXT("Client1.json")) && !Exists(TEXT("Client1Match2Done.json")))
+        {
+            return Fail(TEXT("Net"), TEXT("The buyer ended its scenario early; see Client1.json for its failed check"));
+        }
         switch (Stage)
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
         case EStage::Lobby: return TickLobby(Now, *PC, Lobby);
         case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby);
         case EStage::Victim: return TickVictim(Now, *PC);
+        case EStage::EndFirst: return TickEndFirst(Now, *PC, *Public);
+        case EStage::AwaitLobby: return TickAwaitLobby(Now, *PC, *Public);
+        case EStage::SecondLobby: return TickLobby(Now, *PC, Lobby);
+        case EStage::SecondSpawned: return TickSecondSpawned(Now, *PC, Lobby);
+        case EStage::SecondAudit: return TickSecondAudit(*PC);
         default: return TickClient(Now, *PC, Lobby);
         }
     }
@@ -460,17 +525,25 @@ public:
     // The ordinary lobby through owning session RPCs: no AI seats, every human ready.
     bool TickLobby(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
+        const bool bSecond = Stage == EStage::SecondLobby;
+        const TCHAR* Id = bSecond ? TEXT("Iso") : TEXT("Start");
+        if (bSecond && Lobby.Generation != SecondGeneration)
+        {
+            return Fail(Id, FString::Printf(TEXT("The room left Lobby generation %u for %u before the second match started"),
+                SecondGeneration, Lobby.Generation));
+        }
         if (Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen)
         {
-            SetStage(EStage::Spawned);
+            SetStage(bSecond ? EStage::SecondSpawned : EStage::Spawned);
             return true;
         }
         if (Lobby.Phase == ELDMatchPhase::Starting) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
-            return Fail(TEXT("Start"), TEXT("The room left the Lobby without opening play: ")
+            return Fail(Id, TEXT("The room left the Lobby without opening play: ")
                 + StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Lobby.Phase)));
         }
+        const FString Configured = bSecond ? TEXT("LobbyConfigured2.json") : TEXT("LobbyConfigured.json");
         if (IsHost() && !bLobbyConfigured)
         {
             if (Lobby.AICount != 0)
@@ -482,10 +555,10 @@ public:
                 }
                 return true;
             }
-            if (!Mark(TEXT("LobbyConfigured.json"))) { return Finish(); }
+            if (!Mark(Configured)) { return Finish(); }
             bLobbyConfigured = true;
         }
-        if (!Exists(TEXT("LobbyConfigured.json"))) { return true; }
+        if (!Exists(Configured)) { return true; }
         if (!PC.OwnerState.bReady && Now >= NextReadyAt)
         {
             PC.SetDemoReady(true);
@@ -505,19 +578,20 @@ public:
     // (Progression opens the ledger and growth records) and the initial spawn.
     bool RequestStart(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
+        const TCHAR* Id = bSecondMatch ? TEXT("Iso") : TEXT("Start");
         if (!bStartIssued)
         {
             bStartIssued = true;
             StartRequestedAt = Now;
             FString InputError;
-            Check(LDDemoEntry::VerifyRuntimeFiles(InputError) && LDDemoEntry::VerifyWorldPackages(InputError), TEXT("Start"),
+            Check(LDDemoEntry::VerifyRuntimeFiles(InputError) && LDDemoEntry::VerifyWorldPackages(InputError), Id,
                 TEXT("Approved runtime files and world packages verify before the start"), InputError);
             const FLDMatchProviderHooks* ProgressionHooks = LDMatchProviders::Find(ELDMatchProvider::Progression);
             const FLDMatchProviderHooks* ShopHooks = LDMatchProviders::Find(ELDMatchProvider::Shop);
             Check(ProgressionHooks && ProgressionHooks->Prepare && ProgressionHooks->ReadFinalLevel && ShopHooks && ShopHooks->Prepare,
-                TEXT("Start"), TEXT("Progression and Shop are registered normal-start providers"));
+                Id, TEXT("Progression and Shop are registered normal-start providers"));
             const FString Missing = LDMatchProviders::MissingForStart(false);
-            Check(Missing.IsEmpty(), TEXT("Start"), TEXT("Every normal-start provider is registered, so the room starts normally"),
+            Check(Missing.IsEmpty(), Id, TEXT("Every normal-start provider is registered, so the room starts normally"),
                 FString::Printf(TEXT("missing=[%s]"), *Missing));
             if (!Passed) { return Finish(); }
         }
@@ -525,7 +599,7 @@ public:
         if (!Lobby.CanStart)
         {
             return Now - StartRequestedAt < 30.0 ? true
-                : Fail(TEXT("Start"), TEXT("Every human is ready but the room still refuses the start: ") + StartBlocker);
+                : Fail(Id, TEXT("Every human is ready but the room still refuses the start: ") + StartBlocker);
         }
         if (Now >= NextCommandAt)
         {
@@ -658,9 +732,15 @@ public:
     bool PlanKills()
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        // Item A: the cheapest approved equipment (ties by id) whose active needs no target, so the buyer can put a real
+        // persistent cooldown track in motion and the next match can prove it was not carried over.
         const FLDDemoEquipmentDefinition* Cheapest = nullptr;
         for (const FLDDemoEquipmentDefinition& Candidate : Defs.Equipment)
         {
+            if (!Candidate.HasActive || Candidate.Active.Target.Mode != ELDDemoTargetMode::Self || Candidate.Active.Rank.CooldownMs <= 0)
+            {
+                continue;
+            }
             if (!Cheapest || Candidate.BuyPrice < Cheapest->BuyPrice
                 || (Candidate.BuyPrice == Cheapest->BuyPrice && Candidate.Id.Compare(Cheapest->Id, ESearchCase::CaseSensitive) < 0))
             {
@@ -670,7 +750,7 @@ public:
         LDProgression::FRewardAmounts Bounty;
         const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel), 1, Bounty);
         if (!Check(Cheapest && Cheapest->BuyPrice > 0 && BountyReason == ELDGrowthReason::None && Bounty.Gold > 0 && Bounty.XP > 0,
-            TEXT("N03"), TEXT("The catalog prices equipment and pays a positive bounty for a level-1 contender"),
+            TEXT("N03"), TEXT("The catalog sells an item with an untargeted, cooling active and pays a positive bounty for a level-1 contender"),
             LDGrowthWire::ReasonName(BountyReason)))
         {
             return false;
@@ -695,6 +775,7 @@ public:
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         if (PC.OwnerState.LifePhase == ELDLifePhase::Alive && Body && PC.CanWorldCommand())
         {
+            if (PC.OwnerState.BodyRef.IsValid()) { FirstBody = PC.OwnerState.BodyRef; }
             if (PC.OwnerState.Life != VictimLife)
             {
                 VictimLife = PC.OwnerState.Life;
@@ -713,19 +794,227 @@ public:
                 NextCommandAt = Now + 1.0;
             }
         }
-        return Exists(TEXT("Client1.json")) ? FinishHost(*Mode) : true;
+        return Exists(TEXT("Client1Match1Done.json")) ? EndFirstMatch(Now, PC, *Mode) : true;
     }
 
-    // The Host exports the authority ledger; the runner replays it and compares it with the owner's own report.
-    bool FinishHost(ALDGameMode& Mode)
+    // Both roles: the first match's identities and dirty owner state, kept for the second match and the report.
+    void RecordFirstMatch(const ALDPlayerController& PC)
+    {
+        FirstGeneration = PC.OwnerState.Match;
+        // The Host may be between lives here; it keeps the last living body it was bound to.
+        if (PC.OwnerState.BodyRef.IsValid()) { FirstBody = PC.OwnerState.BodyRef; }
+        FirstSessionId = Opened.View.SessionId;
+        const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        const FLDEquipmentView* EquipView = PC.ReadOwnEquipment();
+        FirstProgression = ProgView ? *ProgView : FLDProgressionView();
+        FirstEquipment = EquipView ? *EquipView : FLDEquipmentView();
+        FirstMatchRow = MakeShared<FJsonObject>();
+        FirstMatchRow->SetNumberField(TEXT("generation"), FirstGeneration);
+        FirstMatchRow->SetStringField(TEXT("entity"), LDDemoGrowthScenario::GrowthProbeGuid(PC.OwnerState.ContenderId));
+        FirstMatchRow->SetNumberField(TEXT("life"), PC.OwnerState.Life);
+        FirstMatchRow->SetNumberField(TEXT("gold"), double(FirstEquipment.Gold));
+        FirstMatchRow->SetNumberField(TEXT("account_revision"), double(FirstEquipment.AccountRevision));
+        FirstMatchRow->SetArrayField(TEXT("items"), LDDemoGrowthScenario::GrowthProbeItems(FirstEquipment));
+        FirstMatchRow->SetNumberField(TEXT("level"), FirstProgression.Level);
+        FirstMatchRow->SetNumberField(TEXT("xp"), double(FirstProgression.CumulativeXP));
+        FirstMatchRow->SetNumberField(TEXT("pending_choices"), FirstProgression.PendingChoiceCount);
+        FirstMatchRow->SetNumberField(TEXT("skills"), FirstProgression.Skills.Num());
+        FirstMatchRow->SetNumberField(TEXT("attribute_cards"), FirstProgression.AttributeCards.Num());
+        FirstMatchRow->SetNumberField(TEXT("cooldown_debt_ready_at_ms"), double(FirstDebtReadyAtMs));
+    }
+
+    // Host: export the first match's ledger, then end the match without a winner through the Host's own session command.
+    bool EndFirstMatch(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
         Check(Mode.IsGameplayWriteOpen(Mode.GetMatchContext()), TEXT("Ledger"),
-            TEXT("The match stayed open for the whole scenario: no capture result, fault or reset"));
+            TEXT("The first match stayed open for the whole scenario: no capture result, fault or reset"));
         FString EvidenceText, ExportError;
         const bool bExported = Mode.Economy && Mode.Economy->ExportLedgerEvidence(EvidenceText, ExportError)
             && SaveText(EvidenceText, TEXT("LedgerEvidence.json"));
-        Check(bExported, TEXT("Ledger"), TEXT("The authority exports this match's ledger evidence for the independent checker"),
+        Check(bExported, TEXT("Ledger"), TEXT("The authority exports the first match's ledger evidence for the independent checker"),
             ExportError);
+        if (!Passed) { return Finish(); }
+        RecordFirstMatch(PC);
+        FirstLedgerMatch = Mode.GetMatchContext().LedgerMatch;
+        PC.EndDemoMatch();
+        NextCommandAt = Now + 3.0;
+        SetStage(EStage::EndFirst);
+        return true;
+    }
+
+    // Host: the locked HostEnded result, then the room back to a new Lobby generation through ReturnToLobby.
+    bool TickEndFirst(double Now, ALDPlayerController& PC, const ALDGameState& Public)
+    {
+        const FLDPublicMatchView& View = Public.PublicMatch;
+        const FLDResultView& Result = Public.MatchResult;
+        const bool bLocked = View.Generation == FirstGeneration && View.Phase == ELDMatchPhase::Results
+            && Result.Generation == FirstGeneration && Result.ResultId.IsValid() && View.ResultId == Result.ResultId;
+        if (!bLocked)
+        {
+            if (Now - StageAt > LDDemoGrowthScenario::GrowthProbeTransitionSeconds)
+            {
+                return Fail(TEXT("Iso"), TEXT("The Host's EndMatch did not lock a result: ") + PC.IntentFeedback);
+            }
+            if (View.Phase != ELDMatchPhase::Results && Now >= NextCommandAt)
+            {
+                PC.EndDemoMatch();
+                NextCommandAt = Now + 3.0;
+            }
+            return true;
+        }
+        const FLDResultRow* Buyer = Result.Rows.FindByPredicate([this](const FLDResultRow& Row) { return Row.ContenderId == ClientId; });
+        Check(Result.Reason == ELDMatchEndReason::HostEnded && !Result.Winner.IsValid() && Buyer && Buyer->FinalLevel > 1, TEXT("Iso"),
+            TEXT("The Host ends the first match without a winner; the frozen result keeps the buyer's grown final level"),
+            FString::Printf(TEXT("reason=%u winner=%s buyer_level=%d"), uint32(Result.Reason),
+                *LDDemoGrowthScenario::GrowthProbeGuid(Result.Winner), Buyer ? int32(Buyer->FinalLevel) : -1));
+        if (!Passed) { return Finish(); }
+        PC.ReturnDemoToLobby();
+        NextCommandAt = Now + 3.0;
+        SetStage(EStage::AwaitLobby);
+        return true;
+    }
+
+    // Both roles: the same connections in a new, unready Lobby generation whose owner publication carries no growth.
+    bool TickAwaitLobby(double Now, ALDPlayerController& PC, const ALDGameState& Public)
+    {
+        const FLDLobbyView& Lobby = Public.DemoLobby;
+        const bool bNewLobby = FirstGeneration != 0 && Lobby.Generation != FirstGeneration && Lobby.Phase == ELDMatchPhase::Lobby
+            && PC.OwnerState.Match == Lobby.Generation && !PC.GetPawn();
+        if (!bNewLobby)
+        {
+            if (IsHost() && Public.PublicMatch.Generation == FirstGeneration && Public.PublicMatch.Phase == ELDMatchPhase::Results
+                && Now >= NextCommandAt)
+            {
+                PC.ReturnDemoToLobby();
+                NextCommandAt = Now + 3.0;
+            }
+            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeTransitionSeconds) { return true; }
+            return Fail(TEXT("Iso"), FString::Printf(TEXT("The room did not return to a new Lobby generation (generation %u, phase %s, owner match %u)"),
+                Lobby.Generation, *StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Lobby.Phase)), PC.OwnerState.Match));
+        }
+        Check(Lobby.Generation > FirstGeneration && Lobby.Members.Num() == 2
+            && !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& LobbyMember) { return LobbyMember.Ready; }), TEXT("Iso"),
+            TEXT("The same two connections return to a new, unready Lobby generation"),
+            FString::Printf(TEXT("generation %u -> %u, members=%d"), FirstGeneration, Lobby.Generation, Lobby.Members.Num()));
+        Check(PC.ReadOwnProgression() == nullptr && PC.ReadOwnEquipment() == nullptr && PC.ReadOwnShop() == nullptr, TEXT("Iso"),
+            TEXT("Between matches the owner publication carries no growth, equipment or shop view"));
+        if (!Passed) { return Finish(); }
+        SecondGeneration = Lobby.Generation;
+        bSecondMatch = true;
+        bLobbyConfigured = false;
+        bStartIssued = false;
+        NextCommandAt = 0;
+        NextReadyAt = 0;
+        SetStage(EStage::SecondLobby);
+        return true;
+    }
+
+    // Both roles, the first frame on which every own view describes the second match's living first body.
+    bool TickSecondSpawned(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
+    {
+        const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        const FLDEquipmentView* EquipView = PC.ReadOwnEquipment();
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.Match != SecondGeneration || PC.OwnerState.LifePhase != ELDLifePhase::Alive
+            || !PC.OwnerState.BodyRef.IsValid() || !PC.CanWorldCommand() || !ProgView || !EquipView
+            || Own.Generation != SecondGeneration || Own.Life != PC.OwnerState.Life || !Own.bHasBody)
+        {
+            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeTransitionSeconds) { return true; }
+            return Fail(TEXT("Iso"), TEXT("The second match never published a living first body with every own view"));
+        }
+        if (!ResolveRoster(PC, Lobby)) { return Finish(); }
+        CheckSecondMatch(PC, *ProgView, *EquipView);
+        if (!Passed) { return Finish(); }
+        if (IsHost())
+        {
+            SetStage(EStage::SecondAudit);
+            return true;
+        }
+        bReplaySent = false;
+        SetStage(EStage::SecondReplay);
+        return true;
+    }
+
+    // Each role reads only its own projection: every value the first match dirtied is back at its opening value.
+    void CheckSecondMatch(const ALDPlayerController& PC, const FLDProgressionView& Progress, const FLDEquipmentView& Equipment)
+    {
+        const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        const FLDOwnerState& Self = PC.OwnerState;
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        Check(Self.Match == SecondGeneration && Self.Life == 1 && Progress.Life == Self.Life && FirstBody.IsValid()
+            && Self.BodyRef != FirstBody && Self.ProtectedUntilMs == 0, TEXT("Iso"),
+            TEXT("The second match starts the first life of a fresh, unprotected body"),
+            FString::Printf(TEXT("generation %u life %u (first match ended on life %u)"), Self.Match, Self.Life,
+                FirstMatchRow.IsValid() ? uint32(FirstMatchRow->GetNumberField(TEXT("life"))) : 0u));
+        uint8 StartLevel = 0;
+        const bool bStartLevel = LDProgression::LevelForXP(Defs.Progression, Defs.Progression.XPStart, StartLevel) == ELDGrowthReason::None;
+        Check(bStartLevel && Progress.Generation == SecondGeneration && Progress.Level == StartLevel
+            && Progress.CumulativeXP == Defs.Progression.XPStart && Progress.EarnedThrough == 0 && Progress.ConsumedThrough == 0
+            && Progress.PendingChoiceCount == 0 && !Progress.bHasOffer && Progress.CatalogDigest == Defs.Identity.Root, TEXT("Iso"),
+            TEXT("Level, XP and opportunities restart at the content's opening values with no offer"),
+            FString::Printf(TEXT("now %s; first match ended at %s"), *LDDemoGrowthScenario::GrowthProbeProgressionText(Progress),
+                *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
+        Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty(), TEXT("Iso"),
+            TEXT("No learned active or passive skill and no attribute card is carried into the second match"),
+            FString::Printf(TEXT("skills %d->%d cards %d->%d"), FirstProgression.Skills.Num(), Progress.Skills.Num(),
+                FirstProgression.AttributeCards.Num(), Progress.AttributeCards.Num()));
+        bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
+        for (const FLDEquipmentSlotView& SlotRow : Equipment.Slots)
+        {
+            bSlotsEmpty &= !SlotRow.bOccupied;
+        }
+        Check(Equipment.Generation == SecondGeneration && Equipment.Gold == Defs.Parameters.StartingGold && Equipment.AccountRevision == 1
+            && Equipment.InventoryRevision == 1 && bSlotsEmpty && PC.ReadOwnShop() == nullptr, TEXT("Iso"),
+            TEXT("Gold restarts at the approved starting gold in a fresh account, both slots are empty and no shop session exists"),
+            FString::Printf(TEXT("gold %lld->%lld account rev %llu inventory rev %llu, first match held %d items"), FirstEquipment.Gold,
+                Equipment.Gold, Equipment.AccountRevision, Equipment.InventoryRevision,
+                FirstEquipment.Slots.FilterByPredicate([](const FLDEquipmentSlotView& SlotRow) { return SlotRow.bOccupied; }).Num()));
+        const bool bNoSource = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& EntryRow)
+        {
+            return !EntryRow.DefinitionId.IsNone() || EntryRow.ItemInstance.IsValid() || EntryRow.IssuedCooldownId.IsValid()
+                || EntryRow.ReadyAtMs > Own.AsOfMs;
+        });
+        const bool bNoContribution = !Own.Attributes.ContainsByPredicate([](const FLDCombatAttributeRowView& Row)
+        {
+            return Row.Choices.Numerator != 0 || Row.Passives.Numerator != 0 || Row.Equipment.Numerator != 0;
+        });
+        Check(bNoSource && bNoContribution && Own.EquipmentPassives.IsEmpty() && Own.NextAttackAtMs <= Own.AsOfMs, TEXT("Iso"),
+            TEXT("Combat carries no learned or equipped source, no issued cooldown track or debt and no build contribution"),
+            FString::Printf(TEXT("entries=%d attributes=%d as_of=%lld first-match debt until %lld"), Own.Entries.Num(),
+                Own.Attributes.Num(), Own.AsOfMs, FirstDebtReadyAtMs));
+        if (!IsHost()) { return; }
+        // Host only: the authority ledger of the second match.
+        const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+        const LDEconomy::FLedger* Book = Mode && Mode->Economy ? &Mode->Economy->GetLedger() : nullptr;
+        bool bFresh = Book && Book->IsInitialized() && Mode->Economy->GetMatch() == Mode->GetMatchContext()
+            && Mode->GetMatchContext().Generation == SecondGeneration && Mode->GetMatchContext().LedgerMatch != FirstLedgerMatch
+            && Book->GetMatch() == Mode->GetMatchContext().LedgerMatch && Book->CommittedSerial() == 0 && Book->IssuedThrough() == 0
+            && Book->State().LiveItems.IsEmpty() && Book->State().Accounts.Num() == 2;
+        if (Book)
+        {
+            for (const TPair<FGuid, LDEconomy::FAccount>& Pair : Book->State().Accounts)
+            {
+                bFresh &= Pair.Value.Gold == Defs.Parameters.StartingGold && Pair.Value.Revision == 1 && !Pair.Value.bRetired;
+            }
+        }
+        Check(bFresh, TEXT("Iso"),
+            TEXT("The second match opens a fresh ledger under a new LedgerMatch: starting gold, no items and no commit"),
+            FString::Printf(TEXT("ledger match %s -> %s"), *LDDemoGrowthScenario::GrowthProbeGuid(FirstLedgerMatch),
+                Mode ? *LDDemoGrowthScenario::GrowthProbeGuid(Mode->GetMatchContext().LedgerMatch) : TEXT("none")));
+    }
+
+    // Host: once the buyer finished its stale replays and the second shop visit, export the second match's ledger.
+    bool TickSecondAudit(ALDPlayerController& PC)
+    {
+        if (!Exists(TEXT("Client1Match2Done.json"))) { return true; }
+        ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+        FString EvidenceText, ExportError;
+        const bool bExported = Mode && Mode->Economy && Mode->Economy->ExportLedgerEvidence(EvidenceText, ExportError)
+            && SaveText(EvidenceText, TEXT("LedgerEvidence2.json"));
+        Check(bExported && Mode->Economy->GetLedger().CommittedSerial() == 0, TEXT("Iso"),
+            TEXT("The stale first-match requests committed nothing: the second match's ledger is exported with no commit"),
+            ExportError);
+        Check(Mode && Mode->IsGameplayWriteOpen(Mode->GetMatchContext()), TEXT("Iso"), TEXT("The second match stayed open for its checks"));
         return Finish();
     }
 
@@ -759,9 +1048,12 @@ public:
         case EStage::Buy2: return TickBuy(Now, PC, false);
         case EStage::BuyFull: return TickBuyFull(Now, PC);
         case EStage::Replay: return TickReplay(Now, PC);
+        case EStage::Activate: return TickActivate(Now, PC);
         case EStage::Sell: return TickSell(Now, PC);
         case EStage::WalkOut: return TickToSite(Now, PC, *Body, KillSite, EStage::Outside, TEXT("A17"));
         case EStage::Outside: return TickOutside(Now, PC, *Body, Lobby);
+        case EStage::SecondReplay: return TickSecondReplay(Now, PC);
+        case EStage::SecondQuote: return TickSecondQuote(PC);
         default: return Fail(TEXT("Net"), TEXT("The buyer reached a stage of another role"));
         }
     }
@@ -1271,7 +1563,8 @@ public:
         if (!bEnded && Now - StageAt <= 2.0 * LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
         if (ApproachAttempts >= 2)
         {
-            return Fail(TEXT("A17"), TEXT("The shop approach ended without an arrival: ") + PC.Navigation->Status);
+            return Fail(TEXT("A17"), FString::Printf(TEXT("The shop approach ended without an arrival: %s (latest receipt order=%u status=%u failure=%u)"),
+                *PC.Navigation->Status, Latest.Identity.Order, uint32(Latest.Status), uint32(Latest.Failure)));
         }
         bApproachSent = false;
         return true;
@@ -1307,7 +1600,7 @@ public:
             TEXT("The arrival opened this generation's and life's shop session and the interaction binding is current"));
         if (!Passed) { return Finish(); }
         Call = FShopCall();
-        SetStage(EStage::Buy1);
+        SetStage(bSecondMatch ? EStage::SecondQuote : EStage::Buy1);
         return true;
     }
 
@@ -1420,6 +1713,66 @@ public:
             Answered->bHasShopReceipt ? &Answered->ShopReceipt : nullptr);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
+        bActivateSent = false;
+        SetStage(EStage::Activate);
+        return true;
+    }
+
+    // The first copy's untargeted active through the owner's own entry (what its hotkey sends): only that copy's
+    // persistent track starts its cooldown, the second copy's track stays ready.
+    bool TickActivate(double Now, ALDPlayerController& PC)
+    {
+        const ELDCombatEntry UsedEntry = LDDemoGrowthScenario::GrowthProbeItemEntry(Buy1Receipt.SlotIndex);
+        const ELDCombatEntry KeptEntry = LDDemoGrowthScenario::GrowthProbeItemEntry(Buy2Receipt.SlotIndex);
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        const bool bCurrent = Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life;
+        const FLDCombatEntryView* Used = bCurrent ? LDDemoGrowthScenario::GrowthProbeEntry(Own, UsedEntry) : nullptr;
+        const FLDCombatEntryView* Kept = bCurrent ? LDDemoGrowthScenario::GrowthProbeEntry(Own, KeptEntry) : nullptr;
+        if (!bActivateSent)
+        {
+            const bool bBound = Used && Kept && Used->DefinitionId == ItemId && Kept->DefinitionId == ItemId
+                && Used->ItemInstance == Buy1Receipt.Instance && Kept->ItemInstance == Buy2Receipt.Instance
+                && Used->IssuedCooldownId.IsValid() && Kept->IssuedCooldownId.IsValid();
+            if (!bBound)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A19"), TEXT("The Combat owner view never showed both purchased copies bound to their own tracks"));
+            }
+            if (!Check(Used->IssuedCooldownId != Kept->IssuedCooldownId && Used->ReadyAtMs <= Own.AsOfMs && Kept->ReadyAtMs <= Own.AsOfMs
+                && Used->bHasActive && Used->TargetMode == uint8(ELDDemoTargetMode::Self), TEXT("A19"),
+                TEXT("Two copies of one definition hold two distinct persistent cooldown tracks, both ready before use"),
+                FString::Printf(TEXT("tracks %s / %s ready at %lld / %lld as of %lld"),
+                    *LDDemoGrowthScenario::GrowthProbeGuid(Used->IssuedCooldownId), *LDDemoGrowthScenario::GrowthProbeGuid(Kept->IssuedCooldownId),
+                    Used->ReadyAtMs, Kept->ReadyAtMs, Own.AsOfMs)))
+            {
+                return Finish();
+            }
+            UsedTrack = Used->IssuedCooldownId;
+            KeptTrack = Kept->IssuedCooldownId;
+            ActivateReceiptMark = PC.CombatReceiptSerial;
+            PC.ActivateCombatEntry(UsedEntry);
+            bActivateSent = true;
+            StageAt = Now;
+            return true;
+        }
+        const FLDCombatActionReceipt& Latest = PC.LatestCombatReceipt;
+        if (PC.CombatReceiptSerial != ActivateReceiptMark && Latest.Entry == UsedEntry && Latest.Phase == ELDCombatPhase::Rejected)
+        {
+            return Fail(TEXT("A19"), TEXT("The item's active was rejected: ")
+                + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Latest.Reject)));
+        }
+        if (!Used || Used->IssuedCooldownId != UsedTrack || Used->ReadyAtMs <= Own.AsOfMs)
+        {
+            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("A19"), TEXT("Using the first copy's active did not put its own track on cooldown"));
+        }
+        UsedReadyAtMs = Used->ReadyAtMs;
+        Check(Kept && Kept->IssuedCooldownId == KeptTrack && Kept->ReadyAtMs <= Own.AsOfMs, TEXT("A19"),
+            TEXT("Using one copy's active cools only its own track; the other copy's track stays ready"),
+            FString::Printf(TEXT("used ready at %lld, kept ready at %lld, as of %lld"), UsedReadyAtMs, Kept ? Kept->ReadyAtMs : -1,
+                Own.AsOfMs));
+        if (!Passed) { return Finish(); }
+        Call = FShopCall();
         SetStage(EStage::Sell);
         return true;
     }
@@ -1455,6 +1808,19 @@ public:
             && Kept->Instance == Buy2Receipt.Instance, TEXT("A15"),
             TEXT("Selling consumes exactly the first instance and frees its slot; the second copy stays"),
             LDDemoGrowthScenario::GrowthProbeShopText(*Seen));
+        // The sold copy's track left with its instance, yet its cooldown debt stays with Combat: the quote refreshed by
+        // the sale's own publication shows that a new copy would inherit exactly that debt.
+        const FLDShopView* ShopView = PC.ReadOwnShop();
+        const FLDShopItemView* Quote = ShopView ? ShopView->Items.FindByPredicate([this](const FLDShopItemView& ItemRow)
+        {
+            return ItemRow.DefinitionId == ItemId;
+        }) : nullptr;
+        Check(Quote && Quote->bInheritsCooldown && Quote->InheritedReadyAtMs == UsedReadyAtMs
+            && Quote->InheritedReadyAtMs > PC.CombatView.AsOfMs, TEXT("A21"),
+            TEXT("Selling the used copy unbinds it, yet its cooldown debt stays: the quote shows a new copy would inherit it"),
+            FString::Printf(TEXT("inherits=%d ready_at=%lld used_ready_at=%lld as_of=%lld"), Quote && Quote->bInheritsCooldown ? 1 : 0,
+                Quote ? Quote->InheritedReadyAtMs : -1, UsedReadyAtMs, PC.CombatView.AsOfMs));
+        FirstDebtReadyAtMs = Quote ? Quote->InheritedReadyAtMs : 0;
         RecordShop(PC, TEXT("Applied"), LDDemoGrowthScenario::GrowthProbeReason(Seen->Header.Reason), Seen);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
@@ -1501,6 +1867,103 @@ public:
             FString::Printf(TEXT("kills=%d"), Kills));
         Check(Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen, TEXT("A01"),
             TEXT("The match stayed open through the whole scenario"));
+        if (!Passed) { return Finish(); }
+        // The first match is done and dirty; the Host ends it and the second match must start from clean owner state.
+        RecordFirstMatch(PC);
+        if (!Mark(TEXT("Client1Match1Done.json"))) { return Finish(); }
+        SetStage(EStage::AwaitLobby);
+        return true;
+    }
+
+    // Client1, second match: the first match's exact choice and Buy, and a query for that Buy, through this connection.
+    bool TickSecondReplay(double Now, ALDPlayerController& PC)
+    {
+        const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        const FLDEquipmentView* EquipView = PC.ReadOwnEquipment();
+        if (!ProgView || !EquipView) { return Fail(TEXT("Iso"), TEXT("The second match's owner views became unavailable")); }
+        if (!bReplaySent)
+        {
+            ReplayProgBefore = *ProgView;
+            ReplayEquipBefore = *EquipView;
+            ReplaySubmitMark = Submits.Num();
+            ReplayResultMark = ShopResults.Num();
+            PC.ServerGrowthChoice(ChoiceSent);
+            PC.ServerShopCommand(Buy1Sent);
+            FLDReceiptQuery Query;
+            Query.Generation = FirstGeneration;
+            Query.Family = ELDGrowthFamily::Shop;
+            Query.RequestId = Buy1Sent.RequestId;
+            PC.QueryGrowthReceipt(Query);
+            bReplaySent = true;
+            ReplaySentAt = Now;
+            ReplayQuietUntil = 0;
+            return true;
+        }
+        const FLDSubmitResult* ChoiceAnswer = FindSubmit(ELDGrowthFamily::Choice, ChoiceSent.RequestId, ReplaySubmitMark);
+        const FLDSubmitResult* ShopAnswer = FindSubmit(ELDGrowthFamily::Shop, Buy1Sent.RequestId, ReplaySubmitMark);
+        const FLDShopReceiptQueryResult* QueryAnswer = nullptr;
+        for (int32 ResultIndex = ReplayResultMark; ResultIndex < ShopResults.Num() && !QueryAnswer; ++ResultIndex)
+        {
+            const FLDShopReceiptQueryResult& Answer = ShopResults[ResultIndex];
+            if (Answer.Query.Generation == FirstGeneration && Answer.Query.RequestId == Buy1Sent.RequestId)
+            {
+                QueryAnswer = &Answer;
+            }
+        }
+        if (!ChoiceAnswer || !ShopAnswer || !QueryAnswer)
+        {
+            if (Now - ReplaySentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("Iso"), FString::Printf(TEXT("The stale first-match requests were not all answered (choice=%d shop=%d query=%d)"),
+                ChoiceAnswer ? 1 : 0, ShopAnswer ? 1 : 0, QueryAnswer ? 1 : 0));
+        }
+        // A stale request that executed anyway would publish within this quiet period.
+        if (ReplayQuietUntil == 0) { ReplayQuietUntil = Now + LDDemoGrowthScenario::GrowthProbeQuietSeconds; }
+        if (Now < ReplayQuietUntil) { return true; }
+        Check(ChoiceAnswer->Status == ELDAdmissionStatus::AdmissionRejected && ChoiceAnswer->Generation == FirstGeneration
+            && LDGrowthWire::Reason(ChoiceAnswer->Reason) == ELDGrowthReason::OldMatch && !ChoiceAnswer->bSequenceReserved
+            && !ChoiceAnswer->bHasChoiceReceipt, TEXT("Iso"),
+            TEXT("The first match's exact choice request is refused as OldMatch at admission in the second match"),
+            FString::Printf(TEXT("generation=%u request=%llu reason=%s"), ChoiceAnswer->Generation, ChoiceAnswer->RequestId,
+                *LDDemoGrowthScenario::GrowthProbeReason(ChoiceAnswer->Reason)));
+        Check(ShopAnswer->Status == ELDAdmissionStatus::AdmissionRejected && ShopAnswer->Generation == FirstGeneration
+            && LDGrowthWire::Reason(ShopAnswer->Reason) == ELDGrowthReason::OldMatch && !ShopAnswer->bSequenceReserved
+            && !ShopAnswer->bHasShopReceipt, TEXT("Iso"),
+            TEXT("The first match's exact Buy with its old session is refused as OldMatch at admission in the second match"),
+            FString::Printf(TEXT("generation=%u request=%llu session=%s reason=%s"), ShopAnswer->Generation, ShopAnswer->RequestId,
+                *LDDemoGrowthScenario::GrowthProbeGuid(Buy1Sent.SessionId), *LDDemoGrowthScenario::GrowthProbeReason(ShopAnswer->Reason)));
+        Check(QueryAnswer->Lookup == ELDReceiptLookup::InvalidContext && !QueryAnswer->bHasReceipt && !QueryAnswer->bHasPending, TEXT("Iso"),
+            TEXT("A receipt query for the first match's Buy finds no receipt in the second match (InvalidContext)"));
+        const FLDProgressionView* ProgAfter = PC.ReadOwnProgression();
+        const FLDEquipmentView* EquipAfter = PC.ReadOwnEquipment();
+        Check(ProgAfter && EquipAfter && LDDemoGrowthScenario::GrowthProbeSameOwner(ReplayProgBefore, ReplayEquipBefore, *ProgAfter, *EquipAfter)
+            && PC.ReadOwnShop() == nullptr && PC.PeekGrowthRequestId(ELDGrowthFamily::Choice) == 1
+            && PC.PeekGrowthRequestId(ELDGrowthFamily::Shop) == 1, TEXT("Iso"),
+            TEXT("The stale requests change no growth, gold, equipment, shop session or request sequence of the second match"),
+            ProgAfter ? LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgAfter) : FString(TEXT("no progression view")));
+        if (!Passed) { return Finish(); }
+        bApproachSent = false;
+        ApproachAttempts = 0;
+        SetStage(EStage::ShopApproach);
+        return true;
+    }
+
+    // Client1, second match: a fresh session whose quote shows no inherited cooldown, so no track or debt survived.
+    bool TickSecondQuote(ALDPlayerController& PC)
+    {
+        const FLDShopView* ShopView = PC.ReadOwnShop();
+        const FLDShopItemView* Quote = ShopView ? ShopView->Items.FindByPredicate([this](const FLDShopItemView& ItemRow)
+        {
+            return ItemRow.DefinitionId == ItemId;
+        }) : nullptr;
+        const bool bNoDebt = ShopView && !ShopView->Items.ContainsByPredicate([](const FLDShopItemView& ItemRow)
+        {
+            return ItemRow.bInheritsCooldown || ItemRow.InheritedReadyAtMs != 0;
+        });
+        Check(ShopView && Opened.View.SessionId != FirstSessionId && Quote && Quote->bHasActive && bNoDebt && ShopView->Sellable.IsEmpty(),
+            TEXT("Iso"), TEXT("The second match's fresh shop quote shows no inherited cooldown: the first match's debt did not survive"),
+            FString::Printf(TEXT("session %s -> %s, first-match debt until %lld"), *LDDemoGrowthScenario::GrowthProbeGuid(FirstSessionId),
+                ShopView ? *LDDemoGrowthScenario::GrowthProbeGuid(ShopView->SessionId) : TEXT("none"), FirstDebtReadyAtMs));
+        if (Passed) { Mark(TEXT("Client1Match2Done.json")); }
         return Finish();
     }
 
@@ -1516,12 +1979,14 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host that never attacks. Not camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, one choice and two-slot shop trades through the owning connection. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host that never attacks, ends the first match without a winner and checks its own state in a second normal match. Not camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, one choice, two-slot shop trades and an item active through the owning connection, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), int32(Stage));
         Report->SetArrayField(TEXT("checks"), Checks);
+        Report->SetNumberField(TEXT("second_generation"), SecondGeneration);
+        Report->SetObjectField(TEXT("match1"), FirstMatchRow.IsValid() ? FirstMatchRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         if (const ALDPlayerController* PC = Controller.Get())
         {
             Report->SetNumberField(TEXT("generation"), PC->OwnerState.Match);
@@ -1575,11 +2040,11 @@ void LDDemoTests::StartGrowthProbe(ALDPlayerController& Controller)
         return;
     }
     const TSharedRef<FLDDemoGrowthProbe> Probe = MakeShared<FLDDemoGrowthProbe>();
-    int32 Timeout = 900;
+    int32 Timeout = 1500;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoGrowthTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoGrowthOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoGrowthRole="), Probe->Role)
-        || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1")) || Timeout < 300 || Timeout > 1500
+        || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1")) || Timeout < 300 || Timeout > 2400
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
