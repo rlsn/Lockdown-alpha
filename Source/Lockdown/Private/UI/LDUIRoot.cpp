@@ -834,7 +834,10 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     ULDControlsPanel* SettingsPanel=PC->ControlsUI.Get();
     if(Panel==ELDUIMainPanel::Settings)
     {
-        if(!PanelOpen(SettingsPanel)&&!CloseMainPanelsExcept(Panel)){return;}
+        const bool bOpening=!PanelOpen(SettingsPanel);
+        if(bOpening&&!CloseMainPanelsExcept(Panel)){return;}
+        // Opening a main panel clears the local armed preview only; accepted orders keep running (UI 4, 7).
+        if(bOpening){PC->CancelArmedCombat();}
         PC->ToggleControlsPanel();
         return;
     }
@@ -849,7 +852,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     if(Panel==ELDUIMainPanel::Menu)
     {
         if(bMenuOpen){CloseMenu();}
-        else if(CloseMainPanelsExcept(Panel)){OpenMenu();}
+        else if(CloseMainPanelsExcept(Panel)){PC->CancelArmedCombat();OpenMenu();}
         return;
     }
     const int32 Index=MainPanelIndex(Panel);
@@ -861,7 +864,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
         return;
     }
     if(Target->IsPanelOpen()){Target->ClosePanel();}
-    else if(CloseMainPanelsExcept(Panel)){Target->OpenPanel();}
+    else if(CloseMainPanelsExcept(Panel)){PC->CancelArmedCombat();Target->OpenPanel();}
 }
 
 bool ULDUIRoot::ShowMainPanel(ELDUIMainPanel Panel)
@@ -875,6 +878,7 @@ bool ULDUIRoot::ShowMainPanel(ELDUIMainPanel Panel)
     const ELDUIMainPanel Active=ActiveMainPanel();
     if(Active==ELDUIMainPanel::Menu||Active==ELDUIMainPanel::Settings){return false;}
     if(!CloseMainPanelsExcept(Panel)){return false;}
+    PC->CancelArmedCombat();
     Target->OpenPanel();
     return Target->IsPanelOpen();
 }
