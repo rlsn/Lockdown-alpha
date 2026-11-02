@@ -742,7 +742,7 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
     {
         if (!Skill.bActive)
         {
-            Input.Passives.Emplace(Skill.Id.ToString(), Skill.Rank);
+            Input.Passives.Emplace(Skill.Id.ToString().ToLower(), Skill.Rank);
             continue;
         }
         FLDLearnedActiveValue& Active = Input.Actives.AddDefaulted_GetRef();
@@ -753,7 +753,7 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
     }
     for (const FLDAttributeCardCount& Card : Build.Cards)
     {
-        Input.AttributeCards.Emplace(Card.Id.ToString(), Card.Count);
+        Input.AttributeCards.Emplace(Card.Id.ToString().ToLower(), Card.Count);
     }
     Input.Equipment = Equipment;
     Input.ResultBuildRevision = Build.Revision;

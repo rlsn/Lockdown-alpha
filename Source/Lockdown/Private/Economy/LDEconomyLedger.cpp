@@ -678,7 +678,7 @@ TSharedRef<FJsonObject> LedgerJsonState(const LDEconomy::FAuditState& State)
         TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
         Row->SetStringField(TEXT("instance"), LedgerJsonGuid(Pair.Key));
         Row->SetStringField(TEXT("issueSerial"), LedgerJsonU64(Pair.Value.IssueSerial));
-        Row->SetStringField(TEXT("definition"), Pair.Value.Definition.ToString());
+        Row->SetStringField(TEXT("definition"), Pair.Value.Definition.ToString().ToLower());
         Row->SetStringField(TEXT("owner"), LedgerJsonGuid(Pair.Value.Owner));
         Row->SetNumberField(TEXT("slot"), Pair.Value.Slot);
         Row->SetStringField(TEXT("revision"), LedgerJsonU64(Pair.Value.Revision));
@@ -716,7 +716,7 @@ TSharedRef<FJsonObject> LedgerJsonEntry(const LDEconomy::FJournalEntry& Entry)
         TSharedRef<FJsonObject> Create = MakeShared<FJsonObject>();
         Create->SetStringField(TEXT("owner"), LedgerJsonGuid(T.Create->Owner));
         Create->SetStringField(TEXT("expectedInventoryRevision"), LedgerJsonU64(T.Create->ExpectedInventoryRevision));
-        Create->SetStringField(TEXT("definition"), T.Create->Definition.ToString());
+        Create->SetStringField(TEXT("definition"), T.Create->Definition.ToString().ToLower());
         Create->SetNumberField(TEXT("slot"), T.Create->Slot);
         Out->SetObjectField(TEXT("create"), Create);
     }
