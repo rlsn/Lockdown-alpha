@@ -523,7 +523,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         FLDLegalGround From, Approach;
         FLDCompletePath Path;
         FCollisionShape Capsule;
-        if (!QueryBodyGround(From,Capsule,WorldFailure,Detail)
+        if (!QueryPlanStart(From,Capsule,WorldFailure,Detail)
             || !Registry->FindPublicApproach(Registry->Revision(),From,Request.ShopId,Capsule,Approach,Path,WorldFailure,Detail))
         {
             Failure=ELDOrderFailure::NoCompletePath;

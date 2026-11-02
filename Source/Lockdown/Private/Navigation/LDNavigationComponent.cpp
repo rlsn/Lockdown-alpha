@@ -175,6 +175,14 @@ bool ULDNavigationComponent::QueryBodyGround(FLDLegalGround& Out, FCollisionShap
     return true;
 }
 
+bool ULDNavigationComponent::QueryPlanStart(FLDLegalGround& Out, FCollisionShape& Capsule,
+    ELDWorldQueryFailure& Failure, FString& Error) const
+{
+    FLDLegalGround Body;
+    return QueryBodyGround(Body,Capsule,Failure,Error)
+        && LDPathSteering::PlanStart(*GetWorld()->GetSubsystem<ULDMapRegistry>(),Body,Capsule,Out,Failure,Error);
+}
+
 bool ULDNavigationComponent::Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected,
     ELDWorldQueryFailure& Failure, FString& Error)
 {
@@ -190,7 +198,7 @@ bool ULDNavigationComponent::Plan(const FVector& Surface, FName SurfaceHint, TAr
     }
     FLDLegalGround From, To;
     FCollisionShape Capsule;
-    if (!QueryBodyGround(From,Capsule,Failure,Error)) { return false; }
+    if (!QueryPlanStart(From,Capsule,Failure,Error)) { return false; }
     const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
     FLDCompletePath Path;
     if (!Registry->QueryGround(Registry->Revision(),Surface,Capsule,SurfaceHint,To,Failure,Error)
