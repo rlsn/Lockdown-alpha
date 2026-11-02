@@ -214,6 +214,8 @@ private:
     bool RunActions(const FLDGameplayWritePermit& Permit, FString& Error);
     bool RunEffects(const FLDGameplayWritePermit& Permit, FString& Error);
     bool RunDeaths(const FLDGameplayWritePermit& Permit, FString& Error);
+    // One growth reward per locked death; a retryable refusal gets exactly one more attempt next boundary.
+    bool CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error);
     bool PublishOwnerViews(FString& Error);
 
     // ---- Actions (LDCombatActions.cpp).
@@ -226,9 +228,12 @@ private:
     bool ProcessDirect(FLDCombatEntityRecord& Record, const FLDCombatActionRequest& Request,
         const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Receipt, FString& Error);
     bool ReleaseDue(const FLDGameplayWritePermit& Permit, FString& Error);
-    bool ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error);
+    bool ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
+        ELDCombatReject& Outcome, FString& Error);
     bool ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Reject, FString& Error);
+    // Terminal Finished/Rejected receipt of a released Direct request (abilities and camp basics).
+    void FinishDirectReceipt(const FGuid& Entity, const FLDCombatAction& Action, ELDCombatReject Reject);
     bool ResolveUnitTarget(const FLDCombatEntityRecord& Record, const ALDCharacter& Actor, const FLDCombatTarget& Target,
         FLDCombatBodyRef& OutBody, FVector& OutFoot, ELDCombatReject& Reject) const;
     void StoreReceipt(FLDCombatEntityRecord& Record, const FLDCombatActionRequest& Request, FLDCombatActionReceipt Receipt);
@@ -264,6 +269,7 @@ private:
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
     TArray<FLDCommittedDeath> PendingDeaths;
+    TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
     bool bAdvancing=false;
 };

@@ -49,14 +49,16 @@ Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所
 `AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
 中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
 普攻节拍、脱战回复起点、保护到期、复活时刻、开圈与独占完成时刻）。每步依次执行 Motion → Session
-（保护半开到期）→ Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Capture → Close 和完成边界，
-仅推进原生游戏时间已经提供的预算；Close 锁定结果后仍完成该边界、调用无 permit 的发布并停止推进。
+（保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
+Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
+Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
+DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitDeathReward`：可重试的拒绝只在下一边界再试一次，
+其余未支付结果明确报错并故障；结果锁定时仍待重试的奖励记录为未支付。Transactions 每步调用一次 `ProcessTransactions`。
 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向占领归约器提交资格事实并通知提供者。
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
-奖励与 Transactions 由成长、营地提供者接入后才在同一分派中开启；
-在此之前这些阶段明确拒绝，不是空成功或最终 Fence，普通 Start 因此仍关闭。
+营地成员的运动、意图、反击与刷新由营地提供者接入后在同一分派中调用。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
 新争圈的归约与结果归 GameMode 核心（N02，尚未实现），不能沿用已退役的 Heart 授权或旧交互中断条件。

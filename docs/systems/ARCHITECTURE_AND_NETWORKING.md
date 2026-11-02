@@ -113,9 +113,9 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 迟收地面意图携核心生成的 NotBefore 时间，不能作用于更早原生区间。
 `FLDGameplayWritePermit` 仅由核心在当前调用栈构造，禁止复制/移动；
 最终写入重查 Owner、Match、边界、阶段、GateRevision 和当前借用地址，重入不能再发许可。
-阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Capture → Close 的契约顺序
-每步各执行一次；Transactions 在成长提供者接入调度前明确拒绝，
-不为未接通阶段签发成功证明。Close 锁定唯一结果后，driver 仍完成该边界并调用无 permit 的发布，然后停止推进。
+阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Transactions → Capture → Close
+的契约顺序每步各执行一次，不为未接通阶段签发成功证明。Close 锁定唯一结果后，driver 仍完成该边界并调用
+无 permit 的发布（成长 `PublishGrowth`、`ExecuteCapturePublish`），然后停止推进。
 当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
 和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
 不允许两次记录之间的无凭据位置写悄悄成为新起点。退休后的已接纳批次不因弱 Pawn 指针失效而丢弃。
