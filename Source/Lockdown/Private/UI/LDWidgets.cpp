@@ -7,9 +7,9 @@ UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size)
     auto* W=Tree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
     W->SetColorAndOpacity(FLinearColor(.9f,.94f,.96f));W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
-ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World)
+ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
 {
-    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>():Tree->ConstructWidget<ULDCommandButton>();W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
+    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
     auto Style=W->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.045f,.12f,.15f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.09f,.24f,.27f));Style.Pressed.TintColor=FSlateColor(FLinearColor(.12f,.32f,.32f));
     Style.NormalPadding=FMargin(12,11);Style.PressedPadding=FMargin(12,11);W->SetStyle(Style);W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);return W;
 }
@@ -20,6 +20,11 @@ ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunc
 #include "Components/Border.h"
 #include "Rendering/DrawElements.h"
 UWidget* ULDPanel::FocusScope() const{return WidgetTree?WidgetTree->RootWidget:nullptr;}
+bool ULDPanel::IsPanelHit(FVector2D Absolute) const
+{
+    const UWidget* Area=HitArea();
+    return IsPanelOpen()&&IsVisible()&&Area&&Area->IsVisible()&&Area->GetCachedGeometry().IsUnderLocation(Absolute);
+}
 TArray<UWidget*> ULDPanel::PanelFocusTargets() const
 {
     TArray<UWidget*> Result;

@@ -7,7 +7,6 @@
 #include "UI/LDControlsPanel.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
-#include "Components/TextBlock.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -26,18 +25,22 @@
 
 namespace
 {
-    UButton* FindButton(UUserWidget* Widget, const FString& Label, bool Prefix = false)
+    // Stable widget names survive copy changes; label text is player-facing and is never used to locate controls.
+    UButton* FindButton(UUserWidget* Widget, FName Name)
     {
-        if (!Widget || !Widget->WidgetTree) { return nullptr; }
-        TArray<UWidget*> Children;
-        Widget->WidgetTree->GetAllWidgets(Children);
-        for (UWidget* Child : Children)
+        return Widget && Widget->WidgetTree ? Widget->WidgetTree->FindWidget<UButton>(Name) : nullptr;
+    }
+
+    // UMG visibility is per widget, so a control inside a collapsed row or a hidden panel is not on screen.
+    bool OnScreen(const UUserWidget* Owner, const UWidget* Widget)
+    {
+        if (!Owner || !Widget || !Owner->IsVisible()) { return false; }
+        for (const UWidget* Current = Widget; Current; Current = Current->GetParent())
         {
-            auto* Button = Cast<UButton>(Child);
-            const auto* Text = Button ? Cast<UTextBlock>(Button->GetContent()) : nullptr;
-            if (Text && (Prefix ? Text->GetText().ToString().StartsWith(Label) : Text->GetText().ToString() == Label)) { return Button; }
+            const ESlateVisibility Visibility = Current->GetVisibility();
+            if (Visibility == ESlateVisibility::Collapsed || Visibility == ESlateVisibility::Hidden) { return false; }
         }
-        return nullptr;
+        return true;
     }
 
     void Reveal(UWidget* Widget)
@@ -100,10 +103,10 @@ namespace
             return false;
         }
 
-        bool Click(UUserWidget* Widget, const FString& Label, bool Prefix = false)
+        bool Click(UUserWidget* Widget, FName Name)
         {
-            auto* Button = FindButton(Widget, Label, Prefix);
-            if (!Check(Button && Button->GetIsEnabled() && Button->IsVisible(), TEXT("Action available: ") + Label)) { return false; }
+            auto* Button = FindButton(Widget, Name);
+            if (!Check(Button && Button->GetIsEnabled() && OnScreen(Widget, Button), TEXT("Action available: ") + Name.ToString())) { return false; }
             Button->OnClicked.Broadcast();
             return true;
         }
@@ -151,12 +154,12 @@ namespace
             else if (Stage == 2)
             {
                 if (!Check(PC->ControlsUI && PC->ControlsUI->IsOpen(), TEXT("The production Settings button opens the actual UMG panel"))) { return Finish(); }
-                auto* Apply = FindButton(PC->ControlsUI, TEXT("Apply display draft"));
-                if (!Check(Apply && !Apply->GetIsEnabled(), TEXT("Display Apply is unavailable before a draft changes"))) { return Finish(); }
+                auto* Apply = FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"));
+                if (!Check(Apply && OnScreen(PC->ControlsUI, Apply) && !Apply->GetIsEnabled(), TEXT("Display Apply is unavailable before a draft changes"))) { return Finish(); }
                 Capture(TEXT("Settings-100"));
             }
-            else if (Stage == 3) { Reveal(FindButton(PC->ControlsUI, TEXT("Apply text 100 / 125%"))); }
-            else if (Stage == 4) { if (!Click(PC->ControlsUI, TEXT("Apply text 100 / 125%"))) { return Finish(); } }
+            else if (Stage == 3) { Reveal(FindButton(PC->ControlsUI, TEXT("ApplyTextScale"))); }
+            else if (Stage == 4) { if (!Click(PC->ControlsUI, TEXT("ApplyTextScale"))) { return Finish(); } }
             else if (Stage == 5)
             {
                 const auto Loaded = ULDControlSettings::LoadLocalSettings(Storage);
@@ -165,21 +168,23 @@ namespace
                     TEXT("Actual local-preference Apply is persisted and verified from the isolated file"))) { return Finish(); }
                 Capture(TEXT("Settings-125"));
             }
-            else if (Stage == 6) { Reveal(FindButton(PC->ControlsUI, TEXT("VSync draft:"), true)); }
+            else if (Stage == 6) { Reveal(FindButton(PC->ControlsUI, TEXT("VSyncDraft"))); }
             else if (Stage == 7)
             {
-                if (!Click(PC->ControlsUI, TEXT("VSync draft:"), true)) { return Finish(); }
-                auto* Apply = FindButton(PC->ControlsUI, TEXT("Apply display draft"));
-                Check(Apply && Apply->GetIsEnabled(), TEXT("A display draft enables its real Apply action"));
+                if (!Click(PC->ControlsUI, TEXT("VSyncDraft"))) { return Finish(); }
+                auto* Apply = FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"));
+                Check(Apply && OnScreen(PC->ControlsUI, Apply) && Apply->GetIsEnabled(), TEXT("A display draft enables its real Apply action"));
                 Check(FLDDisplaySettings::Read(*GEngine->GetGameUserSettings()) == OriginalDisplay, TEXT("Unapplied draft does not change live display settings"));
             }
             else if (Stage == 8) { if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); } }
             else if (Stage == 9)
             {
-                Check(FindButton(PC->ControlsUI, TEXT("Discard display draft and return")) != nullptr, TEXT("Closing an unapplied draft exposes an explicit discard path"));
+                auto* Discard = FindButton(PC->ControlsUI, TEXT("DiscardDisplayDraft"));
+                Check(PC->ControlsUI->IsOpen() && Discard && OnScreen(PC->ControlsUI, Discard), TEXT("Closing an unapplied draft exposes an explicit discard path"));
+                Check(PC->ControlsUI->HasChildConfirmation(), TEXT("The unapplied-draft prompt is a child confirmation for Back routing"));
                 Capture(TEXT("DiscardDisplayDraft"));
             }
-            else if (Stage == 10) { if (!Click(PC->ControlsUI, TEXT("Discard display draft and return"))) { return Finish(); } }
+            else if (Stage == 10) { if (!Click(PC->ControlsUI, TEXT("DiscardDisplayDraft"))) { return Finish(); } }
             else
             {
                 Check(!PC->ControlsUI->IsOpen() && !Instance->GetDisplayTrialId() && !Instance->IsDisplayRestorePending(),

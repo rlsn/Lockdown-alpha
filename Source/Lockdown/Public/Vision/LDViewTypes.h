@@ -2,8 +2,6 @@
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
 #include "Framework/LDMatchLifecycleTypes.h"
-#include "Development/LDCharacterBuild.h"
-#include "Inventory/LDInventoryTypes.h"
 #include "Development/LDGrowthProtocol.h"
 #include "LDViewTypes.generated.h"
 
@@ -171,13 +169,9 @@ struct FLDOwnerState
     UPROPERTY() double MaxHp = 0;
     UPROPERTY() bool bReady = false;
     UPROPERTY() bool bLobbyHost = false;
-    UPROPERTY() FLDCharacterBuild Build;
-    UPROPERTY() FLDInventory Inventory;
     UPROPERTY() double Mp=0;
     UPROPERTY() double MaxMp=0;
     UPROPERTY() double Barrier=0;
-    UPROPERTY() int64 Gold = 0;
-    UPROPERTY() int64 Xp = 0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
     // Growth/Shop: own gold, equipment, level, offer and shop session as one consistent owner projection.

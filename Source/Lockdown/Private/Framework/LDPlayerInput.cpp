@@ -154,16 +154,21 @@ void ALDPlayerController::ToggleControlsPanel()
 
 void ALDPlayerController::V05Back()
 {
-    if (InventoryUI && InventoryUI->IsOpen()) { InventoryUI->Close(); return; }
-    if (ControlsUI && ControlsUI->IsOpen()) { ControlsUI->Close(); return; }
-    if (RootUI && RootUI->IsMenuOpen()) { RootUI->ToggleMenu(); return; }
-    if (!bFreshInputRequired && RootUI) { RootUI->ToggleMenu(); }
+    // UI_AND_SETTINGS 4: one layer per press — editing/child confirmation, then a local Armed preview,
+    // then a normal main panel, then the menu. Cancelling Armed never stops an accepted order.
+    if (!RootUI) { return; }
+    if (RootUI->CloseTopModal()) { return; }
+    if (CancelArmedCombat()) { return; }
+    if (RootUI->CloseTopPanel()) { return; }
+    if (!bFreshInputRequired) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
 }
 
 void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
+    // Own panels also open while dead (UI_AND_SETTINGS 3.2); the root keeps one main panel at a time.
+    if (Action==TEXT("Attributes")) { if (RootUI) { RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes); } return; }
     if (Action==TEXT("Stop")) { StopCombatAndOrders(); return; }
     if (!CanWorldCommand()) { return; }
     if (Action==TEXT("Select"))
