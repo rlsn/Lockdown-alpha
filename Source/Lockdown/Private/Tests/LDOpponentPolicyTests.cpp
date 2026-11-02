@@ -615,6 +615,14 @@ bool RunPriorities(FAutomationTestBase& Test)
         Frame.Self.Sources.Reset();
         Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
         const auto Band = LDOpponentPolicy::Decide(Frame, C, Defence);
+        // Arrived: the hold is broken and the body, still recovering, is one of the contestants inside the circle.
+        Frame.Public.Circle = ELDOpponentCircle::Contested;
+        Frame.Public.Occupier.Invalidate();
+        Frame.Public.DueAtMs = 0;
+        Frame.Self.FootCm = FVector(0, 2700, 0);
+        const auto Inside = LDOpponentPolicy::Decide(Frame, C, Defence);
+        Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+        const auto Spent = LDOpponentPolicy::Decide(Frame, C, Defence);
         bGood &= Expect(Test, TEXT("Below the stop-loss line without a ready shield the AI escapes instead of charging"), Low,
             EMode::Disengage, EBody::MoveGround);
         bGood &= Expect(Test, TEXT("A ready shield lets a low body answer the urgent defence, shielding first"), Shielded,
@@ -622,6 +630,11 @@ bool RunPriorities(FAutomationTestBase& Test)
                 Shielded.Body.Source == ELDOpponentSourceSlot::Q);
         bGood &= Expect(Test, TEXT("Recovering above the stop-loss line still answers an urgent public defence"), Band,
             EMode::DefendOrHold, EBody::MoveGround, TEXT("capture"));
+        bGood &= Expect(Test, TEXT("Contesting inside the circle, a recovering body fights the rival there instead of fleeing"),
+            Inside, EMode::Contest, EBody::AttackUnit) && Test.TestTrue(TEXT("The rival inside the circle is the target"),
+                Inside.Body.Handle == Frame.Units[0].Handle);
+        bGood &= Expect(Test, TEXT("Below the stop-loss line without a ready shield it leaves the contest"), Spent,
+            EMode::Disengage, EBody::MoveGround);
     }
 
     Frame = Base;

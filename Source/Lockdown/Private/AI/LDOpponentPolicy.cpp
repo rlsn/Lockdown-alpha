@@ -1356,15 +1356,22 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Urgency.ReactionBudgetMs = C.AI.CaptureReactionBudgetMs;
         bUrgent = IsCaptureDefenseUrgent(Urgency);
     }
-    // §6.2: recovering still answers an urgent public defence. Only below the stop-loss line without ready
-    // self-protection does escaping come first, and such a body does not charge the holder at all.
+    // §6.2: recovering still answers an urgent public defence; only below the stop-loss line without ready self-protection
+    // does escaping come first, and such a body does not charge the holder. §6.1 P2: a body already contesting inside the
+    // circle stays and fights the rivals there instead of running out once the hold is broken; tagging the circle and
+    // fleeing would only restart the holder's timer.
     const bool bStopLoss = State.bRecovering && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp) && !ProtectionReady(C);
+    const bool bContesting = C.bCaptureOpen && C.bInsideCircle && Frame.Public.Circle == ELDOpponentCircle::Contested;
     FLDOpponentBodyIntent Intent;
-    if ((bHoldingSolo || (bUrgent && !bStopLoss)) && CircleBody(C, bUrgent, Intent))
+    if ((bHoldingSolo || ((bUrgent || bContesting) && !bStopLoss)) && CircleBody(C, bUrgent, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
-        return Finish(EMode::DefendOrHold, bHoldingSolo ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
+        if (bHoldingSolo || bUrgent)
+        {
+            return Finish(EMode::DefendOrHold, bHoldingSolo ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
+        }
+        return Finish(EMode::Contest, EReason::ContestCapture);
     }
     if (State.bRecovering && !C.Threats.IsEmpty() && !bHoldingSolo)
     {
