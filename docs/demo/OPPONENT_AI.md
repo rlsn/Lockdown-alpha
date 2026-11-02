@@ -34,7 +34,8 @@ AI 自动确认的是**自己的**候选和替换，不替真人选择。商店�
 
 源码核验基线为 `fa11d09a762bccadf495191072e222dd158fc014`；
 研究工作区文档基线 `7e7a40d39ec2f99f18b809b83e89479bd34a823d` 相对此提交的
-Source、Config、Content、SourceData、Scripts 均未改变。以下行号对应这一源码基线。
+Source、Config、Content、SourceData、Scripts 均未改变。带行号的证据对应这一源码基线；
+其后已退役或替换的文件改为指向现在的正式入口，不带行号。
 没有运行 Unreal、构建、生成器、Bootstrap 或实际对局，也没有加载二进制资产。
 
 | 证据 | 当前真实行为 | Demo 处置 |
@@ -42,31 +43,37 @@ Source、Config、Content、SourceData、Scripts 均未改变。以下行号对�
 | [LDNavigationComponent.cpp:66–124](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L66-L124)、[237–305](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L237-L305) | Owner 强依赖 PlayerController；Navigate/Stop 为 local-only；服务器检查后，真正沿路径 AddMovementInput 又在 local 条件之后。 | 同组件抽取服务器方向驱动和领域入口，不能假造 ClientOrder 或 LocalPlayer 使机器人行走。 |
 | [LDNavigationComponent.cpp:126–204](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L126-L204)、[LDCharacterMovementComponent.cpp:22–98](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L22-L98) | 有完整路径、Match/Life/Order/Epoch、回执/拒旧、SavedMove 和原生运动；当前新收件会先停旧单。 | R01/R05 局部复用；目标改为 Queued 不替旧单，完整准入后 handoff，不写第二位置积分器。 |
 | [LDGameMode.h:78–93](../../Source/Lockdown/Public/Framework/LDGameMode.h#L78-L93)、[LDGameMode.cpp:378–453](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L453) | Session 是持久参赛身份；当前以 Controller 找记录，死亡仍扣金/掉落，出生仍有安全/原席位政策。 | R06 由生命周期域改造；AI 不直接写 Contenders、不生成 Life 或选择“安全”出生点。 |
-| [LDSkillExecution.cpp:17–34](../../Source/Lockdown/Private/Combat/LDSkillExecution.cpp#L17-L34)、[LDContentActions.cpp:36–55](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L36-L55) | PlayerController 构筑来自参赛记录，其他身体可能落入 NPCBuild；RequestContent 接受已经解析的 Actor，依赖外层准入。 | 参赛 AI 不用 NPCBuild；只进统一 SubmitAction，不把 C++ public 当成授权 API。 |
-| [LDContentLifecycle.cpp:35–57](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L35-L57)、[LDVisionDirector.cpp:137–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L137-L186)、[285–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L285-L300) | 范围内循环普攻存在，非完整追击；Footstep/Trail 有产生和提前授权旁路。网格观察不等于 B91 稀疏观察。 | R07/R12：同一订单驱动普攻，世界统一稀疏 FLDWorldView；未许可提示同时删除产生/授权，不只隐藏图标。 |
+| [LDCombatActions.cpp](../../Source/Lockdown/Private/Combat/LDCombatActions.cpp)（旧 LDSkillExecution/LDContentActions 已退役） | 参赛者的 Q/W/1/2 直接意图只经 `ALDCombatDirector::SubmitAction` 收件，Actions 阶段统一准入；Caller 由核心绑定解析，不接受外部 EntityId。 | 参赛 AI 不用 NPCBuild；只进统一 SubmitAction，不把 C++ public 当成授权 API。 |
+| [LDNavigationOrders.cpp](../../Source/Lockdown/Private/Navigation/LDNavigationOrders.cpp)（旧 LDContentLifecycle 已退役）、[LDVisionDirector.cpp:137–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L137-L186)、[285–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L285-L300) | 普攻由 AttackUnit/AttackMove 订单交给 Combat 驱动；基线中 Footstep/Trail 有产生和提前授权旁路，网格观察不等于 B91 稀疏观察。 | R07/R12：同一订单驱动普攻，世界统一稀疏 FLDWorldView；未许可提示同时删除产生/授权，不只隐藏图标。 |
 | [LDCampDecision.h](../../Source/Lockdown/Public/World/LDCampDecision.h) | 旧三营地/Boss/Tower Actor、有限刷新、先账本后 XP 的 Reward 与 XP-only 限额 PvPKill 已删除；营地只保留纯值决策，营地原语待 N03 接线。 | M9C/M6 提供五营地与稳定死亡键的正常复合奖励。AI 不补发钱或经验。 |
-| [LDCharacterBuild.cpp](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp)、[LDV08Loadout.cpp](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp)；旧准备 Development 与旧书店 Vendor 均已退役 | 保留纯候选投影、修订和来源机制；当前没有三选一或商店运行服务。 | N04/N05 按正式许可/回执接口接线，AI 不用已退休服务或直接改 Build 冒充闭环。 |
-| [LDV08Loadout.cpp:22–77](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp#L22-L77)、[LDContentActions.cpp:39–40](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L39-L40)、[LDEconomyLedger.cpp:36–103](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L103) | 来源失效、条款比较和全验证后提交有价值；旧同族动作排斥/取最大冷却不能实现同款双主动。 | R08/R09 保留不变量，不保留旧槽数/同族锁；AI 仅消费正式 readiness 和真实成交回执。 |
+| [LDDevelopmentDirector.h](../../Source/Lockdown/Public/Development/LDDevelopmentDirector.h)、[LDVendorDirector.h](../../Source/Lockdown/Public/Inventory/LDVendorDirector.h)、[LDViewTypes.h](../../Source/Lockdown/Public/Vision/LDViewTypes.h) 的 `FLDOwnerState.Growth`（旧 LDCharacterBuild/LDV08Loadout、准备 Development 与书店 Vendor 均已退役） | 三选一与两格商店由成长/商店域的 `QueueChoice`、`QueueShopOpen`/`QueueShopCommand` 收件，Transactions 阶段提交；本人进度、装备与商店会话经 `FLDOwnerState.Growth` 一次发布。 | AI 读同一发布、走同一服务器入口与回执，不直接改 Build 冒充闭环。 |
+| [LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp)、[LDEconomyLedger.cpp:36–103](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L103) | 来源失效、条款比较和全验证后提交保留为 Combat 来源绑定与经济账本的不变量；旧同族动作排斥/取最大冷却由按持久冷却身份（`IssuedCooldownId`）的来源绑定取代。 | R08/R09 保留不变量，不保留旧槽数/同族锁；AI 仅消费正式 readiness 和真实成交回执。 |
 
 ## 3. SC-09：状态、正式接口与权限
 
 ### 3.1 唯一新增适配，不新增领域所有者
 
-选定 `ALDOpponentController : ALDPlayerController` 作为唯一服务器适配器，拟建文件为
+选定 `ALDOpponentController : ALDPlayerController` 作为唯一服务器适配器，实现于
 `Source\Lockdown\Public\AI\LDOpponentController.h` 和
-`Source\Lockdown\Private\AI\LDOpponentController.cpp`。纯值策略已独立实现于
+`Source\Lockdown\Private\AI\LDOpponentController.cpp`。纯值策略独立实现于
 `Source\Lockdown\Public\AI\LDOpponentPolicy.h`、`Source\Lockdown\Private\AI\LDOpponentPolicy.cpp`
-（下表的帧/状态/决策类型与成本估计），由 `Lockdown.Rules.DemoOpponentPolicy.*` 覆盖；
-适配器仍等待核心注册、订单/动作、成长/商店的正式提供者接入，尚不能参赛。
+（下表的帧/状态/决策类型与成本估计）；受限投影映射 `LDOpponentFrame` 与意图→领域请求、
+回执→失败记录的纯翻译 `LDOpponentRequests` 同在 `AI` 目录，均由 `Lockdown.Rules.DemoOpponentPolicy.*` 覆盖。
+适配器所在文件以 `LDMatchProviders::FRegistrar` 注册 `ELDMatchProvider::OpponentAI`：Starting 的 Prepare
+为每个冻结名额生成一个控制器，经核心注册后绑定；MatchClosed 只停止活动；MatchReset 只停止活动，
+待 RetireMatch 按真人路径退役身体、丢弃 AI 记录并换代后，控制器在下一 tick 自行销毁，
+避免在仍有记录时经 `APlayerController::Destroyed` 走一遍离局路径。
 它直接继承精简后的现有基类，**不经过 B91/B92**。使用这一无连接服务器适配器，
 是为了复用当前 StateFor/BuildFor/Holder 绑定，不是模拟真人网络连接。
 
 核心创建同类 `FLDContenderRecord.Session`，按 `ELDContenderKind` 显式登记 Human/OpponentAI；人数统计不能依靠
 `IsPlayerController()`。适配器无 LocalPlayer、输入映射、UI、拥有连接或客户端 RPC 通道，
 不以 `_Implementation` 调用跳过领域验证。共享基类中的本地初始化与表现必须按真正本地拥有者隔离。
+无连接服务器控制器上的 Client RPC 会在本机执行，故适配器覆盖 `ClientTravelInternal_Implementation`，
+从不让 Host 进程随 AI 旅行。
 GameMode 的注册/注销仍是唯一入口，不让新 AI 获得旧 Roster 的 friend 写权限。
 
-| 状态 | 正式写入者 | 拟建类型/函数、AI 能保存的内容 |
+| 状态 | 正式写入者 | 类型/函数、AI 能保存的内容 |
 | --- | --- | --- |
 | AI 名额、Contender、Match、Life、阶段和复活 | GameMode 生命周期域 | 复用 `FLDMatchContext{Generation,LedgerMatch}`、`FLDVictimKey{Kind,EntityId,Life}`、`FLDCombatBodyRef{Victim,BodyIdentity}`；AI 的 Victim.Kind 必须为 Contender。 |
 | 策略状态 | 本 AI 的 `ALDOpponentController` | `LDOpponentPolicy.h` 的 `FLDOpponentPolicyState`：当前模式、公共 POI、当前合法目标句柄、有限访问/失败记录。请求游标与下次决策期限归适配器。不是第二份权威身体或成长。 |
@@ -74,11 +81,11 @@ GameMode 的注册/注销仍是唯一入口，不让新 AI 获得旧 Roster 的 
 | 营地成本估计 | AI 纯值策略计算，不是玩法写入 | `LDOpponentPolicy::EstimateCampCost(FLDCampCostInput, 公共怪物定义, 目录) -> FLDCampCostEstimate`；输入只有本人 HP/派生属性/普攻 readiness 与公共营地模板。结果区分有数值的 Ok、预算/生存条件不允许的 NotFeasible、输入/公式失败的 EstimateUnavailable；数值原语复用 R07，不推进世界、RNG、CD 或真实血量。 |
 | 意图 | AI 产生；对应领域验证/提交 | `FLDOpponentDecision` 是 Order/Action/Choice/Shop 的有界判别结果，不含可写权限或另一个参赛者 ID。 |
 | 绑定 | GameMode 唯一注册、核心注册后通知 | `RegisterAIContender(AController&, uint8 RosterSlot, const FLDMatchContext&) -> FLDAIRegistrationResult` 仅 Starting 使用冻结 AI 名额；返回核心 `FLDAIContenderBinding{Match,ContenderId}`，再调用 adapter 的 `BindRegisteredSelf(const FLDAIContenderBinding&)`。不得让策略任意选择 ID。 |
-| 本人快照 | 核心与原领域只读投影 | 核心 `ReadAISelf(binding) -> FLDAISelfReadResult` 与 `ReadPublicMatch() -> FLDPublicMatchView`；adapter 的 `RequestAISnapshot` 组合这两个和 Observer/领域投影，不在核心另建快照真相。缺服务/旧局/已离局是失败，不返回成功形状空快照。 |
-| 决策与发送 | AI / 原领域 | `OnPublishedFrame(Frame)` → 纯 `Decide(Frame, PolicyState)` → `DispatchIntent(Decision)`；后者为绑定本人构造各域 Caller。 |
-| 回执与生命周期反应 | 原域先提交，AI 后消费 | `AcceptReceipt`、`OnLifecycleCommitted` 只更新策略状态/游标。迟到事件不能恢复已结束的旧订单或旧生命。 |
+| 本人快照 | 核心与原领域只读投影 | 核心 `ReadAISelf(binding) -> FLDAISelfReadResult`（含 `FLDOwnerState.Growth` 发布）与 `ReadPublicMatch() -> FLDPublicMatchView`；adapter 的 `BuildFrame` 再组合本人 `BuildOwnerView`、`EnumerateVisibleUnits` 与 `ReadShop`，不在核心另建快照真相。缺服务/旧局/已离局是失败，不返回成功形状空快照。 |
+| 决策与发送 | AI / 原领域 | 每个 `AI.DecisionIntervalSec` 的权威时间 `BuildFrame` → 纯 `Decide(Frame, PolicyState)` → `DispatchBody`/`DispatchBuild`；后者用核心绑定解析的本人 Caller 调用各域服务器入口。 |
+| 回执与生命周期反应 | 原域先提交，AI 后消费 | `SettleOrders`/`SettleDirectAction`/`SettleShop`/`SettleBuild` 查询原 ID，`HandleLifeCommitted`、`HandleMatchClosed`、`HandleMatchReset` 只更新策略状态/游标。迟到事件不能恢复已结束的旧订单或旧生命。 |
 
-这些都是**拟建接口和类型**，不是现有 API。核心当前局映射不被 AI 强转或复制成新的真相：
+以上类型和入口均已实现。核心当前局映射不被 AI 强转或复制成新的真相：
 Generation 对应网络 Match，LedgerMatch 保留 FGuid；BodyRef 每次从当前本人投影取得。
 策略中缓存的代次只是拒旧条件，不具有开局、复活或授予资格的权力。
 
@@ -101,7 +108,7 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 CommitPendingOrder
 
 | 获准输入 | 正式来源 | 限制与撤销 |
 | --- | --- | --- |
-| 自身 | 核心 ReadAISelf、adapter RequestAISnapshot；ReadProgression、ReadEquipment、QueryAvailability | 可以读本人血蓝/资源/等级/技能/装备、控制、真实 readiness、候选和回执；不能取得可写 StateFor 或全账本。 |
+| 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView、Vendor ReadShop | 可以读本人血蓝/资源/等级/技能/装备、控制、真实 readiness、候选和回执；不能取得可写 StateFor 或全账本。 |
 | 公共对局 | `FLDPublicMatchView` | Phase、OpenAtMs、CircleState、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、Result；占领者身份和进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
 | 可见营地回位提示 | 同一 `ObservedFrame/FLDObservedUnitView.Statuses` 中只读 `StatusDefinitionId=camp_returning` | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回岗中”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
@@ -203,6 +210,14 @@ InvalidSurface/WrongSurface/NotGrounded 属于世界可执行性拒绝，不伪�
 | MatchClosed/LeftMatch/StaleMatch | 停止全部新增意图，最多读取已提交结果；不重建 adapter、补席或重试旧局。 |
 | 缺内容/缺服务/非法参数 | 明确阻塞并输出受限诊断；不加载旧 profile、不注入默认战力、不伪造空视图成功。 |
 
+`LDOpponentRequests::Settle*` 按上表把回执归为 InFlight（只查询原 ID）、Succeeded、Failed（有界退避后抑制）、
+TargetLost（抑制该观察句柄并释放当前目标）或 Dropped（换命、终局、自身新请求或记录过期，不计失败）。
+陈旧守卫、报价与来源修订也计为有界失败，系统性错配不会形成无界请求循环。
+每个移动、攻击、动作、选择与商店意图自带 `FLDOpponentRetryKey`，终态回执只记到产生它的那把键上。
+Navigation 在替换订单通过准入前保留现役订单，adapter 因此分别跟踪现役与候选订单，候选被拒时现役照常可见。
+排队订单与开店在下一阶段、已接受动作在 Combat 发布的释放时刻之后，再等 `AI.RetryPolicy.MaxBackoffSec`
+仍未终结即计一次失败（动作另发一次 `CancelAction`）；成长请求不可取消，只报告超期并继续查询原 ID。
+
 ## 4. SC-09：全生命周期矩阵
 
 | 状态/工作 | 取消/换目标 | 死亡等待与复活 | 离局 | 终局 | 新局 |
@@ -233,8 +248,8 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | 改造 R04/R06 | `S\Public\Framework\LDGameMode.h`、`S\Private\Framework\LDGameMode.cpp`、`S\Public\Framework\LDPlayerController.h`、`S\Private\Framework\LDPlayerController.cpp`、`S\Private\Character\LDCharacter.cpp`、`S\Private\Character\LDCharacterMovementComponent.cpp` | 核心 RegisterAIContender/ELDContenderKind/ReadAISelf/ReadPublicMatch 与提交后通知；基类的 UI、网络与本地运动隔离；删除居民、人口速度和搬运政策。不能只新增一个 Controller 然后保留 local-only 假设。 |
 | 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDCharacterBuild.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDGearRules.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策，N04/N05 新提供者不从已退役 Development/Vendor 服务继续抽取。 |
 | 抽取/改造 R10–R12 | `S\Public\World\LDCampDecision.h`、`S\Private\World\LDCampDecision.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供营地纯决策（营地原语待 N03 接线）、静态查询和唯一受限帧，致死信用归核心 DeathKey；AI 不消费全表，不保留旧完整地图第二身体流。 |
-| 新增 N06/M12 | `S\Public\AI\LDOpponentPolicy.h`、`S\Private\AI\LDOpponentPolicy.cpp`（已实现）；`S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp`（拟建） | 纯策略放 §6 的决策输入/结果、成本估计、选择/装备/回防/重试规则；adapter 放 §3 的绑定、受限投影组合与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
-| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`（已实现，`Lockdown.Rules.DemoOpponentPolicy.*`）；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 后四项名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
+| 新增 N06/M12 | `S\Public\AI\LDOpponentPolicy.h`、`S\Private\AI\LDOpponentPolicy.cpp`、`S\Public\AI\LDOpponentFrame.h`、`S\Private\AI\LDOpponentFrame.cpp`、`S\Public\AI\LDOpponentRequests.h`、`S\Private\AI\LDOpponentRequests.cpp`、`S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp`（已实现） | 纯策略放 §6 的决策输入/结果、成本估计、选择/装备/回防/重试规则；adapter 放 §3 的绑定、受限投影组合与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
+| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`（已实现，`Lockdown.Rules.DemoOpponentPolicy.*`）；`S\Private\Tests\LDDemoOpponentProbe.h`、`S\Private\Tests\LDDemoOpponentProbe.cpp`、`Scripts\RunDemoOpponentCheck.ps1`（已实现） | 纯策略用授权 DTO；拥有连接场景经正常大厅开局，使用正常订单及真实拥有连接。probe 在 Host 上读取的权威数据只用于核对，从不回送给策略。runner 只复核本次运行，不回放旧档案作为成功。 |
 
 AI 新参数接入内容域选定的唯一生成输入/载荷/contract，不新增 AI 私有 JSON 或运行时读 docs。
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；
@@ -288,7 +303,7 @@ P4 构建/UHT、Bootstrap、生成拒绝及对应真实场景确认闭包。
 | --- | --- | --- |
 | P0 Stopped | Results/Closing/Faulted、非运行阶段、离局或绑定失效；停止新提交 | 只有核心发布合法新局才重新绑定；不是不断尝试旧局命令。 |
 | P1 DeadWaiting | 本人 Dead/RespawnAt、当前队头 Offer；等待身体，并可用当前 Dead 阶段确认选择 | 新 BodyRef 到来才恢复身体动作；不移动、攻击、购物，不恢复旧路线/商店步骤。 |
-| P2 Disengage | 本人危险阈值、可见接触压力、自保 readiness、静态可达地面；停止继续投入，合法自保/撤离 | “正在脱险”才保持最高空间优先级；脱险后的回血等待不永久压住回防。圈内有合法余地时先圈内移动，不机械跑出圈。 |
+| P2 Disengage | 本人危险阈值、可见接触压力、自保 readiness、静态可达地面；停止继续投入，合法自保/撤离 | “正在脱险”才保持最高空间优先级：低于 RetreatHPRatio 且没有就绪自保屏障时，脱险压过回防，也不向公开占领者冲锋；回到这条线以上后的回血等待让位于紧急回防。已在圈内参与争夺时留在圈内对付圈内对手，不因独占被打断、回防不再紧急就跑出圈：一碰就走只会重置对方计时；只有跌破止损线又无就绪自保时才撤离。撤离选一个远离可见威胁、终点在其视野半径外的公共地面点，并走完这一程，只有到达或不再远离时才重选；威胁失去视野后也不原地停下。圈内有合法余地时先圈内移动，不机械跑出圈。 |
 | P3 DefendOrHold | 自己正在合法守圈，或公开独占即将达到自身回防预算；走公开圈入口、处理当前可见威胁 | 压过新的打野/购物；阶段、CaptureEpoch、有效资格、路线或风险改变时重评；公开占领者不能直接变成单位目标。 |
 | P4 Choose | 队头 Offer 存在且无在途构筑变更；用 §6.4 选择一次 | 不冻结正在进行的合法运动或紧急反应；成功后才读下一组，冲突不重抽。 |
 | P5 Engage | 当前合法可见目标、本人可用资源/动作、未超投入预算；Nav 攻击订单与 §6.3 主动 | 失视野、无效目标、危险、回防、超预算或生命变化时退出；不读对手内部战力来保证击杀。 |
@@ -472,6 +487,8 @@ Direction 使用当时获准方向，Self 检查本人状态。
 不随无限时长对局积累全单位/全回执日志。
 RetryPolicy 的 MaxAttempts 包含首次提交，退避逐次增加且不超过 MaxBackoffSec；
 次数到界后明确进入目标抑制或等待原域终态，不偷偷无限生成新 token。
+争圈也是有界投入：一次回防或争圈以跌破止损线撤离告终，就记为该圈在当前构筑下的一次失败；
+用满 MaxAttempts 后不再回应该圈，直到等级、选择或装备改变构筑，以免较弱一方反复进圈又被打出。
 
 无路/无进展先消费导航域的有限重算和失败，AI 才换另一个合法公共接近点/POI，
 不叠加第二套卡路计时。资源拒绝等 readiness/相关资源变化；控制拒绝等对应限制解除；
@@ -483,6 +500,9 @@ Offer/报价冲突等同域终态或相关修订；普通帧更新不刷新次�
 PublicCaptureUrgent、NoAffordableImprovement、AwaitReceipt、TargetSuppressed、
 ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回防/为何失败”，
 但不得记录从未授权给该 AI 的隐藏坐标、钱包或内部来源，再反向作为决策输入。
+每局关闭时，每个 AI 另输出一行 `LD_AI_SUMMARY`，汇总本局送出的订单、Stop、动作、开店、选择、交易次数，
+以及当场被拒的次数（`ALDOpponentController::GetRequestTally`）。它用来核对等待、拒绝和重试是否有界，
+只是证据，不是策略输入。
 
 ## 7. SC-09：参数与内容唯一来源
 
@@ -531,7 +551,11 @@ AI03 的动作覆盖可以用明确标注的源/Offer 夹具穷举稀有分支�
 
 ### 8.2 正反验收与证据
 
-以下都是**需新增或改造的未来验收**，当前未实现/未运行。
+`RunDemoOpponentCheck.ps1` 已部分覆盖下表：满员房间（参赛 Listen Host、两个拥有客户端、三个 AI）经正常大厅开局，真人不参与。
+它核对 AI-A01 的独立绑定与不补位，以及 AI-A02 中的每个 AI 自主移动、获胜 AI 升级并确认选择、至少一个 AI 到店购买、
+死亡后按批准时长复活并继续行动、请求速率有界、由 AI 按占领规则获胜，最后回到新 Lobby 并退役全部 AI。
+其余条目，以及这两条中 runner 没有覆盖的部分（零到二个 AI 开局、真人离开、每个 AI 各自的成长、逐段回执链、三个槽位分别获胜），
+仍是**需新增或改造的未来验收**，当前未实现/未运行。
 纯模型证明策略决定，原生场景证明接线，真实拥有连接证明授权和运行拓扑，三者不能互相冒充。
 
 | ID / 场景 | 正例与反例动作 | 精确可观察结果 |

@@ -1,0 +1,767 @@
+#include "AI/LDOpponentController.h"
+#include "AI/LDOpponentFrame.h"
+#include "CollisionShape.h"
+#include "Combat/LDCombatDirector.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "Engine/World.h"
+#include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
+#include "Inventory/LDVendorDirector.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "Region/LDMapGeometry.h"
+#include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
+#include "World/LDWorldQueryTypes.h"
+
+namespace LDOpponentControllerDetail
+{
+constexpr int32 MaxOpponentsPerRoom = 3;
+
+// Lifecycle delivery to this provider's own adapters only; never a perception input.
+template <typename TVisit>
+void ForEachOpponent(UWorld* World, TVisit&& Visit)
+{
+    if (!World) { return; }
+    TArray<TWeakObjectPtr<ALDOpponentController>> Found;
+    for (FConstControllerIterator It = World->GetControllerIterator(); It; ++It)
+    {
+        if (ALDOpponentController* Opponent = Cast<ALDOpponentController>(It->Get())) { Found.Add(Opponent); }
+    }
+    for (const TWeakObjectPtr<ALDOpponentController>& Weak : Found)
+    {
+        if (ALDOpponentController* Opponent = Weak.Get()) { Visit(*Opponent); }
+    }
+}
+
+FLDMatchProviderHooks MakeOpponentHooks()
+{
+    FLDMatchProviderHooks Hooks;
+    Hooks.Prepare = [](ALDGameMode& Mode, const FLDMatchStartContext& Start, FString& Error)
+    {
+        UWorld* World = Mode.GetWorld();
+        if (!World || Start.AISlots.Num() > MaxOpponentsPerRoom)
+        {
+            Error = TEXT("A Demo room holds at most three opponent AI contenders.");
+            return false;
+        }
+        for (int32 Slot = 0; Slot < Start.AISlots.Num(); ++Slot)
+        {
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            Params.ObjectFlags |= RF_Transient;
+            ALDOpponentController* Opponent = World->SpawnActor<ALDOpponentController>(Params);
+            if (!Opponent)
+            {
+                Error = FString::Printf(TEXT("Opponent AI slot %d could not create its server controller."), Slot);
+                return false;
+            }
+            const FLDAIRegistrationResult Result = Mode.RegisterAIContender(*Opponent, uint8(Slot), Start.Match);
+            if (Result.Outcome != ELDAIRegistration::Registered)
+            {
+                Error = FString::Printf(TEXT("Opponent AI slot %d was not registered: %s"), Slot, *Result.Error);
+                Opponent->Destroy();
+                return false;
+            }
+            // A failed bind aborts the start; MatchReset then retires every adapter of this match.
+            if (!Opponent->BindRegisteredSelf(Result.Binding, Error)) { return false; }
+        }
+        return true;
+    };
+    Hooks.MatchClosed = [](ALDGameMode& Mode, const FLDMatchClosed& Closed)
+    {
+        ForEachOpponent(Mode.GetWorld(), [&Closed](ALDOpponentController& Opponent) { Opponent.HandleMatchClosed(Closed); });
+    };
+    Hooks.MatchReset = [](ALDGameMode& Mode, const FLDMatchReset& Reset, FString&)
+    {
+        // Destroying a possessing controller here would run the leave path mid-reset (pawn destroyed, Logout with
+        // the record still present). The core retires the body like a human's; each adapter then ends itself.
+        ForEachOpponent(Mode.GetWorld(), [&Reset](ALDOpponentController& Opponent) { Opponent.HandleMatchReset(Reset); });
+        return true;
+    };
+    Hooks.LifeCommitted = [](ALDGameMode& Mode, const FLDLifeNotice& Notice)
+    {
+        ForEachOpponent(Mode.GetWorld(), [&Notice](ALDOpponentController& Opponent) { Opponent.HandleLifeCommitted(Notice); });
+    };
+    return Hooks;
+}
+
+const LDMatchProviders::FRegistrar OpponentProvider(ELDMatchProvider::OpponentAI, &MakeOpponentHooks);
+
+ELDOpponentCircle CircleOf(ELDCircleState State)
+{
+    switch (State)
+    {
+    case ELDCircleState::Solo: return ELDOpponentCircle::Solo;
+    case ELDCircleState::Contested: return ELDOpponentCircle::Contested;
+    default: return ELDOpponentCircle::Empty;
+    }
+}
+
+ELDOpponentOrderKind OrderKindOf(ELDOpponentBodyKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDOpponentBodyKind::MoveGround: return ELDOpponentOrderKind::MoveGround;
+    case ELDOpponentBodyKind::AttackUnit: return ELDOpponentOrderKind::AttackUnit;
+    case ELDOpponentBodyKind::ApproachShop: return ELDOpponentOrderKind::ApproachShop;
+    default: return ELDOpponentOrderKind::None;
+    }
+}
+}
+
+ALDOpponentController::ALDOpponentController()
+{
+    PrimaryActorTick.bCanEverTick = true;
+    // Reads the publication of the boundary that Combat's pre-physics driver completed this frame.
+    PrimaryActorTick.TickGroup = TG_PostUpdateWork;
+}
+
+bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBinding, FString& Error)
+{
+    UWorld* World = GetWorld();
+    ALDGameMode* Mode = World ? World->GetAuthGameMode<ALDGameMode>() : nullptr;
+    const ULDMapRegistry* Registry = World ? World->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!HasAuthority() || !Mode || !InBinding.IsValid() || InBinding.GetMatch() != Mode->GetMatchContext()
+        || Mode->ContenderId(this) != InBinding.GetContender() || (Binding.IsValid() && !(Binding == InBinding)))
+    {
+        Error = TEXT("Only the core-registered controller of this match's AI contender can bind it.");
+        return false;
+    }
+    if (Binding == InBinding) { return true; }
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    const FLDDemoWorldGeometry* Geometry = Registry ? Registry->GetGeometry() : nullptr;
+    TArray<FLDOpponentPOI> Places;
+    if (!LDDemoEntry::LoadRuntimeContent(Snapshot, Error) || !Snapshot || !Geometry
+        || !LDOpponentFrame::ReadPublicPOIs(*Geometry, *Snapshot, Places, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The approved content or the public world is unavailable to the opponent."); }
+        return false;
+    }
+    if (Snapshot->Get().Parameters.AI.DecisionIntervalMs <= 0)
+    {
+        Error = TEXT("The approved AI decision interval is not positive.");
+        return false;
+    }
+    Binding = InBinding;
+    Content = MoveTemp(Snapshot);
+    POIs = MoveTemp(Places);
+    return true;
+}
+
+void ALDOpponentController::ForgetBodyWork()
+{
+    Incumbent = FOrderTrack();
+    Candidate = FOrderTrack();
+    StopTrack = FStopTrack();
+    Action = FActionTrack();
+    Visit = FShopVisit();
+}
+
+void ALDOpponentController::HandleLifeCommitted(const FLDLifeNotice& Notice)
+{
+    if (!Binding.IsValid() || Notice.Match != Binding.GetMatch() || Notice.Body.Victim.Kind != ELDVictimKind::Contender
+        || Notice.Body.Victim.EntityId != Binding.GetContender() || Notice.Change == ELDLifeChange::ProtectionEnded)
+    {
+        return;
+    }
+    // Joining, death, respawn and leave end every body-scoped request; the next decision reads the new life.
+    ForgetBodyWork();
+    NextDecisionAtMs = 0;
+}
+
+void ALDOpponentController::HandleMatchClosed(const FLDMatchClosed& Closed)
+{
+    if (!Binding.IsValid() || Closed.Match != Binding.GetMatch()) { return; }
+    // The write gate is shut: no new intent and no receipt polling for this match.
+    bClosed = true;
+    ForgetBodyWork();
+    Build = FBuildTrack();
+    ReportTally();
+}
+
+void ALDOpponentController::HandleMatchReset(const FLDMatchReset& Reset)
+{
+    // Also reached by a controller whose start aborted before or during its bind.
+    bClosed = true;
+    bRetiring = true;
+    RetiringMatch = Reset.Old;
+    ForgetBodyWork();
+    Build = FBuildTrack();
+    ReportTally();
+}
+
+void ALDOpponentController::ReportTally()
+{
+    if (bTallyReported || !Binding.IsValid()) { return; }
+    bTallyReported = true;
+    UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
+        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u"), *Binding.GetContender().ToString(),
+        Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
+        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused);
+}
+
+void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
+{
+    UE_LOG(LogTemp, Display, TEXT("LD_AI_TRAVEL_IGNORED contender=%s"), *Binding.GetContender().ToString());
+}
+
+void ALDOpponentController::Tick(float DeltaSeconds)
+{
+    Super::Tick(DeltaSeconds);
+    UWorld* World = GetWorld();
+    ALDGameMode* Mode = World ? World->GetAuthGameMode<ALDGameMode>() : nullptr;
+    if (!HasAuthority()) { return; }
+    if (bRetiring)
+    {
+        // After RetireMatch the record is gone, so ending this controller no longer runs the leave path.
+        if (!Mode || Mode->GetMatchContext() != RetiringMatch) { Destroy(); }
+        return;
+    }
+    if (!Mode || !Binding.IsValid() || !Content || bClosed) { return; }
+    if (Mode->GetMatchContext() != Binding.GetMatch())
+    {
+        // A newer match never reuses this adapter; it ends itself on the next tick.
+        bClosed = true;
+        bRetiring = true;
+        RetiringMatch = Binding.GetMatch();
+        return;
+    }
+    const int64 NowMs = Mode->GetAuthorityNowMs();
+    if (NowMs < NextDecisionAtMs) { return; }
+    // A long frame plans once on the latest publication; missed decisions are never replayed.
+    NextDecisionAtMs = NowMs + Content->Get().Parameters.AI.DecisionIntervalMs;
+    FReads Reads;
+    FLDOpponentDecisionFrame Frame;
+    FString Problem;
+    if (!BuildFrame(*Mode, NowMs, Reads, Frame, Problem))
+    {
+        FLDOpponentDecision Blocked;
+        Blocked.Reason = ELDOpponentReason::ProviderUnavailable;
+        Report(Frame, Blocked, Problem);
+        return;
+    }
+    if (Reads.Owner.Life != BodyLife)
+    {
+        // Requests of an earlier life can only settle as stale; they are dropped without teaching anything.
+        ForgetBodyWork();
+        BodyLife = Reads.Owner.Life;
+    }
+    if (Reads.bCombat)
+    {
+        SettleOrders(Reads, Frame.Self, NowMs, Problem);
+        SettleDirectAction(*Mode, Reads, Frame.Self, NowMs, Problem);
+    }
+    SettleShop(*Mode, Reads, Frame.Self, NowMs, Problem);
+    SettleBuild(*Mode, Frame.Self, NowMs, Problem);
+    ComposeFrame(Frame, Reads);
+    const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Frame, *Content, Policy);
+    DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
+    DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
+    Report(Frame, Decision, Problem);
+}
+
+bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& Reads, FLDOpponentDecisionFrame& Frame,
+    FString& Error) const
+{
+    using namespace LDOpponentControllerDetail;
+    const uint32 Generation = Binding.GetMatch().Generation;
+    FLDAISelfReadResult SelfRead = Mode.ReadAISelf(Binding);
+    if (!SelfRead.Succeeded)
+    {
+        Error = SelfRead.Error.IsEmpty() ? TEXT("The core has no owner projection for this opponent.") : SelfRead.Error;
+        return false;
+    }
+    if (!Mode.Combat || !Mode.Vision || !Mode.Development || !Mode.Vendor)
+    {
+        // A missing domain is an explicit stop; tracked requests stay pending until it answers.
+        Error = TEXT("A combat, observation, progression or shop domain of this match is unavailable.");
+        return false;
+    }
+    Reads.Owner = MoveTemp(SelfRead.Self);
+    const FLDOwnerState& Own = Reads.Owner;
+    if (Own.Match != Generation || Own.ContenderId != Binding.GetContender())
+    {
+        Error = TEXT("The owner projection belongs to another match or contender.");
+        return false;
+    }
+    const FLDPublicMatchView Public = Mode.ReadPublicMatch();
+    if (Public.Generation != Generation)
+    {
+        Error = TEXT("The public match view belongs to another match.");
+        return false;
+    }
+    Frame.Generation = Generation;
+    Frame.POIs = POIs;
+    Frame.Public.Phase = Public.Phase;
+    Frame.Public.NowMs = NowMs;
+    Frame.Public.Circle = CircleOf(Public.CircleState);
+    Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo ? Public.Occupier : FGuid();
+    Frame.Public.DueAtMs = Public.DueAtMs;
+    FLDOpponentSelf& Me = Frame.Self;
+    Me.ContenderId = Own.ContenderId;
+    Me.Phase = Own.LifePhase;
+    Me.Life = Own.Life;
+    // Unspawned or left: the policy stops without any further read.
+    if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
+    const FLDGrowthOwnerView& Growth = Own.Growth;
+    if (Growth.Generation != Generation
+        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, Growth.Equipment, *Content, Me, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
+        return false;
+    }
+    // Live own read: unlike the publication it also shows an open still queued for the next Transactions phase.
+    Reads.Shop = Mode.Vendor->ReadShop(Own.ContenderId);
+    if (Own.LifePhase == ELDLifePhase::Dead) { return true; }
+    if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
+        || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The own combat projection is unavailable."); }
+        return false;
+    }
+    if (Reads.Combat.Generation != Generation || Reads.Combat.Life != Own.Life
+        || !LDOpponentFrame::ReadOwnCombat(Reads.Combat, NowMs, Me, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The own combat projection is not of the current life yet."); }
+        return false;
+    }
+    Reads.bCombat = true;
+    FLDWorldView View;
+    if (!Mode.Vision->EnumerateVisibleUnits(*this, ELDObservationPurpose::NewAttackOrder, View, Error)) { return false; }
+    if (View.ObserverLife != Own.Life || View.Footprint.SourceStatus != ELDObservationSource::ActiveBody)
+    {
+        Error = TEXT("The own observation frame is not of the current living body yet.");
+        return false;
+    }
+    if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
+    Frame.ViewRevision = View.Revision;
+    Me.FootCm = View.Footprint.SourceFeetCm;
+    if (Public.Phase == ELDMatchPhase::CaptureOpen && Public.CircleState == ELDCircleState::Solo
+        && Public.Occupier != Own.ContenderId)
+    {
+        double PathCm = 0;
+        FString PathError;
+        // An unanswered path stays unknown; the policy then treats the public deadline conservatively.
+        if (ReadCapturePath(Me.FootCm, PathCm, PathError)) { Frame.CapturePathCm = PathCm; }
+    }
+    return true;
+}
+
+bool ALDOpponentController::ReadCapturePath(const FVector& FootCm, double& OutCm, FString& Error) const
+{
+    const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    const FLDOpponentPOI* Capture = POIs.FindByPredicate([](const FLDOpponentPOI& POI) { return POI.Kind == ELDOpponentPOIKind::Capture; });
+    FCollisionShape Capsule;
+    if (!Registry || !Registry->Enabled() || !Capture || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The public capture path cannot be queried."); }
+        return false;
+    }
+    FLDLegalGround From, To;
+    From.World = To.World = Registry->Revision();
+    From.FootCm = FootCm;
+    // One registered ground (D02); the registry still re-checks the body's real support for this hint.
+    From.SurfaceId = Capture->SurfaceId;
+    To.FootCm = Capture->FootCm;
+    To.SurfaceId = Capture->SurfaceId;
+    FLDCompletePath Path;
+    ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+    if (!Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Path, Failure, Error)) { return false; }
+    // To the public centre: never shorter than the path to the circle edge, so the estimate stays conservative.
+    OutCm = Path.LengthCm;
+    return true;
+}
+
+FLDOrderCaller ALDOpponentController::OrderCaller(const FReads& Reads)
+{
+    FLDOrderCaller Caller;
+    Caller.Match = Binding.GetMatch();
+    Caller.Body = Reads.Owner.BodyRef;
+    Caller.Controller = this;
+    return Caller;
+}
+
+void ALDOpponentController::Learn(const FLDOpponentRetryKey& Key, ELDOpponentSettle Settle, const FLDOpponentSelf& Self,
+    int64 NowMs)
+{
+    ELDOpponentOutcome Outcome = ELDOpponentOutcome::Failed;
+    if (LDOpponentRequests::ToOutcome(Settle, Outcome))
+    {
+        LDOpponentPolicy::RecordOutcome(Policy, Key, Outcome, Self, NowMs, Content->Get().Parameters.AI);
+    }
+}
+
+void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
+{
+    if (!Navigation) { return; }
+    const FLDOrderCaller Caller = OrderCaller(Reads);
+    // Navigation applies a queued request at the next Actions phase; past that promise plus the longest retry
+    // wait a request counts as a failed attempt instead of holding the body forever.
+    const int64 Patience = Content->Get().Parameters.AI.RetryMaxBackoffMs;
+    if (StopTrack.bHas)
+    {
+        const FLDOrderReceipt Receipt = Navigation->QueryOrder(Caller, StopTrack.Identity);
+        if (Receipt.Status != ELDOrderStatus::Queued || NowMs > StopTrack.SentAtMs + Patience) { StopTrack.bHas = false; }
+    }
+    if (Candidate.bHas)
+    {
+        const FLDOrderReceipt Receipt = Navigation->QueryOrder(Caller, Candidate.Request.Identity);
+        const ELDOpponentSettle Settle = LDOpponentRequests::SettleOrder(Receipt);
+        if (Receipt.Status == ELDOrderStatus::Queued)
+        {
+            if (NowMs <= Candidate.SentAtMs + Patience) { return; }
+            Problem = TEXT("order admission overdue");
+            Learn(Candidate.Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+            Candidate = FOrderTrack();
+        }
+        else if (Receipt.Status == ELDOrderStatus::Rejected)
+        {
+            // A refused replacement leaves the incumbent order running unchanged.
+            Learn(Candidate.Intent.Key, Settle, Self, NowMs);
+            Candidate = FOrderTrack();
+        }
+        else
+        {
+            // Admitted, or cancelled together with the incumbent by a Stop or a life end: it replaced the incumbent.
+            Incumbent = Candidate;
+            Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
+            Candidate = FOrderTrack();
+            if (Settle != ELDOpponentSettle::InFlight) { FinishIncumbent(Settle, Self, NowMs); }
+            return;
+        }
+    }
+    if (Incumbent.bHas && !Incumbent.bFinal)
+    {
+        const FLDOrderReceipt Receipt = Navigation->QueryOrder(Caller, Incumbent.Request.Identity);
+        Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
+        const ELDOpponentSettle Settle = LDOpponentRequests::SettleOrder(Receipt);
+        if (Settle != ELDOpponentSettle::InFlight) { FinishIncumbent(Settle, Self, NowMs); }
+    }
+}
+
+void ALDOpponentController::FinishIncumbent(ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs)
+{
+    Incumbent.bFinal = true;
+    if (Incumbent.Intent.Kind == ELDOpponentBodyKind::ApproachShop && Settle == ELDOpponentSettle::Succeeded)
+    {
+        // Arrival is not yet a successful visit: the open and the trades settle the shop key.
+        Visit = FShopVisit();
+        Visit.bActive = true;
+        Visit.ShopId = Incumbent.Request.ShopId;
+        Visit.Key = Incumbent.Intent.Key;
+        return;
+    }
+    Learn(Incumbent.Intent.Key, Settle, Self, NowMs);
+}
+
+void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self,
+    int64 NowMs, FString& Problem)
+{
+    if (!Action.bHas || Action.bFinal) { return; }
+    const FLDCombatActionReceipt Receipt = Mode.Combat->QueryActionReceipt(Reads.CombatCaller, Action.DirectSequence);
+    ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Receipt);
+    if (Settle == ELDOpponentSettle::InFlight)
+    {
+        // Queued is admitted at the next Actions phase; Accepted ends at the release time Combat published for it.
+        const bool bReleasing = Receipt.Phase == ELDCombatPhase::Accepted && Receipt.CombatToken != 0
+            && Reads.Combat.ActionToken == Receipt.CombatToken;
+        const int64 PromisedMs = bReleasing ? FMath::Max(Action.SentAtMs, Reads.Combat.ActionReleaseAtMs) : Action.SentAtMs;
+        if (NowMs <= PromisedMs + Content->Get().Parameters.AI.RetryMaxBackoffMs) { return; }
+        FLDCombatCancelRequest Cancel;
+        Cancel.Generation = Binding.GetMatch().Generation;
+        Cancel.Life = Reads.Owner.Life;
+        Cancel.ThroughDirectSequence = Action.DirectSequence;
+        // One cancel bounded by this sequence; released effects and later sequences are untouched.
+        Mode.Combat->CancelAction(Reads.CombatCaller, Cancel);
+        Problem = TEXT("action receipt overdue; cancelled");
+        Settle = ELDOpponentSettle::Failed;
+    }
+    Action.bFinal = true;
+    Learn(Action.Intent.Key, Settle, Self, NowMs);
+}
+
+void ALDOpponentController::SettleShop(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs,
+    FString& Problem)
+{
+    if (!Visit.bActive || Visit.bOpened) { return; }
+    if (Reads.Owner.LifePhase != ELDLifePhase::Alive)
+    {
+        Visit = FShopVisit();
+        return;
+    }
+    const FLDShopOpenResult& Shop = Reads.Shop;
+    const bool bThisLife = Shop.Generation == Reads.Owner.Match && Shop.Life == Reads.Owner.Life;
+    ELDOpponentSettle Settle = ELDOpponentSettle::InFlight;
+    if (!Visit.bOpenSent)
+    {
+        // A session opened earlier in this life stays executable; a new reach only reopens a missing one.
+        if (bThisLife && Shop.OpenStatus == ELDShopOpenStatus::Opened && Shop.bHasView)
+        {
+            Visit.bOpened = true;
+            return;
+        }
+        const ULDMapRegistry* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+        FLDShopOpenCommand Command;
+        FString Error;
+        Visit.bOpenSent = true;
+        Visit.OpenSentAtMs = NowMs;
+        if (Registry && LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
+            Registry->Revision(), Command, Error))
+        {
+            ++Tally.ShopOpens;
+            Settle = LDOpponentRequests::SettleShopOpen(Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command));
+        }
+        else { Settle = ELDOpponentSettle::Failed; }
+    }
+    else
+    {
+        Settle = bThisLife ? LDOpponentRequests::SettleShopOpen(Shop) : ELDOpponentSettle::Dropped;
+        // The open is answered at the next Transactions phase; an overdue one is a failed attempt.
+        if (Settle == ELDOpponentSettle::InFlight && NowMs > Visit.OpenSentAtMs + Content->Get().Parameters.AI.RetryMaxBackoffMs)
+        {
+            Problem = TEXT("shop open overdue");
+            Settle = ELDOpponentSettle::Failed;
+        }
+    }
+    if (Settle == ELDOpponentSettle::InFlight) { return; }
+    if (Settle == ELDOpponentSettle::Succeeded)
+    {
+        Visit.bOpened = true;
+        return;
+    }
+    Learn(Visit.Key, Settle, Self, NowMs);
+    Visit = FShopVisit();
+}
+
+void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
+{
+    if (!Build.bHas || !Mode.Development || !Mode.Vendor) { return; }
+    const FGuid& Contender = Binding.GetContender();
+    const ELDOpponentSettle Settle = Build.Query.Family == ELDGrowthFamily::Choice
+        ? LDOpponentRequests::SettleChoiceQuery(Mode.Development->QueryChoiceReceipt(Contender, Build.Query))
+        : LDOpponentRequests::SettleShopQuery(Mode.Vendor->QueryShopReceipt(Contender, Build.Query));
+    if (Settle == ELDOpponentSettle::InFlight)
+    {
+        // Growth commits at the next Transactions phase. A late receipt is reported; the request is never
+        // replaced, because its family accepts no other request while it is pending.
+        if (NowMs > Build.SentAtMs + Content->Get().Parameters.AI.RetryMaxBackoffMs) { Problem = TEXT("build receipt overdue"); }
+        return;
+    }
+    Learn(Build.Key, Settle, Self, NowMs);
+    // A refused trade (reach, gold, quote) ends the visit; the next one re-approaches and re-reads.
+    if (Build.Query.Family == ELDGrowthFamily::Shop && Settle == ELDOpponentSettle::Failed) { Visit = FShopVisit(); }
+    Build = FBuildTrack();
+}
+
+void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame, const FReads& Reads) const
+{
+    using namespace LDOpponentControllerDetail;
+    FLDOpponentOrder& Current = Frame.Order;
+    Current = FLDOpponentOrder();
+    if (Action.bHas && !Action.bFinal)
+    {
+        Current.Kind = ELDOpponentOrderKind::Action;
+        Current.Status = ELDOpponentOrderStatus::Active;
+    }
+    else if (Candidate.bHas)
+    {
+        // The latest intent stays visible while Navigation has not admitted or refused it.
+        Current.Kind = OrderKindOf(Candidate.Intent.Kind);
+        Current.Status = ELDOpponentOrderStatus::Pending;
+        Current.POI = Candidate.Intent.POI;
+        Current.Handle = Candidate.Intent.Handle;
+        Current.Epoch = Candidate.Intent.Epoch;
+    }
+    else if (Visit.bActive && !Visit.bOpened)
+    {
+        // Approach and open are one shop visit: the policy keeps it while the open is pending.
+        Current.Kind = ELDOpponentOrderKind::ApproachShop;
+        Current.Status = ELDOpponentOrderStatus::Active;
+        Current.POI = Visit.ShopId;
+    }
+    else if (Incumbent.bHas)
+    {
+        Current.Kind = OrderKindOf(Incumbent.Intent.Kind);
+        Current.Status = Incumbent.Status;
+        Current.POI = Incumbent.Intent.POI;
+        Current.Handle = Incumbent.Intent.Handle;
+        Current.Epoch = Incumbent.Intent.Epoch;
+    }
+    Frame.bBuildChangeInFlight = Build.bHas;
+    const FLDShopOpenResult& Shop = Reads.Shop;
+    Frame.bShopOpen = Visit.bActive && Visit.bOpened && Shop.OpenStatus == ELDShopOpenStatus::Opened && Shop.bHasView
+        && Shop.Generation == Reads.Owner.Match && Shop.Life == Reads.Owner.Life;
+}
+
+void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
+    const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem)
+{
+    if (Intent.Kind == ELDOpponentBodyKind::None || Intent.Kind == ELDOpponentBodyKind::Keep) { return; }
+    const FLDOpponentSelf& Self = Frame.Self;
+    const uint32 Generation = Binding.GetMatch().Generation;
+    const uint32 Life = Reads.Owner.BodyRef.Victim.Life;
+    if (!Reads.bCombat || !Navigation || !Mode.Combat)
+    {
+        Problem = TEXT("A body intent arrived without a current living body.");
+        return;
+    }
+    // Any newer body request leaves the shop; a later trade needs a fresh approach.
+    Visit = FShopVisit();
+    if (Intent.Kind == ELDOpponentBodyKind::Stop)
+    {
+        // One stop covers the incumbent and a queued candidate. A refused stop is retried a bounded number of
+        // times for the same orders; they then run to their own end.
+        const bool bLive = Candidate.bHas || (Incumbent.bHas && !Incumbent.bFinal);
+        if (!bLive || StopTrack.bHas || StopTrack.Attempts >= Content->Get().Parameters.AI.RetryMaxAttempts) { return; }
+        FLDMoveIdentity Identity;
+        ++StopTrack.Attempts;
+        if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, true, Identity))
+        {
+            Problem = TEXT("The order identity space of this life is exhausted.");
+            return;
+        }
+        LastIdentity = Identity;
+        ++Tally.Stops;
+        const FLDOrderReceipt Receipt = Navigation->CancelOrder(OrderCaller(Reads), Identity, ELDOrderCancelReason::Stop);
+        if (Receipt.Status == ELDOrderStatus::Rejected)
+        {
+            Problem = FString::Printf(TEXT("stop refused failure=%u"), uint32(Receipt.Failure));
+            return;
+        }
+        StopTrack.bHas = true;
+        StopTrack.Identity = Identity;
+        StopTrack.SentAtMs = NowMs;
+        return;
+    }
+    if (Intent.Kind == ELDOpponentBodyKind::Activate)
+    {
+        FLDCombatActionRequest Request;
+        FString Error;
+        if (DirectSequence == MAX_uint64 || !LDOpponentRequests::BuildAction(Intent, Generation, Life, DirectSequence + 1,
+            Reads.Combat.SourceRevision, Request, Error))
+        {
+            Problem = Error.IsEmpty() ? FString(TEXT("The direct sequence of this match is exhausted.")) : Error;
+            Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+            return;
+        }
+        DirectSequence = Request.DirectSequence;
+        ++Tally.Actions;
+        const ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Mode.Combat->SubmitAction(Reads.CombatCaller, Request));
+        Action = FActionTrack();
+        Action.bHas = true;
+        Action.Intent = Intent;
+        Action.DirectSequence = Request.DirectSequence;
+        Action.SentAtMs = NowMs;
+        if (Settle != ELDOpponentSettle::InFlight)
+        {
+            // A fresh submission resolves at once only when Combat refused it on receipt.
+            ++Tally.ActionsRefused;
+            Action.bFinal = true;
+            Learn(Intent.Key, Settle, Self, NowMs);
+        }
+        return;
+    }
+    FLDMoveIdentity Identity;
+    FLDSpatialOrderRequest Request;
+    FString Error;
+    if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
+        || !LDOpponentRequests::BuildOrder(Intent, POIs, Identity, Request, Error))
+    {
+        Problem = Error.IsEmpty() ? FString(TEXT("The order identity space of this life is exhausted.")) : Error;
+        Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+        return;
+    }
+    LastIdentity = Identity;
+    ++Tally.Orders;
+    const FLDOrderReceipt Receipt = Navigation->SubmitOrder(OrderCaller(Reads), Request);
+    StopTrack = FStopTrack();
+    if (Receipt.Status == ELDOrderStatus::Rejected)
+    {
+        // Refused on receipt; any incumbent order keeps running.
+        ++Tally.OrdersRefused;
+        Learn(Intent.Key, LDOpponentRequests::SettleOrder(Receipt), Self, NowMs);
+        return;
+    }
+    // A newer submission replaces a still-queued candidate inside Navigation as well.
+    Candidate = FOrderTrack();
+    Candidate.bHas = true;
+    Candidate.Intent = Intent;
+    Candidate.Request = Request;
+    Candidate.Status = ELDOpponentOrderStatus::Pending;
+    Candidate.SentAtMs = NowMs;
+}
+
+void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
+    const FLDOpponentBuildIntent& Intent, int64 NowMs, FString& Problem)
+{
+    if (Intent.Kind == ELDOpponentBuildKind::None || Build.bHas) { return; }
+    const FLDOpponentSelf& Self = Frame.Self;
+    const FLDGrowthOwnerView& Growth = Reads.Owner.Growth;
+    const FGuid& Contender = Binding.GetContender();
+    const bool bChoice = Intent.Kind == ELDOpponentBuildKind::Choose;
+    uint64& Cursor = bChoice ? ChoiceRequestId : ShopRequestId;
+    FString Error;
+    FLDSubmitResult Result;
+    if (bChoice)
+    {
+        FLDChoiceCommand Command;
+        if (!Mode.Development || !LDOpponentRequests::BuildChoice(Intent, Growth.Progression, Cursor, Command, Error))
+        {
+            Problem = Error.IsEmpty() ? FString(TEXT("The progression domain is unavailable.")) : Error;
+            Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+            return;
+        }
+        ++Tally.Choices;
+        Result = Mode.Development->QueueChoice(Contender, Command);
+    }
+    else
+    {
+        FLDShopCommand Command;
+        if (!Mode.Vendor || !LDOpponentRequests::BuildTrade(Intent, Reads.Shop, Growth.Equipment, Growth.Progression, Cursor,
+            Command, Error))
+        {
+            Problem = Error.IsEmpty() ? FString(TEXT("The shop domain is unavailable.")) : Error;
+            Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+            Visit = FShopVisit();
+            return;
+        }
+        ++Tally.Trades;
+        Result = Mode.Vendor->QueueShopCommand(Contender, Command);
+    }
+    const uint64 RequestId = Cursor;
+    // Only a reserved sequence is consumed; an unreserved admission refusal leaves the id to the next request.
+    if (Result.bSequenceReserved) { ++Cursor; }
+    const ELDOpponentSettle Settle = LDOpponentRequests::SettleSubmit(Result);
+    if (Settle == ELDOpponentSettle::InFlight)
+    {
+        Build.bHas = true;
+        Build.Query.Generation = Binding.GetMatch().Generation;
+        Build.Query.Family = bChoice ? ELDGrowthFamily::Choice : ELDGrowthFamily::Shop;
+        Build.Query.RequestId = RequestId;
+        Build.Key = Intent.Key;
+        Build.SentAtMs = NowMs;
+        return;
+    }
+    if (Settle != ELDOpponentSettle::Succeeded)
+    {
+        ++Tally.BuildsRefused;
+        Problem = FString::Printf(TEXT("build request refused status=%u reason=%u"), uint8(Result.Status), uint32(Result.Reason));
+    }
+    Learn(Intent.Key, Settle, Self, NowMs);
+    if (!bChoice && Settle == ELDOpponentSettle::Failed) { Visit = FShopVisit(); }
+}
+
+void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision,
+    const FString& Problem)
+{
+    if (Decision.Mode == ReportedMode && Decision.Reason == ReportedReason && Problem == ReportedProblem) { return; }
+    ReportedMode = Decision.Mode;
+    ReportedReason = Decision.Reason;
+    ReportedProblem = Problem;
+    // Bounded reason codes and own input revisions only; never another contender's private state.
+    UE_LOG(LogTemp, Display, TEXT("LD_AI_DECISION contender=%s gen=%u life=%u view=%u mode=%u reason=%u body=%u build=%u%s%s"),
+        *Binding.GetContender().ToString(), Frame.Generation, Frame.Self.Life, Frame.ViewRevision, uint32(Decision.Mode),
+        uint32(Decision.Reason), uint32(Decision.Body.Kind), uint32(Decision.Build.Kind),
+        Problem.IsEmpty() ? TEXT("") : TEXT(" problem="), *Problem);
+}

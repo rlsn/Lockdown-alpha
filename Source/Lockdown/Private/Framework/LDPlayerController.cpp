@@ -10,6 +10,7 @@
 #include "Tests/LDDemoCombatProbe.h"
 #include "Tests/LDDemoCampProbe.h"
 #include "Tests/LDDemoCaptureProbe.h"
+#include "Tests/LDDemoOpponentProbe.h"
 #include "UI/LDUIRoot.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Camera/CameraActor.h"
@@ -58,6 +59,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartCombatProbe(*this);
     LDDemoTests::StartCampProbe(*this);
     LDDemoTests::StartCaptureProbe(*this);
+    LDDemoTests::StartOpponentProbe(*this);
 #endif
 }
 
