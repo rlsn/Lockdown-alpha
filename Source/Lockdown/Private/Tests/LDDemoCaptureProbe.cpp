@@ -31,7 +31,7 @@ public:
     double Deadline = 0, StageAt = 0;
     ELDCaptureProbeStage Stage = ELDCaptureProbeStage::Join;
     int32 ContestStep = 0;
-    bool Passed = true, Written = false, ReadySent = false, StartSent = false, ReturnSent = false;
+    bool Passed = true, Written = false, ReadySent = false, IdentitySaved = false, StartSent = false, ReturnSent = false;
     bool SawContest = false;
     uint32 FirstGeneration = 0;
     FGuid CapturerId;
@@ -83,6 +83,26 @@ public:
         return true;
     }
 
+    // Login names are replaced by the online subsystem, so roles exchange their contender identity.
+    bool SaveIdentity(const FGuid& Contender)
+    {
+        auto Value = MakeShared<FJsonObject>();
+        Value->SetStringField(TEXT("contender"), Contender.ToString(EGuidFormats::Digits));
+        if (Contender.IsValid() && Save(Value, Role + TEXT("Id.json"))) { return true; }
+        Error = TEXT("Could not persist the role's contender identity.");
+        Passed = false;
+        return false;
+    }
+
+    bool LoadIdentity(const TCHAR* Name, FGuid& Out) const
+    {
+        FString Json, Text;
+        TSharedPtr<FJsonObject> Value;
+        return FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, FString(Name) + TEXT("Id.json")))
+            && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Value) && Value.IsValid()
+            && Value->TryGetStringField(TEXT("contender"), Text) && FGuid::Parse(Text, Out) && Out.IsValid();
+    }
+
     bool Finish()
     {
         auto Report = MakeShared<FJsonObject>();
@@ -97,9 +117,6 @@ public:
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false, 2); return false; }
         return true;
     }
-
-    const FLDLobbyMember* Member(const FLDLobbyView& Lobby, const TCHAR* Name) const
-    { return Lobby.Members.FindByPredicate([Name](const FLDLobbyMember& Row) { return Row.Name == Name; }); }
 
     void Observe(const FLDPublicMatchView& View)
     {
@@ -181,10 +198,15 @@ bool FLDDemoCaptureProbe::Tick()
             }
             return true;
         }
+        if (!IdentitySaved)
+        {
+            if (!SaveIdentity(PC->OwnerState.ContenderId)) { return Finish(); }
+            IdentitySaved = true;
+        }
         if (Role != TEXT("Host")) { Stage = ELDCaptureProbeStage::Starting; return true; }
         const bool AllReady = !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& Row)
         { return Row.Kind == ELDContenderKind::Human && !Row.Ready; });
-        if (!AllReady || StartSent) { return true; }
+        if (!AllReady || StartSent || !AllMarkers(TEXT("Id.json"))) { return true; }
         if (!Check(Lobby.CanStart && Lobby.StartBlocker.IsEmpty(), TEXT("Every provider is wired: the ready room may start normally")))
         {
             Error = TEXT("Normal start is still blocked: ") + Lobby.StartBlocker;
@@ -200,9 +222,9 @@ bool FLDDemoCaptureProbe::Tick()
         const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Body
             || PC->OwnerState.LifePhase != ELDLifePhase::Alive || !PC->CanWorldCommand()) { return true; }
-        const FLDLobbyMember* Capturer = Member(Lobby, TEXT("DemoCaptureClient1"));
-        Check(Capturer != nullptr, TEXT("The capturing contender is on the locked roster"));
-        CapturerId = Capturer ? Capturer->ContenderId : FGuid();
+        Check(LoadIdentity(TEXT("Client1"), CapturerId)
+            && Lobby.Members.ContainsByPredicate([this](const FLDLobbyMember& Row) { return Row.ContenderId == CapturerId; }),
+            TEXT("The capturing contender is on the locked roster"));
         Check(View.Generation == FirstGeneration && View.OpenAtMs == View.StartedAtMs + DevelopmentMs
             && View.CircleState == ELDCircleState::NotOpen && !View.Occupier.IsValid(),
             TEXT("Normal start opens the approved development phase with a closed circle"));
