@@ -8,7 +8,6 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
-#include "UI/LDInventoryPanel.h"
 #include "UI/LDWidgets.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -747,7 +746,6 @@ UUserWidget* ULDUIRoot::TextEditingOwner() const
     if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
     {
         Candidates.Add(PC->ControlsUI.Get());
-        Candidates.Add(PC->InventoryUI.Get());
         Candidates.Add(PC->HUDUI.Get());
     }
     for(const TWeakObjectPtr<ULDPanel>& Panel:MainPanels){Candidates.Add(Panel.Get());}
@@ -778,7 +776,6 @@ ULDPanel* ULDUIRoot::OpenMainPanel() const
     if(!PC){return nullptr;}
     if(PanelOpen(PC->ControlsUI.Get())){return PC->ControlsUI.Get();}
     for(const TWeakObjectPtr<ULDPanel>& Panel:MainPanels){if(PanelOpen(Panel.Get())){return Panel.Get();}}
-    if(PC->InventoryUI&&PC->InventoryUI->IsOpen()){return PC->InventoryUI.Get();}
     return nullptr;
 }
 
@@ -821,7 +818,7 @@ bool ULDUIRoot::CloseTopPanel()
     if(!PC){return false;}
     if(ULDPanel* Open=OpenMainPanel())
     {
-        if(Open==static_cast<ULDPanel*>(PC->InventoryUI.Get())){PC->InventoryUI->Close();}else{Open->ClosePanel();}
+        Open->ClosePanel();
         return true;
     }
     if(PC->IsFrontend()){return CloseStartPage();}
@@ -893,7 +890,6 @@ bool ULDUIRoot::CloseMainPanelsExcept(ELDUIMainPanel Keep)
         ULDPanel* Other=MainPanels[Index].Get();
         if(Index!=MainPanelIndex(Keep)&&PanelOpen(Other)&&!Other->ClosePanel()){return false;}
     }
-    if(PC->InventoryUI&&PC->InventoryUI->IsOpen()){PC->InventoryUI->Close();}
     if(!PC->IsFrontend()&&Keep!=ELDUIMainPanel::Menu&&bMenuOpen)
     {
         // ToggleControlsPanel dismisses the menu itself and takes over SetMenuOpen; other panels never suppress the world.

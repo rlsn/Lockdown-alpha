@@ -7,7 +7,6 @@
 #include "UI/LDWidgets.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
-#include "UI/LDInventoryPanel.h"
 #include "UI/LDUIRoot.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
@@ -278,7 +277,7 @@ void ULDHUD::RefreshReadModel()
     const bool Playing=bOwnMatch&&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
     const bool bResults=bOwnMatch&&Public.Phase==ELDMatchPhase::Results;
     // Full-viewport menus draw below this widget, so the HUD steps aside while they are open.
-    const bool Overlay=(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
+    const bool Overlay=(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
     const bool bShow=Playing&&!Overlay;
     if(!Playing)
     {
