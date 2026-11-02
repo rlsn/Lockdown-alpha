@@ -18,6 +18,13 @@ $wire = [int]$Matches[1]
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $binary = Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
+# Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
+# the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
+$requiredChecks = @{
+    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','R01','R02','R03','R04','R05','R06','R07','R08','R09')
+    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','R02','R03','R04','R05','R06')
+}
+$requiredChecks.Client2 = $requiredChecks.Client1
 
 function Start-CaptureRole {
     param([string]$Role,[string]$Url)
@@ -64,18 +71,26 @@ try {
         Start-CaptureRole "Client$index" $url
     }
     Wait-CaptureReports @('Host.json','Client1.json','Client2.json')
-    $reports = @('Host','Client1','Client2') | ForEach-Object {
-        $r = Get-Content -LiteralPath (Join-Path $output "$_.json") -Raw | ConvertFrom-Json
-        if (-not $r.passed -or $r.role -ne $_ -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
-            throw "Owned capture evidence failed for $_`: $($r.detail). Evidence: $output"
+    $reports = foreach ($role in 'Host','Client1','Client2') {
+        $r = Get-Content -LiteralPath (Join-Path $output "$role.json") -Raw | ConvertFrom-Json
+        if (-not $r.passed -or $r.role -ne $role -or @($r.checks | Where-Object { $_.passed -ne $true }).Count -ne 0) {
+            throw "Owned capture evidence failed for $role`: $($r.detail). Evidence: $output"
+        }
+        $ids = @($r.checks | ForEach-Object { [string]$_.id })
+        $missing = @($requiredChecks[$role] | Where-Object { $ids -cnotcontains $_ })
+        $unexpected = @($ids | Where-Object { $requiredChecks[$role] -cnotcontains $_ })
+        $repeated = @($ids | Group-Object -CaseSensitive | Where-Object Count -gt 1 | ForEach-Object Name)
+        if ($missing.Count -or $unexpected.Count -or $repeated.Count) {
+            throw "Capture checks for $role differ from the required ids: missing [$($missing -join ' ')], unexpected [$($unexpected -join ' ')], repeated [$($repeated -join ' ')]. Evidence: $output"
         }
         $r
     }
     $winner = $reports[0].summary.winner
     foreach ($r in $reports) {
         if ($r.summary.winner -ne $winner -or $r.summary.ended_at_ms -ne $reports[0].summary.ended_at_ms -or
-            $r.summary.next_generation -ne $reports[0].summary.next_generation) {
-            throw "Roles disagree on the unique result or the next Lobby generation: $output"
+            $r.summary.next_generation -ne $reports[0].summary.next_generation -or
+            -not $r.summary.second_generation -or $r.summary.second_generation -ne $reports[0].summary.second_generation) {
+            throw "Roles disagree on the unique result, the next Lobby generation or the second match generation: $output"
         }
     }
     Set-Content -LiteralPath (Join-Path $output 'FinishClients') -Value 'Disconnect owning clients'
@@ -87,7 +102,8 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host "DEV-only normal-start capture scenario passed on real owned connections. Not 3+3, AI or full gameplay. Evidence: $output"
+    Write-Host ("DEV-only normal-start capture scenario passed on real owned connections, including a second match in generation {0} with fresh contender and camp state ({1}/{2}/{3} required checks). Not 3+3, AI or full gameplay. Evidence: {4}" -f
+        $reports[0].summary.second_generation,$requiredChecks.Host.Count,$requiredChecks.Client1.Count,$requiredChecks.Client2.Count,$output)
 }
 finally {
     foreach ($process in $processes) {
