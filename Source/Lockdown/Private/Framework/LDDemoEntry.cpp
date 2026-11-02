@@ -28,19 +28,19 @@ bool LDDemoEntry::ValidateSelection(const FString& PackageName, const FString& O
     {
         if (UGameplayStatics::HasOption(Options, Option))
         {
-            Error = TEXT("Retired launch option: ") + FString(Option) + TEXT(". Use the Demo menu; legacy profiles are not supported.");
+            Error = TEXT("启动参数 ") + FString(Option) + TEXT(" 已退役，请从 Demo 菜单开始；不支持旧玩法模式。");
             return false;
         }
     }
     const FString CanonicalPackage = UWorld::RemovePIEPrefix(PackageName);
     if (CanonicalPackage != FrontendMap && CanonicalPackage != WorldMap)
     {
-        Error = TEXT("Unsupported gameplay map. The only gameplay world is L_Demo; legacy maps are retired.");
+        Error = TEXT("不支持的对局地图。唯一的对局世界是 L_Demo，旧地图已退役。");
         return false;
     }
     if (CanonicalPackage == FrontendMap && UGameplayStatics::HasOption(Options, TEXT("listen")))
     {
-        Error = TEXT("The frontend is not a gameplay room. Create a Demo room from the menu.");
+        Error = TEXT("主菜单不是对局房间，请从菜单创建 Demo 房间。");
         return false;
     }
     return true;
@@ -73,8 +73,8 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
     {
         if (!FPaths::FileExists(Root / File))
         {
-            Error = TEXT("Missing approved Demo input: ") + FString(File)
-                + TEXT(". Generate the approved inputs for this build; legacy content will not be substituted.");
+            Error = TEXT("缺少已批准的 Demo 输入：") + FString(File)
+                + TEXT("。请为本版本生成已批准的输入；不会用旧内容代替。");
             return false;
         }
     }
@@ -83,7 +83,7 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
         || LD_DEMO_CONTENT_PROJECTION_REVISION != 2 || LD_DEMO_WORLD_SCHEMA_VERSION != 2
         || LD_DEMO_WORLD_PROJECTION_REVISION != 2)
     {
-        Error = TEXT("Unsupported Demo content/world schema. Regenerate approved inputs and rebuild their native consumers together.");
+        Error = TEXT("不支持的 Demo 内容/世界 schema。请重新生成已批准的输入，并与原生代码一起重新构建。");
         return false;
     }
     const TPair<const TCHAR*, const TCHAR*> Files[] = {
@@ -98,7 +98,7 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
     if (CatalogDigest) { *CatalogDigest = LD_DEMO_CATALOG_SHA256; }
     return true;
 #else
-    Error = TEXT("Missing compiled Demo content/world contracts. Approved payloads and generated headers must be built together.");
+    Error = TEXT("缺少已编译的 Demo 内容/世界契约。已批准的载荷与生成头文件必须一起构建。");
     return false;
 #endif
 }
@@ -116,8 +116,8 @@ bool LDDemoEntry::VerifyFileHash(const FString& File, const FString& ExpectedSHA
     if (!ValidDigest || !FFileHelper::LoadFileToArray(Bytes, *File) || Bytes.IsEmpty()
         || !SHA256(Bytes.GetData(), Bytes.Num(), Digest.Signature) || Digest.ToString().ToLower() != ExpectedSHA256)
     {
-        Error = TEXT("Demo input differs from this build: ") + FPaths::GetCleanFilename(File)
-            + TEXT(". Run the Demo compiler checks and rebuild; do not edit generated hashes.");
+        Error = TEXT("Demo 输入与本版本不一致：") + FPaths::GetCleanFilename(File)
+            + TEXT("。请运行 Demo 编译检查并重新构建；不要手改生成的哈希。");
         return false;
     }
     return true;
@@ -130,8 +130,8 @@ bool LDDemoEntry::VerifyWorldPackages(FString& Error)
     {
         if (!FPackageName::DoesPackageExist(Package))
         {
-            Error = TEXT("Missing Demo world asset: ") + FString(Package)
-                + TEXT(". The approved Demo world must be generated and validated; legacy maps are not a fallback.");
+            Error = TEXT("缺少 Demo 世界资产：") + FString(Package)
+                + TEXT("。必须生成并校验已批准的 Demo 世界；旧地图不能作为替代。");
             return false;
         }
     }
@@ -143,20 +143,20 @@ bool LDDemoEntry::ValidateAddress(const FString& Address, FString& Error)
     Error.Reset();
     if (Address.IsEmpty() || Address.Len() > 259)
     {
-        Error = TEXT("Enter a host name or IPv4 address, optionally followed by :port.");
+        Error = TEXT("请输入主机名或 IPv4 地址，可在后面加 :端口。");
         return false;
     }
     const FRegexPattern Pattern(TEXT("^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?$"));
     FRegexMatcher Matcher(Pattern, Address);
     if (!Matcher.FindNext() || Matcher.GetMatchEnding() != Address.Len())
     {
-        Error = TEXT("Enter only a host name or IPv4 address and optional :port, not a URL, map, or travel options.");
+        Error = TEXT("只能输入主机名或 IPv4 地址和可选的 :端口，不能输入网址、地图或旅行参数。");
         return false;
     }
     FString Host, Port;
     if (Address.Split(TEXT(":"), &Host, &Port) && (FCString::Atoi(*Port) < 1 || FCString::Atoi(*Port) > 65535))
     {
-        Error = TEXT("Port must be between 1 and 65535.");
+        Error = TEXT("端口必须在 1 到 65535 之间。");
         return false;
     }
     return true;
@@ -169,14 +169,14 @@ bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
     if (!GConfig->GetString(TEXT("/Script/EngineSettings.GeneralProjectSettings"), TEXT("ProjectVersion"), Version, GGameIni)
         || Version.IsEmpty())
     {
-        Error = TEXT("Missing product version in project settings. This build cannot join a Demo room.");
+        Error = TEXT("项目设置缺少产品版本，此版本无法加入 Demo 房间。");
         return false;
     }
     const FRegexPattern Pattern(TEXT("^[0-9]+\\.[0-9]+\\.[0-9]+$"));
     FRegexMatcher Matcher(Pattern, Version);
     if (!Matcher.FindNext() || Matcher.GetMatchEnding() != Version.Len())
     {
-        Error = TEXT("Invalid product version in project settings. This build cannot join a Demo room.");
+        Error = TEXT("项目设置中的产品版本无效，此版本无法加入 Demo 房间。");
         Version.Reset();
         return false;
     }

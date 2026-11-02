@@ -30,7 +30,7 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
     {
         TestFalse(TEXT("No legacy or alternate profile selection"), LDDemoEntry::ValidateSelection(LDDemoEntry::WorldMap,
             TEXT("?Profile=") + FString(Profile), Error));
-        TestTrue(TEXT("Rejected profile has an actionable reason"), Error.Contains(TEXT("Retired")));
+        TestTrue(TEXT("Rejected profile names the retired option"), Error.Contains(TEXT("Profile")) && Error.Contains(TEXT("已退役")));
     }
     TestFalse(TEXT("Old capacity override is rejected"), LDDemoEntry::ValidateSelection(LDDemoEntry::WorldMap, TEXT("?Humans=12"), Error));
     TestFalse(TEXT("URL-selected GameMode cannot bypass the entry contract"),

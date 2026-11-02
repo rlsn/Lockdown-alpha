@@ -47,6 +47,51 @@ namespace
     private:
         TWeakObjectPtr<ULDGameInstance> Owner;
     };
+
+    FString DescribeNetworkFailure(ENetworkFailure::Type Type, const FString& Detail)
+    {
+        const TCHAR* Reason = TEXT("网络连接失败");
+        bool bCheckHost = false;
+        switch (Type)
+        {
+        case ENetworkFailure::ConnectionLost: Reason = TEXT("与房间的连接已断开"); bCheckHost = true; break;
+        case ENetworkFailure::ConnectionTimeout: Reason = TEXT("连接超时"); bCheckHost = true; break;
+        case ENetworkFailure::PendingConnectionFailure: Reason = TEXT("无法与房间建立连接"); bCheckHost = true; break;
+        case ENetworkFailure::FailureReceived: Reason = TEXT("房主拒绝了连接"); break;
+        case ENetworkFailure::OutdatedClient: Reason = TEXT("本机版本比房主旧"); break;
+        case ENetworkFailure::OutdatedServer: Reason = TEXT("房主版本比本机旧"); break;
+        case ENetworkFailure::NetGuidMismatch:
+        case ENetworkFailure::NetChecksumMismatch: Reason = TEXT("与房主的数据不一致"); break;
+        case ENetworkFailure::NetDriverAlreadyExists:
+        case ENetworkFailure::NetDriverCreateFailure:
+        case ENetworkFailure::NetDriverListenFailure: Reason = TEXT("本机网络初始化失败"); break;
+        default: break;
+        }
+        FString Text = FString::Printf(TEXT("%s（%s）"), Reason, ENetworkFailure::ToString(Type));
+        if (!Detail.IsEmpty()) { Text += TEXT("：") + Detail; }
+        return Text + (bCheckHost ? TEXT("。请检查地址，并确认房主正在运行。") : TEXT("。"));
+    }
+
+    FString DescribeTravelFailure(ETravelFailure::Type Type, const FString& Detail)
+    {
+        const TCHAR* Reason = TEXT("进入房间失败");
+        switch (Type)
+        {
+        case ETravelFailure::NoLevel:
+        case ETravelFailure::LoadMapFailure:
+        case ETravelFailure::PackageMissing: Reason = TEXT("无法加载对局地图"); break;
+        case ETravelFailure::PackageVersion: Reason = TEXT("地图版本与房主不一致"); break;
+        case ETravelFailure::InvalidURL: Reason = TEXT("房间地址无效"); break;
+        case ETravelFailure::PendingNetGameCreateFailure: Reason = TEXT("无法与房间建立连接"); break;
+        case ETravelFailure::TravelFailure:
+        case ETravelFailure::ServerTravelFailure:
+        case ETravelFailure::ClientTravelFailure: Reason = TEXT("切换地图失败"); break;
+        default: break;
+        }
+        FString Text = FString::Printf(TEXT("%s（%s）"), Reason, ETravelFailure::ToString(Type));
+        if (!Detail.IsEmpty()) { Text += TEXT("：") + Detail; }
+        return Text + TEXT("。");
+    }
 }
 
 void ULDGameInstance::RecordEntryRejectionBeforeWorld(const FString& URL, const FString& Reason)
@@ -96,7 +141,7 @@ AGameModeBase* ULDGameInstance::CreateGameModeForURL(FURL URL, UWorld* World)
     }
     if (EntryAttemptSerial == MAX_uint64)
     {
-        ConnectionMessage = TEXT("Room entry sequence exhausted. Restart the application.");
+        ConnectionMessage = TEXT("房间进入序号已用尽，请重启游戏。");
         UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *ConnectionMessage);
         return nullptr;
     }
@@ -107,12 +152,12 @@ AGameModeBase* ULDGameInstance::CreateGameModeForURL(FURL URL, UWorld* World)
     const auto* Settings = World ? World->GetWorldSettings() : nullptr;
     if (!World || !Settings)
     {
-        Error = TEXT("The Demo world has no valid WorldSettings.");
+        Error = TEXT("Demo 世界缺少有效的 WorldSettings，无法进入房间。");
     }
     else if (LDDemoEntry::ValidateSelection(World->GetOutermost()->GetName(), Options, Error)
         && Settings->DefaultGameMode && Settings->DefaultGameMode != ALDGameMode::StaticClass())
     {
-        Error = TEXT("Retired saved GameMode. The Demo world must use LDGameMode.");
+        Error = TEXT("Demo 世界保存了已退役的 GameMode，必须使用 LDGameMode。");
     }
     if (!Error.IsEmpty())
     {
@@ -149,7 +194,7 @@ bool ULDGameInstance::AllocateMatchGeneration(uint32& Generation, FString& Error
     Error.Reset();
     if (!LDMatchLifecycle::AllocateGeneration(AuthorityGeneration, Generation))
     {
-        Error = TEXT("Match generation exhausted. Restart the application before creating another room.");
+        Error = TEXT("对局代次已用尽，请重启游戏后再创建房间。");
         UE_LOG(LogTemp, Error, TEXT("LD_MATCH_GENERATION_EXHAUSTED"));
         return false;
     }
@@ -204,14 +249,14 @@ void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkF
             World = Context->World();
         }
     }
-    ReturnAfterFailure(World, FString::Printf(TEXT("%s. Check the address and that the host is running."), ENetworkFailure::ToString(Type)));
+    ReturnAfterFailure(World, DescribeNetworkFailure(Type, Error));
 }
-void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error) { ReturnAfterFailure(World, Error); }
+void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error) { ReturnAfterFailure(World, DescribeTravelFailure(Type, Error)); }
 void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
 {
     if (!World || World->GetGameInstance() != this) { return; }
     PrepareLocalSettingsForTravel();
-    ConnectionMessage = TEXT("Connection failed: ") + Error;
+    ConnectionMessage = TEXT("连接失败：") + Error;
     if (!World->GetMapName().Contains(TEXT("L_Frontend")))
     {
         World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
@@ -242,7 +287,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
         }
         LocalControlSettings->RequireRecovery();
-        LocalSettingsMessage += TEXT(" Current bindings are session-only until you confirm recovery in Settings.");
+        LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *LocalSettingsMessage);
     }
     return LocalControlSettings;
@@ -281,7 +326,7 @@ FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlS
     FString Error;
     if (!LocalControlSettings || !LocalControlSettings->ApplyLocalSettings(Draft, Error))
     {
-        LocalSettingsMessage = Error.IsEmpty() ? TEXT("Local settings are not available.") : Error;
+        LocalSettingsMessage = Error.IsEmpty() ? TEXT("本地设置不可用。") : Error;
         return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
     }
     ApplyControlPreferences();
@@ -292,7 +337,7 @@ FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurren
 {
     LocalSettingsFlushAt = 0;
     if (!LocalControlSettings || (!LocalControlSettings->IsDirty() && !VerifyCurrent))
-    { return { ELDLocalSettingsSaveStatus::NoChanges, TEXT("No pending local preference changes.") }; }
+    { return { ELDLocalSettingsSaveStatus::NoChanges, TEXT("没有待保存的本地偏好修改。") }; }
     const auto Result = LocalControlSettings->SaveLocalSettings();
     LocalSettingsMessage = Result.Message;
     if (!Result.IsSaved()) { UE_LOG(LogTemp, Warning, TEXT("%s"), *Result.Message); }
@@ -302,7 +347,7 @@ FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurren
 FLDLocalSettingsSaveResult ULDGameInstance::ConfirmLocalSettingsRecovery()
 {
     if (!LocalControlSettings)
-    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("No local settings are available to recover.") }; }
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("没有可以恢复的本地设置。") }; }
     LocalControlSettings->AllowRecoverySave();
     return FlushLocalSettings();
 }
@@ -349,7 +394,7 @@ bool ULDGameInstance::ReleaseDisplayConfigGuard()
     if (!GConfig || !DisplayConfigGuard.Release(*GConfig, Error))
     {
         SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed,
-            Error.IsEmpty() ? TEXT("Display saving remains blocked because the configuration owner is unavailable.") : Error);
+            Error.IsEmpty() ? TEXT("配置所有者不可用，暂时不能保存显示设置。") : Error);
         return false;
     }
     return true;
@@ -359,11 +404,11 @@ FLDDisplaySettingsResult ULDGameInstance::ReadDisplaySettings(FLDDisplaySettings
 {
     const auto* Settings = DisplaySettingsOwner();
     if (!Settings)
-    { return { ELDDisplaySettingsStatus::Unavailable, 0, TEXT("Display controls need an interactive game viewport. No display setting was applied or saved.") }; }
+    { return { ELDDisplaySettingsStatus::Unavailable, 0, TEXT("显示设置需要可交互的游戏窗口；没有应用或保存任何显示设置。") }; }
     Out = FLDDisplaySettings::Read(*Settings);
     if (!Out.IsValid())
-    { return { ELDDisplaySettingsStatus::Invalid, 0, TEXT("The current display configuration is invalid. Display changes are disabled.") }; }
-    return { ELDDisplaySettingsStatus::Loaded, 0, TEXT("Display settings loaded. Edits remain a draft until applied.") };
+    { return { ELDDisplaySettingsStatus::Invalid, 0, TEXT("当前显示配置无效，已禁用显示修改。") }; }
+    return { ELDDisplaySettingsStatus::Loaded, 0, TEXT("已读取显示设置。修改在应用前只是草稿。") };
 }
 
 bool ULDGameInstance::GetDisplayResolutions(TArray<FIntPoint>& Out, FString& Error) const
@@ -371,7 +416,7 @@ bool ULDGameInstance::GetDisplayResolutions(TArray<FIntPoint>& Out, FString& Err
     Out.Reset();
     const auto* Settings = DisplaySettingsOwner();
     if (!Settings || !UKismetSystemLibrary::GetSupportedFullscreenResolutions(Out) || Out.IsEmpty())
-    { Error = TEXT("The display driver did not provide supported resolutions. Resolution changes are unavailable."); return false; }
+    { Error = TEXT("显卡驱动没有提供可用分辨率，无法修改分辨率。"); return false; }
     Out.RemoveAll([](FIntPoint Value) { return Value.X <= 0 || Value.Y <= 0; });
     Out.AddUnique(Settings->GetScreenResolution());
     Out.AddUnique(Settings->GetDesktopResolution());
@@ -399,13 +444,13 @@ FLDDisplaySettingsResult ULDGameInstance::SetDisplayResult(ELDDisplaySettingsSta
 FLDDisplaySettingsResult ULDGameInstance::ApplyDisplaySettings(const FLDDisplaySettings& Draft, UObject* TrialOwner)
 {
     auto* Settings = DisplaySettingsOwner();
-    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("Display settings need an interactive game viewport.")); }
+    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("显示设置需要可交互的游戏窗口。")); }
     if (DisplayTrial.Id() || bDisplayRestorePending || DisplayConfigGuard.IsActive())
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("Confirm the current display trial or finish restoring it first."), DisplayTrial.Id()); }
-    if (!Draft.IsValid()) { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("The selected display values are invalid.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("请先确认当前的显示试用，或等待恢复完成。"), DisplayTrial.Id()); }
+    if (!Draft.IsValid()) { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("所选的显示参数无效。")); }
     if (!Draft.SameMode(FLDDisplaySettings::Read(*Settings))) { return BeginDisplayTrial(Draft, TrialOwner); }
     if (!DisplayModeApplied(Draft))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("The window is still changing. Wait before applying display settings.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("窗口仍在变化，请稍后再应用显示设置。")); }
     Settings->ConfirmVideoMode();
     return ApplyNonResolutionAndSave(Draft);
 }
@@ -414,26 +459,26 @@ FLDDisplaySettingsResult ULDGameInstance::BeginDisplayTrial(const FLDDisplaySett
 {
     auto* Settings = DisplaySettingsOwner();
     if (!Settings || !IsValid(TrialOwner))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("A live settings panel and interactive viewport are required for a display trial.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("显示试用需要打开设置面板和可交互的游戏窗口。")); }
     if (DisplayTrial.Id() || bDisplayRestorePending || DisplayConfigGuard.IsActive())
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("Another display trial or restore is in progress."), DisplayTrial.Id()); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("另一个显示试用或恢复正在进行。"), DisplayTrial.Id()); }
     const auto Before = FLDDisplaySettings::Read(*Settings);
     if (!Draft.IsValid() || !Before.IsValid())
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("The selected display values are invalid.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("所选的显示参数无效。")); }
     TArray<FIntPoint> Supported;
     FString Error;
     if (!GetDisplayResolutions(Supported, Error)) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, Error); }
     if (!Supported.Contains(Draft.Resolution)
         || (Draft.WindowMode == EWindowMode::WindowedFullscreen && Draft.Resolution != Settings->GetDesktopResolution()))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("Choose a driver-supported resolution; borderless uses the desktop resolution.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("请选择驱动支持的分辨率；无边框窗口使用桌面分辨率。")); }
     if (!DisplayModeApplied(Before))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("The current window mode has not settled. Wait before starting a trial.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("当前窗口模式尚未稳定，请稍后再开始试用。")); }
     if (!InstallDisplayInputGuard() || !GConfig || !DisplayConfigGuard.Begin(*GConfig, GGameUserSettingsIni,
         GIsEditor ? GEditorSettingsIni : GGameUserSettingsIni, Settings->GetClass()->GetPathName(), Error))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, Error.IsEmpty() ? TEXT("The engine display-save paths could not be guarded. No display change was made.") : Error); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, Error.IsEmpty() ? TEXT("无法保护引擎的显示保存路径，没有做任何显示修改。") : Error); }
     constexpr double DisplayTrialSeconds = 15.;
     const uint64 Id = DisplayTrial.Begin(Before, Draft, FPlatformTime::Seconds(), DisplayTrialSeconds);
-    if (!Id) { ReleaseDisplayConfigGuard(); return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("The display trial could not be started.")); }
+    if (!Id) { ReleaseDisplayConfigGuard(); return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("无法开始显示试用。")); }
     DisplayTrialOwner = TrialOwner;
     DisplaySettingsDuringTrial = Settings;
     Settings->ConfirmVideoMode();
@@ -444,19 +489,19 @@ FLDDisplaySettingsResult ULDGameInstance::BeginDisplayTrial(const FLDDisplaySett
     Settings->ApplyResolutionSettings(false);
     Settings->ScalabilityQuality = Before.Quality;
     return SetDisplayResult(ELDDisplaySettingsStatus::TrialStarted,
-        TEXT("Keep this display mode? It reverts after 15 seconds. VSync and quality are still unapplied; fullscreen shortcuts and the console are locked until this trial ends."), Id);
+        TEXT("保留这个显示模式吗？15 秒后自动还原。垂直同步和画质尚未应用；试用结束前，全屏快捷键和控制台已锁定。"), Id);
 }
 
 FLDDisplaySettingsResult ULDGameInstance::ConfirmDisplayTrial(uint64 TrialId)
 {
     if (!DisplayTrial.IsCurrent(TrialId))
-    { return { ELDDisplaySettingsStatus::StaleTrial, TrialId, TEXT("This display confirmation has expired. The current trial was not changed.") }; }
+    { return { ELDDisplaySettingsStatus::StaleTrial, TrialId, TEXT("这次显示确认已过期，当前试用没有改变。") }; }
     if (DisplayTrial.IsExpired(FPlatformTime::Seconds()) || !DisplayTrialOwner.IsValid())
     { return CancelDisplayTrial(TrialId); }
     const auto Draft = DisplayTrial.Candidate();
     if (DisplaySettingsOwner() != DisplaySettingsDuringTrial) { return CancelDisplayTrial(TrialId); }
     if (!DisplayModeApplied(Draft))
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("The requested resolution has not taken effect. Wait, or revert it."), TrialId); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyPending, TEXT("请求的分辨率尚未生效。请稍候，或者还原。"), TrialId); }
     if (!ReleaseDisplayConfigGuard()) { return DisplayResult; }
     auto* Settings = DisplaySettingsOwner();
     DisplayTrial.Invalidate(TrialId);
@@ -469,13 +514,13 @@ FLDDisplaySettingsResult ULDGameInstance::ConfirmDisplayTrial(uint64 TrialId)
 FLDDisplaySettingsResult ULDGameInstance::ApplyNonResolutionAndSave(const FLDDisplaySettings& Draft)
 {
     auto* Settings = DisplaySettingsOwner();
-    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("The display settings owner is no longer available.")); }
+    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("显示设置的所有者已不可用。")); }
     Settings->SetVSyncEnabled(Draft.bVSync);
     Settings->ScalabilityQuality = Draft.Quality;
     Settings->ApplyNonResolutionSettings();
     bDisplaySettingsDirty = true;
     if (Settings->IsVSyncDirty() || Scalability::GetQualityLevels() != Draft.Quality)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("The display mode is confirmed, but VSync or quality was not fully applied. Check engine overrides and retry; persistence is not verified.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("显示模式已确认，但垂直同步或画质没有完全应用。请检查引擎覆盖设置后重试；尚未确认能够保存。")); }
     return RetryDisplaySave();
 }
 
@@ -484,10 +529,10 @@ FLDDisplaySettingsResult ULDGameInstance::CancelDisplayTrial(uint64 TrialId)
     if (!TrialId && !DisplayTrial.Id())
     {
         return { bDisplayRestorePending ? ELDDisplaySettingsStatus::RestorePending : ELDDisplaySettingsStatus::NoTrial,
-            0, bDisplayRestorePending ? TEXT("The confirmed display mode is still being restored.") : TEXT("No display trial is active.") };
+            0, bDisplayRestorePending ? TEXT("已确认的显示模式仍在恢复中。") : TEXT("当前没有显示试用。") };
     }
     if (!DisplayTrial.IsCurrent(TrialId))
-    { return { ELDDisplaySettingsStatus::StaleTrial, TrialId, TEXT("This display trial has expired. No newer trial was changed.") }; }
+    { return { ELDDisplaySettingsStatus::StaleTrial, TrialId, TEXT("这次显示试用已过期，没有改变更新的试用。") }; }
     RestoreDisplay = DisplayTrial.Baseline();
     DisplayTrial.Invalidate(TrialId);
     DisplayTrialOwner.Reset();
@@ -498,11 +543,11 @@ FLDDisplaySettingsResult ULDGameInstance::CancelDisplayTrial(uint64 TrialId)
 FLDDisplaySettingsResult ULDGameInstance::RetryDisplayRestore()
 {
     if (!bDisplayRestorePending)
-    { return { ELDDisplaySettingsStatus::NoTrial, 0, TEXT("No display restoration is pending.") }; }
+    { return { ELDDisplaySettingsStatus::NoTrial, 0, TEXT("没有待完成的显示恢复。") }; }
     auto* Settings = DisplaySettingsDuringTrial.Get();
     DisplayRestoreStartedAt = FPlatformTime::Seconds();
     if (!Settings)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("The original display settings owner is unavailable. Unconfirmed values were not saved.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("原显示设置的所有者不可用；未确认的值没有保存。")); }
     const bool CanApply = DisplaySettingsOwner() == Settings;
     Settings->RevertVideoMode();
     Settings->SetScreenResolution(RestoreDisplay.Resolution);
@@ -520,41 +565,41 @@ FLDDisplaySettingsResult ULDGameInstance::RetryDisplayRestore()
     auto* PreferredProperty = FindFProperty<FIntProperty>(Settings->GetClass(), TEXT("PreferredFullscreenMode"));
     auto* FullscreenMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.FullScreenMode"));
     if (!GConfig || !PreferredProperty || !FullscreenMode)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("The engine fullscreen preference cannot be restored. Display saving remains blocked.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("无法恢复引擎的全屏偏好，暂时不能保存显示设置。")); }
     GConfig->SetInt(*Settings->GetClass()->GetPathName(), TEXT("PreferredFullscreenMode"), int32(RestoreDisplay.PreferredFullscreenMode), GGameUserSettingsIni);
     Settings->ReloadConfig(Settings->GetClass(), *GGameUserSettingsIni, UE::LCPF_None, PreferredProperty);
     FullscreenMode->Set(int32(RestoreDisplay.PreferredFullscreenMode), ECVF_SetByGameSetting);
     if (Settings->GetPreferredFullscreenMode() != RestoreDisplay.PreferredFullscreenMode)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("The engine fullscreen preference did not restore. Display saving remains blocked.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("引擎的全屏偏好没有恢复，暂时不能保存显示设置。")); }
     // Restore the engine object's fields even if travel/exit already removed its viewport.
     if (!CanApply)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("Confirmed display values were restored in memory, but the viewport is unavailable to verify the mode. No display file was saved.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("已确认的显示值已在内存中恢复，但游戏窗口不可用，无法核实模式；没有保存显示文件。")); }
     if (Settings && Settings == DisplaySettingsOwner() && DisplayModeApplied(RestoreDisplay)
         && FLDDisplaySettings::Read(*Settings) == RestoreDisplay)
     {
         if (!ReleaseDisplayConfigGuard()) { return DisplayResult; }
         bDisplayRestorePending = false;
         DisplaySettingsDuringTrial = nullptr;
-        return SetDisplayResult(ELDDisplaySettingsStatus::Cancelled, TEXT("The previous display mode is restored. Applied keys and camera preferences were kept."));
+        return SetDisplayResult(ELDDisplaySettingsStatus::Cancelled, TEXT("已恢复之前的显示模式，已应用的按键和镜头偏好保持不变。"));
     }
-    return SetDisplayResult(ELDDisplaySettingsStatus::RestorePending, TEXT("Restoring the confirmed display mode. Applied keys and camera preferences are unchanged."));
+    return SetDisplayResult(ELDDisplaySettingsStatus::RestorePending, TEXT("正在恢复已确认的显示模式，已应用的按键和镜头偏好不变。"));
 }
 
 FLDDisplaySettingsResult ULDGameInstance::RetryDisplaySave()
 {
     if (DisplayTrial.Id() || bDisplayRestorePending || DisplayConfigGuard.IsActive())
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("Unconfirmed or unrestored display values cannot be saved."), DisplayTrial.Id()); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Busy, TEXT("未确认或未恢复的显示值不能保存。"), DisplayTrial.Id()); }
     auto* Settings = DisplaySettingsOwner();
-    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("Display persistence needs an interactive game viewport.")); }
+    if (!Settings) { return SetDisplayResult(ELDDisplaySettingsStatus::Unavailable, TEXT("保存显示设置需要可交互的游戏窗口。")); }
     const auto Expected = FLDDisplaySettings::Read(*Settings);
     if (!Expected.IsValid() || !DisplayModeApplied(Expected) || Settings->IsVSyncDirty() || Scalability::GetQualityLevels() != Expected.Quality)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("The requested display settings are not fully applied. They have not been saved.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("请求的显示设置没有完全应用，尚未保存。")); }
     if (Settings->GetLastConfirmedScreenResolution() != Expected.Resolution
         || Settings->GetLastConfirmedFullscreenMode() != Expected.WindowMode)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("Only a confirmed display mode may be saved.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::Invalid, TEXT("只能保存已确认的显示模式。")); }
     bDisplaySettingsDirty = true;
     if (!GConfig)
-    { return SetDisplayResult(ELDDisplaySettingsStatus::PersistenceFailed, TEXT("Display changes are applied, but the configuration owner is unavailable. Persistence is not verified.")); }
+    { return SetDisplayResult(ELDDisplaySettingsStatus::PersistenceFailed, TEXT("显示修改已应用，但配置所有者不可用，尚未确认能够保存。")); }
     Settings->SaveSettings();
     const auto Verified = LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(*GConfig, GGameUserSettingsIni,
         GIsEditor ? GEditorSettingsIni : GGameUserSettingsIni, Settings->GetClass()->GetPathName(), Expected);
@@ -578,10 +623,10 @@ bool ULDGameInstance::TickLocalSettings(float Delta)
             if (!ReleaseDisplayConfigGuard()) { return true; }
             bDisplayRestorePending = false;
             DisplaySettingsDuringTrial = nullptr;
-            SetDisplayResult(ELDDisplaySettingsStatus::Cancelled, TEXT("The previous display mode is restored. Applied keys and camera preferences were kept."));
+            SetDisplayResult(ELDDisplaySettingsStatus::Cancelled, TEXT("已恢复之前的显示模式，已应用的按键和镜头偏好保持不变。"));
         }
         else if (Now - DisplayRestoreStartedAt >= 5. && DisplayResult.Status != ELDDisplaySettingsStatus::RestoreFailed)
-        { SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("The previous display mode could not be verified. Retry restore; unconfirmed values will not be saved.")); }
+        { SetDisplayResult(ELDDisplaySettingsStatus::RestoreFailed, TEXT("无法核实之前的显示模式。请重试恢复；未确认的值不会被保存。")); }
     }
     if (LocalSettingsFlushAt > 0 && Now >= LocalSettingsFlushAt) { FlushLocalSettings(); }
     return true;
