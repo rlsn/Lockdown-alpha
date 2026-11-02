@@ -1220,6 +1220,7 @@ bool RunRequests(FAutomationTestBase& Test)
         OrderAt(ELDOrderStatus::Queued, ELDOrderFailure::None) == ESettle::InFlight
         && OrderAt(ELDOrderStatus::Progress, ELDOrderFailure::None) == ESettle::InFlight
         && OrderAt(ELDOrderStatus::Completed, ELDOrderFailure::None) == ESettle::Succeeded
+        && OrderAt(ELDOrderStatus::Completed, ELDOrderFailure::TargetDied) == ESettle::TargetLost
         && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::TargetUnavailable) == ESettle::TargetLost
         && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::TargetDied) == ESettle::TargetLost
         && OrderAt(ELDOrderStatus::Rejected, ELDOrderFailure::NoCompletePath) == ESettle::Failed

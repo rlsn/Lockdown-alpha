@@ -317,13 +317,16 @@ ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
     case ELDOrderStatus::Queued:
     case ELDOrderStatus::Activated:
     case ELDOrderStatus::Progress: return ELDOpponentSettle::InFlight;
-    case ELDOrderStatus::Completed: return ELDOpponentSettle::Succeeded;
     default: break;
     }
+    // An attack order also ends Completed when its target died: either way the observed handle is gone for good.
+    if (Receipt.Failure == ELDOrderFailure::TargetUnavailable || Receipt.Failure == ELDOrderFailure::TargetDied)
+    {
+        return ELDOpponentSettle::TargetLost;
+    }
+    if (Receipt.Status == ELDOrderStatus::Completed) { return ELDOpponentSettle::Succeeded; }
     switch (Receipt.Failure)
     {
-    case ELDOrderFailure::TargetUnavailable:
-    case ELDOrderFailure::TargetDied: return ELDOpponentSettle::TargetLost;
     case ELDOrderFailure::None:
     case ELDOrderFailure::StaleMatch:
     case ELDOrderFailure::StaleLife:
