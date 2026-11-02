@@ -145,7 +145,7 @@ private:
 };
 
 UENUM()
-enum class ELDSessionCommand : uint8 { SetReady, SetAICount, StartMatch };
+enum class ELDSessionCommand : uint8 { SetReady, SetAICount, StartMatch, EndMatch, ReturnToLobby };
 
 UENUM()
 enum class ELDSessionOutcome : uint8 { Pending, Committed, Rejected };
@@ -156,7 +156,7 @@ enum class ELDSessionReject : uint8
     None, NotOwner, NotHost, WrongPhase, RoomFull, MatchAlreadyStarted, NotAllReady,
     StaleRoster, StaleMatch, RequestConflict, RequestInFlight, ReceiptExpired,
     InvalidRequest, ProtocolMismatch, ProductMismatch, ContentMismatch,
-    MissingDemoDefinition, MatchClosed, AuthorityFault
+    MissingDemoDefinition, MatchClosed, AuthorityFault, SpawnBlocked
 };
 
 USTRUCT()
@@ -177,19 +177,23 @@ struct FLDSessionRequest
     UPROPERTY() uint64 ExpectedRosterRevision = 0;
     UPROPERTY() bool Ready = false;
     UPROPERTY() uint8 AICount = 0;
+    // ReturnToLobby only: the locked result the Host is leaving.
+    UPROPERTY() FGuid ExpectedResult;
     bool operator==(const FLDSessionRequest& Other) const
     {
         return Key == Other.Key && Command == Other.Command && ExpectedRosterRevision == Other.ExpectedRosterRevision
-            && Ready == Other.Ready && AICount == Other.AICount;
+            && Ready == Other.Ready && AICount == Other.AICount && ExpectedResult == Other.ExpectedResult;
     }
     bool HasValidShape() const
     {
         if (!Key.Generation || !Key.RequestSequence || !ExpectedRosterRevision) { return false; }
         switch (Command)
         {
-        case ELDSessionCommand::SetReady: return AICount == 0;
-        case ELDSessionCommand::SetAICount: return !Ready && AICount <= 3;
-        case ELDSessionCommand::StartMatch: return !Ready && AICount == 0;
+        case ELDSessionCommand::SetReady: return AICount == 0 && !ExpectedResult.IsValid();
+        case ELDSessionCommand::SetAICount: return !Ready && AICount <= 3 && !ExpectedResult.IsValid();
+        case ELDSessionCommand::StartMatch:
+        case ELDSessionCommand::EndMatch: return !Ready && AICount == 0 && !ExpectedResult.IsValid();
+        case ELDSessionCommand::ReturnToLobby: return !Ready && AICount == 0 && ExpectedResult.IsValid();
         default: return false;
         }
     }
