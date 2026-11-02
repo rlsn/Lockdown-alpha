@@ -48,8 +48,8 @@ bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhas
     if (!Initializing)
     {
         const int32 Order = PhaseOrder(Phase);
-        // Transactions, Capture and Close stay closed until their providers are wired into this dispatch.
-        if (Order == INDEX_NONE || Order > PhaseOrder(ELDCommitPhase::RespawnsAndWorld))
+        // Transactions stays closed until the growth provider is wired into this dispatch.
+        if (Order == INDEX_NONE || Phase == ELDCommitPhase::Transactions)
         {
             Error = FString::Printf(TEXT("Authority phase %u has no wired provider."), uint32(Phase));
             return false;
@@ -92,7 +92,10 @@ bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhas
 
 bool ALDGameMode::FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error)
 {
-    if (Combat != &Driver || !bAuthorityStepOpen || ActiveWritePermit || !IsGameplayWriteOpen(MatchContext)
+    // Close may lock the unique result inside this step; the step still completes its boundary.
+    const bool bClosedHere = bResultLocked && LastAuthorityPhase == ELDCommitPhase::Close;
+    if (Combat != &Driver || !bAuthorityStepOpen || ActiveWritePermit
+        || (!IsGameplayWriteOpen(MatchContext) && !bClosedHere)
         || !bAuthorityPhaseExecuted || PhaseOrder(LastAuthorityPhase) < PhaseOrder(ELDCommitPhase::Actions))
     {
         Error = TEXT("Cannot finish a missing, active or closed authority step.");
@@ -143,6 +146,118 @@ int64 ALDGameMode::NextLifeDueMs() const
     return Due;
 }
 
+bool ALDGameMode::PublishEligibility(const FLDGameplayWritePermit& Permit, const FLDCaptureEligibilityEvent& Event, FString& Error)
+{
+    const ELDCommitReject Reject = PublishCaptureEligibility(Permit, Event);
+    if (Reject != ELDCommitReject::None)
+    {
+        Error = FString::Printf(TEXT("Capture refused life fact %u of %s (reject %u)."), uint32(Event.Change),
+            *Event.Body.Victim.EntityId.ToString(), uint32(Reject));
+        return false;
+    }
+    Error.Reset();
+    return true;
+}
+
+void ALDGameMode::NotifyLife(const FLDCombatBodyRef& Body, ELDLifeChange Change, uint64 LifeRevision, int64 AtMs)
+{
+    FLDLifeNotice Notice;
+    Notice.Match = MatchContext;
+    Notice.Body = Body;
+    Notice.Change = Change;
+    Notice.LifeRevision = LifeRevision;
+    Notice.OccurredAtMs = AtMs;
+    NotifyLifeCommitted(Notice);
+}
+
+bool ALDGameMode::KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCause, FGuid& OutCredit, FString& Error) const
+{
+    OutCause = ELDKillCause::Unowned;
+    OutCredit.Invalidate();
+    const FGuid& Victim = Fact.Key.Victim.EntityId;
+    if (Fact.CreditOwner.IsValid() && Fact.CreditOwner != Victim)
+    {
+        for (const auto& Pair : Contenders)
+        {
+            if (Pair.Value.Session == Fact.CreditOwner)
+            {
+                OutCredit = Fact.CreditOwner;
+                OutCause = ELDKillCause::Contender;
+                Error.Reset();
+                return true;
+            }
+        }
+    }
+    if (Fact.SourceBodyAtRelease.Victim.Kind == ELDVictimKind::CampMember)
+    {
+        // The killer's tier outlives its body through the persistent Combat record.
+        const auto* Record = Combat ? Combat->FindRecord(Fact.SourceBodyAtRelease.Victim.EntityId) : nullptr;
+        const FLDDemoMonsterDefinition* Monster = nullptr;
+        if (!Record || !DemoContent || !DemoContent->FindMonster(Record->MonsterId.ToString(), Monster, Error))
+        {
+            if (Error.IsEmpty()) { Error = TEXT("A camp kill has no recorded monster definition."); }
+            return false;
+        }
+        OutCause = Monster->Tier == ELDDemoCampTier::High ? ELDKillCause::CampHigh : ELDKillCause::CampLow;
+    }
+    Error.Reset();
+    return true;
+}
+
+void ALDGameMode::ReleaseConsumedMotion()
+{
+    for (auto& Pair : Lives)
+    {
+        auto& Life = Pair.Value;
+        if (Life.NativeMotion.IsEmpty()) { continue; }
+        const auto& Last = Life.NativeMotion.Last();
+        Life.MotionAckStep = Last->Step.StepSerial;
+        Life.MotionAckSequence = Last->ThroughSequence;
+        Life.NativeMotion.Reset();
+    }
+}
+
+void ALDGameMode::CloseCombatMatch(const FLDMatchClosed& Closed)
+{
+    if (Closed.Match != MatchContext) { return; }
+    // The gate is already closed: cancel only, no movement, cost or effect is committed here.
+    for (const auto& Pair : Contenders)
+    {
+        if (auto* Controller = Pair.Key.Get(); Controller && Controller->Navigation)
+        { Controller->Navigation->EndLifeOrders(ELDOrderCancelReason::MatchClosed); }
+    }
+    if (Combat) { Combat->EndMatchActions(); }
+}
+
+bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
+{
+    if (Reset.Old != MatchContext || !Reset.New.IsValid())
+    {
+        Error = TEXT("Combat reset names a match other than the one being retired.");
+        return false;
+    }
+    for (const auto& Pair : Contenders)
+    {
+        auto* Controller = Pair.Key.Get();
+        if (!Controller) { continue; }
+        if (Controller->Navigation) { Controller->Navigation->EndLifeOrders(ELDOrderCancelReason::MatchClosed); }
+        // A new-generation empty view replaces the old match's projection on the owner.
+        FLDCombatOwnerView Cleared;
+        Cleared.Generation = Reset.New.Generation;
+        Controller->CombatView = Cleared;
+        Controller->LatestCombatReceipt = FLDCombatActionReceipt();
+        if (Controller->IsLocalController()) { Controller->OnRep_CombatView(); }
+        Controller->ForceNetUpdate();
+    }
+    // The core keeps only contender lives across a reset; camp lives belong to the old match.
+    for (auto It = Lives.CreateIterator(); It; ++It)
+    {
+        if (It.Value().Kind == ELDVictimKind::CampMember) { It.RemoveCurrent(); }
+    }
+    Error.Reset();
+    return true;
+}
+
 FLDProtectionReceipt ALDGameMode::EndProtectionForAggressiveIntent(AController& Caller, const FLDMatchContext& Match,
     const FLDCombatBodyRef& Body, const FLDAggressiveIntent& Intent, const FLDGameplayWritePermit& Permit)
 {
@@ -179,6 +294,17 @@ FLDProtectionReceipt ALDGameMode::EndProtectionForAggressiveIntent(AController& 
         Receipt.Reason = ELDCommitReject::CounterExhausted;
         return Receipt;
     }
+    FLDCaptureEligibilityEvent Ended;
+    Ended.Body = Body;
+    Ended.Change = ELDCaptureEligibilityChange::ProtectionEnded;
+    FString Error;
+    if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Ended.Time, Error) || !PublishEligibility(Permit, Ended, Error))
+    {
+        // The life and capture domains disagree about this protected body: an authority fault, not a refusal.
+        FaultAuthority(Error);
+        Receipt.Reason = ELDCommitReject::AuthorityFault;
+        return Receipt;
+    }
     // Removal is final for this life: a later action rejection never restores it.
     Life->ProtectedUntilMs = 0;
     ++Life->Revision;
@@ -186,6 +312,7 @@ FLDProtectionReceipt ALDGameMode::EndProtectionForAggressiveIntent(AController& 
     Receipt.Outcome = ELDProtectionOutcome::Removed;
     Receipt.bProtectionRemoved = true;
     SyncOwner(Controller);
+    NotifyLife(Body, ELDLifeChange::ProtectionEnded, Life->Revision, AuthorityNowMs);
     UE_LOG(LogTemp, Display, TEXT("LD_PROTECTION_REMOVED contender=%s life=%u intent=%u"),
         *Body.Victim.EntityId.ToString(), Body.Victim.Life, uint32(Intent.Kind));
     return Receipt;
@@ -217,9 +344,19 @@ bool ALDGameMode::ExpireProtections(const FLDGameplayWritePermit& Permit, FStrin
             Error = TEXT("Life revision exhausted at protection expiry.");
             return false;
         }
+        // Half-open: the protection ends exactly at its deadline, which the driver made a boundary.
+        FLDCaptureEligibilityEvent Ended;
+        Ended.Body = Life.Body;
+        Ended.Change = ELDCaptureEligibilityChange::ProtectionEnded;
+        if (!FLDCaptureEventTime::FromMs(Life.ProtectedUntilMs, Ended.Time, Error) || !PublishEligibility(Permit, Ended, Error))
+        {
+            return false;
+        }
+        const int64 EndedAtMs = Life.ProtectedUntilMs;
         Life.ProtectedUntilMs = 0;
         ++Life.Revision;
         if (auto* Controller = FindContenderController(Id)) { SyncOwner(Controller); }
+        NotifyLife(Life.Body, ELDLifeChange::ProtectionEnded, Life.Revision, EndedAtMs);
     }
     Error.Reset();
     return true;
@@ -242,6 +379,16 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
         if (Error.IsEmpty()) { Error = TEXT("Life revision exhausted at death."); }
         return false;
     }
+    FLDCaptureEligibilityEvent Died;
+    Died.Body = Fact.VictimBody;
+    Died.Change = ELDCaptureEligibilityChange::Died;
+    Died.DeathKey = Fact.Key;
+    if (!FLDCaptureEventTime::FromMs(Fact.OccurredAtMs, Died.Time, Error)
+        || !KillCauseOf(Fact, Died.KillCause, Died.CreditContender, Error)
+        || !PublishEligibility(Permit, Died, Error))
+    {
+        return false;
+    }
     auto* Controller = FindContenderController(Fact.Key.Victim.EntityId);
     // Orders and unreleased actions die with the life; released independent effects keep running.
     if (Controller) { Controller->Navigation->EndLifeOrders(); }
@@ -259,6 +406,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     Life->Actor.Reset();
     if (Controller) { SyncOwner(Controller); }
+    NotifyLife(Fact.VictimBody, ELDLifeChange::Died, Life->Revision, Fact.OccurredAtMs);
     UE_LOG(LogTemp, Display, TEXT("LD_DEATH_RECEIPT contender=%s life=%u respawn_at_ms=%lld"),
         *Fact.Key.Victim.EntityId.ToString(), Fact.Key.Victim.Life, RespawnAt);
     Error.Reset();
@@ -526,6 +674,23 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
     }
+    // Every contender joins the capture set at t=0 with its committed foot and native support.
+    for (const auto& Entry : Prepared)
+    {
+        const auto& Life = Lives.FindChecked(Entry.Placed.Contender);
+        FLDCaptureEligibilityEvent Joined;
+        Joined.Body = Life.Body;
+        Joined.Change = ELDCaptureEligibilityChange::Joined;
+        Joined.InitialFootCm = Life.MotionLastFoot;
+        Joined.InitialSupport.Grounded = Life.MotionGrounded;
+        Joined.InitialSupport.Floor = Life.MotionFloor;
+        if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Joined.Time, Error) || !PublishEligibility(Permit, Joined, Error))
+        {
+            FaultAuthority(Error);
+            return false;
+        }
+        NotifyLife(Life.Body, ELDLifeChange::Joined, Life.Revision, AuthorityNowMs);
+    }
     Error.Reset();
     return true;
 }
@@ -600,6 +765,20 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
         {
             return false;
         }
+        // Respawned carries the final Alive state and its protection end in one fact.
+        const auto& Committed = Lives.FindChecked(Id);
+        FLDCaptureEligibilityEvent Respawned;
+        Respawned.Body = Committed.Body;
+        Respawned.Change = ELDCaptureEligibilityChange::Respawned;
+        Respawned.ProtectedUntilMs = Committed.ProtectedUntilMs;
+        Respawned.InitialFootCm = Committed.MotionLastFoot;
+        Respawned.InitialSupport.Grounded = Committed.MotionGrounded;
+        Respawned.InitialSupport.Floor = Committed.MotionFloor;
+        if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Respawned.Time, Error) || !PublishEligibility(Permit, Respawned, Error))
+        {
+            return false;
+        }
+        NotifyLife(Committed.Body, ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
         UE_LOG(LogTemp, Display, TEXT("LD_RETURN_RECEIPT contender=%s life=%u protected_until_ms=%lld"),
             *Id.ToString(), NewLife, ProtectedUntil);
     }

@@ -279,6 +279,12 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Sequence!=Batch->ThroughSequence || !Foot.Equals(Batch->EndFootCm,.000001)
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
+    // Capture reads every accepted contender batch synchronously; the driver releases it next step.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive())
+    {
+        const auto Captured=PublishCaptureMotion(Permit,*Batch);
+        if (Captured!=ELDCommitReject::None) { return Captured; }
+    }
     Life.MotionThroughSequence=Sequence;
     Life.MotionLastFoot=Batch->EndFootCm;
     Life.MotionGrounded=Batch->FinalSupport.Grounded;

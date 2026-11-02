@@ -149,6 +149,31 @@ void ALDCombatDirector::AbandonAction(FLDBodyCombatState& Body, ELDCombatReject 
     SendReceipt(*Record,Known->Receipt);
 }
 
+void ALDCombatDirector::EndMatchActions()
+{
+    for (auto& Pair : Records)
+    {
+        auto& Record=Pair.Value;
+        const TArray<FLDCombatActionRequest> Pending=MoveTemp(Record.Pending);
+        Record.Pending.Reset();
+        for (const auto& Request : Pending)
+        {
+            FLDCombatActionReceipt Closed;
+            Closed.Generation=Request.Generation;
+            Closed.Life=Request.Life;
+            Closed.DirectSequence=Request.DirectSequence;
+            Closed.Entry=Request.Entry;
+            Closed.Phase=ELDCombatPhase::Rejected;
+            Closed.Reject=ELDCombatReject::MatchClosed;
+            StoreReceipt(Record,Request,Closed);
+            if (const auto* Stored=Record.Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+                { return Entry.Request.DirectSequence==Request.DirectSequence; }))
+            { SendReceipt(Record,Stored->Receipt); }
+        }
+    }
+    for (auto& Pair : Bodies) { AbandonAction(Pair.Value,ELDCombatReject::MatchClosed); }
+}
+
 FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request)
 {
     FLDCombatActionReceipt Receipt;

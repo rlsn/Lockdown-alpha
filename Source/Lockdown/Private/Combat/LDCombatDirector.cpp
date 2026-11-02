@@ -17,6 +17,10 @@ void ALDCombatDirector::Tick(float Delta)
     if (!Mode || Mode->Combat!=this || !Mode->IsGameplayWriteOpen(Mode->GetMatchContext())) { return; }
     int64 Through=0;
     FString Error;
+    // A fault after Close cannot overwrite the locked result; the core reports it instead.
     if (!Mode->AvailableAuthorityTime(Through,Error) || !AdvanceAuthority(Mode->GetMatchContext(),Through,Error))
-    { Mode->FaultAuthority(Error); }
+    {
+        if (Error.IsEmpty()) { Error=TEXT("The authority driver failed without a diagnostic."); }
+        Mode->ReportAuthorityFault(Mode->GetMatchContext(),Error);
+    }
 }

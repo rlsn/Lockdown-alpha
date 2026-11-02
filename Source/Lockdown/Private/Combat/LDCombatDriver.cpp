@@ -46,7 +46,12 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Pair.Value.NextAttackAtMs);
         for (const auto& Track : Pair.Value.Tracks) { Consider(Track.ReadyAtMs); }
     }
-    if (const auto* Mode=Core()) { Consider(Mode->NextLifeDueMs()); }
+    if (const auto* Mode=Core())
+    {
+        Consider(Mode->NextLifeDueMs());
+        // Opening time and the Solo completion must each be an exact step boundary.
+        Consider(Mode->NextCaptureDueMs());
+    }
     return Due;
 }
 
@@ -71,6 +76,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
     {
         const int64 Now=Mode->GetAuthorityNowMs();
         const int64 End=FMath::Min(Now+FMath::Min(MaxStepMs,ThroughMs-Now),NextDueMs(Now));
+        Mode->ReleaseConsumedMotion();
         const auto Admission=Mode->BeginAuthorityStep(*this,Match,End);
         if (Admission!=ELDCommitReject::None)
         {
@@ -104,9 +110,17 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             { return RunDeaths(Permit,Error); },Error)
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->RespawnDueContenders(Permit,Error); },Error)
-            || !Mode->FinishAuthorityStep(*this,Error)) { return false; }
+            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
+            { return Mode->ExecuteCapturePhase(Permit,Error); },Error)
+            // Close locks the unique result and shuts the write gate before any cleanup or publication.
+            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Close,[&](const FLDGameplayWritePermit& Permit)
+            { return Mode->ExecuteClosePhase(Permit,Error); },Error)
+            || !Mode->FinishAuthorityStep(*this,Error)
+            || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error)) { return false; }
     }
-    return Mode->Vision->PublishAuthority(Match,Error) && PublishOwnerViews(Error);
+    // After Close the observation owner may already have ended with the match; owner views still settle.
+    if (Mode->IsGameplayWriteOpen(Match) && !Mode->Vision->PublishAuthority(Match,Error)) { return false; }
+    return PublishOwnerViews(Error);
 }
 
 bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString& Error)

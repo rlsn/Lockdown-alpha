@@ -145,6 +145,10 @@ public:
     // inside RespawnsAndWorld (no partial group). Bodies are prepared, hidden and unpossessed by camps.
     bool SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, const FLDGameplayWritePermit& Permit,
         TArray<FLDCombatBodyRef>& OutBodies, FString& Error);
+    // Combat provider hooks (Combat\LDCombatProvider.cpp): close cancels live orders; reset drops
+    // old-match owner views and camp lives before the core retires bodies and the driver.
+    void CloseCombatMatch(const FLDMatchClosed& Closed);
+    bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
 private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
@@ -252,6 +256,15 @@ private:
     bool ActivatePlacedBody(FLDPlacedBody& Placed, const FLDGameplayWritePermit& Permit, FString& Error);
     // Installs one committed life's motion stream at its placed foot.
     void BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body);
+    // Capture eligibility fact of a contender life change. Published before the life mutation where the
+    // change can still be refused; a refusal after a committed life is an authority fault.
+    bool PublishEligibility(const FLDGameplayWritePermit& Permit, const FLDCaptureEligibilityEvent& Event, FString& Error);
+    void NotifyLife(const FLDCombatBodyRef& Body, ELDLifeChange Change, uint64 LifeRevision, int64 AtMs);
+    // Public cause of a contender death for the kill feed and K/D.
+    bool KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCause, FGuid& OutCredit, FString& Error) const;
+    // Start of each step: native batches of earlier steps were consumed when accepted (capture reads them
+    // synchronously; camp members have no consumer), so the retained prefixes are released.
+    void ReleaseConsumedMotion();
     static int32 PhaseOrder(ELDCommitPhase Phase);
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     struct FLDCaptureTrack
