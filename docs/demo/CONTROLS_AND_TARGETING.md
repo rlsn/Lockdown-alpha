@@ -34,10 +34,10 @@ Source、Config、Content、SourceData、Scripts 与源码基线无差异。
 | E03 | [LDCharacterMovementComponent.cpp:22–127](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L22-L127)、[129–160](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L129-L160) | 已有 saved move/自定义网络 move、身份相同才合并、MoveAutonomous 权限检查；StartAuthorityDash/StartContentDash 使用原生 root-motion source。仍混有 sprint/B91 耦合；没有目标占领所需的完整运动事件/水位。 |
 | E04 | [LDPlayerController.cpp:147–191](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L147-L191)、[LDPlayerInput.cpp:65–104](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L65-L104)、[139–234](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L139-L234)、[270–291](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L270-L291) | 静态 IA 加载与 `RebuildV05Mappings` 动态注册并存。右键主要走 ClickMove，没有 Demo 的单位/商店/地面分派；商店接近还在左键服务路径。当前 A 是准备直接攻击，不是攻击移动。 |
 | E05 | [LDControlSettings.cpp:7–92](../../Source/Lockdown/Private/UI/LDControlSettings.cpp#L7-L92)、[h:12–34](../../Source/Lockdown/Public/UI/LDControlSettings.h#L12-L34) | 有 Bindings、Rebind/Valid/Save、Schema/Profile、bEdgePan/bStartFollowing/TextScale/Zoom；有 Defaults/TacticalDefaults/HybridDefaults。不能仅改 HUD 字母而继续保留旧 profile 注册表。 |
-| E06 | [LDTacticalRequest.h:7–32](../../Source/Lockdown/Public/Combat/LDTacticalRequest.h#L7-L32)、[LDContentActions.cpp:41–117](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L41-L117)、[LDContentLifecycle.cpp:35–42](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L35-L42) | 请求已有 TargetMode、来源/修订、Observed/Direction/Point 等字段；已有 Self/Unit/地面/方向相关执行和重复普攻。仍包含额外目标类别、旧服务取消和自动提示，不是统一四模式注册表或完整 A/右键追击。 |
+| E06 | [LDTacticalRequest.h:7–32](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Public/Combat/LDTacticalRequest.h#L7-L32)、[LDContentActions.cpp:41–117](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Combat/LDContentActions.cpp#L41-L117)、[LDContentLifecycle.cpp:35–42](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L35-L42) | 请求已有 TargetMode、来源/修订、Observed/Direction/Point 等字段；已有 Self/Unit/地面/方向相关执行和重复普攻。仍包含额外目标类别、旧服务取消和自动提示，不是统一四模式注册表或完整 A/右键追击。 |
 | E07 | [LDVisionDirector.cpp:117–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L117-L186)、[LDWorldViewRelay.cpp:96–128](../../Source/Lockdown/Private/Vision/LDWorldViewRelay.cpp#L96-L128) | 已有 CanObserve/CanSee/ResolveObserved、逐观察者句柄、快照/Conceal 游标。新命令和持续订单都要重查，不保存隐藏 Actor 作为追踪目标。 |
-| E08 | [LDNavigationProbe.cpp:64–110](../../Source/Lockdown/Private/Tests/LDNavigationProbe.cpp#L64-L110)、[208–254](../../Source/Lockdown/Private/Tests/LDNavigationProbe.cpp#L208-L254) | 现有用例含旧 life/Stop/阻挡/原生运动断言；其中“接近观察快照但不追击或攻击”正是需要替换的行为，不应保留为 Demo 回归要求。 |
-| E09 | [LDInputProbe.cpp:66–153](../../Source/Lockdown/Private/Tests/LDInputProbe.cpp#L66-L153)、[LDHUDProbeExtension.cpp:29–86](../../Source/Lockdown/Private/Tests/LDHUDProbeExtension.cpp#L29-L86) | 已有 UI 不穿透、重绑不累积委托、无效观察不回退、失视野清理、临时回中与持续跟随分离等有用断言；旧 A 方向攻击和旧技能/物品槽断言须重写。 |
+| E08 | [LDNavigationProbe.cpp:64–110](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Tests/LDNavigationProbe.cpp#L64-L110)、[208–254](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Tests/LDNavigationProbe.cpp#L208-L254) | 现有用例含旧 life/Stop/阻挡/原生运动断言；其中“接近观察快照但不追击或攻击”正是需要替换的行为，不应保留为 Demo 回归要求。 |
+| E09 | [LDInputProbe.cpp:66–153](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Tests/LDInputProbe.cpp#L66-L153)、[LDHUDProbeExtension.cpp:29–86](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Tests/LDHUDProbeExtension.cpp#L29-L86) | 已有 UI 不穿透、重绑不累积委托、无效观察不回退、失视野清理、临时回中与持续跟随分离等有用断言；旧 A 方向攻击和旧技能/物品槽断言须重写。 |
 | E10 | [LDScaffoldBootstrapCommandlet.cpp:274–326](../../Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp#L274-L326) | 生成 `IMC_Gameplay` 与 11 个命名 IA，并断言 13 个映射；“映射数”不是“动作数”。尚未用 AssetRegistry/Blueprint/实际 Cook 证明其二进制引用可删除。 |
 
 当前组件知识见 [移动/输入/镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)、
@@ -599,6 +599,8 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 
 ## 9. 复用、删除、新增与顺序
 
+**实施状态：** 本节列出的删除闭包（架构 D01–D32）已在当前集成分支完成，删除前均经 C3/C4 核验；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。下文保留为设计时的复用与闭包说明，其中“后续实施”“待/先/再删”等表述指当时的实施顺序，不再是待办。
+
 下表是后续实施的精确责任清单，不是本轮实际删改。`Public/Private` 从
 `Source\Lockdown` 展开；引用架构 R/D 项时仍补本模块消费者。
 “原样”仅指局部不变量，不代表整文件、旧模式或旧数值原样保留。
@@ -626,7 +628,7 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 | CT-D6，D15/D16 | `LDControlSettings` 的 Profile、TacticalDefaults/HybridDefaults、Skill3–6/Item3–4 及旧 Context/Trade 迁移政策 | 当前注册表和显式设置迁移完成后删除旧字段/分支；删除局内玩法保存入口不影响本地设置 Save。 |
 | CT-D7，D24 | `Content\Lockdown\Generated\Input\IA_Move.uasset`、`IA_Aim.uasset`、`IA_Sprint.uasset`、`IA_Attack.uasset`、`IA_Dash.uasset`、`IA_Assassinate.uasset`、`IA_Interact.uasset`、`IA_Ward.uasset`、`IA_Help.uasset`、`IA_Menu.uasset`、`IA_Zoom.uasset`、`IMC_Gameplay.uasset` | 本报告选择唯一动态注册，不新增第二套 IA/IMC。先迁 Controller 静态 LoadObject 和存活 Blueprint/CDO 引用，再移除 Bootstrap Input 生成/固定 13 映射验证及加载/cook引用，经 C3 才物理删除这些包。 |
 | CT-D8，D27/D29/D30 | `LDNavigationProbe.cpp` 的“快照接近但不追击”、旧 sprint/pickup/site 场景；`LDInputProbe.cpp` 旧 A 方向攻击、多动作槽；`LDHUDProbeExtension.cpp` 旧物品/技能/地图分派断言 | 保留墙/坡/错层/Stop/旧 life/隐私、无回退/无穿透及回中/持续跟随解耦断言并改 Demo 用例；删除旧玩法场景，不将它们 skip 或留 profile 回归。 |
-| CT-D9，D30/D31/D33 | `RunMovementCheck.ps1` 的 MigrationSandbox 依赖；`RunNavigationCheck.ps1/RunInputCheck.ps1/RunHUDCheck.ps1` 旧 V05/profile/probe计数；`CaptureInputUI.ps1` 旧授予/场景参数及失去消费者的输入专用 helper | 改现有 runner 为当前组件/唯一 Demo 场景；按确切用例集合验证，不只降低成功数。旧其他领域 probe 与脚本随各自闭包真删。 |
+| CT-D9，D30/D31 | `RunMovementCheck.ps1` 的 MigrationSandbox 依赖；`RunNavigationCheck.ps1/RunInputCheck.ps1/RunHUDCheck.ps1` 旧 V05/profile/probe计数；`CaptureInputUI.ps1` 旧授予/场景参数及失去消费者的输入专用 helper | 改现有 runner 为当前组件/唯一 Demo 场景；按确切用例集合验证，不只降低成功数。旧其他领域 probe 与脚本随各自闭包真删。 |
 | CT-D10，D34 | 系统手册中被本批删除的旧 profile输入、长按/旧槽位/静态资产说明及相应命令 | 与代码批次同步重写，保留准确 CMC/身份/输入/镜头技术知识；不另存旧稿或会话日志。 |
 
 CT-D7 是当前选定输入生产方式下的目标删除集合，**未做二进制引用核验，不是现在可盲删的结论**。
@@ -729,11 +731,12 @@ RoundTripMs 当前只允许 0/100/150，JitterMs 为 0–25，OneWayBaseMs 为 -
 它们当前仍是旧场景和固定旧成功计数，不表示 CT-A 场景已经存在。
 
 对应入口：
-[Navigation](../../Scripts/RunNavigationCheck.ps1#L2-L27)、
-[Input](../../Scripts/RunInputCheck.ps1#L2-L27)、
-[HUD](../../Scripts/RunHUDCheck.ps1#L2-L27)、
-[Movement](../../Scripts/RunMovementCheck.ps1)、
+[Navigation](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Scripts/RunNavigationCheck.ps1#L2-L27)、
+[Input](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Scripts/RunInputCheck.ps1#L2-L27)、
+[HUD](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Scripts/RunHUDCheck.ps1#L2-L27)、
+[Movement](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Scripts/RunMovementCheck.ps1)、
 [RunTests](../../Scripts/RunTests.ps1)。
+这些旧 runner 已在实施中退役，当前替代见[架构 §7.1](ARCHITECTURE.md#71-旧检查的迁移结果)与[开发指南](../DEVELOPMENT.md#最小验证选择)。
 迁移这些 runner 和 probe 的当前用例集合，保留 missing/failed/notRun/inProcess 报告失败门槛；
 废弃 sprint/快照不追击/旧 A/旧槽位断言真实删除，不恢复旧 profile 来让场景通过。
 新接口/资产批次再用 Editor/Game 构建、Bootstrap Validate 和 Cook；

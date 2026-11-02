@@ -120,12 +120,12 @@ I4 与 I5 在 I3 提供的身体/事件契约稳定后可并行；占点规则�
 | 内容/生成 | `SyncDemoContentData.py --check`、`TestDemoContentImport.py`；未迁移输入另沿对应 `Sync* --check` 验证 | 实际首版目录/参数可生成；非法值/不合法引用拒绝；载荷/contract 一致；禁止手改摘要；测试夹具不成为正式运行输入 |
 | 原生与资产 | `BuildEditor.ps1`、`BuildGame.ps1`、`BootstrapAssets.ps1 -Mode Validate` | 删除后没有反射/链接/Cook 悬空依赖；唯一入口和地图资产仍可加载 |
 | 规则 | `RunTests.ps1` 和相关原生规则测试 | 新属性/成长/装备/胜利断言；上限变化保持原血蓝百分比、最终投影一次且往返不获益；保留身份/取消/事务不变量；按实际用例更新旧门槛，不只降低数量 |
-| 输入/路径/UI | [操作报告 §10](CONTROLS_AND_TARGETING.md) 的 CT-A01–24；现有 Movement/Navigation/Input/HUD runner 的可复用夹具 | A/右键/S/Esc、目标重查、失视停追击；授权死亡终止不由 Conceal 推断；无 LastSeen、死亡静态镜头、UI 手势独占和迟到拒绝；原生 CT06/资产/真实网络另行完成 |
-| 战斗/观察/来源 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunDemoVisionCheck.ps1` 及保留的来源纯规则 | 真客户端命中/重复拒绝、隐藏/过期；同款两份主动独立冷却且可连续使用两次；失源期间继续计时，重购/重学沿用原结束时间，换槽/死亡不刷新；控制与保护 |
-| 奖励/买卖 | `RunTests.ps1` 中 Inventory/Economy 规则、`CheckEconomyEvidence.py` 与 N05 的实际拥有连接场景 | 一次死亡一次金币+经验；两件同款实例不混同、基础属性加成相加、同名被动只生效一次；死亡可选卡/替换但不复活/治疗，交易仍拒绝死亡；第三件/不足/离店/终局/旧报价/重复/创建失败无部分提交 |
-| 生命/胜利 | `RunResetCheck.ps1` 的可复用夹具与待建 N02 圈/结果场景 | 进攻意图准入后解除保护，动作无效亦然，旧包/终局无副作用；资格变化参与圈判定；死亡或出售/遗忘后独立效果继续，离局立即移除身体并取消效果；复活满血蓝、新局隔离 |
-| 观察/结算字段 | `RunDemoVisionCheck.ps1`、`RunHUDCheck.ps1` 与生命周期场景 | 可见对手名称/等级/血蓝/状态/装备白名单，无技能/冷却/完整属性/金币；终局才发布全体结果含离局记录、赢家/原因/用时，统计不判胜；不以字段显示替代载荷权限检查 |
-| 世界/AI/完整对局 | 世界报告 §8 与 AI 报告 §8 的目标场景，迁移实际地图/网络夹具 | 十锚点等概率而非七十随机点；同组反击/Returning/存活成员重置和无奖励；商店提交期合法区域/距离、不额外LOS；AI受限完整循环；模型/席位检查不等于原生通过 |
+| 输入/路径/UI | [操作报告 §10](CONTROLS_AND_TARGETING.md) 的 CT-A01–24；`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1` 与 `Lockdown.Rules.ControlMappings/HUD*` | A/右键/S/Esc、目标重查、失视停追击；授权死亡终止不由 Conceal 推断；无 LastSeen、死亡静态镜头、UI 手势独占和迟到拒绝；原生 CT06/资产/真实网络另行完成 |
+| 战斗/观察/来源 | `RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1` 及来源纯规则 | 真客户端命中/重复拒绝、隐藏/过期；同款两份主动独立冷却且可连续使用两次；失源期间继续计时，重购/重学沿用原结束时间，换槽/死亡不刷新；控制与保护 |
+| 奖励/买卖 | `RunTests.ps1` 中 `DemoGrowth*` 规则、`CheckEconomyEvidence.py` 与 `RunDemoGrowthCheck.ps1` | 一次死亡一次金币+经验；两件同款实例不混同、基础属性加成相加、同名被动只生效一次；死亡可选卡/替换但不复活/治疗，交易仍拒绝死亡；第三件/不足/离店/终局/旧报价/重复/创建失败无部分提交 |
+| 生命/胜利 | `RunDemoCaptureCheck.ps1`、`RunDemoCombatCheck.ps1` 与 `RunDemoSessionFaultCheck.ps1` | 进攻意图准入后解除保护，动作无效亦然，旧包/终局无副作用；资格变化参与圈判定；死亡或出售/遗忘后独立效果继续，离局立即移除身体并取消效果；复活满血蓝、新局隔离 |
+| 观察/结算字段 | `RunDemoVisionCheck.ps1`、`Lockdown.Rules.HUD*` 与生命周期场景 | 可见对手名称/等级/血蓝/状态/装备白名单，无技能/冷却/完整属性/金币；终局才发布全体结果含离局记录、赢家/原因/用时，统计不判胜；不以字段显示替代载荷权限检查 |
+| 世界/AI/完整对局 | `RunDemoWorldRoomCheck.ps1`、`RunDemoCampCheck.ps1`、`RunDemoOpponentCheck.ps1`（3 真人 + 3 AI 满员） | 十锚点等概率而非七十随机点；同组反击/Returning/存活成员重置和无奖励；商店提交期合法区域/距离、不额外LOS；AI受限完整循环；模型/席位检查不等于原生通过 |
 | 交付 | `VerifyCleanCheckout.ps1`、`PackageWin64.ps1`、`OpenPackaged.ps1` | 明确本地 LFS 缓存检出不证明远端下载；发布包实际运行/连接/完整对局后才认定可用 |
 
 网络、交易、成长与胜负至少需要可见 Listen Host 和真实拥有客户端的证据，

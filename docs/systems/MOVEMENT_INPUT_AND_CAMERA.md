@@ -227,8 +227,8 @@ Demo 基础身体/地面链使用 `RunDemoCoreCheck.ps1` 的 DEV-only 三拥有�
 结合 `Lockdown.Rules.DemoCore` 和命令存活性规则；该夹具不开放普通 Start，也不证明完整 CT06。
 `Lockdown.Rules.DemoMotionProbe` 在隔离原生物理世界验证滑移、非空 StepUp 回滚、
 ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记录；不改生产地图或共享引擎。
-`RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1` 及 `LDNavigationProbe`
-仍属于旧入口闭包，不能作为当前 Demo 已通过的证据。
+拥有连接下的订单、S 取消与输入路由由 `RunDemoCombatCheck.ps1` 覆盖；
+旧 Movement/Navigation/Input runner 与 `LDNavigationProbe` 已删除。
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、

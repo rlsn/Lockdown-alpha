@@ -71,7 +71,7 @@ UI 树主要由 native `RebuildWidget` 构建：
 生成的 `WBP_UIRoot` 以 `ULDUIRoot` 为父类，
 [InitializeLocalUI](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L89-L108)
 加载其生成类。现有 UMG/Slate 已足够，不新增 CommonUI/MVVM 依赖；
-配置中的 CommonUI 项是否无消费者仍须 C4 核验，不能仅据 Build.cs 没显式引用就删除。
+配置中的 CommonUI 项经 C4 核验无消费者（插件未启用，无资产导入 `/Script/CommonUI`）后已删除。
 
 ## 3. 精简屏幕、布局与状态
 
@@ -518,6 +518,8 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 全部展示取整、数值格式化只影响文字，不修改血蓝、费用、CD、进度或胜负判断。
 
 ## 10. SC-09 F：精确复用、删除、新增及闭包顺序
+
+**实施状态：** 本节列出的删除闭包（架构 D01–D32）已在当前集成分支完成，删除前均经 C3/C4 核验；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。下文保留为设计时的复用与闭包说明，其中“后续实施”“待/先/再删”等表述指当时的实施顺序，不再是待办。
 
 下面是**后续实施清单**，不是本次删除授权。R/D/N 及 C1–C4/P0–P5 沿
 [架构审计 §3/§8](ARCHITECTURE.md)。短路径 `Public/Private` 均以 `Source\Lockdown` 为根；
