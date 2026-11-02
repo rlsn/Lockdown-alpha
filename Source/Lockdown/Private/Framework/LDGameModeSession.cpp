@@ -11,8 +11,8 @@ namespace
         switch (Reason)
         {
         case ELDSessionReject::NotOwner: return TEXT("This connection is not a member of the room.");
-        case ELDSessionReject::NotHost: return TEXT("Only the Host can change AI slots or start the match.");
-        case ELDSessionReject::WrongPhase: return TEXT("This command is available in the Lobby only.");
+        case ELDSessionReject::NotHost: return TEXT("Only the Host can change AI slots, start, end or reset the match.");
+        case ELDSessionReject::WrongPhase: return TEXT("This room command is not available in the current phase.");
         case ELDSessionReject::RoomFull: return TEXT("The room already has three human players, including the Host.");
         case ELDSessionReject::NotAllReady: return TEXT("Every connected human player, including the Host, must be ready.");
         case ELDSessionReject::StaleRoster: return TEXT("The room roster changed. Review it and ready again.");
@@ -20,6 +20,9 @@ namespace
         case ELDSessionReject::RequestConflict: return TEXT("This request ID was already used with different terms.");
         case ELDSessionReject::RequestInFlight: return TEXT("Wait for the pending room command to finish.");
         case ELDSessionReject::ReceiptExpired: return TEXT("This request is older than the retained receipt and will not execute again.");
+        case ELDSessionReject::MatchClosed: return TEXT("The match result is already locked.");
+        case ELDSessionReject::SpawnBlocked: return TEXT("The initial spawn could not be placed; the room returned to the Lobby.");
+        case ELDSessionReject::MissingDemoDefinition: return TEXT("The Demo match is not available in this build.");
         case ELDSessionReject::AuthorityFault: return TEXT("The room stopped after an authority error. Return to the menu.");
         case ELDSessionReject::None: return TEXT("");
         default: return TEXT("Invalid room command.");
@@ -95,8 +98,8 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
 bool ALDGameMode::CheckDemoStartInputs(FString& Reason) const
 {
     if (!LDDemoEntry::VerifyRuntimeFiles(Reason) || !LDDemoEntry::VerifyWorldPackages(Reason)) { return false; }
-    Reason = TEXT("Demo combat, progression, capture, camps, AI and continuous-motion providers are not fully wired in this build. No legacy match will start.");
-    return false;
+    Reason = StartGateBlocker();
+    return Reason.IsEmpty();
 }
 
 FLDLobbyView ALDGameMode::ReadLobby() const
@@ -113,7 +116,8 @@ FLDLobbyView ALDGameMode::ReadLobby() const
         for (const auto& Pair : Contenders)
         {
             const FLDContenderRecord& Record = Pair.Value;
-            if (Record.Session != Id || !IsMemberPresent(Id)) { continue; }
+            // AI records exist only during a match; the AI slots below list them once.
+            if (Record.Session != Id || Record.Kind != ELDContenderKind::Human || !IsMemberPresent(Id)) { continue; }
             FLDLobbyMember Member;
             Member.ContenderId = Id;
             Member.Name = Record.Name;
@@ -132,10 +136,10 @@ FLDLobbyView ALDGameMode::ReadLobby() const
         Member.Kind = ELDContenderKind::OpponentAI;
         View.Members.Add(MoveTemp(Member));
     }
-    View.StartBlocker = !EntryFailure.IsEmpty() ? EntryFailure
-        : TEXT("Demo gameplay providers are not wired in this build. Approved content alone does not enable them.");
+    View.StartBlocker = !EntryFailure.IsEmpty() ? EntryFailure : StartGateBlocker();
     if (MatchPhase != ELDMatchPhase::Lobby) { View.StartBlocker = RejectionText(ELDSessionReject::WrongPhase); }
     else if (!AllReady) { View.StartBlocker = RejectionText(ELDSessionReject::NotAllReady); }
+    View.CanStart = View.StartBlocker.IsEmpty() && LobbyHost.IsValid();
     return View;
 }
 
@@ -183,7 +187,10 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             return Receipt;
         }
         bool Changed = false;
-        if (!IsDemoRoom() || MatchPhase != ELDMatchPhase::Lobby) { Receipt.Reason = ELDSessionReject::WrongPhase; }
+        bool PublishOutcome = false;
+        const bool LobbyCommand = Request.Command == ELDSessionCommand::SetReady
+            || Request.Command == ELDSessionCommand::SetAICount || Request.Command == ELDSessionCommand::StartMatch;
+        if (!IsDemoRoom()) { Receipt.Reason = ELDSessionReject::WrongPhase; }
         else if (Request.ExpectedRosterRevision != RosterRevision) { Receipt.Reason = ELDSessionReject::StaleRoster; }
         else if (LobbyPublicRevision == MAX_uint64)
         {
@@ -191,6 +198,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             Receipt.Reason = ELDSessionReject::AuthorityFault;
         }
         else if (Request.Command != ELDSessionCommand::SetReady && LobbyHost != Controller) { Receipt.Reason = ELDSessionReject::NotHost; }
+        else if (LobbyCommand && MatchPhase != ELDMatchPhase::Lobby) { Receipt.Reason = ELDSessionReject::WrongPhase; }
         else if (Request.Command == ELDSessionCommand::SetReady)
         {
             Changed = Record->State.bReady != Request.Ready || Record->ReadyRosterRevision != RosterRevision;
@@ -213,7 +221,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             }
             else { Receipt.Reason = ELDSessionReject::AuthorityFault; }
         }
-        else
+        else if (Request.Command == ELDSessionCommand::StartMatch)
         {
             bool AllReady = !Contenders.IsEmpty() && Contenders.Num() <= 3;
             for (const auto& Pair : Contenders)
@@ -221,16 +229,54 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
                 AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;
             }
             if (!AllReady) { Receipt.Reason = ELDSessionReject::NotAllReady; }
-            else
+            else if (!CheckDemoStartInputs(Receipt.Detail)) { Receipt.Reason = ELDSessionReject::MissingDemoDefinition; }
+            else if (StartDemoMatch(Receipt.Reason, Receipt.Detail))
             {
-                CheckDemoStartInputs(Receipt.Detail);
-                Receipt.Reason = ELDSessionReject::MissingDemoDefinition;
+                Receipt.Outcome = ELDSessionOutcome::Committed;
+                Receipt.Reason = ELDSessionReject::None;
             }
         }
+        else if (Request.Command == ELDSessionCommand::EndMatch)
+        {
+            if (MatchPhase == ELDMatchPhase::Results) { Receipt.Reason = ELDSessionReject::MatchClosed; }
+            else if (!IsGameplayWriteOpen(MatchContext)) { Receipt.Reason = ELDSessionReject::WrongPhase; }
+            else if (bAuthorityStepOpen || ActiveWritePermit) { Receipt.Reason = ELDSessionReject::RequestInFlight; }
+            else if (!TryCloseMatch(ELDMatchEndReason::HostEnded, FGuid(), AuthorityNowMs, Receipt.Detail))
+            {
+                FaultAuthority(Receipt.Detail);
+                Receipt.Reason = ELDSessionReject::AuthorityFault;
+            }
+            else
+            {
+                Receipt.Outcome = ELDSessionOutcome::Committed;
+                Receipt.Reason = ELDSessionReject::None;
+                Receipt.Detail = TEXT("The Host ended the match without a winner.");
+                PublishOutcome = true;
+            }
+        }
+        else if (Request.Command == ELDSessionCommand::ReturnToLobby)
+        {
+            if (MatchPhase != ELDMatchPhase::Results) { Receipt.Reason = ELDSessionReject::WrongPhase; }
+            else if (Request.ExpectedResult != ResultView.ResultId) { Receipt.Reason = ELDSessionReject::StaleMatch; }
+            else if (!RetireMatch(false, Receipt.Detail))
+            {
+                FaultAuthority(Receipt.Detail);
+                Receipt.Reason = ELDSessionReject::AuthorityFault;
+            }
+            else
+            {
+                Receipt.Outcome = ELDSessionOutcome::Committed;
+                Receipt.Reason = ELDSessionReject::None;
+                Receipt.Detail = TEXT("The room returned to the Lobby for a new match.");
+            }
+        }
+        else { Receipt.Reason = ELDSessionReject::InvalidRequest; }
         Receipt.Phase = MatchPhase;
         Receipt.RosterRevision = RosterRevision;
         if (Receipt.Detail.IsEmpty()) { Receipt.Detail = RejectionText(Receipt.Reason); }
-        if (!Record->SessionRequests.Complete(Receipt))
+        // A start abort or a return to the Lobby replaces every request window with the new generation's.
+        const bool WindowReplaced = MatchContext.Generation != Request.Key.Generation;
+        if (!WindowReplaced && !Record->SessionRequests.Complete(Receipt))
         {
             MatchPhase = ELDMatchPhase::Faulted;
             UE_LOG(LogTemp, Error, TEXT("LD_SESSION_RECEIPT_COMMIT_FAILED"));
@@ -239,6 +285,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             Receipt.Detail = RejectionText(Receipt.Reason);
             Changed = true;
         }
+        if (PublishOutcome) { PublishMatchOutcome(); }
         if (Changed) { PublishLobby(); }
         return Receipt;
     }

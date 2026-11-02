@@ -6,12 +6,30 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDViewSchemaTest,"Lockdown.Rules.ViewPrivacySchema",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDViewSchemaTest::RunTest(const FString& Parameters)
 {
-    // Final Demo GameState: the public room and the authority clock, nothing else replicates there.
-    const TSet<FName> Public={TEXT("DemoLobby"),TEXT("DemoClock")};
+    // Final Demo GameState: the public room, the authority clock and the public capture/result/kill
+    // projections, nothing else replicates there.
+    const TSet<FName> Public={TEXT("DemoLobby"),TEXT("DemoClock"),TEXT("PublicMatch"),TEXT("MatchResult"),TEXT("KillFeed")};
     int32 PublicCount=0;
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
-    {++PublicCount;TestTrue(TEXT("Only the public room and authority clock are GameState properties"),Public.Contains(It->GetFName()));TestNull(TEXT("No canonical object references"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Public schema complete"),PublicCount,2);
+    {++PublicCount;TestTrue(TEXT("Only the public room, clock and capture projections are GameState properties"),Public.Contains(It->GetFName()));TestNull(TEXT("No canonical object references"),CastField<FObjectPropertyBase>(*It));}
+    TestEqual(TEXT("Public schema complete"),PublicCount,5);
+    auto ExpectStruct=[this](UScriptStruct* Struct,const TSet<FName>& Fields,const TCHAR* What)
+    {
+        int32 Count=0;
+        for(TFieldIterator<FProperty> It(Struct);It;++It)
+        {++Count;TestTrue(What,Fields.Contains(It->GetFName()));TestNull(TEXT("Public projections carry no canonical object"),CastField<FObjectPropertyBase>(*It));}
+        TestEqual(What,Count,Fields.Num());
+    };
+    ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
+        TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
+        TEXT("DueAtMs"),TEXT("ResultId")},TEXT("The public circle names only the single occupier and its progress"));
+    ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
+        TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
+    ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
+        TEXT("Deaths"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
+    ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices")},TEXT("Kill feed is a bounded public ring"));
+    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Cause"),TEXT("OccurredAtMs")},
+        TEXT("Kill notices carry no coordinates or build"));
     const FStructProperty* Clock=CastField<FStructProperty>(ALDGameState::StaticClass()->FindPropertyByName(TEXT("DemoClock")));
     if(TestNotNull(TEXT("The authority clock is one struct value"),Clock))
     {
