@@ -156,9 +156,15 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 缺报告、失败、未完成、缺用例或重复结果都不能通过；新增或迁移原生测试时同步维护此集合，
 并运行 `python -B -m unittest discover -s .\Scripts -p TestRuleReport.py` 核对源码注册与报告拒绝路径。
 需要更具体的选择、网络条件或打包路径时，先查看相关脚本参数，不把所有昂贵场景作为每次文档改动的门槛。
-所有 `RunDemo*Check.ps1` 都接受 `-PackageRoot <PackageWin64 的 Archive 目录>`，改为启动打包的 Development 版；
+Core、Combat、Camp、Growth、Capture、Vision、Opponent 和 SessionFault 这 8 个 `RunDemo*Check.ps1`
+接受 `-PackageRoot <PackageWin64 的 Archive 目录>`，改为启动打包的 Development 版；
+Frontend、Entry 与 WorldRoom 只在编辑器中运行。
 DEV probe 只在带开关时生效，证据先写入包内 `Lockdown\Artifacts`，结束后移回 runner 的输出目录。
 编辑器与打包版行为可能不同（例如非编辑器构建的 FName 不保留大小写），交付验收以打包版场景为准。
+`RunDemoCombatCheck.ps1` 与 `RunDemoOpponentCheck.ps1` 另接受
+`-NetEmulation '-PktLag=40 -PktLagVariance=10 -PktLoss=1 -PktDup=1 -PktOrder=1'` 这类引擎包模拟参数
+（只在 Development/编辑器构建生效），每个角色进程只影响自己发出的包；
+runner 核对每个角色的日志确实解析了每一项。这只是同机模拟，不代表跨机器局域网或公网直连。
 源码、配置和生成输入在一次原生构建/运行期间保持稳定。
 删除反射类型或成员前，可用 `AuditAssetReferences.ps1 -RequestPath <审计请求JSON>`。
 它在旧原生类仍存在时加载全部项目包，记录 AssetRegistry、linker import/soft/name 表、

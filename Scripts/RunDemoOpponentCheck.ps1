@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,900)][int]$TimeoutSeconds=720)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,900)][int]$TimeoutSeconds=720,
+    # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
+    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoOpponent-FullRoom-Packaged' } else { 'DemoOpponent-FullRoom' })
+$output = New-LDArtifactDirectory ($(if ($PackageRoot) { 'DemoOpponent-FullRoom-Packaged' } else { 'DemoOpponent-FullRoom' }) +
+    $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
 $evidence = $launch.ProbeOutput
@@ -24,6 +27,7 @@ function Start-OpponentRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
@@ -87,6 +91,7 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
+    Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
     foreach ($ai in $first.opponents) {
         Write-Host ('AI slot {0}: level {1}, choices {2}, items {3} [{4}], deaths {5}, respawns {6}, kills {7}, orders {8} (refused {9}), actions {10}, trades {11}, max 30 s body requests {12}{13}' -f
             $ai.slot,$ai.level,$ai.choices,$ai.items_max,$ai.gear,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
@@ -96,7 +101,8 @@ try {
         ForEach-Object { [string]$_.name } | Sort-Object -Unique)
     foreach ($name in $notExercised) { Write-Host "NOT EXERCISED (not counted as passed): $name" }
     $coverage = if ($notExercised.Count) { " $($notExercised.Count) check(s) were not exercised by this match; they are listed above and are not passes." } else { '' }
-    Write-Host "DEV-only full-room opponent AI scenario passed on real owned connections: the humans stayed out of play and an AI won by capture after $([math]::Round($first.duration_ms / 1000)) s.$coverage Not hidden-state non-interference, a leaving human or network faults. Evidence: $output"
+    $impairment = if ($NetEmulation) { " Every role ran under engine packet simulation ($NetEmulation) on one machine's loopback." } else { '' }
+    Write-Host "DEV-only full-room opponent AI scenario passed on real owned connections: the humans stayed out of play and an AI won by capture after $([math]::Round($first.duration_ms / 1000)) s.$coverage$impairment Not hidden-state non-interference, a leaving human or network faults. Evidence: $output"
 }
 finally {
     foreach ($process in $processes) {

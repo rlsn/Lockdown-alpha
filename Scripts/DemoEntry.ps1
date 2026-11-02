@@ -62,6 +62,23 @@ function Format-LDGameArguments {
     '"{0}" {1}-game -DisablePlugins=AllToolsets,ModelContextProtocol,Fab {2}' -f $Launch.Project, $target, $Arguments
 }
 
+# Engine packet simulation (DO_ENABLE_NET_TEST, so Development and editor builds only): each process impairs the
+# packets it sends. Proves that every role's net driver parsed each requested setting, so an ignored switch
+# cannot pass as an impaired run.
+function Assert-LDNetEmulationApplied {
+    param([Parameter(Mandatory)][string]$Output, [Parameter(Mandatory)][string[]]$Roles, [string]$NetEmulation)
+    if (-not $NetEmulation) { return }
+    foreach ($role in $Roles) {
+        $log = Join-Path $Output "$role.log"
+        foreach ($setting in [regex]::Matches($NetEmulation, '-Pkt(\w+)=(\d+)')) {
+            $line = 'Pkt{0} set to {1}' -f $setting.Groups[1].Value, [int]$setting.Groups[2].Value
+            if (-not (Select-String -LiteralPath $log -Pattern ('\b{0}\b' -f [regex]::Escape($line)) -Quiet)) {
+                throw "$role did not apply packet simulation ($line). Evidence: $Output"
+            }
+        }
+    }
+}
+
 # Moves packaged probe evidence next to the runner logs and leaves the package without test output.
 function Complete-LDGameEvidence {
     param([Parameter(Mandatory)]$Launch)

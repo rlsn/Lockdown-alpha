@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$TimeoutSeconds=600)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$TimeoutSeconds=600,
+    # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
+    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoCombat-OwnedOrders-Packaged' } else { 'DemoCombat-OwnedOrders' })
+$output = New-LDArtifactDirectory ($(if ($PackageRoot) { 'DemoCombat-OwnedOrders-Packaged' } else { 'DemoCombat-OwnedOrders' }) +
+    $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
 $evidence = $launch.ProbeOutput
@@ -31,6 +34,7 @@ function Start-CombatRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
@@ -81,10 +85,12 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
+    Assert-LDNetEmulationApplied -Output $output -Roles $roles -NetEmulation $NetEmulation
+    $impairment = if ($NetEmulation) { " Every role ran under engine packet simulation ($NetEmulation) on one machine's loopback." } else { '' }
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
-        "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q. " +
+        "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q.$impairment " +
         "Not skills, gear actives, camps, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
