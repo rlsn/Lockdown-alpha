@@ -27,4 +27,8 @@ namespace LDOpponentFrame
     // Own resources, basic readiness, Root and active-source readiness exactly as Combat reports them.
     LOCKDOWN_API bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSelf& Out, FString& Error);
     LOCKDOWN_API ELDOpponentOrderStatus OrderStatus(ELDOrderStatus Status);
+    // Content ids are lowercase by contract and FNames compare case-insensitively, but a game build prints an FName with
+    // whichever spelling was registered first ("Shop" for "shop"). Every id the policy compares as text passes here;
+    // an absent id is empty.
+    LOCKDOWN_API FString CanonicalId(FName Id);
 }

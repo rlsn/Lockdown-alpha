@@ -955,6 +955,65 @@ bool RunProjections(FAutomationTestBase& Test)
     OtherMatch.Generation = 8;
     bGood &= Test.TestFalse(TEXT("Views from different publications are refused"),
         LDOpponentFrame::ReadOwnBuild(Progression, OtherMatch, C, Self, Error));
+    {
+        // A game build prints each id with whichever spelling registered first; the editor keeps these spellings, so
+        // this exercises the mapping back to the lowercase content ids that the policy compares as text.
+        auto Cased = Progression;
+        Cased.bCanChoose = true;
+        Cased.Skills[0].DefinitionId = TEXT("Active_Arc_Bolt");
+        Cased.Skills[1].DefinitionId = TEXT("PASSIVE_BATTLE_RHYTHM");
+        Cased.AttributeCards[0].DefinitionId = TEXT("Attr_Might");
+        Cased.Offer.Options[0].DefinitionId = TEXT("Active_Guard_Pulse");
+        auto CasedEquipment = Equipment;
+        CasedEquipment.Slots[0].DefinitionId = TEXT("Item_Edge_Blade");
+        FLDOpponentSelf CasedSelf;
+        bGood &= Test.TestTrue(TEXT("Ids printed in another casing map to the lowercase content ids and the same build: ") + Error,
+            Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, CasedEquipment, C, CasedSelf, Error)
+            && CasedSelf.Skills.Num() == 2 && CasedSelf.Skills[0].DefinitionId == TEXT("active_arc_bolt")
+            && CasedSelf.Skills[1].DefinitionId == TEXT("passive_battle_rhythm") && CasedSelf.Equipment[0] == TEXT("item_edge_blade")
+            && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0].DefinitionId == TEXT("active_guard_pulse")
+            && CasedSelf.Attributes.ADP2 == Expected.Value->Final.ADP2 && CasedSelf.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2);
+    }
+    {
+        // Packaged-casing variants: canonical ids reach the same catalog entries and make exactly the canonical decisions.
+        bGood &= Test.TestTrue(TEXT("Canonical ids are the lowercase content ids; an absent id is empty"),
+            LDOpponentFrame::CanonicalId(FName(TEXT("Item_Iron_Plate"))) == TEXT("item_iron_plate")
+            && LDOpponentFrame::CanonicalId(FName(TEXT("Monster_Scavenger"))) == TEXT("monster_scavenger")
+            && LDOpponentFrame::CanonicalId(NAME_None).IsEmpty());
+        FLDOpponentDecisionFrame CaseBase;
+        if (!BaseFrame(Test, C, CaseBase)) { return false; }
+        FLDOpponentSelf CaseCanonSelf = CaseBase.Self;
+        CaseCanonSelf.Gold = 400;
+        CaseCanonSelf.Equipment[0] = TEXT("item_iron_plate");
+        FLDOpponentSelf CaseMappedSelf = CaseCanonSelf;
+        CaseMappedSelf.Equipment[0] = LDOpponentFrame::CanonicalId(FName(TEXT("Item_Iron_Plate")));
+        TOptional<FLDOpponentEquipmentPlan> CaseCanonPlan, CaseMappedPlan;
+        FString CasePlanError;
+        bGood &= Test.TestTrue(TEXT("An equipped id printed as Item_Iron_Plate plans exactly like the content id: ") + CasePlanError,
+            LDOpponentPolicy::PlanEquipment(CaseCanonSelf, C, CaseCanonPlan, CasePlanError)
+            && LDOpponentPolicy::PlanEquipment(CaseMappedSelf, C, CaseMappedPlan, CasePlanError)
+            && CaseCanonPlan.IsSet() == CaseMappedPlan.IsSet()
+            && (!CaseCanonPlan.IsSet() || (CaseCanonPlan->SellSlot == CaseMappedPlan->SellSlot
+                && CaseCanonPlan->BuyItemId == CaseMappedPlan->BuyItemId)));
+        auto CaseCanonFrame = CaseBase;
+        CaseCanonFrame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger"))};
+        auto CaseMappedFrame = CaseCanonFrame;
+        for (auto& Place : CaseMappedFrame.POIs)
+        {
+            if (Place.MonsterId == TEXT("monster_scavenger"))
+            {
+                Place.MonsterId = LDOpponentFrame::CanonicalId(FName(TEXT("Monster_Scavenger")));
+            }
+        }
+        FLDOpponentPolicyState CaseCanonState, CaseMappedState;
+        const auto CaseCanonDecision = LDOpponentPolicy::Decide(CaseCanonFrame, C, CaseCanonState);
+        const auto CaseMappedDecision = LDOpponentPolicy::Decide(CaseMappedFrame, C, CaseMappedState);
+        bGood &= Test.TestTrue(TEXT("A camp monster printed as Monster_Scavenger still owns its visible member, which is attacked as for the content id"),
+            CaseCanonDecision.Mode == ELDOpponentMode::Farm && CaseCanonDecision.Body.Kind == ELDOpponentBodyKind::AttackUnit
+            && CaseCanonDecision.Body.Handle == CaseCanonFrame.Units[0].Handle
+            && CaseMappedDecision.Mode == CaseCanonDecision.Mode && CaseMappedDecision.Body.Kind == CaseCanonDecision.Body.Kind
+            && CaseMappedDecision.Body.Handle == CaseCanonDecision.Body.Handle && CaseMappedDecision.Body.POI == CaseCanonDecision.Body.POI);
+    }
 
     FLDCombatOwnerView Combat;
     Combat.bHasBody = true;
@@ -989,6 +1048,14 @@ bool RunProjections(FAutomationTestBase& Test)
         && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
         && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
         && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && !Self.Sources[2].bReady);
+    {
+        auto Cased = Combat;
+        Cased.Entries[0].DefinitionId = TEXT("Active_Arc_Bolt");
+        FLDOpponentSelf CasedSelf;
+        bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
+            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
+            && CasedSelf.Sources[0].DefinitionId == TEXT("active_arc_bolt"));
+    }
     Combat.Statuses.Reset();
     bGood &= Test.TestTrue(TEXT("Rooted without a timed status still blocks movement now"),
         LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.MoveBlockedUntilMs > 10000);
