@@ -36,11 +36,16 @@ GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径�
 网络 Generation 通过 GameInstance 的有界单调分配器取得，LedgerMatch 单独生成并显式绑定。
 `PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与三真人容量；
 不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。
-前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。当前真实 Demo 世界已接入，但完整玩法提供者未齐，
-Start 明确拒绝，不会借旧目录或 profile 进入游戏。
+前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。正常开局由 `LDMatchProviders` 门禁：
+Combat、Progression（含最终等级读取）、Shop、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
+Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lobby 的 StartBlocker 与 Start 回执。
+提供者以各自翻译单元中的静态 `FRegistrar` 登记钩子（Prepare/MatchClosed/MatchReset/LifeCommitted/
+ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于玩法已正确接通。
 
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
-发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量或请求开始。
+发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
+`EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
+`ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Ready 是设置布尔值，不是服务器 Toggle。准备变化只推进公共发布版本；
 成员/AI 数量改变才推进结构版本并清除所有真人 Ready。
 `FLDSessionRequestWindow` 只保存当前在途请求、最近终态及处理水位：
@@ -61,6 +66,12 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   不包含 LedgerMatch、身体坐标或私有构筑。AI 名额尚不是实际 AI 控制器。
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
+- `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与圈状态来源：阶段、开放时刻、圈状态
+  （未开放/无人/独占/争夺）、唯一占领者、CaptureEpoch 及独占起点/完成时刻；不列圈内人数、
+  保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
+  按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
+  `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置。
+  三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
 
 详细可见性机制见 [视野与 UI](VISION_AND_UI.md)。
@@ -116,9 +127,20 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 本局不重连，人数和 AI 行为按 App Spec；纯控制接口不等于已实现自主核心循环。
 
 占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
-结果提交须核对当前 Match、已封闭的时间边界和占领段，在同一调用栈锁定一次结果、
-转 Results/推进 GateRevision 后才清理和发布；重复提案只重放既有结果。
-当前的 phase/GateRevision/scope 基础并不代表完整结果 CAS 或连续独占归约已经完成。
+`FLDCaptureReducer` 是唯一连续独占归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
+（Joined/Respawned 带保护截止与初始支持样本、ProtectionEnded、Died 带 DeathKey 与击杀者），
+Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptureCircle::Extract` 求出带真实时刻的
+进出（连续子段求交、支持面变化与不连续修正只取前后态；脚点在闭圆盘内且站在注册地面才算占用）。
+事实按提交序入队，到其整数桶封闭时才按原始秒、阶段、提交序归约，同一边界内的进出/死亡/保护变化
+全部保留；保护者既不占也不争，开放前不计时，Solo 起点取向上取整桶，完成时刻 `DueAtMs` 由驱动切步。
+驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
+`ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
+`ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。
+漏切完成边界、保护到期未收到 ProtectionEnded、缺运动证据或结果行无法冻结都是明确故障，不默认判胜。
+普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
+`ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
+`RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
+丢弃 AI 与已离局记录后为在线真人换新 Generation/LedgerMatch 并清 Ready 与会话窗口。
 
 ## 扩展与检查
 
@@ -129,6 +151,7 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 当前入口：`RunResetCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
-Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation` 和
+Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
+`Lockdown.Rules.DemoCapture`（归约器连续性/保护与契约故障、圈几何、公共读模型、提供者门禁）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。

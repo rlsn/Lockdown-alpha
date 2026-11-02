@@ -60,16 +60,10 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
     AuthorityStep = {MatchContext, 1, 0, 0};
     AuthorityBoundary = {MatchContext, 1, 0};
     Vision=GetWorld()->SpawnActor<ALDVisionDirector>(Spawn);
-    auto RetirePreparedDomains=[&]
-    {
-        if (Vision) { Vision->Destroy(); Vision=nullptr; }
-        if (Combat) { Combat->Destroy(); Combat=nullptr; }
-        bAuthorityInitialized=false;
-    };
     if (!Vision || !Vision->BeginMatch(MatchContext,Error))
     {
         if (Error.IsEmpty()) { Error=TEXT("The current observation owner could not initialize."); }
-        RetirePreparedDomains();
+        RetireMatchDomains();
         return false;
     }
     for (const auto& Pair : Contenders)
@@ -77,17 +71,36 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         if (!IsMemberPresent(Pair.Value.Session)) { continue; }
         if (!Vision->RegisterObserver(Pair.Value.Session,Pair.Key.Get(),Error))
         {
-            RetirePreparedDomains();
+            RetireMatchDomains();
             return false;
         }
+    }
+    // Capture/endgame: the unique circle and the approved opening/hold for this match.
+    if (!InitializeCaptureMatch(Error))
+    {
+        RetireMatchDomains();
+        return false;
     }
     bAuthorityInitialized = true;
     if (!PublishAuthorityClock(Error))
     {
-        RetirePreparedDomains();
+        RetireMatchDomains();
         return false;
     }
     return true;
+}
+
+void ALDGameMode::RetireMatchDomains()
+{
+    // Per-match domain actors. Each domain retires here, both after a failed initialization
+    // and when RetireAuthorityCore ends a match for the next Lobby generation.
+    if (Vision) { Vision->Destroy(); Vision=nullptr; }
+    if (Combat) { Combat->Destroy(); Combat=nullptr; }
+    CaptureReducer.Reset();
+    CaptureCircle={};
+    CaptureTracks.Reset();
+    PendingCapture.Reset();
+    bAuthorityInitialized=false;
 }
 
 bool ALDGameMode::AvailableAuthorityTime(int64& ThroughMs, FString& Error)
@@ -671,4 +684,5 @@ void ALDGameMode::FaultAuthority(const FString& Error)
     }
     UE_LOG(LogTemp, Error, TEXT("LD_DEMO_AUTHORITY_FAULT %s"), *Error);
     PublishLobby();
+    PublishPublicMatch();
 }

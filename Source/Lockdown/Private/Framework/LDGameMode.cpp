@@ -34,11 +34,44 @@ void ALDGameState::OnRep_DemoClock()
     { UE_LOG(LogTemp,Warning,TEXT("LD_CLOCK_PROJECTION_REJECTED %s"),*Error); }
 }
 
+void ALDGameState::OnRep_PublicMatch()
+{
+    FString Error;
+    const auto Result=LDCapture::AcceptPublicMatchView(PublicMatch,LatestPublicMatch,Error);
+    if (Result==ELDLobbyProjectionResult::Accepted) { return; }
+    PublicMatch=LatestPublicMatch;
+    if (Result==ELDLobbyProjectionResult::Malformed)
+    { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+}
+
+void ALDGameState::OnRep_MatchResult()
+{
+    FString Error;
+    const auto Result=LDCapture::AcceptResultView(MatchResult,LatestMatchResult,Error);
+    if (Result==ELDLobbyProjectionResult::Accepted) { return; }
+    MatchResult=LatestMatchResult;
+    if (Result==ELDLobbyProjectionResult::Malformed)
+    { UE_LOG(LogTemp,Warning,TEXT("LD_MATCH_RESULT_REJECTED %s"),*Error); }
+}
+
+void ALDGameState::OnRep_KillFeed()
+{
+    FString Error;
+    const auto Result=LDCapture::AcceptKillFeed(KillFeed,LatestKillFeed,Error);
+    if (Result==ELDLobbyProjectionResult::Accepted) { return; }
+    KillFeed=LatestKillFeed;
+    if (Result==ELDLobbyProjectionResult::Malformed)
+    { UE_LOG(LogTemp,Warning,TEXT("LD_KILL_FEED_REJECTED %s"),*Error); }
+}
+
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ALDGameState,DemoLobby);
     DOREPLIFETIME(ALDGameState,DemoClock);
+    DOREPLIFETIME(ALDGameState,PublicMatch);
+    DOREPLIFETIME(ALDGameState,MatchResult);
+    DOREPLIFETIME(ALDGameState,KillFeed);
 }
 
 ALDGameMode::ALDGameMode()
@@ -112,6 +145,7 @@ void ALDGameMode::StartPlay()
             UE_LOG(LogTemp,Error,TEXT("LD_DEMO_WORLD_ENTRY_REJECTED %s"),*EntryFailure);
         }
         PublishLobby();
+        PublishPublicMatch();
     }
 #if WITH_DEV_AUTOMATION_TESTS
     else { LDDemoTests::ProbeRejectedEntry(*GetWorld()); LDDemoTests::StartFrontendSettingsProbe(*GetWorld()); }
@@ -169,8 +203,24 @@ void ALDGameMode::Logout(AController* Exiting)
             }
             LobbyHost.Reset();
         }
+        // An ordinary leave is not a death: no reward, no automatic win. The body leaves now,
+        // the reducer receives the leave at its actual receipt instant and the result row stays.
+        const bool InMatch=IsGameplayWriteOpen(MatchContext);
+        const auto* LeavingLife=Lives.Find(Session);
+        FLDLifeNotice Left;
+        Left.Match=MatchContext;
+        Left.Body=LeavingLife?LeavingLife->Body:FLDCombatBodyRef();
+        Left.Change=ELDLifeChange::Left;
+        Left.OccurredAtMs=AuthorityNowMs;
         RemoveLifeBinding(Session);
         Record->State.bActive=false;
+        if (MatchPhase!=ELDMatchPhase::Lobby) { Record->bLeft=true; }
+        if (InMatch)
+        {
+            QueueLeaveFact(Session);
+            if (const auto* RetiredLife=Lives.Find(Session)) { Left.LifeRevision=RetiredLife->Revision; }
+            NotifyLifeCommitted(Left);
+        }
         if (Vision) { Vision->UnregisterObserver(Session); }
         if (MatchPhase==ELDMatchPhase::Lobby)
         {
