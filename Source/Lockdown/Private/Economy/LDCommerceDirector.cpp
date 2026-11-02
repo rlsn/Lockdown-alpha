@@ -6,7 +6,6 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDVendorDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Region/LDRegionDefinition.h"
@@ -23,7 +22,7 @@ bool ALDCommerceDirector::TakeToken(FClient& C){const double Now=GetWorld()->Get
 bool ALDCommerceDirector::Valid(ALDPlayerController* PC,const FClient& C) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);
-    return C.View.Session.IsValid()&&O&&O->Match==C.View.Match&&O->Life==C.View.Life&&S&&C.Damage==S->LastDamage&&C.Dealt==S->LastDealt&&Eligible(PC,C.View.Service)&&(!M->Trade||!M->Trade->HasSession(PC));
+    return C.View.Session.IsValid()&&O&&O->Match==C.View.Match&&O->Life==C.View.Life&&S&&C.Damage==S->LastDamage&&C.Dealt==S->LastDealt&&Eligible(PC,C.View.Service);
 }
 void ALDCommerceDirector::Reply(ALDPlayerController* PC,uint32 Id,const FString& Reason)
 {
@@ -36,7 +35,7 @@ void ALDCommerceDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,
 {
     auto& C=Clients.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);if(!Token||Token<=C.LastToken||Token<=C.ClosedThrough){return;}C.LastToken=Token;C.View=FLDCommerceView();C.View.Token=Token;C.View.Service=Service;
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC,Service)){Reply(PC,0,TEXT("Approach this official service within 120 cm, alive/unprotected, body sight and no conflicting action"));return;}
-    if(M->Trade){M->Trade->CancelFor(PC);}if(M->Vendor){M->Vendor->Invalidate(PC);}if(M->Bank){M->Bank->Invalidate(PC);}
+    if(M->Vendor){M->Vendor->Invalidate(PC);}if(M->Bank){M->Bank->Invalidate(PC);}
     const auto* S=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));C.Damage=S->LastDamage;C.Dealt=S->LastDealt;C.View.Session=FGuid::NewGuid();C.View.Match=Match;C.View.Life=Life;Reply(PC,0,TEXT("Live local quote · One unit per acknowledged Buy/Sell"));
 }
 void ALDCommerceDirector::Close(ALDPlayerController* PC,uint32 Token){auto& C=Clients.FindOrAdd(PC);C.ClosedThrough=FMath::Max(C.ClosedThrough,Token);if(C.View.Token<=Token){C.View.Session.Invalidate();}}

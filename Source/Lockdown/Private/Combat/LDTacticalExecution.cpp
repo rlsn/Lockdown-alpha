@@ -9,7 +9,6 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
@@ -85,7 +84,7 @@ bool ALDCombatDirector::RequestTactical(ALDCharacter* Body,ELDSkill Skill,uint32
     if(Skill==ELDSkill::RemedyBind&&Target!=Body&&(!Consent||!Consent->bAidConsent)){return Reject(TEXT("Aid consent required"));}
     const auto* CasterPC=Cast<ALDPlayerController>(Body->GetController());const auto* OwnerState=CasterPC?M->StateFor(const_cast<ALDPlayerController*>(CasterPC)):nullptr;
     if(Skill==ELDSkill::RemedyBind&&Target==Body&&LDTactical::Milliseconds(Now)<FMath::Max(S->Tactical.MajorReadyAt,OwnerState?OwnerState->MajorProtectionReadyAt:int64(0))){return Reject(TEXT("Major protection family ready after eight seconds"));}
-    auto* PC=Cast<ALDPlayerController>(Body->GetController());if(PC){PC->Navigation->Stop();if(M->Trade){M->Trade->CancelFor(PC);}M->Objectives->Interrupt(PC,Now,true);}
+    auto* PC=Cast<ALDPlayerController>(Body->GetController());if(PC){PC->Navigation->Stop();M->Objectives->Interrupt(PC,Now,true);}
     Body->GetCharacterMovement()->StopMovementImmediately();
     S->bAttackOrder=false;S->Action=9;S->Skill=Skill;S->SkillToken=Token;S->LastCoreToken=Token;S->CoreEndsAt=LDTactical::Milliseconds(Now)+D->Windup;
     S->CorePoint=Point;S->CoreDirection=Direction;S->CoreBuildRevision=B->Revision;S->CoreItem.Invalidate();S->Target=Target;S->CoreTargetLife=StateFor(Cast<ALDCharacter>(Target))->Identity;S->SkillAnchor=Body->GetActorLocation();S->ImpactAt=S->CoreEndsAt/1000.;S->Snapshot=*B;

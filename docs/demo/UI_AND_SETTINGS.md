@@ -18,6 +18,10 @@
 一个 Root 管导航与输入层；HUD、属性/选择、商店、设置和小地图各消费窄只读投影。
 现有脚手架可复用，但菜单、名单、三选一、两装备、公开击杀、完整结果及设置仍有实质缺口。
 
+校园换皮的玩家可见中文术语只引用 [App Spec §1.2](../APP_SPEC.md#12-玩家显示术语)，
+角色/技能/装备/状态名称只引用内容报告当前目录；下文 HP/MP、状态与拒绝码等技术标识不改。
+第一批仅更新文档，不表示控件、显示键、载荷或资产已经换皮。
+
 以下是本轮由主协调者转达的**用户已确认规则**，不是本文的数值建议：
 
 | 边界 | UI 必须表达的唯一行为 |
@@ -101,7 +105,7 @@ Settings 是当前页面的主面板；属性、Choices、Shop 也各占同一�
 
 | 页面/区域 | 必须显示与可执行操作 | busy / 失效 / 返回 |
 | --- | --- | --- |
-| 主菜单 | Start、Settings、Exit，产品版本同 `DefaultGame.ini` 的 ProjectVersion；一基础角色，不展示职业选择 | Exit 明确确认；Settings 返回原菜单。版本读失败报缺配置，不显示硬编码“正确版本”。 |
+| 主菜单 | 对外标题“谁是校园最强阴人王”；Start、Settings、Exit，产品版本同 `DefaultGame.ini` 的 ProjectVersion；一基础角色，不展示职业选择 | Exit 明确确认；Settings 返回原菜单。版本读失败报缺配置，不显示硬编码“正确版本”。 |
 | Start | 创建/加入同面板；本人名称；Host 监听端口、Join IP 与端口；返回 | 本地格式校验不代替准入。AI 数仅在 Lobby 修改，不保存第二份建房配置。地址不写跨局战力存档。 |
 | Connecting | 当前端点、连接状态、取消；输入框仍可回看 | 同 attempt 禁双击新建；取消使该 attempt 失效。迟到成功清理对应旧连接，迟到失败不能把新世界退出。 |
 | 失败 | 名称/端口/地址格式、不可达/超时、RoomFull、MatchAlreadyStarted、产品/协议/内容不兼容、旅行/加载失败分别解释 | 保留本人编辑内容，允许修改后显式重试；不自动重连、不回落旧 profile、不显示空成功 Lobby。 |
@@ -403,7 +407,7 @@ IssuedCooldownId/ItemInstance 为 FGuid；观察 wire 修订仍沿世界的独�
 | OldMatch / OldLife / 阶段不匹配 | 取消相应旧 UI 资格并显示当前状态；死亡选卡取当前 Life+ExpectedLifePhase 再确认 | 不能因为候选跨死亡保留就接受旧 Alive 请求；不能清掉服务器仍保留的机会。 |
 | TargetUnavailable / InvalidGround / Direction / OutOfRange / Blocked | 来源按钮附近显示精简原因；TargetUnavailable 不细分隐藏对象是否存在/死亡 | 不沿隐藏位置追踪、不靠服务器错误反查目标；不把路径失败当到达。 |
 | NoSource / NoActiveEffect / CD / InsufficientMana / ControlBlocked | 明确空槽、无主动、冷却、低蓝、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
-| `Rejected + ProtectionRemoved` | 同时显示“施法失败：法力不足”等执行结果和“复活保护已解除”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交 MP/CD，但真实保护变化不回滚。 |
+| `Rejected + ProtectionRemoved` | 同时显示“施法失败：胆量不足”等执行结果和“复活保护已解除”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交 MP/CD，但真实保护变化不回滚。 |
 | InsufficientGold / EquipmentFull / OutsideRange / Dead | 说明不足、先卖后买、返回范围或死亡不可交易；原子失败无钱物变化 | 不自动出售/替换、不免费造物、受伤不套旧书店关店规则。 |
 | NumericUnderflow / NumericDomain（成长/交易） | 明确数值域非法、本次业务零提交；保留原候选/钱物并按域结果恢复可操作状态 | 不把下溢/非法结果钳成 0 后显示 Applied，不部分消费机会/金额/装备。 |
 | RequestConflict / ReceiptExpired / ServiceUnavailable / AuthorityFault | 明确拒绝、合法重读/查询或返回菜单；内部细节留服务器日志 | 不吞异常、不无限等待按钮；回执缓存清理不能重新执行旧交易。 |
@@ -526,18 +530,18 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 
 | 精确落点 | 处置与消费者 | 替换前提/顺序 |
 | --- | --- | --- |
-| `Public\UI\LDWidgets.h`、`Private\UI\LDWidgets.cpp`：`ULDCommandButton/ULDPanel/LDWidgets::Text/Button/Panel/PanelFocusTargets/MovePanelFocus` | R13 局部复用 native 构造/Tab 焦点；改造 capture/子确认；拟增 Portrait/ContentIcon 原创占位绘制 | 各 Panel/HUD 改接唯一 Root 输入层；旧 Trade 唯一消费的 OfferTray 在无新消费者时真删，不留备用。 |
+| `Public\UI\LDWidgets.h`、`Private\UI\LDWidgets.cpp`：`ULDCommandButton/ULDPanel/LDWidgets::Text/Button/Panel/PanelFocusTargets/MovePanelFocus` | R13 局部复用 native 构造/Tab 焦点；改造 capture/子确认；拟增 Portrait/ContentIcon 原创占位绘制 | 各 Panel/HUD 改接唯一 Root 输入层；不留无消费者的备用控件。 |
 | `Public\UI\LDUIRoot.h`、`Private\UI\LDUIRoot.cpp` | R13/N01/N07 改造根；D01/D16 删除 Laborer/Rogue/Scholar、ToggleSensor/Fixtures/FixtureBack/SeedSeal、Defence 旧函数组及 delegate/UPROPERTY、旧 starters/Heart/work/status 图 | 先接菜单/生命周期与 TopInputLayer；旧反射仍可加载时 C3 重存 WBP，再删旧事件/成员；不留空旧方法。 |
-| `Public\UI\LDHUD.h`、`Private\UI\LDHUD.cpp` | 改成二+二、本人状态/圈/通知/唯一结果；删 TradeButton/ContextButton、工作/shortage/source 数、六+四构造及 RulesVersion/profile/map-name 分派 | Controller、Root hit-test、probe 同步改接；来源/结果投影先到，旧计时/死亡税 UI 再真删。 |
+| `Public\UI\LDHUD.h`、`Private\UI\LDHUD.cpp` | 改成二+二、本人状态/圈/通知/唯一结果；删 ContextButton、工作/shortage/source 数、六+四构造及 RulesVersion/profile/map-name 分派 | Controller、Root hit-test、probe 同步改接；来源/结果投影先到，旧计时/死亡税 UI 再真删。 |
 | `Public\UI\LDHUDModel.h`、`Private\UI\LDHUDModel.cpp`、`Private\UI\LDV08HUDModel.cpp` | R13 抽取必要 `LDHUD::Action` 到唯一 HUDModel，删除 `LDV08HUDModel.cpp`；删 PublicOpening/EconomyStep 旧规则、手工属性/范围常量和族 CD 合并 | BindingView/属性/公共投影稳定后替换消费者；没有 `LDV08HUDModel.h`，不虚列文件。 |
 | `Public\UI\LDDevelopmentPanel.h`、`Private\UI\LDDevelopmentPanel.cpp` | R13/N04 原位 Attributes/Choices；D15/D16 删 `FLDBuildPlan Draft`、SelectedBook、旧训练/准备/读书/职业 Operation、StartConfirm/StopConfirm；改用 CommandButton 后删 `ULDDevelopmentButton::Route` 及旧反射类 | 先 QueueChoice/查询/当前 LifePhase；direct probe Choose/Preview 消费同步迁移；C3 后真删旧类型，不保留第二构筑编辑器。 |
 | `Public\UI\LDInventoryPanel.h`、`Private\UI\LDInventoryPanel.cpp` | R09/R13/N05 收敛两装备+Shop；删 Sort/Filter/SearchChanged、Use/AskDrop/ConfirmDrop/HitCell、背包拖拽/quick、十一绑定、所有旧 service tab 字段 | 先领域原子 Buy/Sell/显示条款，后拆旧页/RPC/成员；保留满槽先卖后买，不以拖拽自动替换。 |
-| `Private\UI\LDInventoryAcquisitionPanel.cpp`、`LDInventoryBankPanel.cpp`、`LDInventoryCommercePanel.cpp`、`LDInventoryProductionPanel.cpp`、`LDInventoryTradePanel.cpp`、`LDInventoryServices.cpp` | D02/D04/D05/D16 **六文件真删**；包括 Build/Refresh/Review/Submit、ShowService/RefreshServices 及 header 中 AcquisitionPlan/CacheRows/Bank/Commerce/Production/Trade/Services/ServiceTabs | 提取必要报价二次确认/模态焦点到单 Shop；删 Panel 构造、Controller token/cache/pending、RPC/反射引用，而非隐藏页签。B02 可独立，不等平衡值。 |
+| `Private\UI\LDInventoryAcquisitionPanel.cpp`、`LDInventoryBankPanel.cpp`、`LDInventoryCommercePanel.cpp`、`LDInventoryProductionPanel.cpp`、`LDInventoryServices.cpp` | D02/D05/D16 **五文件真删**；包括 Build/Refresh/Review/Submit、ShowService/RefreshServices 及 header 中 AcquisitionPlan/CacheRows/Bank/Commerce/Production/Services/ServiceTabs | 提取必要报价二次确认/模态焦点到单 Shop；删 Panel 构造、Controller token/cache/pending、RPC/反射引用，而非隐藏页签。 |
 | `Public\UI\LDControlSettings.h`、`Private\UI\LDControlSettings.cpp`、`Public\UI\LDControlsPanel.h`、`Private\UI\LDControlsPanel.cpp` | R13 复用 Rebind/Valid/Save 职责，补 §8；D16/D24 删 Profile、HybridDefaults/MigrateHybrid/MigrateTactical、旧槽/profile fallback、Rules8 说明和独立导航 bool | 单对象/单 schema 与显式 LoadResult 先接；旧 migration tests 随消费者迁，隔离保存不回落真实槽。 |
 | `Public\UI\LDMinimap.h`、`Private\UI\LDMinimap.cpp` | R12/R13/N07 改用 ReadObservedFrame/WorldRevision/Footprint；删旧 60×40/Explored/固定六 site、独立鼠标按键判断 | 世界唯一协议与输入 capture 先到；不增 LastSeen，不凭亮格填单位；death camera 只静态。 |
 | `Public\Framework\LDPlayerController.h`、`Private\Framework\LDPlayerController.cpp`、`Private\Framework\LDPlayerInput.cpp` | R02/R13/N01/N06/N07 保留 caller/owner cursor/动态 mappings；改 receipt 和失效；D16/D24/D27 删静态 IA/旧 SkillInputContext、V05/旧 context/ward/fixture 分派、无消费者 flags/RPC aliases；删空 `EndSkillGesture` | 输入、领域回执、Root 同批；保留 Match/Life/Order/Epoch，不用恒真 profile helper。 |
 | `Private\Framework\LDPlayerDevelopment.cpp`、`LDPlayerInventory.cpp`、`LDPlayerVendor.cpp` | 原位 Choice/本人装备/Shop/query 转发；删全份 build draft、quick/read/drop/BuyVendorBook、空 `SetInteractionHeld` 与旧调用 | Combat 装备主动仍独立，不把 Vendor Pending 或会话变成其准入；先稳定窄命令，再删旧枚举/成员。 |
-| `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp`、`LDPlayerTrade.cpp` | D02/D04/D05/D16 **四文件真删**；Controller 相应 include、UFUNCTION、View/cache/token/friend、`InventoryPending` 旧多服务聚合一并去除 | 保留所需事务校验到原 Ledger/Vendor/Inventory，不能留下无服务的 Server 调用静默 return。 |
+| `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp` | D02/D05/D16 **三文件真删**；Controller 相应 include、UFUNCTION、View/cache/token/friend、`InventoryPending` 旧多服务聚合一并去除 | 保留所需事务校验到原 Ledger/Vendor/Inventory，不能留下无服务的 Server 调用静默 return。 |
 | `Public\Framework\LDGameInstance.h`、`Private\Framework\LDGameInstance.cpp` | R13/N01 改 attempt/本地偏好 flush；保留 WorldContext/delegate 配对；D12/D27 删除 ResetEvidence/DevelopmentResetEvidence/B90ResetEvidence 旧 probe 依赖 | 生命周期负责 Generation；B03 删世界 checkpoint 不触碰本地设置保存。 |
 
 外围 UI 也属于闭包，不在其他目录留备用入口：
@@ -578,11 +582,11 @@ Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstr
 | `Private\Tests\LDDevelopmentProbe.cpp`；`Scripts\CaptureInputUI.ps1` | 抽焦点/尺寸/截图设施，迁 Start/Lobby/Choices/Replacement/Shop/Settings/Result；去旧授予/死亡税/场景 enum。截图存在不证明视觉/真实输入；offscreen/nosound 不验证声音。 |
 | `Public\Tests\LDB86Probe.h`、`Private\Tests\LDB86Probe.cpp/LDB86RulesTests.cpp`；`Scripts\RunB86Check.ps1/CaptureB86UI.ps1/CheckB86Evidence.py` | D27/D31 真删旧链；将有效 owner readiness/来源/CD/几何断言迁当前 HUD/Input 测试，先确保隔离设置存储，不运行旧覆盖真实槽的路径。 |
 | `Public\Tests\LDEconomyUIProbe.h`、`Private\Tests\LDEconomyUIProbe.cpp`；`Scripts\RunEconomyUICheck.ps1` | 通用确认/焦点/原子断言迁新场景后整删。旧 Context 重绑断言与当前注册已不符，不能把这个静态发现记为本次测试失败。 |
-| `Private\Tests\LDTradeRulesTests.cpp`、`Public\Tests\LDTradeProbe.h`、`Private\Tests\LDTradeProbe.cpp`；`Scripts\RunTradeCheck.ps1`、`RunTests.ps1` 的 TradePrivacy 强制项/旧计数 | B02 同批迁必要 Shop/Choice 隐私/模态/重放断言后真删 Trade；RunTests 按当前必要用例集合核对，保留 failed/notRun/inProcess/缺报告失败，不是单纯降数量。 |
+| `Scripts\RunTests.ps1`、`CheckRuleReport.py`、`TestRuleReport.py` | 按明确的当前必需用例集合核对，并校验其与源码注册一致；迁移 UI/Shop/Choice 断言时同步维护，保留 failed/notRun/inProcess/缺报告失败，不用成功数量掩盖缺测。 |
 
 顺序按每个闭包的 P0–P5：先列生产消费/反射 → 原领域/窄投影与唯一输入改接 →
 迁移存活资产/生成配置 → 真删旧文件/字段/RPC/页签/探针 → 当前断言/手册同步 →
-本批验证与最终总门禁。B01 可先做菜单/准入失败合同，B02/B03 不等无关平衡参数；
+本批验证与最终总门禁。B01 可先做菜单/准入失败合同，基础闭包不等无关平衡参数；
 完整 UI 随 I1–I7 各域接线，I8 复核全链，不等最后才做 HUD，也不要求先可玩旧模式才能删闭包。
 本方案不新增运行源文件/模块，新增职责落在上述现有文件；本次实际新增只有本报告。
 

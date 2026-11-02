@@ -10,6 +10,7 @@
 | `Character\LDCharacter` | 原生身体、SpringArm/Camera、朝向与表现 |
 | `Character\LDCharacterMovementComponent` | CharacterMovement 扩展及 saved move 状态 |
 | `Navigation\LDNavigationComponent` | 路径、移动命令、确认、取消、心跳和镜头 |
+| `Navigation\LDDemoNavigationSystem`、`Region\LDMapRegistry` | 唯一 Demo 的已批准 capsule/NavAgent 配置、当前世界修订、局部地面与完整路径查询 |
 | `Framework\LDPlayerInput.cpp` | 输入动作、指向、菜单路由 |
 | `UI\LDControlSettings`、`LDControlsPanel` | 映射注册、冲突检测、保存与本地偏好 |
 | `World\LDB91SourceControls.cpp` | 完整地图的来源动作和指针路由 |
@@ -25,16 +26,54 @@
 运动上限、碰撞、斜坡、冲刺和位移能力仍需通过该身体的合法运动路径。
 镜头平移或预览不能改变人物位置、攻击距离或服务器判断。
 
+Demo 身体的 `ConfigureDemoMovement` 从已验证内容快照读取碰撞半径与基础移速，
+沿用现有身体 half-height 并更新同一 CMC/NavAgent；不把旧 PrototypeTuning 当作新 Demo 默认值。
+导航系统在原生数据注册前安装同一 agent，生成器用带明确配置的创建入口，
+不能先注册默认 agent 再改半径，否则注册索引与保存的数据会不一致。
+Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发出的当前
+`FLDAuthorityStep`/Motion permit 调用 `AdvanceAuthorityMovement`，沿原生
+`ControlledCharacterMove/PerformMovement` 执行一次；同一 step/body 完成后不能再积分。
+普通客户端仍使用原生预测、saved moves、packed moves 和校正。
+服务器的 packed 处理保留原生时间戳验证及 ACK/error 路径，但其中的 `MoveAutonomous`
+不另做第二次权威积分；`ServerShouldUseAuthoritativePosition` 禁止以客户端位置覆盖服务器结果。
+这不是第二个位置积分器或 AI Controller 接管。
+
+`LDCharacterMotion.cpp` 在同一 CMC 的原生 walking/falling、sweep、StepUp、接地和模式入口
+记录 `FLDNativeMotionBatch`。移动片段保留实际首末脚点和原生 hit-time 分数；
+floor 高度调整不被分摊成自愿移动时间。StepUp 的失败事务撤销整个试探前缀；
+walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 virtual `RevertMove`，
+核对实际恢复的姿态/支持面后撤销记录，不仅按帧末位置猜测。
+`CurrentFloor` 和实际模式更新产生独立支持样本，失去支持、原地重新落地不能漏报。
+出现未记录的位置写、缺时间区间、未解回滚或容量耗尽时明确失败，不补造一条首末直线。
+
+核心按当前 Body/stream/Step/世界修订接纳不可变批次，检查记录序列、时间及空间连续性；
+每个身体最多保留 256 个未消费批次，每批最多 128 条记录，超限在推进前背压或显式故障，
+不静默覆盖前一帧。精确前缀确认只释放已读记录，错误身体/未来前缀不能删除历史；
+身体退休后已接纳的证据仍保留在核心记录中，直到消费。
+当前 `RunDemoCoreCheck` 的 DEV 审计消费者明确读取后确认该前缀；普通 Start 仍因真实领域消费未齐而关闭。
+native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
+都不是最终 Motion Fence、Sealing 或占领完成证明；圈穿越、实际 Combat 因果消费、
+root motion/击退全链和全部提供者封桶仍须按 CT06 接通。旧 dash 入口仍明确拒绝。
+
 ## 命令与取消
 
 `FLDMoveIdentity` 包含 `Match`、`Life`、`Order`、`Epoch`；
 拥有连接隐含在组件的 Controller 中，不接受客户端指定另一个所有者。
 
-1. `Navigate` 建立新 order，发送目标表面或已观察目标句柄。
-2. `ServerOrder` 校验生命、顺序、边界与静态可行走性，求合法路径/接近点。
+1. `NavigateGround` 建立新 order，发送脚点和显式注册 SurfaceHint；当前只接地面订单。
+2. `ServerOrder` 先用核心当前 BodyRef/拥有 Controller 核对身份和顺序，再进入有限待处理窗口；
+   实际合法地面/完整路径及激活由 driver 的 Actions permit 消费。
 3. `ClientOrder` 只接受当前身份的结果，避免迟到确认重启已取消路线。
-4. `Stop` 提升 order 和取消 epoch，同时清空本地跟随与服务器命令。
-5. `ResetLife` 不倒退序列号；旧生命消息不能使新身体继续走动。
+4. `Stop` 提升 order 和取消 epoch，清本地预测跟随；服务器在获准 Actions 阶段停止，
+   不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
+5. `ResetLife` 不倒退序列号；新的 Owner 生命投影先发布再清理导航，不发送一条伪装成用户意图的
+   新生命 Stop，也不等下一次 Tick 清掉已经收到的新生命首单。
+
+已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。
+接收时间由核心按同一比赛原点生成 NotBefore 审计桶，不能把帧间迟到命令放进更早补进的运动区间。
+心跳只刷新当前已激活 identity，不创建订单；序列与取消计数耗尽明确失败，不回绕。
+`Enabled` 不再以旧 UI profile 开免验证路径；当前观察目标、A/追击和商店订单仍待接线，
+不是以旧 Site/Observed 分支充当 Demo 行为。
 
 目标句柄由相应世界的观察服务重新解析。地面点击可以使用静态地图信息，
 但动态目标必须当前获准可见；不能以寻路预览、自动追踪或避障反馈泄露隐藏单位。
@@ -45,9 +84,13 @@
 不可走、层高有歧义、无完整路径或长期无进展，都应停止并给出明确失败，
 不能把 partial path 当作成功到达，也不能无限重算或穿过已生效的阻挡。
 
-`TickComponent` 维护沿路线进展、心跳和 body 生命周期。服务器保留独立的命令身份和合法性校验；
+服务器沿路线进展和重算在 `AdvanceAuthorityMotion/ProcessAuthorityOrders`，
+`TickComponent` 只承担拥有者预测、心跳和镜头。当前真实 CMC `CurrentFloor` 必须对应注册地面；
+无有效支持面不借瞄准 SurfaceHint 向下补接地。服务器保留独立的命令身份和合法性校验；
 原生 correction 不是可以跳过命令验证的理由。环境碰撞更新与路径重算的关系见
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
+`FindPublicApproach` 仅为已注册商店/占领点求合法范围内的完整路径，范围取同一内容定义；
+不走入被阻挡的商店中心，不增加商店 LOS 条件，也不授予成交或占领资格。
 
 ## 输入所有权
 
@@ -75,9 +118,72 @@
 本地按键、文字缩放与镜头偏好通过 `LDControlSettings` 保存，不能和对局金币、技能冷却等混为一份状态。
 保存失败需反馈，配置迁移不能默默给多个动作绑定同一个按键。
 
+## 本地设置与显示试用
+
+`ULDGameInstance::GetLocalControlSettings` 持有应用中的本地偏好，Controller 引用同一对象。
+当前消费者仍有显式的 6/7/8 注册表，GameInstance 按注册表保留对象，避免旅行重建 Controller
+或切换已有入口时丢失未保存值；这不是 Demo 单一注册表已经接通的声明。
+`Defaults` / `HybridDefaults` 仍描述现有消费者，不能当作已批准的 Demo 按键或镜头数值。
+不再自动迁移注册表、调换冲突键或从另一个文件回落。
+
+`LoadLocalSettings` 区分 `Loaded`、`Missing`、`UnsupportedSchema`、`Corrupt`、
+`ReadFailed` 和 `InvalidStorage`。缺文件可使用当前默认值，但不会称为已保存；
+损坏或不支持的文件保持原样，菜单与设置页提示显式恢复。
+只有绑定不合法而镜头/文字字段合法时，恢复保留这些无关偏好，当前绑定仅用于本次会话；
+确认替换之前，通用 flush 不能覆盖原文件。`Key` 只解析当前注册表中的动作。
+
+本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
+schema、显式注册表、绑定、edge/follow、文字比例和 zoom 是完整正向清单。
+当前文件 schema 是 4，与产品/网络版本无关；旧通用 SaveGame 格式返回不支持，不静默覆盖。
+写入先验证字段，再写同目录临时文件并实际回读，使用 Windows 原子同卷替换且不预删目标，
+最后再次回读；替换前显式 flush 文件数据，替换失败保留原先已核验文件，只清理失败候选。
+读取元数据时只有明确的文件/路径不存在才视为 `Missing`，权限、共享或 I/O 错误均进入
+`ReadFailed`/恢复保护，不用不确定的存在性布尔值生成可自动保存的默认值。
+只在核验后清 dirty。
+`SaveLocalSettings` 返回类型化结果，`EditingDraft` 不可保存；写失败保留已应用值与重试入口。
+`FLDLocalSettingsStorage::User` 只选择明确的既有用户文件；
+测试必须使用 `Automation(FGuid)`，文件位于忽略的 `Artifacts/Automation/LocalSettings`，
+无效夹具不会回落到真实用户文件。无人值守/commandlet 的 GameInstance 未显式指定夹具时禁止用户文件写入。
+
+显示值仍只由引擎 `UGameUserSettings` 管理。`LDControlsPanel` 的显示草稿不写配置：
+分辨率/窗口模式通过 GameInstance 的 `BeginDisplayTrial` 试用，
+`ConfirmDisplayTrial` 和 `CancelDisplayTrial` 必须携原 TrialId；旧回调不能确认或撤销新试用。
+仅模式试用调用 `ApplyResolutionSettings`，并保留其 setter 可能调整的质量字段；
+VSync/画质在确认模式后才应用。`SaveSettings` 的 void 返回不代表成功，
+核验从实际配置文件读入新的 `FConfigFile`，不从 GConfig 缓存读取；
+UE 5.8 的 `GGameUserSettingsIni` 等常量是缓存标识，不保证是物理路径。
+`ResolveConfigDestination` 从当前 `FConfigBranch::IniPath` 取得真实目标，缺失即失败；
+NoSave、mutator 和 Flush 继续使用原缓存标识，不能把标识拼到工作目录后假装完成磁盘回读。
+Editor 的独立质量配置必须在确认后的原生保存阶段显式 flush 后核对；
+`Scalability::SaveState` 仅暂存该文件，不能依赖 `SaveSettings` 对另一个目标的 flush。
+已有 `NoSave` 禁令不被解除，失败保留 dirty 与重试入口。
+真实 viewport 应用失败与持久化未核验分开反馈。
+试用期间 `FLDDisplayConfigWriteGuard` 对实际目标配置启用临时 `NoSave`，阻止引擎窗口位置保存
+及 `UGameEngine::PreExit` 的提前自动保存；后者发生在 GameInstance Shutdown 之前。
+释放保护前通过配置缓存的正式 mutator 恢复试用前的显示字段，连同引擎 saved-layer 记录一起清除，
+不恢复无关字段或解除原有写禁令；正式确认后再由引擎写入新值并实际回读。
+模式回滚还恢复引擎隐式修改的 `PreferredFullscreenMode`，避免一次取消的试用改变之后的全屏快捷键行为；
+使用引擎已有的单属性配置重载方式，不修改引擎安装或另设显示存档。
+GameInstance 的窄 Slate 输入保护在试用/恢复期间消费 Alt+Enter、F11 与控制台入口，
+避免原生全屏快捷键绕过确认并调用 `ApplySettings`；它不创建第二份游戏按键注册表。
+
+试用安全计时使用 GameInstance 的 core ticker 与 `FPlatformTime`，不依赖 Widget 或旧世界 timer。
+Esc、强制关页、Widget 销毁、网络失败、旅行和退出先撤销试用，再保存已确认的本地值；
+恢复尚未完成或失败时禁止显示保存并提供重试，按键/镜头偏好不被显示回滚覆盖。
+`ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿。
+最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
+这里没有音频消费链或完整 Demo 输入迁移，不能以本地设置控件代替全界面验收。
+
 ## 维护检查
 
-针对变化选用 `RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1`；
-规则测试包括 `LDNavigationProbe`、`LDInputRulesTests` 和命令存活性相关用例。
+Demo 基础身体/地面链使用 `RunDemoCoreCheck.ps1` 的 DEV-only 三拥有连接夹具，
+结合 `Lockdown.Rules.DemoCore` 和命令存活性规则；该夹具不开放普通 Start，也不证明完整 CT06。
+`Lockdown.Rules.DemoMotionProbe` 在隔离原生物理世界验证滑移、非空 StepUp 回滚、
+ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记录；不改生产地图或共享引擎。
+`RunMovementCheck.ps1`、`RunNavigationCheck.ps1`、`RunInputCheck.ps1` 及 `LDNavigationProbe`
+仍属于旧入口闭包，不能作为当前 Demo 已通过的证据。
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
+`LDLocalSettingsTests` 使用显式文件夹具覆盖拒绝、恢复、草稿隔离、旅行前 flush、
+试用 ID/截止边界、引擎配置自动写保护和显示配置实际回读；
+真实模式切换、恢复、VSync/画质及布局仍需非 nullrhi 的原生界面检查。

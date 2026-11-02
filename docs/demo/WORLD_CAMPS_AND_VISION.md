@@ -1,8 +1,9 @@
 # Demo 世界、营地与视野实施准备报告
 
 本文服务于 [App Spec](../APP_SPEC.md) §2、§6、§7、§9 的同一个 Demo。
-**布局、数值引用和新增接口都是本 PR 的待审设计，不是已经批准的产品规则或已经完成的实现。**
-本轮只研究、审核和编写文档，没有修改 Source、Config、Content、SourceData 或 Scripts。
+**2026-11-02 用户已批准现有单层布局作为唯一 Demo 地图，
+并批准所引用的完整首版内容与数值作为首次实际试玩输入。**
+原生查询、生成、资产、营地、观察和联网接线仍须实施验证；批准不等于地图已生成或平衡通过。
 
 源码证据基线为 `fa11d09a762bccadf495191072e222dd158fc014`。
 先读取 README、App Spec、AGENTS、DEVELOPMENT 及相关系统手册，再核对实际实现；
@@ -88,6 +89,9 @@
 采用单层静态平地和一个 NavMeshBounds，不加入坡地、城市、河流、楼层、可破坏建筑、梯绳或隐身地形。
 地面、占领标记和出生/营地标记不挡视线；占领圈不是实体碰撞体。
 
+校园表现按 [App Spec §1/§6.1](../APP_SPEC.md)；本报告已批准的单层地图布局、点位、高度和技术标签不随换皮改变。
+SHOP 显示为小卖部、CAPTURE 显示为升旗台；升旗台主题不新增可站立高层或实体碰撞。
+
 五营地在约2600cm环上，每个正对一个入口；十出生点在约4400cm外环上。
 外部连通环带可以绕行侦察，内侧五墙提供绕角、追击/脱离及视野取舍；
 **环带连通不代表任意两点之间都能走直线**，跨对侧可能穿入有墙的核心区，必须查完整路径。
@@ -114,8 +118,8 @@
 | CAPTURE | (0,0) | 不适用 | 不适用 | 唯一自动占领圆圈；半径引用内容表 |
 
 Low成员位置已收敛为整数厘米，组内实际中心距分别为149.265、149.265、150.426cm，
-不是声称取整后仍“精确150cm”。当前角色/野怪半径候选40cm，三组均不重叠；
-也为内容候选180cm余波提供同组两个合法受害生命的正例。
+不是声称取整后仍“精确150cm”。已批准首轮角色/野怪半径40cm，三组均不重叠；
+也为首轮内容180cm横扫副击提供同组两个合法受害生命的正例。
 营地预留500cm半径的静态清空地面，但这不是自动警戒范围或Leash的新上限，更不是安全区。
 高档增加风险/收益来自内容和战斗，不靠额外封锁道路或隐藏地点。
 开局同样允许多人竞争同一 Low；本图不为每名玩家分配专属营地。
@@ -135,8 +139,8 @@ Low成员位置已收敛为整数厘米，组内实际中心距分别为149.265�
 | 地面/圈/营地/出生标记 | 由上述地点和合法地面派生 | 否 | 否 | 地面/叠加表现 |
 
 商店低台面是首版“阻走但不阻视线”的明确实例，不增加可攻击/可破坏能力。
-建议身体视线采样面为脚点上120cm，墙挡该射线而台面不挡；
-这些高度同属待审几何/表现建议，须与实际Character和镜头在锁定引擎验证。
+身体视线采样面采用脚点上120cm，墙挡该射线而台面不挡；
+这些高度属于已批准单层方案，仍须与实际Character和镜头在锁定引擎验证。
 无“仅阻视线”的产品对象，不为凑分类新增烟雾/草丛。
 
 | 入口 | 两侧墙 | 原始点模型净宽 cm | 40cm miter外扩后保守净宽 cm | 连接 |
@@ -279,8 +283,8 @@ High中心有怪物，Low中心到两个成员约75cm，也不能当作40+40cm�
 
 用户已确认初始近战单体普攻，装备/属性可提供群攻与射程成长。
 世界订单读取当前 `STAT.AttackRangeCm`，不能永久用初始 `UNIT.BasicAttackRangeCm`。
-内容候选的最大派生范围660cm、180cm余波只作为本次几何覆盖输入，权威数值仍在内容表。
-Low组内149.265..150.426cm间距提供两名受害者均可被合法余波覆盖的正例；
+内容候选的最大派生范围660cm、180cm横扫副击只作为本次几何覆盖输入，权威数值仍在内容表。
+Low组内149.265..150.426cm间距提供两名受害者均可被合法横扫覆盖的正例；
 500cm隔墙样例提供“在660cm距离内但不可穿墙命中/观察”的反例。
 
 群攻从已接受 `AttackId` 的权威效果上下文进入 `QueryCombatContacts`，
@@ -306,7 +310,8 @@ Shop/圈相离和上述构造上界均已复算。
 精确复现只需§2.2/§2.3的整数几何、§2.4七个偏移、内容参数快照以及上述算法；
 不得取SVG标记半径或旧三角函数坐标作为第二输入。
 miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模型；
-原生碰撞skin、地板间隙、NavMesh离散化、动态占位和视觉可读性尚未测。
+这些离线结果不证明原生碰撞skin、地板间隙、NavMesh离散化、动态占位或视觉可读性。
+当前 Bootstrap 已覆盖静态真实碰撞/导航/保存重载；实际身体运动、动态占位和视觉验收仍须单独完成。
 静态图形和Python结果不证明UE路径、Host表现、AI行为或人类游玩已经通过。
 
 ## 3. SC-07 查询契约与共享责任
@@ -677,10 +682,10 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 拟改成世界坐标上的当前授权，栅格/遮罩仅派生显示；
 不将 cell-center 误差变成“脚点可见但网格中心不可见”的未批准玩法。
 视線与行走能力独立：`LDGroundAim`、`LDVision` 已是不同通道，
-但旧 Builder 默认 BlockAll/Floor 二分仍须改造。
-证据：`Config\DefaultEngine.ini:9-11`；
-`Source\LockdownEditor\Private\ScaffoldBootstrap\LDRegionBootstrap.cpp:44-49`；
-`LDB90BootstrapCommandlet.cpp:70-82`。
+当前 `LDDemoWorldBuilder` 按 world2 的独立阻走/阻视线字段生成真实碰撞，保留低台面的差异。
+这不自动完成上述每观察者授权改造。通道与实际生成入口见 `Config\DefaultEngine.ini` 和
+`Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp`；
+旧 Region Builder 的二分行为只属于剩余迁移对象。
 
 ### 5.2 字段权限矩阵
 
@@ -749,7 +754,7 @@ HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性�
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
 
 可见Returning统一使用同一 `Statuses` 中拟注册的公共显示定义
-`StatusDefinitionId=camp_returning`（“回位中”）。
+`StatusDefinitionId=camp_returning`（“回岗中”）。
 它仅由发布端在当前获准可见的CampMember确处于Returning时派生，
 无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
 被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。
@@ -849,7 +854,8 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 
 ## 6. 具体复用、删除、新增与依赖顺序
 
-本节是后续实施清单，**本轮没有执行删除或二进制改动**。
+本节区分已落地的静态世界生成/加载与尚未关闭的旧消费者、动态世界和观察职责；
+当前接口见[世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)，不能把静态世界检查当整域完成。
 只删除失效职责，必要机制先抽取；不会为了删河流而误删首版已选战斗效果真正依赖的通用状态/去重代码。
 
 ### 6.1 复用与新增
@@ -863,9 +869,9 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 | 抽取改造 | `Core\LDGroundQueries.h/.cpp` | 去掉“是否存在 EnvironmentDirector”选择世界规则的分支；局部地面、capsule和阻视线不混用 |
 | 改造保留 | `World\LDWorldDirector.h/.cpp` 中营地索引、`ALDWorldPawn` | 迁移为共同 Combat 生命、行为phase与组刷新；删除塔/boss/旧Heart、LastOwner兜底和有限预算 |
 | 改造保留 | `Vision\LDVisionDirector`、`LDViewTypes`、`LDWorldViewRelay`、`ALDObservedEntityProxy` | 代理定义就在Relay文件中；无单独 `LDObservedEntityProxy.cpp`。统一稀疏codec、字段、生命周期与Host呈现 |
-| 拟新增 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 复用确定性编码/哈希校验；只引用内容定义，不在世界输入复制战斗数值。这些路径/脚本当前不存在 |
-| 拟新增 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生，不手写hash；运行模块声明准确 payload 依赖，不把整份SourceData打包 |
-| 唯一终态根，待生成 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 工程命名/根已固定，资源尚未创建或验证；一个资产负责人在锁定UE中生成，唯一Anchor/默认类/加载路径/签名一致 |
+| 已实现 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 严格作者字段/类型/cm语义与确定性生成已落地；只引用中央内容，不复制另一份战斗数值 |
+| 已生成 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生world2字节与contract；原生/生成链回核实际来源，不手写hash，不把整份SourceData目录加入运行包 |
+| 唯一已生成根 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 同一Bootstrap生成/重载验证唯一Anchor、完整凸多边形、native/cooked bounds、同源NavAgent与地点路径；不是动态营地或实际多人移动验收 |
 | 共享表现保留/改造 | `M_Character`、`M_Ground/M_Stone`、`DA_PrototypeTuning`、`WBP_UIRoot`、保留输入动作、`M_Fog/T_FogClosed` | Character、代理、PlayerController、Bootstrap字符串和Blueprint默认值仍引用；雾栅格改造不等于可以删全部材质/UI/Input |
 
 本表简写原生路径均对应 `Source\Lockdown\Public` 的头或 `Source\Lockdown\Private` 的实现；
@@ -904,7 +910,7 @@ Grass 再依赖 Forestry，Forest 再依赖 Grass；
 **工程终态固定为 `L_Demo.umap + DA_DemoWorld.uasset`，不是待用户二选一的命名。**
 架构、核心与构建清单均使用下表；`L_DevelopmentRegion/DA_CivicRegion`只作为迁移/删除对象，
 不保留为并行根、兼容壳、重定向玩法或缺新资产时的回退。
-这里确定的是根和依赖归属，不代表新资源已生成；布局/数值仍按本文候选接受PR审查。
+这里确定的是根和依赖归属，不代表新资源已生成；现有布局/数值已于2026-11-02获准用于首轮实施与试玩。
 
 | 对象 | 唯一最终标识与责任 |
 | --- | --- |
@@ -919,10 +925,10 @@ Grass 再依赖 Forestry，Forest 再依赖 Grass；
 | 引用入口 | 必须改接到唯一根的内容 |
 | --- | --- |
 | `Scripts\BootstrapAssets.ps1:1-14`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:270-326,330-405` | 保留统一Bootstrap门面，Generate/Validate均生成或校验L_Demo、DA_DemoWorld及必要共享资产；不再默认生成/要求旧Region地图与Civic资产 |
-| `Source\LockdownEditor\Private\ScaffoldBootstrap\LDRegionBootstrap.cpp:79-94`；`LDB90BootstrapCommandlet.cpp:42-45,234-298` | 将需要的MapDefinition、mesh/nav、保存/签名机制归入上述Demo生成路径，移除旧四Region/完整城市根与独立生成清单；不留另一B90发布根 |
+| `Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp` | 所需MapDefinition、mesh/nav、保存/签名机制已进入统一Bootstrap，旧B90独占Builder/脚本已删除；其余Region/世界消费者仍随具体闭包退出 |
 | `Source\Lockdown\Private\UI\LDUIRoot.cpp:368-371`；`Scripts\OpenStandalone.ps1:2-8`及旧OpenB90/OpenB91 URL入口 | 前端Host与正式启动指向L_Demo；删除`L_DevelopmentRegion?Profile=V05`、旧`?game=`世界跳转/兼容启动分支；无Profile启动前端仍合法 |
 | `Source\Lockdown\Private\Framework\LDGameMode.cpp:145-180,214-277`；`Region\LDMapDefinition.cpp:275-281`、`LDMapRegistry.cpp:14-61` | 唯一战局初始化、Anchor/Definition查询和Registry绑定使用新根；解除旧profile/standalone/城市数量门槛，不以旧目录填充缺失定义 |
-| `Config\DefaultEngine.ini:4-7`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236` | 前端默认入口可保留；仍指旧地图的Editor启动配置改接Demo根；新图WorldSettings绑定唯一核心`ALDGameMode`，不保存旧Preview/B91/B92模式作为默认类 |
+| `Config\DefaultEngine.ini`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp` | 默认前端与新图核心`ALDGameMode`已绑定；地图保存自己的Demo导航配置，不保存旧Preview/B91/B92模式作为默认类 |
 | `Source\Lockdown\Lockdown.Build.cs:8-22` | Stage唯一世界payload `Content\Lockdown\Data\Demo\world.json`及实际保留内容；同步生成`LDDemoWorldContract.h`，移除旧world载荷依赖，不将SourceData整包运行时分发 |
 | `Scripts\PackageWin64.ps1:7-19`；`Config\DefaultGame.ini:25-29` | 发布map清单只有前端与L_Demo所需入口，DataAsset经新根引用/明确Cook闭包纳入；收窄Generated的宽Cook规则，不让旧地图/DataAsset因残存引用或CookAlways混入 |
 | 旧LoadObject/LoadClass、Blueprint默认值、地图Actor/WorldSettings、测试地图与启动脚本 | 原生替换引用并重存；保留测试机制但改用唯一Demo夹具，C3完成后移除旧包及专用入口，不用空类、旧名包或永久redirector维持假兼容 |
@@ -936,7 +942,8 @@ C3先完成新根生成、真实引用替换与必要原生验证，再退旧包
 
 ### 6.4 二进制和 Cook 的硬门槛
 
-本轮没有反序列化/编译任何 uasset/umap，**静态研究不能证明资产已无引用**。
+**静态研究不能证明资产已无引用**。静态世界子片已有实际引用审计、生成与重载检查，
+但其结果仅覆盖该闭包，不证明后续旧世界、输入、材质或动态观察资产均可删除。
 地图默认GameMode、Blueprint父类/GeneratedClass、USTRUCT/UENUM默认值、材质纹理、
 IMC InputAction、DataAsset UPROPERTY 和字符串 LoadObject/LoadClass 都可能留下真实依赖。
 没有文本 `FSoftObjectPath` 命中也不证明无 soft 引用或运行时拼接加载。
@@ -947,7 +954,7 @@ IMC InputAction、DataAsset UPROPERTY 和字符串 LoadObject/LoadClass 都可�
 | `Config\DefaultGame.ini:25-29` | 当前 CookAlways 覆盖 Generated 资产根；这不等价于任意非资产 JSON 都被 Stage，也不能只靠显式map列表证明旧图不进包 |
 | `Scripts\PackageWin64.ps1:7-19`、`OpenStandalone.ps1:2-8` | Bootstrap、七张旧map列表和profile，替换为Frontend菜单与L_Demo战局闭包；Lobby/Match/Results在该同一战局世界，不另留Lobby地图根 |
 | `ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:118-126,166-237,270-326,330-405` | 整体配置MD5影响共享材质/Input/UI；生成/Validate必须不再重建已删除旧地图/动作 |
-| `ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236,283-298` | 旧umap保存的默认类及NavAgent参数；不是只改全局DefaultGameMode就完成迁移 |
+| `ScaffoldBootstrap\LDDemoWorldBuilder.cpp`；`Navigation\LDDemoNavigationSystem.cpp` | 地图保存的默认类、实际brush/cooked envelope和注册前的同源NavAgent；不是只改全局DefaultGameMode或注册后改半径 |
 
 删除顺序：锁定共同契约/参数及资产负责人 → 抽取必要算法/回执/授权 →
 所有消费者改接单一世界 → 更新编译输入/签名/默认类/Stage清单 →
@@ -1023,7 +1030,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- |
 | 对应Sync `--check` + 单一受影响 `Test*Import.py` | 数据变更先查确定性、来源/contract及拒绝输入；旧World JSON一致不证明新布局可达 |
 | `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | `Scripts\BootstrapAssets.ps1:1-14`；当前Scaffold入口不自动替代B90 Builder，也不创建缺失资产 |
-| `.\Scripts\BuildB90Map.ps1 -Validate` | `Scripts\BuildB90Map.ps1:1-16`；仅记录现有完整图原生检查，不支持 `-Mode Validate`；机制迁入统一Demo Bootstrap后删除旧专用入口，不保留独立根或兼容启动壳 |
+| `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | 当前唯一Demo的typed资产、真实几何/碰撞、导航、地点/落地和保存重载检查；旧BuildB90Map专用入口已删除，不保留转发壳 |
 | `.\Scripts\RunNavigationCheck.ps1 -Region -RoundTripMs 100 -JitterMs 10` | `Scripts\RunNavigationCheck.ps1:1-32`；独立连接框架可复用，现有V05/无可见Host夹具不能证明Demo Host |
 | `.\Scripts\RunViewNetworkCheck.ps1` | `Scripts\RunViewNetworkCheck.ps1:1-35`；只支持其现有参数，旧ward/public sensor/小图场景须改；没有任意RTT参数 |
 | `.\Scripts\RunCombatNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10 -Rendered -RenderRole B` | `Scripts\RunCombatNetworkCheck.ps1:1-38`；复用真实连接传输框架，不自动覆盖新Camp/Shop/圈 |
@@ -1059,19 +1066,22 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 
 | 验证层 | 本轮状态 |
 | --- | --- |
-| 文档/范围 | HEAD基线、两份独立研究、关键源引用、相对链接与SVG坐标已核对；本分支只交付本文与设计图 |
+| 文档/范围 | 原始研究的源码基线、两份独立研究与SVG仍说明方案依据；当前实施事实以源码和技术手册为准 |
 | 离线几何 | 作者与独立QA均完成10项基础几何自测及本布局审计；独立实现另核验路线/上界和近战接近 |
 | 当前旧数据一致性 | 工程研究执行 `SyncV07WorldData.py --check`、`SyncV09Data.py --check`、`SyncB91Data.py --check` 通过；只证明旧输入/输出一致，绝不是Demo新生成链已完成 |
-| 未实现 | 本文拟建查询/DTO接线、唯一Demo输入/生成资产、完整营地/对手AI与相关新场景；本轮没有写入这些实现 |
-| 未运行 | UE启动、Editor/Game构建、Bootstrap、原生NavMesh、真实Listen Host/两个拥有客户端、AI/人类完整对局、Reference Viewer/Asset Registry、Cook/Stage/包加载 |
+| 已实现静态子片 | 批准作者/载荷、严格world2投影、唯一原生地图/目录、凸多边形碰撞与NavAgent/地面/完整路径/保存重载检查；不含完整营地和观察 |
+| 仍需实施 | 真实身体/订单/许可/事件水位、同核营地循环、稀疏观察/授权终止、对手AI及其跨域消费者 |
+| 已有拥有连接子场景 | 实际Listen Host和两个拥有客户端在无玩法身体的Lobby加载同一根/名单/原生地面与导航；不代表稀疏观察、AI或实际身体运动 |
+| 仍需运行 | 拥有连接下的动态占位、实际CMC/观察、AI/人类完整对局，以及剩余资产闭包/Cook/Stage/包加载；Lobby或旧检查不作为这些场景的当前证据 |
 | 已确认、待实现 | 仅受击后同营反击且不共享隐藏位置、Returning正常伤害/控制不重新追击、成功回营满定义资源/清临时仇恨/技能就绪且无新生命/奖励、Shop无额外LOS；可见字段/失明停追击/死亡镜头/独立效果规则亦不再待选 |
-| 待PR审查 | 布局/高度/显示分辨率、内容候选数值及具体工程实现方案；SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
+| 已批准首轮输入 | 2026-11-02用户批准现有单层布局及完整内容数值；不重复要求选择地图或既有参数，不声称原生/联网/平衡通过 |
+| 仍须工程验证 | 布局/高度的实际碰撞与呈现、显示分辨率和具体接线；SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
 
 仍有效的风险必须随任务分派保留：
 
 | 风险 | 后续必过门槛 |
 | --- | --- |
-| 模型40cm不等于原生身体/NavAgent已统一；旧构造/Tuning/Nav资产有不同尺寸，旧Sprint校验也不能直接承接新MoveSpeed | `Source\Lockdown\Private\Character\LDCharacter.cpp:25-35,63-74`、`Source\Lockdown\Private\Core\LDPrototypeTuning.cpp:10-25`、`Source\LockdownEditor\Private\ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:283-293` 的真实接线、重生成与原生行走 |
+| 同源Demo capsule/NavAgent配置已接通，但不能据此把真实拥有身体/动态行走记为通过；剩余旧Tuning/Sprint消费者仍待裁剪 | `Character\LDCharacter::ConfigureDemoMovement`、`Navigation\LDDemoNavigationSystem`与`LDDemoWorldBuilder`实际配置/保存检查之外，继续验证原生CMC行走和全部消费者 |
 | 七局部候选可能被动态占位封锁；准备/commit/Finalize、组刷新和控制下回位还只是契约 | 并发占位/碰撞/故障注入、显式SpawnBlocked、无正常失败Finalize、无幽灵生命或半组、Returning受控期间正确暂停与恢复 |
 | 现有CMC回调不能自动证明采到全部子段，且旧WorldClock有回拨路径 | UE5.8.4扩展点核验；短弦/滑墙/截短位移、真实秒排序、同桶事件/水位/退休/新局压力场景 |
 | 新P2/装备/状态/死亡终止/覆盖codec及附属效果存在跨消费者泄露面 | 预分配前有界解码、完整字段白名单、未知/不适用区别、丢包/乱序/旧epoch、Host首次生成与视野外效果/音源/碰撞实测 |

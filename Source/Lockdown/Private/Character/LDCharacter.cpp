@@ -11,6 +11,9 @@
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Region/LDMapRegistry.h"
 #include "Combat/LDCombatDirector.h"
 #include "Region/LDRegionDirector.h"
 
@@ -60,18 +63,60 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
 
 void ALDCharacter::SetPortableLight(uint8 Mode)
 {PortableGlow->SetAttenuationRadius(Mode==2?800:600);PortableGlow->SetVisibility(Mode==1||Mode==2);}
+
+bool ALDCharacter::ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error)
+{
+    FCollisionShape Capsule;
+    if (!ULDMapRegistry::ContentCapsule(Content, Capsule, Error)) { return false; }
+    const auto& Speed = Content.Get().Parameters.MoveSpeedCmPerSec.Base;
+    if (Speed.Denominator <= 0)
+    {
+        Error = TEXT("Demo movement speed has a nonpositive denominator.");
+        return false;
+    }
+    const double NativeSpeed = double(Speed.Numerator) / double(Speed.Denominator);
+    if (!FMath::IsFinite(NativeSpeed) || NativeSpeed <= 0 || NativeSpeed > MAX_flt)
+    {
+        Error = TEXT("Demo movement speed is outside the native movement range.");
+        return false;
+    }
+    auto* Movement = CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement());
+    GetCapsuleComponent()->SetCapsuleSize(Capsule.GetCapsuleRadius(), Capsule.GetCapsuleHalfHeight());
+    Movement->NavAgentProps.AgentRadius = Capsule.GetCapsuleRadius();
+    Movement->NavAgentProps.AgentHeight = Capsule.GetCapsuleHalfHeight() * 2;
+    Movement->MaxWalkSpeed = float(NativeSpeed);
+    Movement->SprintSpeed = float(NativeSpeed);
+    Movement->bWantsSprint = false;
+    Error.Reset();
+    return true;
+}
+
 void ALDCharacter::BeginPlay()
 {
     Super::BeginPlay();
-    Tuning = LoadObject<ULDPrototypeTuning>(nullptr, TEXT("/Game/Lockdown/Generated/Data/DA_PrototypeTuning.DA_PrototypeTuning"));
     FString Error;
-    if (!Tuning || !Tuning->Validate(Error)) { UE_LOG(LogTemp, Fatal, TEXT("Invalid prototype tuning: %s"), *Error); return; }
-    GetCapsuleComponent()->SetCapsuleSize(Tuning->CapsuleRadius, Tuning->CapsuleHalfHeight);
-    GetCharacterMovement()->MaxWalkSpeed = Tuning->WalkSpeed;
-    CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->SprintSpeed = Tuning->SprintSpeed;
+    if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) == LDDemoEntry::WorldMap)
+    {
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !ConfigureDemoMovement(*Content, Error))
+        {
+            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"), *Error);
+            Destroy();
+            return;
+        }
+        if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
+    }
+    else
+    {
+        Tuning = LoadObject<ULDPrototypeTuning>(nullptr, TEXT("/Game/Lockdown/Generated/Data/DA_PrototypeTuning.DA_PrototypeTuning"));
+        if (!Tuning || !Tuning->Validate(Error)) { UE_LOG(LogTemp, Fatal, TEXT("Invalid prototype tuning: %s"), *Error); return; }
+        GetCapsuleComponent()->SetCapsuleSize(Tuning->CapsuleRadius, Tuning->CapsuleHalfHeight);
+        GetCharacterMovement()->MaxWalkSpeed = Tuning->WalkSpeed;
+        CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->SprintSpeed = Tuning->SprintSpeed;
+    }
     if (HasAuthority()) { PresentationKey = uint8(FMath::RandRange(0,3)); }
     OnRep_Presentation();
-    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Mode->Combat->Register(this);}}}
+    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&!Mode->IsDemoRoom()){if(Mode->Combat){Mode->Combat->Register(this);}}}
 }
 
 void ALDCharacter::Tick(float Delta)

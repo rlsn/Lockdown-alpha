@@ -4,9 +4,9 @@
 #include "Combat/LDTacticalRequest.h"
 #include "Inventory/LDLoadoutRequest.h"
 #include "GameFramework/PlayerController.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Inventory/LDVendorTypes.h"
-#include "Inventory/LDTradeTypes.h"
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDCommerceDirector.h"
 #include "Economy/LDProductionDirector.h"
@@ -26,11 +26,17 @@ public:
     virtual void PlayerTick(float Delta) override;
     virtual void FlushPressedKeys() override;
     void SetMenuOpen(bool bOpen);
+    void SetDemoReady(bool Ready);
+    void SetDemoAICount(uint8 Count);
+    void StartDemoMatch();
+    UFUNCTION(Server,Reliable) void ServerDemoSessionCommand(const FLDSessionRequest& Request);
+    UFUNCTION(Client,Reliable) void ClientDemoSessionReceipt(const FLDSessionReceipt& Receipt);
+    UFUNCTION(Client,Reliable) void ClientDemoRoomClosed(uint32 Generation, const FString& Reason);
     UFUNCTION(Server,Reliable) void ServerTacticalAction(FLDTacticalRequest Request);
     void SendTacticalAction(uint32 Token,uint8 Slot,FVector Direction,FGuid Target,FVector Point=FVector::ZeroVector,FGuid Second=FGuid(),FVector SecondPoint=FVector::ZeroVector);
     UFUNCTION(Server,Reliable) void ServerAidConsent(uint32 Match,uint32 Life,bool Allow);
     UFUNCTION(Server,Reliable) void ServerCancelTactical(uint32 Match,uint32 Life,uint32 Through);
-    void ClearControls();
+    void ClearControls(bool LifeChanged=false);
     virtual void CancelInterruptibleHolds();
     bool CanWorldCommand() const;
     bool NavigationBindingsActive() const {return bNavigationContextActive;}
@@ -39,13 +45,6 @@ public:
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     UPROPERTY() TObjectPtr<class ULDInventoryPanel> InventoryUI;
     void ToggleInventoryPanel();
-    FLDTradeView TradeView;
-    void OfferTrade();void CancelTrade();
-    bool TradePending() const{return TradePendingRequest!=0;}
-    void TradeCommand(uint8 Command,FGuid Item=FGuid(),int64 Gold=0);
-    UFUNCTION(Server,Reliable) void ServerTradeCommand(uint32 Match,uint32 Life,uint32 Request,uint8 Command,FGuid Session,uint32 Revision,const FString& Digest,FGuid Item,int64 Gold);
-    UFUNCTION(Client,Reliable) void ClientTradeUpdate(const FLDOwnerState& State,const FLDTradeView& View,uint32 Request);
-
     FLDBankView BankView;
     FString BankFeedback;
     uint32 BankToken=0,BankPending=0;
@@ -113,13 +112,14 @@ public:
     void SetQuickItemHeld(uint8 Slot,bool Held,uint8 Gesture=0);
     void ArmWard(FGuid Item);
     void BeginPickup(FGuid Observed);
-    bool InventoryPending() const{return CommercePending!=0||BankPending!=0||InventoryPendingRequest!=0||VendorPendingRequest!=0||TradePendingRequest!=0;}
+    bool InventoryPending() const{return CommercePending!=0||BankPending!=0||InventoryPendingRequest!=0||VendorPendingRequest!=0;}
     FGuid ArmedItem() const{return ArmedWard;}
     UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
     UFUNCTION(Server,Reliable) void ServerPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
     UFUNCTION(Client,Reliable) void ClientPickupQuote(uint32 Match,uint32 Life,uint32 Token,FGuid Observed,uint32 InventoryRevision,uint32 ItemRevision);
     UFUNCTION(Client,Reliable) void ClientInventoryResult(const FLDOwnerState& State,uint32 Request,const FString& Result);
     void RebuildV05Mappings();
+    void RecordAppliedCameraZoom();
     void ToggleControlsPanel();
     void V05Back();
     FString BindingLabel(FName Action) const;
@@ -210,6 +210,10 @@ public:
     void RecordProbeRequest(uint32 Request){ProbeRequests.Add(Request,FPlatformTime::Seconds());}
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
 private:
+    void SendDemoSessionCommand(ELDSessionCommand Command, bool Ready = false, uint8 AICount = 0);
+    uint32 DemoRequestGeneration = 0;
+    uint64 DemoRequestSequence = 0;
+    uint64 DemoPendingSequence = 0;
     friend class ALDEconomyUIProbe;
     friend class ALDCharterProbe;
     void InitializeLocalUI();
@@ -221,11 +225,7 @@ private:
     friend class ALDInventoryProbe;
     friend class ALDWorldProbe;
     friend class ALDVendorProbe;
-    friend class ALDTradeProbe;
     friend class ULDInventoryPanel;
-    uint32 TradePendingRequest=0,TradeSerial=0;
-    bool bApplyingTradeView=false,bTradeDismissed=false;
-    TArray<FGuid> SeenTradeCompletions;
     uint32 VendorOpenToken=0,VendorPendingRequest=0;
     bool bVendorOpening=false;
     bool bControlsSuppressed = false;
@@ -276,7 +276,6 @@ private:
     uint8 HeldQuickGesture=0;
     FLDBuildPlan PreparedDraft;
     uint32 InspectedGeneration=0;
-    double PreferenceSaveAt=0;
     TWeakObjectPtr<APawn> PreferencesPawn;
     TArray<uint32> V05BindingHandles;
     uint32 PendingAimRequest=0;

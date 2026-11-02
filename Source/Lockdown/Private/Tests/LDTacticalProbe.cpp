@@ -7,7 +7,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -59,7 +58,6 @@ void ALDTacticalProbe::Enter(int32 Next)
     if(Next==7)
     {
         B->GetPawn()->SetActorLocation(FVector(-1720,-900,92),false,nullptr,ETeleportType::TeleportPhysics);
-        Check(M->Trade->PairEligible(A.Get(),B.Get()),TEXT("Actual native trade admission remains legal in v07"));
         Check(C->Allows(Cast<ALDCharacter>(A->GetPawn()),LDTactical::EAction::Service),TEXT("Uncontrolled institutional action remains legal"));
         // An earned-mint/paid purchase fixture uses real ledger commits; not a normal journey.
         auto* O=M->StateFor(A.Get());O->Gold+=25;M->RecordEconomyGold(TEXT("CourierReward"),25);

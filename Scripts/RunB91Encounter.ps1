@@ -21,7 +21,3 @@ try{
     if($LASTEXITCODE -ne 0){throw "Encounter evidence rejected: $output"}
     Write-Host "B91 encounter evidence: $output"
 }finally{foreach($p in $owned){if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}}}
-
-$resumeArguments='"{0}" /Game/Lockdown/Generated/V09/L_V09Full?game=/Script/Lockdown.LDB91GameMode?Profile=v09_environment -server -nullrhi -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -ExecCmds="t.MaxFPS 60" -LDB91EncounterResume -LDB91Restore="{1}" -B91Output="{2}" -abslog="{3}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'),(Join-Path $output 'EarnedWorld.json'),$output,(Join-Path $output 'Resume.log')
-$p=Start-Process -FilePath (Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor-Cmd.exe') -ArgumentList $resumeArguments -WindowStyle Hidden -PassThru
-try{if(-not $p.WaitForExit(180000)){throw "Encounter resume timed out: $output"};if($p.ExitCode -ne 0){throw "Encounter resume failed: $output"};$r=Get-Content (Join-Path $output 'Resume.json') -Raw | ConvertFrom-Json;if(-not $r.complete -or $r.failures){throw "Encounter resume evidence rejected: $output"};Write-Host "PASS earned encounter restart: $output"}finally{if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}}

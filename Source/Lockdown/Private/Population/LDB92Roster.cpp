@@ -9,7 +9,6 @@
 #include "Character/LDCharacter.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapDefinition.h"
 #include "Vision/LDVisionDirector.h"
@@ -159,7 +158,7 @@ bool ALDB92Roster::Transfer(int32 Index,ALDPlayerController* Next,bool Human,FSt
     Old->CancelInterruptibleHolds();if(Old->Navigation){Old->Navigation->Stop();Old->Navigation->ResetLife();}
     if(auto* B91=Cast<ALDB91Controller>(Old))
     {if(auto* Objects=ALDWorldObjects::Get(GetWorld())){Objects->Cancel(B91,TEXT("Control changed"));}if(auto* E=ALDEnvironmentDirector::Get(GetWorld())){E->Cancel(B91,TEXT("Control changed"));}}
-    if(M->Development){M->Development->Cancel(Old,TEXT("Control changed"));}if(M->Trade){M->Trade->CancelFor(Old,TEXT("Control changed"));}
+    if(M->Development){M->Development->Cancel(Old,TEXT("Control changed"));}
     M->Combat->ReleaseSkillHold(Old,MAX_uint32);M->Combat->CancelTactical(Body,TEXT("Control changed"));
     if(auto* S=M->Combat->StateFor(Body)){S->bAttackOrder=false;S->AttackTarget.Reset();}
     // Cancellation may have revised the bag/build. Copy only after it finishes.
@@ -216,12 +215,6 @@ bool ALDB92Roster::RoleDied(ALDCharacter* Body)
 bool ALDB92Roster::RecordGold(FName Cause,int64 Mint,int64 Burn,FString& Error)
 {
     if(Ready&&!Economy->SynchronizeWorld(Error)){return false;}
-    if(Ready&&Cause==TEXT("PeerTransfer")&&!Mint&&!Burn)
-    {
-        auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Cause;
-        for(const auto& Seat:Contenders){const auto* O=M->StateFor(Seat.Controller.Get());const FName W=ALDB92Economy::Wallet(Seat.Id);const auto* A=Economy->Ledger.Account(W);if(!O||!A){Error=TEXT("Peer account missing");return false;}if(O->Gold!=A->Gold){T.Gold.Add({W,A->Revision,O->Gold-A->Gold});}}
-        return T.Gold.IsEmpty()||Economy->Ledger.Commit(T,Error); // ledger rejects any nonconserved projection atomically
-    }
     if(!Ready||Cause!=TEXT("DeathTax")||Mint||Burn<0){Error=TEXT("Unclassified population wallet mutation; reward/service integration is pending");return false;}
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();LDEconomy::FTransaction T;T.Id=FGuid::NewGuid();T.Cause=Cause;T.Burn=Burn;
     for(const auto& Seat:Contenders)

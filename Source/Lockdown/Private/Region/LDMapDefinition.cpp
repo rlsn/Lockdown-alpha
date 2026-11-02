@@ -1,26 +1,18 @@
 #include "Region/LDMapDefinition.h"
-#include "LDB90Contract.h"
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Misc/SecureHash.h"
+#include "LDMapGeometryJson.h"
+#include "Framework/LDDemoEntry.h"
+#include "../Development/LDDemoContentJson.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
-THIRD_PARTY_INCLUDES_START
-#include <openssl/sha.h>
-THIRD_PARTY_INCLUDES_END
 
 namespace
 {
-FString Hash(const FString& Text)
+TArray<uint8> SourceBytes(const FString& Text)
 {
-    FTCHARToUTF8 Bytes(*Text); FSHA256Signature Result;
-    SHA256(reinterpret_cast<const uint8*>(Bytes.Get()), Bytes.Length(), Result.Signature);
-    return Result.ToString().ToLower();
-}
-FVector Vector(const TSharedPtr<FJsonObject>& Object, const TCHAR* Key)
-{
-    const auto& Values = Object->GetArrayField(Key);
-    return FVector(Values[0]->AsNumber(), Values[1]->AsNumber(), Values[2]->AsNumber());
+    const FTCHARToUTF8 Bytes(*Text);
+    TArray<uint8> Result;
+    Result.Append(reinterpret_cast<const uint8*>(Bytes.Get()), Bytes.Length());
+    return Result;
 }
 double Blend(double Distance, double Inner, double Apron)
 {
@@ -44,170 +36,89 @@ double Nearest(const FLDMapLine& Line, const FVector2D& XY, double& Z)
 
 bool ULDMapDefinition::Import(const FString& Json, FString& Error)
 {
-    const FString Normalized = Json.Replace(TEXT("\r\n"), TEXT("\n"));
-    // Closed compiler contract rejects unknown fields, units and behavior before parsing/spawning.
-    if (Hash(Normalized) != LD_B90_MAP_SHA) { Error = TEXT("B90 payload checksum differs; run SyncV09Data.py and rebuild"); return false; }
-    TSharedPtr<FJsonObject> Root;
-    if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Normalized), Root) || !Root
-        || Root->GetIntegerField(TEXT("schema")) != 9 || Root->GetStringField(TEXT("stage")) != TEXT("B90")
-        || Root->GetStringField(TEXT("profile")) != TEXT("v09_full"))
-    { Error = TEXT("Invalid B90 map schema/profile"); return false; }
-    SourceJson = Normalized; Checksum = Hash(SourceJson);
-    Seed = Root->GetIntegerField(TEXT("seed")); LayoutRevision = Root->GetIntegerField(TEXT("revision"));
-    FitterRevision = Root->GetIntegerField(TEXT("fitter_revision"));
-    auto ReadPoints = [&](const TCHAR* Key, TArray<FLDMapPoint>& Out)
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    return LDDemoEntry::LoadRuntimeContent(Content, Error) && Import(SourceBytes(Json), *Content, Error);
+}
+
+bool ULDMapDefinition::Import(const TArray<uint8>& Json, const FLDDemoContentSnapshot& Content, FString& Error)
+{
+    Error.Reset();
+    LDDemoContent::FCheck Check(Error);
+    TUniquePtr<FLDDemoPreparedWorld> Prepared;
+    if (!Check.Require(IsInGameThread(), TEXT("world import"), TEXT("import requires the game thread"))
+        || !PrepareProjection(Json, Content, Prepared, Error))
     {
-        Out.Reset();
-        for (const auto& Value : Root->GetArrayField(Key))
-        {
-            const auto Object = Value->AsObject(); FLDMapPoint Point;
-            Point.Id = FName(*Object->GetStringField(TEXT("id"))); Point.Position = Vector(Object, TEXT("position"));
-            Object->TryGetStringField(TEXT("name"), Point.Name); Object->TryGetStringField(TEXT("kind"), Point.Kind);
-            Object->TryGetStringField(TEXT("identity"),Point.Identity); Object->TryGetStringField(TEXT("security"),Point.Security);
-            FString Settlement,POI; Object->TryGetStringField(TEXT("settlement"),Settlement); Object->TryGetStringField(TEXT("poi"),POI);
-            Point.Settlement=FName(*Settlement); Point.POI=FName(*POI);
-            Object->TryGetNumberField(TEXT("civic_radius"),Point.CivicRadius);
-            if(Object->HasField(TEXT("floors"))) { Point.Floors=Object->GetIntegerField(TEXT("floors")); }
-            Object->TryGetBoolField(TEXT("roof"),Point.Roof);
-            for(const TCHAR* Field:{TEXT("functions"),TEXT("doors")}) { if(Object->HasField(Field))
-            { auto& Values=FCString::Strcmp(Field,TEXT("functions"))==0?Point.Functions:Point.Doors;
-              for(const auto& Item:Object->GetArrayField(Field)) { Values.Add(FName(*Item->AsString())); } } }
-            Object->TryGetNumberField(TEXT("radius"), Point.Radius); Object->TryGetBoolField(TEXT("enterable"), Point.Enterable);
-            if (Object->HasField(TEXT("size"))) { Point.Size = Vector(Object, TEXT("size")); }
-            Out.Add(Point);
-        }
-    };
-    ReadPoints(TEXT("pois"), POIs); ReadPoints(TEXT("spawns"), Spawns);
-    ReadPoints(TEXT("settlements"), Settlements); ReadPoints(TEXT("buildings"), Buildings); ReadPoints(TEXT("plateaus"), Plateaus);
-    auto ReadLines = [&](const TCHAR* Key, TArray<FLDMapLine>& Out)
+        return false;
+    }
+    DemoGeometry = MoveTemp(Prepared->Geometry);
+    ContentRoot = Prepared->ContentRoot;
+    SourceJson = MoveTemp(Prepared->SourceJson);
+    Checksum = MoveTemp(Prepared->Checksum);
+    Seed = LayoutRevision = FitterRevision = 0;
+    POIs.Reset(); Spawns.Reset(); Settlements.Reset(); Buildings.Reset(); Plateaus.Reset();
+    Routes.Reset(); Rivers.Reset(); Bridges.Reset(); Services.Reset(); Aliases.Reset();
+    WetInset = FVector::ZeroVector; WetSize = FVector2D::ZeroVector; CivicHeartOverride = 0;
+    MarkPackageDirty();
+    return true;
+}
+
+bool ULDMapDefinition::PrepareProjection(const TArray<uint8>& Json, const FLDDemoContentSnapshot& Content,
+    TUniquePtr<FLDDemoPreparedWorld>& Out, FString& Error)
+{
+    Error.Reset();
+    LDDemoContent::FCheck Check(Error);
+    LDDemoContent::FValue Root;
+    FLDDemoContentDigest Hash;
+    TUniquePtr<FLDDemoPreparedWorld> Candidate(new FLDDemoPreparedWorld());
+    if (!LDDemoContent::Hash(Json, Hash, Check, TEXT("world"))
+        || !Check.Require(Hash == Content.Get().Identity.World, TEXT("world"), TEXT("bytes differ from the trusted content root"))
+        || !LDDemoContent::Parse(Json, Root, Check, TEXT("world"))
+        || !LDDemoWorld::Project(Root, Content.Get(), Candidate->Geometry, Check))
     {
-        Out.Reset();
-        for (const auto& Value : Root->GetArrayField(Key))
-        {
-            const auto Object = Value->AsObject(); FLDMapLine Line;
-            Line.Id = FName(*Object->GetStringField(TEXT("id"))); Line.Width = Object->GetNumberField(TEXT("width"));
-            FString From, To; Object->TryGetStringField(TEXT("start"), From); Object->TryGetStringField(TEXT("end"), To);
-            Line.From = FName(*From); Line.To = FName(*To); Object->TryGetNumberField(TEXT("bank"), Line.Bank);
-            for (const auto& V : Object->GetArrayField(TEXT("points")))
-            { const auto& A = V->AsArray(); Line.Points.Add(FVector(A[0]->AsNumber(), A[1]->AsNumber(), A[2]->AsNumber())); }
-            Out.Add(Line);
-        }
-    };
-    ReadLines(TEXT("routes"), Routes); ReadLines(TEXT("rivers"), Rivers);
-    Bridges.Reset(); for (const auto& Value : Root->GetArrayField(TEXT("bridges")))
-    { Bridges.Add(FName(*Value->AsObject()->GetStringField(TEXT("id")))); }
-    const auto Inset = Root->GetObjectField(TEXT("wet_inset")); WetInset = Vector(Inset, TEXT("position"));
-    const auto& Size = Inset->GetArrayField(TEXT("size")); WetSize = FVector2D(Size[0]->AsNumber(), Size[1]->AsNumber());
-    Services.Reset(); for(const auto& V:Root->GetArrayField(TEXT("services")))
-    { const auto O=V->AsObject(); FLDMapService S;
-      S.Id=FName(*O->GetStringField(TEXT("id"))); S.POI=FName(*O->GetStringField(TEXT("poi")));
-      S.Building=FName(*O->GetStringField(TEXT("building"))); S.Settlement=FName(*O->GetStringField(TEXT("settlement")));
-      S.Position=Vector(O,TEXT("position"));
-      for(const auto& F:O->GetArrayField(TEXT("functions"))) { S.Functions.Add(FName(*F->AsString())); } Services.Add(S); }
-    Aliases.Reset(); for(const auto& A:Root->GetObjectField(TEXT("aliases"))->Values) { Aliases.Add(FName(*A.Key),FName(*A.Value->AsString())); }
-    CivicHeartOverride=Root->GetNumberField(TEXT("civic_heart_override"));
-    return Validate(Error);
+        return false;
+    }
+    const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Json.GetData()), Json.Num());
+    Candidate->SourceJson = FString(Decoded.Length(), Decoded.Get());
+    Candidate->Checksum = Hash.ToHex();
+    Candidate->ContentRoot = Content.Get().Identity.Root;
+    Out = MoveTemp(Candidate);
+    return true;
+}
+
+bool ULDMapDefinition::ValidatePrepared(const FLDDemoPreparedWorld& Expected, FString& Error) const
+{
+    Error.Reset();
+    LDDemoContent::FCheck Check(Error);
+    if (!Check.Require(ContentRoot == Expected.ContentRoot, TEXT("world asset"), TEXT("asset belongs to another content root"))
+        || !Check.Require(SourceJson.Equals(Expected.SourceJson, ESearchCase::CaseSensitive)
+            && Checksum.Equals(Expected.Checksum, ESearchCase::CaseSensitive),
+            TEXT("world asset"), TEXT("saved world bytes differ from the trusted root"))
+        || !Check.Require(LDDemoContent::ExactStoredStruct(FLDDemoWorldGeometry::StaticStruct(), &DemoGeometry, &Expected.Geometry),
+            TEXT("world asset"), TEXT("saved geometry differs from its complete typed projection"))
+        || !Check.Require(Seed == 0 && LayoutRevision == 0 && FitterRevision == 0
+            && POIs.IsEmpty() && Spawns.IsEmpty() && Settlements.IsEmpty() && Buildings.IsEmpty() && Plateaus.IsEmpty()
+            && Routes.IsEmpty() && Rivers.IsEmpty() && Bridges.IsEmpty() && Services.IsEmpty() && Aliases.IsEmpty()
+            && WetInset == FVector::ZeroVector && WetSize == FVector2D::ZeroVector && CivicHeartOverride == 0,
+            TEXT("world asset"), TEXT("retired city/river/service fields cannot accompany the Demo projection")))
+    {
+        return false;
+    }
+    return true;
+}
+
+bool ULDMapDefinition::Read(const FLDDemoContentSnapshot& Content, TSharedPtr<const FLDDemoWorldGeometry>& Out, FString& Error) const
+{
+    TUniquePtr<FLDDemoPreparedWorld> Expected;
+    if (!PrepareProjection(SourceBytes(SourceJson), Content, Expected, Error) || !ValidatePrepared(*Expected, Error)) { return false; }
+    Out = MakeShared<const FLDDemoWorldGeometry>(MoveTemp(Expected->Geometry));
+    return true;
 }
 
 bool ULDMapDefinition::Validate(FString& Error) const
 {
-    auto Fail = [&](const TCHAR* Why) { Error = Why; return false; };
-    if (Checksum != LD_B90_MAP_SHA || Hash(SourceJson) != Checksum || Seed != 9001 || LayoutRevision != 1 || FitterRevision != 3
-        || POIs.Num() != 96 || Spawns.Num() != 24 || Buildings.Num() != 144 || Settlements.Num() != 11
-        || Routes.Num() != 117 || Rivers.Num() != 3 || Bridges.Num() != 4 || Services.Num()!=36 || Aliases.Num()!=16 || CivicHeartOverride!=7000)
-    { return Fail(TEXT("B90 source identity/count mismatch")); }
-    for (const auto* Points : {&POIs, &Spawns, &Buildings, &Settlements, &Plateaus})
-    {
-        TSet<FName> Ids;
-        for (const auto& P : *Points)
-        { if (P.Id.IsNone() || Ids.Contains(P.Id) || !InBounds(P.Position)) { return Fail(TEXT("Invalid/duplicate map point")); } Ids.Add(P.Id); }
-    }
-    int32 Interiors = 0;
-    for (const auto& B : Buildings) { Interiors += B.Enterable; if (B.Size.GetMin() <= 0) { return Fail(TEXT("Invalid building bounds")); } }
-    if (Interiors != 36) { return Fail(TEXT("Wrong selected interior count")); }
-    TSet<FName> ServiceIds,ServicePOIs,HostedBuildings,DoorIds;
-    for(const auto& S:Services)
-    {
-        const auto* B=Buildings.FindByPredicate([&](const auto& V){return V.Id==S.Building;});
-        if(ServiceIds.Contains(S.Id)||ServicePOIs.Contains(S.POI)||HostedBuildings.Contains(S.Building)||!Find(S.POI)||!B||!B->Enterable
-           ||B->POI!=S.POI||B->Settlement!=S.Settlement||B->Position!=S.Position||S.Functions.IsEmpty()) { return Fail(TEXT("Invalid service/building binding")); }
-        ServiceIds.Add(S.Id); ServicePOIs.Add(S.POI); HostedBuildings.Add(S.Building);
-    }
-    for(const auto& S:Settlements)
-    {
-        int32 Count=0,Open=0; for(const auto& B:Buildings) { if(B.Settlement==S.Id) { ++Count; Open+=B.Enterable; } }
-        const bool City=S.Kind==TEXT("capital")||S.Kind==TEXT("city");
-        if(S.Name.IsEmpty()||S.Identity.IsEmpty()||S.Security.IsEmpty()||S.CivicRadius!=(S.Kind==TEXT("capital")?12000:City?7000:3000)
-           ||Count!=(City?24:4)||Open!=(City?6:1)) { return Fail(TEXT("Invalid settlement/district identity")); }
-    }
-    for(const auto& B:Buildings)
-    { if(B.Enterable&&(B.Doors.Num()!=2||!HostedBuildings.Contains(B.Id))) { return Fail(TEXT("Unbound selected shell")); }
-      for(FName Door:B.Doors) { if(DoorIds.Contains(Door)) { return Fail(TEXT("Duplicate door socket")); } DoorIds.Add(Door); } }
-    if(DoorIds.Num()!=72) { return Fail(TEXT("Wrong door socket count")); }
-    for(const auto& A:Aliases) { if(!Find(A.Value)||Find(A.Key)) { return Fail(TEXT("Invalid alias routing")); } }
-    TSet<FName> RouteIds, Reached; Reached.Add(TEXT("capital"));
-    for (const auto& R : Routes)
-    {
-        if (RouteIds.Contains(R.Id) || !Find(R.From) || !Find(R.To) || R.Points.Num() < 2 || R.Width < 400
-            || !R.Points[0].Equals(Find(R.From)->Position, 1) || !R.Points.Last().Equals(Find(R.To)->Position, 1))
-        { return Fail(TEXT("Invalid route identity/endpoints")); }
-        RouteIds.Add(R.Id);
-    }
-    for (int32 I = 0; I < POIs.Num(); ++I)
-    { for (const auto& R : Routes) { if (Reached.Contains(R.From)) { Reached.Add(R.To); } if (Reached.Contains(R.To)) { Reached.Add(R.From); } } }
-    if (Reached.Num() != POIs.Num()) { return Fail(TEXT("Disconnected strategic graph")); }
-    // The saved asset's reflected properties must agree with its closed source,
-    // not merely carry a valid checksum string beside mutated coordinates/data.
-    TSharedPtr<FJsonObject> Root;
-    if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(SourceJson),Root)) { return Fail(TEXT("Unreadable closed source")); }
-    auto Names=[](const TSharedPtr<FJsonObject>& O,const TCHAR* Field)
-    { TArray<FName> Out; if(O->HasField(Field)) { for(const auto& V:O->GetArrayField(Field)) { Out.Add(FName(*V->AsString())); } } return Out; };
-    auto PointsMatch=[&](const TCHAR* Key,const TArray<FLDMapPoint>& Rows)
-    {
-        const auto& Expected=Root->GetArrayField(Key); if(Expected.Num()!=Rows.Num()) { return false; }
-        for(int32 I=0;I<Rows.Num();++I)
-        {
-            const auto O=Expected[I]->AsObject(); const auto& P=Rows[I];
-            auto Text=[&](const TCHAR* F) { FString S; O->TryGetStringField(F,S); return S; };
-            double Radius=0,Civic=0; bool Enterable=false,Roof=false;
-            O->TryGetNumberField(TEXT("radius"),Radius); O->TryGetNumberField(TEXT("civic_radius"),Civic);
-            O->TryGetBoolField(TEXT("enterable"),Enterable); O->TryGetBoolField(TEXT("roof"),Roof);
-            const FVector Size=O->HasField(TEXT("size"))?Vector(O,TEXT("size")):FVector::ZeroVector;
-            const int32 Floors=O->HasField(TEXT("floors"))?O->GetIntegerField(TEXT("floors")):1;
-            if(P.Id!=FName(*Text(TEXT("id")))||P.Position!=Vector(O,TEXT("position"))||P.Size!=Size||P.Radius!=Radius||P.CivicRadius!=Civic
-               ||P.Name!=Text(TEXT("name"))||P.Kind!=Text(TEXT("kind"))||P.Identity!=Text(TEXT("identity"))||P.Security!=Text(TEXT("security"))
-               ||P.Settlement!=FName(*Text(TEXT("settlement")))||P.POI!=FName(*Text(TEXT("poi")))||P.Enterable!=Enterable||P.Roof!=Roof||P.Floors!=Floors
-               ||P.Functions!=Names(O,TEXT("functions"))||P.Doors!=Names(O,TEXT("doors"))) { return false; }
-        }
-        return true;
-    };
-    if(!PointsMatch(TEXT("pois"),POIs)||!PointsMatch(TEXT("spawns"),Spawns)||!PointsMatch(TEXT("buildings"),Buildings)
-       ||!PointsMatch(TEXT("settlements"),Settlements)||!PointsMatch(TEXT("plateaus"),Plateaus)) { return Fail(TEXT("Saved point metadata differs from closed source")); }
-    auto LinesMatch=[&](const TCHAR* Key,const TArray<FLDMapLine>& Rows)
-    {
-        const auto& Expected=Root->GetArrayField(Key); if(Expected.Num()!=Rows.Num()) { return false; }
-        for(int32 I=0;I<Rows.Num();++I)
-        { const auto O=Expected[I]->AsObject(); const auto& R=Rows[I]; FString From,To;
-          O->TryGetStringField(TEXT("start"),From); O->TryGetStringField(TEXT("end"),To); double Bank=0; O->TryGetNumberField(TEXT("bank"),Bank);
-          if(R.Id!=FName(*O->GetStringField(TEXT("id")))||R.From!=FName(*From)||R.To!=FName(*To)||R.Width!=O->GetNumberField(TEXT("width"))||R.Bank!=Bank) { return false; }
-          const auto& Points=O->GetArrayField(TEXT("points")); if(Points.Num()!=R.Points.Num()) { return false; }
-          for(int32 J=0;J<Points.Num();++J) { const auto& P=Points[J]->AsArray(); if(R.Points[J]!=FVector(P[0]->AsNumber(),P[1]->AsNumber(),P[2]->AsNumber())) { return false; } }
-        }
-        return true;
-    };
-    if(!LinesMatch(TEXT("routes"),Routes)||!LinesMatch(TEXT("rivers"),Rivers)) { return Fail(TEXT("Saved route/river geometry differs from source")); }
-    const auto& ExpectedBridges=Root->GetArrayField(TEXT("bridges"));
-    for(int32 I=0;I<Bridges.Num();++I) { if(Bridges[I]!=FName(*ExpectedBridges[I]->AsObject()->GetStringField(TEXT("id")))) { return Fail(TEXT("Saved bridge binding differs from source")); } }
-    const auto Inset=Root->GetObjectField(TEXT("wet_inset")); const auto& Size=Inset->GetArrayField(TEXT("size"));
-    if(WetInset!=Vector(Inset,TEXT("position"))||WetSize!=FVector2D(Size[0]->AsNumber(),Size[1]->AsNumber())) { return Fail(TEXT("Saved Heart inset differs from source")); }
-    const auto& ExpectedServices=Root->GetArrayField(TEXT("services"));
-    for(int32 I=0;I<Services.Num();++I)
-    { const auto O=ExpectedServices[I]->AsObject(); const auto& S=Services[I];
-      if(S.Id!=FName(*O->GetStringField(TEXT("id")))||S.POI!=FName(*O->GetStringField(TEXT("poi")))||S.Building!=FName(*O->GetStringField(TEXT("building")))
-         ||S.Settlement!=FName(*O->GetStringField(TEXT("settlement")))||S.Position!=Vector(O,TEXT("position"))||S.Functions!=Names(O,TEXT("functions"))) { return Fail(TEXT("Saved service mapping differs from source")); } }
-    for(const auto& A:Root->GetObjectField(TEXT("aliases"))->Values)
-    { const auto* V=Aliases.Find(FName(*A.Key)); if(!V||*V!=FName(*A.Value->AsString())) { return Fail(TEXT("Saved alias routing differs from source")); } }
-    Error.Reset(); return true;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    return LDDemoEntry::LoadRuntimeContent(Content, Error) && Read(*Content, Geometry, Error);
 }
 
 const FLDMapPoint* ULDMapDefinition::Find(FName Id) const

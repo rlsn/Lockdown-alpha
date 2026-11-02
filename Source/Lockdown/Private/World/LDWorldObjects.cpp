@@ -14,7 +14,6 @@
 #include "Region/LDMapDefinition.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Character/LDCharacter.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -162,7 +161,7 @@ bool ALDWorldObjects::Initialize(FString& Error)
     }
     if(Objects.Num()!=252||Finite.Num()!=84){Error=TEXT("B91 base object census mismatch");return false;}
     if(!InitializeTools(Error)||!InitializeTraversal(Error)||!InitializeForestry(Error)||!InitializeGrass(Error)){return false;}Contract=ActiveContract();
-    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");return false;}if(!ALDB91Forest::Ensure(GetWorld(),Error)){Ready=false;return false;}Ready=InitializeCheckpoint(Error);return Ready;
+    Ready=Objects.Num()==435&&Finite.Num()==143;if(!Ready){Error=TEXT("B91 object/tool/link census mismatch");return false;}if(!ALDB91Forest::Ensure(GetWorld(),Error)){Ready=false;return false;}return Ready;
 }
 bool ALDWorldObjects::FitSource(ALDWorldObject* Object,FVector Source,FVector& Surface) const
 {
@@ -307,7 +306,7 @@ bool ALDWorldObjects::Commit(ALDB91Controller* PC,ALDWorldObject* O,const FHold&
     }
     if(R.Verb==ELDObjectVerb::Store||R.Verb==ELDObjectVerb::Drop)
     {
-        auto* P=Inventory->Owned(PC,R.Item);if(M->Trade){M->Trade->CancelFor(PC);}Inventory->Remove(PC,P,false);if(P->Holder.IsValid()){Why=TEXT("Item transfer unavailable");return false;}
+        auto* P=Inventory->Owned(PC,R.Item);Inventory->Remove(PC,P,false);if(P->Holder.IsValid()){Why=TEXT("Item transfer unavailable");return false;}
         if(R.Verb==ELDObjectVerb::Store){P->Holder=O;P->State=1;++P->Revision;O->Contents.Add(P);O->Apply(O->GetActorLocation(),O->Flags(),O->Revision+1);Quote(PC,O);}
         else{P->SetActorLocation(H.Destination+FVector(0,0,18));Wrap(P,H.Destination);}return true;
     }
@@ -364,7 +363,7 @@ bool ALDWorldObjects::Conserved(FString& Error) const
     }return true;
 }
 void ALDWorldObjects::RecordConsumption(ALDItem* Item)
-{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);Consumption.Add(Item->Identity,{Item->Kind,Item->Institution,Item->OriginReceipt});}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M&&M->Population&&M->Population->Ready){M->Population->Economy->RecordConsumption(Item);}}
+{if(Item&&Finite.Contains(Item->Identity)){Consumed.Add(Item->Identity);}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(M&&M->Population&&M->Population->Ready){M->Population->Economy->RecordConsumption(Item);}}
 void ALDWorldObjects::Publish()
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return;}++ViewRevision;DiscoverDrops();
@@ -438,7 +437,7 @@ void ALDWorldObjects::Tick(float Delta)
         }
         if(Now+1e-6<H.Ends){continue;}const bool Done=Commit(PC,O,H,Why);Holds.Remove(Weak);if((H.Request.Verb==ELDObjectVerb::Ignite||H.Request.Verb==ELDObjectVerb::Harvest||H.Request.Verb==ELDObjectVerb::Chop)){EndIgnition(H);}if(Use){EndTraversal(PC,H,Done);}if(Done){++Committed;}Reply(PC,H.Request,Done?1:2,Why.IsEmpty()?(Done?TEXT("Object transaction committed"):TEXT("Object transaction unavailable")):Why,O?O->Revision:0);
     }
-    if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}TickCheckpoint(Now);
+    if(Now>=NextPublish){NextPublish=Now+.1;Publish();}for(auto I=Clients.CreateIterator();I;++I){if(!I.Key().IsValid()){I.RemoveCurrent();}}
 }
 
 bool ALDWorldObjects::HasInteraction(ALDB91Controller* PC) const

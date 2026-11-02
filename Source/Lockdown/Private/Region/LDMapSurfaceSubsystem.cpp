@@ -7,11 +7,32 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Tests/LDDemoEntryProbe.h"
+
+bool ULDMapSurfaceSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+    const auto* World = Cast<UWorld>(Outer);
+    return Super::ShouldCreateSubsystem(Outer) && World && !World->IsGameWorld();
+}
+
+void ULDMapSurfaceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+    Super::Initialize(Collection);
+#if WITH_DEV_AUTOMATION_TESTS
+    LDDemoTests::ObserveMapSubsystem(*GetWorld(), true, false);
+#endif
+}
 
 void ULDMapSurfaceSubsystem::OnWorldBeginPlay(UWorld& World)
 {
     Super::OnWorldBeginPlay(World);
-    if(World.GetNetMode()==NM_Standalone&&World.GetAuthGameMode<ALDB90PreviewMode>()) { Definition=ULDMapDefinition::Get(&World); }
+    if(World.GetNetMode()==NM_Standalone&&World.GetAuthGameMode<ALDB90PreviewMode>())
+    {
+        Definition=ULDMapDefinition::Get(&World);
+#if WITH_DEV_AUTOMATION_TESTS
+        if (Definition) { LDDemoTests::ObserveMapSubsystem(World, true, true); }
+#endif
+    }
 }
 TStatId ULDMapSurfaceSubsystem::GetStatId() const
 { RETURN_QUICK_DECLARE_CYCLE_STAT(ULDMapSurfaceSubsystem,STATGROUP_Tickables); }

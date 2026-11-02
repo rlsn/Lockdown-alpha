@@ -7,7 +7,6 @@
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDCommerceDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveRules.h"
 #include "Core/LDGroundQueries.h"
 #include "Core/LDRules.h"
@@ -223,7 +222,7 @@ void ALDObjectiveDirector::Request(const FRequest& R,double Now)
         {
             if(LDRegion::Definition(GetWorld())&&O->PaidJobs>=8){Reason=TEXT("All eight paid courier contracts completed for this match.");}
             else if(Now<O->WorkReadyAt){Reason=TEXT("Courier acceptance cooling down.");}
-            else{if(Mode->Trade){Mode->Trade->CancelFor(PC);}O->ContractId=FGuid::NewGuid();O->ContractStage=1;
+            else{O->ContractId=FGuid::NewGuid();O->ContractStage=1;
                 if(const auto* D=LDRegion::Definition(GetWorld())){const auto Towns=D->Towns();if(!O->FirstCourierTown){O->FirstCourierTown=Towns[Transactions.RandRange(0,1)];}O->ContractDestination=Towns[(Towns.IndexOfByKey(O->FirstCourierTown)+O->PaidJobs)%Towns.Num()];}
                 Mode->SyncOwner(PC);Reason=TEXT("Courier accepted: hold E at your private assigned town to collect.");}
         }
@@ -250,7 +249,7 @@ void ALDObjectiveDirector::BeginChannel(ALDPlayerController* PC,FLDInteractionSt
     {const auto* GS=GetWorld()->GetGameState<ALDGameState>();
         if(Mode->WorldRuntime){Route=Mode->WorldRuntime->Authorization(PC,Now,Now+10);}else if(Mode->Economy){if(GS->CharterWindow.IsValid()&&Now>=GS->CharterOpenAt&&Now<GS->CharterCloseAt&&Now+10<=GS->CharterCloseAt){Route=4;S.Window=GS->CharterWindow;S.WindowClose=GS->CharterCloseAt;}}
         else{Route=GS->DefensiveFlags==0?LDObjective::Assault:(CarriedBy(PC)?LDObjective::SealRoute:0);}if(Route){Kind=LDObjective::Claim;}}
-    if(!Kind){return;}if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Channel=Kind;S.Route=Route;S.Seconds=Kind>=5?(Route==9?3:Route==6?6:4):LDObjective::Duration(Kind);S.Ordinal=Kind==LDObjective::Claim?++NextClaimOrdinal:0;if(Kind>=5){Mode->WorldRuntime->Reserve(PC,Route,true);}S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;S.Body=Cast<ALDCharacter>(PC->GetPawn());S.Damage=Combat->LastDamage;if(Mode->IsTacticalProfile()&&Kind==LDObjective::Claim){Mode->Combat->BreakConcealment(Cast<ALDCharacter>(PC->GetPawn()));PC->Navigation->Stop();}
+    if(!Kind){return;}S.Channel=Kind;S.Route=Route;S.Seconds=Kind>=5?(Route==9?3:Route==6?6:4):LDObjective::Duration(Kind);S.Ordinal=Kind==LDObjective::Claim?++NextClaimOrdinal:0;if(Kind>=5){Mode->WorldRuntime->Reserve(PC,Route,true);}S.Started=Now;S.Anchor=PC->GetPawn()->GetActorLocation();S.Contract=O->ContractId;S.bContested=false;S.Body=Cast<ALDCharacter>(PC->GetPawn());S.Damage=Combat->LastDamage;if(Mode->IsTacticalProfile()&&Kind==LDObjective::Claim){Mode->Combat->BreakConcealment(Cast<ALDCharacter>(PC->GetPawn()));PC->Navigation->Stop();}
     UpdatePrivate(PC,S,Now);
 }
 void ALDObjectiveDirector::UpdatePrivate(ALDPlayerController* PC,FLDInteractionState& S,double Now)
@@ -348,7 +347,7 @@ void ALDObjectiveDirector::Finish(ALDPlayerController* Winner,uint8 Route,double
     if(Winner&&Route==LDObjective::SealRoute)
     {if(auto* Item=CarriedBy(Winner)){if(Mode->Inventory){Mode->Inventory->Remove(Winner,Item,true,TEXT("HeartSealConsumed"));}else{Item->State=2;Item->Carrier.Reset();}}Mode->StateFor(Winner)->SealId.Invalidate();}
     // Close all pending service work before the final accounting export.
-    for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It){if(auto* PC=Cast<ALDPlayerController>(It->Get())){if(Mode->WorldRuntime){Mode->WorldRuntime->EndLife(PC);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Match ended"));}if(Mode->Production){Mode->Production->Cancel(PC);}if(Mode->Trade){Mode->Trade->CancelFor(PC);}if(Mode->Bank){Mode->Bank->Invalidate(PC);}if(Mode->Commerce){Mode->Commerce->Invalidate(PC);}}}
+    for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It){if(auto* PC=Cast<ALDPlayerController>(It->Get())){if(Mode->WorldRuntime){Mode->WorldRuntime->EndLife(PC);}if(Mode->Development){Mode->Development->Cancel(PC,TEXT("Match ended"));}if(Mode->Production){Mode->Production->Cancel(PC);}if(Mode->Bank){Mode->Bank->Invalidate(PC);}if(Mode->Commerce){Mode->Commerce->Invalidate(PC);}}}
     if(Mode->WorldRuntime){for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){It->Destroy();}Requests.Reset();}
     GS->ResultReceipt=FGuid::NewGuid();++GS->ResultSerial;GS->WinningRoute=Route;GS->MatchEndedAt=float(Now);GS->EndReason=Winner?1:2;
     GS->ClaimProgress=Winner?10:0;GS->bClaimActive=false;GS->bContested=false;GS->ForceNetUpdate();

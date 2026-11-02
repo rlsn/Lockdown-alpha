@@ -10,6 +10,14 @@
 #include "Character/LDCharacter.h"
 #include "Engine/World.h"
 #include "Region/LDMapSurfaceSubsystem.h"
+#include "Framework/LDDemoEntry.h"
+#include "Region/LDMapRegistry.h"
+
+namespace
+{
+    bool IsDemoMovement(const UWorld* World)
+    { return World && UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap; }
+}
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
@@ -68,6 +76,11 @@ bool FLDNetworkMoveData::Serialize(UCharacterMovementComponent& Movement,FArchiv
 }
 void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,uint8 Flags,const FVector& Accel)
 {
+    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    {
+        ++SuppressedNetworkSimulationMoves;
+        return;
+    }
     FVector Applied=Accel;
     auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;
     if(PC&&PC->Navigation->Enabled())
@@ -89,18 +102,41 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
 
 void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
 {
+    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    {
+        const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        if (!bAuthorityMovementRunning || bNativeIntegrationActive || !NativeWritePermit || !Mode
+            || Mode->ValidateWritePermit(*NativeWritePermit,ELDCommitPhase::Motion)!=ELDCommitReject::None
+            || Mode->ValidateMotionStep(Mode->GetAuthorityStep(),NativeBody)!=ELDCommitReject::None)
+        {
+            ++RejectedAuthorityMoves;
+            UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_NATIVE_MOVE_REJECTED Native integration requires the current body step."));
+            return;
+        }
+        TGuardValue<bool> NativeScope(bNativeIntegrationActive,true);
+        Super::PerformMovement(DeltaSeconds);
+        ++AuthorityIntegrationCount;
+        AuthorityIntegratedSeconds+=DeltaSeconds;
+        return;
+    }
     if(CharacterOwner&&CharacterOwner->HasAuthority()){if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsV08Profile()&&M->Combat){M->Combat->FlushPastCommand();}}
     Super::PerformMovement(DeltaSeconds);
 }
 void ULDCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds,const FVector& OldLocation,const FVector& OldVelocity)
 {
     Super::OnMovementUpdated(DeltaSeconds,OldLocation,OldVelocity);
+    if (IsDemoMovement(GetWorld())) { return; }
     if(auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>();Surface&&Surface->Enabled())
     { Surface->Refresh(Cast<ALDCharacter>(CharacterOwner),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds())); }
     if(CharacterOwner&&CharacterOwner->HasAuthority()){if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsV08Profile()&&M->Combat){M->Combat->RefreshRiverContact(Cast<ALDCharacter>(CharacterOwner),LDTactical::Milliseconds(GetWorld()->GetTimeSeconds()));}}
 }
 float ULDCharacterMovementComponent::GetMaxSpeed() const
 {
+    if (IsDemoMovement(GetWorld()))
+    {
+        const auto* PC=CharacterOwner?Cast<ALDPlayerController>(CharacterOwner->GetController()):nullptr;
+        return PC && PC->OwnerState.BodyRef.IsValid() && PC->OwnerState.bActive ? MaxWalkSpeed : 0;
+    }
     if(GetWorld()) { if(const auto* Surface=GetWorld()->GetSubsystem<ULDMapSurfaceSubsystem>();Surface&&Surface->Enabled())
     { const auto* C=Surface->Contact(Cast<ALDCharacter>(CharacterOwner));
       if(const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->IsPopulationProfile()&&CharacterOwner&&!Cast<ALDPlayerController>(CharacterOwner->GetController()))
@@ -128,6 +164,8 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
 
 bool ULDCharacterMovementComponent::StartAuthorityDash(const FVector& Direction,double Distance)
 {
+    if (IsDemoMovement(GetWorld()))
+    { UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_DASH_REJECTED Legacy root-motion entry has no Demo release permit.")); return false; }
     if(auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();M&&M->Combat&&!M->Combat->Allows(Cast<ALDCharacter>(CharacterOwner),LDTactical::EAction::Dash)){return false;}
     if (!CharacterOwner || !CharacterOwner->HasAuthority() || !IsMovingOnGround() || Direction.ContainsNaN() || Direction.SizeSquared2D()<UE_SMALL_NUMBER || !FMath::IsFinite(Distance) || Distance<300 || Distance>420) { return false; }
     TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();
@@ -157,4 +195,81 @@ FNetworkPredictionData_Client* ULDCharacterMovementComponent::GetPredictionData_
 }
 
 bool ULDCharacterMovementComponent::StartContentDash(const FVector& Direction,double Distance,double Duration)
-{if(!CharacterOwner||!CharacterOwner->HasAuthority()||!IsMovingOnGround()||Distance<=0||Distance>450||Duration!=.3||Direction.ContainsNaN()){return false;}TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();Dash->InstanceName=TEXT("LD_AuthorityDash");Dash->Priority=500;Dash->AccumulateMode=ERootMotionAccumulateMode::Override;Dash->Force=Direction.GetSafeNormal2D()*(Distance/Duration);Dash->Duration=Duration;Dash->Settings.UnSetFlag(ERootMotionSourceSettingsFlags::DisablePartialEndTick);Dash->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;Dash->FinishVelocityParams.SetVelocity=FVector::ZeroVector;bCanWalkOffLedges=false;return ApplyRootMotionSource(Dash)!=uint16(ERootMotionSourceID::Invalid);}
+{
+    if (IsDemoMovement(GetWorld()))
+    { UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_DASH_REJECTED Legacy content dash has no Demo release permit.")); return false; }
+    if(!CharacterOwner||!CharacterOwner->HasAuthority()||!IsMovingOnGround()||Distance<=0||Distance>450||Duration!=.3||Direction.ContainsNaN()){return false;}TSharedPtr<FRootMotionSource_ConstantForce> Dash=MakeShared<FRootMotionSource_ConstantForce>();Dash->InstanceName=TEXT("LD_AuthorityDash");Dash->Priority=500;Dash->AccumulateMode=ERootMotionAccumulateMode::Override;Dash->Force=Direction.GetSafeNormal2D()*(Distance/Duration);Dash->Duration=Duration;Dash->Settings.UnSetFlag(ERootMotionSourceSettingsFlags::DisablePartialEndTick);Dash->FinishVelocityParams.Mode=ERootMotionFinishVelocityMode::SetVelocity;Dash->FinishVelocityParams.SetVelocity=FVector::ZeroVector;bCanWalkOffLedges=false;return ApplyRootMotionSource(Dash)!=uint16(ERootMotionSourceID::Invalid);
+}
+
+void ULDCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData)
+{
+    if (CharacterOwner && CharacterOwner->HasAuthority() && IsDemoMovement(GetWorld()))
+    {
+        const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+        const auto* Body=Cast<ALDCharacter>(CharacterOwner);
+        FLDCombatBodyRef Ref;
+        const auto& Data=static_cast<const FLDNetworkMoveData&>(MoveData);
+        if (!Mode || !Body || !Mode->ReadBodyRef(*Body,Ref)
+            || Data.Navigation.Match!=Mode->GetMatchContext().Generation || Data.Navigation.Life!=Ref.Victim.Life)
+        {
+            ++RejectedAuthorityMoves;
+            UE_LOG(LogTemp, Verbose, TEXT("LD_DEMO_NETWORK_MOVE_REJECTED Stale body identity."));
+            return;
+        }
+        ++NetworkBookkeepingMoves;
+    }
+    // Keep native timestamp validation, ACKs and corrections together. Demo's
+    // MoveAutonomous cannot perform a second integration outside the driver.
+    Super::ServerMove_PerformMovement(MoveData);
+}
+
+bool ULDCharacterMovementComponent::ServerShouldUseAuthoritativePosition(float ClientTimeStamp, float DeltaTime,
+    const FVector& Accel, const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
+    FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode)
+{
+    if (IsDemoMovement(GetWorld())) { return false; }
+    return Super::ServerShouldUseAuthoritativePosition(ClientTimeStamp,DeltaTime,Accel,ClientWorldLocation,
+        RelativeClientLocation,ClientBase,ClientBaseBoneName,ClientMovementMode);
+}
+
+bool ULDCharacterMovementComponent::AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
+    const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    ALDCharacter* Current=nullptr;
+    const double Delta=Step.EndServerSeconds-Step.StartServerSeconds;
+    if (!Mode || !CharacterOwner || !CharacterOwner->HasAuthority() || IsComponentTickEnabled()
+        || bAuthorityMovementRunning || NativeWritePermit || Input.ContainsNaN() || Input.SizeSquared()>1.+UE_SMALL_NUMBER
+        || !FMath::IsFinite(Delta) || Delta<=0 || Delta>MAX_flt
+        || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Motion)!=ELDCommitReject::None
+        || Mode->ValidateMotionStep(Step,Body)!=ELDCommitReject::None
+        || Mode->ResolveBody(Step.Match,Body,Current)!=ELDCommitReject::None || Current!=CharacterOwner)
+    {
+        Error=TEXT("Native movement rejected a stale, duplicate, tick-enabled or unpermitted body step.");
+        return false;
+    }
+    if (AuthorityIntegrationCount==MAX_uint64)
+    { Error=TEXT("Native integration counter exhausted."); return false; }
+    TGuardValue<bool> Running(bAuthorityMovementRunning,true);
+    TGuardValue<const FLDGameplayWritePermit*> Scope(NativeWritePermit,&Permit);
+    TGuardValue<FLDCombatBodyRef> Binding(NativeBody,Body);
+    const uint64 Before=AuthorityIntegrationCount;
+    CharacterOwner->ConsumeMovementInputVector();
+    if (!Input.IsNearlyZero()) { CharacterOwner->SetActorRotation(FRotator(0,Input.Rotation().Yaw,0)); }
+    FGuid Stream;
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Registry || !Mode->ReadBodyMotionStream(Step.Match,Body,Stream,Error)
+        || !BeginNativeMotionCapture(Step,Body,Stream,Registry->Revision(),Error))
+    { return false; }
+    ControlledCharacterMove(Input,float(Delta));
+    TSharedPtr<const FLDNativeMotionBatch> Batch;
+    if (!FinishNativeMotionCapture(Batch,Error)) { return false; }
+    if (AuthorityIntegrationCount!=Before+1 || CharacterOwner->GetActorLocation().ContainsNaN()
+        || Mode->CompleteNativeMotion(Step,Body,Permit,MoveTemp(Batch))!=ELDCommitReject::None)
+    {
+        Error=TEXT("Native movement did not commit exactly once for its issued body step.");
+        return false;
+    }
+    Error.Reset();
+    return true;
+}

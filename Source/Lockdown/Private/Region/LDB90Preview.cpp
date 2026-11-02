@@ -1,4 +1,5 @@
 #include "Region/LDB90Preview.h"
+#include "Framework/LDDemoEntry.h"
 #include "Region/LDMapDefinition.h"
 #include "Tests/LDB90TraversalProbe.h"
 #include "Tests/LDB90RiverProbe.h"
@@ -31,16 +32,8 @@ ALDB90PreviewMode::ALDB90PreviewMode()
 void ALDB90PreviewMode::InitGame(const FString& MapName,const FString& Options,FString& Error)
 {
     Super::InitGame(MapName,Options,Error);
-    const auto* Definition=ULDMapDefinition::Get(GetWorld()); FString Why,Staged;
-    if(!Definition||!Definition->Validate(Why)
-       ||!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V09/map_b90.json")))
-       ||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=Definition->SourceJson)
-    { Error=TEXT("B90 saved map/payload mismatch; rebuild the B90 assets. ")+Why; return; }
-    if (UGameplayStatics::ParseOption(Options,TEXT("Profile"))!=TEXT("v09_full"))
-    { Error=TEXT("B90 spatial preview requires a fresh v09_full map; use OpenB90.ps1"); }
-    if (UGameplayStatics::HasOption(Options,TEXT("listen")) || IsRunningDedicatedServer())
-    { Error=TEXT("B90 preview is standalone only; multiplayer full-match admission remains B92-B94"); }
-    UE_LOG(LogTemp,Display,TEXT("LD_B90_PREVIEW spatial-only v09_full; no legacy match services/endowments spawned"));
+    if (!LDDemoEntry::ValidateSelection(GetWorld()->GetOutermost()->GetName(), Options, Error)) { return; }
+    Error = TEXT("Retired spatial-preview GameMode. Use the Demo frontend; legacy map modes cannot start.");
 }
 ALDB90PreviewController::ALDB90PreviewController()
 { bShowMouseCursor=true; PrimaryActorTick.bCanEverTick=true; }

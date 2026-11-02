@@ -207,7 +207,7 @@ void ALDNavigationProbe::ClientTick()
     {
         if(!bSent&&E>.7){N->Navigate(FVector(-600,First?-1000:-850,0));bSent=true;}
         if(Step==0&&E>1.4){Old=N->LocalIdentity();N->Navigate(FVector(-2100,First?-1000:-850,0));Step=1;}
-        if(Step==1&&E>2.1){N->Stop();Anchor=Body->GetActorLocation();N->ClientOrder_Implementation(Old,1,FVector(-600,First?-1000:-850,0),40,TEXT("Delayed old acceptance fixture"));N->ServerOrder(Old,FVector(-600,First?-1000:-850,0),FGuid(),0);Step=2;}
+        if(Step==1&&E>2.1){N->Stop();Anchor=Body->GetActorLocation();N->ClientOrder_Implementation(Old,1,FVector(-600,First?-1000:-850,0),40,TEXT("Delayed old acceptance fixture"));N->ServerOrder(Old,FVector(-600,First?-1000:-850,0),FGuid(),0,NAME_None);Step=2;}
         if(Step==2&&E>4){Check(!N->IsFollowing()&&FVector::Dist2D(Anchor,Body->GetActorLocation())<20,TEXT("Stop epoch ignores stale acceptance and old server order"));Step=3;}
     }
     if(Phase==5&&!bSent&&E>.7){N->Navigate(Region?FVector(1300,First?-2100:-2040,200):FVector(900,First?-400:-340,200));bSent=true;}
@@ -226,7 +226,7 @@ void ALDNavigationProbe::ClientTick()
     }
     if(Phase==17&&!Step&&E>3.5){Check(bSent&&!N->IsFollowing(),TEXT("Observed pickup uses a reachable native endpoint with bounded arrival"));Step=1;}
     if(Phase==9&&!bSent&&E>.5)
-    {N->Stop();Old=N->LocalIdentity();++Old.Order;N->ServerOrder(Old,FVector(-600,First?-1000:-850,0),FGuid(),0);bSent=true;}
+    {N->Stop();Old=N->LocalIdentity();++Old.Order;N->ServerOrder(Old,FVector(-600,First?-1000:-850,0),FGuid(),0,NAME_None);bSent=true;}
     if(Phase==10&&!bSent&&E>.5)
     {for(int32 I=0;I<100;++I){N->Navigate(FVector(-1500+I,First?-1000:-850,0));}bSent=true;}
     if(Phase==11)

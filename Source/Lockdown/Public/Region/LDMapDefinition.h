@@ -3,7 +3,26 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
+#include "Region/LDMapGeometry.h"
 #include "LDMapDefinition.generated.h"
+
+class FLDDemoContentSnapshot;
+
+class LOCKDOWN_API FLDDemoPreparedWorld
+{
+public:
+    ~FLDDemoPreparedWorld() = default;
+    FLDDemoPreparedWorld(const FLDDemoPreparedWorld&) = delete;
+    FLDDemoPreparedWorld& operator=(const FLDDemoPreparedWorld&) = delete;
+
+private:
+    friend class ULDMapDefinition;
+    FLDDemoPreparedWorld() = default;
+    FString SourceJson;
+    FString Checksum;
+    FLDDemoContentDigest ContentRoot;
+    FLDDemoWorldGeometry Geometry;
+};
 
 // Independent of the legacy 60x40 fog grid and uint8 service-address space.
 USTRUCT()
@@ -59,9 +78,9 @@ class LOCKDOWN_API ULDMapDefinition : public UDataAsset
 public:
     UPROPERTY() FString SourceJson;
     UPROPERTY() FString Checksum;
-    UPROPERTY() int32 Seed = 9001;
-    UPROPERTY() int32 LayoutRevision = 1;
-    UPROPERTY() int32 FitterRevision = 3;
+    UPROPERTY() int32 Seed = 0;
+    UPROPERTY() int32 LayoutRevision = 0;
+    UPROPERTY() int32 FitterRevision = 0;
     UPROPERTY() TArray<FLDMapPoint> POIs;
     UPROPERTY() TArray<FLDMapPoint> Spawns;
     UPROPERTY() TArray<FLDMapPoint> Settlements;
@@ -74,10 +93,15 @@ public:
     UPROPERTY() FVector2D WetSize = FVector2D::ZeroVector;
     UPROPERTY() TArray<FLDMapService> Services;
     UPROPERTY() TMap<FName,FName> Aliases;
-    UPROPERTY() double CivicHeartOverride = 7000;
+    UPROPERTY() double CivicHeartOverride = 0;
 
     bool Import(const FString& Json, FString& Error);
+    bool Import(const TArray<uint8>& Json, const FLDDemoContentSnapshot& Content, FString& Error);
+    static bool PrepareProjection(const TArray<uint8>& Json, const FLDDemoContentSnapshot& Content,
+        TUniquePtr<FLDDemoPreparedWorld>& Out, FString& Error);
+    bool ValidatePrepared(const FLDDemoPreparedWorld& Expected, FString& Error) const;
     bool Validate(FString& Error) const;
+    bool Read(const FLDDemoContentSnapshot& Content, TSharedPtr<const FLDDemoWorldGeometry>& Out, FString& Error) const;
     const FLDMapPoint* Find(FName Id) const;
     FVector NavigationTarget(FName Id) const;
     FName CanonicalId(FName Id) const;
@@ -88,6 +112,9 @@ public:
     bool UpwardLedge(const FVector& From,const FVector& To) const;
     static bool InBounds(const FVector& Point);
     static const ULDMapDefinition* Get(const UWorld* World);
+private:
+    UPROPERTY() FLDDemoContentDigest ContentRoot;
+    UPROPERTY() FLDDemoWorldGeometry DemoGeometry;
 };
 
 UCLASS()

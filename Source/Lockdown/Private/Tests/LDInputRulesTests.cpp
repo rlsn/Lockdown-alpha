@@ -1,15 +1,19 @@
 #include "UI/LDControlSettings.h"
 #include "Framework/LDCommandLiveness.h"
 #include "Misc/AutomationTest.h"
-#include "Kismet/GameplayStatics.h"
+#include "HAL/FileManager.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDInputMappingsTest,"Lockdown.Rules.ControlMappings",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDInputMappingsTest::RunTest(const FString& Parameters)
 {
-    const FString Slot=TEXT("LockdownControlsProbe_")+FGuid::NewGuid().ToString(EGuidFormats::Digits);
-    auto* Settings=ULDControlSettings::Load(Slot);Settings->ResetBindings();FString Error;
+    const auto Storage=FLDLocalSettingsStorage::Automation(FGuid::NewGuid());
+    const auto Initial=ULDControlSettings::LoadLocalSettings(Storage);
+    auto* Settings=Initial.Settings;
+    if(!TestNotNull(TEXT("Missing isolated preferences yield explicit current defaults"),Settings)){return false;}
+    TestTrue(TEXT("First run is Missing, never Loaded"),Initial.Status==ELDLocalSettingsLoadStatus::Missing);
+    Settings->ResetBindings();FString Error;
     TestTrue(TEXT("Default registry is complete and conflict free"),Settings->Valid());
-    TestTrue(TEXT("Native defaults migrate all four skills"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Skill3"))==EKeys::E&&Settings->Key(TEXT("Skill4"))==EKeys::R);
+    TestTrue(TEXT("Incumbent registry still defines its four skill keys"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Skill3"))==EKeys::E&&Settings->Key(TEXT("Skill4"))==EKeys::R);
     TestTrue(TEXT("No contextual key; camera and item bindings remain"),!Settings->Key(TEXT("Context")).IsValid()&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar&&Settings->Key(TEXT("Item1"))==EKeys::One);
     TestFalse(TEXT("Conflict cannot silently replace another command"),Settings->Rebind(TEXT("Skill1"),EKeys::W,Error));
     TestFalse(TEXT("Global Escape cannot be taken by a world action"),Settings->Rebind(TEXT("Skill1"),EKeys::Escape,Error));
@@ -18,12 +22,16 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A free keyboard binding is accepted"),Settings->Rebind(TEXT("Skill1"),EKeys::Z,Error));
     TestEqual(TEXT("Displayed key derives from live registry"),Settings->Label(TEXT("Skill1")),EKeys::Z.GetDisplayName().ToString());
     Settings->Bindings.Add(TEXT("Context"),EKeys::F);
-    Settings->TextScale=1.25f;Settings->bEdgePan=false;TestTrue(TEXT("Local preferences save"),Settings->Save());
-    const auto* Loaded=ULDControlSettings::Load(Slot);
-    TestFalse(TEXT("Loading old preferences removes contextual interaction"),Loaded->Bindings.Contains(TEXT("Context")));
-    TestTrue(TEXT("Actual SaveGame load preserves local mapping and settings"),Loaded->Key(TEXT("Skill1"))==EKeys::Z&&Loaded->TextScale==1.25f&&!Loaded->bEdgePan);
+    TestFalse(TEXT("Unknown action in a raw map cannot resolve"),Settings->Key(TEXT("Context")).IsValid());
+    TestTrue(TEXT("Unknown action is rejected, not stripped and saved"),Settings->SaveLocalSettings().Status==ELDLocalSettingsSaveStatus::Invalid);
+    Settings->Bindings.Remove(TEXT("Context"));
+    Settings->TextScale=1.25f;Settings->bEdgePan=false;TestTrue(TEXT("Local preferences save and read back"),Settings->SaveLocalSettings().IsSaved());
+    const auto Reload=ULDControlSettings::LoadLocalSettings(Storage);
+    const auto* Loaded=Reload.Settings;
+    TestTrue(TEXT("Disk load is explicit Loaded"),Reload.Status==ELDLocalSettingsLoadStatus::Loaded);
+    TestTrue(TEXT("Actual disk load preserves local mapping and preferences"),Loaded&&Loaded->Key(TEXT("Skill1"))==EKeys::Z&&Loaded->TextScale==1.25f&&!Loaded->bEdgePan);
     Settings->ResetBindings();TestTrue(TEXT("Reset restores keys without resetting other preferences"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->TextScale==1.25f&&!Settings->bEdgePan);
-    TestTrue(TEXT("Isolated preferences fixture is removed"),UGameplayStatics::DeleteGameInSlot(Slot,0));
+    TestTrue(TEXT("Isolated preferences fixture is removed"),IFileManager::Get().Delete(*Storage.Filename(),false,false,true));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDIssuedLivenessTest,"Lockdown.Rules.IssuedCommandLiveness",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

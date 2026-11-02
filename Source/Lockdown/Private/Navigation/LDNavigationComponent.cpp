@@ -1,21 +1,15 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Framework/LDCommandLiveness.h"
-#include "World/LDEnvironmentDirector.h"
-#include "Region/LDMapDefinition.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
-#include "NavigationSystem.h"
-#include "NavigationData.h"
-#include "NavigationPath.h"
-#include "Vision/LDVisionDirector.h"
-#include "Vision/LDWorldViewRelay.h"
-#include "Region/LDRegionDefinition.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Region/LDMapRegistry.h"
+#include "Region/LDMapGeometry.h"
 #include "Misc/App.h"
 #include "Misc/ScopeExit.h"
 #include "Framework/Application/SlateApplication.h"
@@ -26,34 +20,51 @@
 
 namespace
 {
-    AActor* ResolveMoveTarget(ALDPlayerController* PC,FGuid Handle)
-    {
-        auto* M=PC->GetWorld()->GetAuthGameMode<ALDGameMode>();if(!M){return nullptr;}
-        if(M->IsEnvironmentProfile())
-        {if(auto* Objects=ALDWorldObjects::Get(PC->GetWorld())){if(auto* O=Objects->Resolve(Cast<ALDB91Controller>(PC),Handle)){return O;}}if(auto* E=ALDEnvironmentDirector::Get(PC->GetWorld())){return E->Resolve(PC,Handle);}return nullptr;}
-        return M->Vision?M->Vision->ResolveObserved(PC,Handle):nullptr;
-    }
-    constexpr uint8 NavAccepted=1,Arrived=2,Stopped=3,Rejected=4;
+    constexpr uint8 Queued=0, NavAccepted=1, Arrived=2, Stopped=3, Rejected=4;
+    constexpr double QueryInterval=0.1, NoProgressSeconds=2., WaypointToleranceCm=12.;
+
     void HaltLocomotion(ALDCharacter* Body)
     {
-        if(!Body){return;}Body->ConsumeMovementInputVector();auto* Move=Body->GetCharacterMovement();
-        if(Move->IsFalling()){Move->Velocity.X=Move->Velocity.Y=0;}else if(!Move->HasRootMotionSources()){Move->StopMovementImmediately();}
+        if (!Body) { return; }
+        Body->ConsumeMovementInputVector();
+        auto* Move = Body->GetCharacterMovement();
+        if (Move->IsFalling()) { Move->Velocity.X = Move->Velocity.Y = 0; }
+        else if (!Move->HasRootMotionSources()) { Move->StopMovementImmediately(); }
     }
-    bool Newer(const FLDMoveIdentity& A,const FLDMoveIdentity& B)
-    {return A.Epoch>=B.Epoch&&A.Order>B.Order;}
-    double AlongPath(const TArray<FVector>& Path,const FVector& Position)
+
+    double AlongPath(const TArray<FVector>& Path, const FVector& Position)
     {
-        double Length=0,BestDistance=DBL_MAX,Progress=0;
-        for(int32 I=1;I<Path.Num();++I)
+        double Length=0, BestDistance=DBL_MAX, Progress=0;
+        for (int32 Index=1; Index<Path.Num(); ++Index)
         {
-            const FVector A=Path[I-1],D=Path[I]-A;const double Segment=D.Size2D();
-            if(Segment<UE_SMALL_NUMBER){continue;}
-            const double T=FMath::Clamp(((Position.X-A.X)*D.X+(Position.Y-A.Y)*D.Y)/(Segment*Segment),0.,1.);
-            const double Distance=FVector::DistSquared2D(Position,A+D*T);
-            if(Distance<BestDistance){BestDistance=Distance;Progress=Length+T*Segment;}
+            const FVector A=Path[Index-1], Direction=Path[Index]-A;
+            const double Segment=Direction.Size2D();
+            if (Segment<UE_SMALL_NUMBER) { continue; }
+            const double T=FMath::Clamp(FVector::DotProduct(FVector(Position.X-A.X,Position.Y-A.Y,0),
+                FVector(Direction.X,Direction.Y,0))/(Segment*Segment),0.,1.);
+            const double Distance=FVector::DistSquared2D(Position,A+Direction*T);
+            if (Distance<BestDistance) { BestDistance=Distance; Progress=Length+T*Segment; }
             Length+=Segment;
         }
         return Progress;
+    }
+
+    FVector Steering(const TArray<FVector>& Path, int32& Index, const ALDCharacter& Body)
+    {
+        if (!Path.IsValidIndex(Index)) { return FVector::ZeroVector; }
+        const FVector Foot=Body.GetNavAgentLocation();
+        while (Index<Path.Num()-1 && FVector::DistSquared2D(Foot,Path[Index])<=FMath::Square(WaypointToleranceCm)) { ++Index; }
+        const FVector Delta=Path[Index]-Foot;
+        const double Scale=FMath::Clamp(Delta.Size2D()/FMath::Max(1.,Body.GetCharacterMovement()->GetMaxSpeed()*.2),.08,1.);
+        return Delta.GetSafeNormal2D()*Scale;
+    }
+
+    bool AtGoal(const ALDCharacter& Body, const FVector& Goal, float Acceptance)
+    {
+        const auto* Movement=Body.GetCharacterMovement();
+        return Movement->IsMovingOnGround() && Movement->CurrentFloor.IsWalkableFloor()
+            && !Movement->HasRootMotionSources()
+            && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(Acceptance);
     }
 }
 
@@ -63,283 +74,448 @@ ULDNavigationComponent::ULDNavigationComponent()
     PrimaryComponentTick.bCanEverTick=true;
     PrimaryComponentTick.TickGroup=TG_PrePhysics;
 }
-ALDPlayerController* ULDNavigationComponent::Controller() const {return Cast<ALDPlayerController>(GetOwner());}
-bool ULDNavigationComponent::Enabled() const
-{const auto* PC=Controller();const auto* G=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;return PC&&G&&G->bUIControlProfile;}
 
-bool ULDNavigationComponent::Plan(const FVector& Surface,TArray<FVector>& Out,FVector& Projected)
+ALDPlayerController* ULDNavigationComponent::Controller() const { return Cast<ALDPlayerController>(GetOwner()); }
+
+bool ULDNavigationComponent::Enabled() const
 {
-    const double Started=FPlatformTime::Seconds();++QueryCount;
-    ON_SCOPE_EXIT {QueryMilliseconds+=(FPlatformTime::Seconds()-Started)*1000;};
-    const auto* PC=Controller();const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
-    auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
-    const bool InWorld=Public&&Public->bEnvironmentProfile?ULDMapDefinition::InBounds(Surface):LDVision::InWorld(Surface,LDRegion::Definition(GetWorld())?LDRegion::Definition(GetWorld())->Grid:FLDVisionGrid());
-    if(!Body||!Nav||Surface.ContainsNaN()||!InWorld){return false;}
-    FHitResult Hit;
-    if(!GetWorld()->LineTraceSingleByChannel(Hit,Surface+FVector(0,0,25),Surface-FVector(0,0,50),ECC_GameTraceChannel1)
-        ||Hit.ImpactNormal.Z<FMath::Cos(FMath::DegreesToRadians(40.))||FMath::Abs(Hit.ImpactPoint.Z-Surface.Z)>50){return false;}
-    FNavLocation End;
-    const auto& Props=Body->GetCharacterMovement()->GetNavAgentPropertiesRef();
-    if(!Nav->ProjectPointToNavigation(Hit.ImpactPoint,End,FVector(100,100,50),&Props)
-        ||FVector::DistSquared2D(End.Location,Surface)>100*100||FMath::Abs(End.Location.Z-Surface.Z)>50){return false;}
-    const ANavigationData* Data=Nav->GetNavDataForProps(Props,Body->GetNavAgentLocation());
-    if(!Data){return false;}
-    FPathFindingQuery Query(PC,*Data,Body->GetNavAgentLocation(),End.Location);
-    Query.SetAllowPartialPaths(false);
-    const auto Path=Nav->FindPathSync(Props,Query);
-    if(!Path.IsSuccessful()||!Path.Path.IsValid()||Path.Path->IsPartial()||Path.Path->GetPathPoints().IsEmpty()){return false;}
-    Out.Reset();for(const auto& P:Path.Path->GetPathPoints()){Out.Add(P.Location);}
-    Projected=End.Location;return true;
+    const auto* PC=Controller();
+    return PC && GetWorld() && UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
 }
 
-void ULDNavigationComponent::Navigate(const FVector& Surface,FGuid Observed,uint8 Site)
+bool ULDNavigationComponent::Plan(const FVector& Surface, FName SurfaceHint,
+    TArray<FVector>& Out, FVector& Projected, FString& Error)
+{
+    const double Started=FPlatformTime::Seconds();
+    ++QueryCount;
+    ON_SCOPE_EXIT { QueryMilliseconds+=(FPlatformTime::Seconds()-Started)*1000; };
+    Out.Reset();
+    const auto* PC=Controller();
+    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Body || !Registry || !Registry->Enabled() || Surface.ContainsNaN())
+    {
+        Error=TEXT("No current body or registered Demo world.");
+        return false;
+    }
+    const auto* Movement=Body->GetCharacterMovement();
+    const auto* Shape=Body->GetCapsuleComponent();
+    const FCollisionShape Capsule=FCollisionShape::MakeCapsule(Shape->GetScaledCapsuleRadius(),Shape->GetScaledCapsuleHalfHeight());
+    FLDLegalGround From, To;
+    ELDWorldQueryFailure Failure;
+    if (!Movement->IsMovingOnGround() || !Movement->CurrentFloor.IsWalkableFloor()
+        || !Registry->QueryGround(Registry->Revision(),Body->GetNavAgentLocation(),Capsule,SurfaceHint,From,Failure,Error)
+        || From.Floor.Get()!=Movement->CurrentFloor.HitResult.GetComponent())
+    {
+        if (Error.IsEmpty()) { Error=TEXT("NotGrounded: the body's current native support is not registered."); }
+        return false;
+    }
+    if (!Registry->QueryGround(Registry->Revision(),Surface,Capsule,SurfaceHint,To,Failure,Error)) { return false; }
+    FLDCompletePath Path;
+    if (!Registry->QueryCompletePath(Registry->Revision(),From,To,Capsule,Path,Failure,Error)) { return false; }
+    Out=MoveTemp(Path.Points);
+    Projected=To.SurfaceCm;
+    return true;
+}
+
+bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out)
 {
     auto* PC=Controller();
-    if(!Enabled()||!PC->CanWorldCommand()||!PC->IsLocalController()){return;}
-    PC->CancelInterruptibleHolds();
-    Local={PC->OwnerState.Match,PC->OwnerState.Life,++Serial,Epoch};
-    bFollowing=false;bLocalActive=true;Points.Reset();
-    HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn()));
-    Status=TEXT("Move pending");PC->IntentFeedback=Status;
-    LocalSentAt=FPlatformTime::Seconds();
-    ServerOrder(Local,Surface,Observed,Site);
+    if (!PC || Serial==MAX_uint32 || (Cancel && Epoch==MAX_uint32))
+    {
+        Status=TEXT("Movement identity exhausted; this body cannot issue another order.");
+        if (PC) { PC->IntentFeedback=Status; }
+        UE_LOG(LogTemp, Error, TEXT("LD_NAV_IDENTITY_EXHAUSTED"));
+        return false;
+    }
+    if (Cancel) { ++Epoch; }
+    Out={PC->OwnerState.Match,PC->OwnerState.Life,++Serial,Epoch};
+    return true;
 }
+
+void ULDNavigationComponent::Navigate(const FVector& Surface, FGuid Observed, uint8 Site)
+{
+    auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
+    if (Observed.IsValid() || Site || !Geometry || Geometry->Surfaces.Num()!=1)
+    {
+        Status=TEXT("Only registered ground orders are wired in this executable core slice.");
+        if (auto* PC=Controller()) { PC->IntentFeedback=Status; }
+        return;
+    }
+    NavigateGround(Surface,FName(*Geometry->Surfaces[0].Id));
+}
+
+void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint)
+{
+    auto* PC=Controller();
+    if (!Enabled() || !PC->CanWorldCommand() || !PC->IsLocalController()) { return; }
+    if (!NextLocalIdentity(false,Local)) { return; }
+    LocalSurfaceHint=SurfaceHint;
+    bFollowing=false;
+    bLocalActive=true;
+    Points.Reset();
+    if (!PC->HasAuthority()) { HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
+    Status=PC->IntentFeedback=TEXT("Move pending");
+    LocalSentAt=FPlatformTime::Seconds();
+    ServerOrder(Local,Surface,FGuid(),0,SurfaceHint);
+}
+
 void ULDNavigationComponent::Stop()
 {
-    auto* PC=Controller();if(!Enabled()||!PC->IsLocalController()){return;}
-    Local={PC->OwnerState.Match,PC->OwnerState.Life,++Serial,++Epoch};
-    bFollowing=bLocalActive=false;Points.Reset();Status=TEXT("Stopped");
-    HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn()));
+    auto* PC=Controller();
+    if (!Enabled() || !PC->IsLocalController() || !NextLocalIdentity(true,Local)) { return; }
+    bFollowing=bLocalActive=false;
+    Points.Reset();
+    Status=TEXT("Stop pending");
+    if (!PC->HasAuthority()) { HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
     ServerStop(Local);
 }
+
 void ULDNavigationComponent::ResetLife()
 {
-    bFollowing=bLocalActive=bServerActive=bPending=false;Points.Reset();Approach.Invalidate();
-    bCameraInitialized=false;bFollowCamera=true;bRecenterHeld=false;
-    // Serial and cancellation epoch are never rewound by an old-life receipt.
-    if(auto* PC=Controller()){SeenMatch=PC->OwnerState.Match;SeenLife=PC->OwnerState.Life;Local={SeenMatch,SeenLife,++Serial,++Epoch};}
+    bFollowing=bLocalActive=bServerActive=bPending=false;
+    Points.Reset();
+    ServerPoints.Reset();
+    bCameraInitialized=false;
+    bFollowCamera=true;
+    bRecenterHeld=false;
+    if (auto* PC=Controller())
+    {
+        SeenMatch=PC->OwnerState.Match;
+        SeenLife=PC->OwnerState.Life;
+        NextLocalIdentity(true,Local);
+        Server=Received=Pending={SeenMatch,SeenLife,0,0};
+    }
 }
-bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) const
-{return !Enabled()||(bServerActive&&Identity==Server&&LDCommandLiveness::Fresh(GetWorld()->GetTimeSeconds(),LastHeartbeat));}
 
-void ULDNavigationComponent::ServerOrder_Implementation(FLDMoveIdentity Identity,FVector_NetQuantize10 Surface,FGuid Observed,uint8 Site)
+bool ULDNavigationComponent::AcceptEnvelope(const FLDMoveIdentity& Identity, FString& Error) const
 {
-    auto* PC=Controller();auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(PC):nullptr;
-    if(!Enabled()||!O||!O->bActive||!M->IsPlaying()||Identity.Match!=O->Match||Identity.Life!=O->Life||!Identity.Order||Surface.ContainsNaN()||Site>8)
-    {ClientOrder(Identity,Rejected,{},40,TEXT("Invalid order or stale life"));return;}
-    if(Server.Match!=O->Match||Server.Life!=O->Life){bServerActive=bPending=false;Server={O->Match,O->Life,0,0};}
-    if(Identity==Server){if(!bPending){ClientOrder(Server,LastResult,ServerGoal,ServerAcceptance,LastResult==NavAccepted?TEXT("Move accepted"):TEXT("Order finished"));}return;}
-    if(!Newer(Identity,Server)){ClientOrder(Identity,Rejected,{},40,TEXT("Expired move order"));return;}
-    Server=Identity;PendingSurface=Surface;Approach=Observed;PendingSite=Site;
-    bPending=true;bServerActive=false;LastHeartbeat=GetWorld()->GetTimeSeconds();ServerHeartbeatSequence=0;
-    // Tick evaluates only the newest request, at most ten routes per second.
-    // An approach may test up to twelve bounded ring candidates.
+    const auto* PC=Controller();
+    const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    FLDCombatBodyRef Ref;
+    if (!Enabled() || !Mode || !PC || !Body || Body->GetController()!=PC
+        || !Mode->IsGameplayWriteOpen(Mode->GetMatchContext()) || !Mode->ReadBodyRef(*Body,Ref)
+        || Identity.Match!=Mode->GetMatchContext().Generation || Identity.Life!=Ref.Victim.Life || !Identity.Order)
+    {
+        Error=TEXT("NotOwner/StaleLife: ground orders require the current registered, owned live body.");
+        return false;
+    }
+    return true;
 }
+
+bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) const
+{
+    FString Error;
+    const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    return AcceptEnvelope(Identity,Error) && bServerActive && Identity==Server
+        && LDCommandLiveness::Fresh(Mode->GetAuthorityNowSeconds(),LastHeartbeat);
+}
+
+void ULDNavigationComponent::ServerOrder_Implementation(FLDMoveIdentity Identity,
+    FVector_NetQuantize10 Surface, FGuid Observed, uint8 Site, FName SurfaceHint)
+{
+    FString Error;
+    if (!AcceptEnvelope(Identity,Error) || Surface.ContainsNaN() || Observed.IsValid() || Site)
+    {
+        ClientOrder(Identity,Rejected,{},0,Error.IsEmpty()?TEXT("Invalid ground-order shape."):Error);
+        return;
+    }
+    if (Received.Match!=Identity.Match || Received.Life!=Identity.Life)
+    { Received=Server={Identity.Match,Identity.Life,0,0}; }
+    if (Identity==Received)
+    {
+        if (bReceivedStop || FVector(Surface)!=ReceivedSurface || SurfaceHint!=ReceivedSurfaceHint)
+        { ClientOrder(Identity,Rejected,{},0,TEXT("RequestConflict: this identity has different ground terms.")); }
+        else if (bPending && Pending==Identity) { ClientOrder(Identity,Queued,{},0,TEXT("Move pending")); }
+        else { ClientOrder(Identity,LastResult,ServerGoal,ServerAcceptance,LastReason); }
+        return;
+    }
+    if (Identity.Order<=Received.Order || Identity.Epoch<Received.Epoch)
+    {
+        ClientOrder(Identity,Rejected,{},0,TEXT("StaleOrder: an older order or cancelled epoch cannot run again."));
+        return;
+    }
+    if (!GetWorld()->GetAuthGameMode<ALDGameMode>()->CaptureIncomingTime(PendingNotBeforeMs,Error))
+    { ClientOrder(Identity,Rejected,{},0,Error); return; }
+    if (bPending) { ClientOrder(Pending,Stopped,{},0,TEXT("Superseded before activation.")); }
+    Received=Pending=Identity;
+    ReceivedSurface=PendingSurface=Surface;
+    ReceivedSurfaceHint=PendingSurfaceHint=SurfaceHint;
+    bReceivedStop=bPendingStop=false;
+    bPending=true;
+    ClientOrder(Identity,Queued,{},0,TEXT("Move pending"));
+}
+
 void ULDNavigationComponent::ServerStop_Implementation(FLDMoveIdentity Identity)
 {
-    auto* PC=Controller();auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(PC):nullptr;
-    if(!Enabled()||!O||Identity.Match!=O->Match||Identity.Life!=O->Life||!Identity.Order){return;}
-    if(Server.Match!=O->Match||Server.Life!=O->Life){Server={O->Match,O->Life,0,0};}
-    if(Identity==Server){ClientOrder(Server,LastResult,ServerGoal,ServerAcceptance,TEXT("Stopped"));return;}
-    if(!Newer(Identity,Server)||Identity.Epoch<=Server.Epoch){return;}
-    Server=Identity;EndServer(Stopped,TEXT("Stopped"));
-}
-void ULDNavigationComponent::ServerHeartbeat_Implementation(FLDMoveIdentity Identity,uint32 Sequence)
-{
-    if((bPending||bServerActive)&&Identity==Server&&Sequence>ServerHeartbeatSequence)
-    {ServerHeartbeatSequence=Sequence;LastHeartbeat=GetWorld()->GetTimeSeconds();}
+    FString Error;
+    if (!AcceptEnvelope(Identity,Error)) { ClientOrder(Identity,Rejected,{},0,Error); return; }
+    if (Received.Match!=Identity.Match || Received.Life!=Identity.Life)
+    { Received=Server={Identity.Match,Identity.Life,0,0}; }
+    if (Identity==Received)
+    {
+        if (!bReceivedStop) { ClientOrder(Identity,Rejected,{},0,TEXT("RequestConflict: this identity is not a Stop.")); }
+        else { ClientOrder(Identity,bPending?Queued:LastResult,ServerGoal,ServerAcceptance,bPending?TEXT("Stop pending"):LastReason); }
+        return;
+    }
+    if (Identity.Order<=Received.Order || Identity.Epoch<=Received.Epoch)
+    { ClientOrder(Identity,Rejected,{},0,TEXT("StaleOrder: Stop must advance both order and cancellation epoch.")); return; }
+    if (!GetWorld()->GetAuthGameMode<ALDGameMode>()->CaptureIncomingTime(PendingNotBeforeMs,Error))
+    { ClientOrder(Identity,Rejected,{},0,Error); return; }
+    if (bPending) { ClientOrder(Pending,Stopped,{},0,TEXT("Cancelled before activation.")); }
+    Received=Pending=Identity;
+    bReceivedStop=bPendingStop=true;
+    bPending=true;
+    ClientOrder(Identity,Queued,{},0,TEXT("Stop pending"));
 }
 
-bool ULDNavigationComponent::ResolveOrder(FVector& Goal,float& Acceptance,TArray<FVector>& Path)
+void ULDNavigationComponent::ServerHeartbeat_Implementation(FLDMoveIdentity Identity, uint32 Sequence)
 {
-    auto* PC=Controller();const APawn* Body=PC?PC->GetPawn():nullptr;
-    if(!Body){return false;}
-    FVector Target=PendingSurface;Acceptance=40;
-    if(Approach.IsValid())
+    FString Error;
+    if (bServerActive && Identity==Server && Sequence>ServerHeartbeatSequence && AcceptEnvelope(Identity,Error))
     {
-        const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();
-        if(M&&M->IsEnvironmentProfile())
-        {const auto* Actor=ResolveMoveTarget(PC,Approach);if(!Actor){return false;}Target=Actor->GetActorLocation();Acceptance=110;if(const auto* Object=Cast<ALDWorldObject>(Actor)){Acceptance=120;Target=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation())+FVector(0,0,18):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);}else if(Actor->IsA<ALDEnvironmentDoor>()){Acceptance=120;Target=Actor->GetActorLocation()-FVector(0,0,130);}}
+        ServerHeartbeatSequence=Sequence;
+        LastHeartbeat=GetWorld()->GetAuthGameMode<ALDGameMode>()->GetAuthorityNowSeconds();
+    }
+}
+
+bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
+    { Error=TEXT("Ground-order activation requires the current Actions permit."); return false; }
+    if (!bPending || Mode->GetAuthorityNowMs()<PendingNotBeforeMs
+        || (!bPendingStop && Mode->GetAuthorityNowSeconds()<NextQuery)) { return true; }
+    Server=Pending;
+    bPending=false;
+    if (!AcceptEnvelope(Server,Error))
+    {
+        EndServer(Rejected,Error);
+        Error.Reset();
+        return true;
+    }
+    if (bPendingStop) { EndServer(Stopped,TEXT("Stopped")); return true; }
+    NextQuery=Mode->GetAuthorityNowSeconds()+QueryInterval;
+    ServerSurfaceHint=PendingSurfaceHint;
+    if (!Plan(PendingSurface,ServerSurfaceHint,ServerPoints,ServerGoal,Error))
+    {
+        EndServer(Rejected,Error);
+        Error.Reset();
+        return true;
+    }
+    ServerAcceptance=40;
+    ServerPointIndex=ServerPoints.Num()>1?1:0;
+    bServerActive=true;
+    bServerReplanned=false;
+    LastResult=NavAccepted;
+    LastReason=TEXT("Move accepted");
+    LastHeartbeat=ServerLastProgress=Mode->GetAuthorityNowSeconds();
+    ServerHeartbeatSequence=0;
+    ServerBestProgress=AlongPath(ServerPoints,Controller()->GetPawn()->GetActorLocation());
+    ClientOrder(Server,LastResult,ServerGoal,ServerAcceptance,LastReason);
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u goal=%s"),Server.Match,Server.Life,Server.Order,Server.Epoch,*ServerGoal.ToString());
+    return true;
+}
+
+bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Ref,
+    const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    ALDCharacter* Body=nullptr;
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Motion)!=ELDCommitReject::None
+        || Mode->ResolveBody(Step.Match,Ref,Body)!=ELDCommitReject::None || Body->GetController()!=Controller())
+    { Error=TEXT("Ground motion requires the registered body's Motion permit."); return false; }
+    if (bServerActive && !AuthorizesMove(Server)) { EndServer(Stopped,TEXT("Movement stopped: stale body, order or connection.")); }
+    if (bServerActive && AtGoal(*Body,ServerGoal,ServerAcceptance)) { EndServer(Arrived,TEXT("Arrived")); }
+    const FVector Input=bServerActive?Steering(ServerPoints,ServerPointIndex,*Body):FVector::ZeroVector;
+    auto* Movement=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
+    if (!Movement->AdvanceAuthorityMovement(Step,Ref,Input,Permit,Error)) { return false; }
+    if (!bServerActive) { return true; }
+    if (AtGoal(*Body,ServerGoal,ServerAcceptance)) { EndServer(Arrived,TEXT("Arrived")); return true; }
+    const double Progress=AlongPath(ServerPoints,Body->GetNavAgentLocation());
+    if (Progress>=ServerBestProgress+10) { ServerBestProgress=Progress; ServerLastProgress=Step.EndServerSeconds; }
+    if (Step.EndServerSeconds-ServerLastProgress>=NoProgressSeconds)
+    {
+        if (bServerReplanned) { EndServer(Stopped,TEXT("Path blocked")); }
         else
-        {const auto* View=M&&M->Vision?M->Vision->AuthorityViewFor(PC):nullptr;const auto* E=View?View->Entities.FindByPredicate([&](const FLDObservedEntity& X){return X.Id==Approach;}):nullptr;if(!E){return false;}Target=E->Position;Acceptance=LDVision::PickupKind(E->Kind)?64:100;}
-    }
-    else if(PendingSite)
-    {
-        if(PendingSite!=1&&PendingSite!=2&&PendingSite!=3&&PendingSite!=6&&PendingSite!=7&&PendingSite!=8){return false;}
-        if(PendingSite>3&&!LDRegion::Definition(GetWorld())){return false;}
-        Target=LDRegion::Site(GetWorld(),PendingSite);Acceptance=100;
-    }
-    if(!Approach.IsValid()&&!PendingSite){return Plan(Target,Path,Goal);}
-    if(FVector::DistSquared2D(Body->GetActorLocation(),Target)<=FMath::Square(Acceptance))
-    {Goal=CastChecked<ALDCharacter>(Body)->GetNavAgentLocation();return true;}
-    // Approach a reachable point outside the observed body's collision. Never query its future position.
-    const FVector From=(Body->GetActorLocation()-Target).GetSafeNormal2D();
-    const double Radius=FMath::Max(60.f,Acceptance-12);
-    for(int32 I=0;I<12;++I)
-    {
-        const int32 Offset=I%2?-((I+1)/2):I/2;
-        FVector Candidate=Target+From.RotateAngleAxis(Offset*30.,FVector::UpVector)*Radius;
-        FHitResult Ground;
-        if(!GetWorld()->LineTraceSingleByChannel(Ground,Candidate+FVector(0,0,30),Candidate-FVector(0,0,200),ECC_GameTraceChannel1)){continue;}
-        Candidate=Ground.ImpactPoint;
-        if(Plan(Candidate,Path,Goal))
         {
-            // Endpoint tolerance must fit inside the requested approach range, including pickups.
-            const float Tolerance=FMath::Min(8.f,float(Acceptance-FVector::Dist2D(Goal,Target)-1));
-            if(Tolerance>=1){Acceptance=Tolerance;return true;}
+            bServerReplanned=true;
+            ServerLastProgress=Step.EndServerSeconds;
+            ++Replans;
+            FVector Goal;
+            if (!Plan(ServerGoal,ServerSurfaceHint,ServerPoints,Goal,Error)) { EndServer(Stopped,Error); Error.Reset(); }
+            else { ServerPointIndex=ServerPoints.Num()>1?1:0; ServerBestProgress=0; }
         }
     }
-    return false;
+    return true;
 }
-void ULDNavigationComponent::ProcessOrder()
+
+void ULDNavigationComponent::EndServer(uint8 Result, const FString& Reason)
 {
-    bPending=false;NextQuery=GetWorld()->GetTimeSeconds()+.1;
-    if(!ResolveOrder(ServerGoal,ServerAcceptance,ServerPoints)){EndServer(Rejected,TEXT("No walkable route"));return;}
-    if(auto* TradeMode=GetWorld()->GetAuthGameMode<ALDGameMode>();TradeMode&&TradeMode->Trade){TradeMode->Trade->CancelFor(Controller());}bServerActive=true;LastResult=NavAccepted;bServerReplanned=false;
-    ServerProgressAnchor=Controller()->GetPawn()->GetActorLocation();ServerLastProgress=GetWorld()->GetTimeSeconds();
-    ServerBestProgress=AlongPath(ServerPoints,ServerProgressAnchor);
-    ClientOrder(Server,NavAccepted,ServerGoal,ServerAcceptance,TEXT("Move accepted"));
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u goal=%s tolerance=%.3f"),Server.Match,Server.Life,Server.Order,Server.Epoch,*ServerGoal.ToString(),ServerAcceptance);
-}
-void ULDNavigationComponent::EndServer(uint8 Result,const FString& Reason)
-{
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u result=%u reason=%s goal=%s tolerance=%.3f body=%s"),Server.Order,Result,*Reason,*ServerGoal.ToString(),ServerAcceptance,Controller()->GetPawn()?*Controller()->GetPawn()->GetActorLocation().ToString():TEXT("none"));
-    bPending=bServerActive=false;LastResult=Result;Approach.Invalidate();
+    bServerActive=false;
+    LastResult=Result;
+    LastReason=Reason;
+    ServerPoints.Reset();
     HaltLocomotion(Cast<ALDCharacter>(Controller()->GetPawn()));
     ClientOrder(Server,Result,ServerGoal,ServerAcceptance,Reason);
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u result=%u reason=%s"),Server.Order,Result,*Reason);
 }
-void ULDNavigationComponent::ClientOrder_Implementation(FLDMoveIdentity Identity,uint8 Result,FVector_NetQuantize10 Goal,float Acceptance,const FString& Reason)
+
+void ULDNavigationComponent::ClientOrder_Implementation(FLDMoveIdentity Identity, uint8 Result,
+    FVector_NetQuantize10 Goal, float Acceptance, const FString& Reason)
 {
     auto* PC=Controller();
-    if(Identity!=Local||Identity.Match!=PC->OwnerState.Match||Identity.Life!=PC->OwnerState.Life){return;}
-    if((Result==0||Result==NavAccepted||Result==Rejected)&&AcknowledgedOrder!=Identity.Order)
-    {AcknowledgedOrder=Identity.Order;AcknowledgementMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000);}
-    if(Result==0){Status=Reason;PC->IntentFeedback=Reason;return;}
-    if(Result==NavAccepted)
+    if (!PC || Identity!=Local || Identity.Match!=PC->OwnerState.Match || Identity.Life!=PC->OwnerState.Life) { return; }
+    if (AcknowledgedOrder!=Identity.Order)
+    { AcknowledgedOrder=Identity.Order; AcknowledgementMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000); }
+    Status=PC->IntentFeedback=Reason;
+    if (Result==Queued) { return; }
+    if (Result==NavAccepted)
     {
-        if(AcceptedOrder==Identity.Order||!bLocalActive){return;}
+        if (AcceptedOrder==Identity.Order || !bLocalActive) { return; }
         RouteAcceptanceMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000);
-        AcceptedOrder=Identity.Order;Destination=Goal;AcceptanceRadius=Acceptance;PointIndex=1;
+        AcceptedOrder=Identity.Order;
+        Destination=Goal;
+        AcceptanceRadius=Acceptance;
         FVector Projected;
-        if(!Plan(Goal,Points,Projected)){Status=TEXT("No walkable route");Stop();PC->IntentFeedback=TEXT("No walkable route");return;}
-        bFollowing=true;bReplanned=false;ProgressAnchor=PC->GetPawn()->GetActorLocation();LastProgress=GetWorld()->GetTimeSeconds();
-        BestProgress=AlongPath(Points,ProgressAnchor);
+        FString Error;
+        if (!Plan(Goal,LocalSurfaceHint,Points,Projected,Error))
+        {
+            Stop();
+            Status=PC->IntentFeedback=Error;
+            return;
+        }
+        PointIndex=Points.Num()>1?1:0;
+        bFollowing=true;
+        bReplanned=false;
+        LastProgress=GetWorld()->GetTimeSeconds();
+        BestProgress=AlongPath(Points,PC->GetPawn()->GetActorLocation());
     }
-    else {bFollowing=bLocalActive=false;Points.Reset();}
-    Status=Reason;PC->IntentFeedback=Reason;
+    else
+    {
+        bFollowing=bLocalActive=false;
+        Points.Reset();
+        if (!PC->HasAuthority()) { HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
+    }
 }
+
 void ULDNavigationComponent::Face(const FVector& Direction)
 {
-    auto* PC=Controller();auto* Body=Cast<ALDCharacter>(PC->GetPawn());
-    if(Body&&!PC->HasPendingAim()&&(PC->OwnerState.ActionCue&15)==0&&!Direction.IsNearlyZero()){Body->SetFacing(Direction.Rotation().Yaw);}
+    auto* PC=Controller();
+    auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+    if (Body && !PC->HasPendingAim() && !Direction.IsNearlyZero()) { Body->SetFacing(Direction.Rotation().Yaw); }
 }
-void ULDNavigationComponent::TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* Function)
+
+void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* Function)
 {
     Super::TickComponent(Delta,TickType,Function);
-    if(!Enabled()){return;}
-    auto* PC=Controller();auto* Body=Cast<ALDCharacter>(PC->GetPawn());const double Now=GetWorld()->GetTimeSeconds();
-    if(PC->HasAuthority())
+    if (!Enabled()) { return; }
+    auto* PC=Controller();
+    if (!PC->IsLocalController()) { return; }
+    auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+    const double Now=GetWorld()->GetTimeSeconds();
+    if (SeenMatch!=PC->OwnerState.Match || SeenLife!=PC->OwnerState.Life) { ResetLife(); }
+    if (Body!=LastPawn.Get())
     {
-        const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?const_cast<ALDGameMode*>(M)->StateFor(PC):nullptr;
-        if((bServerActive||bPending)&&(!O||!Body||!O->bActive||!M->IsPlaying()||O->Life!=Server.Life||O->Match!=Server.Match))
-        {EndServer(Stopped,TEXT("Movement cancelled"));}
-        if((bServerActive||bPending)&&!LDCommandLiveness::Fresh(Now,LastHeartbeat)){EndServer(Stopped,TEXT("Movement stopped: connection inactive"));}
-        if(bPending&&Now>=NextQuery){ProcessOrder();}
-        else if(bPending&&PendingAcknowledgedOrder!=Server.Order)
-        {PendingAcknowledgedOrder=Server.Order;ClientOrder(Server,0,{},40,TEXT("Move pending"));}
-        if(bServerActive&&Body)
+        LastPawn=Body;
+        if (Body)
         {
-            AActor* Observed=Approach.IsValid()?ResolveMoveTarget(PC,Approach):nullptr;
-            bool InInteractionReach=false;
-            if(M&&M->IsEnvironmentProfile()&&Observed)
-            {
-                FVector Floor;bool WorldTarget=false;
-                if(const auto* Object=Cast<ALDWorldObject>(Observed)){Floor=Object->Kind==ELDObjectKind::Anchor?Object->EndFor(Body->GetActorLocation()):Object->GetActorLocation()-FVector(0,0,Object->Size().Z*.5+3);WorldTarget=true;}
-                else if(Observed->IsA<ALDEnvironmentDoor>()){Floor=Observed->GetActorLocation()-FVector(0,0,130);WorldTarget=true;}
-                // An interaction approach ends at authoritative reach, not at a
-                // sub-centimetre waypoint on an independently rebuilt navmesh.
-                InInteractionReach=WorldTarget&&FVector::DistSquared2D(Body->GetActorLocation(),Floor)<=120.*120&&FMath::Abs(Body->GetNavAgentLocation().Z-Floor.Z)<=100;
-            }
-            if(Approach.IsValid()&&!Observed) {EndServer(Stopped,TEXT("Target no longer visible"));}
-            else if(!Body->GetCharacterMovement()->HasRootMotionSources()&&(InInteractionReach||(FVector::DistSquared2D(Body->GetActorLocation(),ServerGoal)<=FMath::Square(ServerAcceptance)&&FMath::Abs(Body->GetNavAgentLocation().Z-ServerGoal.Z)<=50)))
-            {EndServer(Arrived,TEXT("Arrived"));}
-            else
-            {
-                // Server uses its own body pose, never a client-reported arrival/progress claim.
-                const double Progress=AlongPath(ServerPoints,Body->GetActorLocation());
-                if(Progress>=ServerBestProgress+10){ServerBestProgress=Progress;ServerLastProgress=Now;}
-                if(Now-ServerLastProgress>=2)
-                {
-                    if(bServerReplanned){EndServer(Stopped,TEXT("Path blocked"));}
-                    else {bServerReplanned=true;ServerLastProgress=Now;++Replans;FVector G;if(!Plan(ServerGoal,ServerPoints,G)){EndServer(Stopped,TEXT("Path blocked"));}ServerBestProgress=0;}
-                }
-            }
+            Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);
+            bCameraInitialized=false;
+            bFollowCamera=!PC->Controls || PC->Controls->bStartFollowing;
         }
     }
-    if(!PC->IsLocalController()){return;}
-    if(SeenMatch!=PC->OwnerState.Match||SeenLife!=PC->OwnerState.Life){ResetLife();}
-    if(Body!=LastPawn.Get())
-    {LastPawn=Body;if(Body){Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);bCameraInitialized=false;bFollowCamera=PC->OwnerState.Life>1||!PC->Controls||PC->Controls->bStartFollowing;}}
-    if(!PC->CanWorldCommand()) {if(bLocalActive||bFollowing){Stop();}TickCamera(Delta);return;}
-    if(!FApp::IsUnattended()&&FSlateApplication::IsInitialized()&&!FSlateApplication::Get().IsActive())
-    {if(bHadFocus){PC->FlushPressedKeys();}bHadFocus=false;return;}
-    bHadFocus=true;
-    if(bLocalActive&&Now-LastHeartbeatSent>=.5){LastHeartbeatSent=Now;ServerHeartbeat(Local,++HeartbeatSequence);}
-    TickCamera(Delta);
-    if(!bFollowing||!Body){return;}
-    if(!Body->GetCharacterMovement()->HasRootMotionSources()&&FVector::DistSquared2D(Body->GetActorLocation(),Destination)<=FMath::Square(AcceptanceRadius)&&FMath::Abs(Body->GetNavAgentLocation().Z-Destination.Z)<=50)
-    {bFollowing=false;Body->ConsumeMovementInputVector();Body->GetCharacterMovement()->StopMovementImmediately();return;}
-    if(PointIndex>=Points.Num()){bFollowing=false;return;}
-    if(FVector::DistSquared2D(Body->GetActorLocation(),Points[PointIndex])<=12*12&&PointIndex<Points.Num()-1){++PointIndex;}
-    const FVector Direction=(Points[PointIndex]-Body->GetActorLocation()).GetSafeNormal2D();
-    const double Remaining=FVector::Dist2D(Points[PointIndex],Body->GetActorLocation());
-    const double Scale=FMath::Clamp(Remaining/FMath::Max(1.,Body->GetCharacterMovement()->GetMaxSpeed()*.2),.08,1.);
-    Body->AddMovementInput(Direction,float(Scale));Face(Direction);
-    const double Progress=AlongPath(Points,Body->GetActorLocation());
-    if(Progress>=BestProgress+10){BestProgress=Progress;LastProgress=Now;}
-    if(Now-LastProgress>=2)
+    if (!PC->CanWorldCommand()) { if (bLocalActive || bFollowing) { Stop(); } TickCamera(Delta); return; }
+    if (!FApp::IsUnattended() && FSlateApplication::IsInitialized() && !FSlateApplication::Get().IsActive())
     {
-        if(bReplanned){Stop();Status=PC->IntentFeedback=TEXT("Path blocked");}
-        else {bReplanned=true;++Replans;LastProgress=Now;BestProgress=0;FVector G;if(Plan(Destination,Points,G)){PointIndex=1;}else{Stop();Status=PC->IntentFeedback=TEXT("Path blocked");}}
+        if (bHadFocus) { PC->FlushPressedKeys(); Stop(); }
+        bHadFocus=false;
+        return;
+    }
+    bHadFocus=true;
+    if (bLocalActive && Now-LastHeartbeatSent>=.5)
+    {
+        if (HeartbeatSequence==MAX_uint32) { Stop(); Status=PC->IntentFeedback=TEXT("Movement heartbeat sequence exhausted."); }
+        else { LastHeartbeatSent=Now; ServerHeartbeat(Local,++HeartbeatSequence); }
+    }
+    TickCamera(Delta);
+    if (!bFollowing || !Body || PC->HasAuthority()) { return; }
+    if (AtGoal(*Body,Destination,AcceptanceRadius)) { bFollowing=false; HaltLocomotion(Body); return; }
+    const FVector Input=Steering(Points,PointIndex,*Body);
+    Body->AddMovementInput(Input,1.);
+    Face(Input);
+    const double Progress=AlongPath(Points,Body->GetNavAgentLocation());
+    if (Progress>=BestProgress+10) { BestProgress=Progress; LastProgress=Now; }
+    if (Now-LastProgress>=NoProgressSeconds)
+    {
+        if (bReplanned) { Stop(); Status=PC->IntentFeedback=TEXT("Path blocked"); }
+        else
+        {
+            bReplanned=true;
+            ++Replans;
+            LastProgress=Now;
+            BestProgress=0;
+            FVector Projected;
+            FString Error;
+            if (Plan(Destination,LocalSurfaceHint,Points,Projected,Error)) { PointIndex=Points.Num()>1?1:0; }
+            else { Stop(); Status=PC->IntentFeedback=Error; }
+        }
     }
 }
 
 void ULDNavigationComponent::ClickMove()
 {
-    auto* PC=Controller();FHitResult Ground;
-    if(PC->RootUI&&PC->RootUI->PointerOverUI()){return;}
-    if(!PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Ground)){return;}
-    // Share the filtered screen-space hit test with selection; ground under a
-    // projected head need not be near that body's feet in an angled camera.
-    const FGuid Observed=PC->ObservedUnderPointer();
-    if(Observed.IsValid()){Navigate(Ground.ImpactPoint,Observed);return;}
-    for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(7),uint8(8)})
-    {if(Site>3&&!LDRegion::Definition(GetWorld())){continue;}if(FVector::DistSquared2D(Ground.ImpactPoint,LDRegion::Site(GetWorld(),Site))<40*40){Navigate(Ground.ImpactPoint,FGuid(),Site);return;}}
-    Navigate(Ground.ImpactPoint);
+    auto* PC=Controller();
+    FHitResult Ground;
+    if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
+    if (!PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Ground)) { return; }
+    Navigate(Ground.ImpactPoint,PC->ObservedUnderPointer());
 }
-void ULDNavigationComponent::PanTo(const FVector& Point)
-{CameraCentre=Point;bFollowCamera=false;bCameraInitialized=true;}
-void ULDNavigationComponent::PanCamera(const FVector2D& Axis,float Delta)
-{if(!Axis.IsNearlyZero()){const FVector World=FRotator(0,-45,0).RotateVector(FVector(Axis.Y,Axis.X,0));CameraCentre+=World*1800*Delta;bFollowCamera=false;}}
-void ULDNavigationComponent::Recenter(bool Held) {bRecenterHeld=Held;}
-void ULDNavigationComponent::ToggleFollow() {bFollowCamera=!bFollowCamera;}
+
+void ULDNavigationComponent::PanTo(const FVector& Point) { CameraCentre=Point; bFollowCamera=false; bCameraInitialized=true; }
+void ULDNavigationComponent::PanCamera(const FVector2D& Axis, float Delta)
+{
+    if (!Axis.IsNearlyZero())
+    {
+        CameraCentre+=FRotator(0,-45,0).RotateVector(FVector(Axis.Y,Axis.X,0))*1800*Delta;
+        bFollowCamera=false;
+    }
+}
+void ULDNavigationComponent::Recenter(bool Held) { bRecenterHeld=Held; }
+void ULDNavigationComponent::ToggleFollow() { bFollowCamera=!bFollowCamera; }
 void ULDNavigationComponent::TickCamera(float Delta)
 {
-    auto* PC=Controller();auto* B=Cast<ALDCharacter>(PC->GetPawn());if(!B){return;}
-    if(!bCameraInitialized){CameraCentre=B->GetActorLocation();bCameraInitialized=true;}
-    if(PC->CanWorldCommand())
+    auto* PC=Controller();
+    auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+    if (!Body) { return; }
+    if (!bCameraInitialized) { CameraCentre=Body->GetActorLocation(); bCameraInitialized=true; }
+    if (PC->CanWorldCommand())
     {
         FVector2D Axis=PC->CameraPanAxis();
-        if(bEdgePan&&!PC->HasArmedAction()&&(!PC->HUDUI||!PC->HUDUI->Minimap||!PC->HUDUI->Minimap->IsDragging())&&!FApp::IsUnattended()&&(!PC->RootUI||!PC->RootUI->PointerOverUI()))
-        {float X=0,Y=0;int32 W=0,H=0;PC->GetViewportSize(W,H);if(PC->GetMousePosition(X,Y)&&X>=0&&Y>=0&&X<W&&Y<H){Axis.X+=(X>=W-8?1:0)-(X<8?1:0);Axis.Y+=(Y<8?1:0)-(Y>=H-8?1:0);}}
+        if (bEdgePan && !PC->HasArmedAction() && (!PC->HUDUI || !PC->HUDUI->Minimap || !PC->HUDUI->Minimap->IsDragging())
+            && !FApp::IsUnattended() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
+        {
+            float X=0,Y=0; int32 Width=0,Height=0;
+            PC->GetViewportSize(Width,Height);
+            if (PC->GetMousePosition(X,Y) && X>=0 && Y>=0 && X<Width && Y<Height)
+            { Axis.X+=(X>=Width-8?1:0)-(X<8?1:0); Axis.Y+=(Y<8?1:0)-(Y>=Height-8?1:0); }
+        }
         PanCamera(Axis.GetClampedToMaxSize(1),Delta);
     }
-    if(bFollowCamera||bRecenterHeld){CameraCentre=B->GetActorLocation();}
-    const auto Grid=LDRegion::Definition(GetWorld())?LDRegion::Definition(GetWorld())->Grid:FLDVisionGrid();
-    if(const auto* Public=GetWorld()->GetGameState<ALDGameState>();Public&&Public->bEnvironmentProfile)
-    {CameraCentre.X=FMath::Clamp(CameraCentre.X,-118000.,118000.);CameraCentre.Y=FMath::Clamp(CameraCentre.Y,-118000.,118000.);}
-    else {CameraCentre.X=FMath::Clamp(CameraCentre.X,double(Grid.Min.X),double(Grid.Min.X+60*Grid.CellSize));
-    CameraCentre.Y=FMath::Clamp(CameraCentre.Y,double(Grid.Min.Y),double(Grid.Min.Y+40*Grid.CellSize));}
-    B->CameraArm->SetWorldLocation(CameraCentre);
+    if (bFollowCamera || bRecenterHeld) { CameraCentre=Body->GetActorLocation(); }
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
+    FVector Min,Max;
+    FString Error;
+    if (!Geometry || Geometry->Surfaces.Num()!=1 || !Geometry->Surfaces[0].MinCm.ToVector(Min,Error)
+        || !Geometry->Surfaces[0].MaxCm.ToVector(Max,Error))
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_CAMERA_WORLD_UNAVAILABLE %s"), *Error);
+        return;
+    }
+    CameraCentre.X=FMath::Clamp(CameraCentre.X,Min.X,Max.X);
+    CameraCentre.Y=FMath::Clamp(CameraCentre.Y,Min.Y,Max.Y);
+    Body->CameraArm->SetWorldLocation(CameraCentre);
 }

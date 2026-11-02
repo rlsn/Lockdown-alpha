@@ -40,6 +40,12 @@ void ALDB91Controller::TickB91EncounterProbe()
     if(EnvironmentProbeRole==1&&FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterCapture"))&&ProbeFrame!=ProbeTask&&((ProbeTask==15||ProbeTask==24)&&Now-ProbeAt>1||ProbeTask==22&&ChannelActive&&Now-ProbeAt>2))
     {FString Out;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);FScreenshotRequest::RequestScreenshot(Out/FString::Printf(TEXT("Reference_%u.png"),ProbeTask),true,false);ProbeFrame=ProbeTask;}
     if(!Done&&Now-ProbeAt<40){return;}auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("phase"),ProbeTask);R->SetBoolField(TEXT("completed"),Done);R->SetStringField(TEXT("reason"),IntentFeedback);R->SetNumberField(TEXT("result"),ProbeTask==4?LastWorldReceipt.Result:LastObjectReceipt.Result);R->SetBoolField(TEXT("other_body_seen"),View.ContainsByPredicate([](const auto& V){return V.PublicDoor.IsNone();}));R->SetStringField(TEXT("position"),GetPawn()->GetActorLocation().ToString());R->SetStringField(TEXT("navigation"),Navigation->Status);R->SetNumberField(TEXT("explicit_move_retries"),ProbeRetries);
-    FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));ServerB91ProbeAck(ProbeTask,Json);FString Out;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);FFileHelper::SaveStringToFile(Json,*(Out/FString::Printf(TEXT("%s_%d.json"),EnvironmentProbeRole==1?TEXT("A"):TEXT("B"),ProbeTask)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);ProbeTask=0;
+    FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));FString Out;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);
+    if(!FFileHelper::SaveStringToFile(Json,*(Out/FString::Printf(TEXT("%s_%d.json"),EnvironmentProbeRole==1?TEXT("A"):TEXT("B"),ProbeTask)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_B91_ENCOUNTER client evidence write failed for phase %u"),ProbeTask);
+        R->SetBoolField(TEXT("completed"),false);R->SetStringField(TEXT("reason"),TEXT("Client evidence write failed"));Json.Empty();FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));
+    }
+    ServerB91ProbeAck(ProbeTask,Json);ProbeTask=0;
 #endif
 }

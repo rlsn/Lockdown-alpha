@@ -1,0 +1,734 @@
+#include "LDDemoWorldBuilder.h"
+
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
+#include "Region/LDMapDefinition.h"
+#include "Region/LDMapRegistry.h"
+#include "Region/LDRegionNavBounds.h"
+#include "Navigation/LDDemoNavigationSystem.h"
+#include "AI/NavigationSystemConfig.h"
+#include "AssetCompilingManager.h"
+#include "Builders/CubeBuilder.h"
+#include "Components/BrushComponent.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Dom/JsonObject.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/Level.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/World.h"
+#include "FileHelpers.h"
+#include "GameFramework/PlayerStart.h"
+#include "GameFramework/WorldSettings.h"
+#include "HAL/FileManager.h"
+#include "Materials/MaterialInterface.h"
+#include "MeshDescription.h"
+#include "Misc/FileHelper.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
+#include "Model.h"
+#include "NavigationSystem.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "Serialization/JsonSerializer.h"
+#include "StaticMeshAttributes.h"
+#include "StaticMeshResources.h"
+#include "UObject/MetaData.h"
+#include "UObject/Package.h"
+#include "UObject/SavePackage.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Misc/AutomationTest.h"
+#include "PackageTools.h"
+#include "UObject/StrongObjectPtr.h"
+#endif
+
+namespace
+{
+const TCHAR* GeometryStamp = TEXT("LDDemoWorldSHA256");
+const TCHAR* GeometryRoot = TEXT("/Game/Lockdown/Generated/World/");
+
+bool Fail(FString& Error, const FString& Detail)
+{
+    Error = Detail;
+    return false;
+}
+
+bool CollisionChannelsMatch(const UStaticMeshComponent& Component, bool Floor, bool Sight)
+{
+    return Component.GetCollisionEnabled() == ECollisionEnabled::QueryAndPhysics
+        && Component.GetCollisionObjectType() == ECC_WorldStatic
+        && Component.GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block
+        && Component.GetCollisionResponseToChannel(ECC_GameTraceChannel1) == (Floor ? ECR_Block : ECR_Ignore)
+        && Component.GetCollisionResponseToChannel(ECC_GameTraceChannel2) == (Sight ? ECR_Block : ECR_Ignore);
+}
+
+bool ConvexShapeMatches(const UBodySetup& Body, const TArray<FVector>& Expected)
+{
+    if (Body.CollisionTraceFlag != CTF_UseSimpleAsComplex || Body.AggGeom.ConvexElems.Num() != 1) { return false; }
+    const FKConvexElem& Convex = Body.AggGeom.ConvexElems[0];
+    if (!Convex.GetTransform().Equals(FTransform::Identity, 0.) || Convex.VertexData.Num() != Expected.Num()) { return false; }
+    for (int32 I = 0; I < Expected.Num(); ++I)
+    {
+        if (Convex.VertexData[I] != Expected[I]) { return false; }
+    }
+    return true;
+}
+
+FString MeshPath(const FString& Id) { return FString(GeometryRoot) + TEXT("SM_Demo_") + Id; }
+
+bool BlockerVertices(const FLDDemoWorldBlocker& Blocker, TArray<FVector>& Out, FString& Error)
+{
+    if (Blocker.PolygonCm.Num() != 4 || Blocker.HeightCm.Denominator <= 0)
+    {
+        return Fail(Error, TEXT("Invalid typed blocker geometry."));
+    }
+    const double Height = double(Blocker.HeightCm.Numerator) / double(Blocker.HeightCm.Denominator);
+    for (const auto& Source : Blocker.PolygonCm)
+    {
+        FVector Point;
+        if (!Source.ToVector(Point, Error)) { return false; }
+        Out.Add(Point);
+    }
+    for (int32 I = 0; I < 4; ++I) { Out.Add(Out[I] + FVector(0, 0, Height)); }
+    return true;
+}
+
+UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Checksum, FString& Error)
+{
+    const FString PackagePath = MeshPath(Blocker.Id), Name = FPackageName::GetShortName(PackagePath);
+    UStaticMesh* Mesh = nullptr;
+    if (FPackageName::DoesPackageExist(PackagePath))
+    {
+        Mesh = LoadObject<UStaticMesh>(nullptr, *(PackagePath + TEXT(".") + Name));
+        if (!Mesh) { Fail(Error, TEXT("Existing generated blocker cannot be loaded: ") + PackagePath); return nullptr; }
+    }
+    else { Mesh = NewObject<UStaticMesh>(CreatePackage(*PackagePath), *Name, RF_Public | RF_Standalone); }
+    TArray<FVector> Points;
+    if (!BlockerVertices(Blocker, Points, Error)) { return nullptr; }
+    Mesh->GetOutermost()->FullyLoad();
+    Mesh->SetNumSourceModels(1);
+    FMeshDescription Description;
+    FStaticMeshAttributes Attributes(Description);
+    Attributes.Register();
+    auto Positions = Attributes.GetVertexPositions();
+    auto UVs = Attributes.GetVertexInstanceUVs();
+    UVs.SetNumChannels(1);
+    const FPolygonGroupID Group = Description.CreatePolygonGroup();
+    Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Stone");
+    TArray<FVertexID> Vertices;
+    for (const FVector& Point : Points)
+    {
+        const FVertexID Vertex = Description.CreateVertex();
+        Positions[Vertex] = FVector3f(Point);
+        Vertices.Add(Vertex);
+    }
+    const auto Triangle = [&](int32 A, int32 B, int32 C)
+    {
+        TArray<FVertexInstanceID> Instances;
+        for (int32 Index : {A, B, C})
+        {
+            const FVertexInstanceID Instance = Description.CreateVertexInstance(Vertices[Index]);
+            UVs.Set(Instance, 0, FVector2f(Points[Index].X / 100., Points[Index].Y / 100.));
+            Instances.Add(Instance);
+        }
+        Description.CreatePolygon(Group, Instances);
+    };
+    Triangle(0, 2, 1); Triangle(0, 3, 2);
+    Triangle(4, 5, 6); Triangle(4, 6, 7);
+    for (int32 I = 0; I < 4; ++I)
+    {
+        const int32 Next = (I + 1) % 4;
+        Triangle(I, Next, Next + 4);
+        Triangle(I, Next + 4, I + 4);
+    }
+    auto& Settings = Mesh->GetSourceModel(0).BuildSettings;
+    Settings.bRecomputeNormals = true;
+    Settings.bRecomputeTangents = true;
+    Mesh->CreateMeshDescription(0, MoveTemp(Description));
+    Mesh->CommitMeshDescription(0);
+    Mesh->GetStaticMaterials().Reset();
+    Mesh->GetStaticMaterials().Add(FStaticMaterial(nullptr, TEXT("Stone")));
+    Mesh->CreateBodySetup();
+    UBodySetup* Body = Mesh->GetBodySetup();
+    Body->InvalidatePhysicsData();
+    Body->AggGeom.EmptyElements();
+    FKConvexElem Convex;
+    Convex.VertexData = Points;
+    Convex.UpdateElemBox();
+    Body->AggGeom.ConvexElems.Add(MoveTemp(Convex));
+    Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+    Mesh->Build(false);
+    Body->CreatePhysicsMeshes();
+    Mesh->CreateNavCollision(true);
+    Mesh->GetOutermost()->GetMetaData().SetValue(Mesh, GeometryStamp, *Checksum);
+    return LDDemoWorldBuilder::SaveAsset(*Mesh, PackagePath, Error) ? Mesh : nullptr;
+}
+
+AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMaterialInterface* Material,
+    const FVector& Position, const FVector& Scale, bool Floor, bool Movement, bool Sight, FString& Error)
+{
+    if (!Mesh || !Material) { Fail(Error, TEXT("Required shared mesh/material is absent: ") + Id); return nullptr; }
+    auto* Actor = World.SpawnActor<AStaticMeshActor>(Position, FRotator::ZeroRotator);
+    if (!Actor) { Fail(Error, TEXT("Static geometry actor creation failed: ") + Id); return nullptr; }
+    Actor->SetActorLabel(Id);
+    Actor->Tags.Add(FName(*Id));
+    Actor->Tags.Add(TEXT("LDDemoStaticGeometry"));
+    Actor->SetActorScale3D(Scale);
+    auto* Component = Actor->GetStaticMeshComponent();
+    Component->SetStaticMesh(Mesh);
+    Component->SetMaterial(0, Material);
+    Component->SetMobility(EComponentMobility::Static);
+    Component->SetCollisionProfileName(TEXT("BlockAll"));
+    Component->SetCollisionEnabled(Movement ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+    Component->SetCollisionObjectType(ECC_WorldStatic);
+    Component->SetCollisionResponseToChannel(ECC_Pawn, Movement ? ECR_Block : ECR_Ignore);
+    Component->SetCollisionResponseToChannel(ECC_GameTraceChannel1, Floor ? ECR_Block : ECR_Ignore);
+    Component->SetCollisionResponseToChannel(ECC_GameTraceChannel2, Sight ? ECR_Block : ECR_Ignore);
+    Component->SetCanEverAffectNavigation(Movement);
+    return Actor;
+}
+
+bool NavigationBounds(const FLDDemoWorldGeometry& Geometry, const FCollisionShape& Capsule, FBox& Out, FString& Error)
+{
+    FVector Min, Max;
+    if (!Geometry.Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry.Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
+    Min.Z -= Capsule.GetCapsuleHalfHeight();
+    FBox Bounds(Min, Max);
+    for (const auto& Blocker : Geometry.Blockers)
+    {
+        TArray<FVector> Points;
+        if (!BlockerVertices(Blocker, Points, Error)) { return false; }
+        for (const FVector& Point : Points) { Bounds += Point; }
+    }
+    Out = Bounds.ExpandBy(FVector(Capsule.GetCapsuleRadius(), Capsule.GetCapsuleRadius(), Capsule.GetCapsuleHalfHeight()));
+    return true;
+}
+
+bool BuildNavigation(UWorld& World, const FLDDemoWorldGeometry& Geometry, const FCollisionShape& Capsule, FString& Error)
+{
+    FBox Envelope;
+    if (!NavigationBounds(Geometry, Capsule, Envelope, Error)) { return false; }
+    const FVector Size = Envelope.GetSize();
+    auto* Bounds = World.SpawnActor<ALDRegionNavBounds>(Envelope.GetCenter(), FRotator::ZeroRotator);
+    if (!Bounds) { return Fail(Error, TEXT("Demo navigation bounds creation failed.")); }
+    Bounds->Configure(Size);
+    Bounds->SetActorLabel(TEXT("DemoNavigationBounds"));
+    Bounds->Tags.Add(TEXT("demo_navigation_bounds"));
+    Bounds->Brush = NewObject<UModel>(Bounds, NAME_None, RF_Transactional);
+    Bounds->Brush->Initialize(Bounds, false);
+    Bounds->GetBrushComponent()->Brush = Bounds->Brush;
+    auto* Builder = NewObject<UCubeBuilder>(Bounds, NAME_None, RF_Transactional);
+    Bounds->BrushBuilder = Builder;
+    Builder->X = Size.X; Builder->Y = Size.Y; Builder->Z = Size.Z;
+    if (!Builder->Build(&World, Bounds)) { return Fail(Error, TEXT("Demo navigation brush generation failed.")); }
+    Bounds->SetActorLocation(Envelope.GetCenter());
+    Bounds->Brush->BuildBound();
+    Bounds->GetBrushComponent()->BuildSimpleBrushCollision();
+    Bounds->GetBrushComponent()->UpdateBounds();
+    Bounds->PostEditChange();
+    Bounds->PostEditMove(true);
+    Bounds->GetBrushComponent()->SetCanEverAffectNavigation(false);
+    auto* Nav = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());
+    if (!Nav || !Nav->HasApprovedAgent()) { return Fail(Error, TEXT("Demo navigation system/approved agent is absent.")); }
+    const FNavDataConfig& Config = Nav->GetDefaultSupportedAgentConfig();
+    auto* Recast = Cast<ARecastNavMesh>(Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate));
+    if (!Recast)
+    {
+        Recast = Cast<ARecastNavMesh>(Nav->CreateNavigationDataInstanceInLevel(Config, World.PersistentLevel));
+        if (Recast) { Nav->RequestRegistrationDeferred(*Recast); }
+    }
+    if (!Recast) { return Fail(Error, TEXT("Demo requires native Recast navigation data.")); }
+    if (Recast->GetConfig().AgentRadius != Capsule.GetCapsuleRadius()
+        || Recast->GetConfig().AgentHeight != Capsule.GetCapsuleHalfHeight() * 2)
+    {
+        return Fail(Error, FString::Printf(TEXT("Demo navigation agent differs: registered=%s radius=%.3f height=%.3f; supported=%s radius=%.3f height=%.3f; required radius=%.3f height=%.3f."),
+            *Recast->GetConfig().Name.ToString(), Recast->GetConfig().AgentRadius, Recast->GetConfig().AgentHeight,
+            *Config.Name.ToString(), Config.AgentRadius, Config.AgentHeight, Capsule.GetCapsuleRadius(), Capsule.GetCapsuleHalfHeight() * 2));
+    }
+    Recast->TileSizeUU = 1024;
+    for (uint8 I = 0; I < uint8(ENavigationDataResolution::MAX); ++I)
+    {
+        Recast->SetCellSize(ENavigationDataResolution(I), Config.AgentRadius / 4);
+        Recast->SetCellHeight(ENavigationDataResolution(I), 5);
+        Recast->SetAgentMaxStepHeight(ENavigationDataResolution(I), 35);
+    }
+    Recast->PostEditChange();
+    FlushAsyncLoading();
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    Nav->RemoveNavigationBuildLock(ENavigationBuildLock::AsyncLoadLock, UNavigationSystemV1::ELockRemovalRebuildAction::NoRebuild);
+    Nav->OnNavigationBoundsUpdated(Bounds);
+    Nav->Build();
+    Recast->EnsureBuildCompletion();
+    return (Recast->IsRegistered() && Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate) == Recast
+        && Nav->IsNavigationBuilt(World.GetWorldSettings())) || Fail(Error, TEXT("Demo navigation build/agent registration did not finish successfully."));
+}
+}
+
+bool LDDemoWorldBuilder::SaveAsset(UObject& Asset, const FString& PackagePath, FString& Error)
+{
+    const FString File = FPackageName::LongPackageNameToFilename(PackagePath, FPackageName::GetAssetPackageExtension());
+    if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(File), true))
+    {
+        return Fail(Error, TEXT("Cannot create generated asset directory: ") + File);
+    }
+    FSavePackageArgs Args;
+    Args.TopLevelFlags = RF_Public | RF_Standalone;
+    return UPackage::SavePackage(Asset.GetOutermost(), &Asset, *File, Args)
+        || Fail(Error, TEXT("Generated asset could not be saved: ") + File);
+}
+
+bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, UWorld*& Out, FString& Error)
+{
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    FCollisionShape Capsule;
+    if (!Definition.Read(Content, Geometry, Error) || !ULDMapRegistry::ContentCapsule(Content, Capsule, Error)) { return false; }
+    UWorld* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+    if (!World || !World->GetWorldSettings()) { return Fail(Error, TEXT("Cannot create the Demo editor world.")); }
+    World->GetWorldSettings()->DefaultGameMode = ALDGameMode::StaticClass();
+    auto* NavigationConfig = World->GetWorldSettings()->GetNavigationSystemConfig();
+    if (!NavigationConfig) { return Fail(Error, TEXT("The Demo world has no navigation configuration object.")); }
+    NavigationConfig->NavigationSystemClass = FSoftClassPath(ULDDemoNavigationSystem::StaticClass());
+    NavigationConfig->DefaultAgentName = TEXT("DemoBody");
+    NavigationConfig->SupportedAgentsMask.Empty();
+    NavigationConfig->SupportedAgentsMask.Set(0);
+    NavigationConfig->SupportedAgentsMask.MarkInitialized();
+    FNavigationSystem::AddNavigationSystemToWorld(*World, FNavigationSystemRunMode::EditorMode, NavigationConfig, true, true);
+    auto* Anchor = World->SpawnActor<ALDMapAnchor>();
+    if (!Anchor) { return Fail(Error, TEXT("Cannot create the sole Demo map anchor.")); }
+    Anchor->Definition = &Definition;
+    Anchor->SetActorLabel(TEXT("DemoWorldDefinition"));
+    auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+    auto* GroundMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Ground.M_Ground"));
+    auto* StoneMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Stone.M_Stone"));
+    FVector Min, Max;
+    if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
+    const double Depth = Capsule.GetCapsuleHalfHeight();
+    if (!Place(*World, Geometry->Surfaces[0].Id, Cube, GroundMaterial, (Min + Max) * .5 - FVector(0, 0, Depth * .5),
+        FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., true, true, false, Error)) { return false; }
+    for (const auto& Blocker : Geometry->Blockers)
+    {
+        UStaticMesh* Mesh = BuildBlocker(Blocker, Definition.Checksum, Error);
+        if (!Place(*World, Blocker.Id, Mesh, StoneMaterial, FVector::ZeroVector, FVector::OneVector,
+            false, Blocker.BlocksMovement, Blocker.BlocksSight, Error)) { return false; }
+    }
+    for (const auto& Source : Geometry->Anchors)
+    {
+        FVector Foot;
+        if (!Source.PositionCm.ToVector(Foot, Error)) { return false; }
+        if (Source.Kind == ELDDemoWorldAnchorKind::Spawn)
+        {
+            auto* Start = World->SpawnActor<APlayerStart>(Foot + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FRotator::ZeroRotator);
+            if (!Start) { return Fail(Error, TEXT("Cannot create Demo player start: ") + Source.Id); }
+            Start->PlayerStartTag = FName(*Source.Id);
+            Start->SetActorLabel(Source.Id);
+            Start->SetActorEnableCollision(false);
+        }
+    }
+    for (int32 I = 0; I < 2; ++I)
+    {
+        auto* Light = World->SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-60, I ? 145 : -35, 0));
+        if (!Light) { return Fail(Error, TEXT("Cannot create the shared world lighting.")); }
+        Light->GetLightComponent()->SetIntensity(I ? 1 : 5);
+        Light->GetLightComponent()->SetCastShadows(!I);
+        CastChecked<UDirectionalLightComponent>(Light->GetLightComponent())->SetForwardShadingPriority(I ? 1 : 2);
+    }
+    if (!BuildNavigation(*World, *Geometry, Capsule, Error)) { return false; }
+    World->GetOutermost()->GetMetaData().SetValue(World, GeometryStamp, *Definition.Checksum);
+    if (!UEditorLoadingAndSavingUtils::SaveMap(World, LDDemoEntry::WorldMap))
+    {
+        return Fail(Error, TEXT("The generated Demo map could not be saved."));
+    }
+    Out = World;
+    Error.Reset();
+    return true;
+}
+
+bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content,
+    const FString& ReportDirectory, FString& Error)
+{
+    FlushAsyncLoading();
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    FCollisionShape Capsule;
+    if (!Definition.Read(Content, Geometry, Error) || !ULDMapRegistry::ContentCapsule(Content, Capsule, Error)) { return false; }
+    auto Report = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> Checks;
+    bool Good = true;
+    FString FirstFailure;
+    const auto Check = [&](bool Passed, const FString& Name)
+    {
+        auto Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("name"), Name);
+        Row->SetBoolField(TEXT("passed"), Passed);
+        Checks.Add(MakeShared<FJsonValueObject>(Row));
+        if (!Passed)
+        {
+            Good = false;
+            if (FirstFailure.IsEmpty()) { FirstFailure = Name; }
+            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_WORLD_CHECK_FAILED %s"), *Name);
+        }
+        return Passed;
+    };
+    Check(World.GetWorldSettings() && World.GetWorldSettings()->DefaultGameMode == ALDGameMode::StaticClass(),
+        TEXT("Saved map uses the unique native Demo GameMode"));
+    Check(FString(World.GetOutermost()->GetMetaData().GetValue(&World, GeometryStamp)).Equals(Definition.Checksum, ESearchCase::CaseSensitive),
+        TEXT("Saved map stamp identifies the verified world payload"));
+    int32 Anchors = 0, BoundsCount = 0, NavCount = 0, StaticCount = 0;
+    TMap<FString, const AStaticMeshActor*> Meshes;
+    FBox ExpectedBounds;
+    if (!NavigationBounds(*Geometry, Capsule, ExpectedBounds, Error)) { return false; }
+    for (const AActor* Actor : World.PersistentLevel->Actors)
+    {
+        if (const auto* Anchor = Cast<ALDMapAnchor>(Actor))
+        {
+            ++Anchors;
+            Check(Anchor->Definition == &Definition, TEXT("Sole map anchor binds DA_DemoWorld"));
+        }
+        if (const auto* Bounds = Cast<ANavMeshBoundsVolume>(Actor))
+        {
+            ++BoundsCount;
+            const FBox Actual = Bounds->GetComponentsBoundingBox(true);
+            Check(Bounds->IsA<ALDRegionNavBounds>() && Actual.Min.Equals(ExpectedBounds.Min, .1)
+                && Actual.Max.Equals(ExpectedBounds.Max, .1),
+                TEXT("Saved native/cooked navigation envelope matches geometry and capsule; actual=")
+                    + Actual.ToString() + TEXT(" expected=") + ExpectedBounds.ToString());
+        }
+        if (const auto* Nav = Cast<ARecastNavMesh>(Actor))
+        {
+            ++NavCount;
+            Check(Nav->AgentRadius == Capsule.GetCapsuleRadius() && Nav->GetConfig().AgentRadius == Capsule.GetCapsuleRadius()
+                && Nav->AgentHeight == Capsule.GetCapsuleHalfHeight() * 2
+                && Nav->GetConfig().AgentHeight == Capsule.GetCapsuleHalfHeight() * 2,
+                TEXT("Saved Recast and registered agent use the actual approved capsule"));
+        }
+        if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(TEXT("LDDemoStaticGeometry")))
+        {
+            ++StaticCount;
+            const FString Id = Mesh->Tags[0].ToString();
+            Check(!Meshes.Contains(Id), TEXT("Unique static geometry identity: ") + Id);
+            Meshes.Add(Id, Mesh);
+        }
+    }
+    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 11,
+        TEXT("Exact native anchor, navigation and static-geometry counts"));
+    const auto* Navigation = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());
+    Check(Navigation && Navigation->HasApprovedAgent()
+        && World.GetWorldSettings()->GetNavigationSystemConfig()->NavigationSystemClass == FSoftClassPath(ULDDemoNavigationSystem::StaticClass()),
+        TEXT("Saved navigation configuration recreates the same approved agent on load"));
+    FVector Min, Max;
+    if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
+    const auto* FloorActor = Meshes.FindRef(Geometry->Surfaces[0].Id);
+    if (Check(FloorActor != nullptr, TEXT("The registered ground is present")))
+    {
+        const auto* Component = FloorActor->GetStaticMeshComponent();
+        const double Depth = Capsule.GetCapsuleHalfHeight();
+        Check(Component->GetStaticMesh()
+            && Component->GetStaticMesh()->GetPathName() == TEXT("/Engine/BasicShapes/Cube.Cube")
+            && FloorActor->GetActorLocation().Equals((Min + Max) * .5 - FVector(0, 0, Depth * .5), UE_KINDA_SMALL_NUMBER)
+            && FloorActor->GetActorScale3D().Equals(FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., UE_KINDA_SMALL_NUMBER)
+            && FloorActor->GetActorRotation().IsNearlyZero()
+            && CollisionChannelsMatch(*Component, true, false),
+            TEXT("Ground transform, native support and sight classification match the source"));
+    }
+    for (const auto& Blocker : Geometry->Blockers)
+    {
+        const auto* Actor = Meshes.FindRef(Blocker.Id);
+        if (!Check(Actor != nullptr, TEXT("Blocker exists: ") + Blocker.Id)) { continue; }
+        const auto* Component = Actor->GetStaticMeshComponent();
+        const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
+        const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
+        Check(Actor->GetActorTransform().Equals(FTransform::Identity, UE_KINDA_SMALL_NUMBER)
+            && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
+            TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
+        TArray<FVector> Expected;
+        if (!BlockerVertices(Blocker, Expected, Error)) { return false; }
+        if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Blocker.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Blocker.Id))
+            && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
+            TEXT("Blocker uses its exact convex mesh, not an AABB substitute: ") + Blocker.Id)) { continue; }
+        Check(ConvexShapeMatches(*Body, Expected),
+            TEXT("Saved collision vertices and local transform equal the authored body-space geometry: ") + Blocker.Id);
+    }
+    auto* Registry = World.GetSubsystem<ULDMapRegistry>();
+    FString BindingError;
+    const bool Bound = Registry && Registry->Rebuild(BindingError);
+    Check(Bound, TEXT("Native world registry binds all seventeen anchors and ten exact starts: ") + BindingError);
+    TArray<FLDLegalGround> Locations;
+    int32 PlacementChecks = 0, PathChecks = 0, ShopApproaches = 0, CaptureApproaches = 0;
+    double LongestCaptureRoute = 0;
+    const auto& Speed = Content.Get().Parameters.MoveSpeedCmPerSec.Base;
+    const double DefendBudget = double(Speed.Numerator) / double(Speed.Denominator)
+        * double(Content.Get().Parameters.DefendRouteBudgetMs) / 1000.;
+    if (Bound)
+    {
+        const FLDWorldRevision Revision = Registry->Revision();
+        ELDWorldQueryFailure Failure;
+        const auto GroundAt = [&](const FVector& Foot, const FString& Id, FLDLegalGround& Legal)
+        {
+            FString Why;
+            const bool Passed = Registry->QueryGround(Revision, Foot, Capsule, TEXT("demo_ground"), Legal, Failure, Why);
+            return Check(Passed, TEXT("Local complete-capsule support: ") + Id + TEXT(" ") + Why);
+        };
+        for (const auto& Anchor : Geometry->Anchors)
+        {
+            FVector Foot;
+            if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
+            FLDLegalGround Legal;
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop && GroundAt(Foot, Anchor.Id, Legal)) { Locations.Add(Legal); }
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
+            {
+                for (const auto& Offset : Geometry->SpawnOffsetsCm)
+                {
+                    FVector Delta;
+                    if (!Offset.ToVector(Delta, Error)) { return false; }
+                    GroundAt(Foot + Delta, Anchor.Id + TEXT(" placement"), Legal);
+                    ++PlacementChecks;
+                }
+                FLDLegalGround Origin;
+                if (GroundAt(Foot, Anchor.Id, Origin))
+                {
+                    for (FName Target : {FName(TEXT("shop")), FName(TEXT("capture"))})
+                    {
+                        FLDLegalGround Approach;
+                        FLDCompletePath Path;
+                        FString Why;
+                        const bool Reached = Registry->FindPublicApproach(Revision, Origin, Target, Capsule, Approach, Path, Failure, Why);
+                        Check(Reached, TEXT("Complete native approach from ") + Anchor.Id + TEXT(" to ") + Target.ToString() + TEXT(": ") + Why);
+                        if (Target == TEXT("shop")) { ++ShopApproaches; }
+                        else
+                        {
+                            ++CaptureApproaches;
+                            if (Reached) { LongestCaptureRoute = FMath::Max(LongestCaptureRoute, Path.LengthCm); }
+                            Check(Reached && Path.LengthCm <= DefendBudget, TEXT("Approved native return-to-circle route budget: ") + Anchor.Id);
+                        }
+                    }
+                }
+            }
+            for (const auto& Home : Anchor.Members)
+            {
+                if (!Home.PositionCm.ToVector(Foot, Error)) { return false; }
+                if (GroundAt(Foot, Home.Id, Legal)) { Locations.Add(Legal); }
+            }
+        }
+        for (int32 I = 0; I < Locations.Num(); ++I)
+        {
+            for (int32 J = I + 1; J < Locations.Num(); ++J)
+            {
+                FLDCompletePath Path;
+                FString Why;
+                const bool Passed = Registry->QueryCompletePath(Revision, Locations[I], Locations[J], Capsule, Path, Failure, Why);
+                Check(Passed, FString::Printf(TEXT("Complete native route %d -> %d: "), I, J) + Why);
+                ++PathChecks;
+            }
+        }
+        FLDLegalGround Result;
+        FString Why;
+        Check(!Registry->QueryGround(Revision, FVector::ZeroVector, Capsule, NAME_None, Result, Failure, Why)
+            && Failure == ELDWorldQueryFailure::InvalidSurface, TEXT("Missing surface identity is rejected"));
+        FLDWorldRevision Stale = Revision;
+        ++Stale.GeometryRevision;
+        Check(!Registry->QueryGround(Stale, FVector::ZeroVector, Capsule, TEXT("demo_ground"), Result, Failure, Why)
+            && Failure == ELDWorldQueryFailure::StaleWorld, TEXT("Stale geometry identity is rejected"));
+        Check(!Registry->QueryGround(Revision, FVector(0, 0, 100), Capsule, TEXT("demo_ground"), Result, Failure, Why)
+            && Failure == ELDWorldQueryFailure::NotGrounded, TEXT("Off-ground point is not projected onto a distant floor"));
+        Check(!Registry->QueryGround(Revision, FVector(0, -1900, 0), Capsule, TEXT("demo_ground"), Result, Failure, Why)
+            && Failure == ELDWorldQueryFailure::Blocked, TEXT("A source wall blocks the actual capsule"));
+    }
+    const double Eye = double(Geometry->SightSampleHeightCm.Numerator) / double(Geometry->SightSampleHeightCm.Denominator);
+    Check(!World.LineTraceTestByChannel(FVector(0, 1500, Eye), FVector(0, 2600, Eye), ECC_GameTraceChannel2),
+        TEXT("Sight crosses the actual north entrance"));
+    Check(World.LineTraceTestByChannel(FVector(0, -1650, Eye), FVector(0, -2150, Eye), ECC_GameTraceChannel2),
+        TEXT("Sight is occluded by the actual south inner wall"));
+    const auto* Shop = Geometry->Anchors.FindByPredicate([](const auto& A) { return A.Kind == ELDDemoWorldAnchorKind::Shop; });
+    FVector ShopFoot;
+    if (!Shop || !Shop->PositionCm.ToVector(ShopFoot, Error)) { return false; }
+    const FVector Left = ShopFoot - FVector(150, 0, 0), Right = ShopFoot + FVector(150, 0, 0);
+    Check(!World.LineTraceTestByChannel(Left + FVector(0, 0, Eye), Right + FVector(0, 0, Eye), ECC_GameTraceChannel2),
+        TEXT("The low shop stall does not block sight"));
+    FCollisionQueryParams Sweep(SCENE_QUERY_STAT(DemoShopMovement), false);
+    if (FloorActor) { Sweep.AddIgnoredActor(FloorActor); }
+    Check(World.SweepTestByChannel(Left + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
+        Right + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
+        TEXT("The same shop stall blocks native capsule movement"));
+    Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
+    Report->SetBoolField(TEXT("passed"), Good);
+    Report->SetStringField(TEXT("world_sha256"), Definition.Checksum);
+    Report->SetStringField(TEXT("catalog_sha256"), Content.Get().Identity.Root.ToHex());
+    Report->SetNumberField(TEXT("spawn_placement_checks"), PlacementChecks);
+    Report->SetNumberField(TEXT("native_path_checks"), PathChecks);
+    Report->SetNumberField(TEXT("shop_approach_checks"), ShopApproaches);
+    Report->SetNumberField(TEXT("capture_approach_checks"), CaptureApproaches);
+    Report->SetNumberField(TEXT("max_capture_route_cm"), LongestCaptureRoute);
+    Report->SetNumberField(TEXT("defend_route_budget_cm"), DefendBudget);
+    Report->SetArrayField(TEXT("checks"), Checks);
+    if (!FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(ReportDirectory),
+        FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
+    {
+        return Fail(Error, TEXT("World evidence must be written under this project's Artifacts directory."));
+    }
+    FString Json;
+    if (!IFileManager::Get().MakeDirectory(*ReportDirectory, true)
+        || !FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
+        || !FFileHelper::SaveStringToFile(Json, *FPaths::Combine(ReportDirectory, TEXT("DemoWorld.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+    {
+        return Fail(Error, TEXT("World validation evidence could not be persisted."));
+    }
+    if (!Good) { Error = FirstFailure; }
+    return Good;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+namespace
+{
+class FCollisionPackageFixture
+{
+public:
+    explicit FCollisionPackageFixture(FAutomationTestBase& InTest) : Test(InTest)
+    {
+        const FString Id = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+        Mount = TEXT("/DemoCollision_") + Id + TEXT("/");
+        Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts/DemoCollisionPackages/") + Id) + TEXT("/");
+        PackagePath = Mount + TEXT("Fixture");
+    }
+
+    ~FCollisionPackageFixture()
+    {
+        Component = nullptr;
+        if (UPackage* Package = FindPackage(nullptr, *PackagePath))
+        {
+            FText Error;
+            if (!UPackageTools::UnloadPackages({Package}, Error, true)) { Test.AddError(TEXT("Cannot unload isolated collision package: ") + Error.ToString()); }
+        }
+        if (Mounted) { FPackageName::UnRegisterMountPoint(Mount, Directory); }
+    }
+
+    bool Create(UStaticMesh& Source, bool Floor, bool Sight)
+    {
+        if (!IFileManager::Get().MakeDirectory(*Directory, true)) { Test.AddError(TEXT("Cannot create isolated package directory.")); return false; }
+        FPackageName::RegisterMountPoint(Mount, Directory);
+        Mounted = true;
+        UPackage* Package = CreatePackage(*PackagePath);
+        auto* Mesh = Cast<UStaticMesh>(StaticDuplicateObject(&Source, Package, TEXT("Geometry")));
+        if (!Mesh || Mesh->GetBodySetup() == Source.GetBodySetup())
+        {
+            Test.AddError(TEXT("Collision fixture must own an independent mesh and body setup."));
+            return false;
+        }
+        Mesh->SetFlags(RF_Public | RF_Standalone);
+        Component = NewObject<UStaticMeshComponent>(Package, TEXT("Collision"), RF_Public | RF_Standalone);
+        Component->SetStaticMesh(Mesh);
+        Component->SetCollisionProfileName(TEXT("BlockAll"));
+        Component->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        Component->SetCollisionObjectType(ECC_WorldStatic);
+        Component->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        Component->SetCollisionResponseToChannel(ECC_GameTraceChannel1, Floor ? ECR_Block : ECR_Ignore);
+        Component->SetCollisionResponseToChannel(ECC_GameTraceChannel2, Sight ? ECR_Block : ECR_Ignore);
+        return RoundTrip();
+    }
+
+    bool RoundTrip()
+    {
+        FlushAsyncLoading();
+        FAssetCompilingManager::Get().FinishAllCompilation();
+        FString Error;
+        if (!Component || !LDDemoWorldBuilder::SaveAsset(*Component, PackagePath, Error))
+        {
+            Test.AddError(TEXT("Isolated collision save failed: ") + Error);
+            return false;
+        }
+        UPackage* Package = Component->GetOutermost();
+        TWeakObjectPtr<UStaticMeshComponent> Previous(Component);
+        Component = nullptr;
+        FText UnloadError;
+        if (!UPackageTools::UnloadPackages({Package}, UnloadError)
+            || !Test.TestFalse(TEXT("Saved fixture is actually unloaded, not reused from memory"), Previous.IsValid()))
+        {
+            Test.AddError(TEXT("Isolated collision unload failed: ") + UnloadError.ToString());
+            return false;
+        }
+        Component = LoadObject<UStaticMeshComponent>(nullptr, *(PackagePath + TEXT(".Collision")));
+        FlushAsyncLoading();
+        FAssetCompilingManager::Get().FinishAllCompilation();
+        if (!Component || !Component->GetStaticMesh()
+            || Component->GetStaticMesh()->GetOutermost() != Component->GetOutermost())
+        {
+            Test.AddError(TEXT("Reload did not resolve the isolated component and its isolated mesh."));
+            return false;
+        }
+        Test.AddInfo(TEXT("Isolated saved/reloaded collision evidence: ") + Directory);
+        return true;
+    }
+
+    UStaticMeshComponent* Get() const { return Component; }
+
+private:
+    FAutomationTestBase& Test;
+    FString Mount, Directory, PackagePath;
+    UStaticMeshComponent* Component = nullptr;
+    bool Mounted = false;
+};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoSavedCollisionResponses, "Lockdown.Rules.DemoWorld.SavedCollisionResponses",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoSavedCollisionResponses::RunTest(const FString& Parameters)
+{
+    for (bool Floor : {true, false})
+    {
+        const TCHAR* Path = Floor ? TEXT("/Engine/BasicShapes/Cube.Cube")
+            : TEXT("/Game/Lockdown/Generated/World/SM_Demo_midwall_270.SM_Demo_midwall_270");
+        TStrongObjectPtr<UStaticMesh> Source(LoadObject<UStaticMesh>(nullptr, Path));
+        if (!TestNotNull(TEXT("Baseline mesh exists for isolated saved collision tests"), Source.Get())) { return false; }
+        FCollisionPackageFixture Fixture(*this);
+        if (!Fixture.Create(*Source, Floor, !Floor)) { return false; }
+        TestTrue(TEXT("Correct saved/reloaded collision passes the production predicate"), CollisionChannelsMatch(*Fixture.Get(), Floor, !Floor));
+        Fixture.Get()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+        if (!Fixture.RoundTrip()) { return false; }
+        TestTrue(TEXT("Pawn-only corruption persists while nav Vehicle response and trace classifications remain unchanged"),
+            Fixture.Get()->GetCollisionObjectType() == ECC_WorldStatic
+            && Fixture.Get()->GetCollisionResponseToChannel(ECC_Vehicle) == ECR_Block
+            && Fixture.Get()->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Ignore
+            && Fixture.Get()->GetCollisionResponseToChannel(ECC_GameTraceChannel1) == (Floor ? ECR_Block : ECR_Ignore)
+            && Fixture.Get()->GetCollisionResponseToChannel(ECC_GameTraceChannel2) == (Floor ? ECR_Ignore : ECR_Block));
+        TestFalse(TEXT("Production validation rejects the saved Pawn-response-only corruption on floor and blocker"),
+            CollisionChannelsMatch(*Fixture.Get(), Floor, !Floor));
+        Fixture.Get()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        Fixture.Get()->SetCollisionObjectType(ECC_WorldDynamic);
+        if (!Fixture.RoundTrip()) { return false; }
+        TestEqual(TEXT("Object-type-only corruption survives disk reload"), Fixture.Get()->GetCollisionObjectType(), ECC_WorldDynamic);
+        TestFalse(TEXT("Production validation rejects an incorrect saved collision object type"),
+            CollisionChannelsMatch(*Fixture.Get(), Floor, !Floor));
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoSavedConvexTransform, "Lockdown.Rules.DemoWorld.SavedConvexTransform",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoSavedConvexTransform::RunTest(const FString& Parameters)
+{
+    TStrongObjectPtr<UStaticMesh> Source(LoadObject<UStaticMesh>(nullptr,
+        TEXT("/Game/Lockdown/Generated/World/SM_Demo_midwall_054.SM_Demo_midwall_054")));
+    if (!TestNotNull(TEXT("Baseline exact polygon mesh exists"), Source.Get())
+        || !Source->GetBodySetup() || Source->GetBodySetup()->AggGeom.ConvexElems.Num() != 1) { return false; }
+    const TArray<FVector> Expected = Source->GetBodySetup()->AggGeom.ConvexElems[0].VertexData;
+    FCollisionPackageFixture Fixture(*this);
+    if (!Fixture.Create(*Source, false, true)) { return false; }
+    TestTrue(TEXT("Correct saved/reloaded hull passes the same production predicate"),
+        ConvexShapeMatches(*Fixture.Get()->GetStaticMesh()->GetBodySetup(), Expected));
+    Fixture.Get()->GetStaticMesh()->GetBodySetup()->AggGeom.ConvexElems[0].SetTransform(FTransform(FVector(10, 0, 0)));
+    if (!Fixture.RoundTrip()) { return false; }
+    const UBodySetup* Body = Fixture.Get()->GetStaticMesh()->GetBodySetup();
+    TestTrue(TEXT("Transform-only corruption leaves every raw vertex unchanged"), Body->AggGeom.ConvexElems[0].VertexData == Expected);
+    TestTrue(TEXT("The independent saved convex transform survives disk reload"),
+        Body->AggGeom.ConvexElems[0].GetTransform().GetTranslation() == FVector(10, 0, 0));
+    TestFalse(TEXT("Production validation rejects shifted body-space collision despite identical raw vertices"),
+        ConvexShapeMatches(*Body, Expected));
+    TestTrue(TEXT("Production mesh was never mutated"), Source->GetBodySetup()->AggGeom.ConvexElems[0].GetTransform().Equals(FTransform::Identity, 0.)
+        && Source->GetBodySetup()->AggGeom.ConvexElems[0].VertexData == Expected);
+    return true;
+}
+#endif

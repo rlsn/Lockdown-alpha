@@ -6,7 +6,6 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDVendorDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Region/LDRegionDefinition.h"
@@ -30,7 +29,7 @@ FLDBankView ALDBankDirector::View(ALDPlayerController* PC,const FClient& C) cons
 bool ALDBankDirector::Valid(ALDPlayerController* PC,const FClient& C) const
 {
     auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);
-    return C.View.Session.IsValid()&&O&&O->Match==C.View.Match&&O->Life==C.View.Life&&S&&S->LastDamage==C.Damage&&S->LastDealt==C.Dealt&&Eligible(PC)&&(!M->Trade||!M->Trade->HasSession(PC));
+    return C.View.Session.IsValid()&&O&&O->Match==C.View.Match&&O->Life==C.View.Life&&S&&S->LastDamage==C.Damage&&S->LastDealt==C.Dealt&&Eligible(PC);
 }
 void ALDBankDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token)
 {
@@ -38,7 +37,7 @@ void ALDBankDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,uint
     if(!Token||Token<=C.LastToken||Token<=C.ClosedThrough){return;}C.LastToken=Token;C.View=FLDBankView();C.View.Token=Token;
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){Reply(PC,0,TEXT("Treasury requires 120 cm, body sight, alive/unprotected and six combat-quiet seconds"));return;}
     if(M->Commerce){M->Commerce->Invalidate(PC);}
-    if(M->Trade){M->Trade->CancelFor(PC);}if(M->Vendor){M->Vendor->Invalidate(PC);}
+    if(M->Vendor){M->Vendor->Invalidate(PC);}
     const auto* S=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));C.Damage=S->LastDamage;C.Dealt=S->LastDealt;C.View.Match=Match;C.View.Life=Life;C.View.Session=FGuid::NewGuid();C.View=View(PC,C);Reply(PC,0,TEXT("City Treasury · Official protected service · Match continues"));
 }
 void ALDBankDirector::Close(ALDPlayerController* PC,uint32 Token)

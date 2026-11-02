@@ -17,7 +17,7 @@ bool FLDLoadoutCapsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Two-hand proposal"),LDGear::Propose(I,B,LDInventory::Equip,Halberd,0,Out,Why));I=Out;TestTrue(TEXT("One instance reserves two bindings and weighs once"),I.Bindings[0]==Halberd&&I.Bindings[1]==Halberd&&I.Items.Num()==2&&LDInventory::Weight(I)==9);
     TestFalse(TEXT("Invalid offhand binding rejects"),LDGear::Propose(I,B,LDInventory::Equip,Harness,1,Out,Why));
     TestTrue(TEXT("Harness capacity equipped"),LDGear::Propose(I,B,LDInventory::Equip,Harness,2,Out,Why));I=Out;B.Gear=LDGear::Derive(I);TestEqual(TEXT("Natural STR controls base capacity; primary gear STR does not"),LDInventory::WeightCapacity(B),72);
-    while(LDInventory::Weight(I)<=62){Add(I,ELDItemKind::Core);}TestTrue(TEXT("Cargo fits with harness"),LDInventory::Fits(I,B,{}, {},&Why));TestFalse(TEXT("Removal cannot store overweight state"),LDGear::Propose(I,B,LDInventory::Unequip,Harness,0,Out,Why));TestFalse(TEXT("Bound equipment cannot become an outgoing trade/recipe projection"),LDInventory::Fits(I,B,{Halberd},{},&Why));return true;
+    while(LDInventory::Weight(I)<=62){Add(I,ELDItemKind::Core);}TestTrue(TEXT("Cargo fits with harness"),LDInventory::Fits(I,B,{}, {},&Why));TestFalse(TEXT("Removal cannot store overweight state"),LDGear::Propose(I,B,LDInventory::Unequip,Harness,0,Out,Why));TestFalse(TEXT("Bound equipment cannot become an outgoing inventory input"),LDInventory::Fits(I,B,{Halberd},{},&Why));return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDProgression73Test,"Lockdown.Rules.NaturalGatesMasteryAndPotency",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDProgression73Test::RunTest(const FString& Parameters)
@@ -30,11 +30,24 @@ bool FLDProgression73Test::RunTest(const FString& Parameters)
     B.Ranks[uint8(ELDSkill::GroundingField)]=1;B.Gear.ControlPotency=1;TestEqual(TEXT("Declared control anchor HP potency"),LDGear::Magnitude(B,ELDSkill::GroundingField,TEXT("anchor_hp"),{90,104,117}),104);TestEqual(TEXT("Cooldown cannot receive potency"),LDGear::Magnitude(B,ELDSkill::Counterpulse,TEXT("cooldown_ms"),{20000,19000,18000}),20000);
     TestEqual(TEXT("New death delay level15 at 35min"),LDDevelopment::TacticalDeathDelay(15,2100),55.);TestEqual(TEXT("Death delay cap"),LDDevelopment::TacticalDeathDelay(15,100000),90.);return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControls73Test,"Lockdown.Rules.TacticalControlMigration",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControls73Test,"Lockdown.Rules.LocalControlRegistryIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDControls73Test::RunTest(const FString& Parameters)
 {
-    auto* C=NewObject<ULDControlSettings>();C->ResetBindings();FString Why;TestTrue(TEXT("Legacy D remap permitted"),C->Rebind(TEXT("PanUp"),EKeys::D,Why));C->TextScale=1.25;C->Zoom=1600;
-    TestTrue(TEXT("Migration yields valid conflict-free v07 profile"),C->MigrateTactical());TestEqual(TEXT("Fifth skill default D"),C->Key(TEXT("Skill5")),FKey(EKeys::D));TestFalse(TEXT("Removed quick4 absent"),C->Bindings.Contains(TEXT("Item4")));TestEqual(TEXT("Compatible attack preference retained"),C->Key(TEXT("Attack")),FKey(EKeys::A));TestTrue(TEXT("D conflict relocated; display preferences retained"),C->Key(TEXT("PanUp"))!=EKeys::D&&C->TextScale==1.25&&C->Zoom==1600);TestFalse(TEXT("Conflict with fifth binding rejects"),C->Rebind(TEXT("Context"),EKeys::D,Why));const auto Before=C->Bindings;TestTrue(TEXT("Migration idempotent"),C->MigrateTactical()&&C->Bindings.OrderIndependentCompareEqual(Before));return true;
+    auto* C=NewObject<ULDControlSettings>();C->Profile=7;C->ResetBindings();FString Why;
+    TestTrue(TEXT("Explicit incumbent registry is valid without migration"),C->Valid());
+    TestEqual(TEXT("Fifth skill retains this registry's default D"),C->Key(TEXT("Skill5")),FKey(EKeys::D));
+    TestFalse(TEXT("Fourth quick item is not part of this registry"),C->Key(TEXT("Item4")).IsValid());
+    const auto Before=C->Bindings;
+    TestFalse(TEXT("Conflicting camera key is rejected, never relocated"),C->Rebind(TEXT("PanUp"),EKeys::D,Why));
+    TestTrue(TEXT("Rejected rebind preserves every binding"),C->Bindings.OrderIndependentCompareEqual(Before));
+    C->TextScale=1.25;C->Zoom=1600;C->ResetBindings();
+    TestTrue(TEXT("Resetting bindings preserves unrelated preferences"),C->TextScale==1.25&&C->Zoom==1600);
+    auto* Other=C->CreateDraft();Other->Profile=8;Other->ResetBindings();
+    const auto Storage=FLDLocalSettingsStorage::Automation(FGuid::NewGuid());
+    auto* Applied=ULDControlSettings::CreateSessionSettings(Storage,7);
+    TestFalse(TEXT("Another registry's draft cannot be silently applied"),Applied->ApplyLocalSettings(*Other,Why));
+    TestEqual(TEXT("No implicit registry migration"),Applied->Profile,uint8(7));
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLoadoutWireTest,"Lockdown.Rules.LoadoutWireAndQuickShape",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDLoadoutWireTest::RunTest(const FString& Parameters)

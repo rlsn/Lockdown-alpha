@@ -44,11 +44,21 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     for(TFieldIterator<FProperty> It(FLDObservedEntity::StaticStruct());It;++It)
     { ++Count; TestTrue(TEXT("Only approved observed fields"),Allowed.Contains(It->GetFName())); TestNull(TEXT("No canonical UObject references"),CastField<FObjectPropertyBase>(*It)); }
     TestEqual(TEXT("Approved schema complete"),Count,8);
-    const TSet<FName> Public={TEXT("bEnvironmentProfile"),TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil"),TEXT("OutcropOne"),TEXT("OutcropTwo"),TEXT("EconomyNextTick"),TEXT("ShortagePhase"),TEXT("ShortageRemaining"),TEXT("CoreOrdersRemaining"),TEXT("SupplyOrdersRemaining"),TEXT("CharterWindow"),TEXT("CharterPhase"),TEXT("CharterWarningAt"),TEXT("CharterOpenAt"),TEXT("CharterCloseAt"),TEXT("Breaches")};
+    const TSet<FName> Public={TEXT("DemoLobby"),TEXT("bEnvironmentProfile"),TEXT("bPublicSensorActive"),TEXT("DefensiveFlags"),TEXT("bClaimActive"),TEXT("bContested"),TEXT("ClaimRoute"),TEXT("ClaimProgress"),TEXT("MatchDeadline"),TEXT("EndReason"),TEXT("WinningRoute"),TEXT("MatchEndedAt"),TEXT("ResultReceipt"),TEXT("ResultSerial"),TEXT("SealNoticeSerial"),TEXT("SealNoticeKind"),TEXT("SealNoticeDistrict"),TEXT("bDevelopmentProfile"),TEXT("bUIControlProfile"),TEXT("bMatchStarted"),TEXT("LobbyCount"),TEXT("ReadyCount"),TEXT("PublicSensorOfflineUntil"),TEXT("PublicSensorLockoutUntil"),TEXT("OutcropOne"),TEXT("OutcropTwo"),TEXT("EconomyNextTick"),TEXT("ShortagePhase"),TEXT("ShortageRemaining"),TEXT("CoreOrdersRemaining"),TEXT("SupplyOrdersRemaining"),TEXT("CharterWindow"),TEXT("CharterPhase"),TEXT("CharterWarningAt"),TEXT("CharterOpenAt"),TEXT("CharterCloseAt"),TEXT("Breaches")};
     int32 PublicCount=0;
     for(TFieldIterator<FProperty> It(ALDGameState::StaticClass(),EFieldIteratorFlags::ExcludeSuper);It;++It)
     {++PublicCount;TestTrue(TEXT("Only approved public objective facts"),Public.Contains(It->GetFName()));TestNull(TEXT("No claimant/carrier canonical references"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Public schema complete"),PublicCount,36);
+    TestEqual(TEXT("Public schema complete"),PublicCount,37);
+    const TSet<FName> Lobby={TEXT("Generation"),TEXT("Phase"),TEXT("RosterRevision"),TEXT("PublicRevision"),TEXT("Members"),TEXT("AICount"),TEXT("CanStart"),TEXT("StartBlocker")};
+    int32 LobbyCount=0;
+    for(TFieldIterator<FProperty> It(FLDLobbyView::StaticStruct());It;++It)
+    {++LobbyCount;TestTrue(TEXT("Demo Lobby contains only public room facts"),Lobby.Contains(It->GetFName()));TestNull(TEXT("Lobby cannot expose canonical objects"),CastField<FObjectPropertyBase>(*It));}
+    TestEqual(TEXT("Demo Lobby schema complete"),LobbyCount,8);
+    const TSet<FName> Member={TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("Host"),TEXT("Ready")};
+    int32 MemberCount=0;
+    for(TFieldIterator<FProperty> It(FLDLobbyMember::StaticStruct());It;++It)
+    {++MemberCount;TestTrue(TEXT("Roster never includes private build or body data"),Member.Contains(It->GetFName()));}
+    TestEqual(TEXT("Demo member schema complete"),MemberCount,5);
     const TSet<FName> FullMap={TEXT("Handle"),TEXT("PublicDoor"),TEXT("Position"),TEXT("Revision"),TEXT("State"),TEXT("Presentation"),TEXT("Facing"),TEXT("Light"),TEXT("Velocity"),TEXT("SealedCargo")};
     int32 FullCount=0;for(TFieldIterator<FProperty> It(FLDEnvironmentViewEntry::StaticStruct());It;++It)
     {++FullCount;TestTrue(TEXT("Full-map view contains only approved observed fields"),FullMap.Contains(It->GetFName()));TestNull(TEXT("Full-map view has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}

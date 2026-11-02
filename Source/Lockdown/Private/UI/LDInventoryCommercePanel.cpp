@@ -28,7 +28,7 @@ void ULDInventoryPanel::RefreshCommerce()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const bool Live=PC->CommerceIsOpen();const auto* Cached=PC->LastCommerceQuotes.Find(SelectedMarket);const FLDCommerceView Q=Live?PC->CommerceView:Cached?*Cached:FLDCommerceView();const bool Pending=PC->InventoryPending();DisplayedCommerce=Q;
     if(Live){SelectedMarket=Q.Service;}
-    for(uint8 S=0;S<4;++S){CommerceOpenButtons[S]->SetIsEnabled(!Pending&&!bConfirm&&!bTradeReview&&(!PC->CommerceIsOpen()||Q.Service!=S));}
+    for(uint8 S=0;S<4;++S){CommerceOpenButtons[S]->SetIsEnabled(!Pending&&!bConfirm&&(!PC->CommerceIsOpen()||Q.Service!=S));}
     CommercePanel->SetVisibility(ESlateVisibility::Visible);
     CommerceStatus->SetText(FText::FromString(Q.Offers.IsEmpty()?ALDCommerceDirector::ServiceName(SelectedMarket)+TEXT("\nNo visited quote. Approach within 120 cm with body sight to open this protected service."):FString::Printf(TEXT("%s · %s\nReserve %lld gold · Quoted at %.1fs · %s"),*ALDCommerceDirector::ServiceName(Q.Service),Live?TEXT("LOCAL SERVICE"):TEXT("LAST VISITED QUOTE · READ ONLY"),Q.Cash,Q.QuotedAt,Live?*PC->CommerceFeedback:TEXT("Visit again for current prices"))));
     if(Q.Service==0&&!Q.Offers.IsEmpty()){CommerceStatus->SetText(FText::FromString(FString::Printf(TEXT("OFFICIAL MATERIALS · %s\nUnlimited stock · paid creation · Quoted at %.1fs\n%s"),Live?TEXT("LOCAL SERVICE"):TEXT("LAST VISITED QUOTE · READ ONLY"),Q.QuotedAt,Live?*PC->CommerceFeedback:TEXT("Visit again for current prices"))));}
@@ -47,9 +47,9 @@ void ULDInventoryPanel::RefreshCommerce()
         if(Q.Service&&Offer->Stock>=Offer->Cap){Reason+=TEXT(" · Cannot sell: stock full");}else if(Q.Service&&Q.Cash<Offer->Bid){Reason+=TEXT(" · Cannot sell: reserve empty");}else if(Q.Service&&(!SelectedItem||SelectedItem->Kind!=Kind)){Reason+=TEXT(" · Sell: select your matching cargo");}else if(Q.Service&&SelectedItem->bReserved){Reason+=TEXT(" · Sell: selected input is reserved");}
         CommerceLabels[N]->SetText(FText::FromString(FString::Printf(TEXT("%s · %s · Ask %d · %s"),*LDInventory::Name(Kind,ELDSkill::None),*Stock,Offer->Ask,*Reason)));
         CastChecked<UTextBlock>(CommerceBuyButtons[N]->GetContent())->SetText(FText::FromString(Pending?TEXT("Pending…"):PC->CommerceNeedsReview?TEXT("Review new quote"):TEXT("Buy one")));
-        CommerceBuyButtons[N]->SetIsEnabled(!Pending&&Live&&Q.Session.IsValid()&&Fits&&PC->OwnerState.Gold>=Offer->Ask&&Offer->Stock!=0&&!bConfirm&&!bTradeReview);
+        CommerceBuyButtons[N]->SetIsEnabled(!Pending&&Live&&Q.Session.IsValid()&&Fits&&PC->OwnerState.Gold>=Offer->Ask&&Offer->Stock!=0&&!bConfirm);
         CastChecked<UTextBlock>(CommerceSellButtons[N]->GetContent())->SetText(FText::FromString(Pending?TEXT("Pending…"):PC->CommerceNeedsReview?TEXT("Review quote"):FString::Printf(TEXT("Sell · %dg"),Offer->Bid)));
-        CommerceSellButtons[N]->SetVisibility(Q.Service?ESlateVisibility::Visible:ESlateVisibility::Collapsed);CommerceSellButtons[N]->SetIsEnabled(!Pending&&Live&&Q.Session.IsValid()&&CanSell&&!bConfirm&&!bTradeReview);
+        CommerceSellButtons[N]->SetVisibility(Q.Service?ESlateVisibility::Visible:ESlateVisibility::Collapsed);CommerceSellButtons[N]->SetIsEnabled(!Pending&&Live&&Q.Session.IsValid()&&CanSell&&!bConfirm);
     }
 }
 void ULDInventoryPanel::CommerceAction(uint8 Command,ELDItemKind Kind)

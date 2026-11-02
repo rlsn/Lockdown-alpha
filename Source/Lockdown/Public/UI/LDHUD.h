@@ -48,7 +48,6 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> Progress;
     UPROPERTY() TObjectPtr<ULDCommandButton> ContextButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> VendorButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> TradeButton;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> Skills;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> Items;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;

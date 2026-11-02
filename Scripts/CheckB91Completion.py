@@ -3,7 +3,7 @@ import argparse,json
 from pathlib import Path
 from CheckB91Combat import check as combat
 from CheckB91Evidence import check as structural
-from CheckB91Checkpoint import check as checkpoint
+from CheckB91Encounter import check as encounter
 from CheckB91Saplings import check as saplings
 from CheckB91Grass import check as grass
 from CheckB91Ignition import check as ignition
@@ -21,11 +21,7 @@ def read(path):
 
 def validate(runs):
     for name,fn in [('combat',combat),('structural',structural),('doors',doors),('saplings',saplings),('grass',grass),('ignition',ignition),('tools',tools),('traversal',traversal),('objects',objects),('furniture',objects),('fields',fields)]:fn(runs[name])
-    checkpoint(runs['checkpoint'],placement=True)
-    e=read(runs['encounter']/'Encounter.json');assert e['complete'] and e['phase']==91 and not e['failures'] and len(e['checks'])>=44 and all(c['passed'] for c in e['checks']) and e['walked_cm']>10000 and e['falling_s']==0
-    for phase in range(1,28):
-        for role in ('A','B'):assert read(runs['encounter']/f'{role}_{phase}.json')['completed']
-    e=read(runs['encounter']/'Resume.json');assert e['complete'] and not e['failures'] and len(e['checks'])>=3 and all(c['passed'] for c in e['checks'])
+    e=encounter(runs['encounter']);assert e['falling_s']==0
     for phase in (15,22,24):assert (runs['encounter']/f'Reference_{phase}.png').is_file()
     f=read(runs['forest']/'Forest.json');assert f['count']==f['walking_blockers']==f['sight_blockers']==3000 and f['navigation'] and f['not_replicated'] and f['no_tick']
     fitted=read(ROOT/'Content/Lockdown/Data/V09/forest_b91.json')['rows'];assert f['rows']==fitted

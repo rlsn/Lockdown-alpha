@@ -6,7 +6,6 @@
 #include "Inventory/LDAcquisitionCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Framework/LDGameMode.h"

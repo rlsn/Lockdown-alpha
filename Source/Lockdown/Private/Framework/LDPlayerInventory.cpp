@@ -16,7 +16,7 @@ void ALDPlayerController::ToggleInventoryPanel()
 {
     const auto* G=GetWorld()->GetGameState<ALDGameState>();if(!Navigation->Enabled()||!G||!G->bMatchStarted||G->EndReason){return;}
     if(InventoryUI&&InventoryUI->IsOpen()){InventoryUI->Close();return;}
-    if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();}if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}if(RootUI){RootUI->DismissMenu();}
+    if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->ForceClose();}if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}if(RootUI){RootUI->DismissMenu();}
     if(!InventoryUI){InventoryUI=CreateWidget<ULDInventoryPanel>(this);InventoryUI->AddToViewport(24);}InventoryUI->Open();
 }
 void ALDPlayerController::InventoryCommand(uint8 Command,FGuid Item,uint8 Slot,FVector Point)

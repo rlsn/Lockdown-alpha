@@ -63,7 +63,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* Self=Button(TEXT("Self"),[PC](){PC->Inspect({});});CastChecked<UTextBlock>(Self->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));InspectActions->AddChildToHorizontalBox(Self);
         auto* Character=Button(TEXT("Character"),[PC](){PC->ToggleDevelopmentPanel();});CastChecked<UTextBlock>(Character->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));Commands.Add(TEXT("Development"),Character);InspectActions->AddChildToHorizontalBox(Character)->SetPadding(FMargin(4,0));
         auto* Bag=Button(TEXT("Bag"),[PC](){PC->ToggleInventoryPanel();});CastChecked<UTextBlock>(Bag->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));Commands.Add(TEXT("Inventory"),Bag);InspectActions->AddChildToHorizontalBox(Bag);
-        TradeButton=Button(TEXT("Offer trade"),[PC](){PC->OfferTrade();});InspectColumn->AddChildToVerticalBox(TradeButton);
         auto* Own=WidgetTree->ConstructWidget<UVerticalBox>();Bottom->AddChildToHorizontalBox(Own)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Resources=Text(TEXT(""),16);Own->AddChildToVerticalBox(Resources)->SetPadding(FMargin(0,0,0,4));
         auto* SkillRow=WidgetTree->ConstructWidget<UHorizontalBox>();Own->AddChildToVerticalBox(SkillRow);auto* SKILLSSize=WidgetTree->ConstructWidget<USizeBox>();SKILLSSize->SetWidthOverride(94);SKILLSSize->SetContent(Text(TEXT("SKILLS"),14));SkillRow->AddChildToHorizontalBox(SKILLSSize)->SetVerticalAlignment(VAlign_Center);
@@ -116,7 +115,7 @@ void ULDHUD::RefreshReadModel()
     Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Task->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Objective->SetVisibility(Playing?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     const float TextScale=PC->Controls?PC->Controls->TextScale:1;int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);const float UIScale=UWidgetLayoutLibrary::GetViewportScale(this);const bool Compact=ViewH<=720;const float BandHeight=B.RulesVersion==8?(ViewH*(TextScale>1?.49f:.43f)/FMath::Max(.1f,UIScale)):(Compact?180.f/FMath::Max(.1f,UIScale):(TextScale>1?250.f:220.f));MapFrame->SetWidthOverride(Compact?180:204);MapFrame->SetHeightOverride(110);InspectFrame->SetWidthOverride(Compact?300:330);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
     if(AppliedScale!=TextScale){const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);T->SetFont(Font);}}}
-    FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);TradeButton->SetVisibility(Selected&&Subject.Kind==ELDObservedKind::Body?ESlateVisibility::Visible:ESlateVisibility::Collapsed);TradeButton->SetIsEnabled(O.bActive&&!GS->EndReason&&!PC->InventoryPending());CastChecked<UTextBlock>(TradeButton->GetContent())->SetText(FText::FromString(TEXT("Offer trade [")+PC->BindingLabel(TEXT("Trade"))+TEXT("]")));Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
+    FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
     if(Selected&&PC->GetPawn())
     {
         double Reach=120;for(auto Skill:B.Slots){if(Skill!=ELDSkill::None&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch){Reach=FMath::Max(Reach,LDHUD::Range(Skill));}}
@@ -154,7 +153,7 @@ void ULDHUD::RefreshReadModel()
         Skills[I]->SetToolTipText(FText::FromString(LDHUD::Tooltip(B,Skill)+TEXT("\n")+State+(State==TEXT("Blocked")?TEXT(": ")+BlockReason:FString())));Skills[I]->SetIsEnabled(O.bActive&&Now>=O.ProtectedUntil&&Skill!=ELDSkill::None&&!GS->EndReason);
         const auto* Item=O.Inventory.Find(O.Inventory.Quick.IsValidIndex(I)?O.Inventory.Quick[I]:FGuid());const FString Name=Item?Item->Kind==ELDItemKind::Book?FString(LDDevelopment::SkillName(Item->Skill))+TEXT(" book"):LDInventory::Name(Item->Kind,Item->Skill):TEXT("Empty");
         const FString ItemState=!Item?FString():!O.bActive||GS->EndReason||Now<O.ProtectedUntil||Item->bReserved?TEXT("Blocked"):PC->InventoryPending()?TEXT("Pending"):PC->ArmedItem()==Item->Id?TEXT("Armed"):O.DevelopmentItem==Item->Id?TEXT("Active"):TEXT("Ready");
-        CastChecked<UTextBlock>(Items[I]->GetContent())->SetText(FText::FromString(TEXT("[")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),I+1)))+TEXT("] ")+Name+(Item?TEXT(" · ")+ItemState:TEXT(""))));Items[I]->SetIsEnabled(O.bActive&&!GS->EndReason&&Now>=O.ProtectedUntil&&!PC->InventoryPending()&&(!Item||!Item->bReserved));Items[I]->SetToolTipText(FText::FromString(Item?LDInventory::Name(Item->Kind,Item->Skill)+TEXT(" · ")+ItemState+(ItemState==TEXT("Blocked")?FString(TEXT(": "))+(Item->bReserved?TEXT("offered in trade"):*BlockReason):FString())+TEXT(" · Own physical item reference. Books teach; they never cast. Ward placement consumes only on success."):TEXT("Empty reference. Assign an owned book or ward charge in the bag.")));
+        CastChecked<UTextBlock>(Items[I]->GetContent())->SetText(FText::FromString(TEXT("[")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),I+1)))+TEXT("] ")+Name+(Item?TEXT(" · ")+ItemState:TEXT(""))));Items[I]->SetIsEnabled(O.bActive&&!GS->EndReason&&Now>=O.ProtectedUntil&&!PC->InventoryPending()&&(!Item||!Item->bReserved));Items[I]->SetToolTipText(FText::FromString(Item?LDInventory::Name(Item->Kind,Item->Skill)+TEXT(" · ")+ItemState+(ItemState==TEXT("Blocked")?FString(TEXT(": "))+(Item->bReserved?TEXT("reserved for an order"):*BlockReason):FString())+TEXT(" · Own physical item reference. Books teach; they never cast. Ward placement consumes only on success."):TEXT("Empty reference. Assign an owned book or ward charge in the bag.")));
     }
     if(B.RulesVersion==8&&B.Actions.Num()==6&&O.Inventory.Bindings.Num()==11)
     {
@@ -188,7 +187,7 @@ void ULDHUD::RefreshReadModel()
     Warning->SetText(FText::FromString(Now<O.WarningUntil?TEXT("⚠ INCOMING CAST · Escape, Step or interrupt"):Now<O.DamageUntil?TEXT("HIT · Interruptible action cancelled"):FString()));
     if(GS->EndReason)
     {
-        if(SeenResult!=GS->ResultSerial){SeenResult=GS->ResultSerial;PC->ClearControls();PC->CancelArmed();if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();}if(PC->ControlsUI&&PC->ControlsUI->IsOpen()){PC->ControlsUI->Close();}}
+        if(SeenResult!=GS->ResultSerial){SeenResult=GS->ResultSerial;PC->ClearControls();PC->CancelArmed();if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();}if(PC->ControlsUI&&PC->ControlsUI->IsOpen()){PC->ControlsUI->ForceClose();}}
         if(PC->InventoryUI&&PC->InventoryUI->IsOpen()){PC->InventoryUI->Close();}
         ResultText->SetText(FText::FromString(GS->EndReason==2?TEXT("NO ACQUISITION\nTime expired. No one claimed the Heart."):O.bWinner?TEXT("HEART ACQUIRED\nYou claimed the Heart."):TEXT("HEART ACQUIRED\nAnother contender claimed the Heart.")));ResultPanel->SetVisibility(ESlateVisibility::Visible);
     }
@@ -224,7 +223,7 @@ bool ULDHUD::CommandLayoutFits() const
     if(!Band||!Band->IsVisible()){return false;}
     const auto& BG=Band->GetCachedGeometry();const FVector2D Min=BG.LocalToAbsolute(FVector2D::ZeroVector),Max=BG.LocalToAbsolute(BG.GetLocalSize());
     TArray<UWidget*> Widgets={Resources.Get(),ActionText.Get(),Progress.Get()};TArray<FSlateRect> Buttons;
-    for(auto B:Skills){Widgets.Add(B);}for(auto B:Items){Widgets.Add(B);}for(const auto& Pair:Commands){Widgets.Add(Pair.Value);}Widgets.Add(ContextButton);Widgets.Add(VendorButton);Widgets.Add(TradeButton);
+    for(auto B:Skills){Widgets.Add(B);}for(auto B:Items){Widgets.Add(B);}for(const auto& Pair:Commands){Widgets.Add(Pair.Value);}Widgets.Add(ContextButton);Widgets.Add(VendorButton);
     for(auto* W:Widgets){if(!W||!W->IsVisible()){continue;}const auto& WG=W->GetCachedGeometry();const FVector2D P=WG.LocalToAbsolute(FVector2D::ZeroVector),Q=WG.LocalToAbsolute(WG.GetLocalSize());
         if(P.X<Min.X-.5||P.Y<Min.Y-.5||Q.X>Max.X+.5||Q.Y>Max.Y+.5||WG.GetLocalSize().IsNearlyZero()){return false;}
         if(Cast<UButton>(W)){if(WG.GetLocalSize().X<39.5||WG.GetLocalSize().Y<39.5){return false;}const FSlateRect Rect(P.X,P.Y,Q.X,Q.Y);for(const auto& R:Buttons){if(FMath::Min(R.Right,Rect.Right)-FMath::Max(R.Left,Rect.Left)>.5&&FMath::Min(R.Bottom,Rect.Bottom)-FMath::Max(R.Top,Rect.Top)>.5){return false;}}Buttons.Add(Rect);}

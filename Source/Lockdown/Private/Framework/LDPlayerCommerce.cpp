@@ -11,7 +11,7 @@ void ALDPlayerController::OpenCommerce(uint8 Service)
     if(InventoryPending()||!NearCommerce(Service)){IntentFeedback=TEXT("Approach the selected official service within 120 cm");return;}
     if(!InventoryUI||!InventoryUI->IsOpen()){ToggleInventoryPanel();}if(!InventoryUI||!InventoryUI->IsOpen()){return;}
     InventoryUI->ShowService(2);
-    CloseCommerce();bCommerceOpening=true;CloseVendor();CloseBank();CancelTrade();ClearControls();SetMenuOpen(true);CommerceToken=++NextRequest;bCommerceOpening=true;CommerceNeedsReview=false;CommerceFeedback=TEXT("Opening local service…");ServerCommerceOpen(OwnerState.Match,OwnerState.Life,CommerceToken,Service);InventoryUI->Refresh();
+    CloseCommerce();bCommerceOpening=true;CloseVendor();CloseBank();ClearControls();SetMenuOpen(true);CommerceToken=++NextRequest;bCommerceOpening=true;CommerceNeedsReview=false;CommerceFeedback=TEXT("Opening local service…");ServerCommerceOpen(OwnerState.Match,OwnerState.Life,CommerceToken,Service);InventoryUI->Refresh();
 }
 void ALDPlayerController::CloseCommerce(){if(CommerceIsOpen()){ServerCommerceClose(CommerceToken);}bCommerceOpening=false;CommerceNeedsReview=false;CommerceView=FLDCommerceView();}
 void ALDPlayerController::SendCommerce(uint8 Command,ELDItemKind Kind,FGuid Item,uint32 Revision,int32 Price)

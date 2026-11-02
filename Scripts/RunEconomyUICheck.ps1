@@ -17,7 +17,10 @@ foreach($lane in $lanes){
     try{if(-not $process.WaitForExit($TimeoutSeconds*1000)){throw "Native UI $($lane.Name) timed out: $output"};if($process.ExitCode -ne 0){throw "Native UI $($lane.Name) failed ($($process.ExitCode)): $output"}}
     finally{if(-not $process.HasExited){$process.Kill();$process.WaitForExit()}}
     $report=Get-Content -LiteralPath (Join-Path $folder 'UI.json') -Raw|ConvertFrom-Json
-    if($report.failures -or @($report.checks).Count -lt 45 -or @(Get-ChildItem -LiteralPath $folder -Filter '*.png').Count -ne 13){throw "Incomplete native UI $($lane.Name) evidence: $output"}
+    if($report.failures -or @($report.checks).Count -lt 45){throw "Incomplete native UI $($lane.Name) evidence: $output"}
+    foreach($image in @('Market','Pending','QuoteChanged','QuoteHistory','OfficialSupply','Workshop','HeldCraft','Procurement','Treasury','Books','Warning','Opening')){
+        if(-not(Test-Path -LiteralPath (Join-Path $folder "$image.png"))){throw "Missing native UI $($lane.Name) image $image`: $output"}
+    }
 }
 $verified=@(Get-ChildItem -Path (Join-Path (Get-LDProjectRoot) 'Saved/Economy/B66Verified*.json')|Where-Object{$_.LastWriteTime -ge $runStarted})
 if($verified.Count -ne $lanes.Count){throw "Missing current native UI ledger evidence: $output"}

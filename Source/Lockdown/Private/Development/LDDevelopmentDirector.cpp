@@ -3,7 +3,6 @@
 #include "Development/LDV08Loadout.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -150,7 +149,7 @@ void ALDDevelopmentDirector::Request(const FRequest& R,double Now)
     {if(!DraftAllowed(Mode,Body,*O,R.Plan)){Reject(TEXT("Silence/Mute prevents the changed action sources"));return;}FLDCharacterBuild Candidate;FLDInventory Projected;FString Why;if(!NearStation(PC)||(O->Build.RulesVersion==8?!LDV08::Project(O->Inventory,O->Build,R.Plan,Projected,Candidate,Why):!LDDevelopment::Prepare(O->Build,R.Plan,Candidate,Why))||(Mode->Inventory&&!LDInventory::Fits(O->Inventory,Candidate,{}, {},&Why))){FinishRequest(PC,R.Id,Why.IsEmpty()?TEXT("Preparation requires a visible station within 120 cm."):Why);return;}}
     else
     {Book=OwnedBook(PC,R.Item);if(!Book||uint8(Book->Skill)<1||uint8(Book->Skill)>=LDDevelopment::Count(O->Build)||LDDevelopment::Rank(O->Build,Book->Skill)>0||(Mode->IsTacticalProfile()&&uint8(Book->Skill)>=10&&(!Mode->TacticalCatalog->Find(Book->Skill)))){Reject(TEXT("Read an owned, unknown-skill book; known books are retained."));return;}}
-    if(Mode->Trade){Mode->Trade->CancelFor(PC);}S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
+    S.Kind=R.Kind;S.Token=R.Id;S.Life=R.Life;S.Match=R.Match;S.Plan=R.Plan;S.Book=Book;S.Sequence=0;S.LastHold=Now;S.Anchor=Body->GetActorLocation();S.EndsAt=Now+(Book?3.:2.);
     Combat->Action=8;Combat->Skill=ELDSkill::None;Combat->ImpactAt=S.EndsAt;
     if(Mode->Objectives){Mode->Objectives->Interrupt(PC,Now,true);}
     O->DevelopmentKind=S.Kind;O->DevelopmentToken=S.Token;O->DevelopmentEndsAt=S.EndsAt;O->DevelopmentItem=R.Kind==LDDevelopmentTransaction::Loadout?R.Item:Book?Book->Identity:FGuid();Mode->SyncOwner(PC);

@@ -1,44 +1,22 @@
 #include "Framework/LDGameMode.h"
-#include "World/LDEnvironmentDirector.h"
+#include "Framework/LDDemoEntry.h"
+#include "Region/LDMapRegistry.h"
+#include "Tests/LDDemoEntryProbe.h"
 #include "Region/LDMapDefinition.h"
-#include "Tests/LDB91Probe.h"
-#include "Tests/LDB91NetProbe.h"
-#include "Tests/LDB91ObjectsProbe.h"
-#include "Tests/LDB91ToolsProbe.h"
-#include "Tests/LDB91SaplingsProbe.h"
-#include "Tests/LDB91FieldsProbe.h"
-#include "Tests/LDB91IgnitionProbe.h"
-#include "Tests/LDB91GrassProbe.h"
-#include "Tests/LDB91CheckpointProbe.h"
-#include "Tests/LDB91CombatProbe.h"
-#include "Tests/LDB91EncounterProbe.h"
-#include "Tests/LDB92EconomyProbe.h"
 #include "Population/LDB92Roster.h"
-#include "Tests/LDB92RosterProbe.h"
-#include "Tests/LDB92RoutinesProbe.h"
-#include "Tests/LDB92ServicesProbe.h"
-#include "Tests/LDB91TraversalProbe.h"
 #include "Development/LDV08Loadout.h"
 #include "World/LDWorldDirector.h"
 #include "Combat/LDTacticalCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDAcquisitionDirector.h"
-#include "Inventory/LDAcquisitionCatalog.h"
 #include "Combat/LDTacticalRules.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDBankDirector.h"
-#include "Inventory/LDTradeDirector.h"
+#include "Economy/LDCommerceDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
-#include "Tests/LDMovementProbe.h"
-#include "Tests/LDNavigationProbe.h"
-#include "Tests/LDInputProbe.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDRegionNavBounds.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
 #include "Engine/World.h"
 #include "NavigationSystem.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
@@ -46,54 +24,33 @@
 #include "Vision/LDVisionDirector.h"
 #include "Framework/LDGameInstance.h"
 #include "Net/UnrealNetwork.h"
-#include "Tests/LDViewNetworkProbe.h"
 #include "Combat/LDCombatDirector.h"
 #include "Core/LDRules.h"
-#include "Tests/LDCombatProbe.h"
-#include "Tests/LDCombatNetworkProbe.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Objectives/LDObjectiveRules.h"
-#include "Tests/LDObjectiveProbe.h"
-#include "Tests/LDObjectiveNetworkProbe.h"
-#include "Tests/LDResetProbe.h"
-#include "Tests/LDSoakProbe.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameSession.h"
-#include "Tests/LDDevelopmentProbe.h"
 #include "Development/LDDevelopmentDirector.h"
-#include "Development/LDWorldChecks.h"
 #include "Region/LDRegionDefinition.h"
-#include "Region/LDRegionDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDVendorDirector.h"
-#include "Tests/LDInventoryProbe.h"
-#include "Tests/LDVendorProbe.h"
-#include "Tests/LDTradeProbe.h"
-#include "Tests/LDEconomyProbe.h"
-#include "Tests/LDCommerceProbe.h"
 #include "Economy/LDProductionDirector.h"
-#include "Tests/LDProductionProbe.h"
-#include "Tests/LDInstitutionProbe.h"
-#include "Tests/LDCharterProbe.h"
-#include "Tests/LDAcquisitionProbe.h"
-#include "Tests/LDContentProbe.h"
-#include "Tests/LDWorldProbe.h"
-#include "Tests/LDContentNetworkProbe.h"
-#include "Tests/LDTacticalProbe.h"
-#include "Tests/LDGeometryProbe.h"
-#include "Tests/LDLoadoutProbe.h"
-#include "Tests/LDB81Probe.h"
-#include "Tests/LDB82Probe.h"
-#include "Tests/LDB83Probe.h"
-#include "Tests/LDB84Probe.h"
-#include "Tests/LDB86Probe.h"
-#include "Tests/LDAcquisitionNetworkProbe.h"
-#include "Tests/LDEconomyUIProbe.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner = true; bAlwaysRelevant = false; }
+void ALDGameState::OnRep_DemoLobby()
+{
+    FString Error;
+    const auto Result = LDMatchLifecycle::AcceptLobbyView(DemoLobby, LatestDemoLobby, Error);
+    if (Result == ELDLobbyProjectionResult::Accepted) { return; }
+    DemoLobby = LatestDemoLobby;
+    if (Result == ELDLobbyProjectionResult::Malformed)
+    { UE_LOG(LogTemp, Warning, TEXT("LD_LOBBY_PROJECTION_REJECTED %s"), *Error); }
+    else { UE_LOG(LogTemp, Verbose, TEXT("LD_LOBBY_PROJECTION_STALE")); }
+}
+
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
+    DOREPLIFETIME(ALDGameState,DemoLobby);
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);DOREPLIFETIME(ALDGameState,bPublicSensorActive);
     DOREPLIFETIME(ALDGameState,DefensiveFlags);DOREPLIFETIME(ALDGameState,bClaimActive);DOREPLIFETIME(ALDGameState,bContested);
     DOREPLIFETIME(ALDGameState,ClaimRoute);DOREPLIFETIME(ALDGameState,ClaimProgress);DOREPLIFETIME(ALDGameState,MatchDeadline);
@@ -111,6 +68,7 @@ void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 void ALDGameState::BeginPlay()
 {
     Super::BeginPlay();
+    if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) == LDDemoEntry::WorldMap) { return; }
     if(const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->IsEnvironmentProfile()){return;}
     // The historical sandbox's BSP-only bounds disappear in a cook. Reuse the
     // established noncolliding envelope, on both authority and owning clients,
@@ -138,45 +96,51 @@ ALDGameMode::ALDGameMode()
     PlayerControllerClass = ALDPlayerController::StaticClass();
     PlayerStateClass = ALDPlayerState::StaticClass();
     GameStateClass = ALDGameState::StaticClass();
+    SpectatorClass = nullptr;
     SpawnRandom.Initialize(int32(FPlatformTime::Cycles()));
 }
 
 void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage)
 {
     Super::InitGame(MapName,Options,ErrorMessage);
-    const FString Profile=UGameplayStatics::ParseOption(Options,TEXT("Profile"));
-    if(!Profile.IsEmpty()&&Profile!=TEXT("V03")&&Profile!=TEXT("V04")&&Profile!=TEXT("V05")&&Profile!=TEXT("v06_regression")&&Profile!=TEXT("v07_integration")&&Profile!=TEXT("v08_integration")&&Profile!=TEXT("v09_environment")&&Profile!=TEXT("v09_population")){ErrorMessage=TEXT("Unknown rules profile");return;}
-    bPopulationProfile=Profile==TEXT("v09_population");
-    if(bPopulationProfile!=IsA<ALDB92GameMode>()){ErrorMessage=TEXT("v09_population requires its B92 game mode; full-match admission remains closed");return;}
-    if(bPopulationProfile){const FString Humans=UGameplayStatics::ParseOption(Options,TEXT("Humans"));if(!Humans.IsEmpty()&&(!LexTryParseString(PopulationHumanLimit,*Humans)||Humans!=LexToString(PopulationHumanLimit)||PopulationHumanLimit<1||PopulationHumanLimit>12)){ErrorMessage=TEXT("B92 human capacity must be an integer from 1 to 12");return;}}
-    bEnvironmentProfile=bPopulationProfile||Profile==TEXT("v09_environment");
-    bV08Profile=bEnvironmentProfile||Profile==TEXT("v08_integration");bTacticalProfile=bV08Profile||Profile==TEXT("v07_integration");
-    if(bEnvironmentProfile)
+    if (!ErrorMessage.IsEmpty()) { EntryFailure = ErrorMessage; return; }
+    const FString Package = UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName());
+    if (!LDDemoEntry::ValidateSelection(Package, Options, ErrorMessage)
+        || GetClass() != ALDGameMode::StaticClass())
     {
-        FString Why,Json,Staged;const auto* D=ULDMapDefinition::Get(GetWorld());
-        if(!IsA<ALDB91GameMode>()||!D||!D->Validate(Why)||!ALDEnvironmentDirector::LoadContract(Json,Why)
-           ||!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/V09/map_b90.json")))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=D->SourceJson)
-        {ErrorMessage=TEXT("B91 requires the saved full map and closed environment contract: ")+Why;return;}
+        if (ErrorMessage.IsEmpty()) { ErrorMessage = TEXT("Retired GameMode override. Demo uses the native LDGameMode only."); }
+        EntryFailure = ErrorMessage;
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *ErrorMessage);
+        return;
     }
-    if(bTacticalProfile){auto* Equipment=ULDEquipmentCatalog::Load(RulesVersion());FString Why,StagedGear;if(!Equipment||!Equipment->Validate(Why)||!FFileHelper::LoadFileToString(StagedGear,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/equipment_b84.json"):TEXT("Lockdown/Data/V07/equipment.json"))))||StagedGear.Replace(TEXT("\r\n"),TEXT("\n"))!=Equipment->SourceJson){ErrorMessage=TEXT("Invalid/stale v07 equipment catalog; run bootstrap: ")+Why;return;}}
-    if(bTacticalProfile){FString E;TacticalCatalog=ULDTacticalCatalog::Load(RulesVersion());if(!TacticalCatalog||!TacticalCatalog->Validate(E)){ErrorMessage=TEXT("Invalid v07 combat catalog: ")+E;return;}FString Staged;if(!FFileHelper::LoadFileToString(Staged,*(FPaths::ProjectContentDir()/(bV08Profile?TEXT("Lockdown/Data/V08/combat_b84.json"):TEXT("Lockdown/Data/V07/combat.json"))))||Staged.Replace(TEXT("\r\n"),TEXT("\n"))!=TacticalCatalog->SourceJson){ErrorMessage=TEXT("Staged v07 catalog differs from native asset; run bootstrap");return;}}
-    bUIControlProfile=bTacticalProfile||Profile==TEXT("v06_regression")||Profile==TEXT("V05")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
-    bDevelopmentProfile=bUIControlProfile||UGameplayStatics::ParseOption(Options,TEXT("Profile"))==TEXT("V04")||(Profile.IsEmpty()&&(MapName.Contains(TEXT("L_DevelopmentRegion"))||MapName.Contains(TEXT("L_RegionAlternate"))));
-    if (bDevelopmentProfile)
+    bScaffoldProfile = false;
+    DefaultPawnClass = nullptr;
+    bDemoWorld = Package == LDDemoEntry::WorldMap;
+    if (!bDemoWorld)
     {
-        bScaffoldProfile=false;
-        if (GameSession)
-        {
-            GameSession->MaxPlayers=bPopulationProfile?36:4; // authority seat controllers do not constitute extra human admissions
-#if !UE_BUILD_SHIPPING
-            // The packaged diagnostic listen host is infrastructure, not a contender.
-            if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){GameSession->MaxPlayers=5;}
-#endif
-        }
-        Catalog=ULDCharacterCatalog::Load(); FString Error;
-        if (!Catalog || !Catalog->Validate(Error)) { ErrorMessage=TEXT("Invalid v0.4 character catalog: ")+Error; }
+        bEntryAccepted = true;
+        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_FRONTEND"));
+        return;
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_PROFILE %s"),bEnvironmentProfile?TEXT("v09_environment B91 structural/door implementation; full-match admission pending"):bV08Profile?TEXT("v08_integration B86 native UI: complete catalog / four earned Heart routes"):bTacticalProfile?TEXT("v07_integration B71 partial: 2100s level15 combat core"):bUIControlProfile?TEXT("V05 input checkpoint: retained level5/slots4/1500s"):bDevelopmentProfile?TEXT("V04 Integration: level5/slots4/1500s"):TEXT("Legacy V03 migration"));
+    if (!LDDemoEntry::VerifyRuntimeFiles(ErrorMessage, &EntryCatalogDigest) || !LDDemoEntry::VerifyWorldPackages(ErrorMessage))
+    {
+        EntryFailure = ErrorMessage;
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *ErrorMessage);
+        return;
+    }
+    auto* Instance = GetGameInstance<ULDGameInstance>();
+    if (!Instance || !Instance->AllocateMatchGeneration(MatchContext.Generation, ErrorMessage))
+    {
+        if (ErrorMessage.IsEmpty()) { ErrorMessage = TEXT("Demo requires the native LDGameInstance."); }
+        EntryFailure = ErrorMessage;
+        return;
+    }
+    MatchContext.LedgerMatch = FGuid::NewGuid();
+    MatchPhase = ELDMatchPhase::Lobby;
+    RosterRevision = 1;
+    bEntryAccepted = true;
+    if (GameSession) { GameSession->MaxPlayers = 3; }
+    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_LOBBY generation=%u"), MatchContext.Generation);
 }
 
 FVector ALDGameMode::TakeSpawn()
@@ -197,181 +161,92 @@ FVector ALDGameMode::TakeSpawn()
 
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
-    if(bPopulationProfile){return;} // admission possesses an existing persistent seat
-#if !UE_BUILD_SHIPPING
-    // A packaged Game target uses a headless listen world for the two-remote-client
-    // topology. Its local connection is diagnostic infrastructure, not a contender.
-    if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe")))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&NewPlayer->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
-#endif
-    if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
-    RestartPlayerAtTransform(NewPlayer, FTransform(FRotator::ZeroRotator, TakeSpawn()));
-    if (bDevelopmentProfile) { if (auto* PC=Cast<ALDPlayerController>(NewPlayer)) { RefreshBuild(PC,true); } }
+    if (!bEntryAccepted || !bDemoWorld || MatchPhase == ELDMatchPhase::Lobby) { return; }
+    UE_LOG(LogTemp, Error, TEXT("LD_DEMO_SPAWN_REJECTED Body creation requires the committed Demo lifecycle."));
 }
 
 void ALDGameMode::StartPlay()
 {
+    if (!bEntryAccepted) { return; }
     Super::StartPlay();
-    if (GetWorld()->GetMapName().Contains(TEXT("L_Frontend"))) { return; }
-    MatchStartedAt=GetWorld()->GetTimeSeconds();
-    auto* Public=GetGameState<ALDGameState>();
-    Public->bDevelopmentProfile=bDevelopmentProfile; Public->bMatchStarted=!bDevelopmentProfile;
-    Public->bUIControlProfile=bUIControlProfile;
-    Public->bEnvironmentProfile=bEnvironmentProfile;
-    Combat=GetWorld()->SpawnActor<ALDCombatDirector>();
-    Vision=GetWorld()->SpawnActor<ALDVisionDirector>();
-    Vision->AddTickPrerequisiteActor(Combat);
-    Vision->Generation=++CastChecked<ULDGameInstance>(GetGameInstance())->AuthorityGeneration;
-    Objectives=GetWorld()->SpawnActor<ALDObjectiveDirector>();
-    if(bDevelopmentProfile){Development=GetWorld()->SpawnActor<ALDDevelopmentDirector>();if(!bEnvironmentProfile){WorldChecks=GetWorld()->SpawnActor<ALDWorldChecks>();}}
-    if(bUIControlProfile){Inventory=GetWorld()->SpawnActor<ALDInventoryDirector>();if(!bEnvironmentProfile){Vendor=GetWorld()->SpawnActor<ALDVendorDirector>();}Trade=GetWorld()->SpawnActor<ALDTradeDirector>();}
-    if(bDevelopmentProfile&&LDRegion::Definition(GetWorld())){Region=GetWorld()->SpawnActor<ALDRegionDirector>();}
-    if (bDevelopmentProfile) { Public->MatchDeadline=0; UpdateLobby(); }
-    for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
-    { if (ALDPlayerController* PC=Cast<ALDPlayerController>(It->Get());PC&&StateFor(PC)) { SyncOwner(PC); Vision->Register(PC); } }
-    if(bEnvironmentProfile)
+    if (bDemoWorld)
     {
-        FString Why;auto* Environment=GetWorld()->SpawnActor<ALDEnvironmentDirector>();
-        if(!Environment->Initialize(Why)){UE_LOG(LogTemp,Fatal,TEXT("B91 environment rejected: %s"),*Why);return;}
-        Environment->AddTickPrerequisiteActor(Combat);Public->bMatchStarted=true;Public->bPublicSensorActive=false;
-        auto* Objects=GetWorld()->SpawnActor<ALDWorldObjects>();
-        if(!Objects->Initialize(Why)){UE_LOG(LogTemp,Fatal,TEXT("B91 world objects rejected: %s"),*Why);return;}
-        Objects->AddTickPrerequisiteActor(Environment);
-        if(bPopulationProfile)
+        auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+        FString Error;
+        if (!Registry || !Registry->Ensure(Error))
         {
-            Population=GetWorld()->SpawnActor<ALDB92Roster>();
-            if(!Population||!Population->Configure(PopulationHumanLimit,Why)){UE_LOG(LogTemp,Fatal,TEXT("B92 roster rejected: %s"),*Why);return;}
-            Population->AddTickPrerequisiteActor(Combat);Population->AddTickPrerequisiteActor(Objects);
-            if(FParse::Param(FCommandLine::Get(),TEXT("LDB92RoutinesProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92RoutinesProbe>();Probe->AddTickPrerequisiteActor(Population);}
-            if(FParse::Param(FCommandLine::Get(),TEXT("LDB92RosterProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92RosterProbe>();Probe->AddTickPrerequisiteActor(Population);}
-            if(FParse::Param(FCommandLine::Get(),TEXT("LDB92ServicesProbe"))){auto* Probe=GetWorld()->SpawnActor<ALDB92ServicesProbe>();Probe->AddTickPrerequisiteActor(Population);}
-            UE_LOG(LogTemp,Display,TEXT("LD_B92_POPULATION_REVIEW 24 persistent seats; physical services and native civilian/traveler schedules; security/contender policy remain pending"));return;
+            EntryFailure = Error.IsEmpty() ? TEXT("Demo world registry is unavailable.") : Error;
+            MatchPhase = ELDMatchPhase::Faulted;
+            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_WORLD_ENTRY_REJECTED %s"), *EntryFailure);
         }
-        for(FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
-        {if(auto* PC=Cast<ALDPlayerController>(It->Get())){Inventory->Initialize(PC);RefreshBuild(PC,true);}}
-        if(FParse::Param(FCommandLine::Get(),TEXT("LDB92EconomyProbe"))){GetWorld()->SpawnActor<ALDB92EconomyProbe>();}
-        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91Probe"))){GetWorld()->SpawnActor<ALDB91Probe>();}
-        if(FParse::Param(FCommandLine::Get(),TEXT("LDB91CheckpointProbe"))){GetWorld()->SpawnActor<ALDB91CheckpointProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterResume"))||FParse::Param(FCommandLine::Get(),TEXT("LDB91ForestRoutes"))){GetWorld()->SpawnActor<ALDB91EncounterProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91CombatProbe"))){GetWorld()->SpawnActor<ALDB91CombatProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91GrassProbe"))){GetWorld()->SpawnActor<ALDB91GrassProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91IgnitionProbe"))){GetWorld()->SpawnActor<ALDB91IgnitionProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91FieldsProbe"))){GetWorld()->SpawnActor<ALDB91FieldsProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91SaplingsProbe"))){GetWorld()->SpawnActor<ALDB91SaplingsProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91TraversalProbe"))){GetWorld()->SpawnActor<ALDB91TraversalProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ToolsProbe"))){GetWorld()->SpawnActor<ALDB91ToolsProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ObjectsProbe"))){GetWorld()->SpawnActor<ALDB91ObjectsProbe>();}
-        else if(FParse::Param(FCommandLine::Get(),TEXT("LDB91NetProbe"))){GetWorld()->SpawnActor<ALDB91NetProbe>();}
-        UE_LOG(LogTemp,Display,TEXT("LD_B91_ENVIRONMENT doors/interiors review; no markets, population or victory executors"));return;
+        PublishLobby();
     }
-    if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
-    {
-        for (TActorIterator<ANavMeshBoundsVolume> It(GetWorld()); It; ++It) { Nav->OnNavigationBoundsUpdated(*It); }
-        Nav->GetDefaultNavDataInstance(FNavigationSystem::Create);
-        Nav->Build();
-        if(Region){UE_LOG(LogTemp,Display,TEXT("LD_REGION_NAVIGATION bounds=%s"),*Nav->GetNavigableWorldBounds().ToString());}
-    }
-    for (int32 Index=0; Index<8; ++Index)
-    {
-        const auto* Definition=LDRegion::Definition(GetWorld());auto* Resident=GetWorld()->SpawnActor<ALDResident>(Definition?Definition->Residents[Index]:TakeSpawn(),FRotator::ZeroRotator);
-        if(Region){Region->SetupResident(Resident,Index==Definition->TrainedResident);}
-    }
-#if !UE_BUILD_SHIPPING
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))){GetWorld()->SpawnActor<ALDAcquisitionNetworkProbe>();}
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))){GetWorld()->SpawnActor<ALDContentNetworkProbe>();}
-    if(bTacticalProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDWorldProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe")))){GetWorld()->SpawnActor<ALDWorldProbe>();}
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDContentProbe"))){GetWorld()->SpawnActor<ALDContentProbe>();}
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))){GetWorld()->SpawnActor<ALDLoadoutProbe>();}
-    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))){GetWorld()->SpawnActor<ALDB86Probe>();}
-    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))){GetWorld()->SpawnActor<ALDB84Probe>();}
-    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))){GetWorld()->SpawnActor<ALDB83Probe>();}
-    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))){GetWorld()->SpawnActor<ALDB82Probe>();}
-    if(bV08Profile&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){GetWorld()->SpawnActor<ALDB81Probe>();}
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){GetWorld()->SpawnActor<ALDGeometryProbe>();}
-    if(bTacticalProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){GetWorld()->SpawnActor<ALDTacticalProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCommerceProbe"))){GetWorld()->SpawnActor<ALDCommerceProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDProductionProbe"))){GetWorld()->SpawnActor<ALDProductionProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyUIProbe"))){GetWorld()->SpawnActor<ALDEconomyUIProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCharterProbe"))){GetWorld()->SpawnActor<ALDCharterProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionProbe"))){GetWorld()->SpawnActor<ALDAcquisitionProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInstitutionProbe"))){GetWorld()->SpawnActor<ALDInstitutionProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDEconomyProbe"))){GetWorld()->SpawnActor<ALDEconomyProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))){GetWorld()->SpawnActor<ALDTradeProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){GetWorld()->SpawnActor<ALDVendorProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))){GetWorld()->SpawnActor<ALDInventoryProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))){GetWorld()->SpawnActor<ALDInputProbe>();}
-    if(bUIControlProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))){GetWorld()->SpawnActor<ALDNavigationProbe>();}
-    if (bDevelopmentProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))) { GetWorld()->SpawnActor<ALDDevelopmentProbe>(); }
-    if (FParse::Param(FCommandLine::Get(), TEXT("LDMovementProbe"))) { GetWorld()->SpawnActor<ALDMovementProbe>(); }
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatProbe"))){GetWorld()->SpawnActor<ALDCombatProbe>();}
-    if (bScaffoldProfile && FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))) { GetWorld()->SpawnActor<ALDViewNetworkProbe>(); }
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))){GetWorld()->SpawnActor<ALDCombatNetworkProbe>();}
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveProbe"))){GetWorld()->SpawnActor<ALDObjectiveProbe>();}
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))){GetWorld()->SpawnActor<ALDObjectiveNetworkProbe>();}
-    if(bScaffoldProfile&&FParse::Param(FCommandLine::Get(),TEXT("LDResetProbe"))){GetWorld()->SpawnActor<ALDResetProbe>();}
-    if((bScaffoldProfile||bDevelopmentProfile)&&FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))){GetWorld()->SpawnActor<ALDSoakProbe>();}
+#if WITH_DEV_AUTOMATION_TESTS
+    else { LDDemoTests::ProbeRejectedEntry(*GetWorld()); LDDemoTests::StartFrontendSettingsProbe(*GetWorld()); }
 #endif
 }
 
 void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage)
 {
     Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
-    if(bPopulationProfile){if(Population&&!Population->CanAdmit()){ErrorMessage=TEXT("All configured human seats are occupied");}return;}
-    if(IsFinished()){ErrorMessage=TEXT("Demo finished. Host a new run.");}
-    if (bDevelopmentProfile)
-    {
-        const auto* Public=GetGameState<ALDGameState>();
-        if (!bEnvironmentProfile && Public && Public->bDevelopmentProfile && Public->bMatchStarted) { ErrorMessage=TEXT("Roster locked. Join the next lobby."); }
-        else if (Contenders.Num()>=4) { ErrorMessage=TEXT("The v0.4 lobby has four contenders."); }
-    }
+    if (!ErrorMessage.IsEmpty()) { return; }
+    if (!IsDemoRoom()) { ErrorMessage = TEXT("MissingDemoDefinition: this world is not an initialized Demo room."); return; }
+    if (!LDDemoEntry::ValidateSelection(GetWorld()->GetOutermost()->GetName(), Options, ErrorMessage)) { return; }
+    if (MatchPhase != ELDMatchPhase::Lobby) { ErrorMessage = TEXT("MatchAlreadyStarted: mid-match joining and reconnecting are not supported."); return; }
+    if (Contenders.Num() >= 3) { ErrorMessage = TEXT("RoomFull: the room already has three human players, including the Host."); return; }
+    if (UGameplayStatics::ParseOption(Options, TEXT("LDWire")) != LexToString(LDDemoEntry::WireProtocol))
+    { ErrorMessage = TEXT("ProtocolMismatch: use the same Demo network build as the Host."); return; }
+    FString Version;
+    if (!LDDemoEntry::ReadProductVersion(Version, ErrorMessage)) { return; }
+    if (UGameplayStatics::ParseOption(Options, TEXT("LDProduct")) != Version)
+    { ErrorMessage = TEXT("ProductMismatch: use the same product version as the Host."); return; }
+    if (EntryCatalogDigest.IsEmpty() || UGameplayStatics::ParseOption(Options, TEXT("LDCatalog")) != EntryCatalogDigest)
+    { ErrorMessage = TEXT("ContentMismatch: use the same approved Demo content as the Host."); }
 }
 
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 {
-    Super::PostLogin(NewPlayer);
-    if(bPopulationProfile)
-    {if(Population){FString Why;if(!Population->Admit(Cast<ALDPlayerController>(NewPlayer),Why)){if(!GameSession||!GameSession->KickPlayer(NewPlayer,FText::FromString(Why))){NewPlayer->Destroy();}}}return;}
-    if (ALDPlayerController* PC=Cast<ALDPlayerController>(NewPlayer))
+    if (bEntryAccepted && !bDemoWorld) { Super::PostLogin(NewPlayer); return; }
+    FString Reason;
+    if (!AdmitRoomMember(Cast<ALDPlayerController>(NewPlayer), Reason))
     {
-#if !UE_BUILD_SHIPPING
-        if((bScaffoldProfile||(bDevelopmentProfile&&(FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe")))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))))))&&PC->IsLocalController()&&FParse::Param(FCommandLine::Get(),TEXT("LDRemoteAuthority"))){return;}
-#endif
-        // PreLogin can precede a start request or another completed admission.
-        // Check again before creating any private record or fresh reward budget.
-        const auto* Public=GetGameState<ALDGameState>();
-        if (bDevelopmentProfile && ((!bEnvironmentProfile&&Public&&Public->bDevelopmentProfile&&Public->bMatchStarted)||Contenders.Num()>=4))
-        {
-            const FText Reason=FText::FromString(TEXT("Roster locked or lobby full. Join the next lobby."));
-            if (!GameSession || !GameSession->KickPlayer(PC,Reason)) { PC->Destroy(); }
-            return;
-        }
-        FLDContenderRecord Record; Record.Session=FGuid::NewGuid();
-        if (bDevelopmentProfile)
-        {
-            Record.State.bDevelopmentProfile=true;if(bV08Profile){Record.State.WardCharges=0;}
-            Record.State.Build=bTacticalProfile?LDDevelopment::TacticalStart(0,TacticalCatalog->Checksum,RulesVersion()):LDDevelopment::StartingBuild(0,Catalog);
-            Record.State.Hp=Record.State.MaxHp=LDDevelopment::MaxHP(Record.State.Build);
-            if (!LobbyHost.IsValid()) { LobbyHost=PC; }
-            Record.State.bLobbyHost=LobbyHost==PC;
-        }
-        Contenders.Add(PC,Record); SyncOwner(PC); if (Vision) { Vision->Register(PC); }
-        if (bDevelopmentProfile) { RefreshBuild(PC,true); UpdateLobby(); }
-        if(bEnvironmentProfile&&Inventory){Inventory->Initialize(PC);}
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_ADMISSION_REJECTED %s"), *Reason);
+        if (NewPlayer && (!GameSession || !GameSession->KickPlayer(NewPlayer, FText::FromString(Reason)))) { NewPlayer->Destroy(); }
+        return;
     }
+    Super::PostLogin(NewPlayer);
+    PublishLobby();
 }
 void ALDGameMode::Logout(AController* Exiting)
 {
-    if(bPopulationProfile){if(Population){FString Why;Population->Release(Cast<ALDPlayerController>(Exiting),Why);}Super::Logout(Exiting);return;}
-    if(Combat){Combat->FlushPastCommand();}
-    if (ALDPlayerController* PC=Cast<ALDPlayerController>(Exiting))
+    auto* Controller = Cast<ALDPlayerController>(Exiting);
+    auto* Record = Contenders.Find(Controller);
+    if (Record && IsMemberPresent(Record->Session))
     {
-        if(WorldRuntime){WorldRuntime->EndLife(PC);}
-        if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC,true);}
-        if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
-        if(Objectives){Objectives->Withdraw(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),RuleTime());}
-        if(Economy){Economy->Retire(PC);}
-        if (Vision) { Vision->Unregister(PC); } Contenders.Remove(PC);
-        if (LobbyHost==PC) { LobbyHost.Reset(); for (auto& Pair:Contenders) { if (Pair.Key.IsValid()) { LobbyHost=Pair.Key; Pair.Value.State.bLobbyHost=true; SyncOwner(Pair.Key.Get()); break; } } }
-        if (bDevelopmentProfile) { UpdateLobby(); }
+        const FGuid Session = Record->Session;
+        if (LobbyHost == Controller)
+        {
+            MatchPhase = ELDMatchPhase::Closing;
+            if (GateRevision != MAX_uint64) { ++GateRevision; }
+            for (const auto& Pair : Contenders)
+            {
+                if (auto* Member = Pair.Key.Get(); Member && Member != Controller)
+                { Member->ClientDemoRoomClosed(MatchContext.Generation, TEXT("The Host left the room. Host migration is not supported.")); }
+            }
+            LobbyHost.Reset();
+        }
+        RemoveLifeBinding(Session);
+        Record->State.bActive = false;
+        if (Vision) { Vision->Unregister(Controller); }
+        if (MatchPhase == ELDMatchPhase::Lobby)
+        {
+            Contenders.Remove(Controller);
+            Lives.Remove(Session);
+            RosterOrder.Remove(Session);
+            FString Reason;
+            if (!AdvanceRoster(Reason)) { EntryFailure = Reason; }
+        }
+        PublishLobby();
     }
     Super::Logout(Exiting);
 }
@@ -382,7 +257,16 @@ FGuid ALDGameMode::ContenderId(ALDPlayerController* PC) const
 void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 {
     if (FLDOwnerState* State=StateFor(PC))
-    { State->Match=Vision ? Vision->Generation : 0; ++State->Revision; PC->OwnerState=*State;if(PC->IsLocalController()){PC->OnRep_OwnerState();}PC->ForceNetUpdate(); }
+    {
+        if (State->Revision == MAX_uint64)
+        {
+            MatchPhase = ELDMatchPhase::Faulted;
+            UE_LOG(LogTemp, Error, TEXT("LD_OWNER_REVISION_EXHAUSTED"));
+            return;
+        }
+        if (IsDemoRoom()) { ProjectLife(*PC, *State); }
+        State->Match=MatchContext.Generation; ++State->Revision; PC->OwnerState=*State;if(PC->IsLocalController()){PC->OnRep_OwnerState();}PC->ForceNetUpdate();
+    }
 }
 
 void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
@@ -392,7 +276,7 @@ void ALDGameMode::EndContenderLife(ALDPlayerController* PC,double Now)
     if (!State || !State->bActive || IsFinished()) { return; }
     if(WorldRuntime){WorldRuntime->EndLife(PC);}
     if(bTacticalProfile){if(Development){Development->Cancel(PC,TEXT("Death cancelled preparation"));}Combat->CancelTactical(Cast<ALDCharacter>(PC->GetPawn()),TEXT("Life ended"));}
-    if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Trade){Trade->CancelFor(PC,TEXT("Cancelled · Life or connection ended"));}if(Inventory){Inventory->EndLife(PC);}
+    if(bTacticalProfile){if(Combat){Combat->EndContentLife(Cast<ALDCharacter>(PC->GetPawn()));}if(Vision){Vision->EndLife(PC);}}if(Production){Production->EndLife(PC);}if(Inventory){Inventory->EndLife(PC);}
     if(Development){Development->DropBooks(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild));}
     if(Objectives){Objectives->EndLife(PC,PC->GetPawn()?PC->GetPawn()->GetActorLocation():LDRegion::Site(GetWorld(),LDObjective::Guild),Now);}
     const auto Cost=bDevelopmentProfile
@@ -454,14 +338,13 @@ void ALDGameMode::ReturnDueContenders(double Now)
     }
 }
 bool ALDGameMode::IsFinished() const
-{const auto* GS=GetGameState<ALDGameState>();return GS&&GS->EndReason!=0;}
+{return MatchPhase==ELDMatchPhase::Results||MatchPhase==ELDMatchPhase::Closing||MatchPhase==ELDMatchPhase::Faulted;}
 double ALDGameMode::RuleTime() const
 {const auto* GS=GetGameState<ALDGameState>();return GS&&GS->EndReason?GS->MatchEndedAt:GetWorld()->GetTimeSeconds();}
 
 bool ALDGameMode::IsPlaying() const
 {
-    const auto* Public=GetGameState<ALDGameState>();
-    return !IsFinished() && (!bDevelopmentProfile || (Public && Public->bDevelopmentProfile && Public->bMatchStarted));
+    return IsGameplayWriteOpen(MatchContext);
 }
 
 void ALDGameMode::UpdateLobby()

@@ -58,7 +58,7 @@ void ALDB92RosterProbe::Tick(float Delta)
             const auto Id=R->Contenders[I].Id;auto* Body=R->Contenders[I].Body.Get();const auto Life=C->StateFor(Body)->Identity;
             auto* PC=GetWorld()->SpawnActor<ALDB92Controller>();Humans.Add(PC);
             Check(PC&&R->Admit(PC,Error)&&M->ContenderId(PC)==Id&&PC->GetPawn()==Body&&C->StateFor(Body)->Identity==Life,FString::Printf(TEXT("Human admission%d takes the existing ID/body/life"),I+1));
-            const uint32 Revision=PC->OwnerState.Revision;Check(R->Admit(PC,Error)&&PC->OwnerState.Revision==Revision,TEXT("Repeated admission neither rekeys nor grants again"));
+            const uint64 Revision=PC->OwnerState.Revision;Check(R->Admit(PC,Error)&&PC->OwnerState.Revision==Revision,TEXT("Repeated admission neither rekeys nor grants again"));
         }
         Check(R->Humans()==R->HumanLimit()&&24-R->Humans()==(R->HumanLimit()==4?20:12)&&Bodies()==220,TEXT("Configured4/12 humans replace20/12 AI; no double contender/body count"));
         Check(Before==E->Accounting().ExportJson(TEXT("Same"))&&R->Audit(Error),TEXT("All admissions leave every account, stock item, budget and receipt untouched"));
@@ -69,8 +69,8 @@ void ALDB92RosterProbe::Tick(float Delta)
         // these are not work/market/learning acceptance or normal earnings.
         LDEconomy::FTransaction Fund;Fund.Id=FGuid::NewGuid();Fund.Cause=TEXT("DiagnosticFixtureTransfer");Fund.Gold={{TEXT("capital"),E->Ledger.Account(TEXT("capital"))->Revision,-30},{E->Wallet(Seat),1,20},{E->Bank(Seat),1,10}};
         Check(E->Ledger.Commit(Fund,Error),TEXT("Fixture moves30 existing reserve gold into wallet20/bank10 without mint"));O->Gold=20;O->BankGold=10;M->AwardExperience(Human,135);O=M->StateFor(Human);O->CoreOrders=1;O->SupplyOrders=1;O->Witness=FGuid::NewGuid();O->Build.Cooldowns[uint8(ELDSkill::Heave)]=GetWorld()->GetTimeSeconds()+60;
-        auto* Peer=M->StateFor(Humans[1]);O->Gold=19;Peer->Gold=1;M->RecordEconomyGold(TEXT("PeerTransfer"));O->Gold=20;Peer->Gold=0;M->RecordEconomyGold(TEXT("PeerTransfer"));
-        Check(E->Ledger.Account(E->Wallet(Seat))->Gold==20&&E->Ledger.Minted()==0&&E->Ledger.Burned()==0&&E->Audit(Error)&&R->RecordGold(TEXT("PeerTransfer"),0,0,Error),TEXT("Inherited peer accounting transfers existing gold and accepts item-only exchange without a tax or mint"));
+        const FString BeforeRejectedMutation=E->Ledger.ExportJson(TEXT("Same"));
+        Check(!R->RecordGold(TEXT("UnsupportedWalletMutation"),0,0,Error)&&!Error.IsEmpty()&&E->Ledger.ExportJson(TEXT("Same"))==BeforeRejectedMutation&&E->Audit(Error),TEXT("Unclassified wallet mutations reject without a balance, item or receipt change"));
         ALDItem* Torch=nullptr;for(auto Obj:Objects->Objects){if(Obj.IsValid()&&Obj->Kind==ELDObjectKind::Torch&&Obj->Physical.IsValid()){Torch=Obj->Physical.Get();break;}}
         Check(Torch&&M->Inventory->Adopt(Human,Torch,NAME_None,false),TEXT("Diagnostic source preparation takes one existing finite Torch rather than creating an item"));
         if(Torch){Tool=Torch->Identity;Torch->FuelMs=42000;Torch->BindingMask=1<<7;O->Inventory.Bindings[7]=Tool;for(auto& Entry:O->Inventory.Items){if(Entry.Id==Tool){Torch->Project(Entry);}}M->Inventory->Changed(Human);}

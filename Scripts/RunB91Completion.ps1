@@ -34,7 +34,6 @@ Invoke-CompletionCase 'saplings' 'RunB91Network' @{Saplings=$true}
 Invoke-CompletionCase 'fields' 'RunB91Network' @{Fields=$true}
 Invoke-CompletionCase 'ignition' 'RunB91Network' @{Ignition=$true}
 Invoke-CompletionCase 'grass' 'RunB91Network' @{Grass=$true}
-Invoke-CompletionCase 'checkpoint' 'RunB91Checkpoint' @{TimeoutSeconds=300}
 Invoke-CompletionCase 'legacy' 'RunB84Check'
 Invoke-CompletionCase 'game' 'BuildGame' @{MaxParallelActions=$MaxParallelActions;FullUnity=$true}
 if(@($completionResults | Where-Object {-not $_.passed}).Count){throw "B91 final matrix has failures: $completionOutput"}

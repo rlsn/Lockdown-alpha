@@ -4,7 +4,6 @@
 #include "Commandlets/Commandlet.h"
 #include "LDScaffoldBootstrapCommandlet.generated.h"
 
-// B31 foundation generator. Future stage assets are added only when implemented.
 UCLASS()
 class ULDScaffoldBootstrapCommandlet : public UCommandlet
 {

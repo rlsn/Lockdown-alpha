@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Vision/LDViewTypes.h"
 #include "UObject/CoreNet.h"
+#include "UObject/UnrealType.h"
 #if WITH_DEV_AUTOMATION_TESTS
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDInventoryRulesTest,"Lockdown.Rules.InventoryIdentity",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDInventoryRulesTest::RunTest(const FString& Parameters)
@@ -14,6 +15,21 @@ bool FLDInventoryRulesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A foreign or dropped identity not in the bag cannot bind"),LDInventory::BindQuick(I,FGuid::NewGuid(),0,Why));LDInventory::Remove(I,Book);TestTrue(TEXT("Removal clears the exact reference in the same mutation"),!I.Find(Book)&&!I.Quick[2].IsValid()&&LDInventory::Valid(I));
     FLDInventoryItem Extra;Extra.Id=FGuid::NewGuid();Extra.Slot=24;I.Items.Add(Extra);TestFalse(TEXT("Out-of-bounds slot rejected"),LDInventory::Valid(I));
     FLDWorldView View;View.Generation=1;View.Current.Init(0,LDVision::MaskBytes);View.Explored.Init(0,LDVision::MaskBytes);FLDObservedEntity E;E.Id=FGuid::NewGuid();E.Kind=ELDObservedKind::WardCharge;E.Position=FVector(0,0,12);View.Entities.Add(E);FNetBitWriter Writer(nullptr,65536);bool Good=true;View.NetSerialize(Writer,nullptr,Good);FNetBitReader Reader(nullptr,Writer.GetData(),Writer.GetNumBits());FLDWorldView Read;Read.NetSerialize(Reader,nullptr,Good);TestTrue(TEXT("Dropped charge uses the existing eight-field observation without canonical item identity"),Good&&Read.Entities.Num()==1&&Read.Entities[0].Kind==ELDObservedKind::WardCharge);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDInventoryPrivacyTest,"Lockdown.Rules.InventoryPrivacySchema",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDInventoryPrivacyTest::RunTest(const FString& Parameters)
+{
+    const TSet<FName> Allowed={TEXT("Id"),TEXT("Kind"),TEXT("Skill"),TEXT("Slot"),TEXT("Revision"),TEXT("bReserved"),TEXT("BindingMask"),TEXT("ReadyAt"),TEXT("ProcReadyAt"),TEXT("Quality"),TEXT("FuelMs"),TEXT("bLit")};
+    int32 Fields=0;
+    for(TFieldIterator<FProperty> It(FLDInventoryItem::StaticStruct());It;++It)
+    {
+        ++Fields;
+        TestTrue(TEXT("Own inventory item exposes only its declared projection"),Allowed.Contains(It->GetFName()));
+        TestFalse(TEXT("Canonical actor and holder references do not enter the item projection"),It->IsA<FObjectPropertyBase>());
+    }
+    TestEqual(TEXT("Inventory projection excludes origin, parents and hidden ownership"),Fields,Allowed.Num());
+    TestFalse(TEXT("Canonical physical items do not replicate to clients"),GetDefault<ALDItem>()->GetIsReplicated());
     return true;
 }
 #endif

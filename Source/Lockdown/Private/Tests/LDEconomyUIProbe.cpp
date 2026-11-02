@@ -5,8 +5,6 @@
 #include "Economy/LDCommerceDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
-#include "Vision/LDVisionDirector.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Region/LDRegionDefinition.h"
@@ -126,21 +124,8 @@ void ALDEconomyUIProbe::Tick(float Delta)
     {Check(LDHUD::EconomyStep(A->OwnerState,*G,W->GetTimeSeconds()).Contains(TEXT("no Charter required")),TEXT("Open-window objective clearly allows every eligible contender"));Capture(TEXT("Opening"));Enter(19);}
     else if(Phase==19&&Elapsed>.4)
     {
-        FGuid Target;M->Vision->Tick(0);if(const auto* View=M->Vision->AuthorityViewFor(A.Get())){for(const auto& Seen:View->Entities){if(M->Vision->ResolveObserved(A.Get(),Seen.Id)==B->GetPawn()){Target=Seen.Id;break;}}}
-        Check(Target.IsValid(),TEXT("Peer invitation uses an actually observed contender handle"));A->Inspect(Target);A->OfferTrade();Enter(20);
+        Check(M->Economy->AuditFailures==0&&M->Economy->Audit(Error),TEXT("Native presentation/input checks leave physical accounting reconciled"));
+        Check(M->Economy->Export(TEXT("B66Verified"),Error),TEXT("Native UI authority ledger exported"));Finish();
     }
-    else if(Phase==20&&Elapsed>.5)
-    {
-        Check(A->TradeView.Active()&&B->TradeView.Active(),TEXT("Real peer invitation opens the shared service shell for both owners"));B->TradeCommand(LDTrade::Accept);M->Trade->Sample(W->GetTimeSeconds());
-        for(const auto& Item:OA->Inventory.Items){if(Item.Kind==ELDItemKind::Fiber){UI->Select(Item.Id);break;}}UI->TradeSelected();M->Trade->Sample(W->GetTimeSeconds());
-        const auto* Other=M->StateFor(B.Get());if(!Other->Inventory.Items.IsEmpty()){B->TradeCommand(LDTrade::Add,Other->Inventory.Items[0].Id);M->Trade->Sample(W->GetTimeSeconds());}Enter(21);
-    }
-    else if(Phase==21&&Elapsed>.4)
-    {
-        if(ShotPhase!=Phase){AuditPanel();}if(!SnapshotReady(TEXT("Trade"))){return;}
-        Check(UI->ServiceTab==6&&A->TradeView.OwnItems.Num()==1&&A->TradeView.OtherItems.Num()==1&&!UI->TradeText().Contains(TEXT("357")),TEXT("Peer pane exposes only the two explicitly offered items, not the rival's wallet/bag"));A->CancelTrade();M->Trade->Sample(W->GetTimeSeconds());Enter(22);
-    }
-    else if(Phase==22&&Elapsed>.3)
-    {Check(!M->Trade->HasSession(A.Get())&&!OA->Inventory.Items.ContainsByPredicate([](const auto& Item){return Item.bReserved;}),TEXT("Native peer-pane cancellation releases the shared exact-item reservations"));Check(M->Economy->AuditFailures==0&&M->Economy->Audit(Error),TEXT("Native presentation/input checks leave physical accounting reconciled"));Check(M->Economy->Export(TEXT("B66Verified"),Error),TEXT("Native UI authority ledger exported"));Finish();}
 #endif
 }

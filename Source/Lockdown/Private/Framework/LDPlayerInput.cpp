@@ -2,6 +2,7 @@
 #include "Combat/LDTacticalCatalog.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDDevelopmentPanel.h"
@@ -89,8 +90,10 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
 {
     if(EnvironmentUI()){if(IsLocalController()){TickAutomaticPOI();}return;}
     if(!IsLocalController()||(!Navigation->Enabled()&&!IsFrontend())){return;}
-    if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
-    if(Controls->Profile!=OwnerState.Build.RulesVersion&&!IsFrontend()){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);RebuildV05Mappings();}
+    if(!Controls){Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(OwnerState.Build.RulesVersion);}
+    if(!Controls){IntentFeedback=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalSettingsMessage();return;}
+    if(Controls->Profile!=OwnerState.Build.RulesVersion&&!IsFrontend()){Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(OwnerState.Build.RulesVersion);RebuildV05Mappings();}
+    if(!Controls){IntentFeedback=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalSettingsMessage();return;}
     if(Navigation->Enabled()&&!IsFrontend()&&!HUDUI){HUDUI=CreateWidget<ULDHUD>(this);HUDUI->AddToViewport(30);}
     if(!bNavigationContextActive){RebuildV05Mappings();Navigation->bFollowCamera=Controls->bStartFollowing;}
     if(bFreshInputRequired)
@@ -101,7 +104,6 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     }
     if(GetPawn()!=PreferencesPawn.Get())
     {PreferencesPawn=GetPawn();if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->CameraArm->TargetArmLength=Controls->Zoom;}}
-    if(PreferenceSaveAt>0&&GetWorld()->GetTimeSeconds()>=PreferenceSaveAt){if(!Controls->Save()){IntentFeedback=TEXT("Zoom changed for this session; preferences could not be saved.");}PreferenceSaveAt=0;}
     const auto* View=LocalView();
     auto Visible=[&](FGuid Id){return View&&!View->IsStale()&&View->LastView().Generation==OwnerState.Match&&View->LastView().Entities.ContainsByPredicate([&](const FLDObservedEntity& E){return E.Id==Id;});};
     if(Inspected.IsValid()&&(!Visible(Inspected)||InspectedGeneration!=OwnerState.Match))
@@ -125,7 +127,8 @@ void ALDPlayerController::ToggleControlsPanel()
     if(ControlsUI&&ControlsUI->IsOpen()){ControlsUI->Close();return;}
     if(DevelopmentUI&&DevelopmentUI->IsOpen()){DevelopmentUI->Close();}
     if(RootUI){RootUI->DismissMenu();}
-    if(!Controls){Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),OwnerState.Build.RulesVersion);}
+    if(!Controls){Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(OwnerState.Build.RulesVersion);}
+    if(!Controls){IntentFeedback=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalSettingsMessage();return;}
     if(!ControlsUI){ControlsUI=CreateWidget<ULDControlsPanel>(this);ControlsUI->AddToViewport(25);}
     ControlsUI->Open();
 }
@@ -161,7 +164,7 @@ void ALDPlayerController::V05Pressed(FName Action)
     else if(Action==TEXT("Stop")){StopOrder();CancelArmed();}
     else if(Action==TEXT("Sprint")){SprintStarted();}
     else if(Action==TEXT("Recenter")){Navigation->Recenter(true);}
-    else if(Action==TEXT("Follow")){Navigation->ToggleFollow();}
+    else if(Action==TEXT("Follow")){Navigation->ToggleFollow();Controls->SetAppliedFollowing(Navigation->bFollowCamera);CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();}
     else if(Action==TEXT("Development")){ToggleDevelopmentPanel();}
     else if(Action==TEXT("Inventory")){ToggleInventoryPanel();}
 
@@ -174,7 +177,25 @@ void ALDPlayerController::V05Released(FName Action)
     // Channels belong to the issued order. Input release is not cancellation.
 }
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
-{if(CanWorldCommand()&&(!RootUI||!RootUI->PointerOverUI())){if(auto* Body=Cast<ALDCharacter>(GetPawn())){Body->Zoom(Value.Get<float>());Controls->Zoom=Body->CameraArm->TargetArmLength;PreferenceSaveAt=GetWorld()->GetTimeSeconds()+.5;}}}
+{
+    if(CanWorldCommand()&&Controls&&(!RootUI||!RootUI->PointerOverUI()))
+    {
+        if(auto* Body=Cast<ALDCharacter>(GetPawn()))
+        {
+            Body->Zoom(Value.Get<float>());
+            RecordAppliedCameraZoom();
+        }
+    }
+}
+void ALDPlayerController::RecordAppliedCameraZoom()
+{
+    const auto* Body=Cast<ALDCharacter>(GetPawn());
+    if(!Body||!Controls){return;}
+    FString Error;
+    if(Controls->SetAppliedZoom(Body->CameraArm->TargetArmLength,Error))
+    {CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();}
+    else{IntentFeedback=Error;}
+}
 void ALDPlayerController::ArmAttack(){if(CanWorldCommand()){CancelArmed();bAttackArmed=true;IntentFeedback=TEXT("Choose an attack direction. ")+BindingLabel(TEXT("Navigate"))+TEXT(" cancels.");}}
 void ALDPlayerController::ArmSkill(uint8 Slot,uint8 Gesture)
 {

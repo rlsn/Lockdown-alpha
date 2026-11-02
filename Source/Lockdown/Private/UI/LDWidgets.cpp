@@ -62,7 +62,3 @@ UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)
 {
     auto* W=Tree->ConstructWidget<UBorder>();W->SetBrushColor(FLinearColor(.025f,.045f,.07f,.99f));W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
 }
-UScrollBox* LDWidgets::OfferTray(UWidgetTree* Tree,UTextBlock*& Label,int32 Size)
-{
-    Label=Text(Tree,TEXT(""),Size);auto* Scroll=Tree->ConstructWidget<UScrollBox>();Scroll->SetAlwaysShowScrollbar(true);Scroll->AddChild(Label);return Scroll;
-}

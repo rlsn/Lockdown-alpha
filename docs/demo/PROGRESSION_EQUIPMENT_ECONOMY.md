@@ -420,7 +420,7 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 | --- | --- |
 | 主动 `active_arc_bolt / active_guard_pulse / active_binding_snare` | 未学提供 rank 1；已学 rank 1/2 提供下一阶；rank 3 排除；满 Q/W 的新主动允许明确替换。效果为 `ABILITY.<id>.Rank[r]`。 |
 | 被动 `passive_battle_rhythm / passive_second_wind / passive_precision` | 同样按学习/升阶/满阶处理；不检查独立被动槽容量。 |
-| `CHOICE.attr_might / attr_focus / attr_vitality / attr_resolve / attr_reach` | 永久属性；resolve 的两种抗性是同一复合选项；reach 引用 `AttackRangeCmFlat`，仅改变普攻攻击距离，不自动扩大技能/余波范围。 |
+| `CHOICE.attr_might / attr_focus / attr_vitality / attr_resolve / attr_reach` | 永久属性；resolve 的两种抗性是同一复合选项；reach 引用 `AttackRangeCmFlat`，仅改变普攻攻击距离，不自动扩大技能/横扫范围。 |
 
 按 `CHOICE.BaseWeight` 的统一正权重，在稳定排序的合法**语义定义**中无放回抽三项；
 同一技能不能同时是学习与升级候选，同一属性不得换图标/OptionId 重复占两张。
@@ -526,7 +526,7 @@ InvalidApproachRegion 要映射成明确反馈；失败不返回成功默认采�
 
 `item_echo_maul` 的属性/普攻群攻贡献与 `CHOICE.attr_reach.AttackRangeCmFlat`
 经同一最终投影到普攻几何和命中；同款锤属性相加、`passive_cleave` 一次。
-余波副命中不吸血/不递归是当前**内容待审**语义，不扩大成全部技能的默认触发政策。
+横扫副命中不吸血/不递归是当前首轮内容语义，不扩大成全部技能的默认触发政策。
 已成功释放的独立效果使用 Combat 释放快照并继续原定期限，普通死亡、出售装备或遗忘技能
 均不取消，不再要求当前仍持有原 ItemInstance/技能；目标 Life、终局和正式离局取消仍检查。
 维持型光环、装备被动和引导则按持续持有/施法条件解绑失效，不能与独立快照混用。
@@ -713,7 +713,7 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `ITEM.<id>.BuyPrice / Stats / Passive / Active` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、独立来源、商店显示与实际能力。 |
 | `SHOP.StartingGold / SellRatio`、`FORMULA.SellGold` | 比例按内容固定精度/精确有理值解释，乘法检查溢出，**仅最终卖价向下取整到整金币**；不拿 UI 浮点值结算。 | 初始化/卖出；非负、卖价不超买价、循环无正金币收益。 |
 | `SHOP.InteractRadiusCm` | Unreal 厘米；脚点到锚点 XY 距离，世界单点查询；客户端不传可接受半径。 | Open/Buy/Sell 当前资格；边界内外、错误地面/分层。 |
-| `CHOICE.attr_reach.AttackRangeCmFlat` / `ITEM.item_echo_maul` | 普攻距离厘米增量与获准普攻群攻内容；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程、余波去重/来源奖励。 |
+| `CHOICE.attr_reach.AttackRangeCmFlat` / `ITEM.item_echo_maul` | 普攻距离厘米增量与获准普攻群攻内容；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程、横扫去重/来源奖励。 |
 | `POLICY.DuplicateEquipmentActive=IndependentSources` / `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 两个 IssuedCooldownId、失源/重购/重学/死亡。 |
 | `POLICY.DeadChoiceCommit`、`POLICY.ResourceMaxChange`、`FORMULA.ResourceMaxChange` | 死时确认和保持资源百分比已确认；精度/取整/边界由内容公式单点维护，不是运行时多模式开关。 | 选择准入、活体一次最终同比换算、循环无取整获益、死亡不治疗。 |
 
@@ -764,7 +764,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 目标、距离或蓝量校验随后失败也不恢复保护；旧局/旧生命/未授权包先拒绝。
 装备1/2采用同规则，选择/购物本身不是进攻意图。失败施法仍不扣蓝或启动技能冷却。
 
-上述行为不再作为待选方案；具体技能/装备/价格/阈值/公式及射程/余波内容继续由内容报告
+上述行为不再作为待选方案；具体技能/装备/价格/阈值/公式及射程/横扫内容继续由内容报告
 单点供 PR 审查。工程类型、债优先排序、版本保护、Permit 和有限故障收口不转成用户逐字段选择。
 
 ## 11. 新增、复用、改造与精确删除接线
@@ -780,8 +780,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | N04 新增 + D15 改造 | `Development\LDCharacterBuild.* / LDDevelopmentDirector.* / LDV08Loadout.*`，`FLDBuildPlan / FLDOwnedBook / ALDBook` | 先窄 Choice、持久队列/Offer、角色技能/永久属性 patch；再删职业六维/点数/开局技能、读书/准备/Loadout hold、DropBooks、整份草稿与备用布局。必要来源/修订/投影局部抽取。 |
 | R09/N05，D15 库存改造 | `Inventory\LDInventoryTypes.* / LDInventoryDirector.* / LDGearTypes.h / LDGearRules.cpp`；Actor、owner Items、Bindings/Quick | 先 Ledger 唯一 Instance/Owner/Slot/ItemRevision、两槽 DTO和 Combat 来源；再删背包/重量/Quick/十一绑定/双手占位/掉落拾取整理/物理 Holder 镜像。不能只缩小 HUD。 |
 | N05 + D16 Vendor | `LDVendorDirector.* / LDVendorTypes.h`、`LDPlayerVendor.cpp`、InventoryPanel 的书店页 | 先新会话/报价/Buy/Sell/回执、世界资格、no-fail 来源绑定；再删 Skill/BookPrice、OfferedSkills、ServerVendorBuy 旧形状和受伤/安静/旧 Ray 附加条件。 |
-| R07/R09 局部抽取，D14/D15 | `LDV08Loadout::Validate/ItemSource/InvalidateSources/Project`、`LDContentActions/LDContentRelease/LDV08Modifiers` | 先实例→IssuedCooldownId、SourceBindingRevision、被动来源集合；再删重复 family 禁止、ItemFamilies 共享主动 CD、施法伪库存修订和无关 modifier。按 C1 保留获准射程/余波 handler，不留整套旧效果。 |
-| B02/D04 玩家交易整链 | `LDTradeDirector.* / LDTradeTypes.h / LDPlayerTrade.cpp / LDInventoryTradePanel.cpp`；Controller TradeView/Pending、GameMode Trade、Combat/Navigation/Development/Vendor 的取消链 | 先把最终容量、精确版本、条款幂等与隐私断言抽回 Ledger/Vendor/Inventory；再断所有 RPC/成员/Delegate/CancelFor/Pending，删除类型、页签和专测。无须等待新价格，但须适用 C3。 |
+| R07/R09 局部抽取，D14/D15 | `LDV08Loadout::Validate/ItemSource/InvalidateSources/Project`、`LDContentActions/LDContentRelease/LDV08Modifiers` | 先实例→IssuedCooldownId、SourceBindingRevision、被动来源集合；再删重复 family 禁止、ItemFamilies 共享主动 CD、施法伪库存修订和无关 modifier。按 C1 保留获准射程/横扫 handler，不留整套旧效果。 |
 | D05 Acquisition 整链 | `LDAcquisitionDirector/Catalog`、`LDSupplyRequest`、`LDLoadoutRequest`、生产/采购 RPC | 先抽创建失败前置与先账后投影，将必需ID/投影校验迁入唯一Demo compiler；先断SyncB84对Acquisition adapter的源码读取，再随旧生成链退出。删除书籍/材料/制作/品质/旧请求和缓存报价，不为compiler留空旧文件。 |
 | D02/D06 其他经济消费者 | Bank/Commerce/Production/Institution、B92 钱包/Supply/Work/Courier/Extraction/WorldLedger；GameMode 服务接线 | 目标奖励/买卖已回同一 Ledger 后，按架构闭包断消费并删除；不给 AI 保留第二经济栈。各自有效事务断言先迁移。 |
 | D16/N07 UI、RPC 与投影 | `LDPlayerController.h`、`LDPlayerDevelopment/Inventory/Vendor.cpp`、`LDDevelopmentPanel/LDInventoryPanel/LDV08HUDModel.cpp`、`LDViewTypes.h` | 先接 §8 的窄 DTO/请求/错误与同次发布；再删整份 Build 草稿、书籍/六动作/四附件/旧服务页、wire/Delegate/Pending 及旧控制映射。不留不可执行空按钮。 |
@@ -830,7 +829,7 @@ V07 删除仍需关闭 Bootstrap、loader fallback、Sync/native contract、stag
 | [LDInventoryRulesTests.cpp:9–16](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp#L9-L16)、[LDV08LoadoutTests.cpp:25–60](../../Source/Lockdown/Private/Tests/LDV08LoadoutTests.cpp#L25-L60) | 保留来源/旧修订/wire/引用失效；替换背包/Quick/多绑定/六动作/四附件、旧 family 共享与旧属性预算断言。 |
 | [LDVendorProbe.cpp:39–130](../../Source/Lockdown/Private/Tests/LDVendorProbe.cpp#L39-L130) | 将快递买书读书改成普攻打野→完整奖励→选择→装备；保留过期/创建失败/满容量/越界目的，删除受伤必须关店等旧玩法断言。 |
 | `RunInventoryCheck.ps1 / RunVendorCheck.ps1 / RunLoadoutCheck.ps1` | 迁真实参赛 Listen Host 和拥有客户端、Demo 两装备/选择/1/2；旧 Server+A+B/LDRemoteAuthority 不是目标联机结果。迁移前不声称已有 Demo 参数。 |
-| [RunTests.ps1:19–21](../../Scripts/RunTests.ps1#L19-L21)、[CheckEconomyEvidence.py:15–66](../../Scripts/CheckEconomyEvidence.py#L15-L66) | 明确实际必需用例集合，删旧数量/TradePrivacy 强制项但保留 failed/notRun/inProcess/缺报告失败；复算新增钱物/奖励/前缀尾部，删无消费者 budget/quality/parents。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py:15–66](../../Scripts/CheckEconomyEvidence.py#L15-L66) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；复算新增钱物/奖励/前缀尾部，删无消费者 budget/quality/parents。 |
 | D28–D34 的旧专测/runner/手册 | 必要 Ledger/Vendor/Inventory 不变量先迁，再真实删 Trade/Acquisition/Bank/Production 旧专测、probe、selector 和说明；同步六系统手册对应真实接口，不保存废弃方案。 |
 
 本域建议新增的规则测试职责落在现有 Tests 体系：死亡复合奖励、Offer/替换、两装备事务、
@@ -866,7 +865,7 @@ IssuedCooldownId、Permit/fence/故障恢复与 owner 投影。不要求新建�
 | A20 回绑反例 | ready旧轨与未结债并存先取债；长短债优先最长，平局稳定；售双重买两债分别继承；反复卖买不出第三ID，失败不发行。 |
 | A21 CD生命周期 | 换槽/升级/遗忘重学/售出重购/换定义返回/死亡保持截止，一条不改另一条；已释放独立效果仍续原期限且不再查原持有，维持型按条件取消，正式离局取消独立效果。 |
 | A22 当前血蓝 | 买/卖/升阶/原子替换后保持原资源百分比，仅按最终投影一次；覆盖往返、精度、零上限/最小正值及真实伤害夹在两次交易之间，不能量化套利或治疗尸体；正常复活满新上限。 |
-| A23 射程与群攻 | attr_reach与echo_maul在服务端真实改变普攻范围/获准副命中；不扩大未指定技能距离；双锤不双余波，副命中奖励仍恰一次。 |
+| A23 射程与群攻 | attr_reach与echo_maul在服务端真实改变普攻范围/获准副命中；不扩大未指定技能距离；双扫帚不重复触发横扫，副命中奖励仍恰一次。 |
 | A24 回包/过窗 | 同ID同条款重放、异条款拒绝、64窗外拒旧+同步；先快照后回执/先回执后快照均不回滚当前状态；双击Pending不创建第二业务。 |
 | A24b 压缩/退休/查询 | 先折叠64条再提交65/66；退休有独立serial和delta，多轮压缩后余额/Retired/修订/关联戳可复算，旧请求/实例/死亡拒旧、pin不释放。旧局同号query=InvalidContext；各LookupStatus的包装结果不伪造终态Receipt。 |
 | A25 终局/新局/隐私 | 关闸后无新奖励/选择/买卖/来源，只读旧回执；新局清局内域/旧ID。可见对手装备定义失视野撤销；结果只含批准名称/K/D/FinalLevel/赢家/原因/用时，无私有Instance/修订/技能/XP/金币/Offer/CD。 |

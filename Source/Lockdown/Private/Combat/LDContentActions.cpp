@@ -11,7 +11,6 @@
 #include "Framework/LDPlayerController.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDEconomyDirector.h"
@@ -100,7 +99,7 @@ bool ALDCombatDirector::RequestContent(ALDCharacter* Body,const FLDTacticalReque
         else{if(F->Kind!=ELDTacticalField::Scramble||!B->Gear.Scramble){return Reject(TEXT("Cliffwalkers and an authored scramble link required"));}Plan.SecondPoint=F->Direction;}
         FVector End;if(!MobilityEndpoint(Body,Plan.SecondPoint,End)){return Reject(TEXT("Traversal placement unavailable"));}
     }
-    if(PC){PC->Navigation->Stop();if(M->Trade){M->Trade->CancelFor(PC);}M->Development->Cancel(PC,TEXT("Action cancelled preparation"));if(M->Production){M->Production->Cancel(PC);}}Body->GetCharacterMovement()->StopMovementImmediately();
+    if(PC){PC->Navigation->Stop();M->Development->Cancel(PC,TEXT("Action cancelled preparation"));if(M->Production){M->Production->Cancel(PC);}}Body->GetCharacterMovement()->StopMovementImmediately();
     S->bAttackOrder=false;if(O){Plan.InventoryRevision=O->Inventory.Revision;}S->ContentRequest=Plan;S->HadPositiveChannelDamage=false;S->CoreItem=Item?Item->Identity:FGuid();S->Target=First;S->CoreTargetLife=Life(this,First);S->CoreSecondTarget=Second;S->CoreSecondLife=Life(this,Second);S->CorePoint=Plan.Point;S->CoreSecondPoint=Plan.SecondPoint;S->CoreDirection=R.Direction;S->CoreBuildRevision=B->Revision;S->Skill=Skill;S->SkillToken=R.Token;S->LastCoreToken=R.Token;S->SkillAnchor=Body->GetActorLocation();S->Order=++NextOrder;S->LastSkillHold=Now;S->HoldSequence=0;
     if(R.ActionKind>=2){S->Action=10;S->ContentChannel=R.ActionKind==2?TEXT("gate"):TEXT("scramble");S->CoreEndsAt=At+1000;}
     else if(ID&&(ID->Operation==TEXT("restore_mp")||ID->Operation==TEXT("recall")))

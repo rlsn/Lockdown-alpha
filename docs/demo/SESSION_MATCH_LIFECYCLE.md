@@ -119,8 +119,9 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 
 ## 4. 唯一核心身份与写权限
 
-以下类型由本报告单点定义，实施时放在现有 `Framework` 的窄共享头
-`LDMatchLifecycleTypes.h`；这是**拟新增文件**，本轮不创建。
+以下类型由本报告单点定义，统一归 `Framework` 的窄共享头 `LDMatchLifecycleTypes.h`。
+该文件已有 Match 上下文、阶段/参赛种类及房间回执基础；下列完整 Victim/Body/DeathKey、
+实际时序/许可和相关消费者仍是后续核心实施，不把已有头文件当作全部类型已接通。
 不将这些内部上下文全部机械序列化进每个 RPC。
 
 ```cpp
@@ -797,7 +798,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 基础普攻近战单体及经装备/属性获得群攻、射程成长已确认，
 具体内容/数值仍需批准，不从这项形态规则擅定伤害或距离。
 目前本模块没有另需用户选择的生命周期分支；仍待审的是中央具体数值/目录及相应内容定义，
-只阻塞其消费切片，不阻塞 B01 准入/代次/失败合同或独立 B02/B03 闭包。
+只阻塞其消费切片，不阻塞 B01 准入/代次/失败合同或独立基础闭包。
 同世界阶段选择、毫秒转换、HostEnd 的工程先后、类型命名、请求窗口及水位证明
 已经是本报告的工程设计，不再当作需要用户拍板的玩法问题。
 
@@ -1003,7 +1004,7 @@ WorldSettings、动态加载或cook，不能据此宣布旧包已可安全删除
 | `Private\Tests\LDWorldBoundary.cpp:38–47,124–145` / `Scripts\RunWorldBoundaryCheck.ps1` | 迟到采样、明确边界、结果恰一次的检查目的 | 当前直接改 World 时间/位置并用旧 Claim；删 Stun/Interrupt/Release 清 Claim 断言，不能冒充真实运动证据。文件不是 `LDWorldBoundaryProbe.cpp`。 |
 | [LDEconomyRulesTests.cpp:15–75](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp#L15-L75)，`EconomyAccounting`；[LDViewTests.cpp:39–64](../../Source/Lockdown/Private/Tests/LDViewTests.cpp#L39-L64)，`ViewPrivacySchema` | 全量失败/重复/溢出/复算、反射隐私白名单 | 迁当前实际操作/字段集合并补 DeathKey/闸门；不关闭断言或用旧数量充数。 |
 | `Scripts\RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1` | 多进程、拥有客户端和网络模拟的启动基础 | 当前 packaged authority 可为不参赛 LDRemoteAuthority；必须增加正常可见且参赛 Host，不能替代公网验证。 |
-| [RunTests.ps1:2–21](../../Scripts/RunTests.ps1#L2-L21) | 报告缺失/失败/未完成均失败 | 当前整个 Lockdown.Rules 和旧数量/TradePrivacy 强制项须迁明确用例集合；不能仅降低数量门槛。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py) | 报告缺失/失败/未完成、必需用例缺失或重复均失败 | 维护当前 Lockdown.Rules 的明确用例集合，与原生注册保持一致；不能仅降低数量门槛。 |
 
 工程实施先运行本批最小规则/输入拒绝检查，再在修改原生/反射/资产后做
 Editor/Game 构建、Bootstrap Validate 及所需真实场景。
@@ -1025,15 +1026,14 @@ Editor/Game 构建、Bootstrap Validate 及所需真实场景。
 | SM-T06 同房间回 Lobby/新局 | M1/M5，各状态所有者共同 Reset：不重进 StartPlay、不 travel、不 restore checkpoint | SM-T01/02；各域明确 retire/reset/新初始化；完整验收依赖 SM-T04/05 | FN-05/06，连接保持、旧服务不在 Lobby 偷跑，Vision 服务器表与客户端代理都清，旧 Guid/Generation/回执无执行权。 |
 | SM-T07 生产链与裁剪闭合 | M9G唯一Builder生成L_Demo/DA_DemoWorld，M1改接入口/Registry，发布负责人收敛Bootstrap/Cook/Stage；处理§9闭包 | 本闭包P0–P4和适用C1–C4；旧根保持可加载至C3迁移完成，不等无关参数 | SM-11单根/无旧图fallback或最终包残留，资产/构建/Bootstrap/cook真实证据，旧符号/输入/图/runner无消费者及FN-08。 |
 
-**B01–B03 与 C1–C4 的界线：**
+**基础闭包与 C1–C4 的界线：**
 
 | 架构门槛 | 本模块的具体影响 |
 | --- | --- |
 | B01 | 先做入口/身份/阶段和旧输入/缺输入拒绝，不等待完整技能目录；不能把拒绝开局包装成正常 Demo。 |
-| B02 | 玩家交易 RPC/服务/面板/Cancel/Pending/TradePrivacy 闭包同步真删；保留 Ledger/Vendor/Inventory 的有效原子性和来源测试，不依赖新价格。 |
 | B03 | checkpoint/restore 的 console/参数/序列化/probe/EnvironmentSettled 独占依赖删除；本地设置 Save 不动，多人新局由 SM-T06 提供。 |
 | C1 | 只阻塞相关实际效果/属性/冷却/内容保留集及相应数值验收；未选目录不能作为全部保留的理由。 |
-| C2 | 阻塞实际唯一地图/十点/圈几何和其资产迁移，结构数量本身已定；不阻塞基础身份/准入或 B02/B03。 |
+| C2 | 阻塞实际唯一地图/十点/圈几何和其资产迁移，结构数量本身已定；不阻塞基础身份/准入或无几何依赖的闭包。 |
 | C3 | 反射类型与二进制资产物理删除前查 Blueprint/CDO/WorldSettings/硬软及动态引用，迁移重存存活根后再删。 |
 | C4 | 模块/插件/ini 的真实消费者和合并后有效配置必须核实，不修改共享引擎/插件安装掩盖依赖错误。 |
 

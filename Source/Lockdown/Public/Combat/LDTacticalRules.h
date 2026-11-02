@@ -1,9 +1,17 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Combat/LDCombatEvaluationTypes.h"
 #include "Development/LDCharacterBuild.h"
+
+class FLDDemoContentSnapshot;
 
 namespace LDTactical
 {
+    LOCKDOWN_API FLDDamageEvaluationResult EvaluateDamage(
+        const FLDDamageEvaluationInput& Input, const FLDDemoContentSnapshot& Catalog);
+    LOCKDOWN_API FLDBasicTimingResult EvaluateBasicTiming(
+        const FLDBasicTimingInput& Input, const FLDDemoContentSnapshot& Catalog);
+
     enum class EStatus : uint8 { Stun, Silence, Mute, Root, Disarm, Hex, Break, Blind, Slow, Mark, Wet, Burning };
     enum class EAction : uint8 { Attack, Skill, Item, Move, Dash, Service };
     enum class EDamage : uint8 { Physical, Magical, Pure };

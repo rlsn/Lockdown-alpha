@@ -34,7 +34,7 @@ bool FLDB81Test::RunTest(const FString& Parameters)
     TestTrue(TEXT("Pure gear allocation allowed through Silence"),LDV08::PreparationPermissions(B,P,false,true));
     TestFalse(TEXT("Mute blocks gear allocation"),LDV08::PreparationPermissions(B,P,true,false));
     TestTrue(TEXT("Projected binding/action still commits after rejected drafts"),LDV08::Project(I,B,P,Out,Build,Why));I=Out;B=Build;
-    TestFalse(TEXT("Equipped identity cannot be trade or recipe input"),LDInventory::Fits(I,B,{Mail},{},&Why));
+    TestFalse(TEXT("Equipped identity cannot be an outgoing inventory input"),LDInventory::Fits(I,B,{Mail},{},&Why));
     B.Cooldowns[10]=12345;const auto End=B.Cooldowns[10];I.Bindings[1].Invalidate();I.Items.FindByPredicate([&](const auto& V){return V.Id==Mail;})->BindingMask=0;
     TestTrue(TEXT("Source invalidation clears typed slot atomically"),LDV08::InvalidateSources(B,I)&&B.Actions[5].Source==ELDActionSource::Learned&&B.Slots[5]==ELDSkill::None);
     TestEqual(TEXT("Source invalidation preserves learned cooldowns"),B.Cooldowns[10],End);
@@ -49,8 +49,11 @@ bool FLDB81Test::RunTest(const FString& Parameters)
     TestFalse(TEXT("Unknown preset cannot enable"),LDV08::PresetEnabled(9));TestTrue(TEXT("Arcanist kit includes native Frostline"),LDV08::PresetEnabled(5));
     // Positive maximum case, as well as malformed over-cap requests.
     {auto MaxBuild=LDDevelopment::TacticalStart(0,Skills->Checksum,8);FLDInventory MaxBag;MaxBag.RulesVersion=8;MaxBag.Quick.Reset();MaxBag.Bindings.SetNum(11);const ELDSkill Learned[]={ELDSkill::Heave,ELDSkill::Patch,ELDSkill::Step,ELDSkill::Ambush,ELDSkill::Spark,ELDSkill::Survey};for(int32 N=0;N<6;++N){MaxBuild.Ranks[uint8(Learned[N])]=1;MaxBuild.Slots[N]=Learned[N];MaxBuild.Actions[N].Skill=Learned[N];}const ELDItemKind Accessory[]={ELDItemKind::SmokeFlask,ELDItemKind::WardTotem,ELDItemKind::HealingSalve,ELDItemKind::ManaDraught};for(int32 N=0;N<4;++N){FLDInventoryItem V;V.Id=FGuid::NewGuid();V.Kind=Accessory[N];V.Slot=N;V.BindingMask=uint16(1<<(7+N));MaxBag.Items.Add(V);MaxBag.Bindings[7+N]=V.Id;}TestTrue(TEXT("Exactly six learned plus four physically bound active accessories is legal"),LDDevelopment::Valid(MaxBuild)&&LDInventory::Valid(MaxBag)&&LDV08::Validate(MaxBag,MaxBuild,Why));FLDInventoryItem BagOnly;BagOnly.Id=FGuid::NewGuid();BagOnly.Kind=ELDItemKind::SmokeFlask;BagOnly.Slot=4;MaxBag.Items.Add(BagOnly);TestFalse(TEXT("Backpack identity cannot activate through an accessory source"),LDV08::ItemSource(MaxBag,MaxBuild,BagOnly.Id,0,true));}
-    auto* Controls=NewObject<ULDControlSettings>();Controls->ResetBindings();TestTrue(TEXT("Existing G preference accepted"),Controls->Rebind(TEXT("PanUp"),EKeys::G,Why));
-    TestTrue(TEXT("Six/four migration is collision-free"),Controls->MigrateHybrid()&&Controls->Valid());TestEqual(TEXT("Existing G preference retained"),Controls->Key(TEXT("PanUp")),FKey(EKeys::G));TestFalse(TEXT("Skill6 relocates instead of overwriting preference"),Controls->Key(TEXT("Skill6"))==EKeys::G);TestFalse(TEXT("Context F cannot overwrite Skill1"),Controls->Rebind(TEXT("Context"),Controls->Key(TEXT("Skill1")),Why));
+    auto* Controls=NewObject<ULDControlSettings>();Controls->Profile=8;Controls->ResetBindings();
+    TestTrue(TEXT("Explicit incumbent six/four registry remains valid"),Controls->Valid());
+    TestFalse(TEXT("A conflicting camera key is rejected without relocating an action"),Controls->Rebind(TEXT("PanUp"),EKeys::G,Why));
+    TestEqual(TEXT("Sixth binding is unchanged after rejection"),Controls->Key(TEXT("Skill6")),FKey(EKeys::G));
+    TestFalse(TEXT("Unknown action cannot overwrite Skill1"),Controls->Rebind(TEXT("Context"),Controls->Key(TEXT("Skill1")),Why));
     B=LDDevelopment::TacticalStart(3,Skills->Checksum,8);P=LDDevelopment::PlanFrom(B);P.InventoryRevision=1;P.Bindings.SetNum(11);P.Actions[5].Source=ELDActionSource::Gear;P.Actions[5].Instance=Mail;P.Actions[5].Definition=TEXT("reflective_mail");
     FNetBitWriter Writer(nullptr,16384);bool Good=false;P.NetSerialize(Writer,nullptr,Good);TestTrue(TEXT("Bounded schema8 build draft serializes"),Good&&!Writer.IsError());
     FNetBitReader Reader(nullptr,Writer.GetData(),Writer.GetNumBits());FLDBuildPlan Decoded;Decoded.NetSerialize(Reader,nullptr,Good);TestTrue(TEXT("Typed source + eleven refs roundtrip"),Good&&Decoded.RulesVersion==8&&Decoded.Actions.Num()==6&&Decoded.Actions[5].Instance==Mail&&Decoded.Bindings.Num()==11);

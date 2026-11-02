@@ -5,7 +5,6 @@
 #include "Framework/LDPlayerController.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Character/LDCharacter.h"
 #include "UI/LDInventoryPanel.h"
 #include "GameFramework/CharacterMovementComponent.h"

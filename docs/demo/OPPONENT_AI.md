@@ -104,7 +104,7 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 CommitPendingOrder
 | 自身 | 核心 ReadAISelf、adapter RequestAISnapshot；ReadProgression、ReadEquipment、QueryAvailability | 可以读本人血蓝/资源/等级/技能/装备、控制、真实 readiness、候选和回执；不能取得可写 StateFor 或全账本。 |
 | 公共对局 | `FLDPublicMatchView` | Phase、OpenAtMs、CircleState、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、Result；占领者身份和进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
-| 可见营地回位提示 | 同一 `ObservedFrame/FLDObservedUnitView.Statuses` 中只读 `StatusDefinitionId=camp_returning` | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回位中”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
+| 可见营地回位提示 | 同一 `ObservedFrame/FLDObservedUnitView.Statuses` 中只读 `StatusDefinitionId=camp_returning` | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回岗中”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
 | 可见装备与资源 | 上述观察帧的展示定义 | 装备只有两个展示 DefinitionId，不含内部 ItemInstance、IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level/Equipment 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
 | 静态世界与内容 | 世界公开地图/POI、公共目录 | Camp/Shop/Capture 固定位置、营地档位、地形和公开定义可知；不能把定义里的原始营地人数/刷新周期当作当前存活人数或剩余刷新时间。 |
 | 路径 | `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)`、`QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule)`、`FindApproach(ObserverContext, Origin, UnitHandle或PublicPOI, RangeCm, Capsule)` | QueryGround 四参，无默认/三参重载；SurfaceHint 为必填 FName 注册 SurfaceId，仍须重查真实支持面。使用自身真实位置和当前地图；完整路径，脚点 XY 中心距，厘米；预览不含隐藏动态身体定位。 |
@@ -306,7 +306,7 @@ B92 ImportWorld 还依赖 B91 物理来源，关闭检查必须覆盖
 `LDInputRulesTests.cpp` 的 Fresh、`LDRulesTests.cpp` 的 ViewOrdering、
 `LDViewTests.cpp` 的字段白名单、`LDEconomyRulesTests.cpp` 的幂等/原子拒绝、
 `LDV08LoadoutTests.cpp` 的来源失效不洗冷却均迁入保留的对应领域测试。
-`Scripts\RunTests.ps1` 的固定十九项和 TradePrivacy 门槛改为明确的当前用例集合，
+`Scripts\RunTests.ps1` 通过 `CheckRuleReport.py` 核对明确的当前用例集合，
 不靠降低数量、吞失败或删除有效断言换通过。当前没有 `TestB92Import.py`，不列虚构入口。
 
 删除顺序：P1 接通核心绑定/领域验证/受限投影并迁移必要断言；
@@ -314,7 +314,7 @@ B92 ImportWorld 还依赖 B91 物理来源，关闭检查必须覆盖
 P2 更新生成消费和唯一地图根、完成本批 C3/C4；
 P3 真删旧文件、RPC、friend、字段、输入/载荷/contract 与 runner；
 P4 构建/UHT、Bootstrap、生成拒绝及对应真实场景确认闭包。
-这不是等待完整 AI 才允许 B01–B03，也不是未经引用核验先删所有资产。
+这不是等待完整 AI 才允许基础裁剪，也不是未经引用核验先删所有资产。
 
 ## 6. 单一自主策略
 

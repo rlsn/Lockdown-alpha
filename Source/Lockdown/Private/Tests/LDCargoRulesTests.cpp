@@ -16,8 +16,8 @@ bool FLDCargoRulesTest::RunTest(const FString& Parameters)
     const auto Revision=Bag.Revision;FString Why;
     TestFalse(TEXT("Pickup or purchase cannot exceed weight despite free slots"),LDInventory::Fits(Bag,Build,{}, {ELDItemKind::Fiber},&Why));
     TestTrue(TEXT("Weight rejection has precise reason and changes no revision"),Why.Contains(TEXT("heavy"))&&Bag.Revision==Revision&&Bag.Items.Num()==20);
-    TestTrue(TEXT("Trade removes outgoing mass before checking incoming mass"),LDInventory::Fits(Bag,Build,{Bag.Items[0].Id},{ELDItemKind::Crystal}));
-    TestFalse(TEXT("Net trade overload fails before either side mutates"),LDInventory::Fits(Bag,Build,{Bag.Items[0].Id},{ELDItemKind::Core}));
+    TestTrue(TEXT("Final projection removes outgoing mass before checking incoming mass"),LDInventory::Fits(Bag,Build,{Bag.Items[0].Id},{ELDItemKind::Crystal}));
+    TestFalse(TEXT("Net inventory overload rejects without mutating the source"),LDInventory::Fits(Bag,Build,{Bag.Items[0].Id},{ELDItemKind::Core}));
     Bag.Items[0].bReserved=true;TestEqual(TEXT("Reservation does not duplicate carried mass"),LDInventory::Weight(Bag),60);
     Build.Attributes[0]=8;TestEqual(TEXT("STR8 capacity"),LDInventory::WeightCapacity(Build),56);
     TestFalse(TEXT("Preparation lowering capacity below cargo fails"),LDInventory::Fits(Bag,Build,{},{}));

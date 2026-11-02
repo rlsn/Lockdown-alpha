@@ -10,7 +10,6 @@ Demo 仅有两件装备与地图商店，具体范围见 [App Spec](../APP_SPEC.
 | `Inventory\LDInventoryTypes` | 物品种类、物理实例、库存投影与绑定 |
 | `Inventory\LDInventoryDirector` | 拥有关系、组织/使用请求、回执、生命清理 |
 | `Inventory\LDVendorDirector` | 商店会话、报价版本、购买队列与最终结果 |
-| `Inventory\LDTradeDirector` | 当前实现中的双方交换和预约生命周期 |
 | `Economy\LDEconomyLedger` | 纯权威账本、账户/物品变更、预算和事务回执 |
 | `Economy\LDB92Services`、`LDB92Economy` | 完整地图服务的接入与账本投影 |
 
@@ -60,27 +59,30 @@ Demo 仅有两件装备与地图商店，具体范围见 [App Spec](../APP_SPEC.
 奖励预算、输入消费、输出创建和父身份在同一事务中维护，不能分别重试。
 账本账户退休仍参与总量核对，不能通过“删除记录”隐藏丢失的资源。
 
-## 复用已有交易安全性
+## 事务安全边界
 
-现有 `LDTradeDirector` 的流程是邀请、编辑、双方 Ready、精确版本确认和终局。
-编辑、相关物品或余额变化会使批准失效；第二份有效确认才能提交。
-应先投影双方交换后的库存容量，而不是只看交易前是否满包。
+`LDInventory::Fits` 先投影移出和移入后的最终容量；预约和快捷引用不额外占用容量。
+`LDInventory::Remove` 与 `LDV08::InvalidateSources` 负责同次变更中的引用清理。
+当前生产订单仍使用 `bReserved`，不能把通用预约校验与某个已退出的服务一起删除。
 
-这套修订/预约/原子性知识可用于其他事务，但玩家互相交易不属于当前 Demo。
-不要把当前交易的社交 UI、银行、采购或职业体系作为保留文档后的新增需求。
+`FLedger::Commit` 以事务 ID 和完整条款去重，拒绝旧账户/物品版本、错误所有权与溢出，
+全部校验成功后才更新钱物。重复的已提交请求只返回原结果，不能重新获取已转出的来源。
+Vendor 的会话、报价与库存版本重查继续由原服务承担，不另建交易状态或第二账本。
 
 ## 清理和对外信息
 
 `EndLife`、`Logout`、终局与新局重置要协调预约、库存、派生动作和世界实例。
 当前实现存在自身的死亡损失策略，不能当成 Demo 全保留规则已经实现。
 
-普通客户端只接收自己的库存、合法报价、被明确公开的交易项和结果。
+普通客户端只接收自己的库存、合法报价和自身事务结果。
 账本导出、隐藏钱包、物品血缘全表与内部失败细节不能用来填充对手 Tooltip。
 失败反馈应可理解，但不能成为探测隐藏库存或 NPC 身份的接口。
 
 ## 检查入口
 
-使用 `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`、`RunTradeCheck.ps1`、
-相应原生规则测试，以及 `CheckEconomyEvidence.py` 的实际账本复算。
+使用 `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`、相应原生规则测试，
+以及 `CheckEconomyEvidence.py` 的实际账本复算。
+`InventoryPrivacySchema`、`VendorPrivacySchema` 检查存活投影的反射白名单；
+`EconomyAtomicItemTransfer` 检查精确条款重放、来源/质量保留和失败无部分提交。
 完整地图服务另有 `RunB92Services.ps1` 等场景；这类当前结果校验不是已经删除的冻结档案复演。
 重点是重复提交、旧版本、金币不足、满容量、创建失败、死亡/交易竞争和新局隔离。

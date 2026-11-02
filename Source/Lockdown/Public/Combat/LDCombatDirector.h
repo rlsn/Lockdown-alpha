@@ -4,9 +4,11 @@
 #include "GameFramework/Actor.h"
 #include "Development/LDCharacterBuild.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Combat/LDEnvironmentRules.h"
 #include "Combat/LDTacticalRequest.h"
 #include "Inventory/LDInventoryTypes.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 #include "LDCombatDirector.generated.h"
 class ALDCharacter;
 class ALDWorldObject;
@@ -15,7 +17,16 @@ enum class ELDSkillTaskPhase : uint8 { Validate, Accept, Commit };
 
 struct FLDBodyCombatState
 {
-    FGuid Identity=FGuid::NewGuid();
+    FGuid Identity;
+    FLDVictimKey Victim;
+    struct FResources
+    {
+        int64 HpP2 = 0, MaxHpP2 = 0, MpP2 = 0, MaxMpP2 = 0, ShieldP2 = 0;
+        uint64 Revision = 0;
+    } Resources;
+    FLDBasicTiming BasicTiming;
+    FLDAttributeProjection AttributeProjection;
+    uint64 AttributeRevision=0;
     int64 WetFrostReadyAt=0;
     double Hp=100;
     double CommittedDamage=20;
@@ -194,9 +205,9 @@ public:
     void Sample(double Now);
     void FlushPastCommand();
     void AdvanceAuthority(double Through);
+    bool AdvanceAuthority(const FLDMatchContext& Match, int64 ThroughMs, FString& Error);
     bool QuietForPreparation(ALDCharacter* Body) const;
     bool Concealed(const ALDCharacter* Body,bool IncludeGrass=true) const;
-    bool EnvironmentSettled() const;
     void BreakConcealment(ALDCharacter* Body,bool Offense=false);
     void ExplicitInterrupt(ALDCharacter* Body,double Now);
     bool Push(ALDCharacter* Body,const FVector& Direction,double Distance,double Now);
@@ -244,6 +255,15 @@ public:
     double LastSampleMs=0;
     uint64 SampleSerial=0;
 private:
+    friend class ALDGameMode;
+    friend class FLDDemoCoreTest;
+    bool PrepareInitialBody(ALDCharacter& Body, const FLDVictimKey& Victim,
+        const class FLDDemoContentSnapshot& Content, const FLDGameplayWritePermit& Permit,
+        FLDBodyCombatState& Out, FString& Error);
+    bool InstallInitialBody(ALDCharacter& Body, FLDBodyCombatState&& Prepared,
+        const FLDGameplayWritePermit& Permit, FLDCombatBodyRef& Out, FString& Error);
+    void ReserveInitialBodyBatch(int32 Count) { Bodies.Reserve(Bodies.Num()+Count); }
+    void RemoveRegisteredBody(const FLDCombatBodyRef& Ref);
     friend class ALDB92RosterProbe;
     friend class ALDB92RoutinesProbe;
     friend class ALDB92ServicesProbe;

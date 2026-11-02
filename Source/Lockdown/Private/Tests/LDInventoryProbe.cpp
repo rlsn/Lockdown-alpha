@@ -57,7 +57,22 @@ void ALDInventoryProbe::ServerTick()
     else if(Phase==5&&E>5)
     {int32 N=0;for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());const auto Skill=PC==A?ELDSkill::Spark:ELDSkill::Step;Check(!Inv->Owned(PC.Get(),InitialBooks[N])&&LDDevelopment::Rank(O->Build,Skill)==1&&!O->Build.Slots.Contains(Skill)&&!O->Inventory.Quick[2].IsValid(),TEXT("Actual three-second reading consumes once, teaches R1, clears reference and never equips"));auto* Item=GetWorld()->SpawnActor<ALDBook>();Item->Skill=Skill;Item->State=0;Check(Inv->Adopt(PC.Get(),Item),TEXT("Duplicate-knowledge case materializes one labelled fixture book"));DuplicateBooks.Add(Item->Identity);++N;}Enter(6);}
     else if(Phase==6&&E>4.5){int32 N=0;for(auto PC:{A,B}){auto* O=M->StateFor(PC.Get());Check(Inv->Owned(PC.Get(),DuplicateBooks[N])&&!O->DevelopmentKind&&O->Inventory.Quick[3]==DuplicateBooks[N],TEXT("Known book remains owned and bound without a reading channel"));Check(O->Gold==960&&O->Books.Num()==2,TEXT("Purchase and replay debit forty gold once and create one book"));++N;}Enter(7);}
-    else if(Phase==7&&E>4.5){int32 N=0;for(auto PC:{A,B}){Check(Inv->Owned(PC.Get(),InitialWards[N++])&&M->StateFor(PC.Get())->WardCharges==1,TEXT("Ward cancel and invalid range preserve the finite charge"));}Inv->FailNextWardForProbe();Enter(8);}
+    else if(Phase==7&&E>4.5)
+    {
+        int32 N=0;for(auto PC:{A,B})
+        {
+            auto* O=M->StateFor(PC.Get());auto* Charge=Inv->Owned(PC.Get(),InitialWards[N++]);
+            Check(Charge&&O->WardCharges==1,TEXT("Ward cancel and invalid range preserve the finite charge"));
+            if(!Charge){continue;}
+            const auto Revision=O->Inventory.Revision;const auto Quick=O->Inventory.Quick;
+            Charge->bReserved=true;for(auto& Item:O->Inventory.Items){if(Item.Id==Charge->Identity){Item.bReserved=true;}}
+            FString Why;const bool Placed=M->Vision->PlaceWard(PC.Get(),PC->GetPawn()->GetActorLocation()+FVector(0,30,0),Why,Charge->Identity);
+            Check(!Placed&&Charge->bReserved&&Inv->Owned(PC.Get(),Charge->Identity)&&O->WardCharges==1&&O->Inventory.Revision==Revision&&O->Inventory.Quick==Quick,TEXT("Reserved finite source cannot bypass inventory through direct ward placement"));
+            Charge->bReserved=false;for(auto& Item:O->Inventory.Items){if(Item.Id==Charge->Identity){Item.bReserved=false;}}Inv->Changed(PC.Get());
+            Check(LDInventory::Valid(O->Inventory)&&O->Inventory.Quick==Quick,TEXT("Releasing a reservation preserves the original source reference"));
+        }
+        Inv->FailNextWardForProbe();Enter(8);
+    }
     else if(Phase==8&&E>3){Check(Inv->Owned(A.Get(),InitialWards[0])&&M->StateFor(A.Get())->WardCharges==1,TEXT("Injected source-creation failure leaves charge and reference intact"));Enter(9);}
     else if(Phase==9&&E>4)
     {int32 N=0;for(auto PC:{A,B}){int32 Sources=0;for(TActorIterator<ALDWard> It(GetWorld());It;++It){Sources+=It->Controller==PC;}const auto* O=M->StateFor(PC.Get());Check(Sources==1&&!Inv->Owned(PC.Get(),InitialWards[N++])&&!O->WardCharges&&!O->Inventory.Quick[0].IsValid(),TEXT("Successful placement plus replay creates one source and consumes exactly one charge"));}FullBagCases();Enter(10);}
@@ -93,7 +108,14 @@ void ALDInventoryProbe::FullBagCases()
         auto* Dropped=GetWorld()->SpawnActor<ALDBook>(PC->GetPawn()->GetActorLocation()+FVector(0,30,-80),FRotator::ZeroRotator);Dropped->State=0;Dropped->Skill=ELDSkill::Patch;if(M->Economy){check(M->Economy->Record(TEXT("DiagnosticItemCreation")));}M->Vision->Sample(true);FGuid Observed;for(const auto& V:M->Vision->AuthorityViewFor(PC.Get())->Entities){if(M->Vision->ResolveObserved(PC.Get(),V.Id)==Dropped){Observed=V.Id;}}
         Inv->Request({PC,O->Match,O->Life,++FixtureRequest,O->Inventory.Revision,LDInventory::Pickup,Observed,Dropped->Revision,0,FVector::ZeroVector},GetWorld()->GetTimeSeconds());Check(Observed.IsValid()&&Dropped->State==0&&!Dropped->Holder.IsValid()&&O->Inventory.Items.Num()==24,TEXT("Full-bag observed pickup keeps the same dropped physical item"));
         if(PC==A){const auto Material=*O->Inventory.Find(CapacityCargo->Identity);Request(LDInventory::Bind,Material.Id,Material.Revision,2,O->Inventory.Revision);Check(O->Inventory.Revision==InventoryBefore&&!O->Inventory.Quick.Contains(Material.Id),TEXT("Material cargo cannot become a quick-use reference"));const auto Before=O->Inventory.Capacity;++O->Inventory.Capacity;auto* RetiredSeal=GetWorld()->SpawnActor<ALDSeal>();Check(!Inv->Adopt(PC.Get(),RetiredSeal)&&Inv->HasSpace(PC.Get(),ELDItemKind::Book),TEXT("Current economy rejects a retired Seal endowment despite extra projected capacity"));RetiredSeal->Destroy();O->Inventory.Capacity=Before;}
-        auto* Locked=Inv->Owned(PC.Get(),O->Inventory.Items.Last().Id);Locked->bReserved=true;for(auto& Item:O->Inventory.Items){if(Item.Id==Locked->Identity){Item.bReserved=true;}}Request(LDInventory::Move,Locked->Identity,Locked->Revision,0,O->Inventory.Revision);Check(O->Inventory.Revision==InventoryBefore,TEXT("Reserved item cannot be moved"));Locked->bReserved=false;for(auto& Item:O->Inventory.Items){Item.bReserved=false;}Inv->Changed(PC.Get());++N;
+        auto* Locked=Inv->Owned(PC.Get(),O->Inventory.Items.Last().Id);Locked->bReserved=true;for(auto& Item:O->Inventory.Items){if(Item.Id==Locked->Identity){Item.bReserved=true;}}
+        const auto Quick=O->Inventory.Quick;const auto ItemRevision=Locked->Revision;
+        for(uint8 Command:{uint8(LDInventory::Move),uint8(LDInventory::Read),uint8(LDInventory::Drop),uint8(LDInventory::Place)})
+        {
+            Request(Command,Locked->Identity,Locked->Revision,0,O->Inventory.Revision);
+            Check(Inv->Clients.FindChecked(PC).Receipts.FindChecked(FixtureRequest)==TEXT("Item changed or unavailable")&&O->Inventory.Revision==InventoryBefore&&Locked->Revision==ItemRevision&&Locked->bReserved&&Inv->Owned(PC.Get(),Locked->Identity)&&O->Inventory.Quick==Quick&&!O->DevelopmentKind,TEXT("Reserved source rejects move/read/drop/place before any ownership, reference or version mutation"));
+        }
+        Locked->bReserved=false;for(auto& Item:O->Inventory.Items){Item.bReserved=false;}Inv->Changed(PC.Get());++N;
     }
 }
 void ALDInventoryProbe::ClientTick()

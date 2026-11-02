@@ -19,7 +19,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"

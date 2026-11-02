@@ -1,6 +1,5 @@
 #include "Tests/LDB91EncounterProbe.h"
 #include "World/LDEnvironmentDirector.h"
-#include "World/LDB91Checkpoint.h"
 #include "World/LDB91Forest.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
@@ -26,7 +25,7 @@ void ALDB91EncounterProbe::Tick(float Delta)
 {
     Super::Tick(Delta);
 #if !UE_BUILD_SHIPPING
-    if(Phase==99){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=ALDEnvironmentDirector::Get(GetWorld());if(!M||!E){return;}const double Now=GetWorld()->GetTimeSeconds();FString Out,Why;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);
+    if(Phase==99){return;}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* E=ALDEnvironmentDirector::Get(GetWorld());if(!M||!E){return;}const double Now=GetWorld()->GetTimeSeconds();FString Why;
     if(Failures||FPlatformTime::Seconds()-Started>300){if(!Failures){Check(false,TEXT("Reference encounter timed out"));}Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,3);return;}
     Objects=ALDWorldObjects::Get(GetWorld());if(!Objects||!Objects->Ready||Now<8){return;}
     if(FParse::Param(FCommandLine::Get(),TEXT("LDB91ForestRoutes")))
@@ -35,14 +34,6 @@ void ALDB91EncounterProbe::Tick(float Delta)
         for(int Batch=0;Batch<24&&RouteIndex<Total;++Batch,++RouteIndex)
         {const auto& S=Map->Spawns[RouteIndex/Map->Services.Num()];const auto& D=Map->Services[RouteIndex%Map->Services.Num()];const FVector Goal=D.Position+FVector(0,-1150,0);const auto* Path=UNavigationSystemV1::FindPathToLocationSynchronously(GetWorld(),S.Position+FVector(0,0,2.15),Goal);const bool Good=Path&&Path->IsValid()&&!Path->IsPartial()&&FVector::Dist2D(Path->PathPoints.Last(),Goal)<100;auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("spawn"),S.Id.ToString());R->SetStringField(TEXT("service_front"),D.Id.ToString());R->SetBoolField(TEXT("passed"),Good);R->SetNumberField(TEXT("length_cm"),Good?Path->GetPathLength():0);RouteRows.Add(MakeShared<FJsonValueObject>(R));if(!Good){Check(false,TEXT("Forest route failed: ")+S.Id.ToString()+TEXT(" to ")+D.Id.ToString());}}
         if(RouteIndex<Total){return;}Check(Total==864,TEXT("All24 spawn pads retain native paths to all36 public service front approaches with3000 trunks present"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;
-    }
-    if(FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterResume")))
-    {
-        LDCheckpoint::FData Saved,Actual;FString Text;Check(Objects->bCheckpointRestored&&FFileHelper::LoadFileToString(Text,*(Out/TEXT("EarnedWorld.json")))&&LDCheckpoint::Open(Text,Objects->Contract,E->Contract,Saved,Why)&&Objects->CaptureCheckpoint(Actual,Why),TEXT("New ownerless process restores the earned encounter checkpoint"));
-        bool Exact=Saved.Objects.Num()==Actual.Objects.Num()&&Saved.Items.Num()==Actual.Items.Num()&&Saved.Consumed.Num()==Actual.Consumed.Num();
-        for(const auto& R:Saved.Objects){const auto* P=Actual.Objects.FindByPredicate([&](const auto& V){return V.Id==R.Id;});Exact&=P&&P->Position.Equals(R.Position,.1)&&P->Hp==R.Hp&&P->Broken==R.Broken&&P->Harvest==R.Harvest&&P->Yield==R.Yield&&P->Burn==R.Burn&&P->Contents==R.Contents&&P->Physical==R.Physical;}
-        for(const auto& I:Saved.Items){const auto* P=Actual.Items.FindByPredicate([&](const auto& V){return V.Id==I.Id;});Exact&=P&&P->Receipt==I.Receipt&&P->Origin==I.Origin&&P->Kind==I.Kind&&P->Fuel==I.Fuel&&P->Location==I.Location;}
-        Check(Exact&&Objects->Conserved(Why),TEXT("Every original identity, receipt, source consequence, stored item and spent fuel survives restart"));Check(!Objects->RestoreCheckpoint(Out/TEXT("EarnedWorld.json"),Why),TEXT("Earned checkpoint cannot be applied twice"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;
     }
     if(!Phase)
     {
@@ -56,8 +47,6 @@ void ALDB91EncounterProbe::Tick(float Delta)
         Last=A->GetPawn()->GetActorLocation();Phase=90;At=Now;return;
     }
     if(Phase==90){if(Now-At>1){Task(1,Base+FVector(-1050,-1150,0));}return;}
-    if(Phase==91)
-    {if(Now-At<2){return;}if(!Objects->CheckpointSettled(Why)){if(Now-At>20){Check(false,TEXT("Retired encounter settles: ")+Why);}return;}Check(Objects->SaveCheckpoint(Out/TEXT("EarnedWorld.json"),Why),TEXT("Save actual harvested reward, burnt grass, retrieved rope, source items and open rear after normal retirement: ")+Why);Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;}
     if(!IsValid(A)||!IsValid(B)||!A->GetPawn()||!B->GetPawn()){Check(false,TEXT("Reference owner disconnected before completion"));Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,3);return;}
     auto* Body=Cast<ALDCharacter>(A->GetPawn());const FVector P=Body->GetActorLocation();Distance+=FVector::Dist(P,Last);Last=P;if(Body->GetCharacterMovement()->IsFalling()){Falling+=Delta;}Trace+=FString::Printf(TEXT("%u,%.6f,%.3f,%.3f,%.3f\n"),Phase,Now,P.X,P.Y,P.Z);
     if(Phase==22&&Objects->Holds.Contains(A)){SawChannel=true;}
@@ -93,8 +82,16 @@ void ALDB91EncounterProbe::Tick(float Delta)
     case 27:
         Check(Grass->Broken&&Grass->BurnReceipt.IsValid()&&Torch->FuelMs==179000,TEXT("Same owner pays retained Torch fuel and permanently clears the escape grass"));{int Count=0;for(TActorIterator<ALDB91Forest> I(GetWorld());I;++I){Count+=I->Trunks->GetInstanceCount();}Check(Count==3000,TEXT("Paid functional grass ignition leaves all3000 scenery trees intact"));}
         Check(Objects->Conserved(Why),TEXT("Journey conserves all initial goods plus exactly one finite harvest reward"));
-        for(auto* PC:{A,B}){M->Logout(PC);if(auto* Pawn=PC->GetPawn().Get()){Pawn->Destroy();}PC->Destroy();}A=B=nullptr;Phase=91;At=Now;break;
+        Save(true);Phase=99;FPlatformMisc::RequestExitWithStatus(false,Failures?3:0);return;
     }
 #endif
 }
-void ALDB91EncounterProbe::Save(bool Complete){FString Out;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);const bool Resume=FParse::Param(FCommandLine::Get(),TEXT("LDB91EncounterResume"));auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("phase"),Phase);R->SetNumberField(TEXT("failures"),Failures);R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("routes"),RouteRows);R->SetNumberField(TEXT("walked_cm"),Distance);R->SetNumberField(TEXT("falling_s"),Falling);R->SetStringField(TEXT("scope"),TEXT("Named existing tools are staged in the initial inventory; one remote owner then walks and uses real pointer/item/storage/traversal/channel commands continuously. Peer watches grass. Settled ownerless checkpoint preserves world consequences; account/economy resume and normal item acquisition are later-stage."));FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(Out/(FParse::Param(FCommandLine::Get(),TEXT("LDB91ForestRoutes"))?TEXT("ForestRoutes.json"):Resume?TEXT("Resume.json"):TEXT("Encounter.json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);if(!Resume){FFileHelper::SaveStringToFile(Trace,*(Out/TEXT("EncounterMotion.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}}
+void ALDB91EncounterProbe::Save(bool Complete)
+{
+    FString Out;FParse::Value(FCommandLine::Get(),TEXT("B91Output="),Out);
+    auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("complete"),Complete);R->SetNumberField(TEXT("phase"),Phase);R->SetNumberField(TEXT("failures"),Failures);R->SetArrayField(TEXT("checks"),Checks);R->SetArrayField(TEXT("routes"),RouteRows);R->SetNumberField(TEXT("walked_cm"),Distance);R->SetNumberField(TEXT("falling_s"),Falling);
+    R->SetStringField(TEXT("scope"),TEXT("Named existing tools are staged in the initial inventory; one remote owner then walks and uses real pointer/item/storage/traversal/channel commands continuously. Peer watches grass. This fixture verifies connected interactions and finite conservation, not normal item acquisition or Demo completion."));
+    FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));
+    FFileHelper::SaveStringToFile(Json,*(Out/(FParse::Param(FCommandLine::Get(),TEXT("LDB91ForestRoutes"))?TEXT("ForestRoutes.json"):TEXT("Encounter.json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FFileHelper::SaveStringToFile(Trace,*(Out/TEXT("EncounterMotion.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+}

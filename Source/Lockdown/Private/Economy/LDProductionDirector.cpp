@@ -10,7 +10,6 @@
 #include "Inventory/LDInventoryDirector.h"
 #include "Inventory/LDAcquisitionDirector.h"
 #include "Inventory/LDAcquisitionCatalog.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDVendorDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Vision/LDVisionDirector.h"
@@ -113,7 +112,7 @@ void ALDProductionDirector::Request(const FRequest& R,double Now)
     const auto& Rules=M->Economy->Rules();double ExtraSeconds=0;if(R.Plan.Recipe>=20){const auto* C=ULDAcquisitionCatalog::Load();if(!C){return;}ExtraSeconds=M->Acquisition?M->Acquisition->HoldSeconds(R.Plan):0;if(ExtraSeconds<=0){Reply(PC,R.Token,TEXT("Invalid acquisition recipe"));return;}}
     const double Ends=Now+(R.Plan.Recipe>=20?ExtraSeconds:R.Plan.Recipe==8?4:R.Plan.Recipe>=6?3:R.Plan.Recipe==5?Rules.ShortageSeconds:R.Plan.Recipe==1?Rules.ToolkitSeconds:R.Plan.Recipe==2?Rules.CoreSeconds:Rules.GatherSeconds);
     if(!Terms(PC,R.Plan,Ends,false,Error)){Reply(PC,R.Token,Error);return;}
-    if(M->Trade){M->Trade->CancelFor(PC);}if(M->Vendor){M->Vendor->Invalidate(PC);}if(M->Commerce){M->Commerce->Invalidate(PC);}if(M->Bank){M->Bank->Invalidate(PC);}
+    if(M->Vendor){M->Vendor->Invalidate(PC);}if(M->Commerce){M->Commerce->Invalidate(PC);}if(M->Bank){M->Bank->Invalidate(PC);}
     S.Plan=R.Plan;S.Match=R.Match;S.Life=R.Life;S.Token=R.Token;S.Ends=Ends;S.LastHold=Now;S.Sequence=0;S.Anchor=PC->GetPawn()->GetActorLocation();S.Active=true;S.Body=Cast<ALDCharacter>(PC->GetPawn());
     const auto* C=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));S.Damage=C->LastDamage;S.Dealt=C->LastDealt;Reserve(PC,S,true);if(S.Plan.Recipe>=20){S.Plan.InventoryRevision=O->Inventory.Revision;}
     auto* Combat=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()));Combat->Action=8;Combat->ImpactAt=Ends;

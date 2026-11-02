@@ -7,7 +7,6 @@
 #include "Economy/LDBankDirector.h"
 #include "Economy/LDProductionDirector.h"
 #include "Economy/LDEconomyDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Core/LDRules.h"
 #include "Combat/LDCombatRules.h"
 #include "Character/LDCharacter.h"
@@ -24,6 +23,7 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDWorldChecks.h"
 #include "Region/LDRegionDirector.h"
+#include "Development/LDDemoContentCatalog.h"
 
 ALDCorpse::ALDCorpse()
 {
@@ -35,17 +35,24 @@ ALDCombatDirector::ALDCombatDirector()
 {
     bReplicates=false;
     PrimaryActorTick.bCanEverTick=true;
-    PrimaryActorTick.TickGroup=TG_PostPhysics;
+    PrimaryActorTick.TickGroup=TG_PrePhysics;
 }
 void ALDCombatDirector::BeginPlay()
 {
     Super::BeginPlay(); check(HasAuthority());
+    if (const auto* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>(); Mode && Mode->IsDemoRoom()) { return; }
     for(TActorIterator<ALDCharacter> It(GetWorld());It;++It){Register(*It);}
 }
 void ALDCombatDirector::Register(ALDCharacter* Body)
 {
+    if (const auto* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>(); Mode && Mode->IsDemoRoom())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_BODY_REGISTER_REJECTED Explicit life commit is required."));
+        return;
+    }
     if(!Body || Bodies.Contains(Body)){return;}
     FLDBodyCombatState State;
+    State.Identity = FGuid::NewGuid();
     State.Hp=Body->IsA<ALDResident>()?40:100;
     if (auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->IsDevelopmentProfile())
     {
@@ -54,9 +61,109 @@ void ALDCombatDirector::Register(ALDCharacter* Body)
     State.Home=Body->GetActorLocation(); State.QuietSince=GetWorld()->GetTimeSeconds();
     Bodies.Add(Body,State);
 }
+
+bool ALDCombatDirector::PrepareInitialBody(ALDCharacter& Body, const FLDVictimKey& Victim,
+    const FLDDemoContentSnapshot& Content, const FLDGameplayWritePermit& Permit,
+    FLDBodyCombatState& Out, FString& Error)
+{
+    Out = {};
+    const auto* Mode = Cast<ALDGameMode>(GetOwner());
+    if (!Mode || Mode->Combat != this
+        || Mode->ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None
+        || !Victim.IsValid() || Victim.Kind != ELDVictimKind::Contender || Victim.Life != 1
+        || !Body.HasAuthority() || Body.GetWorld() != GetWorld() || Bodies.Contains(&Body))
+    {
+        Error = TEXT("Body registration requires the unique initial life and a current core permit.");
+        return false;
+    }
+    for (const auto& Pair : Bodies)
+    {
+        if (Pair.Value.Victim == Victim)
+        {
+            Error = TEXT("This victim life already has a Combat body binding.");
+            return false;
+        }
+    }
+    const auto& Parameters = Content.Get().Parameters;
+    const auto Projection=LDAttributeProjection::Project(FLDAttributeBuildValues(1,{},{},{}),Content);
+    if (!Projection.IsSuccess())
+    {
+        Error=TEXT("Initial attributes are invalid: ")+Projection.Error.Field+TEXT(": ")+Projection.Error.Message;
+        return false;
+    }
+    const auto& Attributes=Projection.Value->Final;
+    if (Attributes.MaxHPP2 <= 0 || Attributes.MaxMPP2 < 0)
+    {
+        Error = TEXT("Initial resources are not defined by the validated Demo content.");
+        return false;
+    }
+    FLDBasicTimingInput TimingInput;
+    TimingInput.BaseAttackSpeed=Parameters.AttackSpeed.Base;
+    TimingInput.CurrentAttackSpeed=Attributes.AttackSpeed;
+    TimingInput.BaseWindupMs=Parameters.BasicAttackWindupMs;
+    const auto Timing=LDTactical::EvaluateBasicTiming(TimingInput,Content);
+    if (!Timing.IsSuccess())
+    {
+        Error=TEXT("Initial basic timing is invalid: ")+Timing.Error.Field+TEXT(": ")+Timing.Error.Message;
+        return false;
+    }
+    FLDBodyCombatState State;
+    State.Identity = FGuid::NewGuid();
+    State.Victim = Victim;
+    State.Hp = 0;
+    State.Resources.HpP2 = State.Resources.MaxHpP2 = Attributes.MaxHPP2;
+    State.Resources.MpP2 = State.Resources.MaxMpP2 = Attributes.MaxMPP2;
+    State.Resources.Revision = 1;
+    State.BasicTiming = Timing.Value.GetValue();
+    State.AttributeProjection=Projection.Value.GetValue();
+    State.AttributeRevision=1;
+    State.Home = Body.GetActorLocation();
+    Out=MoveTemp(State);
+    Error.Reset();
+    return true;
+}
+
+bool ALDCombatDirector::InstallInitialBody(ALDCharacter& Body, FLDBodyCombatState&& Prepared,
+    const FLDGameplayWritePermit& Permit, FLDCombatBodyRef& Out, FString& Error)
+{
+    Out={};
+    const auto* Mode=Cast<ALDGameMode>(GetOwner());
+    if (!Mode || Mode->Combat!=this
+        || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
+        || !Prepared.Identity.IsValid() || !Prepared.Victim.IsValid()
+        || Prepared.Victim.Kind!=ELDVictimKind::Contender || Prepared.Victim.Life!=1
+        || Prepared.Resources.Revision!=1 || Prepared.AttributeRevision!=1 || Bodies.Contains(&Body))
+    {
+        Error=TEXT("Prepared body lost its unique initial registration preconditions.");
+        return false;
+    }
+    for (const auto& Pair : Bodies)
+    {
+        if (Pair.Value.Victim==Prepared.Victim)
+        { Error=TEXT("Prepared victim life is already registered."); return false; }
+    }
+    Out={Prepared.Victim,Prepared.Identity};
+    Bodies.Add(&Body,MoveTemp(Prepared));
+    Error.Reset();
+    return true;
+}
+
+void ALDCombatDirector::RemoveRegisteredBody(const FLDCombatBodyRef& Ref)
+{
+    for (auto It=Bodies.CreateIterator(); It; ++It)
+    {
+        if (It.Value().Victim==Ref.Victim && It.Value().Identity==Ref.BodyIdentity)
+        {
+            It.RemoveCurrent();
+            return;
+        }
+    }
+    UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BODY_RETIRE_MISMATCH"));
+}
 uint8 ALDCombatDirector::CueFor(const ALDCharacter* Body) const
 {
     const auto* S=StateFor(Body); if(!S){return 0;}
+    if (S->Victim.IsValid()) { return 0; }
     const double Now=GetWorld()->GetTimeSeconds();
     return S->Action | (Now<S->WarningUntil?16:0) | (Now<S->HitUntil?32:0)
         | (Now<S->ProtectionUntil?64:0) | (Now<S->ExposedUntil?128:0);
@@ -65,6 +172,8 @@ double ALDCombatDirector::ExposedFor(const ALDCharacter* Body) const
 {const auto* S=StateFor(Body);return S?S->ExposedUntil:0;}
 void ALDCombatDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 RequestId,uint8 Action,const FVector& Direction)
 {
+    if (const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->IsDemoRoom())
+    { if (PC) { PC->CompleteCombatRequest(RequestId,TEXT("Legacy combat commands are not Demo actions.")); } return; }
     FlushPastCommand();
     // Three bounded edge intents per connection/sample; retries are handled by the controller.
     int32 Count=0;for(const auto& Intent:Intents){if(Intent.Controller==PC){++Count;}}
@@ -130,6 +239,8 @@ bool ALDCombatDirector::RequestBody(ALDCharacter* Body,uint8 Action,const FVecto
 {
     auto* S=StateFor(Body); const double Now=GetWorld()->GetTimeSeconds();
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if (Mode && Mode->IsDemoRoom())
+    { Result=TEXT("Legacy body actions cannot bypass Demo action admission."); return false; }
     if(!Mode->IsPlaying()){Result=TEXT("Gameplay is unavailable in the lobby or after results.");return false;}
     if(Mode->IsDevelopmentProfile()&&Action!=0){Result=TEXT("Use an equipped skill slot; legacy skill shortcuts are disabled in v0.4.");return false;}
     if(auto* Objects=ALDWorldObjects::Get(GetWorld());Objects&&!Objects->ForceDrop(Cast<ALDB91Controller>(Body?Body->GetController():nullptr))){Result=TEXT("No safe cargo drop; action unavailable");return false;}
@@ -216,7 +327,7 @@ void ALDCombatDirector::Sample(double Now)
         for(TActorIterator<ALDArcProjectile> It(GetWorld());It;++It){It->Destroy();}
         if(Mode->Economy){Mode->Economy->SampleCharter(Now);Mode->Economy->SampleInstitutions(Now);}if(Mode->Production){Mode->Production->Sample(Now);}if(Mode->Bank){Mode->Bank->Sample(Now);}if(Mode->Commerce){Mode->Commerce->Sample(Now);}
         if(Mode->Inventory){Mode->Inventory->Sample(Now);if(Mode->Vendor){Mode->Vendor->Sample(Now);}}
-        if(Mode->Development){Mode->Development->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
+        if(Mode->Development){Mode->Development->Sample(Now);}
         if(Mode->IsDevelopmentProfile())
         {for(auto& Pair:Bodies){if(auto* Body=Pair.Key.Get()){CancelTactical(Body,TEXT("Match ended"));CancelSkill(Body,Pair.Value);Sync(Body,Pair.Value);}}}
         for(const auto& Intent:Intents){if(auto* PC=Intent.Controller.Get()){PC->CompleteCombatRequest(Intent.Request,TEXT("Demo finished."));}}
@@ -247,7 +358,7 @@ void ALDCombatDirector::Sample(double Now)
             const auto* D=Mode->IsTacticalProfile()&&Mode->TacticalCatalog?Mode->TacticalCatalog->Find(Skill):nullptr;
             const bool NeedsObserved=D?D->Target==ELDTacticalTarget::Unit:(Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch);
             if((Intent.Observed.IsValid()&&!Target)||(Mode->IsUIControlProfile()&&Intent.Action>=3&&NeedsObserved&&!Target)){Reason=TEXT("Target no longer visible");}
-            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target,Intent.Point):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);if(Mode->Trade){Mode->Trade->CancelFor(PC);}}
+            else if(Intent.Action>=3?RequestEquipped(Cast<ALDCharacter>(PC->GetPawn()),Intent.BuildRevision,Intent.Action-3,Intent.Request,Intent.Direction,Reason,Target,Intent.Point):Request(PC,Intent.Action,Intent.Direction,Reason)){Accepted.Add(PC);}
         }
         PC->CompleteCombatRequest(Intent.Request,Reason);
     }
@@ -361,7 +472,7 @@ void ALDCombatDirector::Sample(double Now)
     Mode->ReturnDueContenders(Now);
     if(Mode->Region){Mode->Region->Sample(Now);}
     if(Mode->WorldRuntime){Mode->WorldRuntime->Publish(Now);}
-    if(Mode->Objectives){Mode->Objectives->Sample(Now);}if(Mode->Trade){Mode->Trade->Sample(Now);}
+    if(Mode->Objectives){Mode->Objectives->Sample(Now);}
     if(Mode->Economy){FString Error;if(!Mode->Economy->Audit(Error)){++Mode->Economy->AuditFailures;UE_LOG(LogTemp,Error,TEXT("LD_ECONOMY_BATCH_AUDIT %s"),*Error);}}
 }
 void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
@@ -379,6 +490,15 @@ void ALDCombatDirector::Die(ALDCharacter* Body,double Now)
 void ALDCombatDirector::Tick(float Delta)
 {
     Super::Tick(Delta);const double Now=GetWorld()->GetTimeSeconds();
+    if (auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->IsDemoRoom())
+    {
+        if (!Mode->IsGameplayWriteOpen(Mode->GetMatchContext())) { return; }
+        int64 Through=0;
+        FString Error;
+        if (!Mode->AvailableAuthorityTime(Through,Error) || !AdvanceAuthority(Mode->GetMatchContext(),Through,Error))
+        { Mode->FaultAuthority(Error); }
+        return;
+    }
     if(GetWorld()->GetAuthGameMode<ALDGameMode>()->WorldRuntime){const double Begin=FPlatformTime::Seconds();AdvanceAuthority(Now);LastSampleMs=(FPlatformTime::Seconds()-Begin)*1000;++SampleSerial;return;}
     if(Now>=NextSample)
     {

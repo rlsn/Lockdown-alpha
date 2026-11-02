@@ -1,5 +1,6 @@
 #include "Tests/LDB86Probe.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -162,7 +163,18 @@ void ALDB86Probe::VisualTick()
         O->Build.Attributes.Init(16,6);const TArray<ELDSkill> Skills={ELDSkill::Frostline,ELDSkill::Counterpulse,ELDSkill::WaterJet,ELDSkill::Gust,ELDSkill::ScoutingPulse};for(auto K:Skills){O->Build.Ranks[uint8(K)]=1;}M->RefreshBuild(PC,true);
         TArray<FGuid> IDs;for(auto Kind:{ELDItemKind::ReflectiveMail,ELDItemKind::WaterFlask,ELDItemKind::ResonanceRing,ELDItemKind::PurityCharm,ELDItemKind::FrostPrism}){auto* I=GetWorld()->SpawnActor<ALDItem>();I->Kind=Kind;Check(M->Inventory->Adopt(PC,I,TEXT("DiagnosticItemCreation")),TEXT("Labelled visual fixture owns one physical source"));IDs.Add(I->Identity);}
         auto P=LDDevelopment::PlanFrom(O->Build);P.InventoryRevision=O->Inventory.Revision;P.Bindings=O->Inventory.Bindings;P.Bindings[1]=IDs[0];for(int32 N=0;N<4;++N){P.Bindings[7+N]=IDs[N+1];}for(int32 N=0;N<5;++N){P.Slots[N]=Skills[N];P.Actions[N]=FLDActionRef();P.Actions[N].Skill=Skills[N];}P.Slots[5]=ELDSkill::None;P.Actions[5]=FLDActionRef();P.Actions[5].Source=ELDActionSource::Gear;P.Actions[5].Instance=IDs[0];P.Actions[5].Definition=TEXT("reflective_mail");
-        const FString PreferencesSlot=TEXT("LDB86_")+FGuid::NewGuid().ToString(EGuidFormats::Digits);PC->Controls=ULDControlSettings::Load(PreferencesSlot,8);if(FParse::Param(FCommandLine::Get(),TEXT("LDB86LargeText"))){PC->Controls->TextScale=1.25;}Check(PC->Controls->Rebind(TEXT("Skill1"),EKeys::F6,Why),TEXT("Native action remap accepts unused F6"));const auto Before=PC->Controls->Key(TEXT("Skill2"));Check(!PC->Controls->Rebind(TEXT("Skill2"),EKeys::F6,Why)&&PC->Controls->Key(TEXT("Skill2"))==Before,TEXT("Binding collision rejects without overwriting another action"));Check(PC->Controls->Save()&&ULDControlSettings::Load(PreferencesSlot,8)->Key(TEXT("Skill1"))==EKeys::F6,TEXT("Isolated v08 preferences persist remapped native action"));UGameplayStatics::DeleteGameInSlot(PreferencesSlot+TEXT("_V08"),0);PC->RebuildV05Mappings();FTimerHandle Delay;GetWorld()->GetTimerManager().SetTimer(Delay,FTimerDelegate::CreateWeakLambda(this,[this,M,PC,P](){auto* Current=M->StateFor(PC);M->Development->Queue(PC,Current->Match,Current->Life,++Token,LDDevelopmentTransaction::Prepare,ELDSkill::None,{},P);Sent=true;}),1.f,false);Phase=1;At=Wall;return;
+        const FGuid PreferencesFixture=FGuid::NewGuid();
+        const auto PreferencesStorage=FLDLocalSettingsStorage::Automation(PreferencesFixture);
+        PC->Controls=CastChecked<ULDGameInstance>(PC->GetGameInstance())->UseIsolatedLocalSettings(PreferencesFixture,8);
+        if(FParse::Param(FCommandLine::Get(),TEXT("LDB86LargeText"))){PC->Controls->TextScale=1.25;}
+        Check(PC->Controls->Rebind(TEXT("Skill1"),EKeys::F6,Why),TEXT("Native action remap accepts unused F6"));
+        const auto Before=PC->Controls->Key(TEXT("Skill2"));
+        Check(!PC->Controls->Rebind(TEXT("Skill2"),EKeys::F6,Why)&&PC->Controls->Key(TEXT("Skill2"))==Before,TEXT("Binding collision rejects without overwriting another action"));
+        const auto Saved=PC->Controls->SaveLocalSettings();
+        const auto Reloaded=ULDControlSettings::LoadLocalSettings(PreferencesStorage,8);
+        Check(Saved.IsSaved()&&Reloaded.Status==ELDLocalSettingsLoadStatus::Loaded&&Reloaded.Settings&&Reloaded.Settings->Key(TEXT("Skill1"))==EKeys::F6,TEXT("Explicit isolated preferences persist the remapped native action"));
+        Check(IFileManager::Get().Delete(*PreferencesStorage.Filename(),false,false,true),TEXT("Isolated local settings fixture removed"));
+        PC->RebuildV05Mappings();FTimerHandle Delay;GetWorld()->GetTimerManager().SetTimer(Delay,FTimerDelegate::CreateWeakLambda(this,[this,M,PC,P](){auto* Current=M->StateFor(PC);M->Development->Queue(PC,Current->Match,Current->Life,++Token,LDDevelopmentTransaction::Prepare,ELDSkill::None,{},P);Sent=true;}),1.f,false);Phase=1;At=Wall;return;
     }
     if(Phase==1)
     {

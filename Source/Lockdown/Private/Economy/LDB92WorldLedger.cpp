@@ -1,6 +1,7 @@
 #include "Economy/LDB92Economy.h"
 #include "World/LDWorldObjects.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDPlayerController.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -24,8 +25,8 @@ FName ALDB92Economy::PhysicalLocation(const ALDItem* P,FString& Error) const
 bool ALDB92Economy::ImportWorld(LDEconomy::FLedger& Candidate,TArray<TObjectPtr<ALDItem>>& Items,FString& Error)
 {
     auto* Objects=ALDWorldObjects::Get(GetWorld());
-    if(!Objects||!Objects->Ready||Objects->Finite.Num()!=143||!Objects->Consumed.IsEmpty()||Objects->bCheckpointRestored)
-    {Error=TEXT("Full economy requires the fresh finite B91 world, not a partial personal/economy restore");return false;}
+    if(!Objects||!Objects->Ready||Objects->Finite.Num()!=143||!Objects->Consumed.IsEmpty())
+    {Error=TEXT("Full economy requires the fresh finite B91 world");return false;}
     for(const auto& Pair:Objects->Finite)
     {
         auto* P=Pair.Value.Get();if(!P||!P->OriginReceipt.IsValid()||Candidate.Receipt(P->OriginReceipt)){Error=TEXT("Initial world source has invalid/duplicate provenance");return false;}

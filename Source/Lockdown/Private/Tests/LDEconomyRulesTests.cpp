@@ -78,6 +78,57 @@ bool FLDEconomyAccountingTest::RunTest(const FString& Parameters)
     AddInfo(Error);return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyAtomicItemTransferTest,"Lockdown.Rules.EconomyAtomicItemTransfer",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDEconomyAtomicItemTransferTest::RunTest(const FString& Parameters)
+{
+    using namespace LDEconomy;
+    FString Error;FLedger Ledger;
+    if(!TestTrue(TEXT("Initialize transaction fixture, not product prices"),Ledger.Initialize(FGuid::NewGuid(),{{TEXT("Buyer"),100},{TEXT("Vendor"),0}}, {},Error))){return false;}
+    FTransaction Stock;Stock.Id=FGuid::NewGuid();Stock.Cause=TEXT("FixtureStock");
+    FItemDelta Item;Item.Id=FGuid::NewGuid();Item.Op=EItemOp::Create;Item.Kind=ELDItemKind::SimpleStaff;Item.Quality=2;Item.To=TEXT("Vendor");Stock.Items={Item};
+    if(!TestTrue(TEXT("Create one authoritative item identity"),Ledger.Commit(Stock,Error))){return false;}
+    FTransaction Buy;Buy.Id=FGuid::NewGuid();Buy.Cause=TEXT("FixturePurchase");Buy.Gold={{TEXT("Buyer"),1,-7},{TEXT("Vendor"),1,7}};
+    Item.Op=EItemOp::Transfer;Item.Expected=1;Item.From=TEXT("Vendor");Item.To=TEXT("Buyer");Buy.Items={Item};
+    auto Unchanged=[&](const FTransaction& Request,const TCHAR* Label)
+    {
+        const FString Before=Ledger.ExportJson(TEXT("Atomicity"));
+        const uint32 ItemRevision=Ledger.Item(Item.Id)->Revision;
+        TestFalse(Label,Ledger.Commit(Request,Error));
+        TestFalse(TEXT("Rejected transaction returns an explicit reason"),Error.IsEmpty());
+        TestEqual(TEXT("Rejected transaction leaves balances, receipts and item ownership unchanged"),Ledger.ExportJson(TEXT("Atomicity")),Before);
+        TestEqual(TEXT("Rejected transaction leaves item revision unchanged"),Ledger.Item(Item.Id)->Revision,ItemRevision);
+    };
+    auto Invalid=Buy;Invalid.Items[0].Expected=2;Unchanged(Invalid,TEXT("Stale item rejects before either gold delta"));
+    Invalid=Buy;Invalid.Items[0].From=TEXT("Buyer");Unchanged(Invalid,TEXT("Foreign item ownership rejects before payment"));
+    Invalid=Buy;Invalid.Gold[0].Expected=2;Unchanged(Invalid,TEXT("Stale wallet rejects before item transfer"));
+    Invalid=Buy;Invalid.Items[0]=Stock.Items[0];Unchanged(Invalid,TEXT("Duplicate creation fails before charging gold"));
+    Invalid=Buy;Invalid.Gold={{TEXT("Buyer"),1,-101},{TEXT("Vendor"),1,101}};Unchanged(Invalid,TEXT("Insufficient funds cannot transfer an item"));
+    if(!TestTrue(TEXT("Current terms commit gold and item together"),Ledger.Commit(Buy,Error))){return false;}
+    TestEqual(TEXT("One debit"),Ledger.Account(TEXT("Buyer"))->Gold,int64(93));
+    TestEqual(TEXT("One credit"),Ledger.Account(TEXT("Vendor"))->Gold,int64(7));
+    TestTrue(TEXT("Transfer preserves identity, quality and origin"),Ledger.Item(Item.Id)->Location==TEXT("Buyer")&&Ledger.Item(Item.Id)->Quality==2&&Ledger.Item(Item.Id)->Origin==Stock.Id);
+    const FString Committed=Ledger.ExportJson(TEXT("Atomicity"));
+    const uint32 Revision=Ledger.Item(Item.Id)->Revision;
+    TestTrue(TEXT("Identical final request replays its receipt"),Ledger.Commit(Buy,Error));
+    TestEqual(TEXT("Replay cannot move gold or items a second time"),Ledger.ExportJson(TEXT("Atomicity")),Committed);
+    TestEqual(TEXT("Replay cannot advance item revision"),Ledger.Item(Item.Id)->Revision,Revision);
+    TestNotNull(TEXT("Stable request identity locates the committed receipt"),Ledger.Receipt(Buy.Id));
+    Invalid=Buy;Invalid.Gold[0].Delta=-8;Invalid.Gold[1].Delta=8;Unchanged(Invalid,TEXT("Reusing a receipt with altered prices rejects"));
+    Invalid=Buy;Invalid.Items[0].Quality=1;Unchanged(Invalid,TEXT("Reusing a receipt with altered item terms rejects"));
+    FTransaction Return;Return.Id=FGuid::NewGuid();Return.Cause=TEXT("FixtureReturn");Item.From=TEXT("Buyer");Item.To=TEXT("Vendor");Item.Expected=Revision;Return.Items={Item};
+    TestTrue(TEXT("A fresh source transition preserves the original item"),Ledger.Commit(Return,Error));
+    const auto ReturnedRevision=Ledger.Item(Item.Id)->Revision;
+    TestTrue(TEXT("Old completed purchase still only replays after ownership changes"),Ledger.Commit(Buy,Error));
+    TestTrue(TEXT("Old receipt cannot reacquire or downgrade the returned source"),Ledger.Item(Item.Id)->Location==TEXT("Vendor")&&Ledger.Item(Item.Id)->Revision==ReturnedRevision&&Ledger.Item(Item.Id)->Quality==2&&Ledger.Item(Item.Id)->Origin==Stock.Id);
+    TestTrue(TEXT("All accepted and rejected paths independently reconcile"),Ledger.Reconcile(Error));
+    FLedger Bounds;
+    TestTrue(TEXT("Initialize signed-bound fixture"),Bounds.Initialize(FGuid::NewGuid(),{{TEXT("Full"),MAX_int64}}, {},Error));
+    FTransaction Overflow;Overflow.Id=FGuid::NewGuid();Overflow.Cause=TEXT("FixtureOverflow");Overflow.Mint=1;Overflow.Gold={{TEXT("Full"),1,1}};
+    TestFalse(TEXT("Overflow is rejected before arithmetic or mutation"),Bounds.Commit(Overflow,Error));
+    TestTrue(TEXT("Overflow leaves balance, revision and receipts intact"),Bounds.Account(TEXT("Full"))->Gold==MAX_int64&&Bounds.Account(TEXT("Full"))->Revision==1&&Bounds.ReceiptCount()==0&&Bounds.Reconcile(Error));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyCatalogTest,"Lockdown.Rules.EconomyCatalog",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDEconomyCatalogTest::RunTest(const FString& Parameters)
 {

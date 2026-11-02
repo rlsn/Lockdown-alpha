@@ -3,7 +3,6 @@
 #include "World/LDB91TraversalContract.h"
 #include "Combat/LDCombatDirector.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Character/LDCharacter.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -135,7 +134,7 @@ bool ALDWorldObjects::CommitLink(ALDB91Controller* PC,ALDWorldObject* Object,con
     if(R.Verb==ELDObjectVerb::Use){return EndpointClear(PC,H.Destination-FVector(0,0,H.Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()+2.15));}
     if(R.Verb==ELDObjectVerb::Attach)
     {
-        auto* Item=M->Inventory->Owned(PC,R.Item);if(M->Trade){M->Trade->CancelFor(PC);}for(auto& Id:Own->Inventory.Bindings){if(Id==Item->Identity){Id.Invalidate();}}
+        auto* Item=M->Inventory->Owned(PC,R.Item);for(auto& Id:Own->Inventory.Bindings){if(Id==Item->Identity){Id.Invalidate();}}
         Item->BindingMask=0;if(auto* Entry=const_cast<FLDInventoryItem*>(Own->Inventory.Find(Item->Identity))){Entry->BindingMask=0;}
         M->Inventory->Remove(PC,Item,false);Item->Holder=Anchor;Item->State=1;++Item->Revision;Anchor->Contents.Add(Item);Anchor->Deployer=M->ContenderId(PC);Anchor->Apply(Anchor->GetActorLocation(),Anchor->Flags(),Anchor->Revision+1);return true;
     }

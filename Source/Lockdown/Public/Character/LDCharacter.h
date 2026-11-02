@@ -8,6 +8,7 @@ class UCameraComponent;
 class ULDHumanoidVisualComponent;
 class ULDPrototypeTuning;
 class UPointLightComponent;
+class FLDDemoContentSnapshot;
 
 UCLASS()
 class LOCKDOWN_API ALDCharacter : public ACharacter
@@ -17,6 +18,7 @@ public:
     explicit ALDCharacter(const FObjectInitializer& ObjectInitializer);
     virtual void BeginPlay() override;
     virtual void Tick(float Delta) override;
+    bool ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error);
     void SetSprint(bool bSprint);
     void SetFacing(float Yaw);
     void Zoom(float Axis);

@@ -314,7 +314,9 @@ Open/Buy/Sell均重查对应当前资格；已经提交的历史回执重放不�
 已审核的 [世界报告](WORLD_CAMPS_AND_VISION.md) 选择一个有界稀疏 `FLDWorldView`，
 复用 Relay 的可靠撤销/不可靠全量与接受游标，不保留并行 B91 身体协议。
 它拥有 `QueryGround/QueryCompletePath/FindApproach/TraceSight`、当前观察与圈几何定义；
-实际布局和参数仍是待审提案，原生/资产接线并未完成。
+现有单层布局、完整首版参数及操作§4.2规则已于2026-11-02获用户批准用于首轮实施/试玩；
+静态world2生产、地图/目录保存、凸多边形碰撞和导航绑定已有实现；
+其余原生观察、实际身体/订单时序和动态世界接线并未因此完成。
 `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)` 的 SurfaceHint 为必填FName注册SurfaceId，
 无默认值或三参重载。点击来自公开地面trace，POI来自注册表，当前身体来自权威CurrentFloor→Registry；
 hint只是期望，不能代替实际支持面/接地证明。NAME_None/未知为InvalidSurface，
@@ -362,20 +364,24 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 ## SC-08：内容定义与参数引用
 
 [内容与数值报告](CONTENT_AND_BALANCE.md) 维护首版目录、
-战斗/经济/AI参数、公式、依据和审核状态。世界报告的唯一坐标/阻挡/连接表定义候选几何，
+战斗/经济/AI参数、公式、依据和审核状态。世界报告的唯一坐标/阻挡/连接表定义单层几何，
 并引用共同半径/视距等参数；不把坐标或参数复制成可独立修改的第二份表。
-模型和 SVG 是这一候选输入的证据，不是原生资产或已批准数值。
+现有完整内容数值和唯一单层布局已于2026-11-02获用户批准作为首次实际试玩输入。
+模型和 SVG 是离线证据，不是原生资产、实际消费或平衡通过的证明。
 下表是必须交付的参数语义，不是额外默认值，也不是已存在的 JSON 字段。
 
 目标作者域与加载根只按正式提供者索引，不形成另一套可选路径：
 
-| 域 | 唯一拟实施作者域/生产者 | 唯一目标载荷或资产根 |
+| 域 | 唯一作者域/生产者 | 唯一目标载荷或资产根 |
 | --- | --- | --- |
 | 内容/公式 | [内容 §10.1](CONTENT_AND_BALANCE.md) 的 `SourceData\Demo`（content/schema/native_ids）与唯一 Demo compiler | `Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json`、`LDDemoContentContract.h`、`ULDDemoContentCatalog` |
 | 世界几何 | [世界 §6](WORLD_CAMPS_AND_VISION.md) 的 `SourceData\World\demo_world.json`、`SyncDemoWorldData.py` 与唯一 Builder | `Content\Lockdown\Data\Demo\world.json`、`LDDemoWorldContract.h`；`/Game/Lockdown/Generated/Maps/L_Demo` 与 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`（`ULDMapDefinition`，唯一 `ALDMapAnchor`） |
 | 前端/会话 | [生命周期](SESSION_MATCH_LIFECYCLE.md) 的前端与同世界阶段接线 | `L_Frontend` 仅菜单，Lobby/Match/Results 在同一 `L_Demo`；不是第二个战局根 |
 
-这些都是尚待实施的路径，不是本 PR 已创建的 SourceData、载荷或原生资产。
+内容 compiler、schema/native ID 声明及 `ULDDemoContentCatalog` 的 typed 原生导入、
+不可变快照、精确保存投影比较和入口/Bootstrap 消费已经有实现。
+批准的 `content.json`、真实世界作者/生产者、载荷及正式内容/世界资产已进入同一链；
+导入与静态世界验证不能代替战斗/成长等状态提供者的实际字段消费。
 旧 V08/B84/prototype 输入只可作抽取迁移材料，不能继续承载另一份目标内容；
 旧 L_DevelopmentRegion/DA_CivicRegion 仅在 C3 迁移期间可加载，之后退役，不作 fallback 或最终 Cook 根。
 稳定技术编号和真正共享组件仍按所有者依赖保留，不能把退旧路径误做全库重命名。
@@ -447,9 +453,9 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 | --- | --- | --- |
 | 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder`、`CommitPendingOrders(permit)`、`CommitActionHandoff` 归现有 Navigation；只收件不激活，动作交接原子；文档静态审核已完成，跨域核心收口、CT06 原生运动、内容/资产和真实连接验证仍需完成 |
 | 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可，Objective 单圈归约；不新增第二核心 |
-| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；候选坐标/尺寸不等于批准，实际场景与资产仍需验证 |
+| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；现有坐标/尺寸已获首轮批准，实际场景与资产仍需验证 |
 | AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；全部12个AI叶参数须落入唯一内容表 |
 | 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query/OnActionFinished、准入后Token、Prepare/ApplyBuildChange及CampReset；正文区分持久来源与独立已释放效果，不复用旧family-max |
 | 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
 | UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
-| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一候选目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；数值与精度仍供PR审查，不是已生成运行输入 |
+| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；现有数值与精度已获2026-11-02用户批准，不是已生成运行输入或平衡通过 |

@@ -11,3 +11,7 @@
 /Content/Lockdown/Data/V07/*.json text eol=lf
 /Content/Lockdown/Data/V08/*.json -text
 /Content/Lockdown/Data/V09/*.json -text
+/Content/Lockdown/Data/Demo/*.json -text
+/Source/Lockdown/Private/World/LDDemoWorldContract.h -text
+/Source/Lockdown/Private/Development/LDDemoContentContract.h -text
+/Source/Lockdown/Public/Development/LDDemoContentIds.h -text

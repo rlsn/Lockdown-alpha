@@ -1,5 +1,4 @@
 #include "Tests/LDWorldProbe.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDVendorDirector.h"
 #include "World/LDWorldDirector.h"
 #include "Framework/LDGameMode.h"
@@ -110,7 +109,6 @@ void ALDWorldProbe::Boundary()
         Exercise(TEXT("Bank commit"),[&](){const auto* S=Mode->StateFor(A);Mode->Bank->Queue(A,S->Match,S->Life,++Token,FGuid::NewGuid(),0,false,1,1);});
         Exercise(TEXT("Market commit"),[&](){const auto* S=Mode->StateFor(A);Mode->Commerce->Queue(A,S->Match,S->Life,++Token,FGuid::NewGuid(),1,1,ELDItemKind::Fiber,{},0,S->Inventory.Revision,4);});
         Exercise(TEXT("Vendor commit"),[&](){const auto* S=Mode->StateFor(A);Mode->Vendor->Queue(A,S->Match,S->Life,++Token,FGuid::NewGuid(),1,40,S->Inventory.Revision,ELDSkill::Step);});
-        Exercise(TEXT("Trade invitation"),[&](){const auto* S=Mode->StateFor(A);Mode->Trade->Queue(A,S->Match,S->Life,++Token,LDTrade::Invite,{},0,TEXT(""),FGuid::NewGuid(),0);});
         Exercise(TEXT("Equipment supply request"),[&](){const auto* S=Mode->StateFor(A);Mode->Acquisition->Purchase(A,S->Match,S->Life,++Token,2,ELDItemKind::SurveyorBow,ELDSkill::None,S->Inventory.Revision,ULDAcquisitionCatalog::Load(Mode->RulesVersion())->Checksum);});
         Exercise(TEXT("Another world service"),[&](){const auto* S=Mode->StateFor(A);O->Queue(A,S->Match,S->Life,++Token,10,{});});
         Exercise(TEXT("Combat command"),[&](){const auto* S=Mode->StateFor(A);FLDTacticalRequest R;R.ActionKind=4;R.Match=S->Match;R.Life=S->Life;R.Token=++Token;R.BuildRevision=S->Build.Revision;R.CatalogDigest=S->Build.CatalogDigest;R.Observed=LDWorldDemo::Observe(Mode,A,LDWorldDemo::Body(B));R.Direction=FVector(0,1,0);if(Mode->IsV08Profile()){R.Schema=8;R.WireVersion=4;R.SourceKind=3;R.InventoryRevision=S->Inventory.Revision;}A->ServerTacticalAction(R);});

@@ -1,0 +1,23 @@
+{
+  "author_schema_sha256": "6f8b134020bea7d03ad8a027bff3d47e6f747aca2009b5f06b64a19f9c1638ae",
+  "content": {
+    "file": "demo_content.json",
+    "sha256": "48071e77bc49f4a981d29117ec60d9937c9ba4749bf82acee2edfe57f44bc1d3"
+  },
+  "display_sha256": "b67b3f69b5eece4af2c01ce9137dc420e7b92893ddb5c0a66fa197c489ca9c3f",
+  "format": "lockdown-demo-content",
+  "handler_revision": 1,
+  "native_contract_sha256": "a93d95f1255ba8da006ee9ceed2ba12da048ff34b5bdcce47dbd4d27b6b545d0",
+  "native_ids_sha256": "cfc1f092a86f6e6c5e4b928036bcfc991d61841e8186675873b22017336d68ba",
+  "projection_revision": 2,
+  "schema_version": 1,
+  "world": {
+    "contract": {
+      "projection_revision": 2,
+      "schema_version": 2,
+      "sha256": "d9460a310023537b062adec1ac618774cb7c164e56a84f905f3d6a804c03b742"
+    },
+    "file": "world.json",
+    "sha256": "9f2787a69abcd11bceed5ee5b8536f2521a35f9e5301b2c6bc5f2d5db4ec0f0f"
+  }
+}

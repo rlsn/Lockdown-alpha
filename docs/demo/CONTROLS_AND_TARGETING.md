@@ -5,7 +5,9 @@
 本文落实 [App Spec](../APP_SPEC.md) §3.1，并对接
 [架构](ARCHITECTURE.md)、[共享契约](SHARED_CONTRACTS.md) SC-01–09 和
 [实施计划](IMPLEMENTATION_PLAN.md) I2/I3/I5。它不是第二份产品规格，也不是已实现 API 手册。
-**本轮只改文档。** 下列新增、改造、删除与验收均为后续实施任务。
+**2026-11-02 用户已批准§4.2现有攻击移动自动选敌、平局排序与续行规则，
+以及所引用的完整首版内容数值，作为首轮实施/试玩输入。**
+下列新增、改造、删除与验收仍须实际接线，不因审批自动完成。
 玩法确认以 Spec 和明确批准的决定为准；文中“拟建”“建议”均不能作为已完成或已批准的证明。
 
 ## 1. 结论、范围与证据
@@ -46,7 +48,7 @@ Source、Config、Content、SourceData、Scripts 与源码基线无差异。
 ## 2. 最小完整操作表
 
 以下按键来自 Spec；Follow 沿用现有 Home 绑定并提供界面开关。
-表中的新增订单语义是本报告的单一待审实施方案，不维护旧 profile 行为。
+表中的订单语义按 Spec、已批准的§4.2及本报告工程合同实施，不维护旧 profile 行为。
 输入必须先经过 §3 的捕获，再判断本表；禁用图标不能替代服务器拒绝。
 
 | 输入/条件 | 本地结果 | 权威结果/边界 |
@@ -232,7 +234,7 @@ Stop 不等待目标/来源/资源验证，仍检查拥有者、局、生命和�
 ### 4.2 右键普攻与 A 攻击移动
 
 **已确认初始普攻为近战单体，且首版必须能通过装备/属性获得群攻与攻击距离成长。**
-订单只锁定一个主目标；后续群攻/余波由 Combat/内容处理，不生成副攻击订单、
+订单只锁定一个主目标；后续群攻/横扫副击由 Combat/内容处理，不生成副攻击订单、
 不新增群攻快捷键、不给隐藏单位额外锁定权限。
 `UNIT.BasicAttackRangeCm` 只是初始基础；预览、接近、普攻准入与 A 搜索消费
 `STAT.AttackRangeCm`/`FORMULA.AttackRange` 的当前有效结果，不能硬编码初始范围。
@@ -248,7 +250,7 @@ Navigation 不另维护攻击冷却、不用表现动画结束触发伤害。
 减少则重新求完整接近点，不生成新免费 AttackStart、不清原节拍。
 动作开始后的快照/复验顺序仍由 Combat 统一，Input 不另实现一套范围公式。
 
-`AttackMove` 的唯一目的地是确认时的合法静态地面点。拟定最小搜敌规则：
+`AttackMove` 的唯一目的地是确认时的合法静态地面点。已批准的最小搜敌规则：
 只从 `EnumerateVisibleUnits(..., Attack)` 的当前可攻击候选中，按自身脚点 XY 距离升序，
 同距以该观察帧稳定的 opaque handle 排序；不读取隐藏 HP、装备、仇恨或私有威胁值作选择。
 搜敌范围只引用 `TARGET.AttackMoveAcquireRadiusCm`，不在控制器另设一个攻击/视野半径。
@@ -256,7 +258,7 @@ Navigation 不另维护攻击冷却、不用表现动画结束触发伤害。
 没有候选时继续原地面目的地；当前合法观察中确认目标死亡后重新按同规则选取，空集则续行。
 到达目的地且无当前合法目标则完成，不把一次 A 变成永久原地自动攻击开关。
 
-上述 acquisition/tie-break/续行是待 PR 审查的最小交互方案；不加入阵营、单位种类优先级或设置分支。
+上述 acquisition/tie-break/续行已于2026-11-02获用户批准；不加入阵营、单位种类优先级或设置分支。
 **失去视野的确定规则：取消目标锁定并停止这条追击订单。**
 AttackUnit 和已经锁定目标的 AttackMove 均终结当前订单，清路径/重复普攻关联，
 不转为 LastSeen 地面移动、不恢复原 A 目的地、不保留单位 LastSeen 小地图标记。
@@ -563,7 +565,7 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 ## 8. 参数、单位与单一来源
 
 所有首版玩法值及公式只从 `CONTENT_AND_BALANCE.md` 引用；本报告不复制数值或另造默认值。
-下面是内容组已给出的稳定键/目录字段，**数值与部分内容仍待审**。
+下面是内容组已给出的稳定键/目录字段，**现有完整首轮数值与内容已于2026-11-02获批**。
 生成后走 SourceData → 既有 compiler/loader/contract → Content；游戏不读取本 Markdown。
 
 | 正式键/目录字段 | 单位/所有者 | 本模块消费方式 |
@@ -619,7 +621,7 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 | CT-D1，D16/D24 | `LDPlayerInput.cpp` 的 `RebuildV05Mappings/V05Pressed/V05Released/V05Back` 旧分派、Skill3–6/Item3–4/Sprint/旧 Inventory/Development/Help 路由、左键商店/拾取分支；Controller 中对应声明/绑定/summary/legacy aliases | 先把有用实现迁到单一注册/统一按压释放和 UIRoot 层栈；`PointerService/TickAutomaticPOI` 的合法到达开店交给当前 ApproachShop 回执，删除旧独立轮询/触发，不留空壳。 |
 | CT-D2，D11/D14/D16 | `LDPlayerController.h/.cpp` 的旧 Assassinate/Dash/Ward/Interact 按键入口、SprintStarted/SprintStopped/SetSprint 路由及旧服务 hold RPC；`LDPlayerInput.cpp` 的旧 held/release/profile 特例 | 先把当前装备 dash、目标确认和 Combat 取消接到实际来源请求；只保留必要 token/liveness 机制，不保留旧免费能力或站桩服务。 |
 | CT-D3，D11/D14 | CMC 的 `bWantsSprint/SprintSpeed/bCombatWalkOnly` 旧 sprint/profile 分支、saved sprint 位，以及 B91 搬运 Cast；Navigation 中 B91/旧 site/pickup/service 分派 | 先有 Combat MoveSpeed/控制投影、世界查询和服务器调用者适配；同步 Serializer/CompressedFlags/回放/声明/include/测试后删。 |
-| CT-D4，D04/D16 | Navigation 接受订单和 Content 动作里的 Trade 取消调用；Controller 的对应成员/反射引用；Development/Production/Context 旧 hold/取消/Pending 链 | 按架构 B02 与各领域断掉实际消费者，保留当前 Combat/Vendor/成长取消；不为保留一个 CancelFor 调用继续保留 Trade 系统。 |
+| CT-D4，D16 | Controller 的旧成员/反射引用；Development/Production/Context 旧 hold/取消/Pending 链 | 按各领域断掉实际消费者，保留当前 Combat/Vendor/成长取消；取消入口不能成为保留无用服务的理由。 |
 | CT-D5，D11 | `Private\World\LDB91SourceControls.cpp` 的来源指针/键盘/观察分派及关联 B91 controller 方法 | 用现有动态输入/Combat 来源/世界 ObserverContext 接回必要能力后，随 D11 全图闭包删除文件与全部声明/调用；不复制其旧全图政策成 Demo 适配层。 |
 | CT-D6，D15/D16 | `LDControlSettings` 的 Profile、TacticalDefaults/HybridDefaults、Skill3–6/Item3–4 及旧 Context/Trade 迁移政策 | 当前注册表和显式设置迁移完成后删除旧字段/分支；删除局内玩法保存入口不影响本地设置 Save。 |
 | CT-D7，D24 | `Content\Lockdown\Generated\Input\IA_Move.uasset`、`IA_Aim.uasset`、`IA_Sprint.uasset`、`IA_Attack.uasset`、`IA_Dash.uasset`、`IA_Assassinate.uasset`、`IA_Interact.uasset`、`IA_Ward.uasset`、`IA_Help.uasset`、`IA_Menu.uasset`、`IA_Zoom.uasset`、`IMC_Gameplay.uasset` | 本报告选择唯一动态注册，不新增第二套 IA/IMC。先迁 Controller 静态 LoadObject 和存活 Blueprint/CDO 引用，再移除 Bootstrap Input 生成/固定 13 映射验证及加载/cook引用，经 C3 才物理删除这些包。 |
@@ -742,18 +744,18 @@ RoundTripMs 当前只允许 0/100/150，JitterMs 为 0–25，OneWayBaseMs 为 -
 ### 11.1 已确认规则与剩余实施门槛
 
 技术命名、单一注册表、局部回执/捕获结构和合理确定性排序由工程实施；
-批准前的内容和行为方案保持“待审”，不作为运行输入。
+本次已批准的内容和§4.2行为可进入正式生成与实现；未包含在这次批准中的后续变更仍须审查。
 初始近战单体、首版群攻/射程成长，以及双持属性/被动/独立主动 CD/失源继续计时均已确认；
 发出进攻意图即解除保护（无效执行也解除）、死亡可确认持久选择也已确认。
 失视野停止当前追击且无单位 LastSeen 标记、死亡静态自由镜头及可见检查白名单也已确认。
-**本模块不再将这些行为列为待用户选择。** A 搜敌/平局等工程交互建议和具体目录、
-数值/公式仍需 PR 审查，不能从结构规则已确认推导已完成平衡验收。
+**本模块不再将这些行为列为待用户选择。** 现有 A 搜敌/平局/续行及具体目录、
+数值/公式已获首轮批准，仍不能从批准推导已完成实际输入、平衡或联网验收。
 核心时间/body key/水位/写闸已按 §7.3 绑定当前跨域拟建合同，仍须联合审核；
 CMC 子段挂接需要原生验证。这是明确工程前提，不要求用户替工程师选择回调或字段类型。
 
 | 门槛 | 剩余条件 | 不能据此宣称 |
 | --- | --- | --- |
-| 内容/公式 | 当前有效射程、动作几何/时序、实际目录和本地设置合法域完成对应审查/导入 | 初始形态已确认就等于数值已批准或完整发育已平衡。 |
+| 内容/公式 | 已批准射程、动作几何/时序与目录完成严格生成、原生字段消费；本地设置合法域按所属模块接线 | 首轮输入批准等于实际消费或完整发育已平衡。 |
 | 原生/跨域 | CT06 子段捕获、核心原始秒排序/提供者水位/写许可与 Combat/World 联合接线 | 有类型表或单帧位置就已经证明连续占领。 |
 | 资产/运行 | C3/C4、UHT/Editor/Game、Bootstrap/Cook，以及真实拥有客户端/Host/AI 完整场景 | 文档或旧 profile 检查可以代替目标 Demo 的运行通过。 |
 
@@ -768,7 +770,7 @@ CMC 子段挂接需要原生验证。这是明确工程前提，不要求用户�
 
 两份独立研究、主体审核与契约专项复核共同覆盖当前报告。
 **结论是文档有条件通过，不是全部实施门槛已关闭。**
-剩余条件为相应内容/公式批准，以及 CT06 原生运动、资产/UHT/Cook、
+现有内容/公式和§4.2审批已完成；剩余条件为真实字段消费、CT06 原生运动、资产/UHT/Cook、
 真实拥有客户端/正常 Host 和完整场景的实际验证。
 
 本轮当前只核验静态文档/源码与公开引擎资料，未构建 UE、加载 Blueprint/地图、

@@ -1,0 +1,451 @@
+#include "Tests/LDNativeMotionProbe.h"
+#include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Dom/JsonObject.h"
+#include "Engine/Engine.h"
+#include "Engine/ScopedMovementUpdate.h"
+#include "Engine/World.h"
+#include "GameFramework/WorldSettings.h"
+#include "HAL/FileManager.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+
+ALDNativeMotionProbeCharacter::ALDNativeMotionProbeCharacter(const FObjectInitializer& Initializer)
+    : Super(Initializer.SetDefaultSubobjectClass<ULDNativeMotionProbeMovement>(ACharacter::CharacterMovementComponentName))
+{
+    PrimaryActorTick.bCanEverTick=false;
+    GetCapsuleComponent()->InitCapsuleSize(40,90);
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore);
+    GetCapsuleComponent()->SetCanEverAffectNavigation(false);
+    auto* Move=GetCharacterMovement();
+    Move->SetComponentTickEnabled(false);
+    Move->bRunPhysicsWithNoController=true;
+    Move->MaxWalkSpeed=1200;
+    Move->GroundFriction=0;
+    Move->BrakingDecelerationWalking=0;
+    Move->MaxStepHeight=35;
+    Move->MaxSimulationTimeStep=1;
+    Move->bCanWalkOffLedges=false;
+}
+
+int32 ULDNativeMotionProbeMovement::BeginTrace(FName Kind, double Seconds, double Fraction) const
+{
+    if (!Tracing || !UpdatedComponent) { return INDEX_NONE; }
+    FLDNativeMotionTraceRow Row;
+    Row.Kind=Kind;
+    Row.From=Row.To=UpdatedComponent->GetComponentLocation();
+    Row.NativeSeconds=Seconds;
+    Row.NativeFraction=Fraction;
+    Row.GroundedBefore=Row.GroundedAfter=IsMovingOnGround() && CurrentFloor.IsWalkableFloor();
+    for (const auto* Scope=UpdatedComponent->GetCurrentScopedMovement(); Scope; Scope=Scope->GetOuterDeferredScope())
+    { ++Row.ScopeDepth; }
+    return Trace.Add(MoveTemp(Row));
+}
+
+void ULDNativeMotionProbeMovement::EndTrace(int32 Index, bool Result) const
+{
+    if (Index==INDEX_NONE) { return; }
+    auto& Row=Trace[Index];
+    Row.To=UpdatedComponent->GetComponentLocation();
+    Row.Result=Result;
+    Row.GroundedAfter=IsMovingOnGround() && CurrentFloor.IsWalkableFloor();
+}
+
+bool ULDNativeMotionProbeMovement::PrepareGround()
+{
+    SetMovementMode(MOVE_Walking);
+    FindFloor(UpdatedComponent->GetComponentLocation(),CurrentFloor,false,nullptr);
+    SetBaseFromFloor(CurrentFloor);
+    return HasValidData() && CurrentFloor.IsWalkableFloor();
+}
+
+void ULDNativeMotionProbeMovement::TraceWalking(const FVector& InVelocity, float Seconds)
+{
+    Trace.Reset();
+    Velocity=InVelocity;
+    Acceleration=FVector::ZeroVector;
+    TGuardValue<bool> Guard(Tracing,true);
+    const int32 Index=BeginTrace(TEXT("PerformMovement"),Seconds);
+    if (!BeginIsolatedNativeMotionProbe(Seconds,CaptureError)) { EndTrace(Index,false); return; }
+    PerformMovement(Seconds);
+    EndIsolatedNativeMotionProbe(Captured,CaptureError);
+    EndTrace(Index,true);
+}
+
+void ULDNativeMotionProbeMovement::TraceUnrecordedMove()
+{
+    Captured.Reset();
+    if (!BeginIsolatedNativeMotionProbe(.1f,CaptureError)) { return; }
+    UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation()+FVector(10,0,0));
+    EndIsolatedNativeMotionProbe(Captured,CaptureError);
+}
+
+void ULDNativeMotionProbeMovement::MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult)
+{
+    const int32 Index=BeginTrace(TEXT("MoveAlongFloor"),DeltaSeconds);
+    Super::MoveAlongFloor(InVelocity,DeltaSeconds,OutStepDownResult);
+    EndTrace(Index,true);
+}
+
+bool ULDNativeMotionProbeMovement::StepUp(const FVector& GravDir, const FVector& Delta,
+    const FHitResult& InHit, FStepDownResult* OutStepDownResult)
+{
+    const int32 Index=BeginTrace(TEXT("StepUp"));
+    const int32 FirstChild=Trace.Num();
+    const bool Result=Super::StepUp(GravDir,Delta,InHit,OutStepDownResult);
+    EndTrace(Index,Result);
+    if (Index!=INDEX_NONE && !Result)
+    {
+        for (int32 Child=FirstChild; Child<Trace.Num(); ++Child) { Trace[Child].DiscardedStepUp=true; }
+    }
+    return Result;
+}
+
+float ULDNativeMotionProbeMovement::SlideAlongSurface(const FVector& Delta, float Time,
+    const FVector& Normal, FHitResult& Hit, bool HandleImpact)
+{
+    const int32 Index=BeginTrace(TEXT("SlideAlongSurface"),0,Time);
+    const float Result=Super::SlideAlongSurface(Delta,Time,Normal,Hit,HandleImpact);
+    EndTrace(Index,Result>0);
+    return Result;
+}
+
+bool ULDNativeMotionProbeMovement::SafeMoveUpdatedComponent(const FVector& Delta, const FQuat& Rotation,
+    bool Sweep, FHitResult& Hit, ETeleportType Teleport)
+{
+    const int32 Index=BeginTrace(TEXT("SafeMove"));
+    const bool Result=Super::SafeMoveUpdatedComponent(Delta,Rotation,Sweep,Hit,Teleport);
+    EndTrace(Index,Result);
+    if (Index!=INDEX_NONE) { Trace[Index].NativeFraction=Hit.Time; }
+    return Result;
+}
+
+bool ULDNativeMotionProbeMovement::MoveUpdatedComponentImpl(const FVector& Delta, const FQuat& Rotation,
+    bool Sweep, FHitResult* Hit, ETeleportType Teleport)
+{
+    const int32 Index=BeginTrace(TEXT("Move"));
+    const bool Result=Super::MoveUpdatedComponentImpl(Delta,Rotation,Sweep,Hit,Teleport);
+    EndTrace(Index,Result);
+    if (Index!=INDEX_NONE && Hit) { Trace[Index].NativeFraction=Hit->Time; }
+    return Result;
+}
+
+bool ULDNativeMotionProbeMovement::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit, const FQuat& Rotation)
+{
+    const int32 Index=BeginTrace(TEXT("ResolvePenetration"));
+    const bool Result=Super::ResolvePenetrationImpl(Adjustment,Hit,Rotation);
+    EndTrace(Index,Result);
+    return Result;
+}
+
+FVector ULDNativeMotionProbeMovement::GetLedgeMove(const FVector& OldLocation, const FVector& Delta, const FFindFloorResult& OldFloor) const
+{
+    const int32 Index=BeginTrace(TEXT("GetLedgeMove"));
+    const FVector Result=Super::GetLedgeMove(OldLocation,Delta,OldFloor);
+    EndTrace(Index,!Result.IsZero());
+    return Result;
+}
+
+bool ULDNativeMotionProbeMovement::CheckFall(const FFindFloorResult& OldFloor, const FHitResult& Hit,
+    const FVector& Delta, const FVector& OldLocation, float RemainingTime, float TimeTick, int32 Iterations, bool MustJump)
+{
+    const int32 Index=BeginTrace(TEXT("CheckFall"),TimeTick);
+    const bool Result=Super::CheckFall(OldFloor,Hit,Delta,OldLocation,RemainingTime,TimeTick,Iterations,MustJump);
+    EndTrace(Index,Result);
+    return Result;
+}
+
+void ULDNativeMotionProbeMovement::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
+{
+    const int32 Index=BeginTrace(TEXT("MovementMode"));
+    Super::OnMovementModeChanged(PreviousMovementMode,PreviousCustomMode);
+    EndTrace(Index,true);
+}
+
+void ULDNativeMotionProbeMovement::FindFloor(const FVector& CapsuleLocation, FFindFloorResult& OutFloorResult,
+    bool UseCachedLocation, const FHitResult* DownwardSweepResult) const
+{
+    const int32 Index=&OutFloorResult==&CurrentFloor?BeginTrace(TEXT("CurrentFloor")):INDEX_NONE;
+    Super::FindFloor(CapsuleLocation,OutFloorResult,UseCachedLocation,DownwardSweepResult);
+    EndTrace(Index,OutFloorResult.IsWalkableFloor());
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+namespace
+{
+    struct FNativeWorld
+    {
+        UWorld* World=nullptr;
+        FNativeWorld()
+        {
+            const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
+                .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(true).CreateFXSystem(false);
+            World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+            if (World)
+            {
+                GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+                World->InitializeActorsForPlay(FURL(),false);
+                World->BeginPlay();
+                World->GetWorldSettings()->NotifyBeginPlay();
+                for (int32 Tick=0; Tick<8; ++Tick) { World->Tick(LEVELTICK_TimeOnly,.25f); }
+            }
+        }
+        ~FNativeWorld()
+        {
+            if (World)
+            {
+                World->EndPlay(EEndPlayReason::Destroyed);
+                World->DestroyWorld(false);
+                GEngine->DestroyWorldContext(World);
+            }
+        }
+        UBoxComponent* Box(FVector Centre, FVector Extent, bool Walkable=true)
+        {
+            auto* Actor=World->SpawnActor<AActor>();
+            if (!Actor) { return nullptr; }
+            auto* Shape=NewObject<UBoxComponent>(Actor);
+            Actor->SetRootComponent(Shape);
+            Actor->AddInstanceComponent(Shape);
+            Shape->SetWorldLocation(Centre);
+            Shape->SetBoxExtent(Extent);
+            Shape->SetMobility(EComponentMobility::Static);
+            Shape->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            Shape->SetCollisionObjectType(ECC_WorldStatic);
+            Shape->SetCollisionResponseToAllChannels(ECR_Block);
+            Shape->CanCharacterStepUpOn=ECB_Yes;
+            Shape->SetCanEverAffectNavigation(false);
+            if (!Walkable) { Shape->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable,0)); }
+            Shape->RegisterComponentWithWorld(World);
+            return Shape;
+        }
+        ALDNativeMotionProbeCharacter* Body(FVector Foot)
+        {
+            FActorSpawnParameters Spawn;
+            Spawn.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            auto* Result=World->SpawnActor<ALDNativeMotionProbeCharacter>(Foot+FVector(0,0,92.15),FRotator::ZeroRotator,Spawn);
+            if (Result) { Result->GetCharacterMovement()->SetComponentTickEnabled(false); }
+            return Result;
+        }
+    };
+
+    bool SaveTrace(FAutomationTestBase& Test, const TCHAR* Case, const ULDNativeMotionProbeMovement& Move, bool Passed)
+    {
+        Passed&=Test.TestTrue(TEXT("Production native recorder accepted the real scope and rollback"),
+            Move.Captured.IsValid() && Move.CaptureError.IsEmpty());
+        if (!Move.CaptureError.IsEmpty()) { Test.AddError(Move.CaptureError); }
+        auto Report=MakeShared<FJsonObject>();
+        Report->SetStringField(TEXT("scope"),TEXT("Isolated native engine hook/rollback probe, not production CT06 segments or provider fences."));
+        Report->SetStringField(TEXT("case"),Case);
+        Report->SetBoolField(TEXT("passed"),Passed);
+        Report->SetNumberField(TEXT("native_world_seconds"),Move.GetWorld()->GetTimeSeconds());
+        Report->SetNumberField(TEXT("movement_mode"),uint8(Move.MovementMode));
+        Report->SetStringField(TEXT("capture_error"),Move.CaptureError);
+        if (Move.Captured)
+        {
+            Report->SetNumberField(TEXT("committed_records"),Move.Captured->Records.Num());
+            Report->SetNumberField(TEXT("reverted_trials"),Move.Captured->RevertedTrials);
+            TArray<TSharedPtr<FJsonValue>> Records;
+            for (const auto& Record : Move.Captured->Records)
+            {
+                auto Row=MakeShared<FJsonObject>();
+                Row->SetNumberField(TEXT("kind"),uint8(Record.Kind));
+                Row->SetStringField(TEXT("from"),Record.FromFootCm.ToString());
+                Row->SetStringField(TEXT("to"),Record.ToFootCm.ToString());
+                Row->SetNumberField(TEXT("start_seconds"),Record.StartServerSeconds);
+                Row->SetNumberField(TEXT("end_seconds"),Record.EndServerSeconds);
+                Row->SetBoolField(TEXT("grounded"),Record.Support.Grounded);
+                Records.Add(MakeShared<FJsonValueObject>(Row));
+            }
+            Report->SetArrayField(TEXT("committed"),Records);
+        }
+        TArray<TSharedPtr<FJsonValue>> Rows;
+        for (const auto& Event : Move.Trace)
+        {
+            auto Row=MakeShared<FJsonObject>();
+            Row->SetStringField(TEXT("kind"),Event.Kind.ToString());
+            Row->SetStringField(TEXT("from"),Event.From.ToString());
+            Row->SetStringField(TEXT("to"),Event.To.ToString());
+            Row->SetNumberField(TEXT("native_seconds"),Event.NativeSeconds);
+            Row->SetNumberField(TEXT("native_fraction"),Event.NativeFraction);
+            Row->SetNumberField(TEXT("scope_depth"),Event.ScopeDepth);
+            Row->SetBoolField(TEXT("result"),Event.Result);
+            Row->SetBoolField(TEXT("discarded_step_up"),Event.DiscardedStepUp);
+            Row->SetBoolField(TEXT("grounded_before"),Event.GroundedBefore);
+            Row->SetBoolField(TEXT("grounded_after"),Event.GroundedAfter);
+            Rows.Add(MakeShared<FJsonValueObject>(Row));
+        }
+        Report->SetArrayField(TEXT("trace"),Rows);
+        const FString Directory=FPaths::ProjectDir()/TEXT("Artifacts")/TEXT("CT06NativeProbe")/FGuid::NewGuid().ToString(EGuidFormats::Digits);
+        FString Json;
+        return Test.TestTrue(TEXT("Persist isolated native trace"),
+            IFileManager::Get().MakeDirectory(*Directory,true)
+            && FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Json))
+            && FFileHelper::SaveStringToFile(Json,*(Directory/FString(Case).Append(TEXT(".json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) && Passed;
+    }
+
+    ULDNativeMotionProbeMovement* Prepare(FAutomationTestBase& Test, ALDNativeMotionProbeCharacter* Body)
+    {
+        if (!Test.TestNotNull(TEXT("Native transient character"),Body)) { return nullptr; }
+        auto* Movement=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+        if (!Test.TestTrue(TEXT("Native CMC has real walkable support"),Movement->PrepareGround())) { return nullptr; }
+        return Movement;
+    }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSlideProbe, "Lockdown.Rules.DemoMotionProbe.Slide",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeSlideProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Ground box"),Fixture.Box({0,0,-10},{500,500,10}))
+        || !TestNotNull(TEXT("Blocking wall"),Fixture.Box({110,0,200},{10,400,200}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body(FVector::ZeroVector));
+    if (!Move) { return false; }
+    Move->TraceWalking({600,300,0},.25f);
+    const auto* Floor=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("MoveAlongFloor"); });
+    const auto* Slide=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("SlideAlongSurface") && Row.Result; });
+    TArray<const FLDNativeMotionTraceRow*> Horizontal;
+    for (const auto& Row : Move->Trace)
+    {
+        if (Row.Kind==TEXT("Move") && !Row.DiscardedStepUp && FVector::DistSquared2D(Row.From,Row.To)>1)
+        { Horizontal.Add(&Row); }
+    }
+    bool Bent=false;
+    for (int32 Index=1; Index<Horizontal.Num(); ++Index)
+    {
+        const auto A=(Horizontal[Index-1]->To-Horizontal[Index-1]->From).GetSafeNormal2D();
+        const auto B=(Horizontal[Index]->To-Horizontal[Index]->From).GetSafeNormal2D();
+        Bent|=FVector::DotProduct(A,B)<.99;
+    }
+    bool Passed=TestTrue(TEXT("Real wall contact creates a committed bent native path, not one start/end chord"),Bent);
+    Passed&=TestTrue(TEXT("Native walking supplies its actual time slice"),Floor && Floor->NativeSeconds==.25);
+    Passed&=TestTrue(TEXT("Native slide supplies a remaining-time fraction"),Slide && Slide->NativeFraction>0 && Slide->NativeFraction<=1);
+    Passed&=TestTrue(TEXT("Final body still has actual walkable support"),Move->CurrentFloor.IsWalkableFloor());
+    if (Move->Captured)
+    {
+        const auto* NativeFirst=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("Move") && Row.Result; });
+        const auto* RecordedFirst=Move->Captured->Records.FindByPredicate([](const auto& Row) { return Row.Kind==ELDNativeMotionRecordKind::Movement; });
+        Passed&=TestTrue(TEXT("First impact retains its native hit-time fraction, not the frame endpoint"),
+            NativeFirst && RecordedFirst && FMath::IsNearlyEqual(RecordedFirst->EndServerSeconds,.25*NativeFirst->NativeFraction,.000000001));
+        int32 Movements=0;
+        for (const auto& Record : Move->Captured->Records) { Movements+=Record.Kind==ELDNativeMotionRecordKind::Movement?1:0; }
+        Passed&=TestTrue(TEXT("Production batch retains multiple committed movement pieces"),Movements>=2);
+    }
+    return SaveTrace(*this,TEXT("slide"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeStepUpProbe, "Lockdown.Rules.DemoMotionProbe.StepUpRollback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeStepUpProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Ground box"),Fixture.Box({0,0,-10},{500,500,10}))
+        || !TestNotNull(TEXT("Step with native unwalkable top"),Fixture.Box({135,0,10},{65,100,10},false))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body(FVector::ZeroVector));
+    if (!Move) { return false; }
+    Move->TraceWalking({600,0,0},.25f);
+    const auto* Rejected=Move->Trace.FindByPredicate([](const auto& Row)
+    { return Row.Kind==TEXT("StepUp") && !Row.Result; });
+    int32 TrialMoves=0;
+    for (const auto& Row : Move->Trace)
+    { TrialMoves+=Row.Kind==TEXT("Move") && Row.DiscardedStepUp && FVector::DistSquared(Row.From,Row.To)>.01 ? 1 : 0; }
+    bool Passed=TestTrue(TEXT("Rejected native StepUp performed nonempty trial movement"),Rejected && TrialMoves>=2);
+    Passed&=TestTrue(TEXT("Native deferred rollback restores the exact step-up starting transform"),
+        Rejected && Rejected->From.Equals(Rejected->To,0.));
+    Passed&=TestTrue(TEXT("Rolled-back trials do not become a successful step"),
+        Move->GetActorFeetLocation().X<40 && Move->CurrentFloor.IsWalkableFloor());
+    Passed&=TestTrue(TEXT("Production records discard the successful trial sweeps after native StepUp rejection"),
+        Move->Captured && Move->Captured->RevertedTrials>0
+        && !Move->Captured->Records.ContainsByPredicate([&](const auto& Row)
+        { return Row.ToFootCm.X>Move->GetActorFeetLocation().X+.001 || Row.ToFootCm.Z>3; }));
+    return SaveTrace(*this,TEXT("step_up_rollback"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeLedgeProbe, "Lockdown.Rules.DemoMotionProbe.LedgeRevert",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeLedgeProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Finite narrow ground"),Fixture.Box({-100,0,-10},{100,45,10}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body({-100,0,0}));
+    if (!Move) { return false; }
+    Move->TraceWalking({600,0,0},.25f);
+    const auto* Whole=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("PerformMovement"); });
+    const auto* Fall=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("CheckFall") && !Row.Result; });
+    const auto* Ledge=Move->Trace.FindByPredicate([](const auto& Row) { return Row.Kind==TEXT("GetLedgeMove") && !Row.Result; });
+    bool SawTrial=false;
+    bool SawReverseHook=false;
+    for (const auto& Row : Move->Trace)
+    {
+        if (Row.Kind!=TEXT("Move")) { continue; }
+        SawTrial|=Row.To.X>Row.From.X+10;
+        SawReverseHook|=Row.To.X<Row.From.X-10;
+    }
+    bool Passed=TestTrue(TEXT("Native ground-loss checks explicitly reject walking off the ledge"),Fall && Ledge);
+    Passed&=TestTrue(TEXT("The real walking trial is reverted to its original pose"),
+        SawTrial && Whole && Whole->From.Equals(Whole->To,.001));
+    Passed&=TestFalse(TEXT("CMC MoveUpdatedComponentImpl alone does not observe nonvirtual RevertMove"),SawReverseHook);
+    Passed&=TestTrue(TEXT("Reverted support returns to the native old floor"),Move->CurrentFloor.IsWalkableFloor());
+    Passed&=TestTrue(TEXT("Production rollback witness removes the forward trial instead of inventing a return segment"),
+        Move->Captured && Move->Captured->RevertedTrials>0
+        && Move->Captured->StartFootCm.Equals(Move->Captured->EndFootCm,.001)
+        && Move->Captured->Records.IsEmpty());
+    return SaveTrace(*this,TEXT("ledge_revert"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSupportProbe, "Lockdown.Rules.DemoMotionProbe.SupportTransitions",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeSupportProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    if (!TestNotNull(TEXT("Ground with an actual edge"),Fixture.Box({-100,0,-10},{100,45,10}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body({-100,0,0}));
+    if (!Move) { return false; }
+    Move->bCanWalkOffLedges=true;
+    Move->TraceWalking({600,0,0},.25f);
+    bool Passed=TestTrue(TEXT("Native walking off the edge confirms loss of support"),
+        Move->IsFalling() && !Move->CurrentFloor.IsWalkableFloor());
+    Passed&=TestTrue(TEXT("Native floor or mode update exposes the support transition"),
+        Move->Trace.ContainsByPredicate([](const auto& Row) { return Row.GroundedBefore && !Row.GroundedAfter; }));
+    Passed&=TestTrue(TEXT("Production record preserves confirmed support loss"),
+        Move->Captured && Move->Captured->Records.ContainsByPredicate([](const auto& Row)
+        { return Row.Kind==ELDNativeMotionRecordKind::Support && !Row.Support.Grounded; }));
+    Passed&=SaveTrace(*this,TEXT("support_lost"),*Move,Passed);
+    const FVector Before=Move->GetActorFeetLocation();
+    if (!TestNotNull(TEXT("New ground below the falling body"),Fixture.Box({100,0,-10},{100,120,10}))) { return false; }
+    Move->TraceWalking(FVector::ZeroVector,.2f);
+    Passed&=TestTrue(TEXT("Real landing restores walkable native support"),
+        Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor());
+    Passed&=TestTrue(TEXT("A support transition does not require an XY position change"),
+        FVector::DistSquared2D(Before,Move->GetActorFeetLocation())<.000001);
+    Passed&=TestTrue(TEXT("Landing has a native support/mode witness"),
+        Move->Trace.ContainsByPredicate([](const auto& Row) { return !Row.GroundedBefore && Row.GroundedAfter; }));
+    Passed&=TestTrue(TEXT("Production record preserves support restoration with no XY movement"),
+        Move->Captured && Move->Captured->Records.ContainsByPredicate([](const auto& Row)
+        { return Row.Kind==ELDNativeMotionRecordKind::Support && Row.Support.Grounded; }));
+    return SaveTrace(*this,TEXT("support_regained"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeUnrecordedMoveProbe, "Lockdown.Rules.DemoMotionProbe.UnrecordedMoveRejected",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeUnrecordedMoveProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)
+        || !TestNotNull(TEXT("Ground box"),Fixture.Box({0,0,-10},{500,500,10}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body(FVector::ZeroVector));
+    if (!Move) { return false; }
+    Move->TraceUnrecordedMove();
+    TestFalse(TEXT("An unobserved position write cannot produce a completed motion batch"),Move->Captured.IsValid());
+    TestTrue(TEXT("A missing native segment fails explicitly instead of filling a chord"),
+        Move->CaptureError.Contains(TEXT("unrecorded"),ESearchCase::IgnoreCase)
+        || Move->CaptureError.Contains(TEXT("final pose"),ESearchCase::IgnoreCase));
+    return true;
+}
+#endif

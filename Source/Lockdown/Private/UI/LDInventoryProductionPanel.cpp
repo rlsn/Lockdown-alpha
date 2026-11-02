@@ -32,7 +32,7 @@ void ULDInventoryPanel::RefreshProduction()
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& O=PC->OwnerState;const auto* G=GetWorld()->GetGameState<ALDGameState>();const double Now=G?G->GetServerWorldTimeSeconds():0;
     uint8 Site=255;for(uint8 S=0;S<5;++S){if(PC->NearProduction(S)&&(Site==255||FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),S))<FVector::DistSquared2D(PC->GetPawn()->GetActorLocation(),ALDProductionDirector::Position(GetWorld(),Site)))){Site=S;}}
     const int32 Count=ProductionInputs.Num();ProductionInputs.RemoveAll([&](FGuid Id){const auto* I=O.Inventory.Find(Id);return !I||I->bReserved;});if(Count!=ProductionInputs.Num()){bProductionPreview=false;}
-    const bool Free=!PC->InventoryPending()&&!bConfirm&&!bTradeReview;const auto* SelectedItem=O.Inventory.Find(Selected);
+    const bool Free=!PC->InventoryPending()&&!bConfirm;const auto* SelectedItem=O.Inventory.Find(Selected);
     ProductionInput->SetIsEnabled(SelectedItem&&!SelectedItem->bReserved&&LDInventory::Commodity(SelectedItem->Kind)&&Free);
     for(uint8 R=0;R<9;++R){ProductionActions[R]->SetVisibility((ServiceTab==4)==(R>=5)?ESlateVisibility::Visible:ESlateVisibility::Collapsed);ProductionActions[R]->SetIsEnabled(Free);}
     CouponToggle->SetVisibility(ServiceTab==3&&O.CraftCoupon.IsValid()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);CouponToggle->SetIsEnabled(Free);

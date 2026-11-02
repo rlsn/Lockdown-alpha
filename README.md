@@ -2,8 +2,10 @@
 
 **v0.10.0 · Unreal Engine 5.8.4 · Windows PC**
 
+**对外标题：谁是校园最强阴人王**。技术项目名仍为 Lockdown。
+
 一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏：打野与战斗获取成长，
-通过三选一和装备建立优势，最终独占唯一占领点获胜。
+通过三选一和装备建立优势，最终独占升旗台控制区获胜。
 
 当前仓库提供原生工程和可复用系统，**尚未完整实现目标 Demo**。
 产品规则只以 [Demo App Spec](docs/APP_SPEC.md) 为准；
@@ -30,13 +32,15 @@ git lfs pull
 $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 .\Scripts\Preflight.ps1
 .\Scripts\BuildEditor.ps1
-.\Scripts\BootstrapAssets.ps1 -Mode Validate
 .\Scripts\OpenStandalone.ps1
 ```
 
 脚本支持 `-EngineRoot`；本机路径不提交到仓库。
-缺少生成资产、选择已有 profile、多人调试和打包方式见开发指南。
-上面的命令启动当前工程，不等于新 Demo 的完整玩法验收。
+上面的命令打开前端，不会启动旧 profile。Host/Join 只接受 Demo 内容合同，
+缺少批准的内容、世界载荷或生成资产时明确失败，不回退旧地图或旧数值。
+批准数据与唯一 Demo 地图已有 Sync/Bootstrap 生成、保存和原生几何/导航检查；
+战斗、成长、营地、AI 与完整联机流程仍未接齐，地图可加载不代表可以开始完整对局。
+检查入口与边界见开发指南。
 
 ## 文件边界
 

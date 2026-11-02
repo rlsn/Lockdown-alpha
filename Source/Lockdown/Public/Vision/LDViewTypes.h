@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 #include "Development/LDCharacterBuild.h"
 #include "Inventory/LDInventoryTypes.h"
 #include "LDViewTypes.generated.h"
@@ -69,6 +70,12 @@ struct FLDOwnerState
     GENERATED_BODY()
     UPROPERTY() uint32 Match = 0;
     UPROPERTY() uint32 Life = 1;
+    UPROPERTY() FGuid ContenderId;
+    UPROPERTY() FLDCombatBodyRef BodyRef;
+    UPROPERTY() ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
+    UPROPERTY() uint64 LifeRevision = 0;
+    UPROPERTY() int64 RespawnAtMs = 0;
+    UPROPERTY() int64 ProtectedUntilMs = 0;
     UPROPERTY() double Hp = 100;
     UPROPERTY() double MaxHp = 100;
     UPROPERTY() bool bDevelopmentProfile = false;
@@ -127,7 +134,7 @@ struct FLDOwnerState
     UPROPERTY() int64 Xp = 0;
     UPROPERTY() uint8 WardCharges = 1;
     UPROPERTY() bool bActive = true;
-    UPROPERTY() uint32 Revision = 0;
+    UPROPERTY() uint64 Revision = 0;
     UPROPERTY() uint32 DeathSerial = 0;
     UPROPERTY() int64 LastLostGold = 0;
     UPROPERTY() float ReturnAt = 0;

@@ -2,7 +2,6 @@
 #include "Combat/LDTacticalCatalog.h"
 #include "Economy/LDCommerceDirector.h"
 #include "Economy/LDBankDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -39,7 +38,6 @@ void ALDVendorDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,ui
     if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){PC->ClientVendorClosed(Token,TEXT("Approach the Guild within 120 cm, alive, unprotected and unoccupied"));return;}
     if(M->Bank){M->Bank->Invalidate(PC);}
     if(M->Commerce){M->Commerce->Invalidate(PC);}
-    if(M->Trade){M->Trade->CancelFor(PC);}
     C.Match=Match;C.Life=Life;C.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;C.Session=FGuid::NewGuid();C.SentRevision=CatalogRevision;C.SentPrice=BookPrice;
     PC->ClientVendorQuote(*O,Quote(PC,C));
 }

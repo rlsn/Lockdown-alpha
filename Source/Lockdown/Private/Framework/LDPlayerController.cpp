@@ -13,6 +13,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "EngineUtils.h"
@@ -52,12 +53,12 @@
 #include "UI/LDInventoryPanel.h"
 #include "Tests/LDInventoryProbe.h"
 #include "Tests/LDVendorProbe.h"
-#include "Tests/LDTradeProbe.h"
+#include "Tests/LDDemoEntryProbe.h"
 
 namespace
 {
     bool LDNetworkProbeEnabled()
-    {return FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe"))));}
+    {return FParse::Param(FCommandLine::Get(),TEXT("LDB86Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB84Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB83Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB82Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))||FParse::Param(FCommandLine::Get(),TEXT("LDWorldNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDContentNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDAcquisitionNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDLoadoutProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDViewProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDCombatNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDObjectiveNetProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDSoakProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDDevelopmentProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDNavigationProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDInputProbe"))||FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe"))||(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))));}
 }
 
 ALDPlayerController::ALDPlayerController(){Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));}
@@ -89,12 +90,16 @@ void ALDPlayerController::ServerStartLobby_Implementation(uint32 Match,uint32 Li
 void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();InitializeLocalUI();
+#if WITH_DEV_AUTOMATION_TESTS
+    LDDemoTests::StartWorldRoomProbe(*this);
+    LDDemoTests::StartCoreProbe(*this);
+#endif
 }
 void ALDPlayerController::InitializeLocalUI()
 {
     if(EnvironmentUI()){return;}
     if (!IsLocalController()||!GetLocalPlayer()||RootUI) { return; }
-    Controls=ULDControlSettings::Load();
+    Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings();
     bShowMouseCursor = true;
     if (ULocalPlayer* Local = GetLocalPlayer())
     {
@@ -120,8 +125,6 @@ void ALDPlayerController::InitializeLocalUI()
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDB81Probe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDB81Probe>(ALDB81Probe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDGeometryProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDGeometryProbe>(ALDGeometryProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTacticalProbe"))){FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTacticalProbe>(ALDTacticalProbe::StaticClass(),FTransform::Identity,Params);}
-    if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDTradeProbe")))
-    {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDTradeProbe>(ALDTradeProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe")))
     {FActorSpawnParameters Params;Params.Owner=this;GetWorld()->SpawnActor<ALDVendorProbe>(ALDVendorProbe::StaticClass(),FTransform::Identity,Params);}
     if(!IsFrontend()&&FParse::Param(FCommandLine::Get(),TEXT("LDInventoryProbe")))
@@ -197,7 +200,7 @@ void ALDPlayerController::OnRep_OwnerState()
     const bool NewLife=IsLocalController()&&(OwnerState.Match!=LatestOwner.Match||OwnerState.Life!=LatestOwner.Life||(LatestOwner.bActive&&!OwnerState.bActive));
     // Publish the lifecycle before cancellation can synchronously publish another receipt.
     LatestOwner=OwnerState;
-    if(NewLife){PendingAimRequest=0;Inspected.Invalidate();ClearControls();}
+    if(NewLife){PendingAimRequest=0;Inspected.Invalidate();ClearControls(true);}
 }
 void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& State)
 {
@@ -210,7 +213,14 @@ void ALDPlayerController::Dash(){if(Navigation->Enabled()){if(CanWorldCommand())
 void ALDPlayerController::RecenterEnded(){Navigation->Recenter(false);}
 void ALDPlayerController::NavigateClick(){if(Navigation->Enabled()){Navigation->ClickMove();}}
 void ALDPlayerController::StopOrder(){if(Navigation->Enabled()&&CanWorldCommand()){Navigation->Stop();CancelInterruptibleHolds();}}
-void ALDPlayerController::CameraFollow(){if(Navigation->Enabled()&&CanWorldCommand()){Navigation->ToggleFollow();}}
+void ALDPlayerController::CameraFollow()
+{
+    if(Navigation->Enabled()&&CanWorldCommand())
+    {
+        Navigation->ToggleFollow();
+        if(Controls){Controls->SetAppliedFollowing(Navigation->bFollowCamera);CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();}
+    }
+}
 void ALDPlayerController::SkillAlias(ELDSkill Skill)
 {
     const int32 Slot=OwnerState.Build.Slots.Find(Skill);
@@ -290,6 +300,8 @@ void ALDPlayerController::EnqueueAction(uint32 Match,uint32 Life,uint32 Request,
     --CombatTokens;LastCombatRequest=Request;LastCombatResult=TEXT("Action queued.");
     if(CombatReceipts.Num()>=32){uint32 Oldest=MAX_uint32;for(const auto& Pair:CombatReceipts){Oldest=FMath::Min(Oldest,Pair.Key);}CombatReceipts.Remove(Oldest);}
     CombatReceipts.Add(Request,LastCombatResult);
+    if (Mode->IsDemoRoom())
+    { CompleteCombatRequest(Request,TEXT("Legacy actions are not supported by the Demo combat contract.")); return; }
     if(Mode->Combat){if(Content){Mode->Combat->QueueContent(this,*Content);}else if(Action>=3){Mode->Combat->QueueSkill(this,Match,Life,Request,BuildRevision,Action-3,Direction,Observed,Point);}else{Mode->Combat->Queue(this,Match,Life,Request,Action,Direction);}}
     else{CompleteCombatRequest(Request,TEXT("Combat unavailable."));}
 }
@@ -546,7 +558,7 @@ void ALDPlayerController::Move(const FInputActionValue& Value)
 
 void ALDPlayerController::SprintStarted() { if (!bControlsSuppressed) { if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->SetSprint(true); } } }
 void ALDPlayerController::SprintStopped() { if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->SetSprint(false); } }
-void ALDPlayerController::Zoom(const FInputActionValue& Value) { if (!bControlsSuppressed) { if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->Zoom(Value.Get<float>()); } } }
+void ALDPlayerController::Zoom(const FInputActionValue& Value) { if (!bControlsSuppressed) { if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn())) { Body->Zoom(Value.Get<float>()); RecordAppliedCameraZoom(); } } }
 void ALDPlayerController::ToggleMenu() { if (RootUI && !IsFrontend()) { RootUI->ToggleMenu(); } }
 
 void ALDPlayerController::CancelInterruptibleHolds()
@@ -582,14 +594,17 @@ void ALDPlayerController::ServerAidConsent_Implementation(uint32 Match,uint32 Li
 {auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M?M->StateFor(this):nullptr;if(O&&M->IsTacticalProfile()&&M->IsPlaying()&&O->Match==Match&&O->Life==Life&&O->bActive){O->bAidConsent=Allow;M->SyncOwner(this);}}
 void ALDPlayerController::ServerCancelTactical_Implementation(uint32 Match,uint32 Life,uint32 Through)
 {if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?M->StateFor(this):nullptr;if(O&&O->Match==Match&&O->Life==Life&&M->Combat){auto* Body=Cast<ALDCharacter>(GetPawn());if(auto* S=M->Combat->StateFor(Body)){S->CancelledCoreThrough=FMath::Max(S->CancelledCoreThrough,Through);S->bAttackOrder=false;if(S->Action==1){S->Action=0;S->Target.Reset();}}M->Combat->CancelTactical(Body,TEXT("Stop or focus loss"));}}
-void ALDPlayerController::ClearControls()
+void ALDPlayerController::ClearControls(bool LifeChanged)
 {
     PendingPickupToken=0;HeldQuickSlot=-1;if(InventoryUI){InventoryUI->CancelDrag();}
     CancelArmed();bPrimaryOwned=false;HeldObserved.Invalidate();
-    Navigation->Stop();Navigation->Recenter(false);
+    if (LifeChanged) { Navigation->ResetLife(); }
+    else { Navigation->Stop(); }
+    Navigation->Recenter(false);
     CancelInterruptibleHolds();
     SprintStopped();
-    if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn()))
+    const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if (ALDCharacter* Body = Cast<ALDCharacter>(GetPawn()); Body && (!HasAuthority() || !Mode || !Mode->IsDemoRoom()))
     {
         Body->ConsumeMovementInputVector();
         auto* Movement=Body->GetCharacterMovement();
@@ -597,7 +612,7 @@ void ALDPlayerController::ClearControls()
     }
 }
 
-void ALDPlayerController::FlushPressedKeys() { CancelTrade();CloseVendor();CloseBank();CloseCommerce();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
+void ALDPlayerController::FlushPressedKeys() { CloseVendor();CloseBank();CloseCommerce();Super::FlushPressedKeys();if(Navigation->Enabled()||IsFrontend()){bFreshInputRequired=true;}ClearControls(); }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {

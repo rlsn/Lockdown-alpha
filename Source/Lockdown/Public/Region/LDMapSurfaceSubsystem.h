@@ -15,13 +15,14 @@ struct FLDMapContact
     int64 SampledAt=-1;
 };
 
-// Static substrate/contact slice. Enabled only in the standalone B90 map mode.
-// No client RPC or unbound item/casting shortcut is exposed.
+// Retained substrate/contact implementation for asset migration, not a Demo runtime provider.
 UCLASS()
 class LOCKDOWN_API ULDMapSurfaceSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 public:
+    virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void OnWorldBeginPlay(UWorld& World) override;
     virtual void Tick(float DeltaTime) override;
     virtual TStatId GetStatId() const override;

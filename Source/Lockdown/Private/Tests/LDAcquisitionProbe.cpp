@@ -3,7 +3,6 @@
 #include "Inventory/LDAcquisitionCatalog.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDInventoryDirector.h"
-#include "Inventory/LDTradeDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDProductionDirector.h"
@@ -12,7 +11,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Objectives/LDObjectiveDirector.h"
 #include "Region/LDRegionDefinition.h"
-#include "Vision/LDVisionDirector.h"
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -46,15 +44,6 @@ void ALDAcquisitionProbe::Tick(float Delta)
     auto* OA=M->StateFor(A);auto* OB=M->StateFor(B);Check(OA->Gold==0&&OB->Gold==0&&!E->AllowDiagnosticItems(),TEXT("Both owners start without money; diagnostic item grants disabled"));
     for(auto* P:{A,B}){for(int32 Job=0;Job<8;++Job){auto* O=M->StateFor(P);W->TimeSeconds=FMath::Max(W->GetTimeSeconds()+.4,double(O->WorkReadyAt)+.01);Site(P,1);Context(P,1);const auto* N=LDRegion::Definition(W)->Node(O->ContractDestination);if(!N){Check(false,TEXT("Courier destination assigned"));break;}Site(P,N->Site);uint32 Id=Context(P,N->Site);Hold(P,Id,3.01,1);Site(P,1);Id=Context(P,1);Hold(P,Id,3.01,1);}Check(M->StateFor(P)->Gold==200&&M->StateFor(P)->PaidJobs==8,TEXT("Eight real courier jobs earn exactly200gold; no reward setter"));}
     Supply(A,2,ELDItemKind::SimpleStaff);const FGuid Staff=Find(A,ELDItemKind::SimpleStaff);Toolkit(A);Craft(A,32,0,Staff);Check(I->Owned(A,Staff)&&I->Owned(A,Staff)->Quality==1,TEXT("Fine upgrade preserves physical ID"));Toolkit(A);Buy(A,ELDItemKind::Crystal,1);Craft(A,33,0,Staff);Check(I->Owned(A,Staff)&&I->Owned(A,Staff)->Quality==2,TEXT("Masterwork upgrade preserves physical ID"));
-    auto Exchange=[&](ALDPlayerController* From,ALDPlayerController* To)
-    {
-        Place(From,ALDProductionDirector::Position(W,2));Place(To,ALDProductionDirector::Position(W,2)+FVector(60,0,0));M->Vision->Tick(0);FGuid Observed;const auto* V=M->Vision->AuthorityViewFor(From);if(V){for(const auto& Entity:V->Entities){if(M->Vision->ResolveObserved(From,Entity.Id)==To->GetPawn()){Observed=Entity.Id;}}}
-        auto Command=[&](ALDPlayerController* P,uint8 K,FGuid Item=FGuid()){const auto T=P->TradeView;const auto* O=M->StateFor(P);M->Trade->Queue(P,O->Match,O->Life,++Token,K,T.Session,T.Revision,T.Digest,Item,0);W->TimeSeconds+=.4;M->Trade->Sample(W->GetTimeSeconds());};
-        Command(From,LDTrade::Invite,Observed);Command(To,LDTrade::Accept);Command(From,LDTrade::Add,Staff);Command(From,LDTrade::Ready);Command(To,LDTrade::Ready);Command(From,LDTrade::Confirm);Command(To,LDTrade::Confirm);
-        Check(I->Owned(To,Staff)&&I->Owned(To,Staff)->Quality==2&&!I->Owned(From,Staff),TEXT("Actual consent exchange preserves same Masterwork ID/quality"));
-        Check(From->TradeView.Stage==ELDTradeStage::Committed&&From->TradeView.OwnItems.Num()==1&&From->TradeView.OwnItems[0].Quality==2,TEXT("Completed trade receipt retains voluntarily offered quality after ownership changes"));
-    };
-    Exchange(A,B);Exchange(B,A);
     Toolkit(A);Buy(A,ELDItemKind::Crystal,1);Craft(A,21);const FGuid Conduit=Find(A,ELDItemKind::ConduitStaff);Check(Conduit.IsValid()&&!I->Owned(A,Staff)&&I->Owned(A,Conduit)->Quality==0&&I->Owned(A,Conduit)->ParentIds.Contains(Staff),TEXT("Branch consumes Masterwork staff, outputs Standard Conduit with parent lineage"));
     Supply(A,3,ELDItemKind::Book,ELDSkill::ForceWave);const auto* Book=OA->Inventory.Items.FindByPredicate([](const auto& V){return V.Kind==ELDItemKind::Book&&V.Skill==ELDSkill::ForceWave;});if(Book){Site(A,2);Seq=0;const uint32 Id=++Token;I->Queue(A,OA->Match,OA->Life,Id,OA->Inventory.Revision,LDInventory::Read,Book->Id,Book->Revision,0,FVector::ZeroVector);I->Sample(W->GetTimeSeconds());Dev->Sample(W->GetTimeSeconds());Hold(A,Id,3.01,2);Check(LDDevelopment::Rank(OA->Build,ELDSkill::ForceWave)==1,TEXT("Paid CircleII book reads through actual held inventory request"));auto P=LDDevelopment::PlanFrom(OA->Build);P.Ranks[28]=2;Seq=0;const uint32 Train=++Token;Dev->Queue(A,OA->Match,OA->Life,Train,LDDevelopmentTransaction::Prepare,ELDSkill::None,FGuid(),P);Dev->Sample(W->GetTimeSeconds());Hold(A,Train,2.01,2);Check(OA->Build.Ranks[28]==2,TEXT("Earned mastery point trains paid cross-class knowledge to rank2"));}else{Check(false,TEXT("Trainer creates book"));}
     // B earns a Core procurement margin before paying for the rare work order.

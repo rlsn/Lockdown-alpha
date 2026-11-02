@@ -41,7 +41,7 @@ void ULDInventoryPanel::ReviewBank(bool Deposit,bool Charter)
 void ULDInventoryPanel::RefreshBank()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto& Q=PC->BankView;const bool Open=PC->BankIsOpen();
-    BankOpenButton->SetIsEnabled(PC->NearGuildVendor()&&!PC->InventoryPending()&&!Open&&!bConfirm&&!bTradeReview);
+    BankOpenButton->SetIsEnabled(PC->NearGuildVendor()&&!PC->InventoryPending()&&!Open&&!bConfirm);
     BankPanel->SetVisibility(Open?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(!Open||Q.Session!=BankReviewedSession||Q.WalletRevision!=BankReviewedWallet||Q.BankRevision!=BankReviewedBalance){bBankReviewed=false;}
     int64 Entered=0;const FString Text=BankAmount->GetText().ToString();bool Valid=!Text.IsEmpty()&&Text.Len()<=19;if(Valid){for(TCHAR C:Text){if(C<'0'||C>'9'||Entered>(MAX_int64-(C-'0'))/10){Valid=false;break;}Entered=Entered*10+(C-'0');}}
@@ -49,6 +49,6 @@ void ULDInventoryPanel::RefreshBank()
     const FString Review=bBankReviewed&&bCharterReview?FString::Printf(TEXT("\nCONFIRM REGISTERED CHARTER · Wallet %lld + bank %lld = 100 gold burned. Bound registration; activate once at City. Activation needs a full 4+30+60 seconds before deadline; delay can forfeit it. No refund or automatic win."),BankReviewedAmount,100-BankReviewedAmount):bBankReviewed?FString::Printf(TEXT("\nConfirm %s %lld · Fee %lld · %s %lld"),bBankDeposit?TEXT("deposit"):TEXT("withdrawal"),BankReviewedAmount,bBankDeposit?LDEconomy::DepositFee(BankReviewedAmount):0,bBankDeposit?TEXT("Bank receives"):TEXT("Wallet receives"),bBankDeposit?BankReviewedAmount-LDEconomy::DepositFee(BankReviewedAmount):BankReviewedAmount):TEXT("\nChoose an amount, review, then separately confirm.");
     BankStatus->SetText(FText::FromString(FString::Printf(TEXT("CITY TREASURY · Wallet %lld · Protected bank %lld\nDeposit fee: ceil(2%%) · Withdrawals free · %s%s"),Q.Wallet,Q.Bank,*PC->BankFeedback,*Review)));
     CastChecked<UTextBlock>(BankConfirm->GetContent())->SetText(FText::FromString(PC->InventoryPending()?TEXT("Pending…"):bBankReviewed?TEXT("Confirm payment"):TEXT("Review first")));
-    BankConfirm->SetIsEnabled(bBankReviewed&&!PC->InventoryPending()&&!bConfirm&&!bTradeReview);
+    BankConfirm->SetIsEnabled(bBankReviewed&&!PC->InventoryPending()&&!bConfirm);
     BankAmount->SetIsEnabled(!PC->InventoryPending());
 }

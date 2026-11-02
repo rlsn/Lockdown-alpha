@@ -26,8 +26,6 @@ public:
     FString DetailText() const;
     void SelectOffer(ELDSkill Skill);void BuyOffer();
     FString VendorText() const;
-    FString TradeText() const;
-    void TradeSelected();void TradeGold(int64 Amount);void TradeReady();void TradeConfirm();
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -45,7 +43,6 @@ private:
     friend class ALDProductionProbe;
     friend class ALDInventoryProbe;
     friend class ALDVendorProbe;
-    friend class ALDTradeProbe;
     uint8 ServiceTab=0;
     UPROPERTY() TObjectPtr<UTextBlock> AcquisitionStatus;
     UPROPERTY() TObjectPtr<ULDCommandButton> AcquisitionConfirm;
@@ -59,10 +56,6 @@ private:
     UPROPERTY() TObjectPtr<class UScrollBox> ServiceScroll;
     UPROPERTY() TObjectPtr<UTextBlock> ServiceHint;
     UPROPERTY() TObjectPtr<ULDCommandButton> CouponToggle;
-    void BuildTradePanel(class UVerticalBox* All);
-    void RefreshTradePanel();
-    void BuildTradeReview(class UCanvasPanel* Canvas);
-    void ShowTradeReview();
     UPROPERTY() TObjectPtr<UTextBlock> ProductionStatus;
     UPROPERTY() TObjectPtr<ULDCommandButton> ProductionInput;
     UPROPERTY() TObjectPtr<ULDCommandButton> ProductionConfirm;
@@ -89,34 +82,6 @@ private:
     uint32 QuoteMatch=0;
     uint8 SelectedMarket=0;
     FLDCommerceView DisplayedCommerce;
-    bool bTradeReview=false;
-    uint32 ReviewedRevision=0;
-    FGuid ReviewedSession;
-    uint8 ReviewedStage=0;
-    UPROPERTY() TObjectPtr<UTextBlock> ReviewHint;
-    UPROPERTY() TObjectPtr<UBorder> TradeReview;
-    UPROPERTY() TObjectPtr<UTextBlock> ReviewSummary;
-    UPROPERTY() TObjectPtr<UTextBlock> ReviewOwn;
-    UPROPERTY() TObjectPtr<UTextBlock> ReviewOther;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewConfirm;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewCancel;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReviewBack;
-    void SubmitTrade(uint8 Command,FGuid Item=FGuid(),int64 Amount=0);
-    TArray<FGuid> DisplayedTradeItems;
-    UPROPERTY() TObjectPtr<class UVerticalBox> TradePanel;
-    UPROPERTY() TObjectPtr<UTextBlock> TradeStatus;
-    UPROPERTY() TObjectPtr<UTextBlock> OwnTray;
-    UPROPERTY() TObjectPtr<UTextBlock> OtherTray;
-    UPROPERTY() TObjectPtr<UEditableTextBox> GoldInput;
-    UPROPERTY() TObjectPtr<ULDCommandButton> AddTradeButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> GoldTradeButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReadyTradeButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ConfirmTradeButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> AcceptTradeButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> CancelTradeButton;
-    uint32 DisplayedTradeRevision=0;
-    FString DisplayedTradeDigest;
-
     UPROPERTY() TObjectPtr<class UVerticalBox> CatalogPanel;
     UPROPERTY() TObjectPtr<UTextBlock> CatalogInfo;
     UPROPERTY() TObjectPtr<ULDCommandButton> VendorBuy;

@@ -4,7 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "LDWidgets.generated.h"
 class UWidgetTree;
-class UTextBlock;class UBorder;class UScrollBox;
+class UTextBlock;class UBorder;
 UCLASS()
 class LOCKDOWN_API ULDCommandButton : public UButton
 {
@@ -39,7 +39,6 @@ protected:
 namespace LDWidgets
 {
     LOCKDOWN_API UBorder* Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding=FMargin(20));
-    LOCKDOWN_API UScrollBox* OfferTray(UWidgetTree* Tree,UTextBlock*& Label,int32 Size=16);
     LOCKDOWN_API UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size=16);
     LOCKDOWN_API ULDCommandButton* Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World=false);
 }

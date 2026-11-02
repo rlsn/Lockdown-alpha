@@ -9,11 +9,12 @@
 #include "EngineUtils.h"
 #include "Components/PointLightComponent.h"
 #include "UI/LDControlSettings.h"
+#include "Framework/LDGameInstance.h"
 
 ALDB91GameMode::ALDB91GameMode()
 {PlayerControllerClass=ALDB91Controller::StaticClass();HUDClass=ALDB91HUD::StaticClass();}
 void ALDB91Controller::BeginPlay()
-{Super::BeginPlay();bShowMouseCursor=true;bEnableClickEvents=true;Controls=ULDControlSettings::Load(TEXT("LockdownLocalControlsV1"),8);}
+{Super::BeginPlay();bShowMouseCursor=true;bEnableClickEvents=true;if(IsLocalController()){Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(8);}}
 void ALDB91Controller::SetupInputComponent()
 {APlayerController::SetupInputComponent();}
 void ALDB91Controller::ServerWorldInteraction_Implementation(FLDWorldRequest Request)
@@ -86,5 +87,5 @@ void ALDB91Controller::PlayerTick(float Delta)
     for(const auto& Entry:View){if(Entry.PublicDoor.IsNone()){if(auto* Visual=BodyViews.FindRef(Entry.Handle).Get()){Visual->Animate(Entry.Velocity,Delta);}}}
     TickSourceControls();
     if(auto* Body=Cast<ALDCharacter>(GetPawn()))
-    {const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);if(Zoom){Body->Zoom(Zoom);}}
+    {const float Zoom=(WasInputKeyJustPressed(EKeys::MouseScrollUp)?1.f:0.f)-(WasInputKeyJustPressed(EKeys::MouseScrollDown)?1.f:0.f);if(Zoom){Body->Zoom(Zoom);RecordAppliedCameraZoom();}}
 }

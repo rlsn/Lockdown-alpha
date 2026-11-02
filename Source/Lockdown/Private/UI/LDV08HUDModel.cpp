@@ -39,7 +39,7 @@ LDHUD::FActionView LDHUD::Action(const FLDOwnerState& O,uint8 Slot,bool Accessor
     else if(!O.bActive){V.State=TEXT("Returning");}
     else if(Now<O.ProtectedUntil){V.State=TEXT("Protected");}
     else if(PanelOpen){V.State=TEXT("Panel open");}
-    else if(I&&I->bReserved){V.State=TEXT("Reserved in trade");}
+    else if(I&&I->bReserved){V.State=TEXT("Reserved");}
     else if(O.StatusMask&(1<<uint8(LDTactical::EStatus::Stun))){V.State=TEXT("Stunned");}
     else if(O.StatusMask&(1<<uint8(LDTactical::EStatus::Hex))){V.State=TEXT("Hexed");}
     else if(O.StatusMask&(1<<uint8(Gear?LDTactical::EStatus::Mute:LDTactical::EStatus::Silence))){V.State=Gear?TEXT("Muted"):TEXT("Silenced");}
