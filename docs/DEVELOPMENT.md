@@ -92,10 +92,9 @@ Demo `--check` 的明确失败是输入门禁，不是可玩成功。
 再运行 `SyncDemoContentData.py`；重建 Editor 后用 `BootstrapAssets.ps1 -Mode Regenerate`
 更新唯一原生目录/地图，不手改生成头或用旧值补字段。
 无需重建几何的内容变更使用 `-Mode RefreshDefinitions`，随后仍须通过保存资产校验。
-尚未完成各自删除闭包的组件仍可做独立生成一致性检查；旧输入不是 Demo 参数：
+Demo 内容/世界生成器的 Python 导入回归可单独运行：
 
 ```powershell
-python -B .\Scripts\SyncB84Data.py --check
 python -B -m unittest discover -s .\Scripts -p "Test*Import.py"
 ```
 
@@ -146,7 +145,7 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 | 前端设置实际渲染 | `RunDemoFrontendCheck.ps1`，新 `UserDir` 下的 windowed RHI、合成 UMG 点击、100/125% 图像、文本偏好保存/回读及未应用显示草稿丢弃；不修改 OS 显示模式 |
 | 输入 / 导航 / HUD | `RunInputCheck.ps1`、`RunNavigationCheck.ps1`、`RunHUDCheck.ps1` 的相关模式 |
 | 战斗 / 观测复制 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunDemoVisionCheck.ps1` |
-| 库存 / 账本 | `RunTests.ps1` 中的 Inventory/Economy 规则；`python -B -m unittest discover -s .\Scripts -p TestEconomyEvidence.py`；实际商店与拥有连接场景由 N05 接入 |
+| 库存 / 账本 | `RunTests.ps1` 中的 `DemoGrowth*` 规则；`python -B -m unittest discover -s .\Scripts -p TestEconomyEvidence.py`；原生账本证据经 `CheckEconomyEvidence.py` 独立复算；实际商店与拥有连接场景由 N05 接入 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
 
 `RunTests.ps1` 执行已有 `Lockdown.Rules` 套件，由 `CheckRuleReport.py` 核对明确的当前必需用例集合。

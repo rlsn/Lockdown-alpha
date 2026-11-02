@@ -31,9 +31,9 @@ EBrowseReturnVal::Type ULDGameEngine::Browse(FWorldContext& Context, FURL URL, F
                 UPackage* Package = LoadPackage(nullptr, *URL.Map, LOAD_None);
                 const UWorld* World = Package ? UWorld::FindWorldInPackage(Package) : nullptr;
                 const AWorldSettings* Settings = World ? World->GetWorldSettings() : nullptr;
-                if (!Settings) { Rejection = TEXT("The requested Demo entry world could not be loaded."); }
+                if (!Settings) { Rejection = TEXT("无法加载请求的 Demo 入口世界。"); }
                 else if (Settings->DefaultGameMode && Settings->DefaultGameMode != ALDGameMode::StaticClass())
-                { Rejection = TEXT("Retired saved GameMode. The Demo world must use LDGameMode."); }
+                { Rejection = TEXT("Demo 世界保存了已退役的 GameMode，必须使用 LDGameMode。"); }
             }
         }
         if (!Rejection.IsEmpty())

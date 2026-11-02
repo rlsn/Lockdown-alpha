@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "Containers/StringConv.h"
 #include "Internationalization/Regex.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/FileManager.h"
@@ -33,7 +34,7 @@ bool FLDDisplayConfigWriteGuard::Begin(FConfigCacheIni& Cache, const FString& Se
 {
     if (IsActive() || SettingsFile.IsEmpty() || QualityFile.IsEmpty() || SettingsSection.IsEmpty()
         || !Cache.FindConfigFile(SettingsFile) || !Cache.FindConfigFile(QualityFile))
-    { Error = TEXT("The display configuration is unavailable or already guarded. No display trial was started."); return false; }
+    { Error = TEXT("显示配置不可用或已被保护，未开始显示试用。"); return false; }
     auto Captured = MakeShared<FLDDisplayConfigGuardData>();
     auto Capture = [&](const FString& Filename, const FString& Section, const TCHAR* Key)
     {
@@ -74,7 +75,7 @@ bool FLDDisplayConfigWriteGuard::Release(FConfigCacheIni& Cache, FString& Error)
     for (const auto& File : Data->Files)
     {
         if (!Cache.FindConfigFile(File.Filename))
-        { Error = TEXT("The guarded display configuration disappeared. Display saving remains blocked."); return false; }
+        { Error = TEXT("受保护的显示配置已不存在，显示设置仍禁止保存。"); return false; }
     }
     // Use cache mutators so UE's saved-layer change tracking also loses any automatic trial writes.
     for (const auto& File : Data->Files)
@@ -97,6 +98,8 @@ namespace
     constexpr uint32 LegacySaveGameMagic = 0x53415647;
     // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
     constexpr uint32 RetiredRegistrySchema = 4;
+    // Schema 5 is the current whitelist without PlayerName; it is migrated explicitly and rewritten as the current schema.
+    constexpr uint32 NamelessSchema = 5;
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -127,7 +130,7 @@ namespace
             if (Index) { Text += TEXT(", "); }
             Text += Names[Index];
         }
-        if (Names.Num() > Shown) { Text += FString::Printf(TEXT(" and %d more"), Names.Num() - Shown); }
+        if (Names.Num() > Shown) { Text += FString::Printf(TEXT(" 等另外 %d 个"), Names.Num() - Shown); }
         return Text;
     }
 
@@ -153,17 +156,17 @@ namespace
         {
             if (NativeError == ERROR_FILE_NOT_FOUND || NativeError == ERROR_PATH_NOT_FOUND)
             { return ELocalFileLookup::Missing; }
-            Error = FString::Printf(TEXT("Local settings metadata could not be read (Windows error %u). The file has not been replaced."), uint32(NativeError));
+            Error = FString::Printf(TEXT("无法读取本地设置文件信息（Windows 错误 %u）。文件未被替换。"), uint32(NativeError));
             return ELocalFileLookup::Failed;
         }
         if (Attributes & FILE_ATTRIBUTE_DIRECTORY)
         {
-            Error = TEXT("The local settings file cannot be read: its path is a directory.");
+            Error = TEXT("无法读取本地设置文件：该路径是一个文件夹。");
             return ELocalFileLookup::Failed;
         }
         return ELocalFileLookup::Present;
 #else
-        Error = TEXT("Local settings storage requires the supported Windows file implementation.");
+        Error = TEXT("本地设置存储需要受支持的 Windows 文件实现。");
         return ELocalFileLookup::Failed;
 #endif
     }
@@ -175,7 +178,7 @@ namespace
         HANDLE File = ::CreateFileW(*Source, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (File == INVALID_HANDLE_VALUE)
         {
-            Error = FString::Printf(TEXT("Preferences are applied, but the replacement file could not be opened for a durable write (Windows error %u). The previous file was kept."), uint32(::GetLastError()));
+            Error = FString::Printf(TEXT("偏好已应用，但无法打开替换文件进行持久写入（Windows 错误 %u）。原文件已保留。"), uint32(::GetLastError()));
             return false;
         }
         const bool Flushed = ::FlushFileBuffers(File) != 0;
@@ -184,18 +187,18 @@ namespace
         const DWORD CloseError = Closed ? ERROR_SUCCESS : ::GetLastError();
         if (!Flushed || !Closed)
         {
-            Error = FString::Printf(TEXT("Preferences are applied, but the replacement file could not be flushed (Windows error %u). The previous file was kept."), uint32(Flushed ? CloseError : FlushError));
+            Error = FString::Printf(TEXT("偏好已应用，但无法将替换文件写入磁盘（Windows 错误 %u）。原文件已保留。"), uint32(Flushed ? CloseError : FlushError));
             return false;
         }
         // A sibling temporary file keeps this a same-volume rename. Never predelete or allow copy fallback.
         if (!::MoveFileExW(*Source, *Target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
         {
-            Error = FString::Printf(TEXT("Preferences are applied, but atomic replacement failed (Windows error %u). The previous file was kept; retry saving."), uint32(::GetLastError()));
+            Error = FString::Printf(TEXT("偏好已应用，但原子替换失败（Windows 错误 %u）。原文件已保留，请重试保存。"), uint32(::GetLastError()));
             return false;
         }
         return true;
 #else
-        Error = TEXT("Atomic local settings replacement is unavailable on this platform. The previous file was kept.");
+        Error = TEXT("此平台不支持本地设置原子替换。原文件已保留。");
         return false;
 #endif
     }
@@ -237,20 +240,20 @@ FLDLocalSettingsStorage FLDLocalSettingsStorage::Automation(const FGuid& Fixture
 
 const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
 {
-    // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2.
+    // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
     static const TArray<FLDControlBinding> Values={
-        {TEXT("Select"),TEXT("Select / confirm target"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),TEXT("Move / attack / approach shop"),EKeys::RightMouseButton},
-        {TEXT("AttackMove"),TEXT("Attack-move (then confirm ground)"),EKeys::A},
-        {TEXT("Skill1"),TEXT("Character ability 1"),EKeys::Q},{TEXT("Skill2"),TEXT("Character ability 2"),EKeys::W},
-        {TEXT("Item1"),TEXT("Equipment active 1"),EKeys::One},{TEXT("Item2"),TEXT("Equipment active 2"),EKeys::Two},
-        {TEXT("Stop"),TEXT("Stop movement / current action"),EKeys::S},
-        {TEXT("Attributes"),TEXT("Attributes panel"),EKeys::P},
-        {TEXT("PanUp"),TEXT("Pan camera up"),EKeys::Up},{TEXT("PanDown"),TEXT("Pan camera down"),EKeys::Down},
-        {TEXT("PanLeft"),TEXT("Pan camera left"),EKeys::Left},{TEXT("PanRight"),TEXT("Pan camera right"),EKeys::Right},
-        {TEXT("Recenter"),TEXT("Hold camera recenter"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("Toggle camera follow"),EKeys::Home},
-        {TEXT("Zoom"),TEXT("Camera zoom"),EKeys::MouseWheelAxis,true},
-        {TEXT("Back"),TEXT("Back / cancel (reserved)"),EKeys::Escape}
+        {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
+        {TEXT("Navigate"),TEXT("移动 / 攻击 / 前往小卖部"),EKeys::RightMouseButton},
+        {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
+        {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
+        {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
+        {TEXT("Stop"),TEXT("停止"),EKeys::S},
+        {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
+        {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
+        {TEXT("PanLeft"),TEXT("镜头左移"),EKeys::Left},{TEXT("PanRight"),TEXT("镜头右移"),EKeys::Right},
+        {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Home},
+        {TEXT("Zoom"),TEXT("镜头缩放"),EKeys::MouseWheelAxis,true},
+        {TEXT("Back"),TEXT("返回 / 取消（保留键）"),EKeys::Escape}
     };
     return Values;
 }
@@ -270,16 +273,16 @@ void ULDControlSettings::ResetBindings()
 bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
 {
     const auto* Definition=Definitions().FindByPredicate([&](const FLDControlBinding& B){return B.Action==Action;});
-    if(!Definition){Error=TEXT("This action is not in the current control registry.");return false;}
-    if(Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Escape is reserved for Back.");return false;}
+    if(!Definition){Error=TEXT("此动作不在当前按键注册表中。");return false;}
+    if(Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Esc 保留给返回 / 取消。");return false;}
     if(!NewKey.IsValid()||NewKey.IsGamepadKey()||NewKey.IsAxis2D()||NewKey.IsAxis3D()
         ||(Definition->Axis&&NewKey!=EKeys::MouseWheelAxis)||(!Definition->Axis&&NewKey.IsAxis1D()))
-    {Error=Definition->Axis?TEXT("Zoom uses the mouse wheel axis."):TEXT("Choose a keyboard key or mouse button.");return false;}
+    {Error=Definition->Axis?TEXT("镜头缩放只能使用鼠标滚轮。"):TEXT("请选择键盘按键或鼠标按键。");return false;}
     for(const auto& B:Definitions())
     {
         const FKey Other=Key(B.Action);
         const bool WheelOverlap=(NewKey==EKeys::MouseScrollUp||NewKey==EKeys::MouseScrollDown)&&Other==EKeys::MouseWheelAxis;
-        if(B.Action!=Action&&(Other==NewKey||WheelOverlap)){Error=TEXT("Already used by ")+B.Label+TEXT(". Choose another key.");return false;}
+        if(B.Action!=Action&&(Other==NewKey||WheelOverlap)){Error=TEXT("该键已被“")+B.Label+TEXT("”使用，请选择其他键。");return false;}
     }
     Bindings.Add(Action,NewKey);
     if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
@@ -294,27 +297,31 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
 {
     if (!FMath::IsFinite(TextScale) || TextScale < 1 || TextScale > 1.25
         || !FMath::IsFinite(Zoom) || Zoom < 1100 || Zoom > 1700)
-    { Error = TEXT("Camera zoom or text scale is outside the current supported range."); return false; }
+    { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
+    // An empty name is a valid unset name; only a chosen name must pass the local format check.
+    FString NameError;
+    if (!PlayerName.IsEmpty() && !ValidatePlayerName(PlayerName, NameError))
+    { Error = TEXT("名称无效：") + NameError; return false; }
     Error.Empty();
     return true;
 }
 bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
 {
     if (Schema != CurrentSchema)
-    { Error = TEXT("The local settings schema is unsupported."); return false; }
+    { Error = TEXT("本地设置的格式版本不受支持。"); return false; }
     if (!ValidatePreferences(Error)) { return false; }
     const auto Unknown = UnregisteredActions(Bindings);
     const auto Missing = MissingActions(Bindings);
     if (Unknown.Num() || Missing.Num())
     {
-        Error = TEXT("Key bindings do not match the Demo controls");
-        if (Unknown.Num()) { Error += TEXT("; retired or unknown actions: ") + DescribeActions(Unknown); }
-        if (Missing.Num()) { Error += TEXT("; missing actions: ") + DescribeActions(Missing); }
-        Error += TEXT(". Reset bindings to recover.");
+        Error = TEXT("按键绑定与 Demo 操作不一致");
+        if (Unknown.Num()) { Error += TEXT("；已退役或未知的动作：") + DescribeActions(Unknown); }
+        if (Missing.Num()) { Error += TEXT("；缺少的动作：") + DescribeActions(Missing); }
+        Error += TEXT("。请恢复默认按键。");
         return false;
     }
     if (Key(TEXT("Back")) != EKeys::Escape)
-    { Error = TEXT("Back must stay on Escape. Reset bindings to recover."); return false; }
+    { Error = TEXT("返回 / 取消必须保持为 Esc。请恢复默认按键。"); return false; }
     TSet<FKey> Seen;
     for(const auto& B:Definitions())
     {
@@ -322,7 +329,7 @@ bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
         if(!K.IsValid()||K.IsGamepadKey()||K.IsAxis2D()||K.IsAxis3D()||Seen.Contains(K)
             ||(!B.Axis&&K.IsAxis1D())||(B.Axis&&K!=EKeys::MouseWheelAxis)
             ||K==EKeys::MouseScrollUp||K==EKeys::MouseScrollDown)
-        { Error = TEXT("Saved bindings contain an invalid key, axis or conflict. Reset bindings to recover."); return false; }
+        { Error = TEXT("已保存的按键包含无效键、轴或冲突。请恢复默认按键。"); return false; }
         Seen.Add(K);
     }
     Error.Empty();
@@ -337,6 +344,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     bStartFollowing = Other.bStartFollowing;
     TextScale = Other.TextScale;
     Zoom = Other.Zoom;
+    PlayerName = Other.PlayerName;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -358,7 +366,7 @@ ULDControlSettings* ULDControlSettings::CreateDraft() const
 bool ULDControlSettings::ApplyLocalSettings(const ULDControlSettings& Draft, FString& Error)
 {
     if (Phase == ELDLocalSettingsPhase::EditingDraft)
-    { Error = TEXT("Apply to the active local settings owner, not to a draft."); return false; }
+    { Error = TEXT("只能应用到当前生效的本地设置，不能应用到草稿。"); return false; }
     if (!Draft.ValidateLocalSettings(Error)) { return false; }
     CopyPreferences(Draft);
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
@@ -368,7 +376,7 @@ bool ULDControlSettings::ApplyLocalSettings(const ULDControlSettings& Draft, FSt
 bool ULDControlSettings::SetAppliedZoom(float Value, FString& Error)
 {
     if (Phase == ELDLocalSettingsPhase::EditingDraft || !FMath::IsFinite(Value) || Value < 1100 || Value > 1700)
-    { Error = TEXT("Zoom was not saved: the applied camera value is invalid."); return false; }
+    { Error = TEXT("镜头缩放未保存：当前应用的镜头值无效。"); return false; }
     Zoom = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     Error.Empty();
@@ -379,6 +387,43 @@ void ULDControlSettings::SetAppliedFollowing(bool Value)
 {
     bStartFollowing = Value;
     if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
+}
+
+bool ULDControlSettings::ValidatePlayerName(const FString& Name, FString& Error)
+{
+    if (Name.IsEmpty()) { Error = TEXT("名称不能为空。"); return false; }
+    if (Name.TrimStartAndEnd().Len() != Name.Len()) { Error = TEXT("名称开头和结尾不能有空格。"); return false; }
+    // The name is a ?Name= URL option, so URL/option delimiters and quoting characters are never accepted.
+    static const FString Reserved = TEXT("?=#/\\:%&\"'<>|");
+    int32 Characters = 0;
+    for (int32 Index = 0; Index < Name.Len(); ++Index)
+    {
+        const uint32 Char = uint32(Name[Index]);
+        ++Characters;
+        // A complete UTF-16 surrogate pair is one character; a lone surrogate is invalid text.
+        if (StringConv::IsHighSurrogate(Char) && Index + 1 < Name.Len() && StringConv::IsLowSurrogate(uint32(Name[Index + 1])))
+        { ++Index; continue; }
+        if (Char < 0x20 || (Char >= 0x7F && Char <= 0x9F) || FChar::IsControl(TCHAR(Char))
+            || StringConv::IsHighSurrogate(Char) || StringConv::IsLowSurrogate(Char) || !StringConv::IsValidCodepoint(Char))
+        { Error = TEXT("名称不能包含控制字符或无效字符。"); return false; }
+        int32 Found = INDEX_NONE;
+        if (Reserved.FindChar(TCHAR(Char), Found))
+        { Error = TEXT("名称不能包含 ? = # / \\ : % & \" ' < > | 这些字符。"); return false; }
+    }
+    if (Characters > MaxPlayerNameChars)
+    { Error = FString::Printf(TEXT("名称最多 %d 个字符。"), MaxPlayerNameChars); return false; }
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedPlayerName(const FString& Name, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("名称未保存：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!ValidatePlayerName(Name, Error)) { return false; }
+    PlayerName = Name;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    return true;
 }
 
 void ULDControlSettings::ResetLocalDefaults()
@@ -395,7 +440,7 @@ void ULDControlSettings::ResetLocalDefaults()
 FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalSettingsStorage& InStorage)
 {
     if (!InStorage.IsValid())
-    { return { ELDLocalSettingsLoadStatus::InvalidStorage, nullptr, nullptr, TEXT("Invalid local settings storage. No user file was selected.") }; }
+    { return { ELDLocalSettingsLoadStatus::InvalidStorage, nullptr, nullptr, TEXT("本地设置存储无效，未选择任何用户文件。") }; }
 
     auto& Files = IFileManager::Get();
     const FString& Filename = InStorage.Filename();
@@ -404,42 +449,50 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (Lookup == ELocalFileLookup::Failed)
     { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, LookupError }; }
     if (Lookup == ELocalFileLookup::Missing)
-    { return { ELDLocalSettingsLoadStatus::Missing, CreateSessionSettings(InStorage), nullptr, TEXT("No saved local preferences. Current defaults are applied, not yet saved.") }; }
+    { return { ELDLocalSettingsLoadStatus::Missing, CreateSessionSettings(InStorage), nullptr, TEXT("没有已保存的本地偏好。当前使用默认值，尚未保存。") }; }
     TUniquePtr<FArchive> FileReader(Files.CreateFileReader(*Filename, FILEREAD_Silent));
     if (!FileReader)
-    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("The local settings file cannot be read. Check file access and retry.") }; }
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件，请检查文件访问权限后重试。") }; }
     const int64 Size = FileReader->TotalSize();
     if (Size < 0)
-    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("The local settings file size could not be read. It has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件大小。文件未被替换。") }; }
     if (Size < 12 || Size > MaxSettingsBytes)
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings file has an invalid size. It has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置文件大小无效。文件未被替换。") }; }
     TArray<uint8> Bytes;
     Bytes.SetNumUninitialized(int32(Size));
     FileReader->Serialize(Bytes.GetData(), Size);
     const bool ReadError = FileReader->IsError();
     if (!FileReader->Close() || ReadError)
-    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("The local settings file could not be read. It has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件。文件未被替换。") }; }
 
     FMemoryReader Reader(Bytes, true);
     Reader.ArMaxSerializeSize = MaxSettingsBytes;
     uint32 Magic = 0, SavedSchema = 0, Checksum = 0;
     Reader << Magic << SavedSchema << Checksum;
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
-    if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry))
-    { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("This local settings format is unsupported. Use the recovery control to replace it explicitly.") }; }
+    const bool Migrating = Magic == LocalSettingsMagic && SavedSchema == NamelessSchema;
+    if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
+    { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings file is damaged. It has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置文件已损坏。文件未被替换。") }; }
 
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
     uint8 RetiredSelector = 0, Edge = 0, Follow = 0;
     int32 Count = 0;
+    FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
-    Reader << Edge << Follow << Settings->TextScale << Settings->Zoom << Count;
+    Reader << Edge << Follow << Settings->TextScale << Settings->Zoom;
+    // Only the current schema stores the player name, between the preferences and the binding list.
+    if (SavedSchema == CurrentSchema) { Reader << SavedName; }
+    Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Count < 0 || Count > MaxBindingCount)
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings payload is malformed. It has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
+    if (SavedName.Len() != FCString::Strlen(*SavedName))
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
     Settings->bEdgePan = Edge != 0;
     Settings->bStartFollowing = Follow != 0;
+    Settings->PlayerName = SavedName;
     for (int32 Index = 0; Index < Count && !Reader.IsError(); ++Index)
     {
         FString Action, Key;
@@ -447,11 +500,11 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (Reader.IsError() || Action.IsEmpty() || Action.Len() > 64 || Key.IsEmpty() || Key.Len() > 64
             || Action.Len() != FCString::Strlen(*Action) || Key.Len() != FCString::Strlen(*Key)
             || Settings->Bindings.Contains(FName(*Action)))
-        { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The saved binding list is malformed. It has not been replaced.") }; }
+        { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的按键列表格式错误。文件未被替换。") }; }
         Settings->Bindings.Add(FName(*Action), FKey(FName(*Key)));
     }
     if (Reader.IsError() || !Reader.AtEnd())
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings payload is incomplete or contains extra data.") }; }
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容不完整或包含多余数据。文件未被替换。") }; }
     FString Error;
     if (RetiredRegistry)
     {
@@ -459,38 +512,48 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         const FString Retired = DescribeActions(UnregisteredActions(Settings->Bindings));
         Settings->ResetBindings();
         const bool PreferencesValid = Settings->ValidatePreferences(Error);
-        FString Message = TEXT("Saved key bindings are from an older control layout");
-        if (!Retired.IsEmpty()) { Message += TEXT(" (retired actions: ") + Retired + TEXT(")"); }
-        Message += TEXT(". None were loaded or converted; Demo default keys apply and the old file is kept unchanged.");
-        Message += PreferencesValid ? TEXT(" Valid camera and text preferences were kept.") : TEXT(" Its camera or text preferences were also invalid and were not kept.");
+        FString Message = TEXT("已保存的按键来自旧版操作布局");
+        if (!Retired.IsEmpty()) { Message += TEXT("（已退役动作：") + Retired + TEXT("）"); }
+        Message += TEXT("。没有加载或转换任何旧按键；当前使用 Demo 默认按键，旧文件保持不变。");
+        Message += PreferencesValid ? TEXT("有效的镜头与文字偏好已保留。") : TEXT("其镜头或文字偏好也无效，未保留。");
         return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, PreferencesValid ? Settings : nullptr, Message };
     }
+    const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
     if (!Settings->ValidatePreferences(Error))
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Error + TEXT(" The file has not been replaced.") }; }
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Origin + Error + TEXT("文件未被替换。") }; }
     if (!Settings->ValidateLocalSettings(Error))
     {
         // Recovery data carries only validated preferences; rejected binding names never reach a runtime object.
         Settings->ResetBindings();
-        return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, Settings, Error + TEXT(" Other valid local preferences can be kept.") };
+        return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, Settings, Origin + Error + TEXT("其他有效的本地偏好可以保留。") };
+    }
+    if (Migrating)
+    {
+        // Explicit schema 5 migration: the validated values apply now and stay dirty until a verified current-schema save.
+        Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
+            TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。请在开始页设置名称后再建房或加入。") };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
-    return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("Local preferences loaded.") };
+    return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };
 }
 
 FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 {
     FString Error;
     if (Phase == ELDLocalSettingsPhase::EditingDraft || !Storage.IsValid() || !ValidateLocalSettings(Error))
-    { return { ELDLocalSettingsSaveStatus::Invalid, Error.IsEmpty() ? TEXT("Only confirmed, applied local preferences with explicit storage may be saved.") : Error }; }
+    { return { ELDLocalSettingsSaveStatus::Invalid, Error.IsEmpty() ? TEXT("只能保存已确认应用、且指定了存储位置的本地偏好。") : Error }; }
     if (bRecoveryRequired)
-    { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("Applied for this session; the previous settings file was kept unchanged. Confirm replacement in Settings before saving.") }; }
+    { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("已在本次运行中应用；原设置文件保持不变。请先在设置中确认替换，再保存。") }; }
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
+    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom;
+    FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();
@@ -501,12 +564,12 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     Bytes << Magic << SavedSchema << Checksum;
     Bytes.Append(Payload);
     if (Bytes.IsError() || Bytes.Num() > MaxSettingsBytes)
-    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("The local settings payload cannot be serialized.") }; }
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("无法序列化本地设置内容。") }; }
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     auto& Files = IFileManager::Get();
     const FString& Filename = Storage.Filename();
     if (!Files.MakeDirectory(*FPaths::GetPath(Filename), true))
-    { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("Preferences are applied, but the local settings directory could not be created. Retry saving.") }; }
+    { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("偏好已应用，但无法创建本地设置文件夹。请重试保存。") }; }
     const FString Temporary = Filename + TEXT(".tmp-") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
     auto RemoveTemporary = [&]()
     {
@@ -516,13 +579,13 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     if (!FFileHelper::SaveArrayToFile(Bytes, *Temporary))
     {
         RemoveTemporary();
-        return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("Preferences are applied, but writing the local settings file failed. Retry saving.") };
+        return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("偏好已应用，但写入本地设置文件失败。请重试保存。") };
     }
     TArray<uint8> Readback;
     if (!FFileHelper::LoadFileToArray(Readback, *Temporary) || Readback != Bytes)
     {
         RemoveTemporary();
-        return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("Preferences are applied, but the new file could not be verified. The previous file was kept.") };
+        return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("偏好已应用，但无法核验新文件。原文件已保留。") };
     }
     if (!AtomicReplaceSettingsFile(Filename, Temporary, Error))
     {
@@ -531,9 +594,9 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     }
     Readback.Reset();
     if (!FFileHelper::LoadFileToArray(Readback, *Filename) || Readback != Bytes)
-    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("Preferences are applied, but reading back the saved file failed. Persistence is not verified; retry saving.") }; }
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("偏好已应用，但回读已保存的文件失败。持久化未核验，请重试保存。") }; }
     Phase = ELDLocalSettingsPhase::PersistenceVerified;
-    return { ELDLocalSettingsSaveStatus::Saved, TEXT("Local preferences saved and verified from disk.") };
+    return { ELDLocalSettingsSaveStatus::Saved, TEXT("本地偏好已保存，并已从磁盘核验。") };
 }
 
 FLDDisplaySettings FLDDisplaySettings::Read(const UGameUserSettings& Settings)
@@ -591,19 +654,19 @@ bool LDLocalSettings::ResolveConfigDestination(FConfigCacheIni& Cache, const FSt
     Error.Reset();
     if (ConfigId.IsEmpty())
     {
-        Error = TEXT("Configuration identifier is empty. No physical file can be verified.");
+        Error = TEXT("配置标识为空，无法核验实际文件。");
         return false;
     }
     const auto* Branch = Cache.FindBranch(FName(*ConfigId), ConfigId);
     if (!Branch || Branch->IniPath.IsEmpty())
     {
-        Error = TEXT("Configuration destination is unavailable for ") + ConfigId + TEXT(". No physical file can be verified.");
+        Error = TEXT("配置目标不可用：") + ConfigId + TEXT("。无法核验实际文件。");
         return false;
     }
     Filename = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*Branch->IniPath);
     if (Filename.IsEmpty())
     {
-        Error = TEXT("Configuration destination could not be resolved for ") + ConfigId + TEXT(".");
+        Error = TEXT("无法解析配置目标：") + ConfigId + TEXT("。");
         return false;
     }
     return true;
@@ -614,7 +677,7 @@ FLDLocalSettingsSaveResult LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(
     const FString& SettingsSection, const FLDDisplaySettings& Expected)
 {
     if (SettingsFile.IsEmpty() || QualityFile.IsEmpty() || SettingsSection.IsEmpty() || !Expected.IsValid())
-    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("Invalid display persistence target or expected values. No quality file was flushed.") }; }
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("显示持久化目标或预期值无效，未写入画质文件。") }; }
     FString PhysicalSettings, PhysicalQuality, ResolutionError;
     if (!ResolveConfigDestination(Cache, SettingsFile, PhysicalSettings, ResolutionError)
         || !ResolveConfigDestination(Cache, QualityFile, PhysicalQuality, ResolutionError))
@@ -623,11 +686,11 @@ FLDLocalSettingsSaveResult LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(
     {
         const auto* Quality = Cache.FindConfigFile(QualityFile);
         if (!Quality)
-        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("Display changes are applied, but the separate quality configuration is unavailable. Retry saving.") }; }
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但独立的画质配置不可用。请重试保存。") }; }
         if (Quality->NoSave)
-        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("Display changes are applied, but the separate quality configuration prohibits writes. Persistence is not verified.") }; }
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但独立的画质配置禁止写入。持久化未核验。") }; }
         if (!Cache.Flush(false, QualityFile))
-        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("Display changes are applied, but flushing the separate quality configuration failed. Retry saving.") }; }
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但写入独立的画质配置失败。请重试保存。") }; }
     }
     return VerifyDisplaySettingsFile(PhysicalSettings, PhysicalQuality, SettingsSection, Expected);
 }
@@ -636,10 +699,10 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     const FString& SettingsFile, const FString& QualityFile, const FString& SettingsSection, const FLDDisplaySettings& Expected)
 {
     if (!Expected.IsValid() || SettingsSection.IsEmpty())
-    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("Display values cannot be verified because their expected state is invalid.") }; }
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("预期的显示状态无效，无法核验显示值。") }; }
     FConfigFile Display, Quality;
     if (!ReadConfigFromDisk(SettingsFile, Display) || !ReadConfigFromDisk(QualityFile, Quality))
-    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("Display changes are applied, but the actual configuration file could not be read. Retry saving.") }; }
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但无法读取实际配置文件。请重试保存。") }; }
     FString VSync;
     const TCHAR* Section = *SettingsSection;
     const bool DisplayMatches = IntMatches(Display, Section, TEXT("ResolutionSizeX"), Expected.Resolution.X)
@@ -676,6 +739,6 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
             && FMath::IsNearlyEqual(Scale, double(Expected.Quality.ResolutionQuality), .0001);
     }
     if (!DisplayMatches || !QualityMatches || !ScaleMatches)
-    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("Display changes are applied, but disk values do not match. Persistence is unverified; retry saving.") }; }
-    return { ELDLocalSettingsSaveStatus::Saved, TEXT("Display settings saved and verified from disk.") };
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但磁盘上的值不一致。持久化未核验，请重试保存。") }; }
+    return { ELDLocalSettingsSaveStatus::Saved, TEXT("显示设置已保存，并已从磁盘核验。") };
 }

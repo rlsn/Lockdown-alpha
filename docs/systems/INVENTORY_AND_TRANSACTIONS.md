@@ -73,7 +73,12 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 ## 检查入口
 
-`RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`
-与 `DemoGrowthProgression` 覆盖线编码、账本守恒/压缩/退休、请求窗口与等级/候选/替换纯规则。
+`RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
+`DemoGrowthProgression` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
+等级/候选/替换纯规则与本人视图隐私白名单。
+账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
+导出 schema 2 证据（审计前缀、其后日志尾与当前状态），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
+时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。
