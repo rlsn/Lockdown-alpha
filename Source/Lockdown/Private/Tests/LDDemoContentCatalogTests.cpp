@@ -317,7 +317,7 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
         return true;
     }
     FString Error;
-    bool Rejected = false;
+    bool bRejected = false;
     if (auto* Enum = CastField<FEnumProperty>(Property))
     {
         Property = Enum->GetUnderlyingProperty();
@@ -326,7 +326,7 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
     {
         const bool Old = Bool->GetPropertyValue(Data);
         Bool->SetPropertyValue(Data, !Old);
-        Rejected = !Validate(Error);
+        bRejected = !Validate(Error);
         Bool->SetPropertyValue(Data, Old);
     }
     else if (auto* Text = CastField<FStrProperty>(Property))
@@ -346,14 +346,14 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
             }
         }
         Text->SetPropertyValue(Data, Old + TEXT("_corrupt"));
-        Rejected = !Validate(Error);
+        bRejected = !Validate(Error);
         Text->SetPropertyValue(Data, Old);
     }
     else if (auto* Number = CastField<FNumericProperty>(Property); Number && Number->IsInteger())
     {
         const uint64 Old = Number->GetUnsignedIntPropertyValue(Data);
         Number->SetIntPropertyValue(Data, Old ^ uint64(1));
-        Rejected = !Validate(Error);
+        bRejected = !Validate(Error);
         Number->SetIntPropertyValue(Data, Old);
     }
     else
@@ -362,7 +362,7 @@ bool MutateProperty(FProperty* Property, void* Data, const FString& Path, FValid
         return false;
     }
     ++Count;
-    return Test.TestTrue(*FString::Printf(TEXT("Whole projection rejects changed %s"), *Path), Rejected && !Error.IsEmpty());
+    return Test.TestTrue(*FString::Printf(TEXT("Whole projection rejects changed %s"), *Path), bRejected && !Error.IsEmpty());
 }
 
 bool MutateStruct(const UStruct* Type, void* Data, const FString& Prefix, FValidateProjection Validate,

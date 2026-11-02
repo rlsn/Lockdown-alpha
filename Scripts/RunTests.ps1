@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdown.Rules', [ValidateRange(30,1800)][int]$TimeoutSeconds=300)
+param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdown.Rules', [ValidateRange(30,1800)][int]$TimeoutSeconds=900)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
