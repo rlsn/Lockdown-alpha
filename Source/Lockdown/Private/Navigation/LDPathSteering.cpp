@@ -1,6 +1,10 @@
 #include "Navigation/LDPathSteering.h"
+#include "Region/LDMapRegistry.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "NavigationSystem.h"
+#include "NavigationData.h"
+#include "Engine/World.h"
 
 namespace LDPathSteering
 {
@@ -46,5 +50,27 @@ namespace LDPathSteering
         return Movement->IsMovingOnGround() && Movement->CurrentFloor.IsWalkableFloor()
             && !Movement->HasRootMotionSources()
             && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(AcceptanceCm);
+    }
+
+    bool PlanStart(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FCollisionShape& Capsule,
+        FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error)
+    {
+        UWorld* World=Registry.GetWorld();
+        auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
+        const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
+        const double Reach=Capsule.GetCapsuleRadius();
+        FNavLocation OnMesh;
+        if (!Data || !Nav->ProjectPointToNavigation(BodyGround.SurfaceCm,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data)
+            || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)<=UE_KINDA_SMALL_NUMBER
+            || FVector::DistSquared2D(OnMesh.Location,BodyGround.SurfaceCm)>FMath::Square(Reach))
+        {
+            Out=BodyGround;
+            Failure=ELDWorldQueryFailure::None;
+            Error.Reset();
+            return true;
+        }
+        // Only the planar start moves: same support id and foot height, and it must itself be legal ground.
+        return Registry.QueryGround(Registry.Revision(),FVector(OnMesh.Location.X,OnMesh.Location.Y,BodyGround.FootCm.Z),
+            Capsule,BodyGround.SurfaceId,Out,Failure,Error);
     }
 }

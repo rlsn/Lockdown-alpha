@@ -43,6 +43,9 @@ public:
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     uint64 AuditedMotionBatches=0, AuditedNativeRecords=0, AuditedRevertedTrials=0;
     bool CheckedMotionAckRefusals=false;
+    // Normal Start opens only from provider wiring; the fixture must leave that gate exactly as it found it.
+    bool bStartGateOpenBefore=false;
+    FString StartGateBefore;
 
     bool AuditNativeMotion(ALDGameMode& Mode)
     {
@@ -140,8 +143,7 @@ public:
 
     bool Initialize(ALDGameMode& Mode, ULDMapRegistry& Registry)
     {
-        if (!Check(!Mode.CheckDemoStartInputs(Error) && !Error.IsEmpty(),
-            TEXT("Normal Start is still explicitly gated before this DEV-only fixture"))) { return false; }
+        bStartGateOpenBefore=Mode.CheckDemoStartInputs(StartGateBefore);
         Error.Reset();
         const double WorldSeconds=Mode.GetWorld()->GetTimeSeconds();
         Mode.MatchPhase=ELDMatchPhase::Starting;
@@ -276,6 +278,8 @@ public:
             for (const auto& Pair : Mode.Lives)
             {
                 const auto& Life=Pair.Value;
+                // Camp members spawn at their camps, not at the contender anchors.
+                if (Life.Kind!=ELDVictimKind::Contender) { continue; }
                 const auto* Anchor=Registry.Resolve(Life.SpawnAnchor,Registry.Generation);
                 const auto* Body=Life.Actor.Get();
                 FVector Offset;
@@ -337,11 +341,14 @@ public:
             {
                 Report->SetNumberField(TEXT("simulation_seconds"),Mode->GetAuthorityNowSeconds());
                 TArray<TSharedPtr<FJsonValue>> Rows;
+                int32 CampBodies=0;
                 for (const auto& Pair : Mode->Lives)
                 {
                     const auto* Body=Pair.Value.Actor.Get();
                     const auto* Movement=Body?Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()):nullptr;
                     if (!Body || !Movement) { continue; }
+                    // Owned projections bind only to contender bodies; camp members are counted as world population.
+                    if (Pair.Value.Kind!=ELDVictimKind::Contender) { ++CampBodies; continue; }
                     auto Row=MakeShared<FJsonObject>();
                     Row->SetStringField(TEXT("entity"),Pair.Key.ToString(EGuidFormats::Digits));
                     Row->SetStringField(TEXT("body"),Pair.Value.Body.BodyIdentity.ToString(EGuidFormats::Digits));
@@ -356,6 +363,7 @@ public:
                     Rows.Add(MakeShared<FJsonValueObject>(Row));
                 }
                 Report->SetArrayField(TEXT("authority_bodies"),Rows);
+                Report->SetNumberField(TEXT("camp_bodies"),CampBodies);
             }
         }
         Written=Save(Report,Role+TEXT(".json"));
@@ -390,6 +398,7 @@ public:
                     bool Retired=true;
                     for (const auto& Pair : Mode->Lives)
                     {
+                        if (Pair.Value.Kind!=ELDVictimKind::Contender) { continue; }
                         if (Pair.Value.Phase==ELDLifePhase::Left)
                         {
                             ++Left;
@@ -562,6 +571,8 @@ public:
             {
                 for (const auto& Pair : Mode->Lives)
                 {
+                    // Only the three owned contender bodies are under test; camp members have no owning controller.
+                    if (Pair.Value.Kind!=ELDVictimKind::Contender) { continue; }
                     const auto* Current=Pair.Value.Actor.Get();
                     const auto* Position=StoppedBodies.Find(Pair.Key);
                     const auto* Owner=Current?Cast<ALDPlayerController>(Current->GetController()):nullptr;
@@ -595,6 +606,7 @@ public:
                     TEXT("Explicit DEV audit consumed real native records without pretending to seal a gameplay Fence"));
                 for (const auto& Pair : Mode->Lives)
                 {
+                    if (Pair.Value.Kind!=ELDVictimKind::Contender) { continue; }
                     const auto* Current=Pair.Value.Actor.Get();
                     const auto* Move=Current?Cast<ULDCharacterMovementComponent>(Current->GetCharacterMovement()):nullptr;
                     Check(Move && !Move->IsComponentTickEnabled() && Move->AuthorityIntegrationCount>0
@@ -611,8 +623,8 @@ public:
                         TEXT("Registered body consumes the shared approved basic-timing evaluator"));
                 }
                 FString Blocker;
-                Check(!Mode->CheckDemoStartInputs(Blocker) && !Blocker.IsEmpty(),
-                    TEXT("Mechanism fixture completion has not removed the normal gameplay Start gate"));
+                Check(Mode->CheckDemoStartInputs(Blocker)==bStartGateOpenBefore && Blocker==StartGateBefore,
+                    TEXT("Mechanism fixture completion leaves the normal Start gate exactly as provider wiring set it"));
             }
             return Finish();
         }

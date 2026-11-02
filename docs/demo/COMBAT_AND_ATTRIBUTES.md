@@ -37,40 +37,39 @@
 批准目录若出现不等价同 family 组合，必须明确聚合规则或拒绝该输入。
 死亡镜头可以拖动静态地图，但尸体、镜头及遗留效果均不生成新的活体视野。
 
-## 2. 已核验实现与真实调用链
+## 2. 现有实现与已退出的旧链
 
-下表是当前源码事实，非目标实现。引用的行号均属于上述运行基线。
+本域按本文合同实现于：
 
-| 证据 | 真实入口 | 现状与必须改变的接缝 |
-| --- | --- | --- |
-| E01 | [LDCharacterBuild.h:8–44](../../Source/Lockdown/Public/Development/LDCharacterBuild.h#L8-L44)、[LDCharacterBuild.cpp:86–178](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp#L86-L178) | 已分 Learned/Gear 来源，但仍有职业、六属性、点数、旧等级与按技能数组的 cooldown；`StartingBuild/TacticalStart` 不是仅普攻初始化，不能将 STR/INT 改显示名冒充 AD/AP。 |
-| E02 | [LDCharacterBuild.cpp:183–207](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp#L183-L207)、[LDV08Loadout.cpp:22–77](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp#L22-L77) | `Prepare/Project/InvalidateSources` 有候选、版本和真实实例验证；当前十一绑定、六共享动作及重复 active-family 拒绝须替换，不能只改 UI 数量。 |
-| E03 | [LDGearRules.cpp:10–28](../../Source/Lockdown/Private/Inventory/LDGearRules.cpp#L10-L28)、[LDGearTypes.h:4–33](../../Source/Lockdown/Public/Development/LDGearTypes.h#L4-L33) | 旧属性预算裁剪、modifier bit OR、特殊武器基值和整数攻速间隔并非新聚合模型；缺独立 AP、暴击、Haste 和完整最大资源/回复字段。 |
-| E04 | [LDGameMode.cpp:522–535](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L522-L535)、[LDInventoryDirector.cpp:45–57](../../Source/Lockdown/Private/Inventory/LDInventoryDirector.cpp#L45-L57)、[LDCharacterMovementComponent.cpp:102–126](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L102-L126) | `RefreshBuild` 按旧绝对当前值封顶并重置回复时间；`Changed` 不等于完整属性投影；`GetMaxSpeed` 又有玩家/NPC/道路/全图分支。只改属性表或 `MaxWalkSpeed` 不足。 |
-| E05 | [LDTacticalRequest.h:6–32](../../Source/Lockdown/Public/Combat/LDTacticalRequest.h#L6-L32)、[LDTacticalRequest.cpp:2–24](../../Source/Lockdown/Private/Combat/LDTacticalRequest.cpp#L2-L24)、[LDPlayerController.cpp:561–580](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L561-L580) | 有有界来源/目标/版本请求和拥有连接 RPC；旧 schema/wire、双目标及槽位含义仍在。实际目录入口叫 `RequestContent`，没有现有 `StartContentAction`。 |
-| E06 | [LDPlayerController.cpp:276–309](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L276-L309)、[459–470](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L459-L470)、[552–558](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L552-L558) | 回执主要是 request→字符串，没有精确条款指纹和完整阶段；旧反馈 RPC 不带 match/life。取消虽传 Through，却可能直接取消当前较新动作，不能原样继承。 |
-| E07 | [LDCombatDirector.cpp:129–184](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L129-L184)、[LDContentActions.cpp:36–114](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L36-L114)、[LDContentRelease.cpp:22–147](../../Source/Lockdown/Private/Combat/LDContentRelease.cpp#L22-L147) | 普攻起手已有节拍/命中期限，能力主要在释放支付；仍有旧优先级、起手付费特例和多个可旁路入口。装备执行不依赖 Vendor，可直接收敛而非另建商店施法。 |
-| E08 | [LDCombatDirector.h:16–153](../../Source/Lockdown/Public/Combat/LDCombatDirector.h#L16-L153)、[LDTacticalExecution.cpp:178–190](../../Source/Lockdown/Private/Combat/LDTacticalExecution.cpp#L178-L190)、[LDTacticalFields.cpp:18–24](../../Source/Lockdown/Private/Combat/LDTacticalFields.cpp#L18-L24) | 身体 Identity、目标 Life 和部分 credit 已存在；普通弹体/Field/PersistentZone 的来源和离局策略不同，弱 Pawn 指针不能承担持久信用。 |
-| E09 | [LDTacticalRules.cpp:20–53](../../Source/Lockdown/Private/Combat/LDTacticalRules.cpp#L20-L53)、[LDCombatDirector.cpp:291–351](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L291-L351) | `Damage` 的 contact 包含屏障吸收，不是实际 HP 损失；命中/状态没有统一目标保护闸。旧屏障严格更大替换及旧上限也不等于新内容政策。 |
-| E10 | [LDContentGeometry.cpp:46–71](../../Source/Lockdown/Private/Combat/LDContentGeometry.cpp#L46-L71)、[LDContentRelease.cpp:54–75](../../Source/Lockdown/Private/Combat/LDContentRelease.cpp#L54-L75) | `CreateField` 在 staging 就可能销毁旧场，`DestroyField` 可写 CD/经济记录；“先分配后扣费”不证明整个 Prepare 无副作用，也不能原样用作终局清理。 |
-| E11 | [LDEconomyLedger.cpp:36–100](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L100)、[LDEconomyLedger.h:21–60](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h#L21-L60) | 旧营地 Actor 的无主 LastOwner、新造事务 ID 的先账本后 XP Reward 和非统一金币+XP 的 PvP 已删除，不作奖励模板；Ledger 不含 XP/等级/选择。 |
-| E12 | [LDGameMode.cpp:388–409](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L388-L409)、[437–453](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L437-L453)、[LDEconomyDirector.cpp:19–45](../../Source/Lockdown/Private/Economy/LDEconomyDirector.cpp#L19-L45) | 生命换代和满资源返回存在，但有旧死亡损失；Ledger GUID 与网络 Generation 未形成目标强类型映射。 |
-| E13 | [LDWorldClock.cpp:9–28](../../Source/Lockdown/Private/World/LDWorldClock.cpp#L9-L28)、[LDCombatDirector.cpp:206–224](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L206-L224) | 旧时钟回拨 World 时间补算当前姿态；环境工作早于 Finished 检查，旧终局先清服务后设结果。必须改真实 step/事件/permit，而非尾部多调用一次数圈人数。 |
-| E14 | [LDVisionDirector.cpp:117–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L117-L186)、[240–322](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L240-L322)、[LDContentLifecycle.cpp:41–56](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L41-L56) | 有逐观察者重查和正常 Host 原生过滤，但自动 Footstep/Trail 的产生、提前授权、发布例外均存在；不能只停一个技能或隐藏一个 Mesh。 |
-| E15 | [LDTacticalCatalog.cpp:16–61](../../Source/Lockdown/Private/Combat/LDTacticalCatalog.cpp#L16-L61)、[LDEquipmentCatalog.h:6–27](../../Source/Lockdown/Public/Inventory/LDEquipmentCatalog.h#L6-L27)、[LDEquipmentCatalog.cpp:29–54](../../Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp#L29-L54) | tactical importer 不解析 `effects`；`RankKey` 实际是字符串，`Magnitudes` 才是整数数组，且仅单个 scaling key。装备 typed 定义/导入/执行未接通非零主动 MP 成本。 |
-| E16 | `LDV08HUDModel.cpp:15–39`（已随 UI 闭包退役）、[SyncB84Data.py:31–105](../../Scripts/SyncB84Data.py#L31-L105) | 旧 HUD 另读 JSON 成本键、使用 family-max cooldown、保护禁用；compiler 固定旧目录数量并读取 acquisition 原生文件。现有装备源数据的主动成本均为零，不能声称已复现某件非零装备免费释放。 |
+- `Combat\LDCombatDirector`（分部 `LDCombatActions/Effects/Sources/Life/Driver/Provider.cpp`）：身体登记、
+  动作准入/释放/回执、命中/状态/致死锁定、来源冷却与构筑安装、权威步驱动和 Combat 提供者；
+- 纯规则 `LDTacticalRules`（伤害、普攻节拍、Root/屏障/回复/冷却）、`LDCombatSourceRules`（来源轨道与债优先回绑）、
+  `LDAttributeProjection`（属性投影）；
+- `Navigation\LDNavigationComponent`、`LDNavigationOrders.cpp`、`LDOrderRules`（右键、攻击移动、接近与停止订单）；
+- `Framework\LDGameModeLife.cpp`（阶段许可、生命结束、十点复活与保护、初始出生与营地生命），
+  拥有连接入口 `LDPlayerOrders.cpp`、`LDPlayerInput.cpp`。
 
-真实链路分为三条，实施时必须一起改接：
+接口、阶段与检查入口见[战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md)和
+[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。现行链路：
 
-1. `StartingBuild/TacticalStart → Development.Prepare / LDV08.Project → Inventory.Changed + RefreshBuild
-   → Combat.Body/Sync → SyncOwner → OwnerState/CharacterMovement`。目标投影替换这条链的旧政策，
-   不在旁边增加一个只供属性面板使用的计算器。
-2. `Input/SendItemAction → ServerTacticalAction → EnqueueAction → QueueContent → Sample
-   → RequestContent → RequestBody / RequestEquipped / RequestTactical → Release → Sync/回执`。
-   收敛后的外部调用只有下节窄入口；低层执行函数不能继续供 AI 绕过。
-3. `Projectile/Content/Basic 命中 → Sample → Damage/ApplyStatus → Die → EndContenderLife → 服务/复活`。
-   旧世界 Contact/Defeated/PvPKill 推奖与 Objective 消费已删除；目标以统一 Hit 和不可变死亡事实接 N03 奖励，
-   移除旧服务与并行怪物攻击计时。
+1. 构筑：成长复合提交 → `PrepareBuildChange`（纯投影、HP/MP 同比、拒旧）→ 同一许可内 `ApplyBuildChange`
+   → 身体属性与来源轨道 → 本人视图。
+2. 动作：拥有连接 RPC、服务器 AI 或营地 → Navigation 订单或 Direct `SubmitAction` → Actions 阶段统一准入
+   → 释放 → 终态回执。
+3. 命中：普攻/弹体/技能 Hit → `ApplyHit`（保护闸、伤害、状态）→ 致死锁定 → DeathsAndRewards 结束生命、
+   营地消费与 `CommitDeathReward` → RespawnsAndWorld 复活与保护。
+
+与 §3.2/§3.3 的实现差异：Direct 请求以本人视图中该入口的 `ExpectedSourceRevision` 承载来源前验，
+不分列 Build/Inventory/Item/SourceBinding 修订；不逐请求上传 CatalogDigest，
+连接已在 `ALDGameMode::PreLogin` 以 `LDCatalog` 选项钉住同一根摘要，本局内容快照不可变。
+
+审计基线 `fa11d09` 的旧链已整体退出，不作为现状、兼容入口或数值来源：旧 R09 构筑 `LDCharacterBuild`、
+`LDV08Loadout`、`LDGearRules`/`LDGearTypes`（六属性、十一绑定/六共享动作、family 共享冷却）；
+`LDTacticalCatalog`、`LDEquipmentCatalog`（单 RankKey、不解析 effects）；内容请求与执行链 `LDTacticalRequest`、
+`LDContentActions/Release/Geometry/Lifecycle`、`LDTacticalExecution/Fields`（多入口、字符串回执、起手付费特例、
+Field 暂存副作用）；旧 `LDWorldClock` 回拨补算；最后接触者推奖与并行怪物攻击计时。
+对应旧专测随之退役，保留目的由 `DemoCombatEvaluation/Status/Sources`、`DemoOrders`、
+`DemoAttributeProjection` 与 `RunDemoCoreCheck` 承接。
 
 ## 3. SC-09：状态所有者、类型与正式接缝
 
@@ -170,14 +169,13 @@ Caller 由拥有 Controller/服务器 AI/注册野怪解析，带同一 Match/Bo
 CatalogDigest 覆盖本局整套批准的公式/角色/技能/装备/政策输入，不能仅用旧 combat 子载荷摘要冒充全包一致。
 
 采用与成长相同的 `FLDCatalogDigest { uint8 Bytes[32]; }`：SHA-256 的 32 原始字节进 wire，
-日志/文档为 64 位小写 hex，不把 64 字符当 64 字节。现有 tactical wire 已采用这一字节形状，
-但旧 combat/equipment/acquisition 是各自摘要，目标统一读取
+日志/文档为 64 位小写 hex，不把 64 字符当 64 字节。已退役的 tactical wire 曾采用这一字节形状，
+但旧 combat/equipment/acquisition 是各自摘要；现统一读取
 `Content\Lockdown\Data\Demo\manifest.json` 的规范文件字节 SHA-256。
 该根 manifest 不含自身摘要，由唯一 Demo compiler 生成并写入 `LDDemoContentContract.h` 及加载身份，
 绑定完整内容；Combat/纯值计算借用同一不可变内容快照，不再选择旧子目录摘要或旧 catalog 作为数据入口。
-证据见 [LDTacticalRequest.cpp:5–17](../../Source/Lockdown/Private/Combat/LDTacticalRequest.cpp#L5-L17)、
-[CatalogTools.py:20–21](../../Scripts/CatalogTools.py#L20-L21)、
-[SyncB84Data.py:82–103](../../Scripts/SyncB84Data.py#L82-L103)。
+现行实现见 `FLDDemoContentDigest`（[LDDemoContentDefinitions.h:8–17](../../Source/Lockdown/Public/Development/LDDemoContentDefinitions.h#L8-L17)）
+与 [CatalogTools.py:20–21](../../Scripts/CatalogTools.py#L20-L21)。
 来源定义的有界名字沿现有最多 63 个 UTF-8 **字节**、64 字节零填充形状收敛；
 新 decoder 严格拒绝无终止/非法 UTF-8 等坏编码，不靠截断或 FName 大小写折叠变成另一合法来源；
 语法合法但未知/非规范的目录引用在失保后按 SourceUnavailable 等语义失败，不伪装 Malformed。

@@ -48,7 +48,7 @@ Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所
 
 `AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
 中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
-普攻节拍、脱战回复起点、保护到期、复活时刻、开圈与独占完成时刻）。每步依次执行 Motion → Session
+普攻节拍、脱战回复起点、保护到期、复活时刻、营地整组刷新、开圈与独占完成时刻）。每步依次执行 Motion → Session
 （保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
 Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
 Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
@@ -58,10 +58,14 @@ DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitD
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
-营地成员的运动、意图、反击与刷新由营地提供者接入后在同一分派中调用。
+营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
+本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
+DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
+在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`。
+任一营地入口返回 false 即为权威故障。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
-新争圈的归约与结果归 GameMode 核心（N02，尚未实现），不能沿用已退役的 Heart 授权或旧交互中断条件。
+争圈的归约与结果归 GameMode 核心的占领归约器（`Framework\LDCaptureReducer`），不能沿用已退役的 Heart 授权或旧交互中断条件。
 
 ## 状态、伤害和效果归属
 
@@ -98,10 +102,14 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 检查入口
 
-`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
-分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
+`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
+`DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
+攻击移动选敌、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
+`RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
+远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、十点随机复活的精确保护和公共状态，以及空 Q
+经同一 Direct 入口被拒但解除保护且不恢复；技能、装备主动与营地/AI 战斗不在其内。
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。
 这些规则不恢复旧 profile，也不代替新成长、商店或真实拥有连接的运行验证。

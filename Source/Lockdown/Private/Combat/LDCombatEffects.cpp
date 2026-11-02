@@ -208,6 +208,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
+    // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
+    if ((Damage.DamageP2>0 || bRoots) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
+    {
+        FLDCombatHostileContact& Contact=PendingContacts.AddDefaulted_GetRef();
+        Contact.HitId=Hit.HitId;
+        Contact.VictimBody=Hit.Target;
+        Contact.SourceBody=Hit.SourceBody;
+        Contact.CreditOwner=Hit.CreditOwner;
+        Contact.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();
+    }
     if (bRoots && LDTactical::ApplyRoot(Body->Roots,RootInstance,NowMs)) { ++Body->StateRevision; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     if (Healed && HealP2>0)

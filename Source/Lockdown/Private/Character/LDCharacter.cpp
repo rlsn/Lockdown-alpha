@@ -35,6 +35,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("SharedBody"));
     Body->SetupAttachment(GetRootComponent());
     Body->SetVisibility(false,true);
+    // The Demo presents bodies only through SharedBody; the inherited, asset-less character mesh never renders.
+    GetMesh()->SetHiddenInGame(true);
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteRotation(true);

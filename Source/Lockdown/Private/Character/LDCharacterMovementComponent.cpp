@@ -86,6 +86,13 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
     Super::MoveAutonomous(TimeStamp,Delta,Flags,Applied);
 }
 
+bool ULDCharacterMovementComponent::ForcePositionUpdate(float DeltaTime)
+{
+    // A late client is not a reason to integrate: only the match driver moves Demo bodies, so no update happened.
+    if (CharacterOwner && CharacterOwner->HasAuthority() && LDCharacterMovementDetail::IsDemoMovement(GetWorld())) { return false; }
+    return Super::ForcePositionUpdate(DeltaTime);
+}
+
 void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
 {
     if (CharacterOwner && CharacterOwner->HasAuthority() && LDCharacterMovementDetail::IsDemoMovement(GetWorld()))

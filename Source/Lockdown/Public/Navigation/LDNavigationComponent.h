@@ -132,6 +132,8 @@ private:
     bool IsHumanOwner() const;
     const FLDDemoContentSnapshot* DemoContent();
     bool QueryBodyGround(FLDLegalGround& Out, FCollisionShape& Capsule, ELDWorldQueryFailure& Failure, FString& Error) const;
+    // Route start for every planner: the body's registered ground through LDPathSteering::PlanStart.
+    bool QueryPlanStart(FLDLegalGround& Out, FCollisionShape& Capsule, ELDWorldQueryFailure& Failure, FString& Error) const;
     bool Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected,
         ELDWorldQueryFailure& Failure, FString& Error);
     bool ShopAt(const FVector& GroundPoint, FName& OutShop);
