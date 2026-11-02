@@ -129,6 +129,43 @@ struct FLDCombatActionReceipt
     UPROPERTY() uint64 LifeRevision=0;
 };
 
+// ---------------------------------------------------------------- aggressive intent and respawn protection
+
+UENUM()
+enum class ELDAggressiveIntentKind : uint8 { AttackUnit, AttackMove, BasicAttack, ActivateCharacter, ActivateEquipment };
+
+UENUM()
+enum class ELDAggressionOrigin : uint8 { Navigation, Combat };
+
+// Navigation: original Order/Epoch; Combat: the received DirectSequence with CancelEpoch 0.
+// Derived repeat attacks reuse their navigation intent and never mint another removal.
+struct FLDAggressionRequestKey
+{
+    ELDAggressionOrigin Origin=ELDAggressionOrigin::Navigation;
+    uint64 Sequence=0;
+    uint32 CancelEpoch=0;
+};
+
+struct FLDAggressiveIntent
+{
+    ELDAggressiveIntentKind Kind=ELDAggressiveIntentKind::AttackUnit;
+    FLDAggressionRequestKey Request;
+};
+
+UENUM()
+enum class ELDProtectionOutcome : uint8 { NotProtected, Removed, Rejected };
+
+struct FLDProtectionReceipt
+{
+    uint32 Generation=0;
+    FLDCombatBodyRef Body;
+    FLDAggressionRequestKey Request;
+    ELDProtectionOutcome Outcome=ELDProtectionOutcome::Rejected;
+    bool bProtectionRemoved=false;
+    uint64 LifeRevision=0;
+    ELDCommitReject Reason=ELDCommitReject::InvalidRequest;
+};
+
 // ---------------------------------------------------------------- death facts (Combat -> Life / Growth / Camps / Capture)
 
 UENUM()
@@ -329,14 +366,23 @@ struct FLDCombatEntryView
     UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
     UPROPERTY() ELDCombatSourceKind SourceKind=ELDCombatSourceKind::None;
     UPROPERTY() FName DefinitionId;                  // None = empty slot
+    UPROPERTY() FGuid ItemInstance;                  // own gear instance; owner view only
     UPROPERTY() uint8 Rank=0;                        // learned only
     UPROPERTY() bool bHasActive=false;               // gear without an active is shown unavailable
     UPROPERTY() uint8 TargetMode=0;                  // ELDDemoTargetMode
     UPROPERTY() int32 RangeCm=0;
     UPROPERTY() int64 ManaCostP2=0;
+    UPROPERTY() FGuid IssuedCooldownId;              // persistent cooldown identity; owner view only
     UPROPERTY() int64 ReadyAtMs=0;                   // persistent track end; <= now means ready
     UPROPERTY() int64 CooldownMs=0;                  // duration last issued on this track, for the UI ratio
     UPROPERTY() ELDCombatReject Unavailable=ELDCombatReject::None; // current blocking reason, display only
+};
+
+// Control blocks for status display; the authority checks stay in Combat.
+UENUM()
+enum class ELDCombatControlBlock : uint8
+{
+    None=0, Move=1, Basic=2, Cast=4, Gear=8, Displacement=16
 };
 
 USTRUCT()
@@ -346,6 +392,8 @@ struct FLDCombatStatusView
     UPROPERTY() uint8 StatusId=0;                    // ELDDemoStatusId
     UPROPERTY() int64 ExpiresAtMs=0;
     UPROPERTY() int64 AmountP2=0;                    // shield amount; 0 otherwise
+    UPROPERTY() uint8 ControlBlocks=0;               // ELDCombatControlBlock bits
+    UPROPERTY() bool bIsPassive=false;
 };
 
 USTRUCT()
@@ -383,6 +431,8 @@ struct FLDCombatOwnerView
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
     UPROPERTY() int64 NextAttackAtMs=0;
     UPROPERTY() ELDCombatEntry ActionEntry=ELDCombatEntry::None;
+    UPROPERTY() ELDCombatPhase ActionPhase=ELDCombatPhase::Finished; // Accepted while a windup is pending
+    UPROPERTY() uint64 ActionToken=0;
     UPROPERTY() int64 ActionReleaseAtMs=0;
     UPROPERTY() bool bRooted=false;
     UPROPERTY() float MoveSpeedCmPerSec=0;

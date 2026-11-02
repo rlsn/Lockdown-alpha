@@ -1,0 +1,131 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Combat/LDCombatTypes.h"
+#include "Development/LDGrowthProtocol.h"
+#include "Development/LDGrowthRequests.h"
+#include "Development/LDProgressionRules.h"
+#include "LDDevelopmentDirector.generated.h"
+
+class ALDGameMode;
+class FLDDemoContentSnapshot;
+class FLDGameplayWritePermit;
+
+// Prepared persistent growth change (PEE §4.2). Built by Prepare*, consumed once by ApplyPreparedGrowth
+// inside the same uninterrupted composite commit; never stored across phases.
+class FLDPreparedGrowthChange
+{
+public:
+    FLDPreparedGrowthChange(FLDPreparedGrowthChange&&) = default;
+    FLDPreparedGrowthChange& operator=(FLDPreparedGrowthChange&&) = default;
+    FLDPreparedGrowthChange(const FLDPreparedGrowthChange&) = delete;
+    FLDPreparedGrowthChange& operator=(const FLDPreparedGrowthChange&) = delete;
+
+    const FGuid& Contender() const { return ContenderId; }
+    const FLDGrowthBuild& Build() const { return NewBuild; }
+    const FLDProgressionState& Progression() const { return NewProgression; }
+    bool ChangesBuild() const { return NewBuild.Revision != ExpectedBuildRevision; }
+    uint8 LevelBefore() const { return OldLevel; }
+
+    // Records what Combat will have installed once the caller applies its prepared projection.
+    void SetCombatInstall(const FLDExpectedBuildVersions& Installed) { bCombatInstall = true; CombatInstall = Installed; }
+
+private:
+    friend class ALDDevelopmentDirector;
+    FLDPreparedGrowthChange() = default;
+    FGuid ContenderId;
+    uint64 ExpectedBuildRevision = 0;
+    uint64 ExpectedProgressionRevision = 0;
+    uint8 OldLevel = 0;
+    FLDGrowthBuild NewBuild;
+    FLDProgressionState NewProgression;
+    // Legal pool of the queue head on NewBuild, validated (>= 3 options) when a head draw follows Apply.
+    bool bDrawHead = false;
+    TArray<LDProgression::FLegalOption> HeadPool;
+    bool bCombatInstall = false;
+    FLDExpectedBuildVersions CombatInstall;
+};
+
+struct FLDPrepareGrowthResult
+{
+    TOptional<FLDPreparedGrowthChange> Value;
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    FString Message;
+    bool IsSuccess() const { return Value.IsSet() && Reason == ELDGrowthReason::None; }
+};
+
+// A queued intent of this module, ordered by server arrival for the Transactions dispatch.
+struct FLDPendingGrowthIntent
+{
+    enum class EKind : uint8 { Choice, ShopOpen, ShopCommand };
+    EKind Kind = EKind::Choice;
+    FGuid Contender;
+    uint64 Arrival = 0;
+};
+
+// N04 growth owner: level/XP, opportunity queue with one persistent three-card offer, Q/W and passives,
+// permanent attribute cards. Contender records persist across deaths and are rebuilt only by a new match.
+UCLASS()
+class LOCKDOWN_API ALDDevelopmentDirector : public AActor
+{
+    GENERATED_BODY()
+
+public:
+    ALDDevelopmentDirector();
+
+    bool BeginMatch(const FLDMatchContext& Match, const TArray<FGuid>& Roster,
+        TSharedPtr<const FLDDemoContentSnapshot> Content, FString& Error);
+
+    // ---- Narrow server entries shared by the owning-connection adapter and server AI ----
+    FLDProgressionView ReadProgression(const FGuid& ContenderId) const;
+    // Admission only: shape, current Generation, membership and the request stream. Context and versions are
+    // re-checked by CommitChoice in the Transactions phase.
+    FLDSubmitResult QueueChoice(const FGuid& ContenderId, const FLDChoiceCommand& Command);
+    FLDChoiceReceiptQueryResult QueryChoiceReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
+
+    // ---- Transactions phase (dispatched by ALDEconomyDirector::ProcessTransactions) ----
+    void CollectPending(TArray<FLDPendingGrowthIntent>& Out) const;
+    // Commits or rejects this contender's pending choice and finalizes its request sequence.
+    // An AuthorityFault reason in the receipt means the boundary must fault.
+    FLDChoiceReceipt CommitPendingChoice(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
+
+    // ---- Composite-commit parts for rewards and shop transactions ----
+    // Cumulative XP, level and one opportunity per level crossed; BuildRevision advances only with the level.
+    FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
+    // Equipment changes advance BuildRevision once; the offer keeps its cards and only refreshes its guard.
+    FLDPrepareGrowthResult PrepareEquipmentChange(const FGuid& ContenderId) const;
+    // No-fail: installs the prepared build/progression, refreshes the offer guard and draws the queue head.
+    void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
+
+    // Complete post-change projection input for Combat (PEE §4.2 / Combat PrepareBuildChange).
+    FLDBuildProjectionInput MakeProjectionInput(const FLDGrowthBuild& Build,
+        const TArray<FLDEquippedItemValue>& Equipment, uint64 ResultInventoryRevision) const;
+    FLDCombatCaller MakeCaller(const FGuid& ContenderId) const;
+    bool ReadCombatInstalled(const FGuid& ContenderId, FLDExpectedBuildVersions& Out) const;
+    const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
+    const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
+
+    // Choice receipts finalized since the last publication, for the owning connection.
+    void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDChoiceReceipt>& Out);
+
+private:
+    struct FRecord
+    {
+        FLDGrowthBuild Build;
+        FLDProgressionState Progression;
+        TLDGrowthRequestStream<FLDChoiceCommand, FLDChoiceReceipt> Choices;
+        FLDExpectedBuildVersions CombatInstalled;
+        TArray<FLDChoiceReceipt> Unpublished;
+    };
+
+    FLDChoiceReceipt RejectPending(FRecord& Record, const FLDChoiceCommand& Command, ELDGrowthReason Reason,
+        const FLDGameplayWritePermit* Permit);
+    void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
+    ALDGameMode* Mode() const;
+
+    FLDMatchContext Match;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FGuid MatchSecret;
+    TMap<FGuid, FRecord> Records;
+};

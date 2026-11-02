@@ -267,6 +267,8 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
             return;
         }
         State->Match=MatchContext.Generation;
+        // Growth/Shop: the owner's gold, equipment, level, offer and shop session in the same publication.
+        State->Growth=Economy?Economy->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;
         PC->OwnerState=*State;
         if (PC->IsLocalController()) { PC->OnRep_OwnerState(); }
@@ -279,8 +281,3 @@ bool ALDGameMode::IsFinished() const
 
 bool ALDGameMode::IsPlaying() const
 { return IsGameplayWriteOpen(MatchContext); }
-
-void ALDGameMode::EconomyWallets(TMap<FName,int64>& Out) const
-{
-    for (const auto& Pair : Contenders) { Out.Add(ALDEconomyDirector::Wallet(Pair.Value.Session),Pair.Value.State.Gold); }
-}
