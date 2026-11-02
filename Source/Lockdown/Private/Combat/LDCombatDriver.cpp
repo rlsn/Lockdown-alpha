@@ -53,6 +53,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextLifeDueMs());
         // Opening time and the Solo completion must each be an exact step boundary.
         Consider(Mode->NextCaptureDueMs());
+        // A cleared camp refreshes exactly at its integer deadline, not on the following boundary.
+        if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
     }
     return Due;
 }

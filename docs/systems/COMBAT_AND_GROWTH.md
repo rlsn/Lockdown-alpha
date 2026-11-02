@@ -48,7 +48,7 @@ Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所
 
 `AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
 中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
-普攻节拍、脱战回复起点、保护到期、复活时刻、开圈与独占完成时刻）。每步依次执行 Motion → Session
+普攻节拍、脱战回复起点、保护到期、复活时刻、营地整组刷新、开圈与独占完成时刻）。每步依次执行 Motion → Session
 （保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
 Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
 Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
@@ -102,10 +102,14 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 检查入口
 
-`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
-分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
+`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
+`DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
+攻击移动选敌、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
+`RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
+远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、十点随机复活的精确保护和公共状态，以及空 Q
+经同一 Direct 入口被拒但解除保护且不恢复；技能、装备主动与营地/AI 战斗不在其内。
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。
 这些规则不恢复旧 profile，也不代替新成长、商店或真实拥有连接的运行验证。
