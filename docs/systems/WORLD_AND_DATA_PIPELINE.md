@@ -247,6 +247,8 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 - `World\LDCampDirector`：Camps match provider 在 Starting 的 Prepare 中生成（服务器、不复制）并建名册，
   MatchReset 时销毁全部野怪身体并丢弃本局记账。各入口只在 Combat 驱动的对应阶段校验借用许可后执行：
   初始化 RespawnsAndWorld 内整组生成；Motion 用同一 CMC 推进与 `LDPathSteering` 跟随完整路径；
+  规划起点和追击终点经 `LDPathSteering::PlanStart` 落到一个胶囊半径内的 navmesh 点（贴墙/贴身时脚点可能在
+  Recast 收缩边外），已在 navmesh 上的 home 原样保留；
   Actions 读取 Combat 身体状态、用 `TraceSight` 从成员脚点证明来源可见后调用 `LDCampDecision`，
   普攻经 Combat `SubmitAction` 提交；Effects 消费已提交的 `FLDCombatHostileContact`；
   DeathsAndRewards 在核心结束生命后只记账并销毁野怪身体，奖励由成长唯一 sink 支付；
