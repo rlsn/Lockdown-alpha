@@ -24,10 +24,19 @@ FLDDemoContentDefinitions HudFixtureContent()
 void HudRegisterFixtureTable()
 {
     FStringTableRef Table=FStringTable::NewStringTable();Table->SetNamespace(HudFixtureTable.ToString());
-    Table->SetSourceString(TEXT("root.name"),TEXT("定身"),FString());Table->SetSourceString(TEXT("respawn_protection.name"),TEXT("复活保护"),FString());
-    Table->SetSourceString(TEXT("camp_returning.name"),TEXT("回岗中"),FString());Table->SetSourceString(TEXT("monster_guardian.name"),TEXT("体育老师"),FString());
-    Table->SetSourceString(TEXT("item_iron_plate.name"),TEXT("《五年挨打三年模拟》"),FString());
-    Table->SetSourceString(TEXT("shield.name"),TEXT("淡定"),FString());Table->SetSourceString(TEXT("passive_battle_rhythm.name"),TEXT("单身二十年的手速"),FString());
+    const TPair<const TCHAR*,const TCHAR*> Rows[]={{TEXT("root.name"),TEXT("定身")},{TEXT("respawn_protection.name"),TEXT("复活保护")},
+        {TEXT("camp_returning.name"),TEXT("回岗中")},{TEXT("monster_guardian.name"),TEXT("体育老师")},
+        {TEXT("item_iron_plate.name"),TEXT("《五年挨打三年模拟》")},{TEXT("shield.name"),TEXT("淡定")},
+        {TEXT("passive_battle_rhythm.name"),TEXT("单身二十年的手速")}};
+    for(const TPair<const TCHAR*,const TCHAR*>& Row:Rows)
+    {
+        // Development game targets also compile these tests; only editor builds have the dev-notes overload.
+#if WITH_EDITORONLY_DATA
+        Table->SetSourceString(Row.Key,Row.Value,FString());
+#else
+        Table->SetSourceString(Row.Key,Row.Value);
+#endif
+    }
     FStringTableRegistry::Get().RegisterStringTable(HudFixtureTable,Table);
 }
 }
