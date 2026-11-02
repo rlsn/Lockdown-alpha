@@ -21,7 +21,9 @@ bool GrowthWireSameDigest(const FLDDemoContentDigest& A, const FLDDemoContentDig
 bool FLDDefinitionWire::Encode(FName Id, FLDDefinitionWire& Out)
 {
     Out = FLDDefinitionWire();
-    const FString Text = Id.ToString();
+    // FName identity ignores case and non-editor builds keep only the first registered casing (a reflected "Shop"
+    // turns "shop" into "Shop"), so the wire carries the canonical lowercase spelling of the same name.
+    const FString Text = Id.ToString().ToLower();
     if (Id.IsNone() || Text.IsEmpty() || Text.Len() >= int32(sizeof(Out.Bytes)))
     {
         return false;

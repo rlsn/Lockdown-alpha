@@ -84,8 +84,22 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         FLDDefinitionWire::Encode(FName(*Longest), LongestWire) && LongestWire.Bytes[62] == uint8('a') && LongestWire.Bytes[63] == 0
         && LongestWire.Decode(LongestName) && LongestName.ToString().Equals(Longest, ESearchCase::CaseSensitive));
 
+    // FName identity ignores case and a packaged build returns the first registered casing ("Shop" for "shop");
+    // the editor keeps each casing, so these variants reproduce that here.
+    const TPair<const TCHAR*, const TCHAR*> CasedIds[] = {
+        {TEXT("Shop"), TEXT("shop")},
+        {TEXT("Growthtest_Upper"), TEXT("growthtest_upper")}};
+    for (const TPair<const TCHAR*, const TCHAR*>& CasedId : CasedIds)
+    {
+        FLDDefinitionWire Canonical;
+        FName CanonicalName;
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s travels as the canonical bytes %s of the same name"), CasedId.Key, CasedId.Value),
+            FLDDefinitionWire::Encode(FName(CasedId.Key), Canonical) && Canonical == GrowthTestRawWire(CasedId.Value)
+            && Canonical.Decode(CanonicalName) && CanonicalName == FName(CasedId.Value)
+            && CanonicalName.ToString().Equals(CasedId.Value, ESearchCase::CaseSensitive));
+    }
+
     const TPair<const TCHAR*, FName> BadIds[] = {
-        {TEXT("an uppercase letter"), FName(TEXT("Growthtest_Upper"))},
         {TEXT("a leading digit"), FName(TEXT("2nd_item"))},
         {TEXT("a hyphen"), FName(TEXT("item-echo"))},
         {TEXT("an empty name"), FName(TEXT(""))},
@@ -648,6 +662,8 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     const FGuid P2(0xE1, 0, 0, 2);
     const FGuid P3(0xE1, 0, 0, 3);
     const FName Blade(TEXT("item_edge_blade"));
+    // The same definition under another FName casing, as a packaged build may hold it.
+    const FName BladeCased(TEXT("Item_Edge_Blade"));
     const int64 StartingGold = 150;
     LDEconomy::FLedger Ledger;
     FString Json;
@@ -672,7 +688,7 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     // The tail covers every cause, two instances of one definition and the sale of a prefix item.
     if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(203, P1, 1, 80), TEXT("The evidence tail reward"))
         || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(204, P1, 2, 1, Blade, 0, 100), TEXT("The evidence tail first buy"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(205, P1, 3, 2, Blade, 1, 100), TEXT("The evidence tail second buy"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(205, P1, 3, 2, BladeCased, 1, 100), TEXT("The evidence tail second buy"))
         || !GrowthTestCommit(Test, Ledger, GrowthTestSell(206, P1, 4, 3, FirstBlade, 1, 65), TEXT("The evidence tail sale"))
         || !GrowthTestCommit(Test, Ledger, GrowthTestSell(207, P2, 2, 2, PrefixItem, 1, 65), TEXT("The sale of a prefix item"))
         || !GrowthTestCommit(Test, Ledger, GrowthTestRetire(208, P2, 3, 1, 3), TEXT("The evidence tail retirement")))
@@ -715,6 +731,28 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
         (*Prefix)->GetStringField(TEXT("throughSerial")) == TEXT("2") && (*Current)->GetStringField(TEXT("throughSerial")) == TEXT("8"));
     bGood &= Test.TestEqual(TEXT("The first tail buy records its issued instance"),
         (*Tail)[1]->AsObject()->GetStringField(TEXT("createdInstance")), FirstBlade.ToString(EGuidFormats::DigitsWithHyphensLower));
+    TArray<FString> Definitions;
+    for (const TSharedPtr<FJsonValue>& Entry : *Tail)
+    {
+        const TSharedPtr<FJsonObject>* Create = nullptr;
+        if (Entry->AsObject()->TryGetObjectField(TEXT("create"), Create))
+        {
+            Definitions.Add((*Create)->GetStringField(TEXT("definition")));
+        }
+    }
+    for (const TSharedPtr<FJsonObject>* State : {Prefix, Current})
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+        if ((*State)->TryGetArrayField(TEXT("items"), Items))
+        {
+            for (const TSharedPtr<FJsonValue>& Item : *Items)
+            {
+                Definitions.Add(Item->AsObject()->GetStringField(TEXT("definition")));
+            }
+        }
+    }
+    bGood &= Test.TestEqual(TEXT("Both creates, the prefix item and the live item export the canonical lowercase id, whatever casing was committed"),
+        FString::Join(Definitions, TEXT(",")), FString(TEXT("item_edge_blade,item_edge_blade,item_edge_blade,item_edge_blade")));
     FString EvidencePath;
     if (FParse::Value(FCommandLine::Get(), TEXT("LDGrowthLedgerEvidence="), EvidencePath))
     {
