@@ -1,11 +1,12 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [ValidateRange(300,2400)][int]$TimeoutSeconds=1500)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$TimeoutSeconds=1500)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$engine = Resolve-LDEngine $EngineRoot
-Assert-LDEditorModules
-$output = New-LDArtifactDirectory 'DemoGrowth-OwnedShop'
+$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoGrowth-OwnedShop-Packaged' } else { 'DemoGrowth-OwnedShop' })
+$launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
+# Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
+$evidence = $launch.ProbeOutput
 $socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback,0))
 $port = $socket.Client.LocalEndPoint.Port
 $socket.Dispose()
@@ -18,8 +19,6 @@ if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d
 $wire = [int]$Matches[1]
 $checker = Join-Path $PSScriptRoot 'CheckEconomyEvidence.py'
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
-$project = Join-Path $projectRoot 'Lockdown.uproject'
-$binary = Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
@@ -33,8 +32,8 @@ function Start-GrowthRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     # The Host is a participating Listen Host with a real RHI main view; the owning client needs no renderer.
     $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" } else { '-nullrhi' }
-    $arguments = '"{0}" "{1}" -game -unattended -nop4 -nosound -multihome=127.0.0.1 {2} -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -UserDir="{3}" -LDDemoGrowthProbe -LDDemoGrowthRole={4} -LDDemoGrowthTimeout={5} -LDDemoGrowthOutput="{6}" -abslog="{7}"' -f $project,$Url,$render,$user,$Role,$TimeoutSeconds,$output,(Join-Path $output "$Role.log")
-    $processes.Add((Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru))
+    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
 function Wait-GrowthFiles {
@@ -43,12 +42,12 @@ function Wait-GrowthFiles {
     while ([DateTime]::UtcNow -lt $deadline) {
         foreach ($process in $processes) {
             $process.Refresh()
-            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $output 'FinishClients')) -or
+            if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $evidence 'FinishClients')) -or
                 $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
                 throw "Growth scenario process exited before its evidence completed: PID $($process.Id). Evidence: $output"
             }
         }
-        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $output $_)) }).Count -eq 0) { return }
+        if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $evidence $_)) }).Count -eq 0) { return }
         Start-Sleep -Milliseconds 200
     }
     throw "Growth scenario evidence timed out: $output"
@@ -56,13 +55,13 @@ function Wait-GrowthFiles {
 
 function Read-GrowthJson {
     param([string]$Name)
-    Get-Content -LiteralPath (Join-Path $output $Name) -Raw | ConvertFrom-Json
+    Get-Content -LiteralPath (Join-Path $evidence $Name) -Raw | ConvertFrom-Json
 }
 
 # The independent replay of the exported ledger; a non-zero exit fails the run.
 function Assert-LedgerEvidence {
     param([string]$Name)
-    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', $checker, (Join-Path $output $Name)) -LogPath (Join-Path $output "$Name.check.txt")
+    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', $checker, (Join-Path $evidence $Name)) -LogPath (Join-Path $output "$Name.check.txt")
 }
 
 function Get-ItemKeys {
@@ -101,7 +100,7 @@ try {
         throw "Roles did not observe the same first and second match generations: $output"
     }
     foreach ($name in @('LedgerEvidence.json','LedgerEvidence2.json')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $output $name))) { throw "The Host exported no $name`: $output" }
+        if (-not (Test-Path -LiteralPath (Join-Path $evidence $name))) { throw "The Host exported no $name`: $output" }
         # The independent replay of each exported ledger; a non-zero exit fails the run.
         Assert-LedgerEvidence $name
     }
@@ -132,9 +131,9 @@ try {
         @($next.inventories | Where-Object { $_.revision -ne '1' }).Count -ne 0 -or [long]$buyer.final_gold -ne [long]$second.startingGold) {
         throw "A second-match account does not open at the approved starting gold and first revisions: $output"
     }
-    Set-Content -LiteralPath (Join-Path $output 'FinishClients') -Value 'Disconnect owning clients'
+    Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
     if (-not $processes[1].WaitForExit(30000) -or $processes[1].ExitCode -ne 0) { throw "Owning client did not exit cleanly: $output" }
-    Set-Content -LiteralPath (Join-Path $output 'Finish') -Value 'Complete'
+    Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
@@ -151,4 +150,5 @@ finally {
         $process.Refresh()
         if (-not $process.HasExited) { Stop-Process -Id $process.Id }
     }
+    Complete-LDGameEvidence $launch
 }
