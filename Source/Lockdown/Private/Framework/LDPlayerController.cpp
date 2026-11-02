@@ -8,6 +8,7 @@
 #include "Tests/LDDemoVisionProbe.h"
 #include "Tests/LDDemoGrowthProbe.h"
 #include "Tests/LDDemoCombatProbe.h"
+#include "Tests/LDDemoCampProbe.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDInventoryPanel.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -55,6 +56,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartVisionProbe(*this);
     LDDemoTests::StartGrowthProbe(*this);
     LDDemoTests::StartCombatProbe(*this);
+    LDDemoTests::StartCampProbe(*this);
 #endif
 }
 
