@@ -19,10 +19,8 @@ SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案�
 | 输入/入口 | 输出或消费者 |
 | --- | --- |
 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo world→content 生成链及原生 Bootstrap；不是旧 prototype 导入入口 |
-| 尚未退出的 `SourceData\Catalogs\V07` + 对应 SyncV07 入口 | 仍有实际消费者的战斗/装备/获取载荷与 contract；旧 WorldCatalog 生成链及其 v07_rules 输入已随世界闭包删除 |
-| `SourceData\Catalogs\V08` + `SyncB84Data.py` | 三个 `*_b84.json`、B84Manifest、`LDB84Contract.h` |
 
-`CatalogTools.py` 复用 schema、确定性编码与原生 ID 校验，B84 生成不依赖历史说明或档案 ZIP。
+`CatalogTools.py` 提供 Demo 生成器复用的确定性编码与原生 ID 校验。
 schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.10.0`。
 
 源数据按 UTF-8 读取；涉及按字节计算的 SHA/MD5 时保留原始编码和换行。
