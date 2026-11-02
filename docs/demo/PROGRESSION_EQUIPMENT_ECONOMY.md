@@ -550,31 +550,41 @@ FLDSubmitResult ALDDevelopmentDirector::QueueChoice(
     const FGuid& ContenderId, const FLDChoiceCommand& Command);
 FLDChoiceReceiptQueryResult ALDDevelopmentDirector::QueryChoiceReceipt(
     const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
-FLDChoiceReceipt ALDDevelopmentDirector::CommitChoice(
-    const FGuid& ContenderId, const FLDChoiceCommand& Command,
-    const FLDGameplayWritePermit& Permit);
+FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(
+    const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
 FLDEquipmentView ALDInventoryDirector::ReadEquipment(const FGuid& ContenderId) const;
-FLDShopOpenResult ALDVendorDirector::OpenShop(
-    const FGuid& ContenderId, const FLDShopOpenCommand& Command,
-    const FLDGameplayWritePermit& Permit);
+FLDShopOpenResult ALDVendorDirector::QueueShopOpen(
+    const FGuid& ContenderId, const FLDShopOpenCommand& Command);
+FLDShopOpenResult ALDVendorDirector::ReadShop(const FGuid& ContenderId) const;
+FLDShopOpenResult ALDVendorDirector::OpenPendingShop(
+    const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 FLDSubmitResult ALDVendorDirector::QueueShopCommand(
     const FGuid& ContenderId, const FLDShopCommand& Command);
 FLDShopReceiptQueryResult ALDVendorDirector::QueryShopReceipt(
     const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
-FLDShopReceipt ALDVendorDirector::CommitShopCommand(
-    const FGuid& ContenderId, const FLDShopCommand& Command,
-    const FLDGameplayWritePermit& Permit);
+FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(
+    const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
+
+FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(
+    const FLDCommittedDeath& Death, const FLDGameplayWritePermit& Permit);
+bool ALDEconomyDirector::ProcessTransactions(const FLDGameplayWritePermit& Permit, FString& Error);
+bool ALDEconomyDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FString& Error);
 ```
 
 `Queue*` 只规范化、核验受理条件、固定条款并进入本批队列，返回
 `AcceptedPending / Final / AdmissionRejected`；不是立即扣钱/成长的函数。
-`Commit*` 为相应核心阶段内部入口，不直接暴露成 RPC。
+`Commit*Pending*` 与 `OpenPendingShop` 只由 `ProcessTransactions` 在 Transactions 阶段按服务器受理顺序分派，
+处理的是受理时冻结的条款，不直接暴露成 RPC。写闸已关后新请求以 `MatchClosed` 拒绝受理，已有请求号仍可重放。
+`PublishGrowth` 在 Close 之后执行，没有许可，也不写玩法状态。
 Query 返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，不存在“查不到就再执行”。
-OpenShop是Transactions阶段内部的开店处理器：网络/AI入口先把开店意图交现有权威队列，
-等待阶段返回FLDShopOpenResult的Pending，不提前同步调用受Permit约束的世界查询。
+开店处理器是 Transactions 阶段内部入口：`QueueShopOpen` 受理开店意图并返回 Pending，
+不提前同步调用受Permit约束的世界查询；终态由 `ReadShop`/本人发布与 `ClientShopOpenResult` 给出。
 复用当前交互绑定及取消机制，每名参赛者最多一个未办理开店意图，同一意图重复受理合并；
 不另建商店请求流或第二套Pending队列。
+真人的开店意图只由拥有者客户端在 Navigation 当前 ApproachShop 绑定的 `OnShopArrived(ShopId, Life)`
+上发送一次（Life 须仍是当前存活生命，附客户端世界修订）；本地拒绝同样以 Rejected 经 `OnShopOpenResult` 反馈。
+AI 由服务器适配器直接调用 `QueueShopOpen`。
 核心分派时重新解析当前身体并借用当次Permit，OpenShop通过同一资格查询后才创建/复用
 私有会话并返回Opened与合法报价，失败返回Rejected；处理器本身不伪造新的Pending或Permit。
 不把Permit放进队列，不新增一套预览资格算法。
@@ -610,7 +620,7 @@ OpenShop是Transactions阶段内部的开店处理器：网络/AI入口先把开
 | --- | --- | --- |
 | `FLDChoiceCommand` | Generation、当前参赛记录 Life、ExpectedLifePhase（Alive/Dead）、递增 RequestId；OfferId/OfferRevision、OptionId、ExpectedBuildRevision、CatalogDigest；满槽时 Slot 0/1、ExpectedOldSkillId/Rank、明确 ReplaceConfirmed。 | Transactions 阶段查当前成员/生命状态、队首及原卡/版本；成功回旧 Offer 的唯一结果及新状态修订。最多一个 Option，不收任意 Build、rank/属性数组或奖励金额。 |
 | `FLDShopOpenCommand` | Generation/Life、公共ShopId、FLDWorldRevision ExpectedWorldRevision；请求不携Permit。 | 先进入权威队列，在Transactions借当次Permit重验存活/进行中及世界资格后给SessionId/QuoteRevision；失败不给默认商店或旧会话执行权。 |
-| `FLDShopCommand::Buy` | Generation/Life/RequestId、ShopSession、QuoteRevision、CatalogDigest、ExpectedWorldRevision；ExpectedAccount/Inventory/Build/SourceBindingRevision；商品 DefinitionId、明确展示 BuyPrice。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订和继承 CD。一次只买一件。 |
+| `FLDShopCommand::Buy` | Generation/Life/RequestId、ShopSession、QuoteRevision、CatalogDigest、ExpectedWorldRevision；ExpectedAccount/Inventory/BuildRevision；商品 DefinitionId、明确展示 BuyPrice。来源绑定只随本域构筑/库存提交改变，由 Combat Prepare 按当前状态重验，不另传 SourceBindingRevision。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订和继承 CD。一次只买一件。 |
 | `FLDShopCommand::Sell` | 上述上下文与预期版本；精确 ItemInstance、ExpectedItemRevision、展示 SellPrice。 | 重查所有权/位置/卖价，Consume+回款+解绑一次提交；回具体已卖实例及修订。一次只卖一件。 |
 | `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原查询键与LookupStatus，OriginalLife仅来自实际存在的PendingInfo或Final业务Receipt。本局历史与终局已有结果可查，不覆盖当前身体/新局。 |
 | 装备/角色施法 | 按 Combat 正式请求及当前来源版本。 | 不走本表 Shop/Choice 许可；1/2 与 Q/W 分别真实来源，失败不耗资源。 |
@@ -649,10 +659,12 @@ ExpectedLifePhase 只表达该次明确确认所见的生/死状态，不是新�
 `FLDProgressionView` 提供当前生命/选择资格、Level/CumulativeXP、经验阈值的内容引用、
 ProgressionRevision/BuildRevision、PendingChoiceCount、当前一组固定 Offer 与必要说明。
 `FLDEquipmentView` 提供自身 Gold/AccountRevision、InventoryRevision、两个槽的
-Instance/Definition/ItemRevision、自身来源与 IssuedCooldownId/ReadyAtMs、
-SourceBindingRevision。`FLDShopView` 提供当前合法商品、价、说明、会话/报价版本和继承债说明。
+Instance/Definition/ItemRevision；1/2 的 IssuedCooldownId/ReadyAtMs 与 SourceBindingRevision
+只由 Combat 的本人 `FLDCombatBindingView` 发布，不在装备视图复制第二份。
+`FLDShopView` 提供当前合法商品、价、说明、会话/报价版本和继承债说明（Combat 只读预览，以回执为准）。
 
-View 最终组成同一次 `FLDOwnerState` 发布，附 Generation/Life/发布修订及各子域结果修订。
+View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FLDGrowthOwnerView`），
+附 Generation/Life/发布修订及各子域结果修订。
 回执可以先于新快照到达：UI 可展示“已提交，等待状态同步”，不能自行扣款/造物补齐；
 新快照先到则迟到回执只补结果提示，不回放旧快照。
 重放的旧生命成功回执只能作为历史结果查询，不改当前生命资源/来源。

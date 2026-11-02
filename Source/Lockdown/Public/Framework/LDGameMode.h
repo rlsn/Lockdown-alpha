@@ -108,8 +108,6 @@ public:
     FGuid ContenderId(ALDPlayerController* Controller) const;
     void SyncOwner(ALDPlayerController* Controller);
     bool IsPlaying() const;
-    void EconomyWallets(TMap<FName,int64>& Out) const;
-    int32 EconomyContenderCount() const {return Contenders.Num();}
     bool IsFinished() const;
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
@@ -130,8 +128,12 @@ public:
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
+    // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    UPROPERTY() TObjectPtr<class ALDDevelopmentDirector> Development;
+    UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
+    // ---- end Growth/Shop ----
     // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
     // The only protection-removal entry: an admitted aggressive intent removes protection before
     // the action itself is checked; a later action rejection never restores it.

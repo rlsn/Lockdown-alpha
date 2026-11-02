@@ -45,6 +45,8 @@ void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();
     InitializeLocalUI();
+    // Growth/Shop: shop arrival requests the shop session (LDPlayerGrowth.cpp).
+    BindGrowthClient();
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);
@@ -90,7 +92,6 @@ void ALDPlayerController::OnRep_OwnerState()
     LatestOwner=OwnerState;
     if (NewLife)
     {
-        InventoryPendingRequest=0;
         Inspected.Invalidate();
         InspectedEpoch=0;
         ClearControls(true);
@@ -121,7 +122,6 @@ ALDWorldViewRelay* ALDPlayerController::LocalView() const
 
 void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const FString& Reason)
 {
-    if (Request==InventoryPendingRequest) { InventoryPendingRequest=0; }
     if (Request)
     {
         if (SeenIntentResults.ContainsByPredicate([&](const auto& Result) { return Result.Key==Request && Result.Value==Reason; })) { return; }
