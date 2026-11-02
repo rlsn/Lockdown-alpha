@@ -23,6 +23,9 @@ public:
     void SetDemoReady(bool Ready);
     void SetDemoAICount(uint8 Count);
     void StartDemoMatch();
+    // Host only: end the running match without a winner / take the room back to a new Lobby.
+    void EndDemoMatch();
+    void ReturnDemoToLobby();
     UFUNCTION(Server,Reliable) void ServerDemoSessionCommand(const FLDSessionRequest& Request);
     UFUNCTION(Client,Reliable) void ClientDemoSessionReceipt(const FLDSessionReceipt& Receipt);
     UFUNCTION(Client,Reliable) void ClientDemoRoomClosed(uint32 Generation,const FString& Reason);
@@ -63,7 +66,7 @@ public:
     FString IntentFeedback;
     uint32 FeedbackSerial() const { return IntentFeedbackSerial; }
 private:
-    void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0);
+    void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0,FGuid ExpectedResult=FGuid());
     uint32 DemoRequestGeneration=0;
     uint64 DemoRequestSequence=0;
     uint64 DemoPendingSequence=0;

@@ -19,7 +19,24 @@ void ALDPlayerController::StartDemoMatch()
     SendDemoSessionCommand(ELDSessionCommand::StartMatch);
 }
 
-void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool Ready, uint8 AICount)
+void ALDPlayerController::EndDemoMatch()
+{
+    SendDemoSessionCommand(ELDSessionCommand::EndMatch);
+}
+
+void ALDPlayerController::ReturnDemoToLobby()
+{
+    const auto* Public = GetWorld()->GetGameState<ALDGameState>();
+    if (!Public || !Public->MatchResult.ResultId.IsValid() || Public->MatchResult.Generation != Public->DemoLobby.Generation)
+    {
+        IntentFeedback = TEXT("No locked match result is available to leave.");
+        ++IntentFeedbackSerial;
+        return;
+    }
+    SendDemoSessionCommand(ELDSessionCommand::ReturnToLobby, false, 0, Public->MatchResult.ResultId);
+}
+
+void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool Ready, uint8 AICount, FGuid ExpectedResult)
 {
     const auto* Public = GetWorld()->GetGameState<ALDGameState>();
     if (!Public || !Public->DemoLobby.Generation)
@@ -49,6 +66,7 @@ void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool
     Request.ExpectedRosterRevision = Public->DemoLobby.RosterRevision;
     Request.Ready = Ready;
     Request.AICount = AICount;
+    Request.ExpectedResult = ExpectedResult;
     DemoPendingSequence = Request.Key.RequestSequence;
     IntentFeedback = TEXT("Room command pending...");
     ServerDemoSessionCommand(Request);
