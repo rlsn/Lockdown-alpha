@@ -84,8 +84,13 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者，一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
-买两件同款、满槽 `EquipmentFull`、同号重放、出售与离店 `OutsideRange`；Host 导出账本证据由
-`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。开局走正常 Lobby Start（全部开局提供者已注册），
-不覆盖营地、AI、抢圈或终局。
+买两件带无目标主动的同款、满槽 `EquipmentFull`、同号重放，用其中一件的主动（另一件轨道保持就绪），
+出售用过的那件后报价显示其冷却债会被继承，最后离店 `OutsideRange`；Host 导出账本证据由
+`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。随后 Host 无胜者结束本局并回到新一代 Lobby，
+两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无机会/技能/属性卡/装备、
+Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
+且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
+开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地、AI、抢圈或终局。
+已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。

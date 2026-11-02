@@ -332,6 +332,8 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
     Out.WorldLayoutRevision = WorldRevision.LayoutRevision;
     Out.WorldGeometryRevision = WorldRevision.GeometryRevision;
     const FLDCombatCaller Caller = GameMode->Development->MakeCaller(ContenderId);
+    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
+    Book.OwnerItems(ContenderId, Owned);
     Out.Items.Reserve(Definitions.Equipment.Num());
     for (const FLDDemoEquipmentDefinition& Definition : Definitions.Equipment)
     {
@@ -341,6 +343,16 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         Item.SellGold = Definition.SellGold;
         Item.bHasActive = Definition.HasActive;
         if (!Definition.HasActive)
+        {
+            continue;
+        }
+        // A copy in every slot leaves no purchase of this item to preview (EquipmentFull) and no free track to bind.
+        int32 HeldCopies = 0;
+        for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
+        {
+            HeldCopies += Pair.Value.Definition == Item.DefinitionId ? 1 : 0;
+        }
+        if (HeldCopies >= LDEconomy::EquipmentSlots)
         {
             continue;
         }
@@ -355,8 +367,6 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         Item.bInheritsCooldown = Preview.bInherits;
         Item.InheritedReadyAtMs = Preview.bInherits ? Preview.ReadyAtMs : 0;
     }
-    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
-    Book.OwnerItems(ContenderId, Owned);
     Out.Sellable.Reserve(Owned.Num());
     for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
     {
