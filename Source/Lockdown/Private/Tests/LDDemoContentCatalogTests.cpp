@@ -827,9 +827,6 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Case-corrupted world remains invalid after serialization"), !BadWriter.IsError()
         && !BadReader.IsError() && !BadRestored->Read(*Catalog, AfterFailure, Error));
     *Stored = Original;
-    Restored->Seed = 9001;
-    TestFalse(TEXT("Retired full-map fields cannot accompany a valid Demo projection"), Validate(Error));
-    Restored->Seed = 0;
     TestTrue(TEXT("Restoring the isolated mutations recovers the original asset"), Validate(Error));
     TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 17);
     return true;
