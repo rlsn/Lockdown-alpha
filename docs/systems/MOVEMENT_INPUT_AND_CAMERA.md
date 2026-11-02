@@ -110,6 +110,13 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 旧职业准备、持续 hold、物品快捷与旧 Armed 字段及 RPC 已随生产者删除。
 暂停菜单不暂停共享世界；焦点丢失、死亡、离开和终局要清除适用的移动/指向/交互状态。
 
+`ULDUIRoot` 是唯一的本地界面层来源：`TopInputLayer()` 报告文本编辑、子确认或主面板；
+同一时刻只开一个主面板（`ToggleMainPanel`：菜单、设置，以及经 `RegisterMainPanel` 登记的属性/三选一/小卖部），
+未登记的面板明确提示尚未接入。Esc 经 `V05Back` 每次只处理一层：
+`CloseTopModal`（结束文本编辑或关闭子确认）→ `CloseTopPanel`（关闭主面板）→ 打开菜单；
+战斗准备态的取消入口接入后插在前两步之间。关闭面板不停止已接受订单、不提交或回滚领域请求。
+P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
+
 动作入口只来自 `ULDControlSettings::Definitions()` 这一份 Demo 注册表，不按 profile 分派。
 修改按键要同步 `LDControlSettings`、控制器路由、帮助文本、HUD 标记与相应输入检查；
 不得只修改图标标签，也不能让消费者继续查询已退役动作名而静默得到无效键。
@@ -122,6 +129,7 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 
 小地图的坐标转换应使用当前地图定义。点击静态地图不授予对隐藏单位的锁定或远程交互能力，
 远处镜头也不会把身体的攻击/商店距离一起移动。
+小地图左键拖动只移动镜头，死亡等待期间也可用；右键移动仍要求 `CanWorldCommand`。
 
 本地按键、文字缩放与镜头偏好通过 `LDControlSettings` 保存，不能和对局金币、技能冷却等混为一份状态。
 保存失败需反馈，配置迁移不能默默给多个动作绑定同一个按键。
@@ -136,7 +144,7 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
 不自动迁移注册表、调换冲突键或从另一个文件回落。
 
-`LoadLocalSettings` 区分 `Loaded`、`Missing`、`UnsupportedSchema`、`Corrupt`、
+`LoadLocalSettings` 区分 `Loaded`、`Migrated`、`Missing`、`UnsupportedSchema`、`Corrupt`、
 `ReadFailed` 和 `InvalidStorage`。缺文件可使用当前默认值，但不会称为已保存；
 损坏或不支持的文件保持原样，菜单与设置页提示显式恢复。
 只有绑定不合法而镜头/文字字段合法时，恢复保留这些无关偏好，当前绑定仅用于本次会话；
@@ -144,8 +152,18 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、绑定、edge/follow、文字比例和 zoom 是完整正向清单。
-当前文件 schema 是 5，与产品/网络版本无关；旧通用 SaveGame 格式返回不支持，不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName` 和绑定是完整正向清单。
+当前文件 schema 是 6，与产品/网络版本无关；旧通用 SaveGame 格式及 4、5、6 以外的 schema 返回不支持，不静默覆盖。
+`PlayerName` 为空表示尚未设置，绝不填入默认名；它不是比赛数据，恢复默认（`ResetLocalDefaults`/`ResetBindings`）也不删除它。
+调用方用 `SetAppliedPlayerName` 修改已应用对象，并通过 `ULDGameInstance::RequestLocalSettingsFlush()` 请求保存；草稿不能改名称。
+`ValidatePlayerName` 只做本地格式检查：非空、首尾无空白、最多 16 个字符（UTF-16 代理对算一个）、
+无控制字符或残缺代理，且不含经 URL 选项 `?Name=` 传递时有歧义的 `? = # / \ : % & " ' < > |`；
+空名称可以保存，但建房/加入前必须先设置。房间公开名称仍由服务器会话域规范化或拒绝。
+文件中的非空非法名称使整个文件按 `Corrupt` 拒绝，且不提供恢复偏好。
+schema 5 是不含名称的同一正向清单，按显式迁移读取：校验通过的绑定和镜头/文字偏好原样保留，名称为空，
+返回 `Migrated` 及“先设置名称再建房或加入”的提示；对象处于 `ConfirmedApplied` 而非 `PersistenceVerified`，
+立即生效，下一次 flush 写成 schema 6，加载本身不改写旧文件。schema 5 中的损坏、非法偏好或注册表外动作
+仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
 合法的镜头/文字偏好走既有恢复流程，Demo 默认绑定只在本会话生效，
@@ -187,6 +205,9 @@ GameInstance 的窄 Slate 输入保护在试用/恢复期间消费 Alt+Enter、F
 Esc、强制关页、Widget 销毁、网络失败、旅行和退出先撤销试用，再保存已确认的本地值；
 恢复尚未完成或失败时禁止显示保存并提供重试，按键/镜头偏好不被显示回滚覆盖。
 `ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿。
+`Close`/`ClosePanel` 只在面板真正关闭时返回 true；供 Root 路由 Back 的 `HasChildConfirmation`/`CloseChildConfirmation`
+先结束按键捕获，或按“继续编辑/保持不变”关闭最上层确认，不应用也不丢弃任何值；显示试用提示返回 false，
+必须明确保留、恢复或等待超时。设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
 这里没有音频消费链；设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
 不能以本地设置控件代替全界面验收。

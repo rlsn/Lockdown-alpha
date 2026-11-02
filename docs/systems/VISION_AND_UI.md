@@ -67,14 +67,17 @@
 | 信息 | 允许来源 |
 | --- | --- |
 | 自身血蓝、资源、构筑、cooldown | Controller 的自身状态与私有回执 |
-| 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“不可用”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护 |
-| 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedUnit` 只显示白名单 |
-| 小地图 | 注册地面边界、当前覆盖、当前可见单位；不画探索层 |
+| 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“同步中”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护 |
+| Q/W 与 1/2 | `LDHUD::Action` 把意图可提交性（本人当前 Match/Life、对局进行中、存活、未被界面占用）与执行限制（空槽、无主动、冷却、胆量、控制、服务器原因）分开；限制只置灰说明，不吞掉显式激活；本人战斗投影缺失时显示“未同步”且不发送 |
+| 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedCard/ObservedUnit` 只显示白名单 |
+| 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、小卖部、升旗台圈、两档营地标记；当前覆盖与当前可见单位；不画探索层或出生点 |
 | 商店 | 当前合法报价、自己的金币与库存 |
-| 全局占领/结果 | 明确定义的公共状态 |
+| 公共圈、击杀通知与结果 | `ALDGameState::PublicMatch`（唯一阶段来源，校验代次）、`KillFeed`（按序号去重，只含参赛者死亡）、`MatchResult`（与 `PublicMatch.ResultId` 一致才显示，缺失时“结算同步中”而非零表）；倒计时到零只等待权威状态，不宣布开放或胜利 |
 | 命中、失败与进度 | 经裁剪的自身反馈，而非完整服务器日志 |
 
-名称来自复制的 `ALDGameState::DemoLobby` 名册。生物和装备目前显示批准内容 Id，本地化显示名由显示名工作提供。
+名称来自复制的 `ALDGameState::DemoLobby` 名册，查不到时显示“未列名参赛者”。
+技能、装备、野怪和状态的中文名经 `LDHUD::ContentText` 从 `DemoContent` 字符串表读取；
+表或键缺失时显示稳定 Id 并记录 `LD_HUD_DISPLAY_TEXT_MISSING`，不猜名称。
 `LDHUDModel`、`LDHUD`、`LDMinimap`、`LDUIRoot` 及各 Panel 是主要 UMG/Slate 入口。
 
 受控角色、检查对象、准备中的动作、指针捕获、镜头模式和打开面板分别管理。

@@ -21,74 +21,118 @@
 #include "Engine/Engine.h"
 #include "Styling/CoreStyle.h"
 
+namespace
+{
+    // Updates a control RebuildWidget constructed once under a stable name; a missing name is a construction bug.
+    void ControlsSetButton(UWidgetTree* Tree,FName Name,const FString& Label,bool Enabled,bool bShown=true)
+    {
+        auto* Button=CastChecked<UButton>(Tree->FindWidget(Name));
+        CastChecked<UTextBlock>(Button->GetContent())->SetText(FText::FromString(Label));
+        Button->SetIsEnabled(Enabled);Button->SetVisibility(bShown?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    }
+    const TCHAR* ControlsOnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
+}
+
 TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
 {
     SetIsFocusable(true);
     if(!Rows)
     {
+        // Every interactive control is built once under a stable name (automation and Back routing find it by name);
+        // later refreshes only change text, enablement and visibility. Rebuilt binding rows stay unnamed because a
+        // detached widget keeps its name until garbage collection, so reusing a name would collide.
+        auto WrapButton=[this](const TCHAR* Label,TFunction<void()> Action,FName Name)
+        {
+            auto* Button=LDWidgets::Button(WidgetTree,Label,MoveTemp(Action),false,Name);
+            auto* Caption=CastChecked<UTextBlock>(Button->GetContent());
+            Caption->SetAutoWrapText(true);Caption->SetJustification(ETextJustify::Center);
+            CastChecked<UButtonSlot>(Caption->Slot)->SetHorizontalAlignment(HAlign_Fill);
+            return Button;
+        };
+        auto ChildRows=[this](const TCHAR* Prompt)
+        {
+            auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();Box->SetVisibility(ESlateVisibility::Collapsed);
+            Box->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,Prompt));return Box;
+        };
+        auto Choice=[&WrapButton](UVerticalBox* Box,const TCHAR* Label,FName Name,TFunction<void()> Action)
+        {Box->AddChildToVerticalBox(WrapButton(Label,MoveTemp(Action),Name))->SetPadding(FMargin(0,3));};
+        auto Section=[this](UVerticalBox* Parent,const TCHAR* Title)
+        {Parent->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,Title,20))->SetPadding(FMargin(0,16,0,6));};
         auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Canvas;
         auto* Border=LDWidgets::Panel(WidgetTree,nullptr);
         auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.06f,.16f,.94f,.96f));Frame->SetOffsets(FMargin(0));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
-        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("CONTROLS & SETTINGS"),24));
-        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("The match does not pause. Local controls apply when confirmed below. Display changes need Apply; resolution and window mode must also be kept explicitly.")))->SetPadding(FMargin(0,8));
-        Feedback=LDWidgets::Text(WidgetTree,TEXT("Choose a binding, then press a key to apply it. Escape cancels capture."));Main->AddChildToVerticalBox(Feedback);
-        RecoveryRows=WidgetTree->ConstructWidget<UVerticalBox>();Main->AddChildToVerticalBox(RecoveryRows);
+        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
+        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头与文字改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
+        Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
+        ResetRows=ChildRows(TEXT("只把按键、镜头与文字恢复为当前默认值？显示设置、名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
+        Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ShowChild(EChildConfirmation::None);ChangePreference([](auto& S){S.ResetLocalDefaults();});});
+        Choice(ResetRows,TEXT("保持当前偏好"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
+        RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头与文字偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
+        Choice(RecoveryRows,TEXT("确认替换"),TEXT("ConfirmRecovery"),[this]()
+        {ShowChild(EChildConfirmation::None);if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}Populate();});
+        Choice(RecoveryRows,TEXT("保持文件不变"),TEXT("KeepSettingsFile"),[this](){ShowChild(EChildConfirmation::None);});
         DisplayFeedback=LDWidgets::Text(WidgetTree,TEXT(""));Main->AddChildToVerticalBox(DisplayFeedback);
-        TrialRows=WidgetTree->ConstructWidget<UVerticalBox>();Main->AddChildToVerticalBox(TrialRows);
-        CloseRows=WidgetTree->ConstructWidget<UVerticalBox>();Main->AddChildToVerticalBox(CloseRows);
+        TrialRows=WidgetTree->ConstructWidget<UVerticalBox>();TrialRows->SetVisibility(ESlateVisibility::Collapsed);Main->AddChildToVerticalBox(TrialRows);
+        TrialRows->AddChildToVerticalBox(WrapButton(TEXT("保留此显示模式"),[this](){if(TrialId){ConfirmDisplay(TrialId);}},TEXT("KeepDisplayMode")))->SetPadding(FMargin(0,3));
+        TrialRows->AddChildToVerticalBox(WrapButton(TEXT("恢复原显示模式"),[this](){if(TrialId){CancelDisplay(TrialId);}},TEXT("RevertDisplayMode")))->SetPadding(FMargin(0,3));
+        CloseRows=ChildRows(TEXT("显示改动尚未应用。已应用的按键与镜头偏好会保留。"));Main->AddChildToVerticalBox(CloseRows);
+        Choice(CloseRows,TEXT("应用显示并返回"),TEXT("ApplyDisplayAndReturn"),[this](){ShowChild(EChildConfirmation::None);bCloseAfterConfirm=true;ApplyDisplay();});
+        Choice(CloseRows,TEXT("放弃显示草稿并返回"),TEXT("DiscardDisplayDraft"),[this](){ForceClose();});
+        Choice(CloseRows,TEXT("继续编辑"),TEXT("ContinueEditing"),[this](){ShowChild(EChildConfirmation::None);});
         Preferences=LDWidgets::Text(WidgetTree,TEXT(""));Main->AddChildToVerticalBox(Preferences)->SetPadding(FMargin(0,6));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Main->AddChildToVerticalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Content=WidgetTree->ConstructWidget<UVerticalBox>();Scroll->AddChild(Content);
-        DisplayRows=WidgetTree->ConstructWidget<UVerticalBox>();Content->AddChildToVerticalBox(DisplayRows);
-        Content->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("LOCAL KEYS, CAMERA & TEXT"),20))->SetPadding(FMargin(0,16,0,6));
-        auto* PreferencesButtons=WidgetTree->ConstructWidget<UWrapBox>();PreferencesButtons->SetInnerSlotPadding(FVector2D(8));
-        Content->AddChildToVerticalBox(PreferencesButtons);
-        PreferencesButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Apply default bindings"),[this](){ChangePreference([](auto& S){S.ResetBindings();});}));
-        PreferencesButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Apply edge pan on/off"),[this](){ChangePreference([](auto& S){S.bEdgePan=!S.bEdgePan;});}));
-        PreferencesButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Apply start-follow on/off"),[this](){ChangePreference([](auto& S){S.bStartFollowing=!S.bStartFollowing;});}));
-        PreferencesButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Apply text 100 / 125%"),[this](){ChangePreference([](auto& S){S.TextScale=S.TextScale>1?1:1.25;});}));
-        PreferencesButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Reset keys, camera and text"),[this]()
+        Section(Content,TEXT("显示 / 画质"));
+        DisplayRows=WidgetTree->ConstructWidget<UVerticalBox>();DisplayRows->SetVisibility(ESlateVisibility::Collapsed);Content->AddChildToVerticalBox(DisplayRows);
+        auto DisplayRow=[&](FName Name,TFunction<void()> Action){DisplayRows->AddChildToVerticalBox(WrapButton(TEXT(""),MoveTemp(Action),Name))->SetPadding(FMargin(0,3));};
+        DisplayRow(TEXT("WindowModeDraft"),[this]()
         {
-            CloseRows->ClearChildren();bCloseAfterConfirm=false;
-            RecoveryRows->ClearChildren();
-            RecoveryRows->AddChildToVerticalBox(ScaledText(TEXT("Reset only local keys, camera and text to the current defaults? Display settings and this match are unchanged.")));
-            RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Confirm local reset"),[this](){ChangePreference([](auto& S){S.ResetLocalDefaults();});RecoveryRows->ClearChildren();}));
-            RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Keep current local preferences"),[this](){RecoveryRows->ClearChildren();}));
-        }));
+            DisplayDraft.WindowMode=DisplayDraft.WindowMode==EWindowMode::Windowed?EWindowMode::WindowedFullscreen
+                :DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?EWindowMode::Fullscreen:EWindowMode::Windowed;
+            if(DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen){DisplayDraft.Resolution=GEngine->GetGameUserSettings()->GetDesktopResolution();}
+            bDisplayDraftDirty=true;PopulateDisplay();
+        });
+        DisplayRow(TEXT("ResolutionDraft"),[this]()
+        {
+            if(Resolutions.IsEmpty()){DisplayFeedback->SetText(FText::FromString(TEXT("显卡驱动没有提供支持的分辨率，无法切换分辨率。")));return;}
+            const int32 Current=Resolutions.IndexOfByKey(DisplayDraft.Resolution);
+            DisplayDraft.Resolution=Resolutions[(Current+1)%Resolutions.Num()];
+            bDisplayDraftDirty=true;PopulateDisplay();
+        });
+        DisplayRow(TEXT("VSyncDraft"),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;bDisplayDraftDirty=true;PopulateDisplay();});
+        DisplayRow(TEXT("QualityDraft"),[this]()
+        {DisplayDraft.Quality.SetFromSingleQualityLevel((DisplayDraft.Quality.GetSingleQualityLevel()+1)%5);bDisplayDraftDirty=true;PopulateDisplay();});
+        DisplayRow(TEXT("ApplyDisplayDraft"),[this](){ApplyDisplay();});
+        DisplayRow(TEXT("RetryDisplaySave"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplaySave().Message));PopulateDisplay();}});
+        DisplayRow(TEXT("RetryDisplayRestore"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplayRestore().Message));PopulateDisplay();}});
+        Section(Content,TEXT("按键"));
+        auto* KeyButtons=WidgetTree->ConstructWidget<UWrapBox>();KeyButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(KeyButtons);
+        KeyButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复默认按键"),[this](){ChangePreference([](auto& S){S.ResetBindings();});},false,TEXT("ResetBindings")));
         Rows=WidgetTree->ConstructWidget<UVerticalBox>();Content->AddChildToVerticalBox(Rows);
+        Section(Content,TEXT("镜头 / 文字"));
+        auto* CameraButtons=WidgetTree->ConstructWidget<UWrapBox>();CameraButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(CameraButtons);
+        CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("边缘平移 开/关"),[this](){ChangePreference([](auto& S){S.bEdgePan=!S.bEdgePan;});},false,TEXT("ToggleEdgePan")));
+        CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("开局镜头跟随 开/关"),[this](){ChangePreference([](auto& S){S.bStartFollowing=!S.bStartFollowing;});},false,TEXT("ToggleStartFollow")));
+        CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("文字大小 100% / 125%"),[this](){ChangePreference([](auto& S){S.TextScale=S.TextScale>1?1:1.25;});},false,TEXT("ApplyTextScale")));
         auto* Footer=WidgetTree->ConstructWidget<UWrapBox>();Footer->SetInnerSlotPadding(FVector2D(8));Main->AddChildToVerticalBox(Footer)->SetPadding(FMargin(0,12,0,0));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Retry local save"),[this]()
-        {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}}));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Recover unreadable or incompatible local settings"),[this](){ShowRecoveryConfirmation();}));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Close"),[this](){Close();}));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复按键、镜头与文字默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("重试本地保存"),[this]()
+        {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}},false,TEXT("RetryLocalSave")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复无法读取或不兼容的设置"),[this](){ShowRecoveryConfirmation();},false,TEXT("RecoverLocalSettings")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("返回"),[this](){Close();},false,TEXT("Close")));
     }
     Populate();return Super::RebuildWidget();
-}
-UTextBlock* ULDControlsPanel::ScaledText(const FString& Text,int32 Size)
-{
-    const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
-    return LDWidgets::Text(WidgetTree,Text,FMath::RoundToInt(Size*PC->Controls->TextScale));
-}
-ULDCommandButton* ULDControlsPanel::ScaledButton(const FString& Text,TFunction<void()> Action)
-{
-    auto* Button=LDWidgets::Button(WidgetTree,Text,MoveTemp(Action));
-    auto* Caption=CastChecked<UTextBlock>(Button->GetContent());
-    const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
-    Caption->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",FMath::RoundToInt(16*PC->Controls->TextScale)));
-    Caption->SetAutoWrapText(true);
-    Caption->SetJustification(ETextJustify::Center);
-    CastChecked<UButtonSlot>(Caption->Slot)->SetHorizontalAlignment(HAlign_Fill);
-    return Button;
 }
 void ULDControlsPanel::Populate()
 {
     if(!Rows){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());Rows->ClearChildren();
     const float Scale=PC->Controls->TextScale;const int32 Size=FMath::RoundToInt(16*Scale);TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;
-    Preferences->SetText(FText::FromString(FString::Printf(TEXT("Applied preferences: edge pan %s   start-follow %s   text %.0f%%   zoom %.0f cm%s"),PC->Controls->bEdgePan?TEXT("ON"):TEXT("OFF"),PC->Controls->bStartFollowing?TEXT("ON"):TEXT("OFF"),100*PC->Controls->TextScale,PC->Controls->Zoom,PC->Controls->IsDirty()?TEXT("   NOT SAVED"):TEXT(""))));
-    for(const auto& B:PC->Controls->Definitions())
+    const auto& Applied=*PC->Controls;
+    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),100*Applied.TextScale,Applied.Zoom,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    for(const auto& B:Applied.Definitions())
     {
-        const FName Id=B.Action;auto* Button=LDWidgets::Button(WidgetTree,B.Label+TEXT("  [")+PC->Controls->Label(Id)+TEXT("]"),[this,Id](){Capture=Id;Feedback->SetText(FText::FromString(TEXT("Press a key or mouse button to apply this binding. Escape cancels.")));});
+        const FName Id=B.Action;auto* Button=LDWidgets::Button(WidgetTree,B.Label+TEXT("  [")+Applied.Label(Id)+TEXT("]"),[this,Id](){Capture=Id;Feedback->SetText(FText::FromString(TEXT("按下新的键盘按键或鼠标按键以应用此绑定。Esc 取消。")));});
         CastChecked<UTextBlock>(Button->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));Button->SetIsEnabled(Id!=TEXT("Back"));Rows->AddChildToVerticalBox(Button)->SetPadding(FMargin(0,3));
     }
 }
@@ -104,28 +148,32 @@ void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Cha
     }
 }
 
+void ULDControlsPanel::ShowChild(EChildConfirmation Which)
+{
+    // Showing or dismissing a child confirmation never applies or discards a value; it only drops a pending "apply and return".
+    Child=Which;bCloseAfterConfirm=false;
+    if(!CloseRows){return;}
+    auto Show=[Which](UWidget* Box,EChildConfirmation Kind){Box->SetVisibility(Which==Kind?ESlateVisibility::Visible:ESlateVisibility::Collapsed);};
+    Show(ResetRows,EChildConfirmation::LocalReset);Show(RecoveryRows,EChildConfirmation::Recovery);Show(CloseRows,EChildConfirmation::CloseDraft);
+}
+
 void ULDControlsPanel::ShowRecoveryConfirmation()
 {
-    CloseRows->ClearChildren();bCloseAfterConfirm=false;
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
-    RecoveryRows->ClearChildren();
     if(!PC->Controls->NeedsRecovery())
-    {Feedback->SetText(FText::FromString(TEXT("No unreadable or incompatible local settings need replacement. Use Retry local save for a write failure.")));return;}
-    RecoveryRows->AddChildToVerticalBox(ScaledText(TEXT("Replace the unreadable or incompatible settings file with the applied keys, camera and text preferences shown above? The old file remains unchanged until you confirm.")));
-    RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Confirm replacement with applied preferences"),[this]()
-    {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}RecoveryRows->ClearChildren();Populate();}));
-    RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Keep file unchanged"),[this](){RecoveryRows->ClearChildren();}));
+    {ShowChild(EChildConfirmation::None);Feedback->SetText(FText::FromString(TEXT("没有需要替换的无法读取或不兼容的设置文件。写入失败请使用“重试本地保存”。")));return;}
+    ShowChild(EChildConfirmation::Recovery);
 }
 
 void ULDControlsPanel::RefreshDisplayDraft()
 {
     auto* Instance=SettingsInstance.Get();
     bDisplayAvailable=false;bDisplayDraftDirty=false;
-    if(!Instance){return;}
+    Resolutions.Reset();
+    if(!Instance){DisplayFeedback->SetText(FText::FromString(TEXT("显示设置不可用：找不到本地设置的所有者。")));PopulateDisplay();return;}
     const auto Result=Instance->ReadDisplaySettings(DisplayDraft);
     bDisplayAvailable=Result.Status==ELDDisplaySettingsStatus::Loaded;
     DisplayFeedback->SetText(FText::FromString(Result.Message));
-    Resolutions.Reset();
     FString Error;
     if(bDisplayAvailable&&!Instance->GetDisplayResolutions(Resolutions,Error))
     {DisplayFeedback->SetText(FText::FromString(Error));}
@@ -135,48 +183,24 @@ void ULDControlsPanel::RefreshDisplayDraft()
 void ULDControlsPanel::PopulateDisplay()
 {
     if(!DisplayRows){return;}
-    DisplayRows->ClearChildren();TrialRows->ClearChildren();
-    DisplayRows->AddChildToVerticalBox(ScaledText(TEXT("DISPLAY"),20))->SetPadding(FMargin(0,12,0,6));
     auto* Instance=SettingsInstance.Get();
-    if(!bDisplayAvailable||!Instance){return;}
-    const bool Trial=TrialId!=0&&Instance->GetDisplayTrialId()==TrialId;
+    const bool Available=bDisplayAvailable&&Instance;
+    const bool Trial=Available&&TrialId!=0&&Instance->GetDisplayTrialId()==TrialId;
+    DisplayRows->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    TrialRows->SetVisibility(Trial?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    if(!Available){return;}
     const bool Editing=!Trial&&!Instance->IsDisplayRestorePending();
-    auto Row=[&](const FString& Label,TFunction<void()> Action,bool Enabled=true)
-    {
-        auto* Button=ScaledButton(Label,MoveTemp(Action));
-        Button->SetIsEnabled(Enabled);
-        DisplayRows->AddChildToVerticalBox(Button)->SetPadding(FMargin(0,3));
-    };
-    const TCHAR* Mode=DisplayDraft.WindowMode==EWindowMode::Fullscreen?TEXT("Fullscreen"):DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?TEXT("Borderless"):TEXT("Windowed");
-    Row(FString::Printf(TEXT("Window mode: %s (change draft)"),Mode),[this]()
-    {
-        DisplayDraft.WindowMode=DisplayDraft.WindowMode==EWindowMode::Windowed?EWindowMode::WindowedFullscreen
-            :DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?EWindowMode::Fullscreen:EWindowMode::Windowed;
-        if(DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen){DisplayDraft.Resolution=GEngine->GetGameUserSettings()->GetDesktopResolution();}
-        bDisplayDraftDirty=true;PopulateDisplay();
-    },Editing);
-    Row(FString::Printf(TEXT("Resolution: %d x %d (next supported size)"),DisplayDraft.Resolution.X,DisplayDraft.Resolution.Y),[this]()
-    {
-        const int32 Current=Resolutions.IndexOfByKey(DisplayDraft.Resolution);
-        DisplayDraft.Resolution=Resolutions[(Current+1)%Resolutions.Num()];
-        bDisplayDraftDirty=true;PopulateDisplay();
-    },Editing&&!Resolutions.IsEmpty()&&DisplayDraft.WindowMode!=EWindowMode::WindowedFullscreen);
-    Row(FString(TEXT("VSync draft: "))+ (DisplayDraft.bVSync?TEXT("On"):TEXT("Off")),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;bDisplayDraftDirty=true;PopulateDisplay();},Editing);
+    const TCHAR* Mode=DisplayDraft.WindowMode==EWindowMode::Fullscreen?TEXT("全屏"):DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?TEXT("无边框"):TEXT("窗口");
+    ControlsSetButton(WidgetTree,TEXT("WindowModeDraft"),FString::Printf(TEXT("窗口模式草稿：%s（点击切换）"),Mode),Editing);
+    ControlsSetButton(WidgetTree,TEXT("ResolutionDraft"),FString::Printf(TEXT("分辨率草稿：%d × %d（下一档支持尺寸）"),DisplayDraft.Resolution.X,DisplayDraft.Resolution.Y),
+        Editing&&!Resolutions.IsEmpty()&&DisplayDraft.WindowMode!=EWindowMode::WindowedFullscreen);
+    ControlsSetButton(WidgetTree,TEXT("VSyncDraft"),FString(TEXT("垂直同步草稿："))+ControlsOnOff(DisplayDraft.bVSync),Editing);
     const int32 Preset=DisplayDraft.Quality.GetSingleQualityLevel();
-    const TCHAR* Names[]={TEXT("Low"),TEXT("Medium"),TEXT("High"),TEXT("Epic"),TEXT("Cinematic")};
-    Row(FString(TEXT("Quality draft: "))+(Preset>=0&&Preset<5?Names[Preset]:TEXT("Custom"))+TEXT(" (next preset)"),[this]()
-    {DisplayDraft.Quality.SetFromSingleQualityLevel((DisplayDraft.Quality.GetSingleQualityLevel()+1)%5);bDisplayDraftDirty=true;PopulateDisplay();},Editing);
-    Row(TEXT("Apply display draft"),[this](){ApplyDisplay();},Editing&&bDisplayDraftDirty);
-    if(Instance->AreDisplaySettingsDirty())
-    {Row(TEXT("Retry display save"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplaySave().Message));PopulateDisplay();}},Editing);}
-    if(Instance->IsDisplayRestorePending())
-    {Row(TEXT("Retry previous display mode"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplayRestore().Message));PopulateDisplay();}});}
-    if(Trial)
-    {
-        const uint64 Id=TrialId;
-        TrialRows->AddChildToVerticalBox(ScaledButton(TEXT("Keep this display mode"),[this,Id](){ConfirmDisplay(Id);}));
-        TrialRows->AddChildToVerticalBox(ScaledButton(TEXT("Revert display mode"),[this,Id](){CancelDisplay(Id);}));
-    }
+    const TCHAR* Names[]={TEXT("低"),TEXT("中"),TEXT("高"),TEXT("极高"),TEXT("电影级")};
+    ControlsSetButton(WidgetTree,TEXT("QualityDraft"),FString(TEXT("画质草稿："))+(Preset>=0&&Preset<5?Names[Preset]:TEXT("自定义"))+TEXT("（下一档预设）"),Editing);
+    ControlsSetButton(WidgetTree,TEXT("ApplyDisplayDraft"),TEXT("应用显示草稿"),Editing&&bDisplayDraftDirty);
+    ControlsSetButton(WidgetTree,TEXT("RetryDisplaySave"),TEXT("重试保存显示设置"),Editing,Instance->AreDisplaySettingsDirty());
+    ControlsSetButton(WidgetTree,TEXT("RetryDisplayRestore"),TEXT("重试恢复原显示模式"),true,Instance->IsDisplayRestorePending());
 }
 
 void ULDControlsPanel::ApplyDisplay()
@@ -222,36 +246,42 @@ void ULDControlsPanel::CancelDisplay(uint64 Id)
 
 void ULDControlsPanel::Open()
 {
-    bOpen=true;Capture=NAME_None;bCloseAfterConfirm=false;
+    // Reopening an open panel only refocuses it; it must not silently discard an unapplied display draft.
+    if(bOpen){SetKeyboardFocus();return;}
+    bOpen=true;Capture=NAME_None;
     SettingsInstance=GetGameInstance<ULDGameInstance>();
     SetVisibility(ESlateVisibility::Visible);
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);
-    RecoveryRows->ClearChildren();CloseRows->ClearChildren();
+    ShowChild(EChildConfirmation::None);
     if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->GetLocalSettingsMessage()));}
     SetKeyboardFocus();Populate();RefreshDisplayDraft();
 }
-void ULDControlsPanel::ShowCloseConfirmation()
+void ULDControlsPanel::EndCapture()
+{Capture=NAME_None;Feedback->SetText(FText::FromString(TEXT("按键未更改。")));}
+bool ULDControlsPanel::Close()
 {
-    RecoveryRows->ClearChildren();
-    CloseRows->ClearChildren();
-    CloseRows->AddChildToVerticalBox(ScaledText(TEXT("Display edits have not been applied. Applied local keys and camera preferences will be kept.")));
-    CloseRows->AddChildToVerticalBox(ScaledButton(TEXT("Apply display and return"),[this](){bCloseAfterConfirm=true;CloseRows->ClearChildren();ApplyDisplay();}));
-    CloseRows->AddChildToVerticalBox(ScaledButton(TEXT("Discard display draft and return"),[this](){ForceClose();}));
-    CloseRows->AddChildToVerticalBox(ScaledButton(TEXT("Continue editing"),[this](){bCloseAfterConfirm=false;CloseRows->ClearChildren();}));
+    if(!bOpen){return true;}
+    if(!Capture.IsNone()){EndCapture();return false;}
+    if(TrialId){CancelDisplay(TrialId);return false;}
+    if(Child!=EChildConfirmation::None){ShowChild(EChildConfirmation::None);return false;}
+    if(bDisplayDraftDirty){ShowChild(EChildConfirmation::CloseDraft);return false;}
+    ForceClose();return true;
 }
-void ULDControlsPanel::Close()
+bool ULDControlsPanel::HasChildConfirmation() const
+{return bOpen&&(!Capture.IsNone()||TrialId!=0||Child!=EChildConfirmation::None);}
+bool ULDControlsPanel::CloseChildConfirmation()
 {
-    if(!Capture.IsNone()){Capture=NAME_None;Feedback->SetText(FText::FromString(TEXT("Binding unchanged.")));return;}
-    if(TrialId){CancelDisplay(TrialId);return;}
-    if(RecoveryRows&&RecoveryRows->GetChildrenCount()){RecoveryRows->ClearChildren();return;}
-    if(CloseRows&&CloseRows->GetChildrenCount()){CloseRows->ClearChildren();bCloseAfterConfirm=false;return;}
-    if(bDisplayDraftDirty){ShowCloseConfirmation();return;}
-    ForceClose();
+    if(!bOpen){return false;}
+    if(!Capture.IsNone()){EndCapture();return true;}
+    // Same as the visible "continue editing" / "keep unchanged" choices: nothing is applied or discarded.
+    if(Child!=EChildConfirmation::None){ShowChild(EChildConfirmation::None);return true;}
+    // A display trial prompt is not dismissible here: it must be kept, reverted or allowed to time out explicitly.
+    return false;
 }
 void ULDControlsPanel::ForceClose()
 {
     if(auto* Instance=SettingsInstance.Get()){Instance->CancelDisplayTrial(TrialId);Instance->FlushLocalSettings();}
-    TrialId=0;Capture=NAME_None;bOpen=false;bDisplayDraftDirty=false;bCloseAfterConfirm=false;
+    TrialId=0;Capture=NAME_None;bOpen=false;bDisplayDraftDirty=false;ShowChild(EChildConfirmation::None);
     SetVisibility(ESlateVisibility::Collapsed);
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
     {
@@ -274,14 +304,14 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     if(TrialId&&Instance->GetDisplayTrialId()!=TrialId)
     {TrialId=0;bCloseAfterConfirm=false;RefreshDisplayDraft();DisplayFeedback->SetText(FText::FromString(Result.Message));}
     if(TrialId)
-    {DisplayFeedback->SetText(FText::FromString(FString::Printf(TEXT("%s\nReverting in %.0f seconds unless kept."),*Result.Message,FMath::CeilToDouble(Instance->GetDisplayTrialRemaining()))));}
+    {DisplayFeedback->SetText(FText::FromString(FString::Printf(TEXT("%s\n%d 秒后自动恢复，除非选择保留。"),*Result.Message,FMath::CeilToInt32(Instance->GetDisplayTrialRemaining()))));}
     else if(Result.Status!=SeenDisplayStatus)
     {DisplayFeedback->SetText(FText::FromString(Result.Message));PopulateDisplay();}
     SeenDisplayStatus=Result.Status;
 }
 FReply ULDControlsPanel::CaptureKey(FKey Key)
 {
-    if(Key==EKeys::Escape){Capture=NAME_None;Feedback->SetText(FText::FromString(TEXT("Binding unchanged.")));return FReply::Handled();}
+    if(Key==EKeys::Escape){EndCapture();return FReply::Handled();}
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FString Error;auto* Draft=PC->Controls->CreateDraft();
     if(Draft->Rebind(Capture,Key,Error))
     {Capture=NAME_None;if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ApplyLocalSettings(*Draft).Message));}Populate();}
