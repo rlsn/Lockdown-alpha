@@ -75,6 +75,10 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
 5. `ResetLife` 不倒退序列号；新的 Owner 生命投影先发布再清理导航，不发送一条伪装成用户意图的
    新生命 Stop，也不等下一次 Tick 清掉已经收到的新生命首单。死亡由 `EndLifeOrders` 结束全部订单。
+6. 服务器订单簿 `FLDOrderBook`（`LDOrderRules.h`）绑定一个（match, life）：请求水位、幂等窗口与激活节流
+   只对该局的权威时钟（每局从 0 起算）和该命身份有效，而 Controller 跨局存活。新身份换绑时整体重建；
+   Combat 的 MatchReset 经 `ResetMatch` 结束旧局订单并整体丢弃订单簿与内容缓存。
+   回执序号是拥有连接的单调序，两端都不随局复位，客户端另按 Match/Life 过滤。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，

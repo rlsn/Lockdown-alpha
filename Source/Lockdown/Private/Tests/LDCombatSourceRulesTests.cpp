@@ -237,4 +237,40 @@ bool FLDOrderAttackMoveCandidateTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOrderBookIsolationTest, "Lockdown.Rules.DemoOrders.BookIsolation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// The controller and its book outlive a match while the authority clock restarts at 0, so a throttle armed late
+// in one match must never hold the next match's orders in Queued.
+bool FLDOrderBookIsolationTest::RunTest(const FString& Parameters)
+{
+    const FLDMoveIdentity Old{1, 2, 40, 7};
+    FLDOrderBook Played;
+    Played.Bind(Old);
+    Played.Received = Old;
+    Played.ArmActivation(410.0, 0.1);
+    TestTrue(TEXT("Within one binding the throttle holds the next activation for its interval only"),
+        !Played.ActivationDue(410.05) && Played.ActivationDue(410.1));
+
+    FLDOrderBook Reset = Played;
+    Reset.Reset();
+    TestTrue(TEXT("A match reset drops the throttle: the next match may activate at clock 0"), Reset.ActivationDue(0.0));
+    TestTrue(TEXT("A match reset drops the binding and the request watermark"),
+        !Reset.IsBoundTo(Old.Match, Old.Life) && Reset.Received == FLDMoveIdentity());
+
+    const FLDMoveIdentity Next{2, 1, 41, 7};
+    FLDOrderBook Rebound = Played;
+    TestFalse(TEXT("A new match's identity is not the old book's"), Rebound.IsBoundTo(Next.Match, Next.Life));
+    Rebound.Bind(Next);
+    const FLDMoveIdentity Fresh{2, 1, 0, 0};
+    TestTrue(TEXT("Binding a new match starts the throttle and the watermark over"),
+        Rebound.IsBoundTo(Next.Match, Next.Life) && Rebound.ActivationDue(0.0) && Rebound.Received == Fresh);
+
+    FLDOrderBook Respawned = Played;
+    Respawned.Bind({1, 3, 41, 8});
+    TestTrue(TEXT("A new life of the same match starts its own book"),
+        Respawned.IsBoundTo(1, 3) && Respawned.Received.Order == 0 && Respawned.ActivationDue(410.05));
+    return true;
+}
+
 #endif
