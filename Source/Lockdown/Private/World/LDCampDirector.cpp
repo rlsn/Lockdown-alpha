@@ -239,11 +239,16 @@ bool ALDCampDirector::PlanPath(const FMemberRead& Self, FName SurfaceId, const F
         if (Error.IsEmpty()) { Error = TEXT("NotGrounded: a camp member plans only from its registered support."); }
         return false;
     }
-    FLDLegalGround From, To;
+    FLDLegalGround BodyGround, From, GoalGround, To;
     FLDCompletePath Path;
     ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
-    if (!Registry->QueryGround(Registry->Revision(), Self.FootCm, Capsule, SurfaceId, From, Failure, Error)
-        || !Registry->QueryGround(Registry->Revision(), Goal, Capsule, SurfaceId, To, Failure, Error)
+    // Contacts can leave a body inside Recast's agent margin. Both the member and a chased body plan from their
+    // nearest navmesh point within one capsule radius (LDPathSteering::PlanStart); a goal already on the navmesh,
+    // such as a member home, is returned unchanged.
+    if (!Registry->QueryGround(Registry->Revision(), Self.FootCm, Capsule, SurfaceId, BodyGround, Failure, Error)
+        || !LDPathSteering::PlanStart(*Registry, BodyGround, Capsule, From, Failure, Error)
+        || !Registry->QueryGround(Registry->Revision(), Goal, Capsule, SurfaceId, GoalGround, Failure, Error)
+        || !LDPathSteering::PlanStart(*Registry, GoalGround, Capsule, To, Failure, Error)
         || !Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Path, Failure, Error))
     {
         return false;
