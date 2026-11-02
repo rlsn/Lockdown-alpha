@@ -174,7 +174,7 @@ CatalogDigest 覆盖本局整套批准的公式/角色/技能/装备/政策输�
 `Content\Lockdown\Data\Demo\manifest.json` 的规范文件字节 SHA-256。
 该根 manifest 不含自身摘要，由唯一 Demo compiler 生成并写入 `LDDemoContentContract.h` 及加载身份，
 绑定完整内容；Combat/纯值计算借用同一不可变内容快照，不再选择旧子目录摘要或旧 catalog 作为数据入口。
-现行实现见 `FLDDemoContentDigest`（[LDDemoContentDefinitions.h:8–17](../../Source/Lockdown/Public/Development/LDDemoContentDefinitions.h#L8-L17)）
+现行实现见 `FLDDemoContentDigest`（[LDDemoContentDefinitions.h:8–18](../../Source/Lockdown/Public/Development/LDDemoContentDefinitions.h#L8-L18)）
 与 [CatalogTools.py:20–21](../../Scripts/CatalogTools.py#L20-L21)。
 来源定义的有界名字沿现有最多 63 个 UTF-8 **字节**、64 字节零填充形状收敛；
 新 decoder 严格拒绝无终止/非法 UTF-8 等坏编码，不靠截断或 FName 大小写折叠变成另一合法来源；
