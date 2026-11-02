@@ -235,7 +235,30 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 攻击者仍可选；成员严格超界才转 Returning，之后不再选敌、受击也不回追。
 回位目标是该成员在注册表中的 MemberHome，不是全组共用 Camp 中心。
 观察读取失败必须在调用层按权威故障处理，纯函数也拒绝未完成的读取，不能当空候选成功。
-N03 的五营地、真实身体、反击/回位重置、刷新与死亡奖励仍需正式接线，纯原语不是完整营地。
+
+营地运行由两层组成，都不另存身体、生命、战斗或奖励真值：
+
+- `World\LDCampLifecycle`：纯记账。由批准内容的营地放置/怪物定义和世界营地锚点/成员 home 生成五营两档名册；
+  每局为固定 (营地, 槽位) 分配一次 EntityId，`Life` 只镜像核心生命，并只在整组生成提交时递增。
+  最后一名成员死亡时按死亡事实的权威整数毫秒固定清营时刻、按该档 `RespawnMs` 定刷新期限，不再从秒换算；死亡按生命幂等。
+  反击只接受参赛者来源，全营共享来源身份而非坐标；Returning 成员忽略受击；
+  出生或回营重置时刻之前的接触不能重开仇恨；每名参赛者只保留当前生命，总数受名单上限约束。
+  每次进入 Returning 递增 ReturnEpoch，重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只能完成一次。
+- `World\LDCampDirector`：Camps match provider 在 Starting 的 Prepare 中生成（服务器、不复制）并建名册，
+  MatchReset 时销毁全部野怪身体并丢弃本局记账。各入口只在 Combat 驱动的对应阶段校验借用许可后执行：
+  初始化 RespawnsAndWorld 内整组生成；Motion 用同一 CMC 推进与 `LDPathSteering` 跟随完整路径；
+  Actions 读取 Combat 身体状态、用 `TraceSight` 从成员脚点证明来源可见后调用 `LDCampDecision`，
+  普攻经 Combat `SubmitAction` 提交；Effects 消费已提交的 `FLDCombatHostileContact`；
+  DeathsAndRewards 在核心结束生命后只记账并销毁野怪身体，奖励由成长唯一 sink 支付；
+  RespawnsAndWorld 先对真实到家（同一支持面、`CAMP.ResetArrivalRadiusCm` 内）的存活成员调用
+  Combat `PrepareCampReset/ApplyCampReset`，再处理到期的整组刷新。`NextRefreshDueMs` 向 Combat 驱动报告最早的
+  待刷新期限，使刷新恰好落在该步边界。刷新落点被动态占用时保留同一票据，
+  只在本营成员 home 的局部偏移内重试，不换营地、不发布半组。落点原点与参赛者出生相同
+  （支持面 + 胶囊半高 + CMC 地面带中值），交给核心前已 FindFloor 并在登记地板上 walkable；
+  胶囊底直接贴地会在进入 Walking 时被 CMC 抬升，精确落点校验随即拒绝。
+- 野怪身体 `ALDCampMemberCharacter` 不复制；观察只经 Vision 授权帧，`AppendObservedFacts`
+  只补 CreatureId 和单层无期限的 `camp_returning`，`PublicViews` 只给固定营地 Id/档位/怪物/锚点。
+
 旧营地 Actor、职业/技能初始包、三营地/有限刷新预算、Boss/Tower/圣坛与探索奖励不作备用实现。
 
 唯一占领归约和结果所有者是现有 GameMode 核心，不再保留独立 Objective Actor、HeartSensor、

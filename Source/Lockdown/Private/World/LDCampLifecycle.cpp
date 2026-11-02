@@ -174,6 +174,17 @@ bool FLDCampMatchState::IsRespawnDue(int32 Camp, int64 NowMs) const
     return Group && Group->bRespawnPending && NowMs >= Group->RespawnDueMs;
 }
 
+int64 FLDCampMatchState::NextRespawnDueMs() const
+{
+    int64 Due = MAX_int64;
+    if (!IsActive()) { return Due; }
+    for (const FLDCampGroupState& Group : Camps)
+    {
+        if (Group.bRespawnPending) { Due = FMath::Min(Due, Group.RespawnDueMs); }
+    }
+    return Due;
+}
+
 bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRef> Bodies, double AtSeconds, FString& Error)
 {
     FLDCampGroupState* Group = IsActive() && Camps.IsValidIndex(Camp) ? &Camps[Camp] : nullptr;
@@ -219,12 +230,12 @@ bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRe
     return true;
 }
 
-ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, double OccurredAtSeconds, FString& Error)
+ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, int64 OccurredAtMs, FString& Error)
 {
     int32 Camp = INDEX_NONE, Slot = INDEX_NONE;
     const FLDCampMemberState* Found = IsActive() && Death.IsValid() && Death.LedgerMatch == Match.LedgerMatch
         && Death.Victim.Kind == ELDVictimKind::CampMember ? FindMember(Death.Victim.EntityId, &Camp, &Slot) : nullptr;
-    if (!Found || Death.Victim.Life > Found->Life || !FMath::IsFinite(OccurredAtSeconds) || OccurredAtSeconds < 0)
+    if (!Found || Death.Victim.Life > Found->Life || OccurredAtMs < 0)
     {
         Error = TEXT("Camp death does not name a committed life of this match.");
         return ELDCampDeathResult::Rejected;
@@ -241,9 +252,8 @@ ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, doub
     {
         bLastLiving &= Other == Slot || !Group.Members[Other].bAlive;
     }
-    int64 ClearedAtMs = 0, DueMs = 0;
-    if (bLastLiving && (!LDMatchLifecycle::AuthoritySecondsToEventMs(OccurredAtSeconds, ClearedAtMs, Error)
-        || !LDMatchLifecycle::DeadlineFromSeconds(OccurredAtSeconds, Roster->Camps[Camp].RespawnMs, DueMs, Error)))
+    int64 DueMs = 0;
+    if (bLastLiving && !LDMatchLifecycle::AddDurationMs(OccurredAtMs, Roster->Camps[Camp].RespawnMs, DueMs, Error))
     {
         return ELDCampDeathResult::Rejected;
     }
@@ -255,7 +265,7 @@ ELDCampDeathResult FLDCampMatchState::RecordDeath(const FLDDeathKey& Death, doub
     if (bLastLiving)
     {
         Group.bRespawnPending = true;
-        Group.ClearedAtMs = ClearedAtMs;
+        Group.ClearedAtMs = OccurredAtMs;
         Group.RespawnDueMs = DueMs;
     }
     Error.Reset();
