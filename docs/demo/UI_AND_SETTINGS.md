@@ -46,30 +46,30 @@
 
 | 现有入口与证据 | 真实能力 | 必须改接的缺口 |
 | --- | --- | --- |
-| [LDUIRoot.cpp:50–162](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L50-L162)、[368–387](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L387) | 原生建菜单/Lobby，Host/Join/Exit 已有调用；Host 固定 `listen?Profile=V05` | 没有目标 Start/Settings/版本/名称、有名 roster、AI 配置和完整连接状态。旧职业选择及 Seal/Heart UI 不能仅改文案。 |
-| [LDGameInstance.cpp:8–46](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp#L8-L46) | network/travel delegate 注册解除，WorldContext 过滤，失败返回前端 | 当前忽略网络 Error 的细分文本，无 attempt 序号；满员、已开局、Host 结束、取消后迟到回包需独立处理。 |
-| [LDHUD.cpp:44–91](../../Source/Lockdown/Private/UI/LDHUD.cpp#L44-L91)、[110–196](../../Source/Lockdown/Private/UI/LDHUD.cpp#L110-L196) | 本人数据、状态/反馈、结果去重、独立 Minimap | 目前六技能按钮/四物品按钮、旧目标和死亡损失；缺头像/名称，部分分支不显示 XP，无目标圈/击杀/全员终局表。 |
+| [LDUIRoot.cpp:50–162](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDUIRoot.cpp#L50-L162)、[368–387](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L387) | 原生建菜单/Lobby，Host/Join/Exit 已有调用；Host 固定 `listen?Profile=V05` | 没有目标 Start/Settings/版本/名称、有名 roster、AI 配置和完整连接状态。旧职业选择及 Seal/Heart UI 不能仅改文案。 |
+| [LDGameInstance.cpp:8–46](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDGameInstance.cpp#L8-L46) | network/travel delegate 注册解除，WorldContext 过滤，失败返回前端 | 当前忽略网络 Error 的细分文本，无 attempt 序号；满员、已开局、Host 结束、取消后迟到回包需独立处理。 |
+| [LDHUD.cpp:44–91](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDHUD.cpp#L44-L91)、[110–196](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDHUD.cpp#L110-L196) | 本人数据、状态/反馈、结果去重、独立 Minimap | 目前六技能按钮/四物品按钮、旧目标和死亡损失；缺头像/名称，部分分支不显示 XP，无目标圈/击杀/全员终局表。 |
 | `LDV08HUDModel.cpp:7–51`（已随 UI 闭包退役） | 旧 `LDHUD::Action` 区分技能/装备来源与执行限制；未保留，技能/装备就绪、来源与冷却展示改列 N04/N05 presenter 要求 | 六 Actions/十一 Bindings、合并 ItemFamilies 冷却、保护禁用不符合目标。要区分可提交意图与可成功释放，不能只保留 `CanActivate`。 |
 | [LDWidgets.cpp](../../Source/Lockdown/Private/UI/LDWidgets.cpp) | 可滚动 native Panel、焦点和命令按钮机制 | N04/N07 以新 Offer/确认合同建立本人属性/三选一面板，不恢复旧准备/读书控件。 |
 | `LDInventoryPanel.cpp`（已删除） | 旧本人库存查看、整理/移动、显式丢弃确认和输入捕获 | 已由两装备小卖部 `ULDShopPanel`（[LDShopPanel.cpp](../../Source/Lockdown/Private/UI/LDShopPanel.cpp)）替代：只读当前 Opened 报价与本人两槽，Buy/Sell 带所见条款与版本，卖出走子确认；不保留 Bag 或旧多市场。 |
-| [LDPlayerInput.cpp:65–110](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L65-L110)、[192–208](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L192-L208) | 动态 mapping 句柄清理、等待按键释放、受限 inspection | 静态 IA/IMC 与动态入口并存、profile 分派和零散捕获需归一；不另建 UI 默认按键表。 |
-| [LDPlayerController.cpp:194–205](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L194-L205)、[593–619](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L593-L619) | owner 拒旧；GameAndUI 而非暂停世界 | 仅拒旧 State 不保证后续 Reason/toast/pending 无副作用；现开菜单会 ClearControls/Stop，需要区分普通面板与失焦。 |
-| [LDControlSettings.h:19–37](../../Source/Lockdown/Public/UI/LDControlSettings.h#L19-L37)、[LDControlSettings.cpp:40–92](../../Source/Lockdown/Private/UI/LDControlSettings.cpp#L40-L92) | 保存按键、edge/follow、文字比例、Zoom；冲突校验；Save 返回 bool | 缺名称/显示/音量/平移速度；Load 对损坏静默回落，多 profile 槽/迁移需删除；恢复绑定不等于恢复全部设置。 |
-| [LDMinimap.cpp:21–78](../../Source/Lockdown/Private/UI/LDMinimap.cpp#L21-L78)、[LDWorldViewRelay.cpp:94–169](../../Source/Lockdown/Private/Vision/LDWorldViewRelay.cpp#L94-L169) | 受限动态点、full/conceal 游标、过期清理、雾材质 | 旧 60×40/Explored 与目标稀疏 Units/Footprint 不同；清理须扩至 tooltip、音频、异步加载和旧 camera blendable。 |
-| [LDVisionDirector.cpp:240–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L240-L300)、[LDCharacter.cpp:17–85](../../Source/Lockdown/Private/Character/LDCharacter.cpp#L17-L85) | Host 已在采样时隐藏非本人 Body，自己不重复生成 proxy | 不是生成时默认不曝光；原生附件/阴影/声音仍须共同核验。不能说 Host 完全没有隔离，也不能说已有隔离已足够。 |
+| [LDPlayerInput.cpp:65–110](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L65-L110)、[192–208](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L192-L208) | 动态 mapping 句柄清理、等待按键释放、受限 inspection | 静态 IA/IMC 与动态入口并存、profile 分派和零散捕获需归一；不另建 UI 默认按键表。 |
+| [LDPlayerController.cpp:194–205](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerController.cpp#L194-L205)、[593–619](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerController.cpp#L593-L619) | owner 拒旧；GameAndUI 而非暂停世界 | 仅拒旧 State 不保证后续 Reason/toast/pending 无副作用；现开菜单会 ClearControls/Stop，需要区分普通面板与失焦。 |
+| [LDControlSettings.h:19–37](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Public/UI/LDControlSettings.h#L19-L37)、[LDControlSettings.cpp:40–92](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDControlSettings.cpp#L40-L92) | 保存按键、edge/follow、文字比例、Zoom；冲突校验；Save 返回 bool | 缺名称/显示/音量/平移速度；Load 对损坏静默回落，多 profile 槽/迁移需删除；恢复绑定不等于恢复全部设置。 |
+| [LDMinimap.cpp:21–78](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDMinimap.cpp#L21-L78)、[LDWorldViewRelay.cpp:94–169](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Vision/LDWorldViewRelay.cpp#L94-L169) | 受限动态点、full/conceal 游标、过期清理、雾材质 | 旧 60×40/Explored 与目标稀疏 Units/Footprint 不同；清理须扩至 tooltip、音频、异步加载和旧 camera blendable。 |
+| [LDVisionDirector.cpp:240–300](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L240-L300)、[LDCharacter.cpp:17–85](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Character/LDCharacter.cpp#L17-L85) | Host 已在采样时隐藏非本人 Body，自己不重复生成 proxy | 不是生成时默认不曝光；原生附件/阴影/声音仍须共同核验。不能说 Host 完全没有隔离，也不能说已有隔离已足够。 |
 
 `FLDOwnerState` 是现有反射投影，不是 UI 存档。GameMode 的
-[StateFor/ContenderId/SyncOwner](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L386)
-与 Combat 的 [Sync](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L186-L204)
+[StateFor/ContenderId/SyncOwner](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L386)
+与 Combat 的 [Sync](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L186-L204)
 维护本人投影；Controller 的
-[OwnerState 复制](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L429-L430)
+[OwnerState 复制](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerController.cpp#L429-L430)
 未显式使用 `COND_OwnerOnly`，其连接边界来自拥有者 PlayerController，不能误述为全局 GameState 字段。
 当前其他 PlayerState 也非公开 roster；目标名单必须由会话域主动裁剪发布。
 
 UI 树主要由 native `RebuildWidget` 构建：
-[Bootstrap:210–226](../../Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp#L210-L226)
+[Bootstrap:210–226](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp#L210-L226)
 生成的 `WBP_UIRoot` 以 `ULDUIRoot` 为父类，
-[InitializeLocalUI](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L89-L108)
+[InitializeLocalUI](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/Framework/LDPlayerController.cpp#L89-L108)
 加载其生成类。现有 UMG/Slate 已足够，不新增 CommonUI/MVVM 依赖；
 配置中的 CommonUI 项经 C4 核验无消费者（插件未启用，无资产导入 `/Script/CommonUI`）后已删除。
 
@@ -479,7 +479,7 @@ VSync/ScalabilityQuality 在确认前不写入 `UGameUserSettings`，也不调�
 无法确认则显示“已应用，本地保存未确认/失败”，保留 dirty 和重试入口，不写第二份显示存档。
 显示回滚计时是本地 UX 安全计时而非玩法时钟；上述 API 与退出钩子仍需在锁定引擎实证。
 
-已有 [SavePreferences](../../Source/Lockdown/Private/UI/LDControlsPanel.cpp#L54-L64)
+已有 [SavePreferences](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDControlsPanel.cpp#L54-L64)
 在 Save false 时提示本次已改但未保存，这个诚实反馈应保留。
 小型本地偏好先复用同步 Save；明确 Apply/离开/旅行/退出只 flush 最后一份
 **ConfirmedApplied 且尚未验证持久化**的合格值，不保存 EditingDraft/DisplayTrial。
