@@ -123,6 +123,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
 private:
     friend class FLDDemoSessionTest;
+    friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
     friend class FLDDemoCoreProbe;
     friend class ALDCombatDirector;

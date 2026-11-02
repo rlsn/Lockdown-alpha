@@ -1,8 +1,14 @@
 #include "Framework/LDCaptureReducer.h"
+#include "Framework/LDGameInstance.h"
+#include "Framework/LDGameMode.h"
 #include "Framework/LDMatchProviders.h"
+#include "Framework/LDPlayerController.h"
 #include "World/LDCaptureCircle.h"
 #include "Components/BoxComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
 #include "UObject/Package.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -443,6 +449,102 @@ bool FLDCaptureProviderGateTest::RunTest(const FString& Parameters)
             {ELDMatchProvider::Shop, Plain}, {ELDMatchProvider::Camps, Plain}, {ELDMatchProvider::OpponentAI, AI}});
         TestTrue(TEXT("An AI provider that binds slots satisfies the AI gate"), LDMatchProviders::MissingForStart(true).IsEmpty());
     }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureSessionTest, "Lockdown.Rules.DemoCapture.SessionEndgame",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
+{
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated endgame fixture world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Instance = NewObject<ULDGameInstance>(GEngine);
+    World->SetGameInstance(Instance);
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Host = World->SpawnActor<ALDPlayerController>();
+    auto* Guest = World->SpawnActor<ALDPlayerController>();
+    if (!Mode || !Public || !Host || !Guest) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    Host->SetAsLocalPlayerController();
+    FString Error;
+    uint32 Generation = 0;
+    if (!TestTrue(TEXT("The room allocates its first match generation"), Instance->AllocateMatchGeneration(Generation, Error)))
+    { return false; }
+    Mode->GameState = Public;
+    Mode->MatchContext = {Generation, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Lobby;
+    Mode->RosterRevision = 1;
+    Mode->bDemoWorld = Mode->bEntryAccepted = true;
+    if (!TestTrue(TEXT("Two humans join the room"), Mode->AdmitRoomMember(Host, Error) && Mode->AdmitRoomMember(Guest, Error)))
+    { AddError(Error); return false; }
+    const FGuid GuestId = Mode->ContenderId(Guest);
+
+    int32 Closed = 0, Resets = 0;
+    FLDMatchReset LastReset;
+    FLDMatchProviderHooks Progression;
+    Progression.ReadFinalLevel = [](const ALDGameMode&, const FGuid&, uint8& Level, FString&) { Level = 3; return true; };
+    Progression.MatchClosed = [&Closed](ALDGameMode&, const FLDMatchClosed& Info)
+    { Closed += Info.Reason == ELDMatchEndReason::HostEnded && !Info.Winner.IsValid() ? 1 : 100; };
+    Progression.MatchReset = [&Resets, &LastReset](ALDGameMode&, const FLDMatchReset& Reset, FString&)
+    { ++Resets; LastReset = Reset; return true; };
+    LDMatchProviders::FScopedTestTable Providers({{ELDMatchProvider::Progression, Progression}});
+
+    // A running match without native bodies: only the core gate, clock and reducer matter here.
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(180000, 25000, Error));
+    FLDSessionRequest Request;
+    Request.Key = {Generation, 1};
+    Request.Command = ELDSessionCommand::EndMatch;
+    Request.ExpectedRosterRevision = Mode->RosterRevision;
+    TestTrue(TEXT("Only the Host can end the match"), Mode->ProcessSessionCommand(Guest, Request).Reason == ELDSessionReject::NotHost);
+    const auto Ended = Mode->ProcessSessionCommand(Host, Request);
+    TestTrue(TEXT("The Host ends the running match"), Ended.Outcome == ELDSessionOutcome::Committed && Mode->MatchPhase == ELDMatchPhase::Results);
+    TestFalse(TEXT("Ending closes every gameplay write"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
+    TestEqual(TEXT("Cleanup runs once after the gate closed"), Closed, 1);
+    const FLDResultView& Result = Public->MatchResult;
+    TestTrue(TEXT("A host-ended result has no winner and lists every contender"),
+        Result.Generation == Generation && Result.Reason == ELDMatchEndReason::HostEnded && !Result.Winner.IsValid()
+        && Result.Rows.Num() == 2 && Result.Rows[0].FinalLevel == 3 && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs);
+    TestTrue(TEXT("The public circle names the locked result"),
+        Public->PublicMatch.Phase == ELDMatchPhase::Results && Public->PublicMatch.ResultId == Result.ResultId);
+    Request.Key.RequestSequence = 2;
+    TestTrue(TEXT("A second end cannot replace the locked result"),
+        Mode->ProcessSessionCommand(Host, Request).Reason == ELDSessionReject::MatchClosed && Closed == 1);
+
+    Mode->FindContender(GuestId)->bLeft = true;
+    Request.Key.RequestSequence = 3;
+    Request.Command = ELDSessionCommand::ReturnToLobby;
+    Request.ExpectedResult = FGuid::NewGuid();
+    TestTrue(TEXT("Returning names the exact locked result"),
+        Mode->ProcessSessionCommand(Host, Request).Reason == ELDSessionReject::StaleMatch && Mode->MatchPhase == ELDMatchPhase::Results);
+    Request.Key.RequestSequence = 4;
+    Request.ExpectedResult = Result.ResultId;
+    const FGuid OldLedger = Mode->MatchContext.LedgerMatch;
+    const auto Returned = Mode->ProcessSessionCommand(Host, Request);
+    TestTrue(TEXT("The Host takes the room back to the Lobby"),
+        Returned.Outcome == ELDSessionOutcome::Committed && Mode->MatchPhase == ELDMatchPhase::Lobby);
+    TestTrue(TEXT("The next match has a new network and ledger identity"),
+        Mode->MatchContext.Generation > Generation && Mode->MatchContext.LedgerMatch != OldLedger);
+    TestTrue(TEXT("Every provider retired the old match once"), Resets == 1 && LastReset.Old.Generation == Generation
+        && LastReset.New == Mode->MatchContext && !LastReset.bAbortedStart);
+    TestTrue(TEXT("A contender who left is dropped and connected humans stay unready"),
+        !Mode->FindContender(GuestId) && Mode->Contenders.Num() == 1 && !Mode->StateFor(Host)->bReady);
+    TestTrue(TEXT("The result and reducer belong to the old match only"),
+        !Mode->bResultLocked && !Mode->CaptureReducer.IsActive() && Public->PublicMatch.Generation == Mode->MatchContext.Generation
+        && Public->PublicMatch.Phase == ELDMatchPhase::Lobby);
+    Request.Key.RequestSequence = 5;
+    Request.Command = ELDSessionCommand::SetReady;
+    Request.ExpectedResult.Invalidate();
+    Request.Ready = true;
+    Request.ExpectedRosterRevision = Mode->RosterRevision;
+    TestTrue(TEXT("Old-generation commands cannot touch the new Lobby"),
+        Mode->ProcessSessionCommand(Host, Request).Reason == ELDSessionReject::StaleMatch);
+    Request.Key = {Mode->MatchContext.Generation, 1};
+    TestTrue(TEXT("The new generation starts a fresh request window"),
+        Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed && Mode->StateFor(Host)->bReady);
     return true;
 }
 #endif

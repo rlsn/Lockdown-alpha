@@ -354,6 +354,7 @@ bool ALDGameMode::ExecuteCapturePublish(const FLDAuthorityBoundary& Boundary, FS
 void ALDGameMode::PublishMatchOutcome()
 {
     auto* Public = GetGameState<ALDGameState>();
+    bool Published = false;
     if (bKillFeedDirty && Public)
     {
         bKillFeedDirty = false;
@@ -366,6 +367,7 @@ void ALDGameMode::PublishMatchOutcome()
         {
             Public->KillFeed = MoveTemp(Feed);
             Public->OnRep_KillFeed();
+            Published = true;
         }
     }
     if (bResultLocked && !bResultPublished)
@@ -391,16 +393,21 @@ void ALDGameMode::PublishMatchOutcome()
         {
             Public->MatchResult = ResultView;
             Public->OnRep_MatchResult();
+            Published = true;
         }
         bLobbyDirty = true;
     }
-    if (bPublicMatchDirty) { PublishPublicMatch(); }
+    if (bPublicMatchDirty)
+    {
+        PublishPublicMatch();
+        Published = true;
+    }
     if (bLobbyDirty)
     {
         bLobbyDirty = false;
         PublishLobby();
     }
-    if (Public) { Public->ForceNetUpdate(); }
+    if (Public && Published) { Public->ForceNetUpdate(); }
 }
 
 FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
