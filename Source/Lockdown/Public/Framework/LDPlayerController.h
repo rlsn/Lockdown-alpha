@@ -79,6 +79,8 @@ public:
     bool ConfirmArmedCombat();
     // S: stop orders and cancel interruptible Direct actions issued so far.
     void StopCombatAndOrders();
+    // Current shop interaction binding (ApproachShop en route or arrived); see ULDNavigationComponent.
+    bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
     UFUNCTION(Server,Reliable) void ServerSubmitCombatAction(const FLDCombatActionRequest& Request);
     UFUNCTION(Server,Reliable) void ServerCancelCombatAction(const FLDCombatCancelRequest& Request);
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);

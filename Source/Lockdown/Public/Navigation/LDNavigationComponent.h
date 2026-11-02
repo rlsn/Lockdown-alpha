@@ -47,6 +47,13 @@ public:
     FLDMoveIdentity LocalIdentity() const {return Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
+    // Owning client: the shop of the current ApproachShop order, en route or arrived and awaiting the
+    // shop domain's open result. A new order, Stop, a non-completed end or a new life ends the binding.
+    bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
+    // Owning client, once per binding: the current ApproachShop order completed inside the shop's range.
+    // The shop domain requests its session from here; Navigation itself never opens a shop.
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnShopArrived, FName /*ShopId*/, uint32 /*Life*/);
+    FLDOnShopArrived OnShopArrived;
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
@@ -166,6 +173,9 @@ private:
     void ReleaseOrderLinks(const FActiveOrder& Order, bool bReleasePin);
     // ---- Owning-client state.
     FLDMoveIdentity Local, ClientActive;
+    FName ShopBindingId;
+    FLDMoveIdentity ShopBindingIdentity;
+    bool bShopArrived=false;
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     FLDOrderReceipt LastReceipt;
     uint64 LastReceiptSerial=0;

@@ -288,6 +288,10 @@ void ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand() || !NextLocalIdentity(false,Local)) { return; }
     Request.Identity=Local;
+    // Only the newest local order can carry the shop interaction binding.
+    ShopBindingId=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Request.ShopId : NAME_None;
+    ShopBindingIdentity=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Local : FLDMoveIdentity();
+    bShopArrived=false;
     bLocalStop=false;
     bLocalPending=true;
     RefreshLocalActive();
@@ -302,6 +306,9 @@ void ULDNavigationComponent::Stop()
     if (!Enabled() || !IsLocalOwner()) { return; }
     PC->CancelArmedCombat();
     if (!NextLocalIdentity(true,Local)) { return; }
+    ShopBindingId=NAME_None;
+    ShopBindingIdentity={};
+    bShopArrived=false;
     bLocalStop=bLocalPending=true;
     bFollowing=false;
     Points.Reset();
@@ -317,6 +324,9 @@ void ULDNavigationComponent::ResetLife()
     bFollowing=bLocalActive=bLocalPending=bLocalStop=false;
     bActiveHasGoal=bActiveEngaged=false;
     ClientActive={};
+    ShopBindingId=NAME_None;
+    ShopBindingIdentity={};
+    bShopArrived=false;
     Points.Reset();
     bCameraInitialized=false;
     bFollowCamera=true;
@@ -381,6 +391,36 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
     if (bLocal || (bActive && !bLocalPending))
     { Status=PC->IntentFeedback=LDNavigationDetail::ReceiptText(Receipt,bLocal && bLocalStop); }
     RefreshLocalActive();
+    if (!ShopBindingId.IsNone() && Identity==ShopBindingIdentity)
+    {
+        if (Receipt.Status==ELDOrderStatus::Completed)
+        {
+            if (!bShopArrived)
+            {
+                bShopArrived=true;
+                OnShopArrived.Broadcast(ShopBindingId,Identity.Life);
+            }
+        }
+        else if (Receipt.Status==ELDOrderStatus::Rejected || Receipt.Status==ELDOrderStatus::Cancelled)
+        {
+            ShopBindingId=NAME_None;
+            ShopBindingIdentity={};
+            bShopArrived=false;
+        }
+    }
+}
+
+bool ULDNavigationComponent::ReadShopInteraction(FName& OutShopId, uint32& OutLife) const
+{
+    OutShopId=NAME_None;
+    OutLife=0;
+    const auto* PC=Controller();
+    if (!PC || !IsLocalOwner() || ShopBindingId.IsNone() || ShopBindingIdentity.Match!=PC->OwnerState.Match
+        || ShopBindingIdentity.Life!=PC->OwnerState.Life || ShopBindingIdentity!=Local)
+    { return false; }
+    OutShopId=ShopBindingId;
+    OutLife=ShopBindingIdentity.Life;
+    return true;
 }
 
 // Owning-client prediction of the server's current order; never a second authority.

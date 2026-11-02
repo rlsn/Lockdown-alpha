@@ -49,10 +49,11 @@ walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 vi
 每个身体最多保留 256 个未消费批次，每批最多 128 条记录，超限在推进前背压或显式故障，
 不静默覆盖前一帧。精确前缀确认只释放已读记录，错误身体/未来前缀不能删除历史；
 身体退休后已接纳的证据仍保留在核心记录中，直到消费。
-当前 `RunDemoCoreCheck` 的 DEV 审计消费者明确读取后确认该前缀；普通 Start 仍因真实领域消费未齐而关闭。
+参赛者批次在 `CompleteNativeMotion` 接纳前同步交给占领归约器（`PublishCaptureMotion` 提取圈进出）；
+driver 在下一步开始时释放已被消费的前缀，营地成员批次没有其他消费者，同样在下一步释放。
+`RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
-都不是最终 Motion Fence、Sealing 或占领完成证明；圈穿越、实际 Combat 因果消费、
-root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
+都不是最终 Motion Fence、Sealing 或占领完成证明；root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
 旧 `StartAuthorityDash` / `StartContentDash`、Sprint 自定义压缩位与旧地表慢速分派已删除，
 不保留可调用的拒绝壳；装备位移只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
