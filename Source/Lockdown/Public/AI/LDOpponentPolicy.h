@@ -165,6 +165,20 @@ struct FLDOpponentDecisionFrame
     bool bShopOpen = false;
 };
 
+enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Shop, Choice };
+
+struct FLDOpponentRetryKey
+{
+    ELDOpponentFailure Category = ELDOpponentFailure::Path;
+    FName POI;
+    FGuid Target;
+    uint8 Slot = 0;
+    bool operator==(const FLDOpponentRetryKey& Other) const
+    {
+        return Category == Other.Category && POI == Other.POI && Target == Other.Target && Slot == Other.Slot;
+    }
+};
+
 enum class ELDOpponentBodyKind : uint8 { None, Keep, Stop, MoveGround, AttackUnit, ApproachShop, Activate };
 
 struct FLDOpponentBodyIntent
@@ -176,6 +190,8 @@ struct FLDOpponentBodyIntent
     ELDOpponentSourceSlot Source = ELDOpponentSourceSlot::Q;
     ELDDemoTargetMode TargetMode = ELDDemoTargetMode::Self;
     FVector Direction = FVector::ZeroVector;
+    // Failure memory of MoveGround, ApproachShop, AttackUnit and Activate; the final receipt settles against it.
+    FLDOpponentRetryKey Key;
 };
 
 enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy };
@@ -204,6 +220,7 @@ struct FLDOpponentBuildIntent
     FLDOpponentChoicePick Choice;
     int32 SellSlot = INDEX_NONE;
     FString BuyItemId;
+    FLDOpponentRetryKey Key;
 };
 
 struct FLDOpponentDecision
@@ -214,19 +231,9 @@ struct FLDOpponentDecision
     FLDOpponentBuildIntent Build;
 };
 
-enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Shop, Choice };
-
-struct FLDOpponentRetryKey
-{
-    ELDOpponentFailure Category = ELDOpponentFailure::Path;
-    FName POI;
-    FGuid Target;
-    uint8 Slot = 0;
-    bool operator==(const FLDOpponentRetryKey& Other) const
-    {
-        return Category == Other.Category && POI == Other.POI && Target == Other.Target && Slot == Other.Slot;
-    }
-};
+// What a domain's final answer to one intent teaches the failure memory (OPPONENT_AI.md §3.3).
+// TargetLost covers TargetUnavailable/TargetDied: the unit is dropped, never chased to its last position.
+enum class ELDOpponentOutcome : uint8 { Succeeded, Failed, TargetLost };
 
 // Bounded failure memory (§6.5): attempts include the first, the wait doubles up to the cap, and an
 // exhausted key stays suppressed until the caller's condition fingerprint changes. Ordinary frames,
@@ -359,7 +366,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame,
         const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);
-    // Consumes a domain's final result for an intent; success clears, failure backs off or suppresses.
-    LOCKDOWN_API void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key, bool bSucceeded,
-        const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
+    // Consumes a domain's final result for an intent; success clears, failure backs off or suppresses, and a
+    // lost unit target is suppressed for this visibility interval and released as the current target.
+    LOCKDOWN_API void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key,
+        ELDOpponentOutcome Outcome, const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
 }

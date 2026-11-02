@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "AI/LDOpponentFrame.h"
+#include "AI/LDOpponentRequests.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -17,6 +18,7 @@
 #include "Region/LDMapGeometry.h"
 #include "UObject/Package.h"
 #include "Vision/LDViewTypes.h"
+#include "World/LDWorldQueryTypes.h"
 
 namespace LDOpponentPolicyTests
 {
@@ -879,6 +881,422 @@ bool RunProjections(FAutomationTestBase& Test)
         && LDOpponentFrame::OrderStatus(ELDOrderStatus::Rejected) == ELDOpponentOrderStatus::Failed);
     return bGood;
 }
+
+bool KeyIs(const FLDOpponentRetryKey& Key, ELDOpponentFailure Category, FName Place, const FGuid& Target, uint8 Slot = 0)
+{
+    return Key.Category == Category && Key.POI == Place && Key.Target == Target && Key.Slot == Slot;
+}
+
+bool RunOutcomes(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    const auto& AI = C.Get().Parameters.AI;
+    using EBody = ELDOpponentBodyKind;
+    using EFailure = ELDOpponentFailure;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+
+    FLDOpponentPolicyState State;
+    auto Decision = LDOpponentPolicy::Decide(Base, C, State);
+    bool bGood = Test.TestTrue(TEXT("A camp move carries its public path key"),
+        Decision.Body.Kind == EBody::MoveGround && KeyIs(Decision.Body.Key, EFailure::Path, TEXT("l1"), FGuid()));
+
+    auto Frame = Base;
+    Frame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger")),
+        Unit(2, ELDOpponentUnitKind::CampMember, 2100, 0, TEXT("monster_scavenger"))};
+    Frame.Units[1].HpP2 = 60000;
+    const FGuid First = Frame.Units[0].Handle, Second = Frame.Units[1].Handle;
+    State = FLDOpponentPolicyState();
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("An attack carries the handle's engagement key"), Decision.Body.Kind == EBody::AttackUnit
+        && Decision.Body.Handle == First && KeyIs(Decision.Body.Key, EFailure::Engagement, NAME_None, First));
+    LDOpponentPolicy::RecordOutcome(State, Decision.Body.Key, ELDOpponentOutcome::Failed, Frame.Self, Frame.Public.NowMs, AI);
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("A refused attack waits out its backoff instead of re-sending each decision"),
+        Decision.Body.Kind == EBody::None);
+    Frame.Public.NowMs += AI.RetryInitialBackoffMs;
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("After the backoff the same visible target is attacked again"),
+        Decision.Body.Kind == EBody::AttackUnit && Decision.Body.Handle == First);
+    LDOpponentPolicy::RecordOutcome(State, Decision.Body.Key, ELDOpponentOutcome::TargetLost, Frame.Self, Frame.Public.NowMs, AI);
+    bGood &= Test.TestTrue(TEXT("A lost target is released at once"), !State.TargetHandle.IsValid());
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("A lost handle is not re-picked; another visible member is attacked"),
+        Decision.Body.Kind == EBody::AttackUnit && Decision.Body.Handle == Second && State.TargetHandle == Second);
+
+    Frame = Base;
+    Frame.Self.Skills = {Skill(TEXT("active_arc_bolt"), 1, ELDOpponentSkillSlot::Q)};
+    FLDOpponentSource Bolt;
+    Bolt.Slot = ELDOpponentSourceSlot::Q;
+    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.bReady = true;
+    Frame.Self.Sources = {Bolt};
+    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 300, 0)};
+    State = FLDOpponentPolicyState();
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("An activation carries its source slot and visible target"), Decision.Body.Kind == EBody::Activate
+        && KeyIs(Decision.Body.Key, EFailure::Activation, NAME_None, Frame.Units[0].Handle, uint8(ELDOpponentSourceSlot::Q)));
+    LDOpponentPolicy::RecordOutcome(State, Decision.Body.Key, ELDOpponentOutcome::TargetLost, Frame.Self, Frame.Public.NowMs, AI);
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("A unit lost to an activation is not chased by a basic attack order either"),
+        Decision.Body.Kind == EBody::MoveGround && Decision.Body.POI == TEXT("l1"));
+
+    Frame = Base;
+    Frame.Self.Gold = 330;
+    FLDOpponentOffer Offer;
+    Offer.OfferId = FGuid(0xB0, 0, 0, 5);
+    Offer.OfferRevision = 2;
+    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_might"))};
+    Frame.Self.Offer = Offer;
+    State = FLDOpponentPolicyState();
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("A choice carries its offer key"), Decision.Build.Kind == ELDOpponentBuildKind::Choose
+        && KeyIs(Decision.Build.Key, EFailure::Choice, NAME_None, Offer.OfferId));
+    bGood &= Test.TestTrue(TEXT("A shop approach carries the shop visit key"), Decision.Body.Kind == EBody::ApproachShop
+        && KeyIs(Decision.Body.Key, EFailure::Shop, TEXT("shop"), FGuid()));
+    Frame.Self.Offer.Reset();
+    Frame.bShopOpen = true;
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    const FLDOpponentRetryKey ShopKey = Decision.Build.Key;
+    bGood &= Test.TestTrue(TEXT("A trade carries the same shop visit key"), Decision.Build.Kind == ELDOpponentBuildKind::Buy
+        && KeyIs(ShopKey, EFailure::Shop, TEXT("shop"), FGuid()));
+    for (int64 Attempt = 0; Attempt < AI.RetryMaxAttempts; ++Attempt)
+    {
+        LDOpponentPolicy::RecordOutcome(State, ShopKey, ELDOpponentOutcome::Failed, Frame.Self, Frame.Public.NowMs, AI);
+    }
+    Decision = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Test.TestTrue(TEXT("An exhausted shop visit stops trading and returns to farming"),
+        Decision.Build.Kind == ELDOpponentBuildKind::None && Decision.Body.Kind == EBody::MoveGround && Decision.Body.POI == TEXT("l1"));
+    LDOpponentPolicy::RecordOutcome(State, ShopKey, ELDOpponentOutcome::Succeeded, Frame.Self, Frame.Public.NowMs, AI);
+    bGood &= Test.TestTrue(TEXT("A final success clears the shop visit"),
+        LDOpponentPolicy::Decide(Frame, C, State).Build.Kind == ELDOpponentBuildKind::Buy);
+    return bGood;
+}
+
+bool RunRequests(FAutomationTestBase& Test)
+{
+    using EBody = ELDOpponentBodyKind;
+    using ESettle = ELDOpponentSettle;
+    FString Error;
+    FLDMoveIdentity Last, Next;
+    bool bGood = Test.TestTrue(TEXT("The first order of a life is Order 1 at Epoch 0"),
+        LDOpponentRequests::NextMoveIdentity(Last, 7, 1, false, Next) && Next.Match == 7 && Next.Life == 1 && Next.Order == 1
+        && Next.Epoch == 0);
+    Last = Next;
+    bGood &= Test.TestTrue(TEXT("A Stop advances both Order and Epoch"),
+        LDOpponentRequests::NextMoveIdentity(Last, 7, 1, true, Next) && Next.Order == 2 && Next.Epoch == 1);
+    Last = Next;
+    bGood &= Test.TestTrue(TEXT("A later order keeps the Stop epoch"),
+        LDOpponentRequests::NextMoveIdentity(Last, 7, 1, false, Next) && Next.Order == 3 && Next.Epoch == 1);
+    Last = Next;
+    bGood &= Test.TestTrue(TEXT("A new life restarts the per-life sequence"),
+        LDOpponentRequests::NextMoveIdentity(Last, 7, 2, false, Next) && Next.Life == 2 && Next.Order == 1 && Next.Epoch == 0);
+    Last.Order = MAX_uint32;
+    bGood &= Test.TestFalse(TEXT("An exhausted order space is refused, never wrapped"),
+        LDOpponentRequests::NextMoveIdentity(Last, 7, 1, false, Next));
+    bGood &= Test.TestFalse(TEXT("No identity without a match and a life"),
+        LDOpponentRequests::NextMoveIdentity(FLDMoveIdentity(), 0, 1, false, Next));
+
+    const TArray<FLDOpponentPOI> Places = {POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -3000, 0),
+        POI(TEXT("l1"), ELDOpponentPOIKind::Camp, 2000, 0, TEXT("monster_scavenger"))};
+    FLDMoveIdentity Identity;
+    Identity.Match = 7;
+    Identity.Life = 1;
+    Identity.Order = 4;
+    FLDSpatialOrderRequest Order;
+    FLDOpponentBodyIntent Move;
+    Move.Kind = EBody::MoveGround;
+    Move.POI = TEXT("l1");
+    bGood &= Test.TestTrue(TEXT("MoveGround targets the public anchor on its registered surface: ") + Error,
+        LDOpponentRequests::BuildOrder(Move, Places, Identity, Order, Error) && Order.Kind == ELDSpatialOrderKind::MoveGround
+        && Order.Identity == Identity && FVector(Order.GroundCm) == FVector(2000, 0, 0) && Order.SurfaceHint == FName(TEXT("ground")));
+    FLDOpponentBodyIntent Attack;
+    Attack.Kind = EBody::AttackUnit;
+    Attack.Handle = FGuid(0xD0, 0, 0, 1);
+    Attack.Epoch = 3;
+    bGood &= Test.TestTrue(TEXT("AttackUnit carries only the observer-local handle"),
+        LDOpponentRequests::BuildOrder(Attack, Places, Identity, Order, Error) && Order.Kind == ELDSpatialOrderKind::AttackUnit
+        && Order.Observed == Attack.Handle && Order.ObservationEpoch == 3 && FVector(Order.GroundCm).IsZero() && Order.SurfaceHint.IsNone());
+    FLDOpponentBodyIntent Approach;
+    Approach.Kind = EBody::ApproachShop;
+    Approach.POI = TEXT("shop");
+    bGood &= Test.TestTrue(TEXT("ApproachShop names the public shop"),
+        LDOpponentRequests::BuildOrder(Approach, Places, Identity, Order, Error) && Order.Kind == ELDSpatialOrderKind::ApproachShop
+        && Order.ShopId == FName(TEXT("shop")));
+    Approach.POI = TEXT("l1");
+    bGood &= Test.TestFalse(TEXT("ApproachShop to a camp is refused"), LDOpponentRequests::BuildOrder(Approach, Places, Identity, Order, Error));
+    Move.POI = TEXT("nowhere");
+    bGood &= Test.TestFalse(TEXT("An unknown place is refused"), LDOpponentRequests::BuildOrder(Move, Places, Identity, Order, Error));
+    Move.POI = TEXT("l1");
+    bGood &= Test.TestFalse(TEXT("Order 0 is never a valid identity"),
+        LDOpponentRequests::BuildOrder(Move, Places, FLDMoveIdentity(), Order, Error));
+    FLDOpponentBodyIntent Stop;
+    Stop.Kind = EBody::Stop;
+    bGood &= Test.TestFalse(TEXT("Stop is a cancel, not an order"), LDOpponentRequests::BuildOrder(Stop, Places, Identity, Order, Error));
+
+    FLDCombatActionRequest Action;
+    FLDOpponentBodyIntent Cast;
+    Cast.Kind = EBody::Activate;
+    Cast.Source = ELDOpponentSourceSlot::Gear1;
+    Cast.TargetMode = ELDDemoTargetMode::Self;
+    bGood &= Test.TestTrue(TEXT("A self activation of the second gear slot: ") + Error,
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 5, 11, Action, Error) && Action.Entry == ELDCombatEntry::Item2
+        && Action.Target.Kind == ELDCombatTargetKind::Self && Action.Generation == 7 && Action.Life == 1
+        && Action.DirectSequence == 5 && Action.ExpectedSourceRevision == 11);
+    Cast.Source = ELDOpponentSourceSlot::Q;
+    Cast.TargetMode = ELDDemoTargetMode::Unit;
+    Cast.Handle = FGuid(0xD0, 0, 0, 2);
+    Cast.Epoch = 4;
+    bGood &= Test.TestTrue(TEXT("A unit activation names the observer-local handle"),
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 6, 11, Action, Error) && Action.Entry == ELDCombatEntry::Q
+        && Action.Target.Kind == ELDCombatTargetKind::Unit && Action.Target.Observed == Cast.Handle
+        && Action.Target.ObservationEpoch == 4);
+    Cast.Source = ELDOpponentSourceSlot::W;
+    Cast.TargetMode = ELDDemoTargetMode::DirectionDash;
+    Cast.Direction = FVector(0, 3, 4);
+    bGood &= Test.TestTrue(TEXT("A dash direction is planar and normalized"),
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 7, 11, Action, Error) && Action.Entry == ELDCombatEntry::W
+        && Action.Target.Kind == ELDCombatTargetKind::Direction && FVector(Action.Target.Direction).Equals(FVector(0, 1, 0), 1.e-4));
+    Cast.Direction = FVector(0, 0, 1);
+    bGood &= Test.TestFalse(TEXT("A vertical-only direction is refused"), LDOpponentRequests::BuildAction(Cast, 7, 1, 8, 11, Action, Error));
+    Cast.Direction = FVector(1, 0, 0);
+    bGood &= Test.TestFalse(TEXT("A direct sequence is required"), LDOpponentRequests::BuildAction(Cast, 7, 1, 0, 11, Action, Error));
+
+    FLDProgressionView Progression;
+    Progression.bValid = true;
+    Progression.Generation = 7;
+    Progression.Life = 1;
+    Progression.LifePhase = ELDLifePhase::Dead;
+    Progression.bCanChoose = true;
+    Progression.BuildRevision = 9;
+    Progression.CatalogDigest.Bytes[0] = 0xAB;
+    Progression.bHasOffer = true;
+    Progression.Offer.OfferId = FGuid(0xF2, 0, 0, 1);
+    Progression.Offer.OfferRevision = 4;
+    FLDChoiceOption Learn;
+    Learn.OptionId = FGuid(0xF2, 0, 0, 2);
+    Learn.Kind = ELDChoiceOptionKind::LearnActive;
+    Learn.DefinitionId = TEXT("active_guard_pulse");
+    Learn.ToRank = 1;
+    Progression.Offer.Options = {Learn};
+    FLDLearnedSkillView Bolt;
+    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.bActive = true;
+    Bolt.Rank = 2;
+    Bolt.Slot = 1;
+    Progression.Skills = {Bolt};
+    FLDOpponentBuildIntent Choose;
+    Choose.Kind = ELDOpponentBuildKind::Choose;
+    Choose.OfferId = Progression.Offer.OfferId;
+    Choose.OfferRevision = 4;
+    Choose.Choice.OptionId = Learn.OptionId;
+    FLDChoiceCommand Command;
+    bGood &= Test.TestTrue(TEXT("A choice echoes the head offer, the current life phase and revisions: ") + Error,
+        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error) && Command.Generation == 7 && Command.Life == 1
+        && Command.ExpectedLifePhase == ELDLifePhase::Dead && Command.RequestId == 3 && Command.OfferId == Choose.OfferId
+        && Command.OfferRevision == 4 && Command.OptionId == Learn.OptionId && Command.ExpectedBuildRevision == 9
+        && Command.CatalogDigest == Progression.CatalogDigest && !Command.bReplace && Command.ReplaceSlot == 0
+        && Command.ExpectedOldSkillId == FLDDefinitionWire() && !Command.bReplaceConfirmed);
+    Choose.Choice.bReplace = true;
+    Choose.Choice.ReplaceSlot = ELDOpponentSkillSlot::W;
+    Choose.Choice.ReplacedSkillId = TEXT("active_arc_bolt");
+    Choose.Choice.ReplacedRank = 2;
+    FName Decoded;
+    bGood &= Test.TestTrue(TEXT("A full-slot learn names the exact held victim"),
+        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error) && Command.bReplace && Command.ReplaceSlot == 1
+        && Command.ExpectedOldSkillId.Decode(Decoded) && Decoded == FName(TEXT("active_arc_bolt")) && Command.ExpectedOldRank == 2
+        && Command.bReplaceConfirmed);
+    Choose.Choice.ReplacedRank = 1;
+    bGood &= Test.TestFalse(TEXT("A victim at another rank is stale"), LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
+    Choose.Choice = FLDOpponentChoicePick();
+    Choose.Choice.OptionId = Learn.OptionId;
+    Choose.OfferRevision = 5;
+    bGood &= Test.TestFalse(TEXT("A stale offer revision is refused"), LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
+    Choose.OfferRevision = 4;
+    Choose.Choice.OptionId = FGuid(0xF2, 0, 0, 9);
+    bGood &= Test.TestFalse(TEXT("An option outside the head offer is refused"),
+        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
+    Choose.Choice.OptionId = Learn.OptionId;
+    bGood &= Test.TestFalse(TEXT("Request id 0 is never sent"), LDOpponentRequests::BuildChoice(Choose, Progression, 0, Command, Error));
+
+    FLDWorldRevision World;
+    World.MapId = TEXT("demo_world");
+    World.LayoutRevision = 2;
+    World.GeometryRevision = 3;
+    FLDShopOpenCommand Open;
+    bGood &= Test.TestTrue(TEXT("Opening names the public shop and the current world revision"),
+        LDOpponentRequests::BuildShopOpen(TEXT("shop"), 7, 1, World, Open, Error) && Open.Generation == 7 && Open.Life == 1
+        && Open.ShopId.Decode(Decoded) && Decoded == FName(TEXT("shop")) && Open.WorldMapId.Decode(Decoded)
+        && Decoded == FName(TEXT("demo_world")) && Open.WorldLayoutRevision == 2 && Open.WorldGeometryRevision == 3);
+    bGood &= Test.TestFalse(TEXT("An unregistered world is refused"),
+        LDOpponentRequests::BuildShopOpen(TEXT("shop"), 7, 1, FLDWorldRevision(), Open, Error));
+    bGood &= Test.TestFalse(TEXT("An id outside the wire alphabet is refused"),
+        LDOpponentRequests::BuildShopOpen(TEXT("bad-id"), 7, 1, World, Open, Error));
+
+    Progression.LifePhase = ELDLifePhase::Alive;
+    FLDEquipmentView Equipment;
+    Equipment.bValid = true;
+    Equipment.Generation = 7;
+    Equipment.Gold = 500;
+    Equipment.AccountRevision = 5;
+    Equipment.InventoryRevision = 6;
+    FLDShopOpenResult Shop;
+    Shop.Generation = 7;
+    Shop.Life = 1;
+    Shop.OpenStatus = ELDShopOpenStatus::Opened;
+    Shop.bHasView = true;
+    Shop.View.SessionId = FGuid(0xA5, 0, 0, 1);
+    Shop.View.Life = 1;
+    Shop.View.QuoteRevision = 2;
+    Shop.View.CatalogDigest = Progression.CatalogDigest;
+    Shop.View.WorldMapId = TEXT("demo_world");
+    Shop.View.WorldLayoutRevision = 2;
+    Shop.View.WorldGeometryRevision = 3;
+    FLDShopItemView Blade;
+    Blade.DefinitionId = TEXT("item_edge_blade");
+    Blade.BuyPrice = 320;
+    Shop.View.Items = {Blade};
+    FLDShopSellView Plate;
+    Plate.SlotIndex = 1;
+    Plate.Instance = FGuid(0xA6, 0, 0, 1);
+    Plate.ItemRevision = 4;
+    Plate.DefinitionId = TEXT("item_iron_plate");
+    Plate.SellPrice = 201;
+    Shop.View.Sellable = {Plate};
+    FLDOpponentBuildIntent Buy;
+    Buy.Kind = ELDOpponentBuildKind::Buy;
+    Buy.BuyItemId = TEXT("item_edge_blade");
+    FLDShopCommand Trade;
+    bGood &= Test.TestTrue(TEXT("Buy takes the shown quote and the current owner revisions: ") + Error,
+        LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error) && Trade.Kind == ELDShopCommandKind::Buy
+        && Trade.Generation == 7 && Trade.Life == 1 && Trade.RequestId == 2 && Trade.SessionId == Shop.View.SessionId
+        && Trade.QuoteRevision == 2 && Trade.CatalogDigest == Progression.CatalogDigest && Trade.DefinitionId.Decode(Decoded)
+        && Decoded == FName(TEXT("item_edge_blade")) && Trade.BuyPrice == 320 && Trade.ExpectedAccountRevision == 5
+        && Trade.ExpectedInventoryRevision == 6 && Trade.ExpectedBuildRevision == 9 && Trade.WorldMapId.Decode(Decoded)
+        && Decoded == FName(TEXT("demo_world")) && Trade.WorldLayoutRevision == 2 && Trade.WorldGeometryRevision == 3
+        && !Trade.Instance.IsValid() && Trade.SellPrice == 0);
+    FLDOpponentBuildIntent Sell;
+    Sell.Kind = ELDOpponentBuildKind::Sell;
+    Sell.SellSlot = 1;
+    bGood &= Test.TestTrue(TEXT("Sell names the exact instance revision at the shown price"),
+        LDOpponentRequests::BuildTrade(Sell, Shop, Equipment, Progression, 3, Trade, Error) && Trade.Kind == ELDShopCommandKind::Sell
+        && Trade.Instance == Plate.Instance && Trade.ExpectedItemRevision == 4 && Trade.SellPrice == 201 && Trade.BuyPrice == 0
+        && Trade.DefinitionId == FLDDefinitionWire());
+    Sell.SellSlot = 0;
+    bGood &= Test.TestFalse(TEXT("A slot without a sellable instance is refused"),
+        LDOpponentRequests::BuildTrade(Sell, Shop, Equipment, Progression, 3, Trade, Error));
+    Buy.BuyItemId = TEXT("item_echo_maul");
+    bGood &= Test.TestFalse(TEXT("An item outside the shown quote is never bought at a catalog price"),
+        LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error));
+    Buy.BuyItemId = TEXT("item_edge_blade");
+    auto Pending = Shop;
+    Pending.OpenStatus = ELDShopOpenStatus::Pending;
+    Pending.bHasView = false;
+    bGood &= Test.TestFalse(TEXT("No trade while the open is only pending"),
+        LDOpponentRequests::BuildTrade(Buy, Pending, Equipment, Progression, 2, Trade, Error));
+    auto OtherLife = Shop;
+    OtherLife.View.Life = 2;
+    bGood &= Test.TestFalse(TEXT("A session of another life never trades"),
+        LDOpponentRequests::BuildTrade(Buy, OtherLife, Equipment, Progression, 2, Trade, Error));
+    Progression.LifePhase = ELDLifePhase::Dead;
+    bGood &= Test.TestFalse(TEXT("No trade while dead"), LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error));
+
+    const auto OrderAt = [](ELDOrderStatus Status, ELDOrderFailure Failure)
+    {
+        FLDOrderReceipt Out;
+        Out.Status = Status;
+        Out.Failure = Failure;
+        return LDOpponentRequests::SettleOrder(Out);
+    };
+    bGood &= Test.TestTrue(TEXT("Order receipts settle by the recovery table"),
+        OrderAt(ELDOrderStatus::Queued, ELDOrderFailure::None) == ESettle::InFlight
+        && OrderAt(ELDOrderStatus::Progress, ELDOrderFailure::None) == ESettle::InFlight
+        && OrderAt(ELDOrderStatus::Completed, ELDOrderFailure::None) == ESettle::Succeeded
+        && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::TargetUnavailable) == ESettle::TargetLost
+        && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::TargetDied) == ESettle::TargetLost
+        && OrderAt(ELDOrderStatus::Rejected, ELDOrderFailure::NoCompletePath) == ESettle::Failed
+        && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::PathBlocked) == ESettle::Failed
+        && OrderAt(ELDOrderStatus::Rejected, ELDOrderFailure::StaleOrder) == ESettle::Failed
+        && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::Superseded) == ESettle::Dropped
+        && OrderAt(ELDOrderStatus::Cancelled, ELDOrderFailure::Stopped) == ESettle::Dropped
+        && OrderAt(ELDOrderStatus::Rejected, ELDOrderFailure::Dead) == ESettle::Dropped
+        && OrderAt(ELDOrderStatus::Rejected, ELDOrderFailure::MatchEnded) == ESettle::Dropped);
+    const auto ActionAt = [](ELDCombatPhase Phase, ELDCombatReject Reject)
+    {
+        FLDCombatActionReceipt Out;
+        Out.Phase = Phase;
+        Out.Reject = Reject;
+        return LDOpponentRequests::SettleAction(Out);
+    };
+    bGood &= Test.TestTrue(TEXT("Action receipts settle by the recovery table"),
+        ActionAt(ELDCombatPhase::Queued, ELDCombatReject::None) == ESettle::InFlight
+        && ActionAt(ELDCombatPhase::Accepted, ELDCombatReject::None) == ESettle::InFlight
+        && ActionAt(ELDCombatPhase::Finished, ELDCombatReject::None) == ESettle::Succeeded
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::TargetUnavailable) == ESettle::TargetLost
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::Cooldown) == ESettle::Failed
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::InsufficientMana) == ESettle::Failed
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::StaleSource) == ESettle::Failed
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::Cancelled) == ESettle::Dropped
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::Dead) == ESettle::Dropped
+        && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::MatchClosed) == ESettle::Dropped);
+
+    FLDSubmitResult Submit;
+    Submit.Family = ELDGrowthFamily::Choice;
+    Submit.Status = ELDAdmissionStatus::AcceptedPending;
+    bGood &= Test.TestTrue(TEXT("An accepted pending submit stays in flight"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::InFlight);
+    Submit.Status = ELDAdmissionStatus::AdmissionRejected;
+    Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::OutOfOrder);
+    bGood &= Test.TestTrue(TEXT("An admission refusal is a bounded failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
+    Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::OldLife);
+    bGood &= Test.TestTrue(TEXT("A request of an older life is dropped"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
+    Submit.Status = ELDAdmissionStatus::Final;
+    bGood &= Test.TestTrue(TEXT("A final answer without its receipt is a failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
+    Submit.bHasChoiceReceipt = true;
+    Submit.ChoiceReceipt.Header.Outcome = ELDReceiptOutcome::Applied;
+    bGood &= Test.TestTrue(TEXT("A replayed applied choice succeeded"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Succeeded);
+    Submit.ChoiceReceipt.Header.Outcome = ELDReceiptOutcome::Rejected;
+    Submit.ChoiceReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::BuildStale);
+    bGood &= Test.TestTrue(TEXT("A stale guard is a bounded failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
+    Submit.ChoiceReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::OfferAlreadyCommitted);
+    bGood &= Test.TestTrue(TEXT("An already consumed offer is re-read, not retried"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
+    FLDChoiceReceiptQueryResult ChoiceQuery;
+    ChoiceQuery.Lookup = ELDReceiptLookup::Pending;
+    bGood &= Test.TestTrue(TEXT("A pending lookup stays in flight"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::InFlight);
+    ChoiceQuery.Lookup = ELDReceiptLookup::Final;
+    ChoiceQuery.bHasReceipt = true;
+    ChoiceQuery.Receipt.Header.Outcome = ELDReceiptOutcome::Applied;
+    bGood &= Test.TestTrue(TEXT("A final applied lookup succeeded"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::Succeeded);
+    ChoiceQuery.Lookup = ELDReceiptLookup::ReceiptExpired;
+    bGood &= Test.TestTrue(TEXT("An expired record is never read as success"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::Dropped);
+    FLDShopReceiptQueryResult ShopQuery;
+    ShopQuery.Lookup = ELDReceiptLookup::Final;
+    ShopQuery.bHasReceipt = true;
+    ShopQuery.Receipt.Header.Outcome = ELDReceiptOutcome::Rejected;
+    ShopQuery.Receipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::InsufficientGold);
+    bGood &= Test.TestTrue(TEXT("A trade refused for gold is a bounded failure"), LDOpponentRequests::SettleShopQuery(ShopQuery) == ESettle::Failed);
+    FLDShopOpenResult OpenAnswer;
+    OpenAnswer.OpenStatus = ELDShopOpenStatus::Pending;
+    bGood &= Test.TestTrue(TEXT("A pending open stays in flight"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::InFlight);
+    OpenAnswer.OpenStatus = ELDShopOpenStatus::Opened;
+    bGood &= Test.TestTrue(TEXT("Opened without a view is not an open shop"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Failed);
+    OpenAnswer.bHasView = true;
+    bGood &= Test.TestTrue(TEXT("Opened with its view succeeded"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Succeeded);
+    OpenAnswer.OpenStatus = ELDShopOpenStatus::Rejected;
+    OpenAnswer.Reason = LDGrowthWire::Raw(ELDGrowthReason::OutsideRange);
+    bGood &= Test.TestTrue(TEXT("An open refused out of reach is a bounded failure"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Failed);
+    OpenAnswer.Reason = LDGrowthWire::Raw(ELDGrowthReason::Dead);
+    bGood &= Test.TestTrue(TEXT("An open refused after death is dropped"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Dropped);
+
+    ELDOpponentOutcome Outcome = ELDOpponentOutcome::Failed;
+    bGood &= Test.TestTrue(TEXT("Final settlements teach the failure memory; in-flight and dropped ones do not"),
+        LDOpponentRequests::ToOutcome(ESettle::Succeeded, Outcome) && Outcome == ELDOpponentOutcome::Succeeded
+        && LDOpponentRequests::ToOutcome(ESettle::TargetLost, Outcome) && Outcome == ELDOpponentOutcome::TargetLost
+        && LDOpponentRequests::ToOutcome(ESettle::Failed, Outcome) && Outcome == ELDOpponentOutcome::Failed
+        && !LDOpponentRequests::ToOutcome(ESettle::InFlight, Outcome) && !LDOpponentRequests::ToOutcome(ESettle::Dropped, Outcome));
+    return bGood;
+}
 }
 }
 
@@ -936,6 +1354,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentProjectionsTest, "Lockdown.Rules
 bool FLDDemoOpponentProjectionsTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunProjections(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentOutcomesTest, "Lockdown.Rules.DemoOpponentPolicy.Outcomes",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentOutcomesTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunOutcomes(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRequestsTest, "Lockdown.Rules.DemoOpponentPolicy.Requests",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRequestsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunRequests(*this);
 }
 
 #endif

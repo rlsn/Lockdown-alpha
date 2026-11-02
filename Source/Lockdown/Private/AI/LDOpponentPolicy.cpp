@@ -249,6 +249,8 @@ struct FContext
     bool CanAttempt(const FLDOpponentRetryKey& Key) const { return State.Failures.CanAttempt(Key, Print(Key.Category), Now); }
     bool Suppressed(const FLDOpponentRetryKey& Key) const { return State.Failures.IsSuppressed(Key, Print(Key.Category)); }
     static FLDOpponentRetryKey PathKey(FName POI) { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Path; Key.POI = POI; return Key; }
+    // One shop visit: the approach, the open and every trade of the current plan share this budget.
+    static FLDOpponentRetryKey ShopKey(FName POI) { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Shop; Key.POI = POI; return Key; }
     static FLDOpponentRetryKey EngagementKey(FName POI, const FGuid& Target)
     {
         FLDOpponentRetryKey Key;
@@ -333,27 +335,41 @@ FLDOpponentBodyIntent MoveTo(const FContext& C, const FLDOpponentPOI& POI, ELDOp
 {
     FLDOpponentBodyIntent Body;
     Body.POI = POI.Id;
+    Body.Key = Kind == ELDOpponentOrderKind::ApproachShop ? FContext::ShopKey(POI.Id) : FContext::PathKey(POI.Id);
     const auto& Order = C.Frame.Order;
     Body.Kind = Order.IsLive() && Order.Kind == Kind && Order.POI == POI.Id ? EBody::Keep
         : Kind == ELDOpponentOrderKind::ApproachShop ? EBody::ApproachShop : EBody::MoveGround;
     return Body;
 }
 
-FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
+bool HandleSuppressed(const FContext& C, const FLDOpponentUnit& Unit)
 {
-    FLDOpponentBodyIntent Body;
-    Body.Handle = Unit.Handle;
-    Body.Epoch = Unit.Epoch;
-    const auto& Order = C.Frame.Order;
-    Body.Kind = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::AttackUnit && Order.Handle == Unit.Handle
-        && Order.Epoch == Unit.Epoch ? EBody::Keep : EBody::AttackUnit;
-    return Body;
+    return C.Suppressed(FContext::EngagementKey(NAME_None, Unit.Handle));
 }
 
 FLDOpponentBodyIntent Halt(const FContext& C)
 {
     FLDOpponentBodyIntent Body;
     Body.Kind = C.Frame.Order.IsLive() ? EBody::Stop : EBody::None;
+    return Body;
+}
+
+// A refused attack on this handle waits out its backoff instead of re-sending every decision.
+FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
+{
+    FLDOpponentBodyIntent Body;
+    Body.Handle = Unit.Handle;
+    Body.Epoch = Unit.Epoch;
+    Body.Key = FContext::EngagementKey(NAME_None, Unit.Handle);
+    const auto& Order = C.Frame.Order;
+    if (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::AttackUnit && Order.Handle == Unit.Handle
+        && Order.Epoch == Unit.Epoch)
+    {
+        Body.Kind = EBody::Keep;
+        return Body;
+    }
+    if (!C.CanAttempt(Body.Key)) { return Halt(C); }
+    Body.Kind = EBody::AttackUnit;
     return Body;
 }
 
@@ -417,7 +433,11 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             default:
                 break;
             }
-            if (bUse && C.CanAttempt(Key)) { return Body; }
+            if (bUse && C.CanAttempt(Key))
+            {
+                Body.Key = Key;
+                return Body;
+            }
         }
     }
     return {};
@@ -439,7 +459,7 @@ const FLDOpponentUnit* CircleTarget(const FContext& C)
     const FLDOpponentUnit* Best = nullptr;
     for (const auto* Unit : C.Enemies)
     {
-        if (Unit->bProtected || FVector::Dist2D(Unit->FootCm, C.Capture->FootCm) > C.CaptureRadiusCm) { continue; }
+        if (Unit->bProtected || HandleSuppressed(C, *Unit) || FVector::Dist2D(Unit->FootCm, C.Capture->FootCm) > C.CaptureRadiusCm) { continue; }
         if (IsCurrentTarget(C, *Unit)) { return Unit; }
         if (!Best || UnitBefore(C, *Unit, *Best)) { Best = Unit; }
     }
@@ -559,7 +579,7 @@ const FLDOpponentUnit* SelectEngageTarget(const FContext& C)
 {
     for (const auto* Unit : C.Enemies)
     {
-        if (!IsCurrentTarget(C, *Unit) || Unit->bProtected) { continue; }
+        if (!IsCurrentTarget(C, *Unit) || Unit->bProtected || HandleSuppressed(C, *Unit)) { continue; }
         if (C.Now - C.State.TargetEngagedAtMs <= C.AI.EngagementBudgetMs) { return Unit; }
         // Budget spent on this visibility interval: stop chasing without inventing a stronger target.
         C.State.Failures.Suppress(FContext::EngagementKey(NAME_None, Unit->Handle), C.Print(ELDOpponentFailure::Engagement));
@@ -569,8 +589,7 @@ const FLDOpponentUnit* SelectEngageTarget(const FContext& C)
     const FLDOpponentUnit* Best = nullptr;
     for (const auto* Unit : C.Enemies)
     {
-        if (Unit->bProtected || C.Distance(Unit->FootCm) > C.AcquireRadiusCm
-            || C.Suppressed(FContext::EngagementKey(NAME_None, Unit->Handle))) { continue; }
+        if (Unit->bProtected || C.Distance(Unit->FootCm) > C.AcquireRadiusCm || HandleSuppressed(C, *Unit)) { continue; }
         if (!Best || UnitBefore(C, *Unit, *Best)) { Best = Unit; }
     }
     return Best;
@@ -647,6 +666,8 @@ const FLDOpponentUnit* PickCampTarget(const FContext& C, const TArray<const FLDO
     const FLDOpponentUnit* Best = nullptr;
     for (const auto* Member : Members)
     {
+        // A member lost under this build is not re-picked while its visibility interval lasts.
+        if (HandleSuppressed(C, *Member)) { continue; }
         const bool bReachable = !Member->bReturning || C.Distance(Member->FootCm) <= C.AttackRangeCm;
         if (IsCurrentTarget(C, *Member))
         {
@@ -767,6 +788,7 @@ bool DecideChoice(const FContext& C, FLDOpponentBuildIntent& Out)
     Out.OfferId = C.Self.Offer->OfferId;
     Out.OfferRevision = C.Self.Offer->OfferRevision;
     Out.Choice = Pick;
+    Out.Key = Key;
     return true;
 }
 }
@@ -1301,9 +1323,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(Halt(C));
         return Finish(EMode::Stopped, EReason::ProviderUnavailable);
     }
-    FLDOpponentRetryKey ShopKey;
-    ShopKey.Category = ELDOpponentFailure::Shop;
-    ShopKey.POI = C.Shop->Id;
+    const FLDOpponentRetryKey ShopKey = FContext::ShopKey(C.Shop->Id);
     if (Plan.IsSet() && C.CanAttempt(ShopKey) && C.CanAttempt(FContext::PathKey(C.Shop->Id)))
     {
         EndVisit(State);
@@ -1315,6 +1335,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
                 Out.Build.Kind = Plan->SellSlot != INDEX_NONE ? ELDOpponentBuildKind::Sell : ELDOpponentBuildKind::Buy;
                 Out.Build.SellSlot = Plan->SellSlot;
                 Out.Build.BuyItemId = Plan->BuyItemId;
+                Out.Build.Key = ShopKey;
             }
             return Finish(EMode::Shop, Frame.bBuildChangeInFlight ? EReason::AwaitReceipt : EReason::ShopImprovement);
         }
@@ -1354,14 +1375,28 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     return Finish(EMode::Explore, EReason::NoLegalTarget);
 }
 
-void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key, bool bSucceeded,
+void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key, ELDOpponentOutcome Outcome,
     const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI)
 {
-    if (bSucceeded)
+    using namespace Detail;
+    switch (Outcome)
     {
+    case ELDOpponentOutcome::Succeeded:
         State.Failures.RecordSuccess(Key);
         return;
+    case ELDOpponentOutcome::TargetLost:
+        State.Failures.Suppress(Key, Fingerprint(Key.Category, Self));
+        if (Key.Target.IsValid()
+            && (Key.Category == ELDOpponentFailure::Engagement || Key.Category == ELDOpponentFailure::Activation))
+        {
+            // Hidden, destroyed, expired or another life are indistinguishable: stop pursuing this handle.
+            State.Failures.Suppress(FContext::EngagementKey(NAME_None, Key.Target), Fingerprint(ELDOpponentFailure::Engagement, Self));
+            if (State.TargetHandle == Key.Target) { ForgetTarget(State); }
+        }
+        return;
+    default:
+        State.Failures.RecordFailure(Key, Fingerprint(Key.Category, Self), NowMs, AI);
+        return;
     }
-    State.Failures.RecordFailure(Key, Fingerprint(Key.Category, Self), NowMs, AI);
 }
 }
