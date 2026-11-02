@@ -148,6 +148,9 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 `ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
 `RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
 丢弃 AI 与已离局记录后为在线真人换新 Generation/LedgerMatch 并清 Ready 与会话窗口。
+本人视图发布（`SyncOwner`）先于身体和资源记录停止：世界拆除（`bIsTearingDown` 早于网络驱动销毁
+远端 Pawn）、Host 关房（`Closing`）与 `RetireMatch`（`Resetting`）期间不发布、不判投影故障，
+新 Lobby 按新代重新发布；正常对局阶段仍做完整投影校验，真故障照常进入 `Faulted`。
 
 ## 扩展与检查
 
@@ -164,4 +167,6 @@ Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺、
-唯一结果与同世界新局；它同样不代替 3+3、AI 或网络异常验收。
+唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
+空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、抢圈复位与旧代请求以 StaleMatch 拒绝；
+它同样不代替 3+3、AI 或网络异常验收。
