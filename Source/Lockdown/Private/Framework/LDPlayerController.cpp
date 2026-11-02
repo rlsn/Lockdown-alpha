@@ -11,6 +11,7 @@
 #include "Tests/LDDemoCampProbe.h"
 #include "Tests/LDDemoCaptureProbe.h"
 #include "Tests/LDDemoOpponentProbe.h"
+#include "Tests/LDDemoSessionFaultProbe.h"
 #include "UI/LDUIRoot.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Camera/CameraActor.h"
@@ -60,6 +61,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartCampProbe(*this);
     LDDemoTests::StartCaptureProbe(*this);
     LDDemoTests::StartOpponentProbe(*this);
+    LDDemoTests::StartSessionFaultProbe(*this);
 #endif
 }
 

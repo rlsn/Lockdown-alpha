@@ -33,3 +33,40 @@ function Assert-LDDemoPackage {
         throw 'Packaged executable does not match its Demo manifest.'
     }
 }
+
+# One launch description for owned-connection runners: the editor game target, or an archived Development
+# package whose manifest matches its executable. Probes accept evidence only below their own project's
+# Artifacts, which for a package lies inside the package; Complete-LDGameEvidence moves it back out.
+function Get-LDGameLaunch {
+    param([string]$EngineRoot, [string]$PackageRoot, [Parameter(Mandatory)][string]$Output)
+    if ($PackageRoot) {
+        $package = Resolve-LDPackage $PackageRoot
+        Assert-LDDemoPackage $package
+        $probeRoot = Join-Path $package.Root 'Lockdown\Artifacts'
+        $probeOutput = Join-Path $probeRoot (Split-Path $Output -Leaf)
+        New-Item -ItemType Directory -Path $probeOutput | Out-Null
+        return [pscustomobject]@{ Packaged = $true; Binary = $package.Binary; Project = ''; Package = $package.Root
+            Output = $Output; ProbeRoot = $probeRoot; ProbeOutput = $probeOutput }
+    }
+    $engine = Resolve-LDEngine $EngineRoot
+    Assert-LDEditorModules
+    [pscustomobject]@{ Packaged = $false; Binary = (Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe')
+        Project = (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'); Package = ''; Output = $Output; ProbeRoot = ''; ProbeOutput = $Output }
+}
+
+# Editor-only switches stay out of packaged command lines; an empty URL opens the default frontend map.
+function Format-LDGameArguments {
+    param([Parameter(Mandatory)]$Launch, [string]$Url, [Parameter(Mandatory)][string]$Arguments)
+    $target = if ($Url) { '"{0}" ' -f $Url } else { '' }
+    if ($Launch.Packaged) { return $target + $Arguments }
+    '"{0}" {1}-game -DisablePlugins=AllToolsets,ModelContextProtocol,Fab {2}' -f $Launch.Project, $target, $Arguments
+}
+
+# Moves packaged probe evidence next to the runner logs and leaves the package without test output.
+function Complete-LDGameEvidence {
+    param([Parameter(Mandatory)]$Launch)
+    if (-not $Launch.Packaged -or -not (Test-Path -LiteralPath $Launch.ProbeOutput)) { return }
+    Get-ChildItem -LiteralPath $Launch.ProbeOutput -Force | Move-Item -Destination $Launch.Output -Force
+    Remove-Item -LiteralPath $Launch.ProbeOutput
+    if (-not @(Get-ChildItem -LiteralPath $Launch.ProbeRoot -Force).Count) { Remove-Item -LiteralPath $Launch.ProbeRoot }
+}
