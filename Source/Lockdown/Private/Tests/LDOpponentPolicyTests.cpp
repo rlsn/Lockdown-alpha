@@ -1019,6 +1019,9 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("AttackUnit carries only the observer-local handle"),
         LDOpponentRequests::BuildOrder(Attack, Places, Identity, Order, Error) && Order.Kind == ELDSpatialOrderKind::AttackUnit
         && Order.Observed == Attack.Handle && Order.ObservationEpoch == 3 && FVector(Order.GroundCm).IsZero() && Order.SurfaceHint.IsNone());
+    Attack.Epoch = 0;
+    bGood &= Test.TestFalse(TEXT("A handle without its observation epoch is refused"),
+        LDOpponentRequests::BuildOrder(Attack, Places, Identity, Order, Error));
     FLDOpponentBodyIntent Approach;
     Approach.Kind = EBody::ApproachShop;
     Approach.POI = TEXT("shop");
@@ -1053,6 +1056,9 @@ bool RunRequests(FAutomationTestBase& Test)
         LDOpponentRequests::BuildAction(Cast, 7, 1, 6, 11, Action, Error) && Action.Entry == ELDCombatEntry::Q
         && Action.Target.Kind == ELDCombatTargetKind::Unit && Action.Target.Observed == Cast.Handle
         && Action.Target.ObservationEpoch == 4);
+    Cast.Epoch = 0;
+    bGood &= Test.TestFalse(TEXT("A unit activation without its observation epoch is refused"),
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 6, 11, Action, Error));
     Cast.Source = ELDOpponentSourceSlot::W;
     Cast.TargetMode = ELDDemoTargetMode::DirectionDash;
     Cast.Direction = FVector(0, 3, 4);

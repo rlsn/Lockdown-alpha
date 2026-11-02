@@ -102,7 +102,10 @@ bool BuildOrder(const FLDOpponentBodyIntent& Intent, const TArray<FLDOpponentPOI
         break;
     }
     case ELDOpponentBodyKind::AttackUnit:
-        if (!Intent.Handle.IsValid()) { return Fail(Error, TEXT("AttackUnit needs a current observation handle.")); }
+        if (!Intent.Handle.IsValid() || Intent.Epoch == 0)
+        {
+            return Fail(Error, TEXT("AttackUnit needs a current observation handle and its epoch."));
+        }
         Out.Kind = ELDSpatialOrderKind::AttackUnit;
         Out.Observed = Intent.Handle;
         Out.ObservationEpoch = Intent.Epoch;
@@ -139,7 +142,10 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
         Out.Target.Kind = ELDCombatTargetKind::Self;
         break;
     case ELDDemoTargetMode::Unit:
-        if (!Intent.Handle.IsValid()) { return Fail(Error, TEXT("A unit activation needs a current observation handle.")); }
+        if (!Intent.Handle.IsValid() || Intent.Epoch == 0)
+        {
+            return Fail(Error, TEXT("A unit activation needs a current observation handle and its epoch."));
+        }
         Out.Target.Kind = ELDCombatTargetKind::Unit;
         Out.Target.Observed = Intent.Handle;
         Out.Target.ObservationEpoch = Intent.Epoch;
