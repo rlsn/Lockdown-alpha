@@ -748,10 +748,6 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
         {
             return Reject(ELDGrowthReason::PriceChanged);
         }
-        if (Account->Gold < Command.BuyPrice)
-        {
-            return Reject(ELDGrowthReason::InsufficientGold);
-        }
         TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
         Ledger.OwnerItems(ContenderId, Owned);
         bool bTaken[LDEconomy::EquipmentSlots] = {};
@@ -771,9 +767,14 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
             }
         }
         // Both positions held: never auto-sell or replace; the owner sells first in a separate request.
+        // Capacity is reported before the balance because selling first is the only way forward.
         if (Owned.Num() >= LDEconomy::EquipmentSlots || FreeSlot == INDEX_NONE)
         {
             return Reject(ELDGrowthReason::EquipmentFull);
+        }
+        if (Account->Gold < Command.BuyPrice)
+        {
+            return Reject(ELDGrowthReason::InsufficientGold);
         }
         DefinitionId = FName(*Definition->Id);
         SlotIndex = uint8(FreeSlot);

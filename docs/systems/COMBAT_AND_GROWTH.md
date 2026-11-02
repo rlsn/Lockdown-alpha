@@ -16,12 +16,12 @@
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
 | `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
 | `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
-| `Development\LDCharacterBuild` | 当前构筑纯值与候选投影；不是已接通的三选一服务 |
-| `Development\LDV08Loadout`、`LDV08Modifiers` | 来源绑定、装备派生与修正器 |
+| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、持久三选一队列与 Q/W 替换的权威成长记录；构筑变更经 Combat 准备与安装 |
+| `Economy\LDEconomyDirector`、`Inventory\LDVendorDirector` | 死亡奖励复合提交、Transactions 分派、本人发布与两槽装备买卖，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md) |
 
 这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
 `SourceData\Demo`、`SyncDemoWorldData` / `SyncDemoContentData` 和原生不可变目录生成链读取。
-保留纯模型尚需的旧 Catalog 只服务其明确依赖，不作为 Demo 的默认属性、技能或物品授予。
+旧职业构筑、V07/V08 Catalog 与 Loadout 纯模型已随闭包删除，属性、技能与物品只来自 Demo 目录。
 旧职业任务、暗杀、烟雾、元素地表、内容请求协议与对应执行器已随闭包删除。
 
 ## 从意图到结果
@@ -91,24 +91,20 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 构筑与来源
 
-`FLDCharacterBuild` 当前仍有六维属性、Ranks、Slots/Actions、Cooldowns、Revision 等字段，
-并受所选规则格式约束。这不是新 Demo 的 MOBA 属性与三选一模型。
-
-`FLDBuildPlan` 携带预期构筑与库存版本；`Prepare`、`LDV08::Project` 仍保留纯投影与候选校验，
-不能把客户端草稿或失败的候选结果直接复制成真实构筑。旧站点准备、读书和 Loadout hold
-不再有运行入口；N04 的机会/候选/确认、拒旧与回执必须按同一核心许可实际接入。
-学习、动作引用、物理装备绑定和物品实例分别管理；失去物品时，
-`InvalidateSources` 必须让依赖该来源的动作失效，不能留下悬空热键。
+成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/主动槽、属性卡与 Revision）。
+选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W 主动、
+两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
+同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
+来源冷却轨道与债优先回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，售出重购按回绑规则继承；
+商店报价用只读 `PreviewGearBinding` 说明继承冷却，以购买回执为准。
 
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
-后续实现 Demo 成长时优先复用身份、请求、来源与回执边界，
-但需要明确改造当前构筑字段、选项状态和死亡策略，而不是继续继承旧职业/书籍规则。
 
 ## 检查入口
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
-分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；`LDV08LoadoutTests`、
-`LDPreparationRulesTests` 仍验证保留纯来源模型的候选和拒绝，不能解释为 Demo 多槽已经批准。
+分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
+`DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。

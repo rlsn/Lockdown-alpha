@@ -12,11 +12,6 @@ public class Lockdown : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/Demo/demo_content.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/Demo/manifest.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/Demo/world.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/combat_b84.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/equipment_b84.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/acquisition_b84.json", StagedFileType.UFS);
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/combat.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/equipment.json", StagedFileType.UFS);
     }
 }

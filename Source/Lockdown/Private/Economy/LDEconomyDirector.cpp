@@ -671,3 +671,16 @@ bool ALDEconomyDirector::ReadFinalLevel(const FGuid& ContenderId, uint8& Level, 
     Level = Build->Level;
     return true;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDEconomyDirector::ExportLedgerEvidence(FString& OutJson, FString& Error) const
+{
+    if (!Content)
+    {
+        OutJson.Reset();
+        Error = TEXT("Growth has no approved catalog for this match.");
+        return false;
+    }
+    return LDEconomy::ExportEvidence(Ledger, Content->Get().Parameters.StartingGold, OutJson, Error);
+}
+#endif
