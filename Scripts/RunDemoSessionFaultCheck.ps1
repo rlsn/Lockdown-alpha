@@ -92,7 +92,9 @@ function Read-FaultReport {
 
 function Stop-Role {
     param([Diagnostics.Process]$Process, [string]$Name)
-    if (-not $Process.WaitForExit(30000) -or $Process.ExitCode -ne 0) { throw "$Name did not exit cleanly: $output" }
+    # A fresh package's first rendered shutdown stores driver pipeline caches: about 40 s once on this machine,
+    # about 2 s warm. The exit must still be clean.
+    if (-not $Process.WaitForExit(120000) -or $Process.ExitCode -ne 0) { throw "$Name did not exit cleanly: $output" }
 }
 
 function Assert-FaultLogs {
