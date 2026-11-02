@@ -25,6 +25,9 @@
 // Three humans ready a full room with three opponent AI and then stay out of play, so every growth step, trade,
 // fight and the capture win below come from the AI's own requests through the shared domain entries.
 enum class ELDOpponentProbeStage : uint8 { Join, Lobby, Starting, Match, Results, Done };
+// Only a check the match actually exercised can pass. One the match gave no occasion for, such as respawning when no AI
+// died, is reported apart as not exercised and never counted as passed.
+enum class ELDOpponentProbeCheck : uint8 { Passed, Failed, NotExercised };
 
 namespace LDDemoOpponentProbeDetail
 {
@@ -116,17 +119,33 @@ public:
     TArray<FLDOpponentProbeTrack> Tracks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TArray<TSharedPtr<FJsonValue>> Checks;
+    TArray<TSharedPtr<FJsonValue>> NotExercised;
     TSharedPtr<FJsonObject> Summary = MakeShared<FJsonObject>();
 
     bool Check(bool Value, const TCHAR* Name)
     {
+        Record(Value ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed, Name);
+        return Value;
+    }
+
+    void Record(ELDOpponentProbeCheck Result, const TCHAR* Name)
+    {
         auto Row = MakeShared<FJsonObject>();
         Row->SetStringField(TEXT("name"), Name);
-        Row->SetBoolField(TEXT("passed"), Value);
+        Row->SetBoolField(TEXT("passed"), Result == ELDOpponentProbeCheck::Passed);
+        Row->SetStringField(TEXT("status"), Result == ELDOpponentProbeCheck::Passed ? TEXT("passed")
+            : Result == ELDOpponentProbeCheck::Failed ? TEXT("failed") : TEXT("not_exercised"));
         Checks.Add(MakeShared<FJsonValueObject>(Row));
-        Passed &= Value;
-        if (!Value && Error.IsEmpty()) { Error = Name; }
-        return Value;
+        if (Result == ELDOpponentProbeCheck::NotExercised)
+        {
+            NotExercised.Add(MakeShared<FJsonValueString>(Name));
+            return;
+        }
+        if (Result == ELDOpponentProbeCheck::Failed)
+        {
+            Passed = false;
+            if (Error.IsEmpty()) { Error = Name; }
+        }
     }
 
     bool Save(const TSharedRef<FJsonObject>& Value, const FString& Name) const
@@ -173,6 +192,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetStringField(TEXT("scope"), TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults."));
+        Summary->SetArrayField(TEXT("not_exercised"), NotExercised);
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
         Written = Save(Report, Role + TEXT(".json"));
@@ -318,7 +338,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 {
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
-    bool Moved = true, WinnerGrew = false, Bought = false, Respawned = true, Acted = true, Bounded = true;
+    bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true;
+    uint32 Respawns = 0, RespawnsChecked = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
     {
@@ -326,12 +347,25 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         ReadGrowth(Mode, Track);
         // A death whose respawn time had not come when the match closed is not a late respawn.
         if (Track.DeadSeenAtMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > RespawnMs + RespawnSlackMs) { Track.bRespawnsValid = false; }
+        // A respawn shortly before the close settles against the final tally once it acted or its window had passed.
+        if (Track.ActCheckDueMs >= 0)
+        {
+            const bool bActed = Track.Tally.BodyRequests() > Track.ActBase;
+            if (bActed || EndedAtMs >= Track.ActCheckDueMs)
+            {
+                ++Track.RespawnsChecked;
+                Track.RespawnsActed += bActed ? 1 : 0;
+            }
+            Track.ActCheckDueMs = -1;
+        }
         const FLDOpponentRequestTally& T = Track.Tally;
         Moved &= Track.TravelCm >= MinTravelCm;
         // An AI that loses an even opening fight may spend the match recovering; the winner shows the full growth loop.
         if (Track.Contender == Result.Winner) { WinnerGrew = Track.MaxLevel >= 2 && Track.MaxConsumed >= 1; }
         Bought |= Track.MaxItems > 0;
-        Respawned &= Track.bRespawnsValid;
+        RespawnsOnTime &= Track.bRespawnsValid;
+        Respawns += Track.Respawns;
+        RespawnsChecked += Track.RespawnsChecked;
         Acted &= Track.RespawnsActed == Track.RespawnsChecked;
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
         const FLDResultRow* Row = Result.Rows.FindByPredicate([&Track](const FLDResultRow& R) { return R.ContenderId == Track.Contender; });
@@ -366,8 +400,13 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Check(Moved, TEXT("Every AI moved through the map on its own orders"));
     Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its growth choices"));
     Check(Bought, TEXT("At least one AI bought equipment through the shop"));
-    Check(Respawned, TEXT("Every AI death led to its next life within the approved respawn delay"));
-    Check(Acted, TEXT("Every respawned AI sent a new body request within ten seconds"));
+    // A late or missing respawn fails even when no respawn completed; a match where none was due only did not exercise it.
+    Record(!RespawnsOnTime ? ELDOpponentProbeCheck::Failed
+        : Respawns ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("Every AI death led to its next life within the approved respawn delay"));
+    Record(!RespawnsChecked ? ELDOpponentProbeCheck::NotExercised
+        : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
+        TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
     Check(!Mode.IsGameplayWriteOpen(Mode.GetMatchContext()) && Mode.ReadPublicMatch().ResultId == Result.ResultId,
         TEXT("The authority gate is closed by the same result it published"));
