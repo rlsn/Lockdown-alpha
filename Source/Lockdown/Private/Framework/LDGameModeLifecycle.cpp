@@ -6,6 +6,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
 #include "Region/LDMapRegistry.h"
 #include "Character/LDNativeMotionTypes.h"
@@ -75,6 +76,12 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
             return false;
         }
     }
+    // Growth/Shop: ledger, growth, equipment and shop directors for this match; roster setup is the provider Prepare.
+    if (!ALDEconomyDirector::SpawnDomain(*this,Spawn,Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     // Capture/endgame: the unique circle and the approved opening/hold for this match.
     if (!InitializeCaptureMatch(Error))
     {
@@ -96,6 +103,8 @@ void ALDGameMode::RetireMatchDomains()
     // and when RetireAuthorityCore ends a match for the next Lobby generation.
     if (Vision) { Vision->Destroy(); Vision=nullptr; }
     if (Combat) { Combat->Destroy(); Combat=nullptr; }
+    // Growth/Shop: the ledger, growth, equipment and shop directors of the retired match.
+    ALDEconomyDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
     CaptureTracks.Reset();
@@ -160,51 +169,6 @@ ELDCommitReject ALDGameMode::ValidateWritePermit(const FLDGameplayWritePermit& P
     if (!bAuthorityInitialized || (!Initializing && !IsGameplayWriteOpen(MatchContext)))
     { return ELDCommitReject::MatchClosed; }
     return ELDCommitReject::None;
-}
-
-bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhase Phase,
-    TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute, FString& Error)
-{
-    const bool Initializing = MatchPhase == ELDMatchPhase::Starting && Phase == ELDCommitPhase::RespawnsAndWorld;
-    if (Combat != &Driver || !HasAuthority() || ActiveWritePermit || (!bAuthorityStepOpen && !Initializing))
-    {
-        Error = TEXT("Authority phase has no driver-owned step or attempted a reentrant write.");
-        return false;
-    }
-    if (!Initializing && ((Phase != ELDCommitPhase::Motion && Phase != ELDCommitPhase::Actions)
-        || (Phase == ELDCommitPhase::Motion && bAuthorityPhaseExecuted)
-        || (Phase == ELDCommitPhase::Actions && (!bAuthorityPhaseExecuted || LastAuthorityPhase != ELDCommitPhase::Motion))))
-    {
-        Error = TEXT("This executable core slice supports ordered Motion then Actions, not unimplemented provider phases.");
-        return false;
-    }
-    const FLDGameplayWritePermit Permit(*this, AuthorityBoundary, Phase, GateRevision);
-    TGuardValue<const FLDGameplayWritePermit*> Scope(ActiveWritePermit, &Permit);
-    if (ValidateWritePermit(Permit, Phase) != ELDCommitReject::None)
-    {
-        Error = TEXT("Authority phase has a closed or stale write gate.");
-        return false;
-    }
-    if (!Execute(Permit)) { return false; }
-    if (!Initializing)
-    {
-        bAuthorityPhaseExecuted = true;
-        LastAuthorityPhase = Phase;
-        if (Phase == ELDCommitPhase::Motion)
-        {
-            for (const auto& Pair : Lives)
-            {
-                if (Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.CompletedMotionStep != AuthorityStep.StepSerial)
-                {
-                    Error = TEXT("Native motion did not cover every registered live body.");
-                    return false;
-                }
-            }
-            AuthorityNowSeconds = AuthorityStep.EndServerSeconds;
-            AuthorityNowMs = AuthorityBoundary.AtMs;
-        }
-    }
-    return true;
 }
 
 ELDCommitReject ALDGameMode::ResolveBody(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, ALDCharacter*& Out) const
@@ -324,6 +288,12 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Sequence!=Batch->ThroughSequence || !Foot.Equals(Batch->EndFootCm,.000001)
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
+    // Capture reads every accepted contender batch synchronously; the driver releases it next step.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive())
+    {
+        const auto Captured=PublishCaptureMotion(Permit,*Batch);
+        if (Captured!=ELDCommitReject::None) { return Captured; }
+    }
     Life.MotionThroughSequence=Sequence;
     Life.MotionLastFoot=Batch->EndFootCm;
     Life.MotionGrounded=Batch->FinalSupport.Grounded;
@@ -357,28 +327,6 @@ bool ALDGameMode::AcknowledgeNativeMotion(const FLDMatchContext& Match, const FL
     return true;
 }
 
-bool ALDGameMode::FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error)
-{
-    if (Combat != &Driver || !bAuthorityStepOpen || ActiveWritePermit || !IsGameplayWriteOpen(MatchContext)
-        || !bAuthorityPhaseExecuted || LastAuthorityPhase != ELDCommitPhase::Actions)
-    {
-        Error = TEXT("Cannot finish a missing, active or closed authority step.");
-        return false;
-    }
-    for (const auto& Pair : Lives)
-    {
-        if (Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.CompletedMotionStep != AuthorityStep.StepSerial)
-        {
-            Error = TEXT("A registered live body has not completed native motion for this step.");
-            return false;
-        }
-    }
-    AuthorityNowSeconds = AuthorityStep.EndServerSeconds;
-    AuthorityNowMs = AuthorityBoundary.AtMs;
-    bAuthorityStepOpen = false;
-    return PublishAuthorityClock(Error);
-}
-
 bool ALDGameMode::PublishAuthorityClock(FString& Error)
 {
     auto* Public=GetGameState<ALDGameState>();
@@ -395,164 +343,6 @@ bool ALDGameMode::PublishAuthorityClock(FString& Error)
         return false;
     }
     if (Result==ELDClockProjectionResult::Accepted) { Public->ForceNetUpdate(); }
-    Error.Reset();
-    return true;
-}
-
-bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, FString& Error)
-{
-    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None
-        || MatchPhase!=ELDMatchPhase::Starting || !DemoContent || !Combat)
-    {
-        Error=TEXT("Initial spawn requires the current Starting permit and validated core providers.");
-        return false;
-    }
-    auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    FCollisionShape Capsule;
-    if (!Registry || !ULDMapRegistry::ContentCapsule(*DemoContent,Capsule,Error))
-    {
-        if (Error.IsEmpty()) { Error=TEXT("Initial spawn has no current world/capsule."); }
-        return false;
-    }
-    TArray<FGuid> Order=RosterOrder;
-    Order.RemoveAll([&](const FGuid& Id) { return !IsMemberPresent(Id); });
-    Order.Sort();
-    if (Order.IsEmpty() || Order.Num()>6)
-    {
-        Error=TEXT("Initial spawn requires a bounded registered contender roster.");
-        return false;
-    }
-    struct FPrepared
-    {
-        FGuid Contender;
-        FGuid MotionStream;
-        TWeakObjectPtr<ALDPlayerController> Controller;
-        TWeakObjectPtr<ALDCharacter> Body;
-        TSharedPtr<const FLDSpawnReservation> Reservation;
-        FLDBodyCombatState CombatState;
-    };
-    TArray<FPrepared> Prepared;
-    Prepared.Reserve(Order.Num());
-    bool CommitStarted=false;
-    ON_SCOPE_EXIT
-    {
-        if (!CommitStarted)
-        {
-            for (auto& Entry : Prepared)
-            {
-                if (auto* Body=Entry.Body.Get()) { Body->Destroy(); }
-                if (Entry.Reservation)
-                {
-                    FString CleanupError;
-                    if (!Registry->ReleaseSpawnReservation(Entry.Reservation,CleanupError))
-                    { UE_LOG(LogTemp,Error,TEXT("LD_SPAWN_PREPARE_CLEANUP_FAILED %s"),*CleanupError); }
-                }
-            }
-        }
-    };
-    for (const auto& Id : Order)
-    {
-        ALDPlayerController* Controller=nullptr;
-        for (const auto& Pair : Contenders) { if (Pair.Value.Session==Id) { Controller=Pair.Key.Get(); break; } }
-        auto* Life=Lives.Find(Id);
-        if (!Controller || !Life || Life->Life!=0 || Life->Phase!=ELDLifePhase::Unspawned || Controller->GetPawn())
-        {
-            Error=TEXT("The initial roster contains a stale, already spawned or unbound contender.");
-            return false;
-        }
-        if (Life->SpawnForLife!=1)
-        {
-            if (Life->SpawnSequence==MAX_uint64)
-            { Error=TEXT("Spawn request sequence exhausted."); return false; }
-            ++Life->SpawnSequence;
-            Life->SpawnForLife=1;
-        }
-        const FLDSpawnRequestKey Request{MatchContext,Id,1,Life->SpawnSequence};
-        TSharedPtr<const FLDSpawnSelection> Selection;
-        auto& Entry=Prepared.Emplace_GetRef();
-        Entry.Contender=Id;
-        Entry.Controller=Controller;
-        if (!Registry->DrawSpawnAnchor(Request,SpawnRandom,Permit,Selection,Error)
-            || !Registry->ReserveSpawnPlacement(Selection,Capsule,Permit,Entry.Reservation,Error)) { return false; }
-        const FTransform Transform(FRotator::ZeroRotator,Entry.Reservation->BodyOrigin());
-        auto* Body=GetWorld()->SpawnActorDeferred<ALDCharacter>(ALDCharacter::StaticClass(),Transform,
-            Controller,nullptr,ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-        if (!Body) { Error=TEXT("Prepared initial body allocation failed."); return false; }
-        Entry.Body=Body;
-        Body->SetReplicates(false);
-        Body->SetActorHiddenInGame(true);
-        Body->SetActorTickEnabled(false);
-        if (!Body->ConfigureDemoMovement(*DemoContent,Error)) { return false; }
-        Body->FinishSpawning(Transform);
-        if (!IsValid(Body)) { Error=TEXT("Prepared initial body failed native construction."); return false; }
-        auto* Movement=Body->GetCharacterMovement();
-        Movement->SetComponentTickEnabled(false);
-        Movement->SetMovementMode(MOVE_Walking);
-        Movement->FindFloor(Body->GetActorLocation(),Movement->CurrentFloor,false,nullptr);
-        Movement->SetBaseFromFloor(Movement->CurrentFloor);
-        if (!Movement->CurrentFloor.IsWalkableFloor()
-            || Movement->CurrentFloor.HitResult.GetComponent()!=Entry.Reservation->Ground().Floor.Get()
-            || !Body->GetActorLocation().Equals(Entry.Reservation->BodyOrigin(),.000001))
-        { Error=TEXT("Prepared body does not occupy its exact registered placement."); return false; }
-        const FLDVictimKey Victim{ELDVictimKind::Contender,Id,1};
-        if (!Combat->PrepareInitialBody(*Body,Victim,*DemoContent,Permit,Entry.CombatState,Error)) { return false; }
-        Entry.MotionStream=FGuid::NewGuid();
-        if (!Entry.MotionStream.IsValid() || !Entry.CombatState.Identity.IsValid())
-        { Error=TEXT("Prepared body could not reserve valid native identities."); return false; }
-    }
-    Combat->ReserveInitialBodyBatch(Prepared.Num());
-    for (const auto& Entry : Prepared)
-    {
-        const auto* Life=Lives.Find(Entry.Contender);
-        const auto* Controller=Entry.Controller.Get();
-        if (ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
-            || !Life || Life->Life!=0 || Life->Phase!=ELDLifePhase::Unspawned
-            || !Controller || Controller->GetPawn() || !Entry.Body.IsValid()
-            || !Registry->ValidateSpawnReservation(Entry.Reservation,Permit,Entry.Body.Get(),Error))
-        {
-            if (Error.IsEmpty()) { Error=TEXT("Prepared initial batch became stale before commit."); }
-            return false;
-        }
-    }
-    CommitStarted=true;
-    for (auto& Entry : Prepared)
-    {
-        auto* Body=Entry.Body.Get();
-        FLDCombatBodyRef Ref;
-        if (!Combat->InstallInitialBody(*Body,MoveTemp(Entry.CombatState),Permit,Ref,Error))
-        { FaultAuthority(Error); return false; }
-        auto& Life=Lives.FindChecked(Entry.Contender);
-        Life.Life=1;
-        Life.Body=Life.MotionBody=Ref;
-        Life.Actor=Body;
-        Life.Phase=ELDLifePhase::Alive;
-        Life.Revision=1;
-        Life.ProtectedUntilMs=0;
-        Life.MotionStreamId=Entry.MotionStream;
-        Life.SpawnAnchor=Entry.Reservation->AnchorId();
-        Life.SpawnOffset=Entry.Reservation->OffsetIndex();
-        Life.MotionLastFoot=Body->GetCharacterMovement()->GetActorFeetLocation();
-        Life.MotionGrounded=true;
-        Life.MotionFloor=Body->GetCharacterMovement()->CurrentFloor.HitResult.GetComponent();
-    }
-    for (auto& Entry : Prepared)
-    {
-        auto* Body=Entry.Body.Get();
-        auto* Controller=Entry.Controller.Get();
-        Body->SetReplicates(true);
-        Controller->Possess(Body);
-        if (!IsValid(Body) || Controller->GetPawn()!=Body
-            || !Registry->FinalizeSpawnPlacement(Entry.Reservation,Permit,Error))
-        {
-            if (Error.IsEmpty()) { Error=TEXT("Committed initial batch failed native possession/finalization."); }
-            FaultAuthority(Error);
-            return false;
-        }
-        Body->SetActorHiddenInGame(false);
-        Body->SetActorTickEnabled(true);
-        SyncOwner(Controller);
-        if (!Controller->IsLocalController()) { Controller->Navigation->ResetLife(); }
-    }
     Error.Reset();
     return true;
 }
@@ -577,6 +367,8 @@ bool ALDGameMode::ReadObservedPublicFacts(const FLDMatchContext& Match, const FL
         Error=TEXT("Respawn protection must be derived from Core life state, not a stored combat status.");
         return false;
     }
+    // Root and Shield cues are derived from the live Combat state at this read, like protection.
+    Combat->AppendObservedStatuses(*Actor,AuthorityNowMs,Candidate.Statuses);
     if (Body.Victim.Kind==ELDVictimKind::Contender && AuthorityNowMs<Life->ProtectedUntilMs)
     {
         Candidate.Statuses.Add({Protection,1,Life->ProtectedUntilMs});
@@ -584,70 +376,6 @@ bool ALDGameMode::ReadObservedPublicFacts(const FLDMatchContext& Match, const FL
     Out=MoveTemp(Candidate);
     Error.Reset();
     return true;
-}
-
-bool ALDGameMode::ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Out, FString& Error) const
-{
-    const auto* Record = Contenders.Find(&Controller);
-    const auto* Life = Record ? Lives.Find(Record->Session) : nullptr;
-    if (!Record || !Life)
-    {
-        Error=TEXT("The owner has no current contender/life projection.");
-        return false;
-    }
-    const auto* State=Combat && Life->Actor.IsValid()?Combat->StateFor(Life->Actor.Get()):nullptr;
-    if (Life->Phase==ELDLifePhase::Alive
-        && (!State || !Life->Body.IsValid() || State->Identity!=Life->Body.BodyIdentity
-            || State->Victim!=Life->Body.Victim || !State->Resources.Revision))
-    {
-        Error=TEXT("A living owner has no matching committed resource/body projection.");
-        return false;
-    }
-    FLDOwnerState Candidate=Out;
-    Candidate.ContenderId=Record->Session;
-    Candidate.Life=Life->Life;
-    Candidate.LifePhase=Life->Phase;
-    Candidate.LifeRevision=Life->Revision;
-    Candidate.BodyRef=Life->Body;
-    Candidate.bActive=Life->Phase==ELDLifePhase::Alive;
-    Candidate.RespawnAtMs=Life->RespawnAtMs;
-    Candidate.ProtectedUntilMs=Life->ProtectedUntilMs;
-    if (State)
-    {
-        Candidate.Hp=double(State->Resources.HpP2)/100.;
-        Candidate.MaxHp=double(State->Resources.MaxHpP2)/100.;
-        Candidate.Mp=double(State->Resources.MpP2)/100.;
-        Candidate.MaxMp=double(State->Resources.MaxMpP2)/100.;
-        Candidate.Barrier=double(State->Resources.ShieldP2)/100.;
-    }
-    else { Candidate.Hp=Candidate.Mp=Candidate.Barrier=0; }
-    Out=MoveTemp(Candidate);
-    Error.Reset();
-    return true;
-}
-
-void ALDGameMode::RemoveLifeBinding(const FGuid& EntityId)
-{
-    auto* Life = Lives.Find(EntityId);
-    if (!Life || Life->Phase == ELDLifePhase::Left) { return; }
-    Life->Phase = ELDLifePhase::Left;
-    Life->RetiredThroughLife = Life->Life;
-    if (Life->Revision == MAX_uint64) { FaultAuthority(TEXT("Life revision exhausted while leaving.")); }
-    else { ++Life->Revision; }
-    // Native disconnect may already have destroyed the Pawn before Logout.
-    // Retire Combat ownership by its stable binding, not weak-pointer liveness.
-    if (Combat && Life->Body.IsValid()) { Combat->RemoveRegisteredBody(Life->Body); }
-    if (auto* Body = Life->Actor.Get())
-    {
-        if (auto* Controller = Cast<ALDPlayerController>(Body->GetController()))
-        {
-            Controller->Navigation->ResetLife();
-            Controller->UnPossess();
-        }
-        Body->Destroy();
-    }
-    Life->Body = {};
-    Life->Actor.Reset();
 }
 
 bool ALDGameMode::ReportAuthorityFault(const FLDMatchContext& Match, const FString& Diagnostic)

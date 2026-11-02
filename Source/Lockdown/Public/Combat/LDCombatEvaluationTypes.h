@@ -59,6 +59,28 @@ struct FLDDamageEvaluationResult
     bool IsSuccess() const { return Value.IsSet() && Error.Code == ELDCombatEvaluationError::None; }
 };
 
+// One Root instance (EFFECT.Root), keyed by its effect instance on one target life.
+struct FLDCombatRoot
+{
+    FGuid EffectId;
+    FGuid SourceEntity;
+    int64 ExpiresAtMs = 0;
+};
+
+// The single barrier record (EFFECT.ShieldPolicy); the remaining amount is the resource ShieldP2.
+struct FLDCombatShield
+{
+    FGuid EffectId;
+    FGuid SourceEntity;
+    int64 ExpiresAtMs = 0;
+};
+
+struct FLDStatusExpiry
+{
+    bool bRootsChanged = false;
+    bool bShieldChanged = false;
+};
+
 struct FLDBasicTimingInput
 {
     TOptional<FLDDemoRational> BaseAttackSpeed;

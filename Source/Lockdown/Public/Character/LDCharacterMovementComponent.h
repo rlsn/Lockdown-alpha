@@ -33,6 +33,11 @@ public:
         FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
     bool AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Demo dash on the server authority body: one planar override root-motion source (Distance/Duration,
+    // zero finish velocity) integrated by the issued authority steps; never a teleport.
+    bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error);
+    // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked.
+    bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     virtual void PhysWalking(float DeltaSeconds, int32 Iterations) override;
     virtual void PhysFalling(float DeltaSeconds, int32 Iterations) override;
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;
