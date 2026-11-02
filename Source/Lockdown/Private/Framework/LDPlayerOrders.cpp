@@ -56,8 +56,9 @@ namespace LDPlayerOrdersDetail
 
 void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
 {
-    if (!IsLocalController() || !LDPlayerOrdersDetail::IsDirectEntry(Entry) || !CanWorldCommand()
-        || OwnerState.LifePhase!=ELDLifePhase::Alive) { return; }
+    // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
+    // sends (UI 4); the root already cancelled any older preview.
+    if (!IsLocalController() || !LDPlayerOrdersDetail::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     const bool bHeld=View && !View->DefinitionId.IsNone() && View->bHasActive;
@@ -148,6 +149,9 @@ bool ALDPlayerController::ConfirmArmedCombat()
 
 void ALDPlayerController::StopCombatAndOrders()
 {
+    // S is a new world command: the menu, Settings, a child confirmation, a text edit or an unreleased key keeps it
+    // from the world, so it never stops the accepted order those leave running (UI 4, 7).
+    if (IsWorldInputSuppressed()) { return; }
     CancelArmedCombat();
     Navigation->Stop();
     // Cancels every Direct request issued so far, including ones the server has not received yet.

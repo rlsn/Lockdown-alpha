@@ -467,7 +467,8 @@ public:
         {
             int64 DisplayNowMs=0;
             if (!Body || !Movement || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive
-                || Public->DemoLobby.Phase!=ELDMatchPhase::Development || !Movement->CurrentFloor.IsWalkableFloor()
+                || Public->PublicMatch.Generation!=PC->OwnerState.Match || Public->PublicMatch.Phase!=ELDMatchPhase::Development
+                || !Movement->CurrentFloor.IsWalkableFloor()
                 || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
             Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
                 TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));

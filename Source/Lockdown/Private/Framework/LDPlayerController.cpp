@@ -24,14 +24,9 @@
 ALDPlayerController::ALDPlayerController()
 { Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands")); }
 
+// New world commands need both halves (LDPlayerInput.cpp): a valid life in the running match and unsuppressed input.
 bool ALDPlayerController::CanWorldCommand() const
-{
-    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
-    return !bControlsSuppressed && !bFreshInputRequired && GetPawn() && Public
-        && Public->DemoLobby.Generation==OwnerState.Match && OwnerState.LifePhase==ELDLifePhase::Alive
-        && OwnerState.BodyRef.IsValid() && (Public->DemoLobby.Phase==ELDMatchPhase::Development
-            || Public->DemoLobby.Phase==ELDMatchPhase::CaptureOpen);
-}
+{ return IsWorldLifeValid() && !IsWorldInputSuppressed(); }
 
 bool ALDPlayerController::IsFrontend() const
 { return UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName())==LDDemoEntry::FrontendMap; }
@@ -166,19 +161,17 @@ void ALDPlayerController::ClearControls(bool LifeChanged)
 void ALDPlayerController::FlushPressedKeys()
 {
     Super::FlushPressedKeys();
-    bFreshInputRequired=true;
-    ClearControls();
+    // The engine also flushes when a panel or Settings takes keyboard focus inside this window: that only ends local
+    // gestures. Losing OS focus is Navigation's single Stop (UI 4, 7).
+    ReleaseLocalInput();
 }
 
 void ALDPlayerController::SetMenuOpen(bool bOpen)
 {
-    bFreshInputRequired=true;
-    if (bControlsSuppressed!=bOpen)
-    {
-        bControlsSuppressed=bOpen;
-        SetIgnoreMoveInput(bOpen);
-    }
-    if (bOpen) { ClearControls(); }
+    // The menu and Settings suppress new world commands only: an accepted order keeps its heartbeat and the body
+    // keeps following its path underneath (UI 4, 7).
+    bControlsSuppressed=bOpen;
+    ReleaseLocalInput();
     FInputModeGameAndUI Mode;
     Mode.SetHideCursorDuringCapture(false);
     Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);

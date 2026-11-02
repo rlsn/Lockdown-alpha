@@ -5,6 +5,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -13,6 +14,10 @@
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "UI/LDControlSettings.h"
+#include "UI/LDControlsPanel.h"
+#include "UI/LDUIRoot.h"
+#include "Camera/CameraActor.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
@@ -44,6 +49,15 @@ constexpr double CombatProbeKillSeconds = 90.0;
 constexpr double CombatProbeSightingSeconds = 1.5;
 // A refused intent is watched this long to prove that protection does not come back.
 constexpr double CombatProbeQuietSeconds = 1.5;
+// Frames the owning client needs to apply a camera pan before it is measured.
+constexpr double CombatProbeSettleSeconds = 0.5;
+// Settings stays open past the order lease, so only a live heartbeat keeps the walk under it accepted.
+constexpr double CombatProbeSettingsSeconds = LDCommandLiveness::Seconds + 0.5;
+// Half-second heartbeats the open window must still carry, and the share of the walk the body must still cover.
+constexpr uint32 CombatProbeSettingsHeartbeats = 4;
+constexpr double CombatProbeSettingsProgress = 0.4;
+// After Settings closes the same walk must still be running, or have arrived, with nothing replayed.
+constexpr double CombatProbeSettingsAfterSeconds = 1.0;
 
 double CombatProbeRational(const FLDDemoRational& Value)
 {
@@ -106,6 +120,13 @@ public:
     FGuid HostId, ClientId;
     int32 NavigateAttempts = 0, AttackOrders = 0;
 
+    // Client1, on its first walk: Settings opened over the accepted order suppresses new world commands only.
+    enum class ESettingsStep : uint8 { Await, Open, Closed, Done };
+    ESettingsStep SettingsStep = ESettingsStep::Await;
+    FLDMoveIdentity SettingsOrder;
+    FVector SettingsFrom = FVector::ZeroVector;
+    uint32 SettingsHeartbeats = 0, SettingsCombatReceipts = 0;
+    double SettingsAt = 0;
     // Client1: the attack-move, its stop and the spent protection.
     FLDMoveIdentity AttackMoveOrder, StopOrder;
     int64 HostHpAtOrder = 0, ProtectedUntilSeenMs = 0;
@@ -113,6 +134,10 @@ public:
     uint64 LifeRevisionBefore = 0;
     uint32 ReceiptSerialBefore = 0;
     FLDCombatActionReceipt SpentReceipt;
+    // Client1 while dead: the minimap pan its static camera must follow.
+    FVector DeathPanPoint = FVector::ZeroVector;
+    double DeathPanAt = 0;
+    bool bDeathCameraChecked = false;
 
     // Host: the hits it took, its kill and the audited respawn.
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
@@ -233,7 +258,7 @@ public:
         case EStage::KillWait: return TickKillWait(Now, *PC, *Mode, *Public);
         case EStage::Respawn: return TickRespawn(Now, *Mode, *Registry);
         case EStage::Removal: return TickRemoval(Now, *Mode);
-        case EStage::Wrap: return TickWrap(Lobby);
+        case EStage::Wrap: return TickWrap(*Public, *PC);
         default: return Fail(TEXT("Net"), TEXT("The scenario reached an unknown stage"));
         }
     }
@@ -432,6 +457,12 @@ public:
             return Fail(TEXT("Start"), TEXT("The first life ended before the duel although nobody attacks yet"));
         }
         const FVector& Site = IsHost() ? HostSite : ClientSite;
+        if (!IsHost() && SettingsStep != ESettingsStep::Done)
+        {
+            bool bHandled = true;
+            const bool bContinue = TickSettings(Now, PC, *Body, bHandled);
+            if (bHandled) { return bContinue; }
+        }
         if (PC.Navigation->HasMoveOrder()) { return true; }
         if (FVector::Dist2D(Body->GetNavAgentLocation(), Site) <= LDDemoCombatScenario::CombatProbeArrivalCm)
         {
@@ -447,6 +478,87 @@ public:
         PC.Navigation->Navigate(Site);
         ++NavigateAttempts;
         StageAt = Now;
+        return true;
+    }
+
+    // Client1 opens Settings through its production entry over the accepted first walk and holds it past the order
+    // lease (UI_AND_SETTINGS 4, 7). bHandled stays false only while that walk is not accepted yet.
+    bool TickSettings(double Now, ALDPlayerController& PC, const ALDCharacter& Body, bool& bHandled)
+    {
+        ULDNavigationComponent& Nav = *PC.Navigation;
+        const FLDOrderReceipt& Latest = Nav.LatestReceipt();
+        const bool bOpen = PC.ControlsUI && PC.ControlsUI->IsOpen();
+        const auto Running = [&Latest, this](bool bArrived)
+        {
+            return Latest.Identity == SettingsOrder && (Latest.Status == ELDOrderStatus::Activated
+                || Latest.Status == ELDOrderStatus::Progress || (bArrived && Latest.Status == ELDOrderStatus::Completed));
+        };
+        if (SettingsStep == ESettingsStep::Await)
+        {
+            if (!Nav.HasMoveOrder() || Latest.Identity != Nav.LocalIdentity()
+                || (Latest.Status != ELDOrderStatus::Activated && Latest.Status != ELDOrderStatus::Progress))
+            {
+                bHandled = false;
+                return true;
+            }
+            const double Speed = LDDemoCombatScenario::CombatProbeRational(Catalog->Get().Parameters.MoveSpeedCmPerSec.Base);
+            const double Needed = Speed * (LDDemoCombatScenario::CombatProbeSettingsSeconds + LDDemoCombatScenario::CombatProbeSettleSeconds);
+            const double Remaining = FVector::Dist2D(Body.GetNavAgentLocation(), ClientSite);
+            if (Speed <= 0 || Remaining < Needed || !PC.RootUI)
+            {
+                return Fail(TEXT("Settings"), FString::Printf(
+                    TEXT("The accepted first walk cannot hold Settings open over it (remaining=%.0f needed=%.0f ui=%d)"),
+                    Remaining, Needed, int32(PC.RootUI != nullptr)));
+            }
+            SettingsOrder = Nav.LocalIdentity();
+            SettingsFrom = Body.GetNavAgentLocation();
+            SettingsHeartbeats = Nav.HeartbeatsSent();
+            SettingsCombatReceipts = PC.CombatReceiptSerial;
+            // The entry the HUD and menu 设置 buttons use.
+            PC.RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);
+            Check(PC.ControlsUI && PC.ControlsUI->IsOpen() && PC.IsWorldLifeValid() && PC.IsWorldInputSuppressed()
+                && !PC.CanWorldCommand(), TEXT("Settings"),
+                TEXT("Settings opens over the accepted walk: the life stays valid and only new world commands are suppressed"));
+            // A ground order and S from under Settings stay local: neither replaces nor stops the walk.
+            Nav.Navigate(SettingsFrom);
+            PC.StopCombatAndOrders();
+            Check(Nav.LocalIdentity() == SettingsOrder && Nav.HasMoveOrder(), TEXT("Settings"),
+                TEXT("A ground order and S issued under Settings are refused locally and leave the accepted walk running"));
+            if (!Passed) { return Finish(); }
+            SettingsAt = Now;
+            SettingsStep = ESettingsStep::Open;
+            return true;
+        }
+        if (SettingsStep == ESettingsStep::Open)
+        {
+            if (!bOpen || !Nav.HasMoveOrder() || Nav.LocalIdentity() != SettingsOrder || !Running(false))
+            {
+                return Fail(TEXT("Settings"), FString::Printf(TEXT("Settings ended or stopped the accepted walk (open=%d status=%d failure=%d): %s"),
+                    int32(bOpen), int32(Latest.Status), int32(Latest.Failure), *Nav.Status));
+            }
+            if (Now - SettingsAt < LDDemoCombatScenario::CombatProbeSettingsSeconds) { return true; }
+            const double Speed = LDDemoCombatScenario::CombatProbeRational(Catalog->Get().Parameters.MoveSpeedCmPerSec.Base);
+            const uint32 Beats = Nav.HeartbeatsSent() - SettingsHeartbeats;
+            const double Moved = FVector::Dist2D(Body.GetNavAgentLocation(), SettingsFrom);
+            Check(Beats >= LDDemoCombatScenario::CombatProbeSettingsHeartbeats
+                && Moved >= LDDemoCombatScenario::CombatProbeSettingsProgress * Speed * LDDemoCombatScenario::CombatProbeSettingsSeconds,
+                TEXT("Settings"),
+                TEXT("Held open past the order lease, Settings keeps the heartbeat: the same walk stays accepted and the body keeps moving"),
+                FString::Printf(TEXT("heartbeats=%u moved_cm=%.0f open_s=%.2f"), Beats, Moved, Now - SettingsAt));
+            if (!Passed) { return Finish(); }
+            PC.RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);
+            SettingsHeartbeats = Nav.HeartbeatsSent();
+            SettingsAt = Now;
+            SettingsStep = ESettingsStep::Closed;
+            return true;
+        }
+        if (Now - SettingsAt < LDDemoCombatScenario::CombatProbeSettingsAfterSeconds) { return true; }
+        Check(PC.ControlsUI && !bOpen && Nav.LocalIdentity() == SettingsOrder && Running(true)
+            && PC.CombatReceiptSerial == SettingsCombatReceipts && (!Nav.HasMoveOrder() || Nav.HeartbeatsSent() > SettingsHeartbeats),
+            TEXT("Settings"), TEXT("Closing Settings replays nothing: the same walk goes on with its heartbeat and no order, stop or action is sent"),
+            FString::Printf(TEXT("open=%d status=%d active=%d"), int32(bOpen), int32(Latest.Status), int32(Nav.HasMoveOrder())));
+        if (!Passed) { return Finish(); }
+        SettingsStep = ESettingsStep::Done;
         return true;
     }
 
@@ -526,10 +638,15 @@ public:
     {
         if (PC.OwnerState.Life == 1 && PC.OwnerState.LifePhase == ELDLifePhase::Dead)
         {
-            Check(PC.OwnerState.RespawnAtMs > 0 && PC.OwnerState.ProtectedUntilMs == 0 && !PC.CanWorldCommand(), TEXT("Death"),
-                TEXT("The owner projection reports its own death with a respawn instant and refuses world commands"),
+            Check(PC.OwnerState.RespawnAtMs > 0 && PC.OwnerState.ProtectedUntilMs == 0 && !PC.IsWorldLifeValid()
+                && !PC.CanWorldCommand() && PC.IsAwaitingRespawn(), TEXT("Death"),
+                TEXT("The owner projection reports its own death with a respawn instant: no valid life, no world command"),
                 FString::Printf(TEXT("respawn_at_ms=%lld"), PC.OwnerState.RespawnAtMs));
             if (!Passed) { return Finish(); }
+            // The minimap's camera gesture (what a left drag sends); the Host's public duel site is static ground.
+            DeathPanPoint = HostSite;
+            PC.Navigation->PanTo(DeathPanPoint);
+            DeathPanAt = Now;
             SetStage(EStage::AwaitRespawn);
             return true;
         }
@@ -543,6 +660,20 @@ public:
 
     bool TickAwaitRespawn(double Now, ALDPlayerController& PC)
     {
+        if (!bDeathCameraChecked && PC.OwnerState.LifePhase == ELDLifePhase::Dead)
+        {
+            if (Now - DeathPanAt < LDDemoCombatScenario::CombatProbeSettleSeconds) { return true; }
+            const ACameraActor* View = Cast<ACameraActor>(PC.GetViewTarget());
+            const float ArmLength = PC.Controls ? PC.Controls->Zoom : -1.f;
+            const FVector Expected = ALDCharacter::DefaultArmCameraPose(DeathPanPoint, ArmLength).GetLocation();
+            Check(View && ArmLength > 0 && !PC.GetPawn() && !PC.IsWorldLifeValid() && PC.CanCameraCommand()
+                && View->GetActorLocation().Equals(Expected, 1.0),
+                TEXT("DeathCamera"), TEXT("A minimap pan moves the dead owner's static camera over the map, with no body or world command"),
+                View ? FString::Printf(TEXT("camera=%s expected=%s arm=%.0f"), *View->GetActorLocation().ToCompactString(),
+                    *Expected.ToCompactString(), ArmLength) : FString(TEXT("the view target is not a camera")));
+            bDeathCameraChecked = true;
+            if (!Passed) { return Finish(); }
+        }
         const bool bViewCurrent = PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.Life == PC.OwnerState.Life;
         if (PC.OwnerState.Life != 2 || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !Cast<ALDCharacter>(PC.GetPawn())
             || !PC.CanWorldCommand() || !bViewCurrent)
@@ -556,6 +687,8 @@ public:
         });
         Check(PC.OwnerState.ProtectedUntilMs > 0, TEXT("Respawn"), TEXT("The second life arrives protected in its own projection"),
             FString::Printf(TEXT("protected_until_ms=%lld"), PC.OwnerState.ProtectedUntilMs));
+        Check(bDeathCameraChecked && PC.GetViewTarget() == PC.GetPawn(), TEXT("DeathCamera"),
+            TEXT("The respawned body takes the camera back from the static death camera"));
         Check(!QEntry || QEntry->DefinitionId.IsNone(), TEXT("Protection"),
             TEXT("Q holds no learned skill, so pressing it is an empty-slot activation attempt"));
         if (!Passed) { return Finish(); }
@@ -822,10 +955,12 @@ public:
         return true;
     }
 
-    bool TickWrap(const FLDLobbyView& Lobby)
+    bool TickWrap(const ALDGameState& Public, const ALDPlayerController& PC)
     {
         if (!Exists(TEXT("Client1.json"))) { return true; }
-        Check(Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen, TEXT("Protection"),
+        const FLDPublicMatchView& Match = Public.PublicMatch;
+        Check(Match.Generation == PC.OwnerState.Match
+            && (Match.Phase == ELDMatchPhase::Development || Match.Phase == ELDMatchPhase::CaptureOpen), TEXT("Protection"),
             TEXT("The match stayed open through the whole scenario: no capture result, fault or reset"));
         return Finish();
     }
