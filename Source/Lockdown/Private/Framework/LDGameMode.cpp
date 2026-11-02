@@ -120,6 +120,8 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     MatchPhase=ELDMatchPhase::Lobby;
     RosterRevision=1;
     bEntryAccepted=true;
+    // Three humans plus three AI never reallocate record storage that callers briefly hold.
+    Contenders.Reserve(6);
     if (GameSession) { GameSession->MaxPlayers=3; }
     UE_LOG(LogTemp,Display,TEXT("LD_DEMO_LOBBY generation=%u"),MatchContext.Generation);
 }

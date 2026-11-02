@@ -159,6 +159,9 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
-`Lockdown.Rules.DemoCapture`（归约器连续性/保护与契约故障、圈几何、公共读模型、提供者门禁）和
+`Lockdown.Rules.DemoCapture`（归约器连续性/保护与契约故障、圈几何、公共读模型、提供者门禁、
+Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
+`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺、
+唯一结果与同世界新局；它同样不代替 3+3、AI 或网络异常验收。

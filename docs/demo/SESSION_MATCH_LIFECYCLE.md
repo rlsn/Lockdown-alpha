@@ -637,6 +637,15 @@ World/Progression 水位分别证明本边界营地生命/刷新及致死复合�
 待处理 DeathFact 不得被压缩掉，领域业务回执按成长/账本自己的保留规则处理，
 核心不复制另一份无限账史。长期循环验收须证明退休缓存不随累计死亡次数线性增长。
 
+**当前实现的落地形式**（同步驱动，不另设事件平台）：圈的 Motion 事实不由运动提供者自行求交，
+而是核心在 `CompleteNativeMotion` 接受批次后经 `PublishCaptureMotion` 交给 `LDCaptureCircle::Extract`
+求出带原始秒的进出；生命侧事实经 `PublishCaptureEligibility(Permit, FLDCaptureEligibilityEvent)` 提交，
+Left 只由核心离局路径产生。Motion 流的 Fence 等价物是 Capture 阶段的逐身体本步证据检查
+（本步新登记的生命除外）；`ExecuteCapturePhase / ExecuteClosePhase / ExecuteCapturePublish`
+分别承担归约、先锁闸后冻结结果、无 permit 清理发布，`TryCloseMatch` 为其内部唯一结果入口。
+提供者 MatchClosed/MatchReset/Prepare 钩子与正常开局门禁由 `LDMatchProviders` 静态注册；
+详见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)。
+
 ### 6.4 固定批次顺序及提交许可
 
 现有 `ALDCombatDirector::AdvanceAuthority / Sample` 收敛为唯一驱动入口，
