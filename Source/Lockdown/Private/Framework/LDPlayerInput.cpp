@@ -1,5 +1,6 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameInstance.h"
+#include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
@@ -23,6 +24,14 @@
 
 namespace LDPlayerInputDetail
 {
+    // PublicMatch is the single generation and phase source; DemoLobby only mirrors it for the roster.
+    bool InRunningMatch(const ALDPlayerController& PC)
+    {
+        const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
+        return Public && Public->PublicMatch.Generation!=0 && Public->PublicMatch.Generation==PC.OwnerState.Match
+            && (Public->PublicMatch.Phase==ELDMatchPhase::Development || Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
+    }
+
     bool PhysicalDown(const ALDPlayerController* PC,FKey Key)
     {
 #if PLATFORM_WINDOWS
@@ -62,6 +71,34 @@ FVector2D ALDPlayerController::CameraPanAxis() const
         (IsInputKeyDown(BindingKey(TEXT("PanUp")))?1:0)-(IsInputKeyDown(BindingKey(TEXT("PanDown")))?1:0));
 }
 
+bool ALDPlayerController::IsWorldLifeValid() const
+{
+    return LDPlayerInputDetail::InRunningMatch(*this) && OwnerState.LifePhase==ELDLifePhase::Alive
+        && OwnerState.BodyRef.IsValid() && GetPawn();
+}
+
+bool ALDPlayerController::IsWorldInputSuppressed() const
+{ return bControlsSuppressed || bFreshInputRequired || IsWorldInputCaptured(); }
+
+bool ALDPlayerController::IsWorldInputCaptured() const
+{
+    const ELDUIInputLayer Layer=RootUI?RootUI->TopInputLayer():ELDUIInputLayer::None;
+    return Layer==ELDUIInputLayer::TextEditing || Layer==ELDUIInputLayer::ChildConfirmation;
+}
+
+bool ALDPlayerController::IsAwaitingRespawn() const
+{ return LDPlayerInputDetail::InRunningMatch(*this) && OwnerState.LifePhase==ELDLifePhase::Dead; }
+
+bool ALDPlayerController::CanCameraCommand() const
+{ return !IsWorldInputSuppressed() && (IsWorldLifeValid() || IsAwaitingRespawn()); }
+
+void ALDPlayerController::ReleaseLocalInput()
+{
+    bFreshInputRequired=true;
+    CancelArmedCombat();
+    if (Navigation) { Navigation->Recenter(false); }
+}
+
 void ALDPlayerController::RebuildV05Mappings()
 {
     if (!IsLocalController() || !Controls || (!Navigation->Enabled() && !IsFrontend())) { return; }
@@ -77,7 +114,8 @@ void ALDPlayerController::RebuildV05Mappings()
     for (uint32 Handle : V05BindingHandles) { Input->RemoveBindingByHandle(Handle); }
     V05BindingHandles.Reset();
     if (NavigationInputContext) { Subsystem->RemoveMappingContext(NavigationInputContext); }
-    ClearControls();
+    // A rebuilt mapping clears latches and waits for release; it never stops an accepted order (UI 7).
+    ReleaseLocalInput();
     NavigationInputContext=NewObject<UInputMappingContext>(this);
     for (const auto& Binding : Controls->Definitions())
     {
@@ -97,7 +135,6 @@ void ALDPlayerController::RebuildV05Mappings()
     Options.bIgnoreAllPressedKeysUntilRelease=true;
     Subsystem->AddMappingContext(NavigationInputContext,10,Options);
     bNavigationContextActive=true;
-    bFreshInputRequired=true;
     Navigation->bEdgePan=Controls->bEdgePan;
 }
 
@@ -119,6 +156,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         for (const auto& Binding : Controls->Definitions()) { Down|=LDPlayerInputDetail::PhysicalDown(this,Controls->Key(Binding.Action)); }
         if (!Down) { bFreshInputRequired=false; }
     }
+    // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (UI 4).
+    if (IsWorldInputCaptured()) { CancelArmedCombat(); }
     if (GetPawn()!=PreferencesPawn.Get())
     {
         PreferencesPawn=GetPawn();
@@ -166,7 +205,25 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (bControlsSuppressed || bFreshInputRequired) { return; }
     // Own panels also open while dead (UI_AND_SETTINGS 3.2); the root keeps one main panel at a time.
     if (Action==TEXT("Attributes")) { if (RootUI) { RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes); } return; }
+    // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
+    if (IsWorldInputCaptured()) { return; }
     if (Action==TEXT("Stop")) { StopCombatAndOrders(); return; }
+    if (Action==TEXT("Recenter") || Action==TEXT("Follow"))
+    {
+        if (!CanCameraCommand()) { return; }
+        // The static death camera has no living body to centre on or follow, and never another player's (CONTROLS 3.3).
+        if (IsAwaitingRespawn())
+        {
+            IntentFeedback=TEXT("无存活角色");
+            if (IntentFeedbackSerial<MAX_uint32) { ++IntentFeedbackSerial; }
+            return;
+        }
+        if (Action==TEXT("Recenter")) { Navigation->Recenter(true); return; }
+        Navigation->ToggleFollow();
+        Controls->SetAppliedFollowing(Navigation->bFollowCamera);
+        CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();
+        return;
+    }
     if (!CanWorldCommand()) { return; }
     if (Action==TEXT("Select"))
     {
@@ -189,13 +246,6 @@ void ALDPlayerController::V05Pressed(FName Action)
     else if (Action==TEXT("Skill2")) { ActivateCombatEntry(ELDCombatEntry::W); }
     else if (Action==TEXT("Item1")) { ActivateCombatEntry(ELDCombatEntry::Item1); }
     else if (Action==TEXT("Item2")) { ActivateCombatEntry(ELDCombatEntry::Item2); }
-    else if (Action==TEXT("Recenter")) { Navigation->Recenter(true); }
-    else if (Action==TEXT("Follow"))
-    {
-        Navigation->ToggleFollow();
-        Controls->SetAppliedFollowing(Navigation->bFollowCamera);
-        CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();
-    }
 }
 
 void ALDPlayerController::V05Released(FName Action)
@@ -203,12 +253,18 @@ void ALDPlayerController::V05Released(FName Action)
 
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 {
-    if (!CanWorldCommand() || !Controls || (RootUI && RootUI->PointerOverUI())) { return; }
+    if (!CanCameraCommand() || !Controls || (RootUI && RootUI->PointerOverUI())) { return; }
     if (auto* Body=Cast<ALDCharacter>(GetPawn()))
     {
         Body->Zoom(Value.Get<float>());
         RecordAppliedCameraZoom();
+        return;
     }
+    // The dead owner's static camera zooms the applied preference itself; the next body starts from it.
+    FString Error;
+    if (Controls->SetAppliedZoom(ALDCharacter::ZoomedArmLength(Controls->Zoom,Value.Get<float>()),Error))
+    { CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush(); }
+    else { IntentFeedback=Error; }
 }
 
 void ALDPlayerController::RecordAppliedCameraZoom()

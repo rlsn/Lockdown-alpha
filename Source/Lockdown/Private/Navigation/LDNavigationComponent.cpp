@@ -7,6 +7,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Components/CapsuleComponent.h"
+#include "Camera/CameraActor.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -486,16 +487,22 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
         if (Body)
         {
             Body->GetCharacterMovement()->AddTickPrerequisiteComponent(this);
-            bCameraInitialized=false;
+            // Known from this body's first frame, so a later death camera starts where this life's camera was.
+            CameraCentre=Body->GetActorLocation();
+            bCameraInitialized=bCameraCentreKnown=true;
             bFollowCamera=!PC->Controls || PC->Controls->bStartFollowing;
         }
     }
-    if (!PC->CanWorldCommand())
+    // Only a lost life, body, match or phase ends the accepted order. The menu, Settings, panels and confirmations
+    // only suppress new commands: the order keeps its heartbeat and path-following (UI 4, 7).
+    if (!PC->IsWorldLifeValid())
     {
         if ((bLocalActive || bFollowing) && !bLocalStop) { Stop(); }
         TickCamera(Delta);
         return;
     }
+    // Losing OS focus is the one input loss that stops: a single Stop, no heartbeat until focus returns and a fresh
+    // press before the next command; nothing resumes on its own.
     if (!FApp::IsUnattended() && FSlateApplication::IsInitialized() && !FSlateApplication::Get().IsActive())
     {
         if (bHadFocus) { PC->FlushPressedKeys(); Stop(); }
@@ -549,7 +556,8 @@ void ULDNavigationComponent::ClickMove()
     Navigate(GroundHit.ImpactPoint);
 }
 
-void ULDNavigationComponent::PanTo(const FVector& Point) { CameraCentre=Point; bFollowCamera=false; bCameraInitialized=true; }
+void ULDNavigationComponent::PanTo(const FVector& Point)
+{ CameraCentre=Point; bFollowCamera=false; bCameraInitialized=bCameraCentreKnown=true; }
 void ULDNavigationComponent::PanCamera(const FVector2D& Axis, float Delta)
 {
     if (!Axis.IsNearlyZero())
@@ -564,13 +572,20 @@ void ULDNavigationComponent::TickCamera(float Delta)
 {
     auto* PC=Controller();
     auto* Body=Cast<ALDCharacter>(PC->GetPawn());
-    if (!Body) { return; }
-    if (!bCameraInitialized) { CameraCentre=Body->GetActorLocation(); bCameraInitialized=true; }
-    if (PC->CanWorldCommand())
+    // Dead in the running match, the owner's waiting camera keeps this same camera state over the static map:
+    // it pans and zooms, never follows anyone and never moves a body (CONTROLS 3.3, UI 4).
+    ACameraActor* DeathView=!Body && bCameraCentreKnown && PC->IsAwaitingRespawn()
+        ? Cast<ACameraActor>(PC->GetViewTarget()) : nullptr;
+    if (!Body && !DeathView) { return; }
+    if (Body && !bCameraInitialized) { CameraCentre=Body->GetActorLocation(); bCameraInitialized=bCameraCentreKnown=true; }
+    if (PC->CanCameraCommand())
     {
         FVector2D Axis=PC->CameraPanAxis();
+        // Edge pan stays off without focus, over UI, during a minimap drag and while an armed preview aims.
+        ELDCombatEntry Armed=ELDCombatEntry::None;
         if (bEdgePan && (!PC->HUDUI || !PC->HUDUI->Minimap || !PC->HUDUI->Minimap->IsDragging())
-            && !FApp::IsUnattended() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
+            && !FApp::IsUnattended() && FSlateApplication::IsInitialized() && FSlateApplication::Get().IsActive()
+            && (!PC->RootUI || !PC->RootUI->PointerOverUI()) && !PC->IsAttackMoveArmed() && !PC->ReadArmedCombatEntry(Armed))
         {
             float X=0,Y=0; int32 Width=0,Height=0;
             PC->GetViewportSize(Width,Height);
@@ -579,7 +594,7 @@ void ULDNavigationComponent::TickCamera(float Delta)
         }
         PanCamera(Axis.GetClampedToMaxSize(1),Delta);
     }
-    if (bFollowCamera || bRecenterHeld) { CameraCentre=Body->GetActorLocation(); }
+    if (Body && (bFollowCamera || bRecenterHeld)) { CameraCentre=Body->GetActorLocation(); }
     const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
     const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
     FVector Min,Max;
@@ -592,5 +607,12 @@ void ULDNavigationComponent::TickCamera(float Delta)
     }
     CameraCentre.X=FMath::Clamp(CameraCentre.X,Min.X,Max.X);
     CameraCentre.Y=FMath::Clamp(CameraCentre.Y,Min.Y,Max.Y);
-    Body->CameraArm->SetWorldLocation(CameraCentre);
+    if (Body)
+    {
+        Body->CameraArm->SetWorldLocation(CameraCentre);
+        return;
+    }
+    // The applied zoom preference is the death camera's arm length; the next body starts from the same value.
+    const float ArmLength=PC->Controls?PC->Controls->Zoom:GetDefault<ALDCharacter>()->CameraArm->TargetArmLength;
+    DeathView->SetActorTransform(ALDCharacter::DefaultArmCameraPose(CameraCentre,ArmLength));
 }

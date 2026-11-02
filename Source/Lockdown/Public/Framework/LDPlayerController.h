@@ -87,7 +87,14 @@ public:
     class ALDWorldViewRelay* LocalView() const;
     FString IntentFeedback;
     uint32 FeedbackSerial() const { return IntentFeedbackSerial; }
-    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp) ----
+    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp and LDPlayerInput.cpp) ----
+    // CanWorldCommand (orders, Q/W/1/2, A, S, world and minimap clicks) is IsWorldLifeValid && !IsWorldInputSuppressed.
+    // Life half: the current PublicMatch generation is running (Development/CaptureOpen) and this owner's accepted life
+    // is Alive with its body. Only losing it ends accepted orders.
+    bool IsWorldLifeValid() const;
+    // Input half: the menu or Settings, a child confirmation or text edit, or keys still held since a menu, focus or
+    // mapping change. It blocks new world commands only; accepted orders keep moving and sending heartbeats (UI 4, 7).
+    bool IsWorldInputSuppressed() const;
     // Hotkeys and HUD icons share this entry. Self sends now; Unit/Direction arm and wait for a
     // left-click confirmation; right click or Back cancels the armed entry without a world command.
     void ActivateCombatEntry(ELDCombatEntry Entry);
@@ -100,6 +107,13 @@ public:
     bool ConfirmArmedCombat();
     // S: stop orders and cancel interruptible Direct actions issued so far.
     void StopCombatAndOrders();
+    // A child confirmation or a text edit owns input (UI 4): no new world command, armed preview or camera input
+    // starts; accepted orders keep running.
+    bool IsWorldInputCaptured() const;
+    // Dead in the running match and waiting for the respawn: only the static-map camera stays usable.
+    bool IsAwaitingRespawn() const;
+    // Camera input (pan, zoom, recenter, follow): unsuppressed input over a valid life or the dead owner's static camera.
+    bool CanCameraCommand() const;
     // Current shop interaction binding (ApproachShop en route or arrived); see ULDNavigationComponent.
     bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
     UFUNCTION(Server,Reliable) void ServerSubmitCombatAction(const FLDCombatActionRequest& Request);
@@ -147,7 +161,10 @@ private:
     FLDOwnerState LatestOwner;
     FVector LastBodyPosition=FVector::ZeroVector;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
-    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp) ----
+    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp and LDPlayerInput.cpp) ----
+    // Ends every local gesture without touching an accepted order: the armed preview and the held recenter are
+    // cleared and every key must be released before the next world command.
+    void ReleaseLocalInput();
     void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target);
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
     bool bAttackMoveArmed=false;

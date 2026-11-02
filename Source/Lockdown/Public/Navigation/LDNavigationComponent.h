@@ -43,6 +43,8 @@ public:
     bool bFollowCamera=true,bEdgePan=true;
     bool IsFollowing() const {return bFollowing;}
     bool HasMoveOrder() const {return bLocalActive;}
+    // Owning client: heartbeats sent so far by this controller (monotonic).
+    uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
@@ -186,6 +188,8 @@ private:
     bool bFollowing=false,bLocalActive=false,bLocalPending=false,bLocalStop=false,bReplanned=false;
     bool bActiveHasGoal=false,bActiveEngaged=false;
     bool bRecenterHeld=false,bCameraInitialized=false;
+    // CameraCentre holds a real static-map point from a body or a pan: the dead owner's camera may start there.
+    bool bCameraCentreKnown=false;
     bool bHadFocus=true;
     TArray<FVector> Points;
     int32 PointIndex=0;

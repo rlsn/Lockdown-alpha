@@ -113,7 +113,15 @@ void ALDCharacter::Tick(float Delta)
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
-void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = FMath::Clamp(CameraArm->TargetArmLength - Axis * 80, 1100.0f, 1700.0f); }
+void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = ZoomedArmLength(CameraArm->TargetArmLength, Axis); }
+float ALDCharacter::ZoomedArmLength(float ArmLength, float Axis) { return FMath::Clamp(ArmLength - Axis * 80, 1100.0f, 1700.0f); }
+FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLength)
+{
+    // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.
+    const USpringArmComponent* Arm = GetDefault<ALDCharacter>()->CameraArm;
+    const FRotator Rotation = Arm->GetRelativeRotation();
+    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
+}
 void ALDCharacter::OnRep_Presentation() { Body->ApplyPalette(PresentationKey); }
 void ALDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {

@@ -115,15 +115,26 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 
 使用 `CanWorldCommand`、`V05Back`、`SetMenuOpen`、`ClearControls`
 等现有控制器边界，不在每个 Widget 中重新判断一套角色可行动状态。
-`CanWorldCommand` 读取匹配的 DemoLobby 阶段和本人 Core 生命投影；
+`CanWorldCommand` 是两半之积（实现在 `LDPlayerInput.cpp`）：
+`IsWorldLifeValid()` 只看生命与阶段——`PublicMatch`（唯一的代次/阶段来源，不读 DemoLobby 镜像）的代次等于
+本人 Core 生命投影的 Match、阶段为 Development/CaptureOpen、本人 Alive 且持有身体；
+`IsWorldInputSuppressed()` 只看本地输入——菜单/设置（`SetMenuOpen`）、文本编辑或子确认（`IsWorldInputCaptured()`），
+以及菜单、焦点或映射变化后仍未释放的按键。新的世界命令（订单、Q/W/1/2、A、S、世界与小地图点击）两半都要满足；
+Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、窗口内焦点移入面板控件（引擎经 `FlushPressedKeys` 清键）
+和重建映射都只经 `ReleaseLocalInput` 取消本地准备态与回中锁存并等待按键释放：
+不 Stop 已接受订单、不停心跳、不阻断身体沿路径前进，关闭后也不重放仍按住的输入。
+只有操作系统失焦由 Navigation 一次 Stop 并停发心跳，回焦后需新手势，不自动续走。
 旧职业准备、持续 hold、物品快捷与旧 Armed 字段及 RPC 已随生产者删除。
-暂停菜单不暂停共享世界；焦点丢失、死亡、离开和终局要清除适用的移动/指向/交互状态。
+暂停菜单不暂停共享世界；死亡、离开和终局清除适用的移动/指向/交互状态。
 
 `ULDUIRoot` 是唯一的本地界面层来源：`TopInputLayer()` 报告文本编辑、子确认或主面板；
 同一时刻只开一个主面板（`ToggleMainPanel`：菜单、设置，以及经 `RegisterMainPanel` 登记的属性/三选一/小卖部），
 未登记的面板明确提示尚未接入。Esc 经 `V05Back` 每次只处理一层：
-`CloseTopModal`（结束文本编辑或关闭子确认）→ `CloseTopPanel`（关闭主面板）→ 打开菜单；
-战斗准备态的取消入口接入后插在前两步之间。关闭面板不停止已接受订单、不提交或回滚领域请求。
+`CloseTopModal`（结束文本编辑或关闭子确认）→ `CancelArmedCombat`（取消战斗准备态）→ `CloseTopPanel`（关闭主面板）→ 打开菜单。
+关闭面板不停止已接受订单、不提交或回滚领域请求。
+顶层为文本编辑或子确认时，`IsWorldInputCaptured()` 拦下全部新输入：Q/W/1/2 与 A 不进入准备态也不发送
+（HUD 图标同样经 `ActivateCombatEntry`），S、世界点击、镜头键与缩放都不生效；子确认在已有准备态之上打开时，
+控制器在下一帧前取消该准备态。它属于输入抑制一半，只拦新输入，已接受订单与其心跳继续。
 P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 
 动作入口只来自 `ULDControlSettings::Definitions()` 这一份 Demo 注册表，不按 profile 分派。
@@ -134,7 +145,14 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 
 镜头使用固定方向的俯视斜角，可跟随、回中、平移和缩放。
 `PanCamera`、`Recenter`、`ToggleFollow`、`PanTo` 与 `TickCamera` 共享镜头状态。
-边缘平移需尊重应用焦点、UI 遮挡和操作模式；滚轮在面板上滚动面板，不同时缩放世界。
+边缘平移需尊重应用焦点、UI 遮挡和操作模式：失焦、指针在 UI 上、小地图拖动或战斗准备态期间不边缘平移；
+滚轮在面板上滚动面板，不同时缩放世界。
+
+死亡等待期间（`IsAwaitingRespawn`，输入门为 `CanCameraCommand`），`TickCamera` 用同一镜头状态驱动
+控制器的等待镜头，按身体默认镜臂（`ALDCharacter::DefaultArmCameraPose`）摆放：键盘/边缘平移与小地图拖动
+移动静态地图镜头，缩放直接改写已应用的镜头距离偏好，新身体沿用该值；回中与跟随键提示“无存活角色”。
+等待镜头从这一生最后的镜头中心起步，只夹在静态地图边界内，不跟随任何单位、不产生游戏移动，
+也不改变视野来源；复活后由新身体接回镜头并恢复已保存的跟随偏好。
 
 小地图的坐标转换应使用当前地图定义。点击静态地图不授予对隐藏单位的锁定或远程交互能力，
 远处镜头也不会把身体的攻击/商店距离一起移动。
