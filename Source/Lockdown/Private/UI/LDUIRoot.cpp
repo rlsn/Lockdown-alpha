@@ -867,6 +867,21 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     else if(CloseMainPanelsExcept(Panel)){Target->OpenPanel();}
 }
 
+bool ULDUIRoot::ShowMainPanel(ELDUIMainPanel Panel)
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    const int32 Index=MainPanelIndex(Panel);
+    ULDPanel* Target=Index==INDEX_NONE?nullptr:MainPanels[Index].Get();
+    if(!PC||!Target||PC->IsFrontend()||bInLobby||Confirm!=ELDRootConfirm::None){return false;}
+    if(Target->IsPanelOpen()){return true;}
+    // A late event never replaces the menu or Settings the player opened afterwards.
+    const ELDUIMainPanel Active=ActiveMainPanel();
+    if(Active==ELDUIMainPanel::Menu||Active==ELDUIMainPanel::Settings){return false;}
+    if(!CloseMainPanelsExcept(Panel)){return false;}
+    Target->OpenPanel();
+    return Target->IsPanelOpen();
+}
+
 bool ULDUIRoot::CloseMainPanelsExcept(ELDUIMainPanel Keep)
 {
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());

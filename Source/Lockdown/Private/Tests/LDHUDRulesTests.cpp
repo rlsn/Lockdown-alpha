@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
 #include "Internationalization/StringTableCore.h"
@@ -198,6 +199,50 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     const LDHUD::FResultRowView Shown=LDHUD::ResultRow(Row,Row.ContenderId,FGuid());
     TestTrue(TEXT("A frozen row keeps the departed AI and its statistics"),Shown.Name==TEXT("机器人（AI）（已离开）")&&Shown.Kills==TEXT("3")&&Shown.Deaths==TEXT("1")&&Shown.Level==TEXT("7")&&Shown.bWinner);
     TestFalse(TEXT("Statistics never mark a winner on their own"),LDHUD::ResultRow(Row,FGuid(),FGuid()).bWinner);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDContentParametersTest,"Lockdown.Rules.HUDContentParameters",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
+{
+    FLDDemoStatBonus Stat;Stat.Stat=ELDDemoBonusStat::ADFlat;Stat.Amount=2000;
+    TestEqualSensitive(TEXT("Flat stats are P2 points"),LDHUD::StatLine(Stat),FString(TEXT("手劲 +20")));
+    Stat.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Stat.Amount=1000;
+    TestEqualSensitive(TEXT("Ratio stats are basis points"),LDHUD::StatLine(Stat),FString(TEXT("手速 +10%")));
+    Stat.Stat=ELDDemoBonusStat::AttackRangeCmFlat;Stat.Amount=0;Stat.Cm.Numerator=40;Stat.Cm.Denominator=1;
+    TestEqualSensitive(TEXT("Range bonuses are centimetres"),LDHUD::StatLine(Stat),FString(TEXT("攻击距离 +40cm")));
+    FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=7000;Damage.APRatioBp=6500;Damage.DamageType=ELDDemoDamageType::Magical;
+    TestEqualSensitive(TEXT("Magic damage uses the approved term and its AP scaling"),LDHUD::EffectLine(Damage),FString(TEXT("社死伤害 70 + 65%缺德值")));
+    FLDDemoEffectDefinition Root;Root.Opcode=uint8(ELDDemoEffectOp::Root);Root.DurationMs=1300;
+    TestEqualSensitive(TEXT("Control duration is shown in seconds"),LDHUD::EffectLine(Root),FString(TEXT("定身 1.3s")));
+    FLDDemoEffectDefinition Unknown;Unknown.Opcode=200;
+    TestEqualSensitive(TEXT("An unknown effect is reported, never described"),LDHUD::EffectLine(Unknown),FString(TEXT("未知效果 #200")));
+    FLDDemoRankDefinition Rank;Rank.Rank=1;Rank.ManaCostP2=4500;Rank.CooldownMs=8000;Rank.Effects.Add(Damage);
+    const TArray<FString> Lines=LDHUD::RankLines(Rank,true);
+    TestTrue(TEXT("Active rank lines carry the effect then mana and cooldown"),Lines.Num()==2&&Lines[1]==TEXT("胆量 45 · 冷却 8s"));
+    TestEqual(TEXT("Passive ranks have no cost line"),LDHUD::RankLines(Rank,false).Num(),1);
+    FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");Bolt.Kind=ELDDemoAbilityKind::Active;
+    Bolt.Target.Mode=ELDDemoTargetMode::DirectionProjectile;Bolt.Target.RangeCm.Numerator=650;Bolt.Target.RangeCm.Denominator=1;
+    FLDDemoRankDefinition Second=Rank;Second.Rank=2;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
+    FLDProgressionView Progression;
+    for(uint8 Slot=0;Slot<2;++Slot){FLDLearnedSkillView Skill;Skill.DefinitionId=Slot?FName(TEXT("active_guard_pulse")):FName(TEXT("active_binding_snare"));Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);}
+    FLDChoiceOption Learn;Learn.Kind=ELDChoiceOptionKind::LearnActive;Learn.DefinitionId=TEXT("hud_rules_fixture_bolt");Learn.ToRank=1;
+    AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
+    const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content);
+    TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动技能")&&Card.RankText==TEXT("1 级"));
+    TestTrue(TEXT("The card shows the target form and the rank's typed parameters"),Card.Lines.Num()==3&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm"));
+    FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
+    const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content);
+    TestTrue(TEXT("An upgrade states both ranks and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("1 → 2 级"));
+    FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
+    Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
+    const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);
+    TestTrue(TEXT("Attribute rows use the approved name and show ratios as percent"),Row.Name==TEXT("正中要害率")&&Row.Final==TEXT("20%"));
+    TestEqualSensitive(TEXT("Shop failures are explained in the approved terms"),LDHUD::GrowthReasonText(ELDGrowthReason::InsufficientGold),FString(TEXT("零花钱不足")));
+    TestEqualSensitive(TEXT("A full equipment bar says to sell first"),LDHUD::GrowthReasonText(ELDGrowthReason::EquipmentFull),FString(TEXT("装备槽已满，请先卖出一件")));
+    TestEqualSensitive(TEXT("Combat rejections are explained"),LDHUD::CombatRejectText(ELDCombatReject::OutOfRange),FString(TEXT("超出射程")));
+    FLDCombatEntryView Entry;Entry.DefinitionId=NAME_None;Entry.Unavailable=ELDCombatReject::SourceUnavailable;
+    const LDHUD::FActionInput Empty=LDHUD::ActionInput(Entry,LDHUD::EActionSlot::Q,&Content);
+    TestTrue(TEXT("An empty combat entry is an explicit empty source with the server reason kept for display"),Empty.bProjected&&!Empty.bHasSource&&Empty.ServerBlock==TEXT("没有可用来源"));
     return true;
 }
 #endif

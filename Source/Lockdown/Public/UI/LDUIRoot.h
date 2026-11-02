@@ -53,6 +53,9 @@ public:
     ELDUIMainPanel ActiveMainPanel() const;
     // One main panel at a time: closes the others first and toggles the active one closed.
     void ToggleMainPanel(ELDUIMainPanel Panel);
+    // Opens a registered panel without toggling (an authoritative event such as the shop's Opened result).
+    // False when it is not registered, the root confirmation is up, or another panel keeps itself open.
+    bool ShowMainPanel(ELDUIMainPanel Panel);
     // HUD-created Attributes/Choices/Shop panels, held weakly; nullptr unregisters.
     void RegisterMainPanel(ELDUIMainPanel Panel, ULDPanel* Widget);
     // The single leave path (lobby, in-match menu and the HUD result screen): back to the frontend.

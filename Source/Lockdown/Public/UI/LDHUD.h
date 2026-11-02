@@ -9,6 +9,10 @@ class UProgressBar;
 class USizeBox;
 class ULDCommandButton;
 class ULDMinimap;
+class ULDPanel;
+class ULDAttributesPanel;
+class ULDChoicesPanel;
+class ULDShopPanel;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
@@ -33,6 +37,10 @@ public:
     void RefreshReadModel();
     bool PointerOverUI() const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
+    // The three normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time.
+    UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
+    UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
+    UPROPERTY() TObjectPtr<ULDShopPanel> ShopPanel;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
@@ -86,8 +94,11 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
     double FeedbackAt=0;
+    // The toast shows controller intent feedback and local panel notices; SeenIntent tracks only the former.
     FString LastFeedback;
+    FString SeenIntent;
     uint32 SeenFeedback=0;
+    void ShowToast(const FString& Text);
     // Kill notices already shown, by public serial within one match generation; each fades on local time only.
     uint32 KillGeneration=0;
     uint64 KillSerial=0;
@@ -103,4 +114,5 @@ private:
     void RefreshKillFeed(const class ALDGameState& Public,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
     void RefreshResult(class ALDPlayerController& PC,const class ALDGameState& Public);
     bool IsUIAt(FVector2D Absolute) const;
+    TArray<ULDPanel*,TInlineAllocator<3>> MainPanels() const;
 };

@@ -1,6 +1,7 @@
 #include "UI/LDHUDModel.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 
@@ -305,3 +306,273 @@ FVector2D LDHUD::MapPoint(const FVector& P,const FBox2D& G)
 {const FVector2D Span=G.GetSize();return FVector2D((P.X-G.Min.X)/Span.X,1-(P.Y-G.Min.Y)/Span.Y);}
 FVector LDHUD::MapWorld(const FVector2D& P,const FBox2D& G)
 {const FVector2D Span=G.GetSize();return FVector(G.Min.X+FMath::Clamp(P.X,0.,.999999)*Span.X,G.Min.Y+(1-FMath::Clamp(P.Y,.000001,1.))*Span.Y,0);}
+
+namespace
+{
+// Two-decimal text without trailing zeros; formatting only, never fed back into a rule.
+FString HudDecimal(double Value)
+{
+    FString Text=FString::Printf(TEXT("%.2f"),Value);
+    while(Text.EndsWith(TEXT("0"))){Text.LeftChopInline(1);}
+    if(Text.EndsWith(TEXT("."))){Text.LeftChopInline(1);}
+    return Text==TEXT("-0")?FString(TEXT("0")):Text;
+}
+FString HudPoints(int64 P2){return HudDecimal(double(P2)/100.);}
+FString HudPercent(int64 Bp){return HudDecimal(double(Bp)/100.)+TEXT("%");}
+FString HudSeconds(int64 Ms){return HudDecimal(double(Ms)/1000.)+TEXT("s");}
+FString HudRational(const FLDDemoRational& Value){return Value.Denominator>0?HudDecimal(double(Value.Numerator)/double(Value.Denominator)):FString(TEXT("?"));}
+const TCHAR* HudBonusStatName(ELDDemoBonusStat Stat)
+{
+    switch(Stat)
+    {
+    case ELDDemoBonusStat::ADFlat: return TEXT("手劲");
+    case ELDDemoBonusStat::APFlat: return TEXT("缺德值");
+    case ELDDemoBonusStat::MaxHPFlat: return TEXT("最大面子");
+    case ELDDemoBonusStat::MaxMPFlat: return TEXT("最大胆量");
+    case ELDDemoBonusStat::ArmorFlat: return TEXT("抗揍");
+    case ELDDemoBonusStat::MagicResistFlat: return TEXT("脸皮");
+    case ELDDemoBonusStat::CooldownHasteFlat: return TEXT("鬼点子");
+    case ELDDemoBonusStat::AttackRangeCmFlat: return TEXT("攻击距离");
+    case ELDDemoBonusStat::AttackSpeedBonusRatio: return TEXT("手速");
+    case ELDDemoBonusStat::MoveSpeedBonusRatio: return TEXT("腿速");
+    case ELDDemoBonusStat::CritChanceBonusRatio: return TEXT("正中要害率");
+    default: return nullptr;
+    }
+}
+FString HudScaling(const FLDDemoEffectDefinition& Effect)
+{
+    FString Text=HudPoints(Effect.BaseP2);
+    if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+TEXT("手劲");}
+    if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+TEXT("缺德值");}
+    return Text;
+}
+}
+FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
+{
+    const TCHAR* Name=HudBonusStatName(Stat.Stat);
+    if(!Name){return FString::Printf(TEXT("未知属性 #%d"),int32(Stat.Stat));}
+    switch(Stat.Stat)
+    {
+    case ELDDemoBonusStat::AttackRangeCmFlat: return FString(Name)+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
+    case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
+        return FString(Name)+TEXT(" +")+HudPercent(Stat.Amount);
+    default: return FString(Name)+TEXT(" +")+HudPoints(Stat.Amount);
+    }
+}
+FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
+{
+    switch(Effect.GetOp())
+    {
+    case ELDDemoEffectOp::Damage: return FString(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
+    case ELDDemoEffectOp::Shield: return TEXT("获得淡定 ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::DispelRoot: return TEXT("移除自身全部定身");
+    case ELDDemoEffectOp::Root: return TEXT("定身 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::StatBonus:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        return Text.IsEmpty()?FString(TEXT("无属性加成")):Text;
+    }
+    case ELDDemoEffectOp::OutOfCombatRegen: return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后面子回复 +")+HudRational(Effect.HPPerSec)+TEXT("/s");
+    case ELDDemoEffectOp::Lifesteal: return TEXT("普攻造成的面子损失的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
+    case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
+    case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" 最大胆量");
+    case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
+    default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
+    }
+}
+FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
+{
+    switch(Target.Mode)
+    {
+    case ELDDemoTargetMode::Self: return TEXT("对自身释放");
+    case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
+    case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
+    case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
+    default: return TEXT("未知目标方式");
+    }
+}
+TArray<FString> LDHUD::RankLines(const FLDDemoRankDefinition& Rank,bool bActive)
+{
+    TArray<FString> Lines;
+    for(const FLDDemoEffectDefinition& Effect:Rank.Effects){Lines.Add(EffectLine(Effect));}
+    if(bActive){Lines.Add(TEXT("胆量 ")+HudPoints(Rank.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Rank.CooldownMs));}
+    return Lines;
+}
+LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    FChoiceCardView Card;
+    const FString Id=Option.DefinitionId.ToString();
+    Card.Name=ContentName(Content,Id);
+    FString Description;if(ContentText(Content,Id,true,Description)){Card.Description=Description;}
+    switch(Option.Kind)
+    {
+    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动技能");break;
+    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动技能升级");break;
+    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动技能");break;
+    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动技能升级");break;
+    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性提升");break;
+    default: Card.Kind=TEXT("未知选项");break;
+    }
+    if(Option.Kind==ELDChoiceOptionKind::Attribute)
+    {
+        const FLDAttributeCardView* Owned=Progression.AttributeCards.FindByPredicate([&Option](const FLDAttributeCardView& C){return C.DefinitionId==Option.DefinitionId;});
+        Card.RankText=FString::Printf(TEXT("已选 %d 次"),Owned?int32(Owned->Count):0);
+        if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
+        {for(const FLDDemoStatBonus& Stat:Definition->Stats){Card.Lines.Add(StatLine(Stat));}}
+        return Card;
+    }
+    Card.RankText=Option.FromRank>0?FString::Printf(TEXT("%d → %d 级"),Option.FromRank,Option.ToRank):FString::Printf(TEXT("%d 级"),Option.ToRank);
+    if(const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr)
+    {
+        const bool bActive=Ability->Kind==ELDDemoAbilityKind::Active;
+        if(bActive){Card.Lines.Add(TargetLine(Ability->Target));}
+        if(const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Option](const FLDDemoRankDefinition& R){return R.Rank==Option.ToRank;}))
+        {Card.Lines.Append(RankLines(*Rank,bActive));}
+        else{Card.Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),Option.ToRank));}
+    }
+    else if(Content){Card.Lines.Add(TEXT("内容目录中找不到该技能"));}
+    if(Option.Kind==ELDChoiceOptionKind::LearnActive)
+    {
+        int32 Filled=0;for(const FLDLearnedSkillView& Skill:Progression.Skills){if(Skill.bActive){++Filled;}}
+        Card.bNeedsReplacement=Filled>=2;
+    }
+    return Card;
+}
+LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
+{
+    FShopItemView View;
+    const FString Id=Item.DefinitionId.ToString();
+    View.Name=ContentName(Content,Id);
+    View.Price=FString::Printf(TEXT("买价 %lld · 卖价 %lld"),Item.BuyPrice,Item.SellGold);
+    View.bAffordable=Gold>=Item.BuyPrice;
+    if(const FLDDemoEquipmentDefinition* Definition=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr)
+    {
+        for(const FLDDemoStatBonus& Stat:Definition->Stats){View.Lines.Add(StatLine(Stat));}
+        if(Definition->HasPassive){for(const FLDDemoEffectDefinition& Effect:Definition->Passive.Effects){View.Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
+        if(Definition->HasActive)
+        {
+            View.Lines.Add(TEXT("主动 [1/2]：")+TargetLine(Definition->Active.Target));
+            for(const FString& Line:RankLines(Definition->Active.Rank,true)){View.Lines.Add(TEXT("  ")+Line);}
+        }
+        else{View.Lines.Add(TEXT("无主动效果"));}
+    }
+    else if(Content){View.Lines.Add(TEXT("内容目录中找不到该装备"));}
+    if(Item.bInheritsCooldown&&Item.InheritedReadyAtMs>0)
+    {View.Lines.Add(bClock&&Item.InheritedReadyAtMs>NowMs?TEXT("购买后继承未结束冷却 ")+TenthsUp(Item.InheritedReadyAtMs-NowMs):FString(TEXT("购买后继承此前的冷却记录")));}
+    return View;
+}
+LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
+{
+    static const TCHAR* Names[]={TEXT("最大面子"),TEXT("最大胆量"),TEXT("手劲"),TEXT("缺德值"),TEXT("抗揍"),TEXT("脸皮"),TEXT("手速"),TEXT("腿速"),
+        TEXT("攻击距离"),TEXT("面子回复"),TEXT("胆量回复"),TEXT("正中要害率"),TEXT("鬼点子")};
+    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/秒"),TEXT(" cm/s"),TEXT(" cm"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
+    FAttributeRowView View;
+    if(Row.Attribute>=UE_ARRAY_COUNT(Names)){View.Name=FString::Printf(TEXT("未知属性 #%d"),Row.Attribute);View.Final=TEXT("—");return View;}
+    View.Name=Names[Row.Attribute];View.bClamped=Row.bClamped;
+    const bool bRatio=static_cast<ELDProjectedAttribute>(Row.Attribute)==ELDProjectedAttribute::CritChance;
+    auto Value=[bRatio](const FLDDemoRational& V){if(V.Denominator<=0){return FString(TEXT("?"));}const double D=double(V.Numerator)/double(V.Denominator);return bRatio?HudDecimal(D*100.)+TEXT("%"):HudDecimal(D);};
+    View.Final=Value(Row.Final)+Units[Row.Attribute]+(Row.bClamped?TEXT("（已达上下限）"):TEXT(""));
+    View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 三选一 ")+Value(Row.Choices)+TEXT(" · 被动 ")+Value(Row.Passives)
+        +TEXT(" · 装备 ")+Value(Row.Equipment);
+    if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
+    {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
+    return View;
+}
+FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
+{
+    switch(Reason)
+    {
+    case ELDGrowthReason::None: return FString();
+    case ELDGrowthReason::InvalidRequest: return TEXT("请求无效");
+    case ELDGrowthReason::OldMatch: return TEXT("已不是当前对局");
+    case ELDGrowthReason::OldLife: return TEXT("已不是当前生命");
+    case ELDGrowthReason::LifePhaseChanged: return TEXT("生死状态已变化，请重新确认");
+    case ELDGrowthReason::LeftMatch: return TEXT("你已离开本局");
+    case ELDGrowthReason::MatchClosed: return TEXT("对局已结束");
+    case ELDGrowthReason::NotContender: return TEXT("不是本局参赛者");
+    case ELDGrowthReason::CatalogMismatch: return TEXT("内容版本不一致");
+    case ELDGrowthReason::NotAuthority: return TEXT("服务器不可用");
+    case ELDGrowthReason::Dead: return TEXT("社死中不能交易");
+    case ELDGrowthReason::RequestConflict: return TEXT("请求冲突，未执行");
+    case ELDGrowthReason::OutOfOrder: return TEXT("请求顺序错误，未执行");
+    case ELDGrowthReason::ReceiptExpired: return TEXT("回执已过期，请以当前状态为准");
+    case ELDGrowthReason::RequestInFlight: return TEXT("上一个请求仍在处理中");
+    case ELDGrowthReason::NoOffer: return TEXT("当前没有待选奖励");
+    case ELDGrowthReason::UnknownOffer: return TEXT("这组奖励已失效");
+    case ELDGrowthReason::InvalidOption: return TEXT("该选项无效");
+    case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("这次奖励已经选过了");
+    case ELDGrowthReason::OfferGuardStale: return TEXT("内容已更新，请重新确认");
+    case ELDGrowthReason::BuildStale: return TEXT("构筑已变化，请重新确认");
+    case ELDGrowthReason::ReplacementRequired: return TEXT("主动技能槽已满，需要选择替换哪个技能");
+    case ELDGrowthReason::ReplacementMismatch: return TEXT("要替换的技能已变化，请重新选择");
+    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("该选项不能替换技能");
+    case ELDGrowthReason::NoShopSession: return TEXT("小卖部尚未打开");
+    case ELDGrowthReason::QuoteStale: return TEXT("报价已更新，请重新确认");
+    case ELDGrowthReason::PriceChanged: return TEXT("价格已变化，请重新确认");
+    case ELDGrowthReason::UnknownItem: return TEXT("未知商品");
+    case ELDGrowthReason::ItemNotOwned: return TEXT("你没有这件装备");
+    case ELDGrowthReason::ItemStale: return TEXT("装备已变化，请重新确认");
+    case ELDGrowthReason::EquipmentFull: return TEXT("装备槽已满，请先卖出一件");
+    case ELDGrowthReason::InsufficientGold: return TEXT("零花钱不足");
+    case ELDGrowthReason::InventoryStale: return TEXT("装备已变化，请重新确认");
+    case ELDGrowthReason::AccountStale: return TEXT("零花钱已变化，请重新确认");
+    case ELDGrowthReason::UnknownShop: return TEXT("未知的小卖部");
+    case ELDGrowthReason::StaleWorld: return TEXT("世界版本不一致");
+    case ELDGrowthReason::OutsideRange: case ELDGrowthReason::InvalidApproachRegion: return TEXT("不在小卖部交互范围内");
+    case ELDGrowthReason::NotGrounded: return TEXT("需要站在地面上");
+    case ELDGrowthReason::InvalidGround: case ELDGrowthReason::WrongSurface: return TEXT("当前位置不能交易");
+    case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
+    case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
+    case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
+    case ELDGrowthReason::NumericDomain: return TEXT("数值非法，本次没有提交");
+    case ELDGrowthReason::ArithmeticOverflow: return TEXT("数值溢出，本次没有提交");
+    case ELDGrowthReason::DataInvalid: return TEXT("数据无效，本次没有提交");
+    case ELDGrowthReason::PrepareUnavailable: return TEXT("暂时无法提交，请稍后重试");
+    case ELDGrowthReason::AuthorityFault: return TEXT("服务器故障，本次没有提交");
+    case ELDGrowthReason::CapacityExceeded: return TEXT("服务器容量已满");
+    default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
+    }
+}
+FString LDHUD::CombatRejectText(ELDCombatReject Reject)
+{
+    switch(Reject)
+    {
+    case ELDCombatReject::None: return FString();
+    case ELDCombatReject::InvalidRequest: return TEXT("请求无效");
+    case ELDCombatReject::NotOwner: return TEXT("不是你的角色");
+    case ELDCombatReject::StaleMatch: return TEXT("已不是当前对局");
+    case ELDCombatReject::StaleLife: return TEXT("已不是当前生命");
+    case ELDCombatReject::StaleRequest: return TEXT("请求已过期");
+    case ELDCombatReject::RequestConflict: return TEXT("请求冲突");
+    case ELDCombatReject::ReceiptExpired: return TEXT("回执已过期");
+    case ELDCombatReject::Cancelled: return TEXT("已取消");
+    case ELDCombatReject::StaleSource: return TEXT("技能或装备已变化");
+    case ELDCombatReject::SourceUnavailable: return TEXT("没有可用来源");
+    case ELDCombatReject::NoActiveEffect: return TEXT("无主动效果");
+    case ELDCombatReject::Busy: return TEXT("正在执行其他动作");
+    case ELDCombatReject::Cooldown: return TEXT("冷却中");
+    case ELDCombatReject::AttackNotReady: return TEXT("普攻尚未就绪");
+    case ELDCombatReject::InsufficientMana: return TEXT("胆量不足");
+    case ELDCombatReject::ControlBlocked: return TEXT("受控制无法使用");
+    case ELDCombatReject::TargetUnavailable: return TEXT("目标不可用");
+    case ELDCombatReject::InvalidDirection: return TEXT("方向无效");
+    case ELDCombatReject::OutOfRange: return TEXT("超出射程");
+    case ELDCombatReject::Blocked: return TEXT("被地形阻挡");
+    case ELDCombatReject::Dead: return TEXT("社死中");
+    case ELDCombatReject::MatchClosed: return TEXT("对局已结束");
+    case ELDCombatReject::AuthorityDataUnavailable: return TEXT("服务器数据不可用");
+    case ELDCombatReject::CapacityUnavailable: return TEXT("服务器容量不足");
+    default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reject));
+    }
+}
+LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content)
+{
+    FActionInput Input;
+    Input.Slot=Slot;Input.bProjected=true;
+    Input.bHasSource=!Entry.DefinitionId.IsNone();
+    if(Input.bHasSource){Input.Name=ContentName(Content,Entry.DefinitionId.ToString());}
+    Input.Rank=Entry.Rank;Input.bHasActive=Entry.bHasActive;Input.ManaCostP2=Entry.ManaCostP2;
+    Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
+    Input.ServerBlock=CombatRejectText(Entry.Unavailable);
+    return Input;
+}

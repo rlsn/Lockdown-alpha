@@ -1,5 +1,8 @@
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDAttributesPanel.h"
+#include "UI/LDChoicesPanel.h"
+#include "UI/LDShopPanel.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDControlSettings.h"
@@ -132,7 +135,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
         MapBox->AddChildToVerticalBox(MapFrame);
         SightText=Text(TEXT(""),13);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,4));
-        MapBox->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,TEXT("设置"),[PC](){PC->ToggleControlsPanel();},true,TEXT("HUDSettings")));
+        MapBox->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,TEXT("设置"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);}},true,TEXT("HUDSettings")));
         MapColumn=Panel(MapBox,true);Place(MapColumn,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
 
         // Bottom band: own identity, resources, the 2+2 action entries and utilities.
@@ -168,14 +171,31 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         }
         Bottom->AddChildToHorizontalBox(Actions)->SetPadding(FMargin(0,0,8,0));
         auto* Utility=WidgetTree->ConstructWidget<UVerticalBox>();
+        // Own panels open while dead as well (UI 3.2); the root keeps one main panel at a time.
+        auto* PanelRow=WidgetTree->ConstructWidget<UHorizontalBox>();Utility->AddChildToVerticalBox(PanelRow)->SetPadding(FMargin(0,0,0,6));
+        auto* Pick=LDWidgets::Button(WidgetTree,TEXT("待选"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoices"));
+        auto* Sheet=LDWidgets::Button(WidgetTree,TEXT("属性"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes);}},true,TEXT("HUDAttributes"));
+        Commands.Add(TEXT("Choices"),Pick);Commands.Add(TEXT("Attributes"),Sheet);
+        PanelRow->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(0,0,6,0));PanelRow->AddChildToHorizontalBox(Sheet);
         auto* Stop=LDWidgets::Button(WidgetTree,TEXT("停止"),[PC](){if(PC->CanWorldCommand()){PC->Navigation->Stop();}},true,TEXT("HUDStop"));
         Commands.Add(TEXT("Stop"),Stop);Utility->AddChildToVerticalBox(Stop);
         CameraText=Text(TEXT(""),13);Utility->AddChildToVerticalBox(CameraText)->SetPadding(FMargin(0,6,0,0));
-        auto* UtilityWidth=WidgetTree->ConstructWidget<USizeBox>();UtilityWidth->SetWidthOverride(150);UtilityWidth->SetContent(Utility);
+        auto* UtilityWidth=WidgetTree->ConstructWidget<USizeBox>();UtilityWidth->SetWidthOverride(196);UtilityWidth->SetContent(Utility);
         Bottom->AddChildToHorizontalBox(UtilityWidth);
         Band=Panel(Bottom,true);Place(Band,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-12));
 
         Toast=Text(TEXT(""),16);ToastPanel=Panel(Toast,false);Place(ToastPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-150));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
+
+        // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
+        AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);ShopPanel=CreateWidget<ULDShopPanel>(PC);
+        const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Attributes,AttributesPanel.Get()},{ELDUIMainPanel::Choices,ChoicesPanel.Get()},{ELDUIMainPanel::Shop,ShopPanel.Get()}};
+        for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
+        {
+            if(!Entry.Value){UE_LOG(LogTemp,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
+            auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
+            if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
+        }
+        if(ShopPanel){ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
     }
     return Super::RebuildWidget();
 }
@@ -186,7 +206,14 @@ bool ULDHUD::PointerOverUI() const
 bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
+    for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
+}
+TArray<ULDPanel*,TInlineAllocator<3>> ULDHUD::MainPanels() const
+{
+    TArray<ULDPanel*,TInlineAllocator<3>> Result;
+    for(ULDPanel* Panel:{static_cast<ULDPanel*>(AttributesPanel.Get()),static_cast<ULDPanel*>(ChoicesPanel.Get()),static_cast<ULDPanel*>(ShopPanel.Get())}){if(Panel){Result.Add(Panel);}}
+    return Result;
 }
 FReply ULDHUD::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseButtonDown(G,E);}
@@ -212,6 +239,11 @@ void ULDHUD::RefreshReadModel()
     // Full-viewport menus draw below this widget, so the HUD steps aside while they are open.
     const bool Overlay=(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
     const bool bShow=Playing&&!Overlay;
+    if(!Playing)
+    {
+        // The result replaces gameplay UI: no main panel outlives play (UI 3.1); closing never undoes submitted work.
+        for(ULDPanel* Open:MainPanels()){if(Open->IsPanelOpen()){Open->ClosePanel();}}
+    }
     HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
@@ -225,6 +257,8 @@ void ULDHUD::RefreshReadModel()
     if(AppliedScale!=TextScale)
     {
         const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);
+        // The docked panels own separate widget trees; their text follows the same preference.
+        for(ULDPanel* Docked:MainPanels()){if(Docked->WidgetTree){TArray<UWidget*> Inner;Docked->WidgetTree->GetAllWidgets(Inner);All.Append(Inner);}}
         for(auto* W:All){if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);Label->SetFont(Font);}}
     }
     if(MapAspect<=0)
@@ -272,6 +306,14 @@ void ULDHUD::RefreshReadModel()
     LevelBar->SetPercent(Level.Fraction);HudSetText(LevelText,Level.Level+TEXT(" · ")+Level.Experience);
     HudSetText(GoldText,LDHUD::Gold(O.Gold));
 
+    // Combat's owner projection and Growth's progression/equipment/shop views are not published to the owner yet:
+    // the panels show their syncing state and never fill these sections with zeroes.
+    if(AttributesPanel){AttributesPanel->Present(nullptr,nullptr,bClock,NowMs,Content);}
+    if(ChoicesPanel){ChoicesPanel->Present(FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
+    if(ShopPanel){ShopPanel->Present(nullptr,nullptr,false,0,O.Match,O.Life,O.LifePhase,bClock,NowMs,Content);}
+    if(ULDCommandButton* Pick=Commands.FindRef(TEXT("Choices"))){HudSetText(CastChecked<UTextBlock>(Pick->GetContent()),TEXT("待选 —"));}
+    if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
+
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
         // No Combat owner projection is published to this widget yet, so each entry reports "未同步" instead of guessing.
@@ -313,9 +355,13 @@ void ULDHUD::RefreshReadModel()
 
     // Toast fade is local presentation time; it is never compared with an authority deadline.
     const double UiNow=GetWorld()->GetRealTimeSeconds();
-    if(LastFeedback!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){LastFeedback=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();FeedbackAt=UiNow;}
+    if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
     HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+}
+void ULDHUD::ShowToast(const FString& Text)
+{
+    LastFeedback=Text;FeedbackAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
 }
 void ULDHUD::RefreshKillFeed(const ALDGameState& Public,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs)
 {

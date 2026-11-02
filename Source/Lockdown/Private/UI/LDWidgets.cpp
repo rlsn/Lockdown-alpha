@@ -20,6 +20,11 @@ ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunc
 #include "Components/Border.h"
 #include "Rendering/DrawElements.h"
 UWidget* ULDPanel::FocusScope() const{return WidgetTree?WidgetTree->RootWidget:nullptr;}
+bool ULDPanel::IsPanelHit(FVector2D Absolute) const
+{
+    const UWidget* Area=HitArea();
+    return IsPanelOpen()&&IsVisible()&&Area&&Area->IsVisible()&&Area->GetCachedGeometry().IsUnderLocation(Absolute);
+}
 TArray<UWidget*> ULDPanel::PanelFocusTargets() const
 {
     TArray<UWidget*> Result;

@@ -39,8 +39,11 @@ public:
     virtual bool ClosePanel() {return false;}
     virtual bool HasChildConfirmation() const {return false;}
     virtual bool CloseChildConfirmation() {return false;}
+    // Normal panels take pointer input only over their own area, so world clicks beside them still reach the world.
+    bool IsPanelHit(FVector2D Absolute) const;
 protected:
     virtual UWidget* FocusScope() const;
+    virtual UWidget* HitArea() const {return FocusScope();}
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual int32 NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const override;
 };

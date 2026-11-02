@@ -1,5 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Combat/LDCombatTypes.h"
+#include "Development/LDGrowthProtocol.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -8,6 +10,10 @@
 // roster/content labels, never a canonical actor or another player's owner state.
 // Player-visible Chinese follows APP_SPEC 1.2; identifiers, enums and content keys keep their technical names.
 struct FLDDemoContentDefinitions;
+struct FLDDemoStatBonus;
+struct FLDDemoEffectDefinition;
+struct FLDDemoTargetDefinition;
+struct FLDDemoRankDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
@@ -150,4 +156,44 @@ namespace LDHUD
     // Map fractions over the registered ground bounds that observation coverage also uses.
     LOCKDOWN_API FVector2D MapPoint(const FVector& World,const FBox2D& Ground);
     LOCKDOWN_API FVector MapWorld(const FVector2D& Fraction,const FBox2D& Ground);
+
+    // Typed parameters of approved content (CONTENT 12.5): prose comes from the display table, numbers only from the
+    // immutable snapshot fields, formatted here without recomputing any battle formula.
+    LOCKDOWN_API FString StatLine(const FLDDemoStatBonus& Stat);
+    LOCKDOWN_API FString EffectLine(const FLDDemoEffectDefinition& Effect);
+    LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
+    // Effect lines of one rank; actives add their mana cost and cooldown.
+    LOCKDOWN_API TArray<FString> RankLines(const FLDDemoRankDefinition& Rank,bool bActive);
+    struct FChoiceCardView
+    {
+        FString Kind;
+        FString Name;
+        FString RankText;
+        FString Description;
+        TArray<FString> Lines;
+        bool bNeedsReplacement=false;
+    };
+    // One of the three fixed options of the current offer; a learn-active card with both Q/W filled needs an explicit replacement.
+    LOCKDOWN_API FChoiceCardView ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    struct FShopItemView
+    {
+        FString Name;
+        FString Price;
+        TArray<FString> Lines;
+        bool bAffordable=false;
+    };
+    LOCKDOWN_API FShopItemView ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    struct FAttributeRowView
+    {
+        FString Name;
+        FString Final;
+        FString Breakdown;
+        bool bClamped=false;
+    };
+    // One combat-projected attribute with its sources; the HUD never recomputes the projection.
+    LOCKDOWN_API FAttributeRowView AttributeRow(const FLDCombatAttributeRowView& Row);
+    LOCKDOWN_API FString GrowthReasonText(ELDGrowthReason Reason);
+    LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);
+    // Owner combat entry -> action input; Unavailable stays a display-only server reason.
+    LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
 }
