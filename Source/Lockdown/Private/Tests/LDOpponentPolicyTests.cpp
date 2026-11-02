@@ -2,15 +2,21 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "AI/LDOpponentFrame.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDGrowthProtocol.h"
 #include "../Development/LDDemoContentJson.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Navigation/LDOrderTypes.h"
+#include "Region/LDMapGeometry.h"
 #include "UObject/Package.h"
+#include "Vision/LDViewTypes.h"
 
 namespace LDOpponentPolicyTests
 {
@@ -625,6 +631,238 @@ bool RunPriorities(FAutomationTestBase& Test)
         EMode::Engage, EBody::AttackUnit);
     return bGood;
 }
+
+FLDDemoWorldAnchor Anchor(const TCHAR* Id, ELDDemoWorldAnchorKind Kind, int64 X, int64 Y)
+{
+    FLDDemoWorldAnchor Out;
+    Out.Id = Id;
+    Out.Kind = Kind;
+    Out.SurfaceId = TEXT("ground");
+    Out.PositionCm.X.Numerator = X;
+    Out.PositionCm.Y.Numerator = Y;
+    return Out;
+}
+
+FLDObservedUnitView ObservedContender(uint32 Handle, double X, uint8 Status)
+{
+    FLDObservedUnitView Out;
+    Out.Handle = FGuid(0xF0, 0, 0, Handle);
+    Out.ObservationEpoch = 1;
+    Out.StateRevision = 1;
+    Out.AuthorizedFieldMask = LDObservation::ContenderFields;
+    Out.Kind = ELDObservedUnitKind::Contender;
+    Out.FeetCm = FVector(X, 0, 0);
+    Out.ContenderId = FGuid(0xF1, 0, 0, Handle);
+    Out.Level = 3;
+    Out.Health.CurrentP2 = 50000;
+    Out.Health.MaxP2 = 62000;
+    Out.Mana.CurrentP2 = 10000;
+    Out.Mana.MaxP2 = 28000;
+    if (Status)
+    {
+        FLDObservedStatus Protection;
+        Protection.StatusId = Status;
+        Protection.ExpiresAtServerMs = 5000;
+        Out.Statuses.Add(Protection);
+    }
+    return Out;
+}
+
+FLDObservedUnitView ObservedMember(uint32 Handle, uint8 Creature, bool bReturning)
+{
+    FLDObservedUnitView Out;
+    Out.Handle = FGuid(0xF0, 0, 0, Handle);
+    Out.ObservationEpoch = 2;
+    Out.StateRevision = 1;
+    Out.AuthorizedFieldMask = LDObservation::CampFields;
+    Out.Kind = ELDObservedUnitKind::CampMember;
+    Out.FeetCm = FVector(2000, 0, 0);
+    Out.CreatureId = Creature;
+    Out.Health.CurrentP2 = Out.Health.MaxP2 = 42000;
+    if (bReturning)
+    {
+        FLDObservedStatus Returning;
+        Returning.StatusId = uint8(ELDDemoStatusId::CampReturning);
+        Out.Statuses.Add(Returning);
+    }
+    return Out;
+}
+
+bool RunProjections(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    FString Error;
+
+    FLDDemoWorldGeometry World;
+    World.Anchors = {Anchor(TEXT("capture"), ELDDemoWorldAnchorKind::Capture, 0, 3000),
+        Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
+        Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500)};
+    TArray<FLDOpponentPOI> POIs;
+    bool bGood = Test.TestTrue(TEXT("Approved anchors join the content camp placement: ") + Error,
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 5);
+    const auto* High = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("h1"); });
+    const auto* Low = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("l2"); });
+    const auto* Spawn = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("s00"); });
+    bGood &= Test.TestTrue(TEXT("Camp tier and creature come from the public catalog"),
+        High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
+        && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
+        && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
+    auto Unplaced = World;
+    Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0));
+    bGood &= Test.TestFalse(TEXT("A camp anchor without an approved placement is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
+    auto NoShop = World;
+    NoShop.Anchors.RemoveAt(1);
+    bGood &= Test.TestFalse(TEXT("A world without its single shop is refused"), LDOpponentFrame::ReadPublicPOIs(NoShop, C, POIs, Error));
+    auto Duplicate = World;
+    Duplicate.Anchors.Add(Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
+    bGood &= Test.TestFalse(TEXT("Duplicate public ids are refused"), LDOpponentFrame::ReadPublicPOIs(Duplicate, C, POIs, Error));
+
+    FLDWorldView View;
+    View.Schema = LDObservation::Schema;
+    View.MatchGeneration = 7;
+    View.Generation = 1;
+    View.Revision = 1;
+    View.WorldMapId = TEXT("demo_world");
+    View.WorldLayoutRevision = 1;
+    View.WorldGeometryRevision = 1;
+    View.SampledAtServerSec = 1.;
+    View.Footprint.SourceStatus = ELDObservationSource::ActiveBody;
+    View.Footprint.RadiusCm = 1400;
+    View.Footprint.CurrentBits.SetNumZeroed(LDObservation::CoverageBytes);
+    View.Units = {ObservedContender(1, 100, uint8(ELDDemoStatusId::RespawnProtection)),
+        ObservedMember(2, uint8(ELDDemoMonsterId::MonsterGuardian), true)};
+    TArray<FLDOpponentUnit> Units;
+    bGood &= Test.TestTrue(TEXT("A valid authorized frame maps: ") + Error,
+        LDOpponentFrame::ReadObservedUnits(View, 7, C, Units, Error) && Units.Num() == 2);
+    if (Units.Num() == 2)
+    {
+        bGood &= Test.TestTrue(TEXT("Contender identity, health and protection"),
+            Units[0].Kind == ELDOpponentUnitKind::Contender && Units[0].ContenderId == View.Units[0].ContenderId
+            && Units[0].Handle == View.Units[0].Handle && Units[0].HpP2.Get(0) == 50000 && Units[0].bProtected && !Units[0].bReturning);
+        bGood &= Test.TestTrue(TEXT("Camp member creature and the public Returning cue"),
+            Units[1].Kind == ELDOpponentUnitKind::CampMember && Units[1].MonsterId == TEXT("monster_guardian")
+            && Units[1].Epoch == 2 && Units[1].bReturning && !Units[1].bProtected && Units[1].MaxHpP2.Get(0) == 42000);
+    }
+    bGood &= Test.TestFalse(TEXT("A frame of another match is refused"), LDOpponentFrame::ReadObservedUnits(View, 8, C, Units, Error));
+    auto Malformed = View;
+    Malformed.Schema = 0;
+    bGood &= Test.TestFalse(TEXT("A malformed frame is refused, never read as empty"),
+        LDOpponentFrame::ReadObservedUnits(Malformed, 7, C, Units, Error) || Units.Num() != 0);
+
+    FLDProgressionView Progression;
+    Progression.bValid = true;
+    Progression.Generation = 7;
+    Progression.Level = 3;
+    Progression.bCanChoose = true;
+    Progression.BuildRevision = 9;
+    Progression.ConsumedThrough = 2;
+    FLDLearnedSkillView Bolt;
+    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.bActive = true;
+    Bolt.Rank = 1;
+    Bolt.Slot = 0;
+    FLDLearnedSkillView Rhythm;
+    Rhythm.DefinitionId = TEXT("passive_battle_rhythm");
+    Rhythm.Rank = 1;
+    Progression.Skills = {Bolt, Rhythm};
+    FLDAttributeCardView Might;
+    Might.DefinitionId = TEXT("attr_might");
+    Might.Count = 1;
+    Progression.AttributeCards = {Might};
+    Progression.bHasOffer = true;
+    Progression.Offer.OfferId = FGuid(0xF2, 0, 0, 1);
+    Progression.Offer.OfferRevision = 4;
+    FLDChoiceOption Guard;
+    Guard.OptionId = FGuid(0xF2, 0, 0, 2);
+    Guard.Kind = ELDChoiceOptionKind::LearnActive;
+    Guard.DefinitionId = TEXT("active_guard_pulse");
+    Guard.ToRank = 1;
+    Progression.Offer.Options = {Guard};
+    FLDEquipmentView Equipment;
+    Equipment.bValid = true;
+    Equipment.Generation = 7;
+    Equipment.Gold = 42;
+    FLDEquipmentSlotView Blade;
+    Blade.SlotIndex = 0;
+    Blade.bOccupied = true;
+    Blade.DefinitionId = TEXT("item_edge_blade");
+    FLDEquipmentSlotView Empty;
+    Empty.SlotIndex = 1;
+    Equipment.Slots = {Blade, Empty};
+    FLDOpponentSelf Self;
+    const auto Expected = LDAttributeProjection::Project(FLDAttributeBuildValues(3,
+        {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 1)}, {FLDAttributeCardValue(TEXT("attr_might"), 1)},
+        {TEXT("item_edge_blade")}), C);
+    bGood &= Test.TestTrue(TEXT("Own build maps through the shared attribute projection: ") + Error,
+        Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, Equipment, C, Self, Error)
+        && Self.Attributes.ADP2 == Expected.Value->Final.ADP2 && Self.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2
+        && Self.Attributes.AttackSpeed.Numerator * Expected.Value->Final.AttackSpeed.Denominator
+            == Expected.Value->Final.AttackSpeed.Numerator * Self.Attributes.AttackSpeed.Denominator
+        && Self.Gold == 42 && Self.Equipment[0] == TEXT("item_edge_blade") && Self.Equipment[1].IsEmpty()
+        && Self.BuildRevision == 9 && Self.ChoicesConsumed == 2 && Self.Skills.Num() == 2
+        && Self.Skills[0].Slot == ELDOpponentSkillSlot::Q && Self.Skills[1].Slot == ELDOpponentSkillSlot::Passive
+        && Self.Offer.IsSet() && Self.Offer->Options.Num() == 1 && Self.Offer->Options[0].Kind == ELDOpponentOptionKind::LearnActive);
+    Progression.bCanChoose = false;
+    bGood &= Test.TestTrue(TEXT("An offer that cannot be confirmed now is not proposed"),
+        LDOpponentFrame::ReadOwnBuild(Progression, Equipment, C, Self, Error) && !Self.Offer.IsSet());
+    auto OneSlot = Equipment;
+    OneSlot.Slots.SetNum(1);
+    bGood &= Test.TestFalse(TEXT("Equipment must expose both ordered slots"), LDOpponentFrame::ReadOwnBuild(Progression, OneSlot, C, Self, Error));
+    auto OtherMatch = Equipment;
+    OtherMatch.Generation = 8;
+    bGood &= Test.TestFalse(TEXT("Views from different publications are refused"),
+        LDOpponentFrame::ReadOwnBuild(Progression, OtherMatch, C, Self, Error));
+
+    FLDCombatOwnerView Combat;
+    Combat.bHasBody = true;
+    Combat.HPP2 = 30000;
+    Combat.MaxHPP2 = 62000;
+    Combat.MPP2 = 10000;
+    Combat.MaxMPP2 = 28000;
+    Combat.NextAttackAtMs = 12345;
+    Combat.bRooted = true;
+    FLDCombatStatusView Root;
+    Root.StatusId = uint8(ELDDemoStatusId::Root);
+    Root.ExpiresAtMs = 10700;
+    Combat.Statuses = {Root};
+    const auto Entry = [](ELDCombatEntry Slot, ELDCombatSourceKind Kind, const TCHAR* Id, bool bActive, int64 ReadyAt, ELDCombatReject Why)
+    {
+        FLDCombatEntryView Out;
+        Out.Entry = Slot;
+        Out.SourceKind = Kind;
+        Out.DefinitionId = Id;
+        Out.bHasActive = bActive;
+        Out.ReadyAtMs = ReadyAt;
+        Out.Unavailable = Why;
+        return Out;
+    };
+    Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), true, 9000, ELDCombatReject::None),
+        Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), true, 15000, ELDCombatReject::Cooldown),
+        Entry(ELDCombatEntry::Item1, ELDCombatSourceKind::Gear, TEXT("item_iron_plate"), false, 0, ELDCombatReject::NoActiveEffect),
+        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_phase_anchor"), true, 0, ELDCombatReject::ControlBlocked)};
+    bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness and Root: ") + Error,
+        LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.HpP2 == 30000 && Self.MaxMpP2 == 28000
+        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 3
+        && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
+        && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
+        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && !Self.Sources[2].bReady);
+    Combat.Statuses.Reset();
+    bGood &= Test.TestTrue(TEXT("Rooted without a timed status still blocks movement now"),
+        LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.MoveBlockedUntilMs > 10000);
+    Combat.bHasBody = false;
+    bGood &= Test.TestFalse(TEXT("No living body is an explicit failure"), LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error));
+
+    bGood &= Test.TestTrue(TEXT("Order receipts map to the policy's order states"),
+        LDOpponentFrame::OrderStatus(ELDOrderStatus::Queued) == ELDOpponentOrderStatus::Pending
+        && LDOpponentFrame::OrderStatus(ELDOrderStatus::Activated) == ELDOpponentOrderStatus::Active
+        && LDOpponentFrame::OrderStatus(ELDOrderStatus::Progress) == ELDOpponentOrderStatus::Active
+        && LDOpponentFrame::OrderStatus(ELDOrderStatus::Completed) == ELDOpponentOrderStatus::Completed
+        && LDOpponentFrame::OrderStatus(ELDOrderStatus::Cancelled) == ELDOpponentOrderStatus::Cancelled
+        && LDOpponentFrame::OrderStatus(ELDOrderStatus::Rejected) == ELDOpponentOrderStatus::Failed);
+    return bGood;
+}
 }
 }
 
@@ -674,6 +912,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentPrioritiesTest, "Lockdown.Rules.
 bool FLDDemoOpponentPrioritiesTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunPriorities(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentProjectionsTest, "Lockdown.Rules.DemoOpponentPolicy.Projections",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentProjectionsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunProjections(*this);
 }
 
 #endif
