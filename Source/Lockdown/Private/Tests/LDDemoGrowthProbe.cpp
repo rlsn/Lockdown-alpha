@@ -164,7 +164,7 @@ TArray<TSharedPtr<FJsonValue>> GrowthProbeItems(const FLDEquipmentView& View)
 }
 }
 
-// Global, not namespaced: ALDGameMode befriends this exact name for the core start behind the closed provider gate.
+// Global name, matching the other DEV probe classes; it only uses public game mode, controller and growth reads.
 class FLDDemoGrowthProbe : public TSharedFromThis<FLDDemoGrowthProbe>
 {
 public:
@@ -197,9 +197,10 @@ public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     TWeakObjectPtr<UWorld> World;
     FString Output, Role, Error, CatalogDigest, StartBlocker;
-    double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0;
+    double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, StartRequestedAt = 0;
     EStage Stage = EStage::Join;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStartIssued = false, bSitesReady = false;
+    bool bLedgerChecked = false;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     TArray<TSharedPtr<FJsonValue>> Checks;
 
@@ -490,52 +491,65 @@ public:
             PC.SetDemoReady(true);
             NextReadyAt = Now + 1;
         }
-        if (!IsHost() || bStartIssued) { return true; }
+        if (!IsHost()) { return true; }
         const bool bAllReady = Lobby.Members.Num() == 2 && !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& LobbyMember)
         {
             return LobbyMember.Kind != ELDContenderKind::Human || !LobbyMember.Ready;
         });
-        ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-        if (!bAllReady || !Mode) { return true; }
-        return StartThroughCore(*Mode, Lobby);
+        if (!bAllReady) { return true; }
+        return RequestStart(Now, PC, Lobby);
     }
 
-    // Normal Start stays refused only by providers outside this module (Camps is not registered in this branch), so
-    // the Host runs the same StartDemoMatch that ProcessSessionCommand calls after its gate: the real initializer,
-    // every registered provider Prepare (Progression opens the ledger and growth records) and the initial spawn.
-    bool StartThroughCore(ALDGameMode& Mode, const FLDLobbyView& Lobby)
+    // Every normal-start provider is registered, so the Host presses Start through its own session command once the
+    // room reports CanStart: ProcessSessionCommand runs the provider gate, the real initializer, every provider Prepare
+    // (Progression opens the ledger and growth records) and the initial spawn.
+    bool RequestStart(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
-        bStartIssued = true;
-        FString InputError;
-        Check(LDDemoEntry::VerifyRuntimeFiles(InputError) && LDDemoEntry::VerifyWorldPackages(InputError), TEXT("Start"),
-            TEXT("Approved runtime files and world packages verify before the start"), InputError);
-        const FLDMatchProviderHooks* CombatHooks = LDMatchProviders::Find(ELDMatchProvider::Combat);
-        const FLDMatchProviderHooks* ProgressionHooks = LDMatchProviders::Find(ELDMatchProvider::Progression);
-        const FLDMatchProviderHooks* ShopHooks = LDMatchProviders::Find(ELDMatchProvider::Shop);
-        Check(CombatHooks && ProgressionHooks && ProgressionHooks->Prepare && ProgressionHooks->ReadFinalLevel && ShopHooks
-            && ShopHooks->Prepare, TEXT("Start"), TEXT("Combat, Progression and Shop are registered normal-start providers"));
-        const FString Missing = LDMatchProviders::MissingForStart(false);
-        const bool bGateOpen = Mode.CheckDemoStartInputs(StartBlocker);
-        Check(!bGateOpen && !Missing.IsEmpty() && !Lobby.CanStart && StartBlocker.Contains(Missing), TEXT("Start"),
-            TEXT("With every human ready the normal Start is refused only for providers outside growth and shop"),
-            FString::Printf(TEXT("missing=[%s] blocker=%s"), *Missing, *StartBlocker));
-        if (!Passed) { return Finish(); }
-        ELDSessionReject StartReject = ELDSessionReject::None;
-        FString StartDetail;
-        const bool bStarted = Mode.StartDemoMatch(StartReject, StartDetail);
-        Check(bStarted && StartReject == ELDSessionReject::None && Mode.MatchPhase == ELDMatchPhase::Development, TEXT("Start"),
-            TEXT("The core start runs the real initializer, every registered provider Prepare and the initial spawn"), StartDetail);
-        const LDEconomy::FLedger* Book = Mode.Economy ? &Mode.Economy->GetLedger() : nullptr;
-        bool bAccounts = Book && Book->IsInitialized() && Mode.Economy->GetMatch() == Mode.GetMatchContext()
+        if (!bStartIssued)
+        {
+            bStartIssued = true;
+            StartRequestedAt = Now;
+            FString InputError;
+            Check(LDDemoEntry::VerifyRuntimeFiles(InputError) && LDDemoEntry::VerifyWorldPackages(InputError), TEXT("Start"),
+                TEXT("Approved runtime files and world packages verify before the start"), InputError);
+            const FLDMatchProviderHooks* ProgressionHooks = LDMatchProviders::Find(ELDMatchProvider::Progression);
+            const FLDMatchProviderHooks* ShopHooks = LDMatchProviders::Find(ELDMatchProvider::Shop);
+            Check(ProgressionHooks && ProgressionHooks->Prepare && ProgressionHooks->ReadFinalLevel && ShopHooks && ShopHooks->Prepare,
+                TEXT("Start"), TEXT("Progression and Shop are registered normal-start providers"));
+            const FString Missing = LDMatchProviders::MissingForStart(false);
+            Check(Missing.IsEmpty(), TEXT("Start"), TEXT("Every normal-start provider is registered, so the room starts normally"),
+                FString::Printf(TEXT("missing=[%s]"), *Missing));
+            if (!Passed) { return Finish(); }
+        }
+        StartBlocker = Lobby.StartBlocker;
+        if (!Lobby.CanStart)
+        {
+            return Now - StartRequestedAt < 30.0 ? true
+                : Fail(TEXT("Start"), TEXT("Every human is ready but the room still refuses the start: ") + StartBlocker);
+        }
+        if (Now >= NextCommandAt)
+        {
+            PC.StartDemoMatch();
+            NextCommandAt = Now + 2.0;
+        }
+        return true;
+    }
+
+    // Host, first spawned frame: the normal start's Progression Prepare opened the ledger for the locked roster.
+    bool CheckStartLedger(const ALDPlayerController& PC, const FLDLobbyView& Lobby)
+    {
+        bLedgerChecked = true;
+        const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+        const LDEconomy::FLedger* Book = Mode && Mode->Economy ? &Mode->Economy->GetLedger() : nullptr;
+        bool bAccounts = Book && Book->IsInitialized() && Mode->Economy->GetMatch() == Mode->GetMatchContext()
             && Book->State().Accounts.Num() == Lobby.Members.Num();
         for (const FLDLobbyMember& LobbyMember : Lobby.Members)
         {
             const LDEconomy::FAccount* Account = Book ? Book->Account(LobbyMember.ContenderId) : nullptr;
             bAccounts &= Account && Account->Gold == Catalog->Get().Parameters.StartingGold;
         }
-        Check(bAccounts, TEXT("Start"),
+        return Check(bAccounts, TEXT("Start"),
             TEXT("The Progression provider opened one ledger account per locked contender at the approved starting gold"));
-        return Passed ? true : Finish();
     }
 
     bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
@@ -548,6 +562,7 @@ public:
             return true;
         }
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
+        if (IsHost() && !bLedgerChecked && !CheckStartLedger(PC, Lobby)) { return Finish(); }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
         bool bSlotsEmpty = EquipView->Slots.Num() == Defs.Progression.EquipmentSlots;
         for (const FLDEquipmentSlotView& SlotRow : EquipView->Slots)
@@ -1497,9 +1512,9 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
-        Report->SetBoolField(TEXT("normal_start"), false);
+        Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("start_path"),
-            TEXT("Lobby AI count and readiness through owning session RPCs, then the core StartDemoMatch behind the closed provider gate"));
+            TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host that never attacks. Not camps, AI, capture or full-match acceptance.")
             : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, one choice and two-slot shop trades through the owning connection. Not camps, AI, capture or full-match acceptance."));
