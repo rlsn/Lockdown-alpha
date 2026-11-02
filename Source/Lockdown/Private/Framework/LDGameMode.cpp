@@ -251,6 +251,12 @@ FGuid ALDGameMode::ContenderId(ALDPlayerController* PC) const
 
 void ALDGameMode::SyncOwner(ALDPlayerController* PC)
 {
+    // Owner views stop before any close releases bodies or resource records. Teardown begins before the
+    // net driver destroys remote pawns; a closed room or a retiring match publishes nothing either. These
+    // paths therefore cannot report a projection fault, while every playing phase keeps the full check.
+    const UWorld* World = GetWorld();
+    if (!World || World->bIsTearingDown || MatchPhase == ELDMatchPhase::Closing || MatchPhase == ELDMatchPhase::Resetting)
+    { return; }
     if (auto* State=StateFor(PC))
     {
         if (State->Revision==MAX_uint64)

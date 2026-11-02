@@ -644,6 +644,9 @@ Left 只由核心离局路径产生。Motion 流的 Fence 等价物是 Capture �
 （本步新登记的生命除外）；`ExecuteCapturePhase / ExecuteClosePhase / ExecuteCapturePublish`
 分别承担归约、先锁闸后冻结结果、无 permit 清理发布，`TryCloseMatch` 为其内部唯一结果入口。
 提供者 MatchClosed/MatchReset/Prepare 钩子与正常开局门禁由 `LDMatchProviders` 静态注册；
+关闭先停本人视图再释放身体与资源记录：世界拆除（`bIsTearingDown`，引擎在网络驱动销毁远端 Pawn 前置位）、
+Host 关房（`Closing`）与 `RetireMatch`（`Resetting`）期间 `SyncOwner` 不发布、也不判投影故障，
+进入新 Lobby 后按新代重新发布；其余阶段照常做完整投影校验。
 详见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)。
 
 ### 6.4 固定批次顺序及提交许可
