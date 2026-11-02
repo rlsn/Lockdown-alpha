@@ -41,9 +41,13 @@ public:
     virtual bool CloseChildConfirmation() {return false;}
     // Normal panels take pointer input only over their own area, so world clicks beside them still reach the world.
     bool IsPanelHit(FVector2D Absolute) const;
+    // Local text-size preference (UI 3.3): rescales the built tree once per change; text built later uses ScaleNewText.
+    void ApplyTextScale(float Scale);
 protected:
     virtual UWidget* FocusScope() const;
     virtual UWidget* HitArea() const {return FocusScope();}
+    void ScaleNewText(UTextBlock* Label) const;
+    float AppliedTextScale=1.f;
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E) override;
     virtual int32 NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const override;
 };

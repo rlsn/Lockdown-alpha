@@ -236,6 +236,7 @@ void ULDShopPanel::SyncItemButtons()
     {
         ULDCommandButton* ItemButton=LDWidgets::Button(WidgetTree,TEXT(""),[this,ItemIdx](){SelectItem(ItemIdx);},false,FName(*FString::Printf(TEXT("ShopItem%d"),ItemIdx)));
         CastChecked<UTextBlock>(ItemButton->GetContent())->SetAutoWrapText(true);
+        ScaleNewText(CastChecked<UTextBlock>(ItemButton->GetContent()));
         if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(ItemButton->GetContentSlot())){CaptionSlot->SetHorizontalAlignment(HAlign_Left);}
         ItemList->AddChildToVerticalBox(ItemButton)->SetPadding(FMargin(0,0,0,6));
         ItemButtons.Add(ItemButton);

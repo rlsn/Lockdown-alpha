@@ -25,6 +25,19 @@ bool ULDPanel::IsPanelHit(FVector2D Absolute) const
     const UWidget* Area=HitArea();
     return IsPanelOpen()&&IsVisible()&&Area&&Area->IsVisible()&&Area->GetCachedGeometry().IsUnderLocation(Absolute);
 }
+void ULDPanel::ApplyTextScale(float Scale)
+{
+    // Only a built tree is rescaled; recording the scale earlier would leave later-built text at the base size.
+    if(Scale<=0.f||FMath::IsNearlyEqual(Scale,AppliedTextScale)||!WidgetTree||!WidgetTree->RootWidget){return;}
+    TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);
+    for(UWidget* W:All){if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);Label->SetFont(Font);}}
+    AppliedTextScale=Scale;
+}
+void ULDPanel::ScaleNewText(UTextBlock* Label) const
+{
+    if(!Label||FMath::IsNearlyEqual(AppliedTextScale,1.f)){return;}
+    auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*AppliedTextScale);Label->SetFont(Font);
+}
 TArray<UWidget*> ULDPanel::PanelFocusTargets() const
 {
     TArray<UWidget*> Result;
