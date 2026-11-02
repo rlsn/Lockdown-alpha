@@ -22,7 +22,7 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 
-namespace
+namespace LDPlayerInputDetail
 {
     bool PhysicalDown(const ALDPlayerController* PC,FKey Key)
     {
@@ -116,8 +116,8 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     if (!bNavigationContextActive) { RebuildV05Mappings(); Navigation->bFollowCamera=Controls->bStartFollowing; }
     if (bFreshInputRequired)
     {
-        bool Down=PhysicalDown(this,EKeys::LeftMouseButton)||PhysicalDown(this,EKeys::RightMouseButton);
-        for (const auto& Binding : Controls->Definitions()) { Down|=PhysicalDown(this,Controls->Key(Binding.Action)); }
+        bool Down=LDPlayerInputDetail::PhysicalDown(this,EKeys::LeftMouseButton)||LDPlayerInputDetail::PhysicalDown(this,EKeys::RightMouseButton);
+        for (const auto& Binding : Controls->Definitions()) { Down|=LDPlayerInputDetail::PhysicalDown(this,Controls->Key(Binding.Action)); }
         if (!Down) { bFreshInputRequired=false; }
     }
     if (GetPawn()!=PreferencesPawn.Get())
@@ -164,17 +164,29 @@ void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
-    if (Action==TEXT("Stop")) { Navigation->Stop(); return; }
+    if (Action==TEXT("Stop")) { StopCombatAndOrders(); return; }
     if (!CanWorldCommand()) { return; }
     if (Action==TEXT("Select"))
     {
         if (RootUI && RootUI->PointerOverUI()) { return; }
+        if (ConfirmArmedCombat()) { return; }
         FGuid Handle;
         uint32 ObservationEpoch=0;
         ObservedUnderPointer(Handle,ObservationEpoch);
         Inspect(Handle,ObservationEpoch);
     }
-    else if (Action==TEXT("Navigate")) { Navigation->ClickMove(); }
+    else if (Action==TEXT("Navigate"))
+    {
+        // A right click while something is armed only cancels it; the next right click is an ordinary order.
+        if (RootUI && RootUI->PointerOverUI()) { return; }
+        if (CancelArmedCombat()) { return; }
+        Navigation->ClickMove();
+    }
+    else if (Action==TEXT("AttackMove")) { ArmAttackMove(); }
+    else if (Action==TEXT("Skill1")) { ActivateCombatEntry(ELDCombatEntry::Q); }
+    else if (Action==TEXT("Skill2")) { ActivateCombatEntry(ELDCombatEntry::W); }
+    else if (Action==TEXT("Item1")) { ActivateCombatEntry(ELDCombatEntry::Item1); }
+    else if (Action==TEXT("Item2")) { ActivateCombatEntry(ELDCombatEntry::Item2); }
     else if (Action==TEXT("Recenter")) { Navigation->Recenter(true); }
     else if (Action==TEXT("Follow"))
     {
@@ -182,9 +194,6 @@ void ALDPlayerController::V05Pressed(FName Action)
         Controls->SetAppliedFollowing(Navigation->bFollowCamera);
         CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();
     }
-    else if (Action==TEXT("AttackMove") || Action==TEXT("Skill1") || Action==TEXT("Skill2")
-        || Action==TEXT("Item1") || Action==TEXT("Item2") || Action==TEXT("Attributes"))
-    { IntentFeedback=TEXT("Combat and progression actions are not wired in this build."); }
 }
 
 void ALDPlayerController::V05Released(FName Action)
