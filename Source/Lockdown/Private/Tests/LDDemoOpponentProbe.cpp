@@ -86,7 +86,10 @@ struct FLDOpponentProbeTrack
     int64 LongestRespawnMs = 0;
     bool bRespawnsValid = true;
     int64 ActCheckDueMs = -1;
+    // Body requests counted at the first sample that saw this AI dead. A dead body sends nothing, so any later request
+    // belongs to the next life, including one sent in its very first frame.
     uint32 ActBase = 0;
+    bool bQuietWhileDead = true;
     uint32 RespawnsChecked = 0;
     uint32 RespawnsActed = 0;
     double TravelCm = 0;
@@ -294,10 +297,15 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         }
         Track.Tally = AI->GetRequestTally();
         const uint32 Body = Track.Tally.BodyRequests();
-        if (Life.Phase == ELDLifePhase::Dead && Track.DeadSeenAtMs < 0)
+        if (Life.Phase == ELDLifePhase::Dead)
         {
-            Track.DeadSeenAtMs = Now;
-            ++Track.Deaths;
+            if (Track.DeadSeenAtMs < 0)
+            {
+                Track.DeadSeenAtMs = Now;
+                ++Track.Deaths;
+                Track.ActBase = Body;
+            }
+            Track.bQuietWhileDead &= Body == Track.ActBase;
         }
         if (Life.Phase == ELDLifePhase::Alive && Track.DeadSeenAtMs >= 0)
         {
@@ -307,7 +315,6 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             ++Track.Respawns;
             Track.DeadSeenAtMs = -1;
             Track.ActCheckDueMs = Now + ActAfterRespawnMs;
-            Track.ActBase = Body;
             Track.bHasFeet = false;
         }
         if (Track.ActCheckDueMs >= 0 && (Body > Track.ActBase || Now >= Track.ActCheckDueMs))
@@ -338,8 +345,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 {
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
-    bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true;
-    uint32 Respawns = 0, RespawnsChecked = 0;
+    bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
+    uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
     {
@@ -367,6 +374,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Respawns += Track.Respawns;
         RespawnsChecked += Track.RespawnsChecked;
         Acted &= Track.RespawnsActed == Track.RespawnsChecked;
+        DeathsSeen += Track.Deaths;
+        QuietWhileDead &= Track.bQuietWhileDead;
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
         const FLDResultRow* Row = Result.Rows.FindByPredicate([&Track](const FLDResultRow& R) { return R.ContenderId == Track.Contender; });
         auto Value = MakeShared<FJsonObject>();
@@ -382,6 +391,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("kills"), Row ? double(Row->Kills) : -1.);
         Value->SetNumberField(TEXT("deaths"), Track.Deaths);
         Value->SetNumberField(TEXT("respawns"), Track.Respawns);
+        Value->SetBoolField(TEXT("quiet_while_dead"), Track.bQuietWhileDead);
         Value->SetNumberField(TEXT("longest_respawn_ms"), double(Track.LongestRespawnMs));
         Value->SetNumberField(TEXT("travel_cm"), FMath::RoundToDouble(Track.TravelCm));
         Value->SetNumberField(TEXT("orders"), T.Orders);
@@ -404,6 +414,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Record(!RespawnsOnTime ? ELDOpponentProbeCheck::Failed
         : Respawns ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
         TEXT("Every AI death led to its next life within the approved respawn delay"));
+    Record(!DeathsSeen ? ELDOpponentProbeCheck::NotExercised
+        : QuietWhileDead ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
+        TEXT("A dead AI sends no body request until its next life"));
     Record(!RespawnsChecked ? ELDOpponentProbeCheck::NotExercised
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
