@@ -506,13 +506,20 @@ void ALDOpponentController::SettleShop(ALDGameMode& Mode, const FReads& Reads, c
         FString Error;
         Visit.bOpenSent = true;
         Visit.OpenSentAtMs = NowMs;
-        if (Registry && LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
+        if (!Registry || !LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
             Registry->Revision(), Command, Error))
         {
-            ++Tally.ShopOpens;
-            Settle = LDOpponentRequests::SettleShopOpen(Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command));
+            // Nothing was sent: the reason reaches the decision log, not only the failure memory.
+            Problem = Error.IsEmpty() ? FString(TEXT("The map registry is unavailable to open the shop.")) : Error;
+            Settle = ELDOpponentSettle::Failed;
         }
-        else { Settle = ELDOpponentSettle::Failed; }
+        else
+        {
+            ++Tally.ShopOpens;
+            const FLDShopOpenResult Result = Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command);
+            Settle = LDOpponentRequests::SettleShopOpen(Result);
+            if (Settle == ELDOpponentSettle::Failed) { Problem = FString::Printf(TEXT("shop open refused reason=%u"), uint32(Result.Reason)); }
+        }
     }
     else
     {
@@ -523,6 +530,7 @@ void ALDOpponentController::SettleShop(ALDGameMode& Mode, const FReads& Reads, c
             Problem = TEXT("shop open overdue");
             Settle = ELDOpponentSettle::Failed;
         }
+        else if (Settle == ELDOpponentSettle::Failed) { Problem = FString::Printf(TEXT("shop open refused reason=%u"), uint32(Shop.Reason)); }
     }
     if (Settle == ELDOpponentSettle::InFlight) { return; }
     if (Settle == ELDOpponentSettle::Succeeded)
