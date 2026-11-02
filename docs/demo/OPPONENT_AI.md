@@ -34,7 +34,8 @@ AI 自动确认的是**自己的**候选和替换，不替真人选择。商店�
 
 源码核验基线为 `fa11d09a762bccadf495191072e222dd158fc014`；
 研究工作区文档基线 `7e7a40d39ec2f99f18b809b83e89479bd34a823d` 相对此提交的
-Source、Config、Content、SourceData、Scripts 均未改变。以下行号对应这一源码基线。
+Source、Config、Content、SourceData、Scripts 均未改变。带行号的证据对应这一源码基线；
+其后已退役或替换的文件改为指向现在的正式入口，不带行号。
 没有运行 Unreal、构建、生成器、Bootstrap 或实际对局，也没有加载二进制资产。
 
 | 证据 | 当前真实行为 | Demo 处置 |
@@ -42,11 +43,11 @@ Source、Config、Content、SourceData、Scripts 均未改变。以下行号对�
 | [LDNavigationComponent.cpp:66–124](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L66-L124)、[237–305](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L237-L305) | Owner 强依赖 PlayerController；Navigate/Stop 为 local-only；服务器检查后，真正沿路径 AddMovementInput 又在 local 条件之后。 | 同组件抽取服务器方向驱动和领域入口，不能假造 ClientOrder 或 LocalPlayer 使机器人行走。 |
 | [LDNavigationComponent.cpp:126–204](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L126-L204)、[LDCharacterMovementComponent.cpp:22–98](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L22-L98) | 有完整路径、Match/Life/Order/Epoch、回执/拒旧、SavedMove 和原生运动；当前新收件会先停旧单。 | R01/R05 局部复用；目标改为 Queued 不替旧单，完整准入后 handoff，不写第二位置积分器。 |
 | [LDGameMode.h:78–93](../../Source/Lockdown/Public/Framework/LDGameMode.h#L78-L93)、[LDGameMode.cpp:378–453](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L453) | Session 是持久参赛身份；当前以 Controller 找记录，死亡仍扣金/掉落，出生仍有安全/原席位政策。 | R06 由生命周期域改造；AI 不直接写 Contenders、不生成 Life 或选择“安全”出生点。 |
-| [LDSkillExecution.cpp:17–34](../../Source/Lockdown/Private/Combat/LDSkillExecution.cpp#L17-L34)、[LDContentActions.cpp:36–55](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L36-L55) | PlayerController 构筑来自参赛记录，其他身体可能落入 NPCBuild；RequestContent 接受已经解析的 Actor，依赖外层准入。 | 参赛 AI 不用 NPCBuild；只进统一 SubmitAction，不把 C++ public 当成授权 API。 |
-| [LDContentLifecycle.cpp:35–57](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L35-L57)、[LDVisionDirector.cpp:137–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L137-L186)、[285–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L285-L300) | 范围内循环普攻存在，非完整追击；Footstep/Trail 有产生和提前授权旁路。网格观察不等于 B91 稀疏观察。 | R07/R12：同一订单驱动普攻，世界统一稀疏 FLDWorldView；未许可提示同时删除产生/授权，不只隐藏图标。 |
+| [LDCombatActions.cpp](../../Source/Lockdown/Private/Combat/LDCombatActions.cpp)（旧 LDSkillExecution/LDContentActions 已退役） | 参赛者的 Q/W/1/2 直接意图只经 `ALDCombatDirector::SubmitAction` 收件，Actions 阶段统一准入；Caller 由核心绑定解析，不接受外部 EntityId。 | 参赛 AI 不用 NPCBuild；只进统一 SubmitAction，不把 C++ public 当成授权 API。 |
+| [LDNavigationOrders.cpp](../../Source/Lockdown/Private/Navigation/LDNavigationOrders.cpp)（旧 LDContentLifecycle 已退役）、[LDVisionDirector.cpp:137–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L137-L186)、[285–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L285-L300) | 普攻由 AttackUnit/AttackMove 订单交给 Combat 驱动；基线中 Footstep/Trail 有产生和提前授权旁路，网格观察不等于 B91 稀疏观察。 | R07/R12：同一订单驱动普攻，世界统一稀疏 FLDWorldView；未许可提示同时删除产生/授权，不只隐藏图标。 |
 | [LDCampDecision.h](../../Source/Lockdown/Public/World/LDCampDecision.h) | 旧三营地/Boss/Tower Actor、有限刷新、先账本后 XP 的 Reward 与 XP-only 限额 PvPKill 已删除；营地只保留纯值决策，营地原语待 N03 接线。 | M9C/M6 提供五营地与稳定死亡键的正常复合奖励。AI 不补发钱或经验。 |
-| [LDCharacterBuild.cpp](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp)、[LDV08Loadout.cpp](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp)；旧准备 Development 与旧书店 Vendor 均已退役 | 保留纯候选投影、修订和来源机制；当前没有三选一或商店运行服务。 | N04/N05 按正式许可/回执接口接线，AI 不用已退休服务或直接改 Build 冒充闭环。 |
-| [LDV08Loadout.cpp:22–77](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp#L22-L77)、[LDContentActions.cpp:39–40](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L39-L40)、[LDEconomyLedger.cpp:36–103](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L103) | 来源失效、条款比较和全验证后提交有价值；旧同族动作排斥/取最大冷却不能实现同款双主动。 | R08/R09 保留不变量，不保留旧槽数/同族锁；AI 仅消费正式 readiness 和真实成交回执。 |
+| [LDDevelopmentDirector.h](../../Source/Lockdown/Public/Development/LDDevelopmentDirector.h)、[LDVendorDirector.h](../../Source/Lockdown/Public/Inventory/LDVendorDirector.h)、[LDViewTypes.h](../../Source/Lockdown/Public/Vision/LDViewTypes.h) 的 `FLDOwnerState.Growth`（旧 LDCharacterBuild/LDV08Loadout、准备 Development 与书店 Vendor 均已退役） | 三选一与两格商店由成长/商店域的 `QueueChoice`、`QueueShopOpen`/`QueueShopCommand` 收件，Transactions 阶段提交；本人进度、装备与商店会话经 `FLDOwnerState.Growth` 一次发布。 | AI 读同一发布、走同一服务器入口与回执，不直接改 Build 冒充闭环。 |
+| [LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp)、[LDEconomyLedger.cpp:36–103](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L103) | 来源失效、条款比较和全验证后提交保留为 Combat 来源绑定与经济账本的不变量；旧同族动作排斥/取最大冷却由按持久冷却身份（`IssuedCooldownId`）的来源绑定取代。 | R08/R09 保留不变量，不保留旧槽数/同族锁；AI 仅消费正式 readiness 和真实成交回执。 |
 
 ## 3. SC-09：状态、正式接口与权限
 
