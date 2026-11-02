@@ -340,7 +340,7 @@ bool FLDDemoCaptureProbe::Tick()
             TEXT("C12"), TEXT("The new Lobby carries no capture state or result"));
         SecondGeneration = Lobby.Generation;
         Summary->SetNumberField(TEXT("next_generation"), double(SecondGeneration));
-        if (!Passed) { return Finish(); }
+        if (!Passed || !Mark(Role + TEXT("Lobby2.json"))) { return Finish(); }
         ReadySent = false;
         Stage = ELDCaptureProbeStage::SecondLobby;
         return true;
@@ -362,7 +362,10 @@ bool FLDDemoCaptureProbe::Tick()
                 Stage = ELDCaptureProbeStage::SecondMatch;
                 return true;
             }
-            if (Lobby.Phase != ELDMatchPhase::Lobby || Lobby.Members.Num() != 3 || !EnsureReady(*PC, Lobby)) { return true; }
+            // Every role first records the new, unready Lobby (C11) before anyone readies for the second match;
+            // otherwise a faster role's Ready reaches a slower role before its own C11 observation.
+            if (Lobby.Phase != ELDMatchPhase::Lobby || Lobby.Members.Num() != 3 || !AllMarkers(TEXT("Lobby2.json"))
+                || !EnsureReady(*PC, Lobby)) { return true; }
             if (!Mode || SecondStartSent || !AllHumansReady(Lobby)) { return true; }
             if (!Lobby.CanStart || !Lobby.StartBlocker.IsEmpty())
             {
