@@ -28,6 +28,17 @@ function Start-CaptureRole {
     $processes.Add((Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru))
 }
 
+function Get-CaptureFailure {
+    foreach ($role in 'Host','Client1','Client2') {
+        $file = Join-Path $output "$role.json"
+        if (Test-Path -LiteralPath $file) {
+            $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+            if (-not $report.passed) { return "$role reported: $($report.detail)" }
+        }
+    }
+    return 'no role report explains it'
+}
+
 function Wait-CaptureReports {
     param([string[]]$Names)
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
@@ -36,7 +47,7 @@ function Wait-CaptureReports {
             $process.Refresh()
             if ($process.HasExited -and (-not (Test-Path -LiteralPath (Join-Path $output 'FinishClients')) -or
                 $process.Id -eq $processes[0].Id -or $process.ExitCode -ne 0)) {
-                throw "Capture scenario process exited before evidence completed: PID $($process.Id). Evidence: $output"
+                throw "Capture scenario process exited before evidence completed: PID $($process.Id); $(Get-CaptureFailure). Evidence: $output"
             }
         }
         if (@($Names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $output $_)) }).Count -eq 0) { return }
