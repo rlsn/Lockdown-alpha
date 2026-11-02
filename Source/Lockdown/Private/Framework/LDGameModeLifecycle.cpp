@@ -669,6 +669,13 @@ bool ALDGameMode::ReportAuthorityFault(const FLDMatchContext& Match, const FStri
 
 void ALDGameMode::FaultAuthority(const FString& Error)
 {
+    if (bResultLocked)
+    {
+        // A locked result is never replaced by a later fault: the room stays in Results.
+        bAuthorityStepOpen = false;
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_AUTHORITY_FAULT_AFTER_RESULT %s"), *Error);
+        return;
+    }
     EntryFailure = Error;
     MatchPhase = ELDMatchPhase::Faulted;
     if (GateRevision != MAX_uint64) { ++GateRevision; }

@@ -51,6 +51,8 @@ public:
     int64 NextDueMs() const;
     // Commit-order view used to validate motion evidence before its boundary closes.
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
+    // A contender that joined the capture roster and has not left it.
+    bool IsCommittedMember(const FGuid& ContenderId) const;
 
 private:
     struct FMember

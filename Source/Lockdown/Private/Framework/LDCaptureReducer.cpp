@@ -38,6 +38,12 @@ bool FLDCaptureReducer::IsCommittedAliveBody(const FLDCombatBodyRef& Body) const
     return Member && Member->Phase == ELDLifePhase::Alive && Member->Body == Body;
 }
 
+bool FLDCaptureReducer::IsCommittedMember(const FGuid& ContenderId) const
+{
+    const FMember* Member = Committed.Find(ContenderId);
+    return Member && Member->Phase != ELDLifePhase::Left;
+}
+
 bool FLDCaptureReducer::Transition(TMap<FGuid, FMember>& Members, const FLDCaptureEvent& Event,
     bool bTimeOrdered, FString& Error)
 {

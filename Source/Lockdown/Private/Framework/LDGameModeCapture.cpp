@@ -194,7 +194,9 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
 
 void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
 {
-    if (!IsGameplayWriteOpen(MatchContext) || !CaptureReducer.IsActive()) { return; }
+    // A contender outside the capture roster (no committed join) has no eligibility to revoke.
+    if (!IsGameplayWriteOpen(MatchContext) || !CaptureReducer.IsActive() || !CaptureReducer.IsCommittedMember(ContenderId))
+    { return; }
     FLDCaptureEvent Fact;
     Fact.Kind = ELDCaptureEventKind::Left;
     Fact.Phase = ELDCommitPhase::Session;
@@ -347,6 +349,15 @@ bool ALDGameMode::ExecuteCapturePublish(const FLDAuthorityBoundary& Boundary, FS
         return false;
     }
     PublishMatchOutcome();
+    if (bResultLocked && bAuthorityStepOpen)
+    {
+        // The result closed the gate inside this step. The step ends here, at its completed
+        // boundary; the driver stops instead of finishing a step of a closed match.
+        AuthorityNowSeconds = AuthorityStep.EndServerSeconds;
+        AuthorityNowMs = AuthorityBoundary.AtMs;
+        bAuthorityStepOpen = false;
+        if (!PublishAuthorityClock(Error)) { return false; }
+    }
     Error.Reset();
     return true;
 }

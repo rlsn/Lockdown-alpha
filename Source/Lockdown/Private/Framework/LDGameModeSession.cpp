@@ -136,8 +136,10 @@ FLDLobbyView ALDGameMode::ReadLobby() const
         Member.Kind = ELDContenderKind::OpponentAI;
         View.Members.Add(MoveTemp(Member));
     }
-    View.StartBlocker = !EntryFailure.IsEmpty() ? EntryFailure : StartGateBlocker();
-    if (MatchPhase != ELDMatchPhase::Lobby) { View.StartBlocker = RejectionText(ELDSessionReject::WrongPhase); }
+    View.StartBlocker = !EntryFailure.IsEmpty() ? EntryFailure.Left(512) : StartGateBlocker();
+    // A faulted room publishes the generic stop reason; the diagnostic stays in the authority log.
+    if (MatchPhase == ELDMatchPhase::Faulted) { View.StartBlocker = RejectionText(ELDSessionReject::AuthorityFault); }
+    else if (MatchPhase != ELDMatchPhase::Lobby) { View.StartBlocker = RejectionText(ELDSessionReject::WrongPhase); }
     else if (!AllReady) { View.StartBlocker = RejectionText(ELDSessionReject::NotAllReady); }
     View.CanStart = View.StartBlocker.IsEmpty() && LobbyHost.IsValid();
     return View;
@@ -276,7 +278,9 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         if (Receipt.Detail.IsEmpty()) { Receipt.Detail = RejectionText(Receipt.Reason); }
         // A start abort or a return to the Lobby replaces every request window with the new generation's.
         const bool WindowReplaced = MatchContext.Generation != Request.Key.Generation;
-        if (!WindowReplaced && !Record->SessionRequests.Complete(Receipt))
+        // Starting may register AI contenders and grow the contender map: never reuse the old pointer.
+        Record = Contenders.Find(Controller);
+        if (!WindowReplaced && (!Record || !Record->SessionRequests.Complete(Receipt)))
         {
             MatchPhase = ELDMatchPhase::Faulted;
             UE_LOG(LogTemp, Error, TEXT("LD_SESSION_RECEIPT_COMMIT_FAILED"));
