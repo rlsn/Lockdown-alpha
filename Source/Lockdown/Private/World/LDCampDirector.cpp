@@ -455,7 +455,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     if (!CheckPermit(Permit, ELDCommitPhase::DeathsAndRewards, Error)) { return false; }
     int32 Camp = INDEX_NONE;
     State.FindMember(Fact.Key.Victim.EntityId, &Camp);
-    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, Fact.OccurredAtSeconds, Error);
+    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, Fact.OccurredAtMs, Error);
     if (Result == ELDCampDeathResult::Rejected) { return false; }
     if (Result == ELDCampDeathResult::Duplicate)
     {

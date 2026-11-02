@@ -240,7 +240,7 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 
 - `World\LDCampLifecycle`：纯记账。由批准内容的营地放置/怪物定义和世界营地锚点/成员 home 生成五营两档名册；
   每局为固定 (营地, 槽位) 分配一次 EntityId，`Life` 只镜像核心生命，并只在整组生成提交时递增。
-  最后一名成员死亡时按事件毫秒桶固定清营时刻、按该档 `RespawnMs` 定刷新期限；死亡按生命幂等。
+  最后一名成员死亡时按死亡事实的权威整数毫秒固定清营时刻、按该档 `RespawnMs` 定刷新期限，不再从秒换算；死亡按生命幂等。
   反击只接受参赛者来源，全营共享来源身份而非坐标；Returning 成员忽略受击；
   出生或回营重置时刻之前的接触不能重开仇恨；每名参赛者只保留当前生命，总数受名单上限约束。
   每次进入 Returning 递增 ReturnEpoch，重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只能完成一次。
@@ -251,8 +251,11 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
   普攻经 Combat `SubmitAction` 提交；Effects 消费已提交的 `FLDCombatHostileContact`；
   DeathsAndRewards 在核心结束生命后只记账并销毁野怪身体，奖励由成长唯一 sink 支付；
   RespawnsAndWorld 先对真实到家（同一支持面、`CAMP.ResetArrivalRadiusCm` 内）的存活成员调用
-  Combat `PrepareCampReset/ApplyCampReset`，再处理到期的整组刷新。刷新落点被动态占用时保留同一票据，
-  只在本营成员 home 的局部偏移内重试，不换营地、不发布半组。
+  Combat `PrepareCampReset/ApplyCampReset`，再处理到期的整组刷新。`NextRefreshDueMs` 向 Combat 驱动报告最早的
+  待刷新期限，使刷新恰好落在该步边界。刷新落点被动态占用时保留同一票据，
+  只在本营成员 home 的局部偏移内重试，不换营地、不发布半组。落点原点与参赛者出生相同
+  （支持面 + 胶囊半高 + CMC 地面带中值），交给核心前已 FindFloor 并在登记地板上 walkable；
+  胶囊底直接贴地会在进入 Walking 时被 CMC 抬升，精确落点校验随即拒绝。
 - 野怪身体 `ALDCampMemberCharacter` 不复制；观察只经 Vision 授权帧，`AppendObservedFacts`
   只补 CreatureId 和单层无期限的 `camp_returning`，`PublicViews` 只给固定营地 Id/档位/怪物/锚点。
 
