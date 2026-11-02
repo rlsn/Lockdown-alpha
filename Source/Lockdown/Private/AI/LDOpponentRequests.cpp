@@ -231,11 +231,22 @@ bool BuildShopOpen(FName ShopId, uint32 Generation, uint32 Life, const FLDWorldR
 {
     using namespace Detail;
     Out = FLDShopOpenCommand();
-    if (Generation == 0 || Life == 0 || !World.IsValid() || !FLDDefinitionWire::Encode(ShopId, Out.ShopId)
-        || !FLDDefinitionWire::Encode(World.MapId, Out.WorldMapId))
+    if (Generation == 0 || Life == 0 || !World.IsValid())
+    {
+        return Fail(Error, TEXT("Opening the shop needs the current match, the current life and a registered world revision."));
+    }
+    // Each refusal names the printed id, because an FName's printed casing is not stable across build types.
+    if (!FLDDefinitionWire::Encode(ShopId, Out.ShopId))
     {
         Out = FLDShopOpenCommand();
-        return Fail(Error, TEXT("Opening the shop needs the public shop id, the current life and the world revision."));
+        Error = FString::Printf(TEXT("The shop id '%s' is not a wire definition id."), *ShopId.ToString());
+        return false;
+    }
+    if (!FLDDefinitionWire::Encode(World.MapId, Out.WorldMapId))
+    {
+        Out = FLDShopOpenCommand();
+        Error = FString::Printf(TEXT("The world map id '%s' is not a wire definition id."), *World.MapId.ToString());
+        return false;
     }
     Out.Generation = Generation;
     Out.Life = Life;

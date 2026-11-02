@@ -1269,7 +1269,9 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("An unregistered world is refused"),
         LDOpponentRequests::BuildShopOpen(TEXT("shop"), 7, 1, FLDWorldRevision(), Open, Error));
     bGood &= Test.TestFalse(TEXT("An id outside the wire alphabet is refused"),
-        LDOpponentRequests::BuildShopOpen(TEXT("bad-id"), 7, 1, World, Open, Error));
+        LDOpponentRequests::BuildShopOpen(TEXT("bad-id"), 7, 1, World, Open, Error))
+        && Test.TestTrue(TEXT("The refusal names the printed id so a build-specific casing is diagnosable"),
+            Error.Contains(TEXT("'bad-id'")));
 
     Progression.LifePhase = ELDLifePhase::Alive;
     FLDEquipmentView Equipment;
