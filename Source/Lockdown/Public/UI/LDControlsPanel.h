@@ -12,9 +12,15 @@ class LOCKDOWN_API ULDControlsPanel : public ULDPanel
     GENERATED_BODY()
 public:
     void Open();
-    void Close();
+    // True only when the panel actually closed; a capture, trial, child confirmation or unapplied draft is handled instead.
+    bool Close();
     void ForceClose();
     bool IsOpen() const {return bOpen;}
+    virtual bool IsPanelOpen() const override {return bOpen;}
+    virtual void OpenPanel() override {Open();}
+    virtual bool ClosePanel() override {return Close();}
+    virtual bool HasChildConfirmation() const override;
+    virtual bool CloseChildConfirmation() override;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry, float Delta) override;
@@ -25,14 +31,17 @@ protected:
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
+    enum class EChildConfirmation : uint8 {None,LocalReset,Recovery,CloseDraft};
     bool bOpen=false;
     float AppliedTextScale=1;
     FName Capture;
+    EChildConfirmation Child=EChildConfirmation::None;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> Preferences;
     UPROPERTY() TObjectPtr<UVerticalBox> Rows;
     UPROPERTY() TObjectPtr<UVerticalBox> DisplayRows;
     UPROPERTY() TObjectPtr<UVerticalBox> TrialRows;
+    UPROPERTY() TObjectPtr<UVerticalBox> ResetRows;
     UPROPERTY() TObjectPtr<UVerticalBox> RecoveryRows;
     UPROPERTY() TObjectPtr<UVerticalBox> CloseRows;
     UPROPERTY() TObjectPtr<UTextBlock> DisplayFeedback;
@@ -45,13 +54,12 @@ private:
     bool bCloseAfterConfirm = false;
     ELDDisplaySettingsStatus SeenDisplayStatus = ELDDisplaySettingsStatus::Unavailable;
     void Populate();
-    UTextBlock* ScaledText(const FString& Text, int32 Size=16);
-    ULDCommandButton* ScaledButton(const FString& Text, TFunction<void()> Action);
     void PopulateDisplay();
     void RefreshDisplayDraft();
     void ChangePreference(TFunction<void(ULDControlSettings&)> Change);
+    void ShowChild(EChildConfirmation Which);
     void ShowRecoveryConfirmation();
-    void ShowCloseConfirmation();
+    void EndCapture();
     void ApplyDisplay();
     void ConfirmDisplay(uint64 Id);
     void CancelDisplay(uint64 Id);

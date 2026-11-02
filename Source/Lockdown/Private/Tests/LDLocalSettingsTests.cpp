@@ -8,6 +8,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/BufferArchive.h"
+#include "Serialization/MemoryReader.h"
 #include "Templates/UnrealTemplate.h"
 #include <limits>
 #if PLATFORM_WINDOWS
@@ -41,13 +42,18 @@ namespace
         }
     };
 
+    // Schema 5 is the migratable layout without PlayerName; every other schema writes the current whitelist order.
+    constexpr uint32 NamelessFixtureSchema = 5;
+
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
         FBufferArchive Payload;
         uint8 Follow = Values.bStartFollowing ? 1 : 0;
         float Text = Values.TextScale, Zoom = Values.Zoom;
         int32 Count = Values.Bindings.Num();
-        Payload << Edge << Follow << Text << Zoom << Count;
+        Payload << Edge << Follow << Text << Zoom;
+        if (Schema != NamelessFixtureSchema) { FString Name = Values.PlayerName; Payload << Name; }
+        Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
             FString Action = Pair.Key.ToString(), Key = Pair.Value.GetFName().ToString();
@@ -59,6 +65,17 @@ namespace
         Bytes << Magic << Schema << Checksum;
         Bytes.Append(Payload);
         return Bytes;
+    }
+
+    // Reads the schema field of the actual file, so a migration rewrite is proven on disk rather than in memory.
+    bool FixtureFileSchema(const FString& Filename, uint32& Schema)
+    {
+        TArray<uint8> Bytes;
+        if (!FFileHelper::LoadFileToArray(Bytes, *Filename) || Bytes.Num() < 12) { return false; }
+        FMemoryReader Reader(Bytes);
+        uint32 Magic = 0;
+        Reader << Magic << Schema;
+        return !Reader.IsError() && Magic == 0x4C444353;
     }
 
     // Reproduces a file written by the retired schema-4 multi-registry layout, including its old action names.
@@ -162,12 +179,15 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     auto* Applied = Loaded.Settings;
     if (!TestNotNull(TEXT("Missing file supplies a usable current registry"), Applied)) { return false; }
     TestTrue(TEXT("Missing defaults are not called persistence verified"), Applied->GetPhase() == ELDLocalSettingsPhase::ConfirmedApplied);
+    TestTrue(TEXT("A missing file never invents a player name"), Applied->PlayerName.IsEmpty());
     auto* Draft = Applied->CreateDraft();
     Draft->TextScale = 1.25f;
     Draft->bEdgePan = false;
     FString Error;
     TestTrue(TEXT("Draft binding change is legal"), Draft->Rebind(TEXT("Skill1"), EKeys::F6, Error));
     TestTrue(TEXT("EditingDraft cannot save"), Draft->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
+    TestFalse(TEXT("A draft cannot set the applied player name"), Draft->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("A refused draft name leaves the draft unset"), Draft->PlayerName.IsEmpty());
     TestFalse(TEXT("Draft did not create a file"), IFileManager::Get().FileExists(*Fixture.Storage.Filename()));
     TestEqual(TEXT("Draft does not mutate applied preferences"), Applied->TextScale, 1.f);
     TestTrue(TEXT("Explicit Apply accepts a valid local draft"), Applied->ApplyLocalSettings(*Draft, Error));
@@ -177,6 +197,22 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Restart reads confirmed preferences"), Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
         && Loaded.Settings->TextScale == 1.25f && !Loaded.Settings->bEdgePan && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+    TestTrue(TEXT("An unset (empty) name is valid, saves and reloads as unset"), Loaded.Settings && Loaded.Settings->PlayerName.IsEmpty());
+    const FString ChineseName = TEXT("阴人王 小明");
+    TestTrue(TEXT("The applied owner accepts a Chinese name with an inner space"), Applied->SetAppliedPlayerName(ChineseName, Error));
+    TestTrue(TEXT("A chosen name is applied but not yet saved"), Applied->IsDirty());
+    TestTrue(TEXT("The current schema saves the player name"), Applied->SaveLocalSettings().IsSaved());
+    Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 6 round trip keeps the exact Chinese name with every other preference"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
+        && Loaded.Settings->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive)
+        && Loaded.Settings->TextScale == 1.25f && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+    uint32 SavedSchema = 0;
+    TestTrue(TEXT("The verified file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
+    TestFalse(TEXT("An invalid name is refused on the applied owner"), Applied->SetAppliedPlayerName(TEXT("阴人王?"), Error));
+    TestTrue(TEXT("A refused name keeps the applied name and explains why"),
+        Applied->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive) && !Error.IsEmpty());
 
     TArray<uint8> Before, After;
     TestTrue(TEXT("Read verified bytes"), FFileHelper::LoadFileToArray(Before, *Fixture.Storage.Filename()));
@@ -188,7 +224,14 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Unknown binding refuses save"), Applied->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
     TestTrue(TEXT("Invalid save preserves confirmed disk bytes"), FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
     Applied->ResetBindings();
-    TestTrue(TEXT("Binding recovery does not reset other preferences"), Applied->TextScale == 1.25f && !Applied->bEdgePan);
+    TestTrue(TEXT("Binding recovery does not reset other preferences or the name"), Applied->TextScale == 1.25f && !Applied->bEdgePan
+        && Applied->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive));
+    Applied->PlayerName = TEXT(" 阴人王");
+    const auto RefusedName = Applied->SaveLocalSettings();
+    TestTrue(TEXT("A raw invalid non-empty name refuses save with an explicit name error"),
+        RefusedName.Status == ELDLocalSettingsSaveStatus::Invalid && RefusedName.Message.Contains(TEXT("名称")));
+    TestTrue(TEXT("Invalid-name save preserves confirmed disk bytes"), FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+    Applied->PlayerName = ChineseName;
 
     Applied->RequireRecovery();
     TestTrue(TEXT("Recovery gate prevents automatic replacement"), Applied->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired);
@@ -223,6 +266,8 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     };
     Write(FixtureBytes(*Values, ULDControlSettings::CurrentSchema + 1));
     ExpectRejected(ELDLocalSettingsLoadStatus::UnsupportedSchema);
+    Write(FixtureBytes(*Values, 3));
+    ExpectRejected(ELDLocalSettingsLoadStatus::UnsupportedSchema);
     Write(FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 2));
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
     Write(FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 1, true));
@@ -256,6 +301,36 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
         ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
     }
     Values->ResetBindings();
+    // Local name rule: Chinese, letters, digits and an inner space up to the limit; nothing that can break the ?Name= option.
+    FString NameError, Smile, LoneSurrogate = TEXT("王");
+    Smile.AppendChar(TCHAR(0xD83D));
+    Smile.AppendChar(TCHAR(0xDE00));
+    LoneSurrogate.AppendChar(TCHAR(0xD83D));
+    for (const FString& ValidName : { FString(TEXT("阴人王")), FString(TEXT("Player 1")),
+        FString::ChrN(ULDControlSettings::MaxPlayerNameChars, TEXT('王')), FString::ChrN(ULDControlSettings::MaxPlayerNameChars - 1, TEXT('王')) + Smile })
+    { TestTrue(TEXT("A valid name passes the local rule; a surrogate pair counts as one character"), ULDControlSettings::ValidatePlayerName(ValidName, NameError) && NameError.IsEmpty()); }
+    for (const FString& InvalidName : { FString(), FString(TEXT(" 阴人王")), FString(TEXT("阴人王 ")), FString::ChrN(ULDControlSettings::MaxPlayerNameChars + 1, TEXT('王')),
+        FString(TEXT("a?b")), FString(TEXT("a=b")), FString(TEXT("a#b")), FString(TEXT("a/b")), FString(TEXT("a\\b")), FString(TEXT("a:b")), FString(TEXT("a%b")),
+        FString(TEXT("a&b")), FString(TEXT("a\"b")), FString(TEXT("a'b")), FString(TEXT("a<b")), FString(TEXT("a>b")), FString(TEXT("a|b")), FString(TEXT("a\tb")), LoneSurrogate })
+    {
+        TestFalse(TEXT("An empty, padded, overlong, reserved-character, control or broken name fails the local rule"), ULDControlSettings::ValidatePlayerName(InvalidName, NameError));
+        TestFalse(TEXT("Every name rejection explains itself"), NameError.IsEmpty());
+    }
+    for (const TCHAR* BadName : { TEXT(" 阴人王"), TEXT("阴人王?"), TEXT("a\tb") })
+    {
+        Values->PlayerName = BadName;
+        Write(FixtureBytes(*Values));
+        const auto NameRejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("A saved invalid name rejects the whole file explicitly, without recovery data"),
+            NameRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !NameRejected.Settings && !NameRejected.RecoverablePreferences
+            && NameRejected.Message.Contains(TEXT("名称")));
+    }
+    FString NulName = TEXT("ab");
+    NulName[1] = TCHAR(0);
+    Values->PlayerName = NulName;
+    Write(FixtureBytes(*Values));
+    ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
+    Values->PlayerName = TEXT("阴人王");
     Values->Bindings.Remove(TEXT("Attributes"));
     Values->Bindings.Add(TEXT("Development"), EKeys::P);
     const auto UnknownBindings = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
@@ -267,6 +342,8 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
         Rejected.Message.Contains(TEXT("Development")) && Rejected.Message.Contains(TEXT("Attributes")));
     TestTrue(TEXT("Recovery data never carries a rejected binding name"),
         Rejected.RecoverablePreferences && !Rejected.RecoverablePreferences->Bindings.Contains(TEXT("Development")));
+    TestTrue(TEXT("Recovery data keeps the validated player name"),
+        Rejected.RecoverablePreferences && Rejected.RecoverablePreferences->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
     auto* Instance = NewObject<ULDGameInstance>();
     auto* Recovered = Instance->UseIsolatedLocalSettings(Fixture.Id);
     TestTrue(TEXT("Recovery preserves validated unrelated preferences"),
@@ -320,6 +397,59 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     DamagedRetired.Last() ^= 1;
     Write(DamagedRetired);
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
+
+    // Schema 5 predates PlayerName: explicit migration keeps its valid bindings and preferences and leaves the name unset.
+    auto* Previous = NewObject<ULDControlSettings>();
+    Previous->ResetBindings();
+    Previous->Bindings[TEXT("Skill1")] = EKeys::F6;
+    Previous->TextScale = 1.25f;
+    Previous->Zoom = 1550;
+    Previous->bStartFollowing = false;
+    const auto PreviousFile = FixtureBytes(*Previous, NamelessFixtureSchema, 0);
+    Write(PreviousFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 5 file is an explicit successful migration, never plain Loaded"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
+    TestTrue(TEXT("Migration keeps every valid binding and preference"), Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->TextScale == 1.25f && Migrated.Settings->Zoom == 1550
+        && !Migrated.Settings->bEdgePan && !Migrated.Settings->bStartFollowing);
+    TestTrue(TEXT("Migration never invents a player name"), Migrated.Settings && Migrated.Settings->PlayerName.IsEmpty());
+    TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"), Migrated.Settings
+        && Migrated.Settings->GetPhase() == ELDLocalSettingsPhase::ConfirmedApplied && !Migrated.Settings->NeedsRecovery());
+    TestTrue(TEXT("The migration message asks for a name before Host or Join"),
+        Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("名称")));
+    TestTrue(TEXT("Loading never rewrites the schema 5 file"),
+        FFileHelper::LoadFileToArray(Readback, *Fixture.Storage.Filename()) && Readback == PreviousFile);
+    auto* MigratedInstance = NewObject<ULDGameInstance>();
+    auto* MigratedSession = MigratedInstance->UseIsolatedLocalSettings(Fixture.Id);
+    TestTrue(TEXT("The game instance activates the migrated values without a recovery gate"), MigratedSession
+        && !MigratedSession->NeedsRecovery() && MigratedSession->IsDirty() && MigratedSession->Key(TEXT("Skill1")) == EKeys::F6
+        && MigratedSession->Zoom == 1550 && MigratedSession->PlayerName.IsEmpty());
+    TestEqual(TEXT("The game instance reports the migration message"), MigratedInstance->GetLocalSettingsMessage(), Migrated.Message);
+    TestTrue(TEXT("The next flush writes the migrated values"), MigratedInstance->FlushLocalSettings().IsSaved());
+    uint32 UpgradedSchema = 0;
+    TestTrue(TEXT("The flushed file uses the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), UpgradedSchema) && UpgradedSchema == uint32(ULDControlSettings::CurrentSchema));
+    const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The rewritten file loads as current with the migrated values and an unset name"),
+        Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Upgraded.Settings->Zoom == 1550 && !Upgraded.Settings->bStartFollowing && Upgraded.Settings->PlayerName.IsEmpty());
+    Previous->Bindings.Add(TEXT("Development"), EKeys::F9);
+    Write(FixtureBytes(*Previous, NamelessFixtureSchema, 0));
+    const auto PreviousRejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 5 file with a retired action keeps the existing rejection and recovery path"),
+        PreviousRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !PreviousRejected.Settings && PreviousRejected.RecoverablePreferences
+        && PreviousRejected.RecoverablePreferences->PlayerName.IsEmpty() && PreviousRejected.Message.Contains(TEXT("Development")));
+    Previous->Bindings.Remove(TEXT("Development"));
+    Previous->Zoom = 9999;
+    Write(FixtureBytes(*Previous, NamelessFixtureSchema, 0));
+    const auto PreviousInvalid = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Invalid schema 5 preferences are rejected, never migrated or offered for recovery"),
+        PreviousInvalid.Status == ELDLocalSettingsLoadStatus::Corrupt && !PreviousInvalid.Settings && !PreviousInvalid.RecoverablePreferences);
+    auto DamagedPrevious = PreviousFile;
+    DamagedPrevious.Last() ^= 1;
+    Write(DamagedPrevious);
+    ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
     return true;
 }
 
@@ -363,10 +493,17 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     const auto Before = Settings->Bindings;
     TestFalse(TEXT("Conflicting key is rejected, never relocated"), Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error));
     TestTrue(TEXT("Rejected rebind preserves every binding"), Settings->Bindings.OrderIndependentCompareEqual(Before));
+    TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("阴人王"), Error));
     Settings->TextScale = 1.25f;
     Settings->Zoom = 1600;
     Settings->ResetBindings();
-    TestTrue(TEXT("Resetting bindings preserves unrelated preferences"), Settings->TextScale == 1.25f && Settings->Zoom == 1600);
+    TestTrue(TEXT("Resetting bindings preserves unrelated preferences and the name"), Settings->TextScale == 1.25f && Settings->Zoom == 1600
+        && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+    Settings->ResetLocalDefaults();
+    const auto* Defaults = GetDefault<ULDControlSettings>();
+    TestTrue(TEXT("Restoring local defaults resets keys, camera and text but never deletes the player name"),
+        Settings->TextScale == Defaults->TextScale && Settings->Zoom == Defaults->Zoom && HasExactDemoDefaults(*Settings)
+        && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Settings->Valid());
     auto* Draft = Settings->CreateDraft();
     Draft->Bindings.Add(TEXT("Sprint"), EKeys::LeftShift);
     TestFalse(TEXT("A draft carrying a retired action cannot be applied"), Settings->ApplyLocalSettings(*Draft, Error));
