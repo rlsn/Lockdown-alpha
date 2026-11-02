@@ -376,7 +376,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 生产者封装实际身份/序号/时间；最终水位须等同批晚因果工作闭合后Sealing，不能随首段运动提前发布；不从代理或末帧补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
 
-`QueryShopEligibility` 是拟建在现有MapRegistry边界的服务器提交期只读查询，唯一实参类型如下：
+`QueryShopEligibility` 是现有 MapRegistry 边界上的服务器提交期只读查询，唯一实参类型如下：
 
 ```cpp
 FLDShopEligibilityResult QueryShopEligibility(
@@ -388,7 +388,7 @@ FLDShopEligibilityResult QueryShopEligibility(
 
 `FLDShopEligibilityResult` 是本世界域原有“ShopEligibilitySample或类型错误”结果形状的具体拟名，
 不是新增核心封包/状态。成功样本只含对应ShopId/WorldRevision、实际采样时刻、合法脚点/支持面及距离；
-非成功没有可当作通过的默认样本。此处声明尚未实现，不创建新Manager或时钟。
+非成功没有可当作通过的默认样本。它已实现于 `World\LDShopEligibility.cpp`（类型在 `World\LDWorldQueryTypes.h`），不创建新Manager或时钟。
 
 | 检查层 | 当前调用/阶段的确切责任 |
 | --- | --- |

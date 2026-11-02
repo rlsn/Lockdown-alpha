@@ -103,8 +103,8 @@ python -B -m unittest discover -s .\Scripts -p "TestDemoContentImport.py"
 这里的 root 是包含生成头的工作区；包内原生校验应使用编译入的头常量，
 不能因此把 SourceData、脚本或源码头加入运行包。
 它不读取 docs 或旧目录，也不证明审批、原生 handler、DataAsset、Bootstrap 或可玩状态；
-唯一 `ULDDemoContentCatalog` 已实现下述原生导入、精确资产投影校验及入口/Bootstrap 消费；
-玩法 handler 的字段消费、正式资产生成/Cook 与实际世界生成仍须分别接线和验证。
+唯一 `ULDDemoContentCatalog` 实现下述原生导入、精确资产投影校验及入口/Bootstrap 消费，
+各玩法领域经它读取字段；字段消费、资产生成/Cook 与世界生成分别由各领域规则、Bootstrap 和打包版场景验证。
 
 ## 资产导入与打包
 
@@ -123,16 +123,14 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 原始 VertexData、导航或 LOS。专用原生规则使用隔离包真实保存、卸载和重载，
 覆盖仅改 Pawn 响应、object type 和凸元局部平移的损坏，不修改生产资产。
 `ULDMapDefinition` 只导入根合同约束的 Demo 世界；保存投影逐字段精确回核，失败不先清空资产。
-旧城市/河流字段不属于 Demo，不能携带非空旧数据通过 Demo 资产校验；
-其反射字段与存量包的移除仍与集成的资产审计/重存同步，不保留旧 map JSON 导入或独立 B90 Builder/脚本入口。
-Generate/Regenerate 不再通过这个入口生成旧区域、职业目录、固定旧输入或旧地图。
-保留的区域/完整地图 Builder 组件须按世界闭包复用或删除；旧 SourceData 和 native loader
-的剩余消费者并未因此全部退出，不能只删文件而不迁移对应 contract/staging。
+它只保留 SourceJson/Checksum 与导入、投影准备、校验和读取；旧城市/河流/路线字段、
+旧 map JSON 导入和独立 B90 Builder/脚本入口已在资产引用审计后删除。
+Generate/Regenerate 不生成旧区域、职业目录、固定旧输入或旧地图；
+`SourceData` 只剩 Demo 内容与 Demo 世界两组作者输入。
 `.uasset`/`.umap` 仍通过 Unreal 和 Git LFS 管理，不以文本拼接修改。
 
-`Lockdown.Build.cs` 精确声明三个 Demo JSON 的 UFS staging 和两份生成头的外部构建依赖；
+`Lockdown.Build.cs` 只声明三个 Demo JSON 的 UFS staging 和两份生成头的外部构建依赖，不再声明旧运行载荷；
 字节参与摘要的 Demo JSON、生成头及原生编号头有精确 `-text` 规则，不经 Git 换行转换。
-它仍声明待迁移组件的旧运行载荷依赖；最终 Demo 的 cook/staging 闭包尚未完成。
 `PackageWin64.ps1` 在打包前做 Demo compiler 检查和 Bootstrap Validate，
 只选择前端与 Demo map set，从项目设置读取产品版本，并记录源输入与包文件摘要。
 缺少实际 Demo 输入或原生世界资产时不能进入旧图打包路径。
@@ -208,8 +206,7 @@ Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资�
 `ULDMapDefinition`、`LDMapRegistry` 与编辑器 Builder 提供唯一 Demo 世界的
 typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 `ALDRegionNavBounds` 仍由 `LDDemoWorldBuilder` 生成和校验，不能随旧 Region 名称误删。
-旧区域导演、哨兵、WatchControl、全图预览与 `LDMapApproaches` 不再提供运行入口；
-旧 RegionDefinition/Anchor 与已保存地图的反射迁移由同一次资产闭包处理。
+旧区域导演、哨兵、WatchControl、全图预览、`LDMapApproaches` 与旧 RegionDefinition/Anchor 已删除。
 
 `FLDWorldRevision` 只含 MapId/LayoutRevision/GeometryRevision，不另分配 Match 身份。
 `ULDMapRegistry::QueryGround` 要求显式注册 SurfaceHint、当前世界修订和正确 capsule；
@@ -218,10 +215,10 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 `ULDDemoNavigationSystem` 仍使用同一个原生 `UNavigationSystemV1`/Recast，
 在导航数据注册前用中央内容半径和现有身体高度配置该世界，不在注册后改 agent 或复制数值到 ini。
 角色的 Demo 分支消费同一 capsule/基础移动速度，不从旧 PrototypeTuning 补 Demo 参数。
-完整 CMC 写许可/实际子段、稀疏观察和拥有客户端场景仍须继续接线验证。
-`RunDemoWorldRoomCheck.ps1` 已覆盖三个实际真人 Lobby 进程的保存世界加载、统一根/名单、
-本地拥有连接和原生 shop 路径；其零 Pawn 断言确保未接通玩法没有被提前激活，
-不把这一场景当作已完成 AI、实际身体移动或完整多人对局。
+CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)，拥有身体的移动由 `RunDemoCoreCheck.ps1` 验证。
+`RunDemoWorldRoomCheck.ps1` 只覆盖三个实际真人 Lobby 进程的保存世界加载、统一根/名单、
+本地拥有连接和原生 shop 路径；其零 Pawn 断言确认 Lobby 阶段不生成玩法身体，
+不代替身体移动、AI 或完整多人对局场景。
 
 `LDGroundQueries` 的静态地面与平面可达性能力仍由核心维护，不是观察权限、完整路径或
 带世界修订/SurfaceHint/capsule 的 Demo 落地证明。正式路径与落地使用上述 Registry 查询，
@@ -271,16 +268,18 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 
 旧营地 Actor、职业/技能初始包、三营地/有限刷新预算、Boss/Tower/圣坛与探索奖励不作备用实现。
 
-唯一占领归约和结果所有者是现有 GameMode 核心，不再保留独立 Objective Actor、HeartSensor、
+唯一占领归约和结果所有者是 GameMode 核心的 `FLDCaptureReducer`（`Framework\LDCaptureReducer`，
+圈内进出由 `World\LDCaptureCircle` 提取），不再保留独立 Objective Actor、HeartSensor、
 Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
-现有 phase/GateRevision/借用 scope 不等于完整 `TryCloseMatch`、结果 CAS 或圈 reducer 已实现。
+归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
 
 ## 保存与复位边界
 
 世界不提供持久检查点、自动保存或恢复入口。物品身份、消耗与原子提交由当前库存/账本维护，
 不通过旧世界文件或已退役的物件服务重建和补发。
 新局和新身体的隔离仍走 GameMode 的 Match/Life 与各领域拒旧协议，见
-[架构与网络](ARCHITECTURE_AND_NETWORKING.md#请求代次与回执)；这不等于完整 Demo 新局流程已经验收。
+[架构与网络](ARCHITECTURE_AND_NETWORKING.md#请求代次与回执)；
+`RunDemoCaptureCheck.ps1` 与 `RunDemoGrowthCheck.ps1` 的第二局阶段在拥有连接上核对新局开局状态与旧代请求拒绝。
 
 本地按键与镜头偏好仍由 `ULDControlSettings::Save/Load` 管理，见
 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md#相机与小地图)，不保存局内战力或世界状态。
@@ -290,9 +289,10 @@ Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先
 对应 Sync `--check`、`Test*Import.py`、Bootstrap Validate 先验证生成链。
 几何与导航使用当前 `Lockdown.Rules.DemoWorld` 和 Bootstrap 校验；
 观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
-真实拥有连接使用 `RunDemoWorldRoomCheck.ps1` 与相应核心/后续 N03 场景。
-旧 B90/B91、World/Objective/Region probe 的授予、改时钟、重进旧图或独立恢复进程
-不作为 Demo 验收入口；未完成的 N03/N02 与真实拓扑断言仍需在对应所有者接通。
+真实拥有连接使用 `RunDemoWorldRoomCheck.ps1`（Lobby）、`RunDemoCoreCheck.ps1`（身体与地面）、
+`RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（占领与终局 N02）；
+全部场景及打包版运行方式见[开发指南](../DEVELOPMENT.md#最小验证选择)。
+旧 B90/B91、World/Objective/Region probe 已删除，不作为验收入口。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
 
 工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。

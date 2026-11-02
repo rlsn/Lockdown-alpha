@@ -120,7 +120,7 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
 不允许两次记录之间的无凭据位置写悄悄成为新起点。退休后的已接纳批次不因弱 Pawn 指针失效而丢弃。
 精确前缀确认、原生记录和完成计数都不是提供者 Fence 或可关闭比赛的凭据；
-真实 Combat/圈事件消费与 Sealing 尚未齐备时，不能让缺失服务自动给出空成功。
+任一阶段缺少 Combat/圈事件消费或 Sealing 时明确故障，不能让缺失服务自动给出空成功。
 
 `RunDemoEntryCheck.ps1` 使用真实游戏进程验证旧保存模式与显式 `?game=` 请求。
 开发测试观察器区分“创建世界前拒绝”和“实际观察到被拒绝世界”；
@@ -130,8 +130,9 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 `ULDGameInstance::NetworkFailed` 处理 pending connection 的 WorldContext 归属，
 避免把一次连接失败写入另一个 PIE 实例。错误信息到前端，不无限停留在失效世界中。
 
-对手 AI 应通过同一核心注册、受限观察与权威命令接入，不沿用旧 B92 席位接管或控制器交接。
-本局不重连，人数和 AI 行为按 App Spec；纯控制接口不等于已实现自主核心循环。
+每个对手 AI 槽由一个服务器 `ALDOpponentController` 驱动，经同一核心注册绑定、受限观察与权威命令接入，
+不沿用旧 B92 席位接管或控制器交接；策略、请求与回执见[对手 AI](../demo/OPPONENT_AI.md)。
+本局不重连，人数和 AI 行为按 App Spec。
 
 占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
 `FLDCaptureReducer` 是唯一连续独占归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
