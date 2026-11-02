@@ -214,6 +214,12 @@ void ULDChoicesPanel::Send(const FLDChoiceCommand& Command)
     if(Answers==Before){PendingRequest=Request;ChoicesText(Feedback,TEXT("已提交，等待服务器确认…"));}
     RefreshSelection();
 }
+void ULDChoicesPanel::FinishRequest()
+{
+    PendingRequest=0;RefreshSelection();
+    // A result that arrives after the panel was closed still reaches the player, without reopening the panel.
+    if(!bOpen&&Notify&&Feedback){Notify(TEXT("升级奖励：")+Feedback->GetText().ToString());}
+}
 void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
 {
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
@@ -243,7 +249,7 @@ void ULDChoicesPanel::HandleSubmit(const FLDSubmitResult& Result)
         break;
     default: ChoicesText(Feedback,TEXT("无法识别服务器的答复，请以当前状态为准。"));return;
     }
-    PendingRequest=0;RefreshSelection();
+    FinishRequest();
 }
 void ULDChoicesPanel::HandleReceipt(const FLDChoiceReceiptQueryResult& Result)
 {
@@ -259,5 +265,5 @@ void ULDChoicesPanel::HandleReceipt(const FLDChoiceReceiptQueryResult& Result)
     case ELDReceiptLookup::NotFound: ChoicesText(Feedback,TEXT("服务器没有找到这次请求，请以当前状态为准。"));return;
     default: ChoicesText(Feedback,TEXT("回执查询无效，请以当前状态为准。"));return;
     }
-    PendingRequest=0;RefreshSelection();
+    FinishRequest();
 }

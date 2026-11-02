@@ -218,6 +218,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
         if(ShopPanel){ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
+        if(ChoicesPanel){ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
         if(ChoicesPanel)
@@ -297,10 +298,10 @@ void ULDHUD::RefreshReadModel()
     if(AppliedScale!=TextScale)
     {
         const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);
-        // The docked panels own separate widget trees; their text follows the same preference.
-        for(ULDPanel* Docked:MainPanels()){if(Docked->WidgetTree){TArray<UWidget*> Inner;Docked->WidgetTree->GetAllWidgets(Inner);All.Append(Inner);}}
         for(auto* W:All){if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);Label->SetFont(Font);}}
     }
+    // The docked panels own separate widget trees and follow the same preference themselves.
+    for(ULDPanel* Docked:MainPanels()){Docked->ApplyTextScale(TextScale);}
     if(MapAspect<=0)
     {
         // The frame follows the registered ground aspect so the minimap never stretches world distances.

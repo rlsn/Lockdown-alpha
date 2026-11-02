@@ -20,6 +20,8 @@ public:
     TFunction<uint64(const FLDChoiceCommand&,ELDGrowthReason&)> SubmitChoice;
     // The id the next choice submit will receive (0 while one is in flight); a Listen Host answers inside the call.
     TFunction<uint64()> PeekRequestId;
+    // Result notices for a request that ends while the panel is closed (the HUD shows them as a toast).
+    TFunction<void(const FString&)> Notify;
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDChoiceReceiptQueryResult& Result);
@@ -70,6 +72,7 @@ private:
     bool bReplacing=false;
     void Send(const FLDChoiceCommand& Command);
     void ShowFinal(const FLDChoiceReceipt& Receipt);
+    void FinishRequest();
     void RefreshSelection();
     void ResetReplacement();
 };
