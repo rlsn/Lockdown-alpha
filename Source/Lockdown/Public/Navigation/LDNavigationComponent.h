@@ -2,20 +2,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Navigation/LDOrderTypes.h"
 #include "LDNavigationComponent.generated.h"
-
-// Also carried by saved native moves. No route points or actor pointers cross the wire.
-USTRUCT()
-struct FLDMoveIdentity
-{
-    GENERATED_BODY()
-    UPROPERTY() uint32 Match=0;
-    UPROPERTY() uint32 Life=0;
-    UPROPERTY() uint32 Order=0;
-    UPROPERTY() uint32 Epoch=0;
-    bool operator==(const FLDMoveIdentity& R) const {return Match==R.Match&&Life==R.Life&&Order==R.Order&&Epoch==R.Epoch;}
-    bool operator!=(const FLDMoveIdentity& R) const {return !(*this==R);}
-};
 
 class ALDPlayerController;
 class ALDCharacter;
