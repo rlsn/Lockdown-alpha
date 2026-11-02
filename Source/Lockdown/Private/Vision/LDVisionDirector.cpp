@@ -8,6 +8,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
+#include "World/LDCampDirector.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -676,6 +677,14 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         if (!Core->ReadObservedPublicFacts(ActiveMatch, Ref, Facts, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_FACTS_UNAVAILABLE"); }
+            return false;
+        }
+        // Camps owns a member's public projection (identity and the untimed Returning cue). Every body the core
+        // accepted above is a registered member, so a refusal is a real fault and publication fails closed.
+        if (Ref.Victim.Kind == ELDVictimKind::CampMember
+            && (!Core->Camps || !Core->Camps->AppendObservedFacts(ActiveMatch, Ref, Facts, Error)))
+        {
+            if (!Core->Camps || Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_CAMP_FACTS_UNAVAILABLE"); }
             return false;
         }
         FLDObservedTarget Target;

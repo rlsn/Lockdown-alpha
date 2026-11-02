@@ -26,7 +26,8 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 绑定到达时以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；本地拒绝与服务器结果
 都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
 本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`；`ReadOwnShop` 只在当前生命已 Opened 时有效。
-`Framework\LDPlayerInventory.cpp` 只保留面板开关；旧背包整理/丢弃链已删除。
+旧背包面板（`LDInventoryPanel`、`LDPlayerInventory.cpp`）及其整理/丢弃链已删除；小卖部页面是 HUD 停靠的
+`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订。
 
 ## 物品身份不是格子
 
