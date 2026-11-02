@@ -3,6 +3,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
+#include "Combat/LDCombatTypes.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -65,6 +66,28 @@ public:
     class ALDWorldViewRelay* LocalView() const;
     FString IntentFeedback;
     uint32 FeedbackSerial() const { return IntentFeedbackSerial; }
+    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp) ----
+    // Hotkeys and HUD icons share this entry. Self sends now; Unit/Direction arm and wait for a
+    // left-click confirmation; right click or Back cancels the armed entry without a world command.
+    void ActivateCombatEntry(ELDCombatEntry Entry);
+    bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
+    bool IsAttackMoveArmed() const { return bAttackMoveArmed; }
+    void ArmAttackMove();
+    // Clears any armed entry or attack-move without sending anything; true if something was armed.
+    bool CancelArmedCombat();
+    // Left-click confirmation of the armed entry or attack-move; false when nothing was armed.
+    bool ConfirmArmedCombat();
+    // S: stop orders and cancel interruptible Direct actions issued so far.
+    void StopCombatAndOrders();
+    // Current shop interaction binding (ApproachShop en route or arrived); see ULDNavigationComponent.
+    bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
+    UFUNCTION(Server,Reliable) void ServerSubmitCombatAction(const FLDCombatActionRequest& Request);
+    UFUNCTION(Server,Reliable) void ServerCancelCombatAction(const FLDCombatCancelRequest& Request);
+    UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
+    UPROPERTY(ReplicatedUsing=OnRep_CombatView) FLDCombatOwnerView CombatView;
+    UFUNCTION() void OnRep_CombatView();
+    FLDCombatActionReceipt LatestCombatReceipt;
+    uint32 CombatReceiptSerial=0;
 private:
     void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0,FGuid ExpectedResult=FGuid());
     uint32 DemoRequestGeneration=0;
@@ -89,4 +112,10 @@ private:
     FLDOwnerState LatestOwner;
     FVector LastBodyPosition=FVector::ZeroVector;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
+    // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp) ----
+    void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target);
+    ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
+    bool bAttackMoveArmed=false;
+    uint64 NextDirectSequence=0;
+    FLDCombatOwnerView LatestCombatView;
 };
