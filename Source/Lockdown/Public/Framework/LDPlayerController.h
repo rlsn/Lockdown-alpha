@@ -44,11 +44,34 @@ public:
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
     void ToggleInventoryPanel();
-    void InventoryCommand(uint8 Command,FGuid Item=FGuid(),uint8 Slot=0,FVector Point=FVector::ZeroVector);
-    bool InventoryPending() const { return InventoryPendingRequest!=0; }
-    UFUNCTION(Server,Reliable) void ServerInventoryRequest(uint32 Match,uint32 Life,uint32 Request,
-        uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector_NetQuantize10 Point);
-    UFUNCTION(Client,Reliable) void ClientInventoryResult(const FLDOwnerState& State,uint32 Request,const FString& Result);
+    // ---- Growth/Shop (growth module; implementation in LDPlayerGrowth.cpp) ----
+    // The caller fills the business fields; Submit fills Generation, Life (and ExpectedLifePhase for a choice) from
+    // the accepted OwnerState at call time, assigns the RequestId, records it in flight before the RPC and returns
+    // it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the call, so a
+    // caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
+    uint64 SubmitChoice(const FLDChoiceCommand& Command, ELDGrowthReason& OutLocalReason);
+    uint64 SubmitShopCommand(const FLDShopCommand& Command, ELDGrowthReason& OutLocalReason);
+    uint64 PeekGrowthRequestId(ELDGrowthFamily Family) const;
+    // Open intents have no request sequence: true when sent; the terminal result arrives as OnShopOpenResult.
+    bool SubmitShopOpen(const FLDShopOpenCommand& Command, ELDGrowthReason& OutLocalReason);
+    void QueryGrowthReceipt(const FLDReceiptQuery& Query);
+    // Own accepted projection only; null while the view is invalid. ReadOwnShop is non-null only for an Opened session.
+    const FLDProgressionView* ReadOwnProgression() const;
+    const FLDEquipmentView* ReadOwnEquipment() const;
+    const FLDShopView* ReadOwnShop() const;
+    FLDOnGrowthSubmit OnGrowthSubmit;
+    FLDOnChoiceReceipt OnChoiceReceipt;
+    FLDOnShopReceipt OnShopReceipt;
+    FLDOnShopOpenResult OnShopOpenResult;
+    UFUNCTION(Server,Reliable) void ServerGrowthChoice(const FLDChoiceCommand& Command);
+    UFUNCTION(Server,Reliable) void ServerShopOpen(const FLDShopOpenCommand& Command);
+    UFUNCTION(Server,Reliable) void ServerShopCommand(const FLDShopCommand& Command);
+    UFUNCTION(Server,Reliable) void ServerQueryGrowthReceipt(const FLDReceiptQuery& Query);
+    UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
+    UFUNCTION(Client,Reliable) void ClientChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
+    UFUNCTION(Client,Reliable) void ClientShopReceipt(const FLDShopReceiptQueryResult& Result);
+    UFUNCTION(Client,Reliable) void ClientShopOpenResult(const FLDShopOpenResult& Result);
+    // ---- end Growth/Shop ----
     void RebuildV05Mappings();
     void RecordAppliedCameraZoom();
     void ToggleControlsPanel();
@@ -108,7 +131,21 @@ private:
     TArray<uint32> V05BindingHandles;
     FGuid Inspected;
     uint32 InspectedGeneration=0,InspectedEpoch=0;
-    uint32 NextRequest=0,InventoryPendingRequest=0;
+    // ---- Growth/Shop private request cursors (one in-flight request per family) ----
+    struct FGrowthRequestCursor
+    {
+        uint32 Generation=0;
+        uint64 Next=1;
+        uint64 InFlight=0;
+    };
+    FGrowthRequestCursor ChoiceCursor;
+    FGrowthRequestCursor ShopCursor;
+    uint64 BeginGrowthRequest(FGrowthRequestCursor& Cursor, ELDGrowthReason& OutLocalReason);
+    void SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint32 Generation, uint64 RequestId, bool bReserved, bool bFinal);
+    // Owning client: Navigation's arrival of the current ApproachShop binding requests that shop's session once.
+    void BindGrowthClient();
+    void HandleShopArrived(FName ShopId, uint32 Life);
+    // ---- end Growth/Shop ----
     FLDOwnerState LatestOwner;
     FVector LastBodyPosition=FVector::ZeroVector;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
