@@ -146,6 +146,19 @@ public:
         const double WorldSeconds=Mode.GetWorld()->GetTimeSeconds();
         Mode.MatchPhase=ELDMatchPhase::Starting;
         if (!Check(Mode.InitializeAuthorityCore(Error),TEXT("Fixture uses the real core initializer and compiled content"))) { return false; }
+        // Every registered provider prepares this match exactly as a normal start would.
+        FLDMatchStartContext Start;
+        Start.Match=Mode.GetMatchContext();
+        Start.StartedAtMs=Mode.MatchStartedAtMs;
+        Start.OpenAtMs=Mode.CaptureReducer.GetOpenAtMs();
+        for (const FGuid& Id : Mode.RosterOrder) { if (Mode.IsMemberPresent(Id)) { Start.Humans.Add(Id); } }
+        bool bPrepared=true;
+        for (int32 Index=0; bPrepared && Index<int32(ELDMatchProvider::Count); ++Index)
+        {
+            const FLDMatchProviderHooks* Hooks=LDMatchProviders::Find(ELDMatchProvider(Index));
+            bPrepared=!Hooks || !Hooks->Prepare || Hooks->Prepare(Mode,Start,Error);
+        }
+        if (!Check(bPrepared,TEXT("Fixture prepares every registered provider like a normal start"))) { return false; }
         const FName ShopId(*Content->Get().World.ShopId);
         const auto* Shop=Registry.Resolve(ShopId,Registry.Generation);
         if (!Shop) { Error=TEXT("Shop geometry fixture has no approved anchor."); return false; }

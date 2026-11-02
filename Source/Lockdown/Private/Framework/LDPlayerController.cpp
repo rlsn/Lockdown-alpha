@@ -6,9 +6,10 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Tests/LDDemoVisionProbe.h"
+#include "Tests/LDDemoGrowthProbe.h"
+#include "Tests/LDDemoCampProbe.h"
 #include "Tests/LDDemoCaptureProbe.h"
 #include "UI/LDUIRoot.h"
-#include "UI/LDInventoryPanel.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -52,6 +53,8 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);
     LDDemoTests::StartVisionProbe(*this);
+    LDDemoTests::StartGrowthProbe(*this);
+    LDDemoTests::StartCampProbe(*this);
     LDDemoTests::StartCaptureProbe(*this);
 #endif
 }
@@ -141,7 +144,6 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
 
 void ALDPlayerController::ClearControls(bool LifeChanged)
 {
-    if (InventoryUI) { InventoryUI->CancelDrag(); }
     if (LifeChanged) { Navigation->ResetLife(); }
     else { Navigation->Stop(); }
     Navigation->Recenter(false);

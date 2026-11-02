@@ -14,13 +14,14 @@
 | `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
 | `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
-| `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励，实际 N03 接线未完成 |
-| `Development\LDCharacterBuild` | 当前构筑纯值与候选投影；不是已接通的三选一服务 |
-| `Development\LDV08Loadout`、`LDV08Modifiers` | 来源绑定、装备派生与修正器 |
+| `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
+| `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
+| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、持久三选一队列与 Q/W 替换的权威成长记录；构筑变更经 Combat 准备与安装 |
+| `Economy\LDEconomyDirector`、`Inventory\LDVendorDirector` | 死亡奖励复合提交、Transactions 分派、本人发布与两槽装备买卖，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md) |
 
 这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
 `SourceData\Demo`、`SyncDemoWorldData` / `SyncDemoContentData` 和原生不可变目录生成链读取。
-保留纯模型尚需的旧 Catalog 只服务其明确依赖，不作为 Demo 的默认属性、技能或物品授予。
+旧职业构筑、V07/V08 Catalog 与 Loadout 纯模型已随闭包删除，属性、技能与物品只来自 Demo 目录。
 旧职业任务、暗杀、烟雾、元素地表、内容请求协议与对应执行器已随闭包删除。
 
 ## 从意图到结果
@@ -48,14 +49,16 @@ Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所
 `AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
 中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
 普攻节拍、脱战回复起点、保护到期、复活时刻、开圈与独占完成时刻）。每步依次执行 Motion → Session
-（保护半开到期）→ Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Capture → Close 和完成边界，
-仅推进原生游戏时间已经提供的预算；Close 锁定结果后仍完成该边界、调用无 permit 的发布并停止推进。
+（保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
+Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
+Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
+DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitDeathReward`：可重试的拒绝只在下一边界再试一次，
+其余未支付结果明确报错并故障；结果锁定时仍待重试的奖励记录为未支付。Transactions 每步调用一次 `ProcessTransactions`。
 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向占领归约器提交资格事实并通知提供者。
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
-奖励与 Transactions 由成长、营地提供者接入后才在同一分派中开启；
-在此之前这些阶段明确拒绝，不是空成功或最终 Fence，普通 Start 因此仍关闭。
+营地成员的运动、意图、反击与刷新由营地提供者接入后在同一分派中调用。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
 新争圈的归约与结果归 GameMode 核心（N02，尚未实现），不能沿用已退役的 Heart 授权或旧交互中断条件。
@@ -84,24 +87,20 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 构筑与来源
 
-`FLDCharacterBuild` 当前仍有六维属性、Ranks、Slots/Actions、Cooldowns、Revision 等字段，
-并受所选规则格式约束。这不是新 Demo 的 MOBA 属性与三选一模型。
-
-`FLDBuildPlan` 携带预期构筑与库存版本；`Prepare`、`LDV08::Project` 仍保留纯投影与候选校验，
-不能把客户端草稿或失败的候选结果直接复制成真实构筑。旧站点准备、读书和 Loadout hold
-不再有运行入口；N04 的机会/候选/确认、拒旧与回执必须按同一核心许可实际接入。
-学习、动作引用、物理装备绑定和物品实例分别管理；失去物品时，
-`InvalidateSources` 必须让依赖该来源的动作失效，不能留下悬空热键。
+成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/主动槽、属性卡与 Revision）。
+选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W 主动、
+两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
+同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
+来源冷却轨道与债优先回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，售出重购按回绑规则继承；
+商店报价用只读 `PreviewGearBinding` 说明继承冷却，以购买回执为准。
 
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
-后续实现 Demo 成长时优先复用身份、请求、来源与回执边界，
-但需要明确改造当前构筑字段、选项状态和死亡策略，而不是继续继承旧职业/书籍规则。
 
 ## 检查入口
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoAttributeProjection.*` 与 `DemoCore.*`
-分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；`LDV08LoadoutTests`、
-`LDPreparationRulesTests` 仍验证保留纯来源模型的候选和拒绝，不能解释为 Demo 多槽已经批准。
+分别覆盖纯数值、Root/屏障/回复/冷却规则、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
+`DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。

@@ -3,6 +3,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -110,13 +111,34 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             { return RunDeaths(Permit,Error); },Error)
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->RespawnDueContenders(Permit,Error); },Error)
+            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
+            {
+                if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
+                return Mode->Economy->ProcessTransactions(Permit,Error);
+            },Error)
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->ExecuteCapturePhase(Permit,Error); },Error)
             // Close locks the unique result and shuts the write gate before any cleanup or publication.
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Close,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->ExecuteClosePhase(Permit,Error); },Error)
             || !Mode->FinishAuthorityStep(*this,Error)
-            || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error)) { return false; }
+            // Publish has no permit: growth receipts and owner projections, then the capture outcome.
+            || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+            || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
+        {
+            if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+            return false;
+        }
+    }
+    if (!Mode->IsGameplayWriteOpen(Match) && !RetryRewards.IsEmpty())
+    {
+        // The result closed with a retryable reward still pending: it stays explicitly unpaid.
+        for (const auto& Fact : RetryRewards)
+        {
+            UE_LOG(LogTemp,Error,TEXT("LD_REWARD_UNPAID_AT_CLOSE victim=%s life=%u"),
+                *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life);
+        }
+        RetryRewards.Reset();
     }
     // After Close the observation owner may already have ended with the match; owner views still settle.
     if (Mode->IsGameplayWriteOpen(Match) && !Mode->Vision->PublishAuthority(Match,Error)) { return false; }
@@ -128,6 +150,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     auto* Mode=Core();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     { Error=TEXT("Combat actions require the current Actions permit."); return false; }
+    // Regeneration of the elapsed interval settles before this boundary's actions can start combat.
+    if (!Regenerate(Mode->GetAuthorityNowMs(),Error)) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);
@@ -169,9 +193,9 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Effects)!=ELDCommitReject::None)
     { Error=TEXT("Combat effects require the current Effects permit."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
-    // Half-open statuses end before this boundary's hits; regeneration covers the interval before them.
+    // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    if (!Regenerate(Now,Error) || !AdvanceProjectiles(Error)) { return false; }
+    if (!AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];
@@ -186,6 +210,14 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     auto* Mode=Core();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
     { Error=TEXT("Deaths require the current DeathsAndRewards permit."); return false; }
+    if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+    // A reward refused as retryable at the previous boundary gets its single second attempt first.
+    const TArray<FLDCommittedDeath> Retries=MoveTemp(RetryRewards);
+    RetryRewards.Reset();
+    for (const auto& Fact : Retries)
+    {
+        if (!CommitReward(Fact,true,Permit,Error)) { return false; }
+    }
     if (PendingDeaths.IsEmpty()) { return true; }
     // Every fact of this Effects set was locked before any of them is consumed.
     TArray<FLDCommittedDeath> Deaths=MoveTemp(PendingDeaths);
@@ -202,7 +234,28 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
             ? Mode->EndContenderLife(Fact,Permit,Error) : Mode->EndCampMemberLife(Fact,Permit,Error);
         if (!Ended) { return false; }
     }
+    // Rewards follow every life end of the set; each RewardBasis was frozen at its own fatal hit.
+    for (const auto& Fact : Deaths)
+    {
+        if (!CommitReward(Fact,false,Permit,Error)) { return false; }
+    }
     return true;
+}
+
+bool ALDCombatDirector::CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    const FLDRewardReceipt Receipt=Core()->Economy->CommitDeathReward(Fact,Permit);
+    if (Receipt.Outcome==ELDRewardOutcome::Granted || Receipt.Outcome==ELDRewardOutcome::NoReward) { return true; }
+    if (Receipt.Outcome==ELDRewardOutcome::RetryableNotCommitted && !bRetry)
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_REWARD_RETRY victim=%s life=%u reason=%u"),
+            *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life,uint32(Receipt.Reason));
+        RetryRewards.Add(Fact);
+        return true;
+    }
+    Error=FString::Printf(TEXT("The reward of %s life %u stayed unpaid: outcome %u, reason %u."),
+        *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life,uint32(Receipt.Outcome),uint32(Receipt.Reason));
+    return false;
 }
 
 bool ALDCombatDirector::PublishOwnerViews(FString& Error)

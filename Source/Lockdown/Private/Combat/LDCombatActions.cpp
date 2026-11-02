@@ -602,39 +602,47 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
         auto* Body=Actor?Bodies.Find(Actor):nullptr;
         if (!Body || !Body->Action.IsSet() || Body->bPendingDeath) { continue; }
         const FLDCombatAction Action=Body->Action.GetValue();
+        ELDCombatReject Reject=ELDCombatReject::None;
         if (Action.Kind==ELDCombatActionKind::Basic)
         {
-            if (!ReleaseBasic(*Actor,*Body,Action,Error)) { return false; }
+            if (!ReleaseBasic(*Actor,*Body,Action,Reject,Error)) { return false; }
+            // A Nav-origin basic reports through its order; only Direct requests own a combat receipt.
+            if (Action.Key.Origin==ELDCombatRequestOrigin::Direct) { FinishDirectReceipt(Entry.Key,Action,Reject); }
             continue;
         }
-        ELDCombatReject Reject=ELDCombatReject::None;
         if (!ReleaseAbility(*Actor,*Body,Action,Reject,Error)) { return false; }
         FinishAction(*Body,Reject,Reject==ELDCombatReject::None);
-        if (auto* Record=FindRecord(Entry.Key))
-        {
-            FLDCombatActionReceipt Receipt;
-            Receipt.Generation=Action.Key.Generation;
-            Receipt.Life=Action.Key.Life;
-            Receipt.DirectSequence=Action.Key.DirectSequence;
-            Receipt.Entry=Action.Entry;
-            Receipt.CombatToken=Action.Token;
-            Receipt.Phase=Reject==ELDCombatReject::None ? ELDCombatPhase::Finished : ELDCombatPhase::Rejected;
-            Receipt.Reject=Reject;
-            if (const auto* Known=Record->Recent.FindByPredicate([&Action](const FLDCombatDirectEntry& Known)
-                { return Known.Request.DirectSequence==Action.Key.DirectSequence; }))
-            {
-                Receipt.bProtectionRemoved=Known->Receipt.bProtectionRemoved;
-                Receipt.LifeRevision=Known->Receipt.LifeRevision;
-                StoreReceipt(*Record,Known->Request,Receipt);
-            }
-            SendReceipt(*Record,Receipt);
-        }
+        FinishDirectReceipt(Entry.Key,Action,Reject);
     }
     return true;
 }
 
-bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error)
+void ALDCombatDirector::FinishDirectReceipt(const FGuid& Entity, const FLDCombatAction& Action, ELDCombatReject Reject)
 {
+    auto* Record=FindRecord(Entity);
+    if (!Record) { return; }
+    FLDCombatActionReceipt Receipt;
+    Receipt.Generation=Action.Key.Generation;
+    Receipt.Life=Action.Key.Life;
+    Receipt.DirectSequence=Action.Key.DirectSequence;
+    Receipt.Entry=Action.Entry;
+    Receipt.CombatToken=Action.Token;
+    Receipt.Phase=Reject==ELDCombatReject::None ? ELDCombatPhase::Finished : ELDCombatPhase::Rejected;
+    Receipt.Reject=Reject;
+    if (const auto* Known=Record->Recent.FindByPredicate([&Action](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Action.Key.DirectSequence; }))
+    {
+        Receipt.bProtectionRemoved=Known->Receipt.bProtectionRemoved;
+        Receipt.LifeRevision=Known->Receipt.LifeRevision;
+        StoreReceipt(*Record,Known->Request,Receipt);
+    }
+    SendReceipt(*Record,Receipt);
+}
+
+bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
+    ELDCombatReject& Outcome, FString& Error)
+{
+    Outcome=ELDCombatReject::None;
     auto* Mode=Core();
     const auto* Content=Catalog();
     auto* Record=FindRecord(Body.Victim.EntityId);
@@ -644,15 +652,16 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     FVector TargetFoot;
     ELDCombatReject Reject;
     if (!ResolveUnitTarget(*Record,Actor,Action.Target,TargetRef,TargetFoot,Reject) || TargetRef!=Action.TargetBody)
-    { FinishAction(Body,ELDCombatReject::TargetUnavailable,false); return true; }
+    { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
     const FVector Foot=FootOf(Actor);
     if (FVector::Dist2D(Foot,TargetFoot)>LDCA::ToDouble(Body.AttributeProjection.Final.AttackRangeCm))
-    { FinishAction(Body,ELDCombatReject::OutOfRange,false); return true; }
+    { Outcome=ELDCombatReject::OutOfRange; FinishAction(Body,Outcome,false); return true; }
     bool bFault=false;
     if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
     {
         if (bFault) { Error=TEXT("Basic release sight failed on a registered body."); return false; }
-        FinishAction(Body,ELDCombatReject::Blocked,false);
+        Outcome=ELDCombatReject::Blocked;
+        FinishAction(Body,Outcome,false);
         return true;
     }
     const auto& Final=Body.AttributeProjection.Final;

@@ -29,6 +29,8 @@
   不含技能、冷却、完整属性、金币或规范身体身份。
 - 营地成员只携带生物 Id、HP 和公开状态；内容定义了 MP 时才带 MP。营地成员的 `Presentation` 恒为 0。
   `CampReturning`（3）只出现在营地成员身上，不叠层、无期限：codec 只接受 `Stacks` 为 1、`ExpiresAtServerMs` 为 0 的该状态。
+  它由 `ALDCampDirector::AppendObservedFacts` 在核心 `ReadObservedPublicFacts` 之后追加（只在成员处于 Returning 时）；
+  营地拒绝或缺失时本次发布失败关闭（`LD_OBSERVATION_CAMP_FACTS_UNAVAILABLE`），不发布缺少营地事实的单位。
 - 复活保护的唯一真值是核心的 `ProtectedUntilMs`：当前身体、`Alive` 且 `Now < ProtectedUntilMs`（半开区间）时生效。
   本人通过 `OwnerState` 显示；他人只在当前可见时，从同一 `Statuses` 列表看到一个不叠加、带 `ExpiresAtServerMs` 的
   `RespawnProtection`（4），由核心的公开事实提供方派生，codec 只接受参赛者身上、`Stacks` 为 1 且有到期时间的该状态。
@@ -66,16 +68,29 @@
 
 | 信息 | 允许来源 |
 | --- | --- |
-| 自身血蓝、资源、构筑、cooldown | Controller 的自身状态与私有回执 |
-| 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“不可用”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护 |
-| 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedUnit` 只显示白名单 |
-| 小地图 | 注册地面边界、当前覆盖、当前可见单位；不画探索层 |
-| 商店 | 当前合法报价、自己的金币与库存 |
-| 全局占领/结果 | 明确定义的公共状态 |
+| 自身血蓝、护盾、临时状态与被动 | Combat 的仅本人复制 `ALDPlayerController::CombatView`（同 Match/Life 才使用；没有身体时退回 Lives 投影的血蓝）；`LDHUD::SelfStatusLine/PassiveLine` 只格式化，被动按装备来源各显示一次 |
+| 自身等级、经验、零花钱、装备与待选 | Growth 的 `ReadOwnProgression/ReadOwnEquipment`（`FLDOwnerState.Growth`）；满级显示 MAX，缺失显示“同步中” |
+| 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“同步中”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护 |
+| Q/W 与 1/2 | `CombatView.Entries` 经 `LDHUD::ActionInput/Action` 把意图可提交性（本人当前 Match/Life、对局进行中、存活、未被子确认或文字编辑占用）与执行限制（空槽、无主动、冷却、胆量、控制、服务器原因）分开；图标与热键同走 `ActivateCombatEntry`，限制只置灰说明，不吞掉显式激活；本人战斗投影缺失时显示“未同步”且不发送。准备态读 `ReadArmedCombatEntry/IsAttackMoveArmed`，回执 `LatestCombatReceipt` 分开提示“未执行”与“复活保护已解除” |
+| 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedCard/ObservedUnit` 只显示白名单 |
+| 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、小卖部、升旗台圈、两档营地标记；当前覆盖与当前可见单位；不画探索层或出生点 |
+| 属性 P | `ULDAttributesPanel` 只格式化 `CombatView.Attributes` 的各来源与最终值、已学被动、装备被动和临时状态；行固定，刷新不重置滚动 |
+| 三选一 | `ULDChoicesPanel` 读当前 Offer 的三张固定卡，命令带 OfferId/OptionId/各修订；Q/W 已满时进入替换子确认，不默认槽位；同一机会的修订刷新保留原选项 |
+| 小卖部 | `ULDShopPanel` 读当前 Opened 会话报价（`ReadOwnShop`）与本人两槽装备；只有 `OnShopOpenResult` 的 Opened 与 Combat 的 `ReadShopInteraction` 同代次、同生命、同小卖部时才开页，迟到或旧交互结果不弹出；远端客户端在下一次成长发布前先用 Opened 自带的报价。买卖命令带所显示的会话、报价与修订，卖出需子确认；死亡、换命、换局或会话结束自动关闭，受伤不关闭 |
+| 公共圈、击杀通知与结果 | `ALDGameState::PublicMatch`（唯一阶段来源，校验代次）、`KillFeed`（按序号去重，只含参赛者死亡）、`MatchResult`（与 `PublicMatch.ResultId` 一致才显示，缺失时“结算同步中”而非零表）；倒计时到零只等待权威状态，不宣布开放或胜利 |
 | 命中、失败与进度 | 经裁剪的自身反馈，而非完整服务器日志 |
 
-名称来自复制的 `ALDGameState::DemoLobby` 名册。生物和装备目前显示批准内容 Id，本地化显示名由显示名工作提供。
+成长请求一个家族同时只有一个在途：面板在提交前先用 `PeekGrowthRequestId` 记下将分配的序号，
+因为 Listen Host 会在提交调用内回答；只在 Controller 也结束该请求时（Final、未保留序号的拒绝、
+Final/过期回执）解除等待。
+
+名称来自复制的 `ALDGameState::DemoLobby` 名册，查不到时显示“未列名参赛者”。
+技能、装备、野怪和状态的中文名经 `LDHUD::ContentText` 从 `DemoContent` 字符串表读取；
+表或键缺失时显示稳定 Id 并记录 `LD_HUD_DISPLAY_TEXT_MISSING`，不猜名称。
 `LDHUDModel`、`LDHUD`、`LDMinimap`、`LDUIRoot` 及各 Panel 是主要 UMG/Slate 入口。
+属性、三选一、小卖部三个普通主面板由 `LDHUD` 创建并停靠在自身画布上（命中测试只算面板本体），
+并向 `ULDUIRoot::RegisterMainPanel` 登记；同一时刻只开一个，权威事件用 `ShowMainPanel` 打开，
+不会顶掉玩家随后打开的菜单或设置。
 
 受控角色、检查对象、准备中的动作、指针捕获、镜头模式和打开面板分别管理。
 选中另一角色并不改变技能/装备按钮的所有者；禁用按钮只是反馈，不能代替服务器检查。
@@ -100,6 +115,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 - `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何。
 - `HUDObservationBoundary`（`LDHUDRulesTests`）覆盖检视器白名单和地图换算。
 - `HUDLifeStatus`（`LDHUDRulesTests`）覆盖自身生命行：权威时刻缺失时显示不可用，倒计时在截止前不显示 0，死亡不显示金币损失。
+- `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
+  覆盖本人资源与等级、Q/W/1/2 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
 - `RunDemoVisionCheck.ps1`（`Tests\LDDemoVisionProbe`）：参赛且渲染的 Listen Host 与两个拥有客户端经正常大厅开局，
   三具身体走到公共占领锚点后，检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、

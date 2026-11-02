@@ -24,9 +24,10 @@ private:
     TSharedPtr<struct FLDDisplayConfigGuardData> Data;
 };
 
+// Migrated: an older schema was converted explicitly; its values are applied but not yet saved in the current schema.
 enum class ELDLocalSettingsLoadStatus : uint8
 {
-    Loaded, Missing, UnsupportedSchema, Corrupt, ReadFailed, InvalidStorage
+    Loaded, Migrated, Missing, UnsupportedSchema, Corrupt, ReadFailed, InvalidStorage
 };
 enum class ELDLocalSettingsSaveStatus : uint8
 {
@@ -53,7 +54,7 @@ struct FLDLocalSettingsLoadResult
 {
     ELDLocalSettingsLoadStatus Status = ELDLocalSettingsLoadStatus::ReadFailed;
     ULDControlSettings* Settings = nullptr;
-    // A rejected binding set can still carry validated, unrelated camera preferences.
+    // A rejected binding set can still carry validated, unrelated camera/text preferences and player name.
     ULDControlSettings* RecoverablePreferences = nullptr;
     FString Message;
 };
@@ -134,13 +135,16 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 5;
+    static constexpr int32 CurrentSchema = 6;
+    static constexpr int32 MaxPlayerNameChars = 16;
     UPROPERTY(SaveGame) int32 Schema=CurrentSchema;
     UPROPERTY(SaveGame) TMap<FName,FKey> Bindings;
     UPROPERTY(SaveGame) bool bEdgePan=true;
     UPROPERTY(SaveGame) bool bStartFollowing=true;
     UPROPERTY(SaveGame) float TextScale=1;
     UPROPERTY(SaveGame) float Zoom=1400;
+    // Empty means the player has not chosen a name yet; no default name is ever invented.
+    UPROPERTY(SaveGame) FString PlayerName;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -150,6 +154,9 @@ public:
     FLDLocalSettingsSaveResult SaveLocalSettings();
     bool SetAppliedZoom(float Value, FString& Error);
     void SetAppliedFollowing(bool Value);
+    // Local format check only; the name travels as the ?Name= URL option and the session domain still normalizes or rejects it.
+    static bool ValidatePlayerName(const FString& Name, FString& Error);
+    bool SetAppliedPlayerName(const FString& Name, FString& Error);
     void AllowRecoverySave() { bRecoveryRequired = false; }
     void RequireRecovery() { bRecoveryRequired = true; }
     bool NeedsRecovery() const { return bRecoveryRequired; }
@@ -162,6 +169,7 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
+    // Restores keys, camera and text only; the player name is never cleared by a defaults reset.
     void ResetLocalDefaults();
 private:
     void CopyPreferences(const ULDControlSettings& Other);
