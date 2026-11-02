@@ -42,7 +42,7 @@ try {
     Start-Role 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoWorldHost'
     Wait-Reports @('HostReady.json')
     foreach ($index in 1..2) {
-        $url = '127.0.0.1:{0}?Name=DemoWorldClient{1}?LDWire=2?LDProduct={2}?LDCatalog={3}' -f $port,$index,$version,$digest
+        $url = '127.0.0.1:{0}?Name=DemoWorldClient{1}?LDWire=3?LDProduct={2}?LDCatalog={3}' -f $port,$index,$version,$digest
         Start-Role "Client$index" $url
     }
     Wait-Reports @('Host.json','Client1.json','Client2.json')

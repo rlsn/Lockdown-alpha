@@ -1,27 +1,19 @@
 #include "UI/LDHUD.h"
-#include "Combat/LDTacticalCatalog.h"
-#include "Development/LDV08Modifiers.h"
-#include "Combat/LDRiverRules.h"
-#include "Combat/LDEnvironmentRules.h"
-#include "Core/LDGroundQueries.h"
-#include "Combat/LDTacticalRules.h"
-#include "Development/LDV08Loadout.h"
-#include "Inventory/LDEquipmentCatalog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDControlSettings.h"
-#include "UI/LDDevelopmentPanel.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDInventoryPanel.h"
 #include "UI/LDUIRoot.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
+#include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Vision/LDWorldViewRelay.h"
-#include "Region/LDRegionDefinition.h"
-#include "Objectives/LDObjectiveRules.h"
 #include "Blueprint/WidgetTree.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/ScrollBox.h"
@@ -35,7 +27,6 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
-#include "Components/ProgressBar.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 #include "Framework/Application/SlateApplication.h"
@@ -51,7 +42,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto Text=[&](const FString& S,int32 Size=16){return LDWidgets::Text(WidgetTree,S,Size);};
         auto Panel=[&](UWidget* Child){auto* Border=LDWidgets::Panel(WidgetTree,Child,FMargin(12,8));HitPanels.Add(Border);return Border;};
         auto Button=[&](const FString& S,TFunction<void()> Action){auto* B=LDWidgets::Button(WidgetTree,S,MoveTemp(Action),true);auto* Caption=CastChecked<UTextBlock>(B->GetContent());Caption->SetAutoWrapText(false);Caption->SetJustification(ETextJustify::Center);CastChecked<UButtonSlot>(Caption->Slot)->SetHorizontalAlignment(HAlign_Fill);auto Style=B->GetStyle();Style.NormalPadding=FMargin(8,11);Style.PressedPadding=FMargin(8,11);B->SetStyle(Style);return B;};
-        auto Hold=[&](ULDCommandButton* B,TFunction<void()> Press,TFunction<void()> Release){B->Callback=MoveTemp(Press);};
         auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();Band=Panel(Bottom);BandSlot=Canvas->AddChildToCanvas(Band);BandSlot->SetAnchors(FAnchors(0,1,1,1));BandSlot->SetAlignment(FVector2D(0,1));BandSlot->SetOffsets(FMargin(12,-12,12,220));
         auto* MapColumn=WidgetTree->ConstructWidget<UVerticalBox>();
         MapColumn->AddChildToVerticalBox(Text(TEXT("MAP · sight"),14));
@@ -60,32 +50,16 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* InspectColumn=WidgetTree->ConstructWidget<UVerticalBox>();auto* InspectSize=WidgetTree->ConstructWidget<USizeBox>();InspectFrame=InspectSize;InspectSize->SetWidthOverride(330);InspectSize->SetContent(InspectColumn);Bottom->AddChildToHorizontalBox(InspectSize)->SetPadding(FMargin(0,0,16,0));
         Inspector=Text(TEXT(""),14);auto* InspectScroll=WidgetTree->ConstructWidget<UScrollBox>();InspectScroll->AddChild(Inspector);InspectColumn->AddChildToVerticalBox(InspectScroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* InspectActions=WidgetTree->ConstructWidget<UHorizontalBox>();InspectColumn->AddChildToVerticalBox(InspectActions);
-        auto* Self=Button(TEXT("Self"),[PC](){PC->Inspect({});});CastChecked<UTextBlock>(Self->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));InspectActions->AddChildToHorizontalBox(Self);
-        auto* Character=Button(TEXT("Character"),[PC](){PC->ToggleDevelopmentPanel();});CastChecked<UTextBlock>(Character->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));Commands.Add(TEXT("Development"),Character);InspectActions->AddChildToHorizontalBox(Character)->SetPadding(FMargin(4,0));
-        auto* Bag=Button(TEXT("Bag"),[PC](){PC->ToggleInventoryPanel();});CastChecked<UTextBlock>(Bag->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));Commands.Add(TEXT("Inventory"),Bag);InspectActions->AddChildToHorizontalBox(Bag);
+        auto* Self=Button(TEXT("Self"),[PC](){PC->Inspect({},0);});CastChecked<UTextBlock>(Self->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));InspectActions->AddChildToHorizontalBox(Self);
+        // Bag and Controls open their panels directly: the Demo action registry has no Inventory or Help binding to show.
+        auto* Bag=Button(TEXT("Bag"),[PC](){PC->ToggleInventoryPanel();});CastChecked<UTextBlock>(Bag->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));InspectActions->AddChildToHorizontalBox(Bag)->SetPadding(FMargin(4,0));
         auto* Own=WidgetTree->ConstructWidget<UVerticalBox>();Bottom->AddChildToHorizontalBox(Own)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Resources=Text(TEXT(""),16);Own->AddChildToVerticalBox(Resources)->SetPadding(FMargin(0,0,0,4));
-        auto* SkillRow=WidgetTree->ConstructWidget<UHorizontalBox>();Own->AddChildToVerticalBox(SkillRow);auto* SKILLSSize=WidgetTree->ConstructWidget<USizeBox>();SKILLSSize->SetWidthOverride(94);SKILLSSize->SetContent(Text(TEXT("SKILLS"),14));SkillRow->AddChildToHorizontalBox(SKILLSSize)->SetVerticalAlignment(VAlign_Center);
-        for(uint8 I=0;I<6;++I){auto* B=Button(TEXT(""),{});CastChecked<UTextBlock>(B->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));auto SkillStyle=B->GetStyle();SkillStyle.NormalPadding=FMargin(8,6);SkillStyle.PressedPadding=SkillStyle.NormalPadding;B->SetStyle(SkillStyle);Skills.Add(B);Hold(B,[PC,I](){PC->SetSkillHeld(I,true);},[PC,I](){PC->SetSkillHeld(I,false);});auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetMinDesiredHeight(40);SlotSize->SetMinDesiredWidth(40);SlotSize->SetContent(B);auto* Cell=SkillRow->AddChildToHorizontalBox(SlotSize);Cell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Cell->SetPadding(FMargin(2));}
-        auto* ItemRow=WidgetTree->ConstructWidget<UHorizontalBox>();Own->AddChildToVerticalBox(ItemRow);auto* ITEMSSize=WidgetTree->ConstructWidget<USizeBox>();ITEMSSize->SetWidthOverride(94);ITEMSSize->SetContent(Text(TEXT("ITEMS"),14));ItemRow->AddChildToHorizontalBox(ITEMSSize)->SetVerticalAlignment(VAlign_Center);
-        for(uint8 I=0;I<4;++I){auto* B=Button(TEXT(""),{});Hold(B,[PC,I](){PC->SetQuickItemHeld(I,true,2);},[PC,I](){PC->SetQuickItemHeld(I,false,2);});CastChecked<UTextBlock>(B->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",14));Items.Add(B);auto Style=B->GetStyle();Style.NormalPadding=FMargin(8,6);Style.PressedPadding=Style.NormalPadding;Style.Normal.TintColor=FSlateColor(FLinearColor(.12f,.12f,.17f));B->SetStyle(Style);auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetMinDesiredHeight(40);SlotSize->SetMinDesiredWidth(40);SlotSize->SetContent(B);auto* Cell=ItemRow->AddChildToHorizontalBox(SlotSize);Cell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Cell->SetPadding(FMargin(2));}
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();Own->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,4));
-        auto* Attack=Button(TEXT("Attack"),[PC](){PC->ArmAttack();});Commands.Add(TEXT("Attack"),Attack);Actions->AddChildToHorizontalBox(Attack);
-        ContextButton=Button(TEXT("POI actions are automatic"),{});ContextButton->SetVisibility(ESlateVisibility::Collapsed);
-        auto* Stop=Button(TEXT("Stop"),[PC](){if(PC->CanWorldCommand()){PC->Navigation->Stop();PC->CancelInterruptibleHolds();PC->CancelArmed();}});Commands.Add(TEXT("Stop"),Stop);Actions->AddChildToHorizontalBox(Stop);
-        VendorButton=Button(TEXT("Guild books"),[PC](){PC->OpenVendor();});Actions->AddChildToHorizontalBox(VendorButton)->SetPadding(FMargin(4,0));
-        auto* Help=Button(TEXT("Controls"),[PC](){PC->ToggleControlsPanel();});Commands.Add(TEXT("Help"),Help);Actions->AddChildToHorizontalBox(Help)->SetPadding(FMargin(4,0));
+        auto* Stop=Button(TEXT("Stop"),[PC](){if(PC->CanWorldCommand()){PC->Navigation->Stop();}});Commands.Add(TEXT("Stop"),Stop);Actions->AddChildToHorizontalBox(Stop);
+        auto* ControlsButton=Button(TEXT("Controls"),[PC](){PC->ToggleControlsPanel();});Actions->AddChildToHorizontalBox(ControlsButton)->SetPadding(FMargin(4,0));
         ActionText=Text(TEXT(""),14);Own->AddChildToVerticalBox(ActionText);
-        Progress=WidgetTree->ConstructWidget<UProgressBar>();Progress->SetFillColorAndOpacity(FLinearColor(.25f,.85f,.7f));auto* ProgressSize=WidgetTree->ConstructWidget<USizeBox>();ProgressSize->SetHeightOverride(4);ProgressSize->SetContent(Progress);Own->AddChildToVerticalBox(ProgressSize);
-        ObjectiveText=Text(TEXT(""),17);Objective=Panel(ObjectiveText);auto* Top=Canvas->AddChildToCanvas(Objective);Top->SetAnchors(FAnchors(.32f,.015f,.74f,.015f));Top->SetOffsets(FMargin(0,0,0,70));
-        TaskText=Text(TEXT(""),15);TaskText->SetWrapTextAt(366);Task=Panel(TaskText);auto* Work=Canvas->AddChildToCanvas(Task);Work->SetAnchors(FAnchors(.01f,.02f));Work->SetAutoSize(true);
         Toast=Text(TEXT(""),16);ToastPanel=Panel(Toast);FeedbackSlot=Canvas->AddChildToCanvas(ToastPanel);FeedbackSlot->SetAnchors(FAnchors(.3f,1,.9f,1));FeedbackSlot->SetAlignment(FVector2D(0,1));FeedbackSlot->SetOffsets(FMargin(0,-240,0,48));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
-        auto* Results=WidgetTree->ConstructWidget<UVerticalBox>();ResultPanel=Panel(Results);ResultText=Text(TEXT(""),28);ResultText->SetWrapTextAt(656);Results->AddChildToVerticalBox(ResultText);
-        auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();Results->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));
-        ResultActions->AddChildToHorizontalBox(Button(TEXT("Return to menu / new lobby"),[PC](){if(PC->RootUI){PC->RootUI->ReturnToMenu();}}));
-        auto* ResultSlot=Canvas->AddChildToCanvas(ResultPanel);ResultSlot->SetAnchors(FAnchors(.5f,.4f));ResultSlot->SetAlignment(FVector2D(.5));ResultSlot->SetAutoSize(true);ResultPanel->SetVisibility(ESlateVisibility::Collapsed);
-        // Independent top layer stays readable above every major nonpausing panel.
-        Warning=Text(TEXT(""),22);auto* WarnSlot=Canvas->AddChildToCanvas(Warning);WarnSlot->SetAnchors(FAnchors(.25f,.12f,.9f,.12f));WarnSlot->SetOffsets(FMargin(0,0,0,60));Warning->SetColorAndOpacity(FLinearColor(1,.75f,.3f));
     }
     return Super::RebuildWidget();
 }
@@ -103,95 +77,38 @@ FReply ULDHUD::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E
 FReply ULDHUD::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseWheel(G,E);}
 FString ULDHUD::InspectionText() const{return Inspector?Inspector->GetText().ToString():FString();}
-FString ULDHUD::CommandText() const
-{FString Text=Resources?Resources->GetText().ToString():FString();for(const auto& B:Skills){Text+=TEXT("\n")+CastChecked<UTextBlock>(B->GetContent())->GetText().ToString();}for(const auto& B:Items){if(B->IsVisible()){Text+=TEXT("\n")+CastChecked<UTextBlock>(B->GetContent())->GetText().ToString();}}return Text;}
-FString ULDHUD::TerminalText() const{return ResultText?ResultText->GetText().ToString():FString();}
+const FLDDemoContentDefinitions* ULDHUD::ObservedDefinitions()
+{
+    if(!bObservedContentTried)
+    {
+        bObservedContentTried=true;FString Error;
+        if(!LDDemoEntry::LoadRuntimeContent(ObservedContent,Error)||!ObservedContent){ObservedContent.Reset();UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OBSERVED_LABELS_UNAVAILABLE %s"),*Error);}
+    }
+    return ObservedContent?&ObservedContent->Get():nullptr;
+}
 void ULDHUD::RefreshReadModel()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Resources){return;}
-    const auto& O=PC->OwnerState;const auto& B=O.Build;const double Now=GS->GetServerWorldTimeSeconds();
-    VendorButton->SetVisibility(PC->NearGuildVendor()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);VendorButton->SetIsEnabled(!PC->InventoryPending()&&O.bActive&&Now>=O.ProtectedUntil&&!GS->EndReason);
-    const bool Playing=GS->bMatchStarted;const bool Overlay=(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen())||(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
-    Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Task->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Objective->SetVisibility(Playing?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
-    const float TextScale=PC->Controls?PC->Controls->TextScale:1;int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);const float UIScale=UWidgetLayoutLibrary::GetViewportScale(this);const bool Compact=ViewH<=720;const float BandHeight=B.RulesVersion==8?(ViewH*(TextScale>1?.49f:.43f)/FMath::Max(.1f,UIScale)):(Compact?180.f/FMath::Max(.1f,UIScale):(TextScale>1?250.f:220.f));MapFrame->SetWidthOverride(Compact?180:204);MapFrame->SetHeightOverride(110);InspectFrame->SetWidthOverride(Compact?300:330);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
+    const auto& O=PC->OwnerState;
+    const ELDMatchPhase Phase=GS->DemoLobby.Phase;const bool Playing=GS->DemoLobby.Generation&&(Phase==ELDMatchPhase::Development||Phase==ELDMatchPhase::CaptureOpen);
+    const bool Overlay=(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->InventoryUI&&PC->InventoryUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
+    Band->SetVisibility(Playing&&!Overlay?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    const float TextScale=PC->Controls?PC->Controls->TextScale:1;int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);const float UIScale=UWidgetLayoutLibrary::GetViewportScale(this);const bool Compact=ViewH<=720;const float BandHeight=Compact?180.f/FMath::Max(.1f,UIScale):(TextScale>1?250.f:220.f);MapFrame->SetWidthOverride(Compact?180:204);MapFrame->SetHeightOverride(110);InspectFrame->SetWidthOverride(Compact?300:330);BandSlot->SetSize(FVector2D(0,BandHeight));FeedbackSlot->SetPosition(FVector2D(0,-BandHeight-24));
     if(AppliedScale!=TextScale){const float Previous=AppliedScale>0?AppliedScale:1;AppliedScale=TextScale;TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*TextScale/Previous);T->SetFont(Font);}}}
-    FLDObservedEntity Subject;const bool Selected=PC->ReadInspected(Subject);Inspector->SetText(FText::FromString(LDHUD::Inspector(O,Selected?&Subject:nullptr,Now)));
-    if(Selected&&PC->GetPawn())
-    {
-        double Reach=120;for(auto Skill:B.Slots){if(Skill!=ELDSkill::None&&Skill!=ELDSkill::Step&&Skill!=ELDSkill::Patch){Reach=FMath::Max(Reach,LDHUD::Range(Skill));}}
-        const double Distance=FVector::Dist2D(PC->GetPawn()->GetActorLocation(),Subject.Position);
-        if(Distance>Reach){Inspector->SetText(FText::FromString(InspectionText()+TEXT("\nOut of reach · inspect only")));}
-        else if(Distance>120){Inspector->SetText(FText::FromString(InspectionText()+TEXT("\nContext: out of reach")));}
-    }
-    const FString Life=O.bActive?(Now<O.ProtectedUntil?FString::Printf(TEXT("Protected %.1fs"),O.ProtectedUntil-Now):TEXT("Alive")):FString::Printf(TEXT("RETURN %.1fs · Lost %lld gold"),FMath::Max(0.,O.ReturnAt-Now),O.LastLostGold);
-    Resources->SetText(FText::FromString(FString::Printf(TEXT("YOURS · HP %.0f / %.0f · Lv %d · XP %lld / 420 · Gold %lld · %s · Points %d / %d"),O.Hp,O.MaxHp,B.Level,O.Xp,O.Gold,*Life,B.AttributePoints,B.SkillPoints)));
-    if(B.RulesVersion>=7){Resources->SetText(FText::FromString(FString::Printf(TEXT("HP %.0f/%.0f · MP %.0f/%.0f · Barrier %.0f · Lv%d · Gold %lld\n%s"),O.Hp,O.MaxHp,O.Mp,O.MaxMp,O.Barrier,B.Level,O.Gold,*O.StatusFeedback)));}
-    Skills[5]->SetVisibility(B.RulesVersion==8?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    Skills[4]->SetVisibility(B.RulesVersion>=7?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    if(B.RulesVersion>=7){const auto Fifth=B.Slots[4];CastChecked<UTextBlock>(Skills[4]->GetContent())->SetText(FText::FromString(FString(TEXT("["))+PC->BindingLabel(TEXT("Skill5"))+TEXT("] ")+LDDevelopment::SkillName(Fifth)));Skills[4]->SetIsEnabled(Fifth!=ELDSkill::None&&O.bActive&&Now>=O.ProtectedUntil&&!GS->EndReason);Items[3]->SetVisibility(ESlateVisibility::Collapsed);}
-    const FString Remaining=FString::Printf(TEXT("%02d:%02d"),int32(FMath::Max(0.,GS->MatchDeadline-Now))/60,int32(FMath::Max(0.,GS->MatchDeadline-Now))%60);
-    const FString Heart=GS->bUIControlProfile?LDHUD::PublicOpening(*GS,Now):GS->bClaimActive?FString::Printf(TEXT("%s %.1f/10s"),GS->bContested?TEXT("CONTESTED"):TEXT("Claim"),GS->ClaimProgress):TEXT("Heart protected");
-    const bool WorldRegion=B.RulesVersion>=7&&(GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")));
-    const FString Secondary=WorldRegion?FString::Printf(TEXT("Towers %d/3 destroyed · Siege / Charter / Keys / Heartbreaker"),3-FMath::CountBits(uint32(GS->DefensiveFlags&7))):Overlay?FString::Printf(TEXT("YOURS · HP %.0f / %.0f · %s · Match continues"),O.Hp,O.MaxHp,*Life):(GS->bPublicSensorActive?FString(TEXT("Public watch ON")):FString(TEXT("Public watch OFF")))+TEXT(" · Conquest unavailable");
-    const FString Economy=GS->bUIControlProfile?(GS->ShortagePhase==1?FString(TEXT("\nEAST TOOLKIT · "))+(GS->ShortageRemaining?TEXT("One order open: Toolkit → 40g / 20XP"):TEXT("Order filled; price premium remains")):GS->ShortagePhase==2?TEXT("\nEast shortage expired"):TEXT("\nEast shortage at 10:00–13:00")):TEXT("");
-    CastChecked<UCanvasPanelSlot>(Objective->Slot)->SetSize(FVector2D(0,Overlay?100:TextScale>1?(B.RulesVersion==8?200:140):110));
-    ObjectiveText->SetText(FText::FromString(Remaining+(B.RulesVersion>=7?TEXT(" / 35:00 · "):TEXT(" / 25:00 · "))+Heart+(Overlay?FString():TEXT("\n")+Secondary+Economy)));
-    const FString Job=O.ContractStage==1?TEXT("Collect at ")+LDRegion::SiteName(GetWorld(),O.ContractDestination):O.ContractStage==2?TEXT("Deliver at Guild"):TEXT("No active courier job");
-    const FString Context=PC->ContextPrompt();const FString Brief=Context.Len()>90?Context.Left(87)+TEXT("…"):Context;
-    TaskText->SetText(FText::FromString(FString::Printf(TEXT("WORK · %s\nPaid %d / 8 · Credits %d / 4 · Witness %s\n%s"),*Job,O.PaidJobs,O.Commissions,O.Witness.IsValid()?TEXT("recorded"):TEXT("needed"),*Brief)));if(GS->bUIControlProfile){TaskText->SetText(FText::FromString(FString::Printf(TEXT("%s · Paid %d/8\nSupply %s · Industrial %s · Witness %s\n%s"),*Job,O.PaidJobs,O.SupplyEndorsement.IsValid()?TEXT("✓"):TEXT("—"),O.IndustrialEndorsement.IsValid()?TEXT("✓"):TEXT("—"),O.Witness.IsValid()?TEXT("✓"):TEXT("—"),*LDHUD::EconomyStep(O,*GS,Now))));}TaskText->SetToolTipText(FText::FromString(Context));
-    ContextButton->SetToolTipText(FText::FromString(PC->ContextPrompt()));CastChecked<UTextBlock>(ContextButton->GetContent())->SetText(FText::FromString(TEXT("POI actions are automatic")));
-    ContextButton->SetIsEnabled(O.bActive&&!GS->EndReason&&Now>=O.ProtectedUntil);
-    const auto* R=PC->LocalView();const auto* V=R?&R->LastView():nullptr;
-    SourceText->SetText(FText::FromString(FString::Printf(TEXT("Ward %d · Watch %d\nSight / Fog"),V?V->WardSources:0,V?V->PublicSources:0)));
-    for(auto& Pair:Commands){const FString Label=Pair.Key==TEXT("Development")?TEXT("Build"):Pair.Key==TEXT("Inventory")?TEXT("Bag"):Pair.Key==TEXT("Help")?TEXT("Controls"):Pair.Key.ToString();CastChecked<UTextBlock>(Pair.Value->GetContent())->SetText(FText::FromString(Label+TEXT(" [")+PC->BindingLabel(Pair.Key)+TEXT("]")));Pair.Value->SetIsEnabled(Pair.Key==TEXT("Help")||(!GS->EndReason&&((Pair.Key!=TEXT("Attack")&&Pair.Key!=TEXT("Stop"))||(O.bActive&&(Pair.Key!=TEXT("Attack")||Now>=O.ProtectedUntil)))));}
-    for(uint8 I=0;I<4;++I)
-    {
-        const auto Skill=B.Slots.IsValidIndex(I)?B.Slots[I]:ELDSkill::None;const double CD=B.Cooldowns[uint8(Skill)]-Now;
-        const FString BlockReason=!O.bActive?TEXT("returning"):GS->EndReason?TEXT("match ended"):Now<O.ProtectedUntil?TEXT("protected"):TEXT("panel open");
-        const FString State=Skill==ELDSkill::None?TEXT("Empty"):!O.bActive||Now<O.ProtectedUntil||Overlay||GS->EndReason?TEXT("Blocked"):PC->ArmedSlot()==I?TEXT("Armed"):O.ActiveSkill==Skill&&(O.ActionCue&15)?TEXT("Active"):PC->PendingSlot()==I?TEXT("Pending"):CD>0?FString::Printf(TEXT("Cooldown %.1fs"),CD):TEXT("Ready");
-        CastChecked<UTextBlock>(Skills[I]->GetContent())->SetText(FText::FromString(FString::Printf(TEXT("[%s] %s · %s"),*PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),I+1))),LDDevelopment::SkillName(Skill),*State)));
-        Skills[I]->SetToolTipText(FText::FromString(LDHUD::Tooltip(B,Skill)+TEXT("\n")+State+(State==TEXT("Blocked")?TEXT(": ")+BlockReason:FString())));Skills[I]->SetIsEnabled(O.bActive&&Now>=O.ProtectedUntil&&Skill!=ELDSkill::None&&!GS->EndReason);
-        const auto* Item=O.Inventory.Find(O.Inventory.Quick.IsValidIndex(I)?O.Inventory.Quick[I]:FGuid());const FString Name=Item?Item->Kind==ELDItemKind::Book?FString(LDDevelopment::SkillName(Item->Skill))+TEXT(" book"):LDInventory::Name(Item->Kind,Item->Skill):TEXT("Empty");
-        const FString ItemState=!Item?FString():!O.bActive||GS->EndReason||Now<O.ProtectedUntil||Item->bReserved?TEXT("Blocked"):PC->InventoryPending()?TEXT("Pending"):PC->ArmedItem()==Item->Id?TEXT("Armed"):O.DevelopmentItem==Item->Id?TEXT("Active"):TEXT("Ready");
-        CastChecked<UTextBlock>(Items[I]->GetContent())->SetText(FText::FromString(TEXT("[")+PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),I+1)))+TEXT("] ")+Name+(Item?TEXT(" · ")+ItemState:TEXT(""))));Items[I]->SetIsEnabled(O.bActive&&!GS->EndReason&&Now>=O.ProtectedUntil&&!PC->InventoryPending()&&(!Item||!Item->bReserved));Items[I]->SetToolTipText(FText::FromString(Item?LDInventory::Name(Item->Kind,Item->Skill)+TEXT(" · ")+ItemState+(ItemState==TEXT("Blocked")?FString(TEXT(": "))+(Item->bReserved?TEXT("reserved for an order"):*BlockReason):FString())+TEXT(" · Own physical item reference. Books teach; they never cast. Ward placement consumes only on success."):TEXT("Empty reference. Assign an owned book or ward charge in the bag.")));
-    }
-    if(B.RulesVersion==8&&B.Actions.Num()==6&&O.Inventory.Bindings.Num()==11)
-    {
-        TArray<UWidget*> Buttons;WidgetTree->GetAllWidgets(Buttons);for(auto* W:Buttons){if(auto* Button=Cast<UButton>(W);Button&&Button->GetStyle().NormalPadding.Top<13){auto Style=Button->GetStyle();Style.NormalPadding.Top=Style.NormalPadding.Bottom=13;Style.PressedPadding=Style.NormalPadding;Button->SetStyle(Style);}}
-        for(int32 N=0;N<6;++N)
-        {
-            const auto ActionView=LDHUD::Action(O,N,false,Now,GS->EndReason!=0,Overlay);
-            auto* Label=CastChecked<UTextBlock>(Skills[N]->GetContent());Label->SetAutoWrapText(true);
-            Label->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Skill%d"),N+1)))+TEXT(" [")+ActionView.Source+TEXT("]\n")+ActionView.Name+TEXT("\n")+ActionView.State));
-            Skills[N]->SetIsEnabled(ActionView.CanActivate);Skills[N]->SetToolTipText(FText::FromString(ActionView.Tooltip));
-        }
-        for(int32 N=0;N<4;++N)
-        {
-            const auto ActionView=LDHUD::Action(O,N,true,Now,GS->EndReason!=0,Overlay);
-            Items[N]->SetVisibility(ESlateVisibility::Visible);Items[N]->SetIsEnabled(ActionView.CanActivate);
-            auto* Label=CastChecked<UTextBlock>(Items[N]->GetContent());Label->SetAutoWrapText(true);
-            Label->SetText(FText::FromString(PC->BindingLabel(FName(*FString::Printf(TEXT("Item%d"),N+1)))+TEXT(" [ACC]\n")+ActionView.Name+TEXT("\n")+ActionView.State));
-            Items[N]->SetToolTipText(FText::FromString(ActionView.Tooltip));
-        }
-    }
-    FString Action;double Fraction=0;
-    if(O.DevelopmentKind){const double Duration=O.DevelopmentKind==4?6:(O.DevelopmentKind==5||O.DevelopmentKind==6||O.DevelopmentKind==7)?O.ProductionSeconds:O.DevelopmentKind==2?3:2;const double Left=FMath::Max(0.,O.DevelopmentEndsAt-Now);Action=FString::Printf(TEXT("%s · %s · %.1fs"),O.DevelopmentKind==7?TEXT("Civic service"):O.DevelopmentKind==6?TEXT("Shortage delivery"):O.DevelopmentKind==4?TEXT("Gathering"):O.DevelopmentKind==5?TEXT("Crafting"):O.DevelopmentKind==2?TEXT("Learning"):TEXT("Preparing"),*PC->HeldInputLabel(),Left);Fraction=1-Left/Duration;}
-    else if((O.ActionCue&15)==10){const double Left=FMath::Max(0.,O.SkillEndsAt-Now);Action=FString::Printf(TEXT("Held item / traversal · %s · %.1fs"),*PC->HeldInputLabel(),Left);Fraction=0;}
-    else if((O.ActionCue&15)==7){const double Left=FMath::Max(0.,O.SkillEndsAt-Now);Action=FString::Printf(TEXT("%s · %s · %.1fs"),LDDevelopment::SkillName(O.ActiveSkill),*PC->HeldInputLabel(),Left);Fraction=1-Left/LDDevelopment::ChannelSeconds(O.ActiveSkill);}
-    else if(O.ChannelKind){Action=FString::Printf(TEXT("%s · %s · %.1f / %.0fs"),O.ChannelKind==1?TEXT("Collecting"):O.ChannelKind==2?TEXT("Delivering"):O.ChannelKind==4?TEXT("Fabricating"):O.ChannelKind==5?TEXT("Activating / key pickup"):O.ChannelKind==6?TEXT("Recovering"):TEXT("Claiming"),*PC->HeldInputLabel(),O.ChannelProgress,(O.ChannelDuration>0?O.ChannelDuration:LDObjective::Duration(O.ChannelKind)));Fraction=O.ChannelProgress/(O.ChannelDuration>0?O.ChannelDuration:LDObjective::Duration(O.ChannelKind));}
-    else{Action=PC->IsTargeting()?TEXT("Armed · Confirm in world / ")+PC->BindingLabel(TEXT("Navigate"))+TEXT(" cancels"):PC->HasPendingAim()?TEXT("Pending…"):!O.bActive?TEXT("Waiting to return · Organize your bag"):PC->Navigation->bFollowCamera?TEXT("Camera: follow"):TEXT("Camera: free · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" follows");}
-    if(B.RulesVersion==8&&O.WetFrostReadyAt>Now*1000){Action+=FString::Printf(TEXT(" · Wet/Frost ready %.1fs"),(O.WetFrostReadyAt-Now*1000)/1000.);}
-    ActionText->SetText(FText::FromString(Action));Progress->SetPercent(float(FMath::Clamp(Fraction,0.,1.)));
-    if(LastFeedback!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){LastFeedback=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();FeedbackAt=Now;}Toast->SetText(FText::FromString(Now-FeedbackAt<5?LastFeedback:FString()));
+    FLDObservedUnitView Subject;const bool Selected=PC->ReadInspected(Subject);const ALDWorldViewRelay* ObservationRelay=PC->LocalView();
+    const FLDObservedFrameRead ObservedFrame=ObservationRelay?ObservationRelay->ReadObservedFrame():FLDObservedFrameRead();
+    FString SubjectName;if(Selected){if(const auto* Member=GS->DemoLobby.Members.FindByPredicate([&Subject](const FLDLobbyMember& Candidate){return Candidate.ContenderId==Subject.ContenderId;})){SubjectName=Member->Name;}}
+    Inspector->SetText(FText::FromString(Selected?LDHUD::ObservedUnit(Subject,SubjectName,ObservedDefinitions(),ObservedFrame.Frame?ObservedFrame.Frame->SampledAtServerSec:0.):LDHUD::Inspector(O)));
+    int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
+    Resources->SetText(FText::FromString(FString::Printf(TEXT("HP %.0f/%.0f · MP %.0f/%.0f · Barrier %.0f · Gold %lld · XP %lld\n%s"),O.Hp,O.MaxHp,O.Mp,O.MaxMp,O.Barrier,O.Gold,O.Xp,*LDHUD::LifeStatus(O,bClock,NowMs))));
+    const bool bSightCurrent=ObservedFrame.Frame&&ObservedFrame.Status==ELDObservedViewStatus::Current;
+    SourceText->SetText(FText::FromString(FString::Printf(TEXT("Sight %s · Visible %d\nFog"),bSightCurrent?TEXT("current"):ObservedFrame.Status==ELDObservedViewStatus::Stale?TEXT("STALE"):TEXT("unavailable"),bSightCurrent?ObservedFrame.Frame->Units.Num():0)));
+    for(auto& Pair:Commands){CastChecked<UTextBlock>(Pair.Value->GetContent())->SetText(FText::FromString(Pair.Key.ToString()+TEXT(" [")+PC->BindingLabel(Pair.Key)+TEXT("]")));Pair.Value->SetIsEnabled(Pair.Key!=TEXT("Stop")||O.bActive);}
+    ActionText->SetText(FText::FromString(!O.bActive?TEXT("Waiting to return · Organize your bag"):PC->Navigation->bFollowCamera?TEXT("Camera: follow"):TEXT("Camera: free · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" follows")));
+    // Toast fade is local presentation time; it is never compared with an authority deadline.
+    const double UiNow=GetWorld()->GetRealTimeSeconds();
+    if(LastFeedback!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){LastFeedback=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();FeedbackAt=UiNow;}Toast->SetText(FText::FromString(UiNow-FeedbackAt<5?LastFeedback:FString()));
     ToastPanel->SetVisibility(Toast->GetText().IsEmpty()||Overlay||!Playing?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
-    Warning->SetText(FText::FromString(Now<O.WarningUntil?TEXT("⚠ INCOMING CAST · Escape, Step or interrupt"):Now<O.DamageUntil?TEXT("HIT · Interruptible action cancelled"):FString()));
-    if(GS->EndReason)
-    {
-        if(SeenResult!=GS->ResultSerial){SeenResult=GS->ResultSerial;PC->ClearControls();PC->CancelArmed();if(PC->DevelopmentUI&&PC->DevelopmentUI->IsOpen()){PC->DevelopmentUI->Close();}if(PC->ControlsUI&&PC->ControlsUI->IsOpen()){PC->ControlsUI->ForceClose();}}
-        if(PC->InventoryUI&&PC->InventoryUI->IsOpen()){PC->InventoryUI->Close();}
-        ResultText->SetText(FText::FromString(GS->EndReason==2?TEXT("NO ACQUISITION\nTime expired. No one claimed the Heart."):O.bWinner?TEXT("HEART ACQUIRED\nYou claimed the Heart."):TEXT("HEART ACQUIRED\nAnother contender claimed the Heart.")));ResultPanel->SetVisibility(ESlateVisibility::Visible);
-    }
-    else{ResultPanel->SetVisibility(ESlateVisibility::Collapsed);}
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
@@ -200,21 +117,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     E.PushClip(FSlateClippingZone(FSlateRect(float(ClipMin.X),float(ClipMin.Y),float(ClipMax.X),float(ClipMax.Y))));
     auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
     auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
-    FLDObservedEntity Subject;if(PC->ReadInspected(Subject)){FVector2D P;if(Project(Subject.Position,P)){Lines({P+FVector2D(-14,12),P+FVector2D(-20,12),P+FVector2D(-20,-30),P+FVector2D(20,-30),P+FVector2D(20,12),P+FVector2D(14,12)},FLinearColor(1,.78f,.3f));}}
-    if(PC->IsTargeting()&&PC->GetPawn())
-    {
-        const double Range=PC->ArmedRange();TArray<FVector2D> Ring;const FVector Body=PC->GetPawn()->GetActorLocation();for(int32 I=0;I<=48;++I){const double Angle=I*2*PI/48;FVector2D P;if(Project(Body+FVector(FMath::Cos(Angle)*Range,FMath::Sin(Angle)*Range,-70),P)){Ring.Add(P);}}if(Ring.Num()>2){Lines(Ring,FLinearColor(.3f,1,.8f,.8f),1.5f);}
-        if(PC->OwnerState.Build.RulesVersion==8)
-        {
-            bool Field=false,Frozen=false,Disk=false,Cone=false;double Length=0,Width=0;int32 Limit=16;
-            if(PC->ArmedSlot()>=0){const auto K=PC->OwnerState.Build.Slots[PC->ArmedSlot()];const auto* D=ULDTacticalCatalog::Load(8)->Find(K);if(D){Field=K==ELDSkill::Frostline||K==ELDSkill::WaterJet||K==ELDSkill::Gust||K==ELDSkill::Entangle||K==ELDSkill::ConductiveField||K==ELDSkill::ShatterBurst||K==ELDSkill::SmokeVeil||K==ELDSkill::RainCall||K==ELDSkill::Flameburst||K==ELDSkill::StaticLance||K==ELDSkill::Updraft||K==ELDSkill::ThawingTouch||K==ELDSkill::ThermalVeil||K==ELDSkill::EmberLine;Frozen=K==ELDSkill::Frostline;Cone=K==ELDSkill::Gust;Disk=D->Target==ELDTacticalTarget::Ground;Length=D->Range;Width=Cone?60:D->Area;if(Frozen&&(PC->OwnerState.Build.Gear.ModifierMask&LDV08Modifiers::Bit(TEXT("frost_radius")))&&!(PC->OwnerState.StatusMask&(1<<uint8(LDTactical::EStatus::Break)))){Width*=1.1;}if(K==ELDSkill::SmokeVeil){Width=LDGear::Magnitude(PC->OwnerState.Build,K,D->RankKey,D->Magnitudes);Limit=32;}}}
-            if(const auto* I=PC->OwnerState.Inventory.Find(PC->ArmedItem())){if(const auto* D=ULDEquipmentCatalog::Load(8)->Find(I->Kind);D&&(D->Operation==TEXT("element_item_field")||D->Operation==TEXT("surface_clear")||D->Operation==TEXT("smoke"))){Field=Disk=true;Width=D->Param(TEXT("radius_cm"));Limit=D->Operation==TEXT("smoke")?32:16;}}
-            FHitResult Hit;if(Field&&PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Hit))
-            {for(const auto Cell:LDEnvironment::Mask(Body,Hit.ImpactPoint,Length,Width,Disk,Limit,Cone))
-                {FVector Floor;if(!LDGround::MapSurface(GetWorld(),LDRiver::Centre(Cell),Floor)||!LDGround::ClearSegment(GetWorld(),Disk?Hit.ImpactPoint+FVector(0,0,30):Body,Floor+FVector(0,0,30))){continue;}TArray<FVector2D> Box;for(const FVector Corner:{FVector(-100,-100,5),FVector(100,-100,5),FVector(100,100,5),FVector(-100,100,5),FVector(-100,-100,5)}){FVector2D P;if(Project(Floor+Corner,P)){Box.Add(P);}}if(Box.Num()==5){FLinearColor Tint=Frozen?FLinearColor(.65f,.9f,1):FLinearColor(.05f,.5f,1);if((PC->OwnerState.Build.Gear.ModifierMask&LDV08Modifiers::Bit(TEXT("survey_overlay")))&&PC->LocalView()){const int32 Id=Cell.Y*60+Cell.X;if(LDVision::Bit(PC->LocalView()->LastView().Explored,Id)){const auto Material=LDEnvironment::Substrate(Cell,true);if(Material==LDEnvironment::Soil){Tint=FLinearColor(.5f,.8f,.2f);}if(Material==LDEnvironment::Flammable){Tint=FLinearColor(1,.3f,.1f);}}}Lines(Box,Tint);}}}
-        }
-        float X=0,Y=0;if(PC->GetMousePosition(X,Y)&&!PointerOverUI()){int32 W=0,H=0;PC->GetViewportSize(W,H);const FVector2D P=FVector2D(X,Y)*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));Lines({P-FVector2D(9,0),P+FVector2D(9,0)},FLinearColor(1,.85f,.35f));Lines({P-FVector2D(0,9),P+FVector2D(0,9)},FLinearColor(1,.85f,.35f));}
-    }
+    FLDObservedUnitView Subject;if(PC->ReadInspected(Subject)){FVector2D P;if(Project(FVector(Subject.FeetCm)+FVector(0,0,GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight()),P)){Lines({P+FVector2D(-14,12),P+FVector2D(-20,12),P+FVector2D(-20,-30),P+FVector2D(20,-30),P+FVector2D(20,12),P+FVector2D(14,12)},FLinearColor(1,.78f,.3f));}}
     E.PopClip();return Base+1;
 }
 
@@ -222,8 +125,8 @@ bool ULDHUD::CommandLayoutFits() const
 {
     if(!Band||!Band->IsVisible()){return false;}
     const auto& BG=Band->GetCachedGeometry();const FVector2D Min=BG.LocalToAbsolute(FVector2D::ZeroVector),Max=BG.LocalToAbsolute(BG.GetLocalSize());
-    TArray<UWidget*> Widgets={Resources.Get(),ActionText.Get(),Progress.Get()};TArray<FSlateRect> Buttons;
-    for(auto B:Skills){Widgets.Add(B);}for(auto B:Items){Widgets.Add(B);}for(const auto& Pair:Commands){Widgets.Add(Pair.Value);}Widgets.Add(ContextButton);Widgets.Add(VendorButton);
+    TArray<UWidget*> Widgets={Resources.Get(),ActionText.Get()};TArray<FSlateRect> Buttons;
+    for(const auto& Pair:Commands){Widgets.Add(Pair.Value);}
     for(auto* W:Widgets){if(!W||!W->IsVisible()){continue;}const auto& WG=W->GetCachedGeometry();const FVector2D P=WG.LocalToAbsolute(FVector2D::ZeroVector),Q=WG.LocalToAbsolute(WG.GetLocalSize());
         if(P.X<Min.X-.5||P.Y<Min.Y-.5||Q.X>Max.X+.5||Q.Y>Max.Y+.5||WG.GetLocalSize().IsNearlyZero()){return false;}
         if(Cast<UButton>(W)){if(WG.GetLocalSize().X<39.5||WG.GetLocalSize().Y<39.5){return false;}const FSlateRect Rect(P.X,P.Y,Q.X,Q.Y);for(const auto& R:Buttons){if(FMath::Min(R.Right,Rect.Right)-FMath::Max(R.Left,Rect.Left)>.5&&FMath::Min(R.Bottom,Rect.Bottom)-FMath::Max(R.Top,Rect.Top)>.5){return false;}}Buttons.Add(Rect);}

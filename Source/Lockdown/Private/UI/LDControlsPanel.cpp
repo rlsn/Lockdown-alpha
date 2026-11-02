@@ -60,7 +60,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Footer=WidgetTree->ConstructWidget<UWrapBox>();Footer->SetInnerSlotPadding(FVector2D(8));Main->AddChildToVerticalBox(Footer)->SetPadding(FMargin(0,12,0,0));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Retry local save"),[this]()
         {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}}));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Recover unreadable local settings"),[this](){ShowRecoveryConfirmation();}));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Recover unreadable or incompatible local settings"),[this](){ShowRecoveryConfirmation();}));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("Close"),[this](){Close();}));
     }
     Populate();return Super::RebuildWidget();
@@ -110,8 +110,8 @@ void ULDControlsPanel::ShowRecoveryConfirmation()
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
     RecoveryRows->ClearChildren();
     if(!PC->Controls->NeedsRecovery())
-    {Feedback->SetText(FText::FromString(TEXT("No unreadable local settings need replacement. Use Retry local save for a write failure.")));return;}
-    RecoveryRows->AddChildToVerticalBox(ScaledText(TEXT("Replace the unreadable file with the applied keys, camera and text preferences shown above? The old file remains unchanged until you confirm.")));
+    {Feedback->SetText(FText::FromString(TEXT("No unreadable or incompatible local settings need replacement. Use Retry local save for a write failure.")));return;}
+    RecoveryRows->AddChildToVerticalBox(ScaledText(TEXT("Replace the unreadable or incompatible settings file with the applied keys, camera and text preferences shown above? The old file remains unchanged until you confirm.")));
     RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Confirm replacement with applied preferences"),[this]()
     {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}RecoveryRows->ClearChildren();Populate();}));
     RecoveryRows->AddChildToVerticalBox(ScaledButton(TEXT("Keep file unchanged"),[this](){RecoveryRows->ClearChildren();}));

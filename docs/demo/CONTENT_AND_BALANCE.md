@@ -621,12 +621,12 @@ S00/S03购物前HP分别704.52/709.29；期间野怪一直按首击后共同反�
 | E09 | `Public\Combat\LDCombatDirector.h:16–154`；`Private\Combat\LDContentGeometry.cpp:64–71`；`LDContentLifecycle.cpp:60–68,106–107` | source/caster、target life、CreditOwner 和预算身份已有部分区分；未形成完整统一 EffectContext。不同旧持续效果死亡策略不同，不能笼统宣称全部保留或全部取消 |
 | E10 | `Private\Development\LDV08Loadout.cpp:22–76`；`Private\Combat\LDContentActions.cpp:39–40,82–109`；`LDV08Modifiers.cpp:12–43` | 来源失效清入口但保留 learned cooldown；装备已有实例 ReadyAt 与 owner family 锁思想。旧六共享槽/四 accessory/18 modifier 必须退出 |
 | E11 | `Private\Framework\LDGameMode.cpp:388–409,437–452,522–537`；`Private\Inventory\LDInventoryDirector.cpp:78–99` | 当前仍扣死亡金币/掉落部分物品；最大资源变更已有 min 裁剪可改造。角色技能 cooldown 未整体重建不等于基础普攻/proc/所有来源已满足新死亡规则 |
-| E12 | `Private\World\LDWorldDirector.cpp:27–113`；`Private\Region\LDRegionDirector.cpp:98–108` | 旧三组营地各 12 次、PvP XP-only/配对冷却/累计上限、Sentinel 同批最大伤害获奖都不是新五组两档/最后一击规则 |
+| E12 | 旧营地/Sentinel Actor 已删除；营地只保留 `Public\World\LDCampDecision.h` 纯决策 | 旧三组营地各 12 次、PvP XP-only/配对冷却/累计上限、Sentinel 同批最大伤害获奖都不是新五组两档/最后一击规则，不作 N03 模板 |
 | E13 | `Public\Economy\LDEconomyLedger.h:7–89`；`Private\Economy\LDEconomyLedger.cpp:6–131`；`LDEconomyDirector.cpp:19–34,111–136` | int64、一次性 receipt、同 ID 异 terms 拒绝、原子预检和 Mint/Burn 可复用；全局有限奖励池在上层，不应以巨大预算代替删除限制 |
-| E14 | `Private\Inventory\LDVendorDirector.cpp:19–100`；`LDAcquisitionDirector.cpp:117–131`；`LDInventoryTypes.cpp:36–88` | 书店报价/会话与装备 paid creation 骨架分别存在，但没有目标两装备买卖；账本 UnitWeight 还会加载旧目录，须拆掉隐藏依赖 |
+| E14 | `LDEconomyLedger.cpp`；`LDInventoryTypes.cpp:36–88` | 原子账本与实例/容量机制保留；装备 paid creation 骨架（Acquisition）已随经济闭包退役，旧书店报价/会话已随旧 Vendor 退役，因此没有目标两装备买卖；账本 UnitWeight 还会加载旧目录，须拆掉隐藏依赖 |
 | E15 | `Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:113–119,239–272,456`；`LDRegionBootstrap.cpp:79–94` | Bootstrap 无条件依赖旧 Character/V07 目录与四区域；新资产签名链建立前，删除输入会直接破坏导入 |
 | E16 | `Source\Lockdown\Lockdown.Build.cs:10–22`；`Private\Framework\LDGameMode.cpp:144–179`；`Config\DefaultGame.ini:19–26,36–38`；`Scripts\PackageWin64.ps1:7–20` | 启动、stage、整 Generated Cook 和七张旧地图列表都必须切换，不能只改变可见菜单 |
-| E17 | `Scripts\SyncV09Data.py:21–139`；`SyncB91Objects.py:20–21`；`SyncB91Tools.py:19–41`；`SyncB91Grass.py:19` | 旧地图/物件生成仍硬断言 96 POI、117 route、24 spawn、144 building、36 service 等；世界模块必须提供新前置链 |
+| E17 | 旧 V09/B91 地图与物件生成链已删除 | 其 96 POI、117 route、24 spawn、144 building、36 service 等硬断言不迁；唯一 Demo 世界由 `Scripts\SyncDemoWorldData.py` 前置链提供 |
 | E18 | `Scripts\TestB84Import.py:14–134`；`Private\Tests\LDTacticalRulesTests.cpp:7–61`；`LDV08LoadoutTests.cpp:11–70`；`Scripts\RunTests.ps1`、`CheckRuleReport.py` | 可抽取拒绝/来源/原子性测试；原生用例按明确集合核对，但旧 52/80/62/6/11 断言不能保留为新 Demo 完成标准 |
 
 ### 9.1 效果能力不是一个“法术”标签
@@ -801,26 +801,26 @@ Max同比后积分余数仍是原资源点的未入账小量，不随Max放大�
 | --- | --- | --- |
 | 原样复用机制 | `CatalogTools::encode/rows_by_id/native_ids`；`LDTactical::FState::Has/Mask`；match/life/token/revision/epoch 查验 | encode只消费规范化原生树；保留确定性、到期比较、来源与请求边界 |
 | 改造复用 | `CatalogTools::read_json` 与 schema 数值类型/字段检查 | 在float之前保留Decimal/词法，精确验单位/精度/范围后转定点；编码阶段与作者校验阶段分开 |
-| 改造复用 | `LDCharacterBuild`、`LDDevelopment::Valid/Prepare/AwardXP`、`LDDevelopmentDirector::Queue/Request/Sample` | 改为 MOBA 属性、十级九选择、遗忘和 server offer；删职业/点数/站点规则，不并行另一份 Build |
+| 改造复用 | `LDCharacterBuild`、`LDDevelopment::Valid/Prepare/AwardXP`、`LDV08::Project/InvalidateSources` | 改为 MOBA 属性、十级九选择、遗忘和 server offer；纯投影保留，N04 新建真实成长提供者，不恢复旧站点 Actor 或并行另一份 Build |
 | 改造复用 | `FLDInventory`、`LDInventoryDirector::Initialize/Changed/EndLife`、`LDInventory::Fits/Valid/Remove` | 两物理装备、死亡保留、原子移除来源；退出 weight/多部位/书籍/消耗品，不只是 HUD 缩格 |
-| 抽取并改造 | `LDAcquisitionDirector::Purchase`；`LDVendorDirector::Open/Queue/Reply/Request` | 分别抽取“先分配→账本提交→Publish”与会话/报价/回执；新增出售，原书店/获取系统不作第二购买路径 |
+| 抽取并改造 | `FLedger::Commit`、库存实例/容量；同名 `ALDVendorDirector` 新建 | 遵守“先分配→账本提交→Publish”（旧 Acquisition 服务已随经济闭包退役，不作抽取源）；会话/报价/回执按合同新建（旧书店 Vendor 已退役）；新增出售，原书店/获取系统不作第二购买路径 |
 | 抽取并改造 | `LDEconomy::FLedger::Commit/Reconcile` 与 `LDInventoryTypes::UnitWeight` | 保留账本预检/原子性/身份/审计，移除定义合法性经 UnitWeight 加载旧目录的依赖 |
 | 抽取并改造 | `LDCombatDirector::RequestContent/ReleaseContent/PrepareTactical/Sample`；`LDV08Catalog::ReleaseCatalog` | 统一所选 typed handler 和真实 MP/CD；删旧名称分支、白名单、施法环境门槛和旧参数 |
 | 抽取 | `LDV08Modifiers::ClaimProc/AugmentBasic`；`LDContentLifecycle` tick/life 处理 | 保留来源锁和周期计划机制；角色/装备被动进入同一来源模型，不保留整套 18 modifier/地表反应 |
-| 改造复用 | `LDWorldDirector::Spawn/Prepare/Contact/Reward/Defeated/PvPKill`；`LDRegionDirector::SentinelDefeated` | 五组两档、每成员新 life、最后一击回执、清空后刷新；删有限轮数/最大伤害/旧 PvP 限制 |
+| 抽取（旧实现已删除） | `World\LDCampDecision` 纯值营地决策 | 旧营地/Sentinel Actor 的生成、索敌、信用与奖励入口已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收。五组两档、每成员新 life、最后一击回执与清空后刷新由 N03 在核心上实现；不恢复有限轮数、最大伤害获奖或旧 PvP 限制 |
 | 新增最小职责 | Demo strict schema/compiler、完整效果投影、MOBA evaluator、offer 协议、角色被动、统一奖励 plan、装备出售 | 接入现有领域和唯一 owner 真值；不得平行新建战斗、货币、资源或世界状态系统 |
 
 ### 11.2 必须实际退出的目录与断言
 
 | 删除组 | 精确范围 | 删除前依赖 |
 | --- | --- | --- |
-| CB-D01 旧作者输入 | `SourceData\Character\prototype_rules.json`；`SourceData\Catalogs\V07` 的 abilities/items/acquisition/starter_kits/v07_rules/world_and_routes；`V08` 的 abilities/items/acquisition/starter_kits/environment/modifier_contracts/catalog.schema/native_ids | 先抽取必要稳定编号与本报告获审定义至唯一 Demo 域；不是加 enabled=false |
-| CB-D02 旧运行载荷 | `Content\Lockdown\Data\V07` 的 combat/equipment/acquisition/world/b71_combat；`Content\Lockdown\Data\V08` 的旧 catalog、`*_b81/b82/b83/b84`、ImportManifest/B81–B84Manifest | 消费者和 stage 全部切换后删除整个不再使用的旧内容产物集合 |
-| CB-D03 旧资产/contract | `Generated\Data\DA_CharacterCatalog.uasset`；`Generated\V07\DA_CombatCatalog/DA_EquipmentCatalog/DA_AcquisitionCatalog/DA_WorldCatalog.uasset`；`LDTacticalContract.h`、`LDEquipmentContract.h`、`LDAcquisitionContract.h`、`LDB81/82/83/84Contract.h`、`LDWorldContract.h` | 新 DataAsset/manifest/contract 可生成与验证；UE 资产引用核对后用 UE/LFS 处理，不编辑二进制或手写哈希 |
-| CB-D04 旧生成/导入 | `Scripts\SyncV07CombatData.py`、`SyncV07EquipmentData.py`、`SyncV07AcquisitionData.py`、`SyncV07WorldData.py`、`SyncB84Data.py`；旧 Character/Tactical/Equipment/Acquisition importer 的 52/28、80/40/20/12、6 starter、多 schema/fallback | 新 Demo compiler、typed 投影及拒绝夹具先就绪；无消费者的旧 catalog 类/文件随之删除 |
+| CB-D01 旧作者输入 | `SourceData\Character\prototype_rules.json`；`SourceData\Catalogs\V07` 的 abilities/items/acquisition/starter_kits；`V08` 的 abilities/items/acquisition/starter_kits/environment/modifier_contracts/catalog.schema/native_ids | 先抽取必要稳定编号与本报告获审定义至唯一 Demo 域；不是加 enabled=false |
+| CB-D02 旧运行载荷 | `Content\Lockdown\Data\V07` 的 combat/equipment/acquisition/b71_combat；`Content\Lockdown\Data\V08` 的旧 catalog、`*_b81/b82/b83/b84`、ImportManifest/B81–B84Manifest | 消费者和 stage 全部切换后删除整个不再使用的旧内容产物集合 |
+| CB-D03 旧资产/contract | `Generated\Data\DA_CharacterCatalog.uasset`；`Generated\V07\DA_CombatCatalog/DA_EquipmentCatalog/DA_AcquisitionCatalog/DA_WorldCatalog.uasset`；`LDTacticalContract.h`、`LDEquipmentContract.h`、`LDAcquisitionContract.h`、`LDB81/82/83/84Contract.h` | 新 DataAsset/manifest/contract 可生成与验证；UE 资产引用核对后用 UE/LFS 处理，不编辑二进制或手写哈希 |
+| CB-D04 旧生成/导入 | `Scripts\SyncV07CombatData.py`、`SyncV07EquipmentData.py`、`SyncV07AcquisitionData.py`、`SyncB84Data.py`；旧 Character/Tactical/Equipment/Acquisition importer 的 52/28、80/40/20/12、6 starter、多 schema/fallback | 新 Demo compiler、typed 投影及拒绝夹具先就绪；无消费者的旧 catalog 类/文件随之删除 |
 | CB-D05 旧内容业务 | `LDContentActions/Release`、`LDTacticalExecution`、`LDV08Catalog` 未入选技能/环境/门/职业/consent；`LDV08Loadout` 的 Preset/Traits/6+11/排他；`LDGearRules` 的 NaturalGate/六维预算/quality/部位武器；未入选 modifier 表 | 先抽取本目录实际用到的底层原语，再删除旧分支与其目录依赖，不全表保留作“通用支持” |
-| CB-D06 旧获取/死亡/奖励 | `LDAcquisitionCatalog/Director` 的书籍/配方/cache/guardian；`LDDevelopmentDirector` 的 LegacyBuy/Pickup/Read/DropBooks/准备站；`LDGameMode::EndContenderLife` DeathTax；`LDInventoryDirector::EndLife` 掉物；旧 PvPKill/Sentinel/finite budget | 新买卖、构筑、死亡保留和统一 last-hit reward 已接入；退役旧第二通路 |
-| CB-D07 世界前置 | `SourceData\World` 旧城市/POI/人口/服务数据；`SyncV09Data.py`、`SyncB91Data/Objects/Tools/Traversal/Forestry/Grass/Forest`、`SyncB92Economy/Population` 的旧输入与载荷/contract | 世界模块负责抽取所需几何/查询并提供新五营地/十出生点前置链；本项不是本模块越权删地图，但唯一 Demo 发布前必须解除旧依赖 |
+| CB-D06 剩余目录/死亡/奖励 | `LDAcquisitionCatalog` 中尚被读取的定义；`LDGameMode::EndContenderLife` DeathTax；`LDInventoryDirector::EndLife` 掉物；旧 PvPKill/Sentinel/finite budget | 接入新买卖、构筑、死亡保留和统一 last-hit reward 后，移除剩余旧政策；不得假定纯账本已有完整奖励/商店服务 |
+| CB-D07 世界前置 | 旧 V09/B91 空间/服务输入与生成链已随世界闭包删除；旧地图/目录资产由集成按 C3 迁移 | 世界模块负责所需几何/查询和五营地/十出生点前置链；本项不越权删地图，唯一 Demo 发布前必须解除剩余旧资产依赖 |
 | CB-D08 启动与打包 | `LDScaffoldBootstrapCommandlet` 旧 catalog 强制导入；`LDRegionBootstrap` 四区域要求；`LDGameMode::InitGame` 旧 profile/fallback；`Lockdown.Build.cs` RuntimeDependencies；`DefaultGame.ini` 旧库存/BookPrice/整 Generated Cook；`PackageWin64.ps1` 旧地图列表 | 新资产签名链与唯一 Demo 加载通过后切换；保留真正需要的前端，不保留备用旧玩法 |
 | CB-D09 旧产品断言 | 旧目录数量、62/6/11、职业/书籍/配方/preset/有限奖励公式测试 | 先迁移机制夹具并同步 `CheckRuleReport.py` 的显式必需用例集合，再删不适用期望；不得注释断言或单纯调低总数掩盖缺测 |
 
@@ -890,9 +890,9 @@ CB-D03 的资产路径以 `Content\Lockdown` 为根，contract 分别在
 | `ABILITY.*.Rank[r]` → 完整 rank/effect/geometry 定义 | `LDTacticalCatalog` 目前只读单一 RankKey；`LDContentRelease/LDV08Catalog` 按名分支，须 typed dispatch | 缺级、错级数、额外/未知操作、参数与目标类型不匹配、小数截断 | 三个等级每个伤害/系数/盾量/Root期限变化都影响实际结果，不只SHA |
 | `ABILITY.*`、`ITEM.*.Active` 的 MP/时间/族 → cost/timing/source 投影 | `RequestContent/ReleaseContent` 已有角色费用；装备通用非零MP新增 | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改装备ManaCost确实改变MP；换槽/重购不能重置 |
 | 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDV08Modifiers::ClaimProc/AugmentBasic` 和生命周期原语抽取；角色被动三级新增 | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
-| `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `LDAcquisitionDirector::Purchase` paid creation、`LDVendorDirector` quote/receipt抽取；出售新增 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
-| `XP.*`、`REWARD.*`、`CHOICE.*` → progression/reward/offer 投影 | `LDCharacterBuild::AwardXP`、`LDWorldDirector::Reward/PvPKill`、GameMode XP入口改造 | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 逐阈值真实等级/机会；最后一击XP与金币一起一次提交；9机会/10级边界/替换/死亡候选保留 |
-| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `LDWorldDirector::Spawn/Prepare/NextEvent`、对局/生命/占領域；3×12等旧模型退出 | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
+| `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `FLedger::Commit` 与库存实例机制（旧 Acquisition paid creation 已退役）、同名 `ALDVendorDirector` 新建 quote/receipt；出售新增 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
+| `XP.*`、`REWARD.*`、`CHOICE.*` → progression/reward/offer 投影 | `LDCharacterBuild::AwardXP`、GameMode XP入口改造；旧营地 Reward/PvPKill 已删除，奖励语义见 N03 验收 | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 逐阈值真实等级/机会；最后一击XP与金币一起一次提交；9机会/10级边界/替换/死亡候选保留 |
+| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | 旧营地 Spawn/Prepare/NextEvent 已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收；对局/生命/占領域；3×12等旧模型已退出 | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `FLDActionRef`、`LDTacticalRequest`、`LDPlayerController::ServerTacticalAction` 与纯定义 Check | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重购新实例仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效；无主动装备1/2明确不可用 |
 

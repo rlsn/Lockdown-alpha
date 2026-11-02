@@ -53,12 +53,12 @@
 | E08 | [LDCombatDirector.h:16–153](../../Source/Lockdown/Public/Combat/LDCombatDirector.h#L16-L153)、[LDTacticalExecution.cpp:178–190](../../Source/Lockdown/Private/Combat/LDTacticalExecution.cpp#L178-L190)、[LDTacticalFields.cpp:18–24](../../Source/Lockdown/Private/Combat/LDTacticalFields.cpp#L18-L24) | 身体 Identity、目标 Life 和部分 credit 已存在；普通弹体/Field/PersistentZone 的来源和离局策略不同，弱 Pawn 指针不能承担持久信用。 |
 | E09 | [LDTacticalRules.cpp:20–53](../../Source/Lockdown/Private/Combat/LDTacticalRules.cpp#L20-L53)、[LDCombatDirector.cpp:291–351](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L291-L351) | `Damage` 的 contact 包含屏障吸收，不是实际 HP 损失；命中/状态没有统一目标保护闸。旧屏障严格更大替换及旧上限也不等于新内容政策。 |
 | E10 | [LDContentGeometry.cpp:46–71](../../Source/Lockdown/Private/Combat/LDContentGeometry.cpp#L46-L71)、[LDContentRelease.cpp:54–75](../../Source/Lockdown/Private/Combat/LDContentRelease.cpp#L54-L75) | `CreateField` 在 staging 就可能销毁旧场，`DestroyField` 可写 CD/经济记录；“先分配后扣费”不证明整个 Prepare 无副作用，也不能原样用作终局清理。 |
-| E11 | [LDWorldDirector.cpp:90–110](../../Source/Lockdown/Private/World/LDWorldDirector.cpp#L90-L110)、[LDEconomyLedger.cpp:36–100](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L100)、[LDEconomyLedger.h:21–60](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h#L21-L60) | 无主 Contact 可留下旧 LastOwner；Reward 新造事务 ID、先账本再 XP，末尾失败不等于未提交；旧 PvP 非统一金币+XP。Ledger 不含 XP/等级/选择。 |
+| E11 | [LDEconomyLedger.cpp:36–100](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L100)、[LDEconomyLedger.h:21–60](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h#L21-L60) | 旧营地 Actor 的无主 LastOwner、新造事务 ID 的先账本后 XP Reward 和非统一金币+XP 的 PvP 已删除，不作奖励模板；Ledger 不含 XP/等级/选择。 |
 | E12 | [LDGameMode.cpp:388–409](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L388-L409)、[437–453](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L437-L453)、[LDEconomyDirector.cpp:19–45](../../Source/Lockdown/Private/Economy/LDEconomyDirector.cpp#L19-L45) | 生命换代和满资源返回存在，但有旧死亡损失；Ledger GUID 与网络 Generation 未形成目标强类型映射。 |
-| E13 | [LDWorldClock.cpp:9–28](../../Source/Lockdown/Private/World/LDWorldClock.cpp#L9-L28)、[LDCombatDirector.cpp:206–224](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L206-L224)、[LDObjectiveDirector.cpp:345–360](../../Source/Lockdown/Private/Objectives/LDObjectiveDirector.cpp#L345-L360) | 旧时钟回拨 World 时间补算当前姿态；环境工作早于 Finished 检查，终局先清服务后设结果。必须改真实 step/事件/permit，而非尾部多调用一次数圈人数。 |
+| E13 | [LDWorldClock.cpp:9–28](../../Source/Lockdown/Private/World/LDWorldClock.cpp#L9-L28)、[LDCombatDirector.cpp:206–224](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L206-L224) | 旧时钟回拨 World 时间补算当前姿态；环境工作早于 Finished 检查，旧终局先清服务后设结果。必须改真实 step/事件/permit，而非尾部多调用一次数圈人数。 |
 | E14 | [LDVisionDirector.cpp:117–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L117-L186)、[240–322](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L240-L322)、[LDContentLifecycle.cpp:41–56](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L41-L56) | 有逐观察者重查和正常 Host 原生过滤，但自动 Footstep/Trail 的产生、提前授权、发布例外均存在；不能只停一个技能或隐藏一个 Mesh。 |
 | E15 | [LDTacticalCatalog.cpp:16–61](../../Source/Lockdown/Private/Combat/LDTacticalCatalog.cpp#L16-L61)、[LDEquipmentCatalog.h:6–27](../../Source/Lockdown/Public/Inventory/LDEquipmentCatalog.h#L6-L27)、[LDEquipmentCatalog.cpp:29–54](../../Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp#L29-L54) | tactical importer 不解析 `effects`；`RankKey` 实际是字符串，`Magnitudes` 才是整数数组，且仅单个 scaling key。装备 typed 定义/导入/执行未接通非零主动 MP 成本。 |
-| E16 | [LDV08HUDModel.cpp:15–39](../../Source/Lockdown/Private/UI/LDV08HUDModel.cpp#L15-L39)、[SyncB84Data.py:31–105](../../Scripts/SyncB84Data.py#L31-L105) | HUD 另读 JSON 成本键、使用 family-max cooldown、保护禁用；compiler 固定旧目录数量并读取 acquisition 原生文件。现有装备源数据的主动成本均为零，不能声称已复现某件非零装备免费释放。 |
+| E16 | `LDV08HUDModel.cpp:15–39`（已随 UI 闭包退役）、[SyncB84Data.py:31–105](../../Scripts/SyncB84Data.py#L31-L105) | 旧 HUD 另读 JSON 成本键、使用 family-max cooldown、保护禁用；compiler 固定旧目录数量并读取 acquisition 原生文件。现有装备源数据的主动成本均为零，不能声称已复现某件非零装备免费释放。 |
 
 真实链路分为三条，实施时必须一起改接：
 
@@ -68,9 +68,9 @@
 2. `Input/SendItemAction → ServerTacticalAction → EnqueueAction → QueueContent → Sample
    → RequestContent → RequestBody / RequestEquipped / RequestTactical → Release → Sync/回执`。
    收敛后的外部调用只有下节窄入口；低层执行函数不能继续供 AI 绕过。
-3. `Projectile/Content/Basic/World 命中 → Sample → Damage/ApplyStatus/Contact → Die
-   → World.Defeated/PvPKill → EndContenderLife → 服务/复活/World/Objective`。
-   目标以统一 Hit 和不可变死亡事实替换旧 Contact 推奖，移除旧服务与并行怪物攻击计时。
+3. `Projectile/Content/Basic 命中 → Sample → Damage/ApplyStatus → Die → EndContenderLife → 服务/复活`。
+   旧世界 Contact/Defeated/PvPKill 推奖与 Objective 消费已删除；目标以统一 Hit 和不可变死亡事实接 N03 奖励，
+   移除旧服务与并行怪物攻击计时。
 
 ## 3. SC-09：状态所有者、类型与正式接缝
 
@@ -84,7 +84,7 @@
 | Match 映射、模拟时钟、生命资格、终局闸 | 现有 `ALDGameMode`；共享 `FLDMatchContext/FLDCombatBodyRef/FLDGameplayWritePermit` | Combat 调度、World、成长；GameState 只放已批准公共事实 |
 | 当前 HP/MP/屏障、临时状态、Action、Effect、Hit | 现有 `ALDCombatDirector::Bodies` 及其有限工作集合；新增 typed 资源/效果结果 | `Sync/SyncOwner` 的自身投影；World 过滤后观测 |
 | 属性最终值及来源解释 | `Combat\LDAttributeProjection.h/.cpp` 的纯投影；结果安装在现有参赛/身体状态 | Movement、执行器、自身 UI/AI；不是另一份可写 HP/MP |
-| 学习、等级、永久属性、候选/机会 | 成长域的现有 `FLDCharacterBuild/ALDDevelopmentDirector` | Combat `PrepareBuildChange` 输入；不得全量回写旧 cooldown |
+| 学习、等级、永久属性、候选/机会 | 成长域的 `FLDCharacterBuild` 纯投影与 N04 提供者 | Combat `PrepareBuildChange` 输入；不得全量回写旧 cooldown，不恢复旧准备 Actor |
 | 金币、真实装备实例 | 精简后的同一 Ledger/Inventory/Vendor | Combat 读取已提交实例/绑定；不拥有另一套库存或金币 |
 | 来源绑定、主动 readiness、被动去重历史 | Combat 管理参赛记录中的持久来源状态；买卖/选择的同一提交安装绑定变化 | 逐实例 `IssuedCooldownId/ReadyAt`；UI/Nav 不写 CD |
 | 参赛者普攻节拍 | Combat 的局内持久 `NextAttackAt`；当前 Action 仍绑定一次身体生命 | Nav 只查询；取消、重绑身体、死亡不提前未完期限，时间照常流逝 |
@@ -570,7 +570,7 @@ Returning 不产生无敌、不可选中或“离局”资格；途中 Hit/Root/
 但世界策略不恢复追击。内部 `ApplyHit` 成功提交后才产生拟建 `FLDCombatHostileContact`，
 含 HitKey、VictimBody、ReleasedSourceRef、SourceBodyAtRelease、可空实际信用所有者、
 EventStamp 及已提交敌对接触/控制结果；内容必须将该实际作用判为敌对。
-世界的拟建 `OnCombatHostileContact(Fact, Permit)` 幂等消费此事实以产生同营地反击意图，
+N03 营地接线幂等消费此事实：只记录本营敌对来源身份，再由 `LDCampDecision` 纯决策产生同营反击意图，
 不再伤害或发奖；无效攻击意图、Miss/TargetUnavailable 不触发野怪反击。
 这与玩家进攻意图即解除保护是两种不同事实。
 同营地广播来源身份/因果，不广播隐藏坐标或权威 Actor 给成员；
@@ -703,13 +703,13 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 
 | 映射/方式 | 精确落点与保留能力 | 改造/新增及退出条件 |
 | --- | --- | --- |
-| R01/R02/R05 原样局部机制 | `Character\LDCharacterMovementComponent.cpp` 的 saved move/网络身份；`Framework\LDCommandLiveness.h::Fresh`、`Core\LDRules.h::FViewCursor` | 保留预测/拒旧，不附带 sprint、道路、B91 分派；运动上限消费唯一属性与控制。 |
+| R01/R02/R05 原样局部机制 | `Character\LDCharacterMovementComponent.cpp` 的 saved move/网络身份；`Framework\LDCommandLiveness.h::Fresh`；R02 的视图拒旧由新 relay 的接收游标实现（`WORLD_CAMPS_AND_VISION.md` §7 W5） | 保留预测/拒旧，不附带 sprint、道路、B91 分派；运动上限消费唯一属性与控制。 |
 | R06/R07 改造 | `Framework\LDGameMode.{h,cpp}` 的 StateFor/RefreshBuild/SyncOwner/EndContenderLife；`Combat\LDCombatDirector.{h,cpp}` 的 Register/Queue/Sample/Die/Sync | 单一注册/资源/死亡事实、目标签名/阶段/permit；删除直接 World 推奖和旧损失，不再返回可随意覆盖的全状态副本。 |
 | R07 抽取 | `LDTacticalRules.cpp` 的动作禁止/状态到期、`LDTacticalExecution.cpp` 的必要命中和释放前验证 | 仅保留批准 Root/盾/净化/伤害/投射物/位移原语；公式/状态全集/旧取消恢复/旧盾上限不原样带入。 |
 | R07/R09 改造 | `LDContentActions/Release/Lifecycle.cpp`、`LDV08Loadout.cpp`、`LDV08Modifiers.cpp` | Source/阶段重验、有限 proc 去重、双独立 CD；删除 family-max 和固定 bit 表。现有低层入口内部化，无旧公共旁路。 |
 | R08 抽取 | `Economy\LDEconomyLedger.{h,cpp}` 的同条款幂等、溢出/版本拒绝、全验证后写、Reconcile | 金币仍同账本；成长域补复合死亡提交，不能把 XP 放第二金币真相。 |
-| R10/R11 改造/抽取 | `World\LDWorldDirector.{h,cpp}` 的注册/目标/回位；`CharacterMovement` 的 RootMotionSource、`LDTacticalFields.cpp` swept capsule、`LDContentGeometry.cpp` 合法落点 | 怪物执行接同 Combat，世界负责真正几何/生命映射；位移不是寻路瞬移替代，默认旧距离/地图分支删除。 |
-| R12/R13 改造 | `Vision\LDVisionDirector/LDWorldViewRelay/LDViewTypes`、`Framework\LDPlayerController`、`UI\LDV08HUDModel` | 当前 owner/observer 白名单、typed 结果、正常 Host 附件过滤；保持 cursor/Conceal 不变量。 |
+| R10/R11 改造/抽取 | 营地：旧营地 Actor 已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收。位移：`CharacterMovement` 的 RootMotionSource、`LDTacticalFields.cpp` swept capsule、`LDContentGeometry.cpp` 合法落点 | 怪物执行接同 Combat，世界负责真正几何/生命映射；位移不是寻路瞬移替代，默认旧距离/地图分支删除。 |
+| R12/R13 改造 | `Vision\LDVisionDirector/LDWorldViewRelay/LDViewTypes`、`Framework\LDPlayerController`、`UI\LDHUDModel` | 当前 owner/observer 白名单、typed 结果、正常 Host 附件过滤；保持 cursor/Conceal 不变量。 |
 | N03/N04/N05 必要新增 | 动作 DTO 仍拟置于 `Public\Combat\LDCombatTypes.h`；纯属性/比例入口现位于 `Public\Combat\LDAttributeProjection.h`、`Private\Combat\LDAttributeProjection.cpp` | 放置本文窄 DTO/纯规则和检查结果；执行留现有 Director/拆分 cpp，不加第二 Director、GAS 状态层或通用事件平台。 |
 | N02/N09 配套 | 现有 CombatTests/TacticalTests/LoadoutTests/ViewTests、相关 runner；旧 compiler/importer 的必要严格校验机制 | 机制抽取到内容域唯一 Demo compiler/`ULDDemoContentCatalog`，补 typed effects/rank/MP/属性读取及下节断言；旧生成/加载入口退出，不靠类型表宣称效果已接通。 |
 
@@ -717,16 +717,16 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 
 | 架构项 | 本模块精确删除面 | 先替代/断开及联动 |
 | --- | --- | --- |
-| D07 | `Development\LDWorldChecks.{h,cpp}`、`Region\LDRegionDirector.{h,cpp}` 的旧任务链及 Resident/WildSentinel/WatchControl；`LDSkillExecution.cpp` 中 SkillTasks/ReleasedSkills/职业操作 | 必要注册/统一野怪和 AI 接回 World/Combat，再断生产者、TFunction 捕获、include/friend/目标 kind/取消和 UI。不能删调用后留空旧接口。 |
+| D07 | `ALDResident`（Character 文件）；`LDSkillExecution.cpp` 中尚存的 SkillTasks/ReleasedSkills/职业操作 | 必要注册/统一野怪和 AI 接回 World/Combat，再断生产者、TFunction 捕获、include/friend/目标 kind/取消和 UI。不能删调用后留空旧接口。 |
 | D10/D12 | `Private\World\LDWorldClock.cpp` 旧调度政策；`Private\Combat\LDCombatCheckpoint.cpp::EnvironmentSettled` 及 Director 声明 | 先接统一 step/事件/permit；断 WorldCheckpoint 的 CheckpointSettled、console/自动恢复/probe/runner。保留本地 ControlSettings.Save，非当前局恢复。 |
 | D14 确定项 | `LDCombatDirector.cpp` 的暗杀/quiet/sprint入口；`LDSkillExecution.cpp` 旧职业/服务分支；`LDContentLifecycle.cpp` 的 Scramble、自动 Footstep/Mark Trail | 同时删除 AssassinReady/Quiet/Watch/Salve 等失去消费者字段、旧 cue 和授权例外，不只停按钮。 |
 | D14 C1 项 | `LDContentActions/Release/Lifecycle/Geometry.cpp`、`LDTacticalExecution/Fields/Geometry/Rules.cpp`、`LDV08Catalog/Modifiers.cpp` 的未选 switch/状态/handler | 批准 ID→handler→字段→wire→资产→测试映射后，只保留所选原语；双目标交换、channel、DoT、侦察、反射、免死、旧场机制无消费者即真删。 |
-| D14/D11 C1 项 | `LDRiverEnvironment.cpp/LDRiverRules.cpp/LDEnvironmentRules.cpp/LDElementContact.cpp/LDIgnitionEnvironment.cpp/LDFullMapSurfaces.cpp` 及对应 Public 头/Director 字段 | 当前小目录无需天气、电火水冰、租约池、RiverCells/BurningUnits/FrostReceipts。先把必要静态地面/LOS 接世界，断 Movement/Vision/WorldObjects/Checkpoint 消费；不抽备用环境服务。 |
+| D14/D11 C1 项 | `LDRiverEnvironment.cpp/LDRiverRules.cpp/LDEnvironmentRules.cpp/LDElementContact.cpp/LDIgnitionEnvironment.cpp/LDFullMapSurfaces.cpp` 及对应 Public 头/Director 字段 | 当前小目录无需天气、电火水冰、租约池、RiverCells/BurningUnits/FrostReceipts。先把必要静态地面/LOS 接世界，断 Movement/Vision 消费；不抽备用环境服务。 |
 | D15 | `LDCharacterBuild.h/.cpp` 六属性/职业/点数/书籍/天然门槛、旧构造/start/profile/整体 Prepare 草稿；`LDGearRules.cpp` 六点预算 | 同基础角色、MOBA 投影、持久成长和 CD 分离先接好；必要角色记录迁入 Demo 作者域，旧 native Validate 的公式字符串/职业任务要求与 prototype 作者输入随旧链退出。 |
 | D15 | `LDV08Loadout.cpp` 重复 active-family 拒绝/十一绑定/六共享动作；`LDInventoryTypes/Director` 背包/重量/Quick/掉落/旧 metadata | 两实例/QW/12/来源事务替代；删旧 family-max 的 Actions/Release/HUD 三端，不只换保管 CD 的字段。 |
 | D16/D27 | `LDPlayerController.h/.cpp`、`LDPlayerInventory.cpp` 旧多个 RPC/字符串回执/hold/probe/Pending；DevelopmentPanel/InventoryPanel 的旧 UFUNCTION Route、OnClicked/AddDynamic 和 Press/Release | 新 void RPC、双请求域、typed 回执、规范空入口先解保护及窄 UI 动作接通；删六属性/旧服务页签及绑定，不留死委托。 |
 | D17 | `LDVisionDirector/LDViewTypes/LDWorldViewRelay` 旧来源/kind/AuthorizedCue；`LDCharacter/LDHumanoidVisualComponent` 旧居民/工具/状态 marker | 生产→授权→发布→proxy/HUD/Host 附件→wire 白名单闭合，保留必要身体/碰撞/观测游标。 |
-| D08/R10 | `LDWorldDirector.cpp::Contact/Reward/Defeated/PvPKill` 的 LastOwner 兜底、每调用新事务、只 XP/限额/间隔及平行 NextAttack | 同 DeathKey/RewardBasis/CommitDeathReward 和 Camp/Member 接线替代；保留 self 拒绝目的，回位不是死亡。 |
+| D08/R10 | 旧营地 Actor 的 LastOwner 兜底、每调用新事务、只 XP/限额/间隔及平行 NextAttack 已删除 | N03 以同 DeathKey/RewardBasis/CommitDeathReward 和 Camp/Member 接线实现；保留 self 拒绝目的，回位不是死亡；营地原语待 N03 接线。 |
 
 ### 11.3 数据、反射、资产与工具闭包
 
@@ -739,7 +739,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | D21/D32 语义与旧链退出 | 多字段 Rank/effects、非零装备 MP、属性/政策必须真实投影到统一目录和 handler，并有行为断言；只保存 JSON 不算支持。新链/拒绝夹具/全部加载和 staging/cook 迁移完成后，删除旧 V08 作者输入、B84 载荷/manifest/contract、`SyncB84Data.py` 及无消费者旧 importer/多 schema fallback。可抽取旧代码和记录，不能保留旧目录继续生成或加载另一套 Demo；不手改摘要。 |
 | D22/D23 | 断 Combat 对完整世界/人口/物件输入的消费，地图/C2 归世界。`prototype_rules.json → ULDCharacterCatalog::Import/Validate → DA_CharacterCatalog` 是待退出旧链；必要角色参数迁到唯一 Demo 作者域/目录，完成 Bootstrap/资产引用迁移后删除旧原型输入、旧角色目录资产及无消费者导入器。`DA_PrototypeTuning/Character.BeginPlay` 的必要几何/引擎接线由对应所有者核验复用，不作为旧战斗内容回退入口；缺必要输入显式失败。 |
 | D24/C3 | 旧 IA_Assassinate/Dash/Interact/Ward/Sprint 与 Bootstrap 十三固定映射、旧 IMC/Widget 回调按当前输入迁移；键仍可有新用途。M_Character/M_Fog/T_FogClosed/WBP_UIRoot 先查真实引用，不能因占位资源盲删。 |
-| 反射/C3 | CombatDirector/ArcProjectile/TacticalField/Corpse/Character/Resident/WorldPawn/WorldSite/catalog 的 UCLASS；Build/Plan/ActionRef/GearStats/TacticalRequest/Inventory/Owner/View 的 USTRUCT/UPROPERTY、RPC、dynamic delegate、CDO/Blueprint/地图引用都核查。旧类仍可加载时先迁移重存存活资产，再删类型。 |
+| 反射/C3 | CombatDirector/ArcProjectile/TacticalField/Corpse/Character/Resident/catalog 的 UCLASS；Build/Plan/ActionRef/GearStats/TacticalRequest/Inventory/Owner/View 的 USTRUCT/UPROPERTY、RPC、dynamic delegate、CDO/Blueprint/地图引用都核查。旧类仍可加载时先迁移重存存活资产，再删类型。 |
 | D26/C4 | Runtime/Editor Build.cs、DefaultGame 广泛 AlwaysCook、Package/OpenStandalone/Bootstrap 的旧图/profile/staging 需按实际消费者收敛。保留确需的 NetCore/Json/UMG/Nav/AI/Fog/OpenSSL 等，不为掩盖问题改共享引擎/插件安装。 |
 | D27–D34 | 旧 probe/client helper/专用 runner、生成测试夹具随闭包迁移；六份 systems 和 README/DEVELOPMENT 同实施校准。删除旧专测前先迁有效身份/原子/来源/隐私断言，同步 `CheckRuleReport.py` 的明确用例集合，不仅降低成功数量。 |
 
@@ -816,8 +816,8 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 
 现有最小入口可迁移，而非直接宣称已验证上述目标：
 `RunTests.ps1` 的 Lockdown.Rules、`RunCombatCheck.ps1`、
-`RunCombatNetworkCheck.ps1`、`RunTacticalCheck.ps1`、`RunLoadoutCheck.ps1`、
-`RunContentNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`、库存/商店/占领/重开对应检查。
+`RunCombatNetworkCheck.ps1`、`RunTacticalCheck.ps1`、
+`RunContentNetworkCheck.ps1`、`RunDemoVisionCheck.ps1`、库存/商店/占领/重开对应检查。
 旧 runner 含旧图/profile、固定数量和非参赛 authority，不能臆造 Demo selector 或任意 TestFilter。
 保留 CharacterBuild/V08Loadout/Tactical/Economy/View 的身份、失败不变、原子和隐私断言，
 迁掉六属性/旧等级/开局技能/死亡税/全集数量/旧 family 规则，再同步 runner 必需用例清单。

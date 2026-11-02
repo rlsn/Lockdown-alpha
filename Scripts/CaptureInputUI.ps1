@@ -1,23 +1,26 @@
 [CmdletBinding()]
-param([string]$EngineRoot,[string]$PackageRoot,[switch]$Controls,[ValidateSet('HUD','Controls','Development','Lobby','Selected','Death','Result','Inventory','InventoryDead','Vendor','VendorFull','VendorFailed','QuickItems','ItemReading','DropConfirm')][string]$Scene='HUD',[switch]$LargeText,[ValidateRange(1280,2560)][int]$Width=1280,[ValidateRange(720,1440)][int]$Height=720)
+param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1280,[ValidateRange(720,1440)][int]$Height=720,[ValidateRange(60,300)][int]$TimeoutSeconds=180)
 . (Join-Path $PSScriptRoot 'Common.ps1')
-if($PackageRoot){$package=Resolve-LDPackage $PackageRoot;$binary=$package.Binary;$project='';$lane='Packaged-'}
-else{$engine=Resolve-LDEngine $EngineRoot;Assert-LDEditorModules;$binary=Join-Path $engine 'Engine/Binaries/Win64/UnrealEditor.exe';$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject';$lane=''}
-if($Controls){$Scene='Controls'}
-$output=New-LDArtifactDirectory ($lane+'InputUI-'+$Width+'x'+$Height+'-'+$Scene+$(if($LargeText){'-125pct'}else{''}))
-$extra='-LDHUDScene='+$Scene+$(if($Scene -eq 'Controls'){' -LDControlsVisual'}else{''})+$(if($LargeText){' -LDHUDLargeText'}else{''})
-$arguments='"{0}" /Game/Lockdown/Generated/Maps/L_DevelopmentRegion?Profile=V05 -game -windowed -RenderOffScreen -ForceRes -ResX={1} -ResY={2} -unattended -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol -LDDevelopmentProbe -LDRegionProbe -LDProbeRole=Visual {3} -LDProbeReportDir="{4}" -abslog="{5}"' -f $project,$Width,$Height,$extra,$output,(Join-Path $output 'Visual.log')
-if($PackageRoot){$arguments=$arguments.Substring(3)}
-@{display=(Get-LDDisplayEnvironment);sourceRevision=(git rev-parse HEAD);sourceDirty=[bool](git status --porcelain);width=$Width;height=$Height;scene=$Scene;largeText=[bool]$LargeText;method='Native offscreen rendered UI; auto-start/location/death/deadline fixtures as selected; not human or OS-scale acceptance'}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $output 'Environment.json') -Encoding utf8
+$engine=Resolve-LDEngine $EngineRoot
+Assert-LDEditorModules
+$binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
+$project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
+$output=New-LDArtifactDirectory ('InputUI-'+$Width+'x'+$Height+'-Frontend')
+$user=Join-Path $output 'User'
+New-Item -ItemType Directory -Path $user | Out-Null
+$arguments='"{0}" /Game/Lockdown/Generated/Maps/L_Frontend -game -windowed -RenderOffScreen -ForceRes -ResX={1} -ResY={2} -nosound -nop4 -DisablePlugins=AllToolsets,ModelContextProtocol,Fab -UserDir="{3}" -LDDemoFrontendUIProbe -LDDemoFrontendUIOutput="{4}" -abslog="{5}"' -f $project,$Width,$Height,$user,$output,(Join-Path $output 'Visual.log')
+@{display=(Get-LDDisplayEnvironment);sourceRevision=(git rev-parse HEAD);sourceDirty=[bool](git status --porcelain);width=$Width;height=$Height;method='Existing Demo frontend RHI/UMG fixture, isolated UserDir, native screenshots at 100/125 percent text scale; synthetic delegate clicks, not OS input or gameplay acceptance'}|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $output 'Environment.json') -Encoding utf8
 $process=Start-Process -FilePath $binary -ArgumentList $arguments -WindowStyle Hidden -PassThru
 try {
-    if(-not $process.WaitForExit(150000)){throw "Native UI capture timed out: $output"}
+    if(-not $process.WaitForExit($TimeoutSeconds*1000)){throw "Native UI capture timed out: $output"}
     if($process.ExitCode -ne 0){throw "Native UI capture failed: $output"}
-    $report=Get-Content -LiteralPath (Join-Path $output 'Visual.json') -Raw|ConvertFrom-Json
-    $image=Join-Path $output ($Scene+'.png')
-    if($report.failures -ne 0 -or -not (Test-Path -LiteralPath $image)){throw "Missing or failed UI evidence: $output"}
-    $panelScenes=@('Controls','Development','Inventory','InventoryDead','Vendor','VendorFull','VendorFailed','DropConfirm')
-    if($Scene -in $panelScenes -and (-not @($report.checks|Where-Object {$_ -match '^PASS Native Slate Tab'}).Count -or -not @($report.checks|Where-Object {$_ -match '^PASS Visible panel targets'}).Count)){throw "Missing B57 focus/size evidence: $output"}
-    if($Scene -eq 'Inventory' -and -not @($report.checks|Where-Object {$_ -match '^PASS Native Escape closes'}).Count){throw "Missing editable-field Escape evidence: $output"}
-    Write-Host "Native UI captured; inspect visually: $image"
-} finally {if(-not $process.HasExited){$process.Kill();$process.WaitForExit()}}
+    $reportPath=Join-Path $output 'FrontendSettings.json'
+    if(-not(Test-Path -LiteralPath $reportPath)){throw "Missing native UI report: $output"}
+    $report=Get-Content -LiteralPath $reportPath -Raw|ConvertFrom-Json
+    if(-not $report.passed -or $report.rhi -in @('None','Null') -or @($report.checks|Where-Object{-not $_.passed}).Count){throw "Failed native frontend capture evidence: $reportPath"}
+    foreach($name in @('Frontend-100.png','Settings-100.png','Settings-125.png','DiscardDisplayDraft.png')){
+        $image=Join-Path $output $name
+        if(-not(Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -eq 0){throw "Missing rendered capture: $image"}
+    }
+    Write-Host "Native frontend UI captured; inspect visually: $output"
+} finally {if(-not $process.HasExited){Stop-Process -Id $process.Id;$process.WaitForExit()}}

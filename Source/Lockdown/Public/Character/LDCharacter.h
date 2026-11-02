@@ -6,8 +6,6 @@
 class USpringArmComponent;
 class UCameraComponent;
 class ULDHumanoidVisualComponent;
-class ULDPrototypeTuning;
-class UPointLightComponent;
 class FLDDemoContentSnapshot;
 
 UCLASS()
@@ -19,28 +17,13 @@ public:
     virtual void BeginPlay() override;
     virtual void Tick(float Delta) override;
     bool ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error);
-    void SetSprint(bool bSprint);
     void SetFacing(float Yaw);
     void Zoom(float Axis);
     UPROPERTY(VisibleAnywhere) TObjectPtr<ULDHumanoidVisualComponent> Body;
     UPROPERTY(VisibleAnywhere) TObjectPtr<USpringArmComponent> CameraArm;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
-    UPROPERTY(VisibleAnywhere) TObjectPtr<UPointLightComponent> PortableGlow;
-    void SetPortableLight(uint8 Mode);
-    UPROPERTY() TObjectPtr<ULDPrototypeTuning> Tuning;
     UPROPERTY(ReplicatedUsing=OnRep_Presentation) uint8 PresentationKey = 0;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 protected:
     UFUNCTION() void OnRep_Presentation();
-};
-
-UCLASS()
-class LOCKDOWN_API ALDResident : public ALDCharacter
-{
-    GENERATED_BODY()
-public:
-    explicit ALDResident(const FObjectInitializer& ObjectInitializer);
-    virtual void Tick(float Delta) override;
-private:
-    float NextDecision = 0;
 };

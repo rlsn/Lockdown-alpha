@@ -49,9 +49,9 @@
 | [LDUIRoot.cpp:50–162](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L50-L162)、[368–387](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L387) | 原生建菜单/Lobby，Host/Join/Exit 已有调用；Host 固定 `listen?Profile=V05` | 没有目标 Start/Settings/版本/名称、有名 roster、AI 配置和完整连接状态。旧职业选择及 Seal/Heart UI 不能仅改文案。 |
 | [LDGameInstance.cpp:8–46](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp#L8-L46) | network/travel delegate 注册解除，WorldContext 过滤，失败返回前端 | 当前忽略网络 Error 的细分文本，无 attempt 序号；满员、已开局、Host 结束、取消后迟到回包需独立处理。 |
 | [LDHUD.cpp:44–91](../../Source/Lockdown/Private/UI/LDHUD.cpp#L44-L91)、[110–196](../../Source/Lockdown/Private/UI/LDHUD.cpp#L110-L196) | 本人数据、状态/反馈、结果去重、独立 Minimap | 目前六技能按钮/四物品按钮、旧目标和死亡损失；缺头像/名称，部分分支不显示 XP，无目标圈/击杀/全员终局表。 |
-| [LDV08HUDModel.cpp:7–51](../../Source/Lockdown/Private/UI/LDV08HUDModel.cpp#L7-L51) | `LDHUD::Action` 区分技能/装备来源与执行限制 | 六 Actions/十一 Bindings、合并 ItemFamilies 冷却、保护禁用不符合目标。要区分可提交意图与可成功释放，不能只保留 `CanActivate`。 |
-| [LDDevelopmentPanel.cpp:29–193](../../Source/Lockdown/Private/UI/LDDevelopmentPanel.cpp#L29-L193) | 可滚动 native Panel、本地预览和确认 | 现在是 `FLDBuildPlan` 加点/训练/读书/职业，不是持久 Offer；旧死亡 gate 禁确认，需原位改为本人属性/三选一。 |
-| [LDInventoryPanel.cpp:28–160](../../Source/Lockdown/Private/UI/LDInventoryPanel.cpp#L28-L160)、[LDPlayerVendor.cpp:8–44](../../Source/Lockdown/Private/Framework/LDPlayerVendor.cpp#L8-L44) | 面板/服务页、显式报价、迟到 open token 检查 | 十服务页、背包/重量/quick、书店 Buy；没有目标两装备 Sell。复用确认机制，不保留 Bag 或旧多市场。 |
+| `LDV08HUDModel.cpp:7–51`（已随 UI 闭包退役） | 旧 `LDHUD::Action` 区分技能/装备来源与执行限制；未保留，技能/装备就绪、来源与冷却展示改列 N04/N05 presenter 要求 | 六 Actions/十一 Bindings、合并 ItemFamilies 冷却、保护禁用不符合目标。要区分可提交意图与可成功释放，不能只保留 `CanActivate`。 |
+| [LDWidgets.cpp](../../Source/Lockdown/Private/UI/LDWidgets.cpp) | 可滚动 native Panel、焦点和命令按钮机制 | N04/N07 以新 Offer/确认合同建立本人属性/三选一面板，不恢复旧准备/读书控件。 |
+| [LDInventoryPanel.cpp](../../Source/Lockdown/Private/UI/LDInventoryPanel.cpp) | 本人库存查看、整理/移动、显式丢弃确认和输入捕获 | 不再保留十服务页、书店/准备/快捷绑定；书店页与 `LDPlayerVendor` 的显式报价、迟到 open token 检查已随旧 Vendor 退役。N05 尚须实现目标两装备 Buy/Sell，复用确认机制，不保留 Bag 或旧多市场；存活整理 UI 不是其完成证明。 |
 | [LDPlayerInput.cpp:65–110](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L65-L110)、[192–208](../../Source/Lockdown/Private/Framework/LDPlayerInput.cpp#L192-L208) | 动态 mapping 句柄清理、等待按键释放、受限 inspection | 静态 IA/IMC 与动态入口并存、profile 分派和零散捕获需归一；不另建 UI 默认按键表。 |
 | [LDPlayerController.cpp:194–205](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L194-L205)、[593–619](../../Source/Lockdown/Private/Framework/LDPlayerController.cpp#L593-L619) | owner 拒旧；GameAndUI 而非暂停世界 | 仅拒旧 State 不保证后续 Reason/toast/pending 无副作用；现开菜单会 ClearControls/Stop，需要区分普通面板与失焦。 |
 | [LDControlSettings.h:19–37](../../Source/Lockdown/Public/UI/LDControlSettings.h#L19-L37)、[LDControlSettings.cpp:40–92](../../Source/Lockdown/Private/UI/LDControlSettings.cpp#L40-L92) | 保存按键、edge/follow、文字比例、Zoom；冲突校验；Save 返回 bool | 缺名称/显示/音量/平移速度；Load 对损坏静默回落，多 profile 槽/迁移需删除；恢复绑定不等于恢复全部设置。 |
@@ -491,11 +491,8 @@ flush 必须在未确认试用收尾后执行，保留已明确应用的镜头�
 SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/Offer/技能/装备、
 冷却、结果和输入捕获不得成为普通持久 UPROPERTY。
 测试必须显式使用隔离存储且不存在回落真实用户槽的路径：
-[LDB86Probe.cpp:165](../../Source/Lockdown/Private/Tests/LDB86Probe.cpp#L165) 的旧视觉路径使用
-`LDB86_...` 名称，却不符合
-[LDControlSettings.cpp:79–80](../../Source/Lockdown/Private/UI/LDControlSettings.cpp#L79-L80)
-接受的前缀，会回落真实 profile8 设置槽。**本次没有运行该探针，不应原样用 CaptureB86UI 验收保存**；
-有效断言迁移时修正隔离，随后删旧链，不借文档任务修改用户设置。
+当前 [本地设置测试](../../Source/Lockdown/Private/Tests/LDLocalSettingsTests.cpp)
+和前端捕获使用明确的隔离存储；不复活旧 probe 前缀回落规则，也不借验证修改真实用户设置。
 
 ## 9. SC-09 E：参数/目录键与单位
 
@@ -533,24 +530,18 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 | `Public\UI\LDWidgets.h`、`Private\UI\LDWidgets.cpp`：`ULDCommandButton/ULDPanel/LDWidgets::Text/Button/Panel/PanelFocusTargets/MovePanelFocus` | R13 局部复用 native 构造/Tab 焦点；改造 capture/子确认；拟增 Portrait/ContentIcon 原创占位绘制 | 各 Panel/HUD 改接唯一 Root 输入层；不留无消费者的备用控件。 |
 | `Public\UI\LDUIRoot.h`、`Private\UI\LDUIRoot.cpp` | R13/N01/N07 改造根；D01/D16 删除 Laborer/Rogue/Scholar、ToggleSensor/Fixtures/FixtureBack/SeedSeal、Defence 旧函数组及 delegate/UPROPERTY、旧 starters/Heart/work/status 图 | 先接菜单/生命周期与 TopInputLayer；旧反射仍可加载时 C3 重存 WBP，再删旧事件/成员；不留空旧方法。 |
 | `Public\UI\LDHUD.h`、`Private\UI\LDHUD.cpp` | 改成二+二、本人状态/圈/通知/唯一结果；删 ContextButton、工作/shortage/source 数、六+四构造及 RulesVersion/profile/map-name 分派 | Controller、Root hit-test、probe 同步改接；来源/结果投影先到，旧计时/死亡税 UI 再真删。 |
-| `Public\UI\LDHUDModel.h`、`Private\UI\LDHUDModel.cpp`、`Private\UI\LDV08HUDModel.cpp` | R13 抽取必要 `LDHUD::Action` 到唯一 HUDModel，删除 `LDV08HUDModel.cpp`；删 PublicOpening/EconomyStep 旧规则、手工属性/范围常量和族 CD 合并 | BindingView/属性/公共投影稳定后替换消费者；没有 `LDV08HUDModel.h`，不虚列文件。 |
-| `Public\UI\LDDevelopmentPanel.h`、`Private\UI\LDDevelopmentPanel.cpp` | R13/N04 原位 Attributes/Choices；D15/D16 删 `FLDBuildPlan Draft`、SelectedBook、旧训练/准备/读书/职业 Operation、StartConfirm/StopConfirm；改用 CommandButton 后删 `ULDDevelopmentButton::Route` 及旧反射类 | 先 QueueChoice/查询/当前 LifePhase；direct probe Choose/Preview 消费同步迁移；C3 后真删旧类型，不保留第二构筑编辑器。 |
-| `Public\UI\LDInventoryPanel.h`、`Private\UI\LDInventoryPanel.cpp` | R09/R13/N05 收敛两装备+Shop；删 Sort/Filter/SearchChanged、Use/AskDrop/ConfirmDrop/HitCell、背包拖拽/quick、十一绑定、所有旧 service tab 字段 | 先领域原子 Buy/Sell/显示条款，后拆旧页/RPC/成员；保留满槽先卖后买，不以拖拽自动替换。 |
-| `Private\UI\LDInventoryAcquisitionPanel.cpp`、`LDInventoryBankPanel.cpp`、`LDInventoryCommercePanel.cpp`、`LDInventoryProductionPanel.cpp`、`LDInventoryServices.cpp` | D02/D05/D16 **五文件真删**；包括 Build/Refresh/Review/Submit、ShowService/RefreshServices 及 header 中 AcquisitionPlan/CacheRows/Bank/Commerce/Production/Services/ServiceTabs | 提取必要报价二次确认/模态焦点到单 Shop；删 Panel 构造、Controller token/cache/pending、RPC/反射引用，而非隐藏页签。 |
+| `Public\UI\LDHUDModel.h`、`Private\UI\LDHUDModel.cpp`、`Private\UI\LDV08HUDModel.cpp`（已随 UI 闭包退役） | R13：旧 `LDV08HUDModel.cpp` 及其 `LDHUD::Action` 已随 UI 闭包退役，删除而未抽取；目标 `LDHUD::Action(...) -> FActionView` 按 §5.1 拟建接口由 N04/N05 presenter 在唯一 HUDModel 中新建。PublicOpening/EconomyStep 旧规则、手工属性/范围常量和族 CD 合并已在 UI 闭包中完成 | BindingView/属性/公共投影稳定后替换消费者；没有 `LDV08HUDModel.h`，不虚列文件。 |
+| 拟建 N04/N07 Attributes/Choices 面板 | 使用保留的 LDWidgets、合法自身投影和持久 Offer；不是已有可调用的旧 Panel API | QueueChoice/查询/当前 LifePhase 与真实控件一起接入，不添加不可执行的替代按钮。 |
+| `Public\UI\LDInventoryPanel.h`、`Private\UI\LDInventoryPanel.cpp` | 当前只保留真实库存查看、整理/移动/丢弃及模态输入；N05 收敛两装备+Shop | 新增 Buy/Sell 与显示条款必须接真实提供者；现存整理控件不代表 Demo 两装备模型已完成，不以拖拽自动替换。 |
 | `Public\UI\LDControlSettings.h`、`Private\UI\LDControlSettings.cpp`、`Public\UI\LDControlsPanel.h`、`Private\UI\LDControlsPanel.cpp` | R13 复用 Rebind/Valid/Save 职责，补 §8；D16/D24 删 Profile、HybridDefaults/MigrateHybrid/MigrateTactical、旧槽/profile fallback、Rules8 说明和独立导航 bool | 单对象/单 schema 与显式 LoadResult 先接；旧 migration tests 随消费者迁，隔离保存不回落真实槽。 |
 | `Public\UI\LDMinimap.h`、`Private\UI\LDMinimap.cpp` | R12/R13/N07 改用 ReadObservedFrame/WorldRevision/Footprint；删旧 60×40/Explored/固定六 site、独立鼠标按键判断 | 世界唯一协议与输入 capture 先到；不增 LastSeen，不凭亮格填单位；death camera 只静态。 |
 | `Public\Framework\LDPlayerController.h`、`Private\Framework\LDPlayerController.cpp`、`Private\Framework\LDPlayerInput.cpp` | R02/R13/N01/N06/N07 保留 caller/owner cursor/动态 mappings；改 receipt 和失效；D16/D24/D27 删静态 IA/旧 SkillInputContext、V05/旧 context/ward/fixture 分派、无消费者 flags/RPC aliases；删空 `EndSkillGesture` | 输入、领域回执、Root 同批；保留 Match/Life/Order/Epoch，不用恒真 profile helper。 |
-| `Private\Framework\LDPlayerDevelopment.cpp`、`LDPlayerInventory.cpp`、`LDPlayerVendor.cpp` | 原位 Choice/本人装备/Shop/query 转发；删全份 build draft、quick/read/drop/BuyVendorBook、空 `SetInteractionHeld` 与旧调用 | Combat 装备主动仍独立，不把 Vendor Pending 或会话变成其准入；先稳定窄命令，再删旧枚举/成员。 |
-| `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp` | D02/D05/D16 **三文件真删**；Controller 相应 include、UFUNCTION、View/cache/token/friend、`InventoryPending` 旧多服务聚合一并去除 | 保留所需事务校验到原 Ledger/Vendor/Inventory，不能留下无服务的 Server 调用静默 return。 |
+| `Private\Framework\LDPlayerInventory.cpp` 与 N04/N05 的新命令接缝 | 本人库存转发仍在；Choice/Shop/query 按目标合同新建，不恢复旧整份 Build、读书或生产 RPC | Combat 装备主动独立于商店会话；不留下无服务的 Server 调用或临时成功回执。 |
+| `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp`、`LDPlayerDevelopment.cpp`、旧 `LDPlayerVendor.cpp` | D02/D05/D16 **由集成在同次切换真删文件**；Controller 的 include、UFUNCTION、View/cache/token/friend、旧 `InventoryPending` 聚合及已删 Panel/Transaction 调用同步去除 | 不把无服务 Server 调用改成静默 return，不保留空兼容入口；N04/N05 窄请求由新提供者实际实现。 |
 | `Public\Framework\LDGameInstance.h`、`Private\Framework\LDGameInstance.cpp` | R13/N01 改 attempt/本地偏好 flush；保留 WorldContext/delegate 配对；D12/D27 删除 ResetEvidence/DevelopmentResetEvidence/B90ResetEvidence 旧 probe 依赖 | 生命周期负责 Generation；B03 删世界 checkpoint 不触碰本地设置保存。 |
 
-外围 UI 也属于闭包，不在其他目录留备用入口：
-`Private\World\LDB91Controller.cpp/LDB91SourceHUD.cpp/LDB91SourceControls.cpp`、
-`Public\World\LDEnvironmentDirector.h` 内 `ALDB91HUD/Controller/GameMode` 的反射/override/RPC，
-`Public\Population\LDB92Roster.h`、`Private\Population\LDB92Roster.cpp` 的 HUD/继承选择，
-`Private\Economy\LDB92ServiceClient.cpp` 的 `ALDB92HUD::DrawHUD/NotifyHitBoxClick`，
-以及 `Public\Region\LDB90Preview.h`、`Private\Region\LDB90Preview.cpp` 的 Preview HUD/Mode，
-分别随 D06/D11/D13 和所属领域删除；只抽当前图/输入所需能力，不把旧预览模式改名成死亡镜头。
+外围 UI 也属于闭包，不在其他目录留备用入口：B91 独立控制器/HUD/来源控件与 B90 Preview HUD/Mode
+已随 D11/D13 闭包删除，不保留其反射/override/RPC；只抽当前图/输入所需能力，不把旧预览模式改名成死亡镜头。
 
 ### 10.2 资产、Input、反射、配置与新增
 
@@ -575,13 +566,12 @@ Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstr
 
 | 当前精确入口 | 保留/替换/删除 |
 | --- | --- |
-| `Private\Tests\LDInputRulesTests.cpp`、`LDHUDRulesTests.cpp`、`LDViewTests.cpp` | 改造 ControlMappings/IssuedCommandLiveness、HUDObservationBoundary、ViewPayload/ViewPrivacySchema；保留拒旧/原子性/隐私，替换旧四技能、八字段/旧公共字段数、60×40 和“敌血蓝永远 Unknown”断言。递归检查嵌套状态/装备，不只数顶层字段。 |
+| `Private\Tests\LDInputRulesTests.cpp`、`LDHUDRulesTests.cpp`、`LDViewTests.cpp` | 改造 ControlMappings/IssuedCommandLiveness、HUDObservationBoundary、`DemoVision.Codec`/ViewPrivacySchema；保留拒旧/原子性/隐私，替换旧四技能、八字段/旧公共字段数、60×40 和“敌血蓝永远 Unknown”断言。递归检查嵌套状态/装备，不只数顶层字段。 |
 | `Public\Tests\LDInputProbe.h`、`Private\Tests\LDInputProbe.cpp/LDHUDProbeExtension.cpp`；`Scripts\RunInputCheck.ps1/RunHUDCheck.ps1` | 复用真实 EnhancedInput/Slate、full-conceal、重复 toast/旧 ACK 夹具；HUD extension 属 InputProbe，不虚构 ALDHUDProbe。删旧 ward/死亡税/deadline/固定计数与非参赛 Host 拓扑，改 §11 场景。 |
-| `Public\Tests\LDViewNetworkProbe.h`、`Private\Tests\LDViewNetworkProbe.cpp`；`Scripts\RunViewNetworkCheck.ps1` | 保留真实 owner 可访问记录/乱序/过期/镜头权限，删旧公共 sensor/ward，增加正常可视 Listen Host 生成当帧及完整嵌套白名单。 |
-| `Private\Tests\LDInventoryProbe.cpp/LDVendorProbe.cpp/LDLoadoutRulesTests.cpp/LDV08LoadoutTests.cpp/LDLoadoutProbe.cpp`；`Scripts\RunInventoryCheck.ps1/RunVendorCheck.ps1/RunLoadoutCheck.ps1` | 迁实例/来源/价格复核/创建失败到两装备；删除背包/书籍/准备/旧迁移与六槽/十一绑定专属断言，不保留旧模式只为测试可编译。 |
-| `Private\Tests\LDDevelopmentProbe.cpp`；`Scripts\CaptureInputUI.ps1` | 抽焦点/尺寸/截图设施，迁 Start/Lobby/Choices/Replacement/Shop/Settings/Result；去旧授予/死亡税/场景 enum。截图存在不证明视觉/真实输入；offscreen/nosound 不验证声音。 |
-| `Public\Tests\LDB86Probe.h`、`Private\Tests\LDB86Probe.cpp/LDB86RulesTests.cpp`；`Scripts\RunB86Check.ps1/CaptureB86UI.ps1/CheckB86Evidence.py` | D27/D31 真删旧链；将有效 owner readiness/来源/CD/几何断言迁当前 HUD/Input 测试，先确保隔离设置存储，不运行旧覆盖真实槽的路径。 |
-| `Public\Tests\LDEconomyUIProbe.h`、`Private\Tests\LDEconomyUIProbe.cpp`；`Scripts\RunEconomyUICheck.ps1` | 通用确认/焦点/原子断言迁新场景后整删。旧 Context 重绑断言与当前注册已不符，不能把这个静态发现记为本次测试失败。 |
+| `Private\Tests\LDDemoVisionProbe.h/.cpp`；`Scripts\RunDemoVisionCheck.ps1` | 已替换旧 ViewNetwork probe/runner：真实 owner 受限注册表、单连接丢帧后的超时清除与无 LastSeen、正常可视 Listen Host 生成当帧隐藏且只经自身投影呈现；乱序/过期、跨 owner 句柄与嵌套白名单由 `Lockdown.Rules.DemoVision.*` 承接；旧公共 sensor/ward 已删；镜头不增加视野权限属 CT-A14。 |
+| `Private\Tests\LDInventoryRulesTests.cpp/LDLoadoutRulesTests.cpp/LDV08LoadoutTests.cpp/LDEconomyRulesTests.cpp` | 保留实例/来源/容量/精确条款和原子拒绝；N05 补真实创建失败与拥有连接场景，不将无效输出 ID 的纯账本检查冒充 Actor 分配失败。 |
+| `Scripts\CaptureInputUI.ps1`、现有 Demo frontend 原生夹具 | 复用实际 RHI 截图与独立 UserDir，覆盖前端/设置 100/125% 与显示草稿丢弃；旧场景和授予参数不再提供。截图存在不证明 OS 输入、声音或完整游戏 UI。 |
+| N04/N05 新动作 presenter 验收 | 必须验证资源边界、实际来源、控制反馈、冷却端点及失源不自动补位；旧动作栏及其字段不再作为实现或测试替代。 |
 | `Scripts\RunTests.ps1`、`CheckRuleReport.py`、`TestRuleReport.py` | 按明确的当前必需用例集合核对，并校验其与源码注册一致；迁移 UI/Shop/Choice 断言时同步维护，保留 failed/notRun/inProcess/缺报告失败，不用成功数量掩盖缺测。 |
 
 顺序按每个闭包的 P0–P5：先列生产消费/反射 → 原领域/窄投影与唯一输入改接 →
@@ -621,7 +611,7 @@ Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstr
 | 声音/布局 | 实际渲染有声包，Master静音恢复；小/大窗口、DPI、长名/长卡/多被动 | 全部关键按钮/原因可读有焦点，不仅靠颜色；未应用草稿普通返回可选择应用/放弃/继续编辑。nullrhi/nosound/offscreen均不能替代相应证据。 |
 | 删除/资产 | 当前 Editor/Game/UHT、Blueprint、Bootstrap Validate、唯一包加载 | 旧 UI/RPC/IA/IMC/profile/探针无存活消费，生成不会复活它们；缺 WBP/必要材质/定义明确失败，不用兼容 UI 或旧值兜底。 |
 
-当前可复用 `RunInputCheck/RunHUDCheck/RunViewNetworkCheck/RunVendorCheck/CaptureInputUI` 的工具能力，
+当前可复用 `RunInputCheck/RunHUDCheck/RunDemoVisionCheck/CaptureInputUI` 的工具能力，
 但这些 runner 仍有旧地图/profile/数量/诊断 Host 条件，**没有现成通用 Demo selector**。
 先迁场景/断言/拓扑再解释结果；文档任务不运行它们。
 运行层最低覆盖正常可视 Listen Host+真实远端 owning client，另测三真人+三 AI 满规模；

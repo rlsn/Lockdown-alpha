@@ -118,7 +118,6 @@ namespace LDDevelopment
     LOCKDOWN_API int32 Rank(const FLDCharacterBuild& Build, ELDSkill Skill);
     LOCKDOWN_API bool Equipped(const FLDCharacterBuild& Build, ELDSkill Skill);
     LOCKDOWN_API TArray<int32> Effective(const FLDCharacterBuild& B);
-    LOCKDOWN_API double TacticalDeathDelay(int32 Level,double Elapsed);
     LOCKDOWN_API double MaxHP(const FLDCharacterBuild& Build);
     LOCKDOWN_API double BasicDamage(const FLDCharacterBuild& Build);
     LOCKDOWN_API double SpeedFactor(const FLDCharacterBuild& Build);
@@ -127,8 +126,6 @@ namespace LDDevelopment
     LOCKDOWN_API double ChannelSeconds(ELDSkill Skill);
     LOCKDOWN_API int32 LevelForXP(int64 XP);
     LOCKDOWN_API void AwardXP(FLDCharacterBuild& Build, int64& XP, int64 Amount);
-    LOCKDOWN_API double DeathDelay(int32 Level, double Elapsed);
-    LOCKDOWN_API int64 DeathLoss(int64 Gold);
     LOCKDOWN_API FLDBuildPlan PlanFrom(const FLDCharacterBuild& Build);
     LOCKDOWN_API bool Prepare(const FLDCharacterBuild& Current, const FLDBuildPlan& Plan, FLDCharacterBuild& Result, FString& Error);
     LOCKDOWN_API bool TheftSucceeds(int32 Roll, int32 DEXValue, int32 Rank, bool Cutpurse, int32 TargetWIS, bool Alert);

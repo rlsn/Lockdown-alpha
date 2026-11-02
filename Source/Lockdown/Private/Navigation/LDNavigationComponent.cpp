@@ -133,13 +133,13 @@ bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out
     return true;
 }
 
-void ULDNavigationComponent::Navigate(const FVector& Surface, FGuid Observed, uint8 Site)
+void ULDNavigationComponent::Navigate(const FVector& Surface)
 {
     auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
     const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
-    if (Observed.IsValid() || Site || !Geometry || Geometry->Surfaces.Num()!=1)
+    if (!Geometry || Geometry->Surfaces.Num()!=1)
     {
-        Status=TEXT("Only registered ground orders are wired in this executable core slice.");
+        Status=TEXT("The current Demo has no single registered ground surface.");
         if (auto* PC=Controller()) { PC->IntentFeedback=Status; }
         return;
     }
@@ -158,7 +158,7 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     if (!PC->HasAuthority()) { HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
     Status=PC->IntentFeedback=TEXT("Move pending");
     LocalSentAt=FPlatformTime::Seconds();
-    ServerOrder(Local,Surface,FGuid(),0,SurfaceHint);
+    ServerOrder(Local,Surface,SurfaceHint);
 }
 
 void ULDNavigationComponent::Stop()
@@ -214,10 +214,10 @@ bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) con
 }
 
 void ULDNavigationComponent::ServerOrder_Implementation(FLDMoveIdentity Identity,
-    FVector_NetQuantize10 Surface, FGuid Observed, uint8 Site, FName SurfaceHint)
+    FVector_NetQuantize10 Surface, FName SurfaceHint)
 {
     FString Error;
-    if (!AcceptEnvelope(Identity,Error) || Surface.ContainsNaN() || Observed.IsValid() || Site)
+    if (!AcceptEnvelope(Identity,Error) || Surface.ContainsNaN())
     {
         ClientOrder(Identity,Rejected,{},0,Error.IsEmpty()?TEXT("Invalid ground-order shape."):Error);
         return;
@@ -405,7 +405,7 @@ void ULDNavigationComponent::Face(const FVector& Direction)
 {
     auto* PC=Controller();
     auto* Body=Cast<ALDCharacter>(PC->GetPawn());
-    if (Body && !PC->HasPendingAim() && !Direction.IsNearlyZero()) { Body->SetFacing(Direction.Rotation().Yaw); }
+    if (Body && !Direction.IsNearlyZero()) { Body->SetFacing(Direction.Rotation().Yaw); }
 }
 
 void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* Function)
@@ -470,8 +470,15 @@ void ULDNavigationComponent::ClickMove()
     auto* PC=Controller();
     FHitResult Ground;
     if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
+    FGuid Observed;
+    uint32 ObservationEpoch=0;
+    if (PC->ObservedUnderPointer(Observed,ObservationEpoch))
+    {
+        Status=PC->IntentFeedback=TEXT("Unit attack/pursuit orders are not wired in this build; no ground order was substituted.");
+        return;
+    }
     if (!PC->GetHitResultUnderCursor(ECC_GameTraceChannel1,false,Ground)) { return; }
-    Navigate(Ground.ImpactPoint,PC->ObservedUnderPointer());
+    Navigate(Ground.ImpactPoint);
 }
 
 void ULDNavigationComponent::PanTo(const FVector& Point) { CameraCentre=Point; bFollowCamera=false; bCameraInitialized=true; }
@@ -494,7 +501,7 @@ void ULDNavigationComponent::TickCamera(float Delta)
     if (PC->CanWorldCommand())
     {
         FVector2D Axis=PC->CameraPanAxis();
-        if (bEdgePan && !PC->HasArmedAction() && (!PC->HUDUI || !PC->HUDUI->Minimap || !PC->HUDUI->Minimap->IsDragging())
+        if (bEdgePan && (!PC->HUDUI || !PC->HUDUI->Minimap || !PC->HUDUI->Minimap->IsDragging())
             && !FApp::IsUnattended() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
         {
             float X=0,Y=0; int32 Width=0,Height=0;

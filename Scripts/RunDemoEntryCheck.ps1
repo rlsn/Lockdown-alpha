@@ -5,7 +5,7 @@ $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
 $output = New-LDArtifactDirectory 'DemoEntry-Native'
 $cases = @(
-    @{ Name = 'SavedLegacyMode'; URL = '/Game/Lockdown/Generated/V09/L_V09Full?Name=EntryProbe' },
+    @{ Name = 'RetiredWorldURL'; URL = '/Game/Lockdown/Generated/V09/L_V09Full?Name=EntryProbe' },
     @{ Name = 'ExplicitModeOverride'; URL = '/Game/Lockdown/Generated/Maps/L_Frontend?Name=EntryProbe?game=/Script/Engine.GameModeBase' }
 )
 foreach ($case in $cases) {
@@ -26,8 +26,7 @@ foreach ($case in $cases) {
         $report.live_pawns -ne 0 -or $report.legacy_game_modes -ne 0 -or $report.gameplay_services -ne 0 -or
         (-not $report.observed_before_initialization -and -not $report.rejected_before_world_creation) -or $report.rejected_attempt_pawns -ne 0 -or
         $report.rejected_attempt_game_modes -ne 0 -or $report.rejected_attempt_services -ne 0 -or
-        $report.registry_creations -ne 0 -or $report.registry_activations -ne 0 -or
-        $report.surface_creations -ne 0 -or $report.surface_activations -ne 0) {
+        $report.registry_creations -ne 0 -or $report.registry_activations -ne 0) {
         throw "Native entry evidence is incomplete or activated legacy gameplay: $reportPath"
     }
 }

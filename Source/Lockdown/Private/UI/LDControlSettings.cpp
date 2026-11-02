@@ -95,10 +95,41 @@ namespace
 {
     constexpr uint32 LocalSettingsMagic = 0x4C444353;
     constexpr uint32 LegacySaveGameMagic = 0x53415647;
+    // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
+    constexpr uint32 RetiredRegistrySchema = 4;
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
-    bool SupportedProfile(uint8 Profile) { return Profile == 6 || Profile == 7 || Profile == 8; }
+    bool IsRegistered(FName Action)
+    { return ULDControlSettings::Definitions().ContainsByPredicate([&](const FLDControlBinding& B) { return B.Action == Action; }); }
+
+    TArray<FString> UnregisteredActions(const TMap<FName, FKey>& Bindings)
+    {
+        TArray<FString> Names;
+        for (const auto& Pair : Bindings) { if (!IsRegistered(Pair.Key)) { Names.Add(Pair.Key.ToString()); } }
+        Names.Sort();
+        return Names;
+    }
+
+    TArray<FString> MissingActions(const TMap<FName, FKey>& Bindings)
+    {
+        TArray<FString> Names;
+        for (const auto& B : ULDControlSettings::Definitions()) { if (!Bindings.Contains(B.Action)) { Names.Add(B.Action.ToString()); } }
+        return Names;
+    }
+
+    FString DescribeActions(const TArray<FString>& Names)
+    {
+        constexpr int32 Shown = 12;
+        FString Text;
+        for (int32 Index = 0; Index < Names.Num() && Index < Shown; ++Index)
+        {
+            if (Index) { Text += TEXT(", "); }
+            Text += Names[Index];
+        }
+        if (Names.Num() > Shown) { Text += FString::Printf(TEXT(" and %d more"), Names.Num() - Shown); }
+        return Text;
+    }
 
     enum class ELocalFileLookup : uint8 { Present, Missing, Failed };
 
@@ -184,13 +215,11 @@ namespace
     }
 }
 
-FLDLocalSettingsStorage FLDLocalSettingsStorage::User(uint8 RequestedProfile)
+FLDLocalSettingsStorage FLDLocalSettingsStorage::User()
 {
     FLDLocalSettingsStorage Result;
-    if (!SupportedProfile(RequestedProfile)) { return Result; }
-    const TCHAR* Slot = RequestedProfile == 8 ? TEXT("LockdownLocalControlsV1_V08.sav")
-        : RequestedProfile == 7 ? TEXT("LockdownLocalControlsV07.sav") : TEXT("LockdownLocalControlsV1.sav");
-    Result.Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"), Slot);
+    // The former primary file name is kept so an old saved layout is reported and recovered, not silently ignored.
+    Result.Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"), TEXT("LockdownLocalControlsV1.sav"));
     return Result;
 }
 
@@ -206,33 +235,28 @@ FLDLocalSettingsStorage FLDLocalSettingsStorage::Automation(const FGuid& Fixture
     return Result;
 }
 
-const TArray<FLDControlBinding>& ULDControlSettings::Defaults(bool Tactical)
+const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
 {
+    // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2.
     static const TArray<FLDControlBinding> Values={
         {TEXT("Select"),TEXT("Select / confirm target"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),TEXT("Move / approach / cancel targeting"),EKeys::RightMouseButton},
-        {TEXT("Attack"),TEXT("Arm basic attack"),EKeys::A},
-        {TEXT("Skill1"),TEXT("Equipped skill 1"),EKeys::Q},{TEXT("Skill2"),TEXT("Equipped skill 2"),EKeys::W},
-        {TEXT("Skill3"),TEXT("Equipped skill 3"),EKeys::E},{TEXT("Skill4"),TEXT("Equipped skill 4"),EKeys::R},
-        {TEXT("Item1"),TEXT("Quick item 1"),EKeys::One},{TEXT("Item2"),TEXT("Quick item 2"),EKeys::Two},
-        {TEXT("Item3"),TEXT("Quick item 3"),EKeys::Three},{TEXT("Item4"),TEXT("Quick item 4"),EKeys::Four},
+        {TEXT("Navigate"),TEXT("Move / attack / approach shop"),EKeys::RightMouseButton},
+        {TEXT("AttackMove"),TEXT("Attack-move (then confirm ground)"),EKeys::A},
+        {TEXT("Skill1"),TEXT("Character ability 1"),EKeys::Q},{TEXT("Skill2"),TEXT("Character ability 2"),EKeys::W},
+        {TEXT("Item1"),TEXT("Equipment active 1"),EKeys::One},{TEXT("Item2"),TEXT("Equipment active 2"),EKeys::Two},
         {TEXT("Stop"),TEXT("Stop movement / current action"),EKeys::S},
-        {TEXT("Sprint"),TEXT("Hold sprint"),EKeys::LeftShift},{TEXT("Inventory"),TEXT("Inventory"),EKeys::I},
-        {TEXT("Development"),TEXT("Character / preparation"),EKeys::P},
+        {TEXT("Attributes"),TEXT("Attributes panel"),EKeys::P},
         {TEXT("PanUp"),TEXT("Pan camera up"),EKeys::Up},{TEXT("PanDown"),TEXT("Pan camera down"),EKeys::Down},
         {TEXT("PanLeft"),TEXT("Pan camera left"),EKeys::Left},{TEXT("PanRight"),TEXT("Pan camera right"),EKeys::Right},
         {TEXT("Recenter"),TEXT("Hold camera recenter"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("Toggle camera follow"),EKeys::Home},
         {TEXT("Zoom"),TEXT("Camera zoom"),EKeys::MouseWheelAxis,true},
-        {TEXT("Help"),TEXT("Help / controls / settings"),EKeys::F1},{TEXT("Back"),TEXT("Back / cancel (reserved)"),EKeys::Escape}
+        {TEXT("Back"),TEXT("Back / cancel (reserved)"),EKeys::Escape}
     };
-    static const TArray<FLDControlBinding> TacticalValues=[](){auto V=Values;V.RemoveAll([](const auto& B){return B.Action==TEXT("Item4");});V.Insert({TEXT("Skill5"),TEXT("Equipped skill 5"),EKeys::D},7);return V;}();
-    return Tactical?TacticalValues:Values;
+    return Values;
 }
-const TArray<FLDControlBinding>& ULDControlSettings::HybridDefaults()
-{static const TArray<FLDControlBinding> Values=[](){auto V=Defaults(true);V.Insert({TEXT("Skill6"),TEXT("Shared action 6"),EKeys::G},8);V.Insert({TEXT("Item4"),TEXT("Physical accessory 4"),EKeys::Four},12);for(auto& B:V){if(B.Action.ToString().StartsWith(TEXT("Item"))){B.Label=TEXT("Physical accessory ")+B.Action.ToString().Right(1);}}return V;}();return Values;}
 FKey ULDControlSettings::Key(FName Action) const
 {
-    if (!Definitions().ContainsByPredicate([&](const FLDControlBinding& B) { return B.Action == Action; })) { return FKey(); }
+    if (!IsRegistered(Action)) { return FKey(); }
     const FKey* Key = Bindings.Find(Action);
     return Key ? *Key : FKey();
 }
@@ -276,11 +300,21 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
 }
 bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
 {
-    if (Schema != CurrentSchema || !SupportedProfile(Profile))
-    { Error = TEXT("The local settings schema or control registry is unsupported."); return false; }
+    if (Schema != CurrentSchema)
+    { Error = TEXT("The local settings schema is unsupported."); return false; }
     if (!ValidatePreferences(Error)) { return false; }
-    if (Bindings.Num() != Definitions().Num() || Key(TEXT("Back")) != EKeys::Escape)
-    { Error = TEXT("Saved bindings do not match the current registry. Reset bindings to recover."); return false; }
+    const auto Unknown = UnregisteredActions(Bindings);
+    const auto Missing = MissingActions(Bindings);
+    if (Unknown.Num() || Missing.Num())
+    {
+        Error = TEXT("Key bindings do not match the Demo controls");
+        if (Unknown.Num()) { Error += TEXT("; retired or unknown actions: ") + DescribeActions(Unknown); }
+        if (Missing.Num()) { Error += TEXT("; missing actions: ") + DescribeActions(Missing); }
+        Error += TEXT(". Reset bindings to recover.");
+        return false;
+    }
+    if (Key(TEXT("Back")) != EKeys::Escape)
+    { Error = TEXT("Back must stay on Escape. Reset bindings to recover."); return false; }
     TSet<FKey> Seen;
     for(const auto& B:Definitions())
     {
@@ -298,7 +332,6 @@ bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
 void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
 {
     Schema = Other.Schema;
-    Profile = Other.Profile;
     Bindings = Other.Bindings;
     bEdgePan = Other.bEdgePan;
     bStartFollowing = Other.bStartFollowing;
@@ -306,12 +339,10 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     Zoom = Other.Zoom;
 }
 
-ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage, uint8 RequestedProfile)
+ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
 {
-    if (!SupportedProfile(RequestedProfile)) { return nullptr; }
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
-    Settings->Profile = RequestedProfile;
     Settings->ResetBindings();
     Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     return Settings;
@@ -326,8 +357,8 @@ ULDControlSettings* ULDControlSettings::CreateDraft() const
 
 bool ULDControlSettings::ApplyLocalSettings(const ULDControlSettings& Draft, FString& Error)
 {
-    if (Phase == ELDLocalSettingsPhase::EditingDraft || Draft.Profile != Profile)
-    { Error = TEXT("Apply to the active local settings owner, using its current registry."); return false; }
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("Apply to the active local settings owner, not to a draft."); return false; }
     if (!Draft.ValidateLocalSettings(Error)) { return false; }
     CopyPreferences(Draft);
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
@@ -361,10 +392,10 @@ void ULDControlSettings::ResetLocalDefaults()
     ResetBindings();
 }
 
-FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalSettingsStorage& InStorage, uint8 RequestedProfile)
+FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalSettingsStorage& InStorage)
 {
-    if (!InStorage.IsValid() || !SupportedProfile(RequestedProfile))
-    { return { ELDLocalSettingsLoadStatus::InvalidStorage, nullptr, nullptr, TEXT("Invalid local settings storage or registry. No user file was selected.") }; }
+    if (!InStorage.IsValid())
+    { return { ELDLocalSettingsLoadStatus::InvalidStorage, nullptr, nullptr, TEXT("Invalid local settings storage. No user file was selected.") }; }
 
     auto& Files = IFileManager::Get();
     const FString& Filename = InStorage.Filename();
@@ -373,7 +404,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (Lookup == ELocalFileLookup::Failed)
     { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, LookupError }; }
     if (Lookup == ELocalFileLookup::Missing)
-    { return { ELDLocalSettingsLoadStatus::Missing, CreateSessionSettings(InStorage, RequestedProfile), nullptr, TEXT("No saved local preferences. Current defaults are applied, not yet saved.") }; }
+    { return { ELDLocalSettingsLoadStatus::Missing, CreateSessionSettings(InStorage), nullptr, TEXT("No saved local preferences. Current defaults are applied, not yet saved.") }; }
     TUniquePtr<FArchive> FileReader(Files.CreateFileReader(*Filename, FILEREAD_Silent));
     if (!FileReader)
     { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("The local settings file cannot be read. Check file access and retry.") }; }
@@ -393,16 +424,18 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     Reader.ArMaxSerializeSize = MaxSettingsBytes;
     uint32 Magic = 0, SavedSchema = 0, Checksum = 0;
     Reader << Magic << SavedSchema << Checksum;
-    if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema))
+    const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
+    if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("This local settings format is unsupported. Use the recovery control to replace it explicitly.") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings file is damaged. It has not been replaced.") }; }
 
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
-    uint8 Edge = 0, Follow = 0;
+    uint8 RetiredSelector = 0, Edge = 0, Follow = 0;
     int32 Count = 0;
-    Reader << Settings->Profile << Edge << Follow << Settings->TextScale << Settings->Zoom << Count;
+    if (RetiredRegistry) { Reader << RetiredSelector; }
+    Reader << Edge << Follow << Settings->TextScale << Settings->Zoom << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings payload is malformed. It has not been replaced.") }; }
     Settings->bEdgePan = Edge != 0;
@@ -420,12 +453,26 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (Reader.IsError() || !Reader.AtEnd())
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("The local settings payload is incomplete or contains extra data.") }; }
     FString Error;
+    if (RetiredRegistry)
+    {
+        // Explicit incompatibility: no saved binding is loaded or migrated, including names the Demo still uses.
+        const FString Retired = DescribeActions(UnregisteredActions(Settings->Bindings));
+        Settings->ResetBindings();
+        const bool PreferencesValid = Settings->ValidatePreferences(Error);
+        FString Message = TEXT("Saved key bindings are from an older control layout");
+        if (!Retired.IsEmpty()) { Message += TEXT(" (retired actions: ") + Retired + TEXT(")"); }
+        Message += TEXT(". None were loaded or converted; Demo default keys apply and the old file is kept unchanged.");
+        Message += PreferencesValid ? TEXT(" Valid camera and text preferences were kept.") : TEXT(" Its camera or text preferences were also invalid and were not kept.");
+        return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, PreferencesValid ? Settings : nullptr, Message };
+    }
     if (!Settings->ValidatePreferences(Error))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Error + TEXT(" The file has not been replaced.") }; }
-    if (Settings->Profile != RequestedProfile)
-    { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, Settings, TEXT("Saved bindings belong to a different registry. No binding migration was performed.") }; }
     if (!Settings->ValidateLocalSettings(Error))
-    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, Settings, Error + TEXT(" Other valid local preferences can be kept.") }; }
+    {
+        // Recovery data carries only validated preferences; rejected binding names never reach a runtime object.
+        Settings->ResetBindings();
+        return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, Settings, Error + TEXT(" Other valid local preferences can be kept.") };
+    }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
     return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("Local preferences loaded.") };
 }
@@ -436,14 +483,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     if (Phase == ELDLocalSettingsPhase::EditingDraft || !Storage.IsValid() || !ValidateLocalSettings(Error))
     { return { ELDLocalSettingsSaveStatus::Invalid, Error.IsEmpty() ? TEXT("Only confirmed, applied local preferences with explicit storage may be saved.") : Error }; }
     if (bRecoveryRequired)
-    { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("Applied for this session; the unreadable settings file was preserved. Confirm replacement in Settings before saving.") }; }
+    { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("Applied for this session; the previous settings file was kept unchanged. Confirm replacement in Settings before saving.") }; }
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
     FBufferArchive Payload;
-    uint8 SavedProfile = Profile, Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0;
+    uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom;
     int32 Count = Definitions().Num();
-    Payload << SavedProfile << Edge << Follow << SavedTextScale << SavedZoom << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

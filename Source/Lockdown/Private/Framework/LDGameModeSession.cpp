@@ -151,10 +151,6 @@ void ALDGameMode::PublishLobby()
     {
         Public->DemoLobby = ReadLobby();
         Public->OnRep_DemoLobby();
-        Public->bMatchStarted = IsGameplayWriteOpen(MatchContext);
-        Public->LobbyCount = uint8(Contenders.Num());
-        Public->ReadyCount = 0;
-        for (const auto& Pair : Contenders) { Public->ReadyCount += Pair.Value.State.bReady ? 1 : 0; }
         Public->ForceNetUpdate();
     }
     for (const auto& Pair : Contenders)

@@ -96,7 +96,6 @@ Demo `--check` 的明确失败是输入门禁，不是可玩成功。
 
 ```powershell
 python -B .\Scripts\SyncB84Data.py --check
-python -B .\Scripts\SyncV09Data.py --check
 python -B -m unittest discover -s .\Scripts -p "Test*Import.py"
 ```
 
@@ -139,14 +138,15 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 | Demo 世界 / 拥有连接 | `RunDemoWorldRoomCheck.ps1`；实际 Listen Host 加两个拥有客户端校验同一 Lobby/内容根/原生地面与导航，隔离 UserDir；没有 AI 或玩法身体，不代替完整对局 |
 | Demo 核心 / 拥有身体 | `RunDemoCoreCheck.ps1`；DEV-only 三拥有身体、地面/Stop/重放与原生 CMC 执行夹具，调用同一核心提交路径但保持普通 Start 门禁；不代替完整战斗、随机出生、视野或 CT06 |
 | Demo 纯值战斗 / 时间许可 | `Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；纯值成功不等于实际命中提交 |
+| 营地纯决策 | `Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线 |
 | Demo 属性 / 原生记录 | `Lockdown.Rules.DemoAttributeProjection` 覆盖批准属性、双装备、条件被动和资源比例；`Lockdown.Rules.DemoMotionProbe` 用隔离原生物理验证时间分数、回滚、接地转换和缺失记录拒绝；真实拥有身体夹具显式审计保留前缀，不代替最终提供者 Fence |
 | 原生代码 / 反射 | Editor/Game 构建、Bootstrap Validate、相关原生规则 |
 | 入口 / 房间 | `TestDemoEntry.ps1`、`Lockdown.Rules.DemoEntryContract/DemoInputByteIntegrity/DemoMatchIdentity/DemoSessionReceipts/DemoLobbyAuthority` |
 | 原生旧入口拒绝 | `RunDemoEntryCheck.ps1`，要求真实 URL 被拒绝后回前端，累计 Pawn/旧模式/服务/子系统激活为零 |
 | 前端设置实际渲染 | `RunDemoFrontendCheck.ps1`，新 `UserDir` 下的 windowed RHI、合成 UMG 点击、100/125% 图像、文本偏好保存/回读及未应用显示草稿丢弃；不修改 OS 显示模式 |
 | 输入 / 导航 / HUD | `RunInputCheck.ps1`、`RunNavigationCheck.ps1`、`RunHUDCheck.ps1` 的相关模式 |
-| 战斗 / 观测复制 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1` |
-| 物品 / 服务 | `RunInventoryCheck.ps1`、`RunVendorCheck.ps1` 和相关事务检查 |
+| 战斗 / 观测复制 | `RunCombatCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunDemoVisionCheck.ps1` |
+| 库存 / 账本 | `RunTests.ps1` 中的 Inventory/Economy 规则；`python -B -m unittest discover -s .\Scripts -p TestEconomyEvidence.py`；实际商店与拥有连接场景由 N05 接入 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
 
 `RunTests.ps1` 执行已有 `Lockdown.Rules` 套件，由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
@@ -159,6 +159,10 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 对象引用、Blueprint/CDO 和 WorldSettings；配置/动态源码路径仍要单独核对。
 输出位于忽略的 Artifacts。类型已退休后的复查使用 `-AllowMissingRoots`，
 不能拿这一开关代替删除前的根存在证明。
+
+`CaptureInputUI.ps1` 复用现有 Demo 前端原生 RHI/UMG 捕获夹具，可指定窗口尺寸，
+在独立 `UserDir` 下生成前端、设置 100/125% 和显示草稿丢弃图像。
+旧场景/Profile/书店/准备参数已移除；图像存在不等于真实 OS 输入或完整对局验收。
 
 ## 打包与产物
 

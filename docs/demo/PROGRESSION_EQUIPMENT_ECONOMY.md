@@ -58,13 +58,13 @@ Inventory、Vendor，使死亡奖励、选择和买卖分别进入同一权威�
 | E1 | [LDGameMode.cpp:378–387](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L387)，`StateFor / SyncOwner` | 当前 `Record.State` 可写且直接复制给拥有者。保留参赛记录和定向发布，收紧写入口；OwnerState 不再是各服务随意改钱/XP 的入口。 |
 | E2 | [LDCharacterBuild.h:24–64](../../Source/Lockdown/Public/Development/LDCharacterBuild.h#L24-L64)、[LDCharacterBuild.cpp:12–18](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp#L12-L18)、[162–208](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp#L162-L208) | 有 Level/Ranks/Revision/来源，但构造器授技能，`AwardXP` 发属性点/技能点，`Prepare` 收整份草稿且禁止降 rank；没有机会队列或持久 Offer。 |
 | E3 | [LDEconomyLedger.h:8–62](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h#L8-L62)、[LDEconomyLedger.cpp:36–100](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L100) | 有账户、物品、事务 Id/Cause、精确重放、预期版本、溢出拒绝和 `Reconcile`；没有 XP、等级、选择，也没有目标装备 DefinitionId。 |
-| E4 | [LDVendorDirector.cpp:19–81](../../Source/Lockdown/Private/Inventory/LDVendorDirector.cpp#L19-L81)、[LDVendorTypes.h](../../Source/Lockdown/Public/Inventory/LDVendorTypes.h) | 当前是书店，无出售命令；额外检查安静、受伤、动作、旧 LOS 等。购买先 `Adopt`、改 `O->Gold`，再补账，不是目标复合事务。 |
+| E4 | 旧 `LDVendorDirector`、`LDVendorTypes.h`（已退役） | 原是书店：唯一业务是买书，DTO/RPC 是书的形状，Demo 运行中从未创建。N05 在同名 `ALDVendorDirector` 按本文合同新建，不恢复安静、受伤、动作、旧 LOS 等附加条件，也不沿用先 `Adopt`、改 `O->Gold` 再补账的做法。 |
 | E5 | [LDInventoryDirector.cpp:45–76](../../Source/Lockdown/Private/Inventory/LDInventoryDirector.cpp#L45-L76)、[LDGameMode.cpp:538–549](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L538-L549)、[LDEconomyDirector.cpp:111–150](../../Source/Lockdown/Private/Economy/LDEconomyDirector.cpp#L111-L150) | `Changed / Adopt` 可先发布，`RecordEconomyGold` 不把失败传回 Vendor，`Record` 事后扫描差额。必须撤销这条常规玩法写链，而不是再添加第二钱包。 |
-| E6 | [LDWorldDirector.cpp:90–110](../../Source/Lockdown/Private/World/LDWorldDirector.cpp#L90-L110)、[LDCombatDirector.cpp:320–375](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L320-L375) | 当前 `Contact` 有历史 LastOwner 残留；野怪钱/XP/Paid 分步且重试新建事务，PvP 只给 XP 并有旧配对/总额限制。不能直接改名为统一奖励。 |
+| E6 | [LDCombatDirector.cpp:320–375](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L320-L375) | 旧营地 Actor 的 `Contact` LastOwner 残留、野怪钱/XP/Paid 分步重试与 XP-only PvP 已删除；统一奖励须由 N03 在核心 DeathKey 上新建，不能把旧实现改名复用。 |
 | E7 | [LDInventoryTypes.h:9–65](../../Source/Lockdown/Public/Inventory/LDInventoryTypes.h#L9-L65)、[LDV08Loadout.cpp:22–77](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp#L22-L77) | 有真实实例、来源失效及派生投影；当前容量、背包/Quick、十一绑定/六动作与重复 family 拒绝必须删除。 |
 | E8 | [LDContentActions.cpp:82–95](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L82-L95)、[LDContentRelease.cpp:124–126](../../Source/Lockdown/Private/Combat/LDContentRelease.cpp#L124-L126)、[LDV08Modifiers.cpp:14–19](../../Source/Lockdown/Private/Combat/LDV08Modifiers.cpp#L14-L19) | 装备主动已有 Combat 路径，但旧 `ItemFamilies` 共享锁不适用于独立双主动；主动/被动还改实物和库存修订。目标分离结构修订和 readiness 修订。 |
-| E9 | [LDDevelopmentDirector.cpp:43–89](../../Source/Lockdown/Private/Development/LDDevelopmentDirector.cpp#L43-L89)、[121–207](../../Source/Lockdown/Private/Development/LDDevelopmentDirector.cpp#L121-L207) | 现有站点/静止/读书/准备流程不是三选一。有限回执和拒旧可复用，但新请求须保存规范化条款，不能只按 ID 返回结果。 |
-| E10 | [LDEconomyCommerce.cpp:25–67](../../Source/Lockdown/Private/Economy/LDEconomyCommerce.cpp#L25-L67)、[LDAcquisitionDirector.cpp:99–130](../../Source/Lockdown/Private/Inventory/LDAcquisitionDirector.cpp#L99-L130) | 可抽取“创建失败前置、输入身份精确、先账后投影”的局部能力；不能顺带保留市场现金、书籍、制作和品质政策。 |
+| E9 | [LDCharacterBuild.cpp](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp)、[LDV08Loadout.cpp](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp) | 纯候选投影和来源/版本检查保留。N04 队列与回执尚须实现，必须保存规范化条款，不能只按 ID 返回结果，也不重建站点 hold。 |
+| E10 | [LDEconomyRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp)、[LDInventoryRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp) | 精确输入、无效输出身份、原子拒绝与来源投影目的保留；实际 Actor 分配失败必须在 N05 新路径验证，不恢复旧获取/生产服务。 |
 
 **物品修订不能偷换。** 当前 `Adopt` 递增实物 revision 后产生 owner 条目，
 而 Ledger 新物品从自己的 revision 开始；`Record / Audit` 不证明两者相等。
@@ -776,33 +776,33 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | 架构映射 / 处置 | 具体落点与真实消费者 | 先替代什么，再删除什么 |
 | --- | --- | --- |
 | R08 局部原样机制 + 改造，D03 | `Economy\LDEconomyLedger.*` 的条款比较、checked arithmetic、预期修订、Receipt/Reconcile；`LDEconomyDirector.*` | 先 Prepare/Apply、单钱物真相及有界前缀复算；再删 BankTransaction、预算/endowment、quality/transient/parents 等无消费者字段和事后 `Record/GoldChanged/Snapshot` 常规写链。不是整删 Ledger。 |
-| N03 新增，D07/D08 旧奖励删除 | `World\LDWorldDirector::Contact/Reward/PvPKill`、`Framework\LDGameMode::AwardExperience/RecordEconomyGold`；Combat `Sample/Die` | 先接共同 DeathFact、不可变致死等级和 CommitDeathReward；再删 LastOwner fallback、AttributedXP、旧 PvP 配对/总额限额、额外探索/任务/机构 XP；不留任意授予入口绕过复合提交。 |
-| N04 新增 + D15 改造 | `Development\LDCharacterBuild.* / LDDevelopmentDirector.* / LDV08Loadout.*`，`FLDBuildPlan / FLDOwnedBook / ALDBook` | 先窄 Choice、持久队列/Offer、角色技能/永久属性 patch；再删职业六维/点数/开局技能、读书/准备/Loadout hold、DropBooks、整份草稿与备用布局。必要来源/修订/投影局部抽取。 |
+| N03 新增；D07/D08 旧奖励已删除 | `Framework\LDGameMode::AwardExperience/RecordEconomyGold`；Combat `Sample/Die`；旧营地 Contact/Reward/PvPKill 已删除 | 营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收：接共同 DeathFact、不可变致死等级和 CommitDeathReward，不恢复 LastOwner 兜底、按伤害累计的旧 XP 归属、旧 PvP 配对/总额限额或额外探索/任务/机构 XP；不留任意授予入口绕过复合提交。 |
+| N04 新增 + D15 改造 | `Development\LDCharacterBuild.* / LDV08Loadout.*` 的纯投影与来源机制；N04 成长提供者 | 接窄 Choice、持久队列/Offer、角色技能/永久属性 patch；收敛剩余职业六维/点数/开局技能、整份草稿与备用布局。旧准备 Actor 不再承载队列或 hold；§12 的请求/取消/拒旧验收保持有效。 |
 | R09/N05，D15 库存改造 | `Inventory\LDInventoryTypes.* / LDInventoryDirector.* / LDGearTypes.h / LDGearRules.cpp`；Actor、owner Items、Bindings/Quick | 先 Ledger 唯一 Instance/Owner/Slot/ItemRevision、两槽 DTO和 Combat 来源；再删背包/重量/Quick/十一绑定/双手占位/掉落拾取整理/物理 Holder 镜像。不能只缩小 HUD。 |
-| N05 + D16 Vendor | `LDVendorDirector.* / LDVendorTypes.h`、`LDPlayerVendor.cpp`、InventoryPanel 的书店页 | 先新会话/报价/Buy/Sell/回执、世界资格、no-fail 来源绑定；再删 Skill/BookPrice、OfferedSkills、ServerVendorBuy 旧形状和受伤/安静/旧 Ray 附加条件。 |
+| N05 + D16 Vendor | 同名 `LDVendorDirector.*` 新建 | 旧书店（`LDVendorDirector.*/LDVendorTypes.h`、`LDPlayerVendor.cpp`、InventoryPanel 书店页）已整体退役；按合同新建会话/报价/Buy/Sell/回执、世界资格、no-fail 来源绑定，不恢复 Skill/BookPrice、OfferedSkills、ServerVendorBuy 旧形状和受伤/安静/旧 Ray 附加条件。 |
 | R07/R09 局部抽取，D14/D15 | `LDV08Loadout::Validate/ItemSource/InvalidateSources/Project`、`LDContentActions/LDContentRelease/LDV08Modifiers` | 先实例→IssuedCooldownId、SourceBindingRevision、被动来源集合；再删重复 family 禁止、ItemFamilies 共享主动 CD、施法伪库存修订和无关 modifier。按 C1 保留获准射程/横扫 handler，不留整套旧效果。 |
-| D05 Acquisition 整链 | `LDAcquisitionDirector/Catalog`、`LDSupplyRequest`、`LDLoadoutRequest`、生产/采购 RPC | 先抽创建失败前置与先账后投影，将必需ID/投影校验迁入唯一Demo compiler；先断SyncB84对Acquisition adapter的源码读取，再随旧生成链退出。删除书籍/材料/制作/品质/旧请求和缓存报价，不为compiler留空旧文件。 |
-| D02/D06 其他经济消费者 | Bank/Commerce/Production/Institution、B92 钱包/Supply/Work/Courier/Extraction/WorldLedger；GameMode 服务接线 | 目标奖励/买卖已回同一 Ledger 后，按架构闭包断消费并删除；不给 AI 保留第二经济栈。各自有效事务断言先迁移。 |
-| D16/N07 UI、RPC 与投影 | `LDPlayerController.h`、`LDPlayerDevelopment/Inventory/Vendor.cpp`、`LDDevelopmentPanel/LDInventoryPanel/LDV08HUDModel.cpp`、`LDViewTypes.h` | 先接 §8 的窄 DTO/请求/错误与同次发布；再删整份 Build 草稿、书籍/六动作/四附件/旧服务页、wire/Delegate/Pending 及旧控制映射。不留不可执行空按钮。 |
+| D05 剩余目录与请求适配 | `LDAcquisitionCatalog`、`LDAcquisitionContract.h`、`LDLoadoutRequest` | 名称/重量/纯装备投影及 SyncB84 仍读取目录适配；先将必需 ID/校验迁入当前提供者与唯一 compiler，再删剩余旧定义和请求形状，不为 compiler 留空旧文件。 |
+| D16/N07 UI、RPC 与投影 | `LDPlayerController.h`、`LDPlayerInventory.cpp`、`LDInventoryPanel.cpp`（`LDV08HUDModel.cpp` 已随 UI 闭包退役，技能/装备动作展示由 N04/N05 presenter 新建）、`LDViewTypes.h`；拟建 Choices/Shop UI | 按 §8 接窄 DTO/请求/错误与同次发布；移除剩余旧布局和映射。新三选一和商店必须有真实提交，不用旧面板或无业务服务承接按钮。 |
+| D02/D05/D16 集成的同次真实删除 | `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp`、`LDPlayerDevelopment.cpp`、旧 `LDPlayerVendor.cpp` | 五文件由集成同次真删；保留的 Inventory/Input 中旧准备/服务调用及 Controller 的 RPC/cache/token/pending/friend 同步清理。无服务的 Server 调用不得静默 return，也不得以临时成功回执或空适配替代删除。 |
 
 **关键实际消费证据：** [LDPlayerController.h:87–121](../../Source/Lockdown/Public/Framework/LDPlayerController.h#L87-L121)、
-[LDPlayerDevelopment.cpp:25–67](../../Source/Lockdown/Private/Framework/LDPlayerDevelopment.cpp#L25-L67)、
 [LDPlayerInventory.cpp:22–64](../../Source/Lockdown/Private/Framework/LDPlayerInventory.cpp#L22-L64)、
-[LDDevelopmentPanel.cpp:98–179](../../Source/Lockdown/Private/UI/LDDevelopmentPanel.cpp#L98-L179)、
-[LDInventoryPanel.cpp:116–150](../../Source/Lockdown/Private/UI/LDInventoryPanel.cpp#L116-L150)、
-[LDV08HUDModel.cpp:11–35](../../Source/Lockdown/Private/UI/LDV08HUDModel.cpp#L11-L35)。
+[LDInventoryPanel.cpp](../../Source/Lockdown/Private/UI/LDInventoryPanel.cpp)、
+`LDV08HUDModel.cpp:11–35`（已随 UI 闭包退役）。
 
-`ALDItem/ALDBook` 还有 Economy、B92、Combat、World/Tools/Forestry/Checkpoint、
-Vision、Objective、Population 及 probe 消费，不能仅在 Inventory 内无引用就删类。
-沿 D02/D05/D06/D08/D11/D12 先迁存活消费者；失去用途的 Actor 再连同反射/资产依赖真实删除。
+`ALDItem` 仍有库存、账本与保留的战斗消费者，不能因删除书籍或旧经济服务就删除物理实例机制。
+继续按实际消费者收敛剩余字段，并在反射/资产证据完备后删除失去用途的内容。
 
 ### 11.1 数据、adapter、生成与资产退出顺序
+
+服务源码退役与 Framework 转发删除是同一个原子闭包：上表五个旧文件不能等待新服务实施后才删。
+保留 `LDPlayerInventory.cpp` 的 Move/Sort/Drop 接线，不保留它对旧 DevelopmentPanel/Transaction 的引用；
+N04/N05 未接通时明确保留实施缺口，不把已无服务的 RPC 做成静默返回。
 
 | 当前链 / 证据 | 必须一同迁移的边 |
 | --- | --- |
 | [SyncB84Data.py:32–103](../../Scripts/SyncB84Data.py#L32-L103) | 旧链读取ELDSkill/ELDItemKind、`LDEquipmentCatalog.cpp` adapter，**还读 `LDAcquisitionCatalog.cpp`**；固定旧数量/starter kits，输出combat/equipment/acquisition_b84、Manifest、LDB84Contract。仅抽所需确定性编码/ID/哈希校验机制到Demo compiler；替换消费者与输出合同后删除旧SyncB84及B84产物，不将它作为终态入口。 |
 | [LDEquipmentCatalog.cpp:15–54](../../Source/Lockdown/Private/Inventory/LDEquipmentCatalog.cpp#L15-L54)、[LDAcquisitionCatalog.cpp:20–39](../../Source/Lockdown/Private/Inventory/LDAcquisitionCatalog.cpp#L20-L39) | 必要导入/查询能力迁到ULDDemoContentCatalog；旧目录类/loader及按摘要选择RulesVersion、V07 fallback随消费者切换退出。缺新输入明确失败，不回读旧目录。 |
-| [LDSupplyRequest.cpp:2–6](../../Source/Lockdown/Private/Inventory/LDSupplyRequest.cpp#L2-L6)、[LDPlayerProduction.cpp:37–40](../../Source/Lockdown/Private/Framework/LDPlayerProduction.cpp#L37-L40) | 旧 serializer 以历史枚举上界截断，不可用于新商店请求。替换生产者/decoder/白名单/测试后删旧供给请求。保留存活技术编号，不机械重编号。 |
 | [LDScaffoldBootstrapCommandlet.cpp:240–270](../../Source/LockdownEditor/Private/ScaffoldBootstrap/LDScaffoldBootstrapCommandlet.cpp#L240-L270) | CharacterCatalog 与 V07 Combat/Equipment/Acquisition/World 无条件资产加载/生成边要改，不因前端不再传旧 profile 就盲删载荷/资产。 |
 | [DefaultGame.ini](../../Config/DefaultGame.ini)、[Lockdown.Build.cs:10–22](../../Source/Lockdown/Lockdown.Build.cs#L10-L22)、[PackageWin64.ps1:7–13](../../Scripts/PackageWin64.ps1#L7-L13) | 去旧容量/BookPrice、广域 AlwaysCook、显式旧载荷和多图 staging；只保留当前实际消费者，确认有效配置不会回落引擎旧默认。 |
 
@@ -827,10 +827,10 @@ V07 删除仍需关闭 Bootstrap、loader fallback、Sync/native contract、stag
 | --- | --- |
 | [LDEconomyRulesTests.cpp:19–77](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp#L19-L77) | 保留精确条款、原子性、overflow、复算；迁到 Prepare/Apply及奖励关联，删银行/预算/制作政策夹具；同步窄字段白名单。 |
 | [LDInventoryRulesTests.cpp:9–16](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp#L9-L16)、[LDV08LoadoutTests.cpp:25–60](../../Source/Lockdown/Private/Tests/LDV08LoadoutTests.cpp#L25-L60) | 保留来源/旧修订/wire/引用失效；替换背包/Quick/多绑定/六动作/四附件、旧 family 共享与旧属性预算断言。 |
-| [LDVendorProbe.cpp:39–130](../../Source/Lockdown/Private/Tests/LDVendorProbe.cpp#L39-L130) | 将快递买书读书改成普攻打野→完整奖励→选择→装备；保留过期/创建失败/满容量/越界目的，删除受伤必须关店等旧玩法断言。 |
-| `RunInventoryCheck.ps1 / RunVendorCheck.ps1 / RunLoadoutCheck.ps1` | 迁真实参赛 Listen Host 和拥有客户端、Demo 两装备/选择/1/2；旧 Server+A+B/LDRemoteAuthority 不是目标联机结果。迁移前不声称已有 Demo 参数。 |
+| [LDInventoryRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDInventoryRulesTests.cpp)、[LDEconomyRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp) | 身份、投影容量、精确条款、原子拒绝与账本复算保留；原生创建失败、过期回执、满容量、越界和生死竞争仍须 §12 A16/A17/A24/A25 的 N05 场景。 |
+| N04/N05 拥有连接场景 | 使用真实参赛 Listen Host 和拥有客户端验证两装备/选择/1/2；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
 | [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py:15–66](../../Scripts/CheckEconomyEvidence.py#L15-L66) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；复算新增钱物/奖励/前缀尾部，删无消费者 budget/quality/parents。 |
-| D28–D34 的旧专测/runner/手册 | 必要 Ledger/Vendor/Inventory 不变量先迁，再真实删 Trade/Acquisition/Bank/Production 旧专测、probe、selector 和说明；同步六系统手册对应真实接口，不保存废弃方案。 |
+| D29–D34 的剩余专测/runner/手册 | 必要 Ledger/Inventory/来源不变量先迁，再删除相应旧生产者与专测；同步系统手册的真实接口，不保存废弃方案。 |
 
 本域建议新增的规则测试职责落在现有 Tests 体系：死亡复合奖励、Offer/替换、两装备事务、
 IssuedCooldownId、Permit/fence/故障恢复与 owner 投影。不要求新建测试框架，

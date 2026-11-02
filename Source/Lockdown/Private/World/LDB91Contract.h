@@ -1,2 +1,0 @@
-#pragma once
-#define LD_B91_ENV_SHA TEXT("4137f1de587c7f9577565d218ecfdf02de85711859ff8399282320c159dd9bfc")

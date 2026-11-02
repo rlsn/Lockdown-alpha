@@ -20,9 +20,8 @@ namespace
 {
     bool IsGameplayService(const AActor& Actor)
     {
-        static const TSet<FName> Names = {TEXT("LDCombatDirector"), TEXT("LDObjectiveDirector"), TEXT("LDDevelopmentDirector"),
-            TEXT("LDWorldDirector"), TEXT("LDRegionDirector"), TEXT("LDEconomyDirector"), TEXT("LDAcquisitionDirector"),
-            TEXT("LDInventoryDirector"), TEXT("LDVendorDirector"), TEXT("LDB92Roster"), TEXT("LDEnvironmentDirector"), TEXT("LDWorldObjects")};
+        static const TSet<FName> Names = {TEXT("LDCombatDirector"),TEXT("LDVisionDirector"),
+            TEXT("LDWorldViewRelay"),TEXT("LDEconomyDirector"),TEXT("LDInventoryDirector")};
         for (const UClass* Class = Actor.GetClass(); Class; Class = Class->GetSuperClass())
         {
             if (Names.Contains(Class->GetFName())) { return true; }
@@ -130,7 +129,7 @@ void LDDemoTests::EndEntryBrowse(ULDGameInstance& Instance)
     if (auto* Observer = Observers.Find(&Instance)) { (*Observer)->ActiveRejectedBrowse = false; }
 }
 
-void LDDemoTests::ObserveMapSubsystem(UWorld& World, bool Surface, bool Activation)
+void LDDemoTests::ObserveMapRegistry(UWorld& World, bool Activation)
 {
     if (!World.IsGameWorld()) { return; }
     for (const auto& Pair : Observers)
@@ -141,8 +140,7 @@ void LDDemoTests::ObserveMapSubsystem(UWorld& World, bool Surface, bool Activati
             Pair.Value->RejectedBeforeWorld = false;
         }
         auto& Counts = Pair.Value->Worlds.FindOrAdd(&World).Counts;
-        if (Surface) { (Activation ? Counts.SurfaceActivations : Counts.SurfaceCreations)++; }
-        else { (Activation ? Counts.RegistryActivations : Counts.RegistryCreations)++; }
+        (Activation ? Counts.RegistryActivations : Counts.RegistryCreations)++;
     }
 }
 
@@ -195,8 +193,7 @@ void LDDemoTests::ProbeRejectedEntry(UWorld& World)
         && UWorld::RemovePIEPrefix(World.GetOutermost()->GetName()) == LDDemoEntry::FrontendMap
         && Pawns == 0 && LegacyModes == 0 && Services == 0 && (Attempt.Observed || Attempt.RejectedBeforeWorldCreation)
         && Attempt.Pawns == 0 && Attempt.GameModes == 0 && Attempt.Services == 0
-        && Attempt.RegistryCreations == 0 && Attempt.RegistryActivations == 0
-        && Attempt.SurfaceCreations == 0 && Attempt.SurfaceActivations == 0;
+        && Attempt.RegistryCreations == 0 && Attempt.RegistryActivations == 0;
     auto Report = MakeShared<FJsonObject>();
     Report->SetBoolField(TEXT("passed"), Passed);
     Report->SetStringField(TEXT("rejected_url"), Instance ? Instance->RejectedEntryURL() : TEXT(""));
@@ -213,8 +210,6 @@ void LDDemoTests::ProbeRejectedEntry(UWorld& World)
     Report->SetNumberField(TEXT("rejected_attempt_services"), Attempt.Services);
     Report->SetNumberField(TEXT("registry_creations"), Attempt.RegistryCreations);
     Report->SetNumberField(TEXT("registry_activations"), Attempt.RegistryActivations);
-    Report->SetNumberField(TEXT("surface_creations"), Attempt.SurfaceCreations);
-    Report->SetNumberField(TEXT("surface_activations"), Attempt.SurfaceActivations);
     FString Json;
     const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
         && FFileHelper::SaveStringToFile(Json, *Output, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);

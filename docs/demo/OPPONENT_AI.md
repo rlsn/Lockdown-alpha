@@ -39,16 +39,13 @@ Source、Config、Content、SourceData、Scripts 均未改变。以下行号对�
 
 | 证据 | 当前真实行为 | Demo 处置 |
 | --- | --- | --- |
-| [LDB92Roster.h:87–104](../../Source/Lockdown/Public/Population/LDB92Roster.h#L87-L104)、[LDB92Roster.cpp:29–45](../../Source/Lockdown/Private/Population/LDB92Roster.cpp#L29-L45) | Seat 经 B92/B91 继承 PlayerController，恒非 local，BeginPlay 关闭 Actor Tick；没有自主策略。 | 不继承 Seat/B92/B91，不把三张席位当三 AI。 |
-| [LDB92Roster.cpp:74–199](../../Source/Lockdown/Private/Population/LDB92Roster.cpp#L74-L199) | 初始化二十四席、职业起始构筑及其他人口；日志明确 `contenderPolicy=not_implemented`。Transfer/Admit/Release 搬运身体/账户并在断线后接管。 | D06 全链退役，核心按所选数量创建真正参赛 AI；不迁移接管功能。 |
-| [LDB92Routines.cpp:25–101](../../Source/Lockdown/Private/Population/LDB92Routines.cpp#L25-L101) | 日程自己的 StrategicRoute、MoveToLocation、全身体 Danger 扫描和 Combat 感知。 | 不是公平参赛策略，不保留日程、全知 Sense 或第二路由器。 |
 | [LDNavigationComponent.cpp:66–124](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L66-L124)、[237–305](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L237-L305) | Owner 强依赖 PlayerController；Navigate/Stop 为 local-only；服务器检查后，真正沿路径 AddMovementInput 又在 local 条件之后。 | 同组件抽取服务器方向驱动和领域入口，不能假造 ClientOrder 或 LocalPlayer 使机器人行走。 |
 | [LDNavigationComponent.cpp:126–204](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L126-L204)、[LDCharacterMovementComponent.cpp:22–98](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L22-L98) | 有完整路径、Match/Life/Order/Epoch、回执/拒旧、SavedMove 和原生运动；当前新收件会先停旧单。 | R01/R05 局部复用；目标改为 Queued 不替旧单，完整准入后 handoff，不写第二位置积分器。 |
 | [LDGameMode.h:78–93](../../Source/Lockdown/Public/Framework/LDGameMode.h#L78-L93)、[LDGameMode.cpp:378–453](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L453) | Session 是持久参赛身份；当前以 Controller 找记录，死亡仍扣金/掉落，出生仍有安全/原席位政策。 | R06 由生命周期域改造；AI 不直接写 Contenders、不生成 Life 或选择“安全”出生点。 |
 | [LDSkillExecution.cpp:17–34](../../Source/Lockdown/Private/Combat/LDSkillExecution.cpp#L17-L34)、[LDContentActions.cpp:36–55](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L36-L55) | PlayerController 构筑来自参赛记录，其他身体可能落入 NPCBuild；RequestContent 接受已经解析的 Actor，依赖外层准入。 | 参赛 AI 不用 NPCBuild；只进统一 SubmitAction，不把 C++ public 当成授权 API。 |
 | [LDContentLifecycle.cpp:35–57](../../Source/Lockdown/Private/Combat/LDContentLifecycle.cpp#L35-L57)、[LDVisionDirector.cpp:137–186](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L137-L186)、[285–300](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L285-L300) | 范围内循环普攻存在，非完整追击；Footstep/Trail 有产生和提前授权旁路。网格观察不等于 B91 稀疏观察。 | R07/R12：同一订单驱动普攻，世界统一稀疏 FLDWorldView；未许可提示同时删除产生/授权，不只隐藏图标。 |
-| [LDWorldDirector.cpp:35–110](../../Source/Lockdown/Private/World/LDWorldDirector.cpp#L35-L110) | 旧三营地/Boss/Tower、有限刷新；Reward 先账本后 XP，PvPKill 只给 XP 且有限额。 | M9C/M6 提供五营地与稳定死亡键的正常复合奖励。AI 不补发钱或经验。 |
-| [LDDevelopmentDirector.cpp:75–207](../../Source/Lockdown/Private/Development/LDDevelopmentDirector.cpp#L75-L207)、[LDVendorDirector.cpp:19–92](../../Source/Lockdown/Private/Inventory/LDVendorDirector.cpp#L19-L92) | 是旧准备/读书/售书等链；尚非持久三选一与两装备买卖。 | 复用身份/版本/事务机制，等待成长域真实实现目标接口，不用旧服务冒充闭环。 |
+| [LDCampDecision.h](../../Source/Lockdown/Public/World/LDCampDecision.h) | 旧三营地/Boss/Tower Actor、有限刷新、先账本后 XP 的 Reward 与 XP-only 限额 PvPKill 已删除；营地只保留纯值决策，营地原语待 N03 接线。 | M9C/M6 提供五营地与稳定死亡键的正常复合奖励。AI 不补发钱或经验。 |
+| [LDCharacterBuild.cpp](../../Source/Lockdown/Private/Development/LDCharacterBuild.cpp)、[LDV08Loadout.cpp](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp)；旧准备 Development 与旧书店 Vendor 均已退役 | 保留纯候选投影、修订和来源机制；当前没有三选一或商店运行服务。 | N04/N05 按正式许可/回执接口接线，AI 不用已退休服务或直接改 Build 冒充闭环。 |
 | [LDV08Loadout.cpp:22–77](../../Source/Lockdown/Private/Development/LDV08Loadout.cpp#L22-L77)、[LDContentActions.cpp:39–40](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L39-L40)、[LDEconomyLedger.cpp:36–103](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L103) | 来源失效、条款比较和全验证后提交有价值；旧同族动作排斥/取最大冷却不能实现同款双主动。 | R08/R09 保留不变量，不保留旧槽数/同族锁；AI 仅消费正式 readiness 和真实成交回执。 |
 
 ## 3. SC-09：状态、正式接口与权限
@@ -231,8 +228,8 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | 局部原样复用 R01/R02 | `S\Public\Navigation\LDNavigationComponent.h` 的 FLDMoveIdentity；`S\Private\Character\LDCharacterMovementComponent.cpp` 的 SavedMove/Serialize；`S\Public\Framework\LDCommandLiveness.h` | 保留代次/取消/拒旧与原生运动，不复制身份或位置系统；输入、导航、Combat、AI 共用。 |
 | 改造 R05/N06 | `S\Public\Navigation\LDNavigationComponent.h`、`S\Private\Navigation\LDNavigationComponent.cpp` | 原组件承载 SubmitOrder/CancelOrder/QueryOrder 与 server adapter 的方向跟随；拆 local UI 限制，移除 B91/旧 Site 分派；Combat 的旧 `PC->Navigation->Stop()` 改接同一 handoff/cancel。 |
 | 改造 R04/R06 | `S\Public\Framework\LDGameMode.h`、`S\Private\Framework\LDGameMode.cpp`、`S\Public\Framework\LDPlayerController.h`、`S\Private\Framework\LDPlayerController.cpp`、`S\Private\Character\LDCharacter.cpp`、`S\Private\Character\LDCharacterMovementComponent.cpp` | 核心 RegisterAIContender/ELDContenderKind/ReadAISelf/ReadPublicMatch 与提交后通知；基类的 UI、网络与本地运动隔离；删除居民、人口速度和搬运政策。不能只新增一个 Controller 然后保留 local-only 假设。 |
-| 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDDevelopmentDirector.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDVendorDirector.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策。 |
-| 抽取/改造 R10–R12 | `S\Private\World\LDWorldDirector.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供五营地、正常致死信用、静态查询和唯一受限帧；AI 不消费全表，不保留旧完整地图第二身体流。 |
+| 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDCharacterBuild.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDGearRules.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策，N04/N05 新提供者不从已退役 Development/Vendor 服务继续抽取。 |
+| 抽取/改造 R10–R12 | `S\Public\World\LDCampDecision.h`、`S\Private\World\LDCampDecision.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供营地纯决策（营地原语待 N03 接线）、静态查询和唯一受限帧，致死信用归核心 DeathKey；AI 不消费全表，不保留旧完整地图第二身体流。 |
 | 新增 N06/M12 | `S\Public\Population\LDOpponentController.h`、`S\Private\Population\LDOpponentController.cpp` | 放 §3 的 adapter、value policy、决策输入/结果与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
 | 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
 
@@ -240,70 +237,31 @@ AI 新参数接入内容域选定的唯一生成输入/载荷/contract，不新�
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；
 沿唯一 Demo Character、地图、普通导航和内容源。共享头文件与地图变更由原所有者实施。
 
-### 5.2 D06：完整人口/席位/服务生产文件
-
-以下二十一个生产文件是同一旧闭包，不因 AI 只用其中一个类就保留其余调度。
-
-| 实际删除文件 | 实际符号/消费者与先决替代 | 协调所有者 |
-| --- | --- | --- |
-| `S\Public\Population\LDB92Roster.h`；`S\Private\Population\LDB92Roster.cpp` | Seat/Person、B92Controller/SeatController/GameMode/HUD/Roster；先替代 GameMode 的 Spawn/Admit/Release/Logout/ReturnSpawn、账户与 AI 注册，删除接管而非空实现。 | 生命周期、AI |
-| `S\Public\Population\LDB92Routines.h`；`S\Private\Population\LDB92Routines.cpp`；`S\Private\Population\LDB92PopulationContract.h` | RoutineController、StrategicRoute、Sense/Danger、日程；先断 Roster/RoleDied、环境 SealedCargo 表现和 probe。 | AI、世界/视野 |
-| `S\Public\Economy\LDB92Economy.h`；`S\Private\Economy\LDB92Economy.cpp`；`S\Private\Economy\LDB92EconomyContract.h`；`S\Private\Economy\LDB92WorldLedger.cpp` | 旧席位/居民钱包、银行/机构库存、ImportWorld/WorldProjection 和独立 Tick；先接精简 Ledger/正常奖励，断 FCatalog.LoadFull 与 B91 物理来源同步。 | 成长经济、世界 |
-| `S\Public\Economy\LDB92Services.h`；`S\Private\Economy\LDB92Services.cpp`；`S\Private\Economy\LDB92ServiceClient.cpp` | MarketView/Order、旧 RPC、用户进店导航、Markers、B92HUD；由 Vendor/同一导航/合法自身 UI 替代。 | 成长经济、操作、UI |
-| `S\Private\Economy\LDB92Supply.cpp` | Endpoints/SupplyOffers/PurchaseOfficial，由 Services 调用；不是 Demo 商店目录。 | 成长经济、内容 |
-| `S\Private\Economy\LDB92Work.cpp` | WorkTerms/CommitWork/BeginWork/SampleWork/StopWork，把制作/采购与 Action=8、DevelopmentKind 接在一起；无 Demo 消费。 | 成长经济、Combat |
-| `S\Private\Economy\LDB92Courier.cpp` | CourierBoards/Distance/View/Terms/Command，由 Services/Work 调用；任务路线、送件和有限奖励全部退出。 | 成长经济、世界 |
-| `S\Private\Economy\LDB92Charter.cpp` | PurchaseCharter 由 Services.Order 调用，旧终局资格购买；不是占领前置。 | 成长经济、生命周期 |
-| `S\Public\Economy\LDB92Deposits.h`；`S\Private\Economy\LDB92Deposits.cpp`；`S\Private\Economy\LDB92Extraction.cpp` | 自动采集 Tick、Survey、Combat 注册任务；不是合法打野收益。 | 世界、成长经济、Combat |
-| `S\Public\Economy\LDB92Witness.h`；`S\Private\Economy\LDB92Witness.cpp` | Profession/Execute/RecordWitness、ALDCharterTask；先断 Combat 职业例外与展示字段。 | Combat、成长经济 |
-
 ### 5.3 混合调用者与 B91/居民闭包
 
 | 架构编号 | 精确受影响文件/符号 | 替代前提与删除边界 |
 | --- | --- | --- |
 | D01/D06 | `S\Public\Framework\LDGameMode.h` 的 Population/friends；`S\Private\Framework\LDGameMode.cpp` 的 Humans/profile/class、Population Spawn/Admit/Release、ReturnSpawn/RecordGold 分派 | 由核心同一名单/生命/账本适配替代；不保留恒真 IsPopulationProfile。 |
 | D06/D14 | `S\Public\Combat\LDCombatDirector.h` 的 B92 friends；`S\Private\Combat\LDCombatDirector.cpp` 的 RoleDied；`LDContentActions.cpp` 的 Witness::Profession；`LDSkillExecution.cpp` 的旧任务查找 | 接普通动作/死亡事实后删 callback、include 与特免；不删真正的统一战斗能力。 |
-| D06/D15 | `S\Private\Development\LDDevelopmentDirector.cpp` 的人口 Preparation；`S\Private\Inventory\LDInventoryDirector.cpp` 的 B92 pre-consume；`S\Public\Economy\LDEconomyCatalog.h`、`S\Private\Economy\LDEconomyCatalog.cpp` 的 LoadFull/Full schema | 先统一成长、来源和两装备服务，再断旧 Catalog，不能删 contract 后留下 LoadFull。 |
-| D06/D11/D17 | `S\Public\World\LDEnvironmentDirector.h`、`S\Private\World\LDEnvironmentDirector.cpp` 的 Routines/SealedCargo 与旧 wire；`S\Public\World\LDWorldObjects.h`、`S\Private\World\LDWorldObjects.cpp` 的 B92 friends/RecordConsumption/机构 Holder 特例 | 世界统一授权/稀疏 FLDWorldView 和事务后退出；字段生产、序列化、表现一起删。 |
-| D07 | `S\Public\Character\LDCharacter.h`、`S\Private\Character\LDCharacter.cpp` 中 ALDResident；`S\Public\Region\LDRegionDirector.h`、`S\Private\Region\LDRegionDirector.cpp`；`S\Public\Development\LDWorldChecks.h`、`S\Private\Development\LDWorldChecks.cpp` | 删除居民、训练/随机游走、钱袋/偷窃/看守/旧 Sentinel 奖励；同时断 GameMode 八居民生成、Combat Residents 返回和 RegisterSkillTask 旧消费者。 |
+| D07 | `S\Public\Character\LDCharacter.h`、`S\Private\Character\LDCharacter.cpp` 中 ALDResident | 删除居民、训练/随机游走；同时断 GameMode 八居民生成、Combat Residents 返回和 RegisterSkillTask 旧消费者。 |
 | D07/D23 | `S\Public\Region\LDRegionDefinition.h`、`S\Private\Region\LDRegionDefinition.cpp` 的居民数组/验证；`Config\RegionLayout.json`、`Config\V07RegionLayout.json`、`Config\V08RegionLayout.json` 的居民/训练居民旧布局 | 由唯一 Demo 地图/角色生成替代；不能只停 Spawn 还要求旧八居民。 |
-| D11 | `S\Public\World\LDEnvironmentDirector.h` 中 ALDB91Controller/Mode/HUD；`S\Private\World\LDB91Controller.cpp`、`LDB91ObjectsClient.cpp`、`LDB91SourceControls.cpp`、`LDB91SourceHUD.cpp`、`LDB91SurfaceClient.cpp`、`LDB91NetClient.cpp` | B92 父类也有其他消费者；操作/世界/视野改接后，按 D11/C3 关闭整链，不由 AI 单独盲删。 |
 | R05/D11 | `S\Private\Navigation\LDNavigationComponent.cpp` 的 B91 target/object；`S\Private\Character\LDCharacterMovementComponent.cpp` 的 population/cargo 分支 | 同一地图查询与自身属性投影替代；不留第二套路径与速度政策。 |
 
 ### 5.4 数据、资产、配置和工具
 
 | 实际路径 | 消费与退役条件 |
 | --- | --- |
-| `SourceData\World\population.json`、`npc_schedules.json`；`Content\Lockdown\Data\V09\population_b92.json`、`schedules_b92.json`；`Scripts\SyncB92Population.py` | Roster/Routines 与生成 contract 一起退役；不把 population 的描述当自主策略。 |
-| `SourceData\World\economy.json`；`Content\Lockdown\Data\V09\economy_b92.json`；`Scripts\SyncB92Economy.py` | 断 FCatalog.LoadFull/B92 服务、WorldLedger 后删；纯 Ledger 留在原经济域。 |
-| `SourceData\World\security.json` | 实际由 `Scripts\SyncV09Data.py` 读入 `map_b90.json` 的 security/civic/source hash；先修改世界 compiler/definition/validator，不直接删输入断生成。不存在独立 security_b92 载荷。 |
-| `SourceData\World\rules.json`、`pois.json`、`routes.json`、`settlements.json`、`spawn_pads.json`、`buildings.json`、`terrain.json`、`services.json`、`legacy_aliases.json`、`travel_table.csv` | B92 的旧完整世界依赖，归 D22 世界清单；单图定义接管后删除旧城镇/路线/二十四出生位数组或整文件，不留并行旧数组。 |
-| `Scripts\SyncV09Data.py`；`Content\Lockdown\Data\V09\map_b90.json`；`S\Private\Region\LDB90Contract.h` | 地图域关闭旧 producer/loader 后按 D32 删除或收敛唯一当前生成链。AI 不新建地图 compiler。 |
-| `Content\Lockdown\Generated\V09\L_V09Full.umap`、`DA_FullMap.uasset`、`M_RiverInstanced.uasset`、`M_SoilInstanced.uasset` | D19/C2/C3：只有证实被唯一当前地图采用的必要几何/材质可抽取，旧图根退役。Builder `LDB90BootstrapCommandlet.cpp` 存 ALDB90PreviewMode，B92 是 runner 的 URL override；不存在“已经验证的 B92 专用地图”。 |
+| `Content\Lockdown\Generated\V09\L_V09Full.umap`、`DA_FullMap.uasset`、`M_RiverInstanced.uasset`、`M_SoilInstanced.uasset` | D19/C2/C3：只有证实被唯一当前地图采用的必要几何/材质可抽取，旧图根退役。旧图仍保存已删除 B90 PreviewMode 的引用，须随集成 C3 迁移；B92 是 runner 的 URL override；不存在“已经验证的 B92 专用地图”。 |
 | `Source\Lockdown\Lockdown.Build.cs`；`Config\DefaultGame.ini`；`Scripts\PackageWin64.ps1` | staging map/environment/objects/tools/traversal、广泛 AlwaysCook Generated、旧多图打包随 D19/D25 收敛；当前无显式 staging 三个 B92 JSON，不能声称现有包含正常 AI 完整链。 |
-
-B92 ImportWorld 还依赖 B91 物理来源，关闭检查必须覆盖
-`Scripts\SyncB91Data.py`、`SyncB91Objects.py`、`SyncB91Tools.py`、
-`SyncB91Traversal.py`、`SyncB91Forestry.py`、`SyncB91Grass.py`、`SyncB91Forest.py`
-及其 D19/D22/D32 载荷/contract。这些属于世界域的精确闭包，AI 不另列第二份地形裁剪方案。
-不要只删 B92 消费者而让旧 producer 永久重建已弃人口世界。
 
 二进制资产删除前必须检查 AssetRegistry/Reference Viewer、Blueprint/UPROPERTY、软引用、
 动态加载、地图 WorldSettings 和 Cook。源码无命中、旧 probe 不运行都不构成资产可删除证明。
 当前系统手册中的有效导航、事务、来源和视野知识保留校准，不删除知识来掩盖缺口。
 
-### 5.5 旧检查退役与有效不变量迁移
-
-| 精确删除集合 | 替代条件 |
-| --- | --- |
-| `S\Public\Tests\LDB92EconomyProbe.h`、`LDB92RosterProbe.h`、`LDB92RoutinesProbe.h`、`LDB92ServicesProbe.h` | 新正常 AI 场景取代旧席位/日程验收；GameMode 的 include/FParse/Spawn/dispatch 同步退出。 |
-| `S\Private\Tests\LDB92EconomyProbe.cpp`、`LDB92EconomyRulesTests.cpp`、`LDB92RosterProbe.cpp`、`LDB92RoutinesProbe.cpp`、`LDB92ServicesProbe.cpp`、`LDB92ServicesRulesTests.cpp`、`LDB92ServicesClient.cpp`、`LDB92CourierProbe.cpp`、`LDB92CharterProbe.cpp` | 迁移身份唯一、条款比较、序列化白名单、实例/资金原子性；删除 220 身体/24 席位、接管、死亡税、掉工具、旧职业/槽数断言。 |
-| `Scripts\RunB92Roster.ps1`、`RunB92Routines.ps1`、`RunB92Economy.ps1`、`RunB92EconomyRegressions.ps1`、`RunB92Services.ps1`、`RunB92Courier.ps1`、`RunB92Charter.ps1` | Roster 的 SpawnActor“human admission”、不参赛 authority 与重连接管场景不能代替真实三真人加三 AI。 |
-| `Scripts\CheckB92Roster.py`、`CheckB92Routines.py`、`CheckB92Economy.py`、`CheckB92Services.py`、`CheckB92Courier.py`、`CheckB92Charter.py` | 各 checker 的 full_stage_acceptance=false 本就不认证目标 Demo；不用换标题或旧报告满足新门禁。 |
-| `S\Private\World\LDB91CombatProbeClient.cpp`、`LDB91EncounterProbeClient.cpp`、`LDB91FieldsProbeClient.cpp`、`LDB91GrassProbeClient.cpp`、`LDB91IgnitionProbeClient.cpp`、`LDB91ObjectsProbeClient.cpp`、`LDB91SaplingsProbeClient.cpp`、`LDB91ToolsProbeClient.cpp`、`LDB91TraversalProbeClient.cpp` | 属于旧父类上的 D27 检查，随各世界闭包及真实替代一起退役；不能只删 Tests 中的声明。 |
+### 5.5 有效不变量与验收边界
 
 `LDNavigationProbe.cpp` 的阻挡/无进展/旧 ACK/Stop/死亡换代、
-`LDInputRulesTests.cpp` 的 Fresh、`LDRulesTests.cpp` 的 ViewOrdering、
+`LDInputRulesTests.cpp` 的 Fresh、`LDDemoVisionTests.cpp` 的 DemoVision.Ordering、
 `LDViewTests.cpp` 的字段白名单、`LDEconomyRulesTests.cpp` 的幂等/原子拒绝、
 `LDV08LoadoutTests.cpp` 的来源失效不洗冷却均迁入保留的对应领域测试。
 `Scripts\RunTests.ps1` 通过 `CheckRuleReport.py` 核对明确的当前用例集合，
@@ -597,8 +555,8 @@ Order/Action/Choice/Shop 请求和回执、稳定死亡奖励键、核心阶段/
 权威 observer-checker 可以比较真值以检查泄露，但不得把这份全知检查数据送回策略。
 只看屏幕或 Host 日志、仅 SpawnActor 模拟“human”、旧 B92 报告以及模型实验都不足以通过 AI-A02。
 
-当前可复用起点是 RunNavigationCheck、RunCombatNetworkCheck、RunViewNetworkCheck、
-RunInventoryCheck、RunVendorCheck、RunLoadoutCheck、RunTests 的有效部分；
+当前可复用起点是 RunNavigationCheck、RunCombatNetworkCheck、RunDemoVisionCheck、
+RunTests 中 Inventory/Economy/来源投影规则的有效部分；
 必须去掉不参赛 Host/旧 profile 前提并接目标断言，不能直接把旧成功计入本表。
 最小相关构建、Bootstrap 与实际场景由后续代码切片执行；本次纯文档只核验事实、链接与范围。
 

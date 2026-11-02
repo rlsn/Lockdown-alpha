@@ -5,6 +5,10 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCharacterStartTest,"Lockdown.Rules.CharacterStarts",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDCharacterStartTest::RunTest(const FString& Parameters)
 {
+    const FLDCharacterBuild Empty;
+    TestTrue(TEXT("Construction alone cannot grant retired starting skills"),
+        !Empty.Ranks.ContainsByPredicate([](uint8 Rank) { return Rank!=0; })
+        && !Empty.Slots.ContainsByPredicate([](ELDSkill Skill) { return Skill!=ELDSkill::None; }));
     for (uint8 Class=0; Class<3; ++Class)
     {
         const auto B=LDDevelopment::StartingBuild(Class); int32 Total=0, Known=0;
@@ -34,11 +38,6 @@ bool FLDCharacterGrowthTest::RunTest(const FString& Parameters)
     const uint32 Revision=B.Revision;
     LDDevelopment::AwardXP(B,XP,100); LDDevelopment::AwardXP(B,XP,-10);
     TestTrue(TEXT("At cap and negative award cannot print points"),XP==420&&B.AttributePoints==8&&B.SkillPoints==4&&B.Revision==Revision);
-    TestEqual(TEXT("Opening return delay"),LDDevelopment::DeathDelay(1,0),10.);
-    TestEqual(TEXT("Late level-five return delay"),LDDevelopment::DeathDelay(5,1200),46.);
-    TestEqual(TEXT("Return delay cap"),LDDevelopment::DeathDelay(5,5400),60.);
-    TestEqual(TEXT("Integer ceiling gold loss"),LDDevelopment::DeathLoss(101),int64(16));
-    TestTrue(TEXT("Gold loss avoids overflow"),LDDevelopment::DeathLoss(MAX_int64)>0&&LDDevelopment::DeathLoss(MAX_int64)<MAX_int64);
     return true;
 }
 

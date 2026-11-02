@@ -6,182 +6,191 @@
 #include "Inventory/LDInventoryTypes.h"
 #include "LDViewTypes.generated.h"
 
-// Wire records deliberately have no actor, controller, role or private-stat fields.
-UENUM() enum class ELDObservedKind : uint8 { Body, Ward, Seal, Book, Charter, WatchControl, Sentinel, WardCharge, Cargo, Production, Institution, Projectile, TacticalField, WorldCreature, WorldStructure, WorldSite };
+// Observation wire records are owner-directed authorized projections. They carry no actor,
+// controller, canonical body identity, life key or private build/economy/cooldown field.
+namespace LDObservation
+{
+    constexpr uint32 Schema = 1;
+    // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
+    constexpr int32 CoverageSide = 128;
+    constexpr int32 CoverageCells = CoverageSide * CoverageSide;
+    constexpr int32 CoverageBytes = CoverageCells / 8;
+    // BeginMatch rejects a locked roster plus approved camp members that could exceed this.
+    constexpr int32 MaxUnits = 16;
+    constexpr int32 MaxStatuses = 8;
+    constexpr int32 MaxTerminations = 16;
+    constexpr int32 MaxMapIdBytes = 63;
+    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32 };
+    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment;
+    constexpr uint32 CampFields = Identity | Health | Statuses;
+}
+
+UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
+// Combat owns visible action cues; adding one is a schema change.
+UENUM() enum class ELDObservedActionCue : uint8 { None = 0 };
+UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
+UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
+
 USTRUCT()
-struct FLDVisionGrid
+struct FLDObservedResource
 {
     GENERATED_BODY()
-    UPROPERTY() FVector2D Min=FVector2D(-2400,-1600);
-    UPROPERTY() float CellSize=80;
-    bool Valid() const {return !Min.ContainsNaN()&&FMath::IsFinite(CellSize)&&CellSize>=40&&CellSize<=500&&Min.X>=-20000&&Min.Y>=-20000&&Min.X+60*CellSize<=20000&&Min.Y+40*CellSize<=20000;}
+    UPROPERTY() int64 CurrentP2 = 0;
+    UPROPERTY() int64 MaxP2 = 0;
 };
+
 USTRUCT()
-struct FLDObservedEntity
+struct FLDObservedStatus
 {
     GENERATED_BODY()
-    UPROPERTY() FGuid Id;
-    UPROPERTY() FVector_NetQuantize10 Position = FVector::ZeroVector;
-    UPROPERTY() uint16 Facing = 0;
-    UPROPERTY() uint16 Speed = 0;
+    UPROPERTY() uint8 StatusId = 0; // ELDDemoStatusId
+    UPROPERTY() uint8 Stacks = 1;
+    UPROPERTY() int64 ExpiresAtServerMs = 0; // 0 = untimed
+};
+
+USTRUCT()
+struct FLDObservedEquipmentView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Slots[2] = {0, 0}; // ELDDemoEquipmentId; 0 = empty slot
+};
+
+USTRUCT()
+struct FLDObservedUnitView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Handle; // fresh for each visibility interval of one observer
+    UPROPERTY() uint32 ObservationEpoch = 0;
+    UPROPERTY() uint32 StateRevision = 0;
+    UPROPERTY() uint32 AuthorizedFieldMask = 0;
+    UPROPERTY() ELDObservedUnitKind Kind = ELDObservedUnitKind::Contender;
     UPROPERTY() uint8 Presentation = 0;
-    UPROPERTY() ELDObservedKind Kind = ELDObservedKind::Body;
-    UPROPERTY() uint8 ActionCue = 0;
-    UPROPERTY() float ExposedUntil = 0;
+    UPROPERTY() FVector_NetQuantize10 FeetCm = FVector::ZeroVector;
+    UPROPERTY() uint16 Facing = 0;
+    UPROPERTY() ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
+    UPROPERTY() FGuid ContenderId;  // Contender identity -> public roster name
+    UPROPERTY() uint8 CreatureId = 0; // CampMember identity -> ELDDemoMonsterId
+    UPROPERTY() uint8 Level = 0;
+    UPROPERTY() FLDObservedResource Health;
+    UPROPERTY() FLDObservedResource Mana;
+    UPROPERTY() TArray<FLDObservedStatus> Statuses;
+    UPROPERTY() FLDObservedEquipmentView Equipment;
+};
+
+USTRUCT()
+struct FLDObservedUnitTermination
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Handle;
+    UPROPERTY() uint32 ObservationEpoch = 0;
+    UPROPERTY() uint32 Generation = 0;
+    UPROPERTY() uint32 TerminationSequence = 0;
+    UPROPERTY() int64 OccurredAtServerMs = 0; // display/archive only
+    UPROPERTY() ELDObservedTerminationKind Kind = ELDObservedTerminationKind::ObservedDeath;
+};
+
+USTRUCT()
+struct FLDObservedFootprint
+{
+    GENERATED_BODY()
+    UPROPERTY() ELDObservationSource SourceStatus = ELDObservationSource::NoLivingBody;
+    UPROPERTY() FVector_NetQuantize10 SourceFeetCm = FVector::ZeroVector;
+    UPROPERTY() float RadiusCm = 0;
+    UPROPERTY() TArray<uint8> CurrentBits; // ActiveBody: exactly CoverageBytes; NoLivingBody: empty
 };
 
 USTRUCT()
 struct FLDWorldView
 {
     GENERATED_BODY()
-    UPROPERTY() uint32 Generation = 0;
-    UPROPERTY() uint64 Revision = 0;
-    UPROPERTY() float AuthoritySeconds = 0;
-    UPROPERTY() TArray<uint8> Current;
-    UPROPERTY() TArray<uint8> Explored;
-    UPROPERTY() TArray<FLDObservedEntity> Entities;
-    UPROPERTY() uint8 BodySources = 0;
-    UPROPERTY() uint8 WardSources = 0;
-    UPROPERTY() uint8 PublicSources = 0;
-    UPROPERTY() FLDVisionGrid Grid;
+    UPROPERTY() uint32 Schema = 0;
+    UPROPERTY() uint32 MatchGeneration = 0;
+    UPROPERTY() uint32 ObserverLife = 0;
+    UPROPERTY() uint32 Generation = 0; // observation generation; changes with match or observer life/phase
+    UPROPERTY() uint32 Revision = 0;   // shared with conceal and termination notices
+    UPROPERTY() FName WorldMapId;
+    UPROPERTY() uint32 WorldLayoutRevision = 0;
+    UPROPERTY() uint32 WorldGeometryRevision = 0;
+    UPROPERTY() double SampledAtServerSec = 0;
+    UPROPERTY() FLDObservedFootprint Footprint;
+    UPROPERTY() TArray<FLDObservedUnitView> Units;
+    UPROPERTY() TArray<FLDObservedUnitTermination> RecentTerminations;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>
 { enum { WithNetSerializer = true }; };
 
 USTRUCT()
-struct FLDItemFamily
+struct FLDObservedConceal
 {
     GENERATED_BODY()
-    UPROPERTY() FName Name;
-    UPROPERTY() int64 ReadyAt=0;
+    UPROPERTY() uint32 MatchGeneration = 0;
+    UPROPERTY() uint32 Generation = 0;
+    UPROPERTY() uint32 Revision = 0;
+    UPROPERTY() TArray<FGuid> Removed; // empty in the first notice of a new generation
+    bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
+template<> struct TStructOpsTypeTraits<FLDObservedConceal> : TStructOpsTypeTraitsBase2<FLDObservedConceal>
+{ enum { WithNetSerializer = true }; };
+
 USTRUCT()
-struct FLDItemFamilies
+struct FLDObservedTerminationNotice
 {
     GENERATED_BODY()
-    UPROPERTY() TArray<FLDItemFamily> Entries;
-    int64 FindRef(FName Name) const {const auto* E=Entries.FindByPredicate([&](const auto& V){return V.Name==Name;});return E?E->ReadyAt:0;}
-    int64& FindOrAdd(FName Name) {for(auto& E:Entries){if(E.Name==Name){return E.ReadyAt;}}FLDItemFamily E;E.Name=Name;return Entries.Add_GetRef(E).ReadyAt;}
+    UPROPERTY() uint32 MatchGeneration = 0;
+    UPROPERTY() uint32 Revision = 0;
+    UPROPERTY() FLDObservedUnitTermination Termination;
+    bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
+template<> struct TStructOpsTypeTraits<FLDObservedTerminationNotice> : TStructOpsTypeTraitsBase2<FLDObservedTerminationNotice>
+{ enum { WithNetSerializer = true }; };
+
+// Server-only public facts supplied by their owning domains through the core. Never serialized.
+struct FLDObservedPublicFacts
+{
+    uint8 Level = 0;
+    uint8 CreatureId = 0;
+    FLDObservedEquipmentView Equipment;
+    TArray<FLDObservedStatus> Statuses;
+};
+
 USTRUCT()
 struct FLDOwnerState
 {
     GENERATED_BODY()
     UPROPERTY() uint32 Match = 0;
-    UPROPERTY() uint32 Life = 1;
+    UPROPERTY() uint32 Life = 0;
     UPROPERTY() FGuid ContenderId;
     UPROPERTY() FLDCombatBodyRef BodyRef;
     UPROPERTY() ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
     UPROPERTY() uint64 LifeRevision = 0;
     UPROPERTY() int64 RespawnAtMs = 0;
     UPROPERTY() int64 ProtectedUntilMs = 0;
-    UPROPERTY() double Hp = 100;
-    UPROPERTY() double MaxHp = 100;
-    UPROPERTY() bool bDevelopmentProfile = false;
+    UPROPERTY() double Hp = 0;
+    UPROPERTY() double MaxHp = 0;
     UPROPERTY() bool bReady = false;
     UPROPERTY() bool bLobbyHost = false;
     UPROPERTY() FLDCharacterBuild Build;
-    UPROPERTY() TArray<FLDOwnedBook> Books;
     UPROPERTY() FLDInventory Inventory;
-    UPROPERTY() uint8 DevelopmentKind=0;
-    UPROPERTY() uint32 DevelopmentToken=0;
-    UPROPERTY() double DevelopmentEndsAt=0;
-    UPROPERTY() FGuid DevelopmentItem;
-    UPROPERTY() FGuid CraftCoupon;
-    UPROPERTY() uint8 CouponSite=0;
-    UPROPERTY() uint8 ProductionSite=0;
-    UPROPERTY() double CouponUntil=0;
-    UPROPERTY() double ProductionSeconds=0;
-    UPROPERTY() FGuid IndustrialEndorsement;
-    UPROPERTY() FGuid SupplyEndorsement;
-    UPROPERTY() uint8 CoreOrders=0;
-    UPROPERTY() uint8 SupplyOrders=0;
-    UPROPERTY() FGuid CharterPurchase;
-    UPROPERTY() FGuid CharterActivation;
-    UPROPERTY() double CharterReadyAt=0;
-    UPROPERTY() bool bCharterAwaitingRespawn=false;
-    UPROPERTY() FGuid Witness;
-    UPROPERTY() FGuid TheftReceipt;
-    UPROPERTY() uint8 TheftOutcome=0;
-    UPROPERTY() int64 TheftAmount=0;
-    UPROPERTY() double TheftRetryAt=0;
-    UPROPERTY() double AlertUntil=0;
-    UPROPERTY() uint32 TamperSerial=0;
     UPROPERTY() double Mp=0;
     UPROPERTY() double MaxMp=0;
     UPROPERTY() double Barrier=0;
-    UPROPERTY() uint16 StatusMask=0;
-    UPROPERTY() FString StatusFeedback;
-    UPROPERTY() double NullBellReadyAt=0;
-    UPROPERTY() bool bAidConsent=false;
-    UPROPERTY() int64 MajorProtectionReadyAt=0;
-    UPROPERTY() FLDItemFamilies ItemFamilies;
-    UPROPERTY() int32 SlowPercent=0;
-    UPROPERTY() int64 WetFrostReadyAt=0;
-    UPROPERTY() TArray<FIntPoint> LastSurfaceMask;
-    UPROPERTY() int64 LastSurfaceAt=0;
-    UPROPERTY() int64 DirectDamageUntil=0;
-    UPROPERTY() FLDItemFamilies ProcReady;
-    UPROPERTY() int64 GateReadyAt=0;
-    UPROPERTY() int64 KeysReadyAt=0;
-    UPROPERTY() double ShrineReadyAt=0;
-    UPROPERTY() uint8 BreachRoute=0;
-    UPROPERTY() double BreachOpenAt=0;
-    UPROPERTY() double BreachCloseAt=0;
     UPROPERTY() int64 Gold = 0;
-    UPROPERTY() int64 BankGold = 0;
     UPROPERTY() int64 Xp = 0;
-    UPROPERTY() uint8 WardCharges = 1;
-    UPROPERTY() bool bActive = true;
+    UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
-    UPROPERTY() uint32 DeathSerial = 0;
-    UPROPERTY() int64 LastLostGold = 0;
-    UPROPERTY() float ReturnAt = 0;
-    UPROPERTY() float ProtectedUntil = 0;
-    UPROPERTY() float BasicReadyAt = 0;
-    UPROPERTY() ELDSkill ActiveSkill = ELDSkill::None;
-    UPROPERTY() double SkillEndsAt = 0;
-    UPROPERTY() float AssassinReadyAt = 0;
-    UPROPERTY() float DashReadyAt = 0;
-    UPROPERTY() float WarningUntil = 0;
-    UPROPERTY() float DamageUntil = 0;
-    UPROPERTY() float ExposedUntil = 0;
-    UPROPERTY() uint8 IncomingSector = 0;
-    UPROPERTY() uint8 ActionCue = 0;
-    UPROPERTY() uint8 ContractStage = 0; // 0 none, 1 collect, 2 deliver
-    UPROPERTY() FGuid ContractId;
-    UPROPERTY() int32 Commissions = 0;
-    UPROPERTY() uint8 PaidJobs=0;
-    UPROPERTY() uint8 FirstCourierTown=0;
-    UPROPERTY() uint8 ContractDestination=0;
-    UPROPERTY() TArray<uint8> VisitedRegions;
-    UPROPERTY() uint8 PaidSentinels=0;
-    UPROPERTY() FGuid SentinelReceipt;
-    UPROPERTY() uint32 DeliverySerial = 0;
-    UPROPERTY() float WorkReadyAt = 0;
-    UPROPERTY() FGuid SealId;
-    // Private once-per-match receipt; survives death, dropping and consuming the item.
-    UPROPERTY() FGuid FabricationReceipt;
-    UPROPERTY() uint8 ChannelKind = 0;
-    UPROPERTY() uint8 ChannelRoute = 0;
-    UPROPERTY() float ChannelStartedAt = 0;
-    UPROPERTY() double ChannelDuration=0;
-    UPROPERTY() float ChannelProgress = 0;
-    UPROPERTY() bool bWinner = false;
 };
 
-namespace LDVision
+namespace LDObservation
 {
-    inline bool PickupKind(ELDObservedKind Kind)
-    {return Kind==ELDObservedKind::Book||Kind==ELDObservedKind::Seal||Kind==ELDObservedKind::WardCharge||Kind==ELDObservedKind::Cargo;}
-    constexpr int32 Columns = 60, Rows = 40, Cells = Columns * Rows, MaskBytes = Cells / 8;
-    // Four full 24-slot death drops, bodies, wards and short-lived corpse identities.
-    // Still bounded by the existing uint8 count; the observed field mask is unchanged.
-    constexpr int32 MaxEntities = 512;
-    inline bool InWorld(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return G.Valid()&&!P.ContainsNaN()&&P.X>=G.Min.X&&P.X<G.Min.X+Columns*G.CellSize&&P.Y>=G.Min.Y&&P.Y<G.Min.Y+Rows*G.CellSize; }
-    inline int32 Cell(const FVector& P,const FLDVisionGrid& G=FLDVisionGrid()) { return InWorld(P,G)?int32((P.Y-G.Min.Y)/G.CellSize)*Columns+int32((P.X-G.Min.X)/G.CellSize):INDEX_NONE; }
-    inline FVector Centre(int32 Index,const FLDVisionGrid& G=FLDVisionGrid()) { return FVector(G.Min.X+((Index%Columns)+.5)*G.CellSize,G.Min.Y+((Index/Columns)+.5)*G.CellSize,0); }
-    inline bool Bit(const TArray<uint8>& Mask, int32 Index) { return Index >= 0 && Index < Cells && Mask.Num() == MaskBytes && (Mask[Index/8] & (1 << (Index%8))); }
-    inline void Set(TArray<uint8>& Mask, int32 Index) { Mask[Index/8] |= 1 << (Index%8); }
+    // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
+    LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
+    LOCKDOWN_API bool ValidateTermination(const FLDObservedUnitTermination& Termination, FString& Error);
+    LOCKDOWN_API bool ValidateView(const FLDWorldView& View, FString& Error);
+    LOCKDOWN_API bool ValidateConceal(const FLDObservedConceal& Conceal, FString& Error);
+    LOCKDOWN_API bool ValidateNotice(const FLDObservedTerminationNotice& Notice, FString& Error);
+    inline bool CoverageBit(const TArray<uint8>& Bits, int32 Index)
+    { return Index >= 0 && Index < CoverageCells && Bits.Num() == CoverageBytes && (Bits[Index / 8] & (1 << (Index % 8))) != 0; }
+    inline void SetCoverageBit(TArray<uint8>& Bits, int32 Index)
+    { if (Index >= 0 && Index < CoverageCells && Bits.Num() == CoverageBytes) { Bits[Index / 8] |= uint8(1 << (Index % 8)); } }
 }

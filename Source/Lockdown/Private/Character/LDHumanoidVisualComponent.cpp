@@ -23,9 +23,7 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         Parts.Add(Part);
         if(Index==7){Part->SetVisibility(false);Part->SetCastShadow(false);}
     }
-    auto* Pack=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CosmeticSealedPack"));Pack->SetupAttachment(this);Pack->SetStaticMesh(Cube.Object);Pack->SetRelativeLocation(FVector(-24,0,5));Pack->SetRelativeScale3D(FVector(.25,.3,.32));Pack->SetCollisionEnabled(ECollisionEnabled::NoCollision);Pack->SetCanEverAffectNavigation(false);Pack->SetVisibility(false);Pack->SetHiddenInGame(true);Parts.Add(Pack);
 }
-void ULDHumanoidVisualComponent::SetSealedCargo(bool Visible){Parts[8]->SetVisibility(Visible);Parts[8]->SetHiddenInGame(!Visible);}
 
 void ULDHumanoidVisualComponent::OnRegister()
 {
@@ -64,16 +62,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     {Parts[2]->SetRelativeRotation(FRotator(Action==2?-120:-75,0,-15));Parts[3]->SetRelativeRotation(FRotator(-75,0,15));}
     SetRelativeRotation(Action==5?FRotator(0,0,90):FRotator((Cue&32)?-15:0,0,0));
     Parts[0]->SetRelativeRotation(FRotator(Action==4?-20:0,0,0));
-    // The same visible geometry cues apply to residents and contenders.
     Parts[6]->SetRelativeScale3D((Cue&16)?FVector(.35):((Cue&64)?FVector(.22):FVector(.12)));
     Parts[7]->SetVisibility(Action!=5&&(Cue&240)!=0&&IsVisible());
     if(auto* Marker=Cast<UMaterialInstanceDynamic>(Parts[7]->GetMaterial(0)))
     {Marker->SetVectorParameterValue(TEXT("Tint"),(Cue&16)?FLinearColor(1,.12f,.025f):((Cue&64)?FLinearColor(.8f,.95f,1):((Cue&32)?FLinearColor(1,.05f,.02f):FLinearColor(1,.55f,.05f))));}
-}
-
-void ULDHumanoidVisualComponent::AnimateInstitutionWork(float Progress)
-{
-    const float Stroke=FMath::Sin(FMath::Clamp(Progress,0.f,1.f)*6*PI)*22;
-    Parts[2]->SetRelativeRotation(FRotator(-65+Stroke,0,-15));
-    Parts[3]->SetRelativeRotation(FRotator(-65-Stroke,0,15));
 }

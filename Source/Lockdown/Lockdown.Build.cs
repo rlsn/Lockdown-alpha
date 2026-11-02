@@ -16,14 +16,7 @@ public class Lockdown : ModuleRules
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/equipment_b84.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V08/acquisition_b84.json", StagedFileType.UFS);
         AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V09/map_b90.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V09/environment_b91.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V09/objects_b91.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V09/tools_b91.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V09/traversal_b91.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/economy_rules.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/combat.json", StagedFileType.UFS);
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/equipment.json", StagedFileType.UFS);
-        RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/V07/world.json", StagedFileType.UFS);
     }
 }

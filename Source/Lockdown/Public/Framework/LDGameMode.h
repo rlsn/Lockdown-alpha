@@ -15,15 +15,6 @@ public:
     ALDPlayerState();
 };
 
-USTRUCT()
-struct FLDBreachNotice
-{
-    GENERATED_BODY()
-    UPROPERTY() uint8 Route=0;
-    UPROPERTY() double WarningAt=0;
-    UPROPERTY() double OpenAt=0;
-    UPROPERTY() double CloseAt=0;
-};
 UCLASS()
 class LOCKDOWN_API ALDGameState : public AGameStateBase
 {
@@ -31,58 +22,19 @@ class LOCKDOWN_API ALDGameState : public AGameStateBase
 public:
     UPROPERTY(ReplicatedUsing=OnRep_DemoLobby) FLDLobbyView DemoLobby;
     UFUNCTION() void OnRep_DemoLobby();
-    UPROPERTY(Replicated) TArray<FLDBreachNotice> Breaches;
-    UPROPERTY(Replicated) bool bPublicSensorActive = true;
-    UPROPERTY(Replicated) uint8 DefensiveFlags = 15;
-    UPROPERTY(Replicated) bool bClaimActive = false;
-    UPROPERTY(Replicated) bool bContested = false;
-    UPROPERTY(Replicated) uint8 ClaimRoute = 0;
-    UPROPERTY(Replicated) float ClaimProgress = 0;
-    UPROPERTY(Replicated) float MatchDeadline = 0;
-    UPROPERTY(Replicated) uint8 EndReason = 0; // playing, Heart claimed, No claim
-    UPROPERTY(Replicated) uint8 WinningRoute = 0;
-    UPROPERTY(Replicated) float MatchEndedAt = 0;
-    UPROPERTY(Replicated) FGuid ResultReceipt;
-    UPROPERTY(Replicated) uint32 ResultSerial = 0;
-    UPROPERTY(Replicated) uint32 SealNoticeSerial = 0;
-    UPROPERTY(Replicated) uint8 SealNoticeKind = 0;
-    UPROPERTY(Replicated) uint8 SealNoticeDistrict = 0;
-    UPROPERTY(Replicated) bool bDevelopmentProfile = false;
-    UPROPERTY(Replicated) bool bUIControlProfile = false;
-    UPROPERTY(Replicated) bool bEnvironmentProfile = false;
-    UPROPERTY(Replicated) bool bMatchStarted = false;
-    UPROPERTY(Replicated) float EconomyNextTick=0;
-    UPROPERTY(Replicated) uint8 ShortagePhase=0;
-    UPROPERTY(Replicated) uint8 ShortageRemaining=1;
-    UPROPERTY(Replicated) int32 CoreOrdersRemaining=0;
-    UPROPERTY(Replicated) int32 SupplyOrdersRemaining=0;
-    UPROPERTY(Replicated) FGuid CharterWindow;
-    UPROPERTY(Replicated) uint8 CharterPhase=0; // idle, warning, open, closed
-    UPROPERTY(Replicated) double CharterWarningAt=0;
-    UPROPERTY(Replicated) double CharterOpenAt=0;
-    UPROPERTY(Replicated) double CharterCloseAt=0;
-    UPROPERTY(Replicated) uint8 OutcropOne=3;
-    UPROPERTY(Replicated) uint8 OutcropTwo=3;
-    UPROPERTY(Replicated) uint8 LobbyCount = 0;
-    UPROPERTY(Replicated) uint8 ReadyCount = 0;
-    UPROPERTY(Replicated) float PublicSensorOfflineUntil=0;
-    UPROPERTY(Replicated) float PublicSensorLockoutUntil=0;
-    virtual void BeginPlay() override;
+    UPROPERTY(ReplicatedUsing=OnRep_DemoClock) FLDDemoClockView DemoClock;
+    UFUNCTION() void OnRep_DemoClock();
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 private:
     FLDLobbyView LatestDemoLobby;
+    FLDDemoClockView LatestDemoClock;
 };
 
 class ALDVisionDirector;
 class ALDCombatDirector;
-class ALDObjectiveDirector;
-class ALDDevelopmentDirector;
-class ALDWorldChecks;
-class ALDRegionDirector;
 class ALDPlayerController;
 class ALDCharacter;
 class FLDDemoContentSnapshot;
-struct FLDLegalGround;
 struct FLDNativeMotionBatch;
 struct FLDContenderRecord
 {
@@ -94,7 +46,7 @@ struct FLDContenderRecord
     FLDSessionRequestWindow SessionRequests;
 };
 
-UCLASS(Config=Game)
+UCLASS()
 class LOCKDOWN_API ALDGameMode : public AGameModeBase
 {
     GENERATED_BODY()
@@ -117,52 +69,24 @@ public:
     ELDCommitReject ResolveBody(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, ALDCharacter*& Out) const;
     bool ReadBodyRef(const ALDCharacter& Body, FLDCombatBodyRef& Out) const;
     bool CaptureIncomingTime(int64& NotBeforeMs, FString& Error) const;
+    bool ReportAuthorityFault(const FLDMatchContext& Match, const FString& Diagnostic);
     bool ReadContenderLife(const FLDMatchContext& Match, const FGuid& ContenderId, FLDContenderLifeRead& Out, FString& Error) const;
+    bool ReadObservedPublicFacts(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
+        FLDObservedPublicFacts& Out, FString& Error) const;
     bool ReadBodyMotionStream(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, FGuid& Out, FString& Error) const;
     FLDLobbyView ReadLobby() const;
     FLDSessionReceipt ProcessSessionCommand(ALDPlayerController* Controller, const FLDSessionRequest& Request);
     FLDOwnerState* StateFor(ALDPlayerController* Controller);
     FGuid ContenderId(ALDPlayerController* Controller) const;
     void SyncOwner(ALDPlayerController* Controller);
-    void EndContenderLife(ALDPlayerController* Controller,double Now);
-    void ReturnDueContenders(double Now);
-    bool SetLobbyChoice(ALDPlayerController* Controller,uint8 ClassId,bool Ready,FString& Reason);
-    bool StartDevelopmentMatch(ALDPlayerController* Controller,FString& Reason);
-    void AwardExperience(ALDPlayerController* Controller,int64 Amount);
-    void RefreshBuild(ALDPlayerController* Controller,bool RestoreFullHP=false);
     bool IsPlaying() const;
     void EconomyWallets(TMap<FName,int64>& Out) const;
     int32 EconomyContenderCount() const {return Contenders.Num();}
-    void RecordEconomyGold(FName Cause,int64 Mint=0,int64 Burn=0);
-    bool IsDevelopmentProfile() const {return bDevelopmentProfile;}
-    bool IsTacticalProfile() const {return bTacticalProfile;}
-    bool IsV08Profile() const {return bV08Profile;}
-    bool IsEnvironmentProfile() const {return bEnvironmentProfile;}
-    bool IsPopulationProfile() const {return bPopulationProfile;}
-    UPROPERTY() TObjectPtr<class ALDB92Roster> Population;
-    uint8 RulesVersion() const {return bV08Profile?8:bTacticalProfile?7:6;}
-    UPROPERTY() TObjectPtr<class ULDTacticalCatalog> TacticalCatalog;
-    bool IsUIControlProfile() const {return bUIControlProfile;}
-    const ULDCharacterCatalog* CharacterCatalog() const {return Catalog;}
     bool IsFinished() const;
-    double RuleTime() const;
-    double StartedAt() const {return MatchStartedAt;}
-    UPROPERTY() TObjectPtr<class ALDWorldDirector> WorldRuntime;
-    bool bDrainingEvents=false;
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
-    UPROPERTY() TObjectPtr<ALDObjectiveDirector> Objectives;
-    UPROPERTY() TObjectPtr<ALDDevelopmentDirector> Development;
-    UPROPERTY() TObjectPtr<ALDWorldChecks> WorldChecks;
-    UPROPERTY() TObjectPtr<ALDRegionDirector> Region;
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
-    UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
     UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
-    UPROPERTY() TObjectPtr<class ALDBankDirector> Bank;
-    UPROPERTY() TObjectPtr<class ALDCommerceDirector> Commerce;
-    UPROPERTY() TObjectPtr<class ALDAcquisitionDirector> Acquisition;
-    UPROPERTY() TObjectPtr<class ALDProductionDirector> Production;
-    UPROPERTY(Config) bool bScaffoldProfile = false;
 private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
@@ -215,6 +139,7 @@ private:
     bool ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhase Phase,
         TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute, FString& Error);
     bool FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error);
+    bool PublishAuthorityClock(FString& Error);
     ELDCommitReject CompleteNativeMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDNativeMotionBatch> Batch);
     bool AcknowledgeNativeMotion(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
@@ -222,7 +147,7 @@ private:
     bool SpawnInitialContenders(const FLDGameplayWritePermit& Permit, FString& Error);
     void FaultAuthority(const FString& Error);
     bool IsMemberPresent(const FGuid& EntityId) const;
-    void ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Out) const;
+    bool ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Out, FString& Error) const;
     void RemoveLifeBinding(const FGuid& EntityId);
     FLDMatchContext MatchContext;
     ELDMatchPhase MatchPhase = ELDMatchPhase::Faulted;
@@ -238,22 +163,7 @@ private:
     bool AdvanceRoster(FString& Reason);
     void PublishLobby();
     bool CheckDemoStartInputs(FString& Reason) const;
-    friend class ALDB92Roster;
-    friend class ALDB92RosterProbe;
-    bool bPopulationProfile=false;
-    int32 PopulationHumanLimit=4;
-    bool bTacticalProfile=false;
-    bool bEnvironmentProfile=false;
-    bool bV08Profile=false;
-    bool bDevelopmentProfile = false;
-    bool bUIControlProfile = false;
-    UPROPERTY() TObjectPtr<ULDCharacterCatalog> Catalog;
     TWeakObjectPtr<ALDPlayerController> LobbyHost;
-    void UpdateLobby();
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
-    TArray<FVector> SpawnPool;
     FRandomStream SpawnRandom;
-    double MatchStartedAt = 0;
-    FVector TakeSpawn();
-    FVector ReturnSpawn(ALDPlayerController* Controller);
 };

@@ -13,8 +13,8 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("First run is Missing, never Loaded"),Initial.Status==ELDLocalSettingsLoadStatus::Missing);
     Settings->ResetBindings();FString Error;
     TestTrue(TEXT("Default registry is complete and conflict free"),Settings->Valid());
-    TestTrue(TEXT("Incumbent registry still defines its four skill keys"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Skill3"))==EKeys::E&&Settings->Key(TEXT("Skill4"))==EKeys::R);
-    TestTrue(TEXT("No contextual key; camera and item bindings remain"),!Settings->Key(TEXT("Context")).IsValid()&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar&&Settings->Key(TEXT("Item1"))==EKeys::One);
+    TestTrue(TEXT("Demo registry uses Q/W abilities and 1/2 equipment actives"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Item1"))==EKeys::One&&Settings->Key(TEXT("Item2"))==EKeys::Two);
+    TestTrue(TEXT("Retired keys are absent; renamed and camera bindings remain"),!Settings->Bindings.Contains(TEXT("Context"))&&!Settings->Bindings.Contains(TEXT("Skill3"))&&!Settings->Bindings.Contains(TEXT("Item3"))&&!Settings->Bindings.Contains(TEXT("Sprint"))&&!Settings->Bindings.Contains(TEXT("Help"))&&Settings->Key(TEXT("AttackMove"))==EKeys::A&&Settings->Key(TEXT("Attributes"))==EKeys::P&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar);
     TestFalse(TEXT("Conflict cannot silently replace another command"),Settings->Rebind(TEXT("Skill1"),EKeys::W,Error));
     TestFalse(TEXT("Global Escape cannot be taken by a world action"),Settings->Rebind(TEXT("Skill1"),EKeys::Escape,Error));
     TestFalse(TEXT("Back remains reserved"),Settings->Rebind(TEXT("Back"),EKeys::Z,Error));

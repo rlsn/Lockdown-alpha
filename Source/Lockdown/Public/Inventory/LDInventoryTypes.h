@@ -20,8 +20,6 @@ struct FLDInventoryItem
     UPROPERTY() int64 ReadyAt=0;
     UPROPERTY() int64 ProcReadyAt=0;
     UPROPERTY() uint8 Quality=0;
-    UPROPERTY() int32 FuelMs=0;
-    UPROPERTY() bool bLit=false;
 };
 USTRUCT()
 struct FLDInventory
@@ -55,9 +53,6 @@ public:
     uint16 BindingMask=0;
     int64 ReadyAt=0,ProcReadyAt=0;
     uint8 Quality=0;
-    int32 FuelMs=0;
-    bool bLit=false;
-    double FuelAt=0;
     void Project(FLDInventoryItem& Entry) const;
     // Server-only causal metadata. Never serialize parents or origin to a peer.
     FName Institution; // persistent institution address; server-only

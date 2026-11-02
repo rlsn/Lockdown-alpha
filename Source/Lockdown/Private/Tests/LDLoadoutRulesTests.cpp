@@ -1,8 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Inventory/LDEquipmentCatalog.h"
 #include "Inventory/LDLoadoutRequest.h"
-#include "UI/LDControlSettings.h"
-#include "Combat/LDTacticalRules.h"
 #include "Net/DataBunch.h"
 namespace
 {
@@ -28,25 +26,6 @@ bool FLDProgression73Test::RunTest(const FString& Parameters)
     auto P=LDDevelopment::PlanFrom(B);P.Ranks[uint8(ELDSkill::ArcBolt)]=1;FLDCharacterBuild Result;FString Why;TestFalse(TEXT("Unknown skill cannot be point-trained without a book"),LDDevelopment::Prepare(B,P,Result,Why));
     B.Ranks[uint8(ELDSkill::Counterpulse)]=1;P=LDDevelopment::PlanFrom(B);P.Ranks[15]=3;TestTrue(TEXT("Known cross-class skill trains to R3 for three points"),LDDevelopment::Prepare(B,P,Result,Why));TestEqual(TEXT("Mastery point cost"),Result.SkillPoints,11);
     B.Ranks[uint8(ELDSkill::GroundingField)]=1;B.Gear.ControlPotency=1;TestEqual(TEXT("Declared control anchor HP potency"),LDGear::Magnitude(B,ELDSkill::GroundingField,TEXT("anchor_hp"),{90,104,117}),104);TestEqual(TEXT("Cooldown cannot receive potency"),LDGear::Magnitude(B,ELDSkill::Counterpulse,TEXT("cooldown_ms"),{20000,19000,18000}),20000);
-    TestEqual(TEXT("New death delay level15 at 35min"),LDDevelopment::TacticalDeathDelay(15,2100),55.);TestEqual(TEXT("Death delay cap"),LDDevelopment::TacticalDeathDelay(15,100000),90.);return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControls73Test,"Lockdown.Rules.LocalControlRegistryIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDControls73Test::RunTest(const FString& Parameters)
-{
-    auto* C=NewObject<ULDControlSettings>();C->Profile=7;C->ResetBindings();FString Why;
-    TestTrue(TEXT("Explicit incumbent registry is valid without migration"),C->Valid());
-    TestEqual(TEXT("Fifth skill retains this registry's default D"),C->Key(TEXT("Skill5")),FKey(EKeys::D));
-    TestFalse(TEXT("Fourth quick item is not part of this registry"),C->Key(TEXT("Item4")).IsValid());
-    const auto Before=C->Bindings;
-    TestFalse(TEXT("Conflicting camera key is rejected, never relocated"),C->Rebind(TEXT("PanUp"),EKeys::D,Why));
-    TestTrue(TEXT("Rejected rebind preserves every binding"),C->Bindings.OrderIndependentCompareEqual(Before));
-    C->TextScale=1.25;C->Zoom=1600;C->ResetBindings();
-    TestTrue(TEXT("Resetting bindings preserves unrelated preferences"),C->TextScale==1.25&&C->Zoom==1600);
-    auto* Other=C->CreateDraft();Other->Profile=8;Other->ResetBindings();
-    const auto Storage=FLDLocalSettingsStorage::Automation(FGuid::NewGuid());
-    auto* Applied=ULDControlSettings::CreateSessionSettings(Storage,7);
-    TestFalse(TEXT("Another registry's draft cannot be silently applied"),Applied->ApplyLocalSettings(*Other,Why));
-    TestEqual(TEXT("No implicit registry migration"),Applied->Profile,uint8(7));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLoadoutWireTest,"Lockdown.Rules.LoadoutWireAndQuickShape",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

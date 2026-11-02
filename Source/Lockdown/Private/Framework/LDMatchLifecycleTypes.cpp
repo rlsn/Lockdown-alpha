@@ -52,6 +52,34 @@ bool LDMatchLifecycle::AllocateGeneration(uint32& LastGeneration, uint32& Genera
     return true;
 }
 
+ELDClockProjectionResult LDMatchLifecycle::AcceptClockView(const FLDDemoClockView& Candidate,
+    FLDDemoClockView& Latest, FString& Error)
+{
+    Error.Reset();
+    if (!Candidate.IsValid())
+    {
+        Error=TEXT("Invalid completed authority clock publication.");
+        return ELDClockProjectionResult::Malformed;
+    }
+    if (Candidate.Generation<Latest.Generation
+        || (Candidate.Generation==Latest.Generation && Candidate.StepSerial<Latest.StepSerial))
+    {
+        return ELDClockProjectionResult::Stale;
+    }
+    if (Candidate.Generation==Latest.Generation)
+    {
+        if (Candidate.NowMs<Latest.NowMs
+            || (Candidate.StepSerial==Latest.StepSerial && Candidate.NowMs!=Latest.NowMs))
+        {
+            Error=TEXT("Authority clock time regressed or changed within an already published step.");
+            return ELDClockProjectionResult::Malformed;
+        }
+        if (Candidate.StepSerial==Latest.StepSerial) { return ELDClockProjectionResult::Duplicate; }
+    }
+    Latest=Candidate;
+    return ELDClockProjectionResult::Accepted;
+}
+
 ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& Candidate, FLDLobbyView& Latest, FString& Error)
 {
     Error.Reset();

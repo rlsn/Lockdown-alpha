@@ -19,13 +19,9 @@ SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案�
 | 输入/入口 | 输出或消费者 |
 | --- | --- |
 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo world→content 生成链及原生 Bootstrap；不是旧 prototype 导入入口 |
-| `SourceData\Catalogs\V07` + `SyncV07*Data.py` | `Content\Lockdown\Data\V07`、对应 contract；World 同时维护 `Config\V07RegionLayout.json` |
+| 尚未退出的 `SourceData\Catalogs\V07` + 对应 SyncV07 入口 | 仍有实际消费者的战斗/装备/获取载荷与 contract；旧 WorldCatalog 生成链及其 v07_rules 输入已随世界闭包删除 |
 | `SourceData\Catalogs\V08` + `SyncB84Data.py` | 三个 `*_b84.json`、B84Manifest、`LDB84Contract.h` |
-| `SourceData\World` + `SyncV09Data.py` | 地图载荷、地图 contract；包含 `travel_table.csv` 输入 |
-| `SyncB91Data.py`、`SyncB91Objects.py`、`SyncB91Tools.py`、`SyncB91Traversal.py`、`SyncB91Grass.py`、`SyncB91Forest.py` | 环境/物件载荷及相互关联的 contract |
-| `SyncB92Economy.py`、`SyncB92Population.py` | 当前经济与人口/活动输入及对应 contract |
 
-`SyncB91Forestry.py` 等链路还消费前序生成结果；不要跳过中间步骤或只手写最终宏。
 `CatalogTools.py` 复用 schema、确定性编码与原生 ID 校验，B84 生成不依赖历史说明或档案 ZIP。
 schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.10.0`。
 
@@ -129,8 +125,8 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 原始 VertexData、导航或 LOS。专用原生规则使用隔离包真实保存、卸载和重载，
 覆盖仅改 Pawn 响应、object type 和凸元局部平移的损坏，不修改生产资产。
 `ULDMapDefinition` 只导入根合同约束的 Demo 世界；保存投影逐字段精确回核，失败不先清空资产。
-旧城市/河流字段仍与待退出的 B91/B92 消费者耦合，但不能携带非空旧数据通过 Demo 资产校验，
-也不保留旧 map JSON 导入或独立 B90 Builder/脚本入口。
+旧城市/河流字段不属于 Demo，不能携带非空旧数据通过 Demo 资产校验；
+其反射字段与存量包的移除仍与集成的资产审计/重存同步，不保留旧 map JSON 导入或独立 B90 Builder/脚本入口。
 Generate/Regenerate 不再通过这个入口生成旧区域、职业目录、固定旧输入或旧地图。
 保留的区域/完整地图 Builder 组件须按世界闭包复用或删除；旧 SourceData 和 native loader
 的剩余消费者并未因此全部退出，不能只删文件而不迁移对应 contract/staging。
@@ -203,10 +199,11 @@ Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资�
 
 ## 世界组件
 
-`ULDRegionDefinition`/`ALDRegionDirector` 维护区域定义；
-`ULDMapDefinition`、`LDMapRegistry`、`LDMapApproaches` 与编辑器 Builder
-提供 Demo 世界的 typed 投影、稳定地址、原生地面/完整路径与可复用路径算法；
-旧区域/完整图消费者仍按各自闭包退出，不作为默认运行模式。
+`ULDMapDefinition`、`LDMapRegistry` 与编辑器 Builder 提供唯一 Demo 世界的
+typed 投影、稳定地址、原生地面、完整路径及接近点查询。
+`ALDRegionNavBounds` 仍由 `LDDemoWorldBuilder` 生成和校验，不能随旧 Region 名称误删。
+旧区域导演、哨兵、WatchControl、全图预览与 `LDMapApproaches` 不再提供运行入口；
+旧 RegionDefinition/Anchor 与已保存地图的反射迁移由同一次资产闭包处理。
 
 `FLDWorldRevision` 只含 MapId/LayoutRevision/GeometryRevision，不另分配 Match 身份。
 `ULDMapRegistry::QueryGround` 要求显式注册 SurfaceHint、当前世界修订和正确 capsule；
@@ -220,31 +217,37 @@ Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资�
 本地拥有连接和原生 shop 路径；其零 Pawn 断言确保未接通玩法没有被提前激活，
 不把这一场景当作已完成 AI、实际身体移动或完整多人对局。
 
-`LDGroundQueries` 提供可行走表面查询。厘米坐标、接地面、高低层、碰撞与视线是相关但不同的判断，
-不能以“画面看起来在同一个地方”替代它们。`ULDMapSurfaceSubsystem`
-是特定地图模式的静态表面/接触切片，不是任意 profile 自动启用的全局效果服务。
+`LDGroundQueries` 的静态地面与平面可达性能力仍由核心维护，不是观察权限、完整路径或
+带世界修订/SurfaceHint/capsule 的 Demo 落地证明。正式路径与落地使用上述 Registry 查询，
+观察使用单一 `TraceSight`/Observer 边界，不以 `ClearSegment` 代替。
 
 定义中的地址与视觉 Actor 不是同一身份；重复导入、世界重载不能重复生成地点、奖励源或权威记录。
 新地图先验证合法出生、地点连通、入口与阻挡，再接入交互。
 
-## 动态阻挡与对象生命周期
+## 营地与占领的复用边界
 
-`ALDEnvironmentDirector`、`ALDWorldObjects` 等分别负责环境观察/门与真实物件记录。
-门的物理碰撞、视线代理、导航 revision 和合法表现必须对应同一次权威变化。
-接受阻挡后，尚未刷新的旧路径只能停止/重算，不能继续穿越。
-更新一个门或箱子应局部处理，不无条件重建整个地图。
+营地追击、回位、活动范围和稳定选敌保留为参数化纯决策 `LDCampDecision`，不读取 Actor/World 全局，
+也不创建另一份身体、战斗或奖励状态。调用方须从批准内容、地图注册表和新观测服务提供输入。
+`TraceSight` 只判定静态遮挡：它按 `VISION.RadiusCm` 构建，不是营地感知半径；
+其 InvalidPoint/StaleWorld 由调用层作为故障上抛。纯决策只从 N03 记录的、实际攻击过本营的参赛者
+身体中选敌，营地成员和未攻击本营的旁观者即使更近也不选；目标还须在该怪物
+`PerceptionRadiusCm`（内容规定等于 LeashRadiusCm，从成员当前脚点量，含边界）以内。
+感知半径大于 TraceSight 半径时明确失败；不保留旧 Blind 缩半径或 200/650/1000 默认值。
+活动范围只按成员自身到 Camp 锚点的 XY 距离判定，不按目标位置过滤：站在 Leash 圈外但在感知内的
+攻击者仍可选；成员严格超界才转 Returning，之后不再选敌、受击也不回追。
+回位目标是该成员在注册表中的 MemberHome，不是全组共用 Camp 中心。
+观察读取失败必须在调用层按权威故障处理，纯函数也拒绝未完成的读取，不能当空候选成功。
+N03 的五营地、真实身体、反击/回位重置、刷新与死亡奖励仍需正式接线，纯原语不是完整营地。
+旧营地 Actor、职业/技能初始包、三营地/有限刷新预算、Boss/Tower/圣坛与探索奖励不作备用实现。
 
-对象能力独立：阻挡行走不自动代表阻挡视线、有库存、可摧毁或能产出奖励。
-背负物、地面物、固定物和库存实例之间应只有一个位置/所有者记录；
-摆放检查完整占地与支撑面，不只检查中心点。
-
-梯子/绳索等现有链接的预约、起终点和原生运动要一致；死亡、取消、控制器交接先清理预约和进行中的动作。
-这些实现约束可复用，但对应玩法是否进入 Demo 仍由 App Spec 决定。
+唯一占领归约和结果所有者是现有 GameMode 核心，不再保留独立 Objective Actor、HeartSensor、
+Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
+现有 phase/GateRevision/借用 scope 不等于完整 `TryCloseMatch`、结果 CAS 或圈 reducer 已实现。
 
 ## 保存与复位边界
 
-世界对象不提供持久检查点、自动保存或恢复入口。当前局的物件身份、消耗记录和守恒检查
-仍由运行中的权威服务维护，不通过保存文件重建或补发物品、燃料与奖励。
+世界不提供持久检查点、自动保存或恢复入口。物品身份、消耗与原子提交由当前库存/账本维护，
+不通过旧世界文件或已退役的物件服务重建和补发。
 新局和新身体的隔离仍走 GameMode 的 Match/Life 与各领域拒旧协议，见
 [架构与网络](ARCHITECTURE_AND_NETWORKING.md#请求代次与回执)；这不等于完整 Demo 新局流程已经验收。
 
@@ -254,12 +257,11 @@ Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资�
 ## 检查入口
 
 对应 Sync `--check`、`Test*Import.py`、Bootstrap Validate 先验证生成链。
-几何、导航与实际交互用 `RunB90Structure.ps1`、`RunB90River.ps1`、`RunB90Traversal.ps1`、`RunB91Check.ps1`、
-`RunB91Network.ps1` 等既有场景按需覆盖。
-`RunB91Completion.ps1` 使用当前运行结果汇总，不依赖冻结文档档案。
-`RunB91Encounter.ps1` 只产出当前连接中的交互与守恒证据，不启动独立的世界恢复进程；
-Completion 与它共用 `CheckB91Encounter.py` 校验器。输出缺失/失败的拒绝测试可单独运行
-`python -B -m unittest discover -s .\Scripts -p "TestB91EncounterEvidence.py"`。
+几何与导航使用当前 `Lockdown.Rules.DemoWorld` 和 Bootstrap 校验；
+观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
+真实拥有连接使用 `RunDemoWorldRoomCheck.ps1` 与相应核心/后续 N03 场景。
+旧 B90/B91、World/Objective/Region probe 的授予、改时钟、重进旧图或独立恢复进程
+不作为 Demo 验收入口；未完成的 N03/N02 与真实拓扑断言仍需在对应所有者接通。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
 
 工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。

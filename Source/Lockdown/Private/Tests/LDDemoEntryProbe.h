@@ -17,15 +17,13 @@ namespace LDDemoTests
         int32 Services = 0;
         int32 RegistryCreations = 0;
         int32 RegistryActivations = 0;
-        int32 SurfaceCreations = 0;
-        int32 SurfaceActivations = 0;
     };
     void StartEntryObservation(ULDGameInstance& Instance, bool IsolatedTest = false);
     void StopEntryObservation(ULDGameInstance& Instance);
     void ObserveRejectedEntry(ULDGameInstance& Instance, UWorld& World);
     void ObserveEntryBeforeWorld(ULDGameInstance& Instance);
     void EndEntryBrowse(ULDGameInstance& Instance);
-    void ObserveMapSubsystem(UWorld& World, bool Surface, bool Activation);
+    void ObserveMapRegistry(UWorld& World, bool Activation);
     FEntryObservation ReadEntryObservation(const ULDGameInstance& Instance);
     void ProbeRejectedEntry(UWorld& World);
     void StartFrontendSettingsProbe(UWorld& World);

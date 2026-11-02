@@ -228,7 +228,7 @@ Host 离开是会话结束，不执行普通客户端离开的继续对局路径
 不因受击回头重追。实际到家且仍存活的成员满血蓝、清临时效果/仇恨、技能就绪，
 不复活死成员、不增 Life、不发奖励。这一野怪重置不适用于参赛者的冷却/比例保留规则。
 具体反击输入只消费 Combat 成功提交的 `FLDCombatHostileContact`，
-由 World 的 `OnCombatHostileContact` 幂等生成反击意图；Miss/无效攻击意图不触发反击。
+由 N03 营地接线幂等记录本营敌对来源，再经 `LDCampDecision` 纯决策生成反击意图（营地原语待 N03 接线）；Miss/无效攻击意图不触发反击。
 `PrepareCampReset/ApplyCampReset` 归 Combat，World 提供实际 HomeProof 和 ReturnEpoch；
 重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只有新 Returning 周期才推进epoch。
 纯Prepare先清局部候选临时状态，再计算最终上限并准备满资源，最后与World状态原子安装；
@@ -452,7 +452,7 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 | 领域 | 唯一定义入口 | 关键交接与剩余门槛 |
 | --- | --- | --- |
 | 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder`、`CommitPendingOrders(permit)`、`CommitActionHandoff` 归现有 Navigation；只收件不激活，动作交接原子；文档静态审核已完成，跨域核心收口、CT06 原生运动、内容/资产和真实连接验证仍需完成 |
-| 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可，Objective 单圈归约；不新增第二核心 |
+| 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可并做单圈归约；不新增第二核心 |
 | 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；现有坐标/尺寸已获首轮批准，实际场景与资产仍需验证 |
 | AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；全部12个AI叶参数须落入唯一内容表 |
 | 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query/OnActionFinished、准入后Token、Prepare/ApplyBuildChange及CampReset；正文区分持久来源与独立已释放效果，不复用旧family-max |

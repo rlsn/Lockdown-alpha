@@ -1,81 +1,79 @@
 #include "Economy/LDEconomyLedger.h"
-#include "Economy/LDEconomyCatalog.h"
-#include "Economy/LDProductionDirector.h"
-#include "Economy/LDCommerceDirector.h"
-#include "Economy/LDBankDirector.h"
-#include "Vision/LDViewTypes.h"
-#include "UObject/UnrealType.h"
-#include "Serialization/MemoryWriter.h"
-#include "Serialization/MemoryReader.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyUninitializedRefusalTest,"Lockdown.Rules.EconomyUninitializedRefusal",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDEconomyUninitializedRefusalTest::RunTest(const FString& Parameters)
+{
+    auto* Director=GetMutableDefault<ALDEconomyDirector>();
+    const int32 Before=Director->Accounting().ReceiptCount();
+    AddExpectedError(TEXT("LD_ECONOMY_NOT_INITIALIZED"),EAutomationExpectedErrorFlags::Contains,1);
+    TestFalse(TEXT("An uninitialized economy cannot report a committed transaction"),Director->Record(TEXT("Fixture")));
+    TestEqual(TEXT("Rejected uninitialized call creates no receipt"),Director->Accounting().ReceiptCount(),Before);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyAccountingTest,"Lockdown.Rules.EconomyAccounting",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDEconomyAccountingTest::RunTest(const FString& Parameters)
 {
     using namespace LDEconomy;FString Error;FLedger L;
-    TestTrue(TEXT("Initialize finite match once"),L.Initialize(FGuid::NewGuid(),{{TEXT("Wallet"),100},{TEXT("Bank"),0},{TEXT("Market"),150}},{{TEXT("Node"),1},{TEXT("Reward"),1}},Error));
-    TestFalse(TEXT("Duplicate initialization never refills"),L.Initialize(FGuid::NewGuid(),{}, {},Error));
-    FTransaction Deposit;
-    TestTrue(TEXT("Build explicit deposit"),BankTransaction(L,FGuid::NewGuid(),TEXT("Wallet"),TEXT("Bank"),1,1,100,true,Deposit,Error));
-    TestTrue(TEXT("Commit deposit"),L.Commit(Deposit,Error));
-    TestEqual(TEXT("Deposit burns two"),L.Burned(),int64(2));
-    TestEqual(TEXT("Deposit credits 98"),L.Account(TEXT("Bank"))->Gold,int64(98));
-    TestTrue(TEXT("Identical old receipt replay succeeds without revision mutation"),L.Commit(Deposit,Error));
-    TestEqual(TEXT("Replay charged once"),L.Account(TEXT("Bank"))->Revision,uint32(2));
-    auto Altered=Deposit;Altered.Burn=3;
-    TestFalse(TEXT("Replay with altered terms rejects"),L.Commit(Altered,Error));
-    FTransaction Withdraw;
-    TestTrue(TEXT("Build withdrawal"),BankTransaction(L,FGuid::NewGuid(),TEXT("Wallet"),TEXT("Bank"),2,2,30,false,Withdraw,Error));
-    TestTrue(TEXT("Withdraw commits"),L.Commit(Withdraw,Error));
-    TestEqual(TEXT("Withdrawal leaves 68 protected gold"),L.Account(TEXT("Bank"))->Gold,int64(68));
-    TestEqual(TEXT("Withdrawal gives 30 wallet gold"),L.Account(TEXT("Wallet"))->Gold,int64(30));
-    TestFalse(TEXT("Stale balance confirmation fails"),BankTransaction(L,FGuid::NewGuid(),TEXT("Wallet"),TEXT("Bank"),2,2,10,true,Withdraw,Error));
-    for(int64 Amount:{int64(-1),int64(0),int64(1),MAX_int64}){TestFalse(TEXT("Negative/zero/no-credit/overflow deposits fail"),BankTransaction(L,FGuid::NewGuid(),TEXT("Wallet"),TEXT("Bank"),3,3,Amount,true,Withdraw,Error));}
-    TestEqual(TEXT("Fee ceiling at 51"),DepositFee(51),int64(2));
-    TestEqual(TEXT("Fee calculation avoids multiply overflow"),DepositFee(MaxBalance),MaxBalance/50+(MaxBalance%50!=0));
-    FTransaction Reward;Reward.Id=FGuid::NewGuid();Reward.Cause=TEXT("Work");Reward.Mint=25;Reward.Gold={{TEXT("Wallet"),3,25}};Reward.Budget=TEXT("Reward");Reward.Units=1;
-    TestTrue(TEXT("Bounded reward commits"),L.Commit(Reward,Error));
-    auto Excess=Reward;Excess.Id=FGuid::NewGuid();Excess.Gold[0].Expected=4;
-    TestFalse(TEXT("Exhausted budget cannot mint"),L.Commit(Excess,Error));
-    TestEqual(TEXT("Reward budget stays exhausted"),L.Remaining(TEXT("Reward")),0);
-    FTransaction Transfer;Transfer.Id=FGuid::NewGuid();Transfer.Cause=TEXT("MarketSale");Transfer.Gold={{TEXT("Market"),1,-12},{TEXT("Wallet"),4,12}};
-    TestTrue(TEXT("Market payment is a transfer"),L.Commit(Transfer,Error));
-    TestEqual(TEXT("Market payment did not mint"),L.Minted(),int64(25));
-    auto Invalid=Transfer;Invalid.Id=FGuid::NewGuid();Invalid.Gold={{TEXT("Wallet"),5,1}};
-    const auto Before=L.TotalGold();const auto Receipts=L.ReceiptCount();
-    TestFalse(TEXT("Unclassified money creation fails atomically"),L.Commit(Invalid,Error));
-    TestEqual(TEXT("Failed transaction changes no balance"),L.TotalGold(),Before);
-    TestEqual(TEXT("Failed transaction adds no committed receipt"),L.ReceiptCount(),Receipts);
-    const FGuid Input=FGuid::NewGuid(),Output=FGuid::NewGuid();
-    FTransaction Gather;Gather.Id=FGuid::NewGuid();Gather.Cause=TEXT("Gather");Gather.Budget=TEXT("Node");Gather.Units=1;
-    FItemDelta Create;Create.Id=Input;Create.Op=EItemOp::Create;Create.Kind=ELDItemKind::Crystal;Create.To=TEXT("Wallet");Gather.Items={Create};
-    TestTrue(TEXT("Extraction creates one real identity and consumes charge together"),L.Commit(Gather,Error));
-    auto Again=Gather;Again.Id=FGuid::NewGuid();Again.Items[0].Id=FGuid::NewGuid();TestFalse(TEXT("Node cannot refill through another receipt"),L.Commit(Again,Error));
-    FTransaction Craft;Craft.Id=FGuid::NewGuid();Craft.Cause=TEXT("Craft");Craft.Burn=6;Craft.Gold={{TEXT("Wallet"),5,-6}};
-    FItemDelta Consume;Consume.Id=Input;Consume.Op=EItemOp::Consume;Consume.Kind=ELDItemKind::Crystal;Consume.Expected=1;Consume.From=TEXT("Wallet");
-    Create.Id=Output;Create.Kind=ELDItemKind::Core;Create.Parents={Input};Craft.Items={Consume,Create};
-    auto BadCraft=Craft;BadCraft.Items[1].Parents={FGuid::NewGuid()};
-    TestFalse(TEXT("Missing parent fails before fee or input consumption"),L.Commit(BadCraft,Error));
-    TestFalse(TEXT("Failed craft keeps input live"),L.Item(Input)->Consumed);
-    TestTrue(TEXT("Causal transformation commits once"),L.Commit(Craft,Error));
-    TestTrue(TEXT("Input retained as consumed audit record"),L.Item(Input)->Consumed);
-    TestEqual(TEXT("Output has origin receipt"),L.Item(Output)->Origin,Craft.Id);
-    TestTrue(TEXT("Output retains exact parent"),L.Item(Output)->Parents==TArray<FGuid>{Input});
-    TestTrue(TEXT("Lazy NPC endowment counted once"),L.EndowAccount(TEXT("NPC"),36));
-    TestFalse(TEXT("Recreated body cannot repeat endowment"),L.EndowAccount(TEXT("NPC"),36));
-    TestTrue(TEXT("Wallet can retire without destruction"),L.Retire(TEXT("Wallet")));
-    TestTrue(TEXT("Retirement is idempotent"),L.Retire(TEXT("Wallet")));
-    TestEqual(TEXT("All banks/markets/retired/NPC gold reconciles"),L.TotalGold(),int64(303));
-    TestTrue(TEXT("Full independent receipt replay reconciles"),L.Reconcile(Error));
-    FLedger Bounds;TestTrue(TEXT("Initialize independent dual bounds"),Bounds.Initialize(FGuid::NewGuid(),{{TEXT("W"),0}},{{TEXT("Global"),2},{TEXT("Owner"),1}},Error));
-    FTransaction Dual;Dual.Id=FGuid::NewGuid();Dual.Cause=TEXT("DualBound");Dual.Budget=TEXT("Global");Dual.Units=1;Dual.Budgets.Add({TEXT("Owner"),1});
-    TestTrue(TEXT("Both budgets debit in one receipt"),Bounds.Commit(Dual,Error));Dual.Id=FGuid::NewGuid();
-    TestFalse(TEXT("Exhausted owner rejects before global debit"),Bounds.Commit(Dual,Error));TestEqual(TEXT("Global remains one"),Bounds.Remaining(TEXT("Global")),1);
-    TestTrue(TEXT("Dual budgets replay"),Bounds.Reconcile(Error));
-    AddInfo(Error);return true;
+    const FGuid Match=FGuid::NewGuid();
+    if(!TestTrue(TEXT("Initialize accounting fixture, not Demo endowments"),L.Initialize(Match,{{TEXT("A"),100},{TEXT("B"),0}},{{TEXT("Global"),2},{TEXT("Owner"),1}},Error))){return false;}
+    const FString Initial=L.ExportJson(TEXT("Same"));
+    TestFalse(TEXT("A repeated initialization cannot refill the match"),L.Initialize(Match,{{TEXT("A"),200}}, {},Error));
+    TestEqual(TEXT("Rejected initialization preserves the complete domain"),L.ExportJson(TEXT("Same")),Initial);
+    TestTrue(TEXT("Reopening an existing account cannot reset it"),L.OpenAccount(TEXT("A"))&&L.Account(TEXT("A"))->Gold==100&&L.Account(TEXT("A"))->Revision==1);
+    TestTrue(TEXT("New account starts at zero without minting"),L.OpenAccount(TEXT("C"))&&L.Account(TEXT("C"))->Gold==0&&L.Minted()==0);
+    TestFalse(TEXT("Missing account identity is rejected"),L.OpenAccount(NAME_None));
+    FTransaction Transfer;Transfer.Id=FGuid::NewGuid();Transfer.Cause=TEXT("FixtureTransfer");Transfer.Gold={{TEXT("A"),1,-10},{TEXT("B"),1,10}};
+    if(!TestTrue(TEXT("Conserved two-account transaction commits"),L.Commit(Transfer,Error))){return false;}
+    const FString Transferred=L.ExportJson(TEXT("Same"));
+    TestTrue(TEXT("Exact completed request replays"),L.Commit(Transfer,Error));
+    TestEqual(TEXT("Replay preserves every balance, revision and receipt"),L.ExportJson(TEXT("Same")),Transferred);
+    auto Changed=Transfer;Changed.Cause=TEXT("ChangedTerms");
+    TestFalse(TEXT("Same request ID cannot change its cause"),L.Commit(Changed,Error));
+    Changed=Transfer;Changed.Id=FGuid::NewGuid();
+    TestFalse(TEXT("A fresh ID cannot reuse stale account revisions"),L.Commit(Changed,Error));
+    TestEqual(TEXT("Rejected replays leave the domain intact"),L.ExportJson(TEXT("Same")),Transferred);
+    FTransaction Unbacked;Unbacked.Id=FGuid::NewGuid();Unbacked.Cause=TEXT("FixtureUnbacked");Unbacked.Gold={{TEXT("A"),2,1}};
+    TestFalse(TEXT("Unclassified positive balance creation is rejected"),L.Commit(Unbacked,Error));
+    TestEqual(TEXT("Unclassified creation changes no balance, revision or receipt"),L.ExportJson(TEXT("Same")),Transferred);
+    FTransaction Reward;Reward.Id=FGuid::NewGuid();Reward.Cause=TEXT("FixtureReward");Reward.Mint=5;Reward.Gold={{TEXT("A"),2,5}};Reward.Budget=TEXT("Global");Reward.Units=1;Reward.Budgets.Add({TEXT("Owner"),1});
+    TestTrue(TEXT("Multiple bounds and reward commit together"),L.Commit(Reward,Error));
+    const FString Rewarded=L.ExportJson(TEXT("Same"));
+    Changed=Reward;Changed.Id=FGuid::NewGuid();Changed.Gold[0].Expected=3;
+    TestFalse(TEXT("An exhausted bound rejects before another bound or wallet changes"),L.Commit(Changed,Error));
+    TestTrue(TEXT("Failed bounded reward preserves all state"),L.ExportJson(TEXT("Same"))==Rewarded&&L.Remaining(TEXT("Global"))==1&&L.Remaining(TEXT("Owner"))==0);
+    FTransaction Spend;Spend.Id=FGuid::NewGuid();Spend.Cause=TEXT("FixtureSpend");Spend.Burn=5;Spend.Gold={{TEXT("A"),3,-5}};
+    Changed=Spend;Changed.Burn=0;TestFalse(TEXT("Unclassified resource destruction is rejected"),L.Commit(Changed,Error));
+    TestTrue(TEXT("Explicit burn commits once"),L.Commit(Spend,Error));
+    TestTrue(TEXT("Retirement retains accounting and is idempotent"),L.Retire(TEXT("B"))&&L.Retire(TEXT("B")));
+    const FString Retired=L.ExportJson(TEXT("Same"));
+    Changed=Reward;Changed.Id=FGuid::NewGuid();Changed.Budget=NAME_None;Changed.Units=0;Changed.Budgets.Reset();Changed.Gold={{TEXT("B"),3,5}};
+    TestFalse(TEXT("Retired account cannot accept a new reward"),L.Commit(Changed,Error));
+    TestEqual(TEXT("Retired rejection changes no receipt or balance"),L.ExportJson(TEXT("Same")),Retired);
+    TestTrue(TEXT("Live and retired accounts conserve all classified money"),L.TotalGold()==100&&L.Minted()==5&&L.Burned()==5);
+    TestTrue(TEXT("Independent replay reconstructs revisions, bounds and retirement"),L.Reconcile(Error));
+    FLedger Endowments;
+    if(!TestTrue(TEXT("Initialize isolated late-endowment fixture"),Endowments.Initialize(FGuid::NewGuid(),{}, {},Error))){return false;}
+    TestTrue(TEXT("A previously unseen account receives its finite endowment once"),Endowments.EndowAccount(TEXT("LateOwner"),36)&&Endowments.TotalGold()==36&&Endowments.Minted()==0);
+    const FString Endowed=Endowments.ExportJson(TEXT("Same"));
+    TestFalse(TEXT("Reusing an endowed account identity cannot refill it"),Endowments.EndowAccount(TEXT("LateOwner"),36));
+    TestEqual(TEXT("Duplicate endowment preserves the complete accounting domain"),Endowments.ExportJson(TEXT("Same")),Endowed);
+    TestTrue(TEXT("Late endowment is retained by independent replay"),Endowments.Reconcile(Error));
+    FLedger BoundedItems;
+    if(!TestTrue(TEXT("Initialize a finite item-creation budget fixture"),BoundedItems.Initialize(FGuid::NewGuid(),{{TEXT("Owner"),0}},{{TEXT("Once"),1}},Error))){return false;}
+    FTransaction CreateOnce;CreateOnce.Id=FGuid::NewGuid();CreateOnce.Cause=TEXT("FixtureBoundedCreation");CreateOnce.Budget=TEXT("Once");CreateOnce.Units=1;
+    CreateOnce.Mint=5;CreateOnce.Gold={{TEXT("Owner"),1,5}};
+    FItemDelta Created;Created.Id=FGuid::NewGuid();Created.Op=EItemOp::Create;Created.Kind=ELDItemKind::Fiber;Created.To=TEXT("World");CreateOnce.Items={Created};
+    TestTrue(TEXT("One finite budget debit and one item identity commit together"),BoundedItems.Commit(CreateOnce,Error)&&BoundedItems.Remaining(TEXT("Once"))==0&&BoundedItems.Item(Created.Id)&&BoundedItems.Item(Created.Id)->Origin==CreateOnce.Id&&BoundedItems.Account(TEXT("Owner"))->Gold==5&&BoundedItems.Minted()==5);
+    const FString Exhausted=BoundedItems.ExportJson(TEXT("Same"));
+    CreateOnce.Id=FGuid::NewGuid();CreateOnce.Items[0].Id=FGuid::NewGuid();CreateOnce.Gold[0].Expected=2;
+    TestFalse(TEXT("A fresh request identity cannot refill an exhausted creation budget"),BoundedItems.Commit(CreateOnce,Error));
+    TestEqual(TEXT("Exhausted creation leaves items, budgets and receipts unchanged"),BoundedItems.ExportJson(TEXT("Same")),Exhausted);
+    TestTrue(TEXT("Finite item creation independently reconciles"),BoundedItems.Reconcile(Error));
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyAtomicItemTransferTest,"Lockdown.Rules.EconomyAtomicItemTransfer",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -85,7 +83,7 @@ bool FLDEconomyAtomicItemTransferTest::RunTest(const FString& Parameters)
     FString Error;FLedger Ledger;
     if(!TestTrue(TEXT("Initialize transaction fixture, not product prices"),Ledger.Initialize(FGuid::NewGuid(),{{TEXT("Buyer"),100},{TEXT("Vendor"),0}}, {},Error))){return false;}
     FTransaction Stock;Stock.Id=FGuid::NewGuid();Stock.Cause=TEXT("FixtureStock");
-    FItemDelta Item;Item.Id=FGuid::NewGuid();Item.Op=EItemOp::Create;Item.Kind=ELDItemKind::SimpleStaff;Item.Quality=2;Item.To=TEXT("Vendor");Stock.Items={Item};
+    FItemDelta Item;Item.Id=FGuid::NewGuid();Item.Op=EItemOp::Create;Item.Kind=ELDItemKind::Fiber;Item.Quality=2;Item.To=TEXT("Vendor");Stock.Items={Item};
     if(!TestTrue(TEXT("Create one authoritative item identity"),Ledger.Commit(Stock,Error))){return false;}
     FTransaction Buy;Buy.Id=FGuid::NewGuid();Buy.Cause=TEXT("FixturePurchase");Buy.Gold={{TEXT("Buyer"),1,-7},{TEXT("Vendor"),1,7}};
     Item.Op=EItemOp::Transfer;Item.Expected=1;Item.From=TEXT("Vendor");Item.To=TEXT("Buyer");Buy.Items={Item};
@@ -102,6 +100,7 @@ bool FLDEconomyAtomicItemTransferTest::RunTest(const FString& Parameters)
     Invalid=Buy;Invalid.Items[0].From=TEXT("Buyer");Unchanged(Invalid,TEXT("Foreign item ownership rejects before payment"));
     Invalid=Buy;Invalid.Gold[0].Expected=2;Unchanged(Invalid,TEXT("Stale wallet rejects before item transfer"));
     Invalid=Buy;Invalid.Items[0]=Stock.Items[0];Unchanged(Invalid,TEXT("Duplicate creation fails before charging gold"));
+    Invalid=Buy;Invalid.Items[0]=Stock.Items[0];Invalid.Items[0].Id.Invalidate();Unchanged(Invalid,TEXT("Missing allocated output identity rejects before charging gold"));
     Invalid=Buy;Invalid.Gold={{TEXT("Buyer"),1,-101},{TEXT("Vendor"),1,101}};Unchanged(Invalid,TEXT("Insufficient funds cannot transfer an item"));
     if(!TestTrue(TEXT("Current terms commit gold and item together"),Ledger.Commit(Buy,Error))){return false;}
     TestEqual(TEXT("One debit"),Ledger.Account(TEXT("Buyer"))->Gold,int64(93));
@@ -129,54 +128,52 @@ bool FLDEconomyAtomicItemTransferTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyCatalogTest,"Lockdown.Rules.EconomyCatalog",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDEconomyCatalogTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyAtomicReplacementTest,"Lockdown.Rules.EconomyAtomicReplacement",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDEconomyAtomicReplacementTest::RunTest(const FString& Parameters)
 {
-    using namespace LDEconomy;FCatalog C;FString Error;
-    if(!TestTrue(TEXT("Runtime economy catalog loads"),C.Load(Error))){AddError(Error);return false;}
-    int32 Count=0,Stocks=0;int64 Gold=0;
-    for(const auto& Market:C.Markets){Gold+=Market.Gold;for(const auto& Good:Market.Goods)
+    using namespace LDEconomy;FLedger Ledger;FString Error;
+    if(!TestTrue(TEXT("Initialize isolated replacement fixture"),Ledger.Initialize(FGuid::NewGuid(),{{TEXT("Owner"),100}}, {},Error))){return false;}
+    FTransaction Seed;Seed.Id=FGuid::NewGuid();Seed.Cause=TEXT("FixtureInputs");
+    for(int32 N=0;N<2;++N){FItemDelta Item;Item.Id=FGuid::NewGuid();Item.Op=EItemOp::Create;Item.Kind=ELDItemKind::Fiber;Item.To=TEXT("Owner");Seed.Items.Add(Item);}
+    if(!TestTrue(TEXT("Two distinct input identities are recorded"),Ledger.Commit(Seed,Error))){return false;}
+    FTransaction Replace;Replace.Id=FGuid::NewGuid();Replace.Cause=TEXT("FixtureReplacement");Replace.Burn=3;Replace.Gold={{TEXT("Owner"),1,-3}};
+    for(const auto& Input:Seed.Items){auto Consume=Input;Consume.Op=EItemOp::Consume;Consume.Expected=1;Consume.From=TEXT("Owner");Consume.To=NAME_None;Replace.Items.Add(Consume);}
+    FItemDelta Output;Output.Id=FGuid::NewGuid();Output.Op=EItemOp::Create;Output.Kind=ELDItemKind::Fiber;Output.To=TEXT("Owner");Output.Parents={Seed.Items[0].Id,Seed.Items[1].Id};Replace.Items.Add(Output);
+    auto RejectUnchanged=[&](const FTransaction& Request,const TCHAR* Reason)
     {
-        Stocks+=Good.Target;
-        for(int32 S=0;S<=Good.Cap;++S)
-        {
-            ++Count;const int32 A=Ask(Good,S),B=Bid(Good,S);
-            TestTrue(TEXT("Prices bounded and valid"),A>0&&B>=0&&B<A);
-            if(S>0){TestTrue(TEXT("Buy then sell same instance cannot profit"),Bid(Good,S-1)<A);}
-            if(S<Good.Cap){TestTrue(TEXT("Sell then rebuy cannot profit"),B<Ask(Good,S+1));}
-        }
-    }}
-    TestEqual(TEXT("Initial market cash"),Gold,int64(450));TestEqual(TEXT("Initial unique market items"),Stocks,84);
-    TestEqual(TEXT("Enumerated stock states"),Count,216);
-    const auto* City=C.Markets.FindByPredicate([](const auto& M){return M.Id==TEXT("City");});
-    const auto* Crystal=City->Goods.FindByPredicate([](const auto& G){return G.Kind==ELDItemKind::Crystal;});
-    TestEqual(TEXT("First City Crystal"),Ask(*Crystal,8),12);TestEqual(TEXT("Second City Crystal"),Ask(*Crystal,7),13);TestEqual(TEXT("Third City Crystal"),Ask(*Crystal,6),14);
-    for(const auto& M:C.Markets){for(const auto& G:M.Goods){for(int32 S=0;S<=G.Cap;++S){TestTrue(TEXT("Shortage ratio preserves nonprofitable cycles"),S==0||Bid(G,S-1,5,4)<Ask(G,S,5,4));}}}
-    const FString Checksum=C.Checksum;FString Json;FFileHelper::LoadFileToString(Json,*(FPaths::ProjectContentDir()/TEXT("Lockdown/Data/economy_rules.json")));
-    TestFalse(TEXT("Malformed JSON fails"),C.Parse(TEXT("{}"),Error));
-    TestFalse(TEXT("Fractional stock fails closed"),C.Parse(Json.Replace(TEXT("\"stock\": 18"),TEXT("\"stock\": 18.5")),Error));
-    TestFalse(TEXT("Unknown schema fails"),C.Parse(Json.Replace(TEXT("\"schemaVersion\": 1"),TEXT("\"schemaVersion\": 2")),Error));
-    TestFalse(TEXT("Recipe count cannot create extra outputs"),C.Parse(Json.Replace(TEXT("\"outputCount\": 1"),TEXT("\"outputCount\": 2")),Error));
-    TestFalse(TEXT("Gather budget cannot reset on respawn"),C.Parse(Json.Replace(TEXT("\"resetOnRespawn\": false"),TEXT("\"resetOnRespawn\": true")),Error));
-    TestFalse(TEXT("Coupon cannot stack"),C.Parse(Json.Replace(TEXT("\"stacking\": false"),TEXT("\"stacking\": true")),Error));
-    TestFalse(TEXT("Institution opportunities cannot silently multiply"),C.Parse(Json.Replace(TEXT("1440"),TEXT("1500")),Error));
-    TestFalse(TEXT("Shortage cannot outlive its endpoint"),C.Parse(Json.Replace(TEXT("\"end\": 780"),TEXT("\"end\": 900")),Error));
-    TestFalse(TEXT("Legacy bypass catalog rejected"),C.Parse(Json.Replace(TEXT("\"legacySealBypass\": false"),TEXT("\"legacySealBypass\": true")),Error));
-    TestEqual(TEXT("Failed reload leaves live definitions intact"),C.Checksum,Checksum);
-    return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDEconomyPayloadTest,"Lockdown.Rules.EconomyPayload",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDEconomyPayloadTest::RunTest(const FString& Parameters)
-{
-    auto Fields=[&](UStruct* Struct,const TArray<FName>& Names){int32 Count=0;for(TFieldIterator<FProperty> It(Struct,EFieldIteratorFlags::ExcludeSuper);It;++It){++Count;TestTrue(TEXT("Only intended economy payload fields"),Names.Contains(It->GetFName()));}TestEqual(TEXT("Complete reflected payload field count"),Count,Names.Num());for(FName Name:Names){TestNotNull(TEXT("Field participates in RPC/replication serialization"),Struct->FindPropertyByName(Name));}};
-    Fields(FLDProductionPlan::StaticStruct(),{TEXT("CatalogDigest"),TEXT("Mode"),TEXT("Target"),TEXT("Site"),TEXT("Recipe"),TEXT("RecipeRevision"),TEXT("InventoryRevision"),TEXT("BuildRevision"),TEXT("SkillSlot"),TEXT("Fee"),TEXT("Coupon"),TEXT("Inputs")});
-    Fields(FLDCommerceOffer::StaticStruct(),{TEXT("Kind"),TEXT("Stock"),TEXT("Cap"),TEXT("Ask"),TEXT("Bid")});
-    Fields(FLDCommerceView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("Revision"),TEXT("Service"),TEXT("Cash"),TEXT("QuotedAt"),TEXT("Offers")});
-    Fields(FLDBankView::StaticStruct(),{TEXT("Session"),TEXT("Token"),TEXT("Match"),TEXT("Life"),TEXT("WalletRevision"),TEXT("BankRevision"),TEXT("Wallet"),TEXT("Bank")});
-    for(FName N:{FName(TEXT("CraftCoupon")),FName(TEXT("CouponSite")),FName(TEXT("CouponUntil")),FName(TEXT("ProductionSite")),FName(TEXT("ProductionSeconds")),FName(TEXT("IndustrialEndorsement")),FName(TEXT("SupplyEndorsement")),FName(TEXT("CoreOrders")),FName(TEXT("SupplyOrders")),FName(TEXT("CharterPurchase")),FName(TEXT("CharterActivation")),FName(TEXT("CharterReadyAt")),FName(TEXT("bCharterAwaitingRespawn"))}){TestNotNull(TEXT("Private production owner field reflected"),FLDOwnerState::StaticStruct()->FindPropertyByName(N));}
-    FLDProductionPlan Plan;Plan.Site=4;Plan.Recipe=2;Plan.RecipeRevision=7;Plan.InventoryRevision=19;Plan.BuildRevision=11;Plan.SkillSlot=3;Plan.Fee=4;Plan.Coupon=FGuid::NewGuid();FLDInventoryItem Item;Item.Id=FGuid::NewGuid();Item.Kind=ELDItemKind::Toolkit;Item.Revision=17;Plan.Inputs.Add(Item);
-    TArray<uint8> Bytes;FMemoryWriter Writer(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Writer,&Plan,nullptr);FLDProductionPlan Read;FMemoryReader Reader(Bytes);FLDProductionPlan::StaticStruct()->SerializeItem(Reader,&Read,nullptr);
-    TestTrue(TEXT("Reflected production plan preserves exact fee, site, recipe, stamps, coupon and input revisions"),!Writer.IsError()&&!Reader.IsError()&&Read.Site==4&&Read.Recipe==2&&Read.RecipeRevision==7&&Read.InventoryRevision==19&&Read.BuildRevision==11&&Read.SkillSlot==3&&Read.Fee==4&&Read.Coupon==Plan.Coupon&&Read.Inputs.Num()==1&&Read.Inputs[0].Id==Item.Id&&Read.Inputs[0].Revision==17);
+        const FString Before=Ledger.ExportJson(TEXT("Same"));
+        TestFalse(Reason,Ledger.Commit(Request,Error));
+        TestFalse(TEXT("Failure returns an explicit reason"),Error.IsEmpty());
+        TestEqual(TEXT("Failure cannot charge, consume an input or create a receipt"),Ledger.ExportJson(TEXT("Same")),Before);
+        for(const auto& Input:Seed.Items){TestTrue(TEXT("Failed replacement retains each live input and its revision"),!Ledger.Item(Input.Id)->Consumed&&Ledger.Item(Input.Id)->Revision==1);}
+    };
+    auto Bad=Replace;Bad.Items.Last().Id.Invalidate();RejectUnchanged(Bad,TEXT("Unavailable output identity rejects before any mutation"));
+    Bad=Replace;Bad.Items[1]=Bad.Items[0];RejectUnchanged(Bad,TEXT("A repeated exact input cannot be consumed twice"));
+    Bad=Replace;Bad.Items[1].Expected=2;RejectUnchanged(Bad,TEXT("Stale input revision rejects the entire replacement"));
+    Bad=Replace;Bad.Items.Last().Parents[0]=FGuid::NewGuid();RejectUnchanged(Bad,TEXT("Missing parent cannot fabricate a replacement"));
+    Bad=Replace;Bad.Items.Last().Id=Seed.Items[0].Id;RejectUnchanged(Bad,TEXT("Consumed identity cannot be reused as a new output"));
+    if(!TestTrue(TEXT("Valid replacement commits fee, inputs and output in one receipt"),Ledger.Commit(Replace,Error))){return false;}
+    TestTrue(TEXT("All inputs retired, exactly one output live"),Ledger.Item(Seed.Items[0].Id)->Consumed&&Ledger.Item(Seed.Items[1].Id)->Consumed&&!Ledger.Item(Output.Id)->Consumed&&Ledger.Item(Output.Id)->Origin==Replace.Id&&Ledger.Account(TEXT("Owner"))->Gold==97);
+    const FString Committed=Ledger.ExportJson(TEXT("Same"));
+    TestTrue(TEXT("Duplicate final replacement replays"),Ledger.Commit(Replace,Error));
+    TestEqual(TEXT("Replacement replay has no second fee, consumption or output"),Ledger.ExportJson(TEXT("Same")),Committed);
+    FTransaction Revision;Revision.Id=FGuid::NewGuid();Revision.Cause=TEXT("FixtureItemRevision");
+    auto Item=Output;Item.Op=EItemOp::Quality;Item.From=Item.To=TEXT("Owner");Item.Expected=1;Item.Parents.Reset();Item.Quality=1;Revision.Items={Item};
+    TestTrue(TEXT("Existing item revision changes without replacing identity or origin"),Ledger.Commit(Revision,Error)&&Ledger.Item(Output.Id)->Origin==Replace.Id&&Ledger.Item(Output.Id)->Parents==Output.Parents);
+    const uint32 Once=Ledger.Item(Output.Id)->Revision;TestTrue(TEXT("Exact item revision replay remains idempotent"),Ledger.Commit(Revision,Error)&&Ledger.Item(Output.Id)->Revision==Once);
+    Revision.Id=FGuid::NewGuid();TestFalse(TEXT("Fresh request with stale item revision cannot apply twice"),Ledger.Commit(Revision,Error));
+    TestTrue(TEXT("Complete accepted history independently reconciles"),Ledger.Reconcile(Error));
+    FLedger TransientLedger;
+    if(!TestTrue(TEXT("Initialize isolated transient-parent fixture"),TransientLedger.Initialize(FGuid::NewGuid(),{{TEXT("Owner"),100}}, {},Error))){return false;}
+    FTransaction TransientReceipt;TransientReceipt.Id=FGuid::NewGuid();TransientReceipt.Cause=TEXT("EquipmentWorkOrder");TransientReceipt.Burn=3;TransientReceipt.Gold={{TEXT("Owner"),1,-3}};
+    FItemDelta Transient;Transient.Id=FGuid::NewGuid();Transient.Kind=ELDItemKind::Fiber;Transient.Op=EItemOp::Transient;Transient.To=TEXT("Owner");
+    FItemDelta Final;Final.Id=FGuid::NewGuid();Final.Kind=ELDItemKind::Fiber;Final.Op=EItemOp::Create;Final.To=TEXT("Owner");Final.Parents={Transient.Id};
+    TransientReceipt.Items={Transient,Final};
+    TestTrue(TEXT("One receipt creates a consumed transient parent and a live causal output"),TransientLedger.Commit(TransientReceipt,Error));
+    TestTrue(TEXT("Transient parent is an audit record, not a second live item"),TransientLedger.Item(Transient.Id)&&TransientLedger.Item(Transient.Id)->Consumed&&TransientLedger.Item(Final.Id)&&!TransientLedger.Item(Final.Id)->Consumed&&TransientLedger.Item(Final.Id)->Parents==Final.Parents);
+    const FString TransientOnce=TransientLedger.ExportJson(TEXT("Same"));
+    TestTrue(TEXT("Exact transient receipt replay does not allocate or charge again"),TransientLedger.Commit(TransientReceipt,Error)&&TransientLedger.ExportJson(TEXT("Same"))==TransientOnce);
+    TestTrue(TEXT("Transient parent and final output independently reconcile"),TransientLedger.Reconcile(Error));
     return true;
 }
 #endif

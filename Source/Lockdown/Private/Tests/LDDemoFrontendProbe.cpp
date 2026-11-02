@@ -140,8 +140,8 @@ namespace
                     || !Check(LDLocalSettings::ResolveConfigDestination(*GConfig, GIsEditor ? GEditorSettingsIni : GGameUserSettingsIni, PhysicalQuality, ResolutionError)
                         && FPaths::IsUnderDirectory(PhysicalQuality, Directory),
                         TEXT("Quality settings target is isolated under this fixture UserDir"))) { return Finish(); }
-                Storage = FLDLocalSettingsStorage::User(6);
-                PC->Controls = Instance->GetLocalControlSettings(6);
+                Storage = FLDLocalSettingsStorage::User();
+                PC->Controls = Instance->GetLocalControlSettings();
                 if (!Check(PC->Controls && FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Storage.Filename()), Directory),
                     TEXT("Control settings use the new isolated process UserDir, never the real user save"))) { return Finish(); }
                 OriginalDisplay = FLDDisplaySettings::Read(*GEngine->GetGameUserSettings());
@@ -159,7 +159,7 @@ namespace
             else if (Stage == 4) { if (!Click(PC->ControlsUI, TEXT("Apply text 100 / 125%"))) { return Finish(); } }
             else if (Stage == 5)
             {
-                const auto Loaded = ULDControlSettings::LoadLocalSettings(Storage, 6);
+                const auto Loaded = ULDControlSettings::LoadLocalSettings(Storage);
                 if (!Check(PC->Controls->TextScale == 1.25f && PC->Controls->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified
                     && Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->TextScale == 1.25f,
                     TEXT("Actual local-preference Apply is persisted and verified from the isolated file"))) { return Finish(); }

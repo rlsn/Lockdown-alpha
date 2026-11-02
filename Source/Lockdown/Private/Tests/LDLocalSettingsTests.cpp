@@ -44,10 +44,10 @@ namespace
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
         FBufferArchive Payload;
-        uint8 Profile = Values.Profile, Follow = Values.bStartFollowing ? 1 : 0;
+        uint8 Follow = Values.bStartFollowing ? 1 : 0;
         float Text = Values.TextScale, Zoom = Values.Zoom;
         int32 Count = Values.Bindings.Num();
-        Payload << Profile << Edge << Follow << Text << Zoom << Count;
+        Payload << Edge << Follow << Text << Zoom << Count;
         for (const auto& Pair : Values.Bindings)
         {
             FString Action = Pair.Key.ToString(), Key = Pair.Value.GetFName().ToString();
@@ -59,6 +59,58 @@ namespace
         Bytes << Magic << Schema << Checksum;
         Bytes.Append(Payload);
         return Bytes;
+    }
+
+    // Reproduces a file written by the retired schema-4 multi-registry layout, including its old action names.
+    TArray<uint8> RetiredRegistryBytes(const TMap<FName, FKey>& Bindings, float TextScale, float Zoom, bool EdgePan)
+    {
+        FBufferArchive Payload;
+        uint8 RetiredSelector = 6, Edge = EdgePan ? 1 : 0, Follow = 1;
+        float Text = TextScale, SavedZoom = Zoom;
+        int32 Count = Bindings.Num();
+        Payload << RetiredSelector << Edge << Follow << Text << SavedZoom << Count;
+        for (const auto& Pair : Bindings)
+        {
+            FString Action = Pair.Key.ToString(), Key = Pair.Value.GetFName().ToString();
+            Payload << Action << Key;
+        }
+        FBufferArchive Bytes;
+        uint32 Magic = 0x4C444353, Schema = 4, Checksum = FCrc::MemCrc32(Payload.GetData(), Payload.Num());
+        Bytes << Magic << Schema << Checksum;
+        Bytes.Append(Payload);
+        return Bytes;
+    }
+
+    TMap<FName, FKey> RetiredLayoutBindings()
+    {
+        struct FRetired { const TCHAR* Action; FKey Key; };
+        const FRetired Values[] = {
+            { TEXT("Select"), EKeys::LeftMouseButton }, { TEXT("Navigate"), EKeys::RightMouseButton }, { TEXT("Attack"), EKeys::A },
+            { TEXT("Skill1"), EKeys::F6 }, { TEXT("Skill2"), EKeys::W }, { TEXT("Skill3"), EKeys::E }, { TEXT("Skill4"), EKeys::R },
+            { TEXT("Item1"), EKeys::One }, { TEXT("Item2"), EKeys::Two }, { TEXT("Item3"), EKeys::Three }, { TEXT("Item4"), EKeys::Four },
+            { TEXT("Stop"), EKeys::S }, { TEXT("Sprint"), EKeys::LeftShift }, { TEXT("Inventory"), EKeys::I }, { TEXT("Development"), EKeys::P },
+            { TEXT("PanUp"), EKeys::Up }, { TEXT("PanDown"), EKeys::Down }, { TEXT("PanLeft"), EKeys::Left }, { TEXT("PanRight"), EKeys::Right },
+            { TEXT("Recenter"), EKeys::SpaceBar }, { TEXT("Follow"), EKeys::Home }, { TEXT("Zoom"), EKeys::MouseWheelAxis },
+            { TEXT("Help"), EKeys::F1 }, { TEXT("Back"), EKeys::Escape } };
+        TMap<FName, FKey> Bindings;
+        for (const auto& Entry : Values) { Bindings.Add(Entry.Action, Entry.Key); }
+        return Bindings;
+    }
+
+    const TCHAR* const RetiredActions[] = { TEXT("Attack"), TEXT("Development"), TEXT("Help"), TEXT("Inventory"), TEXT("Sprint"),
+        TEXT("Skill3"), TEXT("Skill4"), TEXT("Skill5"), TEXT("Skill6"), TEXT("Item3"), TEXT("Item4"), TEXT("Context"), TEXT("Trade") };
+
+    // Checks the stored map itself: Key() never resolves unregistered names, so it cannot prove a retired entry is absent.
+    bool HasExactDemoDefaults(const ULDControlSettings& Settings)
+    {
+        const auto& Registry = ULDControlSettings::Definitions();
+        if (Settings.Bindings.Num() != Registry.Num()) { return false; }
+        for (const auto& Binding : Registry)
+        {
+            const FKey* Bound = Settings.Bindings.Find(Binding.Action);
+            if (!Bound || *Bound != Binding.Key) { return false; }
+        }
+        return true;
     }
 
     FLDDisplaySettings DisplayFixture()
@@ -101,9 +153,9 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     const auto Invalid = FLDLocalSettingsStorage::Automation(FGuid());
     TestTrue(TEXT("Invalid fixture never resolves a real user path"), !Invalid.IsValid() && Invalid.IsAutomation());
     TestTrue(TEXT("Invalid fixture has a typed refusal"), ULDControlSettings::LoadLocalSettings(Invalid).Status == ELDLocalSettingsLoadStatus::InvalidStorage);
-    TestTrue(TEXT("User registry is explicitly whitelisted"), !FLDLocalSettingsStorage::User(99).IsValid());
-    for (uint8 Registry : { uint8(6), uint8(7), uint8(8) })
-    { TestNotEqual(TEXT("Automation storage is distinct from every user file"), Fixture.Storage.Filename(), FLDLocalSettingsStorage::User(Registry).Filename()); }
+    const auto UserStorage = FLDLocalSettingsStorage::User();
+    TestTrue(TEXT("The single user file is explicit and is not an automation fixture"), UserStorage.IsValid() && !UserStorage.IsAutomation());
+    TestNotEqual(TEXT("Automation storage is distinct from the user file"), Fixture.Storage.Filename(), UserStorage.Filename());
 
     auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Missing and Loaded are distinct"), Loaded.Status == ELDLocalSettingsLoadStatus::Missing);
@@ -204,19 +256,24 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
         ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
     }
     Values->ResetBindings();
-    Values->Bindings.Remove(TEXT("Help"));
-    Values->Bindings.Add(TEXT("RetiredAction"), EKeys::F1);
+    Values->Bindings.Remove(TEXT("Attributes"));
+    Values->Bindings.Add(TEXT("Development"), EKeys::P);
     const auto UnknownBindings = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
     Write(UnknownBindings);
     const auto Rejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("Unknown bindings have recovery data, never success"),
+    TestTrue(TEXT("Retired binding names have recovery data, never success"),
         Rejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !Rejected.Settings && Rejected.RecoverablePreferences);
+    TestTrue(TEXT("The rejection names the retired and missing actions"),
+        Rejected.Message.Contains(TEXT("Development")) && Rejected.Message.Contains(TEXT("Attributes")));
+    TestTrue(TEXT("Recovery data never carries a rejected binding name"),
+        Rejected.RecoverablePreferences && !Rejected.RecoverablePreferences->Bindings.Contains(TEXT("Development")));
     auto* Instance = NewObject<ULDGameInstance>();
-    auto* Recovered = Instance->UseIsolatedLocalSettings(Fixture.Id, 6);
+    auto* Recovered = Instance->UseIsolatedLocalSettings(Fixture.Id);
     TestTrue(TEXT("Recovery preserves validated unrelated preferences"),
         Recovered->TextScale == 1.25f && Recovered->Zoom == 1600 && !Recovered->bEdgePan);
     TestTrue(TEXT("Runtime bindings require explicit replacement approval"), Recovered->NeedsRecovery() && Recovered->Valid());
-    TestFalse(TEXT("Retired action cannot reappear at runtime"), Recovered->Key(TEXT("RetiredAction")).IsValid());
+    TestFalse(TEXT("Retired action cannot reappear at runtime"), Recovered->Bindings.Contains(TEXT("Development")));
+    TestTrue(TEXT("Session bindings are exactly the Demo defaults, including the missing action"), HasExactDemoDefaults(*Recovered));
     TestTrue(TEXT("Travel does not silently replace a corrupt file"),
         Instance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired);
     TestTrue(TEXT("Rejected auto-flush kept exact bad bytes"),
@@ -226,8 +283,95 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Recovered file keeps camera/text and current registry"),
         Confirmed.Status == ELDLocalSettingsLoadStatus::Loaded && Confirmed.Settings && Confirmed.Settings->Zoom == 1600
         && Confirmed.Settings->TextScale == 1.25f && !Confirmed.Settings->bEdgePan && Confirmed.Settings->Valid());
-    TestTrue(TEXT("Another explicit registry cannot trigger fallback or migration"),
-        ULDControlSettings::LoadLocalSettings(Fixture.Storage, 8).Status == ELDLocalSettingsLoadStatus::UnsupportedSchema);
+
+    // A schema-4 file from the retired multi-registry layout is incompatible: nothing is migrated, prefs use recovery.
+    auto RetiredBindings = RetiredLayoutBindings();
+    const auto RetiredFile = RetiredRegistryBytes(RetiredBindings, 1.25f, 1650, false);
+    Write(RetiredFile);
+    const auto Retired = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Retired registry schema is an explicit incompatibility, never Loaded"),
+        Retired.Status == ELDLocalSettingsLoadStatus::UnsupportedSchema && !Retired.Settings);
+    for (const TCHAR* Name : { TEXT("Attack"), TEXT("Development"), TEXT("Help"), TEXT("Inventory"), TEXT("Item3"),
+        TEXT("Item4"), TEXT("Skill3"), TEXT("Skill4"), TEXT("Sprint") })
+    { TestTrue(TEXT("The incompatibility names every retired action"), Retired.Message.Contains(Name)); }
+    TestTrue(TEXT("Retired bindings are not migrated into recovery data"), Retired.RecoverablePreferences
+        && Retired.RecoverablePreferences->Valid() && HasExactDemoDefaults(*Retired.RecoverablePreferences));
+    auto* RetiredInstance = NewObject<ULDGameInstance>();
+    auto* RetiredSession = RetiredInstance->UseIsolatedLocalSettings(Fixture.Id);
+    TestTrue(TEXT("Valid camera and text preferences from the retired file are kept for the session"),
+        RetiredSession->TextScale == 1.25f && RetiredSession->Zoom == 1650 && !RetiredSession->bEdgePan);
+    TestTrue(TEXT("Retired layout requires explicit replacement"), RetiredSession->NeedsRecovery() && RetiredSession->Valid());
+    TestTrue(TEXT("No surviving action name is partially migrated"), HasExactDemoDefaults(*RetiredSession));
+    for (const TCHAR* Name : RetiredActions)
+    { TestFalse(TEXT("Retired actions stay absent from the binding map after recovery"), RetiredSession->Bindings.Contains(Name)); }
+    TestTrue(TEXT("Automatic flush keeps the retired file byte-identical"),
+        RetiredInstance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired
+        && FFileHelper::LoadFileToArray(Readback, *Fixture.Storage.Filename()) && Readback == RetiredFile);
+    TestTrue(TEXT("Confirmed recovery replaces it with the current schema"), RetiredInstance->ConfirmLocalSettingsRecovery().IsSaved());
+    const auto Replaced = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Replacement loads with kept preferences and Demo bindings"),
+        Replaced.Status == ELDLocalSettingsLoadStatus::Loaded && Replaced.Settings && Replaced.Settings->Zoom == 1650
+        && Replaced.Settings->Key(TEXT("Skill1")) == EKeys::Q && !Replaced.Settings->Bindings.Contains(TEXT("Sprint")));
+    Write(RetiredRegistryBytes(RetiredBindings, 1.25f, 9999, false));
+    const auto RetiredInvalid = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Invalid preferences in a retired file are not offered for recovery"),
+        RetiredInvalid.Status == ELDLocalSettingsLoadStatus::UnsupportedSchema && !RetiredInvalid.Settings && !RetiredInvalid.RecoverablePreferences);
+    auto DamagedRetired = RetiredRegistryBytes(RetiredBindings, 1.25f, 1650, false);
+    DamagedRetired.Last() ^= 1;
+    Write(DamagedRetired);
+    ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.LocalControlRegistryIsolation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
+{
+    const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
+        TEXT("Item1"), TEXT("Item2"), TEXT("Stop"), TEXT("Attributes"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
+    const auto& Registry = ULDControlSettings::Definitions();
+    if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
+    TSet<FKey> DefaultKeys;
+    for (int32 Index = 0; Index < Registry.Num(); ++Index)
+    {
+        const auto& Binding = Registry[Index];
+        TestTrue(TEXT("Registry order and action names are fixed"), Binding.Action == FName(Expected[Index]));
+        TestFalse(TEXT("Every action has a visible label"), Binding.Label.IsEmpty());
+        TestFalse(TEXT("Default keys never collide"), DefaultKeys.Contains(Binding.Key));
+        TestTrue(TEXT("Only Zoom is an axis"), Binding.Axis == (Binding.Action == TEXT("Zoom")));
+        DefaultKeys.Add(Binding.Key);
+    }
+    auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
+    TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
+    TestTrue(TEXT("Spec defaults: Q/W abilities, 1/2 equipment, A attack-move, P attributes, S stop, Esc back"),
+        Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
+        && Settings->Key(TEXT("Item1")) == EKeys::One && Settings->Key(TEXT("Item2")) == EKeys::Two
+        && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
+        && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape);
+    FString Error;
+    for (const TCHAR* Name : RetiredActions)
+    {
+        TestFalse(TEXT("Default bindings never contain a retired action"), Settings->Bindings.Contains(Name));
+        TestFalse(TEXT("Retired action cannot be rebound"), Settings->Rebind(Name, EKeys::F9, Error));
+        Settings->Bindings.Add(Name, EKeys::F9);
+        TestFalse(TEXT("A retired name injected into the raw map still resolves to no key"), Settings->Key(Name).IsValid());
+        TestFalse(TEXT("A raw map carrying a retired name is invalid"), Settings->Valid());
+        Settings->Bindings.Remove(Name);
+    }
+    TestTrue(TEXT("Raw-map probes leave exactly the Demo defaults"), HasExactDemoDefaults(*Settings));
+    const auto Before = Settings->Bindings;
+    TestFalse(TEXT("Conflicting key is rejected, never relocated"), Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error));
+    TestTrue(TEXT("Rejected rebind preserves every binding"), Settings->Bindings.OrderIndependentCompareEqual(Before));
+    Settings->TextScale = 1.25f;
+    Settings->Zoom = 1600;
+    Settings->ResetBindings();
+    TestTrue(TEXT("Resetting bindings preserves unrelated preferences"), Settings->TextScale == 1.25f && Settings->Zoom == 1600);
+    auto* Draft = Settings->CreateDraft();
+    Draft->Bindings.Add(TEXT("Sprint"), EKeys::LeftShift);
+    TestFalse(TEXT("A draft carrying a retired action cannot be applied"), Settings->ApplyLocalSettings(*Draft, Error));
+    TestTrue(TEXT("The rejection names the retired action"), Error.Contains(TEXT("Sprint")));
+    TestFalse(TEXT("Rejected apply leaves the owner unchanged"), Settings->Bindings.Contains(TEXT("Sprint")));
     return true;
 }
 
@@ -237,7 +381,7 @@ bool FLDLocalDisplayTrialTest::RunTest(const FString& Parameters)
 {
     FLocalSettingsFixture Fixture(*this);
     auto* Instance = NewObject<ULDGameInstance>();
-    auto* Applied = Instance->UseIsolatedLocalSettings(Fixture.Id, 6);
+    auto* Applied = Instance->UseIsolatedLocalSettings(Fixture.Id);
     auto Before = DisplayFixture(), Draft = Before;
     Draft.Resolution = FIntPoint(1920, 1080);
     Draft.bVSync = true;

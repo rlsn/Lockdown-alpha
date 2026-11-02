@@ -58,7 +58,6 @@ namespace LDGear
     LOCKDOWN_API FLDGearStats Derive(const FLDInventory& I);
     LOCKDOWN_API TArray<int32> Allocate(const TArray<int32>& Requested,TArray<int32>& Granted);
     LOCKDOWN_API bool Propose(const FLDInventory& I,const FLDCharacterBuild& B,uint8 Command,FGuid Item,uint8 Slot,FLDInventory& Out,FString& Why);
-    LOCKDOWN_API bool OnRoad(const UWorld* World,const FVector& P);
     LOCKDOWN_API FString Preview(const FLDInventory& I,const FLDCharacterBuild& B);
     LOCKDOWN_API int32 Magnitude(const FLDCharacterBuild& B,ELDSkill S,const FString& Key,const TArray<int32>& Values);
 }

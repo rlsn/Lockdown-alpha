@@ -10,6 +10,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "World/LDSpawnPlacement.h"
+#include "Vision/LDVisionDirector.h"
 #include "Misc/ScopeExit.h"
 
 namespace
@@ -27,7 +28,7 @@ bool ALDGameMode::IsMemberPresent(const FGuid& EntityId) const
 bool ALDGameMode::InitializeAuthorityCore(FString& Error)
 {
     if (!HasAuthority() || !IsDemoRoom() || MatchPhase != ELDMatchPhase::Starting
-        || bAuthorityInitialized || Combat || !MatchContext.IsValid())
+        || bAuthorityInitialized || Combat || Vision || !MatchContext.IsValid())
     {
         Error = TEXT("Authority initialization requires the current uninitialized Starting match.");
         return false;
@@ -58,8 +59,34 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
     AuthorityNowMs = 0;
     AuthorityStep = {MatchContext, 1, 0, 0};
     AuthorityBoundary = {MatchContext, 1, 0};
+    Vision=GetWorld()->SpawnActor<ALDVisionDirector>(Spawn);
+    auto RetirePreparedDomains=[&]
+    {
+        if (Vision) { Vision->Destroy(); Vision=nullptr; }
+        if (Combat) { Combat->Destroy(); Combat=nullptr; }
+        bAuthorityInitialized=false;
+    };
+    if (!Vision || !Vision->BeginMatch(MatchContext,Error))
+    {
+        if (Error.IsEmpty()) { Error=TEXT("The current observation owner could not initialize."); }
+        RetirePreparedDomains();
+        return false;
+    }
+    for (const auto& Pair : Contenders)
+    {
+        if (!IsMemberPresent(Pair.Value.Session)) { continue; }
+        if (!Vision->RegisterObserver(Pair.Value.Session,Pair.Key.Get(),Error))
+        {
+            RetirePreparedDomains();
+            return false;
+        }
+    }
     bAuthorityInitialized = true;
-    Error.Reset();
+    if (!PublishAuthorityClock(Error))
+    {
+        RetirePreparedDomains();
+        return false;
+    }
     return true;
 }
 
@@ -336,6 +363,25 @@ bool ALDGameMode::FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error)
     AuthorityNowSeconds = AuthorityStep.EndServerSeconds;
     AuthorityNowMs = AuthorityBoundary.AtMs;
     bAuthorityStepOpen = false;
+    return PublishAuthorityClock(Error);
+}
+
+bool ALDGameMode::PublishAuthorityClock(FString& Error)
+{
+    auto* Public=GetGameState<ALDGameState>();
+    if (!HasAuthority() || !bAuthorityInitialized || bAuthorityStepOpen || !Public)
+    {
+        Error=TEXT("A completed authority clock requires the current initialized core and native GameState.");
+        return false;
+    }
+    const FLDDemoClockView Candidate{MatchContext.Generation,AuthorityStep.StepSerial,AuthorityNowMs};
+    const auto Result=LDMatchLifecycle::AcceptClockView(Candidate,Public->DemoClock,Error);
+    if (Result==ELDClockProjectionResult::Malformed || Result==ELDClockProjectionResult::Stale)
+    {
+        if (Error.IsEmpty()) { Error=TEXT("Core attempted to publish an obsolete completed clock."); }
+        return false;
+    }
+    if (Result==ELDClockProjectionResult::Accepted) { Public->ForceNetUpdate(); }
     Error.Reset();
     return true;
 }
@@ -498,32 +544,73 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
     return true;
 }
 
-void ALDGameMode::ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Out) const
+bool ALDGameMode::ReadObservedPublicFacts(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
+    FLDObservedPublicFacts& Out, FString& Error) const
+{
+    ALDCharacter* Actor=nullptr;
+    const auto Resolved=ResolveBody(Match,Body,Actor);
+    const auto* Life=Lives.Find(Body.Victim.EntityId);
+    const auto* State=Actor && Combat ? Combat->StateFor(Actor) : nullptr;
+    if (!HasAuthority() || Resolved!=ELDCommitReject::None || !Life || Life->Phase!=ELDLifePhase::Alive
+        || Life->Body!=Body || !State || !State->PublicFacts.IsSet() || !State->Resources.Revision || !State->AttributeRevision)
+    {
+        Error=TEXT("Observed public facts require a current living body with a committed resource/build projection.");
+        return false;
+    }
+    FLDObservedPublicFacts Candidate=State->PublicFacts.GetValue();
+    const uint8 Protection=uint8(ELDDemoStatusId::RespawnProtection);
+    if (Candidate.Statuses.ContainsByPredicate([Protection](const auto& Status) { return Status.StatusId==Protection; }))
+    {
+        Error=TEXT("Respawn protection must be derived from Core life state, not a stored combat status.");
+        return false;
+    }
+    if (Body.Victim.Kind==ELDVictimKind::Contender && AuthorityNowMs<Life->ProtectedUntilMs)
+    {
+        Candidate.Statuses.Add({Protection,1,Life->ProtectedUntilMs});
+    }
+    Out=MoveTemp(Candidate);
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::ProjectLife(ALDPlayerController& Controller, FLDOwnerState& Out, FString& Error) const
 {
     const auto* Record = Contenders.Find(&Controller);
     const auto* Life = Record ? Lives.Find(Record->Session) : nullptr;
     if (!Record || !Life)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_OWNER_LIFE_PROJECTION_MISSING"));
-        return;
+        Error=TEXT("The owner has no current contender/life projection.");
+        return false;
     }
-    Out.ContenderId = Record->Session;
-    Out.Life = Life->Life;
-    Out.LifePhase = Life->Phase;
-    Out.LifeRevision = Life->Revision;
-    Out.BodyRef = Life->Body;
-    Out.bActive = Life->Phase == ELDLifePhase::Alive;
-    Out.RespawnAtMs = Life->RespawnAtMs;
-    Out.ProtectedUntilMs = Life->ProtectedUntilMs;
-    if (const auto* State = Combat && Life->Actor.IsValid() ? Combat->StateFor(Life->Actor.Get()) : nullptr)
+    const auto* State=Combat && Life->Actor.IsValid()?Combat->StateFor(Life->Actor.Get()):nullptr;
+    if (Life->Phase==ELDLifePhase::Alive
+        && (!State || !Life->Body.IsValid() || State->Identity!=Life->Body.BodyIdentity
+            || State->Victim!=Life->Body.Victim || !State->Resources.Revision))
     {
-        Out.Hp = double(State->Resources.HpP2) / 100.;
-        Out.MaxHp = double(State->Resources.MaxHpP2) / 100.;
-        Out.Mp = double(State->Resources.MpP2) / 100.;
-        Out.MaxMp = double(State->Resources.MaxMpP2) / 100.;
-        Out.Barrier = double(State->Resources.ShieldP2) / 100.;
+        Error=TEXT("A living owner has no matching committed resource/body projection.");
+        return false;
     }
-    else { Out.Hp = Out.Mp = Out.Barrier = 0; }
+    FLDOwnerState Candidate=Out;
+    Candidate.ContenderId=Record->Session;
+    Candidate.Life=Life->Life;
+    Candidate.LifePhase=Life->Phase;
+    Candidate.LifeRevision=Life->Revision;
+    Candidate.BodyRef=Life->Body;
+    Candidate.bActive=Life->Phase==ELDLifePhase::Alive;
+    Candidate.RespawnAtMs=Life->RespawnAtMs;
+    Candidate.ProtectedUntilMs=Life->ProtectedUntilMs;
+    if (State)
+    {
+        Candidate.Hp=double(State->Resources.HpP2)/100.;
+        Candidate.MaxHp=double(State->Resources.MaxHpP2)/100.;
+        Candidate.Mp=double(State->Resources.MpP2)/100.;
+        Candidate.MaxMp=double(State->Resources.MaxMpP2)/100.;
+        Candidate.Barrier=double(State->Resources.ShieldP2)/100.;
+    }
+    else { Candidate.Hp=Candidate.Mp=Candidate.Barrier=0; }
+    Out=MoveTemp(Candidate);
+    Error.Reset();
+    return true;
 }
 
 void ALDGameMode::RemoveLifeBinding(const FGuid& EntityId)
@@ -550,12 +637,30 @@ void ALDGameMode::RemoveLifeBinding(const FGuid& EntityId)
     Life->Actor.Reset();
 }
 
+bool ALDGameMode::ReportAuthorityFault(const FLDMatchContext& Match, const FString& Diagnostic)
+{
+    if (!HasAuthority() || !IsDemoRoom() || !Match.IsValid() || Match!=MatchContext || Diagnostic.IsEmpty())
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED Invalid authority, match or diagnostic."));
+        return false;
+    }
+    if (MatchPhase==ELDMatchPhase::Faulted) { return true; }
+    if (MatchPhase==ELDMatchPhase::Results || MatchPhase==ELDMatchPhase::Closing)
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED The result or room is already closed."));
+        return false;
+    }
+    FaultAuthority(Diagnostic);
+    return true;
+}
+
 void ALDGameMode::FaultAuthority(const FString& Error)
 {
     EntryFailure = Error;
     MatchPhase = ELDMatchPhase::Faulted;
     if (GateRevision != MAX_uint64) { ++GateRevision; }
     bAuthorityStepOpen = false;
+    if (Vision) { Vision->EndMatch(); }
     for (auto& Pair : Lives)
     {
         if (auto* Body = Pair.Value.Actor.Get())

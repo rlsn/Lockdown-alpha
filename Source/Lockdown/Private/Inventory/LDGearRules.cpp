@@ -1,6 +1,5 @@
 #include "Development/LDV08Loadout.h"
 #include "Inventory/LDEquipmentCatalog.h"
-#include "Region/LDRegionDefinition.h"
 bool LDGear::NaturalGate(const FLDCharacterBuild& B,ELDSkill S)
 {
     if(uint8(S)<10){return true;}const auto* C=ULDEquipmentCatalog::Load(B.RulesVersion);const auto* G=C?C->Gate(S):nullptr;
@@ -58,10 +57,6 @@ bool LDGear::Propose(const FLDInventory& I,const FLDCharacterBuild& B,uint8 Comm
     for(auto& Entry:Out.Items){Entry.BindingMask=0;for(int32 N=0;N<6;++N){if(Out.Bindings[N]==Entry.Id){Entry.BindingMask|=1<<N;}}}
     FLDCharacterBuild Candidate=B;Candidate.Gear=Derive(Out);if(!LDInventory::Fits(Out,Candidate,{}, {},&Why)){return false;}
     Out.Revision=I.Revision+1;if(!LDInventory::Valid(Out)){return Reject(TEXT("Invalid final loadout"));}Why.Reset();return true;
-}
-bool LDGear::OnRoad(const UWorld* World,const FVector& P)
-{
-    const auto* D=LDRegion::Definition(World);if(!D){return false;}for(const auto& Route:D->Routes){for(int32 N=1;N<Route.Points.Num();++N){const FVector A(Route.Points[N-1].X,Route.Points[N-1].Y,P.Z),B(Route.Points[N].X,Route.Points[N].Y,P.Z);if(FMath::PointDistToSegment(P,A,B)<=100){return true;}}}return false;
 }
 FString LDGear::Preview(const FLDInventory& I,const FLDCharacterBuild& B)
 {

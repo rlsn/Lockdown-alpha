@@ -18,13 +18,10 @@ public:
     virtual void StartGameInstance() override;
     void RecordEntryRejectionBeforeWorld(const FString& URL, const FString& Reason);
     const FString& RejectedEntryURL() const { return LastRejectedEntryURL; }
-    TSharedPtr<struct FLDResetEvidence> ResetEvidence;
-    TSharedPtr<struct FLDDevelopmentResetEvidence> DevelopmentResetEvidence;
-    TSharedPtr<struct FLDB90ResetEvidence> B90ResetEvidence;
     virtual void Init() override;
     virtual void Shutdown() override;
-    ULDControlSettings* GetLocalControlSettings(uint8 Registry=6);
-    ULDControlSettings* UseIsolatedLocalSettings(const FGuid& Fixture, uint8 Registry);
+    ULDControlSettings* GetLocalControlSettings();
+    ULDControlSettings* UseIsolatedLocalSettings(const FGuid& Fixture);
     FLDLocalSettingsSaveResult ApplyLocalSettings(const ULDControlSettings& Draft);
     FLDLocalSettingsSaveResult FlushLocalSettings(bool VerifyCurrent=false);
     FLDLocalSettingsSaveResult ConfirmLocalSettingsRecovery();
@@ -54,7 +51,6 @@ private:
     void TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error);
     void ReturnAfterFailure(UWorld* World, const FString& Error);
     UPROPERTY(Transient) TObjectPtr<ULDControlSettings> LocalControlSettings;
-    UPROPERTY(Transient) TMap<uint8, TObjectPtr<ULDControlSettings>> LocalSettingsByRegistry;
     FLDLocalSettingsStorage IsolatedSettingsStorage;
     bool bUseIsolatedSettings = false;
     FString LocalSettingsMessage;

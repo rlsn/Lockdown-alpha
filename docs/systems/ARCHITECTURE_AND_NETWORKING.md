@@ -30,7 +30,7 @@ GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径�
 `ULDUIRoot::Host` 只请求 `L_Demo?listen`；Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
 读取的是原始字节，不规范化换行，也不回退旧目录。`LDDemoEntry::ValidateSelection` 只接受
 完整的前端/Demo 包路径，剥离 PIE 前缀，但不接受同短名的其他包、旧 Profile 或 Humans 覆盖项。
-旧 B90 地图中的原生 mode 仍可供资产加载检查，但拒绝开始旧预览玩法。
+旧保存模式和地图的物理移除须与资产引用审计同批完成，不保留可启动的旧预览分支。
 
 `ALDGameMode::InitGame` 为有效 Demo 房间一次创建 `FLDMatchContext`；
 网络 Generation 通过 GameInstance 的有界单调分配器取得，LedgerMatch 单独生成并显式绑定。
@@ -61,8 +61,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   不包含 LedgerMatch、身体坐标或私有构筑。AI 名额尚不是实际 AI 控制器。
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
-- 完整地图的 `ALDB91Controller`、`ALDB92Controller` 有独立的观测/服务协议，
-  不应把它们的稀疏记录强塞进小地图的固定网格格式。
+- 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
 
 详细可见性机制见 [视野与 UI](VISION_AND_UI.md)。
 
@@ -76,7 +75,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 不能重复发钱、创建物品或施放效果。旧 life 的投射物、输入、菜单报价和移动确认不能作用于新身体。
 UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执。
 
-`ULDNavigationComponent` 的取消 epoch、库存/商店的 request 回执和完整地图的 world receipt
+`ULDNavigationComponent` 的取消 epoch 与库存/商店的 request 回执
 是不同领域的版本，不要用一个全局“最新版本号”替代全部语义。
 
 ## 生命周期与失败
@@ -113,9 +112,13 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 `ULDGameInstance::NetworkFailed` 处理 pending connection 的 WorldContext 归属，
 避免把一次连接失败写入另一个 PIE 实例。错误信息到前端，不无限停留在失效世界中。
 
-`ALDB92Roster` 提供持久席位与控制器交接，但这不是经过认证的断线重连服务。
-`ALDB92SeatController` 提供无本地 UI 的权威接口，也不是已经完成的自主发育对手 AI。
-新 Demo 的不重连规则、人数和 AI 策略需要按 App Spec 实施。
+对手 AI 应通过同一核心注册、受限观察与权威命令接入，不沿用旧 B92 席位接管或控制器交接。
+本局不重连，人数和 AI 行为按 App Spec；纯控制接口不等于已实现自主核心循环。
+
+占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
+结果提交须核对当前 Match、已封闭的时间边界和占领段，在同一调用栈锁定一次结果、
+转 Results/推进 GateRevision 后才清理和发布；重复提案只重放既有结果。
+当前的 phase/GateRevision/scope 基础并不代表完整结果 CAS 或连续独占归约已经完成。
 
 ## 扩展与检查
 
@@ -123,7 +126,7 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 修改序列化时同步生产者、消费者、上限检查、代次拒绝和客户端显示，不能只改结构体尺寸。
 新的公开信息必须显式决定，不通过日志、提示或失败原因意外公开。
 
-当前入口：`RunResetCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`，
+当前入口：`RunResetCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation` 和

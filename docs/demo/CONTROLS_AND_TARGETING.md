@@ -187,7 +187,8 @@ Pawn 重建或重新 possession 不累积一份新的委托。只有真实 Local
 
 删除控制设置中的 `Profile`、TacticalDefaults/HybridDefaults 与旧动作迁移分派。
 本地设置 schema 单独管理，不等于产品版本或网络版本。
-读取旧文件时只迁入仍合法的名称/镜头/显示偏好及现存动作绑定；
+读取旧 schema 文件时不迁入任何动作绑定，也不做部分迁移：旧存档只来自 Demo 之前的开发版本，
+同名动作在旧 profile 下含义可能不同。只保留其中仍合法的镜头/文字偏好，并走现有恢复流程；
 不支持/冲突的绑定明确提示并要求采用当前有效绑定，不能静默复活旧动作。
 保存失败展示错误并保留当前可用内存设置及未保存标记，不谎称已持久化。
 
@@ -517,7 +518,7 @@ FromFootCm/ToFootCm、double StartServerSeconds/EndServerSeconds 和运动类别
 | `PublishCapturePresence(FLDCapturePresenceEvent{Body, Stamp, Inside}) -> FLDEventReceipt` | 世界 ExtractCircleCrossings 的真实变更逐项发布；单次事件失败不得继续报告已处理成功。 |
 | `CompleteBodyMotion(const FLDAuthorityStep&, const FLDCombatBodyRef&, uint64 LastSegmentSequence) -> FLDMotionReceipt` | 仅确认初次原生基础姿态/段记录完成，不是提供者 Fence，也不宣布后续因果位移不存在。 |
 | `PublishThrough(FLDProviderFence{Generation, Provider, StreamId, ThroughMs, ThroughSequence}) -> FLDFenceReceipt` | ThroughMs 只能取核心真正完成的精确整数毫秒 Boundary.AtMs；不能 ceil 小数完成点。缺序/查询失败不推进，退休流最后事件须等所属桶闭合。 |
-| `AckConsumed(const FLDAuthorityBoundary{Match, BatchSerial, AtMs}&)` | 等 Combat 边界姿态读取及 Objective 均完成才释放已消费运动记录，不只等一个消费者。 |
+| `AckConsumed(const FLDAuthorityBoundary{Match, BatchSerial, AtMs}&)` | 等 Combat 边界姿态读取及 GameMode 圈归约均完成才释放已消费运动记录，不只等一个消费者。 |
 | `FLDGameplayWritePermit{Boundary, Phase, GateRevision}`；`ValidateWritePermit`；`TryCloseMatch` | permit 只在当前提交栈有效。核心先关闸再取消；Navigation cleanup 不发新 Gameplay，快速 IsGameplayWriteOpen 不代替最终校验。 |
 | `ALDGameMode::EndProtectionForAggressiveIntent(AController&, const FLDMatchContext&, const FLDCombatBodyRef&, const FLDAggressiveIntent&, const FLDGameplayWritePermit&) -> FLDProtectionReceipt` | 提交点从注册记录重新解析真实 Controller；Life 再核当前 Caller/Match/Body/Life/Alive/permit，从 Actions 真实边界生成资格 Stamp，不能由调用者伪造发生时间。后续执行拒绝仍保留其解除结果。 |
 | `FLDAggressiveIntent{Kind, Request}` / `FLDAggressionRequestKey{Origin, Sequence, CancelEpoch}` | Kind 限 AttackUnit/AttackMove/BasicAttack/ActivateCharacter/ActivateEquipment；OriginCombat.Sequence 用 DirectSequence，不用尚未分配的服务器 Token，CancelEpoch=0；OriginNavigation 用原 Order/Epoch。派生 RepeatAttack 继承原进攻意图，不另发解除序。域先核新鲜性/异条款再调用 Life。 |
@@ -622,7 +623,6 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 | CT-D2，D11/D14/D16 | `LDPlayerController.h/.cpp` 的旧 Assassinate/Dash/Ward/Interact 按键入口、SprintStarted/SprintStopped/SetSprint 路由及旧服务 hold RPC；`LDPlayerInput.cpp` 的旧 held/release/profile 特例 | 先把当前装备 dash、目标确认和 Combat 取消接到实际来源请求；只保留必要 token/liveness 机制，不保留旧免费能力或站桩服务。 |
 | CT-D3，D11/D14 | CMC 的 `bWantsSprint/SprintSpeed/bCombatWalkOnly` 旧 sprint/profile 分支、saved sprint 位，以及 B91 搬运 Cast；Navigation 中 B91/旧 site/pickup/service 分派 | 先有 Combat MoveSpeed/控制投影、世界查询和服务器调用者适配；同步 Serializer/CompressedFlags/回放/声明/include/测试后删。 |
 | CT-D4，D16 | Controller 的旧成员/反射引用；Development/Production/Context 旧 hold/取消/Pending 链 | 按各领域断掉实际消费者，保留当前 Combat/Vendor/成长取消；取消入口不能成为保留无用服务的理由。 |
-| CT-D5，D11 | `Private\World\LDB91SourceControls.cpp` 的来源指针/键盘/观察分派及关联 B91 controller 方法 | 用现有动态输入/Combat 来源/世界 ObserverContext 接回必要能力后，随 D11 全图闭包删除文件与全部声明/调用；不复制其旧全图政策成 Demo 适配层。 |
 | CT-D6，D15/D16 | `LDControlSettings` 的 Profile、TacticalDefaults/HybridDefaults、Skill3–6/Item3–4 及旧 Context/Trade 迁移政策 | 当前注册表和显式设置迁移完成后删除旧字段/分支；删除局内玩法保存入口不影响本地设置 Save。 |
 | CT-D7，D24 | `Content\Lockdown\Generated\Input\IA_Move.uasset`、`IA_Aim.uasset`、`IA_Sprint.uasset`、`IA_Attack.uasset`、`IA_Dash.uasset`、`IA_Assassinate.uasset`、`IA_Interact.uasset`、`IA_Ward.uasset`、`IA_Help.uasset`、`IA_Menu.uasset`、`IA_Zoom.uasset`、`IMC_Gameplay.uasset` | 本报告选择唯一动态注册，不新增第二套 IA/IMC。先迁 Controller 静态 LoadObject 和存活 Blueprint/CDO 引用，再移除 Bootstrap Input 生成/固定 13 映射验证及加载/cook引用，经 C3 才物理删除这些包。 |
 | CT-D8，D27/D29/D30 | `LDNavigationProbe.cpp` 的“快照接近但不追击”、旧 sprint/pickup/site 场景；`LDInputProbe.cpp` 旧 A 方向攻击、多动作槽；`LDHUDProbeExtension.cpp` 旧物品/技能/地图分派断言 | 保留墙/坡/错层/Stop/旧 life/隐私、无回退/无穿透及回中/持续跟随解耦断言并改 Demo 用例；删除旧玩法场景，不将它们 skip 或留 profile 回归。 |

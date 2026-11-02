@@ -1,169 +1,472 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
-#include "Components/StaticMeshComponent.h"
+#include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
+#include "Region/LDMapRegistry.h"
+#include "Region/LDMapGeometry.h"
 #include "Camera/CameraComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
-#include "UObject/ConstructorHelpers.h"
-#include "Components/TextRenderComponent.h"
-#include "Development/LDWorldChecks.h"
-#include "Economy/LDProductionDirector.h"
-#include "Economy/LDInstitutionSite.h"
-#include "Framework/LDGameMode.h"
-#include "Engine/StaticMeshActor.h"
-#include "EngineUtils.h"
-#include "NavigationSystem.h"
 
-ALDObservedEntityProxy::ALDObservedEntityProxy()
+bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
-    bReplicates=false;
-    PrimaryActorTick.bCanEverTick=true;
-    RootComponent=CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-    Body=CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("NeutralBody")); Body->SetupAttachment(RootComponent);
-    WardMesh=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Ward")); WardMesh->SetupAttachment(RootComponent);
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere"));
-    WardMesh->SetStaticMesh(Sphere.Object); WardMesh->SetRelativeScale3D(FVector(.24));
-    WardMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision); WardMesh->SetCanEverAffectNavigation(false);
-    TaskLabel=CreateDefaultSubobject<UTextRenderComponent>(TEXT("PublicTaskLabel"));TaskLabel->SetupAttachment(RootComponent);TaskLabel->SetWorldSize(24);TaskLabel->SetRelativeLocation(FVector(0,0,65));TaskLabel->SetRelativeRotation(FRotator(0,135,0));TaskLabel->SetHorizontalAlignment(EHTA_Center);TaskLabel->SetVisibility(false);TaskLabel->SetCanEverAffectNavigation(false);
-}
-void ALDObservedEntityProxy::Apply(const FLDObservedEntity& Entity)
-{
-    ObservedId=Entity.Id; Destination=Entity.Position;
-    Facing=float(Entity.Facing)/65535*360; Speed=Entity.Speed;
-    bInstitution=Entity.Kind==ELDObservedKind::Institution;InstitutionWorkUntil=bInstitution&&Entity.ActionCue==1?Entity.ExposedUntil:0;Body->SetCue(bInstitution?0:Entity.ActionCue);
-    if (bFirst || FVector::DistSquared(GetActorLocation(),Destination)>300*300) { SetActorLocation(Destination); }
-    if (Palette!=Entity.Presentation)
+    *this = FLDObservedCatalog();
+    const FLDDemoContentDefinitions& Definitions = Content.Get();
+    if (Definitions.Progression.MaxLevel < 1 || Definitions.Progression.MaxLevel > MAX_uint8)
     {
-        Palette=Entity.Presentation; Body->ApplyPalette(FMath::Min<uint8>(Palette,3));
-        UMaterialInterface* Material=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
-        UMaterialInstanceDynamic* Instance=UMaterialInstanceDynamic::Create(Material,this);
-        Instance->SetVectorParameterValue(TEXT("Tint"),Entity.Kind==ELDObservedKind::Projectile?FLinearColor(.12f,.5f,1):Entity.Kind==ELDObservedKind::Seal?FLinearColor(1,.6f,.08f):Entity.Kind==ELDObservedKind::Book?FLinearColor(.12f,.45f,.8f):FLinearColor(.6f,.65f,.2f)); WardMesh->SetMaterial(0,Instance);
+        Error = TEXT("Observed level validation requires the approved progression maximum.");
+        return false;
     }
-    Body->SetVisibility((Entity.Kind==ELDObservedKind::Body||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::WorldCreature||bInstitution),true);
-    WardMesh->SetVisibility(Entity.Kind!=ELDObservedKind::Body&&Entity.Kind!=ELDObservedKind::Sentinel&&Entity.Kind!=ELDObservedKind::WorldCreature&&!bInstitution);
-    TaskLabel->SetVisibility(Entity.Kind==ELDObservedKind::Charter||Entity.Kind==ELDObservedKind::WatchControl||Entity.Kind==ELDObservedKind::Sentinel||Entity.Kind==ELDObservedKind::Production||bInstitution);
-    if(Entity.Kind==ELDObservedKind::WorldCreature||Entity.Kind==ELDObservedKind::WorldStructure||Entity.Kind==ELDObservedKind::WorldSite){TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(Entity.Kind==ELDObservedKind::WorldCreature?(Entity.Presentation?TEXT("GUARDIAN · STUN / HEX / BREAK / SILENCE / MUTE / DISPLACEMENT IMMUNE"):TEXT("CAMP CREATURE")):Entity.Kind==ELDObservedKind::WorldStructure?TEXT("GRAND TOWER · STUN / HEX / BREAK / SILENCE / MUTE / DISPLACEMENT IMMUNE"):Entity.Presentation?TEXT("SHRINE · QUIET 6s · HOLD CONTEXT 4s"):TEXT("ANTECHAMBER · KEYS 4s / SHIFT+CONTEXT ARTIFACT 6s")));if(bFirst&&(Entity.Kind==ELDObservedKind::WorldStructure||Entity.Kind==ELDObservedKind::WorldSite)){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(Entity.Kind==ELDObservedKind::WorldStructure?FVector(.9,.9,1.8):FVector(1,1,.12));}}
-    if(Entity.Kind==ELDObservedKind::Body&&Entity.ActionCue==11){TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(TEXT("DETECTED ILLUSION")));}
-    if(Entity.Kind==ELDObservedKind::WatchControl){TaskLabel->SetText(FText::FromString(TEXT("WATCH CONTROL\nAnalyze 14")));}
-    if(Entity.Kind==ELDObservedKind::Sentinel){TaskLabel->SetText(FText::FromString(TEXT("HOSTILE SENTINEL")));}
-    TaskLabel->SetTextRenderColor(Entity.Kind==ELDObservedKind::Sentinel?FColor(180,20,10):FColor(24,24,32));
-    if(Entity.Kind==ELDObservedKind::Charter){TaskLabel->SetText(FText::FromString(FString::Printf(TEXT("%s\n%s 12"),LDCharter::Name(Entity.Presentation),LDDevelopment::SkillName(LDCharter::Skill(Entity.Presentation)))));}
-    if(Entity.Kind==ELDObservedKind::TacticalField)
+    MaxLevel = uint8(Definitions.Progression.MaxLevel);
+    for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment) { Equipment.Add(Item.NativeId); }
+    for (const FLDDemoMonsterDefinition& Monster : Definitions.Monsters) { Creatures.Add(Monster.NativeId); }
+    Error.Reset();
+    return true;
+}
+
+bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error) const
+{
+    if ((Unit.AuthorizedFieldMask & LDObservation::Level) && (Unit.Level < 1 || Unit.Level > MaxLevel))
     {
-        static const TCHAR* Names[]={TEXT("SMOKE"),TEXT("FARWATCH"),TEXT("WIRE SNARE"),TEXT("DETECTOR"),TEXT("GROUNDING"),TEXT("SWAP MARKER"),TEXT(""),TEXT("EMBER LINE"),TEXT("ARCANE PRISON"),TEXT("TEMPORAL LOCK"),TEXT("SOVEREIGN WARD"),TEXT("LINKED GATE · HOLD CONTEXT 1s"),TEXT("STALE TRAIL"),TEXT("FOOTSTEP"),TEXT("SCRAMBLE · CLIFFWALKERS"),TEXT("GUARDIAN PULSE · 1.5s WARNING"),TEXT("WET"),TEXT("FROZEN · CONTACT SLOW"),TEXT("BURNING · 20/s"),TEXT("ELECTRIFIED · 18/s"),TEXT("OBSCURED · SIGHT BOUNDARY"),TEXT("OVERGROWN · SLOW15%"),TEXT("OIL · FINITE FUEL"),TEXT("CONDUIT · AID MP")};
-        TaskLabel->SetVisibility(true);TaskLabel->SetText(FText::FromString(FString(Names[FMath::Min<uint8>(Entity.Presentation,23)])+((Entity.Presentation<16||Entity.Presentation==23)&&Entity.ActionCue==1?TEXT(" · SABOTAGED"):TEXT(""))));
-        WardMesh->SetRelativeScale3D(Entity.Presentation>=16?FVector(2,2,.025):Entity.Presentation==0?FVector(6,6,.05):Entity.Presentation==7?FVector(7,1.6,.04):Entity.Presentation==10?FVector(7,7,.05):Entity.Presentation==12||Entity.Presentation==13?FVector(.3,.3,.02):FVector(.3));
-        if(Entity.Presentation>=16&&Entity.Presentation<=22){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));if(auto* Tint=Cast<UMaterialInstanceDynamic>(WardMesh->GetMaterial(0))){Tint->SetVectorParameterValue(TEXT("Tint"),Entity.Presentation==18?FLinearColor(1,.18f,.02f):Entity.Presentation==19?FLinearColor(.8f,.4f,1):Entity.Presentation==20?FLinearColor(.35f,.4f,.4f):Entity.Presentation==21?FLinearColor(.12f,.6f,.15f):Entity.Presentation==22?FLinearColor(.2f,.12f,.03f):Entity.Presentation==17?FLinearColor(.65f,.9f,1):FLinearColor(.05f,.3f,.8f));}}
-        if(bFirst)
+        Error = TEXT("Observed level is outside the approved progression range.");
+        return false;
+    }
+    for (const uint8 Slot : Unit.Equipment.Slots)
+    {
+        if (Slot != 0 && !Equipment.Contains(Slot))
         {
-            if(Entity.Presentation==7){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));}
-            const bool Ring=Entity.Presentation==4||Entity.Presentation==8||Entity.Presentation==9||Entity.Presentation==10||Entity.Presentation==11||Entity.Presentation==15;
-            if(Ring){const double Radius=Entity.Presentation==15?400:Entity.Presentation==11?45:Entity.Presentation==10||Entity.Presentation==4?350:Entity.Presentation==9?FMath::Clamp<int32>(Entity.ActionCue,15,17)*20:300;
-                for(int32 N=0;N<24;++N){auto* Cue=NewObject<UStaticMeshComponent>(this);Cue->SetupAttachment(RootComponent);Cue->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));const double Angle=2*PI*N/24.;const double Height=Entity.Presentation==8?200:Entity.Presentation==11?100:8;Cue->SetRelativeLocation(FVector(FMath::Cos(Angle)*Radius,FMath::Sin(Angle)*Radius,Height/2));Cue->SetRelativeRotation(FRotator(0,FMath::RadiansToDegrees(Angle)+90,0));Cue->SetRelativeScale3D(FVector(2*PI*Radius/24/100,.08,Height/100));Cue->SetCollisionEnabled(ECollisionEnabled::NoCollision);Cue->SetCanEverAffectNavigation(false);Cue->SetMaterial(0,WardMesh->GetMaterial(0));AddInstanceComponent(Cue);Cue->RegisterComponent();FieldCue.Add(Cue);}}
-            if(auto* Tint=Cast<UMaterialInstanceDynamic>(WardMesh->GetMaterial(0))){Tint->SetVectorParameterValue(TEXT("Tint"),Entity.Presentation==17?FLinearColor(.65f,.9f,1):Entity.Presentation==16?FLinearColor(.05f,.3f,.8f):Entity.Presentation==7||Entity.Presentation==9?FLinearColor(1,.15f,.03f):Entity.Presentation==11?FLinearColor(.65f,.12f,1):Entity.Presentation==10?FLinearColor(.1f,.65f,1):FLinearColor(.65f,.6f,.15f));}
+            Error = TEXT("Observed equipment is not an approved public definition.");
+            return false;
         }
     }
-    if(Entity.Kind==ELDObservedKind::Projectile){WardMesh->SetRelativeScale3D(FVector(.15));}
-    if(bFirst&&Entity.Kind==ELDObservedKind::Seal)
-    {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.32,.32,.12));WardMesh->SetRelativeRotation(FRotator(0,45,0));}
-    if(bFirst&&Entity.Kind==ELDObservedKind::Book)
-    {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(FVector(.24,.34,.08));}
-    if(bFirst&&Entity.Kind==ELDObservedKind::Charter)
-    {WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder")));WardMesh->SetRelativeScale3D(FVector(.5,.5,.35));}
-    if(Entity.Kind==ELDObservedKind::Production)
-    {TaskLabel->SetText(FText::FromString(ALDProductionDirector::SiteName(Entity.Presentation)+(Entity.Presentation<2?FString::Printf(TEXT("\n%d/3 Crystal · Hold context 6s / Survey 1s"),Entity.ActionCue):Entity.Presentation>=6?TEXT("\nRuin cache · quiet open4s · Bag / Ruins"):Entity.Presentation==5?TEXT("\nHeartForge · exact scarce inputs / 8s"):TEXT("\nToolkit 4g/4s · Core 6g/6s · Bag to preview"))));if(bFirst){WardMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,Entity.Presentation<2?TEXT("/Engine/BasicShapes/Cone"):TEXT("/Engine/BasicShapes/Cube")));WardMesh->SetRelativeScale3D(Entity.Presentation<2?FVector(.55,.55,.7):FVector(.7,.5,.35));}}
-    if(bInstitution){TaskLabel->SetText(FText::FromString(ALDInstitutionSite::Name(Entity.Presentation)+TEXT("\nProtected noncontender · ")+ALDInstitutionSite::StatusName(Entity.ActionCue)+TEXT("\nEvery 180s, eight scheduled opportunities")));}
-    bFirst=false;
+    if (Unit.Kind == ELDObservedUnitKind::CampMember && !Creatures.Contains(Unit.CreatureId))
+    {
+        Error = TEXT("Observed creature is not an approved public definition.");
+        return false;
+    }
+    Error.Reset();
+    return true;
 }
+
+bool FLDObservedFrameReceiver::Advance(uint32 InMatch, uint32 InGeneration, uint32 InRevision, TArray<FLDObservedClear>& Cleared)
+{
+    const bool bNewer = InMatch > Match
+        || (InMatch == Match && (InGeneration > Generation || (InGeneration == Generation && InRevision > Revision)));
+    if (!bNewer) { return false; }
+    if (InMatch != Match || InGeneration != Generation)
+    {
+        ClearUnits(Match != 0 && InMatch != Match ? ELDObservedClearReason::MatchReset : ELDObservedClearReason::ObserverReset, Cleared);
+        Frame = FLDWorldView();
+        if (Status == ELDObservedViewStatus::Current) { Status = ELDObservedViewStatus::Stale; }
+        LastTermination = 0;
+    }
+    Match = InMatch;
+    Generation = InGeneration;
+    Revision = InRevision;
+    return true;
+}
+
+void FLDObservedFrameReceiver::ClearUnits(ELDObservedClearReason Reason, TArray<FLDObservedClear>& Cleared)
+{
+    for (const FLDObservedUnitView& Unit : Frame.Units)
+    {
+        FLDObservedClear Clear;
+        Clear.Handle = Unit.Handle;
+        Clear.ObservationEpoch = Unit.ObservationEpoch;
+        Clear.Reason = Reason;
+        Cleared.Add(Clear);
+    }
+    Frame.Units.Reset();
+}
+
+void FLDObservedFrameReceiver::ApplyTermination(const FLDObservedUnitTermination& Termination, TArray<FLDObservedClear>& Cleared)
+{
+    const int32 Index = Frame.Units.IndexOfByPredicate([&Termination](const FLDObservedUnitView& Unit)
+    { return Unit.Handle == Termination.Handle && Unit.ObservationEpoch == Termination.ObservationEpoch; });
+    if (Index == INDEX_NONE) { return; }
+    FLDObservedClear Clear;
+    Clear.Handle = Termination.Handle;
+    Clear.ObservationEpoch = Termination.ObservationEpoch;
+    Clear.Reason = ELDObservedClearReason::ObservedDeath;
+    Cleared.Add(Clear);
+    Frame.Units.RemoveAt(Index);
+}
+
+FLDObservedFrameReceiver::EResult FLDObservedFrameReceiver::AcceptFull(const FLDWorldView& View, const FLDWorldRevision& ExpectedWorld,
+    const FLDObservedCatalog& Catalog, double NowSeconds, TArray<FLDObservedClear>& Cleared, FString& Error)
+{
+    if (!LDObservation::ValidateView(View, Error)) { return EResult::Rejected; }
+    if (!ExpectedWorld.IsValid() || View.WorldMapId != ExpectedWorld.MapId
+        || View.WorldLayoutRevision != ExpectedWorld.LayoutRevision || View.WorldGeometryRevision != ExpectedWorld.GeometryRevision)
+    {
+        Error = TEXT("The observation frame belongs to a different world revision.");
+        return EResult::Rejected;
+    }
+    for (const FLDObservedUnitView& Unit : View.Units)
+    {
+        if (!Catalog.Accepts(Unit, Error)) { return EResult::Rejected; }
+    }
+    if (!Advance(View.MatchGeneration, View.Generation, View.Revision, Cleared)) { return EResult::Stale; }
+    for (const FLDObservedUnitTermination& Termination : View.RecentTerminations)
+    {
+        if (Termination.TerminationSequence <= LastTermination) { continue; }
+        ApplyTermination(Termination, Cleared);
+        LastTermination = Termination.TerminationSequence;
+    }
+    for (const FLDObservedUnitView& Previous : Frame.Units)
+    {
+        if (View.Units.ContainsByPredicate([&Previous](const FLDObservedUnitView& Unit)
+            { return Unit.Handle == Previous.Handle && Unit.ObservationEpoch == Previous.ObservationEpoch; })) { continue; }
+        FLDObservedClear Clear;
+        Clear.Handle = Previous.Handle;
+        Clear.ObservationEpoch = Previous.ObservationEpoch;
+        Clear.Reason = ELDObservedClearReason::FullSetRemoved;
+        Cleared.Add(Clear);
+    }
+    Frame = View;
+    Status = ELDObservedViewStatus::Current;
+    LastFullAt = NowSeconds;
+    ++Serial;
+    Error.Reset();
+    return EResult::Applied;
+}
+
+FLDObservedFrameReceiver::EResult FLDObservedFrameReceiver::AcceptConceal(const FLDObservedConceal& Notice,
+    TArray<FLDObservedClear>& Cleared, FString& Error)
+{
+    if (!LDObservation::ValidateConceal(Notice, Error)) { return EResult::Rejected; }
+    if (!Advance(Notice.MatchGeneration, Notice.Generation, Notice.Revision, Cleared)) { return EResult::Stale; }
+    for (const FGuid& Handle : Notice.Removed)
+    {
+        const int32 Index = Frame.Units.IndexOfByPredicate([&Handle](const FLDObservedUnitView& Unit) { return Unit.Handle == Handle; });
+        if (Index == INDEX_NONE) { continue; }
+        FLDObservedClear Clear;
+        Clear.Handle = Handle;
+        Clear.ObservationEpoch = Frame.Units[Index].ObservationEpoch;
+        Clear.Reason = ELDObservedClearReason::Conceal;
+        Cleared.Add(Clear);
+        Frame.Units.RemoveAt(Index);
+    }
+    ++Serial;
+    Error.Reset();
+    return EResult::Applied;
+}
+
+FLDObservedFrameReceiver::EResult FLDObservedFrameReceiver::AcceptTermination(const FLDObservedTerminationNotice& Notice,
+    TArray<FLDObservedClear>& Cleared, FString& Error)
+{
+    if (!LDObservation::ValidateNotice(Notice, Error)) { return EResult::Rejected; }
+    const FLDObservedUnitTermination& Termination = Notice.Termination;
+    if (Notice.MatchGeneration == Match && Termination.Generation == Generation && Termination.TerminationSequence <= LastTermination)
+    { return EResult::Stale; }
+    if (!Advance(Notice.MatchGeneration, Termination.Generation, Notice.Revision, Cleared)) { return EResult::Stale; }
+    ApplyTermination(Termination, Cleared);
+    LastTermination = FMath::Max(LastTermination, Termination.TerminationSequence);
+    Frame.RecentTerminations.Add(Termination);
+    if (Frame.RecentTerminations.Num() > LDObservation::MaxTerminations) { Frame.RecentTerminations.RemoveAt(0); }
+    ++Serial;
+    Error.Reset();
+    return EResult::Applied;
+}
+
+bool FLDObservedFrameReceiver::Tick(double NowSeconds, TArray<FLDObservedClear>& Cleared)
+{
+    if (Status != ELDObservedViewStatus::Current || LastFullAt < 0 || NowSeconds - LastFullAt <= StaleAfterSeconds) { return false; }
+    // Never extrapolate a hidden or late unit; no LastSeen record survives the timeout.
+    ClearUnits(ELDObservedClearReason::Timeout, Cleared);
+    Frame.Footprint.CurrentBits.Reset();
+    Status = ELDObservedViewStatus::Stale;
+    ++Serial;
+    return true;
+}
+
+void FLDObservedFrameReceiver::Reset(ELDObservedClearReason Reason, TArray<FLDObservedClear>& Cleared)
+{
+    ClearUnits(Reason, Cleared);
+    Frame = FLDWorldView();
+    Status = ELDObservedViewStatus::Unavailable;
+    LastFullAt = -1;
+    ++Serial;
+}
+
+FLDObservedFrameRead FLDObservedFrameReceiver::Read() const
+{
+    FLDObservedFrameRead Out;
+    Out.Frame = Status == ELDObservedViewStatus::Unavailable ? nullptr : &Frame;
+    Out.Status = Status;
+    Out.LocalSerial = Serial;
+    return Out;
+}
+
+bool FLDObservedFrameReceiver::FindUnit(const FGuid& Handle, uint32 ObservationEpoch, FLDObservedUnitView& Out) const
+{
+    if (Status != ELDObservedViewStatus::Current) { return false; }
+    const FLDObservedUnitView* Unit = Frame.Units.FindByPredicate([&Handle, ObservationEpoch](const FLDObservedUnitView& Candidate)
+    { return Candidate.Handle == Handle && Candidate.ObservationEpoch == ObservationEpoch; });
+    if (!Unit) { return false; }
+    Out = *Unit;
+    return true;
+}
+ALDObservedEntityProxy::ALDObservedEntityProxy()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = true;
+    SetActorEnableCollision(false);
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("ObservedBody"));
+    Body->SetupAttachment(RootComponent);
+}
+
+void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm)
+{
+    const FVector Next = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
+    const double Now = FPlatformTime::Seconds();
+    if (!bPlaced || ObservedHandle != Unit.Handle || ObservedEpoch != Unit.ObservationEpoch
+        || FVector::DistSquared(GetActorLocation(), Next) > FMath::Square(300.0))
+    {
+        SetActorLocation(Next);
+        DisplayVelocity = FVector::ZeroVector;
+        bPlaced = true;
+    }
+    else if (LastApplyAt >= 0 && Now > LastApplyAt)
+    {
+        DisplayVelocity = ((Next - Destination) / (Now - LastApplyAt)).GetClampedToMaxSize(1000.0);
+    }
+    Destination = Next;
+    LastApplyAt = Now;
+    ObservedHandle = Unit.Handle;
+    ObservedEpoch = Unit.ObservationEpoch;
+    FacingDegrees = float(Unit.Facing) / 65536.f * 360.f;
+    const bool bCamp = Unit.Kind == ELDObservedUnitKind::CampMember;
+    const uint8 NextPalette = bCamp ? uint8(1) : uint8(Unit.Presentation % 4);
+    if (Palette != NextPalette)
+    {
+        Palette = NextPalette;
+        Body->ApplyPalette(Palette);
+    }
+    const double Scale = !bCamp ? 1.0 : Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian) ? 1.3 : .8;
+    Body->SetRelativeScale3D(FVector(Scale));
+    Body->SetCue(0);
+}
+
 void ALDObservedEntityProxy::Tick(float Delta)
 {
     Super::Tick(Delta);
-    SetActorLocation(FMath::VInterpTo(GetActorLocation(),Destination,Delta,18));
-    SetActorRotation(FRotator(0,Facing,0)); Body->Animate(FVector(Speed,0,0),Delta);
-    if(bInstitution){const auto* G=GetWorld()->GetGameState<ALDGameState>();const double Now=G?G->GetServerWorldTimeSeconds():GetWorld()->GetTimeSeconds();if(Now<InstitutionWorkUntil){Body->AnimateInstitutionWork(float(1-(InstitutionWorkUntil-Now)/3));}}
+    SetActorLocation(FMath::VInterpTo(GetActorLocation(), Destination, Delta, 18.f));
+    SetActorRotation(FRotator(0, FacingDegrees, 0));
+    Body->Animate(DisplayVelocity, Delta);
 }
 
 ALDWorldViewRelay::ALDWorldViewRelay()
 {
-    bReplicates=true; bOnlyRelevantToOwner=true; bAlwaysRelevant=false;
-    SetNetUpdateFrequency(10); PrimaryActorTick.bCanEverTick=true;
+    bReplicates = true;
+    bOnlyRelevantToOwner = true;
+    bAlwaysRelevant = false;
+    SetNetUpdateFrequency(10);
+    PrimaryActorTick.bCanEverTick = true;
 }
-void ALDWorldViewRelay::ClearProxies()
-{ for (auto& Pair : Proxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } } Proxies.Empty(); }
+
 void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
-{ ClearProxies(); Super::EndPlay(Reason); }
-void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View) { ApplyFullView(View); }
-void ALDWorldViewRelay::ClientConceal_Implementation(uint32 Generation,uint64 Revision,const TArray<FGuid>& Removed) { ApplyConceal(Generation,Revision,Removed); }
-void ALDWorldViewRelay::ApplyFullView(const FLDWorldView& View)
 {
-    if (!View.Grid.Valid()||View.Current.Num()!=LDVision::MaskBytes || View.Explored.Num()!=LDVision::MaskBytes || View.Entities.Num()>LDVision::MaxEntities) { return; }
-    const uint32 PreviousGeneration=Cursor.Generation;
-    if (!Cursor.Accept(View.Generation,View.Revision)) { return; }
-    if (PreviousGeneration!=View.Generation) { ClearProxies(); }
-    Received=View; LastFullViewAt=FPlatformTime::Seconds(); bStale=false;
-    TSet<FGuid> Present;
-    for (const auto& Entity : View.Entities)
+    TArray<FLDObservedClear> Cleared;
+    Receiver.Reset(ELDObservedClearReason::Disconnected, Cleared);
+    LastClears = Cleared;
+    for (auto& Pair : Proxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
+    Proxies.Empty();
+    Super::EndPlay(Reason);
+}
+
+bool ALDWorldViewRelay::EnsureCatalog(FString& Error)
+{
+    if (bCatalogReady) { Error.Reset(); return true; }
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || !Catalog.Build(*Content, Error))
     {
-        Present.Add(Entity.Id);
-        TObjectPtr<ALDObservedEntityProxy>& Proxy=Proxies.FindOrAdd(Entity.Id);
-        if (!IsValid(Proxy)) { Proxy=GetWorld()->SpawnActor<ALDObservedEntityProxy>(); }
-        if (Proxy) { Proxy->Apply(Entity); }
+        if (Error.IsEmpty()) { Error = TEXT("Observation requires the approved Demo content on this connection."); }
+        return false;
     }
-    for (auto It=Proxies.CreateIterator();It;++It) { if (!Present.Contains(It.Key())) { if (IsValid(It.Value())) { It.Value()->Destroy(); } It.RemoveCurrent(); } }
+    bCatalogReady = true;
+    return true;
+}
+
+bool ALDWorldViewRelay::ExpectedWorld(FLDWorldRevision& Out) const
+{
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Registry || !Registry->Enabled()) { return false; }
+    Out = Registry->Revision();
+    return Out.IsValid();
+}
+
+void ALDWorldViewRelay::Refuse(const FString& Error)
+{
+    UE_LOG(LogTemp, Error, TEXT("LD_OBSERVATION_PROTOCOL_REJECTED %s"), *Error);
+    TArray<FLDObservedClear> Cleared;
+    Receiver.Reset(ELDObservedClearReason::ProtocolRejected, Cleared);
+    Present(Cleared);
+}
+
+void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
+{
+    FString Error;
+    FLDWorldRevision ExpectedRevision;
+    if (!EnsureCatalog(Error) || !ExpectedWorld(ExpectedRevision))
+    {
+        Refuse(Error.IsEmpty() ? FString(TEXT("The Demo world registry is unavailable for observation.")) : Error);
+        return;
+    }
+    TArray<FLDObservedClear> Cleared;
+    if (Receiver.AcceptFull(View, ExpectedRevision, Catalog, FPlatformTime::Seconds(), Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
+    {
+        Refuse(Error);
+        return;
+    }
+    Present(Cleared);
+}
+
+void ALDWorldViewRelay::ClientConceal_Implementation(const FLDObservedConceal& Notice)
+{
+    FString Error;
+    TArray<FLDObservedClear> Cleared;
+    if (Receiver.AcceptConceal(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
+    {
+        Refuse(Error);
+        return;
+    }
+    Present(Cleared);
+}
+
+void ALDWorldViewRelay::ClientTermination_Implementation(const FLDObservedTerminationNotice& Notice)
+{
+    FString Error;
+    TArray<FLDObservedClear> Cleared;
+    if (Receiver.AcceptTermination(Notice, Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
+    {
+        Refuse(Error);
+        return;
+    }
+    Present(Cleared);
+}
+
+void ALDWorldViewRelay::Present(const TArray<FLDObservedClear>& Cleared)
+{
+    LastClears = Cleared;
+    for (const FLDObservedClear& Clear : Cleared)
+    {
+        TObjectPtr<ALDObservedEntityProxy> Proxy;
+        if (Proxies.RemoveAndCopyValue(Clear.Handle, Proxy) && IsValid(Proxy)) { Proxy->Destroy(); }
+    }
+    SyncProxies();
     UploadFog();
 }
-void ALDWorldViewRelay::ApplyConceal(uint32 Generation,uint64 Revision,const TArray<FGuid>& Removed)
+
+void ALDWorldViewRelay::SyncProxies()
 {
-    const uint32 PreviousGeneration=Cursor.Generation;
-    if (Removed.Num()>LDVision::MaxEntities || !Cursor.Accept(Generation,Revision)) { return; }
-    if (PreviousGeneration!=Generation) { ClearProxies(); Received=FLDWorldView(); bStale=true; LastFullViewAt=-1; UploadFog(); }
-    for (const FGuid& Id : Removed)
-    { if (TObjectPtr<ALDObservedEntityProxy>* Proxy=Proxies.Find(Id)) { if (IsValid(*Proxy)) { (*Proxy)->Destroy(); } Proxies.Remove(Id); } }
-    Received.Entities.RemoveAll([&](const FLDObservedEntity& Entity){return Removed.Contains(Entity.Id);});
+    const FLDObservedFrameRead Snapshot = Receiver.Read();
+    TSet<FGuid> Shown;
+    if (Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current)
+    {
+        const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+        for (const FLDObservedUnitView& Unit : Snapshot.Frame->Units)
+        {
+            Shown.Add(Unit.Handle);
+            TObjectPtr<ALDObservedEntityProxy>& Proxy = Proxies.FindOrAdd(Unit.Handle);
+            if (!IsValid(Proxy))
+            {
+                FActorSpawnParameters Params;
+                Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Proxy = GetWorld()->SpawnActor<ALDObservedEntityProxy>(ALDObservedEntityProxy::StaticClass(),
+                    FTransform(FVector(Unit.FeetCm) + FVector(0, 0, HalfHeight)), Params);
+            }
+            if (IsValid(Proxy)) { Proxy->Apply(Unit, HalfHeight); }
+        }
+    }
+    for (auto It = Proxies.CreateIterator(); It; ++It)
+    {
+        if (Shown.Contains(It.Key())) { continue; }
+        if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
 }
 void ALDWorldViewRelay::AttachFog()
 {
-    ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwner());
-    AActor* Target=PC?PC->GetViewTarget():nullptr;
-    UCameraComponent* Camera=Target?Target->FindComponentByClass<UCameraComponent>():nullptr;
-    if (!PC || !PC->IsLocalController() || !Camera || CameraOwner==Target) { return; }
+    const auto* Owning = Cast<ALDPlayerController>(GetOwner());
+    AActor* Target = Owning ? Owning->GetViewTarget() : nullptr;
+    UCameraComponent* Camera = Target ? Target->FindComponentByClass<UCameraComponent>() : nullptr;
+    if (!Owning || !Owning->GetLocalPlayer() || !Camera || CameraOwner == Target) { return; }
+    const int32 Side = LDObservation::CoverageSide;
     if (!FogMaterial)
     {
-        UMaterialInterface* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Lockdown/Generated/Materials/M_Fog.M_Fog"));
-        if (!ensureMsgf(Base,TEXT("Missing native fog material; regenerate content"))) { return; }
-        FogTexture=UTexture2D::CreateTransient(60,40,PF_B8G8R8A8);
-        FogTexture->SRGB=false; FogTexture->Filter=TF_Nearest;
-        FogTexture->AddressX=TA_Clamp; FogTexture->AddressY=TA_Clamp; FogTexture->NeverStream=true;
-        void* Pixels=FogTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
-        FMemory::Memzero(Pixels,60*40*4); FogTexture->GetPlatformData()->Mips[0].BulkData.Unlock(); FogTexture->UpdateResource();
-        FogMaterial=UMaterialInstanceDynamic::Create(Base,this); FogMaterial->SetTextureParameterValue(TEXT("FogMask"),FogTexture);
+        UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Fog.M_Fog"));
+        if (!ensureMsgf(Base, TEXT("Missing native fog material; regenerate content"))) { return; }
+        FogTexture = UTexture2D::CreateTransient(Side, Side, PF_B8G8R8A8);
+        FogTexture->SRGB = false;
+        FogTexture->Filter = TF_Nearest;
+        FogTexture->AddressX = TA_Clamp;
+        FogTexture->AddressY = TA_Clamp;
+        FogTexture->NeverStream = true;
+        void* Pixels = FogTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+        FMemory::Memzero(Pixels, Side * Side * 4);
+        FogTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
+        FogTexture->UpdateResource();
+        FogMaterial = UMaterialInstanceDynamic::Create(Base, this);
+        FogMaterial->SetTextureParameterValue(TEXT("FogMask"), FogTexture);
     }
-    Camera->PostProcessSettings.AddBlendable(FogMaterial,1);
-    CameraOwner=Target; UploadFog();
+    Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
+    CameraOwner = Target;
+    FogSerial = MAX_uint64;
+    UploadFog();
 }
+
 void ALDWorldViewRelay::UploadFog()
 {
-    if (!FogTexture || !FogTexture->GetResource()) { return; }
-    const auto& G=Received.Grid;FogMaterial->SetVectorParameterValue(TEXT("WorldScale"),FLinearColor(1.f/(60*G.CellSize),1.f/(40*G.CellSize),0,0));FogMaterial->SetVectorParameterValue(TEXT("WorldOffset"),FLinearColor(-G.Min.X/(60*G.CellSize),-G.Min.Y/(40*G.CellSize),0,0));
-    uint8* Pixels=new uint8[LDVision::Cells*4];
-    for (int32 I=0;I<LDVision::Cells;++I)
+    if (!FogTexture || !FogTexture->GetResource() || !FogMaterial) { return; }
+    const FLDObservedFrameRead Snapshot = Receiver.Read();
+    if (Snapshot.LocalSerial == FogSerial) { return; }
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
+    FVector GroundMin, GroundMax;
+    FString Error;
+    if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(GroundMin, Error)
+        || !Geometry->Surfaces[0].MaxCm.ToVector(GroundMax, Error) || GroundMax.X <= GroundMin.X || GroundMax.Y <= GroundMin.Y) { return; }
+    const double SpanX = GroundMax.X - GroundMin.X, SpanY = GroundMax.Y - GroundMin.Y;
+    FogMaterial->SetVectorParameterValue(TEXT("WorldScale"), FLinearColor(float(1.0 / SpanX), float(1.0 / SpanY), 0, 0));
+    FogMaterial->SetVectorParameterValue(TEXT("WorldOffset"), FLinearColor(float(-GroundMin.X / SpanX), float(-GroundMin.Y / SpanY), 0, 0));
+    // Static terrain stays readable; only current authorized coverage is bright. No explored layer exists.
+    const bool bCurrent = Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
+        && Snapshot.Frame->Footprint.SourceStatus == ELDObservationSource::ActiveBody;
+    const int32 Side = LDObservation::CoverageSide;
+    uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
+    for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
     {
-        const uint8 Value=(!bStale && LDVision::Bit(Received.Current,I)) ? 255 : (LDVision::Bit(Received.Explored,I) ? 64 : 0);
-        Pixels[I*4]=Pixels[I*4+1]=Pixels[I*4+2]=Value; Pixels[I*4+3]=255;
+        const uint8 Value = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : 64;
+        Pixels[Index * 4] = Pixels[Index * 4 + 1] = Pixels[Index * 4 + 2] = Value;
+        Pixels[Index * 4 + 3] = 255;
     }
-    FogTexture->UpdateTextureRegions(0,1,new FUpdateTextureRegion2D(0,0,0,0,60,40),60*4,4,Pixels,
-        [](uint8* Data,const FUpdateTextureRegion2D* Regions){delete[] Data;delete Regions;});
+    FogTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, Side, Side), Side * 4, 4, Pixels,
+        [](uint8* Data, const FUpdateTextureRegion2D* Regions) { delete[] Data; delete Regions; });
+    FogSerial = Snapshot.LocalSerial;
 }
+
 void ALDWorldViewRelay::Tick(float Delta)
 {
     Super::Tick(Delta);
-    const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwner());
-    if (!PC || !PC->IsLocalController()) { return; }
+    const auto* Owning = Cast<ALDPlayerController>(GetOwner());
+    // Present only for this machine's real viewer: never for a server-side opponent or a remote client's server copy.
+    if (!Owning || !Owning->GetLocalPlayer()) { return; }
     AttachFog();
-    if((GetWorld()->GetMapName().Contains(TEXT("L_V07Region"))||GetWorld()->GetMapName().Contains(TEXT("L_V08Region")))){if(const auto* G=GetWorld()->GetGameState<ALDGameState>();G&&G->bMatchStarted){for(TActorIterator<AStaticMeshActor> It(GetWorld());It;++It){for(uint8 N=0;N<3;++N){if(!It->IsHidden()&&!(G->DefensiveFlags&(1<<N))&&It->ActorHasTag(FName(*FString::Printf(TEXT("TowerDoor%c"),'A'+N)))){It->SetActorHiddenInGame(true);It->SetActorEnableCollision(false);FNavigationSystem::UpdateComponentData(*It->GetStaticMeshComponent());}}}}}
-    if (!bStale && FPlatformTime::Seconds()-LastFullViewAt>.25)
-    { bStale=true; ClearProxies(); Received.Entities.Empty(); Received.Current.Init(0,LDVision::MaskBytes); UploadFog(); }
+    TArray<FLDObservedClear> Cleared;
+    const uint32 OwnerMatch = Owning->OwnerState.Match;
+    if (OwnerMatch != 0 && Receiver.CursorMatch() != 0 && OwnerMatch != Receiver.CursorMatch()
+        && Receiver.Read().Status != ELDObservedViewStatus::Unavailable)
+    {
+        Receiver.Reset(ELDObservedClearReason::MatchReset, Cleared);
+    }
+    Receiver.Tick(FPlatformTime::Seconds(), Cleared);
+    if (Cleared.Num() > 0) { Present(Cleared); }
+    else { UploadFog(); }
 }

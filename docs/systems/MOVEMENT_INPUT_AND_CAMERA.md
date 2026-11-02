@@ -13,7 +13,6 @@
 | `Navigation\LDDemoNavigationSystem`、`Region\LDMapRegistry` | 唯一 Demo 的已批准 capsule/NavAgent 配置、当前世界修订、局部地面与完整路径查询 |
 | `Framework\LDPlayerInput.cpp` | 输入动作、指向、菜单路由 |
 | `UI\LDControlSettings`、`LDControlsPanel` | 映射注册、冲突检测、保存与本地偏好 |
-| `World\LDB91SourceControls.cpp` | 完整地图的来源动作和指针路由 |
 
 头文件在 `Source\Lockdown\Public`，实现在 `Private`。
 
@@ -23,7 +22,7 @@
 导航组件在运动前提供方向，不另写一个位置积分器，不沿路径直接 SetActorLocation，
 也不为方便寻路把玩家临时交给另一个 AI Controller。
 
-运动上限、碰撞、斜坡、冲刺和位移能力仍需通过该身体的合法运动路径。
+运动上限、碰撞、斜坡和批准的位移能力仍需通过该身体的合法运动路径。
 镜头平移或预览不能改变人物位置、攻击距离或服务器判断。
 
 Demo 身体的 `ConfigureDemoMovement` 从已验证内容快照读取碰撞半径与基础移速，
@@ -53,7 +52,9 @@ walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 vi
 当前 `RunDemoCoreCheck` 的 DEV 审计消费者明确读取后确认该前缀；普通 Start 仍因真实领域消费未齐而关闭。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
 都不是最终 Motion Fence、Sealing 或占领完成证明；圈穿越、实际 Combat 因果消费、
-root motion/击退全链和全部提供者封桶仍须按 CT06 接通。旧 dash 入口仍明确拒绝。
+root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
+旧 `StartAuthorityDash` / `StartContentDash`、Sprint 自定义压缩位与旧地表慢速分派已删除，
+不保留可调用的拒绝壳；批准装备的位移须从真实来源/释放提交接回同一原生运动记录链。
 
 ## 命令与取消
 
@@ -68,6 +69,11 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。旧 dash
    不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
 5. `ResetLife` 不倒退序列号；新的 Owner 生命投影先发布再清理导航，不发送一条伪装成用户意图的
    新生命 Stop，也不等下一次 Tick 清掉已经收到的新生命首单。
+
+地面 RPC 仅有 `ServerOrder(FLDMoveIdentity, FVector_NetQuantize10, FName SurfaceHint)`，
+不再携旧 Site 或无观察 epoch 的 Observed 字段；wire 版本随完整切换为 3。
+`Navigate(FVector)` 只从唯一注册地面取得 SurfaceHint。单位点击不能偷偷降成地面命令；
+尚未接通的单位追击明确拒绝，普通 Start 继续由完整提供者门禁关闭。
 
 已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。
 接收时间由核心按同一比赛原点生成 NotBefore 审计桶，不能把帧间迟到命令放进更早补进的运动区间。
@@ -98,13 +104,15 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。旧 dash
 同一次手势只能有一个消费者；按下时获得的所有权必须维持到释放。
 打开窗口的点击不能继续落到新窗口内的按钮，关闭面板也不能重放仍按住的输入。
 
-使用 `CanWorldCommand`、`V05Back`、`CancelArmed`、`CancelInterruptibleHolds`
+使用 `CanWorldCommand`、`V05Back`、`SetMenuOpen`、`ClearControls`
 等现有控制器边界，不在每个 Widget 中重新判断一套角色可行动状态。
+`CanWorldCommand` 读取匹配的 DemoLobby 阶段和本人 Core 生命投影；
+旧职业准备、持续 hold、物品快捷与旧 Armed 字段及 RPC 已随生产者删除。
 暂停菜单不暂停共享世界；焦点丢失、死亡、离开和终局要清除适用的移动/指向/交互状态。
 
-不同 profile 具有不同动作入口，完整地图的确认后持续动作不能被改回通用“必须一直按键”的假设。
+动作入口只来自 `ULDControlSettings::Definitions()` 这一份 Demo 注册表，不按 profile 分派。
 修改按键要同步 `LDControlSettings`、控制器路由、帮助文本、HUD 标记与相应输入检查；
-不得只修改图标标签。
+不得只修改图标标签，也不能让消费者继续查询已退役动作名而静默得到无效键。
 
 ## 相机与小地图
 
@@ -120,28 +128,36 @@ root motion/击退全链和全部提供者封桶仍须按 CT06 接通。旧 dash
 
 ## 本地设置与显示试用
 
-`ULDGameInstance::GetLocalControlSettings` 持有应用中的本地偏好，Controller 引用同一对象。
-当前消费者仍有显式的 6/7/8 注册表，GameInstance 按注册表保留对象，避免旅行重建 Controller
-或切换已有入口时丢失未保存值；这不是 Demo 单一注册表已经接通的声明。
-`Defaults` / `HybridDefaults` 仍描述现有消费者，不能当作已批准的 Demo 按键或镜头数值。
-不再自动迁移注册表、调换冲突键或从另一个文件回落。
+`ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
+按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
+`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Stop`、`Attributes`、
+`PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
+默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
+没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
+不自动迁移注册表、调换冲突键或从另一个文件回落。
 
 `LoadLocalSettings` 区分 `Loaded`、`Missing`、`UnsupportedSchema`、`Corrupt`、
 `ReadFailed` 和 `InvalidStorage`。缺文件可使用当前默认值，但不会称为已保存；
 损坏或不支持的文件保持原样，菜单与设置页提示显式恢复。
 只有绑定不合法而镜头/文字字段合法时，恢复保留这些无关偏好，当前绑定仅用于本次会话；
-确认替换之前，通用 flush 不能覆盖原文件。`Key` 只解析当前注册表中的动作。
+确认替换之前，通用 flush 不能覆盖原文件。`Key`/`Rebind` 只接受该注册表中的动作，
+已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、显式注册表、绑定、edge/follow、文字比例和 zoom 是完整正向清单。
-当前文件 schema 是 4，与产品/网络版本无关；旧通用 SaveGame 格式返回不支持，不静默覆盖。
+schema、绑定、edge/follow、文字比例和 zoom 是完整正向清单。
+当前文件 schema 是 5，与产品/网络版本无关；旧通用 SaveGame 格式返回不支持，不静默覆盖。
+schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
+`UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
+合法的镜头/文字偏好走既有恢复流程，Demo 默认绑定只在本会话生效，
+原文件在设置页确认替换前保持不变。当前 schema 的文件若含注册表外动作，同样明确拒绝并走恢复。
 写入先验证字段，再写同目录临时文件并实际回读，使用 Windows 原子同卷替换且不预删目标，
 最后再次回读；替换前显式 flush 文件数据，替换失败保留原先已核验文件，只清理失败候选。
 读取元数据时只有明确的文件/路径不存在才视为 `Missing`，权限、共享或 I/O 错误均进入
 `ReadFailed`/恢复保护，不用不确定的存在性布尔值生成可自动保存的默认值。
 只在核验后清 dirty。
 `SaveLocalSettings` 返回类型化结果，`EditingDraft` 不可保存；写失败保留已应用值与重试入口。
-`FLDLocalSettingsStorage::User` 只选择明确的既有用户文件；
+`FLDLocalSettingsStorage::User()` 只选择唯一的用户文件 `Saved/SaveGames/LockdownLocalControlsV1.sav`，
+沿用原主文件名，使旧格式得到明确提示；已退役注册表的 V07/V08 槽文件不再读取，也不会被删除。
 测试必须使用 `Automation(FGuid)`，文件位于忽略的 `Artifacts/Automation/LocalSettings`，
 无效夹具不会回落到真实用户文件。无人值守/commandlet 的 GameInstance 未显式指定夹具时禁止用户文件写入。
 
@@ -172,7 +188,8 @@ Esc、强制关页、Widget 销毁、网络失败、旅行和退出先撤销试�
 恢复尚未完成或失败时禁止显示保存并提供重试，按键/镜头偏好不被显示回滚覆盖。
 `ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
-这里没有音频消费链或完整 Demo 输入迁移，不能以本地设置控件代替全界面验收。
+这里没有音频消费链；设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
+不能以本地设置控件代替全界面验收。
 
 ## 维护检查
 
@@ -184,6 +201,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 仍属于旧入口闭包，不能作为当前 Demo 已通过的证据。
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
-`LDLocalSettingsTests` 使用显式文件夹具覆盖拒绝、恢复、草稿隔离、旅行前 flush、
+`LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
+损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、
 试用 ID/截止边界、引擎配置自动写保护和显示配置实际回读；
 真实模式切换、恢复、VSync/画质及布局仍需非 nullrhi 的原生界面检查。

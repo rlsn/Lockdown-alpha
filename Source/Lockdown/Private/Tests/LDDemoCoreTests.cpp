@@ -1,6 +1,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDGameMode.h"
 #include "Combat/LDCombatDirector.h"
+#include "Character/LDCharacter.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -73,6 +74,41 @@ bool FLDDemoAuthorityTimeTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoClockProjectionTest, "Lockdown.Rules.DemoCore.ClockProjection",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoClockProjectionTest::RunTest(const FString& Parameters)
+{
+    FLDDemoClockView Latest;
+    FString Error;
+    TestFalse(TEXT("An unpublished clock is unavailable, not authority time zero"), Latest.IsValid());
+    TestTrue(TEXT("A published initial match clock is valid"),
+        LDMatchLifecycle::AcceptClockView({1,1,0},Latest,Error)==ELDClockProjectionResult::Accepted && Latest.IsValid());
+    TestTrue(TEXT("Exact repeated clock publications are idempotent"),
+        LDMatchLifecycle::AcceptClockView({1,1,0},Latest,Error)==ELDClockProjectionResult::Duplicate);
+    TestTrue(TEXT("Only an actually published completed step advances display time"),
+        LDMatchLifecycle::AcceptClockView({1,2,2999},Latest,Error)==ELDClockProjectionResult::Accepted && Latest.NowMs==2999);
+    TestTrue(TEXT("Out of order steps cannot reverse a countdown"),
+        LDMatchLifecycle::AcceptClockView({1,1,0},Latest,Error)==ELDClockProjectionResult::Stale && Latest.NowMs==2999);
+    TestTrue(TEXT("Same step cannot claim a later expiry"),
+        LDMatchLifecycle::AcceptClockView({1,2,3000},Latest,Error)==ELDClockProjectionResult::Malformed
+        && Latest.NowMs==2999 && !Error.IsEmpty());
+    TestTrue(TEXT("A later step cannot regress the clock"),
+        LDMatchLifecycle::AcceptClockView({1,3,2998},Latest,Error)==ELDClockProjectionResult::Malformed && Latest.NowMs==2999);
+    TestTrue(TEXT("Protection reaches zero only at a real published deadline"),
+        LDMatchLifecycle::AcceptClockView({1,3,3000},Latest,Error)==ELDClockProjectionResult::Accepted && Latest.NowMs==3000);
+    TestTrue(TEXT("A new match has its own zero, not the prior world's time origin"),
+        LDMatchLifecycle::AcceptClockView({2,1,0},Latest,Error)==ELDClockProjectionResult::Accepted && Latest.NowMs==0);
+    TestTrue(TEXT("Old match clocks cannot corrupt the replacement match"),
+        LDMatchLifecycle::AcceptClockView({1,MAX_uint64,MAX_int64},Latest,Error)==ELDClockProjectionResult::Stale && Latest.Generation==2);
+    for (const FLDDemoClockView Bad : {FLDDemoClockView{0,1,0},FLDDemoClockView{2,0,0},FLDDemoClockView{2,2,-1}})
+    {
+        TestTrue(TEXT("Malformed clock fields never replace the valid publication"),
+            LDMatchLifecycle::AcceptClockView(Bad,Latest,Error)==ELDClockProjectionResult::Malformed
+            && !Error.IsEmpty() && Latest.Generation==2 && Latest.StepSerial==1 && Latest.NowMs==0);
+    }
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoCoreTest, "Lockdown.Rules.DemoCore.ScopedAuthority",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoCoreTest::RunTest(const FString& Parameters)
@@ -84,11 +120,14 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
     ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
     auto* Mode=World->SpawnActor<ALDGameMode>();
+    auto* Public=World->SpawnActor<ALDGameState>();
     auto* Driver=World->SpawnActor<ALDCombatDirector>();
     auto* OtherDriver=World->SpawnActor<ALDCombatDirector>();
-    if (!TestNotNull(TEXT("Core owner"),Mode) || !TestNotNull(TEXT("Sole driver fixture"),Driver)
+    if (!TestNotNull(TEXT("Core owner"),Mode) || !TestNotNull(TEXT("Core public read model"),Public)
+        || !TestNotNull(TEXT("Sole driver fixture"),Driver)
         || !TestNotNull(TEXT("Unregistered driver counterexample"),OtherDriver)) { return false; }
     Mode->bDemoWorld=Mode->bEntryAccepted=Mode->bAuthorityInitialized=true;
+    Mode->GameState=Public;
     Mode->MatchContext={1,FGuid::NewGuid()};
     Mode->MatchPhase=ELDMatchPhase::Development;
     Mode->Combat=Driver;
@@ -133,6 +172,9 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Actions follow the completed native position step"),
         Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Actions,[](const auto&) { return true; },Error));
     TestTrue(TEXT("The completed primitive step can retire"), Mode->FinishAuthorityStep(*Driver,Error));
+    TestTrue(TEXT("Display clock copies the completed core step without using native World time"),
+        Public->DemoClock.Generation==Mode->MatchContext.Generation
+        && Public->DemoClock.StepSerial==Mode->AuthorityStep.StepSerial && Public->DemoClock.NowMs==10);
     TestTrue(TEXT("Completed time cannot be integrated twice"),
         Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,10)==ELDCommitReject::TimeRegression);
     Mode->AuthorityStep.StepSerial=MAX_uint64;
@@ -156,6 +198,40 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     Life.Actor=Body;
     Life.MotionStreamId=FGuid::NewGuid();
     Mode->MatchPhase=ELDMatchPhase::Development;
+    FLDObservedPublicFacts PublicFacts;
+    TestFalse(TEXT("A missing committed public build is not defaulted to level one"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error));
+    auto& Registered=Driver->Bodies.FindChecked(Body);
+    Registered.Resources.Revision=Registered.AttributeRevision=1;
+    FLDObservedPublicFacts Committed;
+    Committed.Level=1;
+    Committed.Equipment.Slots[0]=Committed.Equipment.Slots[1]=0;
+    Registered.PublicFacts=Committed;
+    Life.ProtectedUntilMs=100;
+    Mode->AuthorityNowMs=99;
+    TestTrue(TEXT("Current alive protection is derived once with its exact core deadline"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error)
+        && PublicFacts.Level==1 && PublicFacts.Statuses.Num()==1
+        && PublicFacts.Statuses[0].StatusId==uint8(ELDDemoStatusId::RespawnProtection)
+        && PublicFacts.Statuses[0].Stacks==1 && PublicFacts.Statuses[0].ExpiresAtServerMs==100);
+    Mode->AuthorityNowMs=100;
+    TestTrue(TEXT("The expiry boundary omits the cue without clearing or moving the deadline"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error)
+        && PublicFacts.Statuses.IsEmpty() && Life.ProtectedUntilMs==100);
+    TestFalse(TEXT("An old match cannot acquire the current body's public facts"),
+        Mode->ReadObservedPublicFacts({1,FGuid::NewGuid()},Ref,PublicFacts,Error));
+    TestFalse(TEXT("A different physical body cannot reuse the logical life"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,{Ref.Victim,FGuid::NewGuid()},PublicFacts,Error));
+    Registered.PublicFacts->Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,100});
+    TestFalse(TEXT("A stored protection status is rejected even after its deadline"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error));
+    Registered.PublicFacts->Statuses.Reset();
+    Life.Phase=ELDLifePhase::Dead;
+    TestFalse(TEXT("A dead life cannot publish an old protection cue"),
+        Mode->ReadObservedPublicFacts(Mode->MatchContext,Ref,PublicFacts,Error));
+    Life.Phase=ELDLifePhase::Alive;
+    Life.ProtectedUntilMs=0;
+    Mode->AuthorityNowMs=10;
     Mode->bAuthorityStepOpen=true;
     // Empty stationary batches still occupy an unconsumed native prefix.
     for (uint64 Index=1; Index<=255; ++Index)
@@ -195,6 +271,24 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The exact retired stream can release its already accepted final prefix"),
         Mode->AcknowledgeNativeMotion(Mode->MatchContext,Ref,256,0,Error));
     TestTrue(TEXT("Retired native history is bounded and reclaimable"),Life.NativeMotion.IsEmpty());
+    const uint64 OpenGate=Mode->GateRevision;
+    TestFalse(TEXT("A stale reporter cannot fault the current match"),
+        Mode->ReportAuthorityFault({1,FGuid::NewGuid()},TEXT("Obsolete world query")));
+    TestTrue(TEXT("Stale fault report preserves the live gate"),
+        Mode->MatchPhase==ELDMatchPhase::Development && Mode->GateRevision==OpenGate);
+    Mode->MatchPhase=ELDMatchPhase::Results;
+    TestFalse(TEXT("Late provider fault cannot overwrite a locked result"),
+        Mode->ReportAuthorityFault(Mode->MatchContext,TEXT("Late world query")));
+    TestTrue(TEXT("Locked result remains closed without another mutation"),
+        Mode->MatchPhase==ELDMatchPhase::Results && Mode->GateRevision==OpenGate);
+    Mode->MatchPhase=ELDMatchPhase::Development;
+    AddExpectedError(TEXT("LD_DEMO_AUTHORITY_FAULT Controlled provider failure"),EAutomationExpectedErrorFlags::Contains,1);
+    TestTrue(TEXT("A current provider failure closes the real core gate"),
+        Mode->ReportAuthorityFault(Mode->MatchContext,TEXT("Controlled provider failure"))
+        && Mode->MatchPhase==ELDMatchPhase::Faulted && Mode->GateRevision==OpenGate+1
+        && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
+    TestTrue(TEXT("Repeated fault report is idempotent"),
+        Mode->ReportAuthorityFault(Mode->MatchContext,TEXT("Controlled provider failure")) && Mode->GateRevision==OpenGate+1);
     return true;
 }
 #endif

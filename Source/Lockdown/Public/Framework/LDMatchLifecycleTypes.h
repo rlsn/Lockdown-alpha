@@ -68,6 +68,18 @@ struct FLDDeathKey
     { return HashCombine(GetTypeHash(Key.LedgerMatch), GetTypeHash(Key.Victim)); }
 };
 
+USTRUCT()
+struct FLDDemoClockView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint32 Generation = 0;
+    UPROPERTY() uint64 StepSerial = 0;
+    UPROPERTY() int64 NowMs = 0;
+    bool IsValid() const { return Generation != 0 && StepSerial != 0 && NowMs >= 0; }
+};
+
+enum class ELDClockProjectionResult : uint8 { Accepted, Duplicate, Stale, Malformed };
+
 enum class ELDCommitPhase : uint8
 {
     Session, Motion, Actions, Effects, DeathsAndRewards, RespawnsAndWorld, Transactions, Capture, Close, Publish
@@ -245,5 +257,7 @@ namespace LDMatchLifecycle
     LOCKDOWN_API bool AuthoritySecondsToEventMs(double Seconds, int64& Out, FString& Error);
     LOCKDOWN_API bool AddDurationMs(int64 StartMs, int64 DurationMs, int64& Out, FString& Error);
     LOCKDOWN_API bool DeadlineFromSeconds(double StartSeconds, int64 DurationMs, int64& Out, FString& Error);
+    LOCKDOWN_API ELDClockProjectionResult AcceptClockView(const FLDDemoClockView& Candidate,
+        FLDDemoClockView& Latest, FString& Error);
     LOCKDOWN_API ELDLobbyProjectionResult AcceptLobbyView(const FLDLobbyView& Candidate, FLDLobbyView& Latest, FString& Error);
 }

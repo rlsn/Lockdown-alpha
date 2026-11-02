@@ -39,7 +39,7 @@ enum class ELDLocalSettingsPhase : uint8
 
 struct LOCKDOWN_API FLDLocalSettingsStorage
 {
-    static FLDLocalSettingsStorage User(uint8 RequestedProfile=6);
+    static FLDLocalSettingsStorage User();
     static FLDLocalSettingsStorage Automation(const FGuid& Fixture);
     const FString& Filename() const { return Path; }
     bool IsValid() const { return !Path.IsEmpty(); }
@@ -134,19 +134,17 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 4;
+    static constexpr int32 CurrentSchema = 5;
     UPROPERTY(SaveGame) int32 Schema=CurrentSchema;
-    UPROPERTY(SaveGame) uint8 Profile=6;
     UPROPERTY(SaveGame) TMap<FName,FKey> Bindings;
     UPROPERTY(SaveGame) bool bEdgePan=true;
     UPROPERTY(SaveGame) bool bStartFollowing=true;
     UPROPERTY(SaveGame) float TextScale=1;
     UPROPERTY(SaveGame) float Zoom=1400;
-    static const TArray<FLDControlBinding>& Defaults(bool Tactical=false);
-    const TArray<FLDControlBinding>& Definitions() const {return Profile==8?HybridDefaults():Defaults(Profile==7);}
-    static const TArray<FLDControlBinding>& HybridDefaults();
-    static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage, uint8 RequestedProfile=6);
-    static ULDControlSettings* CreateSessionSettings(const FLDLocalSettingsStorage& Storage, uint8 RequestedProfile=6);
+    // The single Demo action registry; every binding, label and saved file uses it.
+    static const TArray<FLDControlBinding>& Definitions();
+    static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
+    static ULDControlSettings* CreateSessionSettings(const FLDLocalSettingsStorage& Storage);
     ULDControlSettings* CreateDraft() const;
     bool ApplyLocalSettings(const ULDControlSettings& Draft, FString& Error);
     FLDLocalSettingsSaveResult SaveLocalSettings();

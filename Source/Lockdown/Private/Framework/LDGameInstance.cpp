@@ -8,7 +8,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
-#include "Tests/LDResetProbe.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Character/LDCharacter.h"
 #include "Framework/LDPlayerController.h"
@@ -222,27 +221,18 @@ void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
     }
 }
 
-ULDControlSettings* ULDGameInstance::GetLocalControlSettings(uint8 Registry)
+ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
 {
-    if (const auto* Existing = LocalSettingsByRegistry.Find(Registry))
-    {
-        LocalControlSettings = *Existing;
-        return LocalControlSettings;
-    }
+    if (LocalControlSettings) { return LocalControlSettings; }
     const bool NeedsExplicitStorage = FApp::IsUnattended() || IsRunningCommandlet();
     const auto Storage = bUseIsolatedSettings ? IsolatedSettingsStorage
-        : NeedsExplicitStorage ? FLDLocalSettingsStorage() : FLDLocalSettingsStorage::User(Registry);
-    auto Loaded = ULDControlSettings::LoadLocalSettings(Storage, Registry);
+        : NeedsExplicitStorage ? FLDLocalSettingsStorage() : FLDLocalSettingsStorage::User();
+    auto Loaded = ULDControlSettings::LoadLocalSettings(Storage);
     LocalSettingsMessage = Loaded.Message;
     LocalControlSettings = Loaded.Settings;
     if (!LocalControlSettings)
     {
-        LocalControlSettings = ULDControlSettings::CreateSessionSettings(Storage, Registry);
-        if (!LocalControlSettings)
-        {
-            UE_LOG(LogTemp, Error, TEXT("%s"), *LocalSettingsMessage);
-            return nullptr;
-        }
+        LocalControlSettings = ULDControlSettings::CreateSessionSettings(Storage);
         if (Loaded.RecoverablePreferences)
         {
             LocalControlSettings->bEdgePan = Loaded.RecoverablePreferences->bEdgePan;
@@ -254,11 +244,10 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings(uint8 Registry)
         LocalSettingsMessage += TEXT(" Current bindings are session-only until you confirm recovery in Settings.");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *LocalSettingsMessage);
     }
-    LocalSettingsByRegistry.Add(Registry, LocalControlSettings);
     return LocalControlSettings;
 }
 
-ULDControlSettings* ULDGameInstance::UseIsolatedLocalSettings(const FGuid& Fixture, uint8 Registry)
+ULDControlSettings* ULDGameInstance::UseIsolatedLocalSettings(const FGuid& Fixture)
 {
     if (DisplayTrial.Id() || bDisplayRestorePending)
     {
@@ -268,10 +257,9 @@ ULDControlSettings* ULDGameInstance::UseIsolatedLocalSettings(const FGuid& Fixtu
     // Never flush a real user's object while switching a probe to its explicit fixture.
     IsolatedSettingsStorage = FLDLocalSettingsStorage::Automation(Fixture);
     bUseIsolatedSettings = true;
-    LocalSettingsByRegistry.Reset();
     LocalControlSettings = nullptr;
     LocalSettingsFlushAt = 0;
-    return GetLocalControlSettings(Registry);
+    return GetLocalControlSettings();
 }
 
 void ULDGameInstance::ApplyControlPreferences()
@@ -302,18 +290,11 @@ FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlS
 FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurrent)
 {
     LocalSettingsFlushAt = 0;
-    FLDLocalSettingsSaveResult Result{ ELDLocalSettingsSaveStatus::NoChanges, TEXT("No pending local preference changes.") };
-    for (const auto& Pair : LocalSettingsByRegistry)
-    {
-        if (!Pair.Value || (!Pair.Value->IsDirty() && !(VerifyCurrent && Pair.Value == LocalControlSettings))) { continue; }
-        const auto Saved = Pair.Value->SaveLocalSettings();
-        if (!Saved.IsSaved() || Result.Status == ELDLocalSettingsSaveStatus::NoChanges) { Result = Saved; }
-    }
-    if (Result.Status != ELDLocalSettingsSaveStatus::NoChanges)
-    {
-        LocalSettingsMessage = Result.Message;
-        if (!Result.IsSaved()) { UE_LOG(LogTemp, Warning, TEXT("%s"), *Result.Message); }
-    }
+    if (!LocalControlSettings || (!LocalControlSettings->IsDirty() && !VerifyCurrent))
+    { return { ELDLocalSettingsSaveStatus::NoChanges, TEXT("No pending local preference changes.") }; }
+    const auto Result = LocalControlSettings->SaveLocalSettings();
+    LocalSettingsMessage = Result.Message;
+    if (!Result.IsSaved()) { UE_LOG(LogTemp, Warning, TEXT("%s"), *Result.Message); }
     return Result;
 }
 

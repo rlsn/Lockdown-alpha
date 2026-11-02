@@ -1,25 +1,142 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Framework/LDMatchLifecycleTypes.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "World/LDWorldQueryTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDVisionDirector.generated.h"
 class ALDPlayerController;
 class ALDWorldViewRelay;
 class ALDCharacter;
+class ALDGameMode;
+class FLDDemoContentSnapshot;
+struct FLDDemoWorldGeometry;
+struct FLDDemoRational;
 
-struct FLDSightSource { FVector Position; float Radius; uint8 Level; };
+enum class ELDSightResult : uint8 { Visible, OutOfRange, Blocked, InvalidPoint, StaleWorld };
+enum class ELDObservationPurpose : uint8 { Inspect, NewAttackOrder, AttackMoveCandidate, AttackStart };
+enum class ELDObservedResolve : uint8 { Resolved, TargetUnavailable, ObserverUnavailable, AuthorityFault };
 
-UCLASS()
-class LOCKDOWN_API ALDWard : public AActor
+namespace LDObservation
 {
-    GENERATED_BODY()
+    // Keeps the schedule's phase across ordinary late frames; after a stall it skips the missed intervals instead
+    // of replaying them, so a caller samples the current pose once.
+    inline int64 NextSampleDue(int64 NowMs, int64 DueMs, int64 PeriodMs, bool bStarted)
+    { return !bStarted || NowMs - DueMs > PeriodMs ? NowMs + PeriodMs : DueMs + PeriodMs; }
+
+    // Authority-time sight to a target: only Visible resolves; OutOfRange/Blocked are ordinary unavailability.
+    // InvalidPoint/StaleWorld break a body or world invariant and surface as a fault, never as a missing target.
+    inline ELDObservedResolve ResolveFromSight(ELDSightResult Sight)
+    {
+        switch (Sight)
+        {
+        case ELDSightResult::Visible: return ELDObservedResolve::Resolved;
+        case ELDSightResult::OutOfRange:
+        case ELDSightResult::Blocked: return ELDObservedResolve::TargetUnavailable;
+        default: return ELDObservedResolve::AuthorityFault;
+        }
+    }
+}
+
+// Valid only inside the calling authority phase; never cached, serialized or shown.
+struct FLDAuthorityTargetSample
+{
+    FLDCombatBodyRef Target;
+    FVector FootCm = FVector::ZeroVector;
+    FLDWorldRevision World;
+    double SampledAtSeconds = 0;
+};
+
+// Server-only ObservedDeath fact with its core binding. Never serialized.
+struct FLDObservedTerminationFact
+{
+    FLDObservedUnitTermination Wire;
+    FLDMatchContext Match;
+    FLDVictimKey Victim;
+    double OccurredAtSeconds = 0;
+};
+
+// One registered body at one authority sample, read from the core body/combat owners.
+struct FLDObservedTarget
+{
+    FLDCombatBodyRef Body;
+    FVector FootCm = FVector::ZeroVector;
+    FLDObservedUnitView Presented; // authorized fields; Handle/Epoch/StateRevision are observer-local
+};
+
+// Static line of sight over the approved world geometry. The importer guarantees every
+// sight blocker is a strictly convex ground quad taller than the sight sample height.
+class LOCKDOWN_API FLDSightGeometry
+{
 public:
-    ALDWard();
-    TWeakObjectPtr<ALDPlayerController> Controller;
-    float ExpiresAt = 0;
-    double Hp = 20;
-    FGuid Identity;
-    FGuid SourceCharge;
+    bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius, FString& Error);
+    bool IsValid() const { return World.IsValid() && RadiusCm > 0; }
+    const FLDWorldRevision& Revision() const { return World; }
+    double Radius() const { return RadiusCm; }
+    const FVector2D& MinCm() const { return Min; }
+    const FVector2D& MaxCm() const { return Max; }
+    bool InBounds(const FVector& FootCm) const;
+    ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
+    FVector2D CellCentre(int32 Index) const;
+    void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
+private:
+    bool SegmentBlocked(const FVector2D& From, const FVector2D& To) const;
+    FLDWorldRevision World;
+    FVector2D Min = FVector2D::ZeroVector;
+    FVector2D Max = FVector2D::ZeroVector;
+    double RadiusCm = 0;
+    TArray<TArray<FVector2D>> Blockers;
+};
+
+// Per-observer authorization bookkeeping. It owns opaque handles, epochs, revisions, ObservedDeath
+// facts and the single current navigation pin; HP, life and body truth stay with their core owners.
+class LOCKDOWN_API FLDObserverLedger
+{
+public:
+    enum class ETerminate : uint8 { Terminated, NotBound, Failed };
+    bool Begin(uint32 InMatchGeneration, FString& Error);
+    bool Bind(ELDLifePhase InPhase, uint32 InLife, bool& bReset, FString& Error);
+    bool AllocateRevision(uint32& Out, FString& Error);
+    bool Sample(const TArray<const FLDObservedTarget*>& Visible, TArray<FGuid>& Removed,
+        TArray<FLDObservedUnitView>& Units, FString& Error);
+    ETerminate Terminate(const FLDCombatBodyRef& Victim, const FLDMatchContext& InMatch, double OccurredAtSeconds,
+        int64 OccurredAtServerMs, FLDObservedTerminationFact& Out, FString& Error);
+    bool BindOrder(const FLDMoveIdentity& Order, const FGuid& Handle, uint32 ObservationEpoch, FString& Error);
+    bool ReleaseOrder(const FLDMoveIdentity& Order, FString& Error);
+    bool FindBinding(const FGuid& Handle, uint32 ObservationEpoch, FLDCombatBodyRef& Out) const;
+    bool IsBound(const FLDCombatBodyRef& Body) const;
+    const FLDObservedTerminationFact* FindTermination(const FGuid& Handle, uint32 ObservationEpoch) const;
+    void RecentTerminations(TArray<FLDObservedUnitTermination>& Out) const;
+    bool HasOrderPin() const { return Pin.IsSet(); }
+    uint32 MatchGeneration() const { return Match; }
+    uint32 Generation() const { return Gen; }
+    uint32 Revision() const { return Rev; }
+    uint32 ObserverLife() const { return Life; }
+    ELDLifePhase Phase() const { return LifePhase; }
+private:
+    struct FBinding
+    {
+        FLDCombatBodyRef Body;
+        FGuid Handle;
+        uint32 Epoch = 0;
+        uint32 StateRevision = 0;
+        FLDObservedUnitView LastPresented;
+    };
+    struct FOrderPin
+    {
+        FLDMoveIdentity Order;
+        FGuid Handle;
+        uint32 Epoch = 0;
+    };
+    bool OrderBound(const FLDObservedTerminationFact& Fact) const;
+    bool Newer(const FLDMoveIdentity& Candidate, const FLDMoveIdentity& Current) const;
+    TArray<FBinding> Bindings;
+    TArray<FLDObservedTerminationFact> Terminations;
+    TOptional<FOrderPin> Pin;
+    uint32 Match = 0, Gen = 0, Rev = 0, Life = 0, NextEpoch = 0, NextSequence = 0;
+    ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
+    bool bBegun = false;
 };
 
 UCLASS()
@@ -28,46 +145,52 @@ class LOCKDOWN_API ALDVisionDirector : public AActor
     GENERATED_BODY()
 public:
     ALDVisionDirector();
-    virtual void BeginPlay() override;
-    virtual void Tick(float Delta) override;
-    void Register(ALDPlayerController* Controller);
-    void Unregister(ALDPlayerController* Controller);
-    void EndLife(ALDPlayerController* PC);
-    bool PlaceWard(ALDPlayerController* Controller, const FVector& Desired, FString& Reason,FGuid Charge=FGuid());
-    void RefreshEnvironment();
-    bool Ray(const FLDSightSource& Source, const FVector& Target,bool SurfaceCue=false) const;
-    uint8 LevelAt(const FVector& Position) const;
-    void SetPublicSensor(bool bActive,bool Fixture=true);
-    FLDVisionGrid Grid() const;
-    FVector PublicLocation() const;
-    bool IsPublicSensorActive() const { return bPublicSensor; }
-    bool CanObserve(ALDPlayerController* PC,AActor* Actor) const;
-    bool Detects(ALDPlayerController* PC,const FVector& Point) const;
-    bool CanSee(ALDPlayerController* Controller, const FVector& Point) const;
-    ALDWorldViewRelay* RelayFor(ALDPlayerController* Controller) const;
-    const FLDWorldView* AuthorityViewFor(ALDPlayerController* Controller) const;
-    AActor* ResolveObserved(ALDPlayerController* Controller,const FGuid& ObservedId) const;
-    bool bPublicationEnabled = true;
-    uint32 Generation = 1;
-    TArray<FLDSightSource> SourcesFor(ALDPlayerController* Controller) const;
-    double LastSampleMs=0;
-    uint64 SampleSerial=0;
-    static FVector PublicPosition() { return FVector(1200,1000,0); }
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+    bool BeginMatch(const FLDMatchContext& InMatch, FString& Error);
+    void EndMatch();
+    bool RegisterObserver(const FGuid& ContenderId, ALDPlayerController* Controller, FString& Error);
+    void UnregisterObserver(const FGuid& ContenderId);
+    // Read-only Publish work after the driver's last completed step; samples on the core clock.
+    bool PublishAuthority(const FLDMatchContext& InMatch, FString& Error);
+    bool RecordObservedDeath(const FLDGameplayWritePermit& Permit, const FLDCombatBodyRef& Victim,
+        double OccurredAtSeconds, FString& Error);
+    ELDObservedResolve ResolveObservedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
+        uint32 ObservationEpoch, ELDObservationPurpose Purpose, FLDAuthorityTargetSample& Out, FString* Diagnostic = nullptr) const;
+    bool EnumerateVisibleUnits(const ALDPlayerController& RegisteredCaller, ELDObservationPurpose Purpose,
+        FLDWorldView& Out, FString& Error) const;
+    bool FindObservedTermination(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
+        uint32 ObservationEpoch, FLDObservedTerminationFact& Out) const;
+    bool BindObservedOrder(const ALDPlayerController& Caller, const FLDMoveIdentity& Order, FGuid Handle,
+        uint32 ObservationEpoch, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ReleaseObservedOrder(const ALDPlayerController& Caller, const FLDMoveIdentity& Order, FString& Error);
+    ELDSightResult TraceSight(const FVector& SourceFootCm, const FVector& TargetFootCm, const FLDWorldRevision& Expected) const;
+    static constexpr int64 SamplePeriodMs = 50;
+    static constexpr int64 PublishPeriodMs = 100;
 private:
-    friend class ALDInventoryProbe;
     struct FObserver
     {
+        FGuid ContenderId;
+        TWeakObjectPtr<ALDPlayerController> Controller;
         TWeakObjectPtr<ALDWorldViewRelay> Relay;
-        TArray<uint8> Explored;
-        TMap<TWeakObjectPtr<AActor>,FGuid> Ids;
-        TSet<FGuid> Visible;
-        FLDWorldView Pending;
+        FLDObserverLedger Ledger;
+        FLDWorldView Latest;
+        bool bHasLatest = false;
     };
-    TMap<TWeakObjectPtr<ALDPlayerController>,FObserver> Observers;
-    TArray<TWeakObjectPtr<ALDWard>> Wards;
-    TArray<FBox> HighGround;
-    double NextSample = 0, NextPublish = 0;
-    uint64 Revision = 0;
-    bool bPublicSensor = true;
-    void Sample(bool bPublish);
+    ALDGameMode* AuthorityMode() const;
+    FObserver* FindObserver(const ALDPlayerController& Caller);
+    const FObserver* FindObserver(const ALDPlayerController& Caller) const;
+    bool ReadObserver(const FObserver& Observer, FLDContenderLifeRead& Life, FVector& Foot, FString& Error) const;
+    // Authority-time sight that also proves the registered world has not changed under observation.
+    ELDSightResult CurrentSight(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
+    bool GatherTargets(TArray<FLDObservedTarget>& Out, FString& Error) const;
+    bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets, bool bPublish, FString& Error);
+    static FVector FootOf(const ALDCharacter& Body);
+    TArray<FObserver> Observers;
+    FLDMatchContext ActiveMatch;
+    FLDSightGeometry Sight;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    int64 NextSampleMs = 0;
+    int64 NextPublishMs = 0;
+    bool bSampled = false;
+    bool bActive = false;
 };

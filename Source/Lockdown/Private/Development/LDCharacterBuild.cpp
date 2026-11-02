@@ -12,8 +12,7 @@ THIRD_PARTY_INCLUDES_END
 FLDCharacterBuild::FLDCharacterBuild()
 {
     Ranks.Init(0, LDDevelopment::SkillCount);
-    Ranks[int32(ELDSkill::Heave)] = Ranks[int32(ELDSkill::Patch)] = 1;
-    Slots = {ELDSkill::Heave, ELDSkill::Patch, ELDSkill::None, ELDSkill::None};
+    Slots.Init(ELDSkill::None,LDDevelopment::SlotCount);
     Cooldowns.Init(0, LDDevelopment::SkillCount);
 }
 
@@ -128,7 +127,6 @@ namespace LDDevelopment
     int32 Rank(const FLDCharacterBuild& B, ELDSkill S) { return B.Ranks.IsValidIndex(uint8(S)) ? B.Ranks[uint8(S)] : 0; }
     bool Equipped(const FLDCharacterBuild& B, ELDSkill S) { return S!=ELDSkill::None && Rank(B,S)>0 && B.Slots.Contains(S); }
     TArray<int32> Effective(const FLDCharacterBuild& B){TArray<int32> A=B.Attributes;if(B.RulesVersion>=7&&A.Num()==6&&B.Gear.Primary.Num()==6){for(int32 I=0;I<6;++I){A[I]+=B.Gear.Primary[I];}}return A;}
-    double TacticalDeathDelay(int32 Level,double Elapsed){return FMath::Min(90.,8.+2*FMath::Clamp(Level,1,15)+FMath::FloorToDouble(FMath::Max(0.,Elapsed)/120));}
     double MaxHP(const FLDCharacterBuild& B) { if(B.RulesVersion>=7){return 600.+25*(Effective(B)[CON]-8)+18*(B.Level-1);} return FMath::Clamp(100. + 5*(B.Attributes[CON]-10),75.,150.); }
     double BasicDamage(const FLDCharacterBuild& B) { if(B.RulesVersion>=7){return B.Gear.WeaponBase+2*FMath::Max(0,Effective(B)[STR]-8);} return FMath::Clamp(20. + .75*(B.Attributes[STR]-10),14.,28.); }
     double SpeedFactor(const FLDCharacterBuild& B) { return FMath::Clamp(1. + .01*(B.Attributes[DEX]-10),.90,1.10); }
@@ -174,8 +172,6 @@ namespace LDDevelopment
         B.AttributePoints+=2*Earned; B.SkillPoints+=Earned; B.Level=FMath::Max(B.Level,NewLevel);
         if (Earned) { ++B.Revision; }
     }
-    double DeathDelay(int32 Level, double Elapsed) { return FMath::Min(60.,10.+4*(FMath::Clamp(Level,1,5)-1)+5*FMath::FloorToDouble(FMath::Max(0.,Elapsed)/300)); }
-    int64 DeathLoss(int64 Gold) { check(Gold>=0); return (Gold/100)*15+((Gold%100)*15+99)/100; }
     FLDBuildPlan PlanFrom(const FLDCharacterBuild& B)
     {
         FLDBuildPlan P; P.RulesVersion=B.RulesVersion;P.CatalogDigest=B.CatalogDigest;P.ExpectedRevision=B.Revision; P.Attributes=B.Attributes; P.Ranks=B.Ranks; P.Slots=B.Slots;P.Actions=B.Actions; P.Subclass=B.Subclass; return P;

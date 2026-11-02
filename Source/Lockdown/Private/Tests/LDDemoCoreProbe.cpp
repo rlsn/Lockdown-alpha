@@ -443,8 +443,12 @@ public:
         if (!Goal) { Error=TEXT("Approved capture ground is missing."); Passed=false; return Finish(); }
         if (Stage==1)
         {
+            int64 DisplayNowMs=0;
             if (!Body || !Movement || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive
-                || !Public->bMatchStarted || !Movement->CurrentFloor.IsWalkableFloor() || !PC->CanWorldCommand()) { return true; }
+                || Public->DemoLobby.Phase!=ELDMatchPhase::Development || !Movement->CurrentFloor.IsWalkableFloor()
+                || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
+            Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
+                TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));
             Check(Body->GetController()==PC && PC->OwnerState.Life==1 && PC->OwnerState.LifeRevision==1,
                 TEXT("Possession, body identity and logical first life agree"));
             Check(PC->OwnerState.Hp*100==Content->Get().Parameters.MaxHP.BaseP2
@@ -502,14 +506,14 @@ public:
         else if (Stage==6)
         {
             if (!FPaths::FileExists(FPaths::Combine(Output,TEXT("ReplayReady.json")))) { return true; }
-            Nav->ServerOrder(OldOrder,Goal->Position,FGuid(),0,Goal->Surface);
+            Nav->ServerOrder(OldOrder,Goal->Position,Goal->Surface);
             Nav->ServerHeartbeat(OldOrder,MAX_uint32);
             auto WrongLife=Nav->LocalIdentity();
             ++WrongLife.Order; ++WrongLife.Life;
-            Nav->ServerOrder(WrongLife,Goal->Position,FGuid(),0,Goal->Surface);
+            Nav->ServerOrder(WrongLife,Goal->Position,Goal->Surface);
             auto WrongMatch=Nav->LocalIdentity();
             ++WrongMatch.Order; ++WrongMatch.Match;
-            Nav->ServerOrder(WrongMatch,Goal->Position,FGuid(),0,Goal->Surface);
+            Nav->ServerOrder(WrongMatch,Goal->Position,Goal->Surface);
             if (PC->HasAuthority())
             {
                 const auto Count=Movement->AuthorityIntegrationCount;

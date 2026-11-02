@@ -1,18 +1,30 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDHUDModel.h"
 #include "Framework/LDPlayerController.h"
-#include "Framework/LDGameMode.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Navigation/LDNavigationComponent.h"
-#include "Region/LDRegionDefinition.h"
+#include "Region/LDMapRegistry.h"
+#include "Region/LDMapGeometry.h"
 #include "Core/LDGroundQueries.h"
-#include "Economy/LDProductionDirector.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 
+namespace
+{
+// The minimap shares the registered ground bounds that observation coverage indexes.
+bool MinimapGroundBounds(const UWorld* World,FBox2D& Out)
+{
+    const auto* Registry=World?World->GetSubsystem<ULDMapRegistry>():nullptr;
+    const FLDDemoWorldGeometry* Geometry=Registry&&Registry->Enabled()?Registry->GetGeometry():nullptr;
+    FVector Min,Max;FString Error;
+    if(!Geometry||Geometry->Surfaces.Num()!=1||!Geometry->Surfaces[0].MinCm.ToVector(Min,Error)||!Geometry->Surfaces[0].MaxCm.ToVector(Max,Error)||Max.X<=Min.X||Max.Y<=Min.Y){return false;}
+    Out=FBox2D(FVector2D(Min.X,Min.Y),FVector2D(Max.X,Max.Y));
+    return true;
+}
+}
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
 {if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor(.02f,.03f,.05f));WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}
 
@@ -21,8 +33,7 @@ FVector2D ULDMinimap::Fraction(const FGeometry& G,const FPointerEvent& E) const
 bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(!PC->CanWorldCommand()){return false;}
-    if(Move&&PC->HasArmedAction()){PC->CancelArmed();return true;}
-    const auto* Definition=LDRegion::Definition(GetWorld());const FLDVisionGrid Grid=Definition?Definition->Grid:FLDVisionGrid();
+    FBox2D Grid;if(!MinimapGroundBounds(GetWorld(),Grid)){PC->IntentFeedback=TEXT("Map unavailable outside the registered Demo world");return true;}
     const FVector XY=LDHUD::MapWorld(P,Grid);FVector Surface;
     if(Move){if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->IntentFeedback=TEXT("No walkable route");return true;}PC->Navigation->Navigate(Surface);}
     else{PC->Navigation->PanTo(XY);}
@@ -42,33 +53,29 @@ void ULDMinimap::NativeTick(const FGeometry& G,float D)
 {Super::NativeTick(G,D);if(!CastChecked<ALDPlayerController>(GetOwningPlayer())->CanWorldCommand()){bDragging=false;}}
 int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
-    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* R=PC->LocalView();if(!R){return Base;}
-    const auto& V=R->LastView();const auto* Definition=LDRegion::Definition(GetWorld());const FLDVisionGrid Grid=Definition?Definition->Grid:V.Grid;
-    const FVector2D Size=G.GetLocalSize(),Cell=Size/FVector2D(60,40);
+    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    FBox2D Grid;if(!MinimapGroundBounds(GetWorld(),Grid)){return Base;}
+    const FVector2D Size=G.GetLocalSize();
     auto Box=[&](FVector2D P,FVector2D Extent,FLinearColor Color){FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(Extent,FSlateLayoutTransform(P)),FCoreStyle::Get().GetBrush(TEXT("WhiteBrush")),ESlateDrawEffect::None,Color);};
     auto Line=[&](TArray<FVector2D> Points,FLinearColor Color,float Width=1.f){FSlateDrawElement::MakeLines(E,Base+2,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Width);};
-    for(int32 I=0;I<LDVision::Cells;++I)
+    Box(FVector2D::ZeroVector,Size,FLinearColor(.025f,.035f,.055f));
+    const auto* R=PC->LocalView();const FLDObservedFrameRead Frame=R?R->ReadObservedFrame():FLDObservedFrameRead();
+    if(Frame.Frame&&Frame.Status==ELDObservedViewStatus::Current&&Frame.Frame->Footprint.SourceStatus==ELDObservationSource::ActiveBody)
     {
-        const bool Current=!R->IsStale()&&LDVision::Bit(V.Current,I),Known=LDVision::Bit(V.Explored,I);const FVector2D At((I%60)*Cell.X,(39-I/60)*Cell.Y);
-        Box(At,Cell,Current?FLinearColor(.26f,.42f,.40f):Known?FLinearColor(.10f,.16f,.20f):FLinearColor(.025f,.035f,.055f));
-        if(Known&&!Current&&I%3==0){Line({At,At+Cell*.7f},FLinearColor(.25f,.29f,.34f));}
-        if(!Known&&I%4==0){Box(At+Cell*.45f,FVector2D(1),FLinearColor(.17f,.18f,.23f));}
+        // Current authorized coverage only: no explored or remembered layer exists. Rows merge into runs.
+        const int32 Side=LDObservation::CoverageSide;const FVector2D Cell=Size/double(Side);const auto& Bits=Frame.Frame->Footprint.CurrentBits;
+        for(int32 Y=0;Y<Side;++Y)
+        {
+            for(int32 X=0;X<Side;)
+            {
+                if(!LDObservation::CoverageBit(Bits,Y*Side+X)){++X;continue;}
+                const int32 Start=X;while(X<Side&&LDObservation::CoverageBit(Bits,Y*Side+X)){++X;}
+                Box(FVector2D(Start*Cell.X,(Side-1-Y)*Cell.Y),FVector2D((X-Start)*Cell.X,Cell.Y),FLinearColor(.26f,.42f,.40f));
+            }
+        }
+        for(const FLDObservedUnitView& Unit:Frame.Frame->Units)
+        {Box(LDHUD::MapPoint(FVector(Unit.FeetCm),Grid)*Size-FVector2D(2),FVector2D(4),Unit.Kind==ELDObservedUnitKind::Contender?FLinearColor(1,.35f,.25f):FLinearColor(.9f,.8f,.3f));}
     }
-    if(!R->IsStale()){for(const auto& Record:V.Entities)
-    {
-        const FVector2D At=LDHUD::MapPoint(Record.Position,Grid)*Size;
-        if(Record.Kind==ELDObservedKind::Ward){const float Radius=Record.Presentation==1?4.f:2.f;Line({At+FVector2D(0,-Radius),At+FVector2D(Radius,0),At+FVector2D(0,Radius),At+FVector2D(-Radius,0),At+FVector2D(0,-Radius)},FLinearColor(.4f,1,.8f));}
-        else{Box(At-FVector2D(2),FVector2D(4),Record.Kind==ELDObservedKind::Seal?FLinearColor(1,.76f,.2f):Record.Kind==ELDObservedKind::Sentinel?FLinearColor(1,.35f,.25f):FLinearColor(.9f,.9f,.75f));}
-    }}
-    const auto* State=GetWorld()->GetGameState<ALDGameState>();
-    for(uint8 Site:{uint8(1),uint8(2),uint8(3),uint8(6),uint8(7),uint8(8)})
-    {
-        if(Site>3&&!Definition){continue;}const FVector2D At=LDHUD::MapPoint(LDRegion::Site(GetWorld(),Site),Grid)*Size;
-        const FString Label=Site==1?TEXT("G"):Site==2?TEXT("W"):Site==3?TEXT("H"):Site==6?TEXT("E"):Site==7?(State&&State->bPublicSensorActive?TEXT("T+"):TEXT("T−")):TEXT("X");
-        Box(At-FVector2D(2),FVector2D(5),FLinearColor(.3f,.8f,1));FSlateDrawElement::MakeText(E,Base+3,G.ToPaintGeometry(FVector2D(24,14),FSlateLayoutTransform(At+FVector2D(3,-7))),Label,FCoreStyle::GetDefaultFontStyle("Bold",12),ESlateDrawEffect::None,FLinearColor::White);
-    }
-    if(State&&State->bUIControlProfile)
-    {for(uint8 Site=0;Site<5;++Site){const FVector2D At=LDHUD::MapPoint(ALDProductionDirector::Position(GetWorld(),Site),Grid)*Size;const FString Label=Site<2?FString::Printf(TEXT("C%d:%d"),Site+1,Site?State->OutcropTwo:State->OutcropOne):TEXT("WS");Line({At+FVector2D(0,-4),At+FVector2D(4,0),At+FVector2D(0,4),At+FVector2D(-4,0),At+FVector2D(0,-4)},FLinearColor(.7f,.5f,1));FSlateDrawElement::MakeText(E,Base+3,G.ToPaintGeometry(FVector2D(40,14),FSlateLayoutTransform(At+FVector2D(3,7))),Label,FCoreStyle::GetDefaultFontStyle("Bold",10),ESlateDrawEffect::None,FLinearColor::White);}}
     if(PC->GetPawn()){Box(LDHUD::MapPoint(PC->GetPawn()->GetActorLocation(),Grid)*Size-FVector2D(3),FVector2D(6),FLinearColor(.3f,1,.8f));}
     // Actual camera's ground footprint, without querying any world actor.
     int32 W=0,H=0;PC->GetViewportSize(W,H);TArray<FVector2D> Footprint;

@@ -7,9 +7,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/SpectatorPawn.h"
 #include "EngineUtils.h"
-#include "Region/LDB90Preview.h"
 #include "Region/LDMapRegistry.h"
-#include "Region/LDMapSurfaceSubsystem.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -86,9 +84,9 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
         true, ERHIFeatureLevel::Num, &Values);
     if (!TestNotNull(TEXT("Native saved-mode rejection world"), LegacyWorld)) { return false; }
     ON_SCOPE_EXIT { LegacyWorld->DestroyWorld(false); };
-    LegacyWorld->GetWorldSettings()->DefaultGameMode = ALDB90PreviewMode::StaticClass();
+    LegacyWorld->GetWorldSettings()->DefaultGameMode = AGameModeBase::StaticClass();
     const FURL LegacyURL(nullptr, TEXT("/Game/Lockdown/Generated/V09/L_V09Full"), TRAVEL_Absolute);
-    TestNull(TEXT("Saved B90 mode with no Profile is rejected before its inherited lifecycle can execute"),
+    TestNull(TEXT("A retired world with no Profile is rejected before its selected lifecycle can execute"),
         Instance->CreateGameModeForURL(LegacyURL, LegacyWorld));
     TestEqual(TEXT("Rejection retains the original URL"), Instance->RejectedEntryURL(), LegacyURL.ToString());
     int32 Pawns = 0, GameModes = 0;
@@ -97,9 +95,7 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Rejected native mode never creates a pawn"), Pawns, 0);
     TestEqual(TEXT("Rejected native mode is not silently replaced by another game"), GameModes, 0);
     auto* Registry = LegacyWorld->GetSubsystem<ULDMapRegistry>();
-    auto* Surfaces = LegacyWorld->GetSubsystem<ULDMapSurfaceSubsystem>();
     TestNull(TEXT("Rejected legacy world never creates its old map registry"), Registry);
-    TestNull(TEXT("Rejected legacy world never creates its old surface clock"), Surfaces);
     return true;
 }
 
@@ -151,10 +147,8 @@ bool FLDDemoEntryObservationTest::RunTest(const FString& Parameters)
     APawn* Pawn = World->SpawnActor<APawn>();
     if (!TestNotNull(TEXT("Deliberate invalid activation fixture"), Pawn)) { return false; }
     TestTrue(TEXT("Fixture pawn is destroyed before final census"), Pawn->Destroy());
-    LDDemoTests::ObserveMapSubsystem(*World, false, false);
-    LDDemoTests::ObserveMapSubsystem(*World, false, true);
-    LDDemoTests::ObserveMapSubsystem(*World, true, false);
-    LDDemoTests::ObserveMapSubsystem(*World, true, true);
+    LDDemoTests::ObserveMapRegistry(*World, false);
+    LDDemoTests::ObserveMapRegistry(*World, true);
     World->DestroyWorld(false);
     GEngine->DestroyWorldContext(World);
     World = nullptr;
@@ -163,8 +157,6 @@ bool FLDDemoEntryObservationTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Destroyed pawn remains a cumulative activation"), Observed.Pawns, 1);
     TestEqual(TEXT("Registry creation cannot be hidden by teardown"), Observed.RegistryCreations, 1);
     TestEqual(TEXT("Registry activation cannot be hidden by teardown"), Observed.RegistryActivations, 1);
-    TestEqual(TEXT("Surface creation cannot be hidden by teardown"), Observed.SurfaceCreations, 1);
-    TestEqual(TEXT("Surface activation cannot be hidden by teardown"), Observed.SurfaceActivations, 1);
     return true;
 }
 

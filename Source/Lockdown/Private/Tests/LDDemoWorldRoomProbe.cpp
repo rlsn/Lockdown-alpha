@@ -122,7 +122,7 @@ bool TickRoom(const TSharedRef<FRoomProbe>& Probe)
             TEXT("Three-human roster has one Host and no fabricated AI bodies"));
         Report->SetArrayField(TEXT("contenders"), Ids);
         Report->SetNumberField(TEXT("generation"), State->DemoLobby.Generation);
-        Check(!State->bMatchStarted && !State->DemoLobby.CanStart && !State->DemoLobby.StartBlocker.IsEmpty(),
+        Check(State->DemoLobby.Phase==ELDMatchPhase::Lobby && !State->DemoLobby.CanStart && !State->DemoLobby.StartBlocker.IsEmpty(),
             TEXT("Incomplete gameplay remains explicitly gated"));
         int32 Pawns = 0;
         for (TActorIterator<APawn> It(World); It; ++It) { ++Pawns; }

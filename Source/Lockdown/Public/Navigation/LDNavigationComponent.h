@@ -28,7 +28,7 @@ public:
     ULDNavigationComponent();
     virtual void TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* ThisTickFunction) override;
     bool Enabled() const;
-    void Navigate(const FVector& Surface,FGuid Observed=FGuid(),uint8 Site=0);
+    void Navigate(const FVector& Surface);
     void NavigateGround(const FVector& Surface, FName SurfaceHint);
     void Stop();
     void ResetLife();
@@ -53,7 +53,7 @@ public:
     FString Status;
     FVector Destination=FVector::ZeroVector;
     // Explicitly callable for deterministic adversarial RPC probes; all validation is authority-side.
-    UFUNCTION(Server,Reliable) void ServerOrder(FLDMoveIdentity Identity,FVector_NetQuantize10 Surface,FGuid Observed,uint8 Site,FName SurfaceHint);
+    UFUNCTION(Server,Reliable) void ServerOrder(FLDMoveIdentity Identity,FVector_NetQuantize10 Surface,FName SurfaceHint);
     UFUNCTION(Server,Reliable) void ServerStop(FLDMoveIdentity Identity);
     UFUNCTION(Server,Unreliable) void ServerHeartbeat(FLDMoveIdentity Identity,uint32 Sequence);
     UFUNCTION(Client,Reliable) void ClientOrder(FLDMoveIdentity Identity,uint8 Result,FVector_NetQuantize10 Goal,float Acceptance,const FString& Reason);

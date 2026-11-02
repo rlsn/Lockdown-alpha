@@ -1,5 +1,4 @@
 #include "Inventory/LDEquipmentCatalog.h"
-#include "World/LDPortableTools.h"
 #include "Development/LDB84Contract.h"
 #include "Development/LDV08Modifiers.h"
 #include "Misc/FileHelper.h"
@@ -51,4 +50,4 @@ ULDEquipmentCatalog* ULDEquipmentCatalog::Load(uint8 Rules){if(Rules==8){static 
 double FLDEquipmentDefinition::Param(const TCHAR* Key,double Default) const
 {if(ActiveJson.IsEmpty()){return Default;}TSharedPtr<FJsonObject> O;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ActiveJson),O)||!O){return Default;}double Value=Default;O->TryGetNumberField(Key,Value);return Value;}
 const FLDEquipmentDefinition* ULDEquipmentCatalog::Find(ELDItemKind K) const
-{if(const auto* D=Items.FindByPredicate([&](const auto& E){return E.Kind==K;})){return D;}return RulesVersion==8?LDPortableTools::Definition(K):nullptr;}
+{return Items.FindByPredicate([&](const auto& E){return E.Kind==K;});}

@@ -96,7 +96,7 @@ void ULDMapRegistry::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 #if WITH_DEV_AUTOMATION_TESTS
-    LDDemoTests::ObserveMapSubsystem(*GetWorld(), false, false);
+    LDDemoTests::ObserveMapRegistry(*GetWorld(), false);
 #endif
 }
 
@@ -108,7 +108,7 @@ void ULDMapRegistry::OnWorldBeginPlay(UWorld& W)
         FString Error;
         if (!Rebuild(Error)) { UE_LOG(LogTemp, Error, TEXT("LD_DEMO_WORLD_BINDING_REJECTED %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS
-        if (Enabled()) { LDDemoTests::ObserveMapSubsystem(W, false, true); }
+        if (Enabled()) { LDDemoTests::ObserveMapRegistry(W, true); }
 #endif
     }
 }
