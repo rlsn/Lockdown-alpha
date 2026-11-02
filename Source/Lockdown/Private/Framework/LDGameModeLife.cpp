@@ -48,8 +48,7 @@ bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhas
     if (!Initializing)
     {
         const int32 Order = PhaseOrder(Phase);
-        // Transactions stays closed until the growth provider is wired into this dispatch.
-        if (Order == INDEX_NONE || Phase == ELDCommitPhase::Transactions)
+        if (Order == INDEX_NONE)
         {
             Error = FString::Printf(TEXT("Authority phase %u has no wired provider."), uint32(Phase));
             return false;

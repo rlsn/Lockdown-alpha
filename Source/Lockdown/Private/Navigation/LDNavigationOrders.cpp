@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDPlayerController.h"
@@ -694,20 +695,9 @@ bool ULDNavigationComponent::AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body
         return true;
     }
     const FVector Foot=ALDCombatDirector::FootOf(Body);
-    const FLDObservedUnitView* Best=nullptr;
-    double BestDistance=0;
-    for (const FLDObservedUnitView& Unit : View.Units)
-    {
-        if (Unit.Kind==ELDObservedUnitKind::Contender && Unit.ContenderId==Order.Body.Victim.EntityId) { continue; }
-        const double Distance=FVector::DistSquared2D(Foot,FVector(Unit.FeetCm));
-        if (Distance>FMath::Square(Radius)) { continue; }
-        if (!Best || Distance<BestDistance || (Distance==BestDistance && Unit.Handle<Best->Handle))
-        {
-            Best=&Unit;
-            BestDistance=Distance;
-        }
-    }
-    if (!Best) { return true; }
+    const int32 BestIndex=LDOrderRules::NearestCandidate(View.Units,Foot,Radius,Order.Body.Victim.EntityId);
+    if (BestIndex==INDEX_NONE) { return true; }
+    const FLDObservedUnitView* Best=&View.Units[BestIndex];
     FString Diagnostic;
     const ELDObservedResolve Resolved=Mode.Vision->ResolveObservedUnit(*PC,Best->Handle,Best->ObservationEpoch,
         ELDObservationPurpose::AttackMoveCandidate,Out,&Diagnostic);
