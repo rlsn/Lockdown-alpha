@@ -7,13 +7,16 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthRequests.h"
+#include "Dom/JsonObject.h"
 #include "Economy/LDEconomyLedger.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
@@ -633,6 +636,91 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     bGood &= GrowthTestExpectAccount(Test, Ledger, P2, 1830, 57, TEXT("The filler account at the end"));
     bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After post-compaction commits"));
     bGood &= GrowthTestConserves(Test, Ledger, TEXT("The final ledger"));
+    return bGood;
+}
+
+// A compacted prefix followed by every cause; -LDGrowthLedgerEvidence=<file> keeps the export for
+// Scripts\CheckEconomyEvidence.py so the independent replay is checked against real native output.
+bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
+{
+    const FGuid Match(0x11111111, 0x22223333, 0x44445555, 0x66667777);
+    const FGuid P1(0xE1, 0, 0, 1);
+    const FGuid P2(0xE1, 0, 0, 2);
+    const FGuid P3(0xE1, 0, 0, 3);
+    const FName Blade(TEXT("item_edge_blade"));
+    const int64 StartingGold = 150;
+    LDEconomy::FLedger Ledger;
+    FString Json;
+    FString Error;
+    bool bGood = Test.TestFalse(TEXT("An uninitialized ledger exports no evidence"),
+        LDEconomy::ExportEvidence(Ledger, StartingGold, Json, Error));
+    bGood &= Test.TestTrue(TEXT("The refused export explains itself and returns no text"), !Error.IsEmpty() && Json.IsEmpty());
+    if (!Test.TestTrue(FString::Printf(TEXT("The evidence ledger initializes (%s)"), *Error),
+        Ledger.Initialize(Match, {P1, P2, P3}, StartingGold, Error)))
+    {
+        return false;
+    }
+    // Folded into the audit prefix: P2 buys one item and P3 leaves.
+    if (!GrowthTestCommit(Test, Ledger, GrowthTestBuy(201, P2, 1, 1, Blade, 0, 100), TEXT("The evidence prefix buy"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestRetire(202, P3, 1, 2, 7), TEXT("The evidence prefix retirement"))
+        || !GrowthTestCompact(Test, Ledger, 2, LDEconomy::ECompactResult::Compacted, TEXT("The evidence prefix compaction")))
+    {
+        return false;
+    }
+    const FGuid PrefixItem = LDEconomy::FLedger::InstanceFor(Match, 1);
+    const FGuid FirstBlade = LDEconomy::FLedger::InstanceFor(Match, 2);
+    // The tail covers every cause, two instances of one definition and the sale of a prefix item.
+    if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(203, P1, 1, 80), TEXT("The evidence tail reward"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(204, P1, 2, 1, Blade, 0, 100), TEXT("The evidence tail first buy"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(205, P1, 3, 2, Blade, 1, 100), TEXT("The evidence tail second buy"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestSell(206, P1, 4, 3, FirstBlade, 1, 65), TEXT("The evidence tail sale"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestSell(207, P2, 2, 2, PrefixItem, 1, 65), TEXT("The sale of a prefix item"))
+        || !GrowthTestCommit(Test, Ledger, GrowthTestRetire(208, P2, 3, 1, 3), TEXT("The evidence tail retirement")))
+    {
+        return false;
+    }
+    bGood &= GrowthTestConserves(Test, Ledger, TEXT("The evidence ledger"));
+    if (!Test.TestTrue(FString::Printf(TEXT("The ledger exports its evidence (%s)"), *Error),
+        LDEconomy::ExportEvidence(Ledger, StartingGold, Json, Error)))
+    {
+        return false;
+    }
+    TSharedPtr<FJsonObject> Root;
+    if (!Test.TestTrue(TEXT("The evidence is one JSON object"),
+        FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) && Root.IsValid()))
+    {
+        return false;
+    }
+    bGood &= Test.TestTrue(TEXT("The evidence names schema 2, its match and the approved starting gold"),
+        Root->GetIntegerField(TEXT("schemaVersion")) == 2
+        && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
+        && Root->GetStringField(TEXT("startingGold")) == TEXT("150"));
+    const TArray<TSharedPtr<FJsonValue>>* Tail = nullptr;
+    const TSharedPtr<FJsonObject>* Prefix = nullptr;
+    const TSharedPtr<FJsonObject>* Current = nullptr;
+    if (!Test.TestTrue(TEXT("The evidence carries the prefix, the tail and the live state"),
+        Root->TryGetArrayField(TEXT("tail"), Tail) && Root->TryGetObjectField(TEXT("prefix"), Prefix)
+        && Root->TryGetObjectField(TEXT("current"), Current) && Tail->Num() == 6))
+    {
+        return false;
+    }
+    TArray<FString> Causes;
+    for (const TSharedPtr<FJsonValue>& Entry : *Tail)
+    {
+        Causes.Add(Entry->AsObject()->GetStringField(TEXT("cause")));
+    }
+    bGood &= Test.TestEqual(TEXT("The tail lists every cause in commit order"), FString::Join(Causes, TEXT(",")),
+        FString(TEXT("DeathReward,Buy,Buy,Sell,Sell,AccountRetire")));
+    bGood &= Test.TestTrue(TEXT("The prefix ends at serial 2 and the live state at serial 8"),
+        (*Prefix)->GetStringField(TEXT("throughSerial")) == TEXT("2") && (*Current)->GetStringField(TEXT("throughSerial")) == TEXT("8"));
+    bGood &= Test.TestEqual(TEXT("The first tail buy records its issued instance"),
+        (*Tail)[1]->AsObject()->GetStringField(TEXT("createdInstance")), FirstBlade.ToString(EGuidFormats::DigitsWithHyphensLower));
+    FString EvidencePath;
+    if (FParse::Value(FCommandLine::Get(), TEXT("LDGrowthLedgerEvidence="), EvidencePath))
+    {
+        bGood &= Test.TestTrue(FString::Printf(TEXT("The evidence is written to %s"), *EvidencePath),
+            !EvidencePath.IsEmpty() && FFileHelper::SaveStringToFile(Json, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+    }
     return bGood;
 }
 
@@ -1549,7 +1637,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthLedgerTest, "Lockdown.Rules.DemoGr
 
 bool FLDDemoGrowthLedgerTest::RunTest(const FString& Parameters)
 {
-    return GrowthTestRunLedger(*this);
+    const bool bLedger = GrowthTestRunLedger(*this);
+    const bool bEvidence = GrowthTestRunLedgerEvidence(*this);
+    return bLedger && bEvidence;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthRequestsTest, "Lockdown.Rules.DemoGrowthRequests",

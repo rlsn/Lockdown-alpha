@@ -1,4 +1,9 @@
-"""Independently replay the current FLedger export, without legacy market policy."""
+"""Independently replay a Demo ledger evidence export (schema 2): audit prefix + journal tail must equal the live state.
+
+The export comes from LDEconomy::ExportEvidence. Every rule mirrors LDEconomy::ApplyEntry: one account per entry,
+DeathReward = mint, Buy = burn + create, Sell = consume + mint, AccountRetire = retire only, two equipment slots,
+instance identities that encode the match and issue serial, and gold that reconciles with initial + mint - burn.
+"""
 
 import argparse
 import json
@@ -6,8 +11,16 @@ from pathlib import Path
 import re
 from uuid import UUID
 
-MAX_GOLD = 2**63 - 1
-MAX_REVISION = 2**32 - 1
+SCHEMA_VERSION = 2
+INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
+UINT32_MAX, UINT64_MAX = 2**32 - 1, 2**64 - 1
+EQUIPMENT_SLOTS = 2
+JOURNAL_TAIL_CAPACITY = 64
+CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire")
+DEFINITION = re.compile(r"[a-z][a-z0-9_]{0,62}")
+UNSIGNED = re.compile(r"0|[1-9][0-9]*")
+SIGNED = re.compile(r"0|-?[1-9][0-9]*")
+TERMS = re.compile(r"[0-9a-f]{64}")
 
 
 def require(condition, message):
@@ -26,158 +39,273 @@ def rows(row, name):
     return value
 
 
-def integer(value, name, minimum=0, maximum=MAX_REVISION):
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    require(type(value) is int and minimum <= value <= maximum, f"Invalid integer: {name}")
+def optional(row, name):
+    value = field(row, name)
+    require(value is None or isinstance(value, dict), f"{name} must be an object or null")
     return value
 
 
-def amount(value, name, minimum=0):
-    require(isinstance(value, str) and re.fullmatch(r"-?(0|[1-9][0-9]*)", value), f"{name} must be a decimal int64 string")
+def u64(value, label, minimum=0):
+    require(isinstance(value, str) and UNSIGNED.fullmatch(value), f"{label} must be a decimal uint64 string")
     result = int(value)
-    require(minimum <= result <= MAX_GOLD, f"Out-of-range amount: {name}")
+    require(minimum <= result <= UINT64_MAX, f"Out-of-range {label}")
     return result
 
 
-def name(value, label, allow_none=False):
-    require(isinstance(value, str) and value, f"Invalid name: {label}")
-    require(allow_none or value.casefold() != "none", f"Missing name: {label}")
-    return value.casefold()
+def i64(value, label, minimum=INT64_MIN):
+    require(isinstance(value, str) and SIGNED.fullmatch(value), f"{label} must be a decimal int64 string")
+    result = int(value)
+    require(minimum <= result <= INT64_MAX, f"Out-of-range {label}")
+    return result
 
 
-def identity(value, label):
+def small(value, label, maximum):
+    require(type(value) is int and 0 <= value <= maximum, f"Invalid integer: {label}")
+    return value
+
+
+def flag(value, label):
+    require(type(value) is bool, f"Invalid boolean: {label}")
+    return value
+
+
+def guid(value, label):
     require(isinstance(value, str), f"Invalid identity: {label}")
     try:
         result = UUID(value)
     except ValueError as error:
         raise ValueError(f"Invalid identity: {label}") from error
+    require(str(result) == value, f"Identity is not canonical lowercase: {label}")
     require(result.int != 0, f"Zero identity: {label}")
-    return str(result)
+    return value
 
 
-def unique(records, key, label):
-    result = {}
-    for record in records:
-        value = key(record)
-        require(value not in result, f"Duplicate {label}: {value}")
-        result[value] = record
-    return result
+def definition(value, label):
+    require(isinstance(value, str) and DEFINITION.fullmatch(value), f"Invalid definition: {label}")
+    return value
 
 
-def item_state(row):
-    require(type(field(row, "consumed")) is bool, "Invalid item consumed flag")
-    return {
-        "kind": integer(field(row, "kind"), "item kind", maximum=255),
-        "location": name(field(row, "location"), "item location", True),
-        "consumed": row["consumed"],
-        "quality": integer(field(row, "quality"), "item quality", maximum=2),
-        "skill": integer(field(row, "skill"), "item skill", maximum=255),
-        "origin": identity(field(row, "origin"), "item origin"),
-        "parents": [identity(parent, "item parent") for parent in rows(row, "parents")],
+def instance_for(match, serial):
+    """LDEconomy::FLedger::InstanceFor: the match's A/B words and the 64-bit issue serial."""
+    return str(UUID(int=(UUID(match).int >> 64 << 64) | serial))
+
+
+def load_state(row, match, label):
+    require(isinstance(row, dict), f"{label} must be an object")
+    state = {
+        "through": u64(field(row, "throughSerial"), f"{label}.throughSerial"),
+        "issued": u64(field(row, "issuedThrough"), f"{label}.issuedThrough"),
+        "initial": i64(field(row, "initialGoldTotal"), f"{label}.initialGoldTotal", 0),
+        "minted": i64(field(row, "minted"), f"{label}.minted", 0),
+        "burned": i64(field(row, "burned"), f"{label}.burned", 0),
+        "accounts": {},
+        "inventories": {},
+        "items": {},
     }
+    for account in rows(row, "accounts"):
+        key = guid(field(account, "id"), f"{label} account")
+        require(key not in state["accounts"], f"Duplicate account: {key}")
+        retired = flag(field(account, "retired"), f"{label} account retired")
+        record = {
+            "gold": i64(field(account, "gold"), f"{label} account gold", 0),
+            "revision": u64(field(account, "revision"), f"{label} account revision", 1),
+            "retired": retired,
+            "retireSerial": u64(field(account, "retireSerial"), f"{label} retireSerial"),
+            "retireLife": small(field(account, "retireLife"), f"{label} retireLife", UINT32_MAX),
+            "retireLifeRevision": u64(field(account, "retireLifeRevision"), f"{label} retireLifeRevision"),
+        }
+        if retired:
+            require(1 <= record["retireSerial"] <= state["through"] and record["retireLife"] >= 1
+                    and record["retireLifeRevision"] >= 1, f"Retired account lacks its retirement serial or leave stamp: {key}")
+        else:
+            require(record["retireSerial"] == 0 and record["retireLife"] == 0 and record["retireLifeRevision"] == 0,
+                    f"Active account carries a retirement record: {key}")
+        state["accounts"][key] = record
+    for inventory in rows(row, "inventories"):
+        key = guid(field(inventory, "owner"), f"{label} inventory owner")
+        require(key not in state["inventories"], f"Duplicate inventory: {key}")
+        state["inventories"][key] = u64(field(inventory, "revision"), f"{label} inventory revision", 1)
+    require(set(state["inventories"]) == set(state["accounts"]), f"{label}: every account needs exactly one inventory revision")
+    positions = set()
+    for item in rows(row, "items"):
+        key = guid(field(item, "instance"), f"{label} item")
+        require(key not in state["items"], f"Duplicate item: {key}")
+        serial = u64(field(item, "issueSerial"), f"{label} item issueSerial", 1)
+        require(serial <= state["issued"], f"Item serial exceeds issuedThrough: {key}")
+        require(key == instance_for(match, serial), f"Item identity does not encode its match and issue serial: {key}")
+        record = {
+            "serial": serial,
+            "definition": definition(field(item, "definition"), f"{label} item definition"),
+            "owner": guid(field(item, "owner"), f"{label} item owner"),
+            "slot": small(field(item, "slot"), f"{label} item slot", EQUIPMENT_SLOTS - 1),
+            "revision": u64(field(item, "revision"), f"{label} item revision", 1),
+        }
+        require(record["owner"] in state["accounts"], f"Item owner has no account: {key}")
+        require((record["owner"], record["slot"]) not in positions, f"Two items share one equipment slot: {key}")
+        positions.add((record["owner"], record["slot"]))
+        state["items"][key] = record
+    total = sum(account["gold"] for account in state["accounts"].values())
+    require(total <= INT64_MAX, f"{label}: total gold overflows")
+    require(total == state["initial"] + state["minted"] - state["burned"],
+            f"{label}: gold does not reconcile with the initial total, mint and burn")
+    return state
+
+
+def apply_entry(state, entry, match):
+    """Mirror of LDEconomy::ApplyEntry in replay mode."""
+    serial = u64(field(entry, "serial"), "serial")
+    require(serial == state["through"] + 1, "Journal serial is not the next contiguous commit")
+    cause = field(entry, "cause")
+    require(cause in CAUSES, f"Unknown cause: {cause}")
+    mint = i64(field(entry, "mint"), "mint", 0)
+    burn = i64(field(entry, "burn"), "burn", 0)
+    gold, create, consume, retire = (optional(entry, name) for name in ("gold", "create", "consume", "retire"))
+    delta = i64(field(gold, "delta"), "gold delta") if gold is not None else None
+    if cause == "DeathReward":
+        shape = gold is not None and create is None and consume is None and retire is None and delta > 0 and mint == delta and burn == 0
+    elif cause == "Buy":
+        shape = (gold is not None and create is not None and consume is None and retire is None and delta < 0
+                 and burn == -delta and mint == 0 and field(create, "owner") == field(gold, "account"))
+    elif cause == "Sell":
+        shape = (gold is not None and consume is not None and create is None and retire is None and delta >= 0
+                 and mint == delta and burn == 0 and field(consume, "owner") == field(gold, "account"))
+    else:
+        shape = retire is not None and gold is None and create is None and consume is None and mint == 0 and burn == 0
+    require(shape, "Transaction shape does not match its cause")
+    minted, burned = state["minted"] + mint, state["burned"] + burn
+    require(minted <= INT64_MAX and burned <= INT64_MAX, "Ledger mint or burn total would overflow")
+
+    accounts, inventories, items = state["accounts"], state["inventories"], state["items"]
+    changed, new_account, result_account = None, None, 0
+    if gold is not None:
+        key = guid(field(gold, "account"), "gold account")
+        account = accounts.get(key)
+        require(account is not None, "Gold account is not part of this match")
+        require(not account["retired"], "Gold account is retired")
+        require(account["revision"] == u64(field(gold, "expectedRevision"), "gold expectedRevision"), "Gold account revision changed")
+        new_gold = account["gold"] + delta
+        require(INT64_MIN <= new_gold <= INT64_MAX and account["revision"] < UINT64_MAX, "Gold balance or account revision would overflow")
+        require(new_gold >= 0, "Gold balance is insufficient")
+        result_account = account["revision"] + 1
+        changed, new_account = key, dict(account, gold=new_gold, revision=result_account)
+
+    inventory_owner, new_inventory, created_serial, created_instance, new_item = None, 0, 0, None, None
+    if create is not None:
+        owner = guid(field(create, "owner"), "create owner")
+        require(owner in accounts and owner in inventories, "Equipment owner is not part of this match")
+        require(not accounts[owner]["retired"], "Equipment owner is retired")
+        require(inventories[owner] == u64(field(create, "expectedInventoryRevision"), "create expectedInventoryRevision"),
+                "Inventory revision changed")
+        item_definition = definition(field(create, "definition"), "create definition")
+        slot = small(field(create, "slot"), "create slot", 255)
+        require(slot < EQUIPMENT_SLOTS, "Created equipment needs slot 0 or 1")
+        held = [item for item in items.values() if item["owner"] == owner]
+        require(len(held) < EQUIPMENT_SLOTS, "Both equipment slots are occupied")
+        require(all(item["slot"] != slot for item in held), "The target equipment slot is occupied")
+        require(state["issued"] < UINT64_MAX and inventories[owner] < UINT64_MAX, "Issue serial or inventory revision would overflow")
+        created_serial = state["issued"] + 1
+        created_instance = instance_for(match, created_serial)
+        require(created_instance not in items, "Issued equipment identity is already live")
+        inventory_owner, new_inventory = owner, inventories[owner] + 1
+        new_item = {"serial": created_serial, "definition": item_definition, "owner": owner, "slot": slot, "revision": 1}
+
+    consumed = None
+    if consume is not None:
+        key = guid(field(consume, "instance"), "consume instance")
+        owner = guid(field(consume, "owner"), "consume owner")
+        item = items.get(key)
+        require(item is not None, "Equipment instance is not live")
+        require(item["owner"] == owner, "Equipment instance belongs to another owner")
+        require(item["revision"] == u64(field(consume, "expectedItemRevision"), "consume expectedItemRevision"), "Equipment item revision changed")
+        require(owner in accounts and owner in inventories, "Equipment owner is not part of this match")
+        require(not accounts[owner]["retired"], "Equipment owner is retired")
+        require(inventories[owner] == u64(field(consume, "expectedInventoryRevision"), "consume expectedInventoryRevision"),
+                "Inventory revision changed")
+        require(inventories[owner] < UINT64_MAX, "Inventory revision would overflow")
+        inventory_owner, new_inventory, consumed = owner, inventories[owner] + 1, key
+
+    if retire is not None:
+        key = guid(field(retire, "account"), "retire account")
+        account = accounts.get(key)
+        require(account is not None, "Retired account is not part of this match")
+        require(not account["retired"], "Account is already retired")
+        require(account["revision"] == u64(field(retire, "expectedRevision"), "retire expectedRevision"),
+                "Account revision changed before retirement")
+        life = small(field(retire, "life"), "retire life", UINT32_MAX)
+        life_revision = u64(field(retire, "lifeRevision"), "retire lifeRevision")
+        require(life != 0 and life_revision != 0 and account["revision"] < UINT64_MAX, "Retirement needs the core leave stamp")
+        result_account = account["revision"] + 1
+        changed = key
+        new_account = dict(account, retired=True, revision=result_account, retireSerial=serial,
+                           retireLife=life, retireLifeRevision=life_revision)
+
+    total = sum(new_account["gold"] if key == changed else account["gold"] for key, account in accounts.items())
+    require(total <= INT64_MAX, "Total gold would overflow")
+    require(total == state["initial"] + minted - burned, "Gold does not reconcile with the initial total, mint and burn")
+    recorded_instance = field(entry, "createdInstance")
+    require(recorded_instance is None or isinstance(recorded_instance, str), "createdInstance must be a string or null")
+    if recorded_instance is not None:
+        guid(recorded_instance, "createdInstance")
+    require(u64(field(entry, "resultAccountRevision"), "resultAccountRevision") == result_account
+            and u64(field(entry, "resultInventoryRevision"), "resultInventoryRevision") == new_inventory
+            and recorded_instance == created_instance
+            and u64(field(entry, "createdIssueSerial"), "createdIssueSerial") == created_serial,
+            "Recorded journal results differ from the independent replay")
+
+    if changed is not None:
+        accounts[changed] = new_account
+    if inventory_owner is not None:
+        inventories[inventory_owner] = new_inventory
+    if new_item is not None:
+        items[created_instance] = new_item
+        state["issued"] = created_serial
+    if consumed is not None:
+        del items[consumed]
+    state["minted"], state["burned"], state["through"] = minted, burned, serial
+
+
+def compare(replayed, current):
+    for name, label in (("through", "committed serial"), ("issued", "issued equipment serial"), ("initial", "initial gold total"),
+                        ("minted", "mint total"), ("burned", "burn total"), ("accounts", "accounts"),
+                        ("inventories", "inventory revisions"), ("items", "live equipment")):
+        require(replayed[name] == current[name], f"Replayed {label} differ from the exported live state")
 
 
 def verify_data(data):
-    require(integer(field(data, "schemaVersion"), "schemaVersion") == 1, "Unsupported ledger schema")
-    identity(field(data, "match"), "match")
-    final_accounts = unique(rows(data, "accounts"), lambda row: name(field(row, "id"), "account"), "account")
-    final_budgets = unique(rows(data, "budgets"), lambda row: name(field(row, "id"), "budget"), "budget")
-    final_items = unique(rows(data, "items"), lambda row: identity(field(row, "id"), "item"), "item")
-    accounts = {key: amount(field(row, "endowment"), "endowment") for key, row in final_accounts.items()}
-    revisions = {key: 1 for key in accounts}
-    budgets = {key: integer(field(row, "initial"), "initial budget", maximum=2**31 - 1) for key, row in final_budgets.items()}
-    start = amount(field(data, "start"), "start")
-    require(sum(accounts.values()) == start, "Starting endowments do not reconcile")
-    items, item_revisions, seen = {}, {}, set()
-    mint = burn = 0
-    for serial, receipt in enumerate(rows(data, "receipts"), 1):
-        receipt_id = identity(field(receipt, "id"), "receipt")
-        require(amount(field(receipt, "serial"), "serial") == serial and receipt_id not in seen, "Receipt order or identity reused")
-        seen.add(receipt_id)
-        cause = name(field(receipt, "cause"), "cause")
-        issued, spent = amount(field(receipt, "mint"), "mint"), amount(field(receipt, "burn"), "burn")
-        require(mint + issued <= MAX_GOLD and burn + spent <= MAX_GOLD and start + mint + issued <= MAX_GOLD, "Cumulative classification overflow")
-        debits = unique(rows(receipt, "gold"), lambda row: name(field(row, "account"), "account"), "account delta")
-        net = 0
-        for account, delta in debits.items():
-            require(account in accounts, "Unregistered account")
-            expected = integer(field(delta, "expected"), "account expected revision", minimum=1)
-            change = amount(field(delta, "delta"), "gold delta", -(2**63))
-            require(expected == revisions[account] < MAX_REVISION, "Stale account revision")
-            net += change
-            require(-(2**63) <= net <= MAX_GOLD, "Gold delta overflow")
-            require(0 <= accounts[account] + change <= MAX_GOLD, "Insufficient or overflowing account")
-            accounts[account] += change
-            revisions[account] += 1
-        require(net == issued - spent, "Gold deltas do not match mint/burn")
-        mint += issued
-        burn += spent
-        require(0 <= sum(accounts.values()) <= MAX_GOLD, "Aggregate gold overflow")
-        budget = name(field(receipt, "budget"), "budget", True)
-        units = integer(field(receipt, "units"), "budget units", maximum=2**31 - 1)
-        require((budget == "none") == (units == 0), "Budget identity and units disagree")
-        bounds = [] if not units else [(budget, units)]
-        for debit in rows(receipt, "additionalBudgets"):
-            bounds.append((name(field(debit, "id"), "additional budget"), integer(field(debit, "units"), "additional units", minimum=1, maximum=2**31 - 1)))
-        require(len({key for key, _ in bounds}) == len(bounds), "Duplicate budget debit")
-        for key, count in bounds:
-            require(key in budgets and budgets[key] >= count, "Missing or exhausted budget")
-            budgets[key] -= count
-        changes = unique(rows(receipt, "items"), lambda row: identity(field(row, "id"), "item delta"), "item delta")
-        prior_live = {key for key, item in items.items() if not item["consumed"]}
-        for delta in changes.values():
-            integer(field(delta, "op"), "item operation", maximum=4)
-        consumed = {key for key, delta in changes.items() if delta["op"] in (2, 4)}
-        transient = {key for key, delta in changes.items() if delta["op"] == 4}
-        for key, delta in changes.items():
-            operation = delta["op"]
-            kind = integer(field(delta, "kind"), "item kind", maximum=255)
-            expected = integer(field(delta, "expected"), "item expected revision")
-            quality = integer(field(delta, "quality"), "item quality", maximum=255)
-            skill = integer(field(delta, "skill"), "item skill", maximum=255)
-            source = name(field(delta, "from"), "item source", True)
-            target = name(field(delta, "to"), "item destination", True)
-            parents = [identity(parent, "parent") for parent in rows(delta, "parents")]
-            if operation in (0, 4):
-                require(key not in items and expected == 0 and source == "none" and target != "none" and quality <= 2, "Invalid item creation")
-                require(len(set(parents)) == len(parents), "Duplicate parent")
-                require(all(parent in consumed and (parent in prior_live or parent in transient) for parent in parents), "Missing or unconsumed parent")
-                if operation == 4:
-                    require(not parents and quality == 0 and cause == "equipmentworkorder", "Invalid transient operation")
-                items[key] = {"kind": kind, "location": target if operation == 0 else "none", "consumed": operation == 4, "quality": quality, "skill": skill, "origin": receipt_id, "parents": parents}
-                item_revisions[key] = 1
-            else:
-                require(key in items and not items[key]["consumed"] and not parents, "Unknown or consumed item")
-                item = items[key]
-                require(expected == item_revisions[key] < MAX_REVISION and item["kind"] == kind and item["location"] == source, "Item ownership or revision changed")
-                if operation == 1:
-                    require(target != "none" and target != source, "Invalid transfer destination")
-                elif operation == 2:
-                    require(target == "none", "Consumed item retains a destination")
-                else:
-                    require(target == source and quality == item["quality"] + 1 <= 2, "Invalid quality revision")
-                    item["quality"] = quality
-                item["location"] = target
-                item["consumed"] = operation == 2
-                item_revisions[key] += 1
-    for key, account in final_accounts.items():
-        require(type(field(account, "retired")) is bool, "Invalid account retirement flag")
-        require(accounts[key] == amount(field(account, "gold"), "final gold"), "Final account mismatch")
-        require(revisions[key] + int(account["retired"]) == integer(field(account, "revision"), "final account revision", minimum=1), "Final account revision mismatch")
-    require(sum(accounts.values()) == start + mint - burn == amount(field(data, "end"), "end"), "Total gold does not reconcile")
-    require((mint, burn) == (amount(field(data, "minted"), "minted"), amount(field(data, "burned"), "burned")), "Classification totals differ")
-    require(set(items) == set(final_items), "Final item identity set differs")
-    for key, row in final_items.items():
-        require(items[key] == item_state(row), "Final item state or origin differs")
-        require(all(parent in items and items[parent]["consumed"] for parent in items[key]["parents"]), "Final parent history differs")
-    require(budgets == {key: integer(field(row, "remaining"), "remaining budget", maximum=2**31 - 1) for key, row in final_budgets.items()}, "Final budget state differs")
-    return {"receipts": len(seen), "accounts": len(accounts), "items": len(items), "gold": sum(accounts.values())}
+    require(isinstance(data, dict), "Evidence must be a JSON object")
+    require(type(field(data, "schemaVersion")) is int and data["schemaVersion"] == SCHEMA_VERSION, "Unsupported ledger evidence schema")
+    match = guid(field(data, "match"), "match")
+    starting_gold = i64(field(data, "startingGold"), "startingGold", 0)
+    prefix = load_state(field(data, "prefix"), match, "prefix")
+    current = load_state(field(data, "current"), match, "current")
+    require(prefix["initial"] == starting_gold * len(prefix["accounts"]),
+            "The initial gold total is not the approved starting gold for every roster account")
+    tail = rows(data, "tail")
+    require(len(tail) <= JOURNAL_TAIL_CAPACITY, "The journal tail exceeds its capacity")
+    keys, batch = set(), 0
+    for entry in tail:
+        key = guid(field(entry, "businessKey"), "businessKey")
+        require(key not in keys, f"Duplicate business key in the journal tail: {key}")
+        keys.add(key)
+        require(isinstance(field(entry, "terms"), str) and TERMS.fullmatch(entry["terms"]), "terms must be 64 lowercase hex digits")
+        entry_batch = u64(field(entry, "commitBatch"), "commitBatch", 1)
+        require(entry_batch >= batch, "Commit batches go backwards in the journal tail")
+        batch = entry_batch
+        apply_entry(prefix, entry, match)
+    compare(prefix, current)
+    return {
+        "tail": len(tail),
+        "throughSerial": current["through"],
+        "accounts": len(current["accounts"]),
+        "items": len(current["items"]),
+        "gold": sum(account["gold"] for account in current["accounts"].values()),
+    }
 
 
 def verify(path):
     result = verify_data(json.loads(Path(path).read_text(encoding="utf-8-sig")))
-    print(f"PASS {path}: {result['receipts']} receipts, {result['accounts']} accounts, {result['items']} unique items, {result['gold']} gold")
+    print(f"PASS {path}: {result['tail']} tail entries through serial {result['throughSerial']}, "
+          f"{result['accounts']} accounts, {result['items']} live items, {result['gold']} gold")
     return result
 
 

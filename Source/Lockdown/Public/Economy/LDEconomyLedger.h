@@ -202,4 +202,9 @@ namespace LDEconomy
     // Applies one entry to State with full validation. bReplay checks recorded results instead of filling them.
     LOCKDOWN_API bool ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bReplay, EPrepareError& Error, FString& Message);
     LOCKDOWN_API bool SameState(const FAuditState& A, const FAuditState& B, FString& Difference);
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 2): the audit prefix, the journal tail after it and the
+    // live state, every 64-bit value as a decimal string. StartingGold is the approved SHOP.StartingGold of the match.
+    LOCKDOWN_API bool ExportEvidence(const FLedger& Ledger, int64 StartingGold, FString& OutJson, FString& Error);
+#endif
 }
