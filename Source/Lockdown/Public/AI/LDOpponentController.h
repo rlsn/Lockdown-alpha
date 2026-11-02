@@ -13,6 +13,22 @@
 class ALDGameMode;
 class FLDDemoContentSnapshot;
 
+// Requests one adapter sent in its match, counted where each leaves the adapter. Evidence that waits, refusals
+// and retries stay bounded; never a policy input.
+struct FLDOpponentRequestTally
+{
+    uint32 Orders = 0;
+    uint32 OrdersRefused = 0;
+    uint32 Stops = 0;
+    uint32 Actions = 0;
+    uint32 ActionsRefused = 0;
+    uint32 ShopOpens = 0;
+    uint32 Choices = 0;
+    uint32 Trades = 0;
+    uint32 BuildsRefused = 0;
+    uint32 BodyRequests() const { return Orders + Stops + Actions; }
+};
+
 // Server-only opponent adapter (docs/demo/OPPONENT_AI.md §3). It has no local player, connection, input or
 // UI. Each decision interval it reads only what the core and the domains publish for this contender, runs
 // the pure policy once and submits at most one body and one build request through the same server entries
@@ -34,6 +50,7 @@ public:
     // Client RPCs run locally on a connectionless server controller: the AI never travels the host process.
     virtual void ClientTravelInternal_Implementation(const FString& URL, ETravelType TravelType, bool bSeamless,
         FGuid MapPackageGuid) override;
+    const FLDOpponentRequestTally& GetRequestTally() const { return Tally; }
 
 private:
     // One spatial order exactly as it was sent. The incumbent is the last order Navigation admitted; a newer
@@ -108,6 +125,7 @@ private:
     FLDOrderCaller OrderCaller(const FReads& Reads);
     void ForgetBodyWork();
     void Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, const FString& Problem);
+    void ReportTally();
 
     FLDAIContenderBinding Binding;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -130,6 +148,8 @@ private:
     int64 NextDecisionAtMs = 0;
     bool bClosed = false;
     bool bRetiring = false;
+    bool bTallyReported = false;
+    FLDOpponentRequestTally Tally;
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;
     ELDOpponentReason ReportedReason = ELDOpponentReason::None;

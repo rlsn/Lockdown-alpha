@@ -177,6 +177,7 @@ void ALDOpponentController::HandleMatchClosed(const FLDMatchClosed& Closed)
     bClosed = true;
     ForgetBodyWork();
     Build = FBuildTrack();
+    ReportTally();
 }
 
 void ALDOpponentController::HandleMatchReset(const FLDMatchReset& Reset)
@@ -187,6 +188,17 @@ void ALDOpponentController::HandleMatchReset(const FLDMatchReset& Reset)
     RetiringMatch = Reset.Old;
     ForgetBodyWork();
     Build = FBuildTrack();
+    ReportTally();
+}
+
+void ALDOpponentController::ReportTally()
+{
+    if (bTallyReported || !Binding.IsValid()) { return; }
+    bTallyReported = true;
+    UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
+        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u"), *Binding.GetContender().ToString(),
+        Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
+        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused);
 }
 
 void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
@@ -494,10 +506,13 @@ void ALDOpponentController::SettleShop(ALDGameMode& Mode, const FReads& Reads, c
         FString Error;
         Visit.bOpenSent = true;
         Visit.OpenSentAtMs = NowMs;
-        Settle = Registry && LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
-            Registry->Revision(), Command, Error)
-            ? LDOpponentRequests::SettleShopOpen(Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command))
-            : ELDOpponentSettle::Failed;
+        if (Registry && LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
+            Registry->Revision(), Command, Error))
+        {
+            ++Tally.ShopOpens;
+            Settle = LDOpponentRequests::SettleShopOpen(Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command));
+        }
+        else { Settle = ELDOpponentSettle::Failed; }
     }
     else
     {
@@ -607,6 +622,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             return;
         }
         LastIdentity = Identity;
+        ++Tally.Stops;
         const FLDOrderReceipt Receipt = Navigation->CancelOrder(OrderCaller(Reads), Identity, ELDOrderCancelReason::Stop);
         if (Receipt.Status == ELDOrderStatus::Rejected)
         {
@@ -630,6 +646,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
             return;
         }
         DirectSequence = Request.DirectSequence;
+        ++Tally.Actions;
         const ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Mode.Combat->SubmitAction(Reads.CombatCaller, Request));
         Action = FActionTrack();
         Action.bHas = true;
@@ -638,6 +655,8 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         Action.SentAtMs = NowMs;
         if (Settle != ELDOpponentSettle::InFlight)
         {
+            // A fresh submission resolves at once only when Combat refused it on receipt.
+            ++Tally.ActionsRefused;
             Action.bFinal = true;
             Learn(Intent.Key, Settle, Self, NowMs);
         }
@@ -654,11 +673,13 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         return;
     }
     LastIdentity = Identity;
+    ++Tally.Orders;
     const FLDOrderReceipt Receipt = Navigation->SubmitOrder(OrderCaller(Reads), Request);
     StopTrack = FStopTrack();
     if (Receipt.Status == ELDOrderStatus::Rejected)
     {
         // Refused on receipt; any incumbent order keeps running.
+        ++Tally.OrdersRefused;
         Learn(Intent.Key, LDOpponentRequests::SettleOrder(Receipt), Self, NowMs);
         return;
     }
@@ -691,6 +712,7 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
             Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
             return;
         }
+        ++Tally.Choices;
         Result = Mode.Development->QueueChoice(Contender, Command);
     }
     else
@@ -704,6 +726,7 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
             Visit = FShopVisit();
             return;
         }
+        ++Tally.Trades;
         Result = Mode.Vendor->QueueShopCommand(Contender, Command);
     }
     const uint64 RequestId = Cursor;
@@ -722,6 +745,7 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
     }
     if (Settle != ELDOpponentSettle::Succeeded)
     {
+        ++Tally.BuildsRefused;
         Problem = FString::Printf(TEXT("build request refused status=%u reason=%u"), uint8(Result.Status), uint32(Result.Reason));
     }
     Learn(Intent.Key, Settle, Self, NowMs);

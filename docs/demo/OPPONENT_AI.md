@@ -249,7 +249,7 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDCharacterBuild.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDGearRules.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策，N04/N05 新提供者不从已退役 Development/Vendor 服务继续抽取。 |
 | 抽取/改造 R10–R12 | `S\Public\World\LDCampDecision.h`、`S\Private\World\LDCampDecision.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供营地纯决策（营地原语待 N03 接线）、静态查询和唯一受限帧，致死信用归核心 DeathKey；AI 不消费全表，不保留旧完整地图第二身体流。 |
 | 新增 N06/M12 | `S\Public\AI\LDOpponentPolicy.h`、`S\Private\AI\LDOpponentPolicy.cpp`、`S\Public\AI\LDOpponentFrame.h`、`S\Private\AI\LDOpponentFrame.cpp`、`S\Public\AI\LDOpponentRequests.h`、`S\Private\AI\LDOpponentRequests.cpp`、`S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp`（已实现） | 纯策略放 §6 的决策输入/结果、成本估计、选择/装备/回防/重试规则；adapter 放 §3 的绑定、受限投影组合与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
-| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`（已实现，`Lockdown.Rules.DemoOpponentPolicy.*`）；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 后四项名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
+| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`（已实现，`Lockdown.Rules.DemoOpponentPolicy.*`）；`S\Private\Tests\LDDemoOpponentProbe.h`、`S\Private\Tests\LDDemoOpponentProbe.cpp`、`Scripts\RunDemoOpponentCheck.ps1`（已实现） | 纯策略用授权 DTO；拥有连接场景经正常大厅开局，使用正常订单及真实拥有连接。probe 在 Host 上读取的权威数据只用于核对，从不回送给策略。runner 只复核本次运行，不回放旧档案作为成功。 |
 
 AI 新参数接入内容域选定的唯一生成输入/载荷/contract，不新增 AI 私有 JSON 或运行时读 docs。
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；
@@ -498,6 +498,9 @@ Offer/报价冲突等同域终态或相关修订；普通帧更新不刷新次�
 PublicCaptureUrgent、NoAffordableImprovement、AwaitReceipt、TargetSuppressed、
 ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回防/为何失败”，
 但不得记录从未授权给该 AI 的隐藏坐标、钱包或内部来源，再反向作为决策输入。
+每局关闭时，每个 AI 另输出一行 `LD_AI_SUMMARY`，汇总本局送出的订单、Stop、动作、开店、选择、交易次数，
+以及当场被拒的次数（`ALDOpponentController::GetRequestTally`）。它用来核对等待、拒绝和重试是否有界，
+只是证据，不是策略输入。
 
 ## 7. SC-09：参数与内容唯一来源
 
@@ -546,7 +549,11 @@ AI03 的动作覆盖可以用明确标注的源/Offer 夹具穷举稀有分支�
 
 ### 8.2 正反验收与证据
 
-以下都是**需新增或改造的未来验收**，当前未实现/未运行。
+`RunDemoOpponentCheck.ps1` 已部分覆盖下表：满员房间（参赛 Listen Host、两个拥有客户端、三个 AI）经正常大厅开局，真人不参与。
+它核对 AI-A01 的独立绑定与不补位，以及 AI-A02 中的自主移动、成长并确认选择、至少一个 AI 到店购买、
+死亡后按批准时长复活并继续行动、请求速率有界、由 AI 按占领规则获胜，最后回到新 Lobby 并退役全部 AI。
+其余条目，以及这两条中 runner 没有覆盖的部分（零到二个 AI 开局、真人离开、逐段回执链、三个槽位分别获胜），
+仍是**需新增或改造的未来验收**，当前未实现/未运行。
 纯模型证明策略决定，原生场景证明接线，真实拥有连接证明授权和运行拓扑，三者不能互相冒充。
 
 | ID / 场景 | 正例与反例动作 | 精确可观察结果 |
