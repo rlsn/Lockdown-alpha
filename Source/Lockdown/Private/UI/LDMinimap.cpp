@@ -207,7 +207,7 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
     // Death keeps camera operations (UI 4); a ground order still needs the controller's world-command gate.
-    if(Move&&!PC->CanWorldCommand()){if(PC->OwnerState.LifePhase==ELDLifePhase::Dead){PC->IntentFeedback=TEXT("社死中只能移动镜头，不能下达移动");}return false;}
+    if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->IntentFeedback=TEXT("社死中只能移动镜头，不能下达移动");}return false;}
     FBox2D Ground;if(!MinimapGroundBounds(GetWorld(),Ground)){PC->IntentFeedback=TEXT("小地图不可用：未加载 Demo 世界");return false;}
     const FVector XY=LDHUD::MapWorld(P,Ground);
     if(!Move){PC->Navigation->PanTo(XY);return true;}

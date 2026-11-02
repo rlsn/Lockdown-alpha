@@ -117,7 +117,7 @@ namespace LDHUD
         bool bOwnContext=false;   // the local owner projection belongs to the current match and life
         bool bPlaying=false;
         bool bAlive=false;
-        bool bInputCaptured=false;
+        bool bInputCaptured=false;  // Combat's input half: menu/Settings, child confirmation or text edit, keys still held
         bool bClock=false;
         int64 NowMs=0;
         bool bManaKnown=false;
