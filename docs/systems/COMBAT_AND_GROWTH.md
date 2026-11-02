@@ -58,10 +58,14 @@ DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitD
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
-营地成员的运动、意图、反击与刷新由营地提供者接入后在同一分派中调用。
+营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
+本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
+DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
+在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`。
+任一营地入口返回 false 即为权威故障。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
-新争圈的归约与结果归 GameMode 核心（N02，尚未实现），不能沿用已退役的 Heart 授权或旧交互中断条件。
+争圈的归约与结果归 GameMode 核心的占领归约器（`Framework\LDCaptureReducer`），不能沿用已退役的 Heart 授权或旧交互中断条件。
 
 ## 状态、伤害和效果归属
 

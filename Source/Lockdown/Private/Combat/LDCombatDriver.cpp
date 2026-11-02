@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Framework/LDGameMode.h"
+#include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Vision/LDVisionDirector.h"
@@ -93,10 +94,18 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             for (const auto& Weak : CurrentBodies)
             {
                 auto* Body=Weak.Get();
-                auto* PC=Body?Cast<ALDPlayerController>(Body->GetController()):nullptr;
                 FLDCombatBodyRef Ref;
-                if (!Body || !PC || !Mode->ReadBodyRef(*Body,Ref))
-                { Error=TEXT("The native step contains a registered body without its motion owner."); return false; }
+                if (!Body || !Mode->ReadBodyRef(*Body,Ref))
+                { Error=TEXT("The native step contains a registered body without its current binding."); return false; }
+                // Camp members are steered by their camp owner; contenders by their order owner.
+                if (Ref.Victim.Kind==ELDVictimKind::CampMember)
+                {
+                    if (!Mode->Camps) { Error=TEXT("A registered camp body has no camp owner."); return false; }
+                    if (!Mode->Camps->AdvanceMemberMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
+                    continue;
+                }
+                auto* PC=Cast<ALDPlayerController>(Body->GetController());
+                if (!PC) { Error=TEXT("A registered contender body has no motion owner."); return false; }
                 if (!PC->Navigation->AdvanceAuthorityMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
             }
             return true;
@@ -110,7 +119,10 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             { return RunDeaths(Permit,Error); },Error)
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
-            { return Mode->RespawnDueContenders(Permit,Error); },Error)
+            {
+                if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
+                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error);
+            },Error)
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
@@ -152,6 +164,9 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     { Error=TEXT("Combat actions require the current Actions permit."); return false; }
     // Regeneration of the elapsed interval settles before this boundary's actions can start combat.
     if (!Regenerate(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    // Camp members submit their basic attacks through the same entry first, so they are admitted below.
+    if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
+    if (!Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);
@@ -202,6 +217,14 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
         if (!ApplyHit(Hit,Error)) { return false; }
     }
     PendingHits.Reset();
+    if (PendingContacts.IsEmpty()) { return true; }
+    if (!Mode->Camps) { Error=TEXT("Camp contacts require the camp owner of this match."); return false; }
+    const TArray<FLDCombatHostileContact> Contacts=MoveTemp(PendingContacts);
+    PendingContacts.Reset();
+    for (const auto& Contact : Contacts)
+    {
+        if (!Mode->Camps->OnCombatHostileContact(Contact,Permit,Error)) { return false; }
+    }
     return true;
 }
 
@@ -230,9 +253,14 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     for (const auto& Fact : Deaths)
     {
         if (!Mode->Vision->RecordObservedDeath(Permit,Fact.VictimBody,Fact.OccurredAtSeconds,Error)) { return false; }
-        const bool Ended=Fact.Key.Victim.Kind==ELDVictimKind::Contender
-            ? Mode->EndContenderLife(Fact,Permit,Error) : Mode->EndCampMemberLife(Fact,Permit,Error);
-        if (!Ended) { return false; }
+        if (Fact.Key.Victim.Kind==ELDVictimKind::Contender)
+        {
+            if (!Mode->EndContenderLife(Fact,Permit,Error)) { return false; }
+            continue;
+        }
+        // The camp owner records its member's death (and removes the actor) after the core ended the life.
+        if (!Mode->Camps) { Error=TEXT("A camp death requires the camp owner of this match."); return false; }
+        if (!Mode->EndCampMemberLife(Fact,Permit,Error) || !Mode->Camps->ConsumeMemberDeath(Fact,Permit,Error)) { return false; }
     }
     // Rewards follow every life end of the set; each RewardBasis was frozen at its own fatal hit.
     for (const auto& Fact : Deaths)

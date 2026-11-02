@@ -269,6 +269,8 @@ private:
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
     TArray<FLDCommittedDeath> PendingDeaths;
+    // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
+    TArray<FLDCombatHostileContact> PendingContacts;
     TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
     bool bAdvancing=false;

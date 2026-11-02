@@ -7,6 +7,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
+#include "World/LDCampDirector.h"
 #include "World/LDSpawnPlacement.h"
 #include "Engine/World.h"
 #include "Misc/ScopeExit.h"
@@ -690,6 +691,13 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
         }
         NotifyLife(Life.Body, ELDLifeChange::Joined, Life.Revision, AuthorityNowMs);
     }
+    // The camps populate the world after every contender stands; a refusal aborts this start explicitly.
+    if (!Camps)
+    {
+        Error = TEXT("The initial world has no camp owner for this match.");
+        return false;
+    }
+    if (!Camps->SpawnInitialCamps(Permit, Error)) { return false; }
     Error.Reset();
     return true;
 }

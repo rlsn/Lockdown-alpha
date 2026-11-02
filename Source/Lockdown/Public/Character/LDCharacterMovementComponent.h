@@ -27,6 +27,7 @@ public:
     virtual float GetMaxSpeed() const override;
     virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
     virtual void MoveAutonomous(float TimeStamp,float Delta,uint8 Flags,const FVector& Accel) override;
+    virtual bool ForcePositionUpdate(float DeltaTime) override;
     virtual void ServerMove_PerformMovement(const FCharacterNetworkMoveData& MoveData) override;
     virtual bool ServerShouldUseAuthoritativePosition(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
         const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
