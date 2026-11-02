@@ -927,6 +927,13 @@ bool RunOutcomes(FAutomationTestBase& Test)
     Decision = LDOpponentPolicy::Decide(Frame, C, State);
     bGood &= Test.TestTrue(TEXT("A refused attack waits out its backoff instead of re-sending each decision"),
         Decision.Body.Kind == EBody::None);
+    auto Moving = Frame;
+    Moving.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Moving.Order.Status = ELDOpponentOrderStatus::Active;
+    Moving.Order.POI = TEXT("l1");
+    FLDOpponentPolicyState MovingState = State;
+    bGood &= Test.TestTrue(TEXT("During that backoff a live approach keeps moving instead of being stopped"),
+        LDOpponentPolicy::Decide(Moving, C, MovingState).Body.Kind == EBody::Keep);
     Frame.Public.NowMs += AI.RetryInitialBackoffMs;
     Decision = LDOpponentPolicy::Decide(Frame, C, State);
     bGood &= Test.TestTrue(TEXT("After the backoff the same visible target is attacked again"),

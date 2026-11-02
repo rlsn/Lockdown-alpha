@@ -354,7 +354,16 @@ FLDOpponentBodyIntent Halt(const FContext& C)
     return Body;
 }
 
-// A refused attack on this handle waits out its backoff instead of re-sending every decision.
+// Keeps any live order without sending anything new.
+FLDOpponentBodyIntent Hold(const FContext& C)
+{
+    FLDOpponentBodyIntent Body;
+    Body.Kind = C.Frame.Order.IsLive() ? EBody::Keep : EBody::None;
+    return Body;
+}
+
+// A refused attack on this handle waits out its backoff instead of re-sending every decision. Meanwhile the
+// body keeps its current order: stopping would only end useful motion toward the same fight.
 FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
 {
     FLDOpponentBodyIntent Body;
@@ -368,7 +377,7 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
         Body.Kind = EBody::Keep;
         return Body;
     }
-    if (!C.CanAttempt(Body.Key)) { return Halt(C); }
+    if (!C.CanAttempt(Body.Key)) { return Hold(C); }
     Body.Kind = EBody::AttackUnit;
     return Body;
 }
