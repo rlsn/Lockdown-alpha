@@ -52,9 +52,12 @@ Source、Config、Content、SourceData、Scripts 均未改变。以下行号对�
 
 ### 3.1 唯一新增适配，不新增领域所有者
 
-选定拟建 `ALDOpponentController : ALDPlayerController`，文件为
-`Source\Lockdown\Public\Population\LDOpponentController.h` 和
-`Source\Lockdown\Private\Population\LDOpponentController.cpp`。
+选定 `ALDOpponentController : ALDPlayerController` 作为唯一服务器适配器，拟建文件为
+`Source\Lockdown\Public\AI\LDOpponentController.h` 和
+`Source\Lockdown\Private\AI\LDOpponentController.cpp`。纯值策略已独立实现于
+`Source\Lockdown\Public\AI\LDOpponentPolicy.h`、`Source\Lockdown\Private\AI\LDOpponentPolicy.cpp`
+（下表的帧/状态/决策类型与成本估计），由 `Lockdown.Rules.DemoOpponentPolicy.*` 覆盖；
+适配器仍等待核心注册、订单/动作、成长/商店的正式提供者接入，尚不能参赛。
 它直接继承精简后的现有基类，**不经过 B91/B92**。使用这一无连接服务器适配器，
 是为了复用当前 StateFor/BuildFor/Holder 绑定，不是模拟真人网络连接。
 
@@ -66,9 +69,9 @@ GameMode 的注册/注销仍是唯一入口，不让新 AI 获得旧 Roster 的 
 | 状态 | 正式写入者 | 拟建类型/函数、AI 能保存的内容 |
 | --- | --- | --- |
 | AI 名额、Contender、Match、Life、阶段和复活 | GameMode 生命周期域 | 复用 `FLDMatchContext{Generation,LedgerMatch}`、`FLDVictimKey{Kind,EntityId,Life}`、`FLDCombatBodyRef{Victim,BodyIdentity}`；AI 的 Victim.Kind 必须为 Contender。 |
-| 策略状态 | 本 AI 的 `ALDOpponentController` | 同文件内 `FLDOpponentPolicyState`：当前模式、公共 POI、当前合法目标句柄、请求游标、有限失败记录及下次决策期限。不是第二份权威身体或成长。 |
+| 策略状态 | 本 AI 的 `ALDOpponentController` | `LDOpponentPolicy.h` 的 `FLDOpponentPolicyState`：当前模式、公共 POI、当前合法目标句柄、有限访问/失败记录。请求游标与下次决策期限归适配器。不是第二份权威身体或成长。 |
 | 一次决策输入 | 各领域投影；AI 只读副本 | `FLDOpponentDecisionFrame`：本人 owner/progression/equipment/readiness、已发布 WorldView、公共 MatchView、只读公共目录。纯策略不接 UWorld/Actor/Ledger 指针。 |
-| 营地成本估计 | AI 同文件内纯值策略计算，不是玩法写入 | `EstimateCampCost(Frame, CampId) -> FLDCampCostEstimate`；CampId 仅引用公共 POI。结果区分有数值的 Ok、预算/生存条件不允许的 NotFeasible、输入/公式失败的 EstimateUnavailable；数值原语复用 R07，不推进世界、RNG、CD 或真实血量。 |
+| 营地成本估计 | AI 纯值策略计算，不是玩法写入 | `LDOpponentPolicy::EstimateCampCost(FLDCampCostInput, 公共怪物定义, 目录) -> FLDCampCostEstimate`；输入只有本人 HP/派生属性/普攻 readiness 与公共营地模板。结果区分有数值的 Ok、预算/生存条件不允许的 NotFeasible、输入/公式失败的 EstimateUnavailable；数值原语复用 R07，不推进世界、RNG、CD 或真实血量。 |
 | 意图 | AI 产生；对应领域验证/提交 | `FLDOpponentDecision` 是 Order/Action/Choice/Shop 的有界判别结果，不含可写权限或另一个参赛者 ID。 |
 | 绑定 | GameMode 唯一注册、核心注册后通知 | `RegisterAIContender(AController&, uint8 RosterSlot, const FLDMatchContext&) -> FLDAIRegistrationResult` 仅 Starting 使用冻结 AI 名额；返回核心 `FLDAIContenderBinding{Match,ContenderId}`，再调用 adapter 的 `BindRegisteredSelf(const FLDAIContenderBinding&)`。不得让策略任意选择 ID。 |
 | 本人快照 | 核心与原领域只读投影 | 核心 `ReadAISelf(binding) -> FLDAISelfReadResult` 与 `ReadPublicMatch() -> FLDPublicMatchView`；adapter 的 `RequestAISnapshot` 组合这两个和 Observer/领域投影，不在核心另建快照真相。缺服务/旧局/已离局是失败，不返回成功形状空快照。 |
@@ -230,8 +233,8 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | 改造 R04/R06 | `S\Public\Framework\LDGameMode.h`、`S\Private\Framework\LDGameMode.cpp`、`S\Public\Framework\LDPlayerController.h`、`S\Private\Framework\LDPlayerController.cpp`、`S\Private\Character\LDCharacter.cpp`、`S\Private\Character\LDCharacterMovementComponent.cpp` | 核心 RegisterAIContender/ELDContenderKind/ReadAISelf/ReadPublicMatch 与提交后通知；基类的 UI、网络与本地运动隔离；删除居民、人口速度和搬运政策。不能只新增一个 Controller 然后保留 local-only 假设。 |
 | 抽取/改造 R07–R09 | `S\Private\Combat\LDCombatDirector.cpp`、`LDContentActions.cpp`、`LDSkillExecution.cpp`；`S\Public\Combat\LDTacticalRules.h`、`S\Private\Combat\LDTacticalRules.cpp`；`S\Private\Development\LDCharacterBuild.cpp`、`LDV08Loadout.cpp`；`S\Private\Inventory\LDInventoryDirector.cpp`、`LDGearRules.cpp`；`S\Private\Economy\LDEconomyLedger.cpp` 及各自 Public 头文件 | 所有者分别是 Combat、成长/经济；同准入、来源和事务，不迁入 AI 文件。Damage/Timing 纯值原语抽到同一 LDTacticalRules，实际执行与 AI 估计共用，不留旧伤害/间隔公式并行。保留条款比较、原子提交、来源失效；去旧职业/书籍/槽位政策，N04/N05 新提供者不从已退役 Development/Vendor 服务继续抽取。 |
 | 抽取/改造 R10–R12 | `S\Public\World\LDCampDecision.h`、`S\Private\World\LDCampDecision.cpp`、`S\Private\Core\LDGroundQueries.cpp`、`S\Private\Vision\LDVisionDirector.cpp`、`LDWorldViewRelay.cpp`、`S\Public\Vision\LDViewTypes.h` | 世界提供营地纯决策（营地原语待 N03 接线）、静态查询和唯一受限帧，致死信用归核心 DeathKey；AI 不消费全表，不保留旧完整地图第二身体流。 |
-| 新增 N06/M12 | `S\Public\Population\LDOpponentController.h`、`S\Private\Population\LDOpponentController.cpp` | 放 §3 的 adapter、value policy、决策输入/结果与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
-| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
+| 新增 N06/M12 | `S\Public\AI\LDOpponentPolicy.h`、`S\Private\AI\LDOpponentPolicy.cpp`（已实现）；`S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp`（拟建） | 纯策略放 §6 的决策输入/结果、成本估计、选择/装备/回防/重试规则；adapter 放 §3 的绑定、受限投影组合与回执消费；不另建 Brain/Perception/Economy/Clock Manager。 |
+| 新增目标验证 | `S\Private\Tests\LDOpponentPolicyTests.cpp`（已实现，`Lockdown.Rules.DemoOpponentPolicy.*`）；`S\Public\Tests\LDOpponentAIProbe.h`；`S\Private\Tests\LDOpponentAIProbe.cpp`；`Scripts\RunOpponentAICheck.ps1`、`Scripts\CheckOpponentAIEvidence.py` | 后四项名称为拟建；纯策略用授权 DTO，真实场景使用正常订单及真实拥有连接。checker 只复核本次运行，不回放旧档案作为成功。 |
 
 AI 新参数接入内容域选定的唯一生成输入/载荷/contract，不新增 AI 私有 JSON 或运行时读 docs。
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；
