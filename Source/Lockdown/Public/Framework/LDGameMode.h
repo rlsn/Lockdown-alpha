@@ -4,6 +4,9 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/GameStateBase.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDCaptureReducer.h"
+#include "Framework/LDMatchProviders.h"
+#include "World/LDCaptureCircle.h"
 #include "Vision/LDViewTypes.h"
 #include "LDGameMode.generated.h"
 
@@ -24,10 +27,20 @@ public:
     UFUNCTION() void OnRep_DemoLobby();
     UPROPERTY(ReplicatedUsing=OnRep_DemoClock) FLDDemoClockView DemoClock;
     UFUNCTION() void OnRep_DemoClock();
+    // Capture/endgame public read models: the circle, the frozen result and the kill feed.
+    UPROPERTY(ReplicatedUsing=OnRep_PublicMatch) FLDPublicMatchView PublicMatch;
+    UFUNCTION() void OnRep_PublicMatch();
+    UPROPERTY(ReplicatedUsing=OnRep_MatchResult) FLDResultView MatchResult;
+    UFUNCTION() void OnRep_MatchResult();
+    UPROPERTY(ReplicatedUsing=OnRep_KillFeed) FLDKillFeedView KillFeed;
+    UFUNCTION() void OnRep_KillFeed();
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 private:
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
+    FLDPublicMatchView LatestPublicMatch;
+    FLDResultView LatestMatchResult;
+    FLDKillFeedView LatestKillFeed;
 };
 
 class ALDVisionDirector;
@@ -55,6 +68,10 @@ struct FLDContenderRecord
     ELDContenderKind Kind = ELDContenderKind::Human;
     uint64 ReadyRosterRevision = 0;
     FLDSessionRequestWindow SessionRequests;
+    // Result accounting: kept after an ordinary leave until the room returns to the Lobby.
+    bool bLeft = false;
+    uint64 Kills = 0;
+    uint64 Deaths = 0;
 };
 
 UCLASS()
@@ -94,6 +111,23 @@ public:
     void EconomyWallets(TMap<FName,int64>& Out) const;
     int32 EconomyContenderCount() const {return Contenders.Num();}
     bool IsFinished() const;
+    // --- Capture, result and match lifecycle (capture/endgame module) ---
+    // Next integer boundary the authority driver must stop at; MAX_int64 when none.
+    int64 NextCaptureDueMs() const;
+    // Driver phase entries, called in order after Transactions with the matching permit.
+    bool ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Locks the unique result and closes the write gate before any cleanup or publication.
+    bool ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Permit-free cleanup and public projection after Close, also when Close shut the gate.
+    bool ExecuteCapturePublish(const FLDAuthorityBoundary& Boundary, FString& Error);
+    // Motion phase: the native batch just accepted for this body.
+    ELDCommitReject PublishCaptureMotion(const FLDGameplayWritePermit& Permit, const FLDNativeMotionBatch& Batch);
+    // Life provider: Joined/Respawned/ProtectionEnded/Died facts; Left is core-only.
+    ELDCommitReject PublishCaptureEligibility(const FLDGameplayWritePermit& Permit, const FLDCaptureEligibilityEvent& Event);
+    void NotifyLifeCommitted(const FLDLifeNotice& Notice);
+    FLDPublicMatchView ReadPublicMatch() const;
+    FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
+    FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
@@ -219,4 +253,39 @@ private:
     // Installs one committed life's motion stream at its placed foot.
     void BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body);
     static int32 PhaseOrder(ELDCommitPhase Phase);
+    // --- Capture, result and match lifecycle (capture/endgame module) ---
+    struct FLDCaptureTrack
+    {
+        FLDCombatBodyRef Body;
+        bool bInside = false;
+        uint64 RegisteredStep = 0;
+        uint64 LastStep = 0;
+    };
+    FLDCaptureReducer CaptureReducer;
+    FLDCaptureCircle CaptureCircle;
+    TMap<FGuid, FLDCaptureTrack> CaptureTracks;
+    TOptional<FLDCaptureProposal> PendingCapture;
+    TSet<FLDDeathKey> CountedDeaths;
+    TArray<FLDKillNotice> KillNotices;
+    uint64 NextKillSerial = 0;
+    bool bKillFeedDirty = false;
+    FLDResultView ResultView;
+    bool bResultLocked = false;
+    bool bResultPublished = false;
+    bool bPublicMatchDirty = false;
+    bool bLobbyDirty = false;
+    uint64 PublicMatchRevision = 0;
+    int64 MatchStartedAtMs = 0;
+    TArray<FGuid> LockedAISlots;
+    bool InitializeCaptureMatch(FString& Error);
+    FString StartGateBlocker() const;
+    bool StartDemoMatch(ELDSessionReject& Reject, FString& Detail);
+    bool RetireMatch(bool bAbortedStart, FString& Error);
+    void RetireAuthorityCore();
+    void RetireMatchDomains();
+    bool TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error);
+    void PublishMatchOutcome();
+    void PublishPublicMatch();
+    void QueueLeaveFact(const FGuid& ContenderId);
+    FLDContenderRecord* FindContender(const FGuid& ContenderId);
 };
