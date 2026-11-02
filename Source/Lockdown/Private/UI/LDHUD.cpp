@@ -576,5 +576,47 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
         if(Project(FVector(Subject.FeetCm)+FVector(0,0,GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight()),P))
         {Lines({P+FVector2D(-14,12),P+FVector2D(-20,12),P+FVector2D(-20,-30),P+FVector2D(20,-30),P+FVector2D(20,12),P+FVector2D(14,12)},FLinearColor(1,.78f,.3f));}
     }
+    // Armed preview (CONTROLS 3): the own range ring around the feet, and for direction forms the direction from the
+    // feet toward the cursor. Local presentation only; the server re-checks range, direction and target on confirm.
+    ELDCombatEntry Armed=ELDCombatEntry::None;
+    const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed);
+    const auto* Self=Cast<ALDCharacter>(PC->GetPawn());
+    if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
+    {
+        float RangeCm=0;bool bDirection=false;
+        if(bArmedEntry)
+        {
+            const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
+            RangeCm=Source?float(Source->RangeCm):0.f;
+            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
+        }
+        else{RangeCm=PC->CombatView.AttackRangeCm;}
+        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FLinearColor Preview(1,.85f,.45f,.9f);
+        if(RangeCm>0)
+        {
+            TArray<FVector2D> Ring;
+            for(int32 Step=0;Step<=48;++Step)
+            {
+                const float Angle=2.f*PI*Step/48.f;FVector2D Point;
+                if(!Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Point)){Ring.Reset();break;}
+                Ring.Add(Point);
+            }
+            if(Ring.Num()>1){Lines(Ring,Preview,1.5f);}
+        }
+        FVector Origin,Direction;
+        if(bDirection&&PC->DeprojectMousePositionToWorld(Origin,Direction)&&FMath::Abs(Direction.Z)>KINDA_SMALL_NUMBER)
+        {
+            // The cursor ray meets the feet plane; only its planar direction is previewed, at the entry's range when known.
+            const double Along=(Feet.Z-Origin.Z)/Direction.Z;
+            FVector Planar=Origin+Direction*Along-Feet;Planar.Z=0;
+            if(Along>0&&!Planar.IsNearlyZero())
+            {
+                const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*RangeCm:Planar);
+                FVector2D From,To;
+                if(Project(Feet,From)&&Project(End,To)){Lines({From,To},Preview,3.f);}
+            }
+        }
+    }
     return Base+1;
 }
