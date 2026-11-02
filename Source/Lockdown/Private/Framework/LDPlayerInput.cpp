@@ -5,7 +5,6 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
-#include "UI/LDInventoryPanel.h"
 #include "UI/LDUIRoot.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "EnhancedInputComponent.h"
@@ -132,13 +131,11 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         InspectedEpoch=0;
         IntentFeedback=TEXT("Target no longer visible");
     }
-    if (InventoryUI) { InventoryUI->Refresh(); }
     if (HUDUI) { HUDUI->RefreshReadModel(); }
 }
 
 void ALDPlayerController::ToggleControlsPanel()
 {
-    if (InventoryUI && InventoryUI->IsOpen()) { InventoryUI->Close(); }
     if (ControlsUI && ControlsUI->IsOpen()) { ControlsUI->Close(); return; }
     if (RootUI) { RootUI->DismissMenu(); }
     if (!Controls) { Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings(); }

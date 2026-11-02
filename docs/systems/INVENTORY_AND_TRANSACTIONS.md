@@ -26,7 +26,8 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 绑定到达时以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；本地拒绝与服务器结果
 都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
 本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`；`ReadOwnShop` 只在当前生命已 Opened 时有效。
-`Framework\LDPlayerInventory.cpp` 只保留面板开关；旧背包整理/丢弃链已删除。
+旧背包面板（`LDInventoryPanel`、`LDPlayerInventory.cpp`）及其整理/丢弃链已删除；小卖部页面是 HUD 停靠的
+`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订。
 
 ## 物品身份不是格子
 
@@ -84,7 +85,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者，一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
 买两件同款、满槽 `EquipmentFull`、同号重放、出售与离店 `OutsideRange`；Host 导出账本证据由
-`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。开局在营地提供者注册前经核心 `StartDemoMatch`，
+`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。开局走正常 Lobby Start（全部开局提供者已注册），
 不覆盖营地、AI、抢圈或终局。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。

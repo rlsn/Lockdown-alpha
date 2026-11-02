@@ -157,7 +157,6 @@ private:
     friend class FLDDemoSessionTest;
     friend class FLDDemoCoreTest;
     friend class FLDDemoCoreProbe;
-    friend class FLDDemoGrowthProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

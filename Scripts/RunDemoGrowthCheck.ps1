@@ -113,7 +113,7 @@ try {
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
     Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim) plus one owning client; " +
         "$($buyer.kills) kills, one choice, buy x2 / full / replay / sell / outside at the shop; ledger evidence replayed and equal to " +
-        "the owner projection. Started by the core StartDemoMatch behind the closed provider gate. " +
+        "the owner projection. Normal Lobby start with every provider registered. " +
         "Not camps, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
