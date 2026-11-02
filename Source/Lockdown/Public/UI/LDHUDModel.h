@@ -196,4 +196,14 @@ namespace LDHUD
     LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);
     // Owner combat entry -> action input; Unavailable stays a display-only server reason.
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
+    // Own temporary statuses for the HUD band: passive auras and respawn protection (shown on the life line) are left
+    // out; shield points round up and a remainder needs the matching authority clock. Empty when none.
+    LOCKDOWN_API FString SelfStatusLine(const FLDCombatOwnerView& Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    // Own passives for the HUD band: learned passives with their rank, then each equipment passive once, named after
+    // the equipment granting it. A missing projection reads as syncing, never as "none".
+    LOCKDOWN_API FString PassiveLine(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content);
+    LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
+    // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
+    // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
+    LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
 }

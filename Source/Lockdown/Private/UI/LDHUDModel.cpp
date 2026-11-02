@@ -576,3 +576,65 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
 }
+namespace
+{
+// Combat lists each equipment passive once by its family; the player sees the equipment that grants it.
+FString HudPassiveSource(const FLDDemoContentDefinitions* Content,const FName& Passive)
+{
+    const FString Id=Passive.ToString();
+    const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&(D.Id==Id||D.Passive.Family==Id);}):nullptr;
+    return Item?Item->Id:Id;
+}
+}
+FString LDHUD::SelfStatusLine(const FLDCombatOwnerView& Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FString> Parts;
+    for(const FLDCombatStatusView& Status:Combat.Statuses)
+    {
+        if(Status.bIsPassive||Status.StatusId==uint8(ELDDemoStatusId::RespawnProtection)){continue;}
+        FString Part=StatusName(Content,Status.StatusId);
+        if(Status.AmountP2>0){Part+=FString::Printf(TEXT(" %lld"),HudWholePoints(Status.AmountP2,true));}
+        if(Status.ExpiresAtMs>0&&bClock){Part+=TEXT(" ")+TenthsUp(Status.ExpiresAtMs-NowMs);}
+        Parts.Add(MoveTemp(Part));
+    }
+    return FString::Join(Parts,TEXT(" · "));
+}
+FString LDHUD::PassiveLine(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FString> Parts;
+    if(!Progression){Parts.Add(TEXT("角色被动同步中"));}
+    else{for(const FLDLearnedSkillView& Skill:Progression->Skills){if(!Skill.bActive){Parts.Add(FString::Printf(TEXT("%s %d级"),*ContentName(Content,Skill.DefinitionId.ToString()),int32(Skill.Rank)));}}}
+    if(!Combat){Parts.Add(TEXT("装备被动同步中"));}
+    else
+    {
+        TArray<FName> Seen;
+        for(const FName& Passive:Combat->EquipmentPassives)
+        {
+            if(Seen.Contains(Passive)){continue;}
+            Seen.Add(Passive);Parts.Add(ContentName(Content,HudPassiveSource(Content,Passive)));
+        }
+    }
+    return Parts.IsEmpty()?FString(TEXT("被动：无")):TEXT("被动：")+FString::Join(Parts,TEXT("、"));
+}
+FString LDHUD::EntryLabel(ELDCombatEntry Entry)
+{
+    switch(Entry)
+    {
+    case ELDCombatEntry::Basic: return TEXT("弹脑瓜崩");
+    case ELDCombatEntry::Q: return TEXT("角色技能 1");
+    case ELDCombatEntry::W: return TEXT("角色技能 2");
+    case ELDCombatEntry::Item1: return TEXT("装备 1");
+    case ELDCombatEntry::Item2: return TEXT("装备 2");
+    default: return TEXT("动作");
+    }
+}
+FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
+{
+    TArray<FString> Parts;
+    // Navigation-issued attacks report through their order; only the player's own direct request is explained here.
+    if(Receipt.Phase==ELDCombatPhase::Rejected&&Receipt.Origin==ELDCombatRequestOrigin::Direct
+        &&Receipt.Reject!=ELDCombatReject::None&&Receipt.Reject!=ELDCombatReject::Cancelled)
+    {Parts.Add(EntryLabel(Receipt.Entry)+TEXT(" 未执行：")+CombatRejectText(Receipt.Reject));}
+    if(Receipt.bProtectionRemoved){Parts.Add(TEXT("复活保护已解除"));}
+    return FString::Join(Parts,TEXT(" · "));
+}

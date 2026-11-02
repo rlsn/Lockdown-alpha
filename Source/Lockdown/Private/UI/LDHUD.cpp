@@ -50,7 +50,18 @@ void HudSetShown(UWidget* Widget,bool bShown,ESlateVisibility Shown)
     const ESlateVisibility Next=bShown?Shown:ESlateVisibility::Collapsed;
     if(Widget->GetVisibility()!=Next){Widget->SetVisibility(Next);}
 }
+void HudTint(ULDCommandButton* Button,const FLinearColor& Color)
+{
+    if(!Button){return;}
+    auto Style=Button->GetStyle();
+    if(Style.Normal.TintColor==FSlateColor(Color)){return;}
+    Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
+}
 const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("Item1"),TEXT("Item2")};
+const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2};
+const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionItem1"),TEXT("HUDActionItem2")};
+// Status control bits that forbid each entry kind: character actives cast, equipment actives use gear.
+const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Gear)};
 }
 
 TSharedRef<SWidget> ULDHUD::RebuildWidget()
@@ -145,6 +156,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SelfName=Text(TEXT(""),18);SelfName->SetAutoWrapText(false);NameBox->AddChildToVerticalBox(SelfName);
         LifeText=Text(TEXT(""),14);NameBox->AddChildToVerticalBox(LifeText)->SetPadding(FMargin(0,4,0,0));
+        // Temporary statuses and passives are separate lines, so a control status is never lost among passives.
+        SelfStatusText=Text(TEXT(""),13);SelfStatusText->SetColorAndOpacity(FLinearColor(1,.7f,.45f));NameBox->AddChildToVerticalBox(SelfStatusText)->SetPadding(FMargin(0,2,0,0));
+        PassiveText=Text(TEXT(""),12);PassiveText->SetColorAndOpacity(FLinearColor(.72f,.8f,.86f));NameBox->AddChildToVerticalBox(PassiveText)->SetPadding(FMargin(0,2,0,0));
         SelfHead->AddChildToHorizontalBox(NameBox)->SetVerticalAlignment(VAlign_Center);
         auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(250);SelfWidth->SetContent(SelfHead);
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetPadding(FMargin(0,0,14,0));
@@ -165,7 +179,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Cooldown=WidgetTree->ConstructWidget<UProgressBar>();Entry.Cooldown->SetFillColorAndOpacity(FLinearColor(.85f,.85f,.9f,.8f));Entry.Cooldown->SetPercent(0);
             auto* SweepBox=WidgetTree->ConstructWidget<USizeBox>();SweepBox->SetHeightOverride(5);SweepBox->SetContent(Entry.Cooldown);Lines->AddChildToVerticalBox(SweepBox)->SetPadding(FMargin(0,3,0,0));
             Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(6,4));Entry.Frame->SetContent(Lines);
-            auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetWidthOverride(92);SlotSize->SetHeightOverride(92);SlotSize->SetContent(Entry.Frame);
+            // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
+            const ELDCombatEntry Activated=HudActionEntries[Index];
+            Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[PC,Activated](){PC->ActivateCombatEntry(Activated);},true,HudActionNames[Index]);
+            auto ButtonStyle=Entry.Button->GetStyle();ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
+            Entry.Button->SetContent(Entry.Frame);
+            if(UButtonSlot* FrameSlot=Cast<UButtonSlot>(Entry.Frame->Slot)){FrameSlot->SetHorizontalAlignment(HAlign_Fill);FrameSlot->SetVerticalAlignment(VAlign_Fill);}
+            auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetWidthOverride(92);SlotSize->SetHeightOverride(92);SlotSize->SetContent(Entry.Button);
             // Character actives (Q/W) and equipment actives (1/2) are separate groups, never one merged bar.
             Actions->AddChildToHorizontalBox(SlotSize)->SetPadding(FMargin(Index==2?18:0,0,6,0));
         }
@@ -177,7 +197,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* Sheet=LDWidgets::Button(WidgetTree,TEXT("属性"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes);}},true,TEXT("HUDAttributes"));
         Commands.Add(TEXT("Choices"),Pick);Commands.Add(TEXT("Attributes"),Sheet);
         PanelRow->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(0,0,6,0));PanelRow->AddChildToHorizontalBox(Sheet);
-        auto* Stop=LDWidgets::Button(WidgetTree,TEXT("停止"),[PC](){if(PC->CanWorldCommand()){PC->Navigation->Stop();}},true,TEXT("HUDStop"));
+        auto* Stop=LDWidgets::Button(WidgetTree,TEXT("停止"),[PC](){PC->StopCombatAndOrders();},true,TEXT("HUDStop"));
         Commands.Add(TEXT("Stop"),Stop);Utility->AddChildToVerticalBox(Stop);
         CameraText=Text(TEXT(""),13);Utility->AddChildToVerticalBox(CameraText)->SetPadding(FMargin(0,6,0,0));
         auto* UtilityWidth=WidgetTree->ConstructWidget<USizeBox>();UtilityWidth->SetWidthOverride(196);UtilityWidth->SetContent(Utility);
@@ -185,6 +205,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Band=Panel(Bottom,true);Place(Band,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-12));
 
         Toast=Text(TEXT(""),16);ToastPanel=Panel(Toast,false);Place(ToastPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-150));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
+        ArmedText=Text(TEXT(""),15);ArmedText->SetColorAndOpacity(FLinearColor(1,.85f,.45f));
+        ArmedPanel=Panel(ArmedText,false);Place(ArmedPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-196));ArmedPanel->SetVisibility(ESlateVisibility::Collapsed);
 
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
         AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);ShopPanel=CreateWidget<ULDShopPanel>(PC);
@@ -196,6 +218,24 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
         if(ShopPanel){ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
+        // Growth's owning-connection entries; the panels only build commands from the views they showed.
+        const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
+        if(ChoicesPanel)
+        {
+            ChoicesPanel->SubmitChoice=[WeakPC](const FLDChoiceCommand& Command,ELDGrowthReason& Reason)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitChoice(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            ChoicesPanel->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Choice):0;};
+        }
+        if(ShopPanel)
+        {
+            ShopPanel->SubmitShopCommand=[WeakPC](const FLDShopCommand& Command,ELDGrowthReason& Reason)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitShopCommand(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            ShopPanel->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Shop):0;};
+        }
+        PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
+        PC->OnChoiceReceipt.AddUObject(this,&ULDHUD::HandleChoiceReceipt);
+        PC->OnShopReceipt.AddUObject(this,&ULDHUD::HandleShopReceipt);
+        PC->OnShopOpenResult.AddUObject(this,&ULDHUD::HandleShopOpen);
     }
     return Super::RebuildWidget();
 }
@@ -249,7 +289,7 @@ void ULDHUD::RefreshReadModel()
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     if(!bShow)
     {
-        for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(KillFeedPanel.Get())}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
+        for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(KillFeedPanel.Get()),static_cast<UWidget*>(ArmedPanel.Get())}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         return;
     }
 
@@ -289,42 +329,102 @@ void ULDHUD::RefreshReadModel()
     HudSetText(PortraitGlyph,Name.IsEmpty()?FString(TEXT("?")):Name.Left(1));
     if(const auto* Body=Cast<ALDCharacter>(PC->GetPawn())){Portrait->SetBrushColor(LDHUD::PaletteColor(Body->PresentationKey));}
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));
-    const LDHUD::FResourceView Health=LDHUD::Resource(TEXT("面子"),O.Hp,O.MaxHp,true);
+    // Owner projections of this match and life only; anything older reads as syncing, never as zero.
+    const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
+    const FLDProgressionView* Progression=PC->ReadOwnProgression();
+    const FLDEquipmentView* Equipment=PC->ReadOwnEquipment();
+    LDHUD::FResourceView Health,Mana;double ShieldPoints=0;
+    if(OwnCombat&&OwnCombat->bHasBody)
+    {
+        Health=LDHUD::ResourceP2(TEXT("面子"),OwnCombat->HPP2,OwnCombat->MaxHPP2,true);
+        Mana=LDHUD::ResourceP2(TEXT("胆量"),OwnCombat->MPP2,OwnCombat->MaxMPP2,false);
+        ShieldPoints=double(OwnCombat->ShieldP2)/100.;
+    }
+    else
+    {
+        Health=LDHUD::Resource(TEXT("面子"),O.Hp,O.MaxHp,true);
+        Mana=LDHUD::Resource(TEXT("胆量"),O.Mp,O.MaxMp,false);
+        ShieldPoints=O.Barrier;
+    }
     FString HealthLine=Health.Text;
-    if(Health.bKnown&&O.Barrier>0){HealthLine+=FString::Printf(TEXT(" · 淡定 %.0f"),FMath::CeilToDouble(O.Barrier));}
+    if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · 淡定 %.0f"),FMath::CeilToDouble(ShieldPoints));}
     HealthBar->SetPercent(Health.Fraction);HudSetText(HealthText,HealthLine);
-    const LDHUD::FResourceView Mana=LDHUD::Resource(TEXT("胆量"),O.Mp,O.MaxMp,false);
     ManaBar->SetPercent(Mana.Fraction);HudSetText(ManaText,Mana.Text);
     LDHUD::FLevelView Level;
-    if(Content)
-    {
-        const FLDDemoProgressionDefinition& Progression=Content->Progression;const int32 L=O.Build.Level;
-        const bool bKnown=L>=1&&L<=Progression.XPThresholds.Num();const bool bNext=bKnown&&L<Progression.MaxLevel&&L<Progression.XPThresholds.Num();
-        Level=LDHUD::Level(L,Progression.MaxLevel,O.Xp,bKnown?Progression.XPThresholds[L-1]:0,bNext,bNext?Progression.XPThresholds[L]:0);
-    }
-    else{Level.Level=TEXT("等级 —");Level.Experience=TEXT("成长目录不可用");}
+    if(Progression)
+    {Level=LDHUD::Level(Progression->Level,Progression->MaxLevel,Progression->CumulativeXP,Progression->LevelThresholdXP,Progression->bHasNextThreshold,Progression->NextThresholdXP);}
+    else{Level.Level=TEXT("等级 —");Level.Experience=TEXT("成长数据同步中");}
     LevelBar->SetPercent(Level.Fraction);HudSetText(LevelText,Level.Level+TEXT(" · ")+Level.Experience);
-    HudSetText(GoldText,LDHUD::Gold(O.Gold));
+    HudSetText(GoldText,Equipment?LDHUD::Gold(Equipment->Gold):FString(TEXT("零花钱 同步中")));
+    HudSetText(SelfStatusText,OwnCombat?LDHUD::SelfStatusLine(*OwnCombat,bClock,NowMs,Content):FString());
+    HudSetShown(SelfStatusText,!SelfStatusText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetText(PassiveText,LDHUD::PassiveLine(Progression,OwnCombat,Content));
 
-    // Combat's owner projection and Growth's progression/equipment/shop views are not published to the owner yet:
-    // the panels show their syncing state and never fill these sections with zeroes.
-    if(AttributesPanel){AttributesPanel->Present(nullptr,nullptr,bClock,NowMs,Content);}
-    if(ChoicesPanel){ChoicesPanel->Present(FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
-    if(ShopPanel){ShopPanel->Present(nullptr,nullptr,false,0,O.Match,O.Life,O.LifePhase,bClock,NowMs,Content);}
-    if(ULDCommandButton* Pick=Commands.FindRef(TEXT("Choices"))){HudSetText(CastChecked<UTextBlock>(Pick->GetContent()),TEXT("待选 —"));}
+    // A child confirmation owns input: an armed preview behind it is cancelled locally, never kept for a later click.
+    const ELDUIInputLayer Layer=PC->RootUI?PC->RootUI->TopInputLayer():ELDUIInputLayer::None;
+    if(Layer==ELDUIInputLayer::ChildConfirmation){PC->CancelArmedCombat();}
+    if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
+    if(ChoicesPanel){ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
+    if(ShopPanel)
+    {
+        const FLDShopView* ShopView=PC->ReadOwnShop();
+        if(bOpenedShop)
+        {
+            // Until the next growth publication arrives, the Opened result's own quote stands in for the lagging projection.
+            const bool bAhead=OpenedShop.Generation==O.Match&&OpenedShop.Life==O.Life&&PC->OwnerState.Growth.PublishRevision==OpenedShopPublish;
+            if(!bAhead){bOpenedShop=false;}
+            else if(!ShopView||ShopView->SessionId!=OpenedShop.View.SessionId){ShopView=&OpenedShop.View;}
+        }
+        ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,bClock,NowMs,Content);
+    }
+    if(ULDCommandButton* Pick=Commands.FindRef(TEXT("Choices")))
+    {
+        HudSetText(CastChecked<UTextBlock>(Pick->GetContent()),Progression?FString::Printf(TEXT("待选 %d"),int32(Progression->PendingChoiceCount)):FString(TEXT("待选 —")));
+        HudTint(Pick,Progression&&Progression->PendingChoiceCount>0?FLinearColor(.36f,.27f,.06f):FLinearColor(.045f,.12f,.15f));
+    }
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
 
+    ELDCombatEntry ArmedEntry=ELDCombatEntry::None;const bool bArmed=PC->ReadArmedCombatEntry(ArmedEntry);
+    FString ArmedName;
+    uint8 ControlBits=0;
+    if(OwnCombat){for(const FLDCombatStatusView& Status:OwnCombat->Statuses){ControlBits|=Status.ControlBlocks;}}
+    ActionTips.SetNum(ActionSlots.Num());
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
-        // No Combat owner projection is published to this widget yet, so each entry reports "未同步" instead of guessing.
-        LDHUD::FActionInput Input;Input.Slot=static_cast<LDHUD::EActionSlot>(Index);
+        const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
+        const ELDCombatEntry Wanted=HudActionEntries[Index];
+        const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr;
+        LDHUD::FActionInput Input;Input.Slot=SlotKind;
+        if(Source){Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;}
         LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);Context.bOwnContext=bOwnMatch&&O.Life!=0;
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
+        Context.bInputCaptured=Layer==ELDUIInputLayer::ChildConfirmation||Layer==ELDUIInputLayer::TextEditing;
+        Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
         HudSetText(Entry.Key,View.Key+TEXT(" · ")+View.Kind);HudSetText(Entry.Name,View.Name);HudSetText(Entry.State,View.State);
         Entry.Cooldown->SetPercent(View.CooldownFraction);
-        Entry.Frame->SetBrushColor(View.ExecutionBlocks?FLinearColor(.05f,.06f,.08f,.96f):FLinearColor(.06f,.22f,.24f,.98f));
+        const bool bThisArmed=bArmed&&ArmedEntry==Wanted;
+        if(bThisArmed){ArmedName=View.Name;}
+        Entry.Frame->SetBrushColor(bThisArmed?FLinearColor(.36f,.27f,.06f,.98f):View.ExecutionBlocks?FLinearColor(.05f,.06f,.08f,.96f):FLinearColor(.06f,.22f,.24f,.98f));
+        Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
+        if(ActionTips[Index]!=View.Tooltip){ActionTips[Index]=View.Tooltip;Entry.Button->SetToolTipText(FText::FromString(View.Tooltip));}
+    }
+    FString ArmedLine;
+    if(bArmed){ArmedLine=(ArmedName.IsEmpty()?LDHUD::EntryLabel(ArmedEntry):ArmedName)+TEXT(" 准备中：左键确认目标 · 右键或 ")+PC->BindingLabel(TEXT("Back"))+TEXT(" 取消");}
+    else if(PC->IsAttackMoveArmed()){ArmedLine=TEXT("攻击移动：左键选择地点或目标 · 右键或 ")+PC->BindingLabel(TEXT("Back"))+TEXT(" 取消");}
+    HudSetText(ArmedText,ArmedLine);HudSetShown(ArmedPanel,!ArmedLine.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    if(PC->CombatReceiptSerial!=SeenCombatReceipt)
+    {
+        SeenCombatReceipt=PC->CombatReceiptSerial;
+        FLDCombatActionReceipt Receipt=PC->LatestCombatReceipt;
+        if(Receipt.Generation==O.Match&&Receipt.Life==O.Life)
+        {
+            // Protection is lost once per life revision; later receipts of the same request repeat the flag.
+            if(Receipt.bProtectionRemoved){if(ToldProtectionLifeRevision==Receipt.LifeRevision){Receipt.bProtectionRemoved=false;}else{ToldProtectionLifeRevision=Receipt.LifeRevision;}}
+            const FString Notice=LDHUD::CombatReceiptNotice(Receipt);
+            if(!Notice.IsEmpty()){ShowToast(Notice);}
+        }
     }
     for(auto& Pair:Commands){Pair.Value->SetIsEnabled(Pair.Key!=TEXT("Stop")||bAlive);}
     if(ULDCommandButton* Stop=Commands.FindRef(TEXT("Stop"))){HudSetText(CastChecked<UTextBlock>(Stop->GetContent()),TEXT("停止 [")+PC->BindingLabel(TEXT("Stop"))+TEXT("]"));}
@@ -362,6 +462,41 @@ void ULDHUD::RefreshReadModel()
 void ULDHUD::ShowToast(const FString& Text)
 {
     LastFeedback=Text;FeedbackAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
+}
+void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
+{
+    if(Result.Family==ELDGrowthFamily::Choice&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
+    else if(Result.Family==ELDGrowthFamily::Shop&&ShopPanel){ShopPanel->HandleSubmit(Result);}
+}
+void ULDHUD::HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
+void ULDHUD::HandleShopReceipt(const FLDShopReceiptQueryResult& Result){if(ShopPanel){ShopPanel->HandleReceipt(Result);}}
+void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());if(!PC){return;}
+    FName ShopId;uint32 Life=0;
+    // Only the player's current shop interaction may open the page: a late, replaced or foreign result never pops it.
+    if(!PC->ReadShopInteraction(ShopId,Life)||Result.Generation!=PC->OwnerState.Match||Result.Life!=Life||Result.ShopId!=ShopId){return;}
+    switch(Result.OpenStatus)
+    {
+    case ELDShopOpenStatus::Pending: ShowToast(TEXT("小卖部：等待开店结果…"));return;
+    case ELDShopOpenStatus::Rejected:
+    {
+        const FString Why=LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason));
+        ShowToast(TEXT("小卖部没有打开：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));return;
+    }
+    case ELDShopOpenStatus::Opened:
+        if(!Result.bHasView||!Result.View.SessionId.IsValid())
+        {
+            UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
+            ShowToast(TEXT("小卖部结果缺少报价，没有打开"));return;
+        }
+        OpenedShop=Result;OpenedShopPublish=PC->OwnerState.Growth.PublishRevision;bOpenedShop=true;
+        if(!PC->RootUI||!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Shop)){ShowToast(TEXT("小卖部已开门：关闭当前界面后再次右键小卖部即可打开"));}
+        return;
+    default:
+        UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
+        return;
+    }
 }
 void ULDHUD::RefreshKillFeed(const ALDGameState& Public,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs)
 {

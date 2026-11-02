@@ -154,10 +154,11 @@ void ALDPlayerController::ToggleControlsPanel()
 
 void ALDPlayerController::V05Back()
 {
-    // UI_AND_SETTINGS 4: one layer per press — editing/child confirmation, then a normal main panel, then the menu.
-    // Armed targeting is cancelled between those two steps once Combat publishes its local cancel entry.
+    // UI_AND_SETTINGS 4: one layer per press — editing/child confirmation, then a local Armed preview,
+    // then a normal main panel, then the menu. Cancelling Armed never stops an accepted order.
     if (!RootUI) { return; }
     if (RootUI->CloseTopModal()) { return; }
+    if (CancelArmedCombat()) { return; }
     if (RootUI->CloseTopPanel()) { return; }
     if (!bFreshInputRequired) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
 }

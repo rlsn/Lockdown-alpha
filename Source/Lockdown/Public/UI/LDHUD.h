@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Development/LDGrowthProtocol.h"
 #include "LDHUD.generated.h"
 class UBorder;
 class UCanvasPanelSlot;
@@ -16,12 +17,13 @@ class ULDShopPanel;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// One Q/W/1/2 entry. It stays a non-interactive indicator until the Combat activation entry is wired:
-// the slot must never look clickable without submitting a real intent.
+// One Q/W/1/2 entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
+// can be submitted; execution limits grey and explain it but never replace the server's decision.
 USTRUCT()
 struct FLDHUDActionSlot
 {
     GENERATED_BODY()
+    UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
     UPROPERTY() TObjectPtr<UTextBlock> Name;
@@ -80,6 +82,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
+    UPROPERTY() TObjectPtr<UTextBlock> SelfStatusText;
+    UPROPERTY() TObjectPtr<UTextBlock> PassiveText;
+    UPROPERTY() TObjectPtr<UBorder> ArmedPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> ArmedText;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
@@ -89,6 +95,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> GoldText;
     UPROPERTY() TObjectPtr<UTextBlock> CameraText;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
+    TArray<FString> ActionTips;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
@@ -99,6 +106,17 @@ private:
     FString SeenIntent;
     uint32 SeenFeedback=0;
     void ShowToast(const FString& Text);
+    uint32 SeenCombatReceipt=0;
+    uint64 ToldProtectionLifeRevision=0;
+    // The latest Opened result of the player's current shop interaction. A remote client usually receives it before the
+    // owner projection that carries the session, so it is shown until the next growth publication arrives.
+    FLDShopOpenResult OpenedShop;
+    uint64 OpenedShopPublish=0;
+    bool bOpenedShop=false;
+    void HandleGrowthSubmit(const FLDSubmitResult& Result);
+    void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
+    void HandleShopReceipt(const FLDShopReceiptQueryResult& Result);
+    void HandleShopOpen(const FLDShopOpenResult& Result);
     // Kill notices already shown, by public serial within one match generation; each fades on local time only.
     uint32 KillGeneration=0;
     uint64 KillSerial=0;

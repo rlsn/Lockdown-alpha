@@ -15,7 +15,7 @@ const FName HudFixtureTable(TEXT("LDHUDRulesDisplayFixture"));
 FLDDemoContentDefinitions HudFixtureContent()
 {
     FLDDemoContentDefinitions Content;
-    for(const TCHAR* Id:{TEXT("root"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian"),TEXT("item_iron_plate")})
+    for(const TCHAR* Id:{TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian"),TEXT("item_iron_plate"),TEXT("passive_battle_rhythm")})
     {FLDDemoDisplayDefinition Display;Display.Id=Id;Display.Namespace=HudFixtureTable.ToString();Display.NameKey=FString(Id)+TEXT(".name");Display.DescriptionKey=FString(Id)+TEXT(".description");Content.Display.Add(Display);}
     FLDDemoMonsterDefinition Monster;Monster.Id=TEXT("monster_guardian");Monster.NativeId=uint8(ELDDemoMonsterId::MonsterGuardian);Content.Monsters.Add(Monster);
     FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_iron_plate");Item.NativeId=uint8(ELDDemoEquipmentId::ItemIronPlate);Content.Equipment.Add(Item);
@@ -27,6 +27,7 @@ void HudRegisterFixtureTable()
     Table->SetSourceString(TEXT("root.name"),TEXT("定身"),FString());Table->SetSourceString(TEXT("respawn_protection.name"),TEXT("复活保护"),FString());
     Table->SetSourceString(TEXT("camp_returning.name"),TEXT("回岗中"),FString());Table->SetSourceString(TEXT("monster_guardian.name"),TEXT("体育老师"),FString());
     Table->SetSourceString(TEXT("item_iron_plate.name"),TEXT("《五年挨打三年模拟》"),FString());
+    Table->SetSourceString(TEXT("shield.name"),TEXT("淡定"),FString());Table->SetSourceString(TEXT("passive_battle_rhythm.name"),TEXT("单身二十年的手速"),FString());
     FStringTableRegistry::Get().RegisterStringTable(HudFixtureTable,Table);
 }
 }
@@ -243,6 +244,43 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     FLDCombatEntryView Entry;Entry.DefinitionId=NAME_None;Entry.Unavailable=ELDCombatReject::SourceUnavailable;
     const LDHUD::FActionInput Empty=LDHUD::ActionInput(Entry,LDHUD::EActionSlot::Q,&Content);
     TestTrue(TEXT("An empty combat entry is an explicit empty source with the server reason kept for display"),Empty.bProjected&&!Empty.bHasSource&&Empty.ServerBlock==TEXT("没有可用来源"));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCombatOwnerViewTest,"Lockdown.Rules.HUDCombatOwnerView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
+{
+    HudRegisterFixtureTable();
+    ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
+    FLDDemoContentDefinitions Content=HudFixtureContent();
+    FLDCombatOwnerView Combat;
+    FLDCombatStatusView Root;Root.StatusId=uint8(ELDDemoStatusId::Root);Root.ExpiresAtMs=11201;Root.ControlBlocks=uint8(ELDCombatControlBlock::Move);
+    FLDCombatStatusView Aura;Aura.StatusId=uint8(ELDDemoStatusId::Shield);Aura.bIsPassive=true;
+    FLDCombatStatusView Protection;Protection.StatusId=uint8(ELDDemoStatusId::RespawnProtection);Protection.ExpiresAtMs=20000;
+    FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.AmountP2=8050;Shield.ExpiresAtMs=12000;
+    Combat.Statuses={Root,Aura,Protection,Shield};
+    TestEqualSensitive(TEXT("Temporary statuses round time and shield up; passive auras and protection stay off the line"),
+        LDHUD::SelfStatusLine(Combat,true,10000,&Content),FString(TEXT("定身 1.3s · 淡定 81 2.0s")));
+    TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),LDHUD::SelfStatusLine(Combat,false,0,&Content),FString(TEXT("定身 · 淡定 81")));
+    TestEqualSensitive(TEXT("Missing projections read as syncing, never as none"),LDHUD::PassiveLine(nullptr,nullptr,&Content),FString(TEXT("被动：角色被动同步中、装备被动同步中")));
+    FLDProgressionView Progression;
+    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_battle_rhythm");Rhythm.Rank=2;
+    FLDLearnedSkillView Active;Active.DefinitionId=TEXT("active_guard_pulse");Active.bActive=true;Active.Rank=3;
+    Progression.Skills={Rhythm,Active};
+    Content.Equipment[0].HasPassive=true;Content.Equipment[0].Passive.Family=TEXT("passive_siphon");
+    Combat.EquipmentPassives={FName(TEXT("passive_siphon")),FName(TEXT("passive_siphon"))};
+    TestEqualSensitive(TEXT("Learned passives keep their rank; an equipment passive appears once under its equipment"),
+        LDHUD::PassiveLine(&Progression,&Combat,&Content),FString(TEXT("被动：单身二十年的手速 2级、《五年挨打三年模拟》")));
+    Progression.Skills={Active};Combat.EquipmentPassives.Reset();
+    TestEqualSensitive(TEXT("Known projections without passives say so"),LDHUD::PassiveLine(&Progression,&Combat,&Content),FString(TEXT("被动：无")));
+    FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::Item1;
+    Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::Cooldown;Receipt.bProtectionRemoved=true;
+    TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),FString(TEXT("装备 1 未执行：冷却中 · 复活保护已解除")));
+    Receipt.bProtectionRemoved=false;Receipt.Reject=ELDCombatReject::Cancelled;
+    TestTrue(TEXT("A cancel tells nothing"),LDHUD::CombatReceiptNotice(Receipt).IsEmpty());
+    Receipt.Origin=ELDCombatRequestOrigin::Nav;Receipt.Reject=ELDCombatReject::OutOfRange;
+    TestTrue(TEXT("Navigation-issued attacks report through their order, not as an action failure"),LDHUD::CombatReceiptNotice(Receipt).IsEmpty());
+    Receipt.Phase=ELDCombatPhase::Accepted;Receipt.Reject=ELDCombatReject::None;Receipt.bProtectionRemoved=true;
+    TestEqualSensitive(TEXT("An accepted attack still reports the lost protection"),LDHUD::CombatReceiptNotice(Receipt),FString(TEXT("复活保护已解除")));
     return true;
 }
 #endif
