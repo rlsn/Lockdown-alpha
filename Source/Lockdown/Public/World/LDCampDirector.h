@@ -40,6 +40,9 @@ public:
     bool ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
     // RespawnsAndWorld: home resets, then due whole-group refreshes.
     bool AdvanceCamps(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Driver step planning: the earliest pending refresh deadline in authority ms, MAX_int64 when none.
+    // AdvanceCamps refreshes a camp at the first boundary whose AuthorityNowMs reaches that deadline.
+    int64 NextRefreshDueMs() const { return State.NextRespawnDueMs(); }
     // Provider MatchReset: removes every camp body and forgets the match.
     void EndMatch();
 

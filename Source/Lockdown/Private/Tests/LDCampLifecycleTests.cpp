@@ -176,16 +176,20 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A living camp cannot respawn"), State.CommitSpawn(0, Spawned(State, 0), 1, Error));
     const FLDCombatBodyRef A = State.FindCamp(0)->Members[0].Body, B = State.FindCamp(0)->Members[1].Body;
     TestTrue(TEXT("Both members alive on life one"), A.Victim.Life == 1 && State.FindLiving(A) && State.FindLiving(B));
+    TestEqual(TEXT("No refresh deadline exists before any camp clears"), State.NextRespawnDueMs(), MAX_int64);
 
     TestEqual(TEXT("Death in another match is refused"),
-        State.RecordDeath({FGuid(1, 1, 1, 1), A.Victim}, 5, Error), ELDCampDeathResult::Rejected);
+        State.RecordDeath({FGuid(1, 1, 1, 1), A.Victim}, 5000, Error), ELDCampDeathResult::Rejected);
     TestEqual(TEXT("An unknown future life is refused"),
-        State.RecordDeath({Match.LedgerMatch, {ELDVictimKind::CampMember, A.Victim.EntityId, 2}}, 5, Error), ELDCampDeathResult::Rejected);
+        State.RecordDeath({Match.LedgerMatch, {ELDVictimKind::CampMember, A.Victim.EntityId, 2}}, 5000, Error), ELDCampDeathResult::Rejected);
+    TestEqual(TEXT("A negative death time is refused"),
+        State.RecordDeath({Match.LedgerMatch, A.Victim}, -1, Error), ELDCampDeathResult::Rejected);
     TestEqual(TEXT("First low member death keeps the camp occupied"),
-        State.RecordDeath({Match.LedgerMatch, A.Victim}, 5, Error), ELDCampDeathResult::MemberDead);
+        State.RecordDeath({Match.LedgerMatch, A.Victim}, 5000, Error), ELDCampDeathResult::MemberDead);
     TestEqual(TEXT("Repeated death of the same life is a no-op"),
-        State.RecordDeath({Match.LedgerMatch, A.Victim}, 6, Error), ELDCampDeathResult::Duplicate);
+        State.RecordDeath({Match.LedgerMatch, A.Victim}, 6000, Error), ELDCampDeathResult::Duplicate);
     TestFalse(TEXT("No refresh while a member lives"), State.IsRespawnDue(0, 1000000));
+    TestEqual(TEXT("A partly dead camp sets no refresh deadline"), State.NextRespawnDueMs(), MAX_int64);
     TestTrue(TEXT("Dead member no longer resolves"), !State.FindLiving(A) && State.FindMember(FirstEntity)->Life == 1);
 
     FLDCampDecision Returning = Brain(ELDCampBrainPhase::Returning);
@@ -199,27 +203,31 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Reset cannot revive the dead member"), State.FindLiving(A) != nullptr);
 
     TestEqual(TEXT("Last member death clears the camp"),
-        State.RecordDeath({Match.LedgerMatch, B.Victim}, 10, Error), ELDCampDeathResult::CampCleared);
+        State.RecordDeath({Match.LedgerMatch, B.Victim}, 10000, Error), ELDCampDeathResult::CampCleared);
     const FLDCampGroupState* Group = State.FindCamp(0);
     TestTrue(TEXT("Refresh is timed from the last death, not the spawn"),
         Group->bRespawnPending && Group->ClearedAtMs == 10000 && Group->RespawnDueMs == 50000);
     TestFalse(TEXT("Refresh waits for its deadline"), State.IsRespawnDue(0, 49999));
     TestTrue(TEXT("Refresh is due at its deadline"), State.IsRespawnDue(0, 50000));
+    TestEqual(TEXT("The driver's next refresh boundary is the cleared camp's deadline"), State.NextRespawnDueMs(), int64(50000));
     TestEqual(TEXT("A cleared camp does not rearm on repeated deaths"),
-        State.RecordDeath({Match.LedgerMatch, B.Victim}, 11, Error), ELDCampDeathResult::Duplicate);
+        State.RecordDeath({Match.LedgerMatch, B.Victim}, 11000, Error), ELDCampDeathResult::Duplicate);
+
+    TestTrue(TEXT("High camp spawns"), State.CommitSpawn(1, Spawned(State, 1), 0, Error));
+    TestEqual(TEXT("High camp clears with its single member"),
+        State.RecordDeath({Match.LedgerMatch, State.FindCamp(1)->Members[0].Body.Victim}, 1001, Error), ELDCampDeathResult::CampCleared);
+    TestTrue(TEXT("Clear and due times are the committed death millisecond plus the tier delay"),
+        State.FindCamp(1)->ClearedAtMs == 1001 && State.FindCamp(1)->RespawnDueMs == 66001);
+    TestEqual(TEXT("The earliest of several pending deadlines bounds the next step"), State.NextRespawnDueMs(), int64(50000));
+
     TestTrue(TEXT("Group refresh commits the next life for every slot"), State.CommitSpawn(0, Spawned(State, 0, 1), 50, Error));
+    TestEqual(TEXT("A committed refresh leaves only the other pending deadline"), State.NextRespawnDueMs(), int64(66001));
     Group = State.FindCamp(0);
     TestTrue(TEXT("Second generation lives"), Group->Generation == 2 && Group->Members[0].Life == 2 && Group->Members[1].Life == 2
         && !Group->bRespawnPending && Group->Members[0].EntityId == FirstEntity);
     TestEqual(TEXT("An old life's death cannot touch the refreshed member"),
-        State.RecordDeath({Match.LedgerMatch, A.Victim}, 51, Error), ELDCampDeathResult::Duplicate);
+        State.RecordDeath({Match.LedgerMatch, A.Victim}, 51000, Error), ELDCampDeathResult::Duplicate);
     TestTrue(TEXT("Refreshed member still alive"), State.FindLiving(Group->Members[0].Body) != nullptr);
-
-    TestTrue(TEXT("Fractional fatal time uses the conservative bucket"), State.CommitSpawn(1, Spawned(State, 1), 0, Error));
-    TestEqual(TEXT("High camp clears with its single member"),
-        State.RecordDeath({Match.LedgerMatch, State.FindCamp(1)->Members[0].Body.Victim}, 1.0002, Error), ELDCampDeathResult::CampCleared);
-    TestTrue(TEXT("Clear and due times never round earlier"),
-        State.FindCamp(1)->ClearedAtMs == 1001 && State.FindCamp(1)->RespawnDueMs == 66001);
 
     const auto Views = State.BuildPublicViews();
     TestTrue(TEXT("Public camp views carry only fixed facts"), Views.Num() == 5 && Views[1].MonsterId == TEXT("monster_guardian")
@@ -298,7 +306,7 @@ bool FLDCampContactTest::RunTest(const FString& Parameters)
         State.ApplyContact({B, Contender(4), 10}, Error), ELDCampContactResult::Retaliating);
     TestTrue(TEXT("Group retaliation after reset"), Phase(A) == ELDCampBrainPhase::Engaged && Sources(A) == TArray<FLDCombatBodyRef>{Contender(4)});
 
-    State.RecordDeath({Match.LedgerMatch, B.Victim}, 11, Error);
+    State.RecordDeath({Match.LedgerMatch, B.Victim}, 11000, Error);
     TestEqual(TEXT("A dead victim body no longer accepts contacts"),
         State.ApplyContact({B, Contender(4), 12}, Error), ELDCampContactResult::StaleVictim);
     return true;
@@ -354,7 +362,7 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
         && bBegan && State.FindLiving(G)->ReturnEpoch == 2);
     TestFalse(TEXT("An old key cannot reset the new return"), State.CompleteReset(Key, 7, Error));
     TestEqual(TEXT("Death while returning is an ordinary single death"),
-        State.RecordDeath({Match.LedgerMatch, G.Victim}, 8, Error), ELDCampDeathResult::CampCleared);
+        State.RecordDeath({Match.LedgerMatch, G.Victim}, 8000, Error), ELDCampDeathResult::CampCleared);
     FLDCampResetKey Current;
     Current = {Match.LedgerMatch, G.Victim, 2};
     TestFalse(TEXT("A dead member cannot be reset"), State.CompleteReset(Current, 9, Error));
@@ -400,7 +408,7 @@ bool FLDCampObservedFactsTest::RunTest(const FString& Parameters)
     State.CompleteReset(Key, 3, Error);
     FLDObservedPublicFacts After;
     TestTrue(TEXT("Leaving Returning withdraws the cue"), State.AppendObservedFacts(A, After, Error) && After.Statuses.IsEmpty());
-    State.RecordDeath({FGuid(9, 9, 9, 9), A.Victim}, 4, Error);
+    State.RecordDeath({FGuid(9, 9, 9, 9), A.Victim}, 4000, Error);
     FLDObservedPublicFacts Dead;
     TestFalse(TEXT("A dead member has no observed facts"), State.AppendObservedFacts(A, Dead, Error));
     return true;

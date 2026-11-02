@@ -115,10 +115,15 @@ public:
 
     bool CanSpawnInitial(int32 Camp, FString& Error) const;
     bool IsRespawnDue(int32 Camp, int64 NowMs) const;
+    // Earliest pending whole-group refresh deadline in authority ms, for the driver's exact step boundaries;
+    // MAX_int64 when no camp is waiting. A deadline that already passed stays reported until its refresh commits.
+    int64 NextRespawnDueMs() const;
     // Bodies are the core's committed refs for every slot, in slot order.
     bool CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRef> Bodies, double AtSeconds, FString& Error);
 
-    ELDCampDeathResult RecordDeath(const FLDDeathKey& Death, double OccurredAtSeconds, FString& Error);
+    // OccurredAtMs is the committed death's authority millisecond; the clear time and the refresh deadline are
+    // exact integers from it, never re-derived from seconds.
+    ELDCampDeathResult RecordDeath(const FLDDeathKey& Death, int64 OccurredAtMs, FString& Error);
     ELDCampContactResult ApplyContact(const FLDCampContact& Contact, FString& Error);
 
     // Installs the evaluated brain; a new Returning cycle advances the member's ReturnEpoch.
