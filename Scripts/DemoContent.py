@@ -31,7 +31,7 @@ WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
 SCHEMA_VERSION = 1
 HANDLER_REVISION = 1
-PROJECTION_REVISION = 2
+PROJECTION_REVISION = 3
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -45,6 +45,13 @@ NATIVE_ENUMS = {
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave"))
+# Display text shares one character contract with the native importer. Invisible, control,
+# bidirectional and astral characters are refused; braces are reserved by FText formatting.
+DISPLAY_TEXT_FORBIDDEN = re.compile(
+    "[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff{}\ud800-\udfff\U00010000-\U0010ffff]")
+DISPLAY_TEXT_EDGE = frozenset((" ", "\u3000"))
+# Numbers shown to players come from typed fields, never from description prose.
+DISPLAY_DESCRIPTION_DIGIT = re.compile("[0-9\uff10-\uff19]")
 
 
 class ContentError(ValueError):
@@ -589,6 +596,7 @@ def validate_definitions(data, ids):
     display = rows_by_id(data["display"], "display")
     expected_display = all_ids | set(ids["statuses"])
     require(set(display) == expected_display, "DisplayReference", "display", "missing or extra display definition")
+    names = set()
     for identity, row in display.items():
         require(row["name_key"] == identity + ".name" and row["description_key"] == identity + ".description"
                 and row["icon_id"] == "icon_" + identity, "DisplayReference", identity, "non-canonical display reference")
@@ -597,7 +605,21 @@ def validate_definitions(data, ids):
                     "DisplayReference", identity, "missing character portrait")
         else:
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
+        for field in ("name_text", "description_text"):
+            display_text(row[field], f"{identity}.{field}", field == "name_text")
+        require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
+        names.add(row["name_text"])
     return collections
+
+
+def display_text(text, path, allow_digits):
+    require(type(text) is str and text != "", "DisplayText", path, "display text is required")
+    require(DISPLAY_TEXT_FORBIDDEN.search(text) is None, "DisplayText", path,
+            "display text contains a forbidden character")
+    require(text[0] not in DISPLAY_TEXT_EDGE and text[-1] not in DISPLAY_TEXT_EDGE, "DisplayText", path,
+            "display text has leading or trailing space")
+    require(allow_digits or DISPLAY_DESCRIPTION_DIGIT.search(text) is None, "DisplayText", path,
+            "display description contains digits; numbers come from typed fields")
 
 
 def all_effects(row):

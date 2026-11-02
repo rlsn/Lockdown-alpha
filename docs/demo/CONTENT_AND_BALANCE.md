@@ -954,6 +954,9 @@ Editor/Game/Bootstrap/Cook 或人类平衡局，不把旧场景报告充当新�
 占位图标语义ID为 `icon_<contentId>`。这些规则适用于角色、六个角色技能、五张卡、
 七件装备和两种怪物；具体中文名称用本报告目录中的名字。
 基础头像另用 `DISPLAY.character_demo.PortraitIconId=portrait_character_demo`。
+显示名与说明作为显示行的 `name_text`/`description_text` 进入 SourceData，经同一 Sync/check 生成载荷并计入根摘要；
+运行时由已验证内容注册 `DemoContent` 字符串表，缺失条目是内容错误。说明不含数字，
+等级、费用、冷却、射程与期限等数值由 typed 字段显示。
 这是拟新增原生资源/本地化引用，不宣称图标已生成；Bootstrap须核验解析，不静默用缺失资源。
 占位图形可用自有箭头、护盾、锁链等简单轮廓与文字，不能复制外部游戏素材，也不能只靠颜色分辨。
 

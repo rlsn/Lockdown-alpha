@@ -820,178 +820,228 @@
   "display": [
     {
       "description_key": "active_arc_bolt.description",
+      "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成社死伤害。伤害随缺德值提高，不会正中要害。",
       "icon_id": "icon_active_arc_bolt",
       "id": "active_arc_bolt",
       "name_key": "active_arc_bolt.name",
+      "name_text": "粉笔头",
       "namespace": "DemoContent"
     },
     {
       "description_key": "active_binding_snare.description",
+      "description_text": "对一名看得见的敌人造成社死伤害并让其定身。伤害随缺德值提高，不会正中要害。",
       "icon_id": "icon_active_binding_snare",
       "id": "active_binding_snare",
       "name_key": "active_binding_snare.name",
+      "name_text": "扒裤衩",
       "namespace": "DemoContent"
     },
     {
       "description_key": "active_guard_pulse.description",
+      "description_text": "给自己加上淡定，并立刻解除身上所有定身。淡定量随缺德值提高。",
       "icon_id": "icon_active_guard_pulse",
       "id": "active_guard_pulse",
       "name_key": "active_guard_pulse.name",
+      "name_text": "假装无事发生",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_focus.description",
+      "description_text": "本局永久提高缺德值。",
       "icon_id": "icon_attr_focus",
       "id": "attr_focus",
       "name_key": "attr_focus.name",
+      "name_text": "刷整蛊视频",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_might.description",
+      "description_text": "本局永久提高手劲。",
       "icon_id": "icon_attr_might",
       "id": "attr_might",
       "name_key": "attr_might.name",
+      "name_text": "举铁",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_reach.description",
+      "description_text": "本局永久提高弹脑瓜崩的攻击距离。",
       "icon_id": "icon_attr_reach",
       "id": "attr_reach",
       "name_key": "attr_reach.name",
+      "name_text": "长臂猿",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_resolve.description",
+      "description_text": "本局永久同时提高抗揍和脸皮。",
       "icon_id": "icon_attr_resolve",
       "id": "attr_resolve",
       "name_key": "attr_resolve.name",
+      "name_text": "穿秋裤",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_vitality.description",
+      "description_text": "本局永久提高最大面子，当前面子按比例一起涨。",
       "icon_id": "icon_attr_vitality",
       "id": "attr_vitality",
       "name_key": "attr_vitality.name",
+      "name_text": "食堂加餐",
       "namespace": "DemoContent"
     },
     {
       "description_key": "camp_returning.description",
+      "description_text": "野怪正在回岗，途中不攻击也不换目标，但仍会挨打；回到岗位后恢复满面子。",
       "icon_id": "icon_camp_returning",
       "id": "camp_returning",
       "name_key": "camp_returning.name",
+      "name_text": "回岗中",
       "namespace": "DemoContent"
     },
     {
       "description_key": "character_demo.description",
+      "description_text": "已成年的大一新生。开局只会弹脑瓜崩，升级后挑选技能或属性奖励，也能去小卖部买装备。",
       "icon_id": "icon_character_demo",
       "id": "character_demo",
       "name_key": "character_demo.name",
+      "name_text": "大一新生",
       "namespace": "DemoContent",
       "portrait_icon_id": "portrait_character_demo"
     },
     {
       "description_key": "item_arcane_battery.description",
+      "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。",
       "icon_id": "icon_item_arcane_battery",
       "id": "item_arcane_battery",
       "name_key": "item_arcane_battery.name",
+      "name_text": "保温杯",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_echo_maul.description",
+      "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。",
       "icon_id": "icon_item_echo_maul",
       "id": "item_echo_maul",
       "name_key": "item_echo_maul.name",
+      "name_text": "值日扫帚",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_edge_blade.description",
+      "description_text": "提高手劲和手速。",
       "icon_id": "icon_item_edge_blade",
       "id": "item_edge_blade",
       "name_key": "item_edge_blade.name",
+      "name_text": "鸡毛掸子",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_iron_plate.description",
+      "description_text": "提高最大面子和抗揍。",
       "icon_id": "icon_item_iron_plate",
       "id": "item_iron_plate",
       "name_key": "item_iron_plate.name",
+      "name_text": "《五年挨打三年模拟》",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_phase_anchor.description",
+      "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。",
       "icon_id": "icon_item_phase_anchor",
       "id": "item_phase_anchor",
       "name_key": "item_phase_anchor.name",
+      "name_text": "跑道钉鞋",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_runic_focus.description",
+      "description_text": "提高缺德值和鬼点子。",
       "icon_id": "icon_item_runic_focus",
       "id": "item_runic_focus",
       "name_key": "item_runic_focus.name",
+      "name_text": "辣条",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_siphon_emblem.description",
+      "description_text": "提高手劲和脸皮。被动「长脸」：弹脑瓜崩让对方实际丢掉的面子，按比例回到自己身上。",
       "icon_id": "icon_item_siphon_emblem",
       "id": "item_siphon_emblem",
       "name_key": "item_siphon_emblem.name",
+      "name_text": "老爸的皮带",
       "namespace": "DemoContent"
     },
     {
       "description_key": "monster_guardian.description",
+      "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。",
       "icon_id": "icon_monster_guardian",
       "id": "monster_guardian",
       "name_key": "monster_guardian.name",
+      "name_text": "体育老师",
       "namespace": "DemoContent"
     },
     {
       "description_key": "monster_scavenger.description",
+      "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。",
       "icon_id": "icon_monster_scavenger",
       "id": "monster_scavenger",
       "name_key": "monster_scavenger.name",
+      "name_text": "纪律委员",
       "namespace": "DemoContent"
     },
     {
       "description_key": "passive_battle_rhythm.description",
+      "description_text": "学会后持续提高手速。",
       "icon_id": "icon_passive_battle_rhythm",
       "id": "passive_battle_rhythm",
       "name_key": "passive_battle_rhythm.name",
+      "name_text": "单身二十年的手速",
       "namespace": "DemoContent"
     },
     {
       "description_key": "passive_precision.description",
+      "description_text": "学会后提高弹脑瓜崩的正中要害率，对技能无效。",
       "icon_id": "icon_passive_precision",
       "id": "passive_precision",
       "name_key": "passive_precision.name",
+      "name_text": "正中要害",
       "namespace": "DemoContent"
     },
     {
       "description_key": "passive_second_wind.description",
+      "description_text": "脱离战斗一段时间后，额外提高面子回复；一进入战斗，额外回复立刻停止。",
       "icon_id": "icon_passive_second_wind",
       "id": "passive_second_wind",
       "name_key": "passive_second_wind.name",
+      "name_text": "多喝热水",
       "namespace": "DemoContent"
     },
     {
       "description_key": "respawn_protection.description",
+      "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。",
       "icon_id": "icon_respawn_protection",
       "id": "respawn_protection",
       "name_key": "respawn_protection.name",
+      "name_text": "复活保护",
       "namespace": "DemoContent"
     },
     {
       "description_key": "root.description",
+      "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。",
       "icon_id": "icon_root",
       "id": "root",
       "name_key": "root.name",
+      "name_text": "定身",
       "namespace": "DemoContent"
     },
     {
       "description_key": "shield.description",
+      "description_text": "先替你挡下伤害，被打空或到时间就消失。",
       "icon_id": "icon_shield",
       "id": "shield",
       "name_key": "shield.name",
+      "name_text": "淡定",
       "namespace": "DemoContent"
     }
   ],
@@ -1261,7 +1311,7 @@
       "status": "approved"
     },
     "handler_revision": 1,
-    "projection_revision": 2,
+    "projection_revision": 3,
     "schema_version": 1
   },
   "parameters": {

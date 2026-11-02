@@ -497,6 +497,33 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
+    def test_display_text_is_required_plain_unique_and_number_free(self):
+        for mutation, pattern in (
+            (lambda data: data["display"][0].pop("name_text"), "MissingField"),
+            (lambda data: data["display"][1].pop("description_text"), "MissingField"),
+            (lambda data: data["display"][1].update(name_text=1), "SchemaType"),
+            (lambda data: data["display"][1].update(description_text=""), "StringLength"),
+            (lambda data: data["display"][1].update(name_text="名" * 33), "StringLength"),
+            (lambda data: data["display"][1].update(description_text="说" * 161), "StringLength"),
+            (lambda data: data["display"][1].update(description_text="换行\n说明"), "DisplayText"),
+            (lambda data: data["display"][1].update(name_text="名称\u200b"), "DisplayText"),
+            (lambda data: data["display"][1].update(name_text="名称\u202e"), "DisplayText"),
+            (lambda data: data["display"][1].update(description_text="造成{Damage}点伤害"), "DisplayText"),
+            (lambda data: data["display"][1].update(name_text="名\U0001f600"), "DisplayText"),
+            (lambda data: data["display"][1].update(name_text=" 名称"), "DisplayText"),
+            (lambda data: data["display"][1].update(name_text="名称\u3000"), "DisplayText"),
+            (lambda data: data["display"][1].update(description_text="造成70点伤害"), "DisplayText"),
+            (lambda data: data["display"][1].update(description_text="造成７０点伤害"), "DisplayText"),
+            (lambda data: data["display"][2].update(name_text=data["display"][1]["name_text"]), "DisplayText"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(pattern=pattern):
+                self.assert_refused(mutation, pattern)
+        (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+        self.edit(lambda data: data["display"][1].update(name_text="502胶水"))
+        named = demo.compile_content(self.root)
+        self.assertIn("502胶水", {row["name_text"] for row in json.loads(named.outputs[demo.CONTENT_OUTPUT])["display"]})
+
     def test_schema_keywords_revisions_and_quantity_storage_are_not_silent(self):
         original = (self.root / demo.SCHEMA_SOURCE).read_bytes()
         for mutation in (

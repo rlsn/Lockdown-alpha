@@ -246,7 +246,8 @@ def expected_projection(compilation):
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_id", "ShopId"), ("capture_id", "CaptureId"),
         )},
         "Display": [{
-            "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "DescriptionKey": row["description_key"],
+            "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
+            "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }
@@ -484,6 +485,18 @@ def export(output, *, rank_mutations=True):
     bad_content("bad_display_key", lambda d: d["display"][0].update({"name_key": "wrong.name"}), "display reference")
     bad_content("missing_display", lambda d: d["display"].pop(), "array length")
     bad_content("extra_portrait", lambda d: d["display"][0].update({"portrait_icon_id": "portrait_wrong"}), "unknown field")
+    bad_content("missing_display_text", lambda d: d["display"][0].pop("name_text"), "missing")
+    bad_content("display_text_type", lambda d: d["display"][1].update({"name_text": 1}), "expected string")
+    bad_content("empty_display_description", lambda d: d["display"][1].update({"description_text": ""}), "string length")
+    bad_content("long_display_name", lambda d: d["display"][1].update({"name_text": "\u540d" * 33}), "string length")
+    bad_content("display_text_control", lambda d: d["display"][1].update({"description_text": "\u6362\u884c\n\u8bf4\u660e"}), "forbidden character")
+    bad_content("display_text_invisible", lambda d: d["display"][1].update({"name_text": "\u540d\u79f0\u200b"}), "forbidden character")
+    bad_content("display_text_brace", lambda d: d["display"][1].update({"description_text": "\u9020\u6210{Damage}"}), "forbidden character")
+    bad_content("display_text_astral", lambda d: d["display"][1].update({"name_text": "\u540d\U0001f600"}), "forbidden character")
+    bad_content("display_text_edge_space", lambda d: d["display"][1].update({"name_text": "\u540d\u79f0\u3000"}), "leading or trailing space")
+    bad_content("display_description_digit", lambda d: d["display"][1].update({"description_text": "\u9020\u621070"}), "contains digits")
+    bad_content("display_description_wide_digit", lambda d: d["display"][1].update({"description_text": "\u9020\u6210\uff17\uff10"}), "contains digits")
+    bad_content("duplicate_display_name", lambda d: d["display"][2].update({"name_text": d["display"][1]["name_text"]}), "duplicate display name")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
     bad_content("bad_policy", lambda d: d["policies"].update({"DuplicateEquipment": "Disallowed"}), "unsupported constant")
     bad_content("bad_boolean_policy", lambda d: d["policies"].update({"ShopRequiresLineOfSight": True}), "boolean policy")

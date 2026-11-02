@@ -165,10 +165,12 @@ def content_fixture():
     identities = ["character_demo", "root", "shield", "camp_returning", "respawn_protection"]
     identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
-                "description_key": identity + ".description", "icon_id": "icon_" + identity} for identity in identities]
+                "name_text": "测试名称 " + identity, "description_key": identity + ".description",
+                "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
+                "icon_id": "icon_" + identity} for identity in identities]
     display[0]["portrait_icon_id"] = "portrait_character_demo"
     return {
-        "identity": {"schema_version": 1, "handler_revision": 1, "projection_revision": 2,
+        "identity": {"schema_version": 1, "handler_revision": 1, "projection_revision": 3,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)}},

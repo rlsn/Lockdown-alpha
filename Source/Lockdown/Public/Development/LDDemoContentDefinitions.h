@@ -425,7 +425,9 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString Id;
     UPROPERTY() FString Namespace;
     UPROPERTY() FString NameKey;
+    UPROPERTY() FString NameText;
     UPROPERTY() FString DescriptionKey;
+    UPROPERTY() FString DescriptionText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };

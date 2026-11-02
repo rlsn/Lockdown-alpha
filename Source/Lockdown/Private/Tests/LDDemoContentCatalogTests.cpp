@@ -4,6 +4,10 @@
 
 #include "../Development/LDDemoContentJson.h"
 #include "../Development/LDDemoContentMath.h"
+#include "Development/LDDemoContentText.h"
+#include "Framework/LDDemoEntry.h"
+#include "Internationalization/StringTableCore.h"
+#include "Internationalization/StringTableRegistry.h"
 #include "Region/LDMapDefinition.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
@@ -828,6 +832,111 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
     Restored->Seed = 0;
     TestTrue(TEXT("Restoring the isolated mutations recovers the original asset"), Validate(Error));
     TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 17);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentDisplayStringTableTest, "Lockdown.Rules.DemoContent.DisplayStringTable",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    FStringTablePtr Table;
+    const bool bBuilt = LDDemoContentText::Build(Definitions, Table, Error);
+    if (!TestTrue(TEXT("Approved display rows build one complete table: ") + Error, bBuilt))
+    {
+        return false;
+    }
+    TestEqual(TEXT("Table namespace is DemoContent"), Table->GetNamespace(), FString(TEXT("DemoContent")));
+    int32 Entries = 0;
+    const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
+    Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
+    TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
+    TestEqual(TEXT("All 25 approved content and status identities are displayed"), Definitions.Display.Num(), 25);
+    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
+    {
+        FString Name, Description;
+        TestTrue(TEXT("Name resolves from the display key: ") + Row.Id,
+            Table->GetSourceString(FTextKey(Row.NameKey), Name) && Name.Equals(Row.NameText, ESearchCase::CaseSensitive));
+        TestTrue(TEXT("Description resolves from the display key: ") + Row.Id,
+            Table->GetSourceString(FTextKey(Row.DescriptionKey), Description)
+            && Description.Equals(Row.DescriptionText, ESearchCase::CaseSensitive));
+    }
+    for (const TPair<const TCHAR*, const TCHAR*>& Expected : {
+        TPair<const TCHAR*, const TCHAR*>(TEXT("active_arc_bolt.name"), TEXT("\u7c89\u7b14\u5934")),
+        TPair<const TCHAR*, const TCHAR*>(TEXT("monster_scavenger.name"), TEXT("\u7eaa\u5f8b\u59d4\u5458")),
+        TPair<const TCHAR*, const TCHAR*>(TEXT("root.name"), TEXT("\u5b9a\u8eab"))})
+    {
+        FString Text;
+        TestTrue(FString::Printf(TEXT("Approved campus name for %s"), Expected.Key),
+            Table->GetSourceString(FTextKey(Expected.Key), Text) && Text.Equals(Expected.Value, ESearchCase::CaseSensitive));
+    }
+
+    FLDDemoContentDefinitions Missing = Definitions;
+    Missing.Display[0].DescriptionText.Reset();
+    FStringTablePtr Refused;
+    TestFalse(TEXT("A row without description text is refused"), LDDemoContentText::Build(Missing, Refused, Error));
+    TestTrue(TEXT("Missing text refusal is explicit and builds nothing"), !Error.IsEmpty() && !Refused.IsValid());
+    FLDDemoContentDefinitions Duplicate = Definitions;
+    Duplicate.Display[1].NameKey = Duplicate.Display[0].NameKey;
+    TestFalse(TEXT("A duplicate key is refused instead of overwriting"), LDDemoContentText::Build(Duplicate, Refused, Error));
+    FLDDemoContentDefinitions Empty = Definitions;
+    Empty.Display.Reset();
+    TestFalse(TEXT("A catalog without display rows is refused"), LDDemoContentText::Build(Empty, Refused, Error));
+
+    TSharedPtr<const FLDDemoContentSnapshot> Runtime;
+    const bool bLoaded = LDDemoEntry::LoadRuntimeContent(Runtime, Error);
+    if (!TestTrue(TEXT("The client and Host content path loads and registers display text: ") + Error, bLoaded))
+    {
+        return false;
+    }
+    FStringTableRegistry& Registry = FStringTableRegistry::Get();
+    const FStringTablePtr Registered = Registry.FindMutableStringTable(LDDemoContentText::TableId());
+    if (!TestTrue(TEXT("DemoContent string table is registered"), Registered.IsValid())) { return false; }
+    for (const FLDDemoDisplayDefinition& Row : Runtime->Get().Display)
+    {
+        FString Name;
+        TestTrue(TEXT("Registered table resolves runtime display name: ") + Row.Id,
+            Registered->GetSourceString(FTextKey(Row.NameKey), Name) && Name.Equals(Row.NameText, ESearchCase::CaseSensitive));
+    }
+    const bool bRepeated = LDDemoContentText::Register(*Runtime, Error);
+    TestTrue(TEXT("Registering the same verified text again is a no-op: ") + Error, bRepeated);
+
+    FLDDemoContentDefinitions Conflicting = Runtime->Get();
+    Conflicting.Display[0].NameText += TEXT("_conflict");
+    FStringTablePtr Foreign;
+    const bool bBuiltForeign = LDDemoContentText::Build(Conflicting, Foreign, Error);
+    // The registry allows one table per ID, so the foreign table replaces the verified one only for this check.
+    const bool bUnregistered = Registry.UnregisterStringTable(LDDemoContentText::TableId());
+    if (bBuiltForeign)
+    {
+        Registry.RegisterStringTable(LDDemoContentText::TableId(), Foreign.ToSharedRef());
+    }
+    const bool bConflictRegistered = LDDemoContentText::Register(*Runtime, Error);
+    const FString ConflictError = Error;
+    Registry.UnregisterStringTable(LDDemoContentText::TableId());
+    Registry.RegisterStringTable(LDDemoContentText::TableId(), Registered.ToSharedRef());
+    TestTrue(TEXT("A conflicting table can be prepared for the refusal check"), bBuiltForeign && bUnregistered);
+    TestFalse(TEXT("Different text under the DemoContent ID is refused, not mixed"), bConflictRegistered);
+    TestTrue(TEXT("Conflict refusal is explicit: ") + ConflictError, ConflictError.Contains(TEXT("already registered")));
+    const bool bRestored = LDDemoContentText::Register(*Runtime, Error);
+    TestTrue(TEXT("The verified table is restored and accepted again: ") + Error, bRestored);
     return true;
 }
 #endif

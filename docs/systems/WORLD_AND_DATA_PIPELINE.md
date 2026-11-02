@@ -163,7 +163,7 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 | `ReadRuntimeFiles` / `Load` | 当前 runtime data 目录必须同时存在并匹配 manifest/content/world；`Load` 使用固定资产根和 `Content\Lockdown\Data\Demo`。不在运行时读 SourceData/源码、不采用旧目录或存储字节代替缺失的当前载荷 |
 
 根摘要是完整规范 manifest **文件字节**的 SHA-256，manifest 内没有自哈希。
-原生加载核对内容 schema1/handler1/projection2、世界 schema2/projection2、每个子文件摘要、显示子树摘要、
+原生加载核对内容 schema1/handler1/projection3、世界 schema2/projection2、每个子文件摘要、显示子树摘要、
 native ID 映射与编译枚举、world contract 的原始字节摘要及其 payload/revision。
 作者 schema/原生头的摘要是由可信根固定的来源字节身份；实际可接受字段/类型/操作由
 原生投影代码再次关闭校验，不在游戏中执行作者 JSON Schema 或源码。
@@ -176,6 +176,14 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 `Snapshot.Get()` 和 `FindAbility/FindAttribute/FindEquipment/FindMonster/FindDisplay`
 提供只读消费；查找失败给出错误，不返回伪造的默认定义。世界几何仅用于检查已编译的
 边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。
+
+显示行另含玩家可见的 `name_text`/`description_text`（projection 3）。编译器 `display_text` 与原生
+`ValidateDisplayText` 使用同一约束：两项必填，名称至多 32、说明至多 160 个 Unicode 标量；拒绝控制、
+不可见、双向及四字节字符、花括号和首尾空格；说明不得含数字，数值只由 typed 字段显示；名称在全部显示行中唯一。
+`LDDemoContentText::Build` 从已验证定义生成 namespace `DemoContent` 的字符串表，键为
+`<contentId>.name`/`<contentId>.description`。`LDDemoEntry::LoadRuntimeContent` 在
+`ULDDemoContentCatalog::Load` 成功后以 `LDDemoContentText::TableId()` 注册该表，客户端与 Host 走同一路径；
+同一进程重复注册相同文本为空操作，同 ID 已有不同条目则加载失败，不混用两套文本。
 
 UE 5.8 的 `StoreNumbersAsStrings` 保留 `EJson::Number` 及其数字词法。
 导入先拒绝重复键、坏 UTF-8/Unicode、非整数词法、超 int64 和非规范编码，

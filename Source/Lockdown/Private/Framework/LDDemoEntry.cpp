@@ -1,5 +1,6 @@
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentText.h"
 #include "Engine/World.h"
 #include "Internationalization/Regex.h"
 #include "Kismet/GameplayStatics.h"
@@ -59,9 +60,14 @@ bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& O
 {
     FString DigestHex;
     FLDDemoContentDigest Expected;
-    return VerifyPayloadFiles(Error, &DigestHex)
-        && FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error)
-        && ULDDemoContentCatalog::Load(Expected, Out, Error);
+    TSharedPtr<const FLDDemoContentSnapshot> Loaded;
+    if (!VerifyPayloadFiles(Error, &DigestHex) || !FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error)
+        || !ULDDemoContentCatalog::Load(Expected, Loaded, Error) || !LDDemoContentText::Register(*Loaded, Error))
+    {
+        return false;
+    }
+    Out = MoveTemp(Loaded);
+    return true;
 }
 
 bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
@@ -80,7 +86,7 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
     }
 #if LD_HAS_DEMO_CONTRACT
     if (LD_DEMO_CONTENT_SCHEMA_VERSION != 1 || LD_DEMO_CONTENT_HANDLER_REVISION != 1
-        || LD_DEMO_CONTENT_PROJECTION_REVISION != 2 || LD_DEMO_WORLD_SCHEMA_VERSION != 2
+        || LD_DEMO_CONTENT_PROJECTION_REVISION != 3 || LD_DEMO_WORLD_SCHEMA_VERSION != 2
         || LD_DEMO_WORLD_PROJECTION_REVISION != 2)
     {
         Error = TEXT("不支持的 Demo 内容/世界 schema。请重新生成已批准的输入，并与原生代码一起重新构建。");

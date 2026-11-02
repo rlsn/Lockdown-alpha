@@ -767,6 +767,40 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
             Path, TEXT("unsupported monster regeneration")) && F.Done();
 }
 
+// Mirrors DemoContent.display_text: invisible, control, bidirectional and astral characters are
+// refused, braces are reserved by FText formatting, and description numbers come from typed fields.
+bool ValidateDisplayText(const FString& Text, bool bAllowDigits, FCheck& Check, const FString& Path)
+{
+    for (const TCHAR C : Text)
+    {
+        const uint32 Code = static_cast<uint32>(C);
+        const bool bForbidden = Code < 0x20 || (Code >= 0x7f && Code <= 0x9f) || (Code >= 0x200b && Code <= 0x200f)
+            || (Code >= 0x2028 && Code <= 0x202e) || (Code >= 0x2060 && Code <= 0x206f) || Code == 0xfeff
+            || Code == TEXT('{') || Code == TEXT('}') || (Code >= 0xd800 && Code <= 0xdfff);
+        if (!Check.Require(!bForbidden, Path, TEXT("display text contains a forbidden character")))
+        {
+            return false;
+        }
+    }
+    const auto IsEdgeSpace = [](TCHAR C) { return C == TEXT(' ') || static_cast<uint32>(C) == 0x3000; };
+    if (!Check.Require(!Text.IsEmpty() && !IsEdgeSpace(Text[0]) && !IsEdgeSpace(Text[Text.Len() - 1]),
+        Path, TEXT("display text has leading or trailing space")))
+    {
+        return false;
+    }
+    for (const TCHAR C : Text)
+    {
+        const uint32 Code = static_cast<uint32>(C);
+        const bool bDigit = (Code >= TEXT('0') && Code <= TEXT('9')) || (Code >= 0xff10 && Code <= 0xff19);
+        if (!Check.Require(bAllowDigits || !bDigit, Path,
+            TEXT("display description contains digits; numbers come from typed fields")))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 template <typename T, typename ParseRow>
 bool Definitions(const FValue& Value, TArray<T>& Out, FCheck& Check, const FString& Path,
     int32 Min, int32 Max, ParseRow Parse)
@@ -852,7 +886,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 1, 1)
         || !Identity.Int(TEXT("handler_revision"), Revision, 1, 1)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 2, 2))
+        || !Identity.Int(TEXT("projection_revision"), Revision, 3, 3))
     {
         return false;
     }
@@ -930,20 +964,28 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         if (FCString::Strcmp(Entry.Category, TEXT("statuses")) == 0) { DisplayIds.Add(Entry.Id); }
     }
     const FValue Display = F.Take(TEXT("display"));
-    const auto ParseDisplay = [&Out, &DisplayIds](const FValue& Row, FLDDemoDisplayDefinition& D, FCheck& C, const FString& Path)
+    TArray<FString> DisplayNames;
+    const auto ParseDisplay = [&Out, &DisplayIds, &DisplayNames](const FValue& Row, FLDDemoDisplayDefinition& D, FCheck& C, const FString& Path)
     {
         FFields Fields(C, Row, Path);
         if (!Fields.Identifier(TEXT("id"), D.Id) || !Fields.Text(TEXT("namespace"), D.Namespace)
             || !Fields.Text(TEXT("name_key"), D.NameKey, 1, 128)
+            || !Fields.Text(TEXT("name_text"), D.NameText, 1, 32)
+            || !ValidateDisplayText(D.NameText, true, C, Path + TEXT(".name_text"))
             || !Fields.Text(TEXT("description_key"), D.DescriptionKey, 1, 128)
+            || !Fields.Text(TEXT("description_text"), D.DescriptionText, 1, 160)
+            || !ValidateDisplayText(D.DescriptionText, false, C, Path + TEXT(".description_text"))
             || !Fields.Identifier(TEXT("icon_id"), D.IconId)
             || !C.Require(DisplayIds.Contains(D.Id) && D.Namespace.Equals(TEXT("DemoContent"), ESearchCase::CaseSensitive)
                 && D.NameKey.Equals(D.Id + TEXT(".name"), ESearchCase::CaseSensitive)
                 && D.DescriptionKey.Equals(D.Id + TEXT(".description"), ESearchCase::CaseSensitive)
-                && D.IconId == TEXT("icon_") + D.Id, Path, TEXT("unknown or noncanonical display reference")))
+                && D.IconId == TEXT("icon_") + D.Id, Path, TEXT("unknown or noncanonical display reference"))
+            || !C.Require(!DisplayNames.ContainsByPredicate([&D](const FString& Name)
+                { return Name.Equals(D.NameText, ESearchCase::CaseSensitive); }), Path, TEXT("duplicate display name")))
         {
             return false;
         }
+        DisplayNames.Add(D.NameText);
         if (D.Id == Out.Character.Id
             && (!Fields.Identifier(TEXT("portrait_icon_id"), D.PortraitIconId)
                 || !C.Require(D.PortraitIconId == TEXT("portrait_") + D.Id, Path, TEXT("wrong portrait reference"))))
@@ -969,7 +1011,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
     }
     const FString ExpectedContent = FString::Printf(
         TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 1\n#define LD_DEMO_CONTENT_HANDLER_REVISION 1\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 2\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 3\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -1012,7 +1054,7 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 1, 1)
         || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 1, 1)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 2, 2)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 3, 3)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)

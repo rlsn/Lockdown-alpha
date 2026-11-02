@@ -44,7 +44,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
             "active_arc_bolt", "active_binding_snare", "active_guard_pulse",
             "passive_battle_rhythm", "passive_precision", "passive_second_wind"])
-        self.assertEqual(self.data["identity"]["projection_revision"], 2)
+        self.assertEqual(self.data["identity"]["projection_revision"], 3)
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1429)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -124,13 +124,35 @@ class ApprovedDemoData(unittest.TestCase):
             "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0], {
+        self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
             "id": "respawn_protection", "namespace": "DemoContent",
             "name_key": "respawn_protection.name", "description_key": "respawn_protection.description",
             "icon_id": "icon_respawn_protection"})
+        self.assertEqual(entries[0]["name_text"], "复活保护")
         self.assertEqual(self.catalog.parameter("LIFE.ProtectionSec"), {"unit": "ms", "ms": 3000})
         for row in (*self.data["abilities"], *self.data["equipment"]):
             self.assertNotIn("respawn_protection", {effect["op"] for effect in content.all_effects(row)})
+
+    def test_display_names_are_the_approved_campus_names(self):
+        # CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5 approved display names; respawn_protection is the approved interim name.
+        self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"]}, {
+            "character_demo": "大一新生",
+            "active_arc_bolt": "粉笔头", "active_guard_pulse": "假装无事发生", "active_binding_snare": "扒裤衩",
+            "passive_battle_rhythm": "单身二十年的手速", "passive_second_wind": "多喝热水", "passive_precision": "正中要害",
+            "attr_might": "举铁", "attr_focus": "刷整蛊视频", "attr_vitality": "食堂加餐", "attr_resolve": "穿秋裤",
+            "attr_reach": "长臂猿",
+            "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
+            "item_siphon_emblem": "老爸的皮带", "item_phase_anchor": "跑道钉鞋", "item_arcane_battery": "保温杯",
+            "item_echo_maul": "值日扫帚",
+            "monster_scavenger": "纪律委员", "monster_guardian": "体育老师",
+            "root": "定身", "shield": "淡定", "camp_returning": "回岗中", "respawn_protection": "复活保护",
+        })
+        for row in self.data["display"]:
+            with self.subTest(identity=row["id"]):
+                self.assertEqual(row["namespace"], "DemoContent")
+                self.assertTrue(row["description_text"])
+                self.assertIsNone(content.DISPLAY_DESCRIPTION_DIGIT.search(row["description_text"]))
+                self.assertIsNone(content.DISPLAY_TEXT_FORBIDDEN.search(row["description_text"]))
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
