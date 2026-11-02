@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Combat/LDCombatTypes.h"
 #include "Navigation/LDOrderTypes.h"
+#include "Navigation/LDOrderRules.h"
 #include "World/LDWorldQueryTypes.h"
 #include "LDNavigationComponent.generated.h"
 
@@ -64,6 +65,10 @@ public:
     FLDOrderReceipt QueryOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity) const;
     // Death, leave or match close: ends pending and active orders without any new movement.
     void EndLifeOrders(ELDOrderCancelReason Reason=ELDOrderCancelReason::LifeEnded);
+    // Combat's MatchReset: the controller outlives the match, its orders and order book do not. Ends the retired
+    // match's orders and drops the whole book (idempotency window, request watermark, activation throttle) and the
+    // content cache. The receipt serial stays: it is the owning connection's monotonic order, not match state.
+    void ResetMatch();
     bool AuthorizesMove(const FLDMoveIdentity& Identity) const;
     bool AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
@@ -151,6 +156,8 @@ private:
     bool ValidateCaller(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderFailure& Failure) const;
     void EnsureBook(const FLDMoveIdentity& Identity);
     void EndStaleServerOrders();
+    // Drops the bound book and its idempotency window together.
+    void ResetBook();
     const FOrderRecord* FindRecord(const FLDMoveIdentity& Identity) const;
     FOrderRecord* FindRecord(const FLDMoveIdentity& Identity);
     void AddRecord(const FLDSpatialOrderRequest& Request, bool bStop);
@@ -203,8 +210,6 @@ private:
     TOptional<FPendingOrder> PendingOrder;
     TOptional<FActiveOrder> ActiveOrder;
     TArray<FOrderRecord> Records;
-    FLDMoveIdentity Received;
-    uint32 BookMatch=0,BookLife=0;
+    FLDOrderBook Book;
     uint64 NextReceiptSerial=0;
-    double NextQuery=0;
 };

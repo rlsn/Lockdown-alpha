@@ -240,7 +240,9 @@ bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
     {
         auto* Controller = Pair.Key.Get();
         if (!Controller) { continue; }
-        if (Controller->Navigation) { Controller->Navigation->EndLifeOrders(ELDOrderCancelReason::MatchClosed); }
+        // The controller outlives the match while the authority clock restarts at 0: its orders and order book
+        // (watermark, idempotency window, activation throttle) end with the old match.
+        if (Controller->Navigation) { Controller->Navigation->ResetMatch(); }
         // A new-generation empty view replaces the old match's projection on the owner.
         FLDCombatOwnerView Cleared;
         Cleared.Generation = Reset.New.Generation;

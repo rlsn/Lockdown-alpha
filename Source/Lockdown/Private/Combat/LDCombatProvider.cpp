@@ -2,7 +2,8 @@
 #include "Framework/LDGameMode.h"
 
 // Combat is a normal-start provider: at Close it ends live orders and unreleased actions, and on
-// reset it drops old-match owner projections and camp lives before the core retires the bodies.
+// reset it drops each controller's order book, old-match owner projections and camp lives before the core
+// retires the bodies and the per-match Combat director.
 namespace LDCombatProviderDetail
 {
     FLDMatchProviderHooks MakeCombatHooks()

@@ -147,7 +147,7 @@ FLDOrderReceipt ULDNavigationComponent::SubmitOrder(const FLDOrderCaller& Caller
         return !Existing->bStop && Existing->Request.SameTerms(Request) ? Replay(*Existing)
             : Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::RequestConflict,false);
     }
-    if (Request.Identity.Order<=Received.Order || Request.Identity.Epoch<Received.Epoch)
+    if (Request.Identity.Order<=Book.Received.Order || Request.Identity.Epoch<Book.Received.Epoch)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
     return Enqueue(Caller,Request,false,ELDOrderCancelReason::Stop);
 }
@@ -164,7 +164,7 @@ FLDOrderReceipt ULDNavigationComponent::CancelOrder(const FLDOrderCaller& Caller
     EnsureBook(Identity);
     if (const FOrderRecord* Existing=FindRecord(Identity))
     { return Existing->bStop ? Replay(*Existing) : Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::RequestConflict,false); }
-    if (Identity.Order<=Received.Order || Identity.Epoch<=Received.Epoch)
+    if (Identity.Order<=Book.Received.Order || Identity.Epoch<=Book.Received.Epoch)
     { return Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
     return Enqueue(Caller,StopRequest,true,Reason);
 }
@@ -176,23 +176,34 @@ FLDOrderReceipt ULDNavigationComponent::QueryOrder(const FLDOrderCaller& Caller,
     Out.Status=ELDOrderStatus::Rejected;
     if (!ValidateCaller(Caller,Identity,Out.Failure)) { return Out; }
     if (const FOrderRecord* Record=FindRecord(Identity)) { return Record->Receipt; }
-    Out.Failure=BookMatch==Identity.Match && BookLife==Identity.Life && Identity.Order && Identity.Order<=Received.Order
+    Out.Failure=Book.IsBoundTo(Identity.Match,Identity.Life) && Identity.Order && Identity.Order<=Book.Received.Order
         ? ELDOrderFailure::Expired : ELDOrderFailure::InvalidRequest;
     return Out;
 }
 
 void ULDNavigationComponent::EnsureBook(const FLDMoveIdentity& Identity)
 {
-    if (BookMatch==Identity.Match && BookLife==Identity.Life) { return; }
+    if (Book.IsBoundTo(Identity.Match,Identity.Life)) { return; }
     if (PendingOrder || ActiveOrder)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_STALE_LIFE_ORDERS_ENDED match=%u life=%u"),BookMatch,BookLife);
+        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_STALE_LIFE_ORDERS_ENDED match=%u life=%u"),Book.Match,Book.Life);
         EndLifeOrders(ELDOrderCancelReason::LifeEnded);
     }
+    ResetBook();
+    Book.Bind(Identity);
+}
+
+void ULDNavigationComponent::ResetBook()
+{
     Records.Reset();
-    BookMatch=Identity.Match;
-    BookLife=Identity.Life;
-    Received={Identity.Match,Identity.Life,0,0};
+    Book.Reset();
+}
+
+void ULDNavigationComponent::ResetMatch()
+{
+    EndLifeOrders(ELDOrderCancelReason::MatchClosed);
+    ResetBook();
+    Content.Reset();
 }
 
 // ResetLife on the authority: orders of an older life, or of a body the owner no longer holds, end here.
@@ -201,16 +212,13 @@ void ULDNavigationComponent::EndStaleServerOrders()
     const auto* Mode=AuthorityMode();
     const auto* PC=Controller();
     if (!Mode || !PC) { return; }
-    const bool bOldBook=BookMatch!=PC->OwnerState.Match || BookLife!=PC->OwnerState.Life;
+    const bool bOldBook=!Book.IsBoundTo(PC->OwnerState.Match,PC->OwnerState.Life);
     const FLDCombatBodyRef* Bound=ActiveOrder?&ActiveOrder->Body:PendingOrder?&PendingOrder->Body:nullptr;
     const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     FLDCombatBodyRef Current;
     const bool bBodyGone=Bound && (!Body || !Mode->ReadBodyRef(*Body,Current) || Current!=*Bound);
     if (bOldBook || bBodyGone) { EndLifeOrders(bOldBook?ELDOrderCancelReason::LifeEnded:ELDOrderCancelReason::Left); }
-    if (!bOldBook) { return; }
-    Records.Reset();
-    Received={};
-    BookMatch=BookLife=0;
+    if (bOldBook) { ResetBook(); }
 }
 
 auto ULDNavigationComponent::FindRecord(const FLDMoveIdentity& Identity) const -> const FOrderRecord*
@@ -258,7 +266,7 @@ FLDOrderReceipt ULDNavigationComponent::Enqueue(const FLDOrderCaller& Caller, co
             : Older.Request.IsAggressive() && !Older.bStop ? TOptional<FLDAggressiveIntent>(LDNavOrdersDetail::IntentOf(Older.Request))
             : TOptional<FLDAggressiveIntent>();
     }
-    Received=Request.Identity;
+    Book.Received=Request.Identity;
     FPendingOrder Next;
     Next.Request=Request;
     Next.Match=Caller.Match;
@@ -395,7 +403,7 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     { Error=TEXT("Order activation requires the current Actions permit."); return false; }
     if (PendingOrder && Mode->GetAuthorityNowMs()>=PendingOrder->NotBeforeMs
-        && (PendingOrder->bStop || Mode->GetAuthorityNowSeconds()>=NextQuery)
+        && (PendingOrder->bStop || Book.ActivationDue(Mode->GetAuthorityNowSeconds()))
         && !ActivatePending(*Mode,Permit,Error)) { return false; }
     if (!ActiveOrder) { return true; }
     auto* PC=Controller();
@@ -450,7 +458,7 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
         UE_LOG(LogTemp,Display,TEXT("LD_NAV_STOP order=%u epoch=%u"),Next.Request.Identity.Order,Next.Request.Identity.Epoch);
         return true;
     }
-    NextQuery=Mode.GetAuthorityNowSeconds()+OrderQueryIntervalSeconds;
+    Book.ArmActivation(Mode.GetAuthorityNowSeconds(),OrderQueryIntervalSeconds);
     FActiveOrder Admitted;
     Admitted.Request=Next.Request;
     Admitted.Match=Next.Match;
