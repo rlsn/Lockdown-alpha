@@ -348,6 +348,8 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     auto* Recovered = Instance->UseIsolatedLocalSettings(Fixture.Id);
     TestTrue(TEXT("Recovery preserves validated unrelated preferences"),
         Recovered->TextScale == 1.25f && Recovered->Zoom == 1600 && !Recovered->bEdgePan);
+    TestTrue(TEXT("Recovery keeps the validated player name in the session settings"),
+        Recovered->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
     TestTrue(TEXT("Runtime bindings require explicit replacement approval"), Recovered->NeedsRecovery() && Recovered->Valid());
     TestFalse(TEXT("Retired action cannot reappear at runtime"), Recovered->Bindings.Contains(TEXT("Development")));
     TestTrue(TEXT("Session bindings are exactly the Demo defaults, including the missing action"), HasExactDemoDefaults(*Recovered));
@@ -360,6 +362,8 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Recovered file keeps camera/text and current registry"),
         Confirmed.Status == ELDLocalSettingsLoadStatus::Loaded && Confirmed.Settings && Confirmed.Settings->Zoom == 1600
         && Confirmed.Settings->TextScale == 1.25f && !Confirmed.Settings->bEdgePan && Confirmed.Settings->Valid());
+    TestTrue(TEXT("Confirmed recovery writes the validated player name back"),
+        Confirmed.Settings && Confirmed.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
 
     // A schema-4 file from the retired multi-registry layout is incompatible: nothing is migrated, prefs use recovery.
     auto RetiredBindings = RetiredLayoutBindings();

@@ -239,6 +239,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->bStartFollowing = Loaded.RecoverablePreferences->bStartFollowing;
             LocalControlSettings->TextScale = Loaded.RecoverablePreferences->TextScale;
             LocalControlSettings->Zoom = Loaded.RecoverablePreferences->Zoom;
+            LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" Current bindings are session-only until you confirm recovery in Settings.");
