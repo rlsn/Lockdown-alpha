@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Development/LDCharacterBuild.h"
 #include "Inventory/LDInventoryTypes.h"
+#include "Development/LDGrowthProtocol.h"
 #include "LDViewTypes.generated.h"
 
 // Observation wire records are owner-directed authorized projections. They carry no actor,
@@ -179,6 +180,8 @@ struct FLDOwnerState
     UPROPERTY() int64 Xp = 0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
+    // Growth/Shop: own gold, equipment, level, offer and shop session as one consistent owner projection.
+    UPROPERTY() FLDGrowthOwnerView Growth;
 };
 
 namespace LDObservation

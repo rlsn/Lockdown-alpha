@@ -506,14 +506,23 @@ public:
         else if (Stage==6)
         {
             if (!FPaths::FileExists(FPaths::Combine(Output,TEXT("ReplayReady.json")))) { return true; }
-            Nav->ServerOrder(OldOrder,Goal->Position,Goal->Surface);
+            const auto SubmitGround=[Nav,Goal](const FLDMoveIdentity& Identity)
+            {
+                FLDSpatialOrderRequest Request;
+                Request.Identity=Identity;
+                Request.Kind=ELDSpatialOrderKind::MoveGround;
+                Request.GroundCm=Goal->Position;
+                Request.SurfaceHint=Goal->Surface;
+                Nav->ServerSubmitOrder(Request);
+            };
+            SubmitGround(OldOrder);
             Nav->ServerHeartbeat(OldOrder,MAX_uint32);
             auto WrongLife=Nav->LocalIdentity();
             ++WrongLife.Order; ++WrongLife.Life;
-            Nav->ServerOrder(WrongLife,Goal->Position,Goal->Surface);
+            SubmitGround(WrongLife);
             auto WrongMatch=Nav->LocalIdentity();
             ++WrongMatch.Order; ++WrongMatch.Match;
-            Nav->ServerOrder(WrongMatch,Goal->Position,Goal->Surface);
+            SubmitGround(WrongMatch);
             if (PC->HasAuthority())
             {
                 const auto Count=Movement->AuthorityIntegrationCount;
