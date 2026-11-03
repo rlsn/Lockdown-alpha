@@ -1,6 +1,6 @@
 # 库存、商店与事务
 
-可复用的是身份、版本校验、原子提交和反馈机制，不是全部旧经济玩法。
+可复用的是身份、版本校验、原子提交和反馈机制。
 Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.md)；
 目标合同见 [成长、装备与经济](../demo/PROGRESSION_EQUIPMENT_ECONOMY.md)。
 
@@ -18,16 +18,20 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 
 `ALDEconomyDirector::SpawnDomain` 在核心初始化时创建四个 director，`RetireDomain` 随
 `ALDGameMode::RetireMatchDomains` 退休；Progression 提供者的 Prepare 以锁定名单（真人加 AI 槽）
-初始化账本账户（`SHOP.StartingGold`）与成长记录。复活、开店或读取投影都不会初始化钱包。
+初始化账本账户（`SHOP.StartingGold`）与成长记录（每人一次开局机会及其已抽好的首组 Offer）。
+复活、开店或读取投影都不会初始化钱包，也不会再授予开局机会。
 
 拥有连接的 RPC 在 `Framework\LDPlayerGrowth.cpp`：`SubmitChoice/SubmitShopCommand`
 分配本族 RequestId 并在 RPC 前记入在途，服务器入口只调用对应 `Queue*`。
 开店意图没有请求号：`BeginPlay` 绑定 `Navigation->OnShopArrived`，拥有者客户端在当前 ApproachShop
 绑定到达时以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；本地拒绝与服务器结果
 都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
-本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`；`ReadOwnShop` 只在当前生命已 Opened 时有效。
-旧背包面板（`LDInventoryPanel`、`LDPlayerInventory.cpp`）及其整理/丢弃链已删除；小卖部页面是 HUD 停靠的
-`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订。
+本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`（Listen Host 的本地控制器由 `SyncOwner` 直接写入并调用
+`OnRep_OwnerState`）；`ReadOwnShop` 只在当前生命已 Opened 时有效。
+小卖部页面是 HUD 停靠的
+`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订；
+三选一页面 `ULDChoicesPanel` 同样只读 `ReadOwnProgression`，经 `SubmitChoice` 提交；开局 Offer 首次到达本人、
+尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择。
 
 ## 物品身份不是格子
 
@@ -55,7 +59,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 账本接口
 
 `LDEconomy::FLedger` 不参与 UObject 复制。`Initialize` 只在新局建立一次；`Prepare(FTransaction)`
-按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire）在完整后像上校验，返回可移动的
+按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币）在完整后像上校验，返回可移动的
 `FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。
 提交序号与发行序号独立于尾部长度，失败不推进任何计数。
 
