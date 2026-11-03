@@ -356,6 +356,69 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// Issue #29: a Host that quits with clients connected tears its world down while a living owner's body and resource
+// records are being released. Owner views stop first; a real mismatch in a playing phase stays an authority fault.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOwnerViewTeardownTest, "Lockdown.Rules.DemoOwnerViewTeardown", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDOwnerViewTeardownTest::RunTest(const FString& Parameters)
+{
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated owner-view fixture world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->bIsTearingDown = false; World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Host = World->SpawnActor<ALDPlayerController>();
+    auto* Guest = World->SpawnActor<ALDPlayerController>();
+    if (!Mode || !Public || !Host || !Guest) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    Host->SetAsLocalPlayerController();
+    Mode->GameState = Public;
+    Mode->MatchContext = {1, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Lobby;
+    Mode->RosterRevision = 1;
+    Mode->bDemoWorld = Mode->bEntryAccepted = true;
+    FString Error;
+    if (!TestTrue(TEXT("The Host and its client join the room"), Mode->AdmitRoomMember(Host, Error) && Mode->AdmitRoomMember(Guest, Error)))
+    {
+        AddError(Error);
+        return false;
+    }
+    auto* Life = Mode->Lives.Find(Mode->ContenderId(Guest));
+    FLDOwnerState* State = Mode->StateFor(Guest);
+    if (!TestNotNull(TEXT("The client has a life record"), Life) || !TestNotNull(TEXT("The client has an owner record"), State)) { return false; }
+    // A living owner whose body and resource records are already gone: what a world teardown leaves behind.
+    Life->Phase = ELDLifePhase::Alive;
+    uint64 Revision = State->Revision;
+    const auto Untouched = [&](ELDMatchPhase Phase)
+    {
+        return Mode->MatchPhase == Phase && Mode->EntryFailure.IsEmpty() && State->Revision == Revision
+            && Guest->OwnerState.Revision == Revision;
+    };
+    for (const ELDMatchPhase Phase : {ELDMatchPhase::Closing, ELDMatchPhase::Resetting})
+    {
+        Mode->MatchPhase = Phase;
+        Mode->SyncOwner(Guest);
+        TestTrue(TEXT("A closed room or a retiring match publishes no owner view and reports no projection fault"), Untouched(Phase));
+    }
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    World->bIsTearingDown = true;
+    Mode->SyncOwner(Guest);
+    TestTrue(TEXT("World teardown mid-match publishes no owner view and reports no projection fault"),
+        Untouched(ELDMatchPhase::Development));
+    World->bIsTearingDown = false;
+    Life->Phase = ELDLifePhase::Unspawned;
+    Mode->SyncOwner(Guest);
+    TestTrue(TEXT("A playing phase still publishes a consistent owner view"),
+        Mode->MatchPhase == ELDMatchPhase::Development && State->Revision == Revision + 1 && Guest->OwnerState.Revision == State->Revision);
+    Life->Phase = ELDLifePhase::Alive;
+    AddExpectedError(TEXT("LD_DEMO_AUTHORITY_FAULT"), EAutomationExpectedErrorFlags::Contains, 1);
+    Mode->SyncOwner(Guest);
+    TestTrue(TEXT("A real projection mismatch in a playing phase is still an authority fault"),
+        Mode->MatchPhase == ELDMatchPhase::Faulted && Mode->EntryFailure.Contains(TEXT("no matching committed resource/body projection")));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoLobbyReadModelTest, "Lockdown.Rules.DemoLobbyReadModel", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
 {

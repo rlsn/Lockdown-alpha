@@ -176,6 +176,8 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 本人视图发布（`SyncOwner`）先于身体和资源记录停止：世界拆除（`bIsTearingDown` 早于网络驱动销毁
 远端 Pawn）、Host 关房（`Closing`）与 `RetireMatch`（`Resetting`）期间不发布、不判投影故障，
 新 Lobby 按新代重新发布；正常对局阶段仍做完整投影校验，真故障照常进入 `Faulted`。
+规则 `Lockdown.Rules.DemoOwnerViewTeardown` 固定这三种停发条件与对局中真实不一致仍判故障；
+`RunDemoSessionFaultCheck.ps1` 的 HostQuit 段让 Host 在客户端仍连接时正常退出，要求 Host 日志无权威故障。
 
 ## 扩展与检查
 
@@ -183,7 +185,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 修改序列化时同步生产者、消费者、上限检查、代次拒绝和客户端显示，不能只改结构体尺寸。
 新的公开信息必须显式决定，不通过日志、提示或失败原因意外公开。
 
-当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 离开与失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
+当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 离开、正常退出与失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、

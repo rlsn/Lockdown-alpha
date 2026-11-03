@@ -165,6 +165,7 @@ public:
     UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
 private:
     friend class FLDDemoSessionTest;
+    friend class FLDOwnerViewTeardownTest;
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
     friend class FLDDemoCoreProbe;

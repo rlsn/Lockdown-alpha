@@ -86,6 +86,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoOpponentPolicy.Requests",
         "Lockdown.Rules.DemoOrders.AttackMoveCandidate",
         "Lockdown.Rules.DemoOrders.BookIsolation",
+        "Lockdown.Rules.DemoOwnerViewTeardown",
         "Lockdown.Rules.DemoSessionReceipts",
         "Lockdown.Rules.DemoVision.Codec",
         "Lockdown.Rules.DemoVision.Privacy",
