@@ -47,6 +47,7 @@ private:
     TArray<FCardWidgets> Cards;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> ReplacePanel;
+    UPROPERTY() TObjectPtr<class UScrollBox> CardScroll;
     UPROPERTY() TObjectPtr<UTextBlock> Header;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> ReplaceText;
