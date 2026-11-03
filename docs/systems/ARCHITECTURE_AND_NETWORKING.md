@@ -55,6 +55,7 @@ ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
 发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
 `EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
+有待重试的死亡奖励（或因此等待结算边界的占领完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
 因此 GameMode 在本世界的 `PreLoadMapWithContext`（早于关闭网络驱动）关闭房间并向每名成员发出带原因的
@@ -133,6 +134,8 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Transactions → Capture → Close
 的契约顺序每步各执行一次，不为未接通阶段签发成功证明。Close 锁定唯一结果后，driver 仍完成该边界并调用
 无 permit 的发布（成长 `PublishGrowth`、`ExecuteCapturePublish`），然后停止推进。
+唯一例外是同刻结算边界：占领完成的边界仍欠一笔待重试奖励时，Close 保留提案，`BeginSettlementStep`
+以相同 AtMs 和新 BatchSerial 开一步，只依次执行 DeathsAndRewards 与 Close，不要求原生 Motion。
 当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
 和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
 不允许两次记录之间的无凭据位置写悄悄成为新起点。退休后的已接纳批次不因弱 Pawn 指针失效而丢弃。

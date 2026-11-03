@@ -168,6 +168,7 @@ private:
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
     friend class FLDDemoCoreProbe;
+    friend class FLDRewardSettlementTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord
@@ -211,10 +212,14 @@ private:
     bool bAuthorityInitialized = false;
     bool bAuthorityStepOpen = false;
     bool bAuthorityPhaseExecuted = false;
+    // A settlement boundary repeats the instant of a held capture completion: DeathsAndRewards retries, then Close.
+    bool bSettlementStep = false;
     ELDCommitPhase LastAuthorityPhase = ELDCommitPhase::Session;
     bool InitializeAuthorityCore(FString& Error);
     bool AvailableAuthorityTime(int64& ThroughMs, FString& Error);
     ELDCommitReject BeginAuthorityStep(ALDCombatDirector& Driver, const FLDMatchContext& Match, int64 EndAtMs);
+    // Opens the settlement boundary of a held capture completion at the same authority instant.
+    ELDCommitReject BeginSettlementStep(ALDCombatDirector& Driver, const FLDMatchContext& Match);
     bool ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhase Phase,
         TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute, FString& Error);
     bool FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error);
@@ -318,6 +323,10 @@ private:
     bool RetireMatch(bool bAbortedStart, FString& Error);
     void RetireAuthorityCore();
     void RetireMatchDomains();
+    // A locked death whose reward was refused as retryable is still owed; no result may lock over it.
+    bool HasPendingRewardRetries() const;
+    // Between steps: a completed capture whose boundary still owed a reward waits for its settlement boundary.
+    bool IsCloseAwaitingSettlement() const { return PendingCapture.IsSet() && !bAuthorityStepOpen; }
     bool TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error);
     void PublishMatchOutcome();
     void PublishPublicMatch();

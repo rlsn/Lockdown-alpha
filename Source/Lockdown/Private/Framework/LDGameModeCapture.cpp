@@ -1,6 +1,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -264,14 +265,34 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (!PendingCapture) { return true; }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
-    PendingCapture.Reset();
     if (Proposal.Epoch != CaptureReducer.GetEpoch() || CaptureReducer.GetState() != ELDCircleState::Solo
         || CaptureReducer.GetOccupier() != Proposal.Occupier || Proposal.DueAtMs != Permit.GetBoundary().AtMs)
     {
+        PendingCapture.Reset();
         Error = TEXT("The capture proposal no longer matches the closed continuous segment.");
         return false;
     }
+    if (HasPendingRewardRetries())
+    {
+        if (bSettlementStep)
+        {
+            PendingCapture.Reset();
+            Error = TEXT("The settlement boundary still owes a reward; the capture cannot lock over it.");
+            return false;
+        }
+        // The hold is complete at this instant, but a reward of a death up to it is still owed. The proposal
+        // waits for a settlement boundary at the same instant: its single retry first, then this Close.
+        UE_LOG(LogTemp, Display, TEXT("LD_CAPTURE_CLOSE_AWAITS_REWARD generation=%u due_ms=%lld"),
+            MatchContext.Generation, Proposal.DueAtMs);
+        return true;
+    }
+    PendingCapture.Reset();
     return TryCloseMatch(ELDMatchEndReason::CaptureCompleted, Proposal.Occupier, Proposal.DueAtMs, Error);
+}
+
+bool ALDGameMode::HasPendingRewardRetries() const
+{
+    return Combat && !Combat->RetryRewards.IsEmpty();
 }
 
 bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error)
@@ -279,6 +300,11 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
     if (bResultLocked)
     {
         Error = TEXT("AlreadyTerminal: the match result is already locked.");
+        return false;
+    }
+    if (HasPendingRewardRetries())
+    {
+        Error = TEXT("RewardPending: a locked death's reward awaits its retry; the result cannot lock before it settles.");
         return false;
     }
     if (!IsGameplayWriteOpen(MatchContext) || (ActiveWritePermit && ActiveWritePermit->GetPhase() != ELDCommitPhase::Close))
