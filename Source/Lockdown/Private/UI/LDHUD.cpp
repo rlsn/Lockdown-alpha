@@ -551,15 +551,21 @@ void ULDHUD::RefreshReadModel()
     // D10: the opening three-choice opens its panel once per match, when its offer first reaches this owner and nothing
     // else is open; it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
     // Growth may publish the match's progression before the opening offer, so the one chance waits for the offer itself.
+    // The root may still be leaving the lobby on the match's first frames, so a refused open is retried for a short
+    // while; the player's own panel or captured input ends the chance at once.
+    if(AutoChoicesMatch!=O.Match&&AutoChoicesPending!=O.Match){AutoChoicesPending=O.Match;AutoChoicesSince=-1;}
     if(ChoicesPanel&&PC->RootUI&&Progression&&Progression->Generation==O.Match&&AutoChoicesMatch!=O.Match
         &&(Progression->bHasOffer||Progression->ConsumedThrough>0))
     {
-        AutoChoicesMatch=O.Match;
-        if(Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1
-            &&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::None&&!PC->IsWorldInputCaptured())
+        const bool bOpening=Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1;
+        const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
+        const double UiTime=GetWorld()->GetRealTimeSeconds();
+        if(!bOpening||bPlayerUI||PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoChoicesMatch=O.Match;}
+        else if(AutoChoicesSince<0){AutoChoicesSince=UiTime;}
+        else if(UiTime-AutoChoicesSince>5.)
         {
-            PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);
-            if(!ChoicesPanel->IsPanelOpen()){UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel did not open."));}
+            AutoChoicesMatch=O.Match;
+            UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
         }
     }
     if(ShopPanel)
