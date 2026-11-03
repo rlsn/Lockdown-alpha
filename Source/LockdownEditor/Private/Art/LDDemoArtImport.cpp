@@ -479,21 +479,33 @@ namespace
     {
         T* Expression = NewObject<T>(&Material);
         Expression->Material = &Material;
-        Expression->UpdateMaterialExpressionGuid(true, false);
         Material.GetExpressionCollection().AddExpression(Expression);
         return Expression;
     }
 
-    // One opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
-    // An existing master is reused untouched: re-saving a loaded material from this commandlet drops its graph.
+    // The master graph is code: every import rebuilds it in place, so editing ArtMasterMaterial and running
+    // ImportDemoArt -Mode Import is the only way to change it; edits made to the asset are replaced.
+    // Base: one opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
     // The fade variant is masked with a pixel dither on 1 - LDFadeStrength x LDFade, so it fades without translucency sorting.
-    UMaterial* ArtMasterMaterial(const TCHAR* PackageName, bool bFade, bool& bCreated, FString& Error)
+    UMaterial* ArtMasterMaterial(const TCHAR* PackageName, bool bFade, FString& Error)
     {
-        bCreated = !FPackageName::DoesPackageExist(PackageName);
-        if (!bCreated) { return ArtLoadOrCreate<UMaterial>(PackageName, false); }
         UMaterial* Material = ArtLoadOrCreate<UMaterial>(PackageName, true);
         auto* White = LoadObject<UTexture>(nullptr, TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"));
         if (!Material || !White) { ArtFail(Error, FString(TEXT("Cannot create the art master material ")) + PackageName); return nullptr; }
+        Material->PreEditChange(nullptr);
+        // Drop whatever graph the asset held, so none of it is saved again.
+        FMaterialExpressionCollection& Collection = Material->GetExpressionCollection();
+        TArray<UObject*> Previous(Collection.Expressions);
+        Previous.Append(Collection.EditorComments);
+        for (UObject* Old : Previous)
+        {
+            if (Old) { Old->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional); }
+        }
+        Collection.Empty();
+        for (int32 Property = 0; Property < MP_MAX; ++Property)
+        {
+            if (FExpressionInput* Input = Material->GetExpressionInputForProperty(EMaterialProperty(Property))) { Input->Expression = nullptr; }
+        }
         auto* Tint = ArtAddExpression<UMaterialExpressionVectorParameter>(*Material);
         Tint->ParameterName = ULDArtCatalog::TintParameter;
         Tint->DefaultValue = FLinearColor::White;
@@ -510,7 +522,6 @@ namespace
         auto* Multiply = ArtAddExpression<UMaterialExpressionMultiply>(*Material);
         Multiply->A.Connect(0, Texture);
         Multiply->B.Connect(0, Tint);
-        for (UMaterialExpression* Parameter : TArray<UMaterialExpression*>{Tint, Flash, Texture, Roughness}) { Parameter->UpdateParameterGuid(true, false); }
         UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
         Inputs->BaseColor.Connect(0, Multiply);
         Inputs->Roughness.Connect(0, Roughness);
@@ -520,12 +531,10 @@ namespace
             auto* Fade = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
             Fade->ParameterName = ULDArtCatalog::FadeParameter;
             Fade->DefaultValue = 0.f;
-            Fade->UpdateParameterGuid(true, false);
             auto* Strength = ArtAddExpression<UMaterialExpressionMultiply>(*Material);
             auto* Reach = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
             Reach->ParameterName = ULDArtCatalog::FadeStrengthParameter;
             Reach->DefaultValue = .9f;
-            Reach->UpdateParameterGuid(true, false);
             Strength->A.Connect(0, Fade);
             Strength->B.Connect(0, Reach);
             auto* Opacity = ArtAddExpression<UMaterialExpressionOneMinus>(*Material);
@@ -539,15 +548,51 @@ namespace
             Dithered->Inputs[0].InputName = TEXT("Opacity");
             Dithered->Inputs[0].Input.Connect(0, Opacity);
             Inputs->OpacityMask.Connect(0, Dithered);
-            Material->BlendMode = BLEND_Masked;
-            Material->OpacityMaskClipValue = .5f;
         }
+        Material->BlendMode = bFade ? BLEND_Masked : BLEND_Opaque;
+        Material->OpacityMaskClipValue = .5f;
         Material->TwoSided = true;
         Material->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
         Material->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
+        // Identities derive from the package and graph position, so a rebuild of the same code keeps every GUID.
+        const uint32 Seed = FCrc::StrCrc32(PackageName);
+        for (int32 Index = 0; Index < Collection.Expressions.Num(); ++Index)
+        {
+            UMaterialExpression* Expression = Collection.Expressions[Index];
+            Expression->MaterialExpressionGuid = FGuid(Seed, uint32(Index), 0x4C44u, 1u);
+            if (Expression->HasAParameterName()) { Expression->GetParameterExpressionId() = FGuid(Seed, uint32(Index), 0x4C44u, 2u); }
+        }
         Material->PostEditChange();
         Material->MarkPackageDirty();
         return Material;
+    }
+
+    // The graph ArtMasterMaterial builds, checked after every build and load: an empty or partial graph renders black.
+    bool ArtCheckMasterGraph(const UMaterial& Material, bool bFade, FString& Error)
+    {
+        TArray<FName> Parameters;
+        for (const UMaterialExpression* Expression : Material.GetExpressions())
+        {
+            if (Expression && !Expression->GetParameterName().IsNone()) { Parameters.Add(Expression->GetParameterName()); }
+        }
+        TArray<FName> Expected{ULDArtCatalog::TintParameter, ULDArtCatalog::FlashParameter, ArtTextureParameter, TEXT("Roughness")};
+        if (bFade) { Expected.Append({ULDArtCatalog::FadeParameter, ULDArtCatalog::FadeStrengthParameter}); }
+        Parameters.Sort(FNameLexicalLess());
+        Expected.Sort(FNameLexicalLess());
+        const UMaterialEditorOnlyData* Inputs = Material.GetEditorOnlyData();
+        const bool bGraph = Inputs && Material.GetExpressions().Num() == (bFade ? 10 : 5) && Parameters == Expected
+            && Inputs->BaseColor.IsConnected() && Inputs->Roughness.IsConnected() && Inputs->EmissiveColor.IsConnected()
+            && Inputs->OpacityMask.IsConnected() == bFade && Material.BlendMode == (bFade ? BLEND_Masked : BLEND_Opaque) && Material.TwoSided;
+        return bGraph || ArtFail(Error, FString::Printf(TEXT("%s does not hold the importer's graph (%d expressions, %d parameters); ")
+            TEXT("run ImportDemoArt.ps1 -Mode Import to rebuild it."), *Material.GetPathName(), Material.GetExpressions().Num(), Parameters.Num()));
+    }
+
+    // A process without a client loads packages as a dedicated server, whose linker skips exports that are not
+    // always loaded in an editor game, such as material expressions: every master would load with an empty graph.
+    bool ArtRequireClient(FString& Error)
+    {
+        return GIsClient || ArtFail(Error, TEXT("Art import and validation need a client process (UCommandlet::IsClient); ")
+            TEXT("a dedicated-server load drops material graphs."));
     }
 
     // Kenney palette atlases: nearest filtering without mips keeps every swatch a flat colour at any distance.
@@ -893,17 +938,18 @@ namespace
 
 bool LDDemoArtImport::Import(FString& Error)
 {
+    if (!ArtRequireClient(Error)) { return false; }
     FArtManifest Manifest;
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     TArray<UObject*> Assets;
-    bool bNewMaster = false, bNewFadeMaster = false;
-    UMaterial* Master = ArtMasterMaterial(ArtMasterPackage, false, bNewMaster, Error);
-    UMaterial* FadeMaster = Master ? ArtMasterMaterial(ArtFadeMasterPackage, true, bNewFadeMaster, Error) : nullptr;
+    UMaterial* Master = ArtMasterMaterial(ArtMasterPackage, false, Error);
+    UMaterial* FadeMaster = Master ? ArtMasterMaterial(ArtFadeMasterPackage, true, Error) : nullptr;
     auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, true);
     if (!Master || !Catalog) { return ArtFail(Error, TEXT("The art master material or catalog cannot be created: ") + Error); }
     if (!FadeMaster) { return ArtFail(Error, TEXT("The fadeable art master material cannot be created: ") + Error); }
-    if (bNewMaster) { Assets.Add(Master); }
-    if (bNewFadeMaster) { Assets.Add(FadeMaster); }
+    if (!ArtCheckMasterGraph(*Master, false, Error) || !ArtCheckMasterGraph(*FadeMaster, true, Error)) { return false; }
+    Assets.Add(Master);
+    Assets.Add(FadeMaster);
     Catalog->Characters.Reset();
     Catalog->Seats.Reset();
     Catalog->Monsters.Reset();
@@ -953,10 +999,17 @@ bool LDDemoArtImport::Import(FString& Error)
 
 bool LDDemoArtImport::Validate(FString& Error)
 {
+    if (!ArtRequireClient(Error)) { return false; }
     FArtManifest Manifest;
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     const auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, false);
     if (!Catalog) { return ArtFail(Error, TEXT("Art catalog DA_DemoArt is missing; run ImportDemoArt.ps1 -Mode Import.")); }
+    for (const bool bFade : {false, true})
+    {
+        const auto* Master = ArtLoadOrCreate<UMaterial>(bFade ? ArtFadeMasterPackage : ArtMasterPackage, false);
+        if (!Master) { return ArtFail(Error, TEXT("An art master material is missing; run ImportDemoArt.ps1 -Mode Import.")); }
+        if (!ArtCheckMasterGraph(*Master, bFade, Error)) { return false; }
+    }
     FLDArtResolved Resolved;
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Art catalog is invalid: ") + Error); }
     if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->Props.Num() != Manifest.Props.Num()

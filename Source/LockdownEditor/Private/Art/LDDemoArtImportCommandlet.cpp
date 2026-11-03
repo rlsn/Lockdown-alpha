@@ -4,7 +4,8 @@
 
 ULDDemoArtImportCommandlet::ULDDemoArtImportCommandlet()
 {
-    IsClient = false;
+    // A client: as a dedicated server the linker would drop the master materials' expressions.
+    IsClient = true;
     IsEditor = true;
     LogToConsole = true;
 }
