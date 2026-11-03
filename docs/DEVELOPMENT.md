@@ -1,11 +1,9 @@
 # 开发指南
 
 产品目标见 [App Spec](APP_SPEC.md)，共同开发约束见 [AGENTS](../AGENTS.md)。
-当前仓库具备原生工程和可复用组件，但尚未完整实现该 Demo。
-下面的命令运行当前工程，不是新玩法已经完成的保证。
-目标 Demo 的开工门槛与依赖见 [实施就绪评估](demo/READINESS.md)、
-[实施计划](demo/IMPLEMENTATION_PLAN.md) 和 [共享契约](demo/SHARED_CONTRACTS.md)。
-默认入口已收敛为前端和唯一 Demo 世界；尚未迁移的组件不因此获准作为第二套产品模式运行。
+当前仓库实现了该 Demo 的完整流程；验收结果、未运行与未实现项见 [实施就绪评估](demo/READINESS.md)。
+模块边界与跨模块契约见 [实施计划](demo/IMPLEMENTATION_PLAN.md) 和 [共享契约](demo/SHARED_CONTRACTS.md)。
+默认入口只有前端和唯一 Demo 世界，没有第二套产品模式。
 
 ## 环境与首次启动
 
@@ -55,8 +53,8 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 这些手册保留当前有效的实现知识。含有兼容名称的组件或运行数据不自动成为 Demo 需求，
 未核对代码的旧设计提案也不作为当前架构事实。
 
-依赖级复用、真实裁剪闭包和基础门槛见 [架构审计](demo/ARCHITECTURE.md)；
-其源码依据与建议不替代 App Spec，也不代表删除、资产核验或游戏实现已经完成。
+依赖级复用、已完成的删除闭包与防回归约束见 [架构审计](demo/ARCHITECTURE.md)；
+它不替代 App Spec 的产品规则。
 
 ## 工程目录
 
@@ -116,13 +114,11 @@ Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。
 原生 GameMode 不再通过旧 profile 创建战斗、经济、人口、旧目标或 probe 服务。
 
-GameMode 已提供三真人容量、Host 权限、0–3 AI 名额配置、结构名单版本与有界会话回执。
-Ready 变化不增加结构版本，成员/AI 名额变化清除真人 Ready。AI 名额不是已实现的对手控制器。
-typed 内容/世界目录、精确资产校验、唯一地图与原生静态几何/导航已经实现；
-当前仍缺完整实际玩法提供者、观测/运动时序及真实对局接线；
-即使具备名单与准备状态，也不会通过旧服务开始一局。
-保留组件的旧场景 runner 可能仍含待迁移选择器，原生入口会拒绝它们；
-不能把这些 runner 当作当前可运行的 Demo 场景。
+GameMode 提供三真人容量、Host 权限、0–3 AI 名额配置、结构名单版本与有界会话回执。
+Ready 变化不增加结构版本，成员/AI 名额变化清除真人 Ready；开局时每个 AI 名额由对手提供者生成一个服务器
+`ALDOpponentController`。只有全部正常开局提供者都已注册时才能开局，缺任一提供者时明确拒绝。
+玩家名称经 `?LDName=` 传入并由服务器按设置中的名称规则复核；加入被拒时客户端显示中文原因与稳定原因码。
+当前场景见下文“最小验证选择”。
 
 Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 同机可使用回环地址，其他设备使用局域网地址；公网直连需要相应网络配置，不提供自动穿透。
@@ -155,6 +151,25 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 | 库存 / 账本 | `RunTests.ps1` 中的 `DemoGrowth*` 规则；`python -B -m unittest discover -s .\Scripts -p TestEconomyEvidence.py`；原生账本证据经 `CheckEconomyEvidence.py` 独立复算；`RunDemoGrowthCheck.ps1` 为 DEV 拥有连接的击杀奖励/选择/买卖/装备主动冷却债/账本场景，Host 带 DEV 成长夹具预置买方 Offer，覆盖 Q/W 满槽替换与重学沿用原冷却截止、死亡等待中确认选择不复活不治疗，Listen Host 作为击杀者（击杀买方与低档营地野怪）在本人视图与 HUD 看到精确奖励，并结束本局后开第二局核对新局隔离（不含 AI/抢圈） |
 | 网络异常 / 拥有连接 | `RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分六段：Leave 中一名客户端经局内菜单离开，其余两人继续，Host 结束后结果表记其离局且无击杀/死亡；HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；HostLeave 中 Host 经局内菜单离开，房间在 Host 换图前向成员发出关闭，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败。全部在同机回环上运行，不代表跨机器局域网或公网直连 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
+
+### 按批联合测试
+
+模块交付只要求 `BuildEditor.ps1` 通过，并说明新测试名与联合测试要检查的点。集成分支攒批合入后跑一轮：
+
+```powershell
+.\Scripts\BuildEditor.ps1 -FullUnity
+.\Scripts\BuildGame.ps1 -FullUnity
+.\Scripts\RunTests.ps1
+python -B -m unittest discover -s .\Scripts -p "Test*.py"
+.\Scripts\BootstrapAssets.ps1
+.\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
+.\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
+```
+
+其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）在发布冻结后的完整验收中在打包版上各跑一次。
+新增原生测试要同步登记到 `CheckRuleReport.py`；某个模块的检查需要真实对局时，优先补进满员场景，不另开场景。
+
+### 规则测试集合
 
 `RunTests.ps1` 执行已有 `Lockdown.Rules` 套件，由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
 缺报告、失败、未完成、缺用例或重复结果都不能通过；新增或迁移原生测试时同步维护此集合，
