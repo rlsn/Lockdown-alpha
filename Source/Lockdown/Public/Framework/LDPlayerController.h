@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Combat/LDCombatTypes.h"
+#include "Framework/LDCombatReceiptLog.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -129,8 +130,8 @@ public:
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
     UPROPERTY(ReplicatedUsing=OnRep_CombatView) FLDCombatOwnerView CombatView;
     UFUNCTION() void OnRep_CombatView();
-    FLDCombatActionReceipt LatestCombatReceipt;
-    uint32 CombatReceiptSerial=0;
+    // Every receipt of the current match in arrival order; presenters keep their own cursor (LDCombatReceiptLog.h).
+    FLDCombatReceiptLog CombatReceipts;
 private:
     void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0,FGuid ExpectedResult=FGuid());
     uint32 DemoRequestGeneration=0;

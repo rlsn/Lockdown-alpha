@@ -9,6 +9,7 @@
 #include "Misc/Crc.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
 #include "Templates/UnrealTemplate.h"
@@ -1106,6 +1107,62 @@ bool FLDLocalDisplayProductDefaultsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An unknown desktop size is refused instead of inventing a resolution"),
         FLDDisplaySettings::ProductDefaults(*Live, FIntPoint::ZeroValue, Unchanged, Error));
     TestTrue(TEXT("The refusal is explained and leaves the output untouched"), !Error.IsEmpty() && Unchanged == Before);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDisplayRenderScaleTest, "Lockdown.Rules.LocalDisplayRenderScale",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalDisplayRenderScaleTest::RunTest(const FString& Parameters)
+{
+    // Issue #18. A private scalability variable stands in for r.ScreenPercentage, so other tests never see a changed scale.
+    auto& Console = IConsoleManager::Get();
+    const TCHAR* Name = TEXT("ld.Test.RenderScale");
+    if (IConsoleVariable* Stale = Console.FindConsoleVariable(Name)) { Console.UnregisterConsoleObject(Stale, false); }
+    IConsoleVariable* Scale = Console.RegisterConsoleVariable(Name, 0.f, TEXT("Lockdown render scale test variable."), ECVF_Scalability);
+    if (!TestNotNull(TEXT("The test render scale registers"), Scale)) { return false; }
+    ON_SCOPE_EXIT { Console.UnregisterConsoleObject(Scale, false); };
+    Scale->Set(50.f, ECVF_SetByScalability);
+    TestTrue(TEXT("A non-default quality keeps its scale: the engine applies it"),
+        LDLocalSettings::ApplyRenderScale(*Scale, 50.f) && Scale->GetFloat() == 50.f);
+    TestTrue(TEXT("The default (0) drops the earlier scalability scale at once"),
+        LDLocalSettings::ApplyRenderScale(*Scale, 0.f) && Scale->GetFloat() == 0.f
+        && (Scale->GetFlags() & ECVF_SetByMask) == ECVF_SetByConstructor);
+    TestTrue(TEXT("Applying the default again is harmless"), LDLocalSettings::ApplyRenderScale(*Scale, 0.f) && Scale->GetFloat() == 0.f);
+    Scale->Set(50.f, ECVF_SetByScalability);
+    Scale->Set(80.f, ECVF_SetByProjectSetting);
+    TestTrue(TEXT("A project screen percentage outranks scalability and is what the default returns to"),
+        Scale->GetFloat() == 80.f && LDLocalSettings::ApplyRenderScale(*Scale, 0.f) && Scale->GetFloat() == 80.f
+        && (Scale->GetFlags() & ECVF_SetByMask) == ECVF_SetByProjectSetting);
+
+    // The real engine path: sg.ResolutionQuality 0 never touches r.ScreenPercentage, which is the defect being fixed.
+    IConsoleVariable* Screen = Console.FindConsoleVariable(TEXT("r.ScreenPercentage"));
+    if (!TestNotNull(TEXT("The engine screen percentage exists"), Screen)) { return false; }
+    if ((Screen->GetFlags() & ECVF_SetByMask) > ECVF_SetByScalability)
+    {
+        AddInfo(TEXT("r.ScreenPercentage is set above scalability in this process; the engine-path reproduction is skipped."));
+        return true;
+    }
+    const Scalability::FQualityLevels Saved = Scalability::GetQualityLevels();
+    const float Baseline = Screen->GetFloat();
+    ON_SCOPE_EXIT
+    {
+        Scalability::SetQualityLevels(Saved);
+        if (Saved.ResolutionQuality == 0.f) { LDLocalSettings::ApplyRenderScale(*Screen, 0.f); }
+    };
+    if (Saved.ResolutionQuality != 0.f) { Scalability::FQualityLevels Reset = Saved; Reset.ResolutionQuality = 0.f; Scalability::SetQualityLevels(Reset); }
+    LDLocalSettings::ApplyRenderScale(*Screen, 0.f);
+    const float ProjectDefault = Screen->GetFloat();
+    Scalability::FQualityLevels Low = Saved;
+    Low.ResolutionQuality = ProjectDefault == 50.f ? 60.f : 50.f;
+    Scalability::SetQualityLevels(Low);
+    TestEqual(TEXT("A quality level's render scale reaches r.ScreenPercentage"), Screen->GetFloat(), Low.ResolutionQuality);
+    Scalability::FQualityLevels Defaults = Low;
+    Defaults.ResolutionQuality = 0.f;
+    Scalability::SetQualityLevels(Defaults);
+    TestEqual(TEXT("The engine leaves the earlier render scale in force for the default (0)"), Screen->GetFloat(), Low.ResolutionQuality);
+    TestTrue(TEXT("ApplyRenderScale returns the project default immediately"),
+        LDLocalSettings::ApplyRenderScale(*Screen, Defaults.ResolutionQuality) && Screen->GetFloat() == ProjectDefault);
+    AddInfo(FString::Printf(TEXT("Baseline r.ScreenPercentage %.2f, project default %.2f."), Baseline, ProjectDefault));
     return true;
 }
 

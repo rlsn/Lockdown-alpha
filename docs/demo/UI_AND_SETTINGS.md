@@ -448,7 +448,7 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，边缘带 viewport 比例，TextScale 倍率。`CameraPanCmPerSec` 已实现为本地设置：镜头键盘/边缘平移速度 cm/s，合法域为 900–3600 的有限值，默认 1800 为协调决定（非平衡测试值）；设置页以 300 cm/s 步进、确认即应用。`MinimapOrientation` 已实现为本地设置：跟随镜头（默认，用户决定；地图上方即屏幕上方）、跟随角色朝向（本人存活身体的朝向朝上，无身体时同跟随镜头）、固定正北（世界 −Y 朝上、+X 朝右，与编辑器顶视图一致）；三种都只是真实俯视的旋转加统一缩放，不镜像。`bQuickCast` 快速施法默认关闭（按键后左键确认），打开后由 Combat 直接对光标下单位或光标方向施放。当前 schema 10 保存，schema 5–9 显式迁移（缺失的平移速度取默认 1800、朝向取跟随镜头、快速施法关闭），越界的朝向或开关值按损坏拒绝。其余有限值/上下界关系沿操作域唯一定义，不从旧 1400/8px 当批准默认。镜头不授予视野。 |
 | 显示/画质 / `UGameUserSettings` | 实际支持分辨率、窗口模式、VSync、整体画质预设 | 只有分辨率/窗口模式进入 trial。一起编辑的 VSync/画质留在草稿，确认模式后才应用；单独改后两者用明确 Apply。不建庞大高级渲染中心，游戏仍不暂停。 |
 | 音量 / 本地偏好 + Engine 声音分组 | 单一 `MasterVolume`，无量纲 0..1 | 本 Demo 声音统一经 Master SoundClass/SoundMix 生效，不修改共享 CDO；应用后实际音频响应。没有音频消费者时不把滑条当完成。 |
-| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 已实现：确认前列出全部范围，不清本局进度、身份或姓名。确认后先应用并保存本地偏好默认值，再把显示草稿设为产品默认（临时对象 `SetToDefaults` 的窗口模式与整体画质，未设分辨率及无边框取桌面尺寸，VSync 取 `r.VSync` 引擎默认）；分辨率/窗口模式不同则走同一试用/回滚，VSync/画质随这次显示应用，已是默认则说明且不试用；已有试用或恢复进行时不恢复任何项。取消试用只回滚显示。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
+| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 已实现：确认前列出全部范围，不清本局进度、身份或姓名。确认后先应用并保存本地偏好默认值，再把显示草稿设为产品默认（临时对象 `SetToDefaults` 的窗口模式与整体画质，未设分辨率及无边框取桌面尺寸，VSync 取 `r.VSync` 引擎默认）；分辨率/窗口模式不同则走同一试用/回滚，VSync/画质随这次显示应用（渲染比例同时回到项目默认，不需重启），已是默认则说明且不试用；已有试用或恢复进行时不恢复任何项。取消试用只回滚显示。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
 
 本地操作明确区分 **EditingDraft → DisplayTrial → ConfirmedApplied → PersistenceVerified**；
 不涉及模式改变的本地设置可在明确 Apply 后直接进入 ConfirmedApplied。

@@ -9,6 +9,7 @@
 class ULDControlSettings;
 class UGameUserSettings;
 class FConfigCacheIni;
+class IConsoleVariable;
 
 class LOCKDOWN_API FLDDisplayConfigWriteGuard
 {
@@ -126,6 +127,11 @@ namespace LDLocalSettings
     LOCKDOWN_API FLDLocalSettingsSaveResult VerifyDisplaySettingsFile(
         const FString& SettingsFile, const FString& QualityFile, const FString& SettingsSection,
         const FLDDisplaySettings& Expected);
+    // Scalability writes sg.ResolutionQuality straight into r.ScreenPercentage, but the engine treats 0 (the default: the
+    // project's own screen percentage) as a no-op, so a render scale applied earlier stays until restart. For 0 this
+    // drops the scalability-priority value of ScreenPercentage so the project default under it applies at once; other
+    // values are applied by the engine. False when a scalability render scale is still in force for 0.
+    LOCKDOWN_API bool ApplyRenderScale(IConsoleVariable& ScreenPercentage, float ResolutionQuality);
 }
 
 struct FLDControlBinding

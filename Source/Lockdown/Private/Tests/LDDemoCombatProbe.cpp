@@ -822,7 +822,7 @@ public:
             SettingsOrder = Nav.LocalIdentity();
             SettingsFrom = Body.GetNavAgentLocation();
             SettingsHeartbeats = Nav.HeartbeatsSent();
-            SettingsCombatReceipts = PC.CombatReceiptSerial;
+            SettingsCombatReceipts = PC.CombatReceipts.Serial();
             // The entry the HUD and menu 设置 buttons use.
             PC.RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);
             Check(PC.ControlsUI && PC.ControlsUI->IsOpen() && PC.IsWorldLifeValid() && PC.IsWorldInputSuppressed()
@@ -863,7 +863,7 @@ public:
         }
         if (Now - SettingsAt < LDDemoCombatScenario::CombatProbeSettingsAfterSeconds) { return true; }
         Check(PC.ControlsUI && !bOpen && Nav.LocalIdentity() == SettingsOrder && Running(true)
-            && PC.CombatReceiptSerial == SettingsCombatReceipts && (!Nav.HasMoveOrder() || Nav.HeartbeatsSent() > SettingsHeartbeats),
+            && PC.CombatReceipts.Serial() == SettingsCombatReceipts && (!Nav.HasMoveOrder() || Nav.HeartbeatsSent() > SettingsHeartbeats),
             TEXT("Settings"), TEXT("Closing Settings replays nothing: the same walk goes on with its heartbeat and no order, stop or action is sent"),
             FString::Printf(TEXT("open=%d status=%d active=%d"), int32(bOpen), int32(Latest.Status), int32(Nav.HasMoveOrder())));
         if (!Passed) { return Finish(); }
@@ -1022,7 +1022,7 @@ public:
             return Fail(TEXT("Protection"), FString::Printf(
                 TEXT("The protection window closed before the scenario could spend it (now=%lld until=%lld)"), ServerNowMs, ProtectedUntilSeenMs));
         }
-        ReceiptSerialBefore = PC.CombatReceiptSerial;
+        ReceiptSerialBefore = PC.CombatReceipts.Serial();
         // The Q hotkey's own entry: an empty slot still reaches the server as an activation attempt.
         PC.ActivateCombatEntry(ELDCombatEntry::Q);
         SetStage(EStage::Spend);
@@ -1031,15 +1031,16 @@ public:
 
     bool TickSpend(double Now, ALDPlayerController& PC)
     {
-        const FLDCombatActionReceipt& Seen = PC.LatestCombatReceipt;
-        const bool bAnswered = PC.CombatReceiptSerial != ReceiptSerialBefore && Seen.Entry == ELDCombatEntry::Q && Seen.Life == 2;
-        if (!bAnswered)
+        const FLDCombatActionReceipt* Answer = PC.CombatReceipts.FindLatestSince(ReceiptSerialBefore,
+            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q && Receipt.Life == 2; });
+        if (!Answer)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
             return Fail(TEXT("Protection"), TEXT("The empty Q attempt received no receipt over the owning connection"));
         }
         if (SpentReceipt.Entry == ELDCombatEntry::None)
         {
+            const FLDCombatActionReceipt& Seen = *Answer;
             SpentReceipt = Seen;
             Check(Seen.Origin == ELDCombatRequestOrigin::Direct && Seen.Phase == ELDCombatPhase::Rejected
                 && Seen.Reject == ELDCombatReject::SourceUnavailable, TEXT("Protection"),
@@ -1205,7 +1206,7 @@ public:
         }
         const ELDCombatEntry Guard = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false)[0]);
         if (Guard == ELDCombatEntry::None) { return Fail(TEXT("Skills"), TEXT("The learned guard pulse holds no Q/W entry")); }
-        ReceiptSerialBefore = PC.CombatReceiptSerial;
+        ReceiptSerialBefore = PC.CombatReceipts.Serial();
         // A Self skill sends from its hotkey entry at once.
         PC.ActivateCombatEntry(Guard);
         SetStage(EStage::Shielded);
@@ -1214,10 +1215,10 @@ public:
 
     bool TickShielded(double Now, ALDPlayerController& PC)
     {
-        const FLDCombatActionReceipt& Seen = PC.LatestCombatReceipt;
-        if (PC.CombatReceiptSerial != ReceiptSerialBefore && Seen.Phase == ELDCombatPhase::Rejected)
+        if (const FLDCombatActionReceipt* Seen = PC.CombatReceipts.FindLatestSince(ReceiptSerialBefore,
+            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Phase == ELDCombatPhase::Rejected; }))
         {
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The guard pulse was refused (reject=%d)"), int32(Seen.Reject)));
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The guard pulse was refused (reject=%d)"), int32(Seen->Reject)));
         }
         const FLDCombatStatusView* Shield = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Shield);
         const FLDCombatStatusView* Root = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Root);
@@ -1593,15 +1594,15 @@ public:
         {
             return false;
         }
-        ReceiptSerialBefore = PC.CombatReceiptSerial;
+        ReceiptSerialBefore = PC.CombatReceipts.Serial();
         return Check(PC.ConfirmArmedEntry(Aim), TEXT("Skills"), TEXT("The armed entry confirms on its aim"));
     }
 
     // The server's refusal of the cast confirmed last; null while it is not refused.
     const FLDCombatActionReceipt* Refusal(const ALDPlayerController& PC) const
     {
-        const FLDCombatActionReceipt& Seen = PC.LatestCombatReceipt;
-        return PC.CombatReceiptSerial != ReceiptSerialBefore && Seen.Phase == ELDCombatPhase::Rejected ? &Seen : nullptr;
+        return PC.CombatReceipts.FindLatestSince(ReceiptSerialBefore,
+            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Phase == ELDCombatPhase::Rejected; });
     }
 
     bool TickSnare(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
