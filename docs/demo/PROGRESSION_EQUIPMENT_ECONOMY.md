@@ -310,7 +310,9 @@ Prepare 检查当前账户/修订（已退休为 `AlreadyRetired`）；Apply占�
 Reconcile 与证据复算按 AccountRetire 条目验证旧修订/false状态、重放true和新修订及关联戳；
 压缩后的Prefix继续携带这些结果，不能从当前账户补标志以掩盖缺日志。
 退休账户及其冻结物品仍参与本局审计；不出售、转移或重新开放该账户。
-要求：退休前应先结清该参赛者作为收款人的待重试奖励；当前 `RetireLeftAccounts` 不检查这一前置。
+离局参赛者仍是某个已锁死亡的收款人（本边界待结算或待重试奖励，`ALDCombatDirector::OwesRewardTo`）时，
+`RetireLeftAccounts` 跳过他，账户保持开放；下一边界 DeathsAndRewards 的唯一重试先结清，随后的 Transactions 再退休
+（`Lockdown.Rules.DemoGrowthRetireAwaitsReward`）。因此重试不会命中 `RetiredAccount`。
 
 **三个准入屏障必须在 Ledger Prepare 之前生效：**
 请求序号不大于 FinalizedThrough 时仅查已有回包/拒旧；DeathKey 的 Life 不大于对应

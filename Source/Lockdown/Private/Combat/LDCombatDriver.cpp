@@ -297,6 +297,12 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     return true;
 }
 
+bool ALDCombatDirector::OwesRewardTo(const FGuid& Recipient) const
+{
+    const auto Owed=[&Recipient](const FLDCommittedDeath& Fact) { return Fact.CreditOwner==Recipient; };
+    return Recipient.IsValid() && (RetryRewards.ContainsByPredicate(Owed) || PendingDeaths.ContainsByPredicate(Owed));
+}
+
 bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     auto* Mode=Core();

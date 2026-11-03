@@ -66,7 +66,9 @@ public:
     static void Terms(const TArray<uint8>& Canonical, uint8 (&Out)[32]);
 
 private:
-    bool RetireLeftAccounts(const FLDGameplayWritePermit& Permit, FString& Error);
+    friend class FLDAccountRetireAwaitsRewardTest;
+    // Retires the ledger accounts of contenders that left; M is the authority core of this match.
+    bool RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error);
     bool CompactLedger(FString& Error);
     void RecordReward(const FLDRewardReceipt& Receipt);
     // The reward composite (PEE §4.2): a ledger mint when Gold > 0, the XP with its levels and opportunities and the
