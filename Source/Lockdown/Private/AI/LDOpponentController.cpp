@@ -196,9 +196,39 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u"), *Binding.GetContender().ToString(),
+        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("challenges=%u/%u/%u holder_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused);
+        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds, Tally.PausedHoldsKept,
+        Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks);
+}
+
+void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
+{
+    const FLDOpponentPublicMatch& Public = Frame.Public;
+    if (Frame.Self.Phase != ELDLifePhase::Alive || Public.Phase != ELDMatchPhase::CaptureOpen
+        || Public.Circle != ELDOpponentCircle::Contested || !Public.Occupier.IsValid())
+    {
+        return;
+    }
+    const bool bReleased = Decision.Mode == ELDOpponentMode::Disengage;
+    if (Public.Occupier == Frame.Self.ContenderId)
+    {
+        ++Tally.PausedHolds;
+        Tally.PausedHoldsKept += Decision.Mode == ELDOpponentMode::DefendOrHold ? 1 : 0;
+        Tally.PausedHoldsReleased += bReleased ? 1 : 0;
+        return;
+    }
+    if (Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit && Frame.Units.ContainsByPredicate(
+        [&](const FLDOpponentUnit& Unit) { return Unit.Handle == Decision.Body.Handle && Unit.ContenderId == Public.Occupier; }))
+    {
+        ++Tally.HolderAttacks;
+    }
+    if (!LDOpponentPolicy::InsideCircle(Frame, *Content)) { return; }
+    ++Tally.Challenges;
+    Tally.ChallengesKept += Decision.Mode == ELDOpponentMode::Contest || Decision.Mode == ELDOpponentMode::DefendOrHold
+        || Decision.Mode == ELDOpponentMode::Engage ? 1 : 0;
+    Tally.ChallengesReleased += bReleased ? 1 : 0;
 }
 
 void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
@@ -256,6 +286,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     SettleBuild(*Mode, Frame.Self, NowMs, Problem);
     ComposeFrame(Frame, Reads);
     const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Frame, *Content, Policy);
+    NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
     Report(Frame, Decision, Problem);
@@ -296,7 +327,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
     Frame.Public.Circle = CircleOf(Public.CircleState);
-    Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo ? Public.Occupier : FGuid();
+    Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
+        ? Public.Occupier : FGuid();
     Frame.Public.DueAtMs = Public.DueAtMs;
     FLDOpponentSelf& Me = Frame.Self;
     Me.ContenderId = Own.ContenderId;

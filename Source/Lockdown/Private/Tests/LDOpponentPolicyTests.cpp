@@ -518,6 +518,18 @@ bool RunPriorities(FAutomationTestBase& Test)
     bGood &= Expect(Test, TEXT("Public POI order does not change the decision"), Decide(Shuffled), EMode::Farm, EBody::MoveGround,
         TEXT("l1"));
 
+    // D10: the opening pick is confirmed on the first living decision and does not count as growth for high camps.
+    Frame = Base;
+    Frame.Self.Offer = Offer;
+    Decision = Decide(Frame);
+    bGood &= Expect(Test, TEXT("The opening offer is resolved alongside the first body intent"), Decision, EMode::Farm,
+        EBody::MoveGround, TEXT("l1")) && Test.TestTrue(TEXT("The opening offer is confirmed at once"),
+        Decision.Build.Kind == ELDOpponentBuildKind::Choose && Decision.Build.OfferId == Offer.OfferId);
+    Frame = Base;
+    Frame.Self.ChoicesConsumed = 1;
+    bGood &= Expect(Test, TEXT("A level-one start with its opening pick still farms a low camp"), Decide(Frame), EMode::Farm,
+        EBody::MoveGround, TEXT("l1"));
+
     Frame = Base;
     Frame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger"))};
     Decision = Decide(Frame);
@@ -660,12 +672,74 @@ bool RunPriorities(FAutomationTestBase& Test)
         Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
         Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
         const auto Exhausted = LDOpponentPolicy::Decide(Frame, C, Bounded);
+        auto Paused = Frame;
+        Paused.Public.Circle = ELDOpponentCircle::Contested;
+        Paused.Public.Occupier = Paused.Self.ContenderId;
+        Paused.Public.DueAtMs = 0;
+        Paused.Self.FootCm = FVector(0, 2700, 0);
+        auto PausedState = Bounded;
+        const auto HeldAfterSpent = LDOpponentPolicy::Decide(Paused, C, PausedState);
         Frame.Self.BuildRevision += 1;
         const auto Grown = LDOpponentPolicy::Decide(Frame, C, Bounded);
         bGood &= Test.TestTrue(TEXT("Each allowed contest is answered and ends in a stop-loss exit"), bAnswered);
         bGood &= Expect(Test, TEXT("After the allowed attempts the body stops answering the circle under this build"),
             Exhausted, EMode::Disengage, EBody::MoveGround);
+        bGood &= Expect(Test, TEXT("D12: spent contest attempts never make a paused holder give up its progress"),
+            HeldAfterSpent, EMode::DefendOrHold, EBody::AttackUnit);
         bGood &= Expect(Test, TEXT("A changed build may contest the circle again"), Grown, EMode::DefendOrHold,
+            EBody::MoveGround, TEXT("capture"));
+    }
+    {
+        // D12 contest pause: a contest only pauses the holder's progress; leaving or dying clears it.
+        FLDOpponentPolicyState Pause;
+        auto Held = Base;
+        Held.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Held.Public.Circle = ELDOpponentCircle::Contested;
+        Held.Public.Occupier = Held.Self.ContenderId;
+        Held.Public.DueAtMs = 0;
+        Held.Self.FootCm = FVector(0, 2700, 0);
+        Held.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 3200)};
+        const auto Hold = LDOpponentPolicy::Decide(Held, C, Pause);
+        Held.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2350)};
+        const auto NoChase = LDOpponentPolicy::Decide(Held, C, Pause);
+        Held.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 3200)};
+        Held.Self.HpP2 = Held.Self.MaxHpP2 / 5;
+        const auto HolderSpent = LDOpponentPolicy::Decide(Held, C, Pause);
+        bGood &= Expect(Test, TEXT("D12: a paused holder stays and fights the challenger inside the circle"), Hold,
+            EMode::DefendOrHold, EBody::AttackUnit) && Test.TestTrue(TEXT("D12: hold reason and the in-circle challenger"),
+                Hold.Reason == ELDOpponentReason::HoldCapture && Hold.Body.Handle == Held.Units[0].Handle);
+        bGood &= Expect(Test, TEXT("D12: a paused holder does not chase a rival outside the circle"), NoChase,
+            EMode::DefendOrHold, EBody::None);
+        bGood &= Expect(Test, TEXT("D12: only below the stop-loss line without a ready shield does a paused holder leave"),
+            HolderSpent, EMode::Disengage, EBody::MoveGround);
+
+        // A challenger inside fights the public holder first, matched through the authorized ContenderId of a visible
+        // unit, even over a nearer rival it already attacks.
+        FLDOpponentPolicyState Challenge;
+        auto Contest = Base;
+        Contest.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Contest.Public.Circle = ELDOpponentCircle::Contested;
+        Contest.Self.FootCm = FVector(0, 2700, 0);
+        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900), Unit(5, ELDOpponentUnitKind::Contender, 0, 3500)};
+        const auto Nearer = LDOpponentPolicy::Decide(Contest, C, Challenge);
+        Contest.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        const auto Holder = LDOpponentPolicy::Decide(Contest, C, Challenge);
+        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900)};
+        const auto HolderUnseen = LDOpponentPolicy::Decide(Contest, C, Challenge);
+        bGood &= Expect(Test, TEXT("D12: without a held progress the nearer in-circle rival is fought"), Nearer, EMode::Contest,
+            EBody::AttackUnit) && Test.TestTrue(TEXT("D12: nearer rival"), Nearer.Body.Handle == Contest.Units[0].Handle);
+        bGood &= Expect(Test, TEXT("D12: a challenger switches to the visible paused holder"), Holder, EMode::Contest,
+            EBody::AttackUnit) && Test.TestTrue(TEXT("D12: the holder is the target"), Holder.Body.Handle == FGuid(0xD0, 0, 0, 5));
+        bGood &= Expect(Test, TEXT("D12: a holder out of sight is never targeted from its public id"), HolderUnseen,
+            EMode::Contest, EBody::AttackUnit) && Test.TestTrue(TEXT("D12: the visible rival remains the target"),
+                HolderUnseen.Body.Handle == Contest.Units[0].Handle);
+
+        // A rival's paused progress has no deadline; the circle is joined as a contest, never as an urgent defence.
+        auto Outside = Contest;
+        Outside.Self.FootCm = FVector::ZeroVector;
+        Outside.Units.Reset();
+        const auto Join = Decide(Outside);
+        bGood &= Expect(Test, TEXT("D12: a paused rival hold is contested from outside without urgency"), Join, EMode::Contest,
             EBody::MoveGround, TEXT("capture"));
     }
 
@@ -942,7 +1016,7 @@ bool RunProjections(FAutomationTestBase& Test)
         && Self.Attributes.AttackSpeed.Numerator * Expected.Value->Final.AttackSpeed.Denominator
             == Expected.Value->Final.AttackSpeed.Numerator * Self.Attributes.AttackSpeed.Denominator
         && Self.Gold == 42 && Self.Equipment[0] == TEXT("item_edge_blade") && Self.Equipment[1].IsEmpty()
-        && Self.BuildRevision == 9 && Self.ChoicesConsumed == 2 && Self.Skills.Num() == 2
+        && Self.BuildRevision == 9 && Self.Level == 3 && Self.ChoicesConsumed == 2 && Self.Skills.Num() == 2
         && Self.Skills[0].Slot == ELDOpponentSkillSlot::Q && Self.Skills[1].Slot == ELDOpponentSkillSlot::Passive
         && Self.Offer.IsSet() && Self.Offer->Options.Num() == 1 && Self.Offer->Options[0].Kind == ELDOpponentOptionKind::LearnActive);
     Progression.bCanChoose = false;

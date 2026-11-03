@@ -80,7 +80,8 @@ struct FLDOpponentSelf
     int64 MoveBlockedUntilMs = 0;
     int64 Gold = 0;
     uint64 BuildRevision = 0;
-    // Persistent choices already consumed (skills and attribute cards); equipment is read separately.
+    uint8 Level = 1;
+    // Persistent choices already consumed, including the opening pick; equipment is read separately.
     uint8 ChoicesConsumed = 0;
     TArray<FLDOpponentSkill> Skills;
     // Equipment slots 0/1 by catalog definition id; an empty string is an empty slot.
@@ -97,8 +98,10 @@ struct FLDOpponentPublicMatch
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
-    // Valid only when Circle is Solo.
+    // The contender holding capture progress: the solo occupier, or under D12 the holder a contest only paused.
+    // Invalid when nobody holds progress.
     FGuid Occupier;
+    // Real expiry of the holder's remaining progress while Solo; zero while Contested.
     int64 DueAtMs = 0;
 };
 
@@ -365,6 +368,8 @@ namespace LDOpponentPolicy
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
+    // True when the own foot is inside the public capture circle of the frame's static capture POI.
+    LOCKDOWN_API bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame,
         const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);
