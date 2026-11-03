@@ -85,7 +85,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
 8. 指针与操作手感（拥有客户端本地表现，`ALDPointerFeedback`，不复制、无碰撞、不影响寻路）：
    - 自己的地面订单在发出当帧于落点显示收缩的绿色虚线环；本地路线检查（与预测同一 `PlanRoute`）已失败时
      改为红叉，服务器拒绝仍以提示条给出原因。自己的 AttackUnit 在目标呈现位置显示收拢的红色虚线环。
-   - 悬停：指针下当前帧获准可见的单位（`ObservedUnderPointer`，与右键攻击同一选取）脚下显示橙红虚线环，
+   - 悬停：指针下当前帧获准可见的单位（`ObservedUnderPointer`，与右键攻击同一选取）脚下显示与攻击标记同色的红色虚线环（近黑底衬），
      光标为十字；小卖部范围内为手形；已武装技能或攻击移动时为十字。`ReadHovered` 供 HUD 的技能合法性显示使用。
    - 按住移动键（默认右键）时，地面右键之后按指针地面点继续下普通 MoveGround 订单：
      每秒至多 8 次，且地面点相对上一单移动不少于 40 cm（`LDOrderRules::ShouldRepeatHeldMove`），

@@ -13,8 +13,9 @@ namespace LDPointerFeedbackDetail
     // Dashes per ring; a dash is a flat tangential bar over a slightly larger near-black shade that keeps it readable
     // on the turf, the track and any body tint.
     constexpr int32 DashCount[] = {8, 8, 12};
-    const FVector DashScale(.2f, .06f, .02f), ShadeScale(.25f, .11f, .01f);
-    const FLinearColor MoveColour(.15f, 1.f, .25f), AttackColour(1.f, .06f, .04f), HoverColour(1.f, .3f, .06f);
+    const FVector DashScale(.2f, .06f, .02f), ShadeScale(.28f, .14f, .01f);
+    // The hover ring is the attack marker's red: a target a right click would hit.
+    const FLinearColor MoveColour(.15f, 1.f, .25f), AttackColour(1.f, .06f, .04f), HoverColour = AttackColour;
     const FLinearColor ShadeColour(.012f, .01f, .016f);
     // Ring radii (cm): the hover ring stands outside every status disc at the feet; click rings shrink onto their point.
     constexpr float HoverRadius = 76.f, MoveFromRadius = 50.f, MoveToRadius = 18.f, AttackFromRadius = 95.f, AttackToRadius = 55.f;
