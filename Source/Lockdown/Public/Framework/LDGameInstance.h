@@ -23,6 +23,8 @@ public:
     void ReturnAfterRefusal(UWorld* World, const FString& ServerMessage);
     // The Host closed the room: its reason is shown on the frontend, not the connection loss that follows it.
     void ReturnAfterRoomClosed(UWorld* World, const FString& Reason);
+    // A room world this client already leaves for a refusal or a closed room.
+    bool IsLeavingWorld(const UWorld* World) const { return World && World == LeavingWorld.Get(); }
     virtual void Init() override;
     virtual void Shutdown() override;
     ULDControlSettings* GetLocalControlSettings();
