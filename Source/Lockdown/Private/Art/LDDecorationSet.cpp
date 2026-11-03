@@ -66,10 +66,8 @@ bool ALDDecorationSet::IsPresentationOnly() const
         {
             return false;
         }
-        for (int32 Channel = 0; Channel < int32(ECC_MAX); ++Channel)
-        {
-            if (Primitive->GetCollisionResponseToChannel(ECollisionChannel(Channel)) != ECR_Ignore) { return false; }
-        }
+        // Compare the whole response array; ECC_OverlapAll_Deprecated/ECC_MAX lie past its 64 entries.
+        if (Primitive->GetCollisionResponseToChannels() != FCollisionResponseContainer(ECR_Ignore)) { return false; }
     }
     return true;
 }
