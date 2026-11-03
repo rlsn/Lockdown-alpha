@@ -95,6 +95,8 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 预输入（`LDCombatPreInput`）：自己的 Q/W/1/2 技能前摇期间再按的 Direct 键在拥有客户端暂存一个（新按的替换旧的），
      前摇结束（已到 `ActionReleaseAtMs` 或视图不再显示前摇）时作为普通 Direct 请求发出（新序号、当前来源修订）；
      S、新生命/新对局、输入被抑制即丢弃，暂存超过 1 s 丢弃并提示。普攻无需暂存：攻击订单本就在服务器等身体空闲。
+   - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
+     按键即按同一确认路径朝指针施放；对单位技能指针下无单位时仍进入普通武装、左键确认。
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000（原 1800），
      600 cm/s 基础移速约 75 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
