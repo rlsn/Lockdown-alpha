@@ -45,6 +45,7 @@ bool ALDDecorationSet::Build(const FLDArtResolved& Art, FString& Error)
         Part->SetGenerateOverlapEvents(false);
         Part->SetCanEverAffectNavigation(false);
         Part->bFillCollisionUnderneathForNavmesh = false;
+        if (Prop->bFadeable) { Part->ComponentTags.Add(ULDArtCatalog::FadeableTag); }
         Part->RegisterComponent();
         // The actor sits at the world origin, so the catalog's world transforms are also local ones.
         Part->AddInstances(Placements[Prop], false, false, false);

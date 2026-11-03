@@ -23,7 +23,9 @@
 #include "InterchangeManager.h"
 #include "InterchangeSourceData.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialExpressionCustom.h"
 #include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
@@ -45,6 +47,7 @@ namespace
 {
     const TCHAR* const ArtCatalogPackage = TEXT("/Game/Lockdown/Art/DA_DemoArt");
     const TCHAR* const ArtMasterPackage = TEXT("/Game/Lockdown/Art/Materials/M_ArtSurface");
+    const TCHAR* const ArtFadeMasterPackage = TEXT("/Game/Lockdown/Art/Materials/M_ArtSurfaceFade");
     const TCHAR* const ArtTextureRoot = TEXT("/Game/Lockdown/Art/Textures/");
     const TCHAR* const ArtCharacterRoot = TEXT("/Game/Lockdown/Art/Characters/");
     const TCHAR* const ArtPropRoot = TEXT("/Game/Lockdown/Art/Props/");
@@ -73,6 +76,7 @@ namespace
     {
         FString Id, Source;
         float Scale = 1.f;
+        bool bFadeable = false;
     };
 
     struct FArtDecorationSpec
@@ -323,6 +327,10 @@ namespace
             {
                 return ArtFail(Error, TEXT("Every prop needs a unique id, a listed .glb source and a scale."));
             }
+            if ((*Object)->HasField(TEXT("fadeable")) && !(*Object)->TryGetBoolField(TEXT("fadeable"), Spec.bFadeable))
+            {
+                return ArtFail(Error, TEXT("Prop fadeable must be a boolean: ") + Spec.Id);
+            }
             Out.Props.Add(MoveTemp(Spec));
         }
         for (int32 Index = 0; Index < Decorations->Num(); ++Index)
@@ -478,13 +486,14 @@ namespace
 
     // One opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
     // An existing master is reused untouched: re-saving a loaded material from this commandlet drops its graph.
-    UMaterial* ArtMasterMaterial(bool& bCreated, FString& Error)
+    // The fade variant is masked with a pixel dither on 1 - 0.7 x LDFade, so it fades without translucency sorting.
+    UMaterial* ArtMasterMaterial(const TCHAR* PackageName, bool bFade, bool& bCreated, FString& Error)
     {
-        bCreated = !FPackageName::DoesPackageExist(ArtMasterPackage);
-        if (!bCreated) { return ArtLoadOrCreate<UMaterial>(ArtMasterPackage, false); }
-        UMaterial* Material = ArtLoadOrCreate<UMaterial>(ArtMasterPackage, true);
+        bCreated = !FPackageName::DoesPackageExist(PackageName);
+        if (!bCreated) { return ArtLoadOrCreate<UMaterial>(PackageName, false); }
+        UMaterial* Material = ArtLoadOrCreate<UMaterial>(PackageName, true);
         auto* White = LoadObject<UTexture>(nullptr, TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"));
-        if (!Material || !White) { ArtFail(Error, TEXT("Cannot create the art master material.")); return nullptr; }
+        if (!Material || !White) { ArtFail(Error, FString(TEXT("Cannot create the art master material ")) + PackageName); return nullptr; }
         auto* Tint = ArtAddExpression<UMaterialExpressionVectorParameter>(*Material);
         Tint->ParameterName = ULDArtCatalog::TintParameter;
         Tint->DefaultValue = FLinearColor::White;
@@ -506,6 +515,29 @@ namespace
         Inputs->BaseColor.Connect(0, Multiply);
         Inputs->Roughness.Connect(0, Roughness);
         Inputs->EmissiveColor.Connect(0, Flash);
+        if (bFade)
+        {
+            auto* Fade = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
+            Fade->ParameterName = ULDArtCatalog::FadeParameter;
+            Fade->DefaultValue = 0.f;
+            Fade->UpdateParameterGuid(true, false);
+            auto* Strength = ArtAddExpression<UMaterialExpressionMultiply>(*Material);
+            Strength->A.Connect(0, Fade);
+            Strength->ConstB = .7f;
+            auto* Opacity = ArtAddExpression<UMaterialExpressionOneMinus>(*Material);
+            Opacity->Input.Connect(0, Strength);
+            auto* Dithered = ArtAddExpression<UMaterialExpressionCustom>(*Material);
+            Dithered->OutputType = CMOT_Float1;
+            Dithered->Description = TEXT("LDFadeDither");
+            // Interleaved gradient noise on the pixel position: a pixel stays when the opacity exceeds its threshold.
+            Dithered->Code = TEXT("float2 P = Parameters.SvPosition.xy;\r\nfloat N = frac(52.9829189 * frac(dot(P, float2(0.06711056, 0.00583715))));\r\nreturn Opacity - N + 0.5;");
+            Dithered->Inputs.SetNum(1);
+            Dithered->Inputs[0].InputName = TEXT("Opacity");
+            Dithered->Inputs[0].Input.Connect(0, Opacity);
+            Inputs->OpacityMask.Connect(0, Dithered);
+            Material->BlendMode = BLEND_Masked;
+            Material->OpacityMaskClipValue = .5f;
+        }
         Material->TwoSided = true;
         Material->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
         Material->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
@@ -733,7 +765,7 @@ namespace
 
     template<typename TSlot>
     bool ArtCheckMaterials(const TArray<TSlot>& Slots, const TMap<FString, FArtSourceMaterial>& Sources, const TMap<FString, FLinearColor>& Colors,
-        const FString& Folder, const FString& Owner, FString& Error)
+        const FString& Folder, const FString& Owner, const TCHAR* MasterPackage, FString& Error)
     {
         for (const TSlot& Slot : Slots)
         {
@@ -743,7 +775,7 @@ namespace
             FLinearColor Tint;
             const FLinearColor* Override = Colors.Find(Name);
             if (!Source || !Instance || !Instance->GetPathName().StartsWith(Folder) || !Instance->Parent
-                || Instance->Parent->GetOutermost()->GetName() != ArtMasterPackage
+                || Instance->Parent->GetOutermost()->GetName() != MasterPackage
                 || !Instance->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::TintParameter), Tint)
                 || !Tint.Equals(Override ? *Override : Source->Color, 1e-4f))
             {
@@ -826,7 +858,7 @@ namespace
         return true;
     }
 
-    bool ArtImportProp(const FArtPropSpec& Spec, UMaterial& Master, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
+    bool ArtImportProp(const FArtPropSpec& Spec, UMaterial& Master, UMaterial& FadeMaster, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
     {
         TMap<FString, FArtSourceMaterial> Sources;
         TArray<UObject*> Imported;
@@ -843,12 +875,13 @@ namespace
             Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
         }
         Mesh->bHasNavigationData = false;
-        if (!ArtAssignMaterials(Mesh->GetStaticMaterials(), Sources, {}, Master, Folder, Spec.Id, Assets, Error)) { return false; }
+        if (!ArtAssignMaterials(Mesh->GetStaticMaterials(), Sources, {}, Spec.bFadeable ? FadeMaster : Master, Folder, Spec.Id, Assets, Error)) { return false; }
         Mesh->PostEditChange();
         Mesh->MarkPackageDirty();
         Assets.Add(Mesh);
         FLDArtProp& Prop = Catalog.Props.AddDefaulted_GetRef();
         Prop.Id = Spec.Id;
+        Prop.bFadeable = Spec.bFadeable;
         Prop.Mesh = Mesh;
         return true;
     }
@@ -859,11 +892,14 @@ bool LDDemoArtImport::Import(FString& Error)
     FArtManifest Manifest;
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     TArray<UObject*> Assets;
-    bool bNewMaster = false;
-    UMaterial* Master = ArtMasterMaterial(bNewMaster, Error);
+    bool bNewMaster = false, bNewFadeMaster = false;
+    UMaterial* Master = ArtMasterMaterial(ArtMasterPackage, false, bNewMaster, Error);
+    UMaterial* FadeMaster = Master ? ArtMasterMaterial(ArtFadeMasterPackage, true, bNewFadeMaster, Error) : nullptr;
     auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, true);
     if (!Master || !Catalog) { return ArtFail(Error, TEXT("The art master material or catalog cannot be created: ") + Error); }
+    if (!FadeMaster) { return ArtFail(Error, TEXT("The fadeable art master material cannot be created: ") + Error); }
     if (bNewMaster) { Assets.Add(Master); }
+    if (bNewFadeMaster) { Assets.Add(FadeMaster); }
     Catalog->Characters.Reset();
     Catalog->Seats.Reset();
     Catalog->Monsters.Reset();
@@ -887,7 +923,7 @@ bool LDDemoArtImport::Import(FString& Error)
     }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {
-        if (!ArtImportProp(Spec, *Master, *Catalog, Assets, Error)) { return false; }
+        if (!ArtImportProp(Spec, *Master, *FadeMaster, *Catalog, Assets, Error)) { return false; }
     }
     for (const FArtDecorationSpec& Spec : Manifest.Decorations)
     {
@@ -938,7 +974,7 @@ bool LDDemoArtImport::Validate(FString& Error)
             return ArtFail(Error, TEXT("Character differs from art_assets.json: ") + Spec.Id + (Error.IsEmpty() ? FString() : TEXT(" ") + Error));
         }
         if (!ArtImportedFromCurrentBytes(Body.Mesh->GetAssetImportData(), Spec.Source, Body.Mesh->GetPathName(), Error)
-            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Body.Mesh->GetMaterials(), Sources, Spec.Colors, Folder, Spec.Id, Error))
+            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Body.Mesh->GetMaterials(), Sources, Spec.Colors, Folder, Spec.Id, ArtMasterPackage, Error))
         {
             return false;
         }
@@ -973,13 +1009,13 @@ bool LDDemoArtImport::Validate(FString& Error)
         const FLDArtProp& Prop = Catalog->Props[Index];
         const FString Folder = FString(ArtPropRoot) + Spec.Id + TEXT("/");
         TMap<FString, FArtSourceMaterial> Sources;
-        if (Prop.Id != Spec.Id || !Prop.Mesh->GetPathName().StartsWith(Folder) || Prop.Mesh->bHasNavigationData
+        if (Prop.Id != Spec.Id || Prop.bFadeable != Spec.bFadeable || !Prop.Mesh->GetPathName().StartsWith(Folder) || Prop.Mesh->bHasNavigationData
             || (Prop.Mesh->GetBodySetup() && Prop.Mesh->GetBodySetup()->AggGeom.GetElementCount() > 0))
         {
             return ArtFail(Error, TEXT("Prop differs from art_assets.json or carries collision/navigation data: ") + Spec.Id);
         }
         if (!ArtImportedFromCurrentBytes(Prop.Mesh->GetAssetImportData(), Spec.Source, Prop.Mesh->GetPathName(), Error)
-            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Prop.Mesh->GetStaticMaterials(), Sources, {}, Folder, Spec.Id, Error))
+            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Prop.Mesh->GetStaticMaterials(), Sources, {}, Folder, Spec.Id, Spec.bFadeable ? ArtFadeMasterPackage : ArtMasterPackage, Error))
         {
             return false;
         }
