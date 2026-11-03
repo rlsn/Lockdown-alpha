@@ -385,6 +385,9 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     }
     LDWorldFeedback::FFloater& Floater=Floaters.AddDefaulted_GetRef();
     Floater.Event=Event;Floater.Text=LDWorldFeedback::Text(Event);Floater.BornAt=Now;Floater.PopAt=Now;Floater.Lane=Lane;
+#if WITH_DEV_AUTOMATION_TESTS
+    if(bReward){DevRewards.Add(Floater.Text);}
+#endif
     while(Floaters.Num()>WorldFeedbackMaxFloaters){Floaters.RemoveAt(0);}
 }
 
@@ -406,6 +409,9 @@ void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
     LastTickAt=Now;
     const FLDOwnerState& Own=PC->OwnerState;
     if(Own.Match==0||Own.Match!=Public->PublicMatch.Generation){ClearShown();return;}
+#if WITH_DEV_AUTOMATION_TESTS
+    if(Own.Match!=DevRewardsMatch){DevRewardsMatch=Own.Match;DevRewards.Reset();}
+#endif
     // Shown feedback belongs to one match and life; a new one starts clean.
     if(Own.Match!=ShownMatch||Own.Life!=ShownLife){ShownMatch=Own.Match;ShownLife=Own.Life;ClearShown();}
     const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC->LocalView():nullptr;
