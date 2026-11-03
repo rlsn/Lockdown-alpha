@@ -120,6 +120,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDDeathCause",
         "Lockdown.Rules.HUDKillFeedSelf",
         "Lockdown.Rules.HUDNextStep",
+        "Lockdown.Rules.HUDChoicesFold",
         "Lockdown.Rules.IssuedCommandLiveness",
         "Lockdown.Rules.LocalControlRegistryIsolation",
         "Lockdown.Rules.LocalDisplayAutosaveGuard",

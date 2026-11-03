@@ -560,13 +560,24 @@ void ULDHUD::RefreshReadModel()
         const bool bOpening=Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1;
         const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
         const double UiTime=GetWorld()->GetRealTimeSeconds();
-        if(!bOpening||bPlayerUI||PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoChoicesMatch=O.Match;}
+        if(!bOpening||bPlayerUI){AutoChoicesMatch=O.Match;}
+        else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoChoicesMatch=O.Match;ChoicesPanel->MarkOpenedAutomatically();}
         else if(AutoChoicesSince<0){AutoChoicesSince=UiTime;}
         else if(UiTime-AutoChoicesSince>5.)
         {
             AutoChoicesMatch=O.Match;
             UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
         }
+    }
+    if(ChoicesPanel)
+    {
+        // The panel docks over the right side of the battlefield: a hit on the own body, or the opening's automatic
+        // open running its few seconds unattended, folds it back to the pending pill (LDHUD::FChoicesFold).
+        LDWorldFeedback::FSample Body;Body.Match=O.Match;Body.Life=O.Life;Body.LifePhase=O.LifePhase;Body.Self=O.ContenderId;Body.OwnCombat=OwnCombat;
+        TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(Body,BodyEvents);
+        const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
+        {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
+        ChoicesPanel->UpdateFold(bOwnHit);
     }
     if(ShopPanel)
     {

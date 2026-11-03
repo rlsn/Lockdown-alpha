@@ -748,3 +748,23 @@ FString LDHUD::CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrive
     }
     return FString::Join(Notices,TEXT(" · "));
 }
+
+void LDHUD::FChoicesFold::Opened(bool bAutomaticOpen,double Now)
+{
+    // A player's own opening right after a hit folded the panel is respected: hits no longer fold it until it closes.
+    bHitImmune=!bAutomaticOpen&&bFoldedByHit;
+    bFoldedByHit=false;
+    bOpen=true;bAutomatic=bAutomaticOpen;OpenedAt=Now;
+}
+void LDHUD::FChoicesFold::Closed()
+{
+    bOpen=false;bAutomatic=false;bHitImmune=false;
+}
+bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
+{
+    if(!bOpen){return false;}
+    // Engaging with the automatic opening makes it the player's own: it no longer times out.
+    if(bEngaged){bAutomatic=false;return false;}
+    if(bOwnHit&&!bHitImmune){bFoldedByHit=true;return true;}
+    return bAutomatic&&Now-OpenedAt>=AutoOpenSeconds;
+}

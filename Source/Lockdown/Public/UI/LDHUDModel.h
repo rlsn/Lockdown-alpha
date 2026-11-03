@@ -243,4 +243,28 @@ namespace LDHUD
     // The toast line for every own receipt that arrived since the last frame, oldest first: each distinct notice once, in
     // arrival order. Receipts of another match or life tell nothing; the lost protection is told once per life revision.
     LOCKDOWN_API FString CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrived,uint32 Match,uint32 Life,uint64& ToldProtectionLifeRevision);
+
+    // When the docked three-choice panel folds back to the pending-choice pill by itself, so it does not keep covering
+    // the right side of the battlefield. Folding only hides the panel: the opportunity, the offer and any submitted
+    // request keep their state, and nothing is picked. Local presentation time only.
+    // - The opening offer's automatic open (D10) folds after AutoOpenSeconds unless the player has engaged with it
+    //   (a previewed card, the replacement confirmation or a request in flight); engaging ends that timer for the opening.
+    // - A hit on the own body folds an open panel unless the player is engaged. After such a fold, the player's next own
+    //   opening is respected and is not folded by hits again until it closes.
+    class LOCKDOWN_API FChoicesFold
+    {
+    public:
+        static constexpr double AutoOpenSeconds=6.;
+        void Opened(bool bAutomatic,double Now);
+        void Closed();
+        // True when the open panel should fold now; the caller closes the panel, which reports Closed().
+        bool ShouldFold(double Now,bool bEngaged,bool bOwnHit);
+        bool IsAutomatic() const {return bOpen&&bAutomatic;}
+    private:
+        bool bOpen=false;
+        bool bAutomatic=false;
+        bool bHitImmune=false;
+        bool bFoldedByHit=false;
+        double OpenedAt=0;
+    };
 }

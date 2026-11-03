@@ -1,9 +1,13 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(60,300)][int]$TimeoutSeconds=180)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(60,300)][int]$TimeoutSeconds=180,
+    # The Host's rendered main view; the HUD and screenshots are reviewed at both supported sizes.
+    [ValidateSet('720p','1080p')][string]$Resolution='720p')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoVision-OwnedObservation-Packaged' } else { 'DemoVision-OwnedObservation' })
+$output = New-LDArtifactDirectory ($(if ($PackageRoot) { 'DemoVision-OwnedObservation-Packaged' } else { 'DemoVision-OwnedObservation' }) +
+    $(if ($Resolution -ne '720p') { "-$Resolution" } else { '' }))
+$resolutionArguments = if ($Resolution -eq '1080p') { '-ForceRes -ResX=1920 -ResY=1080' } else { '-ResX=1280 -ResY=720' }
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
 $evidence = $launch.ProbeOutput
@@ -27,7 +31,7 @@ function Start-VisionRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     # The Host is a participating Listen Host with a real RHI main view; owning clients need no renderer.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" } else { '-nullrhi' }
+    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port" } else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoVisionProbe -LDDemoVisionRole={2} -LDDemoVisionTimeout={3} -LDDemoVisionOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }

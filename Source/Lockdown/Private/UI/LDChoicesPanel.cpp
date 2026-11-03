@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -89,13 +90,29 @@ UWidget* ULDChoicesPanel::FocusScope() const{return bReplacing?static_cast<UWidg
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
-    bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
     if(!PendingRequest){ChoicesText(Feedback,TEXT("先点选一张卡，再确认。对局不会暂停。"));}
 }
 bool ULDChoicesPanel::ClosePanel()
 {
     // Closing only hides the panel: the opportunity, the offer and any submitted request keep their real state.
-    ResetReplacement();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);return true;
+    ResetReplacement();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();return true;
+}
+double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
+void ULDChoicesPanel::MarkOpenedAutomatically()
+{
+    if(!bOpen){return;}
+    Fold.Opened(true,UiNow());
+    UE_LOG(LogTemp,Log,TEXT("LD_HUD_OPENING_CHOICE_SHOWN The opening three-choice panel opened automatically."));
+}
+void ULDChoicesPanel::UpdateFold(bool bOwnHit)
+{
+    // Folding back to the pending pill hides the panel only; a selected card stays selected for the next opening.
+    if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
+    {
+        UE_LOG(LogTemp,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
+        ClosePanel();
+    }
 }
 bool ULDChoicesPanel::CloseChildConfirmation()
 {
