@@ -329,7 +329,7 @@ Rejected 回执仍携 `ProtectionRemoved` 和生命域的 `uint64 LifeRevision`�
 本节所有新增类型/重签名均为**拟建接口**。它们绑定现有组件，不声明已经存在。
 世界查询以世界报告维护的同名唯一合同为准；Combat 名称已与战斗域对齐。
 生命周期的 body key/时钟/水位/终局闸最终公共类型由该域绑定；下列窄适配字段不另造核心状态。
-AI 消费者对接其模块拟建的 `ALDOpponentController : ALDPlayerController`，不继承 B91/B92；
+AI 消费者是 `ALDOpponentController : ALDPlayerController`（见[对手 AI](OPPONENT_AI.md)），不继承 B91/B92；
 它没有 NetConnection/LocalPlayer/UI，只调用 SubmitOrder/CancelOrder/QueryOrder。
 执行驱动按真实拥有客户端、本地玩家和注册服务器 AI 区分，不从 IsLocalController 推导全部权限，
 也不另接 AAIController 的 MoveToActor 或第二套运动。
