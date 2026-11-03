@@ -21,8 +21,7 @@
 
 这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
 `SourceData\Demo`、`SyncDemoWorldData` / `SyncDemoContentData` 和原生不可变目录生成链读取。
-旧职业构筑、V07/V08 Catalog 与 Loadout 纯模型已随闭包删除，属性、技能与物品只来自 Demo 目录。
-旧职业任务、暗杀、烟雾、元素地表、内容请求协议与对应执行器已随闭包删除。
+属性、技能与物品只来自 Demo 目录。
 
 ## 从意图到结果
 
@@ -39,10 +38,12 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 未准入不付费，已解除的保护不恢复。释放时重验来源与目标，成功才扣蓝并按 `FORMULA.CooldownMs`
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
-Root/屏障/Root 净化/定点回复的规则从 d70211a 的 `LDTactical` 抽取为纯函数：
+Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
 不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
-旧 `LDTactical::Allows/FState` 及未选状态不能作为新 Demo 的兼容入口。
+同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
+拥有客户端的预输入（`LDCombatPreInput`）只在本地暂存前摇期间的一次按键并在前摇结束后作为普通 Direct 请求发出，
+服务器规则不因此改变；快速施法同样只是本地确认方式，见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)。
 
 ## 权威时序
 
@@ -57,7 +58,6 @@ DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitD
 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向占领归约器提交资格事实并通知提供者。
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
-旧无参/秒数世界推进、`Sample`、旧回拨 `UWorld::TimeSeconds` 和旧目标采样分支已删除。
 营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
 本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
 DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
@@ -65,7 +65,7 @@ DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `Commit
 任一营地入口返回 false 即为权威故障。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
-争圈的归约与结果归 GameMode 核心的占领归约器（`Framework\LDCaptureReducer`），不能沿用已退役的 Heart 授权或旧交互中断条件。
+争圈的归约与结果归 GameMode 核心的占领归约器（`Framework\LDCaptureReducer`）。
 
 ## 状态、伤害和效果归属
 
@@ -80,6 +80,9 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 公开 Root/Shield 提示同样在读取时由当前 Combat 状态派生，不另存一份可漂移的公开状态。
 动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
+提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法来源的原生 id，
+分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动，含冲刺），两者至多一个非 0，其他提示均为 0；
+来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
 身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地两档各用自己的模型；
 动画在 C++ 中单节点播放（无 AnimBP）：站立/跑动（速率 = 速度 / 目录参考跑速，低于 15 cm/s 站立），普攻与施法片段的出手帧（`ImpactSec`）
@@ -105,6 +108,7 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 ## 构筑与来源
 
 成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/主动槽、属性卡与 Revision）。
+构筑可带的选择数为 min(等级, 最大选择次数)：开局即有一次三选一，1 级构筑可带一张卡（D10）。
 选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W 主动、
 两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
 同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
@@ -118,7 +122,8 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
 攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
-`DemoBodyMotion.*` 覆盖身体表现时间轴（挥击、施法、受击、出现、倒地与同一动作的重启判定）；成长与商店的纯规则是
+`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
+`DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
@@ -141,9 +146,7 @@ Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回�
 Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停住的时间与滑行距离及随后再次右键的起动时间，
 Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
 装备主动与营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
-旧 Combat/Content probe 与 runner 已删除。
-新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。
-这些规则不恢复旧 profile，也不代替新成长、商店或真实拥有连接的运行验证。
+这些规则测试不代替新成长、商店或真实拥有连接的运行验证。
 
 数据编辑先运行对应 Sync `--check` 与输入测试。测试用的授予、传送或改时钟要明确是夹具，
 不能当作正常升级、打野收益或完整对局已经成立。
