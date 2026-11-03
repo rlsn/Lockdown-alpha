@@ -82,6 +82,18 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
 7. 订单的发送、进行中与到达只写入组件自己的 `Status`；HUD 唯一的提示条只经 `PostIntentNotice`
    收到真正的失败（无法到达、路线受阻、被拒、心跳耗尽、小卖部不可用等）与“复活保护已解除”，
    玩家自己的新订单替换旧单或按 S 停止不算失败；同一失败再次发生时会再次提示。
+8. 指针与操作手感（拥有客户端本地表现，`ALDPointerFeedback`，不复制、无碰撞、不影响寻路）：
+   - 自己的地面订单在发出当帧于落点显示收缩的绿色虚线环；本地路线检查（与预测同一 `PlanRoute`）已失败时
+     改为红叉，服务器拒绝仍以提示条给出原因。自己的 AttackUnit 在目标呈现位置显示收拢的红色虚线环。
+   - 悬停：指针下当前帧获准可见的单位（`ObservedUnderPointer`，与右键攻击同一选取）脚下显示橙红虚线环，
+     光标为十字；小卖部范围内为手形；已武装技能或攻击移动时为十字。`ReadHovered` 供 HUD 的技能合法性显示使用。
+   - 按住移动键（默认右键）时，地面右键之后按指针地面点继续下普通 MoveGround 订单：
+     每秒至多 8 次，且地面点相对上一单移动不少于 40 cm（`LDOrderRules::ShouldRepeatHeldMove`），
+     本地路线检查不通过的点静默跳过；每单都是新 identity，经同一订单簿与 0.1 s 激活节流，最新待处理单替换旧单。
+   - 世界点击、悬停与武装确认共用 `PointerPosition`/`GroundUnderPointer`；DEV 场景可用 `DevSetPointer`
+     代替鼠标（仅 `WITH_DEV_AUTOMATION_TESTS` 生效）。
+   - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000（原 1800），
+     600 cm/s 基础移速约 75 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，

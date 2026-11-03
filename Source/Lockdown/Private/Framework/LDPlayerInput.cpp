@@ -281,8 +281,9 @@ bool ALDPlayerController::ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch
     OutHandle.Invalidate();
     OutEpoch=0;
     const auto* Relay=LocalView();
-    float X=0,Y=0;
-    if (!Relay || !GetMousePosition(X,Y)) { return false; }
+    FVector2D Pointer;
+    if (!Relay || !Navigation || !Navigation->PointerPosition(Pointer)) { return false; }
+    const float X=float(Pointer.X), Y=float(Pointer.Y);
     const auto Read=Relay->ReadObservedFrame();
     if (!Read.Frame || Read.Status!=ELDObservedViewStatus::Current
         || Read.Frame->MatchGeneration!=OwnerState.Match || Read.Frame->ObserverLife!=OwnerState.Life) { return false; }

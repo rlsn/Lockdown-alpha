@@ -73,7 +73,7 @@ bool ALDPlayerController::ConfirmArmedCombat()
         if (!IsLocalController() || !CanWorldCommand()) { return true; }
         FHitResult GroundHit;
         // A confirmation without ground is still a normalized aggressive intent; the server rejects it explicitly.
-        if (GetHitResultUnderCursor(ECC_GameTraceChannel1,false,GroundHit))
+        if (Navigation->GroundUnderPointer(GroundHit))
         { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint()); }
         else { Navigation->AttackMove(FVector::ZeroVector,NAME_None); }
         return true;
@@ -100,7 +100,7 @@ bool ALDPlayerController::ConfirmArmedCombat()
     {
         FHitResult GroundHit;
         const auto* Body=Cast<ALDCharacter>(GetPawn());
-        if (Body && GetHitResultUnderCursor(ECC_GameTraceChannel1,false,GroundHit))
+        if (Body && Navigation->GroundUnderPointer(GroundHit))
         {
             const FVector Foot=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
             const FVector Direction=FVector(GroundHit.ImpactPoint.X-Foot.X,GroundHit.ImpactPoint.Y-Foot.Y,0).GetSafeNormal();

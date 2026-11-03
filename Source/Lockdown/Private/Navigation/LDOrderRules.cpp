@@ -21,3 +21,12 @@ int32 LDOrderRules::NearestCandidate(const TArray<FLDObservedUnitView>& Units, c
     }
     return Best;
 }
+
+bool LDOrderRules::ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
+    const FVector& GroundCm)
+{
+    if (!FMath::IsFinite(NowSeconds) || !FMath::IsFinite(LastSentSeconds) || GroundCm.ContainsNaN() || LastGroundCm.ContainsNaN())
+    { return false; }
+    return NowSeconds-LastSentSeconds>=HeldMoveRepeatSeconds
+        && FVector::DistSquared2D(GroundCm,LastGroundCm)>=FMath::Square(HeldMoveShiftCm);
+}

@@ -15,6 +15,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDPathSteering.h"
+#include "Navigation/LDPointerFeedback.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
@@ -23,6 +24,7 @@
 #include "UI/LDControlsPanel.h"
 #include "UI/LDUIRoot.h"
 #include "Camera/CameraActor.h"
+#include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
@@ -31,6 +33,7 @@
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "ImageUtils.h"
@@ -91,6 +94,15 @@ constexpr double CombatProbeSkillArrivalCm = 60.0;
 constexpr double CombatProbeSkillSeconds = 3.0;
 // The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
 constexpr double CombatProbeFlightClearCm = 120.0;
+// Control feel: the body has moved once it left its order's starting point by this much; the Host cruises this long
+// at full speed and needs this much walk left before its measured S.
+constexpr double CombatProbeFeelMovedCm = 2.0;
+constexpr double CombatProbeFeelCruiseSeconds = 0.15;
+constexpr double CombatProbeFeelStopRoomCm = 300.0;
+// Below this ground speed a stopped body stands still.
+constexpr double CombatProbeFeelStillCmPerSec = 5.0;
+// The Host's ground click for the marker capture lands this far beside its duel site.
+constexpr double CombatProbeBesideCm = 250.0;
 
 // The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer.
 TArray<FName> CombatProbeSkillPlan(bool bHost)
@@ -236,6 +248,30 @@ public:
     FDelegateHandle ShotHandle;
     bool bShotTicking = false, bRenderWarm = false, bStruckSeen = false, bReachMeasured = false;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
+
+    // Control feel, measured and reported (not compared to a target): both roles' first right-click walk from the
+    // order to the body's first motion and full speed, the Host's S from full speed to standing still and its next
+    // walk, and Client1's S to its server Stopped receipt. Sampled every engine frame.
+    struct FFeel
+    {
+        double MaxSpeed = 0;
+        double SentAt = -1, FirstMoveAt = -1, FullSpeedAt = -1;
+        double StopAt = -1, StoppedAt = -1, StopSpeed = 0, StopDistanceCm = -1;
+        double RestartAt = -1, RestartMoveAt = -1;
+        double CancelAt = -1, CancelDoneAt = -1;
+        double FirstFrameAt = -1, LastFrameAt = -1;
+        int32 Frames = 0;
+        FVector From = FVector::ZeroVector, StopFrom = FVector::ZeroVector, RestartFrom = FVector::ZeroVector;
+    };
+    FFeel Feel;
+    bool bFeelTicking = false;
+
+    // Host pointer feedback through the ordinary right click, the DEV pointer standing in for the mouse: a ground click
+    // beside its duel site (marker, then back to the site) and the first kill order on Client1's drawn body (hover
+    // ring, then the attack marker).
+    enum class EClickStep : uint8 { Aim, Shot, Next, Done };
+    EClickStep MoveClick = EClickStep::Aim, KillClick = EClickStep::Aim;
+    double MoveClickAt = 0;
 
     bool IsHost() const
     {
@@ -472,6 +508,7 @@ public:
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
             TEXT("The first body is an unprotected initial life"));
         if (!Passed || (IsHost() && !QueuePresets(*Mode))) { return Finish(); }
+        StartFeel(PC);
         PC.Navigation->Navigate(IsHost() ? HostSite : ClientSite);
         NavigateAttempts = 1;
         SetStage(EStage::ToSite);
@@ -591,6 +628,16 @@ public:
             const bool bContinue = TickSettings(Now, PC, *Body, bHandled);
             if (bHandled) { return bContinue; }
         }
+        // The Host's walk, once at full speed and well short of its site: S from full speed, measured to standing still.
+        if (IsHost() && Feel.StopAt < 0 && Feel.FullSpeedAt >= 0 && Now - Feel.FullSpeedAt >= LDDemoCombatScenario::CombatProbeFeelCruiseSeconds
+            && FVector::Dist2D(Body->GetNavAgentLocation(), Site) >= LDDemoCombatScenario::CombatProbeFeelStopRoomCm)
+        {
+            Feel.StopAt = Now;
+            Feel.StopFrom = Body->GetActorLocation();
+            Feel.StopSpeed = Body->GetVelocity().Size2D();
+            PC.StopCombatAndOrders();
+            return true;
+        }
         if (PC.Navigation->HasMoveOrder()) { return true; }
         if (FVector::Dist2D(Body->GetNavAgentLocation(), Site) <= LDDemoCombatScenario::CombatProbeArrivalCm)
         {
@@ -618,6 +665,7 @@ public:
                 if (!ShotSaved(TEXT("its own body at the duel site"))) { return Finish(); }
                 bRenderWarm = true;
             }
+            if (IsHost() && MoveClick != EClickStep::Done) { return TickMoveClick(Now, PC, *Body, Site); }
             if (!Mark(Role + TEXT("AtSite.json"))) { return Finish(); }
             SetStage(IsHost() ? EStage::Struck : EStage::AttackMove);
             return true;
@@ -626,6 +674,11 @@ public:
         if (NavigateAttempts >= LDDemoCombatScenario::CombatProbeNavigateAttempts)
         {
             return Fail(TEXT("Start"), TEXT("The owned body could not reach its public duel site: ") + PC.IntentFeedback);
+        }
+        if (Feel.StopAt >= 0 && Feel.RestartAt < 0)
+        {
+            Feel.RestartAt = Now;
+            Feel.RestartFrom = Body->GetActorLocation();
         }
         PC.Navigation->Navigate(Site);
         ++NavigateAttempts;
@@ -844,6 +897,7 @@ public:
                 TEXT("The attack-move acquired the nearest visible contender, closed in, engaged it and its hits show in this connection's view"));
             PC.StopCombatAndOrders();
             StopOrder = PC.Navigation->LocalIdentity();
+            Feel.CancelAt = FPlatformTime::Seconds();
             SetStage(EStage::Stopping);
             return true;
         }
@@ -1321,6 +1375,7 @@ public:
         {
             return Fail(TEXT("Death"), TEXT("The Host's attack lock kept ending without a death: ") + PC.Navigation->Status);
         }
+        if (KillClick != EClickStep::Done) { return TickKillClick(PC, *Victim); }
         PC.Navigation->AttackUnit(Victim->Handle, Victim->ObservationEpoch);
         KillOrder = PC.Navigation->LocalIdentity();
         ++AttackOrders;
@@ -1774,6 +1829,266 @@ public:
         return false;
     }
 
+    // Host at its duel site: one right click on open ground beside it shows the ground marker for its capture; then
+    // it walks back to the site.
+    bool TickMoveClick(double Now, ALDPlayerController& PC, const ALDCharacter& Body, const FVector& Site)
+    {
+        if (MoveClick == EClickStep::Aim)
+        {
+            FVector Beside;
+            FVector2D Screen;
+            if (!PickBeside(PC, Site, Beside, Screen))
+            {
+                return Fail(TEXT("Pointer"), TEXT("No open ground beside the Host's duel site lies in its view"));
+            }
+            PC.Navigation->DevSetPointer(Screen);
+            const uint32 Before = PC.Navigation->LocalIdentity().Order;
+            PC.Navigation->ClickMove();
+            if (!Check(PC.Navigation->LocalIdentity().Order != Before, TEXT("Pointer"),
+                TEXT("A right click on open ground beside the Host sends its ground order"), Beside.ToCompactString()))
+            {
+                return Finish();
+            }
+            BeginShot(TEXT("HostSees-MoveMarker.png"), [this](FString& Facts) { return ShowsMoveMarker(Facts); },
+                LDDemoCombatScenario::CombatProbeSkillSeconds);
+            MoveClickAt = Now;
+            MoveClick = EClickStep::Shot;
+            return true;
+        }
+        if (MoveClick == EClickStep::Shot)
+        {
+            if (ShotPending()) { return true; }
+            PC.Navigation->DevSetPointer(TOptional<FVector2D>());
+            if (!ShotSaved(TEXT("the ground marker of its right click"))) { return Finish(); }
+            MoveClick = EClickStep::Next;
+            return true;
+        }
+        if (Now - MoveClickAt > LDDemoCombatScenario::CombatProbeStepSeconds)
+        {
+            return Fail(TEXT("Pointer"), TEXT("The Host did not walk back to its duel site after the ground click: ") + PC.Navigation->Status);
+        }
+        if (PC.Navigation->HasMoveOrder()) { return true; }
+        if (FVector::Dist2D(Body.GetNavAgentLocation(), Site) <= LDDemoCombatScenario::CombatProbeArrivalCm)
+        {
+            MoveClick = EClickStep::Done;
+            return true;
+        }
+        PC.Navigation->Navigate(Site);
+        return true;
+    }
+
+    // Legal open ground a short walk from Site, outside the shop's reach, on screen above the HUD's bottom bar.
+    bool PickBeside(const ALDPlayerController& PC, const FVector& Site, FVector& Out, FVector2D& Screen) const
+    {
+        const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        FCollisionShape Capsule;
+        FString Problem;
+        int32 Width = 0, Height = 0;
+        PC.GetViewportSize(Width, Height);
+        if (!Registry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Problem) || Width <= 0 || Height <= 0) { return false; }
+        const FName Surface = PC.Navigation->GroundSurfaceHint();
+        FLDLegalGround From;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        if (!Registry->QueryGround(Registry->Revision(), Site, Capsule, Surface, From, Failure, Problem)) { return false; }
+        for (int32 Bearing = 0; Bearing < 8; ++Bearing)
+        {
+            const FVector Point = Site + FVector(1, 0, 0).RotateAngleAxis(45.0 * Bearing, FVector::UpVector)
+                * LDDemoCombatScenario::CombatProbeBesideCm;
+            FLDLegalGround To;
+            FLDCompletePath Route;
+            bool bWithin = true;
+            if (Registry->QueryGround(Registry->Revision(), Point, Capsule, Surface, To, Failure, Problem)
+                && Registry->QueryShopReach(Registry->Revision(), Point, bWithin, Failure, Problem) && !bWithin
+                && Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Route, Failure, Problem)
+                && Route.LengthCm <= 1.3 * LDDemoCombatScenario::CombatProbeBesideCm
+                && PC.ProjectWorldLocationToScreen(To.SurfaceCm, Screen)
+                && Screen.X > .1 * Width && Screen.X < .9 * Width && Screen.Y > .1 * Height && Screen.Y < .7 * Height
+                && !UnitNearScreen(PC, Screen))
+            {
+                Out = To.SurfaceCm;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // A ground click must not become an attack: no observed unit is drawn near that pointer.
+    static bool UnitNearScreen(const ALDPlayerController& PC, const FVector2D& Screen)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+        if (!Frame) { return false; }
+        for (const FLDObservedUnitView& Unit : Frame->Units)
+        {
+            FVector2D At;
+            if (PC.ProjectWorldLocationToScreen(FVector(Unit.FeetCm) + FVector(0, 0, HalfHeight), At)
+                && FVector2D::Distance(At, Screen) < 120.0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Host: the first kill order is the right click on Client1's drawn body: its hover ring and attack cursor, then the
+    // attack marker closing on it, are captured on the way.
+    bool TickKillClick(ALDPlayerController& PC, const FLDObservedUnitView& Victim)
+    {
+        const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+        FVector2D Screen;
+        if (!PC.ProjectWorldLocationToScreen(FVector(Victim.FeetCm) + FVector(0, 0, HalfHeight), Screen))
+        {
+            return Fail(TEXT("Pointer"), TEXT("Client1's observed body does not project into the Host's view"));
+        }
+        const FGuid Handle = Victim.Handle;
+        if (KillClick == EClickStep::Aim)
+        {
+            PC.Navigation->DevSetPointer(Screen);
+            BeginShot(TEXT("HostSees-Hover.png"), [this, Handle](FString& Facts) { return ShowsPointer(Handle, true, Facts); },
+                LDDemoCombatScenario::CombatProbeSkillSeconds);
+            KillClick = EClickStep::Shot;
+            return true;
+        }
+        if (ShotPending()) { return true; }
+        if (KillClick == EClickStep::Shot)
+        {
+            if (!ShotSaved(TEXT("the hover ring and attack cursor on Client1 under its pointer"))) { return Finish(); }
+            PC.Navigation->DevSetPointer(Screen);
+            const uint32 Before = PC.Navigation->LocalIdentity().Order;
+            PC.Navigation->ClickMove();
+            if (!Check(PC.Navigation->LocalIdentity().Order != Before, TEXT("Pointer"),
+                TEXT("The right click on Client1's drawn body sends the Host's attack order")))
+            {
+                return Finish();
+            }
+            KillOrder = PC.Navigation->LocalIdentity();
+            ++AttackOrders;
+            BeginShot(TEXT("HostSees-AttackMarker.png"), [this, Handle](FString& Facts) { return ShowsPointer(Handle, false, Facts); },
+                LDDemoCombatScenario::CombatProbeSkillSeconds);
+            KillClick = EClickStep::Next;
+            return true;
+        }
+        PC.Navigation->DevSetPointer(TOptional<FVector2D>());
+        if (!ShotSaved(TEXT("the attack marker closing on the right-clicked Client1"))) { return Finish(); }
+        KillClick = EClickStep::Done;
+        SetStage(EStage::KillWait);
+        return true;
+    }
+
+    // The Host's current frame shows the hover ring under Handle with the attack cursor, or the attack marker.
+    bool ShowsPointer(const FGuid& Handle, bool bHover, FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        const ALDPointerFeedback* Feedback = PC ? PC->Navigation->PointerFeedback() : nullptr;
+        FGuid Hovered;
+        uint32 Epoch = 0;
+        const bool bShown = Feedback && (bHover
+            ? PC->Navigation->ReadHovered(Hovered, Epoch) && Hovered == Handle && Feedback->ShowsHover()
+                && PC->CurrentMouseCursor == EMouseCursor::Crosshairs
+            : Feedback->ShowsAttack());
+        if (!bShown) { return false; }
+        Facts = FString::Printf(TEXT("%s cursor=%d"), bHover ? TEXT("hover_ring") : TEXT("attack_marker"), int32(PC->CurrentMouseCursor.GetValue()));
+        return true;
+    }
+
+    bool ShowsMoveMarker(FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        const ALDPointerFeedback* Feedback = PC ? PC->Navigation->PointerFeedback() : nullptr;
+        if (!Feedback || !Feedback->ShowsMove()) { return false; }
+        Facts = TEXT("move_marker");
+        return true;
+    }
+
+    // The first right-click walk of this life: its order time and starting point, and the per-frame sampler.
+    void StartFeel(const ALDPlayerController& PC)
+    {
+        const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+        Feel.SentAt = FPlatformTime::Seconds();
+        Feel.From = Body ? Body->GetActorLocation() : FVector::ZeroVector;
+        Feel.MaxSpeed = Body ? Body->GetCharacterMovement()->GetMaxSpeed() : 0.0;
+        if (!bFeelTicking)
+        {
+            bFeelTicking = true;
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::SampleFeel), 0.f);
+        }
+    }
+
+    bool SampleFeel(float)
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        if (Written || !PC)
+        {
+            bFeelTicking = false;
+            return false;
+        }
+        const double Now = FPlatformTime::Seconds();
+        Feel.FirstFrameAt = Feel.FirstFrameAt < 0 ? Now : Feel.FirstFrameAt;
+        Feel.LastFrameAt = Now;
+        ++Feel.Frames;
+        if (const ALDCharacter* Body = Cast<ALDCharacter>(PC->GetPawn()))
+        {
+            const FVector At = Body->GetActorLocation();
+            const double Speed = Body->GetVelocity().Size2D();
+            const double Moved = LDDemoCombatScenario::CombatProbeFeelMovedCm;
+            if (Feel.SentAt >= 0 && Feel.FirstMoveAt < 0 && FVector::Dist2D(At, Feel.From) > Moved) { Feel.FirstMoveAt = Now; }
+            if (Feel.FirstMoveAt >= 0 && Feel.FullSpeedAt < 0 && Speed >= .95 * Feel.MaxSpeed) { Feel.FullSpeedAt = Now; }
+            if (Feel.StopAt >= 0 && Feel.StoppedAt < 0 && Speed < LDDemoCombatScenario::CombatProbeFeelStillCmPerSec)
+            {
+                Feel.StoppedAt = Now;
+                Feel.StopDistanceCm = FVector::Dist2D(At, Feel.StopFrom);
+            }
+            if (Feel.RestartAt >= 0 && Feel.RestartMoveAt < 0 && FVector::Dist2D(At, Feel.RestartFrom) > Moved) { Feel.RestartMoveAt = Now; }
+        }
+        if (Feel.CancelAt >= 0 && Feel.CancelDoneAt < 0)
+        {
+            const FLDOrderReceipt& Latest = PC->Navigation->LatestReceipt();
+            if (Latest.Identity == StopOrder && Latest.Status == ELDOrderStatus::Cancelled) { Feel.CancelDoneAt = Now; }
+        }
+        return true;
+    }
+
+    // The feel measurements as report fields, with the movement parameters they ran under; one Feel check that they
+    // were all taken.
+    TSharedRef<FJsonObject> CheckFeel()
+    {
+        const TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
+        const auto Ms = [](double From, double To) { return From >= 0 && To >= 0 ? FMath::RoundToDouble((To - From) * 1000.0) : -1.0; };
+        const ALDPlayerController* PC = Controller.Get();
+        const UCharacterMovementComponent* Movement = GetDefault<ALDCharacter>()->GetCharacterMovement();
+        Out->SetNumberField(TEXT("click_to_move_ms"), Ms(Feel.SentAt, Feel.FirstMoveAt));
+        Out->SetNumberField(TEXT("click_to_activated_receipt_ms"),
+            PC && PC->Navigation->RouteAcceptanceMs.Num() ? FMath::RoundToDouble(PC->Navigation->RouteAcceptanceMs[0]) : -1.0);
+        Out->SetNumberField(TEXT("ramp_to_full_speed_ms"), Ms(Feel.FirstMoveAt, Feel.FullSpeedAt));
+        Out->SetNumberField(TEXT("frame_ms"), Feel.Frames > 1 ? (Feel.LastFrameAt - Feel.FirstFrameAt) * 1000.0 / double(Feel.Frames - 1) : -1.0);
+        Out->SetNumberField(TEXT("max_walk_speed"), Feel.MaxSpeed);
+        Out->SetNumberField(TEXT("max_acceleration"), Movement->MaxAcceleration);
+        Out->SetNumberField(TEXT("braking_deceleration_walking"), Movement->BrakingDecelerationWalking);
+        Out->SetNumberField(TEXT("ground_friction"), Movement->GroundFriction);
+        Out->SetNumberField(TEXT("braking_friction_factor"), Movement->BrakingFrictionFactor);
+        Out->SetBoolField(TEXT("separate_braking_friction"), Movement->bUseSeparateBrakingFriction);
+        Out->SetStringField(TEXT("facing"), TEXT("instant (ALDCharacter::SetFacing sets the steering direction's yaw)"));
+        bool bTaken = Feel.FirstMoveAt >= 0 && Feel.FullSpeedAt >= 0;
+        if (IsHost())
+        {
+            Out->SetNumberField(TEXT("stop_from_speed"), Feel.StopSpeed);
+            Out->SetNumberField(TEXT("stop_to_still_ms"), Ms(Feel.StopAt, Feel.StoppedAt));
+            Out->SetNumberField(TEXT("stop_distance_cm"), Feel.StopDistanceCm);
+            Out->SetNumberField(TEXT("restart_click_to_move_ms"), Ms(Feel.RestartAt, Feel.RestartMoveAt));
+            bTaken &= Feel.StoppedAt >= 0 && Feel.RestartMoveAt >= 0;
+        }
+        else
+        {
+            Out->SetNumberField(TEXT("stop_to_stopped_receipt_ms"), Ms(Feel.CancelAt, Feel.CancelDoneAt));
+            bTaken &= Feel.CancelDoneAt >= 0;
+        }
+        FString Text;
+        FJsonSerializer::Serialize(Out, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));
+        Check(bTaken, TEXT("Feel"), TEXT("The first right-click walk, the S and the next walk are timed on this connection's own body"), Text);
+        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_FEEL role=%s %s"), *Role, *Text);
+        return Out;
+    }
+
     // Opens the one capture: every frame until Seconds pass, a read-back is requested while the moment shows.
     void BeginShot(const TCHAR* File, TFunction<bool(FString&)> Shows, double Seconds)
     {
@@ -1948,6 +2263,7 @@ public:
     bool Finish()
     {
         if (Written) { return true; }
+        const TSharedPtr<FJsonObject> FeelFields = Passed ? CheckFeel().ToSharedPtr() : TSharedPtr<FJsonObject>();
         const TSharedRef<FJsonObject> Report = MakeShared<FJsonObject>();
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
@@ -1962,6 +2278,7 @@ public:
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), int32(Stage));
         Report->SetArrayField(TEXT("checks"), Checks);
+        if (FeelFields) { Report->SetObjectField(TEXT("feel"), FeelFields); }
         if (const ALDPlayerController* PC = Controller.Get())
         {
             Report->SetNumberField(TEXT("generation"), PC->OwnerState.Match);

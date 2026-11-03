@@ -127,10 +127,15 @@ Host 经普通 `SubmitChoice` 学会 attr_reach 与扒裤衩，Client1 学会假
 扒裤衩定身 Client1 且 Host 的观察帧看到 Root、假装无事发生在定身到期前加护盾并解除定身、
 Client1 从较远的对决点扔出的粉笔头作为 Chalk 投射物事实飞向 Host 并命中、增程卡让右键追击在基础射程之外落下普攻。
 Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回可能卡住游戏线程数秒，先在这里吸收）、
-本人被远程普攻击中、自己的观察帧显示定身、护盾、粉笔头飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
+在对决点旁的地面右键（DEV 指针代替鼠标，走普通 `ClickMove`）后的落点标记、本人被远程普攻击中、
+右键击杀前指针悬停在 Client1 身上的悬停环与十字光标、右键后的攻击标记、
+自己的观察帧显示定身、护盾、粉笔头飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
 以及本人普攻挥击时各读回一帧
-（`HostSees-DuelSite/OwnHit/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），只在读回的那一帧仍显示该时刻时保存，
-供人工审阅画面可读性，不做像素比对；
+（`HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），
+只在读回的那一帧仍显示该时刻时保存，供人工审阅画面可读性，不做像素比对；
+双方报告还记录操作手感实测（只报告不设门槛）：首次右键行走从下单到身体起动、到达全速的时间，
+Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停住的时间与滑行距离及随后再次右键的起动时间，
+Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
 装备主动与营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。
