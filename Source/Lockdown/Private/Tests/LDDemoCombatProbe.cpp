@@ -30,6 +30,7 @@
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "ImageUtils.h"
@@ -88,6 +89,8 @@ constexpr double CombatProbeSkillGapCm = 420.0;
 constexpr double CombatProbeSkillArrivalCm = 60.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
+// The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
+constexpr double CombatProbeFlightClearCm = 120.0;
 
 // The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer.
 TArray<FName> CombatProbeSkillPlan(bool bHost)
@@ -1750,21 +1753,25 @@ public:
         return true;
     }
 
-    // A chalk in flight on the Host's current frame.
+    // A chalk drawn mid-flight on the Host's screen: a shown projectile proxy that has left Client1's hand. The drawn
+    // proxy, not the frame, decides, so presentation smoothing cannot capture a flight that is not on screen.
     bool ShowsFlight(FString& Facts) const
     {
         const ALDPlayerController* PC = Controller.Get();
+        UWorld* Current = World.Get();
         const FLDWorldView* Frame = PC ? LDDemoCombatScenario::CombatProbeFrame(*PC) : nullptr;
-        const FLDObservedProjectileView* Flight = Frame ? Frame->Projectiles.FindByPredicate([](const FLDObservedProjectileView& Row)
+        const FLDObservedUnitView* Unit = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        if (!Current || !Unit) { return false; }
+        for (TActorIterator<ALDObservedProjectileProxy> It(Current); It; ++It)
         {
-            return Row.Look == ELDObservedProjectileLook::Chalk;
-        }) : nullptr;
-        if (!Flight) { return false; }
-        const FLDObservedUnitView* Unit = LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId);
-        Facts = FString::Printf(TEXT("flights=%d chalk_at=%s chalk_heading=%u "), Frame->Projectiles.Num(),
-            *FVector(Flight->PositionCm).ToCompactString(), uint32(Flight->Heading))
-            + (Unit ? SeenFacts(*Unit) : FString(TEXT("client1=unseen")));
-        return true;
+            const FVector Drawn = It->GetActorLocation();
+            const double ClearCm = FVector::Dist2D(Drawn, FVector(Unit->FeetCm));
+            if (It->IsHidden() || ClearCm < LDDemoCombatScenario::CombatProbeFlightClearCm) { continue; }
+            Facts = FString::Printf(TEXT("flights=%d chalk_drawn_at=%s chalk_clear_of_client1_cm=%.0f "),
+                Frame->Projectiles.Num(), *Drawn.ToCompactString(), ClearCm) + SeenFacts(*Unit);
+            return true;
+        }
+        return false;
     }
 
     // Opens the one capture: every frame until Seconds pass, a read-back is requested while the moment shows.

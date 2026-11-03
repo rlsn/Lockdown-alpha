@@ -1,7 +1,10 @@
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentIds.h"
+#include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
+#include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -12,7 +15,7 @@ namespace LDHumanoidVisualDetail
     {
         Torso, Head, ArmLeft, ArmRight, LegLeft, LegRight, Facing,
         RootRing, ShieldHalo, ProtectionBeam, ReturnSign, Armband, Clipboard, CapCrown, CapBill, Whistle,
-        ShackleLeft, ShackleRight,
+        ShackleLeft, ShackleRight, RootRim,
         ShieldBar0, ShieldBar1, ShieldBar2, ShieldBar3, ShieldBar4, ShieldBar5, ShieldBar6, ShieldBar7,
         ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3,
         Burst, Charge, SpawnColumn, PartCount
@@ -36,9 +39,10 @@ namespace LDHumanoidVisualDetail
         {TEXT("LegLeft"), Cube, INDEX_NONE, {0,-11,-53}, {.18,.18,.65}},
         {TEXT("LegRight"), Cube, INDEX_NONE, {0,11,-53}, {.18,.18,.65}},
         {TEXT("Facing"), Cube, INDEX_NONE, {19,0,65}, {.12,.12,.12}},
-        // Status markers: root is a pulsing ring at the feet with ankle shackles, shield a turning cage of bars under a
-        // halo, protection a beam with orbiting orbs, camp return a sign on the back.
-        {TEXT("RootRing"), Cylinder, INDEX_NONE, {0,0,-87.5}, {1.05,1.05,.03}},
+        // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, shield a turning cage of
+        // bars under a halo, protection a beam with orbiting orbs, camp return a sign on the back. The feet discs stand
+        // above the own-body marker's discs.
+        {TEXT("RootRing"), Cylinder, INDEX_NONE, {0,0,-87}, {1.05,1.05,.03}},
         {TEXT("ShieldHalo"), Cylinder, INDEX_NONE, {0,0,97}, {.62,.62,.025}},
         {TEXT("ProtectionBeam"), Cylinder, INDEX_NONE, {0,0,160}, {.14,.14,1.3}},
         {TEXT("ReturnSign"), Cube, INDEX_NONE, {-24,0,92}, {.04,.34,.3}},
@@ -50,14 +54,15 @@ namespace LDHumanoidVisualDetail
         {TEXT("Whistle"), Sphere, Torso, {18,0,30}, {.07,.07,.07}},
         {TEXT("ShackleLeft"), Cylinder, INDEX_NONE, {0,-11,-74}, {.3,.3,.08}},
         {TEXT("ShackleRight"), Cylinder, INDEX_NONE, {0,11,-74}, {.3,.3,.08}},
-        {TEXT("ShieldBar0"), Cylinder, INDEX_NONE, {56,0,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar1"), Cylinder, INDEX_NONE, {39.6,39.6,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar2"), Cylinder, INDEX_NONE, {0,56,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar3"), Cylinder, INDEX_NONE, {-39.6,39.6,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar4"), Cylinder, INDEX_NONE, {-56,0,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar5"), Cylinder, INDEX_NONE, {-39.6,-39.6,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar6"), Cylinder, INDEX_NONE, {0,-56,2}, {.035,.035,1.8}},
-        {TEXT("ShieldBar7"), Cylinder, INDEX_NONE, {39.6,-39.6,2}, {.035,.035,1.8}},
+        {TEXT("RootRim"), Cylinder, INDEX_NONE, {0,0,-87.2}, {1.25,1.25,.02}},
+        {TEXT("ShieldBar0"), Cylinder, INDEX_NONE, {56,0,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar1"), Cylinder, INDEX_NONE, {39.6,39.6,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar2"), Cylinder, INDEX_NONE, {0,56,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar3"), Cylinder, INDEX_NONE, {-39.6,39.6,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar4"), Cylinder, INDEX_NONE, {-56,0,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar5"), Cylinder, INDEX_NONE, {-39.6,-39.6,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar6"), Cylinder, INDEX_NONE, {0,-56,2}, {.06,.06,1.8}},
+        {TEXT("ShieldBar7"), Cylinder, INDEX_NONE, {39.6,-39.6,2}, {.06,.06,1.8}},
         {TEXT("ProtectionOrb0"), Sphere, INDEX_NONE, {62,0,-5}, {.13,.13,.13}},
         {TEXT("ProtectionOrb1"), Sphere, INDEX_NONE, {0,62,-5}, {.13,.13,.13}},
         {TEXT("ProtectionOrb2"), Sphere, INDEX_NONE, {-62,0,-5}, {.13,.13,.13}},
@@ -68,8 +73,10 @@ namespace LDHumanoidVisualDetail
         {TEXT("SpawnColumn"), Cylinder, INDEX_NONE, {0,0,70}, {.9,.9,3.2}},
     };
     const FLinearColor Skin(.68f,.47f,.3f);
-    const FLinearColor RootColour(.85f,.12f,.03f), ShackleColour(.3f,.05f,.02f), ShieldColour(.55f,.9f,1.f);
-    const FLinearColor ProtectionColour(1.f,.8f,.2f), ReturnColour(.95f,.95f,.95f);
+    // One fixed colour per status on every unit, apart from all six seat tints, the turf and the red track:
+    // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
+    const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
+    const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
     const FLinearColor ArmbandColour(.8f,.05f,.04f), PaperColour(.9f,.9f,.85f), CapColour(.92f,.92f,.92f), WhistleColour(.75f,.75f,.8f);
     const FLinearColor BurstColour(1.f,.95f,.7f), ChargeColour(.8f,.92f,1.f), ColumnColour(1.f,.9f,.55f);
     const FLinearColor FlashWhite(1.f,1.f,1.f), FlashRed(1.f,.1f,.06f), AppearGlow(1.f,.92f,.6f);
@@ -80,6 +87,19 @@ namespace LDHumanoidVisualDetail
     constexpr float ArmHalf = 27.5f, LegHalf = 32.5f;
     bool IsOptional(int32 Index) { return Index >= RootRing; }
     bool IsBody(int32 Index) { return Index <= Facing; }
+    // Markers drawn with a near-black edge (the root disc has its own rim): a slightly larger twin of each sits behind
+    // it on the local view ray, so only a rim shows around the marker, over any seat tint, the turf or the track.
+    struct FEdgeSpec { EPart Marker; FVector Grow; };
+    const FEdgeSpec EdgeSpecs[] =
+    {
+        {ShieldHalo, {.06,.06,0}},
+        {ShieldBar0, {.06,.06,.06}}, {ShieldBar1, {.06,.06,.06}}, {ShieldBar2, {.06,.06,.06}}, {ShieldBar3, {.06,.06,.06}},
+        {ShieldBar4, {.06,.06,.06}}, {ShieldBar5, {.06,.06,.06}}, {ShieldBar6, {.06,.06,.06}}, {ShieldBar7, {.06,.06,.06}},
+        {ProtectionBeam, {.06,.06,.06}},
+        {ProtectionOrb0, {.06,.06,.06}}, {ProtectionOrb1, {.06,.06,.06}}, {ProtectionOrb2, {.06,.06,.06}},
+        {ProtectionOrb3, {.06,.06,.06}},
+    };
+    constexpr float EdgeBehindCm = 30.f;
     FVector Blend(const FVector& Direction, const FVector& Toward, float Weight)
     {
         return FMath::Lerp(Direction, Toward.GetSafeNormal(), FMath::Clamp(Weight, 0.f, 1.f));
@@ -123,6 +143,19 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         }
         Parts.Add(Part);
     }
+    for (const FEdgeSpec& Edge : EdgeSpecs)
+    {
+        const FPartSpec& Spec = Specs[Edge.Marker];
+        UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(FName(FString(Spec.Name) + TEXT("Edge")));
+        Part->SetStaticMesh(Parts[Edge.Marker]->GetStaticMesh());
+        Part->SetupAttachment(Pivot);
+        Part->SetRelativeScale3D(Spec.Scale + Edge.Grow);
+        Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Part->SetCanEverAffectNavigation(false);
+        Part->SetHiddenInGame(true);
+        Part->SetCastShadow(false);
+        Edges.Add(Part);
+    }
 }
 
 void ULDHumanoidVisualComponent::OnRegister()
@@ -133,6 +166,10 @@ void ULDHumanoidVisualComponent::OnRegister()
     for (UStaticMeshComponent* Part : Parts)
     {
         if (!Part->IsRegistered()) { Part->RegisterComponent(); }
+    }
+    for (UStaticMeshComponent* Edge : Edges)
+    {
+        if (!Edge->IsRegistered()) { Edge->RegisterComponent(); }
     }
 }
 
@@ -189,8 +226,8 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLinearColor& Clothes, uint8 Cr
     {
         FLinearColor Colour = Clothes;
         if (Index == Head || Index == Facing) { Colour = Skin; }
-        else if (Index == RootRing) { Colour = RootColour; }
-        else if (Index == ShackleLeft || Index == ShackleRight) { Colour = ShackleColour; }
+        else if (Index == RootRing || Index == ShackleLeft || Index == ShackleRight) { Colour = RootColour; }
+        else if (Index == RootRim) { Colour = EdgeColour; }
         else if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { Colour = ShieldColour; }
         else if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { Colour = ProtectionColour; }
         else if (Index == ReturnSign) { Colour = ReturnColour; }
@@ -207,6 +244,9 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLinearColor& Clothes, uint8 Cr
         Tints[Index] = Instance;
         BaseColours[Index] = Colour;
     }
+    UMaterialInstanceDynamic* Dark = UMaterialInstanceDynamic::Create(Material, this);
+    Dark->SetVectorParameterValue(TEXT("Tint"), EdgeColour);
+    for (UStaticMeshComponent* Edge : Edges) { Edge->SetMaterial(0, Dark); }
     bTinted = false;
     Parts[Armband]->SetHiddenInGame(!bMonitor);
     Parts[Clipboard]->SetHiddenInGame(!bMonitor);
@@ -257,6 +297,25 @@ void ULDHumanoidVisualComponent::PlaceLimb(int32 Index, const FVector& Joint, co
 void ULDHumanoidVisualComponent::Tint(int32 Index, const FLinearColor& Colour)
 {
     if (Tints.IsValidIndex(Index) && Tints[Index]) { Tints[Index]->SetVectorParameterValue(TEXT("Tint"), Colour); }
+}
+
+void ULDHumanoidVisualComponent::PlaceEdges()
+{
+    using namespace LDHumanoidVisualDetail;
+    // The local player's view; a world without one (a server without a local player) draws no edges.
+    const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(GetWorld()) : nullptr;
+    const APlayerCameraManager* View = Viewer ? Viewer->PlayerCameraManager.Get() : nullptr;
+    const FTransform& Space = Pivot->GetComponentTransform();
+    for (int32 Index = 0; Index < Edges.Num(); ++Index)
+    {
+        const UStaticMeshComponent* Marker = Parts[EdgeSpecs[Index].Marker];
+        const bool bShown = View && !Marker->bHiddenInGame;
+        Edges[Index]->SetHiddenInGame(!bShown);
+        if (!bShown) { continue; }
+        const FVector At = Marker->GetComponentLocation();
+        const FVector Ray = (At - View->GetCameraLocation()).GetSafeNormal();
+        Edges[Index]->SetRelativeLocation(Space.InverseTransformPosition(At + Ray * EdgeBehindCm));
+    }
 }
 
 void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
@@ -350,12 +409,14 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     const float Time = float(FMath::Fmod(Clock, 3600.0));
     const bool bRoot = !bFalling && bRooted;
     Parts[RootRing]->SetHiddenInGame(!bRoot);
+    Parts[RootRim]->SetHiddenInGame(!bRoot);
     Parts[ShackleLeft]->SetHiddenInGame(!bRoot);
     Parts[ShackleRight]->SetHiddenInGame(!bRoot);
     if (bRoot)
     {
         const float Pulse = 1.05f * (1.f + .07f * FMath::Sin(Time * 9.f));
         Parts[RootRing]->SetRelativeScale3D(FVector(Pulse, Pulse, .03f));
+        Parts[RootRim]->SetRelativeScale3D(FVector(Pulse + .2f, Pulse + .2f, .02f));
     }
     const bool bShield = !bFalling && (Cue & Shielded);
     Parts[ShieldHalo]->SetHiddenInGame(!bShield);
@@ -377,6 +438,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
             FVector(62.f * FMath::Cos(Angle), 62.f * FMath::Sin(Angle), -5.f + 8.f * FMath::Sin(4.f * Time + 1.6f * Orb)));
     }
     Parts[ReturnSign]->SetHiddenInGame(bFalling || !(Cue & Returning));
+    PlaceEdges();
 
     // Body tint: a hit flashes white, then red; an appear glows. Restored once both have passed.
     const float Glow = bFalling ? 0.f : Life.Glow;
