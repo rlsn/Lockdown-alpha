@@ -96,6 +96,7 @@ void ALDPlayerController::ReleaseLocalInput()
 {
     bFreshInputRequired=true;
     CancelArmedCombat();
+    QueuedCombat={};
     if (Navigation) { Navigation->Recenter(false); }
 }
 
@@ -158,6 +159,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     }
     // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (UI 4).
     if (IsWorldInputCaptured()) { CancelArmedCombat(); }
+    FlushQueuedCombat();
     if (GetPawn()!=PreferencesPawn.Get())
     {
         PreferencesPawn=GetPawn();
@@ -281,8 +283,9 @@ bool ALDPlayerController::ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch
     OutHandle.Invalidate();
     OutEpoch=0;
     const auto* Relay=LocalView();
-    float X=0,Y=0;
-    if (!Relay || !GetMousePosition(X,Y)) { return false; }
+    FVector2D Pointer;
+    if (!Relay || !Navigation || !Navigation->PointerPosition(Pointer)) { return false; }
+    const float X=float(Pointer.X), Y=float(Pointer.Y);
     const auto Read=Relay->ReadObservedFrame();
     if (!Read.Frame || Read.Status!=ELDObservedViewStatus::Current
         || Read.Frame->MatchGeneration!=OwnerState.Match || Read.Frame->ObserverLife!=OwnerState.Life) { return false; }

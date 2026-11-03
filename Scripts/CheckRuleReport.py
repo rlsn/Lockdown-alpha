@@ -7,6 +7,9 @@ from pathlib import Path
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.ArtCatalog",
+        "Lockdown.Rules.ArtCatalogAsset",
+        "Lockdown.Rules.ArtDecorations",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",

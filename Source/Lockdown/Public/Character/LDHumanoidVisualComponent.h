@@ -1,15 +1,20 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "Art/LDArtTypes.h"
 #include "Character/LDBodyMotion.h"
 #include "LDHumanoidVisualComponent.generated.h"
 
-class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
-// Placeholder body shared by the owner's own body, every observed proxy and fall puppets. It only draws what it is
-// told: an identity look, one cue byte (ALDCharacter::PresentationCue) with the age of its action, and the appear and
-// fall events; never gameplay state of its own. Every motion hangs from an inner pivot, so the owner keeps the
-// component's own transform and scale.
+class USkeletalMeshComponent;
+class UStaticMeshComponent;
+struct FLDArtAnimation;
+struct FLDArtCharacter;
+// Body shared by the owner's own body, every observed proxy and fall puppets: the art catalog's skeletal character
+// (ULDArtSubsystem) with single-node clips, status markers and effect shapes around it. It only draws what it is told:
+// an identity look, one cue byte (ALDCharacter::PresentationCue) with the age of its action, and the appear and fall
+// events; never gameplay state of its own. Every motion hangs from an inner pivot, so the owner keeps the component's
+// own transform and scale.
 UCLASS()
 class LOCKDOWN_API ULDHumanoidVisualComponent : public USceneComponent
 {
@@ -24,10 +29,9 @@ public:
     static FLinearColor ContenderTint(uint8 Slot);
     // Camp NPC clothing; never one of the contender tints.
     static FLinearColor MonsterTint(uint8 CreatureId);
-    // Contender look: roster-slot clothing and no NPC accessories.
+    // Contender look: the catalog's seat body in the roster-slot tint.
     void ApplyPalette(uint8 Slot);
-    // Camp NPC look (APP_SPEC 1.1): the low tier is a discipline monitor with armband and clipboard, the high tier a
-    // PE teacher with cap and whistle.
+    // Camp NPC look (APP_SPEC 1.1): the catalog's body of the camp tier (discipline monitor, PE teacher) in its tint.
     void ApplyMonsterLook(uint8 CreatureId);
     // Source's look, for a puppet that replaces it.
     void CopyLook(const ULDHumanoidVisualComponent& Source);
@@ -37,27 +41,35 @@ public:
     // The first cue showing respawn protection also plays the appear effect.
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f);
     void PlayAppear();
-    // Falls on its back, sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
+    // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
     bool IsFallen() const;
 private:
-    void ApplyLook(const FLinearColor& Clothes, uint8 CreatureId);
-    // Places a limb box hanging from Joint along Direction, without twisting it about its own length.
-    void PlaceLimb(int32 Index, const FVector& Joint, const FVector& Direction, float HalfLength);
-    void Tint(int32 Index, const FLinearColor& Colour);
+    // Resolves the catalog body and paints its tint slots; without a body nothing is drawn and the error is logged.
+    void ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What);
+    // Places the markers and effects for the body's displayed height.
+    void Layout();
+    // Shows the clip of the current state: dying, an action, the respawn, running or standing.
+    void PlayClip(bool bFalling, float Speed);
     // Places each shown marker's near-black twin behind it on the local view ray.
     void PlaceEdges();
+    // Seconds the death clip takes to lie down; zero without one.
+    float LieSeconds() const;
+    void SetFlash(const FLinearColor& Emissive);
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
+    UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Edges;
-    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Tints;
-    TArray<FLinearColor> BaseColours;
+    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Paints;
+    // The resolved catalog entry; valid while the game instance's art catalog lives.
+    const FLDArtCharacter* Art = nullptr;
     // Eased toward the action timeline, so an ending cue settles instead of snapping to rest.
     LDBodyMotion::FChannels Shown;
     LDBodyMotion::EAction Action = LDBodyMotion::EAction::None;
+    ELDArtAnim Clip = ELDArtAnim::Count;
     double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1;
-    float Phase = 0;
+    float HalfHeight = 0, HeightCm = 0;
     uint8 Cue = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
-    bool bCueSeen = false, bTinted = false;
+    bool bCueSeen = false, bFlashing = false;
 };

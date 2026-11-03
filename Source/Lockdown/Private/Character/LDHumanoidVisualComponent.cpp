@@ -1,8 +1,15 @@
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Animation/AnimSequence.h"
+#include "Art/LDArtCatalog.h"
+#include "Art/LDArtSubsystem.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Character/LDCharacter.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentIds.h"
 #include "Engine/Engine.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -10,14 +17,13 @@
 
 namespace LDHumanoidVisualDetail
 {
-    // Part order is fixed; indices below are used by Animate and ApplyLook.
+    // Status markers and effect shapes around the skeletal body. Part order is fixed; indices below are used by Layout,
+    // Animate and ApplyLook.
     enum EPart : int32
     {
-        Torso, Head, ArmLeft, ArmRight, LegLeft, LegRight, Facing,
-        RootRing, ShieldHalo, ProtectionBeam, ReturnSign, Armband, Clipboard, CapCrown, CapBill, Whistle,
-        ShackleLeft, ShackleRight, RootRim,
+        RootRing, RootRim, ShackleLeft, ShackleRight, ShieldHalo,
         ShieldBar0, ShieldBar1, ShieldBar2, ShieldBar3, ShieldBar4, ShieldBar5, ShieldBar6, ShieldBar7,
-        ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3,
+        ProtectionBeam, ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3, ReturnSign,
         Burst, Charge, SpawnColumn, PartCount
     };
     constexpr int32 ShieldBars = 8, ProtectionOrbs = 4;
@@ -26,67 +32,47 @@ namespace LDHumanoidVisualDetail
     {
         const TCHAR* Name;
         EShape Shape;
-        int32 Parent;     // INDEX_NONE: the pivot
-        FVector Location; // pivot space at rest
-        FVector Scale;    // world-relative size in BasicShapes units (100 cm)
+        FVector Scale; // BasicShapes units (100 cm); Layout fits the shield bars to the body's height
     };
+    // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, shield a turning cage of bars
+    // under a halo, protection a beam over the head with orbiting orbs, camp return a sign on the back. Effects: the
+    // impact spark, the cast orb at the hand and the appear column. The feet discs stand above the own-body marker's.
     const FPartSpec Specs[PartCount] =
     {
-        {TEXT("Torso"), Cube, INDEX_NONE, {0,0,9}, {.34,.4,.58}},
-        {TEXT("Head"), Sphere, INDEX_NONE, {0,0,65}, {.32,.3,.34}},
-        {TEXT("ArmLeft"), Cube, INDEX_NONE, {0,-25,6}, {.16,.15,.55}},
-        {TEXT("ArmRight"), Cube, INDEX_NONE, {0,25,6}, {.16,.15,.55}},
-        {TEXT("LegLeft"), Cube, INDEX_NONE, {0,-11,-53}, {.18,.18,.65}},
-        {TEXT("LegRight"), Cube, INDEX_NONE, {0,11,-53}, {.18,.18,.65}},
-        {TEXT("Facing"), Cube, INDEX_NONE, {19,0,65}, {.12,.12,.12}},
-        // Status markers: root is a pulsing disc on a dark rim at the feet with ankle shackles, shield a turning cage of
-        // bars under a halo, protection a beam with orbiting orbs, camp return a sign on the back. The feet discs stand
-        // above the own-body marker's discs.
-        {TEXT("RootRing"), Cylinder, INDEX_NONE, {0,0,-87}, {1.05,1.05,.03}},
-        {TEXT("ShieldHalo"), Cylinder, INDEX_NONE, {0,0,97}, {.62,.62,.025}},
-        {TEXT("ProtectionBeam"), Cylinder, INDEX_NONE, {0,0,160}, {.14,.14,1.3}},
-        {TEXT("ReturnSign"), Cube, INDEX_NONE, {-24,0,92}, {.04,.34,.3}},
-        // Camp NPC accessories; the armband and clipboard follow the arms, the cap and whistle the head and torso.
-        {TEXT("Armband"), Cube, ArmLeft, {0,-25,22}, {.19,.18,.1}},
-        {TEXT("Clipboard"), Cube, ArmRight, {12,27,-8}, {.03,.26,.34}},
-        {TEXT("CapCrown"), Cylinder, Head, {0,0,80}, {.34,.34,.1}},
-        {TEXT("CapBill"), Cube, Head, {18,0,76}, {.2,.3,.03}},
-        {TEXT("Whistle"), Sphere, Torso, {18,0,30}, {.07,.07,.07}},
-        {TEXT("ShackleLeft"), Cylinder, INDEX_NONE, {0,-11,-74}, {.3,.3,.08}},
-        {TEXT("ShackleRight"), Cylinder, INDEX_NONE, {0,11,-74}, {.3,.3,.08}},
-        {TEXT("RootRim"), Cylinder, INDEX_NONE, {0,0,-87.2}, {1.25,1.25,.02}},
-        {TEXT("ShieldBar0"), Cylinder, INDEX_NONE, {56,0,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar1"), Cylinder, INDEX_NONE, {39.6,39.6,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar2"), Cylinder, INDEX_NONE, {0,56,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar3"), Cylinder, INDEX_NONE, {-39.6,39.6,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar4"), Cylinder, INDEX_NONE, {-56,0,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar5"), Cylinder, INDEX_NONE, {-39.6,-39.6,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar6"), Cylinder, INDEX_NONE, {0,-56,2}, {.06,.06,1.8}},
-        {TEXT("ShieldBar7"), Cylinder, INDEX_NONE, {39.6,-39.6,2}, {.06,.06,1.8}},
-        {TEXT("ProtectionOrb0"), Sphere, INDEX_NONE, {62,0,-5}, {.13,.13,.13}},
-        {TEXT("ProtectionOrb1"), Sphere, INDEX_NONE, {0,62,-5}, {.13,.13,.13}},
-        {TEXT("ProtectionOrb2"), Sphere, INDEX_NONE, {-62,0,-5}, {.13,.13,.13}},
-        {TEXT("ProtectionOrb3"), Sphere, INDEX_NONE, {0,-62,-5}, {.13,.13,.13}},
-        // Action and life effects: the impact spark, the cast orb and the appear column.
-        {TEXT("Burst"), Sphere, INDEX_NONE, {35,25,40}, {.1,.1,.1}},
-        {TEXT("Charge"), Sphere, INDEX_NONE, {25,0,100}, {.1,.1,.1}},
-        {TEXT("SpawnColumn"), Cylinder, INDEX_NONE, {0,0,70}, {.9,.9,3.2}},
+        {TEXT("RootRing"), Cylinder, {1.05,1.05,.03}},
+        {TEXT("RootRim"), Cylinder, {1.25,1.25,.02}},
+        {TEXT("ShackleLeft"), Cylinder, {.3,.3,.08}},
+        {TEXT("ShackleRight"), Cylinder, {.3,.3,.08}},
+        {TEXT("ShieldHalo"), Cylinder, {.62,.62,.025}},
+        {TEXT("ShieldBar0"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar1"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar2"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar3"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar4"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar5"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar6"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ShieldBar7"), Cylinder, {.06,.06,1.8}},
+        {TEXT("ProtectionBeam"), Cylinder, {.14,.14,1.3}},
+        {TEXT("ProtectionOrb0"), Sphere, {.13,.13,.13}},
+        {TEXT("ProtectionOrb1"), Sphere, {.13,.13,.13}},
+        {TEXT("ProtectionOrb2"), Sphere, {.13,.13,.13}},
+        {TEXT("ProtectionOrb3"), Sphere, {.13,.13,.13}},
+        {TEXT("ReturnSign"), Cube, {.04,.34,.3}},
+        {TEXT("Burst"), Sphere, {.1,.1,.1}},
+        {TEXT("Charge"), Sphere, {.1,.1,.1}},
+        {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
     };
-    const FLinearColor Skin(.68f,.47f,.3f);
     // One fixed colour per status on every unit, apart from all six seat tints, the turf and the red track:
     // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
     const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
     const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
-    const FLinearColor ArmbandColour(.8f,.05f,.04f), PaperColour(.9f,.9f,.85f), CapColour(.92f,.92f,.92f), WhistleColour(.75f,.75f,.8f);
     const FLinearColor BurstColour(1.f,.95f,.7f), ChargeColour(.8f,.92f,1.f), ColumnColour(1.f,.9f,.55f);
+    // Emissive over the whole body through the art materials' Flash: a hit flashes white, then red; an appear glows.
     const FLinearColor FlashWhite(1.f,1.f,1.f), FlashRed(1.f,.1f,.06f), AppearGlow(1.f,.92f,.6f);
-    // Joints in pivot space at rest: the arms hang from the shoulders and the legs from the hips; the upper body
-    // bends about the waist and a fall topples about the feet.
-    const FVector ShoulderLeft(0,-25,33.5), ShoulderRight(0,25,33.5), HipLeft(0,-11,-20.5), HipRight(0,11,-20.5);
-    const FVector Waist(0,0,-20), Feet(0,0,-88);
-    constexpr float ArmHalf = 27.5f, LegHalf = 32.5f;
-    bool IsOptional(int32 Index) { return Index >= RootRing; }
-    bool IsBody(int32 Index) { return Index <= Facing; }
+    // Below this ground speed a body stands instead of running in slow motion.
+    constexpr float RunFromCmPerSec = 15.f;
+    // The status markers' reference body height; wider and taller bodies spread their markers in proportion.
+    constexpr float ReferenceHeightCm = 175.f;
     // Markers drawn with a near-black edge (the root disc has its own rim): a slightly larger twin of each sits behind
     // it on the local view ray, so only a rim shows around the marker, over any seat tint, the turf or the track.
     struct FEdgeSpec { EPart Marker; FVector Grow; };
@@ -100,9 +86,29 @@ namespace LDHumanoidVisualDetail
         {ProtectionOrb3, {.06,.06,.06}},
     };
     constexpr float EdgeBehindCm = 30.f;
-    FVector Blend(const FVector& Direction, const FVector& Toward, float Weight)
+    FLinearColor ColourOf(int32 Index)
     {
-        return FMath::Lerp(Direction, Toward.GetSafeNormal(), FMath::Clamp(Weight, 0.f, 1.f));
+        if (Index == RootRim) { return EdgeColour; }
+        if (Index == RootRing || Index == ShackleLeft || Index == ShackleRight) { return RootColour; }
+        if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { return ShieldColour; }
+        if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { return ProtectionColour; }
+        if (Index == ReturnSign) { return ReturnColour; }
+        if (Index == Burst) { return BurstColour; }
+        return Index == Charge ? ChargeColour : ColumnColour;
+    }
+    ELDArtAnim ClipOf(LDBodyMotion::EAction Action)
+    {
+        switch (Action)
+        {
+        case LDBodyMotion::EAction::Attack: return ELDArtAnim::Attack;
+        case LDBodyMotion::EAction::Cast: return ELDArtAnim::Cast;
+        case LDBodyMotion::EAction::Hit: return ELDArtAnim::Hit;
+        default: return ELDArtAnim::Count;
+        }
+    }
+    float LengthOf(const FLDArtAnimation* Entry)
+    {
+        return Entry && Entry->Sequence ? Entry->Sequence->GetPlayLength() : 0.f;
     }
 }
 
@@ -114,42 +120,33 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
     static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder"));
     Pivot = CreateDefaultSubobject<USceneComponent>(TEXT("BodyPivot"));
     Pivot->SetupAttachment(this);
+    Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArtBody"));
+    Mesh->SetupAttachment(Pivot);
+    Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Mesh->SetGenerateOverlapEvents(false);
+    Mesh->SetCanEverAffectNavigation(false);
+    // A body hidden from this view (another player's authority body on the Listen Host) evaluates no pose.
+    Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+    Mesh->SetHiddenInGame(true);
     for (int32 Index = 0; Index < PartCount; ++Index)
     {
         const FPartSpec& Spec = Specs[Index];
         UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(Spec.Name);
         Part->SetStaticMesh(Spec.Shape == Cube ? CubeMesh.Object : Spec.Shape == Sphere ? SphereMesh.Object : CylinderMesh.Object);
-        if (Spec.Parent == INDEX_NONE)
-        {
-            Part->SetupAttachment(Pivot);
-            Part->SetRelativeLocation(Spec.Location);
-            Part->SetRelativeScale3D(Spec.Scale);
-        }
-        else
-        {
-            // Parents are unrotated and scaled at construction: express the wanted size and place in their space.
-            const FPartSpec& ParentSpec = Specs[Spec.Parent];
-            Part->SetupAttachment(Parts[Spec.Parent]);
-            Part->SetRelativeLocation((Spec.Location - ParentSpec.Location) / ParentSpec.Scale);
-            Part->SetRelativeScale3D(Spec.Scale / ParentSpec.Scale);
-        }
+        Part->SetupAttachment(Pivot);
+        Part->SetRelativeScale3D(Spec.Scale);
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetCanEverAffectNavigation(false);
-        if (IsOptional(Index))
-        {
-            // Optional parts use the hidden-in-game flag, so a visibility change of the whole body never reveals them.
-            Part->SetHiddenInGame(true);
-            Part->SetCastShadow(false);
-        }
+        // Markers and effects use the hidden-in-game flag, so a visibility change of the whole body never reveals them.
+        Part->SetHiddenInGame(true);
+        Part->SetCastShadow(false);
         Parts.Add(Part);
     }
     for (const FEdgeSpec& Edge : EdgeSpecs)
     {
-        const FPartSpec& Spec = Specs[Edge.Marker];
-        UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(FName(FString(Spec.Name) + TEXT("Edge")));
+        UStaticMeshComponent* Part = CreateDefaultSubobject<UStaticMeshComponent>(FName(FString(Specs[Edge.Marker].Name) + TEXT("Edge")));
         Part->SetStaticMesh(Parts[Edge.Marker]->GetStaticMesh());
         Part->SetupAttachment(Pivot);
-        Part->SetRelativeScale3D(Spec.Scale + Edge.Grow);
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetCanEverAffectNavigation(false);
         Part->SetHiddenInGame(true);
@@ -163,6 +160,7 @@ void ULDHumanoidVisualComponent::OnRegister()
     Super::OnRegister();
     if (!GetWorld()) { return; }
     if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
+    if (!Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
     for (UStaticMeshComponent* Part : Parts)
     {
         if (!Part->IsRegistered()) { Part->RegisterComponent(); }
@@ -197,14 +195,17 @@ void ULDHumanoidVisualComponent::ApplyPalette(uint8 Slot)
 {
     LookSlot = Slot;
     LookCreature = 0;
-    ApplyLook(ContenderTint(Slot), 0);
+    const FLDArtResolved* Catalog = ULDArtSubsystem::Get(this);
+    ApplyLook(Catalog ? Catalog->ForSeat(Slot) : nullptr, ContenderTint(Slot), FString::Printf(TEXT("Seat %u"), uint32(Slot)));
 }
 
 void ULDHumanoidVisualComponent::ApplyMonsterLook(uint8 CreatureId)
 {
     LookSlot = MAX_uint8;
     LookCreature = CreatureId;
-    ApplyLook(MonsterTint(CreatureId), CreatureId);
+    const FLDArtResolved* Catalog = ULDArtSubsystem::Get(this);
+    ApplyLook(Catalog ? Catalog->ForMonster(CreatureId) : nullptr, MonsterTint(CreatureId),
+        FString::Printf(TEXT("Camp tier %u"), uint32(CreatureId)));
 }
 
 void ULDHumanoidVisualComponent::CopyLook(const ULDHumanoidVisualComponent& Source)
@@ -213,46 +214,78 @@ void ULDHumanoidVisualComponent::CopyLook(const ULDHumanoidVisualComponent& Sour
     else if (Source.LookSlot != MAX_uint8) { ApplyPalette(Source.LookSlot); }
 }
 
-void ULDHumanoidVisualComponent::ApplyLook(const FLinearColor& Clothes, uint8 CreatureId)
+void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What)
 {
     using namespace LDHumanoidVisualDetail;
+    Art = Look && Look->Mesh ? Look : nullptr;
+    Paints.Reset();
+    Mesh->EmptyOverrideMaterials();
+    Clip = ELDArtAnim::Count;
+    bFlashing = false;
+    if (!Art)
+    {
+        // The art subsystem has logged why its catalog is unavailable; this body draws nothing rather than a stand-in.
+        UE_LOG(LogTemp, Error, TEXT("LD_BODY_ART_UNAVAILABLE %s has no body in the Demo art catalog; nothing is drawn."), *What);
+        Mesh->SetSkeletalMeshAsset(nullptr);
+        Mesh->SetHiddenInGame(true);
+        for (UStaticMeshComponent* Part : Parts) { Part->SetHiddenInGame(true); }
+        for (UStaticMeshComponent* Edge : Edges) { Edge->SetHiddenInGame(true); }
+        return;
+    }
+    HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+    HeightCm = Art->HeightCm;
+    Mesh->SetSkeletalMeshAsset(Art->Mesh);
+    Mesh->SetRelativeTransform(Art->MeshTransform);
+    Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+    // Every slot takes the hit flash; only the catalog's tint slots take the identity colour.
+    for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
+    {
+        UMaterialInstanceDynamic* Paint = Mesh->CreateDynamicMaterialInstance(Index);
+        if (!ensureMsgf(Paint, TEXT("%s: art body %s has no material %d; rerun the art import"), *What, *Art->Id, Index)) { continue; }
+        Paint->SetVectorParameterValue(ULDArtCatalog::FlashParameter, FLinearColor::Black);
+        Paints.Add(Paint);
+    }
+    for (const FName Slot : Art->TintSlots)
+    {
+        const int32 Index = Mesh->GetMaterialIndex(Slot);
+        auto* Paint = Index == INDEX_NONE ? nullptr : Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(Index));
+        if (ensureMsgf(Paint, TEXT("%s: art body %s has no tint slot %s; rerun the art import"), *What, *Art->Id, *Slot.ToString()))
+        {
+            Paint->SetVectorParameterValue(ULDArtCatalog::TintParameter, Identity);
+        }
+    }
+    Mesh->SetHiddenInGame(false);
     UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
-    const bool bMonitor = CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger);
-    const bool bTeacher = CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian);
-    Tints.SetNum(Parts.Num());
-    BaseColours.SetNum(Parts.Num());
     for (int32 Index = 0; Index < Parts.Num(); ++Index)
     {
-        FLinearColor Colour = Clothes;
-        if (Index == Head || Index == Facing) { Colour = Skin; }
-        else if (Index == RootRing || Index == ShackleLeft || Index == ShackleRight) { Colour = RootColour; }
-        else if (Index == RootRim) { Colour = EdgeColour; }
-        else if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { Colour = ShieldColour; }
-        else if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { Colour = ProtectionColour; }
-        else if (Index == ReturnSign) { Colour = ReturnColour; }
-        else if (Index == Armband) { Colour = ArmbandColour; }
-        else if (Index == Clipboard) { Colour = PaperColour; }
-        else if (Index == CapCrown || Index == CapBill) { Colour = CapColour; }
-        else if (Index == Whistle) { Colour = WhistleColour; }
-        else if (Index == Burst) { Colour = BurstColour; }
-        else if (Index == Charge) { Colour = ChargeColour; }
-        else if (Index == SpawnColumn) { Colour = ColumnColour; }
         UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
-        Instance->SetVectorParameterValue(TEXT("Tint"), Colour);
+        Instance->SetVectorParameterValue(TEXT("Tint"), ColourOf(Index));
         Parts[Index]->SetMaterial(0, Instance);
-        Tints[Index] = Instance;
-        BaseColours[Index] = Colour;
     }
     UMaterialInstanceDynamic* Dark = UMaterialInstanceDynamic::Create(Material, this);
     Dark->SetVectorParameterValue(TEXT("Tint"), EdgeColour);
     for (UStaticMeshComponent* Edge : Edges) { Edge->SetMaterial(0, Dark); }
-    bTinted = false;
-    Parts[Armband]->SetHiddenInGame(!bMonitor);
-    Parts[Clipboard]->SetHiddenInGame(!bMonitor);
-    Parts[CapCrown]->SetHiddenInGame(!bTeacher);
-    Parts[CapBill]->SetHiddenInGame(!bTeacher);
-    Parts[Whistle]->SetHiddenInGame(!bTeacher);
+    Layout();
+}
+
+void ULDHumanoidVisualComponent::Layout()
+{
+    using namespace LDHumanoidVisualDetail;
+    // Pivot space at rest: the capsule centre, the feet HalfHeight below it and the top of the head HeightCm above them.
+    const float Foot = -HalfHeight, Top = Foot + HeightCm, Girth = HeightCm / ReferenceHeightCm;
+    Parts[RootRing]->SetRelativeLocation(FVector(0, 0, Foot + 3.f));
+    Parts[RootRim]->SetRelativeLocation(FVector(0, 0, Foot + 2.8f));
+    Parts[ShackleLeft]->SetRelativeLocation(FVector(0, -11.f * Girth, Foot + 16.f));
+    Parts[ShackleRight]->SetRelativeLocation(FVector(0, 11.f * Girth, Foot + 16.f));
+    Parts[ShieldHalo]->SetRelativeLocation(FVector(0, 0, Top + 14.f));
+    for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
+    {
+        Parts[ShieldBar0 + Bar]->SetRelativeScale3D(FVector(.06f, .06f, (HeightCm + 14.f) / 100.f));
+    }
+    Parts[ProtectionBeam]->SetRelativeLocation(FVector(0, 0, Top + 79.f));
+    Parts[ReturnSign]->SetRelativeLocation(FVector(-24.f * Girth, 0, Foot + .74f * HeightCm));
+    Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
 void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
@@ -285,18 +318,18 @@ void ULDHumanoidVisualComponent::PlayFall()
 
 bool ULDHumanoidVisualComponent::IsFallen() const
 {
-    return FallAt >= 0 && LDBodyMotion::Fall(float(Clock - FallAt)).bGone;
+    return FallAt >= 0 && LDBodyMotion::Fall(float(Clock - FallAt), LieSeconds()).bGone;
 }
 
-void ULDHumanoidVisualComponent::PlaceLimb(int32 Index, const FVector& Joint, const FVector& Direction, float HalfLength)
+float ULDHumanoidVisualComponent::LieSeconds() const
 {
-    const FVector Along = Direction.GetSafeNormal();
-    Parts[Index]->SetRelativeLocationAndRotation(Joint + Along * HalfLength, FQuat::FindBetweenNormals(FVector(0, 0, -1), Along));
+    const FLDArtAnimation* Dying = Art ? Art->Find(ELDArtAnim::Death) : nullptr;
+    return Dying && Dying->PlayRate > 0.f ? LDHumanoidVisualDetail::LengthOf(Dying) / Dying->PlayRate : 0.f;
 }
 
-void ULDHumanoidVisualComponent::Tint(int32 Index, const FLinearColor& Colour)
+void ULDHumanoidVisualComponent::SetFlash(const FLinearColor& Emissive)
 {
-    if (Tints.IsValidIndex(Index) && Tints[Index]) { Tints[Index]->SetVectorParameterValue(TEXT("Tint"), Colour); }
+    for (UMaterialInstanceDynamic* Paint : Paints) { Paint->SetVectorParameterValue(ULDArtCatalog::FlashParameter, Emissive); }
 }
 
 void ULDHumanoidVisualComponent::PlaceEdges()
@@ -315,90 +348,94 @@ void ULDHumanoidVisualComponent::PlaceEdges()
         const FVector At = Marker->GetComponentLocation();
         const FVector Ray = (At - View->GetCameraLocation()).GetSafeNormal();
         Edges[Index]->SetRelativeLocation(Space.InverseTransformPosition(At + Ray * EdgeBehindCm));
+        Edges[Index]->SetRelativeScale3D(Marker->GetRelativeScale3D() + EdgeSpecs[Index].Grow);
     }
+}
+
+void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
+{
+    using namespace LDHumanoidVisualDetail;
+    using LDBodyMotion::EAction;
+    // The state that shows now: dying, an action, the respawn wave while standing, then running or standing. One-shots
+    // are posed at a clip time from the presentation clock; loops play at a rate.
+    ELDArtAnim State = Speed >= RunFromCmPerSec ? ELDArtAnim::Run : ELDArtAnim::Idle;
+    float Time = 0.f;
+    const auto Pose = [this, &State, &Time](ELDArtAnim Candidate, float At, bool bHold)
+    {
+        const float Length = LengthOf(Art->Find(Candidate));
+        if (Length <= 0.f || (!bHold && At >= Length)) { return false; }
+        State = Candidate;
+        Time = FMath::Min(At, Length);
+        return true;
+    };
+    const FLDArtAnimation* Dying = Art->Find(ELDArtAnim::Death);
+    const FLDArtAnimation* Acting = Action == EAction::None ? nullptr : Art->Find(ClipOf(Action));
+    const FLDArtAnimation* Waving = Art->Find(ELDArtAnim::Spawn);
+    const bool bPosed = bFalling
+        ? Dying && Pose(ELDArtAnim::Death, float(Clock - FallAt) * Dying->PlayRate, true)
+        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, float(Clock - ActionOnset), Acting->ImpactSec, Acting->PlayRate), false))
+            || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
+    const FLDArtAnimation* Entry = Art->Find(State);
+    if (!Entry || !Entry->Sequence) { return; }
+    if (State != Clip)
+    {
+        Mesh->PlayAnimation(Entry->Sequence, Entry->bLoop);
+        Clip = State;
+    }
+    if (bPosed)
+    {
+        // Posed explicitly every frame, so a late age or a slow frame never drifts from the timeline.
+        Mesh->Stop();
+        Mesh->SetPosition(Time, false);
+        return;
+    }
+    Mesh->SetPlayRate(State == ELDArtAnim::Run ? Speed / FMath::Max(Art->RunSpeedCmPerSec, 1.f) : Entry->PlayRate);
+    if (!Mesh->IsPlaying()) { Mesh->Play(true); }
 }
 
 void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
 {
     using namespace LDHumanoidVisualDetail;
     Clock += FMath::Max(Delta, 0.f);
+    if (!Art) { return; }
     const bool bFalling = FallAt >= 0;
     LDBodyMotion::FLife Life;
-    if (bFalling) { Life = LDBodyMotion::Fall(float(Clock - FallAt)); }
+    if (bFalling) { Life = LDBodyMotion::Fall(float(Clock - FallAt), LieSeconds()); }
     else if (AppearAt >= 0) { Life = LDBodyMotion::Appear(float(Clock - AppearAt)); }
-    // The current action's timeline; pose channels ease toward it, the spark and the flash follow it exactly.
+    // The current action's effects: the lunge and the orb ease toward the timeline, the spark and the flash follow it.
     const LDBodyMotion::FChannels Target = bFalling ? LDBodyMotion::FChannels()
         : LDBodyMotion::Evaluate(Action, float(Clock - ActionOnset));
     const float Ease = 1.f - FMath::Exp(-40.f * FMath::Max(Delta, 0.f));
-    Shown.WindBack = FMath::Lerp(Shown.WindBack, Target.WindBack, Ease);
-    Shown.Strike = FMath::Lerp(Shown.Strike, Target.Strike, Ease);
-    Shown.Raise = FMath::Lerp(Shown.Raise, Target.Raise, Ease);
-    Shown.Thrust = FMath::Lerp(Shown.Thrust, Target.Thrust, Ease);
-    Shown.Flinch = FMath::Lerp(Shown.Flinch, Target.Flinch, Ease);
     Shown.Lunge = FMath::Lerp(Shown.Lunge, Target.Lunge, Ease);
-    Shown.Lean = FMath::Lerp(Shown.Lean, Target.Lean, Ease);
     Shown.Charge = FMath::Lerp(Shown.Charge, Target.Charge, Ease);
     Shown.Burst = Target.Burst;
     Shown.Flash = Target.Flash;
 
-    // The whole body: a lunge or knock-back, an appear scale and a fall, both about the feet.
-    const FQuat Topple = FRotator(Life.Tilt, 0, 0).Quaternion();
-    const float Lying = FMath::Clamp(Life.Tilt / 90.f, 0.f, 1.f);
-    const FVector Offset(Shown.Lunge, 0, 17.f * Lying - Life.Sink);
-    Pivot->SetRelativeLocationAndRotation(Feet - Topple.RotateVector(Feet * Life.Scale) + Offset, Topple);
+    // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
+    const FVector Feet(0, 0, -HalfHeight);
+    Pivot->SetRelativeLocation(Feet * (1.f - Life.Scale) + FVector(Shown.Lunge, 0, -Life.Sink));
     Pivot->SetRelativeScale3D(FVector(FMath::Max(Life.Scale, .01f)));
 
-    // A rooted body keeps both legs locked even while a correction still moves it.
+    // A rooted body stands even while a correction still moves it.
     const bool bRooted = (Cue & Rooted) != 0;
-    const float Speed = bRooted || bFalling ? 0.f : Velocity.Size2D();
-    Phase += Delta * Speed / 32.0f;
-    const float Swing = Speed > 3 ? FMath::DegreesToRadians(22.f) * FMath::Sin(Phase) : 0.f;
-    // The upper body bends about the waist: forward for a strike or a push, back for a wind-up or a hit.
-    const FRotator Bend(-Shown.Lean, 0, 0);
-    const auto Upper = [&Bend](const FVector& Point) { return Waist + Bend.RotateVector(Point - Waist); };
-    Parts[Torso]->SetRelativeLocationAndRotation(Upper(Specs[Torso].Location), Bend);
-    Parts[Head]->SetRelativeLocation(Upper(Specs[Head].Location));
-    Parts[Facing]->SetRelativeLocation(Upper(Specs[Facing].Location));
-    // Arms: the walk swing, then each action pose by its weight. The right hand strikes (the 弹脑瓜崩 flick) while the
-    // left counter-swings; a cast raises both over the head and pushes them forward; a hit throws them outward.
-    FVector Left(FMath::Sin(Swing), -.08f, -FMath::Cos(Swing));
-    FVector Right(-FMath::Sin(Swing), .08f, -FMath::Cos(Swing));
-    Left = Blend(Left, FVector(.4f, -.2f, -.9f), .5f * Shown.WindBack);
-    Left = Blend(Left, FVector(-.4f, -.2f, -.9f), .5f * Shown.Strike);
-    Right = Blend(Right, FVector(-.75f, .3f, -.15f), Shown.WindBack);
-    Right = Blend(Right, FVector(1.f, .1f, .25f), Shown.Strike);
-    Left = Blend(Left, FVector(.3f, -.4f, .85f), Shown.Raise);
-    Right = Blend(Right, FVector(.3f, .4f, .85f), Shown.Raise);
-    Left = Blend(Left, FVector(1.f, -.15f, .15f), Shown.Thrust);
-    Right = Blend(Right, FVector(1.f, .15f, .15f), Shown.Thrust);
-    Left = Blend(Left, FVector(-.3f, -.85f, -.15f), Shown.Flinch);
-    Right = Blend(Right, FVector(-.3f, .85f, -.15f), Shown.Flinch);
-    const FVector LeftArm = Bend.RotateVector(Left).GetSafeNormal(), RightArm = Bend.RotateVector(Right).GetSafeNormal();
-    PlaceLimb(ArmLeft, Upper(ShoulderLeft), LeftArm, ArmHalf);
-    PlaceLimb(ArmRight, Upper(ShoulderRight), RightArm, ArmHalf);
-    // Legs: the walk stride, and a forward step under a lunge.
-    const float Stride = bRooted ? 0.f : Swing;
-    const float Step = FMath::Clamp(Shown.Lunge / 30.f, 0.f, 1.f);
-    const FVector LegL = Blend(FVector(-FMath::Sin(Stride), 0, -FMath::Cos(Stride)), FVector(-.25f, 0, -.97f), .7f * Step);
-    const FVector LegR = Blend(FVector(FMath::Sin(Stride), 0, -FMath::Cos(Stride)), FVector(.35f, 0, -.94f), .7f * Step);
-    PlaceLimb(LegLeft, HipLeft, LegL, LegHalf);
-    PlaceLimb(LegRight, HipRight, LegR, LegHalf);
+    PlayClip(bFalling, bRooted || bFalling ? 0.f : float(Velocity.Size2D()));
 
-    // Effects: the spark at the striking hand, the chest or the pushing hands; the orb over a cast.
+    // Effects: the spark at the striking or casting hand, or at the chest of a hit body; the orb at the casting hand.
+    const FTransform& Space = Pivot->GetComponentTransform();
+    const FVector Hand = Space.InverseTransformPosition(Mesh->GetSocketLocation(Art->HandBone));
     const bool bBurst = Shown.Burst > .02f;
     Parts[Burst]->SetHiddenInGame(!bBurst);
     if (bBurst)
     {
-        const FVector Spark = Action == LDBodyMotion::EAction::Attack ? Upper(ShoulderRight) + RightArm * (2.f * ArmHalf + 6.f)
-            : Action == LDBodyMotion::EAction::Cast ? Upper(FVector(48, 0, 45)) : Upper(FVector(22, 0, 25));
-        Parts[Burst]->SetRelativeLocation(Spark);
+        Parts[Burst]->SetRelativeLocation(Action == LDBodyMotion::EAction::Hit
+            ? FVector(18.f, 0, -HalfHeight + .72f * HeightCm) : Hand + FVector(8.f, 0, 0));
         Parts[Burst]->SetRelativeScale3D(FVector(.55f * Shown.Burst));
     }
     const bool bCharge = Shown.Charge > .02f;
     Parts[Charge]->SetHiddenInGame(!bCharge);
     if (bCharge)
     {
-        Parts[Charge]->SetRelativeLocation(Upper(Specs[Charge].Location));
+        Parts[Charge]->SetRelativeLocation(Hand);
         Parts[Charge]->SetRelativeScale3D(FVector(.1f + .25f * Shown.Charge));
     }
     const bool bColumn = Life.Column > .02f;
@@ -407,6 +444,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
 
     // Status markers, one shape each; a falling body shows none.
     const float Time = float(FMath::Fmod(Clock, 3600.0));
+    const float Foot = -HalfHeight, Girth = HeightCm / ReferenceHeightCm;
     const bool bRoot = !bFalling && bRooted;
     Parts[RootRing]->SetHiddenInGame(!bRoot);
     Parts[RootRim]->SetHiddenInGame(!bRoot);
@@ -425,7 +463,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         Parts[ShieldBar0 + Bar]->SetHiddenInGame(!bShield);
         if (!bShield) { continue; }
         const float Angle = FMath::DegreesToRadians(45.f * Bar + 40.f * Time);
-        Parts[ShieldBar0 + Bar]->SetRelativeLocation(FVector(56.f * FMath::Cos(Angle), 56.f * FMath::Sin(Angle), 2.f));
+        Parts[ShieldBar0 + Bar]->SetRelativeLocation(
+            FVector(56.f * Girth * FMath::Cos(Angle), 56.f * Girth * FMath::Sin(Angle), Foot + .5f * (HeightCm + 14.f)));
     }
     const bool bProtected = !bFalling && (Cue & Protected);
     Parts[ProtectionBeam]->SetHiddenInGame(!bProtected);
@@ -434,32 +473,26 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         Parts[ProtectionOrb0 + Orb]->SetHiddenInGame(!bProtected);
         if (!bProtected) { continue; }
         const float Angle = FMath::DegreesToRadians(90.f * Orb + 200.f * Time);
-        Parts[ProtectionOrb0 + Orb]->SetRelativeLocation(
-            FVector(62.f * FMath::Cos(Angle), 62.f * FMath::Sin(Angle), -5.f + 8.f * FMath::Sin(4.f * Time + 1.6f * Orb)));
+        Parts[ProtectionOrb0 + Orb]->SetRelativeLocation(FVector(62.f * Girth * FMath::Cos(Angle), 62.f * Girth * FMath::Sin(Angle),
+            Foot + .48f * HeightCm + 8.f * FMath::Sin(4.f * Time + 1.6f * Orb)));
     }
     Parts[ReturnSign]->SetHiddenInGame(bFalling || !(Cue & Returning));
     PlaceEdges();
 
-    // Body tint: a hit flashes white, then red; an appear glows. Restored once both have passed.
+    // Body flash: a hit flashes white, then red; an appear glows. Cleared once both have passed.
     const float Glow = bFalling ? 0.f : Life.Glow;
     if (Shown.Flash > 0.f || Glow > 0.f)
     {
-        const bool bHitTint = Shown.Flash >= Glow;
-        const float Amount = FMath::Min(1.f, bHitTint ? 1.15f * Shown.Flash : Glow);
-        const FLinearColor Over = bHitTint
+        const bool bHitFlash = Shown.Flash >= Glow;
+        const float Amount = FMath::Min(1.f, bHitFlash ? 1.15f * Shown.Flash : Glow);
+        const FLinearColor Over = bHitFlash
             ? FMath::Lerp(FlashRed, FlashWhite, FMath::Clamp((Shown.Flash - .6f) / .4f, 0.f, 1.f)) : AppearGlow;
-        for (int32 Index = 0; Index < PartCount; ++Index)
-        {
-            if (IsBody(Index) && BaseColours.IsValidIndex(Index)) { Tint(Index, FMath::Lerp(BaseColours[Index], Over, Amount)); }
-        }
-        bTinted = true;
+        SetFlash(Over * Amount);
+        bFlashing = true;
     }
-    else if (bTinted)
+    else if (bFlashing)
     {
-        for (int32 Index = 0; Index < PartCount; ++Index)
-        {
-            if (IsBody(Index) && BaseColours.IsValidIndex(Index)) { Tint(Index, BaseColours[Index]); }
-        }
-        bTinted = false;
+        SetFlash(FLinearColor::Black);
+        bFlashing = false;
     }
 }
