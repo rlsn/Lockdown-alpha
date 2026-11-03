@@ -73,6 +73,8 @@ struct LOCKDOWN_API FLDArtProp
     GENERATED_BODY()
     UPROPERTY(VisibleAnywhere) FString Id;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMesh> Mesh;
+    // A prop that may stand between the camera and a body: its own tagged component, materials with FadeParameter.
+    UPROPERTY(VisibleAnywhere) bool bFadeable = false;
 };
 
 USTRUCT()
@@ -109,6 +111,9 @@ public:
     // Vector parameters of every art material: the identity tint (tint slots) and an additive emissive hit flash.
     static constexpr const TCHAR* TintParameter = TEXT("Tint");
     static constexpr const TCHAR* FlashParameter = TEXT("Flash");
+    // Fadeable props: scalar 0 opaque .. 1 faintest (dithered, no translucency sorting), on components tagged FadeableTag.
+    static constexpr const TCHAR* FadeParameter = TEXT("LDFade");
+    static constexpr const TCHAR* FadeableTag = TEXT("LDFadeable");
     UPROPERTY(VisibleAnywhere) TArray<FLDArtCharacter> Characters;
     // Exactly one entry per seat 0..5, in seat order.
     UPROPERTY(VisibleAnywhere) TArray<FLDArtSeatLook> Seats;

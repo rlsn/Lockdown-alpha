@@ -255,6 +255,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 因此不改变 D02 的墙体、视线与 navmesh。`LDArt::CheckPlacements` 按已批准世界逐个核对区域：
 `outside` 不压场地地面；`wall_base` 在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、
 商店与升旗台；`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位）。
+清单中标 `fadeable` 的道具（目前只有旗杆）使用 `M_ArtSurfaceFade`（Masked，按 `1 − 0.7·LDFade` 逐像素抖动），
+由独立组件承载并带组件标签 `LDFadeable`，HUD 遮挡时经 MID 设置 `LDFade`（0 不透明、1 最淡）。
 没有找到 CC0 的篮球架，未加入。
 
 ## 营地与占领的复用边界
