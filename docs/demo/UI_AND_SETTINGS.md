@@ -474,10 +474,10 @@ VSync/ScalabilityQuality 在确认前不写入 `UGameUserSettings`，也不调�
 `SaveSettings` 返回 void，不能包装成 `true`；
 窄 adapter 从实际目标配置文件重新读盘核对相关字段，非再次读 GConfig 内存，
 无法确认则显示“已应用，本地保存未确认/失败”，保留 dirty 和重试入口，不写第二份显示存档。
-显示回滚计时是本地 UX 安全计时而非玩法时钟；上述 API 与退出钩子仍需在锁定引擎实证。
+显示回滚计时是本地 UX 安全计时而非玩法时钟；保存回读与退出写盘由 `Lockdown.Rules.LocalDisplay*` 规则覆盖。
 
-已有 [SavePreferences](https://github.com/rlsn/Lockdown-alpha/blob/fa11d09a762bccadf495191072e222dd158fc014/Source/Lockdown/Private/UI/LDControlsPanel.cpp#L54-L64)
-在 Save false 时提示本次已改但未保存，这个诚实反馈应保留。
+保存失败时明确提示“未保存”（[LDControlSettings.cpp](../../Source/Lockdown/Private/UI/LDControlSettings.cpp) 的本地偏好、
+[LDGameInstance.cpp](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp) 的显示设置结果），不把失败写成成功。
 小型本地偏好先复用同步 Save；明确 Apply/离开/旅行/退出只 flush 最后一份
 **ConfirmedApplied 且尚未验证持久化**的合格值，不保存 EditingDraft/DisplayTrial。
 flush 必须在未确认试用收尾后执行，保留已明确应用的镜头偏好，不依赖滚轮后延迟 tick 恰好触发。
@@ -493,8 +493,8 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 
 ## 9. SC-09 E：参数/目录键与单位
 
-本表只引用 `CONTENT_AND_BALANCE.md` 的正式键及其待审状态，不复制数值表，
-不把 docs 作为运行输入。批准后仍须同一 SourceData → Sync → Content/contract → native loader。
+本表只引用 `CONTENT_AND_BALANCE.md` 的正式键，不复制数值表，不把 docs 作为运行输入；
+数值经 SourceData → Sync → Content/contract → native loader 进入运行。
 
 | 正式键/来源 | 单位/显示转换 | 消费者 |
 | --- | --- | --- |
