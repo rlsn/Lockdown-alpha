@@ -167,6 +167,7 @@ public:
     double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, BlockedSince = 0;
     EStage Stage = EStage::Join;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStartIssued = false, bSitesReady = false;
+    bool bPresetsStaged = false;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     TArray<TSharedPtr<FJsonValue>> Checks;
 
@@ -330,8 +331,8 @@ public:
         switch (Stage)
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
-        case EStage::Lobby: return TickLobby(Now, *PC, Lobby);
-        case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby, Mode);
+        case EStage::Lobby: return TickLobby(Now, *PC, Lobby, Mode);
+        case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby);
         case EStage::ToSite: return TickToSite(Now, *PC);
         case EStage::AttackMove: return TickAttackMove(Now, *PC);
         case EStage::Engaged: return TickEngaged(Now, *PC);
@@ -395,7 +396,7 @@ public:
     }
 
     // The ordinary lobby through owning session RPCs: no AI seats, every human ready, the Host's normal Start.
-    bool TickLobby(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
+    bool TickLobby(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby, ALDGameMode* Mode)
     {
         if (Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen)
         {
@@ -445,6 +446,16 @@ public:
         if (Lobby.CanStart)
         {
             BlockedSince = 0;
+            // The opening offer is drawn when the match begins, so the presets are staged in the Lobby before Start.
+            if (!bPresetsStaged)
+            {
+                for (const FLDLobbyMember& LobbyMember : Lobby.Members)
+                {
+                    (LobbyMember.Host ? HostId : ClientId) = LobbyMember.ContenderId;
+                }
+                if (!Mode || !QueuePresets(*Mode)) { return Finish(); }
+                bPresetsStaged = true;
+            }
             if (Now >= NextCommandAt)
             {
                 PC.StartDemoMatch();
@@ -458,28 +469,34 @@ public:
         return Fail(TEXT("Start"), TEXT("The ordinary lobby Start stays refused with every human ready: ") + Lobby.StartBlocker);
     }
 
-    bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby, ALDGameMode* Mode)
+    bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
     {
         if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.OwnerState.BodyRef.IsValid()
             || !PC.CanWorldCommand())
         {
             return true;
         }
+        const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
             TEXT("The first body is an unprotected initial life"));
-        if (!Passed || (IsHost() && !QueuePresets(*Mode))) { return Finish(); }
+        if (IsHost())
+        {
+            Check(StagedHost == HostId && StagedClient == ClientId, TEXT("Skills"),
+                TEXT("The Lobby presets were staged for exactly this match's two contenders"));
+        }
+        if (!Passed) { return Finish(); }
         PC.Navigation->Navigate(IsHost() ? HostSite : ClientSite);
         NavigateAttempts = 1;
         SetStage(EStage::ToSite);
         return true;
     }
 
-    // Host, before anyone earns a level: the fixture presets each role's coming offers, one planned card per offer.
+    // Host, in the Lobby before Start: the fixture stages each role's first offers, the opening one included, one planned card per offer.
     bool QueuePresets(ALDGameMode& Mode)
     {
         FString QueueError;
-        bool bQueued = LDDevGrowthFixture::IsSwitchPresent() && Mode.Development != nullptr;
+        bool bQueued = LDDevGrowthFixture::IsSwitchPresent() && Mode.Development != nullptr && HostId.IsValid() && ClientId.IsValid();
         for (const FName& Card : LDDemoCombatScenario::CombatProbeSkillPlan(true))
         {
             bQueued = bQueued && Mode.Development->DevQueueOffer(HostId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
@@ -489,7 +506,7 @@ public:
             bQueued = bQueued && Mode.Development->DevQueueOffer(ClientId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
         }
         return Check(bQueued, TEXT("Skills"),
-            TEXT("The Host's DEV growth fixture (-LDDevGrowthFixture) presets the offers of both roles' coming levels"), QueueError);
+            TEXT("The Host's DEV growth fixture (-LDDevGrowthFixture) stages both roles' opening and next offers in the Lobby"), QueueError);
     }
 
     bool ResolveRoster(const ALDPlayerController& PC, const FLDLobbyView& Lobby)
@@ -1447,7 +1464,8 @@ public:
 
     // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's arc bolt and the reach card. ----
 
-    // The fixture's XP grants raise each role exactly to the level of its last planned card.
+    // The fixture's XP grants raise each role one level past its planned cards (the opening offer took the first), as before
+    // the opening choice, so level-dependent checks keep their values; that last opportunity stays unchosen.
     bool TickGrant(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
         if (!Mode.Economy) { return Fail(TEXT("Skills"), TEXT("The Listen Host has no Economy owner for the fixture's grants")); }

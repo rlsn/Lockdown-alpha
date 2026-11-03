@@ -76,19 +76,22 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 检查入口
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
-`DemoGrowthProgression` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
-等级/候选/替换纯规则与本人视图隐私白名单。
+`DemoGrowthProgression`、`DemoGrowthOpening` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
+等级/候选/替换纯规则、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
 导出 schema 3 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块），`python -B Scripts\CheckEconomyEvidence.py <证据>`
 逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
 时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
 
 DEV 成长夹具（`Development\LDDevGrowthFixture.*`）只在 `WITH_DEV_AUTOMATION_TESTS` 构建中存在，
-只在以 `-LDDevGrowthFixture` 启动的权威进程、当前开放对局内生效，没有 RPC，客户端、AI 和正常玩法不会调用。
+只在以 `-LDDevGrowthFixture` 启动的权威进程、Lobby 或当前开放对局内生效，没有 RPC，客户端、AI 和正常玩法不会调用。
 Host 的 DEV probe 在游戏线程直接调用：
 `ALDDevelopmentDirector::DevQueueOffer(Contender, 三个定义)` 为该参赛者之后生成的队首 Offer 按先进先出各预置一组，
 入队时按当前构筑的 `LegalPool` 校验（恰好三张互异、种类由构筑推出、不超过剩余可抽的 Offer 数），
-抽取时按当次合法池再验，失效则打 `LD_DEV_FIXTURE_PRESET_REFUSED` 错误并按正常种子抽取；
+抽取时按当次合法池再验，失效则打 `LD_DEV_FIXTURE_PRESET_REFUSED` 错误并按正常种子抽取。
+开局 Offer 在 `BeginMatch` 中生成、早于任何对局内调用，因此在 Lobby 阶段调用时改为暂存给下一局
+（按空的开局构筑校验，接收者须是当前 Lobby 成员）；`BeginMatch` 把锁定名单内的暂存移入本局队列并由开局 Offer 先消费，
+名单外的暂存记错误丢弃，旧局队列从不带入新局。
 选择仍经 `SubmitChoice`→`CommitPendingChoice`→Combat 安装。
 `ALDEconomyDirector::DevGrantReward(Contender, XP, Gold)` 排入下一个 Transactions 阶段，
 与死亡奖励共用 `CommitRewardParts` 复合提交（账本 cause `DevFixture` 铸币、`PrepareExperience` 与 Combat 投影），
@@ -97,7 +100,9 @@ Host 的 DEV probe 在游戏线程直接调用：
 只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
 未加时任何夹具证据都判失败。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
-开局即为买方预置全部六组 Offer（先拒绝一组重复卡的预置）；一个真实拥有客户端
+在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
+双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，
+不重发开局机会；一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
 买两件带无目标主动的同款、满槽 `EquipmentFull`、同号重放，用其中一件的主动（另一件轨道保持就绪），
 出售用过的那件后报价显示其冷却债会被继承，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
@@ -110,8 +115,8 @@ Host 的 DEV probe 在游戏线程直接调用：
 直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的零花钱/等级文本里达到精确的新值。Host 导出账本证据由
 `CheckEconomyEvidence.py --dev-fixture` 复算并与双方本人投影比对，且只列出 Host 自己那笔夹具铸币。
 随后 Host 无胜者结束本局并回到新一代 Lobby，
-两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无机会/技能/属性卡/装备、
-Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
+两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、
+只有本局新抽的一次开局机会（不是第一局的任何 Offer），Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
 且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
 开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、抢圈或终局。
 已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。

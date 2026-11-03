@@ -106,7 +106,7 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(!MainPanel){return;}
     const bool bUsable=View.bValid&&View.Generation==Match&&View.Life==Life;
     const bool bOffer=bUsable&&View.bHasOffer&&View.Offer.Options.Num()==3;
-    ChoicesText(Header,!bUsable?FString(TEXT("升级奖励 · 成长数据同步中")):FString::Printf(TEXT("升级奖励 · 待选 %d 次%s"),View.PendingChoiceCount,
+    ChoicesText(Header,!bUsable?FString(TEXT("成长三选一 · 成长数据同步中")):FString::Printf(TEXT("成长三选一 · 待选 %d 次%s"),View.PendingChoiceCount,
         Phase==ELDLifePhase::Dead?TEXT(" · 社死中也可确认，只更新构筑"):TEXT("")));
     if(!bOffer||View.Offer.OfferId!=ShownOffer||View.Offer.OfferRevision!=ShownOfferRevision)
     {
@@ -218,7 +218,7 @@ void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;RefreshSelection();
     // A result that arrives after the panel was closed still reaches the player, without reopening the panel.
-    if(!bOpen&&Notify&&Feedback){Notify(TEXT("升级奖励：")+Feedback->GetText().ToString());}
+    if(!bOpen&&Notify&&Feedback){Notify(TEXT("成长三选一：")+Feedback->GetText().ToString());}
 }
 void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
 {

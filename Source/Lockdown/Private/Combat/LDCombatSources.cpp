@@ -235,10 +235,10 @@ namespace LDCombatSourcesDetail
                 return false;
             }
         }
-        // Every active rank, passive rank and card consumed one level-up choice.
+        // Every active rank, passive rank and card consumed one choice: the opening one plus one per level-up.
         for (const FLDLearnedPassiveValue& Passive : Input.Passives) { ConsumedChoices+=Passive.Rank; }
         for (const FLDAttributeCardValue& Card : Input.AttributeCards) { ConsumedChoices+=Card.Count; }
-        const int64 ChoiceBound=FMath::Min<int64>(int64(Input.Level)-1,Progression.MaxChoices);
+        const int64 ChoiceBound=FMath::Min<int64>(int64(Input.Level),Progression.MaxChoices);
         if (ConsumedChoices>ChoiceBound)
         {
             Error=FString::Printf(TEXT("InvalidInput: the build uses %lld choices; level %d allows at most %lld."),
