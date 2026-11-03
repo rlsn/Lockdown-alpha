@@ -105,6 +105,9 @@ public:
     bool CancelArmedCombat();
     // Left-click confirmation of the armed entry or attack-move; false when nothing was armed.
     bool ConfirmArmedCombat();
+    // Confirms the armed Q/W/1/2 entry on an explicit aim (an observed unit handle or a planar direction) instead of
+    // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed.
+    bool ConfirmArmedEntry(const FLDCombatTarget& Aim);
     // S: stop orders and cancel interruptible Direct actions issued so far.
     void StopCombatAndOrders();
     // A child confirmation or a text edit owns input (UI 4): no new world command, armed preview or camera input

@@ -5,6 +5,9 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
+#include "Development/LDDevGrowthFixture.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -36,8 +39,10 @@
 
 // Owned-connection combat and orders scenario (COMBAT_AND_ATTRIBUTES, CONTROLS_AND_TARGETING). Client1 acts only
 // through its own connection and the calls its hotkeys make; the participating Listen Host stands still while it is
-// attacked, audits those hits from its authority and then kills Client1 with an ordinary right-click order. The probe
-// never calls a driver entry, an _Implementation or a Combat write. Named, not anonymous: unity builds merge files.
+// attacked, audits those hits from its authority and then kills Client1 with an ordinary right-click order. Afterwards
+// both learn approved skills from offers the Host's DEV growth fixture (-LDDevGrowthFixture) presets and grants XP
+// for, choose them with the ordinary SubmitChoice and cast them through their hotkey entries. The probe never calls a
+// driver entry, an _Implementation or a Combat write. Named, not anonymous: unity builds merge files.
 namespace LDDemoCombatScenario
 {
 constexpr int32 CombatProbeNavigateAttempts = 4;
@@ -67,6 +72,25 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
+// Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range and beyond the
+// reach-carded basic range, so the arc bolt flies and the reach card's chase must close in before its hit lands.
+constexpr double CombatProbeSkillGapCm = 450.0;
+// A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
+constexpr double CombatProbeSkillArrivalCm = 60.0;
+// Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
+constexpr double CombatProbeSkillSeconds = 3.0;
+
+// The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer.
+TArray<FName> CombatProbeSkillPlan(bool bHost)
+{
+    return bHost ? TArray<FName>{FName(TEXT("attr_reach")), FName(TEXT("active_binding_snare")), FName(TEXT("active_arc_bolt"))}
+        : TArray<FName>{FName(TEXT("active_guard_pulse"))};
+}
+
+TArray<FName> CombatProbePreset(FName Card)
+{
+    return {Card, FName(TEXT("attr_might")), FName(TEXT("attr_focus"))};
+}
 
 double CombatProbeRational(const FLDDemoRational& Value)
 {
@@ -100,6 +124,16 @@ const FLDObservedStatus* CombatProbeProtection(const TArray<FLDObservedStatus>& 
     const uint8 Protection = uint8(ELDDemoStatusId::RespawnProtection);
     return Statuses.FindByPredicate([Protection](const FLDObservedStatus& Cue) { return Cue.StatusId == Protection; });
 }
+
+const FLDObservedStatus* CombatProbeStatus(const TArray<FLDObservedStatus>& Statuses, ELDDemoStatusId Id)
+{
+    return Statuses.FindByPredicate([Id](const FLDObservedStatus& Cue) { return Cue.StatusId == uint8(Id); });
+}
+
+const FLDCombatStatusView* CombatProbeOwnStatus(const FLDCombatOwnerView& View, ELDDemoStatusId Id)
+{
+    return View.Statuses.FindByPredicate([Id](const FLDCombatStatusView& Row) { return Row.StatusId == uint8(Id); });
+}
 }
 
 class FLDDemoCombatProbe : public TSharedFromThis<FLDDemoCombatProbe>
@@ -109,9 +143,13 @@ public:
     {
         Join, Lobby, Spawned, ToSite,
         // Client1
-        AttackMove, Engaged, Stopping, AwaitDeath, AwaitRespawn, Sighting, Spend, Settle,
+        AttackMove, Engaged, Stopping, AwaitDeath, AwaitRespawn, Sighting, Spend, Settle, ToSkillSite, Rooted, Shielded,
+        SkillsDone,
         // Host
-        Struck, Quiet, Kill, KillWait, Respawn, Removal, Wrap
+        Struck, Quiet, Kill, KillWait, Respawn, Removal, Grant, Return, Snare, Rooting, ShieldSeen, Bolt, BoltFlight, Reach,
+        ReachHit, Wrap,
+        // Both
+        Learn
     };
 
     TWeakObjectPtr<ALDPlayerController> Controller;
@@ -154,6 +192,23 @@ public:
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
     FString RespawnAnchor;
+
+    // Skills, both roles: the preset cards learned so far and the choice in flight.
+    int32 SkillsLearned = 0;
+    uint64 ChoiceRequest = 0;
+    // Client1: the skill site on the open duel line, the snare's root deadline and the guard pulse's shield.
+    FVector SkillSite = FVector::ZeroVector;
+    int64 RootUntilMs = 0;
+    // Host: the fixture grants, then each cast's baseline on Client1's authority body and what the casts showed.
+    uint64 HostGrant = 0, ClientGrant = 0;
+    int64 HitBeforeMs = 0, PoolBeforeP2 = 0;
+    FVector BoltAim = FVector::ZeroVector;
+    FGuid BoltKey;
+    FString FlightError;
+    int32 ProjectileSamples = 0;
+    bool bBoltHeading = true, bCastCueSeen = false;
+    double SkillGapCm = 0, ReachHitCm = 0;
+    FLDMoveIdentity ReachOrder;
 
     bool IsHost() const
     {
@@ -252,7 +307,7 @@ public:
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
         case EStage::Lobby: return TickLobby(Now, *PC, Lobby);
-        case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby);
+        case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby, Mode);
         case EStage::ToSite: return TickToSite(Now, *PC);
         case EStage::AttackMove: return TickAttackMove(Now, *PC);
         case EStage::Engaged: return TickEngaged(Now, *PC);
@@ -262,13 +317,27 @@ public:
         case EStage::Sighting: return TickSighting(Now, *PC);
         case EStage::Spend: return TickSpend(Now, *PC);
         case EStage::Settle: return TickSettle(Now, *PC);
+        case EStage::ToSkillSite: return TickToSkillSite(Now, *PC);
+        case EStage::Rooted: return TickRooted(Now, *PC);
+        case EStage::Shielded: return TickShielded(Now, *PC);
+        case EStage::SkillsDone: return TickSkillsDone(Now, *PC);
         case EStage::Struck: return TickStruck(Now, *PC, *Mode);
         case EStage::Quiet: return TickQuiet(Now, *PC, *Mode);
         case EStage::Kill: return TickKill(Now, *PC);
         case EStage::KillWait: return TickKillWait(Now, *PC, *Mode, *Public);
         case EStage::Respawn: return TickRespawn(Now, *Mode, *Registry);
         case EStage::Removal: return TickRemoval(Now, *Mode);
+        case EStage::Grant: return TickGrant(Now, *PC, *Mode);
+        case EStage::Return: return TickReturn(Now, *PC);
+        case EStage::Snare: return TickSnare(Now, *PC, *Mode);
+        case EStage::Rooting: return TickRooting(Now, *PC, *Mode);
+        case EStage::ShieldSeen: return TickShieldSeen(Now, *PC);
+        case EStage::Bolt: return TickBolt(Now, *PC, *Mode);
+        case EStage::BoltFlight: return TickBoltFlight(Now, *PC, *Mode);
+        case EStage::Reach: return TickReach(Now, *PC, *Mode);
+        case EStage::ReachHit: return TickReachHit(Now, *PC, *Mode);
         case EStage::Wrap: return TickWrap(*Public, *PC);
+        case EStage::Learn: return TickLearn(Now, *PC);
         default: return Fail(TEXT("Net"), TEXT("The scenario reached an unknown stage"));
         }
     }
@@ -364,7 +433,7 @@ public:
         return Fail(TEXT("Start"), TEXT("The ordinary lobby Start stays refused with every human ready: ") + Lobby.StartBlocker);
     }
 
-    bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
+    bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby, ALDGameMode* Mode)
     {
         if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.OwnerState.BodyRef.IsValid()
             || !PC.CanWorldCommand())
@@ -374,11 +443,28 @@ public:
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
             TEXT("The first body is an unprotected initial life"));
-        if (!Passed) { return Finish(); }
+        if (!Passed || (IsHost() && !QueuePresets(*Mode))) { return Finish(); }
         PC.Navigation->Navigate(IsHost() ? HostSite : ClientSite);
         NavigateAttempts = 1;
         SetStage(EStage::ToSite);
         return true;
+    }
+
+    // Host, before anyone earns a level: the fixture presets each role's coming offers, one planned card per offer.
+    bool QueuePresets(ALDGameMode& Mode)
+    {
+        FString QueueError;
+        bool bQueued = LDDevGrowthFixture::IsSwitchPresent() && Mode.Development != nullptr;
+        for (const FName& Card : LDDemoCombatScenario::CombatProbeSkillPlan(true))
+        {
+            bQueued = bQueued && Mode.Development->DevQueueOffer(HostId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
+        }
+        for (const FName& Card : LDDemoCombatScenario::CombatProbeSkillPlan(false))
+        {
+            bQueued = bQueued && Mode.Development->DevQueueOffer(ClientId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
+        }
+        return Check(bQueued, TEXT("Skills"),
+            TEXT("The Host's DEV growth fixture (-LDDevGrowthFixture) presets the offers of both roles' coming levels"), QueueError);
     }
 
     bool ResolveRoster(const ALDPlayerController& PC, const FLDLobbyView& Lobby)
@@ -441,22 +527,26 @@ public:
         const bool bHostLegal = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError)
             && Legal(HostSite, HostGround);
         // Only Client1 walks to its own site: eight fixed bearings around the Host's site, the first with legal ground
-        // and a near-straight complete route from the Host's site (open ground in sight) wins.
+        // and a near-straight complete route from the Host's site (open ground in sight) wins. Its skill site lies on
+        // that open line, nearer the Host, and must be legal too.
         bool bClientLegal = IsHost();
         for (int32 Bearing = 0; bHostLegal && !bClientLegal && Bearing < 8; ++Bearing)
         {
-            ClientSite = HostSite + Across.RotateAngleAxis(45.0 * Bearing, FVector::UpVector) * Gap;
-            FLDLegalGround ClientGround;
+            const FVector Direction = Across.RotateAngleAxis(45.0 * Bearing, FVector::UpVector);
+            ClientSite = HostSite + Direction * Gap;
+            SkillSite = HostSite + Direction * LDDemoCombatScenario::CombatProbeSkillGapCm;
+            FLDLegalGround ClientGround, SkillGround;
             FLDCompletePath Route;
             ELDWorldQueryFailure RouteFailure = ELDWorldQueryFailure::None;
-            bClientLegal = Legal(ClientSite, ClientGround)
+            bClientLegal = Legal(ClientSite, ClientGround) && Legal(SkillSite, SkillGround)
                 && Registry.QueryCompletePath(Registry.Revision(), HostGround, ClientGround, Capsule, Route, RouteFailure, SiteError)
                 && Route.LengthCm <= 1.2 * Gap;
         }
         bSitesReady = bHostLegal && bClientLegal;
         return Check(bSitesReady, TEXT("Start"),
             TEXT("The duel sites are legal ground outside the shop reach and the capture circle, joined by an open complete route"),
-            FString::Printf(TEXT("host=%s client=%s %s"), *HostSite.ToCompactString(), *ClientSite.ToCompactString(), *SiteError));
+            FString::Printf(TEXT("host=%s client=%s skill=%s %s"), *HostSite.ToCompactString(), *ClientSite.ToCompactString(),
+                *SkillSite.ToCompactString(), *SiteError));
     }
 
     bool TickToSite(double Now, ALDPlayerController& PC)
@@ -855,6 +945,201 @@ public:
         if (Now - StageAt < LDDemoCombatScenario::CombatProbeQuietSeconds) { return true; }
         Check(PC.OwnerState.Life == 2 && PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.ProtectedUntilMs == 0,
             TEXT("Protection"), TEXT("A refused action never restores protection on the same life"));
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::Learn);
+        return true;
+    }
+
+    // ---- Both: the fixture's preset card from each head offer, taken with the ordinary SubmitChoice. ----
+
+    bool TickLearn(double Now, ALDPlayerController& PC)
+    {
+        const TArray<FName> Plan = LDDemoCombatScenario::CombatProbeSkillPlan(IsHost());
+        const FName Wanted = Plan[SkillsLearned];
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        if (ChoiceRequest != 0)
+        {
+            const bool bLearned = View && (View->Skills.ContainsByPredicate([&Wanted](const FLDLearnedSkillView& Row)
+            {
+                return Row.DefinitionId == Wanted && Row.Rank == 1;
+            }) || View->AttributeCards.ContainsByPredicate([&Wanted](const FLDAttributeCardView& Row)
+            {
+                return Row.DefinitionId == Wanted && Row.Count == 1;
+            }));
+            if (!bLearned)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+                return Fail(TEXT("Skills"), TEXT("The chosen preset card never reached the owner build: ") + Wanted.ToString());
+            }
+            ChoiceRequest = 0;
+            StageAt = Now;
+            if (++SkillsLearned < Plan.Num()) { return true; }
+            Check(true, TEXT("Skills"), TEXT("Every preset card was offered on its level and learned through the ordinary choice"),
+                FString::JoinBy(Plan, TEXT(","), [](const FName& Card) { return Card.ToString(); }));
+            NavigateAttempts = 0;
+            SetStage(IsHost() ? EStage::Return : EStage::ToSkillSite);
+            return true;
+        }
+        // The next head offer arrives with the build that consumed the previous one, or after the fixture's grant.
+        const FLDChoiceOption* Card = View && View->bHasOffer && View->bCanChoose
+            ? View->Offer.Options.FindByPredicate([&Wanted](const FLDChoiceOption& Option) { return Option.DefinitionId == Wanted; })
+            : nullptr;
+        if (!Card)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            FString Cards;
+            for (const FLDChoiceOption& Option : View && View->bHasOffer ? View->Offer.Options : TArray<FLDChoiceOption>())
+            {
+                Cards += Option.DefinitionId.ToString() + TEXT(" ");
+            }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("No choosable head offer carries the preset card %s (offer: %s)"),
+                *Wanted.ToString(), *Cards));
+        }
+        FLDChoiceCommand Command;
+        Command.OfferId = View->Offer.OfferId;
+        Command.OfferRevision = View->Offer.OfferRevision;
+        Command.OptionId = Card->OptionId;
+        Command.ExpectedBuildRevision = View->BuildRevision;
+        Command.CatalogDigest = View->CatalogDigest;
+        ELDGrowthReason LocalReason = ELDGrowthReason::None;
+        ChoiceRequest = PC.SubmitChoice(Command, LocalReason);
+        if (!Check(ChoiceRequest != 0 && LocalReason == ELDGrowthReason::None, TEXT("Skills"),
+            TEXT("The owning connection submits the preset card as an ordinary choice"), Wanted.ToString()))
+        {
+            return Finish();
+        }
+        StageAt = Now;
+        return true;
+    }
+
+    // A ground walk to Site with bounded retries; bArrived once the body stands within Tolerance of it.
+    bool Walk(double Now, ALDPlayerController& PC, const FVector& Site, double Tolerance, bool& bArrived)
+    {
+        bArrived = false;
+        const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive)
+        {
+            return Fail(TEXT("Skills"), TEXT("The owned body ended its life during a skill-stage walk"));
+        }
+        if (PC.Navigation->HasMoveOrder() || (NavigateAttempts > 0 && Now - StageAt < 1.0)) { return true; }
+        if (FVector::Dist2D(Body->GetNavAgentLocation(), Site) <= Tolerance)
+        {
+            bArrived = true;
+            return true;
+        }
+        if (NavigateAttempts >= LDDemoCombatScenario::CombatProbeNavigateAttempts)
+        {
+            return Fail(TEXT("Skills"), TEXT("The owned body could not reach its skill-stage site: ") + PC.Navigation->Status);
+        }
+        PC.Navigation->Navigate(Site);
+        ++NavigateAttempts;
+        StageAt = Now;
+        return true;
+    }
+
+    // The learned Q/W entry holding Definition, or None while the owner view does not show it yet.
+    ELDCombatEntry EntryOf(const ALDPlayerController& PC, FName Definition) const
+    {
+        const bool bCurrent = PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.Life == PC.OwnerState.Life;
+        const FLDCombatEntryView* Row = bCurrent ? PC.CombatView.Entries.FindByPredicate([&Definition](const FLDCombatEntryView& Entry)
+        {
+            return Entry.DefinitionId == Definition && Entry.bHasActive;
+        }) : nullptr;
+        return Row ? Row->Entry : ELDCombatEntry::None;
+    }
+
+    // ---- Client1: rooted by the Host's snare, it shields and cleanses itself with its own Q. ----
+
+    bool TickToSkillSite(double Now, ALDPlayerController& PC)
+    {
+        bool bArrived = false;
+        if (!Walk(Now, PC, SkillSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+        if (!bArrived) { return true; }
+        if (!Mark(TEXT("Client1AtSkillSite.json"))) { return Finish(); }
+        SetStage(EStage::Rooted);
+        return true;
+    }
+
+    bool TickRooted(double Now, ALDPlayerController& PC)
+    {
+        const FLDCombatStatusView* Root = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Root);
+        if (RootUntilMs == 0)
+        {
+            if (!Root || PC.CombatView.Life != PC.OwnerState.Life)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeKillSeconds) { return true; }
+                return Fail(TEXT("Skills"), TEXT("The Host's snare never rooted this owned body"));
+            }
+            RootUntilMs = Root->ExpiresAtMs;
+            Check(PC.CombatView.bRooted && (Root->ControlBlocks & uint8(ELDCombatControlBlock::Move)) != 0, TEXT("Skills"),
+                TEXT("The snare (active_binding_snare) roots this owned body: its own Combat projection shows the root blocking movement"),
+                FString::Printf(TEXT("root_until_ms=%lld"), RootUntilMs));
+            if (!Passed) { return Finish(); }
+            StageAt = Now;
+        }
+        // The Host must observe the root before it is cleansed.
+        if (!Exists(TEXT("HostSawRoot.json")))
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("The Host did not confirm the observed root in time"));
+        }
+        const ELDCombatEntry Guard = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false)[0]);
+        if (Guard == ELDCombatEntry::None) { return Fail(TEXT("Skills"), TEXT("The learned guard pulse holds no Q/W entry")); }
+        ReceiptSerialBefore = PC.CombatReceiptSerial;
+        // A Self skill sends from its hotkey entry at once.
+        PC.ActivateCombatEntry(Guard);
+        SetStage(EStage::Shielded);
+        return true;
+    }
+
+    bool TickShielded(double Now, ALDPlayerController& PC)
+    {
+        const FLDCombatActionReceipt& Seen = PC.LatestCombatReceipt;
+        if (PC.CombatReceiptSerial != ReceiptSerialBefore && Seen.Phase == ELDCombatPhase::Rejected)
+        {
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The guard pulse was refused (reject=%d)"), int32(Seen.Reject)));
+        }
+        const FLDCombatStatusView* Shield = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Shield);
+        const FLDCombatStatusView* Root = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Root);
+        if (!Shield || Root || PC.CombatView.ShieldP2 <= 0)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("The guard pulse never showed its shield without the root in this owner's projection"));
+        }
+        // The shield and the dispel are one release: the shield's start must precede the root's own end.
+        const FLDDemoAbilityDefinition* Guard = nullptr;
+        FString GuardError;
+        int64 ShieldMs = 0;
+        if (Catalog->FindAbility(LDDemoCombatScenario::CombatProbeSkillPlan(false)[0].ToString(), Guard, GuardError) && Guard
+            && Guard->Ranks.Num() > 0)
+        {
+            for (const FLDDemoEffectDefinition& Effect : Guard->Ranks[0].Effects)
+            {
+                ShieldMs = Effect.GetOp() == ELDDemoEffectOp::Shield ? Effect.DurationMs : ShieldMs;
+            }
+        }
+        const int64 ShieldFromMs = Shield->ExpiresAtMs - ShieldMs;
+        Check(ShieldMs > 0 && ShieldFromMs < RootUntilMs && !PC.CombatView.bRooted, TEXT("Skills"),
+            TEXT("The guard pulse (active_guard_pulse) shields this body and dispels the snare's root before the root would have ended"),
+            FString::Printf(TEXT("shield_p2=%lld shield_from_ms=%lld root_until_ms=%lld %s"), PC.CombatView.ShieldP2, ShieldFromMs,
+                RootUntilMs, *GuardError));
+        if (!Passed || !Mark(TEXT("Client1Shielded.json"))) { return Finish(); }
+        SetStage(EStage::SkillsDone);
+        return true;
+    }
+
+    // Client1 stands still while the Host's bolt and reach-carded basic attack land, then reports on its second life.
+    bool TickSkillsDone(double Now, ALDPlayerController& PC)
+    {
+        if (!Exists(TEXT("HostSkillsDone.json")))
+        {
+            if (PC.OwnerState.Life == 2 && PC.OwnerState.LifePhase == ELDLifePhase::Alive
+                && Now - StageAt <= LDDemoCombatScenario::CombatProbeKillSeconds)
+            {
+                return true;
+            }
+            return Fail(TEXT("Skills"), TEXT("The Host's casts did not finish while this second life stood at its skill site"));
+        }
         return Finish();
     }
 
@@ -1051,6 +1336,308 @@ public:
             && Victim.LifePhase == ELDLifePhase::Alive, TEXT("Protection"),
             TEXT("Ended protection retires the public respawn_protection status of the same living body"), FactsError);
         if (!Passed) { return Finish(); }
+        SetStage(EStage::Grant);
+        return true;
+    }
+
+    // ---- Host: skills from the fixture's presets, the snare, the observed shield, the arc bolt and the reach card. ----
+
+    // The fixture's XP grants raise each role exactly to the level of its last planned card.
+    bool TickGrant(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        if (!Mode.Economy) { return Fail(TEXT("Skills"), TEXT("The Listen Host has no Economy owner for the fixture's grants")); }
+        if (HostGrant == 0)
+        {
+            const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
+            const FLDProgressionView* Own = PC.ReadOwnProgression();
+            const FLDProgressionView* Other = Remote ? Remote->ReadOwnProgression() : nullptr;
+            const TArray<int64>& Thresholds = Catalog->Get().Progression.XPThresholds;
+            const int32 HostLevel = LDDemoCombatScenario::CombatProbeSkillPlan(true).Num() + 1;
+            const int32 ClientLevel = LDDemoCombatScenario::CombatProbeSkillPlan(false).Num() + 1;
+            if (!Own || !Other || !Thresholds.IsValidIndex(HostLevel - 1) || !Thresholds.IsValidIndex(ClientLevel - 1)
+                || Own->CumulativeXP >= Thresholds[HostLevel - 1] || Other->CumulativeXP >= Thresholds[ClientLevel - 1])
+            {
+                return Fail(TEXT("Skills"), TEXT("Both roles' progression is readable and below the levels of their planned cards"));
+            }
+            FString HostError, ClientError;
+            HostGrant = Mode.Economy->DevGrantReward(HostId, Thresholds[HostLevel - 1] - Own->CumulativeXP, 0, HostError);
+            ClientGrant = Mode.Economy->DevGrantReward(ClientId, Thresholds[ClientLevel - 1] - Other->CumulativeXP, 0, ClientError);
+            if (!Check(HostGrant != 0 && ClientGrant != 0, TEXT("Skills"), TEXT("The DEV growth fixture queues an XP grant for each role"),
+                HostError + ClientError))
+            {
+                return Finish();
+            }
+            return true;
+        }
+        FString HostDetail, ClientDetail;
+        const ELDDevGrantStatus HostStatus = Mode.Economy->DevGrantStatus(HostGrant, HostDetail);
+        const ELDDevGrantStatus ClientStatus = Mode.Economy->DevGrantStatus(ClientGrant, ClientDetail);
+        if ((HostStatus == ELDDevGrantStatus::Pending || ClientStatus == ELDDevGrantStatus::Pending)
+            && Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds)
+        {
+            return true;
+        }
+        Check(HostStatus == ELDDevGrantStatus::Granted && ClientStatus == ELDDevGrantStatus::Granted, TEXT("Skills"),
+            TEXT("Both grants commit through the reward composite at a later Transactions phase"),
+            FString::Printf(TEXT("host=%d %s client=%d %s"), int32(HostStatus), *HostDetail, int32(ClientStatus), *ClientDetail));
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::Learn);
+        return true;
+    }
+
+    // Back to the public duel site, then the snare waits for Client1 on its skill site.
+    bool TickReturn(double Now, ALDPlayerController& PC)
+    {
+        bool bArrived = false;
+        if (!Walk(Now, PC, HostSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+        if (bArrived) { SetStage(EStage::Snare); }
+        return true;
+    }
+
+    const ALDCharacter* ClientBody(const ALDGameMode& Mode) const
+    {
+        const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
+        return Remote ? Cast<ALDCharacter>(Remote->GetPawn()) : nullptr;
+    }
+
+    // Arms a learned Q/W entry through its hotkey path and confirms it on an explicit aim; false when it cannot arm.
+    bool ArmAndConfirm(ALDPlayerController& PC, ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+    {
+        ELDCombatEntry Armed = ELDCombatEntry::None;
+        PC.ActivateCombatEntry(Entry);
+        if (!Check(PC.ReadArmedCombatEntry(Armed) && Armed == Entry, TEXT("Skills"),
+            TEXT("A targeted skill's hotkey arms its entry and waits for a confirmation instead of sending")))
+        {
+            return false;
+        }
+        ReceiptSerialBefore = PC.CombatReceiptSerial;
+        return Check(PC.ConfirmArmedEntry(Aim), TEXT("Skills"), TEXT("The armed entry confirms on its aim"));
+    }
+
+    // The server's refusal of the cast confirmed last; null while it is not refused.
+    const FLDCombatActionReceipt* Refusal(const ALDPlayerController& PC) const
+    {
+        const FLDCombatActionReceipt& Seen = PC.LatestCombatReceipt;
+        return PC.CombatReceiptSerial != ReceiptSerialBefore && Seen.Phase == ELDCombatPhase::Rejected ? &Seen : nullptr;
+    }
+
+    bool TickSnare(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Snare](const FLDCombatEntryView& Entry) { return Entry.Entry == Snare; });
+        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        if (!Exists(TEXT("Client1AtSkillSite.json")) || !Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own || !Victim)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeKillSeconds) { return true; }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snare never became castable on a visible Client1 at its skill site (unavailable=%d)"),
+                Row ? int32(Row->Unavailable) : -1));
+        }
+        SkillGapCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
+        if (!Check(SkillGapCm <= double(Row->RangeCm) && SkillGapCm > double(PC.CombatView.AttackRangeCm), TEXT("Skills"),
+            TEXT("Client1 waits inside the snare's range and beyond the Host's reach-carded basic range"),
+            FString::Printf(TEXT("gap_cm=%.0f snare_cm=%d basic_cm=%.0f"), SkillGapCm, Row->RangeCm, PC.CombatView.AttackRangeCm)))
+        {
+            return Finish();
+        }
+        FLDCombatTarget Aim;
+        Aim.Kind = ELDCombatTargetKind::Unit;
+        Aim.Observed = Target->Handle;
+        Aim.ObservationEpoch = Target->ObservationEpoch;
+        HitBeforeMs = Victim->Cues.LastHitAtMs;
+        if (!ArmAndConfirm(PC, Snare, Aim)) { return Finish(); }
+        SetStage(EStage::Rooting);
+        return true;
+    }
+
+    // Observers must see the root: the Host's own observation frame shows it on Client1 with its server deadline.
+    bool TickRooting(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        if (const FLDCombatActionReceipt* Refused = Refusal(PC))
+        {
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snare was refused (reject=%d)"), int32(Refused->Reject)));
+        }
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        const FLDObservedStatus* Root = Target ? LDDemoCombatScenario::CombatProbeStatus(Target->Statuses, ELDDemoStatusId::Root) : nullptr;
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        if (!Root || !Victim)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("The Host never observed the snare's root on Client1"));
+        }
+        Check(Victim->Cues.LastHitAtMs > HitBeforeMs && Root->ExpiresAtServerMs > Victim->Cues.LastHitAtMs, TEXT("Skills"),
+            TEXT("The snare lands on Client1 and the Host's observation frame shows its root with the server deadline"),
+            FString::Printf(TEXT("hit_ms=%lld root_until_ms=%lld"), Victim->Cues.LastHitAtMs, Root->ExpiresAtServerMs));
+        if (!Passed || !Mark(TEXT("HostSawRoot.json"))) { return Finish(); }
+        SetStage(EStage::ShieldSeen);
+        return true;
+    }
+
+    bool TickShieldSeen(double Now, ALDPlayerController& PC)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        const bool bShield = Target && LDDemoCombatScenario::CombatProbeStatus(Target->Statuses, ELDDemoStatusId::Shield);
+        const bool bRoot = Target && LDDemoCombatScenario::CombatProbeStatus(Target->Statuses, ELDDemoStatusId::Root);
+        if (!Exists(TEXT("Client1Shielded.json")) || !bShield || bRoot)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The Host never observed Client1 shielded and free of its root (shield=%d root=%d)"),
+                int32(bShield), int32(bRoot)));
+        }
+        Check(true, TEXT("Skills"), TEXT("The Host observes Client1's shield and the dispelled root"));
+        SetStage(EStage::Bolt);
+        return true;
+    }
+
+    // The arc bolt flies along the Host's aim at Client1's observed feet.
+    bool TickBolt(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[2]);
+        const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Bolt](const FLDCombatEntryView& Entry) { return Entry.Entry == Bolt; });
+        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own || !Victim)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never became castable at a visible Client1 (unavailable=%d)"),
+                Row ? int32(Row->Unavailable) : -1));
+        }
+        BoltAim = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
+        FLDCombatTarget Aim;
+        Aim.Kind = ELDCombatTargetKind::Direction;
+        Aim.Direction = BoltAim;
+        HitBeforeMs = Victim->Cues.LastHitAtMs;
+        PoolBeforeP2 = Victim->Resources.HpP2 + Victim->Resources.ShieldP2;
+        if (BoltAim.IsNearlyZero() || !ArmAndConfirm(PC, Bolt, Aim)) { return Finish(); }
+        SetStage(EStage::BoltFlight);
+        // The flight lasts a few hundred ms: sample the authority's projectile facts and the caster's cue every frame.
+        FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::SampleFlight), 0.f);
+        return true;
+    }
+
+    bool SampleFlight(float)
+    {
+        UWorld* Current = World.Get();
+        ALDGameMode* Mode = Current ? Current->GetAuthGameMode<ALDGameMode>() : nullptr;
+        const ALDPlayerController* PC = Controller.Get();
+        if (Written || Stage != EStage::BoltFlight || !Mode || !Mode->Combat || !PC || !FlightError.IsEmpty()) { return false; }
+        TArray<FLDObservedProjectileFact> Flying;
+        if (!Mode->Combat->ReadObservedProjectiles(Flying, FlightError)) { return false; }
+        for (const FLDObservedProjectileFact& Fact : Flying)
+        {
+            if (Fact.Look != ELDObservedProjectileLook::Chalk) { continue; }
+            ++ProjectileSamples;
+            BoltKey = Fact.Key;
+            bBoltHeading &= FVector2D::DotProduct(Fact.Heading, FVector2D(BoltAim)) > 0.99;
+        }
+        FLDObservedPublicFacts Caster;
+        FString CasterError;
+        bCastCueSeen |= Mode->ReadObservedPublicFacts(Mode->GetMatchContext(), PC->OwnerState.BodyRef, Caster, CasterError)
+            && Caster.ActionCue == ELDObservedActionCue::Cast;
+        return true;
+    }
+
+    bool TickBoltFlight(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        if (const FLDCombatActionReceipt* Refused = Refusal(PC))
+        {
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt was refused (reject=%d)"), int32(Refused->Reject)));
+        }
+        if (!FlightError.IsEmpty()) { return Fail(TEXT("Skills"), TEXT("Combat refused to read its projectiles: ") + FlightError); }
+        const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        if (!Remote || !Victim || Victim->Cues.LastHitAtMs <= HitBeforeMs)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never hit Client1 (projectile samples=%d)"), ProjectileSamples));
+        }
+        TArray<FLDObservedProjectileFact> Flying;
+        FString FlyingError;
+        const bool bRead = Mode.Combat->ReadObservedProjectiles(Flying, FlyingError);
+        FLDObservedPublicFacts Struck;
+        FString StruckError;
+        const bool bStruck = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), Remote->OwnerState.BodyRef, Struck, StruckError);
+        const int64 PoolP2 = Victim->Resources.HpP2 + Victim->Resources.ShieldP2;
+        const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld %s%s"),
+            ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
+            Victim->Cues.LastHitAtMs, Struck.ActionCueAtMs, *FlyingError, *StruckError);
+        Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
+            TEXT("The arc bolt (active_arc_bolt) flies as a Chalk projectile fact along the Host's aim before it lands"), Detail);
+        Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
+            TEXT("Skills"), TEXT("The arc bolt hits Client1, takes its shield or health and ends its flight"), Detail);
+        Check(bCastCueSeen && bStruck && Struck.ActionCue == ELDObservedActionCue::Hit && Struck.ActionCueAtMs == Victim->Cues.LastHitAtMs,
+            TEXT("Skills"), TEXT("Public facts show the Host's Cast cue during the bolt and Client1's Hit cue from its landing"), Detail);
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::Reach);
+        return true;
+    }
+
+    // The ordinary right-click lock from beyond the reach-carded range: the chase stops within it and the hit lands
+    // from farther than the base basic range allows.
+    bool TickReach(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        if (!Target || !Victim)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("Client1 left the Host's sight before the reach check"));
+        }
+        HitBeforeMs = Victim->Cues.LastHitAtMs;
+        PC.Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch);
+        ReachOrder = PC.Navigation->LocalIdentity();
+        SetStage(EStage::ReachHit);
+        return true;
+    }
+
+    bool TickReachHit(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
+        const ALDCharacter* Other = ClientBody(Mode);
+        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+        const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
+        if (Latest.Identity == ReachOrder && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled
+            || Latest.Status == ELDOrderStatus::Completed))
+        {
+            return Fail(TEXT("Skills"), TEXT("The reach check's attack lock ended before its hit: ") + PC.Navigation->Status);
+        }
+        if (!Own || !Victim || Victim->Cues.LastHitAtMs <= HitBeforeMs)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("The reach check's basic attack never hit Client1: ") + PC.Navigation->Status);
+        }
+        ReachHitCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
+        PC.StopCombatAndOrders();
+        const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        const double Base = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
+        const FLDDemoAttributeDefinition* Reach = nullptr;
+        FString ReachError;
+        double Bonus = 0;
+        if (Catalog->FindAttribute(LDDemoCombatScenario::CombatProbeSkillPlan(true)[0].ToString(), Reach, ReachError) && Reach)
+        {
+            for (const FLDDemoStatBonus& Stat : Reach->Stats)
+            {
+                Bonus += Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat ? LDDemoCombatScenario::CombatProbeRational(Stat.Cm) : 0.0;
+            }
+        }
+        Check(Bonus > 0 && FMath::IsNearlyEqual(double(PC.CombatView.AttackRangeCm), Base + Bonus, 0.01)
+            && ReachHitCm > Base && ReachHitCm <= Base + Bonus + 1.0, TEXT("Skills"),
+            TEXT("The reach card lands a basic hit from beyond the base basic range in a real chase"),
+            FString::Printf(TEXT("hit_gap_cm=%.1f base_cm=%.0f bonus_cm=%.0f projected_cm=%.0f %s"), ReachHitCm, Base, Bonus,
+                PC.CombatView.AttackRangeCm, *ReachError));
+        if (!Passed || !Mark(TEXT("HostSkillsDone.json"))) { return Finish(); }
         SetStage(EStage::Wrap);
         return true;
     }
@@ -1082,8 +1669,10 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn. Not skills, gear actives, camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection. Not skills, gear actives, camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach, active_binding_snare and active_arc_bolt by ordinary choices, roots Client1, observes its shield, hits it with a projectile and with a reach-carded basic attack. Not gear actives, camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse from a fixture-preset offer by an ordinary choice and casts it to shield itself and dispel the Host's root. Not gear actives, camps, AI, capture or full-match acceptance."));
+        Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
+        Report->SetNumberField(TEXT("skills_learned"), SkillsLearned);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), int32(Stage));
@@ -1100,12 +1689,16 @@ public:
             Report->SetNumberField(TEXT("respawn_at_ms"), double(RespawnAtMs));
             Report->SetNumberField(TEXT("protected_until_ms"), double(ProtectedUntilMs));
             Report->SetNumberField(TEXT("attack_orders"), AttackOrders);
+            Report->SetNumberField(TEXT("skill_gap_cm"), SkillGapCm);
+            Report->SetNumberField(TEXT("projectile_samples"), ProjectileSamples);
+            Report->SetNumberField(TEXT("reach_hit_cm"), ReachHitCm);
         }
         else
         {
             Report->SetNumberField(TEXT("spent_receipt_phase"), int32(SpentReceipt.Phase));
             Report->SetNumberField(TEXT("spent_receipt_reject"), int32(SpentReceipt.Reject));
             Report->SetBoolField(TEXT("spent_protection_removed"), SpentReceipt.bProtectionRemoved);
+            Report->SetNumberField(TEXT("root_until_ms"), double(RootUntilMs));
         }
         Written = Save(Report, Role + TEXT(".json"));
         UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
