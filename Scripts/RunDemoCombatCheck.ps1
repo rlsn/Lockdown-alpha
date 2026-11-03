@@ -21,7 +21,7 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report each check group it owns; a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','AttackMove','Stop','Death','Respawn','Protection')
+    Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection')
     Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection')
 }
 
@@ -81,7 +81,8 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: Settings held " +
+    Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
+        "foot in the navmesh margin routes while the same clicked ground stays refused, Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
         "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q. " +

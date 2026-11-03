@@ -105,11 +105,14 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
 `FindPublicApproach` 仅为已注册商店/占领点求合法范围内的完整路径，范围取同一内容定义；
 不走入被阻挡的商店中心，不增加商店 LOS 条件，也不授予成交或占领资格。
-所有路线规划的起点由共享的 `LDPathSteering::PlanStart` 给出（参赛者经 `QueryPlanStart`，营地成员同样复用）：
-先确认身体在注册支持面上的合法地面，若身体因贴墙或贴身停在 Recast 保守收缩的边缘外，
+所有路线规划的起点由共享的 `LDPathSteering::PlanStart` 给出（参赛者经 `QueryPlanStart`/`PlanRoute`，营地成员同样复用）：
+先确认身体在注册支持面上的合法地面，若身体因贴墙、贴身或转角切内侧停在 Recast 保守收缩的边缘外，
 只把平面起点移到一个胶囊半径内最近的 navmesh 点，该点须在同一支持面上重新通过 `QueryGround`；
 更远则保持原起点，由注册表的完整路径查询明确拒绝。
-目的地仍严格：寻路改变终点 XY 一律拒绝，不吸附玩家点选的地面。
+终点按目标类型区分（`LDPathSteering::PlanRoute` 的 `EGoal`）：玩家点选的地面（MoveGround、AttackMove
+的目的地及其续行/重算）仍严格，寻路改变终点 XY 一律拒绝，不吸附；被追击身体的脚点（AttackUnit 的准入与追击
+重算、AttackMove 锁定目标后的追击，以及拥有者对攻击订单的预测）与起点同样经 `PlanStart` 落到一个胶囊半径内的
+navmesh 点。注册表的拒绝原因写明被调整的是路线起点还是目的地。
 
 ## 输入所有权
 
