@@ -62,10 +62,14 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 
 - `FLDOwnerState` 属于具体连接的自身投影；`ALDGameMode::StateFor` 是服务器访问参赛状态的入口。
 - 玩家身体和 PlayerState 的网络归属不能泄露其他人的私有资源。
+- `ALDPlayerState` 只对拥有者相关，并按引擎默认每秒更新一次。Listen Host 默认每秒只 tick
+  `NetClientTicksPerSecond` 个客户端连接，帧率高于 100 fps 时每帧只轮到一个；这与 1 Hz 更新锁相后，
+  会把本人 PlayerState 的首次复制推迟数秒到近 20 秒。因此 `Config\DefaultEngine.ini` 的 `[ConsoleVariables]`
+  设 `net.MaxConnectionsToTickPerServerFrame=8`，每个复制帧都 tick 全部客户端连接（最多两名远端真人）。
 - 其他身体的可见表现主要通过观测中继，而不是把所有权威 Actor 广播出去后在 UI 上隐藏。
 - GameState 只放明确公开的事实，不应成为全部玩家位置、背包和构筑的总表。
 - `ALDGameState::DemoLobby` 是名单、Host/Ready/AI 名额及公开阻塞原因的只读投影，
-  不包含 LedgerMatch、身体坐标或私有构筑。AI 名额尚不是实际 AI 控制器。
+  不包含 LedgerMatch、身体坐标或私有构筑。每个 AI 名额在开局时绑定一个服务器 `ALDOpponentController`。
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
 - `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与圈状态来源：阶段、开放时刻、圈状态
