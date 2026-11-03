@@ -65,7 +65,7 @@
 | `UNIT.BasicAttackRangeCm`、`STAT.AttackRangeCm` | 初始值与当前派生值分开；订单/接近/释放读取当前攻击范围，脚点 XY 中心距不重复加减碰撞半径 |
 | `VISION.RadiusCm` | 身体来源范围；镜头、公开地点、占领提示不增加来源 |
 | `SHOP.InteractRadiusCm` | 脚点至固定商店交互锚点的 XY 中心距；本体占地内不能强塞寻路目标 |
-| `CAPTURE.RadiusCm`、`CAPTURE.HoldSec` | 脚点是否进入闭圆盘和连续独占时长；脚点入圈不等于整胶囊入圈 |
+| `CAPTURE.RadiusCm`、`CAPTURE.HoldSec` | 脚点是否进入闭圆盘和独占进度所需时长；脚点入圈不等于整胶囊入圈 |
 | `MATCH.DevelopmentSec`、`LIFE.RespawnSec`、`LIFE.ProtectionSec` | 发育、死亡和复活资格由核心控制；保护可以主动解除，不能当作固定额外回防延迟 |
 | `CAMP.Low/High.CountPerCamp`、`HP/Armor/Attack/RewardXP/RewardGold` | 世界只绑定内容定义及成员；血量和奖励不在营地管理器另存另一真相 |
 | `CAMP.Low/High.RespawnSec/LeashRadiusCm/LoseTargetGraceSec` | 清营计时、活动域与失目标等待；源参数变化须重算回位、出生和争圈关系 |
@@ -275,9 +275,10 @@ High中心有怪物，Low中心到两个成员约75cm，也不能当作40+40cm�
 这里不计敌方协助位移，不借前端回执、换槽或卖出重买制造第三次额度。
 保护可以提前解除，**不能在最短返场时间后再加3s保护**。
 
-内容候选 `LIFE.RespawnSec=26 > CAPTURE.HoldSec=25` 的作用仅是：
-最后阵亡者不能单靠复活返场这一途径，否决一段已经开始且无人争夺的完整占领。
-这不是保证多人对抗必然在固定时间结束，也不排除存续效果、其他存活者和合法争夺造成中断。
+内容值 `LIFE.RespawnSec=26 > CAPTURE.HoldSec=25`（D01 批准为试玩输入）的作用仅是：
+最后阵亡者不能单靠复活返场这一途径，打断一段已经开始且无人争夺的完整占领。
+D12 改为争夺只暂停原占领者进度后，这一关系的数值暂不变，待数值轮复核。
+这不是保证多人对抗必然在固定时间结束，也不排除存续效果、其他存活者和合法争夺暂停该占领。
 无需为了该条件扩大地图或改变十点抽样。
 
 ### 2.7 成长射程与群攻的空间接缝
@@ -374,7 +375,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `FindApproach(ObserverContext, Origin, UnitHandle or PublicPOI, RangeCm, Capsule) -> Result<Approach>` | 单位先重新解析；固定地点从地图注册表取；在碰撞外、范围内找合法完整路径 | 攻击接近/商店接近；单位失明不更新真实隐藏坐标，路径成功不授予交易权 |
 | `TraceSight(SourceGround, TargetSample, WorldRevision) -> Result<SightResult>` | World/Vision；有限、同层与固定 eye/target sample、范围及阻视线几何；与阻走分开 | 授权层与 Combat 几何；公开地点/静态 ray 结果不是单位锁定权限 |
 | `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision) -> FLDShopEligibilityResult` | 下方唯一四参类型；Transactions借用作用域内按当前实际子时刻验证身体/世界、合法脚点/区域与中心距；不增加LOS条件 | Vendor绑定真实调用者与BuyerBody，最终安装前仍核permit/生命/会话/quote/余额/槽位/revision；结果不是长期交易授权 |
-| `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、连续独占和唯一胜负归核心，不受观察权限影响 |
+| `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、独占计时/争夺暂停和唯一胜负归核心，不受观察权限影响 |
 | `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 生产者封装实际身份/序号/时间；最终水位须等同批晚因果工作闭合后Sealing，不能随首段运动提前发布；不从代理或末帧补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
 
@@ -695,7 +696,7 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 | 静态地图 | 地形、阻走/阻视线分类、固定 Camp/Spawn/Shop/Capture ID与坐标 | 不广播营地剩余怪数、HP、刷新倒计时、隐藏占位者 |
 | 自身 | 自身血蓝、等级/经验/金币、技能/装备/冷却、状态和合法回执 | 不通过其他参赛者的账本/构筑补全信息 |
 | 当前可见单位 | opaque Handle、类别/外观、获准位置/朝向、合法动作表现；名称/等级/血量/蓝量/状态/两件装备 | 无技能清单、CD、其他最终属性、金币/经验进度、实例/来源/库存版本；失明清目标、停追击、撤销实时更新与依附呈现 |
-| 公共占领 | 开放/发育信息、当前占领者公开身份、进度、争夺和唯一结果 | 不附隐藏 Pawn 位置/速度/血蓝、圈内名单/精确人数、观察句柄或公共视野来源 |
+| 公共占领 | 开放/发育信息、当前占领者（含争夺中被暂停的原占领者）公开身份、进度或暂停进度、争夺和唯一结果 | 不附隐藏 Pawn 位置/速度/血蓝、圈内名单/精确人数、观察句柄或公共视野来源 |
 | 全场击杀 | 击杀者、被击杀参赛者、获准的可理解原因 | 普通打野不发全场横幅，不附隐藏坐标/构筑；无主死亡不凭空指派击杀者 |
 | AI 决策 | 自身投影、同授权 ObservedFrame、静态地图、公共占领/击杀信息 | 不访问 UWorld/Combat::Bodies/Controller/Roster全表来补全迷雾情报 |
 | 权威效果查询 | 已接受效果在定义允许范围内的静态/身体交集 | 只供 Combat 结算；不能反流成 AI 侦察、客户端命中列表或精确伤害来源坐标 |
@@ -1000,7 +1001,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 删除闭包 | 文本/生成/Stage清单无旧模式入口，保留符号仍可解析 | Asset Registry/Blueprint默认值/构建/Bootstrap/Cook/实际包加载 |
 | 唯一世界根 | 仅L_Demo/DA_DemoWorld作为战局根，Frontend为菜单；新根缺失明确失败，无Civic/Development回退 | C3引用替换/退旧后再次Generate不重造旧包，Cook/Stage和包内Registry无双根、兼容壳或旧默认类 |
 
-连续占领必须额外测试：一段实际运动首尾都在圈外但穿过短弦；
+占领归约必须额外测试：一段实际运动首尾都在圈外但穿过短弦；
 同帧入圈后离圈；完成时刻恰好发生争夺/死亡；同刻回位不能发奖；
 原子placement失败回滚不产生圈转换；缺提供者水位不提前判胜。
 不能把纯圆交点计算、host-only调试、传送授予或旧报告当正常完整对局。

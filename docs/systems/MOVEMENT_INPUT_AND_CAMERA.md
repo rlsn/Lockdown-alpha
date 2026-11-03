@@ -297,7 +297,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
-schema 5–8 显式迁移与主音量、镜头平移速度、小地图朝向保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
+schema 5–9 显式迁移与主音量、镜头平移速度、小地图朝向、快速施法保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
 小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
 产品显示默认（`LocalDisplayProductDefaults`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、
