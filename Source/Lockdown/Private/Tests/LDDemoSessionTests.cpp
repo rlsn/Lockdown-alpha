@@ -55,7 +55,8 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
     const TPair<const TCHAR*, const TCHAR*> Refusals[] = {
         {LDDemoEntry::JoinRefusal::MatchAlreadyStarted, TEXT("对局已开始")}, {LDDemoEntry::JoinRefusal::RoomFull, TEXT("房间已满")},
         {LDDemoEntry::JoinRefusal::ProtocolMismatch, TEXT("网络协议不同")}, {LDDemoEntry::JoinRefusal::ProductMismatch, TEXT("产品版本不同")},
-        {LDDemoEntry::JoinRefusal::ContentMismatch, TEXT("内容数据不同")}, {LDDemoEntry::JoinRefusal::RoomNotReady, TEXT("尚未就绪")}};
+        {LDDemoEntry::JoinRefusal::ContentMismatch, TEXT("内容数据不同")}, {LDDemoEntry::JoinRefusal::RoomNotReady, TEXT("尚未就绪")},
+        {LDDemoEntry::JoinRefusal::InvalidName, TEXT("玩家名称")}};
     TSet<FString> RefusalReasons;
     for (const TPair<const TCHAR*, const TCHAR*>& Refusal : Refusals)
     {
