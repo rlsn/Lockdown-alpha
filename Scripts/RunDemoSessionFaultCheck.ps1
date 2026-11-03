@@ -112,9 +112,10 @@ function Read-FaultReport {
 
 function Stop-Role {
     param([Diagnostics.Process]$Process, [string]$Name)
-    # A fresh package's first rendered shutdown stores driver pipeline caches: about 40 s once on this machine,
-    # about 2 s warm. The exit must still be clean.
-    if (-not $Process.WaitForExit(120000) -or $Process.ExitCode -ne 0) { throw "$Name did not exit cleanly: $output" }
+    # A fresh package's first rendered shutdown stores driver pipeline caches: usually about 40 s once, once over
+    # 120 s (final 9167f8d suite, where the warm rerun passed), about 2 s warm.
+    # The exit must still be clean.
+    if (-not $Process.WaitForExit(300000) -or $Process.ExitCode -ne 0) { throw "$Name did not exit cleanly: $output" }
 }
 
 function Assert-FaultLogs {
