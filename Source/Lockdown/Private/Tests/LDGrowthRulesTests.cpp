@@ -5,10 +5,15 @@
 #include "../Development/LDDemoContentJson.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevGrowthFixture.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthRequests.h"
 #include "Dom/JsonObject.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Economy/LDEconomyLedger.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Misc/AutomationTest.h"
@@ -16,6 +21,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 #include "Serialization/JsonSerializer.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
@@ -707,10 +713,16 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestTrue(TEXT("The evidence names schema 2, its match and the approved starting gold"),
-        Root->GetIntegerField(TEXT("schemaVersion")) == 2
+    bGood &= Test.TestTrue(TEXT("The evidence names schema 3, its match and the approved starting gold"),
+        Root->GetIntegerField(TEXT("schemaVersion")) == 3
         && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
         && Root->GetStringField(TEXT("startingGold")) == TEXT("150"));
+    const TSharedPtr<FJsonObject>* FixtureBlock = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* FixtureGrants = nullptr;
+    bGood &= Test.TestTrue(TEXT("Without -LDDevGrowthFixture the evidence states the fixture was off and lists no DevFixture mint"),
+        Root->TryGetObjectField(TEXT("devFixture"), FixtureBlock) && !(*FixtureBlock)->GetBoolField(TEXT("enabled"))
+        && (*FixtureBlock)->TryGetArrayField(TEXT("grants"), FixtureGrants) && FixtureGrants->IsEmpty()
+        && (*FixtureBlock)->GetStringField(TEXT("minted")) == TEXT("0"));
     const TArray<TSharedPtr<FJsonValue>>* Tail = nullptr;
     const TSharedPtr<FJsonObject>* Prefix = nullptr;
     const TSharedPtr<FJsonObject>* Current = nullptr;
@@ -759,6 +771,69 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
         bGood &= Test.TestTrue(FString::Printf(TEXT("The evidence is written to %s"), *EvidencePath),
             !EvidencePath.IsEmpty() && FFileHelper::SaveStringToFile(Json, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
     }
+    return bGood;
+}
+
+// DEV growth fixture mints: DeathReward's shape under their own cause, listed for the evidence even after compaction.
+bool GrowthTestRunDevFixtureLedger(FAutomationTestBase& Test)
+{
+    const FGuid Match(0x22222222, 0x33334444, 0x55556666, 0x77778888);
+    const FGuid P1(0xE2, 0, 0, 1);
+    const FGuid P2(0xE2, 0, 0, 2);
+    LDEconomy::FLedger Ledger;
+    FString Error;
+    if (!Test.TestTrue(TEXT("The DevFixture ledger initializes"), Ledger.Initialize(Match, {P1, P2}, 150, Error)))
+    {
+        return false;
+    }
+    LDEconomy::FTransaction Grant = GrowthTestTransaction(LDEconomy::ECause::DevFixture, 301);
+    Grant.Mint = 50;
+    Grant.Gold = LDEconomy::FGoldChange{P1, 1, 50};
+    LDEconomy::FTransaction Burning = Grant;
+    Burning.BusinessKey = FGuid(0x6B657900, 0, 0, 302);
+    Burning.Burn = 50;
+    bool bGood = GrowthTestRefuse(Test, Ledger, Burning, LDEconomy::EPrepareError::InvalidTransaction,
+        TEXT("A DevFixture mint that also burns"));
+    LDEconomy::FTransaction Charging = Grant;
+    Charging.BusinessKey = FGuid(0x6B657900, 0, 0, 303);
+    Charging.Mint = 0;
+    Charging.Burn = 50;
+    Charging.Gold->Delta = -50;
+    bGood &= GrowthTestRefuse(Test, Ledger, Charging, LDEconomy::EPrepareError::InvalidTransaction, TEXT("A DevFixture that charges gold"));
+    LDEconomy::FJournalEntry Entry;
+    if (!GrowthTestCommit(Test, Ledger, Grant, TEXT("A DevFixture mint"), &Entry))
+    {
+        return false;
+    }
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 200, 2, TEXT("The DevFixture recipient"));
+    const TArray<LDEconomy::FDevFixtureMint>& Mints = Ledger.DevFixtureGrants();
+    bGood &= Test.TestTrue(TEXT("The ledger lists the DevFixture mint by serial, account and gold"),
+        Mints.Num() == 1 && Mints[0].Serial == Entry.Serial && Mints[0].Account == P1 && Mints[0].Gold == 50);
+    bGood &= GrowthTestCompact(Test, Ledger, Ledger.CommittedSerial(), LDEconomy::ECompactResult::Compacted,
+        TEXT("Compacting the DevFixture mint"));
+    bGood &= Test.TestTrue(TEXT("Compaction folds the journal entry but keeps the DevFixture listing"),
+        Ledger.JournalTail().IsEmpty() && Ledger.DevFixtureGrants().Num() == 1);
+    FString Json;
+    TSharedPtr<FJsonObject> Root;
+    const TSharedPtr<FJsonObject>* Fixture = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* Grants = nullptr;
+    if (!Test.TestTrue(FString::Printf(TEXT("The DevFixture ledger exports evidence (%s)"), *Error),
+        LDEconomy::ExportEvidence(Ledger, 150, Json, Error) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root)
+        && Root.IsValid() && Root->TryGetObjectField(TEXT("devFixture"), Fixture) && (*Fixture)->TryGetArrayField(TEXT("grants"), Grants)))
+    {
+        return false;
+    }
+    bGood &= Test.TestFalse(TEXT("The rules run has no -LDDevGrowthFixture, so the evidence says the fixture was off"),
+        (*Fixture)->GetBoolField(TEXT("enabled")));
+    TSharedPtr<FJsonObject> Row;
+    if (Grants->Num() == 1)
+    {
+        Row = (*Grants)[0]->AsObject();
+    }
+    bGood &= Test.TestTrue(TEXT("The evidence lists the folded DevFixture mint and its total"),
+        Row.IsValid() && Row->GetStringField(TEXT("serial")) == LexToString(Entry.Serial)
+        && Row->GetStringField(TEXT("account")) == P1.ToString(EGuidFormats::DigitsWithHyphensLower)
+        && Row->GetStringField(TEXT("gold")) == TEXT("50") && (*Fixture)->GetStringField(TEXT("minted")) == TEXT("50"));
     return bGood;
 }
 
@@ -1498,6 +1573,119 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     return bGood;
 }
 
+// ---- DEV growth fixture ------------------------------------------------------------------------
+
+struct FGrowthTestPreset
+{
+    const TCHAR* What;
+    TArray<FName> Cards;
+};
+
+// Off without -LDDevGrowthFixture; a preset resolves only to three distinct legal cards of the build; each preset shapes
+// exactly one head draw and the next head is the ordinary seeded draw again.
+bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
+    {
+        return false;
+    }
+    FString Error;
+    bool bGood = Test.TestFalse(TEXT("The rules run carries no -LDDevGrowthFixture switch"), LDDevGrowthFixture::IsSwitchPresent());
+    bGood &= Test.TestTrue(TEXT("Without the switch the fixture admits no caller and says why"),
+        !LDDevGrowthFixture::Admit(nullptr, Error) && Error.Contains(TEXT("-LDDevGrowthFixture")));
+    {
+        const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+        if (!Test.TestNotNull(TEXT("An isolated world for the fixture entries"), World))
+        {
+            return false;
+        }
+        GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+        ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+        ALDDevelopmentDirector* Development = World->SpawnActor<ALDDevelopmentDirector>();
+        ALDEconomyDirector* Economy = World->SpawnActor<ALDEconomyDirector>();
+        if (!Test.TestNotNull(TEXT("A growth director"), Development) || !Test.TestNotNull(TEXT("An economy director"), Economy))
+        {
+            return false;
+        }
+        const FGuid Contender(0xE3, 0, 0, 1);
+        FString QueueError;
+        FString GrantError;
+        FString Detail;
+        bGood &= Test.TestTrue(TEXT("DevQueueOffer is refused without the switch and names it"),
+            !Development->DevQueueOffer(Contender, {FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))},
+                QueueError) && QueueError.Contains(TEXT("-LDDevGrowthFixture")));
+        bGood &= Test.TestTrue(TEXT("DevGrantReward is refused without the switch and issues no ticket"),
+            Economy->DevGrantReward(Contender, 80, 50, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
+        bGood &= Test.TestTrue(TEXT("No ticket exists to poll after a refused grant"),
+            Economy->DevGrantStatus(1, Detail) == ELDDevGrantStatus::Unknown);
+    }
+
+    const FName Bolt(TEXT("active_arc_bolt"));
+    const FName Snare(TEXT("active_binding_snare"));
+    const FName Pulse(TEXT("active_guard_pulse"));
+    const FName Precision(TEXT("passive_precision"));
+    const FName Might(TEXT("attr_might"));
+    const FName Focus(TEXT("attr_focus"));
+    const FName Reach(TEXT("attr_reach"));
+    FLDGrowthBuild Fresh;
+    TArray<LDProgression::FLegalOption> Resolved;
+    bGood &= Test.TestTrue(FString::Printf(TEXT("Three legal cards resolve in their given order with kinds from the build (%s)"), *Error),
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Fresh, {Bolt, Precision, Might}, Resolved, Error) && Resolved.Num() == 3
+        && Resolved[0].DefinitionId == Bolt && Resolved[0].Kind == ELDChoiceOptionKind::LearnActive && Resolved[0].ToRank == 1
+        && Resolved[1].DefinitionId == Precision && Resolved[1].Kind == ELDChoiceOptionKind::LearnPassive
+        && Resolved[2].DefinitionId == Might && Resolved[2].Kind == ELDChoiceOptionKind::Attribute && Resolved[2].ToRank == 1);
+    FLDGrowthBuild Learned;
+    Learned.Level = 6;
+    Learned.Skills = {{Bolt, 2, true, 0}, {Pulse, 3, true, 1}};
+    Learned.Cards = {{Might, 2}};
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A learned skill resolves to its next rank and a held card to one more (%s)"), *Error),
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, {Bolt, Might, Snare}, Resolved, Error) && Resolved.Num() == 3
+        && Resolved[0].Kind == ELDChoiceOptionKind::UpgradeActive && Resolved[0].FromRank == 2 && Resolved[0].ToRank == 3
+        && Resolved[1].Kind == ELDChoiceOptionKind::Attribute && Resolved[1].FromRank == 2 && Resolved[1].ToRank == 3
+        && Resolved[2].Kind == ELDChoiceOptionKind::LearnActive);
+    const FGrowthTestPreset BadPresets[] = {
+        {TEXT("two cards"), {Bolt, Might}},
+        {TEXT("four cards"), {Bolt, Might, Focus, Reach}},
+        {TEXT("a repeated card"), {Bolt, Might, Bolt}},
+        {TEXT("an unknown definition"), {Bolt, Might, FName(TEXT("active_unknown"))}},
+        {TEXT("NAME_None"), {Bolt, Might, FName()}},
+        {TEXT("a skill at its rank cap"), {Pulse, Might, Focus}}};
+    for (const FGrowthTestPreset& Bad : BadPresets)
+    {
+        bGood &= Test.TestTrue(FString::Printf(TEXT("A preset with %s is refused with a reason and no cards"), Bad.What),
+            !LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, Bad.Cards, Resolved, Error) && Resolved.IsEmpty() && !Error.IsEmpty());
+    }
+
+    TArray<LDProgression::FLegalOption> Pool;
+    TArray<LDProgression::FLegalOption> Ordinary;
+    const int64 Weight = Catalog->Get().Parameters.ChoiceBaseWeight;
+    const uint64 Seed = LDProgression::OfferSeed(FGuid(1, 2, 3, 4), FGuid(0xE3, 0, 0, 1), 1);
+    bGood &= GrowthTestReason(Test, TEXT("The fresh build's legal pool"), LDProgression::LegalPool(*Catalog, Fresh, Pool), ELDGrowthReason::None);
+    bGood &= GrowthTestReason(Test, TEXT("The ordinary seeded draw"), LDProgression::DrawThree(Pool, Weight, Seed, Ordinary),
+        ELDGrowthReason::None);
+    TArray<TArray<FName>> Queue = {{Snare, Focus, Reach}, {Bolt, FName(TEXT("active_unknown")), Might}, {Pulse, Precision, Might}};
+    TArray<LDProgression::FLegalOption> Picked;
+    bool bPreset = false;
+    FString PresetError;
+    bGood &= Test.TestTrue(TEXT("The first head draw takes the oldest preset, in its order"),
+        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        && PresetError.IsEmpty() && Picked.Num() == 3 && Picked[0].DefinitionId == Snare && Picked[1].DefinitionId == Focus
+        && Picked[2].DefinitionId == Reach && Queue.Num() == 2);
+    bGood &= Test.TestTrue(TEXT("A preset that no longer resolves is consumed with an explicit error and the ordinary draw runs"),
+        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        && !PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary) && Queue.Num() == 1);
+    bGood &= Test.TestTrue(TEXT("The next head draw takes the next preset"),
+        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        && Picked[0].DefinitionId == Pulse && Picked[1].DefinitionId == Precision && Picked[2].DefinitionId == Might && Queue.IsEmpty());
+    bGood &= Test.TestTrue(TEXT("With no preset left the head is the ordinary seeded draw: a preset shapes one offer only"),
+        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        && PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary));
+    return bGood;
+}
+
 // ---- Private owner view schema ----------------------------------------------------------------
 
 void GrowthTestReachableStructs(const FProperty* Property, TSet<const UScriptStruct*>& Out)
@@ -1677,7 +1865,8 @@ bool FLDDemoGrowthLedgerTest::RunTest(const FString& Parameters)
 {
     const bool bLedger = GrowthTestRunLedger(*this);
     const bool bEvidence = GrowthTestRunLedgerEvidence(*this);
-    return bLedger && bEvidence;
+    const bool bFixture = GrowthTestRunDevFixtureLedger(*this);
+    return bLedger && bEvidence && bFixture;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthRequestsTest, "Lockdown.Rules.DemoGrowthRequests",
@@ -1693,7 +1882,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthProgressionTest, "Lockdown.Rules.D
 
 bool FLDDemoGrowthProgressionTest::RunTest(const FString& Parameters)
 {
-    return GrowthTestRunProgression(*this);
+    const bool bProgression = GrowthTestRunProgression(*this);
+    const bool bFixture = GrowthTestRunDevFixture(*this);
+    return bProgression && bFixture;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthPrivacySchemaTest, "Lockdown.Rules.DemoGrowthPrivacySchema",

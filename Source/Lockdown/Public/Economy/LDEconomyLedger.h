@@ -46,7 +46,14 @@ namespace LDEconomy
         }
     };
 
-    enum class ECause : uint8 { None, DeathReward, Buy, Sell, AccountRetire };
+    enum class ECause : uint8
+    {
+        None, DeathReward, Buy, Sell, AccountRetire,
+#if WITH_DEV_AUTOMATION_TESTS
+        // DEV growth fixture grant (-LDDevGrowthFixture only): Mint to one account, never a death or a trade.
+        DevFixture,
+#endif
+    };
 
     struct FGoldChange
     {
@@ -79,7 +86,8 @@ namespace LDEconomy
     };
 
     // Demo transactions touch at most one account. Cause fixes the allowed shape:
-    // DeathReward = Mint to one account; Buy = Burn + Create; Sell = Consume + Mint; AccountRetire = Retire only.
+    // DeathReward = Mint to one account; Buy = Burn + Create; Sell = Consume + Mint; AccountRetire = Retire only;
+    // DevFixture (DEV builds) = Mint to one account like DeathReward.
     struct FTransaction
     {
         ECause Cause = ECause::None;
@@ -154,6 +162,16 @@ namespace LDEconomy
 
     enum class ECompactResult : uint8 { Compacted, NothingToCompact, Pinned, PrepareUnavailable, CorruptHistory };
 
+#if WITH_DEV_AUTOMATION_TESTS
+    // One committed DevFixture mint; kept for the whole match because compaction folds its journal entry.
+    struct FDevFixtureMint
+    {
+        uint64 Serial = 0;
+        FGuid Account;
+        int64 Gold = 0;
+    };
+#endif
+
     class LOCKDOWN_API FLedger
     {
     public:
@@ -191,20 +209,27 @@ namespace LDEconomy
         // A composite commit pins the ledger between its first Prepare and its Apply.
         void Pin() { ++Pins; }
         void Unpin() { check(Pins > 0); --Pins; }
+#if WITH_DEV_AUTOMATION_TESTS
+        const TArray<FDevFixtureMint>& DevFixtureGrants() const { return DevFixtureMints; }
+#endif
 
     private:
         FAuditState Prefix;
         FAuditState Current;
         TArray<FJournalEntry> Tail;
         int32 Pins = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+        TArray<FDevFixtureMint> DevFixtureMints;
+#endif
     };
 
     // Applies one entry to State with full validation. bReplay checks recorded results instead of filling them.
     LOCKDOWN_API bool ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bReplay, EPrepareError& Error, FString& Message);
     LOCKDOWN_API bool SameState(const FAuditState& A, const FAuditState& B, FString& Difference);
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 2): the audit prefix, the journal tail after it and the
-    // live state, every 64-bit value as a decimal string. StartingGold is the approved SHOP.StartingGold of the match.
+    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 3): the audit prefix, the journal tail after it, the
+    // live state and every DevFixture mint of the match, every 64-bit value as a decimal string. StartingGold is the
+    // approved SHOP.StartingGold of the match.
     LOCKDOWN_API bool ExportEvidence(const FLedger& Ledger, int64 StartingGold, FString& OutJson, FString& Error);
 #endif
 }

@@ -109,6 +109,13 @@ public:
     // Choice receipts finalized since the last publication, for the owning connection.
     void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDChoiceReceipt>& Out);
 
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV growth fixture (LDDevGrowthFixture.h): queues one three-card offer for this contender's next drawn head offers,
+    // oldest first. Every definition must be a legal choice of the current build and an offer must still be left to
+    // draw; each head draw re-resolves its preset against that draw's legal pool.
+    bool DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
+#endif
+
 private:
     struct FRecord
     {
@@ -128,4 +135,8 @@ private:
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FGuid MatchSecret;
     TMap<FGuid, FRecord> Records;
+#if WITH_DEV_AUTOMATION_TESTS
+    // Queued DEV preset offers per contender, oldest first; cleared by every new match.
+    TMap<FGuid, TArray<TArray<FName>>> DevOfferQueue;
+#endif
 };

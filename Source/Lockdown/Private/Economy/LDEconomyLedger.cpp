@@ -1,6 +1,7 @@
 #include "Economy/LDEconomyLedger.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Development/LDDevGrowthFixture.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonSerializer.h"
@@ -144,6 +145,11 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
     case ECause::AccountRetire:
         bShape = bRetire && !bGold && !bCreate && !bConsume && T.Mint == 0 && T.Burn == 0;
         break;
+#if WITH_DEV_AUTOMATION_TESTS
+    case ECause::DevFixture:
+        bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
+        break;
+#endif
     default:
         break;
     }
@@ -439,6 +445,9 @@ bool LDEconomy::FLedger::Initialize(const FGuid& Match, const TArray<FGuid>& Acc
     Tail.Reset();
     Tail.Reserve(JournalTailCapacity);
     Pins = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+    DevFixtureMints.Reset();
+#endif
     return true;
 }
 
@@ -448,6 +457,9 @@ void LDEconomy::FLedger::Reset()
     Current = FAuditState();
     Tail.Reset();
     Pins = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+    DevFixtureMints.Reset();
+#endif
 }
 
 uint64 LDEconomy::FLedger::InventoryRevision(const FGuid& Owner) const
@@ -519,6 +531,13 @@ void LDEconomy::FLedger::ApplyPrepared(FPreparedCommit&& Prepared)
         && Prepared.Journal.Serial == Current.ThroughSerial + 1 && Tail.Num() < JournalTailCapacity,
         TEXT("Ledger plan does not match the current serial; prepare and apply must be one uninterrupted commit."));
     Current = MoveTemp(Prepared.AfterState);
+#if WITH_DEV_AUTOMATION_TESTS
+    const FTransaction& Applied = Prepared.Journal.Transaction;
+    if (Applied.Cause == ECause::DevFixture)
+    {
+        DevFixtureMints.Add({Prepared.Journal.Serial, Applied.Gold->Account, Applied.Gold->Delta});
+    }
+#endif
     Tail.Add(MoveTemp(Prepared.Journal));
 }
 
@@ -617,6 +636,7 @@ const TCHAR* LedgerJsonCause(LDEconomy::ECause Cause)
     case LDEconomy::ECause::Buy: return TEXT("Buy");
     case LDEconomy::ECause::Sell: return TEXT("Sell");
     case LDEconomy::ECause::AccountRetire: return TEXT("AccountRetire");
+    case LDEconomy::ECause::DevFixture: return TEXT("DevFixture");
     case LDEconomy::ECause::None: break;
     }
     return TEXT("None");
@@ -775,9 +795,31 @@ bool LDEconomy::ExportEvidence(const FLedger& Ledger, int64 StartingGold, FStrin
         return false;
     }
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-    Root->SetNumberField(TEXT("schemaVersion"), 2);
+    Root->SetNumberField(TEXT("schemaVersion"), 3);
     Root->SetStringField(TEXT("match"), LedgerJsonGuid(Ledger.GetMatch()));
     Root->SetStringField(TEXT("startingGold"), LedgerJsonI64(StartingGold));
+    // Every DevFixture mint of the match, also those already folded into the prefix, and whether this process ran
+    // with the fixture switch; the checker accepts DevFixture only when told the fixture was in use.
+    TSharedRef<FJsonObject> Fixture = MakeShared<FJsonObject>();
+    Fixture->SetBoolField(TEXT("enabled"), LDDevGrowthFixture::IsSwitchPresent());
+    TArray<TSharedPtr<FJsonValue>> Grants;
+    int64 FixtureMinted = 0;
+    for (const FDevFixtureMint& Mint : Ledger.DevFixtureGrants())
+    {
+        if (!LedgerCheckedAdd(FixtureMinted, Mint.Gold, FixtureMinted))
+        {
+            Error = TEXT("DEV fixture mint total overflows.");
+            return false;
+        }
+        TSharedRef<FJsonObject> Grant = MakeShared<FJsonObject>();
+        Grant->SetStringField(TEXT("serial"), LedgerJsonU64(Mint.Serial));
+        Grant->SetStringField(TEXT("account"), LedgerJsonGuid(Mint.Account));
+        Grant->SetStringField(TEXT("gold"), LedgerJsonI64(Mint.Gold));
+        Grants.Add(MakeShared<FJsonValueObject>(Grant));
+    }
+    Fixture->SetArrayField(TEXT("grants"), Grants);
+    Fixture->SetStringField(TEXT("minted"), LedgerJsonI64(FixtureMinted));
+    Root->SetObjectField(TEXT("devFixture"), Fixture);
     Root->SetObjectField(TEXT("prefix"), LedgerJsonState(Ledger.AuditPrefix()));
     TArray<TSharedPtr<FJsonValue>> Tail;
     for (const FJournalEntry& Entry : Ledger.JournalTail())

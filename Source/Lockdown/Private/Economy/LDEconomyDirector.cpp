@@ -236,6 +236,14 @@ bool ALDEconomyDirector::BeginMatch(ALDGameMode& InMode, const FLDMatchContext& 
     PublishRevisions.Reset();
     ResolvedLifeThrough.Reset();
     RecentRewards.Reset();
+#if WITH_DEV_AUTOMATION_TESTS
+    DevGrants.Reset();
+    if (LDDevGrowthFixture::IsSwitchPresent())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE -LDDevGrowthFixture: generation=%u accepts DevQueueOffer and DevGrantReward on this authority"),
+            Match.Generation);
+    }
+#endif
     return true;
 }
 
@@ -350,11 +358,39 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
 
+    TArray<uint8> KeyBytes;
+    EconomyDeathKeyBytes(Death.Key, KeyBytes);
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    const ELDRewardOutcome Outcome = CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::DeathReward, KeyBytes,
+        Receipt.Fingerprint, Permit, Receipt, Reason);
+    if (Outcome != ELDRewardOutcome::Granted)
+    {
+        return Finish(Outcome, Reason);
+    }
+    Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
+    RecordReward(Receipt);
+    return Receipt;
+}
+
+ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
+    LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
+    const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
+{
+    Reason = ELDGrowthReason::None;
+    ALDGameMode* M = Mode();
     FString MaintenanceError;
     if (!CompactLedger(MaintenanceError))
     {
         UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_LEDGER_CORRUPT %s"), *MaintenanceError);
-        return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::AuthorityFault);
+        Reason = ELDGrowthReason::AuthorityFault;
+        return ELDRewardOutcome::PermanentlyRejected;
+    }
+    const FLDProgressionState* RecipientProgression = M->Development->FindProgression(Recipient);
+    const LDEconomy::FAccount* Account = Ledger.Account(Recipient);
+    if (!RecipientProgression || !Account)
+    {
+        Reason = ELDGrowthReason::DataInvalid;
+        return ELDRewardOutcome::PermanentlyRejected;
     }
     Ledger.Pin();
     ON_SCOPE_EXIT { Ledger.Unpin(); };
@@ -362,21 +398,17 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     TOptional<LDEconomy::FPreparedCommit> LedgerPlan;
     if (Amounts.Gold > 0)
     {
-        TArray<uint8> KeyBytes;
-        EconomyDeathKeyBytes(Death.Key, KeyBytes);
         LDEconomy::FTransaction Transaction;
-        Transaction.Cause = LDEconomy::ECause::DeathReward;
+        Transaction.Cause = Cause;
         Transaction.BusinessKey = BusinessKey(KeyBytes);
-        FMemory::Memcpy(Transaction.Terms, Receipt.Fingerprint, sizeof(Transaction.Terms));
+        FMemory::Memcpy(Transaction.Terms, TransactionTerms, sizeof(Transaction.Terms));
         Transaction.CommitBatch = Permit.GetBoundary().BatchSerial;
         Transaction.Mint = Amounts.Gold;
         Transaction.Gold.Emplace(LDEconomy::FGoldChange{Recipient, Account->Revision, Amounts.Gold});
         LDEconomy::FPrepareResult Prepared = Ledger.Prepare(Transaction);
         if (!Prepared.IsSuccess())
         {
-            ELDGrowthReason Reason = ELDGrowthReason::None;
-            const ELDRewardOutcome Outcome = EconomyLedgerOutcome(Prepared.Error, Reason);
-            return Finish(Outcome, Reason);
+            return EconomyLedgerOutcome(Prepared.Error, Reason);
         }
         LedgerPlan.Emplace(MoveTemp(Prepared.Value.GetValue()));
     }
@@ -384,7 +416,8 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     FLDPrepareGrowthResult Growth = M->Development->PrepareExperience(Recipient, Amounts.XP);
     if (!Growth.IsSuccess())
     {
-        return Finish(ELDRewardOutcome::PermanentlyRejected, Growth.Reason);
+        Reason = Growth.Reason;
+        return ELDRewardOutcome::PermanentlyRejected;
     }
     FLDPreparedGrowthChange& GrowthPlan = Growth.Value.GetValue();
 
@@ -395,7 +428,8 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
         FString LifeError;
         if (!M->ReadContenderLife(Match, Recipient, Life, LifeError))
         {
-            return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::StaleContext);
+            Reason = ELDGrowthReason::StaleContext;
+            return ELDRewardOutcome::PermanentlyRejected;
         }
         // A recipient that left after the locked fatal hit is settled without a future body to project.
         if (Life.Phase != ELDLifePhase::Left)
@@ -406,24 +440,25 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
             FLDExpectedBuildVersions Expected;
             if (!M->Development->ReadCombatInstalled(Recipient, Expected))
             {
-                return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::NotContender);
+                Reason = ELDGrowthReason::NotContender;
+                return ELDRewardOutcome::PermanentlyRejected;
             }
             FLDCombatPrepareResult Projection = M->Combat->PrepareBuildChange(M->Development->MakeCaller(Recipient),
                 M->Development->MakeProjectionInput(GrowthPlan.Build(), Equipped, InventoryRevision), Expected);
             if (!Projection.IsSuccess())
             {
-                ELDGrowthReason Reason = ELDGrowthReason::None;
                 const ELDRewardOutcome Outcome = EconomyCombatOutcome(Projection.Error, Reason);
                 UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_REWARD_PROJECTION %s %s"), LDGrowthWire::ReasonName(Reason), *Projection.Message);
-                return Finish(Outcome, Reason);
+                return Outcome;
             }
             CombatPlan.Emplace(MoveTemp(Projection.Value.GetValue()));
             GrowthPlan.SetCombatInstall({GrowthPlan.Build().Revision, InventoryRevision});
         }
     }
-    if (M->ValidateWritePermit(Permit, ELDCommitPhase::DeathsAndRewards) != ELDCommitReject::None)
+    if (M->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
     {
-        return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::NotAuthority);
+        Reason = ELDGrowthReason::NotAuthority;
+        return ELDRewardOutcome::PermanentlyRejected;
     }
 
     // Every part is prepared; the composite install below cannot fail.
@@ -451,10 +486,8 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     {
         M->Combat->ApplyBuildChange(MoveTemp(CombatPlan.GetValue()), Permit);
     }
-    Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
-    RecordReward(Receipt);
     MarkDirty(Recipient);
-    return Receipt;
+    return ELDRewardOutcome::Granted;
 }
 
 bool ALDEconomyDirector::RetireLeftAccounts(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -528,6 +561,12 @@ bool ALDEconomyDirector::ProcessTransactions(const FLDGameplayWritePermit& Permi
     {
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    if (!CommitDevGrants(Permit, Error))
+    {
+        return false;
+    }
+#endif
     TArray<FLDPendingGrowthIntent> Pending;
     M->Development->CollectPending(Pending);
     M->Vendor->CollectPending(Pending);
@@ -682,5 +721,111 @@ bool ALDEconomyDirector::ExportLedgerEvidence(FString& OutJson, FString& Error) 
         return false;
     }
     return LDEconomy::ExportEvidence(Ledger, Content->Get().Parameters.StartingGold, OutJson, Error);
+}
+
+uint64 ALDEconomyDirector::DevGrantReward(const FGuid& ContenderId, int64 XP, int64 Gold, FString& Error)
+{
+    if (!LDDevGrowthFixture::Admit(GetWorld(), Error))
+    {
+        return 0;
+    }
+    ALDGameMode* M = Mode();
+    if (!M || !M->Development || !Ledger.IsInitialized() || M->GetMatchContext() != Match || !M->IsGameplayWriteOpen(Match))
+    {
+        Error = TEXT("A DEV grant needs the current open match.");
+        return 0;
+    }
+    if (!Ledger.Account(ContenderId) || !M->Development->FindBuild(ContenderId))
+    {
+        Error = TEXT("The DEV grant recipient is not a contender of this match.");
+        return 0;
+    }
+    if (XP < 0 || Gold < 0 || (XP == 0 && Gold == 0))
+    {
+        Error = FString::Printf(TEXT("A DEV grant needs non-negative XP and gold, at least one of them positive (xp=%lld gold=%lld)."), XP, Gold);
+        return 0;
+    }
+    FDevGrant& Grant = DevGrants.AddDefaulted_GetRef();
+    Grant.Ticket = uint64(DevGrants.Num());
+    Grant.Contender = ContenderId;
+    Grant.XP = XP;
+    Grant.Gold = Gold;
+    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued grant ticket=%llu contender=%s xp=%lld gold=%lld"), Grant.Ticket,
+        *ContenderId.ToString(), XP, Gold);
+    return Grant.Ticket;
+}
+
+ELDDevGrantStatus ALDEconomyDirector::DevGrantStatus(uint64 Ticket, FString& Detail) const
+{
+    Detail.Reset();
+    if (Ticket == 0 || Ticket > uint64(DevGrants.Num()))
+    {
+        Detail = TEXT("No DEV grant with this ticket in the current match.");
+        return ELDDevGrantStatus::Unknown;
+    }
+    const FDevGrant& Grant = DevGrants[int32(Ticket - 1)];
+    Detail = Grant.Detail;
+    return Grant.Status;
+}
+
+bool ALDEconomyDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    for (FDevGrant& Grant : DevGrants)
+    {
+        if (Grant.Status != ELDDevGrantStatus::Pending)
+        {
+            continue;
+        }
+        // The grant's own identity: a DevFixture business record, never a death key.
+        TArray<uint8> KeyBytes;
+        {
+            FMemoryWriter Writer(KeyBytes);
+            FString Tag = TEXT("dev-fixture-grant");
+            FGuid LedgerMatch = Match.LedgerMatch;
+            uint64 Ticket = Grant.Ticket;
+            FGuid Contender = Grant.Contender;
+            int64 XP = Grant.XP;
+            int64 Gold = Grant.Gold;
+            Writer << Tag << LedgerMatch << Ticket << Contender << XP << Gold;
+        }
+        uint8 GrantTerms[32] = {};
+        Terms(KeyBytes, GrantTerms);
+        LDProgression::FRewardAmounts Amounts;
+        Amounts.Gold = Grant.Gold;
+        Amounts.XP = Grant.XP;
+        FLDRewardReceipt Receipt;
+        ELDGrowthReason Reason = ELDGrowthReason::None;
+        const ELDRewardOutcome Outcome = CommitRewardParts(Grant.Contender, Amounts, LDEconomy::ECause::DevFixture, KeyBytes,
+            GrantTerms, Permit, Receipt, Reason);
+        if (Reason == ELDGrowthReason::AuthorityFault)
+        {
+            Error = TEXT("A DEV growth grant found a corrupt ledger inside the Transactions phase.");
+            return false;
+        }
+        if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
+        {
+            // Nothing was installed; the grant stays pending for the next Transactions phase, like a retried death reward.
+            continue;
+        }
+        if (Outcome == ELDRewardOutcome::Granted)
+        {
+            Grant.Status = ELDDevGrantStatus::Granted;
+            Grant.Detail = FString::Printf(TEXT("level %u->%u, opportunities %u..%u, xp +%lld, gold +%lld, ledger serial %llu"),
+                uint32(Receipt.LevelBefore), uint32(Receipt.LevelAfter), uint32(Receipt.OpportunityFirst),
+                uint32(Receipt.OpportunityLast), Receipt.XPDelta, Receipt.GoldDelta, Receipt.bHasLedgerSerial ? Receipt.LedgerSerial : 0);
+        }
+        else
+        {
+            Grant.Status = ELDDevGrantStatus::Rejected;
+            Grant.Detail = FString::Printf(TEXT("outcome %u: %s"), uint32(Outcome), LDGrowthWire::ReasonName(Reason));
+        }
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE grant ticket=%llu contender=%s %s"), Grant.Ticket,
+            *Grant.Contender.ToString(), *Grant.Detail);
+        if (!CompactLedger(Error))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 #endif
