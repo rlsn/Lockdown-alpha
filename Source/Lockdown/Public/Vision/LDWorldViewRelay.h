@@ -111,17 +111,26 @@ namespace LDObservedPresentation
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
 }
 
-// Client-only fading of tall props that stand between the gameplay camera and a body the player must see (A4). A prop
-// opts in with the component tag LDFadeable; its material fades through the scalar parameter LDFade (0 opaque, 1 most
-// faded). Only the own living body and units presented right now are tested, so a fade never reveals a hidden unit.
+// Client-only fading of tall props that stand between the gameplay camera and a body the player must see (A4), or that
+// run through a body standing in or against them. A prop opts in with the component tag LDFadeable; its material fades
+// through the scalar parameter LDFade (0 opaque, 1 most faded) and, while it fades, casts no shadow. Only the own living
+// body and units presented right now are tested, so a fade never reveals a hidden unit. Presentation only: collision,
+// sight and navigation never read it.
 namespace LDPropFade
 {
     inline const FName Tag = TEXT("LDFadeable");
     inline const FName Parameter = TEXT("LDFade");
-    // Room around the prop's bounds, and the stretch before the target that does not count (a prop at the body's own
-    // spot is not in front of it).
+    // Scalar the relay sets on each fading material: at LDFade 1 a pixel survives with probability 1 - FadedStrength,
+    // so a fully faded prop is gone instead of a visible dither column (the material's own default keeps one in ten).
+    inline const FName StrengthParameter = TEXT("LDFadeStrength");
+    constexpr float FadedStrength = 1.f;
+    // Room around the prop's bounds, and the stretch just before the target that the line test skips (a prop right behind
+    // the body is not in front of it; one running through the body is caught by PierceRadiusCm).
     constexpr double BoundsSlackCm = 15.;
     constexpr double TargetClearCm = 40.;
+    // A target within this horizontal distance of the prop's bounds, inside its height, is pierced by it (a body about
+    // 28 cm in capsule radius, plus its arms).
+    constexpr double PierceRadiusCm = 45.;
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
