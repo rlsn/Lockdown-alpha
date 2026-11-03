@@ -53,9 +53,8 @@ walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 vi
 driver 在下一步开始时释放已被消费的前缀，营地成员批次没有其他消费者，同样在下一步释放。
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
-都不是最终 Motion Fence、Sealing 或占领完成证明；root motion/击退全链和全部提供者封桶仍须按 CT06 接通。
-旧 `StartAuthorityDash` / `StartContentDash`、Sprint 自定义压缩位与旧地表慢速分派已删除，
-不保留可调用的拒绝壳；装备位移只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
+都不是最终 Motion Fence、Sealing 或占领完成证明。Demo 没有击退或根运动（骨骼动画都原地播放）。
+没有冲刺或地表减速的独立运动分派；装备位移只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
 
 ## 命令与取消
@@ -97,7 +96,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
      S、新生命/新对局、输入被抑制即丢弃，暂存超过 1 s 丢弃并提示。普攻无需暂存：攻击订单本就在服务器等身体空闲。
    - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
      按键即按同一确认路径朝指针施放；对单位技能指针下无单位时仍进入普通武装、左键确认。
-   - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000（原 1800），
+   - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，
      600 cm/s 基础移速约 75 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
@@ -151,7 +150,6 @@ Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、�
 和重建映射都只经 `ReleaseLocalInput` 取消本地准备态与回中锁存并等待按键释放：
 不 Stop 已接受订单、不停心跳、不阻断身体沿路径前进，关闭后也不重放仍按住的输入。
 只有操作系统失焦由 Navigation 一次 Stop 并停发心跳，回焦后需新手势，不自动续走。
-旧职业准备、持续 hold、物品快捷与旧 Armed 字段及 RPC 已随生产者删除。
 暂停菜单不暂停共享世界；死亡、离开和终局清除适用的移动/指向/交互状态。
 
 `ULDUIRoot` 是唯一的本地界面层来源：`TopInputLayer()` 报告文本编辑、子确认或主面板；
@@ -293,7 +291,8 @@ Demo 基础身体/地面链使用 `RunDemoCoreCheck.ps1` 的 DEV-only 三拥有�
 `Lockdown.Rules.DemoMotionProbe` 在隔离原生物理世界验证滑移、非空 StepUp 回滚、
 ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记录；不改生产地图或共享引擎。
 拥有连接下的订单、S 取消与输入路由由 `RunDemoCombatCheck.ps1` 覆盖；
-旧 Movement/Navigation/Input runner 与 `LDNavigationProbe` 已删除。
+该场景还在 Host 上经 DEV 指针走普通 `ClickMove` 截取落点标记、悬停环与攻击标记，并报告操作手感实测；
+`Lockdown.Rules.DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定。
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
