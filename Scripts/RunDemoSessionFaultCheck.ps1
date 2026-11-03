@@ -33,6 +33,17 @@ $required = @{
     'Join/Joiner' = @('The frontend offers the name, address, port and Join controls', 'A failed join shows its reason, not a generic ended notice',
         'A failed join names its reason once', 'The session reason is shown without a duplicated prefix', 'A failed join stays on the frontend',
         'The Join control is usable again after a failure')
+    'Refuse/Host' = @($connection, 'Every provider is wired: the ready room may start normally', 'Refused joins never enter the room or its running match')
+    'Refuse/Client1' = @($connection)
+    'Refuse/Client2' = @($connection)
+    'Refuse/Joiner' = @('The frontend offers the name, address, port and Join controls', 'A version mismatch is refused with its own reason',
+        'A full room is refused with its own reason', 'A started match is refused with its own reason', 'A refused join stays on the frontend',
+        'The Join control is usable again after a refusal')
+    'Race/Host' = @($connection, 'Every provider is wired: the ready room may start normally', 'Refused joins never enter the room or its running match')
+    'Race/Client1' = @($connection)
+    'Race/Joiner' = @('The frontend offers the name, address, port and Join controls',
+        'A join that loses the race to the match start is refused with its own reason', 'A refused join stays on the frontend',
+        'The Join control is usable again after a refusal')
 }
 
 function New-LoopbackPort {
@@ -43,14 +54,17 @@ function New-LoopbackPort {
 }
 
 function Start-FaultRole {
-    param([string]$Phase, [string]$Role, [string]$Url, [switch]$Ui, [int]$Port, [int]$ClosedPort)
+    param([string]$Phase, [string]$Role, [string]$Url, [switch]$Ui, [int]$Port, [int]$ClosedPort, [int]$HostPort, [string]$ProductOverride)
     $user = Join-Path $output "$Phase-$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     # Roles that read the frontend or press menu buttons need Slate to tick, so they render offscreen.
     $render = if ($Ui) { '-windowed -RenderOffScreen -ResX=960 -ResY=540' } else { '-nullrhi' }
     $portArgument = if ($Port) { "-port=$Port" } else { '' }
-    $closedArgument = if ($ClosedPort) { "-LDDemoSessionFaultClosedPort=$ClosedPort" } else { '' }
-    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} {1} {2} -UserDir="{3}" -LDDemoSessionFaultProbe -LDDemoSessionFaultMode={4} -LDDemoSessionFaultRole={5} -LDDemoSessionFaultTimeout={6} -LDDemoSessionFaultOutput="{7}" -abslog="{8}"' -f $render,$portArgument,$closedArgument,$user,$Phase,$Role,$TimeoutSeconds,(Join-Path $launch.ProbeOutput $Phase),(Join-Path $output "$Phase-$Role.log")
+    $probeArguments = @(
+        if ($ClosedPort) { "-LDDemoSessionFaultClosedPort=$ClosedPort" }
+        if ($HostPort) { "-LDDemoSessionFaultHostPort=$HostPort" }
+        if ($ProductOverride) { "-LDDemoSessionFaultProductOverride=$ProductOverride" }) -join ' '
+    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} {1} {2} -UserDir="{3}" -LDDemoSessionFaultProbe -LDDemoSessionFaultMode={4} -LDDemoSessionFaultRole={5} -LDDemoSessionFaultTimeout={6} -LDDemoSessionFaultOutput="{7}" -abslog="{8}"' -f $render,$portArgument,$probeArguments,$user,$Phase,$Role,$TimeoutSeconds,(Join-Path $launch.ProbeOutput $Phase),(Join-Path $output "$Phase-$Role.log")
     $process = Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru
     $processes.Add($process)
     $process
@@ -159,9 +173,64 @@ try {
     Stop-Role $joiner 'Joining client'
     Assert-FaultLogs 'Join' @('Joiner')
 
+    # Phase 4: a live Host refuses real Join presses, each with its own coded reason: another product version, a full
+    # room of three humans, then a started match. The joiner announces another version, so any attempt that passed the
+    # room checks would still be refused, never admitted.
+    $directory = Join-Path $launch.ProbeOutput 'Refuse'
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    $port = New-LoopbackPort
+    $otherVersion = if ($version -ne '0.0.1') { '0.0.1' } else { '0.0.2' }
+    $refuseHost = Start-FaultRole -Phase 'Refuse' -Role 'Host' -Url "/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=RefuseHost" -Port $port
+    Wait-FaultFiles $directory @('HostJoined.json') @($refuseHost)
+    $refused = Start-FaultRole -Phase 'Refuse' -Role 'Joiner' -Ui -HostPort $port -ProductOverride $otherVersion
+    Wait-FaultFiles $directory @('JoinerMismatch.json') @($refuseHost, $refused)
+    $filler1 = Start-FaultRole -Phase 'Refuse' -Role 'Client1' -Url (& $clientUrl $port 'FaultFiller1')
+    $filler2 = Start-FaultRole -Phase 'Refuse' -Role 'Client2' -Url (& $clientUrl $port 'FaultFiller2')
+    Wait-FaultFiles $directory @('Host.json', 'Client1.json', 'Client2.json', 'Joiner.json') @($refuseHost, $refused, $filler1, $filler2)
+    $null = Read-FaultReport 'Refuse' 'Host'
+    $null = Read-FaultReport 'Refuse' 'Client1'
+    $null = Read-FaultReport 'Refuse' 'Client2'
+    $refuseReport = Read-FaultReport 'Refuse' 'Joiner'
+    foreach ($field in 'version_mismatch_notice', 'room_full_notice', 'match_started_notice') {
+        if (-not $refuseReport.summary.$field) { throw "The Refuse phase did not record its $($field): $output" }
+    }
+    Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Disconnect owning clients'
+    Stop-Role $filler1 'First filling client'
+    Stop-Role $filler2 'Second filling client'
+    Stop-Role $refused 'Refused client'
+    Set-Content -LiteralPath (Join-Path $directory 'Finish') -Value 'Complete'
+    Stop-Role $refuseHost 'Refusing Host'
+    Assert-FaultLogs 'Refuse' @('Joiner')
+
+    # Phase 5: a real Join passes PreLogin, then the Host starts while that client loads the room. The final admission
+    # check refuses it, and the client shows the started-match reason rather than a lost session.
+    $directory = Join-Path $launch.ProbeOutput 'Race'
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    $port = New-LoopbackPort
+    $raceHost = Start-FaultRole -Phase 'Race' -Role 'Host' -Url "/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=RaceHost" -Port $port
+    Wait-FaultFiles $directory @('HostJoined.json') @($raceHost)
+    $raceFiller = Start-FaultRole -Phase 'Race' -Role 'Client1' -Url (& $clientUrl $port 'FaultFiller')
+    $racer = Start-FaultRole -Phase 'Race' -Role 'Joiner' -Ui -HostPort $port
+    Wait-FaultFiles $directory @('Host.json', 'Client1.json', 'Joiner.json') @($raceHost, $raceFiller, $racer)
+    $raceHostReport = Read-FaultReport 'Race' 'Host'
+    $null = Read-FaultReport 'Race' 'Client1'
+    $raceReport = Read-FaultReport 'Race' 'Joiner'
+    if (-not $raceHostReport.summary.started_while_join_loads) { throw "The Race Host did not start while the join was loading the room: $output" }
+    if (-not (Select-String -LiteralPath (Join-Path $output 'Race-Host.log') -Pattern 'LD_DEMO_ADMISSION_REJECTED MatchAlreadyStarted:' -SimpleMatch -Quiet)) {
+        throw "The Race refusal did not come from the Host's final admission check: $output"
+    }
+    Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Disconnect owning clients'
+    Stop-Role $raceFiller 'Race filling client'
+    Stop-Role $racer 'Racing client'
+    Set-Content -LiteralPath (Join-Path $directory 'Finish') -Value 'Complete'
+    Stop-Role $raceHost 'Race Host'
+    Assert-FaultLogs 'Race' @('Joiner')
+
     $kind = if ($launch.Packaged) { "packaged build $($launch.Package)" } else { 'editor game target' }
     Write-Host ("DEV-only session faults passed on the ${kind}: mid-match menu leave (match continued, no death notice, Host-ended result marks the leaver left with no kill credited); " +
-        "Host killed mid-match -> client menu shows '$($orphanReport.summary.notice)'; failed joins -> '$($joinReport.summary.closed_port_notice)' and '$($joinReport.summary.unresolvable_host_notice)'. " +
+        "Host killed mid-match -> client menu shows '$($orphanReport.summary.notice)'; failed joins -> '$($joinReport.summary.closed_port_notice)' and '$($joinReport.summary.unresolvable_host_notice)'; " +
+        "refused joins -> '$($refuseReport.summary.version_mismatch_notice)', '$($refuseReport.summary.room_full_notice)' and '$($refuseReport.summary.match_started_notice)'; " +
+        "a join that lost the race to the start -> '$($raceReport.summary.race_notice)'. " +
         "All on one machine's loopback: not LAN or public internet. Evidence: $output")
 }
 finally {

@@ -243,7 +243,7 @@ void ULDGameInstance::Shutdown()
     GEngine->OnTravelFailure().Remove(TravelHandle);
     Super::Shutdown();
 }
-void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString&)
+void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& ErrorString)
 {
     // Pending connections have no world on the driver yet. Resolve their actual
     // owning context rather than losing the message or leaking it to another PIE instance.
@@ -258,16 +258,28 @@ void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkF
         }
     }
     const bool bInSession = !bPending && World && !World->GetMapName().Contains(TEXT("L_Frontend"));
+    // A Host's PreLogin refusal is the failure text of the pending connection; only its stable code is shown.
+    FString Refusal;
+    if (!bInSession && LDDemoEntry::DescribeJoinRefusal(ErrorString, Refusal)) { ReturnAfterFailure(World, Refusal); return; }
     ReturnAfterFailure(World, DescribeNetworkFailure(Type, bInSession));
 }
 void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString&) { ReturnAfterFailure(World, DescribeTravelFailure(Type)); }
+void ULDGameInstance::ReturnAfterRefusal(UWorld* World, const FString& ServerMessage)
+{
+    FString Reason;
+    if (!LDDemoEntry::DescribeJoinRefusal(ServerMessage, Reason)) { Reason = TEXT("房主拒绝了加入。"); }
+    ReturnAfterFailure(World, Reason);
+}
 void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
 {
     if (!World || World->GetGameInstance() != this) { return; }
+    // A refusal is followed by its connection closing: the room's first failure stays the shown reason.
+    if (World == LeavingWorld.Get()) { return; }
     PrepareLocalSettingsForTravel();
     ConnectionMessage = Error;
     if (!World->GetMapName().Contains(TEXT("L_Frontend")))
     {
+        LeavingWorld = World;
         World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
         {
             UGameplayStatics::OpenLevel(this, TEXT("/Game/Lockdown/Generated/Maps/L_Frontend"));

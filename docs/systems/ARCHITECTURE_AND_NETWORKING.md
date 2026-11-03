@@ -37,7 +37,12 @@ Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
 `ALDGameMode::InitGame` 为有效 Demo 房间一次创建 `FLDMatchContext`；
 网络 Generation 通过 GameInstance 的有界单调分配器取得，LedgerMatch 单独生成并显式绑定。
 `PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与三真人容量；
-不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。
+不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。两处拒绝都以 `<原因码>: <英文说明>` 送出稳定原因码
+（`LDDemoEntry::JoinRefusal`：MissingDemoDefinition、MatchAlreadyStarted、RoomFull、ProtocolMismatch、
+ProductMismatch、ContentMismatch）；`PreLogin` 的这些检查先于引擎会话的人数检查，否则满员只得到不带原因码的
+"Server full."。客户端只把已知原因码映射为中文原因并附上该码，不显示英文说明或引擎文本：`PreLogin` 拒绝随待连接失败送达；
+`PostLogin` 拒绝时客户端已载入房间，原因经 `ClientWasKicked` 送达后返回前端。拒绝或网络、旅行失败使客户端离开房间世界时，
+第一个原因保留到前端，随后同一世界的断线不再覆盖它。
 前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。正常开局由 `LDMatchProviders` 门禁：
 Combat、Progression（含最终等级读取）、Shop、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
 Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lobby 的 StartBlocker 与 Start 回执。
@@ -163,7 +168,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 修改序列化时同步生产者、消费者、上限检查、代次拒绝和客户端显示，不能只改结构体尺寸。
 新的公开信息必须显式决定，不通过日志、提示或失败原因意外公开。
 
-当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 失联、加入失败）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
+当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、

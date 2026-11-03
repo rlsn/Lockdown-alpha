@@ -110,3 +110,11 @@ void ALDPlayerController::ClientDemoRoomClosed_Implementation(uint32 Generation,
     if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ConnectionMessage = Reason; }
     ClientTravel(LDDemoEntry::FrontendMap, TRAVEL_Absolute);
 }
+
+void ALDPlayerController::ClientWasKicked_Implementation(const FText& KickReason)
+{
+    // Its PreLogin passed, but the room changed while it loaded; the coded refusal is its reason, not a lost session.
+    DemoPendingSequence = 0;
+    ClearControls();
+    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ReturnAfterRefusal(GetWorld(), KickReason.ToString()); }
+}

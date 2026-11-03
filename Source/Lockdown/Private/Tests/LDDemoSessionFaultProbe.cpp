@@ -12,6 +12,8 @@
 #include "Components/TextBlock.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
+#include "Engine/NetConnection.h"
+#include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -28,7 +30,10 @@ namespace LDSessionFaultProbeInternal
 // Leave: three humans start normally; Client2 leaves through the in-match menu, the Host ends the match.
 // HostLoss: two humans start normally; the runner kills the Host and Client1 must land on an interrupted menu.
 // Join: a frontend client presses Join for a closed port and for an unresolvable host.
-enum class ELDSessionFaultMode : uint8 { Leave, HostLoss, Join };
+// Refuse: a live Host refuses real Join presses for another product version, a full room and a started match.
+// Race: a real Join passes PreLogin, then the Host starts while that client loads the room; the final admission check
+// refuses it with the started-match reason.
+enum class ELDSessionFaultMode : uint8 { Leave, HostLoss, Join, Refuse, Race };
 enum class ELDSessionFaultStage : uint8 { Join, Lobby, Starting, Match, Ending, Frontend, Done };
 
 const TCHAR* const LeaveRequested = TEXT("Client2LeaveRequested.json");
@@ -36,6 +41,7 @@ const TCHAR* const HostKilled = TEXT("HostKilled");
 const TCHAR* const SawResults = TEXT("Client1SawResults.json");
 const TCHAR* const ConnectingPrefix = TEXT("正在连接");
 const TCHAR* const JoinFailedPrefix = TEXT("连接失败：");
+const TCHAR* const ReturnedPrefix = TEXT("已返回主菜单：");
 const TCHAR* const EndedWithoutReason = TEXT("连接已结束");
 const TCHAR* const InterruptedText = TEXT("会话中断");
 
@@ -74,6 +80,14 @@ int32 RemoteControllers(UWorld& World)
     return Count;
 }
 
+// A client whose PreLogin passed is told to load the room; it has no controller until it joins.
+bool HasJoinLoadingRoom(UWorld& World)
+{
+    const UNetDriver* Driver = World.GetNetDriver();
+    return Driver && Driver->ClientConnections.ContainsByPredicate([](const UNetConnection* Connection)
+    { return Connection && Connection->ClientLoginState == EClientLoginState::Welcomed && !Connection->PlayerController; });
+}
+
 class FLDDemoSessionFaultProbe;
 // Every failed join reopens the frontend with a new controller; the one Join probe continues across them.
 TWeakPtr<FLDDemoSessionFaultProbe> JoinProbe;
@@ -85,20 +99,20 @@ public:
     FString Output, Role, Error;
     ELDSessionFaultMode Mode = ELDSessionFaultMode::Leave;
     ELDSessionFaultStage Stage = ELDSessionFaultStage::Join;
-    int32 ClosedPort = 0, Attempt = 0;
+    int32 ClosedPort = 0, HostPort = 0, Attempt = 0;
     double Deadline = 0, StageAt = 0;
     bool Passed = true, Written = false, ReadySent = false, IdentitySaved = false, StartSent = false, EndSent = false;
-    bool LeaveSent = false, HandedOff = false, MarkedResults = false, SawConnecting = false;
+    bool LeaveSent = false, HandedOff = false, MarkedResults = false, SawConnecting = false, Announced = false;
     FGuid LeaverId;
     FString PreviousNotice;
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<FJsonObject> Summary = MakeShared<FJsonObject>();
 
-    int32 ExpectedHumans() const { return Mode == ELDSessionFaultMode::Leave ? 3 : 2; }
+    int32 ExpectedHumans() const { return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse ? 3 : 2; }
     TArray<FString> Roles() const
     {
-        return Mode == ELDSessionFaultMode::Leave ? TArray<FString>{TEXT("Host"), TEXT("Client1"), TEXT("Client2")}
-            : TArray<FString>{TEXT("Host"), TEXT("Client1")};
+        return Mode == ELDSessionFaultMode::Leave || Mode == ELDSessionFaultMode::Refuse
+            ? TArray<FString>{TEXT("Host"), TEXT("Client1"), TEXT("Client2")} : TArray<FString>{TEXT("Host"), TEXT("Client1")};
     }
 
     bool Check(bool Value, const TCHAR* Name)
@@ -165,7 +179,8 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("mode"), Mode == ELDSessionFaultMode::Leave ? TEXT("Leave")
-            : Mode == ELDSessionFaultMode::HostLoss ? TEXT("HostLoss") : TEXT("Join"));
+            : Mode == ELDSessionFaultMode::HostLoss ? TEXT("HostLoss") : Mode == ELDSessionFaultMode::Refuse ? TEXT("Refuse")
+            : Mode == ELDSessionFaultMode::Race ? TEXT("Race") : TEXT("Join"));
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetStringField(TEXT("scope"), TEXT("DEV-only session faults through the real entry, menu and frontend paths on one machine's loopback. Not LAN or public internet."));
         Report->SetObjectField(TEXT("summary"), Summary);
@@ -191,6 +206,7 @@ public:
     bool Tick();
     bool TickMatch(ALDPlayerController& PC, UWorld& World, ALDGameState& Public);
     bool TickFrontend(ALDPlayerController& PC, UWorld& World);
+    bool TickRefused(ALDPlayerController& PC, UWorld& World);
     bool CheckLeaveResult(const ALDGameState& Public);
 };
 
@@ -250,6 +266,12 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
     case ELDSessionFaultStage::Lobby:
     {
         if (!AllMarkers(TEXT("Joined.json")) || Lobby.Members.Num() != ExpectedHumans()) { return true; }
+        // Refuse: the full Lobby is announced once, and the Host holds it until the joiner was refused as full.
+        if (Mode == ELDSessionFaultMode::Refuse && Role == TEXT("Host") && !Announced)
+        {
+            if (!Mark(TEXT("HostFull.json"))) { return Finish(); }
+            Announced = true;
+        }
         const FLDLobbyMember* Self = Lobby.Members.FindByPredicate([&PC](const FLDLobbyMember& Row)
         { return Row.ContenderId == PC.OwnerState.ContenderId; });
         if (!Self || !Self->Ready)
@@ -270,7 +292,19 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         if (Role != TEXT("Host")) { Stage = ELDSessionFaultStage::Starting; return true; }
         const bool AllReady = !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& Row)
         { return Row.Kind == ELDContenderKind::Human && !Row.Ready; });
-        if (!AllReady || StartSent || !AllMarkers(TEXT("Id.json"))) { return true; }
+        if (!AllReady || StartSent || !AllMarkers(TEXT("Id.json"))
+            || (Mode == ELDSessionFaultMode::Refuse && !Exists(TEXT("JoinerFull.json")))) { return true; }
+        // Race: the ready room is announced once, and the Host starts only after the joiner's PreLogin passed.
+        if (Mode == ELDSessionFaultMode::Race)
+        {
+            if (!Announced)
+            {
+                if (!Mark(TEXT("HostRaceReady.json"))) { return Finish(); }
+                Announced = true;
+            }
+            if (!HasJoinLoadingRoom(World)) { return true; }
+            Summary->SetBoolField(TEXT("started_while_join_loads"), true);
+        }
         if (!Check(Lobby.CanStart && Lobby.StartBlocker.IsEmpty(), TEXT("Every provider is wired: the ready room may start normally")))
         {
             Error = TEXT("Normal start is still blocked: ") + Lobby.StartBlocker;
@@ -298,6 +332,16 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         StageAt = FPlatformTime::Seconds();
         return true;
     case ELDSessionFaultStage::Match:
+        if (Mode == ELDSessionFaultMode::Refuse || Mode == ELDSessionFaultMode::Race)
+        {
+            // The fillers only hold the room; the Host checks that no refused join reached the running match.
+            if (Role != TEXT("Host")) { return Finish(); }
+            if (!Exists(TEXT("Joiner.json"))) { return true; }
+            auto* Authority = World.GetAuthGameMode<ALDGameMode>();
+            Check(Authority && Authority->IsGameplayWriteOpen(Authority->GetMatchContext())
+                && RemoteControllers(World) == ExpectedHumans() - 1, TEXT("Refused joins never enter the room or its running match"));
+            return Finish();
+        }
         if (Mode == ELDSessionFaultMode::HostLoss)
         {
             if (Role == TEXT("Client1"))
@@ -387,6 +431,7 @@ bool FLDDemoSessionFaultProbe::TickFrontend(ALDPlayerController& PC, UWorld& Wor
         Summary->SetStringField(TEXT("message"), Instance->ConnectionMessage);
         return Finish();
     }
+    if (Mode == ELDSessionFaultMode::Refuse || Mode == ELDSessionFaultMode::Race) { return TickRefused(PC, World); }
     // Join: two real Join presses must each end in an explicit failure with the controls usable again.
     UEditableTextBox* Name = FindIn<UEditableTextBox>(Root, TEXT("PlayerName"));
     UEditableTextBox* Address = FindIn<UEditableTextBox>(Root, TEXT("JoinAddress"));
@@ -434,6 +479,75 @@ bool FLDDemoSessionFaultProbe::TickFrontend(ALDPlayerController& PC, UWorld& Wor
     return true;
 }
 
+// Refuse: real Join presses against a live Host, each refused with its own coded reason. The joiner announces another
+// product version, so a version check would refuse any attempt that reached it; the Host's state marker decides which
+// refusal comes first. Race: one Join that passes PreLogin is refused by the final admission check after the Host
+// started; that client loaded the room first, so its frontend may show the returned-to-menu context.
+bool FLDDemoSessionFaultProbe::TickRefused(ALDPlayerController& PC, UWorld& World)
+{
+    struct FRefusal { const TCHAR* Waits; const TCHAR* Code; const TCHAR* Reason; const TCHAR* CheckName; const TCHAR* Field; const TCHAR* Marker; };
+    static const FRefusal Refused[] = {
+        {TEXT("HostJoined.json"), LDDemoEntry::JoinRefusal::ProductMismatch, TEXT("版本与房主不兼容"),
+            TEXT("A version mismatch is refused with its own reason"), TEXT("version_mismatch_notice"), TEXT("JoinerMismatch.json")},
+        {TEXT("HostFull.json"), LDDemoEntry::JoinRefusal::RoomFull, TEXT("房间已满"),
+            TEXT("A full room is refused with its own reason"), TEXT("room_full_notice"), TEXT("JoinerFull.json")},
+        {TEXT("HostInMatch.json"), LDDemoEntry::JoinRefusal::MatchAlreadyStarted, TEXT("对局已开始"),
+            TEXT("A started match is refused with its own reason"), TEXT("match_started_notice"), nullptr}};
+    static const FRefusal Raced[] = {
+        {TEXT("HostRaceReady.json"), LDDemoEntry::JoinRefusal::MatchAlreadyStarted, TEXT("对局已开始"),
+            TEXT("A join that loses the race to the match start is refused with its own reason"), TEXT("race_notice"), nullptr}};
+    const bool bRace = Mode == ELDSessionFaultMode::Race;
+    const TArrayView<const FRefusal> Refusals = bRace ? TArrayView<const FRefusal>(Raced) : TArrayView<const FRefusal>(Refused);
+    UUserWidget* Root = PC.RootUI;
+    if (!Root) { return true; }
+    UEditableTextBox* Name = FindIn<UEditableTextBox>(Root, TEXT("PlayerName"));
+    UEditableTextBox* Address = FindIn<UEditableTextBox>(Root, TEXT("JoinAddress"));
+    UEditableTextBox* Port = FindIn<UEditableTextBox>(Root, TEXT("JoinPort"));
+    UButton* Join = FindIn<UButton>(Root, TEXT("Join"));
+    if (!Check(Name && Address && Port && Join, TEXT("The frontend offers the name, address, port and Join controls"))) { return Finish(); }
+    const FRefusal& Expected = Refusals[Attempt];
+    const FString Notice = FindShownText(Root, [](const FString& Text)
+    {
+        return Text.StartsWith(ConnectingPrefix) || Text.StartsWith(JoinFailedPrefix) || Text.StartsWith(ReturnedPrefix)
+            || Text.StartsWith(EndedWithoutReason);
+    });
+    if (StageAt == 0)
+    {
+        if (!Exists(Expected.Waits)) { return true; }
+        PreviousNotice = Notice;
+        Name->SetText(FText::FromString(TEXT("拒绝测试")));
+        Address->SetText(FText::FromString(TEXT("127.0.0.1")));
+        Port->SetText(FText::FromString(FString::FromInt(HostPort)));
+        Join->OnClicked.Broadcast();
+        StageAt = FPlatformTime::Seconds();
+        return true;
+    }
+    const double Elapsed = FPlatformTime::Seconds() - StageAt;
+    if (!SawConnecting)
+    {
+        if (Notice.StartsWith(ConnectingPrefix)) { SawConnecting = true; return true; }
+        // A loopback refusal can replace the connecting notice before the next probe tick.
+        if (Elapsed < 1. || Notice.IsEmpty() || Notice == PreviousNotice)
+        {
+            if (Elapsed < 10.) { return true; }
+            Check(false, TEXT("A Join press starts a connection attempt"));
+            return Finish();
+        }
+        SawConnecting = true;
+    }
+    if (Notice.IsEmpty() || Notice.StartsWith(ConnectingPrefix)) { return true; }
+    Summary->SetStringField(Expected.Field, Notice);
+    Check((Notice.StartsWith(JoinFailedPrefix) || (bRace && Notice.StartsWith(ReturnedPrefix))) && Notice.Contains(Expected.Reason)
+        && Notice.Contains(FString::Printf(TEXT("（%s）"), Expected.Code)), Expected.CheckName);
+    Check(UWorld::RemovePIEPrefix(World.GetOutermost()->GetName()) == LDDemoEntry::FrontendMap, TEXT("A refused join stays on the frontend"));
+    Check(Join->GetIsEnabled(), TEXT("The Join control is usable again after a refusal"));
+    if (!Passed || (Expected.Marker && !Mark(Expected.Marker))) { return Finish(); }
+    if (++Attempt >= Refusals.Num()) { return Finish(); }
+    SawConnecting = false;
+    StageAt = 0;
+    return true;
+}
+
 void Start(ALDPlayerController& Controller)
 {
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoSessionFaultProbe")) || !Controller.IsLocalController()) { return; }
@@ -442,15 +556,27 @@ void Start(ALDPlayerController& Controller)
     int32 Timeout = 600;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultTimeout="), Timeout);
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultClosedPort="), Probe->ClosedPort);
+    FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultHostPort="), Probe->HostPort);
     const bool bArguments = FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultOutput="), Probe->Output)
         && FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultRole="), Probe->Role)
         && FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultMode="), ModeText);
     Probe->Mode = ModeText == TEXT("HostLoss") ? ELDSessionFaultMode::HostLoss
-        : ModeText == TEXT("Join") ? ELDSessionFaultMode::Join : ELDSessionFaultMode::Leave;
-    const bool bRole = Probe->Mode == ELDSessionFaultMode::Join ? Probe->Role == TEXT("Joiner")
-        : Probe->Role == TEXT("Host") || Probe->Role == TEXT("Client1") || (Probe->Mode == ELDSessionFaultMode::Leave && Probe->Role == TEXT("Client2"));
-    if (!bArguments || !bRole || (ModeText != TEXT("Leave") && ModeText != TEXT("HostLoss") && ModeText != TEXT("Join"))
+        : ModeText == TEXT("Join") ? ELDSessionFaultMode::Join
+        : ModeText == TEXT("Refuse") ? ELDSessionFaultMode::Refuse
+        : ModeText == TEXT("Race") ? ELDSessionFaultMode::Race : ELDSessionFaultMode::Leave;
+    const bool bJoiner = Probe->Role == TEXT("Joiner");
+    const bool bRoomRole = Probe->Role == TEXT("Host") || Probe->Role == TEXT("Client1");
+    const bool bLiveHostJoiner = Probe->Mode == ELDSessionFaultMode::Refuse || Probe->Mode == ELDSessionFaultMode::Race;
+    const bool bRole = Probe->Mode == ELDSessionFaultMode::Join ? bJoiner
+        : Probe->Mode == ELDSessionFaultMode::Refuse ? bJoiner || bRoomRole || Probe->Role == TEXT("Client2")
+        : Probe->Mode == ELDSessionFaultMode::Race ? bJoiner || bRoomRole
+        : bRoomRole || (Probe->Mode == ELDSessionFaultMode::Leave && Probe->Role == TEXT("Client2"));
+    // The joiners live on the frontend; one probe per process follows every frontend reload.
+    const bool bFrontendJoiner = Probe->Mode == ELDSessionFaultMode::Join || (bLiveHostJoiner && bJoiner);
+    if (!bArguments || !bRole || (ModeText != TEXT("Leave") && ModeText != TEXT("HostLoss") && ModeText != TEXT("Join")
+            && ModeText != TEXT("Refuse") && ModeText != TEXT("Race"))
         || Timeout < 120 || Timeout > 900 || (Probe->Mode == ELDSessionFaultMode::Join && (Probe->ClosedPort < 1 || Probe->ClosedPort > 65535))
+        || (bLiveHostJoiner && bJoiner && (Probe->HostPort < 1 || Probe->HostPort > 65535))
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
@@ -461,12 +587,12 @@ void Start(ALDPlayerController& Controller)
     const FString Map = UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName());
     if (Map == LDDemoEntry::FrontendMap)
     {
-        // The frontend instance owns the Join role, or continues a role that left or lost its match.
-        const bool bContinue = Probe->Mode == ELDSessionFaultMode::Join
+        // The frontend instance owns a joiner role, or continues a role that left or lost its match.
+        const bool bContinue = bFrontendJoiner
             || (Probe->Mode == ELDSessionFaultMode::Leave && Probe->Role == TEXT("Client2") && Probe->Exists(LeaveRequested))
             || (Probe->Mode == ELDSessionFaultMode::HostLoss && Probe->Role == TEXT("Client1") && Probe->Exists(TEXT("Client1InMatch.json")));
         if (!bContinue) { return; }
-        if (Probe->Mode == ELDSessionFaultMode::Join)
+        if (bFrontendJoiner)
         {
             if (const TSharedPtr<FLDDemoSessionFaultProbe> Active = JoinProbe.Pin())
             {
@@ -476,9 +602,21 @@ void Start(ALDPlayerController& Controller)
             JoinProbe = Probe;
         }
         Probe->Stage = ELDSessionFaultStage::Frontend;
-        Probe->StageAt = Probe->Mode == ELDSessionFaultMode::Join ? 0. : FPlatformTime::Seconds();
+        Probe->StageAt = bFrontendJoiner ? 0. : FPlatformTime::Seconds();
     }
-    else if (Map != LDDemoEntry::WorldMap || Probe->Mode == ELDSessionFaultMode::Join) { return; }
+    else if (Map == LDDemoEntry::WorldMap && bFrontendJoiner)
+    {
+        // Only the Race joiner briefly loads the room before its refusal; a Refuse joiner that reaches it means a
+        // refusal failed, and its one probe reports and exits.
+        const TSharedPtr<FLDDemoSessionFaultProbe> Active = JoinProbe.Pin();
+        if (Active && Probe->Mode == ELDSessionFaultMode::Refuse)
+        {
+            Active->Check(false, TEXT("A refused join never enters the room"));
+            Active->Finish();
+        }
+        return;
+    }
+    else if (Map != LDDemoEntry::WorldMap) { return; }
     Probe->Controller = &Controller;
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);

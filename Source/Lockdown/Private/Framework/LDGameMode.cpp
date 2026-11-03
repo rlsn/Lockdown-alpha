@@ -156,20 +156,25 @@ void ALDGameMode::StartPlay()
 
 void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage)
 {
-    Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
-    if (!ErrorMessage.IsEmpty()) { return; }
-    if (!IsDemoRoom()) { ErrorMessage=TEXT("MissingDemoDefinition: this world is not an initialized Demo room."); return; }
-    if (!LDDemoEntry::ValidateSelection(GetWorld()->GetOutermost()->GetName(),Options,ErrorMessage)) { return; }
-    if (MatchPhase!=ELDMatchPhase::Lobby) { ErrorMessage=TEXT("MatchAlreadyStarted: mid-match joining and reconnecting are not supported."); return; }
-    if (Contenders.Num()>=3) { ErrorMessage=TEXT("RoomFull: the room already has three human players, including the Host."); return; }
-    if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(LDDemoEntry::WireProtocol))
-    { ErrorMessage=TEXT("ProtocolMismatch: use the same Demo network build as the Host."); return; }
+    using namespace LDDemoEntry;
+    // The Demo's own refusals run first and carry stable codes the client maps to its reason. The engine session's
+    // capacity check (MaxPlayers) would otherwise answer a full room with an uncoded "Server full.".
+    if (!IsDemoRoom())
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("this world is not an initialized Demo room.")); return; }
+    if (!ValidateSelection(GetWorld()->GetOutermost()->GetName(),Options,ErrorMessage)) { return; }
+    if (MatchPhase!=ELDMatchPhase::Lobby)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
+    if (Contenders.Num()>=3)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("the room already has three human players, including the Host.")); return; }
+    if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
     FString Version;
-    if (!LDDemoEntry::ReadProductVersion(Version,ErrorMessage)) { return; }
+    if (!ReadProductVersion(Version,ErrorMessage)) { return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDProduct"))!=Version)
-    { ErrorMessage=TEXT("ProductMismatch: use the same product version as the Host."); return; }
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProductMismatch,TEXT("use the same product version as the Host.")); return; }
     if (EntryCatalogDigest.IsEmpty() || UGameplayStatics::ParseOption(Options,TEXT("LDCatalog"))!=EntryCatalogDigest)
-    { ErrorMessage=TEXT("ContentMismatch: use the same approved Demo content as the Host."); }
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("use the same approved Demo content as the Host.")); return; }
+    Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
 }
 
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)

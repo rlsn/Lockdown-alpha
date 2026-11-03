@@ -51,6 +51,29 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
     {
         TestFalse(TEXT("Address cannot inject travel options or an invalid port"), LDDemoEntry::ValidateAddress(Address, Error));
     }
+    // A Host's PreLogin refusal travels as "<Code>: <English detail>"; only a known code becomes the shown reason.
+    const TPair<const TCHAR*, const TCHAR*> Refusals[] = {
+        {LDDemoEntry::JoinRefusal::MatchAlreadyStarted, TEXT("对局已开始")}, {LDDemoEntry::JoinRefusal::RoomFull, TEXT("房间已满")},
+        {LDDemoEntry::JoinRefusal::ProtocolMismatch, TEXT("网络协议不同")}, {LDDemoEntry::JoinRefusal::ProductMismatch, TEXT("产品版本不同")},
+        {LDDemoEntry::JoinRefusal::ContentMismatch, TEXT("内容数据不同")}, {LDDemoEntry::JoinRefusal::RoomNotReady, TEXT("尚未就绪")}};
+    TSet<FString> RefusalReasons;
+    for (const TPair<const TCHAR*, const TCHAR*>& Refusal : Refusals)
+    {
+        FString Reason;
+        TestTrue(TEXT("A coded refusal maps to its own reason, naming the code but not the English detail"),
+            LDDemoEntry::DescribeJoinRefusal(LDDemoEntry::MakeJoinRefusal(Refusal.Key, TEXT("English detail")), Reason)
+            && Reason.Contains(Refusal.Value) && Reason.Contains(FString::Printf(TEXT("（%s）"), Refusal.Key))
+            && !Reason.Contains(TEXT("English detail")));
+        RefusalReasons.Add(Reason);
+    }
+    TestEqual(TEXT("Every refusal code has a distinct reason"), RefusalReasons.Num(), int32(UE_ARRAY_COUNT(Refusals)));
+    FString NotARefusal;
+    for (const TCHAR* Text : {TEXT(""), TEXT("Server full."), TEXT("Your connection to the host has been lost."),
+        TEXT("Pending Connection Failed."), TEXT("roomfull: another code"), TEXT("UnknownCode: detail"), TEXT("RoomFull")})
+    {
+        TestFalse(TEXT("Engine texts and unknown codes are never shown as a known refusal"),
+            LDDemoEntry::DescribeJoinRefusal(Text, NotARefusal));
+    }
     const FString Name = TEXT("UEDPIE_") + LexToString(FGuid::NewGuid().A & MAX_int32) + TEXT("_L_Frontend");
     auto* Package = CreatePackage(*(TEXT("/Game/Lockdown/Generated/Maps/") + Name));
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
@@ -261,6 +284,9 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     }
     const uint64 Roster = Mode->RosterRevision;
     TestFalse(TEXT("Final admission point rejects fourth human"), Mode->AdmitRoomMember(Fourth, Error));
+    FString Shown;
+    TestTrue(TEXT("The final admission refusal of a full room carries its client-mapped code"),
+        LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（RoomFull）")));
     TestEqual(TEXT("Failed admission does not advance roster"), Mode->RosterRevision, Roster);
     TestEqual(TEXT("No extra participants fill empty AI slots"), Mode->ReadLobby().Members.Num(), 3);
     TestNull(TEXT("Lobby never spawns a combat body"), Host->GetPawn());
@@ -315,6 +341,8 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Rejected start cannot open gameplay write gate"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
     Mode->MatchPhase = ELDMatchPhase::Starting;
     TestFalse(TEXT("Admission rechecks phase after PreLogin"), Mode->AdmitRoomMember(Fourth, Error));
+    TestTrue(TEXT("The final admission refusal of a started match carries its client-mapped code"),
+        LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（MatchAlreadyStarted）")));
     Request.Key.RequestSequence = 6;
     Request.Command = ELDSessionCommand::SetReady;
     TestTrue(TEXT("Late room mutation is rejected"), Mode->ProcessSessionCommand(Host, Request).Reason == ELDSessionReject::WrongPhase);

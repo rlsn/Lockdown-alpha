@@ -5,8 +5,10 @@
 #include "Internationalization/Regex.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
+#include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageName.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
 
@@ -178,6 +180,15 @@ bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
         Error = TEXT("项目设置缺少产品版本，此版本无法加入 Demo 房间。");
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV session-fault fixture only: its refused joiner announces another product version through the real Join path.
+    FString Announced;
+    if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoSessionFaultProbe"))
+        && FParse::Value(FCommandLine::Get(), TEXT("LDDemoSessionFaultProductOverride="), Announced))
+    {
+        Version = Announced;
+    }
+#endif
     const FRegexPattern Pattern(TEXT("^[0-9]+\\.[0-9]+\\.[0-9]+$"));
     FRegexMatcher Matcher(Pattern, Version);
     if (!Matcher.FindNext() || Matcher.GetMatchEnding() != Version.Len())
@@ -186,5 +197,29 @@ bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
         Version.Reset();
         return false;
     }
+    return true;
+}
+
+FString LDDemoEntry::MakeJoinRefusal(const TCHAR* Code, const TCHAR* Detail)
+{
+    return FString::Printf(TEXT("%s: %s"), Code, Detail);
+}
+
+bool LDDemoEntry::DescribeJoinRefusal(const FString& ServerMessage, FString& OutReason)
+{
+    FString Code, Detail;
+    if (!ServerMessage.Split(TEXT(": "), &Code, &Detail, ESearchCase::CaseSensitive)) { return false; }
+    const auto Is = [&Code](const TCHAR* Known) { return Code.Equals(Known, ESearchCase::CaseSensitive); };
+    const TCHAR* const SameBuild = TEXT("请使用与房主相同的 Demo 版本。");
+    const TCHAR* Reason = nullptr;
+    const TCHAR* Hint = TEXT("");
+    if (Is(JoinRefusal::MatchAlreadyStarted)) { Reason = TEXT("对局已开始，不能中途加入"); Hint = TEXT("请等房主回到房间后再加入。"); }
+    else if (Is(JoinRefusal::RoomFull)) { Reason = TEXT("房间已满，最多 3 名真人，含房主"); }
+    else if (Is(JoinRefusal::ProtocolMismatch)) { Reason = TEXT("版本与房主不兼容，网络协议不同"); Hint = SameBuild; }
+    else if (Is(JoinRefusal::ProductMismatch)) { Reason = TEXT("版本与房主不兼容，产品版本不同"); Hint = SameBuild; }
+    else if (Is(JoinRefusal::ContentMismatch)) { Reason = TEXT("版本与房主不兼容，内容数据不同"); Hint = SameBuild; }
+    else if (Is(JoinRefusal::RoomNotReady)) { Reason = TEXT("房主的房间尚未就绪"); }
+    else { return false; }
+    OutReason = FString::Printf(TEXT("%s（%s）。%s"), Reason, *Code, Hint);
     return true;
 }

@@ -64,13 +64,14 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     }
     if (MatchPhase != ELDMatchPhase::Lobby)
     {
-        Reason = TEXT("The match has already started. Mid-match joining and reconnecting are not supported.");
+        Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::MatchAlreadyStarted,
+            TEXT("The match has already started. Mid-match joining and reconnecting are not supported."));
         return false;
     }
     if (Contenders.Contains(Controller)) { return true; }
     if (Contenders.Num() >= 3)
     {
-        Reason = RejectionText(ELDSessionReject::RoomFull);
+        Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::RoomFull, *RejectionText(ELDSessionReject::RoomFull));
         return false;
     }
     if (!LobbyHost.IsValid() && !Controller->IsLocalController())
