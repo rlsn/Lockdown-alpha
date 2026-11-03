@@ -5,6 +5,7 @@
 #include "LDControlsPanel.generated.h"
 class UTextBlock;
 class UVerticalBox;
+class USlider;
 class ULDGameInstance;
 UCLASS()
 class LOCKDOWN_API ULDControlsPanel : public ULDPanel
@@ -45,6 +46,8 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> RecoveryRows;
     UPROPERTY() TObjectPtr<UVerticalBox> CloseRows;
     UPROPERTY() TObjectPtr<UTextBlock> DisplayFeedback;
+    UPROPERTY() TObjectPtr<USlider> VolumeSlider;
+    UPROPERTY() TObjectPtr<UTextBlock> VolumeLabel;
     TWeakObjectPtr<ULDGameInstance> SettingsInstance;
     FLDDisplaySettings DisplayDraft;
     TArray<FIntPoint> Resolutions;
@@ -52,8 +55,16 @@ private:
     bool bDisplayAvailable = false;
     bool bDisplayDraftDirty = false;
     bool bCloseAfterConfirm = false;
+    // Mouse and controller captures are tracked apart: grabbing the handle with the mouse ends a controller capture first.
+    bool bVolumeMouseCapture=false;
+    bool bVolumeControllerCapture=false;
+    // USlider::SetValue broadcasts OnValueChanged; syncing the slider from the applied value must not apply it again.
+    bool bSyncingVolume=false;
+    // A volume change waits for the instance's debounced flush; its real result is shown once the flush has run.
+    bool bVolumeSavePending=false;
     ELDDisplaySettingsStatus SeenDisplayStatus = ELDDisplaySettingsStatus::Unavailable;
     void Populate();
+    void PopulatePreferences();
     void PopulateDisplay();
     void RefreshDisplayDraft();
     void ChangePreference(TFunction<void(ULDControlSettings&)> Change);
@@ -64,4 +75,11 @@ private:
     void ConfirmDisplay(uint64 Id);
     void CancelDisplay(uint64 Id);
     FReply CaptureKey(FKey Key);
+    void PreviewMasterVolume();
+    void EndVolumeCapture(bool& bCaptured);
+    UFUNCTION() void HandleMasterVolumeChanged(float Value);
+    UFUNCTION() void HandleVolumeMouseCaptureBegin();
+    UFUNCTION() void HandleVolumeMouseCaptureEnd();
+    UFUNCTION() void HandleVolumeControllerCaptureBegin();
+    UFUNCTION() void HandleVolumeControllerCaptureEnd();
 };

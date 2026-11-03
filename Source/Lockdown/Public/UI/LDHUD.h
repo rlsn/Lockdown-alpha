@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Audio/LDAudioCueTracker.h"
 #include "LDHUD.generated.h"
 class UBorder;
 class UCanvasPanelSlot;
@@ -133,4 +134,10 @@ private:
     void RefreshResult(class ALDPlayerController& PC,const class ALDGameState& Public);
     bool IsUIAt(FVector2D Absolute) const;
     TArray<ULDPanel*,TInlineAllocator<3>> MainPanels() const;
+    // ---- Audio: local 2D cues from the same public DTOs and own projection/receipts this HUD reads ----
+    FLDAudioCueTracker AudioCues;
+    uint32 AudioCombatReceipt=0;
+    bool bAudioPrimed=false;
+    void ObserveAudio(class ALDPlayerController& PC,const class ALDGameState& Public);
+    void PlayAudioCues(const TArray<ELDAudioCue>& Cues);
 };
