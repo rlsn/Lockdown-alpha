@@ -806,7 +806,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | --- | --- |
 | `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、账本守恒/压缩/退休与证据导出、请求窗口、等级/候选/替换与本人视图白名单；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。原生创建失败、过期回执、满容量、越界和生死竞争仍须 §12 A16/A17/A24/A25 的 N05 场景。 |
 | N04/N05 拥有连接场景 | 使用真实参赛 Listen Host 和拥有客户端验证两装备/选择/1/2；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
-| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 2 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，旧 budget/quality/parents 分支已删除。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 3 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，DEV 成长夹具的 `DevFixture` 铸币只在 `--dev-fixture` 时接受；旧 budget/quality/parents 分支已删除。 |
 | D29–D34 本域专测/手册 | 必要 Ledger/Inventory/来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
 
 本域建议新增的规则测试职责落在现有 Tests 体系：死亡复合奖励、Offer/替换、两装备事务、
