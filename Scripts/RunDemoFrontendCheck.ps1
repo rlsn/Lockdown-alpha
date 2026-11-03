@@ -3,6 +3,7 @@ param([string]$EngineRoot,[ValidateRange(60,300)][int]$TimeoutSeconds=180)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $output=New-LDArtifactDirectory 'DemoFrontend-Rendered'
 $user=Join-Path $output 'User'
 New-Item -ItemType Directory -Path $user | Out-Null

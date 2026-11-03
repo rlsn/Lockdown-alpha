@@ -8,6 +8,7 @@ param(
 $request = (Resolve-Path -LiteralPath $RequestPath).Path
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 $output = New-LDArtifactDirectory 'AssetReferenceAudit'
 $arguments = @(
     (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'),

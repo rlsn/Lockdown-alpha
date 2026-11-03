@@ -5,6 +5,7 @@ param([string]$EngineRoot, [ValidateSet('Generate','Validate','Regenerate','Refr
 Assert-LDDemoInputs
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 $output = New-LDArtifactDirectory "Bootstrap-$Mode"
 $arguments = @((Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'), '-run=LDScaffoldBootstrap', '-unattended', '-nop4', '-nosound', '-nullrhi', "-Output=$output")
 if ($Mode -ne 'Generate') { $arguments += "-$Mode" }

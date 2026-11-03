@@ -39,6 +39,24 @@ Regenerate 显式更新现有生成资产；两者均不生成旧地图或旧目
 几何或导航不匹配会失败，不会偷偷改为生成。该模式要求三个 Demo 资产已经存在。
 Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核对原生碰撞、导航和地点绑定。
 
+### 多人共用一台机器
+
+引擎的 `Build.bat` 是全机唯一的：任一工作区在构建时，其他 `Build.bat` 调用会排队到它结束。
+每个编辑器进程启动时都会调用一次 `Build.bat -Mode=ValidatePlatforms` 检查平台 SDK，
+因此会等别人的构建跑完（实测有人构建时一次 `-game` 启动在这里等了 4 分 21 秒）。
+`RunTests.ps1`、所有编辑器版 `RunDemo*Check.ps1`（经 `Get-LDGameLaunch` 或直接启动）与
+`CaptureDemoArt.ps1`、`CaptureInputUI.ps1` 都不 cook、不打包，
+它们经 `Common.ps1` 的 `Set-LDPlatformValidation Skip` 设置引擎自带的 `UE_SKIP_UBT_SDK_SETUP=1`，
+跳过这一步并把平台 SDK 视为有效，所以不再被其他构建卡住；这不改动共享引擎安装。
+`OpenEditor.ps1`、`OpenStandalone.ps1`、`PackageWin64.ps1` 与资产 commandlet
+（`BootstrapAssets`、`ImportDemoArt`、`ImportDemoAudio`、`AuditAssetReferences`）保留真实校验，
+并清除同一 shell 里前一个 runner 留下的该变量，它们在别人构建期间仍会等待。
+自己的 `BuildEditor`/`BuildGame` 同样会排队，排队时日志首行是
+“Build.bat is already running, waiting for existing script to terminate...”。
+打包版场景（`-PackageRoot`）不启动编辑器，不受影响。共用机器时控制并发：
+无头编辑器总数不超过 3 个，已有 2 个 UnrealBuildTool 构建进程（`dotnet ... UnrealBuildTool.dll`）时先等，
+否则内存不足会拖慢或打断所有人的构建和场景。
+
 ## 按任务读取系统手册
 
 | 工作 | 技术说明 |

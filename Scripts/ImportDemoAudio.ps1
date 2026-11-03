@@ -3,6 +3,7 @@ param([string]$EngineRoot, [ValidateSet('Import','Validate')][string]$Mode='Vali
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 $output = New-LDArtifactDirectory "DemoAudio-$Mode"
 $arguments = @((Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'), '-run=LDDemoAudioImport', '-unattended', '-nop4', '-nosound', '-nullrhi')
 if ($Mode -eq 'Validate') { $arguments += '-Validate' }
