@@ -10,7 +10,8 @@ class UWorld;
 
 // DEV-only growth fixture for owned-connection scenarios. It exists only in builds with automation tests, acts only on
 // the authority of a process started with -LDDevGrowthFixture and has no RPC: a Host DEV probe calls
-// ALDDevelopmentDirector::DevQueueOffer and ALDEconomyDirector::DevGrantReward directly on the game thread.
+// LDDevGrowthFixture::StageOffer in the Lobby, ALDDevelopmentDirector::DevQueueOffer and ALDEconomyDirector::DevGrantReward
+// in an open match, directly on the game thread.
 // It never changes how an offer is chosen or a reward is committed, and it is not a play mode.
 enum class ELDDevGrantStatus : uint8
 {
@@ -37,5 +38,11 @@ namespace LDDevGrowthFixture
     // (no preset, or PresetError explains the dropped one) the ordinary seeded draw runs.
     LOCKDOWN_API ELDGrowthReason PickHead(const TArray<LDProgression::FLegalOption>& Pool, int64 Weight, uint64 Seed,
         TArray<TArray<FName>>& Queue, TArray<LDProgression::FLegalOption>& Out, bool& bPreset, FString& PresetError);
+    // Lobby only: the growth domain does not exist before Start, so the fixture itself holds offers staged for the next
+    // match's first heads (the opening offer first). The contender must be a member of World's Lobby; the cards are checked
+    // against the empty starting build and each draw re-resolves them. Process-wide store on the Host authority.
+    LOCKDOWN_API bool StageOffer(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds, FString& Error);
+    // BeginMatch: moves the staged offers of Roster into Out and drops every other staged offer (logged as refused).
+    LOCKDOWN_API void TakeStaged(const TArray<FGuid>& Roster, TMap<FGuid, TArray<TArray<FName>>>& Out);
 }
 #endif

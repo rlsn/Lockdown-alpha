@@ -2,6 +2,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Engine/World.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -94,5 +96,75 @@ ELDGrowthReason LDDevGrowthFixture::PickHead(const TArray<LDProgression::FLegalO
         }
     }
     return LDProgression::DrawThree(Pool, Weight, Seed, Out);
+}
+
+namespace
+{
+// Offers staged in the Lobby for the next match, per contender, oldest first.
+TMap<FGuid, TArray<TArray<FName>>>& DevGrowthStagedOffers()
+{
+    static TMap<FGuid, TArray<TArray<FName>>> Staged;
+    return Staged;
+}
+}
+
+bool LDDevGrowthFixture::StageOffer(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds, FString& Error)
+{
+    if (!Admit(World, Error))
+    {
+        return false;
+    }
+    const FLDLobbyView Lobby = World->GetAuthGameMode<ALDGameMode>()->ReadLobby();
+    if (Lobby.Phase != ELDMatchPhase::Lobby)
+    {
+        Error = TEXT("Offers are staged only in the Lobby; in an open match use ALDDevelopmentDirector::DevQueueOffer.");
+        return false;
+    }
+    if (!Contender.IsValid() || !Lobby.Members.ContainsByPredicate([&Contender](const FLDLobbyMember& Member)
+        { return Member.ContenderId == Contender; }))
+    {
+        Error = TEXT("The preset recipient is not a member of this Lobby.");
+        return false;
+    }
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDDemoEntry::LoadRuntimeContent(Catalog, Error) || !Catalog)
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The approved Demo catalog is unavailable for a staged preset."); }
+        return false;
+    }
+    TArray<LDProgression::FLegalOption> Resolved;
+    if (!ResolvePreset(*Catalog, FLDGrowthBuild(), DefinitionIds, Resolved, Error))
+    {
+        return false;
+    }
+    TArray<TArray<FName>>& Staged = DevGrowthStagedOffers().FindOrAdd(Contender);
+    if (Staged.Num() >= Catalog->Get().Progression.MaxChoices)
+    {
+        Error = FString::Printf(TEXT("No offer is left to stage: %d staged of %d."), Staged.Num(), Catalog->Get().Progression.MaxChoices);
+        return false;
+    }
+    const int32 Position = Staged.Add(DefinitionIds) + 1;
+    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE staged offer for the next match contender=%s position=%d cards=%s,%s,%s"),
+        *Contender.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
+    return true;
+}
+
+void LDDevGrowthFixture::TakeStaged(const TArray<FGuid>& Roster, TMap<FGuid, TArray<TArray<FName>>>& Out)
+{
+    Out.Reset();
+    TMap<FGuid, TArray<TArray<FName>>>& Staged = DevGrowthStagedOffers();
+    for (TPair<FGuid, TArray<TArray<FName>>>& Entry : Staged)
+    {
+        if (Roster.Contains(Entry.Key))
+        {
+            Out.Add(Entry.Key, MoveTemp(Entry.Value));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s staged in the Lobby is not in the locked roster"),
+                *Entry.Key.ToString());
+        }
+    }
+    Staged.Reset();
 }
 #endif

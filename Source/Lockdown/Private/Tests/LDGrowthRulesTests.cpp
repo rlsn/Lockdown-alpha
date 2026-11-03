@@ -1621,6 +1621,10 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
         bGood &= Test.TestTrue(TEXT("DevQueueOffer is refused without the switch and names it"),
             !Development->DevQueueOffer(Contender, {FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))},
                 QueueError) && QueueError.Contains(TEXT("-LDDevGrowthFixture")));
+        FString StageError;
+        bGood &= Test.TestTrue(TEXT("StageOffer (the Lobby entry) is refused without the switch and names it"),
+            !LDDevGrowthFixture::StageOffer(World, Contender, {FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")),
+                FName(TEXT("attr_focus"))}, StageError) && StageError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("DevGrantReward is refused without the switch and issues no ticket"),
             Economy->DevGrantReward(Contender, 80, 50, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("No ticket exists to poll after a refused grant"),

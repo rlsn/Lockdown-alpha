@@ -112,8 +112,8 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV growth fixture (LDDevGrowthFixture.h): queues one three-card offer for this contender's next drawn head offers,
     // oldest first. Every definition must be a legal choice of the current build and an offer must still be left to
-    // draw; each head draw re-resolves its preset against that draw's legal pool. Called in the Lobby, it stages the
-    // offer for the next match instead (checked against the empty starting build), so its opening offer can be preset.
+    // draw; each head draw re-resolves its preset against that draw's legal pool. The opening offer is drawn in BeginMatch,
+    // so it can only be preset in the Lobby through LDDevGrowthFixture::StageOffer.
     bool DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
 #endif
 
@@ -131,18 +131,13 @@ private:
         const FLDGameplayWritePermit* Permit);
     void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
     ALDGameMode* Mode() const;
-#if WITH_DEV_AUTOMATION_TESTS
-    bool DevStageOffer(const ALDGameMode& GameMode, const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
-#endif
 
     FLDMatchContext Match;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FGuid MatchSecret;
     TMap<FGuid, FRecord> Records;
 #if WITH_DEV_AUTOMATION_TESTS
-    // Queued DEV preset offers per contender, oldest first; cleared by every new match.
+    // Queued DEV preset offers per contender, oldest first; BeginMatch replaces them with the roster's Lobby-staged offers.
     TMap<FGuid, TArray<TArray<FName>>> DevOfferQueue;
-    // Offers staged in the Lobby for the next match; BeginMatch moves the roster's into DevOfferQueue and drops the rest.
-    TMap<FGuid, TArray<TArray<FName>>> DevStagedOffers;
 #endif
 };
