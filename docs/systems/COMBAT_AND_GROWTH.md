@@ -143,6 +143,8 @@ Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回�
 （`HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），
 只在读回的那一帧仍显示该时刻时保存，供人工审阅画面可读性，不做像素比对；
 双方报告还记录操作手感实测（只报告不设门槛）：首次右键行走从下单到身体起动、到达全速的时间，
+该行走等本进程开局头几帧的一次性卡顿过去（连续 0.5 s 没有一帧超过 CharacterMovement 的
+`MaxSimulationTimeStep`，最多等一个步骤时限）才下单，并同时报告下单到起动之间的帧数与最长一帧，
 Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停住的时间与滑行距离及随后再次右键的起动时间，
 Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
 装备主动与营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。

@@ -101,6 +101,9 @@ constexpr double CombatProbeFeelCruiseSeconds = 0.15;
 constexpr double CombatProbeFeelStopRoomCm = 300.0;
 // Below this ground speed a stopped body stands still.
 constexpr double CombatProbeFeelStillCmPerSec = 5.0;
+// The timed first walk waits for this long a run of frames none longer than the movement component's simulation step
+// (MaxSimulationTimeStep), past the match's one-time first-frame stalls.
+constexpr double CombatProbeFeelSettleSeconds = 0.5;
 // The Host's ground click for the marker capture lands this far beside its duel site.
 constexpr double CombatProbeBesideCm = 250.0;
 
@@ -250,9 +253,10 @@ public:
     bool bShotTicking = false, bRenderWarm = false, bStruckSeen = false, bReachMeasured = false;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
 
-    // Control feel, measured and reported (not compared to a target): both roles' first right-click walk from the
-    // order to the body's first motion and full speed, the Host's S from full speed to standing still and its next
-    // walk, and Client1's S to its server Stopped receipt. Sampled every engine frame.
+    // Control feel, measured and reported (not compared to a target): both roles' first right-click walk, ordered once
+    // the match's first frames have settled, from the order to the body's first motion and full speed, the Host's S
+    // from full speed to standing still and its next walk, and Client1's S to its server Stopped receipt. Sampled every
+    // engine frame.
     struct FFeel
     {
         double MaxSpeed = 0;
@@ -262,6 +266,10 @@ public:
         double CancelAt = -1, CancelDoneAt = -1;
         double FirstFrameAt = -1, LastFrameAt = -1;
         int32 Frames = 0;
+        // From the first alive frame: frames run steady since SteadySince (no frame over the settle bound). The first
+        // walk's window counts its frames and its longest one, so a stall inside it shows beside the latency.
+        double SpawnAt = -1, SteadySince = -1, ClickLongestFrameMs = 0;
+        int32 ClickFrames = 0;
         FVector From = FVector::ZeroVector, StopFrom = FVector::ZeroVector, RestartFrom = FVector::ZeroVector;
     };
     FFeel Feel;
@@ -515,6 +523,17 @@ public:
         {
             return true;
         }
+        // The match's first frames on each process build and load what the match shows (one-time stalls of about a
+        // hundred milliseconds). The timed first walk waits until this process's frames have settled, so it measures
+        // the order's response rather than that stall; a run whose frames never settle walks anyway, after one step.
+        const double Now = FPlatformTime::Seconds();
+        if (Feel.SpawnAt < 0)
+        {
+            Feel.SpawnAt = Now;
+            EnsureFeelTicking();
+        }
+        const bool bSettled = Feel.SteadySince >= 0 && Feel.LastFrameAt - Feel.SteadySince >= LDDemoCombatScenario::CombatProbeFeelSettleSeconds;
+        if (!bSettled && Now - Feel.SpawnAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
         const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
@@ -2021,13 +2040,19 @@ public:
         return true;
     }
 
-    // The first right-click walk of this life: its order time and starting point, and the per-frame sampler.
+    // The first right-click walk of this life: its order time and starting point.
     void StartFeel(const ALDPlayerController& PC)
     {
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         Feel.SentAt = FPlatformTime::Seconds();
         Feel.From = Body ? Body->GetActorLocation() : FVector::ZeroVector;
         Feel.MaxSpeed = Body ? Body->GetCharacterMovement()->GetMaxSpeed() : 0.0;
+        EnsureFeelTicking();
+    }
+
+    // The per-frame sampler.
+    void EnsureFeelTicking()
+    {
         if (!bFeelTicking)
         {
             bFeelTicking = true;
@@ -2044,6 +2069,14 @@ public:
             return false;
         }
         const double Now = FPlatformTime::Seconds();
+        const double FrameMs = Feel.LastFrameAt >= 0 ? (Now - Feel.LastFrameAt) * 1000.0 : 0.0;
+        const double SettleFrameMs = 1000.0 * GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxSimulationTimeStep;
+        Feel.SteadySince = Feel.SteadySince < 0 || FrameMs > SettleFrameMs ? Now : Feel.SteadySince;
+        if (Feel.SentAt >= 0 && Feel.FirstMoveAt < 0)
+        {
+            ++Feel.ClickFrames;
+            Feel.ClickLongestFrameMs = FMath::Max(Feel.ClickLongestFrameMs, FrameMs);
+        }
         Feel.FirstFrameAt = Feel.FirstFrameAt < 0 ? Now : Feel.FirstFrameAt;
         Feel.LastFrameAt = Now;
         ++Feel.Frames;
@@ -2078,6 +2111,9 @@ public:
         const ALDPlayerController* PC = Controller.Get();
         const UCharacterMovementComponent* Movement = GetDefault<ALDCharacter>()->GetCharacterMovement();
         Out->SetNumberField(TEXT("click_to_move_ms"), Ms(Feel.SentAt, Feel.FirstMoveAt));
+        Out->SetNumberField(TEXT("click_frames"), Feel.ClickFrames);
+        Out->SetNumberField(TEXT("click_longest_frame_ms"), FMath::RoundToDouble(Feel.ClickLongestFrameMs));
+        Out->SetNumberField(TEXT("spawn_to_click_ms"), Ms(Feel.SpawnAt, Feel.SentAt));
         Out->SetNumberField(TEXT("click_to_activated_receipt_ms"),
             PC && PC->Navigation->RouteAcceptanceMs.Num() ? FMath::RoundToDouble(PC->Navigation->RouteAcceptanceMs[0]) : -1.0);
         Out->SetNumberField(TEXT("ramp_to_full_speed_ms"), Ms(Feel.FirstMoveAt, Feel.FullSpeedAt));

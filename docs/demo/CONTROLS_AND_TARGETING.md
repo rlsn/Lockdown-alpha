@@ -480,9 +480,11 @@ Protection、Skills、Feel。Pointer 组验证悬停圈、地面标记与攻击�
 
 ### 10.3 实测手感
 
-本地回环、`MaxAcceleration`/`BrakingDecelerationWalking` 仍为旧值 1800 时的一次 Feel 实测：
-Client1 右键到开始移动 63 ms、加速到全速 266 ms、S 到收到 Stopped 回执 37 ms；
-Host 右键到开始移动 17 ms。当前 8000 的加减速下尚无实测记录，这些数字不代表当前手感。
+本地回环、加减速 8000 下（2026-11-04，编辑器版连跑三次）：首次右键行走等开局头几帧的一次性卡顿过去后下单，
+Host 右键到开始移动 31–35 ms（4–5 帧，最长一帧不超过 15 ms），再次右键 31–36 ms；
+Client1 右键到开始移动 32–37 ms、到 Activated 回执 14–17 ms、加速到全速 42–58 ms、S 到 Stopped 回执 9–20 ms。
+开局头一两秒内本进程会有一次约 100–150 ms 的一次性长帧（加载并构建开局显示的内容），此时下单要多等这一帧；
+旧测法在出生首帧下单，曾把这一帧算进 Host 的点击响应（打包版 159 ms，[#61](https://github.com/rlsn/Lockdown-alpha/issues/61)）。
 
 ## 11. 产品规则来源与限制
 
