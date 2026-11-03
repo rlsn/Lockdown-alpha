@@ -3,6 +3,7 @@ param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdo
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $output = New-LDArtifactDirectory 'Automation'
 $reportPath = Join-Path $output 'Report'
 $fixturePath = Join-Path $output 'DemoContentFixtures'

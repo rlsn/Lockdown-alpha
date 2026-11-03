@@ -3,6 +3,7 @@ param([string]$EngineRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $output = New-LDArtifactDirectory 'DemoEntry-Native'
 $cases = @(
     @{ Name = 'RetiredWorldURL'; URL = '/Game/Lockdown/Generated/V09/L_V09Full?Name=EntryProbe' },

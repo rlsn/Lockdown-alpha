@@ -5,6 +5,7 @@ param([string]$EngineRoot,[switch]$HostRoom)
 if ($HostRoom) { Assert-LDDemoInputs }
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 $output = New-LDArtifactDirectory 'Standalone'
 $world=if($HostRoom){(Get-LDDemoMaps)[1]+'?listen'}else{(Get-LDDemoMaps)[0]}
 $arguments = '"{0}" {1} -game -windowed -ResX=1280 -ResY=720 -nosplash -DisablePlugins=AllToolsets,ModelContextProtocol -abslog="{2}"' -f (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'), $world, (Join-Path $output 'Standalone.log')

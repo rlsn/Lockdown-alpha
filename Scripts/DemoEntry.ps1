@@ -50,6 +50,7 @@ function Get-LDGameLaunch {
     }
     $engine = Resolve-LDEngine $EngineRoot
     Assert-LDEditorModules
+    Set-LDPlatformValidation Skip
     [pscustomobject]@{ Packaged = $false; Binary = (Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe')
         Project = (Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'); Package = ''; Output = $Output; ProbeRoot = ''; ProbeOutput = $Output }
 }

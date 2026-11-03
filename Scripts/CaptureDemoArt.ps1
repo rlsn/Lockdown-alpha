@@ -5,6 +5,7 @@ param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1600,[ValidateRa
 Assert-LDDemoInputs
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $output=New-LDArtifactDirectory ('DemoArt-Capture-'+$Width+'x'+$Height)

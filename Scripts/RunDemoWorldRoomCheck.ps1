@@ -5,6 +5,7 @@ param([string]$EngineRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120)
 Assert-LDDemoInputs
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $output = New-LDArtifactDirectory 'DemoWorld-OwnedRoom'
 $socket = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Loopback, 0))
 $port = $socket.Client.LocalEndPoint.Port

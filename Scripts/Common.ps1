@@ -77,6 +77,17 @@ function Assert-LDEditorModules {
     }
 }
 
+# Every editor process starts `Build.bat -Mode=ValidatePlatforms`, and Build.bat waits for any other build on this
+# machine, so an editor run can stall for the whole length of someone else's build. The engine's own switch
+# UE_SKIP_UBT_SDK_SETUP=1 skips that call and treats every platform SDK as valid. Rule tests, DEV scenarios and
+# evidence captures neither cook nor package, so they skip it; the interactive editor, packaging and asset
+# commandlets keep the real validation and clear any value inherited from an earlier runner in the same shell.
+function Set-LDPlatformValidation {
+    param([Parameter(Mandatory)][ValidateSet('Skip', 'Validate')][string]$Mode)
+    if ($Mode -eq 'Skip') { $env:UE_SKIP_UBT_SDK_SETUP = '1' }
+    else { Remove-Item -LiteralPath Env:UE_SKIP_UBT_SDK_SETUP -ErrorAction SilentlyContinue }
+}
+
 function Resolve-LDPackage {
     param([Parameter(Mandatory)][string]$PackageRoot)
     $root = (Resolve-Path -LiteralPath $PackageRoot).Path

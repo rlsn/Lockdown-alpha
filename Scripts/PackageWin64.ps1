@@ -6,6 +6,7 @@ Assert-LDDemoInputs
 $projectVersion = Get-LDProjectVersion
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 & (Join-Path $PSScriptRoot 'BootstrapAssets.ps1') -EngineRoot $engine -Mode Validate
 $output = New-LDArtifactDirectory 'PackageWin64'
 $project = Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
