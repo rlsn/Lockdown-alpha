@@ -491,4 +491,100 @@ bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
         && !Mode->bSettlementStep && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureInsideStepTest, "Lockdown.Rules.DemoCore.CaptureCompletesInsideStep",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureInsideStepTest::RunTest(const FString& Parameters)
+{
+    FLDMatchProviderHooks Progression;
+    Progression.ReadFinalLevel=[](const ALDGameMode&,const FGuid&,uint8& Level,FString&) { Level=2; return true; };
+    LDMatchProviders::FScopedTestTable Providers({{ELDMatchProvider::Progression,Progression}});
+    const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+    if (!TestNotNull(TEXT("Fixture world"),World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode=World->SpawnActor<ALDGameMode>();
+    auto* Public=World->SpawnActor<ALDGameState>();
+    auto* Driver=World->SpawnActor<ALDCombatDirector>();
+    auto* Host=World->SpawnActor<ALDPlayerController>();
+    if (!Mode || !Public || !Driver || !Host) { AddError(TEXT("Fixture actors")); return false; }
+    Host->SetAsLocalPlayerController();
+    Mode->bDemoWorld=Mode->bEntryAccepted=Mode->bAuthorityInitialized=true;
+    Mode->GameState=Public;
+    Mode->MatchContext={1,FGuid::NewGuid()};
+    Mode->MatchPhase=ELDMatchPhase::Development;
+    Mode->RosterRevision=1;
+    Mode->Combat=Driver;
+    Mode->AuthorityStep={Mode->MatchContext,1,0,0};
+    const FGuid Holder=FGuid::NewGuid(), Rival=FGuid::NewGuid();
+    FLDContenderRecord Record;
+    Record.Session=Holder;
+    Record.Name=TEXT("Holder");
+    Mode->Contenders.Add(Host,Record);
+    Mode->RosterOrder={Holder};
+    Mode->LobbyHost=Host;
+    // Present without live bodies: the fixture integrates no native motion and injects its presence facts.
+    auto& Life=Mode->Lives.Add(Holder);
+    Life.Kind=ELDVictimKind::Contender;
+    Life.Phase=ELDLifePhase::Unspawned;
+    const FLDCombatBodyRef HolderBody{{ELDVictimKind::Contender,Holder,1},FGuid::NewGuid()};
+    const FLDCombatBodyRef RivalBody{{ELDVictimKind::Contender,Rival,1},FGuid::NewGuid()};
+    FString Error;
+    const auto Fact=[&](ELDCaptureEventKind Kind,const FLDCombatBodyRef& Body,double Seconds,ELDCommitPhase Phase,bool Inside)
+    {
+        FLDCaptureEvent Event;
+        Event.Kind=Kind;
+        Event.Body=Body;
+        Event.Phase=Phase;
+        Event.bInside=Inside;
+        return FLDCaptureEventTime::FromSeconds(Seconds,Event.Time,Error) && Mode->CaptureReducer.Enqueue(Event,Error);
+    };
+    // Open at 0 with a 10 ms hold; the holder is sole from 1 ms.
+    if (!Mode->CaptureReducer.Begin(0,10,Error)
+        || !Fact(ELDCaptureEventKind::Joined,HolderBody,.001,ELDCommitPhase::RespawnsAndWorld,true)
+        || !Fact(ELDCaptureEventKind::Joined,RivalBody,.001,ELDCommitPhase::RespawnsAndWorld,false))
+    { AddError(Error); return false; }
+    World->Tick(LEVELTICK_TimeOnly,.025f);
+    const auto Phase=[&](ELDCommitPhase Which,TFunctionRef<bool()> Body)
+    { return Mode->ExecuteAuthorityPhase(*Driver,Which,[&](const FLDGameplayWritePermit&) { return Body(); },Error); };
+    const auto Capture=[&]()
+    {
+        return Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Capture,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteCapturePhase(Permit,Error); },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Close,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error)
+            && Mode->FinishAuthorityStep(*Driver,Error);
+    };
+
+    // Step to 5 ms: the rival enters at 5 ms and pauses the holder at 4 of 10 ms; nothing completes inside it.
+    const bool Contested=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,5)==ELDCommitReject::None
+        && !Mode->CaptureCompletesInsideStep()
+        && Phase(ELDCommitPhase::Motion,[&] { return Fact(ELDCaptureEventKind::Presence,RivalBody,.005,ELDCommitPhase::Motion,true); })
+        && !Mode->CaptureCompletesInsideStep()
+        && Phase(ELDCommitPhase::Actions,[] { return true; }) && Capture();
+    if (!TestTrue(FString::Printf(TEXT("Contest step: %s"),*Error),Contested)) { return false; }
+    TestTrue(TEXT("The contest pauses the holder and adds no driver stop"),
+        Mode->CaptureReducer.GetState()==ELDCircleState::Contested && Mode->CaptureReducer.GetPausedProgressMs()==4
+        && Mode->NextCaptureDueMs()==MAX_int64);
+
+    // Step to 20 ms: the rival leaves at 8 ms, so the resumed hold is due at 14 ms, inside the step, and a later
+    // re-entry at 17 ms cannot undo it. The later boundary instant's gameplay phases do not run.
+    const bool Stepped=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,20)==ELDCommitReject::None
+        && Phase(ELDCommitPhase::Motion,[&]
+        {
+            return Fact(ELDCaptureEventKind::Presence,RivalBody,.0075,ELDCommitPhase::Motion,false)
+                && Fact(ELDCaptureEventKind::Presence,RivalBody,.0165,ELDCommitPhase::Motion,true);
+        });
+    if (!TestTrue(FString::Printf(TEXT("Resume step motion: %s"),*Error),Stepped)) { return false; }
+    TestTrue(TEXT("The motion prefix closes the capture inside the step"),Mode->CaptureCompletesInsideStep());
+    TestTrue(FString::Printf(TEXT("Owed rewards, Capture and Close finish the step: %s"),*Error),
+        Phase(ELDCommitPhase::DeathsAndRewards,[] { return true; }) && Capture());
+    TestTrue(TEXT("The holder wins at his exact resumed due instant, before the step's boundary"),
+        Mode->bResultLocked && !Mode->IsGameplayWriteOpen(Mode->MatchContext) && !Mode->PendingCapture.IsSet()
+        && Mode->ResultView.Reason==ELDMatchEndReason::CaptureCompleted && Mode->ResultView.Winner==Holder
+        && Mode->ResultView.EndedAtMs==14 && Mode->GetAuthorityNowMs()==20);
+    return true;
+}
 #endif

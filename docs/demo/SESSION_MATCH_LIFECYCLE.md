@@ -738,9 +738,10 @@ DueAtMs 和已闭合的 Boundary。旧 Epoch 的 Timer 回调永远不能为新�
 至少两名有效者时，持有者进度冻结为暂停值，其他人不累积；持有者离圈、死亡或离局即清零，
 即使争夺仍在继续也无人继承。与独占同一毫秒桶内开始的争夺暂停值为零，按无持有者处理。
 唯一占领者不变的圈内移动/战斗不重置；同一帧中先争夺再恢复独占按暂停/续计归约，
-争夺事件不丢失、进度也不丢失。争夺暂停持有者时，归约器给驱动一个停靠边界
-`ClosedThrough + max(Hold − Paused, 1)`，保证恢复后的截止不早于恢复所在步的终点；
-截止仍被越过即为“漏切完成边界”故障。
+争夺事件不丢失、进度也不丢失。争夺暂停不给驱动额外的停靠边界：恢复只能来自步内运动的离圈事实
+（离局在步前入队，死亡、保护到期、复活都在步边界时刻），因此驱动在 Motion 之后预演已入队事实；
+恢复后的截止早于本步边界时，本步不再执行该边界时刻的行动、效果、复活与交易，只重试欠奖，
+随即在截止时刻归约并锁定结果，截止之后的进出不再改写它。普通边界上截止仍被越过即为“漏切完成边界”故障。
 保护者进出不会改变有效集合；其保护结束则是独立资格事件，不能等到下一次碰撞回调。
 
 `TryCloseMatch` 的占领成功条件必须同时包括当前上下文、写闸开放、
@@ -923,7 +924,8 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | 入口 | 覆盖 | 不覆盖 |
 | --- | --- | --- |
-| `Lockdown.Rules.DemoCapture.Continuity`、`.ContestPause`、`.ProtectionAndContracts` | 开放边界、同桶中间进出、争夺暂停/续计、持有者离圈/死亡/离局清零且不继承、空圈清零、截止桶争夺、停靠边界、漏切边界与契约故障、保护者不占不争 | 原生运动产生的事件序列（由场景覆盖一部分） |
+| `Lockdown.Rules.DemoCapture.Continuity`、`.ContestPause`、`.ProtectionAndContracts`、`.PausedContestSteps` | 开放边界、同桶中间进出、争夺暂停/续计、持有者离圈/死亡/离局清零且不继承、空圈清零、截止桶争夺、步内续计完成（`CompletionInsideMs`/`CloseThroughCompletion`）、暂停争夺不缩短驱动步长（2 s 争夺不超过 40 步）、漏切边界与契约故障、保护者不占不争 | 原生运动产生的事件序列（由场景覆盖一部分） |
+| `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` | 核心步序：Motion 后判定步内完成，跳过边界时刻玩法阶段，Capture/Close 在续计截止时刻锁定唯一结果 | 真实驱动与原生运动（步内续计完成在场景中不一定出现） |
 | `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 圈求交、公共 DTO 校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
 | `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
 | `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个拥有客户端经正常大厅开局：名单与结算行显示所选名称；两次争夺暂停并续计（C07）；争夺中持有者离圈后清零、另一人从零计、圈空后原持有者从零完成（C18）；唯一结果与写闸关闭；边界环出现/变色/移除；同世界回新一代 Lobby 并正常开出第二局、核对干净开局与旧代请求拒绝 | 争夺中持有者死亡、3+3、AI、网络异常 |

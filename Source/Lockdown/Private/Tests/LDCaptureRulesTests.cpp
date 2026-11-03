@@ -103,7 +103,7 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A second eligible body contests and pauses the holder's progress"),
         Probe.Reducer.GetState() == ELDCircleState::Contested && Probe.Reducer.GetOccupier() == A
         && Probe.Reducer.GetPausedProgressMs() == 201 && Probe.Reducer.GetSoloSinceMs() == 0
-        && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == 1201 + 500 - 201);
+        && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == MAX_int64);
     Probe.Add(CapturePresence(BodyB, CaptureMs(1300), false), TEXT("B leaves"));
     Probe.Close(1300, false, TEXT("Re-solo does not complete"));
     Probe.ExpectSolo(A, 1099, 1599, TEXT("The holder resumes from his paused progress"));
@@ -125,7 +125,7 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
     Probe.Close(1599, false, TEXT("A contest in the completion bucket prevents the win"));
     TestTrue(TEXT("Due-bucket entry pauses the full progress"), Probe.Reducer.GetState() == ELDCircleState::Contested
         && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == 500
-        && Probe.Reducer.NextDueMs() == 1600);
+        && Probe.Reducer.NextDueMs() == MAX_int64);
     Probe.Add(CapturePresence(BodyB, CaptureMs(1600), false), TEXT("B leaves again"));
     Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.6005), true), TEXT("B enters after the completion instant"));
     TOptional<FLDCaptureProposal> Proposal;
@@ -157,11 +157,9 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1), BodyC = CaptureTestBody(C, 1);
     auto ExpectPaused = [this](FCaptureReducerProbe& Probe, const FGuid& Holder, int64 PausedMs, const TCHAR* What)
     {
-        const bool HasHolder = Holder.IsValid();
         TestTrue(What, Probe.Reducer.GetState() == ELDCircleState::Contested && Probe.Reducer.GetOccupier() == Holder
             && Probe.Reducer.GetPausedProgressMs() == PausedMs && Probe.Reducer.GetSoloSinceMs() == 0
-            && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == (HasHolder
-                ? Probe.Reducer.GetClosedThroughMs() + FMath::Max<int64>(500 - PausedMs, 1) : MAX_int64));
+            && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == MAX_int64);
     };
 
     FCaptureReducerProbe Probe{*this};
@@ -223,22 +221,80 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     Cap.Close(0, false, TEXT("Open"));
     Cap.Add(CapturePresence(BodyB, CaptureMs(450), true), TEXT("B enters late in the segment"));
     Cap.Close(450, false, TEXT("Late contest"));
-    ExpectPaused(Cap, A, 450, TEXT("A late contest stops the driver where a resume could still complete"));
-    TestEqual(TEXT("The driver stops after at most the remaining hold"), Cap.Reducer.NextDueMs(), int64(500));
+    ExpectPaused(Cap, A, 450, TEXT("A late contest adds no driver stop of its own"));
     FCaptureReducerProbe Skipped = Cap;
     Skipped.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    TestEqual(TEXT("The motion prefix shows the resumed completion inside the step"),
+        Skipped.Reducer.CompletionInsideMs(520), int64(510));
     TOptional<FLDCaptureProposal> Proposal;
-    TestFalse(TEXT("A resumed completion skipped by the driver fails loudly"),
+    TestFalse(TEXT("A resumed completion closed as an ordinary boundary fails loudly"),
         Skipped.Reducer.CloseBoundary(520, Proposal, Skipped.Error) || Proposal.IsSet());
     FCaptureReducerProbe Hidden = Cap;
     Hidden.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
-    Hidden.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the skipped completion"));
+    Hidden.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed completion"));
     TestFalse(TEXT("A later contest cannot hide a skipped resumed completion"),
         Hidden.Reducer.CloseBoundary(520, Proposal, Hidden.Error) || Proposal.IsSet());
+    FCaptureReducerProbe Inside = Cap;
+    Inside.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    Inside.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed completion"));
+    TestTrue(TEXT("The step closes through the resumed completion"),
+        Inside.Reducer.CloseThroughCompletion(520, Proposal, Inside.Error));
+    TestTrue(TEXT("The holder wins at his exact resumed due instant; a later entry inside the step cannot undo it"),
+        Proposal.IsSet() && Proposal->Occupier == A && Proposal->SoloSinceMs == 10 && Proposal->DueAtMs == 510
+        && Proposal->Epoch == Inside.Reducer.GetEpoch() && Inside.Reducer.GetClosedThroughMs() == 520);
+    FCaptureReducerProbe Interrupted = Cap;
+    Interrupted.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    Interrupted.Add(CapturePresence(BodyB, CaptureSeconds(.5095), true), TEXT("B re-enters in the due bucket"));
+    TestEqual(TEXT("A contest in the due bucket still prevents the resumed win"),
+        Interrupted.Reducer.CompletionInsideMs(520), MAX_int64);
+    TestFalse(TEXT("Closing through a completion that did not happen fails loudly"),
+        Interrupted.Reducer.CloseThroughCompletion(520, Proposal, Interrupted.Error) || Proposal.IsSet());
     Cap.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
     Cap.Close(500, false, TEXT("The capped boundary"));
     Cap.ExpectSolo(A, 10, 510, TEXT("The resumed segment keeps its paused progress"));
     Cap.Close(510, true, TEXT("The resumed segment completes at its real due instant"));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCapturePausedContestStepsTest, "Lockdown.Rules.DemoCapture.PausedContestSteps",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCapturePausedContestStepsTest::RunTest(const FString& Parameters)
+{
+    // The native driver's longest step (CMC MaxSimulationTimeStep) and the approved hold.
+    constexpr int64 MaxStepMs = 50, HoldMs = 25000, ContestMs = 2000;
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+    FCaptureReducerProbe Probe{*this};
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, HoldMs, Probe.Error));
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(HoldMs - 1), true), TEXT("B enters one millisecond before completion"));
+    Probe.Close(HoldMs - 1, false, TEXT("Contest freezes nearly the full hold"));
+    TestTrue(TEXT("The holder is paused one millisecond short"), Probe.Reducer.GetState() == ELDCircleState::Contested
+        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == HoldMs - 1);
+    // Step the contest exactly as the authority driver does: the native step cap or the reducer's next stop.
+    int64 Now = HoldMs - 1;
+    int32 Steps = 0;
+    while (Now < HoldMs - 1 + ContestMs && Steps <= ContestMs)
+    {
+        const int64 End = FMath::Min(Now + MaxStepMs, Probe.Reducer.NextDueMs());
+        if (!Probe.Close(End, false, TEXT("A quiet contest boundary"))) { return false; }
+        Now = End;
+        ++Steps;
+    }
+    TestTrue(FString::Printf(TEXT("A quiet paused contest runs native-length steps (%d steps for %lld ms)"), Steps, ContestMs),
+        Steps <= ContestMs / MaxStepMs);
+    // The step in which the holder becomes sole again closes at his exact resumed due instant.
+    const int64 End = Now + MaxStepMs;
+    Probe.Add(CapturePresence(BodyB, CaptureSeconds((double(Now) + 6.5) / 1000.), false), TEXT("B leaves inside the step"));
+    TestEqual(TEXT("Only this step's motion prefix reveals the inside completion"), Probe.Reducer.CompletionInsideMs(End), Now + 8);
+    TOptional<FLDCaptureProposal> Proposal;
+    TestTrue(TEXT("The resumed step closes through its completion"),
+        Probe.Reducer.CloseThroughCompletion(End, Proposal, Probe.Error));
+    TestTrue(TEXT("The resumed hold completes exactly one millisecond after the resume"),
+        Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == Now + 8
+        && Proposal->DueAtMs - Proposal->SoloSinceMs == HoldMs);
     return true;
 }
 
@@ -269,7 +325,7 @@ bool FLDCaptureProtectionTest::RunTest(const FString& Parameters)
     AtDue.Close(500, false, TEXT("Half-open protection end contests at the same instant"));
     TestTrue(TEXT("Expiry at the completion instant pauses the full progress"),
         AtDue.Reducer.GetState() == ELDCircleState::Contested && AtDue.Reducer.GetOccupier() == A
-        && AtDue.Reducer.GetPausedProgressMs() == 500 && AtDue.Reducer.NextDueMs() == 501);
+        && AtDue.Reducer.GetPausedProgressMs() == 500 && AtDue.Reducer.NextDueMs() == MAX_int64);
     AtDue.Add(CapturePresence(SecondB, CaptureMs(501), false), TEXT("B leaves"));
     AtDue.Close(501, true, TEXT("Sole again with the full paused progress completes at that instant"));
 

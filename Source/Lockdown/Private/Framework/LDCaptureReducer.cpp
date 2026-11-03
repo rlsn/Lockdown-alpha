@@ -29,12 +29,19 @@ int64 FLDCaptureReducer::NextDueMs() const
 {
     if (!bActive) { return MAX_int64; }
     if (!bOpen) { return OpenAt; }
-    if (State == ELDCircleState::Solo) { return DueAt; }
-    if (State != ELDCircleState::Contested || !Occupier.IsValid()) { return MAX_int64; }
-    // A resume in the next step happens no earlier than ClosedThrough + 1, so stopping here
-    // keeps every resumed completion at or after the end of the step that resumes it.
-    const int64 Remaining = FMath::Max<int64>(Hold - Paused, 1);
-    return Remaining > MAX_int64 - ClosedThrough ? MAX_int64 : ClosedThrough + Remaining;
+    return State == ELDCircleState::Solo ? DueAt : MAX_int64;
+}
+
+int64 FLDCaptureReducer::CompletionInsideMs(int64 AtMs) const
+{
+    // Only a fact strictly inside the step can start, resume or finish a segment before its end.
+    if (!bActive || AtMs <= ClosedThrough
+        || !Pending.ContainsByPredicate([AtMs](const FLDCaptureEvent& Event) { return Event.Time.BucketMs < AtMs; }))
+    { return MAX_int64; }
+    FLDCaptureReducer Probe = *this;
+    TOptional<FLDCaptureProposal> Proposal;
+    FString Ignored;
+    return Probe.Reduce(AtMs, true, Proposal, Ignored) && Proposal && Proposal->DueAtMs < AtMs ? Proposal->DueAtMs : MAX_int64;
 }
 
 bool FLDCaptureReducer::IsCommittedAliveBody(const FLDCombatBodyRef& Body) const
@@ -216,6 +223,23 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, FString& Error)
 
 bool FLDCaptureReducer::CloseBoundary(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error)
 {
+    return Reduce(AtMs, false, Proposal, Error);
+}
+
+bool FLDCaptureReducer::CloseThroughCompletion(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error)
+{
+    if (!Reduce(AtMs, true, Proposal, Error)) { return false; }
+    if (!Proposal || Proposal->DueAtMs >= AtMs)
+    {
+        Proposal.Reset();
+        Error = TEXT("The capture completion planned inside this step changed after its motion prefix.");
+        return false;
+    }
+    return true;
+}
+
+bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCaptureProposal>& Proposal, FString& Error)
+{
     Proposal.Reset();
     if (!bActive || AtMs <= ClosedThrough)
     {
@@ -245,8 +269,15 @@ bool FLDCaptureReducer::CloseBoundary(int64 AtMs, TOptional<FLDCaptureProposal>&
         if (Left.Phase != Right.Phase) { return uint8(Left.Phase) < uint8(Right.Phase); }
         return Left.Ordinal < Right.Ordinal;
     });
+    bool bCompleted = false;
     for (const FLDCaptureEvent& Event : Batch)
     {
+        // A segment due before this fact completed at its due instant; nothing later can rewrite it.
+        if (bCompleteInside && State == ELDCircleState::Solo && Event.Time.BucketMs > DueAt)
+        {
+            bCompleted = true;
+            break;
+        }
         if (Event.Time.Seconds < LastReducedSeconds)
         {
             Error = TEXT("Capture fact regresses before an instant that was already reduced.");
@@ -257,21 +288,23 @@ bool FLDCaptureReducer::CloseBoundary(int64 AtMs, TOptional<FLDCaptureProposal>&
         else if (!Transition(Reduced, Event, true, Error)) { return false; }
         if (!Evaluate(Event.Time, Error)) { return false; }
     }
+    bCompleted |= bCompleteInside && State == ELDCircleState::Solo && DueAt < AtMs;
+    const int64 ReducedThrough = bCompleted ? DueAt : AtMs;
     for (const auto& Pair : Reduced)
     {
-        if (Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.bProtected && Pair.Value.ProtectedUntilMs <= AtMs)
+        if (Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.bProtected && Pair.Value.ProtectedUntilMs <= ReducedThrough)
         {
             Error = TEXT("Protection reached its deadline without a published ProtectionEnded fact.");
             return false;
         }
     }
-    if (State == ELDCircleState::Solo && DueAt < AtMs)
+    if (!bCompleted && State == ELDCircleState::Solo && DueAt < AtMs)
     {
         Error = TEXT("The authority driver skipped the capture completion boundary.");
         return false;
     }
     ClosedThrough = AtMs;
-    if (State == ELDCircleState::Solo && DueAt == AtMs)
+    if (bCompleted || (State == ELDCircleState::Solo && DueAt == AtMs))
     {
         Proposal = FLDCaptureProposal{Epoch, Occupier, SoloSince, DueAt};
     }
