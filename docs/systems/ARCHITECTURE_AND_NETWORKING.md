@@ -27,8 +27,11 @@
 因此正式本地旅行先在 `Browse` 拒绝，返回 Failure 并保留原 URL/原因，
 `StartGameInstance` 再发起独立的干净前端旅行；这不是把拒绝的请求标为成功。
 GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径与保存的模式，作为第二层防护。
-`ULDUIRoot::Host` 只请求 `L_Demo?listen?Name=<本人名称>`，Join 在 wire/产品/目录参数后同样附 `?Name=`；
-名称先经本地 `ValidatePlayerName` 校验且必填，规范化与拒绝仍归服务器会话域。
+`ULDUIRoot::Host` 只请求 `L_Demo?listen?LDName=<本人名称>`，Join 在 wire/产品/目录参数后同样附 `?LDName=`；
+引擎会用在线子系统昵称覆盖保留键 `?Name=`（`UPendingNetGame` 与本地玩家 `SpawnPlayActor`），所以名称不走该键。
+名称先经本地 `ValidatePlayerName` 校验且必填；服务器在 PreLogin 与 `InitNewPlayer` 用同一规则解析 `LDName`
+（`LDMatchLifecycle::ResolveContenderName`），非法即明确拒绝（`InvalidName:`），缺省时取明确默认名“玩家”，
+并以 `ChangeName` 同步 PlayerState；入房时 PlayerState 名称再按同一规则核对，在线子系统昵称不会成为参赛名。
 Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
 读取的是原始字节，不规范化换行，也不回退旧目录。`LDDemoEntry::ValidateSelection` 只接受
 完整的前端/Demo 包路径，剥离 PIE 前缀，但不接受同短名的其他包、旧 Profile 或 Humans 覆盖项。

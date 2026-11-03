@@ -230,7 +230,21 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProductMismatch,TEXT("use the same product version as the Host.")); return; }
     if (EntryCatalogDigest.IsEmpty() || UGameplayStatics::ParseOption(Options,TEXT("LDCatalog"))!=EntryCatalogDigest)
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("use the same approved Demo content as the Host.")); return; }
+    FString Name;
+    if (!LDMatchLifecycle::ResolveContenderName(Options,Name,ErrorMessage)) { return; }
     Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
+}
+
+FString ALDGameMode::InitNewPlayer(APlayerController* NewPlayerController,const FUniqueNetIdRepl& UniqueId,const FString& Options,const FString& Portal)
+{
+    FString Error=Super::InitNewPlayer(NewPlayerController,UniqueId,Options,Portal);
+    if (!Error.IsEmpty() || !bEntryAccepted || !bDemoWorld) { return Error; }
+    // The engine has just named the PlayerState after the online subsystem's nickname; the contender keeps the
+    // name chosen in the frontend (?LDName=), or the explicit default when none was sent.
+    FString Name;
+    if (!LDMatchLifecycle::ResolveContenderName(Options,Name,Error)) { return Error; }
+    ChangeName(NewPlayerController,Name,false);
+    return Error;
 }
 
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)

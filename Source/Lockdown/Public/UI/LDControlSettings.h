@@ -170,7 +170,7 @@ public:
     bool SetAppliedCameraPanSpeed(float Value, FString& Error);
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
     void SetAppliedFollowing(bool Value);
-    // Local format check only; the name travels as the ?Name= URL option and the session domain still normalizes or rejects it.
+    // Local format check; the name travels as the ?LDName= URL option and the session domain applies this same rule again.
     static bool ValidatePlayerName(const FString& Name, FString& Error);
     bool SetAppliedPlayerName(const FString& Name, FString& Error);
     void AllowRecoverySave() { bRecoveryRequired = false; }

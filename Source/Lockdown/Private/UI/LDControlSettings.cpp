@@ -434,7 +434,7 @@ bool ULDControlSettings::ValidatePlayerName(const FString& Name, FString& Error)
 {
     if (Name.IsEmpty()) { Error = TEXT("名称不能为空。"); return false; }
     if (Name.TrimStartAndEnd().Len() != Name.Len()) { Error = TEXT("名称开头和结尾不能有空格。"); return false; }
-    // The name is a ?Name= URL option, so URL/option delimiters and quoting characters are never accepted.
+    // The name is a ?LDName= URL option, so URL/option delimiters and quoting characters are never accepted.
     static const FString Reserved = TEXT("?=#/\\:%&\"'<>|");
     int32 Characters = 0;
     for (int32 Index = 0; Index < Name.Len(); ++Index)
