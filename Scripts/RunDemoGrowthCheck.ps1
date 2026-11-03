@@ -22,16 +22,17 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Ledger','Iso')
-    Client1 = @('Net','Start','N03','A01','A06','A10','A15','A16','A17','A19','A21','A24','Iso')
+    Host = @('Net','Start','Ledger','Fixture','A14','Iso')
+    Client1 = @('Net','Start','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso')
 }
 
 function Start-GrowthRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host is a participating Listen Host with a real RHI main view; the owning client needs no renderer.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" } else { '-nullrhi' }
+    # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the buyer's
+    # offers and grants its own XP and gold; the owning client needs no renderer and never carries the fixture.
+    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
@@ -58,10 +59,11 @@ function Read-GrowthJson {
     Get-Content -LiteralPath (Join-Path $evidence $Name) -Raw | ConvertFrom-Json
 }
 
-# The independent replay of the exported ledger; a non-zero exit fails the run.
+# The independent replay of the exported ledger; a non-zero exit fails the run. The Host ran with the DEV growth fixture,
+# so its DevFixture mints are accepted only because they are declared here and listed in the evidence.
 function Assert-LedgerEvidence {
     param([string]$Name)
-    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', $checker, (Join-Path $evidence $Name)) -LogPath (Join-Path $output "$Name.check.txt")
+    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', $checker, '--dev-fixture', (Join-Path $evidence $Name)) -LogPath (Join-Path $output "$Name.check.txt")
 }
 
 function Get-ItemKeys {
@@ -94,6 +96,15 @@ try {
     }
     $hostReport = $reports['Host']
     $buyer = $reports['Client1']
+    if (-not $hostReport.growth_fixture -or $buyer.growth_fixture -or -not $hostReport.buyer_killed) {
+        throw "Only the Host may run the DEV growth fixture, and it must have killed the buyer: $output"
+    }
+    if (-not $buyer.replacement.track -or $buyer.replacement.track -ne $buyer.replacement.relearned_track -or
+        [long]$buyer.replacement.ready_at_ms -ne [long]$buyer.replacement.relearned_ready_at_ms -or
+        [long]$buyer.dead_choice.max_hp_p2_after -le [long]$buyer.dead_choice.max_hp_p2_before -or
+        [long]$buyer.dead_choice.respawned_life -ne [long]$buyer.dead_choice.life + 1) {
+        throw "The buyer's replacement or choice while dead is missing from its report: $output"
+    }
     if ($buyer.match1.generation -ne $hostReport.match1.generation -or $buyer.second_generation -ne $hostReport.second_generation -or
         $buyer.generation -ne $buyer.second_generation -or $hostReport.generation -ne $hostReport.second_generation -or
         $buyer.second_generation -le $buyer.match1.generation) {
@@ -107,6 +118,12 @@ try {
     # First match: the authority's final state must equal the owner's own projection at the end of that match.
     $first = Read-GrowthJson 'LedgerEvidence.json'
     $current = $first.current
+    # The only DevFixture mint of the run is the Host's own grant; the buyer's gold came from kills and trades.
+    $grants = @($first.devFixture.grants)
+    if (-not $first.devFixture.enabled -or $grants.Count -ne 1 -or $grants[0].account -ne $hostReport.match1.entity -or
+        [long]$grants[0].gold -ne [long]$hostReport.host_grant_gold -or [long]$first.devFixture.minted -ne [long]$hostReport.host_grant_gold) {
+        throw "The first match's ledger does not list exactly the Host's own DevFixture grant: $output"
+    }
     $account = @($current.accounts | Where-Object { $_.id -eq $buyer.match1.entity })
     if ($account.Count -ne 1 -or [long]$account[0].gold -ne [long]$buyer.match1.gold) {
         throw "The first match's exported ledger and the owner projection disagree on the buyer's gold: $output"
@@ -119,6 +136,9 @@ try {
     $second = Read-GrowthJson 'LedgerEvidence2.json'
     $next = $second.current
     if ($second.match -eq $first.match) { throw "The second match reused the first match's LedgerMatch: $output" }
+    if (-not $second.devFixture.enabled -or @($second.devFixture.grants).Count -ne 0 -or $second.devFixture.minted -ne '0') {
+        throw "The second match's ledger carries DevFixture mints: $output"
+    }
     if ($second.prefix.throughSerial -ne '0' -or @($second.tail).Count -ne 0 -or $next.throughSerial -ne '0' -or
         $next.issuedThrough -ne '0' -or $next.minted -ne '0' -or $next.burned -ne '0' -or @($next.items).Count -ne 0) {
         throw "The second match's ledger is not freshly initialized: $output"
@@ -138,9 +158,16 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED')
     if ($errors.Count) { throw "Native scenario logged an error, including after its success reports: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim) plus one owning client; " +
-        "level $($buyer.match1.level) from $($buyer.kills) kills, one choice, buy x2 / full / replay / item active / sell with " +
-        "cooldown debt / outside at the shop; first ledger replayed and equal to the owner projection. The Host then ended the match " +
+    if (-not (Select-String -LiteralPath (Join-Path $output 'Host.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet) -or
+        (Select-String -LiteralPath (Join-Path $output 'Client1.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet)) {
+        throw "LD_DEV_FIXTURE_ACTIVE must be logged by the Host and never by the owning client: $output"
+    }
+    Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
+        "presets the buyer's offers) plus one owning client; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
+        "replay / item active / sell with cooldown debt / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
+        "unconfirmed pick, relearned at rank 1 on its old track and deadline; after the Host's own DevFixture grant it killed the buyer, " +
+        "which chose while dead without revive or heal and respawned full; first ledger replayed with --dev-fixture and equal to the " +
+        "owner projection. The Host then ended the match " +
         "(no winner) and returned to Lobby generation $($buyer.second_generation): a second normal match started both owners at clean " +
         "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, quoted no inherited cooldown " +
         "and opened a fresh ledger under a new LedgerMatch (replayed). Not camps, AI, capture or full-match acceptance. Evidence: $output")
