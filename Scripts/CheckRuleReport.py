@@ -7,6 +7,10 @@ from pathlib import Path
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.AudioCatalog",
+        "Lockdown.Rules.AudioCatalogAsset",
+        "Lockdown.Rules.AudioCueOwn",
+        "Lockdown.Rules.AudioCuePublic",
         "Lockdown.Rules.CampDecision",
         "Lockdown.Rules.ControlMappings",
         "Lockdown.Rules.DemoContent.AtomicAssetRoundTrip",
@@ -100,6 +104,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalDisplayTrialLifecycle",
         "Lockdown.Rules.LocalSettingsPersistence",
         "Lockdown.Rules.LocalSettingsAtomicReplaceFailure",
+        "Lockdown.Rules.LocalSettingsMasterVolume",
         "Lockdown.Rules.LocalSettingsMetadataReadFailure",
         "Lockdown.Rules.LocalSettingsRejectionAndRecovery",
         "Lockdown.Rules.ViewPrivacySchema",

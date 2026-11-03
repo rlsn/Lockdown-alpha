@@ -1,5 +1,6 @@
 #include "LDScaffoldBootstrapCommandlet.h"
 #include "LDDemoWorldBuilder.h"
+#include "Audio/LDDemoAudioImport.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -178,6 +179,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
             UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native world geometry/navigation validation failed: %s"), *Error);
             return 6;
         }
+    }
+    // Audio: the cue catalog must resolve and match its CC0 sources before anything is packaged.
+    if (!LDDemoAudioImport::Validate(Error))
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo audio: %s"), *Error);
+        return 7;
     }
     UE_LOG(LogTemp, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));
     return 0;

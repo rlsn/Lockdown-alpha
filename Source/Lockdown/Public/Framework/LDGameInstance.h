@@ -23,9 +23,13 @@ public:
     ULDControlSettings* GetLocalControlSettings();
     ULDControlSettings* UseIsolatedLocalSettings(const FGuid& Fixture);
     FLDLocalSettingsSaveResult ApplyLocalSettings(const ULDControlSettings& Draft);
+    // Applies a linear 0..1 master volume to the live preferences and the audio output now; only the debounced flush
+    // writes it, so a slider drag never saves every intermediate value.
+    FLDLocalSettingsSaveResult SetAppliedMasterVolume(float Linear);
     FLDLocalSettingsSaveResult FlushLocalSettings(bool VerifyCurrent=false);
     FLDLocalSettingsSaveResult ConfirmLocalSettingsRecovery();
     void RequestLocalSettingsFlush();
+    bool IsLocalSettingsFlushPending() const { return LocalSettingsFlushAt > 0; }
     void PrepareLocalSettingsForTravel();
     const FString& GetLocalSettingsMessage() const { return LocalSettingsMessage; }
 
@@ -61,6 +65,8 @@ private:
     void LocalSettingsPreLoadMap(const FWorldContext& Context, const FString& Map);
     void LocalSettingsPreClientTravel(const FString& URL, ETravelType Type, bool Seamless);
     void ApplyControlPreferences();
+    // Pushes the applied master volume to the audio subsystem, which is absent on a game instance that never ran Init.
+    void ApplyAudioPreferences();
 
     FLDDisplayTrialState DisplayTrial;
     FLDDisplayConfigWriteGuard DisplayConfigGuard;

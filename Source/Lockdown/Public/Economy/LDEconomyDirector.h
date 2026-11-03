@@ -2,7 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Development/LDDevGrowthFixture.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Economy/LDEconomyLedger.h"
 #include "LDEconomyDirector.generated.h"
 
@@ -45,6 +47,11 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV scenarios: this match's ledger evidence for Scripts\CheckEconomyEvidence.py (LDEconomy::ExportEvidence).
     bool ExportLedgerEvidence(FString& OutJson, FString& Error) const;
+    // DEV growth fixture (LDDevGrowthFixture.h): queues an XP/gold grant that the next Transactions phase commits through
+    // the reward composite with ledger cause DevFixture and no death fact. Returns a ticket for DevGrantStatus, or 0
+    // with Error when the fixture, match, contender or amounts refuse it.
+    uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, int64 Gold, FString& Error);
+    ELDDevGrantStatus DevGrantStatus(uint64 Ticket, FString& Detail) const;
 #endif
 
     // ---- Module internals ----
@@ -62,7 +69,28 @@ private:
     bool RetireLeftAccounts(const FLDGameplayWritePermit& Permit, FString& Error);
     bool CompactLedger(FString& Error);
     void RecordReward(const FLDRewardReceipt& Receipt);
+    // The reward composite (PEE §4.2): a ledger mint when Gold > 0, the XP with its levels and opportunities and the
+    // Combat projection, all prepared before any is installed. Death rewards and the DEV growth fixture share it.
+    ELDRewardOutcome CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
+        LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
+        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
     ALDGameMode* Mode() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // Commits every pending DEV grant in ticket order; false only on an authority fault.
+    bool CommitDevGrants(const FLDGameplayWritePermit& Permit, FString& Error);
+
+    struct FDevGrant
+    {
+        uint64 Ticket = 0;
+        FGuid Contender;
+        int64 XP = 0;
+        int64 Gold = 0;
+        ELDDevGrantStatus Status = ELDDevGrantStatus::Pending;
+        FString Detail;
+    };
+    // Every DEV grant of this match in ticket order (ticket = index + 1).
+    TArray<FDevGrant> DevGrants;
+#endif
 
     FLDMatchContext Match;
     TSharedPtr<const FLDDemoContentSnapshot> Content;

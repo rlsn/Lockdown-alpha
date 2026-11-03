@@ -1,4 +1,5 @@
 #include "Framework/LDGameInstance.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -207,6 +208,8 @@ bool ULDGameInstance::AllocateMatchGeneration(uint32& Generation, FString& Error
 void ULDGameInstance::Init()
 {
     Super::Init();
+    // Settings normally load on first use, which applies their volume; only an object that already exists is applied here.
+    if (LocalControlSettings) { ApplyAudioPreferences(); }
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartEntryObservation(*this);
 #endif
@@ -291,11 +294,13 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->TextScale = Loaded.RecoverablePreferences->TextScale;
             LocalControlSettings->Zoom = Loaded.RecoverablePreferences->Zoom;
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
+            LocalControlSettings->MasterVolume = Loaded.RecoverablePreferences->MasterVolume;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *LocalSettingsMessage);
     }
+    ApplyAudioPreferences();
     return LocalControlSettings;
 }
 
@@ -327,6 +332,12 @@ void ULDGameInstance::ApplyControlPreferences()
     }
 }
 
+void ULDGameInstance::ApplyAudioPreferences()
+{
+    if (auto* AudioOutput = GetSubsystem<ULDAudioSubsystem>())
+    { AudioOutput->ApplyMasterVolume(LocalControlSettings ? LocalControlSettings->MasterVolume : 1.f); }
+}
+
 FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlSettings& Draft)
 {
     FString Error;
@@ -336,7 +347,26 @@ FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlS
         return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
     }
     ApplyControlPreferences();
+    ApplyAudioPreferences();
     return FlushLocalSettings();
+}
+
+FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMasterVolume(float Linear)
+{
+    FString Error;
+    if (!LocalControlSettings || !LocalControlSettings->SetAppliedMasterVolume(Linear, Error))
+    {
+        LocalSettingsMessage = Error.IsEmpty() ? TEXT("本地设置不可用。") : Error;
+        return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
+    }
+    ApplyAudioPreferences();
+    RequestLocalSettingsFlush();
+    // Nothing is written yet; a recovery-gated file is not replaced by the coming flush either.
+    const int32 Percent = FMath::RoundToInt(100 * LocalControlSettings->MasterVolume);
+    LocalSettingsMessage = LocalControlSettings->NeedsRecovery()
+        ? FString::Printf(TEXT("主音量 %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Percent)
+        : FString::Printf(TEXT("主音量 %d%% 已应用，稍后自动保存。"), Percent);
+    return { ELDLocalSettingsSaveStatus::NoChanges, LocalSettingsMessage };
 }
 
 FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurrent)

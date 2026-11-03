@@ -82,8 +82,20 @@ def live_state():
 
 
 def fixture():
-    return {"schemaVersion": 2, "match": MATCH, "startingGold": "150", "prefix": compacted_prefix(),
+    return {"schemaVersion": 3, "match": MATCH, "startingGold": "150",
+            "devFixture": {"enabled": False, "grants": [], "minted": "0"}, "prefix": compacted_prefix(),
             "tail": history()[2:], "current": live_state()}
+
+
+def dev_fixture_run():
+    """fixture() plus one DevFixture mint of 50 to P1 at serial 9, exported by a process with -LDDevGrowthFixture."""
+    data = fixture()
+    data["tail"].append(entry(9, "DevFixture", gold=(P1, 5, 50), mint=50, result_account=6))
+    data["current"] = state(9, 3, 260, 300,
+                            {P1: account(145, 6), P2: account(115, 4, True, 8, 1, 3), P3: account(150, 2, True, 2, 2, 7)},
+                            {P1: 4, P2: 3, P3: 1}, [(3, P1, 1)])
+    data["devFixture"] = {"enabled": True, "grants": [{"serial": "9", "account": P1, "gold": "50"}], "minted": "50"}
+    return data
 
 
 class EconomyEvidenceTests(unittest.TestCase):
@@ -113,7 +125,8 @@ class EconomyEvidenceTests(unittest.TestCase):
 
     def test_missing_fields_never_default(self):
         for path in (("tail", 0, "gold"), ("tail", 1, "createdInstance"), ("prefix", "accounts", 0, "retireLife"),
-                     ("current", "items", 0, "slot"), ("current", "minted"), ("startingGold",)):
+                     ("current", "items", 0, "slot"), ("current", "minted"), ("startingGold",), ("devFixture",),
+                     ("devFixture", "enabled"), ("devFixture", "minted")):
             with self.subTest(path=path):
                 data = copy.deepcopy(self.data)
                 parent = data
@@ -123,7 +136,7 @@ class EconomyEvidenceTests(unittest.TestCase):
                 self.rejects(data, "Missing ledger field")
 
     def test_schema_match_and_identity_spelling(self):
-        for value in (1, 3, True, "2", None):
+        for value in (2, 4, True, "3", None):
             with self.subTest(schema=value):
                 data = copy.deepcopy(self.data)
                 data["schemaVersion"] = value
@@ -163,6 +176,42 @@ class EconomyEvidenceTests(unittest.TestCase):
         self.rejects(backwards, "backwards")
         self.data["tail"][0]["commitBatch"] = "0"
         self.rejects(self.data, "commitBatch")
+
+    def test_dev_fixture_mints_need_the_flag_and_their_listing(self):
+        data = dev_fixture_run()
+        self.assertEqual(verify_data(data, dev_fixture=True),
+                         {"tail": 7, "throughSerial": 9, "accounts": 3, "items": 1, "gold": 410,
+                          "devFixtureGrants": 1, "devFixtureMinted": 50})
+        self.rejects(data, "only --dev-fixture")
+        quiet = copy.deepcopy(data)
+        quiet["devFixture"]["enabled"] = False
+        self.rejects(quiet, "without the DEV growth fixture")
+        unlisted = copy.deepcopy(data)
+        unlisted["devFixture"].update(grants=[], minted="0")
+        with self.assertRaisesRegex(ValueError, "not listed"):
+            verify_data(unlisted, dev_fixture=True)
+        for label, change in (("account", {"account": P2}), ("gold", {"gold": "49"})):
+            with self.subTest(listing=label):
+                wrong = copy.deepcopy(data)
+                wrong["devFixture"]["grants"][0].update(change)
+                wrong["devFixture"]["minted"] = wrong["devFixture"]["grants"][0]["gold"]
+                with self.assertRaisesRegex(ValueError, "not listed"):
+                    verify_data(wrong, dev_fixture=True)
+        total = copy.deepcopy(data)
+        total["devFixture"]["minted"] = "51"
+        with self.assertRaisesRegex(ValueError, "sum of its listed grants"):
+            verify_data(total, dev_fixture=True)
+        burned = copy.deepcopy(data)
+        burned["tail"][-1]["burn"] = "50"
+        with self.assertRaisesRegex(ValueError, "shape"):
+            verify_data(burned, dev_fixture=True)
+
+    def test_dev_fixture_flag_needs_a_fixture_run(self):
+        with self.assertRaisesRegex(ValueError, "without -LDDevGrowthFixture"):
+            verify_data(self.data, dev_fixture=True)
+        self.data["devFixture"]["enabled"] = True
+        self.assertEqual(verify_data(self.data, dev_fixture=True)["devFixtureGrants"], 0)
+        self.rejects(self.data, "only --dev-fixture")
 
     def test_cause_shapes(self):
         mutations = {

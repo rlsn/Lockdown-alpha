@@ -186,8 +186,11 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName` 和绑定是完整正向清单。
-当前文件 schema 是 6，与产品/网络版本无关；旧通用 SaveGame 格式及 4、5、6 以外的 schema 返回不支持，不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume` 和绑定是完整正向清单。
+当前文件 schema 是 7，与产品/网络版本无关；旧通用 SaveGame 格式及 4–7 以外的 schema 返回不支持，不静默覆盖。
+`MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
+设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
+恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
 `PlayerName` 为空表示尚未设置，绝不填入默认名；它不是比赛数据，恢复默认（`ResetLocalDefaults`/`ResetBindings`）也不删除它。
 调用方用 `SetAppliedPlayerName` 修改已应用对象，并通过 `ULDGameInstance::RequestLocalSettingsFlush()` 请求保存；草稿不能改名称。
 `ValidatePlayerName` 只做本地格式检查：非空、首尾无空白、最多 16 个字符（UTF-16 代理对算一个）、
@@ -196,7 +199,9 @@ schema、edge/follow、文字比例、zoom、`PlayerName` 和绑定是完整正�
 文件中的非空非法名称使整个文件按 `Corrupt` 拒绝，且不提供恢复偏好。
 schema 5 是不含名称的同一正向清单，按显式迁移读取：校验通过的绑定和镜头/文字偏好原样保留，名称为空，
 返回 `Migrated` 及“先设置名称再建房或加入”的提示；对象处于 `ConfirmedApplied` 而非 `PersistenceVerified`，
-立即生效，下一次 flush 写成 schema 6，加载本身不改写旧文件。schema 5 中的损坏、非法偏好或注册表外动作
+立即生效，下一次 flush 写成当前 schema，加载本身不改写旧文件。
+schema 6 是含名称但不含主音量的同一清单，同样显式迁移：名称、绑定和镜头/文字偏好保留，主音量取默认 1。
+schema 5、6 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
@@ -243,7 +248,8 @@ Esc、强制关页、Widget 销毁、网络失败、旅行和退出先撤销试�
 先结束按键捕获，或按“继续编辑/保持不变”关闭最上层确认，不应用也不丢弃任何值；显示试用提示返回 false，
 必须明确保留、恢复或等待超时。设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
-这里没有音频消费链；设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
+主音量是设置的唯一音频消费链：GameInstance 每次加载或应用本地偏好后把 `MasterVolume` 交给 `ULDAudioSubsystem`；
+设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
 不能以本地设置控件代替全界面验收。
 
 ## 维护检查
@@ -257,6 +263,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
+schema 5/6 显式迁移与主音量保存回读（`LocalSettingsMasterVolume`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、
 试用 ID/截止边界、引擎配置自动写保护和显示配置实际回读；
 真实模式切换、恢复、VSync/画质及布局仍需非 nullrhi 的原生界面检查。

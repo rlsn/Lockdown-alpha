@@ -1,0 +1,232 @@
+{
+  "schema": 1,
+  "packs": [
+    {
+      "id": "kenney-music-jingles",
+      "name": "Music Jingles",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/music-jingles",
+      "download_url": "https://kenney.nl/download/6173736574732f6d757369632d6a696e676c6573/4c01e8d5d02c99edf6474306bfce081cfab4e002b337ae32812b9773bfa5d506?expires=1793671213",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "b729ba57959bd58793d2c5cafa348aaf2655d354f3da35ec4729e03ec77197b8",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/MusicJingles/License.txt",
+      "license_sha256": "373b1c880ee6c7a83c1ccf209f251cf45fc9ea9b1f0330844fa7be64a401adc4"
+    },
+    {
+      "id": "kenney-digital-audio",
+      "name": "Digital Audio",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/digital-audio",
+      "download_url": "https://kenney.nl/download/6173736574732f6469676974616c2d617564696f/ba1dbfc82d492ad82506ba8e09fd214eebf3e22442a285f71750e86a04d73046?expires=1793671204",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "24e6ce28b76a6d8c89cff4d331e0965ff5c3de8a73c612028e9d363cc64e4f06",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/DigitalAudio/License.txt",
+      "license_sha256": "654d24e000d1c3b2a1d2264151f49e273e8a26d24e26e9bffc2aeb48cea93815"
+    },
+    {
+      "id": "kenney-impact-sounds",
+      "name": "Impact Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/impact-sounds",
+      "download_url": "https://kenney.nl/download/6173736574732f696d706163742d736f756e6473/e681efa353bded0f9e91db86f908405899477b1777cec5072b94b1bd3bb8bd09?expires=1793671195",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "029d734af1582474edf3a694d1b0cebc97c1c152f2f39fa34d4c2bafc5de77f8",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/ImpactSounds/License.txt",
+      "license_sha256": "b49aa9c56b04528b95913de13e506a0f7c5e807b9925db9bfef86af1f91120db"
+    },
+    {
+      "id": "kenney-interface-sounds",
+      "name": "Interface Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/interface-sounds",
+      "download_url": "https://kenney.nl/download/6173736574732f696e746572666163652d736f756e6473/de5bc645f011fdb3159a4cd340935bebb7ab9d956d143c945ce1b159ee425b9a?expires=1793671178",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "f2193d072726d6758a5f7871b2dcc54dcce0d5c35c6f0a62f92549b327c81232",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/InterfaceSounds/License.txt",
+      "license_sha256": "f7966c773bbed0eca6a9c75081c44a178b38eae112724dbb5fdfbd4192d118a9"
+    },
+    {
+      "id": "kenney-rpg-audio",
+      "name": "RPG Audio",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/rpg-audio",
+      "download_url": "https://kenney.nl/download/6173736574732f7270672d617564696f/6bba393cf4e98344a60cb59560f1cb3a396b0240efc88a01296590919bab4361?expires=1793671229",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/RpgAudio/License.txt",
+      "license_sha256": "5735dfd72cb64cbbceda4ebc00c380c41ca680edb82ff153aa7c9ab97614c539"
+    }
+  ],
+  "cues": [
+    {
+      "cue": "KillNotice",
+      "pack": "kenney-music-jingles",
+      "source": "Kenney/MusicJingles/jingles_PIZZI13.ogg",
+      "pack_path": "Audio/Pizzicato jingles/jingles_PIZZI13.ogg",
+      "sha256": "44f5b9d0d3ed9835a015e72199b4b82acc2e7f322c342c4f8f8bf1abd3537214",
+      "duration_sec": 0.881,
+      "purpose": "全场击杀通知",
+      "loudness_lufs": -12.88,
+      "volume": 0.993
+    },
+    {
+      "cue": "CaptureOpened",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/threeTone2.ogg",
+      "pack_path": "Audio/threeTone2.ogg",
+      "sha256": "124198c80ff2e1826230be606aa3dcdd90262272bb545f621a9eb91dccfd5c9d",
+      "duration_sec": 0.866,
+      "purpose": "升旗台开放",
+      "loudness_lufs": -11.59,
+      "volume": 0.855
+    },
+    {
+      "cue": "CaptureStarted",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/phaserUp3.ogg",
+      "pack_path": "Audio/phaserUp3.ogg",
+      "sha256": "d6edcbde2c7190e275ef3eba08a8886129153a361cd0e16dc0fb58206deb5e53",
+      "duration_sec": 0.522,
+      "purpose": "开始占领或占领者变化",
+      "loudness_lufs": -14.0,
+      "volume": 1.076
+    },
+    {
+      "cue": "CaptureContested",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/twoTone2.ogg",
+      "pack_path": "Audio/twoTone2.ogg",
+      "sha256": "e8e4a2d9faa4344f4722de9ef81103290858bbcd80f1dc686879128cae52e9f0",
+      "duration_sec": 0.731,
+      "purpose": "升旗台争夺",
+      "loudness_lufs": -12.95,
+      "volume": 1.0
+    },
+    {
+      "cue": "MatchVictory",
+      "pack": "kenney-music-jingles",
+      "source": "Kenney/MusicJingles/jingles_STEEL10.ogg",
+      "pack_path": "Audio/Steel jingles/jingles_STEEL10.ogg",
+      "sha256": "88a6645658b15dc327a2377ca7354e364625f081cd6ff9fda0b46dc54f664b71",
+      "duration_sec": 0.909,
+      "purpose": "本人获胜",
+      "loudness_lufs": -9.81,
+      "volume": 0.697
+    },
+    {
+      "cue": "MatchDefeat",
+      "pack": "kenney-music-jingles",
+      "source": "Kenney/MusicJingles/jingles_SAX07.ogg",
+      "pack_path": "Audio/Sax jingles/jingles_SAX07.ogg",
+      "sha256": "241c8570fbded819ee0205e4be3efa80aeb834a70df89318da88f9e219798b11",
+      "duration_sec": 1.74,
+      "purpose": "本人落败",
+      "loudness_lufs": -15.65,
+      "volume": 1.365
+    },
+    {
+      "cue": "MatchEndedNoWinner",
+      "pack": "kenney-music-jingles",
+      "source": "Kenney/MusicJingles/jingles_STEEL00.ogg",
+      "pack_path": "Audio/Steel jingles/jingles_STEEL00.ogg",
+      "sha256": "8799eb726d784ae0aa1a9df80648a873ac60015bc00aea12c8e2dd1431a2bd7d",
+      "duration_sec": 0.933,
+      "purpose": "无胜者结束",
+      "loudness_lufs": -12.56,
+      "volume": 0.956
+    },
+    {
+      "cue": "SelfHit",
+      "pack": "kenney-impact-sounds",
+      "source": "Kenney/ImpactSounds/impactGeneric_light_000.ogg",
+      "pack_path": "Audio/impactGeneric_light_000.ogg",
+      "sha256": "f0e982611e97512fee5f777986b67e8b435434b601f94992ec044f7e89fb5acb",
+      "duration_sec": 0.139,
+      "purpose": "本人受击",
+      "loudness_lufs": -23.01,
+      "volume": 1.096
+    },
+    {
+      "cue": "SelfCast",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/drop_002.ogg",
+      "pack_path": "Audio/drop_002.ogg",
+      "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218",
+      "duration_sec": 0.191,
+      "purpose": "本人技能或装备主动释放成功",
+      "loudness_lufs": -20.61,
+      "volume": 1.073
+    },
+    {
+      "cue": "PurchaseSucceeded",
+      "pack": "kenney-rpg-audio",
+      "source": "Kenney/RpgAudio/handleCoins.ogg",
+      "pack_path": "Audio/handleCoins.ogg",
+      "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab",
+      "duration_sec": 0.846,
+      "purpose": "购买或出售成功",
+      "loudness_lufs": -19.4,
+      "volume": 0.929
+    },
+    {
+      "cue": "TradeRejected",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/error_006.ogg",
+      "pack_path": "Audio/error_006.ogg",
+      "sha256": "a97513d7fd2b12b1210c423be943b4c1ab0e899b11db95855e9b74836e646ae0",
+      "duration_sec": 0.5,
+      "purpose": "交易被拒",
+      "loudness_lufs": -18.4,
+      "volume": 1.039
+    },
+    {
+      "cue": "LevelUp",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/powerUp7.ogg",
+      "pack_path": "Audio/powerUp7.ogg",
+      "sha256": "9048d651b51f528099c384566b0d4c6c597bee8b56c48f3adab7a901feba0fa5",
+      "duration_sec": 0.522,
+      "purpose": "升级或出现新的三选一",
+      "loudness_lufs": -11.65,
+      "volume": 0.861
+    },
+    {
+      "cue": "SelfDeath",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/phaserDown3.ogg",
+      "pack_path": "Audio/phaserDown3.ogg",
+      "sha256": "19fd2f5bb8448e022381f1a72c36117d4adcb521ebeb697e888bfaf7945cfa56",
+      "duration_sec": 0.496,
+      "purpose": "本人社死",
+      "loudness_lufs": -12.52,
+      "volume": 0.952
+    },
+    {
+      "cue": "SelfRespawn",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/confirmation_002.ogg",
+      "pack_path": "Audio/confirmation_002.ogg",
+      "sha256": "33b17a9a9a2397c62b285c52c33a907fdffb476909c99e42dde603f6a7a8b12c",
+      "duration_sec": 0.539,
+      "purpose": "本人复活",
+      "loudness_lufs": -12.04,
+      "volume": 0.901
+    },
+    {
+      "cue": "UIClick",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/select_002.ogg",
+      "pack_path": "Audio/select_002.ogg",
+      "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012",
+      "duration_sec": 0.043,
+      "purpose": "界面点击（设置页主音量试听）",
+      "loudness_lufs": -22.35,
+      "volume": 1.062
+    }
+  ]
+}
