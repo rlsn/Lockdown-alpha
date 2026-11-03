@@ -162,8 +162,11 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 事实按提交序入队，到其整数桶封闭时才按原始秒、阶段、提交序归约，同一边界内的进出/死亡/保护变化
 全部保留；保护者既不占也不争，开放前不计时，Solo 起点取向上取整桶，完成时刻 `DueAtMs` 由驱动切步。
 争夺冻结原占领者的进度（其他人不累积），他再次独占时 `SoloSinceMs` 回拨暂停值续计；他离圈、死亡或离局即清零，
-下一独占者从 0 开始。争夺暂停持有者期间 `NextDueMs` 为 `ClosedThrough + max(Hold − Paused, 1)`，
-使续计的截止不会落进已提交的步内。
+下一独占者从 0 开始。争夺暂停不给驱动额外停靠边界：步内能让持有者恢复独占的只有 Motion 的进出事实
+（离局在步前入队，死亡、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
+`CaptureCompletesInsideStep`，由 `FLDCaptureReducer::CompletionInsideMs` 在归约器副本上预演已入队事实；
+若续计的截止早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
+在该截止时刻锁定结果（其后的进出丢弃），边界时刻的行动、效果与交易都不发生。
 驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
 `ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。

@@ -15,6 +15,15 @@ int64 ALDGameMode::NextCaptureDueMs() const
     return IsGameplayWriteOpen(MatchContext) ? CaptureReducer.NextDueMs() : MAX_int64;
 }
 
+bool ALDGameMode::CaptureCompletesInsideStep()
+{
+    // Only between Motion and every later phase: afterwards the boundary instant already has side effects.
+    bCaptureCompletesInsideStep = bAuthorityStepOpen && !bSettlementStep && !ActiveWritePermit && bAuthorityPhaseExecuted
+        && LastAuthorityPhase == ELDCommitPhase::Motion && IsGameplayWriteOpen(MatchContext) && CaptureReducer.IsActive()
+        && CaptureReducer.CompletionInsideMs(AuthorityBoundary.AtMs) < AuthorityBoundary.AtMs;
+    return bCaptureCompletesInsideStep;
+}
+
 bool ALDGameMode::InitializeCaptureMatch(FString& Error)
 {
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -244,7 +253,10 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
     const uint64 EpochBefore = CaptureReducer.GetEpoch();
     const bool WasOpen = CaptureReducer.IsOpen();
     TOptional<FLDCaptureProposal> Proposal;
-    if (!CaptureReducer.CloseBoundary(Permit.GetBoundary().AtMs, Proposal, Error)) { return false; }
+    const bool Closed = bCaptureCompletesInsideStep
+        ? CaptureReducer.CloseThroughCompletion(Permit.GetBoundary().AtMs, Proposal, Error)
+        : CaptureReducer.CloseBoundary(Permit.GetBoundary().AtMs, Proposal, Error);
+    if (!Closed) { return false; }
     if (CaptureReducer.IsOpen() && MatchPhase == ELDMatchPhase::Development)
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;
@@ -265,8 +277,11 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (!PendingCapture) { return true; }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
+    // A completion planned inside this step happened before its boundary; any other one is due exactly at it.
+    const int64 AtMs = Permit.GetBoundary().AtMs;
     if (Proposal.Epoch != CaptureReducer.GetEpoch() || CaptureReducer.GetState() != ELDCircleState::Solo
-        || CaptureReducer.GetOccupier() != Proposal.Occupier || Proposal.DueAtMs != Permit.GetBoundary().AtMs)
+        || CaptureReducer.GetOccupier() != Proposal.Occupier
+        || (bCaptureCompletesInsideStep ? Proposal.DueAtMs >= AtMs : Proposal.DueAtMs != AtMs))
     {
         PendingCapture.Reset();
         Error = TEXT("The capture proposal no longer matches the closed continuous segment.");
@@ -274,7 +289,7 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (HasPendingRewardRetries())
     {
-        if (bSettlementStep)
+        if (bSettlementStep || bCaptureCompletesInsideStep)
         {
             PendingCapture.Reset();
             Error = TEXT("The settlement boundary still owes a reward; the capture cannot lock over it.");

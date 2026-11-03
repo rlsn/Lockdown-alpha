@@ -122,6 +122,10 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
+    // Right after Motion: whether this step's motion completes a capture segment strictly before the step's
+    // end (a paused holder sole again). If so the driver skips the later gameplay phases of the step, retries
+    // owed rewards, and Capture/Close lock the result at that earlier instant.
+    bool CaptureCompletesInsideStep();
     // Driver phase entries, called in order after Transactions with the matching permit.
     bool ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FString& Error);
     // Locks the unique result and closes the write gate before any cleanup or publication.
@@ -170,6 +174,7 @@ private:
     friend class FLDDemoCoreTest;
     friend class FLDDemoCoreProbe;
     friend class FLDRewardSettlementTest;
+    friend class FLDCaptureInsideStepTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
@@ -216,6 +221,8 @@ private:
     bool bAuthorityPhaseExecuted = false;
     // A settlement boundary repeats the instant of a held capture completion: DeathsAndRewards retries, then Close.
     bool bSettlementStep = false;
+    // This step's motion completes the capture before the step's end; set after Motion, reset per step.
+    bool bCaptureCompletesInsideStep = false;
     ELDCommitPhase LastAuthorityPhase = ELDCommitPhase::Session;
     bool InitializeAuthorityCore(FString& Error);
     bool AvailableAuthorityTime(int64& ThroughMs, FString& Error);
