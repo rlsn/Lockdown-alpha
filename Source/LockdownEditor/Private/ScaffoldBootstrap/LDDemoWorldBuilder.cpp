@@ -217,6 +217,10 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
 // None of it collides, affects navigation or sight, or is read by any rule.
 const TCHAR* FieldMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoField");
 const TCHAR* WallMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoWall");
+const TCHAR* ApronMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoApron");
+// Paving reaches this far past the field on every side, so props and buildings outside the walls stand on ground.
+constexpr double ApronMarginCm = 4000.;
+const TCHAR* ApronTag = TEXT("LDDemoApron");
 
 FString ObjectPath(const TCHAR* PackagePath) { return FString(PackagePath) + TEXT(".") + FPackageName::GetShortName(PackagePath); }
 
@@ -368,6 +372,64 @@ UMaterial* BuildWallMaterial(FString& Error)
     UMaterialExpression* Wall = ChooseNode(*Material, Height, 45.f, ColorNode(*Material, FLinearColor(.42f, .1f, .07f)),
         ColorNode(*Material, FLinearColor(.72f, .66f, .55f)));
     return FinishMaterial(*Material, Wall, .85f, .35f, WallMaterialPath, Error);
+}
+
+// Campus paving beyond the walls: warm grey two-metre slabs with darker joints and faint weathering, darker than the
+// turf so the field stays the focus.
+UMaterial* BuildApronMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(ApronMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    auto* Slabs = AddNode<UMaterialExpressionMultiply>(*Material);
+    Slabs->A.Connect(0, MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), true, true, false));
+    Slabs->ConstB = 1.f / 200.f;
+    auto* Phase = AddNode<UMaterialExpressionFrac>(*Material);
+    Phase->Input.Connect(0, Slabs);
+    UMaterialExpression* Joint = MinNode(*Material, MaskNode(*Material, Phase, true, false, false),
+        MaskNode(*Material, Phase, false, true, false));
+    auto* Weather = AddNode<UMaterialExpressionNoise>(*Material);
+    Weather->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
+    Weather->Scale = .002f;
+    Weather->NoiseFunction = NOISEFUNCTION_GradientALU;
+    Weather->Quality = 1;
+    Weather->Levels = 3;
+    Weather->bTurbulence = false;
+    Weather->OutputMin = .85f;
+    Weather->OutputMax = 1.08f;
+    auto* Paving = AddNode<UMaterialExpressionMultiply>(*Material);
+    Paving->A.Connect(0, ColorNode(*Material, FLinearColor(.24f, .23f, .21f)));
+    Paving->B.Connect(0, Weather);
+    UMaterialExpression* Surface = ChooseNode(*Material, Joint, .025f, ColorNode(*Material, FLinearColor(.15f, .145f, .135f)), Paving);
+    return FinishMaterial(*Material, Surface, .95f, .3f, ApronMaterialPath, Error);
+}
+
+FVector ApronLocation(const FVector& Min, const FVector& Max, double Depth) { return (Min + Max) * .5 - FVector(0, 0, Depth * .5 + 1.); }
+
+FVector ApronScale(const FVector& Min, const FVector& Max, double Depth)
+{
+    return FVector(Max.X - Min.X + 2. * ApronMarginCm, Max.Y - Min.Y + 2. * ApronMarginCm, Depth) / 100.;
+}
+
+// Visual paving under and around the field, 1 cm below the turf: no collision, navigation, shadow or rule identity.
+bool PlaceApron(UWorld& World, UStaticMesh* Mesh, UMaterialInterface* Material, const FVector& Min, const FVector& Max,
+    double Depth, FString& Error)
+{
+    if (!Mesh || !Material) { return Fail(Error, TEXT("The paving apron needs the shared cube and its generated material.")); }
+    auto* Actor = World.SpawnActor<AStaticMeshActor>(ApronLocation(Min, Max, Depth), FRotator::ZeroRotator);
+    if (!Actor) { return Fail(Error, TEXT("Cannot create the paving apron.")); }
+    Actor->SetActorLabel(TEXT("DemoApron"));
+    Actor->Tags.Add(ApronTag);
+    Actor->SetActorScale3D(ApronScale(Min, Max, Depth));
+    Actor->SetActorEnableCollision(false);
+    auto* Component = Actor->GetStaticMeshComponent();
+    Component->SetStaticMesh(Mesh);
+    Component->SetMaterial(0, Material);
+    Component->SetMobility(EComponentMobility::Static);
+    Component->SetCollisionProfileName(TEXT("NoCollision"));
+    Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Component->SetCanEverAffectNavigation(false);
+    Component->SetCastShadow(false);
+    return true;
 }
 
 // A clear afternoon: one warm, fairly low sun casts clear shadows and drives the physical sky; the sky light captures
@@ -541,11 +603,14 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
     if (!GroundMaterial) { return false; }
     UMaterial* StoneMaterial = BuildWallMaterial(Error);
     if (!StoneMaterial) { return false; }
+    UMaterial* PavingMaterial = BuildApronMaterial(Error);
+    if (!PavingMaterial) { return false; }
     FVector Min, Max;
     if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
     const double Depth = Capsule.GetCapsuleHalfHeight();
     if (!Place(*World, Geometry->Surfaces[0].Id, Cube, GroundMaterial, (Min + Max) * .5 - FVector(0, 0, Depth * .5),
         FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., true, true, false, Error)) { return false; }
+    if (!PlaceApron(*World, Cube, PavingMaterial, Min, Max, Depth, Error)) { return false; }
     for (const auto& Blocker : Geometry->Blockers)
     {
         UStaticMesh* Mesh = BuildBlocker(Blocker, Definition.Checksum, Error);
@@ -608,7 +673,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(FString(World.GetOutermost()->GetMetaData().GetValue(&World, GeometryStamp)).Equals(Definition.Checksum, ESearchCase::CaseSensitive),
         TEXT("Saved map stamp identifies the verified world payload"));
     int32 Anchors = 0, BoundsCount = 0, NavCount = 0, StaticCount = 0;
-    int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0;
+    int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0, Aprons = 0;
+    const AStaticMeshActor* Apron = nullptr;
     TMap<FString, const AStaticMeshActor*> Meshes;
     FBox ExpectedBounds;
     if (!NavigationBounds(*Geometry, Capsule, ExpectedBounds, Error)) { return false; }
@@ -649,6 +715,11 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                 && Nav->GetConfig().AgentHeight == Capsule.GetCapsuleHalfHeight() * 2,
                 TEXT("Saved Recast and registered agent use the actual approved capsule"));
         }
+        if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(ApronTag))
+        {
+            ++Aprons;
+            Apron = Mesh;
+        }
         if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(TEXT("LDDemoStaticGeometry")))
         {
             ++StaticCount;
@@ -681,6 +752,22 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             TEXT("Ground transform, native support and sight classification match the source"));
         const UMaterialInterface* Field = Component->GetMaterial(0);
         Check(Field && Field->GetPathName() == ObjectPath(FieldMaterialPath), TEXT("The ground is the generated playground field"));
+    }
+    if (Check(Aprons == 1 && Apron != nullptr, TEXT("Exactly one paving apron surrounds the field")))
+    {
+        const auto* Component = Apron->GetStaticMeshComponent();
+        const double Depth = Capsule.GetCapsuleHalfHeight();
+        Check(Component->GetStaticMesh()
+            && Component->GetStaticMesh()->GetPathName() == TEXT("/Engine/BasicShapes/Cube.Cube")
+            && Apron->GetActorLocation().Equals(ApronLocation(Min, Max, Depth), UE_KINDA_SMALL_NUMBER)
+            && Apron->GetActorScale3D().Equals(ApronScale(Min, Max, Depth), UE_KINDA_SMALL_NUMBER)
+            && Apron->GetActorRotation().IsNearlyZero()
+            && !Apron->GetActorEnableCollision()
+            && Component->GetCollisionEnabled() == ECollisionEnabled::NoCollision
+            && !Component->CanEverAffectNavigation() && !Component->CastShadow,
+            TEXT("The paving apron sits 1 cm below the turf and 40 m past the field, without collision, navigation or shadow"));
+        const UMaterialInterface* Paving = Component->GetMaterial(0);
+        Check(Paving && Paving->GetPathName() == ObjectPath(ApronMaterialPath), TEXT("The apron is the generated campus paving"));
     }
     for (const auto& Blocker : Geometry->Blockers)
     {
