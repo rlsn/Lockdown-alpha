@@ -126,6 +126,7 @@ public:
     // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
     int32 Shots = 0;
     double MatchSeenAt = 0, LastShotAt = 0;
+    int64 LastHostHPP2 = -1;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
     void CaptureHost(const ALDPlayerController& Owner);
     TSet<FGuid> OpponentIds;
@@ -376,7 +377,11 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
         }
     }
     const bool bOpening = Shots == 0 && Now - MatchSeenAt >= 8.;
-    const bool bSighted = Shots > 0 && Visible > 0 && Now - LastShotAt >= 6.;
+    // A hit on the Host itself also counts: its own damage number is on screen for about a second.
+    const FLDCombatOwnerView& Combat = Owner.CombatView;
+    const bool bHurt = Combat.bHasBody && LastHostHPP2 >= 0 && Combat.HPP2 < LastHostHPP2;
+    LastHostHPP2 = Combat.bHasBody ? Combat.HPP2 : -1;
+    const bool bSighted = Shots > 0 && (Visible > 0 || bHurt) && Now - LastShotAt >= 6.;
     if (!bOpening && !bSighted) { return; }
     const FString File = FString::Printf(TEXT("HostMatch%d.png"), ++Shots);
     LastShotAt = Now;
