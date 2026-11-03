@@ -191,7 +191,15 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An open empty circle has no occupier"),LDHUD::Circle(Public,FString(),true,0).Line,FString(TEXT("升旗台已开放 · 无人占领")));
     Public.CircleState=ELDCircleState::Contested;
     const LDHUD::FCircleView Contested=LDHUD::Circle(Public,TEXT("同学甲"),true,0);
-    TestTrue(TEXT("Contesting shows the reset without naming anyone or showing progress"),Contested.Line==TEXT("升旗台争夺中 · 占领进度清零")&&!Contested.bProgress);
+    TestTrue(TEXT("A contest without a holder names no one and shows no progress"),Contested.Line==TEXT("升旗台争夺中 · 无人保有进度")&&!Contested.bProgress);
+    {
+        FLDPublicMatchView Paused=Public;Paused.Occupier=FGuid::NewGuid();Paused.PausedProgressMs=12001;
+        const LDHUD::FCircleView Held=LDHUD::Circle(Paused,TEXT("同学甲"),true,0,25000);
+        TestTrue(TEXT("A paused holder's progress shows against the approved hold, rounded up"),
+            Held.Line==TEXT("升旗台争夺中 · 进度暂停 13/25 s（同学甲）")&&Held.bProgress&&FMath::IsNearlyEqual(Held.Progress,12001.f/25000.f));
+        TestTrue(TEXT("Without the approved hold the paused seconds still show, without a bar"),
+            LDHUD::Circle(Paused,TEXT("同学甲"),true,0).Line==TEXT("升旗台争夺中 · 同学甲 的进度暂停在 13 s")&&!LDHUD::Circle(Paused,TEXT("同学甲"),true,0).bProgress);
+    }
     Public.CircleState=ELDCircleState::Solo;Public.SoloSinceMs=100000;Public.DueAtMs=125000;
     const LDHUD::FCircleView Solo=LDHUD::Circle(Public,TEXT("同学甲"),true,110000);
     TestTrue(TEXT("Solo progress runs from the public solo start to its due time"),Solo.bProgress&&FMath::IsNearlyEqual(Solo.Progress,.4f,.0001f)&&Solo.Line==TEXT("同学甲 正在独占升旗台 · 剩余 15.0s"));

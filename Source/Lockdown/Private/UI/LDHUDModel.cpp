@@ -198,7 +198,7 @@ FString LDHUD::Clock(int64 RemainingMs)
     const int64 Seconds=RemainingMs>0?(RemainingMs+999)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
 }
-LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs)
+LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs,int64 HoldMs)
 {
     FCircleView View;
     switch(Public.Phase)
@@ -210,7 +210,17 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         switch(Public.CircleState)
         {
         case ELDCircleState::Empty: View.Line=TEXT("升旗台已开放 · 无人占领");return View;
-        case ELDCircleState::Contested: View.Line=TEXT("升旗台争夺中 · 占领进度清零");return View;
+        case ELDCircleState::Contested:
+        {
+            // D12: a contest pauses the holder's progress instead of clearing it; without a holder nothing is kept.
+            if(!Public.Occupier.IsValid()||Public.PausedProgressMs<=0){View.Line=TEXT("升旗台争夺中 · 无人保有进度");return View;}
+            const FString Name=OccupierName.IsEmpty()?FString(TEXT("未列名参赛者")):OccupierName;
+            const FString Kept=FString::Printf(TEXT("%lld"),(Public.PausedProgressMs+999)/1000);
+            if(HoldMs<=0){View.Line=TEXT("升旗台争夺中 · ")+Name+TEXT(" 的进度暂停在 ")+Kept+TEXT(" s");return View;}
+            View.bProgress=true;View.Progress=float(FMath::Clamp(double(Public.PausedProgressMs)/double(HoldMs),0.,1.));
+            View.Line=TEXT("升旗台争夺中 · 进度暂停 ")+Kept+FString::Printf(TEXT("/%lld s（"),(HoldMs+999)/1000)+Name+TEXT("）");
+            return View;
+        }
         case ELDCircleState::Solo:
         {
             const FString Name=OccupierName.IsEmpty()?FString(TEXT("未列名参赛者")):OccupierName;

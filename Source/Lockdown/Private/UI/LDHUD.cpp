@@ -480,7 +480,7 @@ void ULDHUD::RefreshReadModel()
     }
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
-    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs);
+    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs,Content?Content->Parameters.CaptureHoldMs:0);
     HudSetText(PhaseText,Circle.Line);CircleProgress->SetPercent(Circle.Progress);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
