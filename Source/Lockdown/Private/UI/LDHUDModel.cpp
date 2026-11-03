@@ -714,6 +714,7 @@ FString LDHUD::EntryLabel(ELDCombatEntry Entry)
     default: return TEXT("动作");
     }
 }
+static const TCHAR* const HudProtectionRemovedText=TEXT("复活保护已解除");
 FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
 {
     TArray<FString> Parts;
@@ -721,7 +722,7 @@ FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
     if(Receipt.Phase==ELDCombatPhase::Rejected&&Receipt.Origin==ELDCombatRequestOrigin::Direct
         &&Receipt.Reject!=ELDCombatReject::None&&Receipt.Reject!=ELDCombatReject::Cancelled)
     {Parts.Add(EntryLabel(Receipt.Entry)+TEXT(" 未执行：")+CombatRejectText(Receipt.Reject));}
-    if(Receipt.bProtectionRemoved){Parts.Add(TEXT("复活保护已解除"));}
+    if(Receipt.bProtectionRemoved){Parts.Add(HudProtectionRemovedText);}
     return FString::Join(Parts,TEXT(" · "));
 }
 FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
@@ -730,4 +731,20 @@ FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
     if(!bSlot||Receipt.Phase!=ELDCombatPhase::Rejected||Receipt.Origin!=ELDCombatRequestOrigin::Direct
         ||Receipt.Reject==ELDCombatReject::None||Receipt.Reject==ELDCombatReject::Cancelled){return FString();}
     return CombatRejectText(Receipt.Reject);
+}
+FString LDHUD::CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrived,uint32 Match,uint32 Life,uint64& ToldProtectionLifeRevision)
+{
+    TArray<FString> Notices;
+    for(FLDCombatActionReceipt Receipt:Arrived)
+    {
+        if(Receipt.Generation!=Match||Receipt.Life!=Life){continue;}
+        // Later receipts of the same request repeat the flag.
+        const bool bTellProtection=Receipt.bProtectionRemoved&&ToldProtectionLifeRevision!=Receipt.LifeRevision;
+        if(bTellProtection){ToldProtectionLifeRevision=Receipt.LifeRevision;}
+        Receipt.bProtectionRemoved=false;
+        const FString Failure=CombatReceiptNotice(Receipt);
+        if(!Failure.IsEmpty()){Notices.AddUnique(Failure);}
+        if(bTellProtection){Notices.AddUnique(HudProtectionRemovedText);}
+    }
+    return FString::Join(Notices,TEXT(" · "));
 }

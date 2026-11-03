@@ -240,4 +240,7 @@ namespace LDHUD
     // The same execution failure for the pressed Q/W/1/2 slot, which already names its entry: the reason only. Empty for
     // other entries and for anything CombatReceiptNotice would not report as a failure.
     LOCKDOWN_API FString CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt);
+    // The toast line for every own receipt that arrived since the last frame, oldest first: each distinct notice once, in
+    // arrival order. Receipts of another match or life tell nothing; the lost protection is told once per life revision.
+    LOCKDOWN_API FString CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrived,uint32 Match,uint32 Life,uint64& ToldProtectionLifeRevision);
 }

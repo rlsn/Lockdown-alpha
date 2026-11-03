@@ -601,16 +601,16 @@ void ULDHUD::RefreshReadModel()
     }
 
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;const bool bArmed=PC->ReadArmedCombatEntry(ArmedEntry);
-    if(PC->CombatReceiptSerial!=SeenCombatReceipt)
+    if(PC->CombatReceipts.Serial()!=SeenCombatReceipt)
     {
-        SeenCombatReceipt=PC->CombatReceiptSerial;
-        FLDCombatActionReceipt Receipt=PC->LatestCombatReceipt;
-        if(Receipt.Generation==O.Match&&Receipt.Life==O.Life)
+        TArray<FLDCombatActionReceipt> Arrived;
+        if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        // Every receipt since the last frame presents once; the single toast line joins their distinct notices in order.
+        const FString Notice=LDHUD::CombatReceiptsNotice(Arrived,O.Match,O.Life,ToldProtectionLifeRevision);
+        if(!Notice.IsEmpty()){ShowToast(Notice);}
+        for(const FLDCombatActionReceipt& Receipt:Arrived)
         {
-            // Protection is lost once per life revision; later receipts of the same request repeat the flag.
-            if(Receipt.bProtectionRemoved){if(ToldProtectionLifeRevision==Receipt.LifeRevision){Receipt.bProtectionRemoved=false;}else{ToldProtectionLifeRevision=Receipt.LifeRevision;}}
-            const FString Notice=LDHUD::CombatReceiptNotice(Receipt);
-            if(!Notice.IsEmpty()){ShowToast(Notice);}
+            if(Receipt.Generation!=O.Match||Receipt.Life!=O.Life){continue;}
             // The pressed slot repeats the reason where the player is looking; the toast keeps the full notice.
             const FString SlotNotice=LDHUD::CombatReceiptSlotNotice(Receipt);
             for(int32 Pressed=0;Pressed<ActionSlots.Num()&&!SlotNotice.IsEmpty();++Pressed)
@@ -748,8 +748,14 @@ void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)
     TArray<ELDAudioCue> Cues;
     AudioCues.Observe(Frame,Cues);
     // A receipt that arrived before this HUD existed is not replayed.
-    if(!bAudioPrimed){bAudioPrimed=true;AudioCombatReceipt=PC.CombatReceiptSerial;}
-    if(PC.CombatReceiptSerial!=AudioCombatReceipt){AudioCombatReceipt=PC.CombatReceiptSerial;AudioCues.ObserveCombatReceipt(PC.LatestCombatReceipt,O.Match,O.Life,Cues);}
+    if(!bAudioPrimed){bAudioPrimed=true;AudioCombatReceipt=PC.CombatReceipts.Serial();}
+    // Every receipt since the last frame is observed, not only the newest: an earlier request's release still sounds.
+    if(PC.CombatReceipts.Serial()!=AudioCombatReceipt)
+    {
+        TArray<FLDCombatActionReceipt> Arrived;
+        if(const uint32 Lost=PC.CombatReceipts.ReadSince(AudioCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        for(const FLDCombatActionReceipt& Receipt:Arrived){AudioCues.ObserveCombatReceipt(Receipt,O.Match,O.Life,Cues);}
+    }
     PlayAudioCues(Cues);
 }
 void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)

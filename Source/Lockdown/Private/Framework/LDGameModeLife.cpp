@@ -247,7 +247,7 @@ bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
         FLDCombatOwnerView Cleared;
         Cleared.Generation = Reset.New.Generation;
         Controller->CombatView = Cleared;
-        Controller->LatestCombatReceipt = FLDCombatActionReceipt();
+        Controller->CombatReceipts.Clear();
         if (Controller->IsLocalController()) { Controller->OnRep_CombatView(); }
         Controller->ForceNetUpdate();
     }

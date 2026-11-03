@@ -276,9 +276,7 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {
     if (Receipt.Generation!=OwnerState.Match) { return; }
-    LatestCombatReceipt=Receipt;
-    if (CombatReceiptSerial<MAX_uint32) { ++CombatReceiptSerial; }
-    else { UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
+    if (!CombatReceipts.Push(Receipt)) { UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
 }
 
 void ALDPlayerController::OnRep_CombatView()

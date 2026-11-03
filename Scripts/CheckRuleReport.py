@@ -15,6 +15,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.AudioCueOwn",
         "Lockdown.Rules.AudioCuePublic",
         "Lockdown.Rules.CampDecision",
+        "Lockdown.Rules.CombatReceiptBurst",
         "Lockdown.Rules.ControlMappings",
         "Lockdown.Rules.DemoContent.AtomicAssetRoundTrip",
         "Lockdown.Rules.DemoContent.CaseFoldedLookup",
