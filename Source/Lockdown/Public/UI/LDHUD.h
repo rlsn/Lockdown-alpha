@@ -24,13 +24,37 @@ USTRUCT()
 struct FLDHUDActionSlot
 {
     GENERATED_BODY()
+    UPROPERTY() TObjectPtr<USizeBox> Box;
     UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
-    UPROPERTY() TObjectPtr<UTextBlock> Kind;
+    UPROPERTY() TObjectPtr<UBorder> CostChip;
+    UPROPERTY() TObjectPtr<UTextBlock> Cost;
     UPROPERTY() TObjectPtr<UTextBlock> Name;
     UPROPERTY() TObjectPtr<UTextBlock> State;
+    // Full-slot cooldown mask, its remaining time, the control badge and the ready flash, drawn over the slot in that order.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
+    UPROPERTY() TObjectPtr<UTextBlock> Countdown;
+    UPROPERTY() TObjectPtr<UBorder> Badge;
+    UPROPERTY() TObjectPtr<UBorder> Flash;
+    // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
+    int32 AppliedLook=-1;
+    float AppliedOpacity=1.f;
+    float AppliedPop=1.f;
+    bool bCooling=false;
+    uint32 CoolingMatch=0;
+    uint32 CoolingLife=0;
+    double FlashAt=-1;
+    FString Notice;
+    double NoticeAt=-1;
+};
+
+// A shown kill feed line; it fades on local time only.
+struct FLDHUDKillLine
+{
+    double At=0;
+    FString Text;
+    bool bSelf=false;
 };
 
 UCLASS()
@@ -66,7 +90,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> KillFeedText;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
@@ -74,6 +98,7 @@ private:
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
     UPROPERTY() TObjectPtr<UTextBlock> DeathTitle;
+    UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
@@ -82,6 +107,7 @@ private:
     UPROPERTY() TObjectPtr<UBorder> Band;
     UPROPERTY() TObjectPtr<UBorder> Portrait;
     UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
+    UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfStatusText;
@@ -99,6 +125,12 @@ private:
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     TArray<FString> ActionTips;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
+    // Pending-choice pill over the Q/W group: it pulses for a few seconds after the count rises, then stays steady.
+    UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
+    UPROPERTY() TObjectPtr<UTextBlock> PromptText;
+    int32 PromptCount=0;
+    double PromptPulseAt=-1;
+    float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
@@ -122,7 +154,12 @@ private:
     // Kill notices already shown, by public serial within one match generation; each fades on local time only.
     uint32 KillGeneration=0;
     uint64 KillSerial=0;
-    TArray<TPair<double,FString>> KillLines;
+    TArray<FLDHUDKillLine> KillLines;
+    // Authority time at which the current life was first seen alive; the death banner takes its cause only from notices
+    // at or after it, so a previous death never stands in while this one's notice is still on its way.
+    uint32 LifeSeenMatch=0;
+    uint32 LifeSeenLife=0;
+    int64 LifeSeenAliveMs=0;
     FGuid ShownResultId;
     uint64 ShownResultSerial=0;
     float AppliedScale=0;
@@ -131,7 +168,7 @@ private:
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
     const FLDDemoContentDefinitions* DisplayDefinitions();
-    void RefreshKillFeed(const class ALDGameState& Public,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
+    void RefreshKillFeed(const class ALDGameState& Public,const FGuid& Self,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
     void RefreshResult(class ALDPlayerController& PC,const class ALDGameState& Public);
     bool IsUIAt(FVector2D Absolute) const;
     TArray<ULDPanel*,TInlineAllocator<3>> MainPanels() const;

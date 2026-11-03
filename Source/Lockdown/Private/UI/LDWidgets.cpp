@@ -1,16 +1,23 @@
 #include "UI/LDWidgets.h"
+#include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
 #include "Styling/CoreStyle.h"
 UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size)
 {
     auto* W=Tree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
-    W->SetColorAndOpacity(FLinearColor(.9f,.94f,.96f));W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
+    W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
 ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
 {
     ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
-    auto Style=W->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.045f,.12f,.15f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.09f,.24f,.27f));Style.Pressed.TintColor=FSlateColor(FLinearColor(.12f,.32f,.32f));
+    // Flat rounded faces from one teal family replace the stock engine chrome; the hairline edge keeps the shape readable on
+    // any panel, and the same padding pressed or released keeps the caption still.
+    auto Face=[](const FLinearColor& Fill,const FLinearColor& Edge){FSlateRoundedBoxBrush Brush(Fill,6.f,Edge,1.f);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;};
+    auto Style=W->GetStyle();
+    Style.Normal=Face(FLinearColor(.045f,.12f,.15f),FLinearColor(.12f,.30f,.33f));Style.Hovered=Face(FLinearColor(.09f,.24f,.27f),FLinearColor(.30f,.62f,.62f));
+    Style.Pressed=Face(FLinearColor(.12f,.32f,.32f),FLinearColor(.40f,.75f,.72f));Style.Disabled=Face(FLinearColor(.035f,.05f,.065f),FLinearColor(.08f,.11f,.13f));
     Style.NormalPadding=FMargin(12,11);Style.PressedPadding=FMargin(12,11);W->SetStyle(Style);W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);return W;
 }
 
@@ -80,5 +87,7 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
 }
 UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)
 {
-    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrushColor(FLinearColor(.025f,.045f,.07f,.99f));W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
+    // The white rounded face takes its fill from the brush colour, so a caller that recolours a panel keeps its shape and rim.
+    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,6.f,LDHUDStyle::PanelRim,1.f));
+    W->SetBrushColor(LDHUDStyle::PanelFill);W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
 }

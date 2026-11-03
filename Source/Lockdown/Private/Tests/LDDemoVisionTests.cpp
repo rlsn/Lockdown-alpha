@@ -1055,5 +1055,46 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         && Receiver.Read().Frame && Receiver.Read().Frame->Projectiles.IsEmpty());
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPresentationTest, "Lockdown.Rules.DemoVision.Presentation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
+{
+    namespace P = LDObservedPresentation;
+    auto Point = [](double At, const FVector& Location, float Yaw, bool bSnap = false)
+    {
+        P::FPoint Out;
+        Out.At = At;
+        Out.Location = Location;
+        Out.Yaw = Yaw;
+        Out.bSnap = bSnap;
+        return Out;
+    };
+    const TArray<P::FPoint> Path = {Point(10.0, FVector(0, 0, 90), 350.f, true), Point(10.1, FVector(50, 0, 90), 10.f),
+        Point(10.2, FVector(100, 20, 90), 10.f), Point(10.3, FVector(900, 20, 90), 90.f, true)};
+    P::FPose Pose = P::Sample(Path, 9.9);
+    TestTrue(TEXT("Before the first sample the pose waits at it"), Pose.Reached == INDEX_NONE && Pose.Location.Equals(FVector(0, 0, 90)) && Pose.Velocity.IsZero());
+    Pose = P::Sample(Path, 10.05);
+    TestTrue(TEXT("Between two samples the pose is linear and moves at their speed"), Pose.Reached == 0
+        && Pose.Location.Equals(FVector(25, 0, 90), .001) && Pose.Velocity.Equals(FVector(500, 0, 0), .001));
+    TestTrue(TEXT("Yaw takes the shorter arc across north"), FMath::IsNearlyEqual(FRotator::NormalizeAxis(double(Pose.Yaw)), 0.0, 0.01));
+    Pose = P::Sample(Path, 10.25);
+    TestTrue(TEXT("A snap sample is reached by a jump, never by a sweep"), Pose.Reached == 2 && Pose.Location.Equals(FVector(100, 20, 90)) && Pose.Velocity.IsZero());
+    Pose = P::Sample(Path, 10.3);
+    TestTrue(TEXT("The snap sample shows once the clock reaches it"), Pose.Reached == 3 && Pose.Location.Equals(FVector(900, 20, 90)));
+    Pose = P::Sample(Path, 12.0);
+    TestTrue(TEXT("After the newest sample the pose holds it: nothing is extrapolated"), Pose.Reached == 3
+        && Pose.Location.Equals(FVector(900, 20, 90)) && Pose.Velocity.IsZero() && FMath::IsNearlyEqual(Pose.Yaw, 90.f));
+    TestTrue(TEXT("No sample, no pose"), P::Sample(TArray<P::FPoint>(), 10.0).Reached == INDEX_NONE);
+
+    TestTrue(TEXT("The first arrival seeds the offset"), FMath::IsNearlyEqual(P::TrackOffset(false, 0, 0, 105.0, 100.0), 5.0));
+    TestTrue(TEXT("An earlier arrival lowers the offset at once"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 105.08, 100.1), 4.98));
+    TestTrue(TEXT("A late arrival raises it only by the bounded growth"),
+        FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 105.2, 100.1), 5.0 + .1 * P::OffsetGrowthPerSecond));
+    TestTrue(TEXT("Growth never passes the arrival itself"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, 100.0, 105.11, 100.1), 5.01));
+    TestTrue(TEXT("A jump beyond the reseed bound adopts the new clock"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 200.0, 10.0), 190.0));
+    TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
+    return true;
+}
 } // namespace LDDemoVisionTests
 #endif

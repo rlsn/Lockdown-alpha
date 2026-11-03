@@ -9,6 +9,7 @@
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDWorldFeedback.h"
 #include "UI/LDWorldLabels.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -205,6 +206,17 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         WorldLabels->SetVisibility(ESlateVisibility::Collapsed);
     }
     else{UE_LOG(LogTemp,Error,TEXT("LD_WORLD_LABELS_CREATION_FAILED Overhead unit names are unavailable in this world."));}
+    // Floating feedback over the bodies: above the names in the same bottom layer, never hit-tested or focused.
+    WorldFeedback=CreateWidget<ULDWorldFeedback>(GetOwningPlayer());
+    if(WorldFeedback)
+    {
+        UCanvasPanelSlot* FeedbackSlot=Canvas.AddChildToCanvas(WorldFeedback);
+        FeedbackSlot->SetAnchors(FAnchors(0,0,1,1));
+        FeedbackSlot->SetOffsets(FMargin(0));
+        FeedbackSlot->SetZOrder(-1);
+        WorldFeedback->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    else{UE_LOG(LogTemp,Error,TEXT("LD_WORLD_FEEDBACK_CREATION_FAILED Floating numbers, rewards and level-up and kill confirmations are unavailable in this world."));}
     Status=Label(FString(),18);
     HeaderPanel=LDWidgets::Panel(WidgetTree,Status,FMargin(20,12));
     UCanvasPanelSlot* HeaderSlot=Canvas.AddChildToCanvas(HeaderPanel);
@@ -487,13 +499,14 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const bool bSettings=PanelOpen(PC.ControlsUI.Get());
     if(bSettingsWasOpen&&!bSettings&&(bInLobby||bMenuOpen)){PC.SetMenuOpen(true);}
     bSettingsWasOpen=bSettings;
-    if(WorldLabels)
+    if(WorldLabels||WorldFeedback)
     {
         // Same condition that shows the in-match HUD (ULDHUD::RefreshReadModel): this owner's running match, no menu or
-        // Settings over it. The labels themselves draw only the owner's current authorized frame.
+        // Settings over it. Both world layers themselves draw only the owner's current authorized frame and own facts.
         const bool bLabels=PC.HUDUI&&bPlaying&&PC.OwnerState.Match==Match->Generation&&!bMenuOpen&&!bSettings;
         const ESlateVisibility Labels=bLabels?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed;
-        if(WorldLabels->GetVisibility()!=Labels){WorldLabels->SetVisibility(Labels);}
+        if(WorldLabels&&WorldLabels->GetVisibility()!=Labels){WorldLabels->SetVisibility(Labels);}
+        if(WorldFeedback&&WorldFeedback->GetVisibility()!=Labels){WorldFeedback->SetVisibility(Labels);}
     }
     const bool bHeader=!bInLobby&&!bInResults&&!PC.Navigation->Enabled();
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
@@ -881,7 +894,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     if(!Target)
     {
         UE_LOG(LogTemp,Warning,TEXT("LD_UI_MAIN_PANEL_UNREGISTERED %d"),int32(Panel));
-        PC->IntentFeedback=TEXT("该面板在当前版本尚未接入。");
+        PC->PostIntentNotice(TEXT("该面板在当前版本尚未接入。"));
         return;
     }
     if(Target->IsPanelOpen()){Target->ClosePanel();}

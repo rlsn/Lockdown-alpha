@@ -118,6 +118,13 @@ FString LDHUD::TenthsUp(int64 RemainingMs)
     const int64 Tenths=RemainingMs>0?(RemainingMs+99)/100:0;
     return FString::Printf(TEXT("%lld.%llds"),Tenths/10,Tenths%10);
 }
+FString LDHUD::CooldownText(int64 RemainingMs)
+{
+    if(RemainingMs<=0){return FString();}
+    // A remainder that rounds up to 10.0 already reads in whole seconds.
+    const int64 Tenths=(RemainingMs+99)/100;
+    return Tenths>=100?FString::Printf(TEXT("%lld"),(RemainingMs+999)/1000):FString::Printf(TEXT("%lld.%lld"),Tenths/10,Tenths%10);
+}
 FString LDHUD::LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs)
 {
     switch(Own.LifePhase)
@@ -142,7 +149,7 @@ LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     View.bVisible=true;View.Title=TEXT("社死");
     View.Countdown=Own.RespawnAtMs<=0?FString(TEXT("回宿舍冷静 · 等待复活时间"))
         :!bClock?FString(TEXT("回宿舍冷静 · 时间同步中")):TEXT("回宿舍冷静 ")+TenthsUp(Own.RespawnAtMs-NowMs);
-    View.Note=TEXT("等级、经验、技能、装备和零花钱全部保留；待选奖励照常可确认，选卡不影响复活；复活后随机回到出生点");
+    View.Note=TEXT("等级、构筑与零花钱全部保留 · 选卡不影响复活");
     return View;
 }
 FString LDHUD::PhaseLine(ELDMatchPhase Phase)
@@ -206,6 +213,35 @@ FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,co
     default: return Victim+TEXT(" 社死了（死因未知）");
     }
 }
+LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
+{
+    FKillFeedLineView Line;
+    const bool bVictim=Self.IsValid()&&Notice.Victim==Self;
+    const bool bKiller=Self.IsValid()&&Notice.Cause==ELDKillCause::Contender&&Notice.Killer==Self;
+    Line.bSelf=bVictim||bKiller;
+    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName);
+    return Line;
+}
+FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName)
+{
+    if(Generation==0||Feed.Generation!=Generation||!Self.IsValid()){return FString();}
+    const FLDKillNotice* Latest=nullptr;
+    for(const FLDKillNotice& Notice:Feed.Notices)
+    {if(Notice.Victim==Self&&Notice.OccurredAtMs>=NotBeforeMs&&(!Latest||Notice.Serial>Latest->Serial)){Latest=&Notice;}}
+    if(!Latest){return FString();}
+    switch(Latest->Cause)
+    {
+    case ELDKillCause::Contender:
+    {
+        const FString Killer=RosterName(Lobby,Latest->Killer);
+        return TEXT("被 ")+(Killer.IsEmpty()?FString(TEXT("未列名参赛者")):Killer)+TEXT(" 送去社死");
+    }
+    case ELDKillCause::CampLow: return TEXT("被")+LowCampName+TEXT("送去社死");
+    case ELDKillCause::CampHigh: return TEXT("被")+HighCampName+TEXT("送去社死");
+    case ELDKillCause::Unowned: return TEXT("无参赛者击杀");
+    default: return TEXT("死因未知");
+    }
+}
 FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerName)
 {
     switch(Result.Reason)
@@ -261,11 +297,29 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Input.bProjected&&Input.bHasActive&&Context.bManaKnown&&Input.ManaCostP2>Context.ManaP2){Block(ActionMana,TEXT("胆量不足"));}
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
+    View.Countdown=CooldownText(View.CooldownRemainingMs);
+    if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("胆量 %lld"),HudWholePoints(Input.ManaCostP2,false));}
     View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
     if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n胆量消耗 %lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
     if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
+}
+LDHUD::FActionLookView LDHUD::ActionLook(const FActionView& View,bool bArmed)
+{
+    FActionLookView Look;
+    const uint32 Blocks=View.ExecutionBlocks;
+    auto Set=[&Look](EActionLook Kind,const FString& Caption){Look.Look=Kind;Look.Caption=Caption;return Look;};
+    if(Blocks&(ActionUnsynced|ActionNotPlaying|ActionDead)){return Set(EActionLook::Blocked,View.State);}
+    // An empty slot is already named by its name line; a source without an active says so.
+    if(Blocks&ActionEmpty){return Set(EActionLook::Empty,FString());}
+    if(Blocks&ActionNoActive){return Set(EActionLook::Empty,View.State);}
+    if(bArmed){return Set(EActionLook::Armed,TEXT("选择目标"));}
+    if(Blocks&ActionControlled){return Set(EActionLook::Controlled,TEXT("受控"));}
+    if(Blocks&ActionCooldown){return Set(EActionLook::Cooling,TEXT("冷却中"));}
+    if(Blocks&ActionMana){return Set(EActionLook::NoMana,TEXT("胆量不足"));}
+    if(Blocks&ActionServer){return Set(EActionLook::Blocked,View.State);}
+    return Set(EActionLook::Ready,TEXT("就绪"));
 }
 
 LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec)
@@ -302,10 +356,6 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
     if(Card.bEquipment){Text+=TEXT("\n")+Card.Equipment;}
     return Text;
 }
-FVector2D LDHUD::MapPoint(const FVector& P,const FBox2D& G)
-{const FVector2D Span=G.GetSize();return FVector2D((P.X-G.Min.X)/Span.X,1-(P.Y-G.Min.Y)/Span.Y);}
-FVector LDHUD::MapWorld(const FVector2D& P,const FBox2D& G)
-{const FVector2D Span=G.GetSize();return FVector(G.Min.X+FMath::Clamp(P.X,0.,.999999)*Span.X,G.Min.Y+(1-FMath::Clamp(P.Y,.000001,1.))*Span.Y,0);}
 
 namespace
 {
@@ -637,4 +687,11 @@ FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
     {Parts.Add(EntryLabel(Receipt.Entry)+TEXT(" 未执行：")+CombatRejectText(Receipt.Reject));}
     if(Receipt.bProtectionRemoved){Parts.Add(TEXT("复活保护已解除"));}
     return FString::Join(Parts,TEXT(" · "));
+}
+FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
+{
+    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2;
+    if(!bSlot||Receipt.Phase!=ELDCombatPhase::Rejected||Receipt.Origin!=ELDCombatRequestOrigin::Direct
+        ||Receipt.Reject==ELDCombatReject::None||Receipt.Reject==ELDCombatReject::Cancelled){return FString();}
+    return CombatRejectText(Receipt.Reject);
 }

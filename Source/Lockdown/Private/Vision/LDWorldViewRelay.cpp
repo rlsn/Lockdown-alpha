@@ -1,5 +1,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDBodyPuppet.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
@@ -218,36 +220,68 @@ bool FLDObservedFrameReceiver::FindUnit(const FGuid& Handle, uint32 ObservationE
     Out = *Unit;
     return true;
 }
+LDObservedPresentation::FPose LDObservedPresentation::Sample(TConstArrayView<FPoint> Points, double At)
+{
+    FPose Pose;
+    if (Points.IsEmpty()) { return Pose; }
+    for (int32 Index = 0; Index < Points.Num() && Points[Index].At <= At; ++Index) { Pose.Reached = Index; }
+    const FPoint& From = Points[FMath::Max(Pose.Reached, 0)];
+    Pose.Location = From.Location;
+    Pose.Yaw = From.Yaw;
+    if (Pose.Reached == INDEX_NONE || Pose.Reached + 1 >= Points.Num()) { return Pose; }
+    const FPoint& To = Points[Pose.Reached + 1];
+    if (To.bSnap || To.At <= From.At) { return Pose; }
+    const double Alpha = FMath::Clamp((At - From.At) / (To.At - From.At), 0.0, 1.0);
+    Pose.Location = FMath::Lerp(From.Location, To.Location, Alpha);
+    Pose.Yaw = From.Yaw + float(Alpha) * FMath::FindDeltaAngleDegrees(From.Yaw, To.Yaw);
+    Pose.Velocity = (To.Location - From.Location) / (To.At - From.At);
+    return Pose;
+}
+
+double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds)
+{
+    const double Candidate = ArrivalLocalSeconds - SampledAtServerSeconds;
+    if (!bHasOffset || Candidate <= Offset || Candidate - Offset > ReseedSeconds) { return Candidate; }
+    return FMath::Min(Candidate, Offset + FMath::Max(0.0, SecondsSinceUpdate) * OffsetGrowthPerSecond);
+}
+
 ALDObservedEntityProxy::ALDObservedEntityProxy()
 {
     bReplicates = false;
-    PrimaryActorTick.bCanEverTick = true;
+    // The relay poses every proxy from its one presentation clock.
+    PrimaryActorTick.bCanEverTick = false;
     SetActorEnableCollision(false);
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("ObservedBody"));
     Body->SetupAttachment(RootComponent);
 }
 
-void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm)
+void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
 {
-    const FVector Next = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
-    const double Now = FPlatformTime::Seconds();
-    if (!bPlaced || ObservedHandle != Unit.Handle || ObservedEpoch != Unit.ObservationEpoch
-        || FVector::DistSquared(GetActorLocation(), Next) > FMath::Square(300.0))
+    LDObservedPresentation::FPoint Point;
+    Point.At = SampledAtServerSec;
+    Point.Location = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
+    Point.Yaw = float(Unit.Facing) / 65536.f * 360.f;
+    if (!bPlaced || ObservedHandle != Unit.Handle || ObservedEpoch != Unit.ObservationEpoch)
     {
-        SetActorLocation(Next);
-        DisplayVelocity = FVector::ZeroVector;
+        // A new visibility interval starts from its own first sample; nothing of an earlier interval is kept.
+        Points.Reset();
+        Facts.Reset();
+        ShownAt = -1;
+        SetActorLocationAndRotation(Point.Location, FRotator(0, Point.Yaw, 0));
         bPlaced = true;
     }
-    else if (LastApplyAt >= 0 && Now > LastApplyAt)
-    {
-        DisplayVelocity = ((Next - Destination) / (Now - LastApplyAt)).GetClampedToMaxSize(1000.0);
-    }
-    Destination = Next;
-    LastApplyAt = Now;
+    else if (!Points.IsEmpty() && SampledAtServerSec <= Points.Last().At) { return; }
+    Point.bSnap = Points.IsEmpty() || FVector::DistSquared(Points.Last().Location, Point.Location) > FMath::Square(LDObservedPresentation::SnapCm);
+    Points.Add(Point);
+    LDObservedPresentation::FFacts& Shown = Facts.AddDefaulted_GetRef();
+    Shown.Cue = Unit.ActionCue;
+    Shown.CueAgeMs = Unit.ActionCueAgeMs;
+    Shown.Statuses = Unit.Statuses;
+    // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
+    while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
     ObservedHandle = Unit.Handle;
     ObservedEpoch = Unit.ObservationEpoch;
-    FacingDegrees = float(Unit.Facing) / 65536.f * 360.f;
     const bool bCamp = Unit.Kind == ELDObservedUnitKind::CampMember;
     // Contenders wear their stable roster-slot tint; camp NPCs have their own look and never a contender colour.
     const uint16 NextLook = bCamp ? uint16(0x100 | Unit.CreatureId) : uint16(Unit.Presentation);
@@ -259,16 +293,38 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     }
     const double Scale = !bCamp ? 1.0 : Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian) ? 1.3 : .8;
     Body->SetRelativeScale3D(FVector(Scale));
-    // The same cue byte as the owner's own body: action pose plus one marker shape per public status.
-    Body->SetCue(ALDCharacter::PresentationCue(Unit.ActionCue, Unit.Statuses));
 }
 
-void ALDObservedEntityProxy::Tick(float Delta)
+void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
 {
-    Super::Tick(Delta);
-    SetActorLocation(FMath::VInterpTo(GetActorLocation(), Destination, Delta, 18.f));
-    SetActorRotation(FRotator(0, FacingDegrees, 0));
-    Body->Animate(DisplayVelocity, Delta);
+    if (Points.IsEmpty()) { return; }
+    const LDObservedPresentation::FPose Pose = LDObservedPresentation::Sample(Points, AtServerSec);
+    SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
+    if (Pose.Reached != INDEX_NONE && Points[Pose.Reached].At > ShownAt)
+    {
+        // The same cue byte as the owner's own body: action pose plus one marker shape per public status, shown when
+        // the clock reaches the sample that carried them. An action's age is its age in that sample plus the time the
+        // clock has run past it, so its timeline stays in step with the delayed pose.
+        const LDObservedPresentation::FFacts& Reached = Facts[Pose.Reached];
+        const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
+            : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
+        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age);
+        ShownAt = Points[Pose.Reached].At;
+    }
+    if (Pose.Reached > 0)
+    {
+        Points.RemoveAt(0, Pose.Reached);
+        Facts.RemoveAt(0, Pose.Reached);
+    }
+    Body->Animate(Pose.Velocity.GetClampedToMaxSize(1000.0), Delta);
+}
+
+void ALDObservedEntityProxy::PlayDeathFall() const
+{
+    if (IsValid(Body) && !ALDBodyPuppet::SpawnFall(*Body))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
+    }
 }
 
 ALDOwnBodyMarker::ALDOwnBodyMarker()
@@ -330,7 +386,8 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
 ALDObservedProjectileProxy::ALDObservedProjectileProxy()
 {
     bReplicates = false;
-    PrimaryActorTick.bCanEverTick = true;
+    // Posed by the relay on the same presentation clock as the units.
+    PrimaryActorTick.bCanEverTick = false;
     SetActorEnableCollision(false);
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder"));
@@ -339,18 +396,25 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     Chalk->SetStaticMesh(Cylinder.Object);
     Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     Chalk->SetCanEverAffectNavigation(false);
-    // An exaggerated chalk stub lying along the flight direction, readable from the gameplay camera.
+    // An exaggerated chalk stub lying along the flight direction (+X), readable from the gameplay camera at 720p.
     Chalk->SetRelativeRotation(FRotator(90, 0, 0));
-    Chalk->SetRelativeScale3D(FVector(.14, .14, .34));
+    Chalk->SetRelativeScale3D(FVector(.22, .22, .5));
+    // Chalk dust strung out behind the flight; the proxy faces +X along its heading.
+    Trail = CreateDefaultSubobject<ULDFlightTrailComponent>(TEXT("Trail"));
+    Trail->SetupAttachment(RootComponent);
 }
 
-void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile)
+void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec)
 {
     // The flight is drawn at chest height over its authorized ground point.
-    const FVector Next = FVector(Projectile.PositionCm) + FVector(0, 0, 100);
+    LDObservedPresentation::FPoint Point;
+    Point.At = SampledAtServerSec;
+    Point.Location = FVector(Projectile.PositionCm) + FVector(0, 0, 100);
+    Point.Yaw = float(Projectile.Heading) / 65536.f * 360.f;
     if (!bPlaced || ObservedHandle != Projectile.Handle)
     {
-        SetActorLocation(Next);
+        Points.Reset();
+        SetActorLocationAndRotation(Point.Location, FRotator(0, Point.Yaw, 0));
         bPlaced = true;
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
         {
@@ -360,15 +424,30 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         }
         else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
     }
+    else if (!Points.IsEmpty() && SampledAtServerSec <= Points.Last().At) { return; }
     ObservedHandle = Projectile.Handle;
-    Destination = Next;
-    SetActorRotation(FRotator(0, float(Projectile.Heading) / 65536.f * 360.f, 0));
+    EndedAt = -1;
+    Point.bSnap = Points.IsEmpty();
+    Points.Add(Point);
+    while (Points.Num() > 8) { Points.RemoveAt(0); }
 }
 
-void ALDObservedProjectileProxy::Tick(float Delta)
+void ALDObservedProjectileProxy::Present(double AtServerSec)
 {
-    Super::Tick(Delta);
-    SetActorLocation(FMath::VInterpTo(GetActorLocation(), Destination, Delta, 25.f));
+    if (Points.IsEmpty()) { return; }
+    const LDObservedPresentation::FPose Pose = LDObservedPresentation::Sample(Points, AtServerSec);
+    SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
+    if (Pose.Reached > 0) { Points.RemoveAt(0, Pose.Reached); }
+}
+
+void ALDObservedProjectileProxy::End(double LocalSeconds)
+{
+    if (EndedAt < 0) { EndedAt = LocalSeconds; }
+}
+
+bool ALDObservedProjectileProxy::IsFinished(double AtServerSec, double LocalSeconds) const
+{
+    return EndedAt >= 0 && (Points.IsEmpty() || AtServerSec >= Points.Last().At || LocalSeconds - EndedAt >= EndSeconds);
 }
 
 ALDWorldViewRelay::ALDWorldViewRelay()
@@ -433,10 +512,19 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
         return;
     }
     TArray<FLDObservedClear> Cleared;
-    if (Receiver.AcceptFull(View, ExpectedRevision, Catalog, FPlatformTime::Seconds(), Cleared, Error) == FLDObservedFrameReceiver::EResult::Rejected)
+    const double Arrival = FPlatformTime::Seconds();
+    const FLDObservedFrameReceiver::EResult Result = Receiver.AcceptFull(View, ExpectedRevision, Catalog, Arrival, Cleared, Error);
+    if (Result == FLDObservedFrameReceiver::EResult::Rejected)
     {
         Refuse(Error);
         return;
+    }
+    if (Result == FLDObservedFrameReceiver::EResult::Applied)
+    {
+        // Only an accepted frame advances the presentation clock.
+        ClockOffset = LDObservedPresentation::TrackOffset(bClock, ClockOffset, Arrival - ClockUpdatedAt, Arrival, View.SampledAtServerSec);
+        bClock = true;
+        ClockUpdatedAt = Arrival;
     }
     Present(Cleared);
 }
@@ -471,7 +559,10 @@ void ALDWorldViewRelay::Present(const TArray<FLDObservedClear>& Cleared)
     for (const FLDObservedClear& Clear : Cleared)
     {
         TObjectPtr<ALDObservedEntityProxy> Proxy;
-        if (Proxies.RemoveAndCopyValue(Clear.Handle, Proxy) && IsValid(Proxy)) { Proxy->Destroy(); }
+        if (!Proxies.RemoveAndCopyValue(Clear.Handle, Proxy) || !IsValid(Proxy)) { continue; }
+        // Only an authorized observed death falls; leaving sight, timeouts and resets simply remove the body.
+        if (Clear.Reason == ELDObservedClearReason::ObservedDeath) { Proxy->PlayDeathFall(); }
+        Proxy->Destroy();
     }
     SyncProxies();
     UploadFog();
@@ -489,11 +580,19 @@ bool ALDWorldViewRelay::ReadPresentedLocation(const FGuid& Handle, uint32 Observ
     return true;
 }
 
+bool ALDWorldViewRelay::ReadPresentationTime(double& OutAtServerSec) const
+{
+    if (!bClock) { return false; }
+    OutAtServerSec = PresentationAt(FPlatformTime::Seconds());
+    return true;
+}
+
 void ALDWorldViewRelay::SyncProxies()
 {
     const FLDObservedFrameRead Snapshot = Receiver.Read();
+    const bool bCurrent = Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current;
     TSet<FGuid> Shown;
-    if (Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current)
+    if (bCurrent)
     {
         const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
         for (const FLDObservedUnitView& Unit : Snapshot.Frame->Units)
@@ -507,7 +606,7 @@ void ALDWorldViewRelay::SyncProxies()
                 Proxy = GetWorld()->SpawnActor<ALDObservedEntityProxy>(ALDObservedEntityProxy::StaticClass(),
                     FTransform(FVector(Unit.FeetCm) + FVector(0, 0, HalfHeight)), Params);
             }
-            if (IsValid(Proxy)) { Proxy->Apply(Unit, HalfHeight); }
+            if (IsValid(Proxy)) { Proxy->Apply(Unit, HalfHeight, Snapshot.Frame->SampledAtServerSec); }
         }
     }
     for (auto It = Proxies.CreateIterator(); It; ++It)
@@ -517,7 +616,7 @@ void ALDWorldViewRelay::SyncProxies()
         It.RemoveCurrent();
     }
     TSet<FGuid> Flying;
-    if (Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current)
+    if (bCurrent)
     {
         for (const FLDObservedProjectileView& Projectile : Snapshot.Frame->Projectiles)
         {
@@ -530,13 +629,31 @@ void ALDWorldViewRelay::SyncProxies()
                 Proxy = GetWorld()->SpawnActor<ALDObservedProjectileProxy>(ALDObservedProjectileProxy::StaticClass(),
                     FTransform(FVector(Projectile.PositionCm)), Params);
             }
-            if (IsValid(Proxy)) { Proxy->Apply(Projectile); }
+            if (IsValid(Proxy)) { Proxy->Apply(Projectile, Snapshot.Frame->SampledAtServerSec); }
         }
     }
+    const double Local = FPlatformTime::Seconds();
     for (auto It = ProjectileProxies.CreateIterator(); It; ++It)
     {
         if (Flying.Contains(It.Key())) { continue; }
+        // A current frame that no longer lists a flight lets it finish its authorized samples; any other view ends it now.
+        if (bCurrent && IsValid(It.Value())) { It.Value()->End(Local); continue; }
         if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
+}
+
+void ALDWorldViewRelay::PresentProxies(float Delta)
+{
+    const double Local = FPlatformTime::Seconds();
+    const double At = PresentationAt(Local);
+    for (auto& Pair : Proxies) { if (IsValid(Pair.Value)) { Pair.Value->Present(At, Delta); } }
+    for (auto It = ProjectileProxies.CreateIterator(); It; ++It)
+    {
+        ALDObservedProjectileProxy* Flight = It.Value();
+        if (IsValid(Flight)) { Flight->Present(At); }
+        if (IsValid(Flight) && !Flight->IsFinished(At, Local)) { continue; }
+        if (IsValid(Flight)) { Flight->Destroy(); }
         It.RemoveCurrent();
     }
 }
@@ -553,7 +670,8 @@ void ALDWorldViewRelay::AttachFog()
         if (!ensureMsgf(Base, TEXT("Missing native fog material; regenerate content"))) { return; }
         FogTexture = UTexture2D::CreateTransient(Side, Side, PF_B8G8R8A8);
         FogTexture->SRGB = false;
-        FogTexture->Filter = TF_Nearest;
+        // Bilinear sampling softens the coverage cell edges; with the blend the lit area glides instead of stepping.
+        FogTexture->Filter = TF_Bilinear;
         FogTexture->AddressX = TA_Clamp;
         FogTexture->AddressY = TA_Clamp;
         FogTexture->NeverStream = true;
@@ -587,17 +705,43 @@ void ALDWorldViewRelay::UploadFog()
     // Static terrain stays readable; only current authorized coverage is bright. No explored layer exists.
     const bool bCurrent = Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
         && Snapshot.Frame->Footprint.SourceStatus == ELDObservationSource::ActiveBody;
+    FogTarget.SetNumUninitialized(LDObservation::CoverageCells);
+    for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
+    {
+        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : 64;
+    }
+    // The first coverage shows at once; later ones blend from what is on screen.
+    if (FogShown.Num() != LDObservation::CoverageCells)
+    {
+        FogShown.SetNumUninitialized(LDObservation::CoverageCells);
+        for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index) { FogShown[Index] = FogTarget[Index]; }
+    }
+    bFogBlending = true;
+    FogSerial = Snapshot.LocalSerial;
+}
+
+void ALDWorldViewRelay::BlendFog(float Delta)
+{
+    if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
+        || FogTarget.Num() != LDObservation::CoverageCells) { return; }
+    // One publication interval per full fade: a cell entering or leaving coverage eases over about 0.1 s.
+    const float Step = (255.f - 64.f) * FMath::Max(Delta, 0.f) / .1f;
+    bool bMoving = false;
     const int32 Side = LDObservation::CoverageSide;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
     for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
     {
-        const uint8 Value = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : 64;
+        const float Target = FogTarget[Index];
+        float& Shown = FogShown[Index];
+        Shown = Shown < Target ? FMath::Min(Target, Shown + Step) : FMath::Max(Target, Shown - Step);
+        bMoving |= Shown != Target;
+        const uint8 Value = uint8(FMath::RoundToInt(Shown));
         Pixels[Index * 4] = Pixels[Index * 4 + 1] = Pixels[Index * 4 + 2] = Value;
         Pixels[Index * 4 + 3] = 255;
     }
     FogTexture->UpdateTextureRegions(0, 1, new FUpdateTextureRegion2D(0, 0, 0, 0, Side, Side), Side * 4, 4, Pixels,
         [](uint8* Data, const FUpdateTextureRegion2D* Regions) { delete[] Data; delete Regions; });
-    FogSerial = Snapshot.LocalSerial;
+    bFogBlending = bMoving;
 }
 
 void ALDWorldViewRelay::TrackOwnBody(const ALDPlayerController& Owning)
@@ -635,4 +779,6 @@ void ALDWorldViewRelay::Tick(float Delta)
     const bool bTimedOut = Receiver.Tick(FPlatformTime::Seconds(), Cleared);
     if (bReset || bTimedOut || Cleared.Num() > 0) { Present(Cleared); }
     else { UploadFog(); }
+    PresentProxies(Delta);
+    BlendFog(Delta);
 }

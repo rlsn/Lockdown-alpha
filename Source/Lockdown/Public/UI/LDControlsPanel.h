@@ -49,6 +49,9 @@ private:
     UPROPERTY() TObjectPtr<USlider> VolumeSlider;
     UPROPERTY() TObjectPtr<UTextBlock> VolumeLabel;
     UPROPERTY() TObjectPtr<UTextBlock> PanSpeedLabel;
+    UPROPERTY() TObjectPtr<UTextBlock> OrientationLabel;
+    // Resting fill of an unchosen minimap orientation button, taken from the shared button style when it is built.
+    FSlateColor ChoiceRestTint;
     TWeakObjectPtr<ULDGameInstance> SettingsInstance;
     FLDDisplaySettings DisplayDraft;
     TArray<FIntPoint> Resolutions;

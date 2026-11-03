@@ -1,6 +1,8 @@
 #include "UI/LDWorldLabels.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Framework/LDDemoEntry.h"
@@ -9,6 +11,7 @@
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
@@ -18,19 +21,44 @@
 namespace
 {
 // Anchor height above the presented body centre, clear of the head and its status markers. The proxy draws the
-// high-tier camp body larger, so its label sits higher.
+// high-tier camp body larger, so its label sits higher; the own body's bars sit at a contender label's height.
 double WorldLabelHeadroomCm(const LDWorldLabels::FLabel& Label)
 {return !Label.bContender&&Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?150.:120.;}
+constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
+// Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
+constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
+constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
+constexpr float WorldPipWidth=10.f,WorldPipHeight=4.f,WorldPipGap=2.f;
+// Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
+float WorldBarWidth(const LDWorldLabels::FLabel& Label)
+{return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?84.f:64.f;}
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
 const FLinearColor WorldLabelCampInk(1.f,.8f,.42f);
 const FLinearColor WorldLabelStatusInk(.8f,.93f,1.f);
-const FLinearColor WorldLabelRim(0.f,0.f,0.f,.85f);
-// The UI's default CJK-capable font at the local text scale, outlined so a label reads over any ground or body.
-FSlateFontInfo WorldLabelFont(const FName Typeface,int32 Size,float TextScale)
+// Status text shares the body markers' tints (Combat's LDHumanoidVisualComponent): root magenta, 淡定 cyan, respawn
+// protection white-gold; other statuses keep the plain status ink.
+FLinearColor WorldStatusInk(uint8 StatusId)
 {
-    FFontOutlineSettings Outline;Outline.OutlineSize=2;Outline.OutlineColor=WorldLabelRim;
+    switch(static_cast<ELDDemoStatusId>(StatusId))
+    {
+    case ELDDemoStatusId::Root: return FLinearColor(1.f,.02f,.58f);
+    case ELDDemoStatusId::Shield: return LDHUDStyle::Shield;
+    case ELDDemoStatusId::RespawnProtection: return FLinearColor(1.f,.92f,.62f);
+    default: return WorldLabelStatusInk;
+    }
+}
+const FLinearColor WorldPipCooling(FColor(0x3A,0x3F,0x46));
+const FLinearColor WorldPipControlled(FColor(0xB0,0x4A,0xCF));
+// The HUD band's action order and the own status control bits that forbid each entry kind, as in ULDHUD's action
+// slots: character actives cast, equipment actives use gear.
+const ELDCombatEntry WorldPipEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2};
+const uint8 WorldPipControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Gear)};
+// The UI's default CJK-capable font at the local text scale, outlined so a label reads over any ground or body.
+FSlateFontInfo WorldLabelFont(const FName Typeface,int32 Size,float TextScale,int32 OutlineSize=2)
+{
+    FFontOutlineSettings Outline;Outline.OutlineSize=OutlineSize;Outline.OutlineColor=LDHUDStyle::Rim;
     return FCoreStyle::GetDefaultFontStyle(Typeface,float(FMath::Max(1,FMath::RoundToInt(Size*TextScale))),Outline);
 }
 }
@@ -39,17 +67,63 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
 {
     FLabel Label;
     Label.bContender=Unit.Kind==ELDObservedUnitKind::Contender;
-    if(Label.bContender){Label.Name=RosterName;Label.Presentation=Unit.Presentation;}
+    if(Label.bContender){Label.Name=RosterName;Label.Presentation=Unit.Presentation;Label.Level=Unit.Level;}
     else{Label.Name=LDHUD::CreatureName(Content,Unit.CreatureId);Label.CreatureId=Unit.CreatureId;}
+    // As on the target card (LDHUD::ResourceP2), health without a known maximum or with a malformed current is unknown:
+    // no bar rather than an empty one.
+    Label.bHealth=Unit.Health.MaxP2>0&&Unit.Health.CurrentP2>=0;
+    if(Label.bHealth){Label.HealthFraction=float(FMath::Clamp(double(Unit.Health.CurrentP2)/double(Unit.Health.MaxP2),0.,1.));}
     // The same parts as the target card's status line (LDHUD::ObservedCard), so both read alike.
     for(const FLDObservedStatus& Status:Unit.Statuses)
     {
+        if(Status.StatusId==uint8(ELDDemoStatusId::Shield)){Label.bShield=true;}
         FString Part=LDHUD::StatusName(Content,Status.StatusId);
         if(Status.Stacks>1){Part+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
         if(Status.ExpiresAtServerMs>0){Part+=TEXT(" ")+LDHUD::TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
         Label.Status+=(Label.Status.IsEmpty()?TEXT(""):TEXT(" · "))+Part;
+        Label.StatusParts.Add({MoveTemp(Part),Status.StatusId});
     }
     return Label;
+}
+
+LDWorldLabels::FOwnBars LDWorldLabels::OwnBars(const FLDOwnerState& Own,uint32 PublicGeneration,const FLDCombatOwnerView& Combat)
+{
+    FOwnBars Bars;
+    // The HUD band's gate (ULDHUD::RefreshReadModel): the own combat projection of the current public match and this
+    // life, alive with a body. Unknown or malformed 面子 shows no bars rather than empty ones.
+    if(PublicGeneration==0||PublicGeneration!=Own.Match||Own.Life==0||Own.LifePhase!=ELDLifePhase::Alive||Combat.Generation!=Own.Match
+        ||Combat.Life!=Own.Life||!Combat.bHasBody||Combat.MaxHPP2<=0||Combat.HPP2<0){return Bars;}
+    Bars.bVisible=true;
+    const double MaxHealth=double(Combat.MaxHPP2);
+    double Health=FMath::Clamp(double(Combat.HPP2)/MaxHealth,0.,1.),Shield=FMath::Max(double(Combat.ShieldP2),0.)/MaxHealth;
+    if(Health+Shield>1.){const double Total=Health+Shield;Health/=Total;Shield/=Total;}
+    Bars.Health=float(Health);Bars.Shield=float(Shield);
+    Bars.bMana=Combat.MaxMPP2>0&&Combat.MPP2>=0;
+    if(Bars.bMana){Bars.Mana=float(FMath::Clamp(double(Combat.MPP2)/double(Combat.MaxMPP2),0.,1.));}
+    return Bars;
+}
+
+LDWorldLabels::EReadinessPip LDWorldLabels::ReadinessPip(const LDHUD::FActionView& View)
+{
+    const uint32 Blocks=View.ExecutionBlocks;
+    if(Blocks&(LDHUD::ActionEmpty|LDHUD::ActionNoActive|LDHUD::ActionUnsynced|LDHUD::ActionDead|LDHUD::ActionNotPlaying)){return EReadinessPip::Hidden;}
+    if((Blocks&LDHUD::ActionCooldown)||View.CooldownRemainingMs>0){return EReadinessPip::Cooling;}
+    if(Blocks&LDHUD::ActionControlled){return EReadinessPip::Controlled;}
+    if(Blocks&LDHUD::ActionMana){return EReadinessPip::NoMana;}
+    return Blocks?EReadinessPip::Cooling:EReadinessPip::Ready;
+}
+
+LDWorldLabels::EReadinessPip LDWorldLabels::OwnReadinessPip(const FLDCombatOwnerView& Combat,int32 Index,const LDHUD::FActionContext& Context,const FLDDemoContentDefinitions* Content)
+{
+    if(Index<0||Index>=int32(UE_ARRAY_COUNT(WorldPipEntries))){return EReadinessPip::Hidden;}
+    const LDHUD::EActionSlot Kind=static_cast<LDHUD::EActionSlot>(Index);
+    const ELDCombatEntry Wanted=WorldPipEntries[Index];
+    const FLDCombatEntryView* Source=Combat.Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;});
+    uint8 ControlBits=0;
+    for(const FLDCombatStatusView& Status:Combat.Statuses){ControlBits|=Status.ControlBlocks;}
+    LDHUD::FActionInput Input;Input.Slot=Kind;
+    if(Source){Input=LDHUD::ActionInput(*Source,Kind,Content);Input.bControlled=(ControlBits&WorldPipControl[Index])!=0;}
+    return ReadinessPip(LDHUD::Action(Input,Context));
 }
 
 void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
@@ -74,63 +148,130 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     // labels nothing, and no unit outlives the frame that lists it (no LastSeen).
     const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC->LocalView():nullptr;
     const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    const FLDWorldView* Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;
+    const FLDWorldView* Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life&&!Read.Frame->Units.IsEmpty()?Read.Frame:nullptr;
+    // The own bars read only this controller's own projections of the current match and life, anchored on its own pawn,
+    // so they show even while no other unit is in sight.
+    const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
+    const APawn* OwnBody=SelfBars.bVisible?PC->GetPawn().Get():nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
-    if(!Frame||Frame->Units.IsEmpty()||ViewW<=0||ViewH<=0){return Base;}
+    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
+    auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
-    const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),15,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),15,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),13,TextScale);
+    const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),16,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),16,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),14,TextScale);
+    // The level badge grows with the text preference, so its number always fits.
+    const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),13,TextScale,1);
+    const float BadgeSide=FMath::RoundToFloat(WorldBadgeSide*TextScale),BadgeRim=BadgeSide+2.f;
     const TSharedRef<FSlateFontMeasure> FontMeasure=Renderer->GetFontMeasureService();
     const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));
     const FLDDemoContentDefinitions* Content=DisplayContent?&DisplayContent->Get():nullptr;
+    // Layers: rims, then tracks and badge tints, then fills, then text.
     auto Box=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint)
     {FSlateDrawElement::MakeBox(E,Base+Layer,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
     // One centred line whose bottom edge rests on Bottom; Bottom then moves up to the line's top edge.
     auto Line=[&](const FString& Text,const FSlateFontInfo& Font,const FLinearColor& Ink,float CentreX,float& Bottom)
     {
         const FVector2f Extent=FontMeasure->Measure(Text,Font);const FVector2f At(CentreX-Extent.X*.5f,Bottom-Extent.Y);
-        FSlateDrawElement::MakeText(E,Base+3,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),Text,Font,ESlateDrawEffect::None,Ink);
+        FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),Text,Font,ESlateDrawEffect::None,Ink);
         Bottom=At.Y;
     };
-    // Labels are measured first and placed lowest-on-screen first; a label that would overlap one already placed moves up
-    // above it, so units standing together (a fight, a shared anchor) keep readable names instead of a garbled stack.
+    TArray<FSlateRect> Placed;
+    FVector2D OwnScreen;
+    if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->GetActorLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    {
+        const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
+        if(!Culled(OwnX,OwnBottom))
+        {
+            // Bottom-up from the anchor: the Q/W/1/2 readiness pips, then 胆量 under 面子 (淡定 after its fill) in one rim.
+            const float PipRow=WorldPipHeight+2.f,RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMana?OwnManaHeight+1.f:0.f);
+            const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-PipRow-WorldRowGap-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
+            Box(1,FVector2f(RimLeft,RimTop),FVector2f(RimW,RimH),LDHUDStyle::Rim);
+            Box(2,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth,OwnHealthHeight),LDHUDStyle::BarTrack);
+            if(SelfBars.Health>0.f){Box(3,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth*SelfBars.Health,OwnHealthHeight),LDHUDStyle::OwnHealth);}
+            if(SelfBars.Shield>0.f){Box(3,FVector2f(BarX+OwnBarWidth*SelfBars.Health,HealthTop),FVector2f(OwnBarWidth*SelfBars.Shield,OwnHealthHeight),LDHUDStyle::Shield);}
+            if(SelfBars.bMana)
+            {
+                const float ManaTop=HealthTop+OwnHealthHeight+1.f;
+                Box(2,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth,OwnManaHeight),LDHUDStyle::BarTrack);
+                if(SelfBars.Mana>0.f){Box(3,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth*SelfBars.Mana,OwnManaHeight),LDHUDStyle::Mana);}
+            }
+            // The pips classify the band's own action views under the band's context (ULDHUD::RefreshReadModel).
+            const FLDPublicMatchView& MatchView=Public->PublicMatch;
+            const bool bOwnMatch=MatchView.Generation!=0&&MatchView.Generation==Own.Match;
+            LDHUD::FActionContext ActionContext;
+            ActionContext.bOwnContext=bOwnMatch&&Own.Life!=0;
+            ActionContext.bPlaying=bOwnMatch&&(MatchView.Phase==ELDMatchPhase::Development||MatchView.Phase==ELDMatchPhase::CaptureOpen);
+            ActionContext.bAlive=Own.LifePhase==ELDLifePhase::Alive;
+            int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
+            ActionContext.bClock=bClock;ActionContext.NowMs=NowMs;
+            ActionContext.bInputCaptured=PC->IsWorldInputSuppressed();
+            ActionContext.bManaKnown=PC->CombatView.bHasBody&&PC->CombatView.MaxMPP2>0;ActionContext.ManaP2=PC->CombatView.MPP2;
+            const float PipLeft=OwnX-(4.f*WorldPipWidth+3.f*WorldPipGap)*.5f,PipTop=OwnBottom-PipRow+1.f;
+            for(int32 Index=0;Index<4;++Index)
+            {
+                const LDWorldLabels::EReadinessPip Pip=LDWorldLabels::OwnReadinessPip(PC->CombatView,Index,ActionContext,Content);
+                if(Pip==LDWorldLabels::EReadinessPip::Hidden){continue;}
+                const FLinearColor& PipTint=Pip==LDWorldLabels::EReadinessPip::Ready?LDHUDStyle::TextAccent:Pip==LDWorldLabels::EReadinessPip::NoMana?LDHUDStyle::Mana
+                    :Pip==LDWorldLabels::EReadinessPip::Controlled?WorldPipControlled:WorldPipCooling;
+                const float PipX=PipLeft+float(Index)*(WorldPipWidth+WorldPipGap);
+                Box(1,FVector2f(PipX-1.f,PipTop-1.f),FVector2f(WorldPipWidth+2.f,PipRow),LDHUDStyle::Rim);
+                Box(3,FVector2f(PipX,PipTop),FVector2f(WorldPipWidth,WorldPipHeight),PipTint);
+            }
+            // Placed before any label, so a unit's label moves above the own bars instead of covering them.
+            Placed.Add(FSlateRect(RimLeft,RimTop,RimLeft+RimW,OwnBottom));
+        }
+    }
+    // Labels are measured first and placed lowest-on-screen first; a label that would overlap one already placed (the own
+    // bars come first) moves up above it, so units standing together keep readable labels instead of a garbled stack.
     struct FPending
     {
         LDWorldLabels::FLabel Label;
-        float CentreX=0.f, Bottom=0.f, Width=0.f, Height=0.f;
+        float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,Height=0.f,Row=0.f;
     };
     TArray<FPending> Pending;
-    for(const FLDObservedUnitView& Unit:Frame->Units)
+    if(Frame)
     {
-        // Only a unit whose proxy is presented right now has an anchor: the interpolated pose the player sees.
-        FVector Centre;
-        if(!Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Centre)){continue;}
-        const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
-        FPending Entry;
-        Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::RosterName(Public->DemoLobby,Unit.ContenderId):FString(),Content,Frame->SampledAtServerSec);
-        FVector2D Screen;
-        if((Entry.Label.Name.IsEmpty()&&Entry.Label.Status.IsEmpty())||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Entry.Label)),Screen)){continue;}
-        Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
-        if(Entry.CentreX<-WorldLabelCullMargin||Entry.CentreX>Size.X+WorldLabelCullMargin||Entry.Bottom<0.f||Entry.Bottom>Size.Y+WorldLabelCullMargin){continue;}
-        if(!Entry.Label.Name.IsEmpty())
+        for(const FLDObservedUnitView& Unit:Frame->Units)
         {
-            const FVector2f Name=FontMeasure->Measure(Entry.Label.Name,Entry.Label.bContender?ContenderFont:CampFont);
-            Entry.Width=Name.X+2.f;Entry.Height+=Name.Y+(Entry.Label.bContender?6.f:0.f);
+            // Only a unit whose proxy is presented right now has an anchor: the interpolated pose the player sees.
+            FVector Centre;
+            if(!Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Centre)){continue;}
+            const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
+            FPending Entry;
+            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::RosterName(Public->DemoLobby,Unit.ContenderId):FString(),Content,Frame->SampledAtServerSec);
+            const LDWorldLabels::FLabel& Label=Entry.Label;
+            FVector2D Screen;
+            if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
+            Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
+            if(Culled(Entry.CentreX,Entry.Bottom)){continue;}
+            // The bar row: the bar centred on the unit, a contender's level badge left of it and centred on it vertically.
+            if(Label.bHealth)
+            {
+                const float BarRim=WorldBarWidth(Label)+2.f;const bool bBadge=Label.bContender&&Label.Level>0;
+                Entry.Row=FMath::Max(WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f,bBadge?BadgeRim:0.f);
+                Entry.LeftReach=BarRim*.5f+(bBadge?WorldBadgeGap+BadgeRim:0.f);Entry.RightReach=BarRim*.5f;
+            }
+            float Lines=0.f;
+            if(!Label.Name.IsEmpty())
+            {
+                const FVector2f Name=FontMeasure->Measure(Label.Name,Label.bContender?ContenderFont:CampFont);
+                Entry.LeftReach=FMath::Max(Entry.LeftReach,Name.X*.5f);Entry.RightReach=FMath::Max(Entry.RightReach,Name.X*.5f);Lines+=Name.Y;
+            }
+            if(!Label.Status.IsEmpty())
+            {
+                const FVector2f Status=FontMeasure->Measure(Label.Status,StatusFont);
+                Entry.LeftReach=FMath::Max(Entry.LeftReach,Status.X*.5f);Entry.RightReach=FMath::Max(Entry.RightReach,Status.X*.5f);Lines+=Status.Y;
+            }
+            Entry.Height=Entry.Row+(Entry.Row>0.f&&Lines>0.f?WorldRowGap:0.f)+Lines;
+            Pending.Add(MoveTemp(Entry));
         }
-        if(!Entry.Label.Status.IsEmpty())
-        {
-            const FVector2f Status=FontMeasure->Measure(Entry.Label.Status,StatusFont);
-            Entry.Width=FMath::Max(Entry.Width,Status.X);Entry.Height+=Status.Y;
-        }
-        Pending.Add(MoveTemp(Entry));
     }
     Pending.Sort([](const FPending& A,const FPending& B){return A.Bottom>B.Bottom;});
-    TArray<FSlateRect> Placed;
     for(FPending& Entry:Pending)
     {
         float Bottom=Entry.Bottom;
-        const float Left=Entry.CentreX-Entry.Width*.5f,Right=Entry.CentreX+Entry.Width*.5f;
+        const float Left=Entry.CentreX-Entry.LeftReach,Right=Entry.CentreX+Entry.RightReach;
         for(bool bMoved=true;bMoved;)
         {
             bMoved=false;
@@ -142,19 +283,54 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         Placed.Add(FSlateRect(Left,Bottom-Entry.Height,Right,Bottom));
         const LDWorldLabels::FLabel& Label=Entry.Label;
         const float CentreX=Entry.CentreX;
-        if(!Label.Name.IsEmpty())
+        if(Label.bHealth)
         {
-            if(Label.bContender)
+            const float BarWidth=WorldBarWidth(Label),BarRimHeight=WorldBarHeight+(Label.bShield?WorldShieldLine:0.f)+2.f;
+            const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f,BarTop=Mid-BarRimHeight*.5f;
+            Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
+            float TrackTop=BarTop+1.f;
+            // 淡定 is a line across the top of the bar; the status line below names it too.
+            if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
+            Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
+            if(Label.HealthFraction>0.f)
+            {Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth*Label.HealthFraction,WorldBarHeight),Label.bContender?LDHUDStyle::EnemyHealth:LDHUDStyle::CampHealth);}
+            if(Label.bContender&&Label.Level>0)
             {
-                // Identity tint as a bar under the name: the name itself identifies, the colour is only an extra cue.
-                const float Width=FontMeasure->Measure(Label.Name,ContenderFont).X;
-                Box(1,FVector2f(CentreX-Width*.5f-1.f,Bottom-5.f),FVector2f(Width+2.f,5.f),WorldLabelRim);
-                Box(2,FVector2f(CentreX-Width*.5f,Bottom-4.f),FVector2f(Width,3.f),LDHUD::PaletteColor(Label.Presentation));
-                Bottom-=6.f;
+                // The badge carries the identity tint: the name itself identifies, the colour is only an extra cue.
+                const float BadgeLeft=BarLeft-WorldBadgeGap-BadgeRim,BadgeTop=Mid-BadgeRim*.5f;
+                Box(1,FVector2f(BadgeLeft,BadgeTop),FVector2f(BadgeRim,BadgeRim),LDHUDStyle::Rim);
+                Box(2,FVector2f(BadgeLeft+1.f,BadgeTop+1.f),FVector2f(BadgeSide,BadgeSide),LDHUD::PaletteColor(Label.Presentation));
+                const FString LevelText=FString::FromInt(Label.Level);const FVector2f LevelExtent=FontMeasure->Measure(LevelText,LevelFont);
+                const FVector2f LevelAt(BadgeLeft+BadgeRim*.5f-LevelExtent.X*.5f,Mid-LevelExtent.Y*.5f);
+                FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(LevelExtent,FSlateLayoutTransform(LevelAt)),LevelText,LevelFont,ESlateDrawEffect::None,FLinearColor::White);
             }
-            Line(Label.Name,Label.bContender?ContenderFont:CampFont,Label.bContender?WorldLabelContenderInk:WorldLabelCampInk,CentreX,Bottom);
+            Bottom-=Entry.Row+WorldRowGap;
         }
-        if(!Label.Status.IsEmpty()){Line(Label.Status,StatusFont,WorldLabelStatusInk,CentreX,Bottom);}
+        if(!Label.Name.IsEmpty()){Line(Label.Name,Label.bContender?ContenderFont:CampFont,Label.bContender?WorldLabelContenderInk:WorldLabelCampInk,CentreX,Bottom);}
+        if(!Label.StatusParts.IsEmpty())
+        {
+            // Each status in the colour of its body marker (Combat's root, shield and protection tints); the text names it.
+            const FString Separator=TEXT(" · ");const float SeparatorWidth=FontMeasure->Measure(Separator,StatusFont).X;
+            float Width=0.f,Height=0.f;
+            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
+            {
+                const FVector2f Extent=FontMeasure->Measure(Label.StatusParts[Index].Text,StatusFont);
+                Width+=Extent.X+(Index>0?SeparatorWidth:0.f);Height=FMath::Max(Height,Extent.Y);
+            }
+            float X=CentreX-Width*.5f;const float Top=Bottom-Height;
+            auto Draw=[&](const FString& Text,const FLinearColor& Ink)
+            {
+                const FVector2f Extent=FontMeasure->Measure(Text,StatusFont);
+                FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(X,Top))),Text,StatusFont,ESlateDrawEffect::None,Ink);
+                X+=Extent.X;
+            };
+            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
+            {
+                if(Index>0){Draw(Separator,WorldLabelStatusInk);}
+                Draw(Label.StatusParts[Index].Text,WorldStatusInk(Label.StatusParts[Index].StatusId));
+            }
+            Bottom=Top;
+        }
     }
-    return Base+3;
+    return Base+4;
 }
