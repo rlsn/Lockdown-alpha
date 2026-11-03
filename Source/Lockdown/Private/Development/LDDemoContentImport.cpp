@@ -849,7 +849,7 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
 {
     FFields F(Check, Value, TEXT("content.progression"));
     if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, 10, 10)
-        || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 9, 9)
+        || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 10, 10)
         || !F.SmallInt(TEXT("max_skill_rank"), Out.MaxSkillRank, 3, 3)
         || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 2, 2)
         || !F.SmallInt(TEXT("equipment_slots"), Out.EquipmentSlots, 2, 2)

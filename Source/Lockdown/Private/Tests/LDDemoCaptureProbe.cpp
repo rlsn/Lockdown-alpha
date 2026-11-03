@@ -27,9 +27,14 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
-// Host stays at its spawn, Client1 captures, Client2 contests once mid-segment and leaves again.
-// After the result the Host returns the same connections to a new Lobby generation and starts a second match.
+// Host stays at its spawn and Client1 captures. Client2 contests twice: the first contest pauses Client1's
+// progress and he resumes it; during the second, Client1 walks out and loses it, Client2 holds from zero and
+// leaves, and Client1 returns to an empty circle for a fresh full hold. After the result the Host returns the
+// same connections to a new Lobby generation and starts a second match.
 enum class ELDCaptureProbeStage : uint8 { Join, Lobby, Starting, Match, Results, SecondLobby, SecondMatch, Done };
+
+// The public circle sequence every role must observe in the first match.
+enum class ELDCaptureProbeSeen : uint8 { None, Solo, Paused, Resumed, PausedAgain, HandedOff, Emptied, FinalSolo };
 
 class FLDDemoCaptureProbe : public TSharedFromThis<FLDDemoCaptureProbe>
 {
@@ -38,15 +43,17 @@ public:
     FString Output, Role, Error;
     double Deadline = 0, StageAt = 0, ReadyAt = 0;
     ELDCaptureProbeStage Stage = ELDCaptureProbeStage::Join;
+    ELDCaptureProbeSeen Seen = ELDCaptureProbeSeen::None;
     int32 ContestStep = 0;
     bool Passed = true, Written = false, ReadySent = false, NamesChecked = false, StartSent = false, ReturnSent = false;
     bool SecondStartSent = false;
-    bool SawContest = false;
+    bool PauseShown = false, Resumed = false, NotInherited = false, Cleared = false;
     uint32 FirstGeneration = 0, SecondGeneration = 0;
-    FGuid CapturerId;
+    FGuid CapturerId, ContesterId;
     FLDCombatBodyRef FirstBody;
     TSet<FGuid> FirstCampMembers;
-    int64 FirstSoloSinceMs = -1;
+    int64 FirstSoloSinceMs = -1, FirstPausedMs = 0, SecondPausedMs = 0, SecondContestNowMs = 0, EmptyNowMs = 0;
+    int64 HandOffSinceMs = 0, FinalSoloSinceMs = -1;
     int32 MarkerObservations = 0, MarkerMismatches = 0;
     int64 HoldMs = 0, DevelopmentMs = 0;
     FVector Center = FVector::ZeroVector, Staging = FVector::ZeroVector, Inside = FVector::ZeroVector;
@@ -118,7 +125,7 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only normal start through providers, real owned capture, contest reset, unique result, same-world return to a new Lobby generation and a second normal match that starts clean. Not 3+3 or AI."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only normal start through providers, real owned capture, contest pause and resume, holder exit reset without inheritance, unique result, same-world return to a new Lobby generation and a second normal match that starts clean. Not 3+3, AI or a holder's death."));
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
         Written = Save(Report, Role + TEXT(".json"));
@@ -164,13 +171,80 @@ public:
     {
         const FLDPublicMatchView& View = Public.PublicMatch;
         if (View.Phase != ELDMatchPhase::CaptureOpen) { return; }
-        SawContest |= View.CircleState == ELDCircleState::Contested;
-        if (View.CircleState == ELDCircleState::Solo && View.Occupier == CapturerId && FirstSoloSinceMs < 0)
-        { FirstSoloSinceMs = View.SoloSinceMs; }
+        if (View.Generation == FirstGeneration) { Follow(View); }
         // The visible boundary must show exactly the public circle state this role has accepted.
         const ALDCaptureMarker* Marker = Public.GetCaptureMarker();
         ++MarkerObservations;
         MarkerMismatches += !Marker || Marker->GetGeneration() != View.Generation || Marker->GetShownState() != View.CircleState ? 1 : 0;
+    }
+
+    // Advances through the expected public sequence. Every state lasts at least 1.5 s by choreography, and
+    // ServerNowMs is the authority time of the publication that changed the circle.
+    void Follow(const FLDPublicMatchView& View)
+    {
+        const bool CapturerSolo = View.CircleState == ELDCircleState::Solo && View.Occupier == CapturerId;
+        const bool CapturerPaused = View.CircleState == ELDCircleState::Contested && View.Occupier == CapturerId;
+        const bool FullHold = View.DueAtMs - View.SoloSinceMs == HoldMs;
+        switch (Seen)
+        {
+        case ELDCaptureProbeSeen::None:
+            if (!CapturerSolo) { return; }
+            FirstSoloSinceMs = View.SoloSinceMs;
+            Seen = ELDCaptureProbeSeen::Solo;
+            return;
+        case ELDCaptureProbeSeen::Solo:
+            if (!CapturerPaused) { return; }
+            FirstPausedMs = View.PausedProgressMs;
+            PauseShown = FirstPausedMs >= 3000 && FirstPausedMs <= View.ServerNowMs - FirstSoloSinceMs
+                && !View.SoloSinceMs && !View.DueAtMs;
+            Seen = ELDCaptureProbeSeen::Paused;
+            return;
+        case ELDCaptureProbeSeen::Paused:
+            if (!CapturerSolo) { return; }
+            // A restart would publish a segment younger than one step; the resumed one already holds the paused progress.
+            Resumed = View.ServerNowMs - View.SoloSinceMs >= FirstPausedMs && View.SoloSinceMs > FirstSoloSinceMs && FullHold;
+            Seen = ELDCaptureProbeSeen::Resumed;
+            return;
+        case ELDCaptureProbeSeen::Resumed:
+            if (!CapturerPaused || View.PausedProgressMs <= FirstPausedMs) { return; }
+            SecondPausedMs = View.PausedProgressMs;
+            SecondContestNowMs = View.ServerNowMs;
+            Resumed &= SecondPausedMs >= FirstPausedMs + 2000;
+            Seen = ELDCaptureProbeSeen::PausedAgain;
+            return;
+        case ELDCaptureProbeSeen::PausedAgain:
+            if (View.CircleState != ELDCircleState::Solo || View.Occupier != ContesterId) { return; }
+            HandOffSinceMs = View.SoloSinceMs;
+            NotInherited = View.SoloSinceMs >= SecondContestNowMs && FullHold;
+            Seen = ELDCaptureProbeSeen::HandedOff;
+            return;
+        case ELDCaptureProbeSeen::HandedOff:
+            if (View.CircleState != ELDCircleState::Empty) { return; }
+            EmptyNowMs = View.ServerNowMs;
+            Seen = ELDCaptureProbeSeen::Emptied;
+            return;
+        case ELDCaptureProbeSeen::Emptied:
+            if (!CapturerSolo) { return; }
+            FinalSoloSinceMs = View.SoloSinceMs;
+            Cleared = View.SoloSinceMs >= EmptyNowMs && FullHold;
+            Seen = ELDCaptureProbeSeen::FinalSolo;
+            return;
+        default:
+            return;
+        }
+    }
+
+    bool Seeing(ELDCaptureProbeSeen Value) const { return uint8(Seen) >= uint8(Value); }
+
+    // Starts the role's next move once its own public view reached Value and, after that, Delay seconds passed.
+    bool After(ELDCaptureProbeSeen Value, int32 WaitStep, double Delay)
+    {
+        if (ContestStep == WaitStep && Seeing(Value))
+        {
+            StageAt = FPlatformTime::Seconds();
+            ContestStep = WaitStep + 1;
+        }
+        return ContestStep == WaitStep + 1 && FPlatformTime::Seconds() - StageAt >= Delay;
     }
 
     static int32 MarkerActors(UWorld& World)
@@ -207,7 +281,8 @@ bool FLDDemoCaptureProbe::Tick()
     if (FPlatformTime::Seconds() >= Deadline)
     {
         Check(false, TEXT("T01"), TEXT("Capture scenario completed within its bounded deadline"));
-        Error = FString::Printf(TEXT("Capture probe timed out at stage %u, contest step %d."), uint8(Stage), ContestStep);
+        Error = FString::Printf(TEXT("Capture probe timed out at stage %u, contest step %d, public sequence %u."),
+            uint8(Stage), ContestStep, uint8(Seen));
         return Finish();
     }
     auto* PC = Controller.Get();
@@ -283,8 +358,13 @@ bool FLDDemoCaptureProbe::Tick()
         const FLDLobbyMember* Capturer = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
         { return Row.Name.Equals(ChosenName(TEXT("Client1")), ESearchCase::CaseSensitive); });
         CapturerId = Capturer ? Capturer->ContenderId : FGuid();
-        Check(Capturer && CapturerId.IsValid() && (Role != TEXT("Client1") || CapturerId == PC->OwnerState.ContenderId),
-            TEXT("C03"), TEXT("The capturing contender is on the locked roster"));
+        const FLDLobbyMember* Contester = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
+        { return Row.Name.Equals(ChosenName(TEXT("Client2")), ESearchCase::CaseSensitive); });
+        ContesterId = Contester ? Contester->ContenderId : FGuid();
+        Check(Capturer && CapturerId.IsValid() && Contester && ContesterId.IsValid() && ContesterId != CapturerId
+            && (Role != TEXT("Client1") || CapturerId == PC->OwnerState.ContenderId)
+            && (Role != TEXT("Client2") || ContesterId == PC->OwnerState.ContenderId),
+            TEXT("C03"), TEXT("The capturing and the contesting contenders are on the locked roster"));
         Check(View.Generation == FirstGeneration && View.OpenAtMs == View.StartedAtMs + DevelopmentMs
             && View.CircleState == ELDCircleState::NotOpen && !View.Occupier.IsValid(),
             TEXT("C04"), TEXT("Normal start opens the approved development phase with a closed circle"));
@@ -311,33 +391,33 @@ bool FLDDemoCaptureProbe::Tick()
         PC->ReadDemoAuthorityTimeMs(NowMs);
         if (Role == TEXT("Client2") && View.Phase == ELDMatchPhase::CaptureOpen)
         {
-            const bool CapturerSolo = View.CircleState == ELDCircleState::Solo && View.Occupier == CapturerId;
-            if (ContestStep == 0 && CapturerSolo && !Nav->HasMoveOrder() && NowMs - View.SoloSinceMs >= 3000)
+            if (ContestStep == 0 && Seeing(ELDCaptureProbeSeen::Solo) && !Nav->HasMoveOrder() && NowMs - FirstSoloSinceMs >= 3000)
             {
                 Nav->NavigateGround(Inside, Surface);
                 ContestStep = 1;
             }
-            else if (ContestStep == 1 && View.CircleState == ELDCircleState::Contested)
-            {
-                StageAt = FPlatformTime::Seconds();
-                ContestStep = 2;
-            }
-            else if (ContestStep == 2 && FPlatformTime::Seconds() - StageAt >= 1.5)
-            {
-                Nav->NavigateGround(Staging, Surface);
-                ContestStep = 3;
-            }
+            else if (After(ELDCaptureProbeSeen::Paused, 1, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 3; }
+            else if (After(ELDCaptureProbeSeen::Resumed, 3, 2.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 5; }
+            else if (After(ELDCaptureProbeSeen::HandedOff, 5, 2.)) { Nav->NavigateGround(Staging, Surface); ContestStep = 7; }
+        }
+        else if (Role == TEXT("Client1") && View.Phase == ELDMatchPhase::CaptureOpen)
+        {
+            // The paused holder walks out of the second contest, then returns once the circle is empty.
+            if (After(ELDCaptureProbeSeen::PausedAgain, 0, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 2; }
+            else if (After(ELDCaptureProbeSeen::Emptied, 2, 1.5)) { Nav->NavigateGround(Center, Surface); ContestStep = 4; }
         }
         if (View.Phase != ELDMatchPhase::Results) { return true; }
         const FLDResultView& Result = Public->MatchResult;
         if (Result.Generation != View.Generation || Result.ResultId != View.ResultId) { return true; }
         Check(Result.Reason == ELDMatchEndReason::CaptureCompleted && Result.Winner == CapturerId,
-            TEXT("C06"), TEXT("Continuous exclusive capture locks the capturer as the unique winner"));
-        Check(SawContest && FirstSoloSinceMs >= 0 && View.SoloSinceMs > FirstSoloSinceMs,
-            TEXT("C07"), TEXT("A real contest broke the first segment and the occupier restarted a complete hold"));
-        Check(Result.EndedAtMs == View.DueAtMs && View.DueAtMs - View.SoloSinceMs == HoldMs
+            TEXT("C06"), TEXT("Exclusive capture locks the capturer as the unique winner"));
+        Check(Seeing(ELDCaptureProbeSeen::FinalSolo) && PauseShown && Resumed,
+            TEXT("C07"), TEXT("Each real contest paused the capturer's progress, and he resumed it as the sole contender"));
+        Check(Seeing(ELDCaptureProbeSeen::FinalSolo) && NotInherited && Cleared,
+            TEXT("C18"), TEXT("The paused holder who walked out lost his progress: the other contender held from zero, and the holder's return to an empty circle started fresh"));
+        Check(Result.EndedAtMs == View.DueAtMs && View.DueAtMs - View.SoloSinceMs == HoldMs && View.SoloSinceMs == FinalSoloSinceMs
             && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs,
-            TEXT("C08"), TEXT("Completion is the approved hold after the last uncontested start, timed by the server"));
+            TEXT("C08"), TEXT("Completion is the approved hold of the final segment, timed by the server"));
         Check(Result.Rows.Num() == 3 && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }),
             TEXT("C09"), TEXT("The frozen result lists every contender with a committed final level"));
@@ -361,6 +441,11 @@ bool FLDDemoCaptureProbe::Tick()
             TEXT("C14"), TEXT("The boundary mirrored every observed public circle state through the locked result"));
         Summary->SetNumberField(TEXT("marker_observations"), MarkerObservations);
         Summary->SetNumberField(TEXT("first_solo_since_ms"), double(FirstSoloSinceMs));
+        Summary->SetNumberField(TEXT("first_paused_ms"), double(FirstPausedMs));
+        Summary->SetNumberField(TEXT("second_paused_ms"), double(SecondPausedMs));
+        Summary->SetNumberField(TEXT("second_contest_now_ms"), double(SecondContestNowMs));
+        Summary->SetNumberField(TEXT("handoff_solo_since_ms"), double(HandOffSinceMs));
+        Summary->SetNumberField(TEXT("empty_now_ms"), double(EmptyNowMs));
         Summary->SetNumberField(TEXT("final_solo_since_ms"), double(View.SoloSinceMs));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
         Summary->SetNumberField(TEXT("epoch"), double(View.CaptureEpoch));
@@ -464,10 +549,10 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
     for (const FLDEquipmentSlotView& Slot : Equipment.Slots) { bSlotsEmpty &= !Slot.bOccupied; }
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry) { return !Entry.DefinitionId.IsNone(); });
-    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 0
-        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 0 && !Progress.bHasOffer
+    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
+        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
         && bSlotsEmpty && bNoEntries && Own.EquipmentPassives.IsEmpty() && PC.ReadOwnShop() == nullptr,
-        TEXT("R04"), TEXT("No learned skill, attribute card, equipment, pending choice or shop session"));
+        TEXT("R04"), TEXT("No learned skill, attribute card, equipment or shop session; only this match's unconsumed opening choice"));
     Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
         TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));
@@ -514,7 +599,7 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         {
             return Match.Generation == SecondGeneration && Match.Phase == ELDMatchPhase::Development
                 && Match.CircleState == ELDCircleState::NotOpen && !Match.Occupier.IsValid() && !Match.SoloSinceMs
-                && !Match.DueAtMs && !Match.CaptureEpoch && !Match.ResultId.IsValid()
+                && !Match.DueAtMs && !Match.PausedProgressMs && !Match.CaptureEpoch && !Match.ResultId.IsValid()
                 && Match.OpenAtMs == Match.StartedAtMs + DevelopmentMs;
         };
         Check(Clean(View) && Clean(Authority) && Public && Public->KillFeed.Generation == SecondGeneration

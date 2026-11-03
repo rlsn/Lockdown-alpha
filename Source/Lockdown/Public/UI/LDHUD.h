@@ -148,6 +148,8 @@ private:
     FLDShopOpenResult OpenedShop;
     uint64 OpenedShopPublish=0;
     bool bOpenedShop=false;
+    // The match generation whose opening three-choice was offered its one automatic panel opening (D10).
+    uint32 AutoChoicesMatch=0;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);
     void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
     void HandleShopReceipt(const FLDShopReceiptQueryResult& Result);

@@ -32,10 +32,13 @@ FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen,
     {
         Attribute = N.Max(Attribute, StatBonus(Row.Stats, Stat, N));
     }
-    FExact Best[10];
-    for (int32 Budget = 0; Budget <= 9; ++Budget)
+    // Every legal choice of the match (MaxChoices) goes toward this one coordinate.
+    const int32 Choices = FMath::Max(D.Progression.MaxChoices, 0);
+    TArray<FExact> Best;
+    Best.Reserve(Choices + 1);
+    for (int32 Budget = 0; Budget <= Choices; ++Budget)
     {
-        Best[Budget] = N.Mul(Attribute, N.Value(Budget));
+        Best.Add(N.Mul(Attribute, N.Value(Budget)));
     }
     for (const auto& Ability : D.Abilities)
     {
@@ -43,10 +46,9 @@ FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen,
         {
             continue;
         }
-        FExact Next[10];
-        for (int32 Budget = 0; Budget <= 9; ++Budget)
+        TArray<FExact> Next = Best;
+        for (int32 Budget = 0; Budget <= Choices; ++Budget)
         {
-            Next[Budget] = Best[Budget];
             for (const auto& Rank : Ability.Ranks)
             {
                 if (Rank.Rank > Budget) { continue; }
@@ -65,9 +67,9 @@ FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen,
                 Next[Budget] = N.Max(Next[Budget], N.Add(Best[Budget - Rank.Rank], Bonus));
             }
         }
-        for (int32 Budget = 0; Budget <= 9; ++Budget) { Best[Budget] = Next[Budget]; }
+        Best = MoveTemp(Next);
     }
-    return Best[9];
+    return Best[Choices];
 }
 
 FExact EquipmentBonus(const FLDDemoContentDefinitions& D, int32 Stat, FNumbers& N)
@@ -92,7 +94,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         const FExact Base = N.Add(N.Value(Row.Bounds->BaseP2, 100), N.Mul(N.Value(9), N.Value(Row.Bounds->PerLevelP2, 100)));
         const FExact Max = N.Add(Base, N.Add(ChoiceBonus(D, int32(Row.Stat), false, N), EquipmentBonus(D, int32(Row.Stat), N)));
         if (!Check.Require(N.LE(Max, N.Value(Row.Bounds->MaxP2, 100)), Row.Name,
-            TEXT("a legal nine-choice/two-item build exceeds its bound")))
+            TEXT("a legal MaxChoices/two-item build exceeds its bound")))
         {
             return false;
         }

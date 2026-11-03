@@ -35,4 +35,13 @@ namespace LDOrderRules
     // Returns the unit index, or INDEX_NONE when no candidate qualifies.
     LOCKDOWN_API int32 NearestCandidate(const TArray<FLDObservedUnitView>& Units, const FVector& FootCm,
         double RadiusCm, const FGuid& Self);
+
+    // Holding the move button repeats the ground order toward the pointer: at most once per HeldMoveRepeatSeconds
+    // (8 per second) and only once the pointer's ground point moved HeldMoveShiftCm from the last order's, so a still
+    // pointer sends nothing more. The server's activation throttle and newest-pending replacement stay the only
+    // admission path.
+    constexpr double HeldMoveRepeatSeconds = .125;
+    constexpr double HeldMoveShiftCm = 40.;
+    LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
+        const FVector& GroundCm);
 }

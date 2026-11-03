@@ -35,8 +35,10 @@ uint64 ProgressionSplitMix64(uint64& State)
 
 bool ProgressionValidThresholds(const FLDDemoProgressionDefinition& P)
 {
+    // Opportunity 1 is the match's opening choice (BeginMatch); reaching level k earns opportunity k, so the
+    // opportunities equal the level and the whole match grants exactly MaxLevel choices.
     if (P.MaxLevel < 2 || P.MaxLevel > MAX_uint8 || P.XPThresholds.Num() != P.MaxLevel || P.XPThresholds[0] != P.XPStart
-        || P.XPStart != 0 || P.MaxChoices != P.MaxLevel - 1 || P.MaxSkillRank < 1 || P.MaxSkillRank > MAX_uint8)
+        || P.XPStart != 0 || P.MaxChoices != P.MaxLevel || P.MaxSkillRank < 1 || P.MaxSkillRank > MAX_uint8)
     {
         return false;
     }
@@ -135,7 +137,7 @@ ELDGrowthReason LDProgression::PlanExperience(const FLDDemoProgressionDefinition
     {
         return Reason;
     }
-    if (Before != CurrentLevel || EarnedThrough != Before - 1)
+    if (Before != CurrentLevel || EarnedThrough != Before)
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -152,7 +154,7 @@ ELDGrowthReason LDProgression::PlanExperience(const FLDDemoProgressionDefinition
     Out.NewXP = NewXP;
     Out.LevelBefore = Before;
     Out.LevelAfter = After;
-    Out.EarnedThroughAfter = After - 1;
+    Out.EarnedThroughAfter = After;
     return ELDGrowthReason::None;
 }
 

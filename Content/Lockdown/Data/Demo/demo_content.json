@@ -1655,7 +1655,7 @@
   "progression": {
     "active_slots": 2,
     "equipment_slots": 2,
-    "max_choices": 9,
+    "max_choices": 10,
     "max_level": 10,
     "max_skill_rank": 3,
     "xp_start": 0,

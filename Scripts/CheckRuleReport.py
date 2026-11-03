@@ -7,6 +7,9 @@ from pathlib import Path
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.ArtCatalog",
+        "Lockdown.Rules.ArtCatalogAsset",
+        "Lockdown.Rules.ArtDecorations",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",
@@ -29,6 +32,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCapture.PublicViews",
         "Lockdown.Rules.DemoCapture.ProviderGate",
         "Lockdown.Rules.DemoCapture.SessionEndgame",
+        "Lockdown.Rules.DemoCapture.ContestPause",
         "Lockdown.Rules.DemoCore.BodyIdentity",
         "Lockdown.Rules.DemoCore.CheckedTime",
         "Lockdown.Rules.DemoCore.ClockProjection",
@@ -47,6 +51,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoAttributeProjection.ResourceMaxChange",
         "Lockdown.Rules.DemoBodyMotion.Timelines",
         "Lockdown.Rules.DemoCombatCues.Selection",
+        "Lockdown.Rules.DemoControlFeel.HeldMove",
+        "Lockdown.Rules.DemoControlFeel.PreInput",
         "Lockdown.Rules.DemoCombatEvaluation.Damage",
         "Lockdown.Rules.DemoCombatEvaluation.DamageDomains",
         "Lockdown.Rules.DemoCombatEvaluation.ExactDamage",
@@ -63,6 +69,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthLedger",
         "Lockdown.Rules.DemoGrowthRequests",
         "Lockdown.Rules.DemoGrowthProgression",
+        "Lockdown.Rules.DemoGrowthOpening",
         "Lockdown.Rules.DemoGrowthPrivacySchema",
         "Lockdown.Rules.DemoInputByteIntegrity",
         "Lockdown.Rules.DemoLobbyAuthority",

@@ -24,47 +24,34 @@ LDBodyMotion::FChannels LDBodyMotion::Evaluate(EAction Action, float T)
     switch (Action)
     {
     case EAction::Attack:
-    {
-        // Drawn back over .15 s, flung forward over the next .06 s, held, then eased back.
-        const float Back = Smooth(T / .15f);
-        const float Swing = Smooth((T - .15f) / .06f);
-        const float Recover = Smooth((T - .3f) / .2f);
-        C.WindBack = Back * (1.f - Swing);
-        C.Strike = Swing * (1.f - .6f * Recover);
-        C.Lunge = 30.f * Swing * (1.f - Recover) - 4.f * C.WindBack;
-        C.Lean = 14.f * Swing * (1.f - Recover) - 6.f * C.WindBack;
+        // The body steps into the blow and back while the clip swings; a spark flashes at the strike.
+        C.Lunge = 14.f * Pulse(T, .08f, StrikeAt + .02f, .45f);
         C.Burst = Pulse(T, StrikeAt - .01f, StrikeAt + .03f, StrikeAt + .14f);
         break;
-    }
     case EAction::Cast:
-    {
-        // Both arms raised with a growing orb, then pushed forward as the orb bursts.
-        const float Up = Smooth(T / .18f);
-        const float Push = Smooth((T - .18f) / .08f);
-        const float Recover = Smooth((T - .4f) / .25f);
-        C.Raise = Up * (1.f - Push);
-        C.Thrust = Push * (1.f - .5f * Recover);
-        C.Charge = Up * (1.f - Push);
-        C.Lean = -8.f * C.Raise + 10.f * Push * (1.f - Recover);
-        C.Lunge = 10.f * Push * (1.f - Recover);
+        // An orb grows at the hand over the windup and bursts at the release.
+        C.Charge = Smooth(T / .15f) * (1.f - Smooth((T - .18f) / .05f));
+        C.Lunge = 6.f * Pulse(T, .15f, StrikeAt + .02f, .5f);
         C.Burst = Pulse(T, .17f, .21f, .34f);
         break;
-    }
     case EAction::Hit:
-    {
         // A short white-to-red flash and an impact spark, knocked back and recovering within the 300 ms cue.
-        const float Knock = Pulse(T, 0.f, .05f, .3f);
-        C.Flinch = Knock;
-        C.Lunge = -16.f * Knock;
-        C.Lean = -24.f * Knock;
+        C.Lunge = -16.f * Pulse(T, 0.f, .05f, .3f);
         C.Flash = T < .18f ? 1.f - T / .18f : 0.f;
         C.Burst = Pulse(T, 0.f, .03f, .14f);
         break;
-    }
     default:
         break;
     }
     return C;
+}
+
+float LDBodyMotion::ClipTime(EAction Action, float T, float ImpactSeconds, float AuthoredRate)
+{
+    if (Action == EAction::None || !FMath::IsFinite(T) || T <= 0.f) { return 0.f; }
+    const bool bTimed = (Action == EAction::Attack || Action == EAction::Cast) && FMath::IsFinite(ImpactSeconds) && ImpactSeconds > 0.f;
+    const float Rate = bTimed ? ImpactSeconds / StrikeAt : FMath::IsFinite(AuthoredRate) ? FMath::Max(AuthoredRate, 0.f) : 0.f;
+    return T * Rate;
 }
 
 bool LDBodyMotion::IsNewInstance(EAction Previous, double PreviousOnset, EAction Next, double NextOnset, bool bAgeKnown)
@@ -87,17 +74,16 @@ LDBodyMotion::FLife LDBodyMotion::Appear(float T)
     return Life;
 }
 
-LDBodyMotion::FLife LDBodyMotion::Fall(float T)
+LDBodyMotion::FLife LDBodyMotion::Fall(float T, float LieSeconds)
 {
     using namespace LDBodyMotionDetail;
     FLife Life;
-    if (!FMath::IsFinite(T)) { T = FallSeconds; }
+    const float Lie = FMath::IsFinite(LieSeconds) ? FMath::Max(LieSeconds, 0.f) : 0.f;
+    if (!FMath::IsFinite(T)) { T = Lie + FadeSeconds; }
     T = FMath::Max(T, 0.f);
-    // Topples backward with growing speed, then sinks and shrinks away.
-    const float Topple = FMath::Clamp(T / .35f, 0.f, 1.f);
-    Life.Tilt = 90.f * Topple * Topple;
-    Life.Sink = 40.f * Smooth((T - .65f) / .5f);
-    Life.Scale = 1.f - Smooth((T - .7f) / .45f);
-    Life.bGone = T >= FallSeconds;
+    // Lies down through the death clip, then sinks and shrinks away.
+    Life.Sink = 40.f * Smooth((T - Lie) / .5f);
+    Life.Scale = 1.f - Smooth((T - Lie - .05f) / .5f);
+    Life.bGone = T >= Lie + FadeSeconds;
     return Life;
 }

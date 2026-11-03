@@ -548,6 +548,14 @@ void ULDHUD::RefreshReadModel()
     const bool bInputSuppressed=PC->IsWorldInputSuppressed();
     if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
     if(ChoicesPanel){ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
+    // D10: the opening three-choice opens its panel once, on the match's first shown frame, when nothing else is open;
+    // it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
+    if(ChoicesPanel&&PC->RootUI&&Progression&&Progression->Generation==O.Match&&AutoChoicesMatch!=O.Match)
+    {
+        AutoChoicesMatch=O.Match;
+        if(Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1
+            &&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::None){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+    }
     if(ShopPanel)
     {
         const FLDShopView* ShopView=PC->ReadOwnShop();

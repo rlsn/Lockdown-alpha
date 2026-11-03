@@ -12,6 +12,7 @@
 class ALDPlayerController;
 class ALDCharacter;
 class ALDGameMode;
+class ALDPointerFeedback;
 class FLDDemoContentSnapshot;
 struct FLDAuthorityTargetSample;
 struct FCollisionShape;
@@ -34,8 +35,19 @@ public:
     void ApproachShop(FName ShopId);
     void Stop();
     void ResetLife();
-    // Right click: visible unit under the pointer, else the public shop, else ground. One class per click.
+    // Right click: visible unit under the pointer, else the public shop, else ground. One class per click. A ground
+    // click keeps walking toward the pointer while its button is held (LDOrderRules::ShouldRepeatHeldMove).
     void ClickMove();
+    // The pointer in viewport pixels for world clicks and hover: the mouse, or a DEV scenario's pointer while one is set.
+    bool PointerPosition(FVector2D& Out) const;
+    // The ground under the pointer on the world-click channel.
+    bool GroundUnderPointer(FHitResult& Out) const;
+    // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
+    bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
+    // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
+    void DevSetPointer(const TOptional<FVector2D>& Pointer);
+    ALDPointerFeedback* PointerFeedback() const;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     // Registered id of the single Demo ground surface; None when the world is unavailable.
     FName GroundSurfaceHint() const;
     void PanCamera(const FVector2D& Axis,float Delta);
@@ -146,10 +158,26 @@ private:
     // body goal (LDPathSteering::PlanRoute). Projected is the planned end.
     bool Plan(const FVector& Goal, FName SurfaceHint, LDPathSteering::EGoal GoalKind, TArray<FVector>& Out, FVector& Projected,
         ELDWorldQueryFailure& Failure, FString& Error);
-    bool ShopAt(const FVector& GroundPoint, FName& OutShop);
+    bool ShopAt(const FVector& GroundPoint, FName& OutShop, bool bNotify=true);
+    // Local route check of a ground point from this body, for click feedback only: false with bKnown when the route
+    // fails; true without bKnown when the body's own support cannot be read this frame. The server still decides.
+    bool ProbeGround(const FVector& GroundCm, bool& bKnown) const;
+    // ---- Owning client pointer: hover target, cursor and the held move button.
+    void TickPointer();
+    void ClearPointer();
+    void TickHeldMove();
+    ALDPointerFeedback* EnsurePointer();
+    TWeakObjectPtr<ALDPointerFeedback> Pointer;
+    TOptional<FVector2D> DevPointer;
+    FGuid Hovered;
+    uint32 HoveredEpoch=0;
+    FVector HeldPoint=FVector::ZeroVector;
+    double HeldSentAt=0;
+    bool bHeldMove=false;
     // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
-    void SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
+    // False when the order was not sent (no life, suppressed input or exhausted identities).
+    bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
     void ApplyPrediction();
     void RefreshLocalActive();
     void TickCamera(float Delta);

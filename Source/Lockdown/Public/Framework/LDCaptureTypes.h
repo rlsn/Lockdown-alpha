@@ -28,11 +28,16 @@ struct FLDPublicMatchView
     UPROPERTY() int64 StartedAtMs = 0;
     UPROPERTY() int64 OpenAtMs = 0;
     UPROPERTY() ELDCircleState CircleState = ELDCircleState::NotOpen;
-    // Valid only while CircleState is Solo.
+    // The progress holder: the sole contender while Solo, or the contender whose progress a
+    // contest has paused while Contested. Invalid otherwise.
     UPROPERTY() FGuid Occupier;
     UPROPERTY() uint64 CaptureEpoch = 0;
+    // Solo only. After a resume SoloSinceMs is the resume instant minus the paused progress,
+    // so DueAtMs is the real completion instant of the resumed segment.
     UPROPERTY() int64 SoloSinceMs = 0;
     UPROPERTY() int64 DueAtMs = 0;
+    // Contested with a holder only: his progress frozen by the contest.
+    UPROPERTY() int64 PausedProgressMs = 0;
     UPROPERTY() FGuid ResultId;
 };
 

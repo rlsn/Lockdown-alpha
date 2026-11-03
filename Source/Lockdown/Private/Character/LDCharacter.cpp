@@ -29,8 +29,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     GetCapsuleComponent()->SetCanEverAffectNavigation(false);
     UCharacterMovementComponent* Movement = GetCharacterMovement();
-    Movement->MaxAcceleration = 1800;
-    Movement->BrakingDecelerationWalking = 1800;
+    Movement->MaxAcceleration = 8000;
+    Movement->BrakingDecelerationWalking = 8000;
     Movement->MaxStepHeight = 35;
     Movement->SetWalkableFloorAngle(40);
     Movement->bOrientRotationToMovement = false;

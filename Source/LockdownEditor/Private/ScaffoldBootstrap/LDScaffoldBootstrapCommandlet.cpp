@@ -1,5 +1,6 @@
 #include "LDScaffoldBootstrapCommandlet.h"
 #include "LDDemoWorldBuilder.h"
+#include "Art/LDDemoArtImport.h"
 #include "Audio/LDDemoAudioImport.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -185,6 +186,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     {
         UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo audio: %s"), *Error);
         return 7;
+    }
+    // Art: bodies, clips and decorations must resolve and match their CC0 sources and placement zones.
+    if (!LDDemoArtImport::Validate(Error))
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo art: %s"), *Error);
+        return 8;
     }
     UE_LOG(LogTemp, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));
     return 0;
