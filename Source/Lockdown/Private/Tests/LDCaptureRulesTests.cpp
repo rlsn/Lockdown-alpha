@@ -367,7 +367,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Result.DurationMs = 210000;
     Result.Rows.Add({Open.Occupier, TEXT("Host"), ELDContenderKind::Human, false, 2, 1, 6});
     Result.Rows.Add({FGuid::NewGuid(), TEXT("Guest"), ELDContenderKind::Human, true, 0, 3, 3});
-    Result.Rows.Add({FGuid::NewGuid(), TEXT("Opponent AI 1"), ELDContenderKind::OpponentAI, false, 1, 0, 5});
+    Result.Rows.Add({FGuid::NewGuid(), TEXT("AI 对手 1"), ELDContenderKind::OpponentAI, false, 1, 0, 5});
     FLDResultView LatestResult;
     TestEqual(TEXT("A frozen result with a listed winner is accepted"),
         LDCapture::AcceptResultView(Result, LatestResult, Error), ELDLobbyProjectionResult::Accepted);
