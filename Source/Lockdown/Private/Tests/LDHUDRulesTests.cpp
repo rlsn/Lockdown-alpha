@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
@@ -290,6 +291,47 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Navigation-issued attacks report through their order, not as an action failure"),LDHUD::CombatReceiptNotice(Receipt).IsEmpty());
     Receipt.Phase=ELDCombatPhase::Accepted;Receipt.Reject=ELDCombatReject::None;Receipt.bProtectionRemoved=true;
     TestEqualSensitive(TEXT("An accepted attack still reports the lost protection"),LDHUD::CombatReceiptNotice(Receipt),FString(TEXT("复活保护已解除")));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBasicAttackTermTest,"Lockdown.Rules.HUDBasicAttackTerm",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDBasicAttackTermTest::RunTest(const FString& Parameters)
+{
+    // APP_SPEC 1.2: the player reads the basic attack as 弹脑瓜崩; 普攻 stays a technical term only.
+    const FString NotReady=LDHUD::CombatRejectText(ELDCombatReject::AttackNotReady);
+    TestTrue(TEXT("The attack-not-ready reason names the basic attack by its player term"),
+        NotReady.Contains(TEXT("弹脑瓜崩"),ESearchCase::CaseSensitive)&&!NotReady.Contains(TEXT("普攻"),ESearchCase::CaseSensitive));
+    FLDDemoEffectDefinition Lifesteal;Lifesteal.Opcode=uint8(ELDDemoEffectOp::Lifesteal);Lifesteal.RatioBp=1500;
+    TestEqualSensitive(TEXT("The lifesteal line names the basic attack by its player term"),LDHUD::EffectLine(Lifesteal),FString(TEXT("弹脑瓜崩造成的面子损失的 15% 回复自身")));
+    TestEqualSensitive(TEXT("The basic entry label uses the player term"),LDHUD::EntryLabel(ELDCombatEntry::Basic),FString(TEXT("弹脑瓜崩")));
+    FString Technical;
+    for(int32 Value=0;Value<=MAX_uint8;++Value)
+    {
+        FLDDemoEffectDefinition Effect;Effect.Opcode=uint8(Value);
+        for(const FString& Line:{LDHUD::CombatRejectText(static_cast<ELDCombatReject>(Value)),LDHUD::EffectLine(Effect),LDHUD::EntryLabel(static_cast<ELDCombatEntry>(Value))})
+        {if(Line.Contains(TEXT("普攻"),ESearchCase::CaseSensitive)){Technical+=Line+TEXT(" | ");}}
+    }
+    TestTrue(*FString::Printf(TEXT("No combat reason, effect line or entry label shows the technical term (found: %s)"),*Technical),Technical.IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDIdentityPaletteTest,"Lockdown.Rules.HUDIdentityPalette",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDIdentityPaletteTest::RunTest(const FString& Parameters)
+{
+    // Identity colours follow the locked roster slot 0..5: a portrait shows the same tint as that contender's body.
+    auto Spread=[](const FLinearColor& A,const FLinearColor& B){return FMath::Max3(FMath::Abs(A.R-B.R),FMath::Abs(A.G-B.G),FMath::Abs(A.B-B.B));};
+    for(int32 Slot=0;Slot<6;++Slot)
+    {
+        const FLinearColor Tint=LDHUD::PaletteColor(uint8(Slot));
+        TestTrue(*FString::Printf(TEXT("Roster slot %d portrait uses its body tint"),Slot),Tint==ULDHumanoidVisualComponent::ContenderTint(uint8(Slot)));
+        for(int32 Other=0;Other<Slot;++Other)
+        {TestTrue(*FString::Printf(TEXT("Roster slots %d and %d have distinct identity tints"),Other,Slot),Spread(Tint,LDHUD::PaletteColor(uint8(Other)))>=.1f);}
+    }
+    // A camp member's portrait uses its NPC clothing, never a contender's identity tint.
+    for(const ELDDemoMonsterId Monster:{ELDDemoMonsterId::MonsterScavenger,ELDDemoMonsterId::MonsterGuardian})
+    {
+        const FLinearColor Camp=ULDHumanoidVisualComponent::MonsterTint(uint8(Monster));
+        for(int32 Slot=0;Slot<6;++Slot)
+        {TestTrue(*FString::Printf(TEXT("Creature %d is not drawn in roster slot %d's tint"),int32(Monster),Slot),Spread(Camp,LDHUD::PaletteColor(uint8(Slot)))>=.1f);}
+    }
     return true;
 }
 #endif

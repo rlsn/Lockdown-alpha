@@ -14,6 +14,7 @@ class UTextBlock;
 class UVerticalBox;
 class ULDCommandButton;
 class ULDPanel;
+class ULDWorldLabels;
 class ALDPlayerController;
 class ALDGameState;
 
@@ -69,6 +70,8 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry, float Delta) override;
     virtual FReply NativeOnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 private:
+    // Overhead unit names: the bottom layer of the world canvas, shown exactly while the in-match HUD is.
+    UPROPERTY() TObjectPtr<ULDWorldLabels> WorldLabels;
     UPROPERTY() TObjectPtr<UBorder> HeaderPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<USizeBox> FrontendPage;

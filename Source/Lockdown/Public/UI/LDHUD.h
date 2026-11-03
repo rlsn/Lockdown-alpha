@@ -27,6 +27,7 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
+    UPROPERTY() TObjectPtr<UTextBlock> Kind;
     UPROPERTY() TObjectPtr<UTextBlock> Name;
     UPROPERTY() TObjectPtr<UTextBlock> State;
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;

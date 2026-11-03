@@ -34,6 +34,8 @@ namespace
         Button->SetIsEnabled(Enabled);Button->SetVisibility(bShown?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     }
     const TCHAR* ControlsOnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
+    // One press of the camera pan speed buttons; the legal domain itself belongs to ULDControlSettings.
+    constexpr float ControlsPanStepCmPerSec=300;
 }
 
 TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
@@ -68,9 +70,9 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字与音量改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
         Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
-        ResetRows=ChildRows(TEXT("只把按键、镜头、文字与音量恢复为当前默认值？显示设置、名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
-        Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ShowChild(EChildConfirmation::None);ChangePreference([](auto& S){S.ResetLocalDefaults();});});
-        Choice(ResetRows,TEXT("保持当前偏好"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
+        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（分辨率、窗口模式、垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度）。名称与本局进度不变。分辨率或窗口模式改变时仍需在倒计时内选择保留，否则只恢复原显示模式。"));Main->AddChildToVerticalBox(ResetRows);
+        Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ConfirmResetDefaults();});
+        Choice(ResetRows,TEXT("保持当前设置"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
         RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
         Choice(RecoveryRows,TEXT("确认替换"),TEXT("ConfirmRecovery"),[this]()
         {ShowChild(EChildConfirmation::None);if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}Populate();});
@@ -128,8 +130,14 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("边缘平移 开/关"),[this](){ChangePreference([](auto& S){S.bEdgePan=!S.bEdgePan;});},false,TEXT("ToggleEdgePan")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("开局镜头跟随 开/关"),[this](){ChangePreference([](auto& S){S.bStartFollowing=!S.bStartFollowing;});},false,TEXT("ToggleStartFollow")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("文字大小 100% / 125%"),[this](){ChangePreference([](auto& S){S.TextScale=S.TextScale>1?1:1.25;});},false,TEXT("ApplyTextScale")));
+        PanSpeedLabel=LDWidgets::Text(WidgetTree,TEXT(""));Content->AddChildToVerticalBox(PanSpeedLabel)->SetPadding(FMargin(0,12,0,4));
+        auto* PanButtons=WidgetTree->ConstructWidget<UWrapBox>();PanButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(PanButtons);
+        PanButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT(""),[this]()
+        {ChangePreference([](auto& S){S.CameraPanCmPerSec=FMath::Max(S.CameraPanCmPerSec-ControlsPanStepCmPerSec,ULDControlSettings::MinCameraPanCmPerSec);});},false,TEXT("SlowerCameraPan")));
+        PanButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT(""),[this]()
+        {ChangePreference([](auto& S){S.CameraPanCmPerSec=FMath::Min(S.CameraPanCmPerSec+ControlsPanStepCmPerSec,ULDControlSettings::MaxCameraPanCmPerSec);});},false,TEXT("FasterCameraPan")));
         auto* Footer=WidgetTree->ConstructWidget<UWrapBox>();Footer->SetInnerSlotPadding(FVector2D(8));Main->AddChildToVerticalBox(Footer)->SetPadding(FMargin(0,12,0,0));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复按键、镜头、文字与音量默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复显示、画质、音量、按键、镜头与文字默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("重试本地保存"),[this]()
         {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}},false,TEXT("RetryLocalSave")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复无法读取或不兼容的设置"),[this](){ShowRecoveryConfirmation();},false,TEXT("RecoverLocalSettings")));
@@ -153,8 +161,12 @@ void ULDControlsPanel::Populate()
 void ULDControlsPanel::PopulatePreferences()
 {
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;const int32 Volume=FMath::RoundToInt(100*Applied.MasterVolume);
-    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    const float Pan=Applied.GetCameraPanCmPerSec();
+    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
     VolumeLabel->SetText(FText::FromString(FString::Printf(TEXT("主音量 %d%%"),Volume)));
+    PanSpeedLabel->SetText(FText::FromString(FString::Printf(TEXT("镜头平移速度 %.0f cm/s"),Pan)));
+    ControlsSetButton(WidgetTree,TEXT("SlowerCameraPan"),FString::Printf(TEXT("减慢 %.0f cm/s"),ControlsPanStepCmPerSec),Pan>ULDControlSettings::MinCameraPanCmPerSec);
+    ControlsSetButton(WidgetTree,TEXT("FasterCameraPan"),FString::Printf(TEXT("加快 %.0f cm/s"),ControlsPanStepCmPerSec),Pan<ULDControlSettings::MaxCameraPanCmPerSec);
 }
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
 {
@@ -288,6 +300,39 @@ void ULDControlsPanel::CancelDisplay(uint64 Id)
         RefreshDisplayDraft();
         DisplayFeedback->SetText(FText::FromString(Result.Message));
     }
+}
+
+void ULDControlsPanel::ConfirmResetDefaults()
+{
+    ShowChild(EChildConfirmation::None);
+    auto* Instance=SettingsInstance.Get();
+    if(!Instance){Feedback->SetText(FText::FromString(TEXT("本地设置的所有者不可用，没有恢复任何默认值。")));return;}
+    // The display part needs the trial path; while another trial or restore runs, nothing is reset rather than half of it.
+    if(TrialId||Instance->GetDisplayTrialId()||Instance->IsDisplayRestorePending())
+    {Feedback->SetText(FText::FromString(TEXT("显示试用或恢复仍在进行：请先保留或恢复显示模式，再恢复默认。没有恢复任何设置。")));return;}
+    auto* Draft=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls->CreateDraft();
+    Draft->ResetLocalDefaults();
+    Feedback->SetText(FText::FromString(TEXT("恢复按键、镜头、文字与音量默认值：")+Instance->ApplyLocalSettings(*Draft).Message));
+    Populate();
+    RestoreDisplayDefaults(*Instance);
+}
+
+void ULDControlsPanel::RestoreDisplayDefaults(ULDGameInstance& Instance)
+{
+    auto* LiveSettings=GEngine?GEngine->GetGameUserSettings():nullptr;
+    FLDDisplaySettings Current,Defaults;FString Error;
+    const auto Read=Instance.ReadDisplaySettings(Current);
+    if(Read.Status!=ELDDisplaySettingsStatus::Loaded||!LiveSettings)
+    {DisplayFeedback->SetText(FText::FromString(TEXT("显示与画质未恢复默认：")+Read.Message));return;}
+    if(!FLDDisplaySettings::ProductDefaults(*LiveSettings,LiveSettings->GetDesktopResolution(),Defaults,Error))
+    {DisplayFeedback->SetText(FText::FromString(Error));return;}
+    // Availability and the supported list come from the live display; the confirmed reset replaces any unapplied draft.
+    RefreshDisplayDraft();
+    if(Defaults==Current)
+    {DisplayFeedback->SetText(FText::FromString(TEXT("显示与画质已是默认值，没有开始显示试用。")));return;}
+    // A resolution or window mode change starts the keep/revert trial; VSync and quality apply with that display apply.
+    DisplayDraft=Defaults;bDisplayDraftDirty=true;
+    ApplyDisplay();
 }
 
 void ULDControlsPanel::Open()

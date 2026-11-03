@@ -235,6 +235,7 @@ bool FLDObserverLedger::Bind(ELDLifePhase InPhase, uint32 InLife, bool& bReset, 
     LifePhase = InPhase;
     Life = InLife;
     Bindings.Reset();
+    ProjectileBindings.Reset();
     Terminations.Reset();
     Pin.Reset();
     NextEpoch = 0;
@@ -345,6 +346,92 @@ bool FLDObserverLedger::Sample(const TArray<const FLDObservedTarget*>& Visible, 
     // Output order is observer-local: a frame or concealment never lists units in canonical body order.
     Units.Sort([](const FLDObservedUnitView& A, const FLDObservedUnitView& B) { return A.Handle < B.Handle; });
     Removed.Sort();
+    Error.Reset();
+    return true;
+}
+
+bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
+    TArray<FLDObservedProjectileView>& Out, FString& Error)
+{
+    Removed.Reset();
+    Out.Reset();
+    if (!bBegun)
+    {
+        Error = TEXT("The observer ledger has not begun.");
+        return false;
+    }
+    if (Visible.Num() > LDObservation::MaxProjectiles)
+    {
+        Error = FString::Printf(TEXT("CapacityExceeded: %d visible flights exceed the %d-flight observation bound."), Visible.Num(), LDObservation::MaxProjectiles);
+        return false;
+    }
+    if (LifePhase != ELDLifePhase::Alive && Visible.Num() != 0)
+    {
+        Error = TEXT("An observer without a living body cannot authorize projectiles.");
+        return false;
+    }
+    // Every check runs before any binding changes, as for units.
+    TArray<FLDObservedProjectileView> Presented;
+    for (int32 Index = 0; Index < Visible.Num(); ++Index)
+    {
+        const FLDObservedProjectileFact* Fact = Visible[Index];
+        if (!Fact || !Fact->Key.IsValid() || !FMath::IsFinite(Fact->Heading.X) || !FMath::IsFinite(Fact->Heading.Y) || Fact->Heading.IsNearlyZero()
+            || Visible.IndexOfByPredicate([Fact](const FLDObservedProjectileFact* Other) { return Other && Other->Key == Fact->Key; }) != Index)
+        {
+            Error = TEXT("Visible projectiles require unique flight keys and a planar heading.");
+            return false;
+        }
+        FLDObservedProjectileView& View = Presented.AddDefaulted_GetRef();
+        View.Handle = FGuid(1, 1, 1, 1);
+        View.PositionCm = Fact->PositionCm;
+        View.Heading = QuantizeObservedYaw(FMath::RadiansToDegrees(FMath::Atan2(Fact->Heading.Y, Fact->Heading.X)));
+        View.Look = Fact->Look;
+        if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
+    }
+    for (int32 Index = 0; Index < ProjectileBindings.Num();)
+    {
+        const FGuid& Key = ProjectileBindings[Index].Key;
+        if (Visible.ContainsByPredicate([&Key](const FLDObservedProjectileFact* Fact) { return Fact->Key == Key; })) { ++Index; continue; }
+        Removed.Add(ProjectileBindings[Index].Handle);
+        ProjectileBindings.RemoveAt(Index);
+    }
+    for (int32 Index = 0; Index < Visible.Num(); ++Index)
+    {
+        const FGuid& Key = Visible[Index]->Key;
+        const FProjectileBinding* Binding = ProjectileBindings.FindByPredicate([&Key](const FProjectileBinding& Candidate) { return Candidate.Key == Key; });
+        Presented[Index].Handle = Binding ? Binding->Handle : ProjectileBindings.Add_GetRef({Key, FGuid::NewGuid()}).Handle;
+    }
+    Out = MoveTemp(Presented);
+    Out.Sort([](const FLDObservedProjectileView& A, const FLDObservedProjectileView& B) { return A.Handle < B.Handle; });
+    Removed.Sort();
+    Error.Reset();
+    return true;
+}
+
+bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
+    const TArray<FLDObservedProjectileFact>& Facts, TArray<const FLDObservedProjectileFact*>& Out, FString& Error)
+{
+    Out.Reset();
+    TArray<TPair<double, const FLDObservedProjectileFact*>> InSight;
+    for (const FLDObservedProjectileFact& Fact : Facts)
+    {
+        if (!Fact.Key.IsValid() || !FMath::IsFinite(Fact.PositionCm.X) || !FMath::IsFinite(Fact.PositionCm.Y) || !FMath::IsFinite(Fact.PositionCm.Z))
+        {
+            Error = TEXT("A Combat flight has no key or no finite position.");
+            return false;
+        }
+        const ELDSightResult Result = Sight.Trace(SourceFootCm, Fact.PositionCm);
+        if (Result == ELDSightResult::StaleWorld)
+        {
+            Error = TEXT("StaleWorld: projectile sight has no current world.");
+            return false;
+        }
+        if (Result == ELDSightResult::Visible)
+        { InSight.Emplace(FVector2D::DistSquared(FVector2D(SourceFootCm.X, SourceFootCm.Y), FVector2D(Fact.PositionCm.X, Fact.PositionCm.Y)), &Fact); }
+    }
+    InSight.Sort([](const TPair<double, const FLDObservedProjectileFact*>& A, const TPair<double, const FLDObservedProjectileFact*>& B)
+    { return A.Key < B.Key; });
+    for (int32 Index = 0; Index < InSight.Num() && Index < MaxProjectiles; ++Index) { Out.Add(InSight[Index].Value); }
     Error.Reset();
     return true;
 }
@@ -693,6 +780,15 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         FLDObservedUnitView& Unit = Target.Presented;
         Unit.FeetCm = Target.FootCm;
         Unit.Facing = QuantizeObservedYaw(Body->GetActorRotation().Yaw);
+        // Combat's cue began at an authority time no later than now; the wire carries only its age.
+        const int64 NowMs = Core->GetAuthorityNowMs();
+        if (Facts.ActionCue != ELDObservedActionCue::None && (Facts.ActionCueAtMs <= 0 || Facts.ActionCueAtMs > NowMs))
+        {
+            Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a Combat action cue has no begin time at or before now.");
+            return false;
+        }
+        Unit.ActionCue = Facts.ActionCue;
+        Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;
         Unit.Statuses = Facts.Statuses;
@@ -700,7 +796,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         {
             Unit.Kind = ELDObservedUnitKind::Contender;
             Unit.AuthorizedFieldMask = LDObservation::ContenderFields;
-            Unit.Presentation = Body->PresentationKey % 4;
+            // Combat writes the locked roster seat; validation refuses anything outside the six seats.
+            Unit.Presentation = Body->PresentationKey;
             Unit.ContenderId = Ref.Victim.EntityId;
             Unit.Level = Facts.Level;
             Unit.Mana.CurrentP2 = State->Resources.MpP2;
@@ -738,7 +835,8 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
     return true;
 }
 
-bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets, bool bPublish, FString& Error)
+bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
+    const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error)
 {
     if (!Observer.Controller.IsValid())
     {
@@ -779,6 +877,17 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     TArray<FGuid> Removed;
     TArray<FLDObservedUnitView> Units;
     if (!Observer.Ledger.Sample(Visible, Removed, Units, Error)) { return false; }
+    // Flights use the same sight rule; a flight that left sight or ended is concealed with the units.
+    TArray<const FLDObservedProjectileFact*> VisibleFlights;
+    if (bAlive && !LDObservation::SelectVisibleProjectiles(Sight, Foot, Flights, VisibleFlights, Error)) { return false; }
+    TArray<FGuid> RemovedFlights;
+    TArray<FLDObservedProjectileView> Projectiles;
+    if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error)) { return false; }
+    if (RemovedFlights.Num() > 0)
+    {
+        Removed.Append(RemovedFlights);
+        Removed.Sort();
+    }
     if (Removed.Num() > 0 && Relay)
     {
         FLDObservedConceal Conceal;
@@ -805,6 +914,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.RadiusCm = float(Sight.Radius());
         Sight.Coverage(Foot, View.Footprint.CurrentBits);
         View.Units = MoveTemp(Units);
+        View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
     }
     if (!LDObservation::ValidateView(View, Error)) { return false; }
@@ -836,9 +946,16 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
     bSampled = true;
     TArray<FLDObservedTarget> Targets;
     if (!GatherTargets(Targets, Error)) { return false; }
+    // Combat's flights after its last Effects advance; Vision only decides who may see them.
+    TArray<FLDObservedProjectileFact> Flights;
+    if (!Core->Combat->ReadObservedProjectiles(Flights, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("LD_OBSERVATION_PROJECTILES_UNAVAILABLE"); }
+        return false;
+    }
     for (FObserver& Observer : Observers)
     {
-        if (!SampleObserver(Observer, Targets, bPublish, Error)) { return false; }
+        if (!SampleObserver(Observer, Targets, Flights, bPublish, Error)) { return false; }
     }
     Error.Reset();
     return true;

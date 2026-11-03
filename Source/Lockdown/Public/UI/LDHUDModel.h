@@ -27,7 +27,8 @@ namespace LDHUD
     LOCKDOWN_API FString EquipmentName(const FLDDemoContentDefinitions* Content,uint8 EquipmentId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
     LOCKDOWN_API FString RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId);
-    // Same four body tints as ULDHumanoidVisualComponent::ApplyPalette, so portraits match the bodies.
+    // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
+    // portraits match them.
     LOCKDOWN_API FLinearColor PaletteColor(uint8 Presentation);
 
     struct FResourceView
