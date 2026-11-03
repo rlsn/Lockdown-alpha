@@ -580,7 +580,7 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 
 首版固定为**仅受攻击后反击、同营共同反击但不共享隐藏位置、Returning可正常受伤/控制且不回头追击、
 成功回营重置存活成员满已定义血蓝/清临时效果与仇恨/技能就绪**。
-这些行为不再是待选方案；具体内容数值与空间尺寸仍须PR审查。
+这些行为已由营地循环实现；数值取自已批准内容（`SourceData\Demo\content.json` 的 `CAMP.*`）。
 不保留居民日程、自动近距警戒、回位无敌或旧有限生命预算作为运行模式。
 
 | 状态/事件 | 行为 | 不能出现的结果 |
@@ -644,8 +644,8 @@ World先按VictimBody验证本营成员与代次，再给同营投递最小攻�
 营地先自行判定 `HomeProof`：成员在登记地面上落地、支持面相同，
 脚点至固定MemberHome中心距不超过 `CAMP.ResetArrivalRadiusCm`；Combat 再校验距离与修订，
 距离超限、致死中或形状错误返回 InvalidInput，修订已变返回 StaleBuild，营地都留到下一边界重试。
-该参数当前候选100cm：按原八个home和40cm外扩静态模型，整个100cm脚点归位区域均无静态阻挡，
-最小额外余量401.769409cm；这不是原生或多人动态围堵已经通过。
+该参数在已批准内容中为100cm：按原八个home和40cm外扩静态模型，整个100cm脚点归位区域均无静态阻挡，
+最小额外余量401.769409cm；这不证明多人动态围堵下也能到家。
 不能让导航的agent-overlap自动再加半径而停在范围外，也不强snap被占中心、穿人或漂移MemberHome。
 两个Low的归位区域可以重叠，实际实体仍须合法动态站位；近家不等于无条件通过HomeProof。
 
@@ -752,9 +752,9 @@ DefinitionId用匹配的公开catalog解析名称、图标和静态说明，未�
 HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性。
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
 
-可见Returning统一使用同一 `Statuses` 中拟注册的公共显示定义
-`StatusDefinitionId=camp_returning`（“回岗中”）。
-它仅由发布端在当前获准可见的CampMember确处于Returning时派生，
+可见Returning统一使用同一 `Statuses` 中已注册的公共显示定义
+`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回岗中”）。
+它由 `ALDCampDirector::AppendObservedFacts` 在 Vision 发布当前获准可见、确处于Returning的CampMember时追加，
 无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
 被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。
 该cue不增加无敌、不可攻击或玩家追击限制；AI可据它按自身当前视野/射程/投入预算做止损，
