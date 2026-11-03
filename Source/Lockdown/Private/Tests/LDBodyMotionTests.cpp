@@ -10,32 +10,35 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBodyMotionTimelinesTest, "Lockdown.Rules.Dem
 bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
 {
     using namespace LDBodyMotion;
-    const auto AtRest = [](const FChannels& C)
-    {
-        return C.WindBack == 0.f && C.Strike == 0.f && C.Raise == 0.f && C.Thrust == 0.f && C.Flinch == 0.f
-            && C.Lunge == 0.f && C.Lean == 0.f && C.Charge == 0.f && C.Burst == 0.f && C.Flash == 0.f;
-    };
+    const auto AtRest = [](const FChannels& C) { return C.Lunge == 0.f && C.Charge == 0.f && C.Burst == 0.f && C.Flash == 0.f; };
+    const float NaN = std::numeric_limits<float>::quiet_NaN();
     TestTrue(TEXT("No action, a negative age or a non-finite age is the rest pose"),
-        AtRest(Evaluate(EAction::None, .2f)) && AtRest(Evaluate(EAction::Attack, -.1f))
-        && AtRest(Evaluate(EAction::Hit, std::numeric_limits<float>::quiet_NaN())));
+        AtRest(Evaluate(EAction::None, .2f)) && AtRest(Evaluate(EAction::Attack, -.1f)) && AtRest(Evaluate(EAction::Hit, NaN)));
 
-    const FChannels WoundUp = Evaluate(EAction::Attack, .15f), Struck = Evaluate(EAction::Attack, .23f);
-    const FChannels Spark = Evaluate(EAction::Attack, StrikeAt + .03f), Settled = Evaluate(EAction::Attack, .6f);
-    TestTrue(TEXT("A swing is drawn back before it strikes"), WoundUp.WindBack > .9f && WoundUp.Strike < .05f && WoundUp.Lean < 0.f);
-    TestTrue(TEXT("The strike flings the arm forward with a lunge"), Struck.Strike > .9f && Struck.Lunge > 25.f && Struck.Lean > 10.f);
+    const FChannels Struck = Evaluate(EAction::Attack, StrikeAt + .02f), Settled = Evaluate(EAction::Attack, .6f);
+    TestTrue(TEXT("The strike steps the body into the blow"), Struck.Lunge > 13.f);
     TestTrue(TEXT("The impact spark peaks at the strike and is gone by the swing's end"),
-        FMath::IsNearlyEqual(Spark.Burst, 1.f) && Evaluate(EAction::Attack, StrikeAt + .15f).Burst == 0.f);
-    TestTrue(TEXT("After the swing the body stands where it started"), Settled.Lunge == 0.f && Settled.Lean == 0.f && Settled.Burst == 0.f);
+        FMath::IsNearlyEqual(Evaluate(EAction::Attack, StrikeAt + .03f).Burst, 1.f) && Evaluate(EAction::Attack, StrikeAt + .15f).Burst == 0.f);
+    TestTrue(TEXT("After the swing the body stands where it started"), AtRest(Settled));
 
     const FChannels Charging = Evaluate(EAction::Cast, .15f), Released = Evaluate(EAction::Cast, .3f);
-    TestTrue(TEXT("A cast raises both arms with a growing orb"), Charging.Raise > .8f && Charging.Charge > .8f);
-    TestTrue(TEXT("The cast is pushed forward and its orb spent"), Released.Thrust > .9f && Released.Charge == 0.f);
+    TestTrue(TEXT("A cast grows an orb at the hand over its windup"), Charging.Charge > .9f && Charging.Burst == 0.f);
+    TestTrue(TEXT("The release spends the orb in a burst"), Released.Charge == 0.f && Released.Burst > 0.f);
+    TestTrue(TEXT("After the cast the body stands where it started"), AtRest(Evaluate(EAction::Cast, .6f)));
 
     const FChannels Impact = Evaluate(EAction::Hit, 0.f), Knocked = Evaluate(EAction::Hit, .05f), Recovered = Evaluate(EAction::Hit, .3f);
     TestTrue(TEXT("A hit flashes at full strength the moment it lands"), Impact.Flash == 1.f);
-    TestTrue(TEXT("A hit knocks the body back and throws its arms out"), Knocked.Lunge < -15.f && Knocked.Lean < -20.f && Knocked.Flinch > .9f);
+    TestTrue(TEXT("A hit knocks the body back"), Knocked.Lunge < -15.f);
     TestTrue(TEXT("The flash is short and the body recovers within the 300 ms cue"),
-        Evaluate(EAction::Hit, .18f).Flash == 0.f && Recovered.Lunge == 0.f && Recovered.Flinch == 0.f && Recovered.Burst == 0.f);
+        Evaluate(EAction::Hit, .18f).Flash == 0.f && AtRest(Recovered));
+
+    TestTrue(TEXT("An attack clip reaches its impact frame at the strike"), FMath::IsNearlyEqual(ClipTime(EAction::Attack, StrikeAt, .565f, 1.f), .565f));
+    TestTrue(TEXT("A cast clip reaches its release frame at the strike"), FMath::IsNearlyEqual(ClipTime(EAction::Cast, StrikeAt, .635f, 1.f), .635f));
+    TestTrue(TEXT("A hit clip plays at its authored rate"), FMath::IsNearlyEqual(ClipTime(EAction::Hit, .1f, 0.f, 1.9f), .19f));
+    TestTrue(TEXT("A clip without an impact frame plays at its authored rate"), FMath::IsNearlyEqual(ClipTime(EAction::Attack, .1f, 0.f, 2.f), .2f));
+    TestTrue(TEXT("No action, a negative age or a non-finite input poses the first frame"),
+        ClipTime(EAction::None, .5f, .5f, 1.f) == 0.f && ClipTime(EAction::Attack, -.1f, .5f, 1.f) == 0.f
+        && ClipTime(EAction::Hit, NaN, 0.f, 1.f) == 0.f && ClipTime(EAction::Hit, .1f, 0.f, NaN) == 0.f);
 
     TestTrue(TEXT("A different action kind is a new instance"), IsNewInstance(EAction::Attack, 1.0, EAction::Hit, 1.0, true));
     TestTrue(TEXT("A later start of the same kind restarts it"), IsNewInstance(EAction::Hit, 1.0, EAction::Hit, 1.2, true));
@@ -46,9 +49,11 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     const FLife Born = Appear(0.f), Grown = Appear(AppearSeconds);
     TestTrue(TEXT("A respawned body grows in from small inside a bright column"), Born.Scale < .3f && Born.Column == 1.f && Born.Glow == 1.f);
     TestTrue(TEXT("The appear effect ends at full size"), Grown.Scale == 1.f && Grown.Column == 0.f && Grown.Glow == 0.f);
-    const FLife Toppled = Fall(.35f), Gone = Fall(FallSeconds);
-    TestTrue(TEXT("A dead body falls on its back first"), FMath::IsNearlyEqual(Toppled.Tilt, 90.f) && Toppled.Scale == 1.f && !Toppled.bGone);
+    const float Lie = 1.067f;
+    const FLife Lying = Fall(Lie, Lie), Gone = Fall(Lie + FadeSeconds, Lie);
+    TestTrue(TEXT("A dead body lies down through its death clip at full size"), Lying.Scale == 1.f && Lying.Sink == 0.f && !Lying.bGone);
     TestTrue(TEXT("Then it sinks and shrinks away"), Gone.bGone && Gone.Scale == 0.f && Gone.Sink > 0.f);
+    TestTrue(TEXT("A non-finite fall age has already vanished"), Fall(NaN, Lie).bGone);
     return true;
 }
 
