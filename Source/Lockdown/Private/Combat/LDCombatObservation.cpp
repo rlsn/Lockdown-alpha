@@ -23,6 +23,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
 {
     InOut.ActionCue=ELDObservedActionCue::None;
     InOut.ActionCueAtMs=0;
+    InOut.ActionAbility=InOut.ActionEquipment=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
@@ -34,6 +35,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     }
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
+    InOut.ActionAbility=Ability;
+    InOut.ActionEquipment=Equipment;
     return true;
 }
 
