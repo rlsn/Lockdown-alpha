@@ -307,6 +307,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->Zoom = Loaded.RecoverablePreferences->Zoom;
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
             LocalControlSettings->MasterVolume = Loaded.RecoverablePreferences->MasterVolume;
+            LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");

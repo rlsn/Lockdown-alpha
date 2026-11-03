@@ -121,7 +121,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Ar << Unit.Handle << Unit.ObservationEpoch << Unit.StateRevision << Unit.AuthorizedFieldMask << Kind << Unit.Presentation;
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
-    Ar << Unit.Facing << Cue;
+    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -159,6 +159,18 @@ bool SerializeObservedTermination(FArchive& Ar, FLDObservedUnitTermination& Term
     return !Ar.IsError();
 }
 
+bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProjectileView& Projectile)
+{
+    if (Ar.IsLoading()) { Projectile = FLDObservedProjectileView(); }
+    uint8 Look = uint8(Projectile.Look);
+    Ar << Projectile.Handle;
+    bool bPosition = true;
+    Projectile.PositionCm.NetSerialize(Ar, Map, bPosition);
+    Ar << Projectile.Heading << Look;
+    if (Ar.IsLoading()) { Projectile.Look = static_cast<ELDObservedProjectileLook>(Look); }
+    return bPosition && !Ar.IsError();
+}
+
 bool RejectObservationArchive(FArchive& Ar, bool& bSuccess)
 {
     bSuccess = false;
@@ -172,14 +184,16 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!Unit.Handle.IsValid() || Unit.ObservationEpoch == 0 || Unit.StateRevision == 0)
     { return FailObservation(Error, TEXT("An observed unit requires an opaque handle, observation epoch and state revision.")); }
     if (!IsFiniteObservedPoint(Unit.FeetCm)) { return FailObservation(Error, TEXT("An observed unit position is outside the finite world range.")); }
-    if (Unit.ActionCue != ELDObservedActionCue::None) { return FailObservation(Error, TEXT("Unknown observed action cue.")); }
+    if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
+        || (Unit.ActionCue == ELDObservedActionCue::None && Unit.ActionCueAgeMs != 0))
+    { return FailObservation(Error, TEXT("Unknown observed action cue, or a cue age without a cue.")); }
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;
     if (Contender ? Mask != ContenderFields : (Mask != CampFields && Mask != (CampFields | Mana)))
     { return FailObservation(Error, TEXT("Observed field authorization is not the complete applicable set for this unit kind.")); }
     if (Contender
-        ? Unit.Presentation >= 4 || !Unit.ContenderId.IsValid() || Unit.CreatureId != 0 || Unit.Level == 0
+        ? Unit.Presentation >= MaxPresentations || !Unit.ContenderId.IsValid() || Unit.CreatureId != 0 || Unit.Level == 0
         : Unit.Presentation != 0 || Unit.ContenderId.IsValid() || !IsPublicCreatureId(Unit.CreatureId) || Unit.Level != 0)
     { return FailObservation(Error, TEXT("Observed identity, presentation or level does not match the unit kind.")); }
     if (!IsObservedResourcePair(Unit.Health, true)) { return FailObservation(Error, TEXT("Observed health must be a complete current/maximum P2 pair.")); }
@@ -204,6 +218,15 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         ? !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[0]) || !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[1])
         : Unit.Equipment.Slots[0] != 0 || Unit.Equipment.Slots[1] != 0)
     { return FailObservation(Error, TEXT("Observed equipment must be two public equipment definitions or empty slots.")); }
+    Error.Reset();
+    return true;
+}
+
+bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error)
+{
+    if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
+    if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
+    if (Projectile.Look != ELDObservedProjectileLook::Chalk) { return FailObservation(Error, TEXT("Unknown observed projectile look.")); }
     Error.Reset();
     return true;
 }
@@ -237,11 +260,11 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
     else if (Footprint.SourceStatus == ELDObservationSource::NoLivingBody)
     {
         if (!FVector(Footprint.SourceFeetCm).IsZero() || Footprint.RadiusCm != 0 || Footprint.CurrentBits.Num() != 0
-            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0)
-        { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit or termination.")); }
+            || View.Units.Num() != 0 || View.RecentTerminations.Num() != 0 || View.Projectiles.Num() != 0)
+        { return FailObservation(Error, TEXT("A frame without a living source carries no coverage, unit, termination or projectile.")); }
     }
     else { return FailObservation(Error, TEXT("Unknown observation source status.")); }
-    if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations)
+    if (View.Units.Num() > MaxUnits || View.RecentTerminations.Num() > MaxTerminations || View.Projectiles.Num() > MaxProjectiles)
     { return FailObservation(Error, TEXT("Observation frame exceeds its bounded capacity.")); }
     TSet<FGuid> Handles;
     for (const FLDObservedUnitView& Unit : View.Units)
@@ -263,13 +286,22 @@ bool LDObservation::ValidateView(const FLDWorldView& View, FString& Error)
         { return FailObservation(Error, TEXT("Recent terminations must be ordered, unique and absent from the current unit set.")); }
         LastSequence = Termination.TerminationSequence;
     }
+    // Projectile handles share the observer's handle space with units and recent terminations.
+    for (const FLDObservedProjectileView& Projectile : View.Projectiles)
+    {
+        if (!ValidateProjectile(Projectile, Error)) { return false; }
+        bool Duplicate = false;
+        Handles.Add(Projectile.Handle, &Duplicate);
+        if (Duplicate || Terminated.Contains(Projectile.Handle))
+        { return FailObservation(Error, TEXT("Observation frame repeats an opaque handle.")); }
+    }
     Error.Reset();
     return true;
 }
 
 bool LDObservation::ValidateConceal(const FLDObservedConceal& Conceal, FString& Error)
 {
-    if (Conceal.MatchGeneration == 0 || Conceal.Generation == 0 || Conceal.Revision == 0 || Conceal.Removed.Num() > MaxUnits)
+    if (Conceal.MatchGeneration == 0 || Conceal.Generation == 0 || Conceal.Revision == 0 || Conceal.Removed.Num() > MaxUnits + MaxProjectiles)
     { return FailObservation(Error, TEXT("A concealment notice requires a bounded handle list and complete ordering identity.")); }
     TSet<FGuid> Seen;
     for (const FGuid& Handle : Conceal.Removed)
@@ -331,6 +363,14 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
     {
         if (!SerializeObservedTermination(Ar, Termination)) { return RejectObservationArchive(Ar, bSuccess); }
     }
+    uint8 ProjectileCount = uint8(FMath::Min(Projectiles.Num(), 255));
+    Ar << ProjectileCount;
+    if (Ar.IsError() || ProjectileCount > LDObservation::MaxProjectiles) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsLoading()) { Projectiles.SetNum(ProjectileCount); }
+    for (FLDObservedProjectileView& Projectile : Projectiles)
+    {
+        if (!SerializeObservedProjectile(Ar, Map, Projectile)) { return RejectObservationArchive(Ar, bSuccess); }
+    }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateView(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }
     bSuccess = true;
     return true;
@@ -343,7 +383,7 @@ bool FLDObservedConceal::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuc
     Ar << MatchGeneration << Generation << Revision;
     uint8 Count = uint8(FMath::Min(Removed.Num(), 255));
     Ar << Count;
-    if (Ar.IsError() || Count > LDObservation::MaxUnits) { return RejectObservationArchive(Ar, bSuccess); }
+    if (Ar.IsError() || Count > LDObservation::MaxUnits + LDObservation::MaxProjectiles) { return RejectObservationArchive(Ar, bSuccess); }
     if (Ar.IsLoading()) { Removed.SetNum(Count); }
     for (FGuid& Handle : Removed) { Ar << Handle; }
     if (Ar.IsError() || (Ar.IsLoading() && !LDObservation::ValidateConceal(*this, Error))) { return RejectObservationArchive(Ar, bSuccess); }

@@ -357,7 +357,8 @@ GameState 不是所有玩家资源总表；OwnerState 不是任意目标面板�
 保留 [LDViewTests.cpp:6–53](../../Source/Lockdown/Private/Tests/LDViewTests.cpp#L6-L53)
 的检查目的，而不是为了 UI 删除断言。不同旧观测格式须选择/适配，不直接拼接。
 
-观测白名单已收敛：单位种类只有 `Contender/CampMember`，动作提示 `ELDObservedActionCue` 只有 `None`
+观测白名单已收敛：单位种类只有 `Contender/CampMember`；动作提示 `ELDObservedActionCue` 为 `None/Attack/Cast/Hit`，
+由 Combat 产生、Vision 只对当前可见单位发布，可见飞行物另列为不可选中的 `Projectiles`
 （[LDViewTypes.h](../../Source/Lockdown/Public/Vision/LDViewTypes.h)）；旧 Trail/Footstep 提前授权与 `AuthorizedCue` 旁路已删除。
 新增任何提示都必须同时约束产生端和发布端，不能绕过当前合法观测。
 首版不保留 LastSeen 单位标记，旧 Trail/Footstep 不能成为保留历史单位位置的理由。

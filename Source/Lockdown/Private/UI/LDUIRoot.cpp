@@ -9,6 +9,7 @@
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDWorldLabels.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
@@ -193,6 +194,17 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         if(const auto* Instance=GetGameInstance<ULDGameInstance>()){Draft->SeenConnection=Instance->ConnectionMessage;}
     }
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
+    // Overhead unit names: under every root page and the HUD's higher viewport layer; never hit-tested or focused.
+    WorldLabels=CreateWidget<ULDWorldLabels>(GetOwningPlayer());
+    if(WorldLabels)
+    {
+        UCanvasPanelSlot* LabelSlot=Canvas.AddChildToCanvas(WorldLabels);
+        LabelSlot->SetAnchors(FAnchors(0,0,1,1));
+        LabelSlot->SetOffsets(FMargin(0));
+        LabelSlot->SetZOrder(-1);
+        WorldLabels->SetVisibility(ESlateVisibility::Collapsed);
+    }
+    else{UE_LOG(LogTemp,Error,TEXT("LD_WORLD_LABELS_CREATION_FAILED Overhead unit names are unavailable in this world."));}
     Status=Label(FString(),18);
     HeaderPanel=LDWidgets::Panel(WidgetTree,Status,FMargin(20,12));
     UCanvasPanelSlot* HeaderSlot=Canvas.AddChildToCanvas(HeaderPanel);
@@ -475,6 +487,14 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const bool bSettings=PanelOpen(PC.ControlsUI.Get());
     if(bSettingsWasOpen&&!bSettings&&(bInLobby||bMenuOpen)){PC.SetMenuOpen(true);}
     bSettingsWasOpen=bSettings;
+    if(WorldLabels)
+    {
+        // Same condition that shows the in-match HUD (ULDHUD::RefreshReadModel): this owner's running match, no menu or
+        // Settings over it. The labels themselves draw only the owner's current authorized frame.
+        const bool bLabels=PC.HUDUI&&bPlaying&&PC.OwnerState.Match==Match->Generation&&!bMenuOpen&&!bSettings;
+        const ESlateVisibility Labels=bLabels?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed;
+        if(WorldLabels->GetVisibility()!=Labels){WorldLabels->SetVisibility(Labels);}
+    }
     const bool bHeader=!bInLobby&&!bInResults&&!PC.Navigation->Enabled();
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}

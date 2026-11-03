@@ -3,6 +3,7 @@
 #include "Framework/LDGameInstance.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Crc.h"
@@ -43,10 +44,12 @@ namespace
         }
     };
 
-    // Schema 5 is the migratable layout without PlayerName and MasterVolume, schema 6 the one without MasterVolume;
-    // every other schema writes the current whitelist order.
+    // Schema 5 is the migratable layout without PlayerName, MasterVolume and CameraPanCmPerSec, schema 6 the one without
+    // MasterVolume and CameraPanCmPerSec, schema 7 the one without CameraPanCmPerSec; every other schema writes the
+    // current whitelist order.
     constexpr uint32 NamelessFixtureSchema = 5;
     constexpr uint32 VolumelessFixtureSchema = 6;
+    constexpr uint32 PanlessFixtureSchema = 7;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -57,6 +60,8 @@ namespace
         Payload << Edge << Follow << Text << Zoom;
         if (Schema != NamelessFixtureSchema) { FString Name = Values.PlayerName; Payload << Name; }
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema) { float Volume = Values.MasterVolume; Payload << Volume; }
+        if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema)
+        { float PanSpeed = Values.CameraPanCmPerSec; Payload << PanSpeed; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -207,7 +212,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A chosen name is applied but not yet saved"), Applied->IsDirty());
     TestTrue(TEXT("The current schema saves the player name"), Applied->SaveLocalSettings().IsSaved());
     Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("Schema 7 round trip keeps the exact Chinese name with every other preference"),
+    TestTrue(TEXT("The current schema round trip keeps the exact Chinese name with every other preference"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
         && Loaded.Settings->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive)
         && Loaded.Settings->TextScale == 1.25f && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
@@ -471,15 +476,16 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     uint32 SavedSchema = 0;
     FString Error;
 
-    // Schema 7 stores the volume itself: save, then restore it exactly.
+    // The current schema stores the volume itself: save, then restore it exactly.
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     TestEqual(TEXT("The default master volume is full, without attenuation"), Applied->MasterVolume, 1.f);
     TestTrue(TEXT("The applied owner accepts a non-default volume and marks it unsaved"),
         Applied->SetAppliedMasterVolume(.35f, Error) && Error.IsEmpty() && Applied->IsDirty());
     TestTrue(TEXT("The volume is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
-    TestTrue(TEXT("The verified file declares schema 7"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 7u);
+    TestTrue(TEXT("The verified file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("A schema 7 round trip restores the exact volume as persistence verified"),
+    TestTrue(TEXT("A current-schema round trip restores the exact volume as persistence verified"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->MasterVolume == .35f
         && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
 
@@ -540,7 +546,8 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
         Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("主音量使用默认值 100%")));
     TestTrue(TEXT("Loading never rewrites the schema 6 file"), OnDisk(VolumelessFile));
     TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
-    TestTrue(TEXT("The rewritten file declares schema 7"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 7u);
+    TestTrue(TEXT("The rewritten file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The rewritten file loads as current with the kept name and the default volume"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->MasterVolume == 1.f
@@ -576,7 +583,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     TestNull(TEXT("A game instance that never ran Init has no audio subsystem"), Instance->GetSubsystem<ULDAudioSubsystem>());
     auto* Session = Instance->UseIsolatedLocalSettings(Fixture.Id);
     if (!TestNotNull(TEXT("The isolated fixture supplies the applied settings"), Session)) { return false; }
-    TestTrue(TEXT("The migrated values flush as schema 7 and leave the owner clean"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
+    TestTrue(TEXT("The migrated values flush as the current schema and leave the owner clean"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
     TArray<uint8> Verified;
     TestTrue(TEXT("Read the verified bytes"), FFileHelper::LoadFileToArray(Verified, *Fixture.Storage.Filename()));
     const auto Changed = Instance->SetAppliedMasterVolume(.6f);
@@ -613,6 +620,166 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
         Gated.Status == ELDLocalSettingsSaveStatus::NoChanges && Recovered->MasterVolume == .5f && !Gated.Message.Contains(TEXT("稍后自动保存")));
     TestTrue(TEXT("The gated flush keeps the rejected file byte-identical"),
         RecoveryInstance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired && OnDisk(RejectedFile));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraPanSpeedTest, "Lockdown.Rules.LocalSettingsCameraPanSpeed",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit camera pan fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto OnDisk = [&](const TArray<uint8>& Expected) { TArray<uint8> Actual; return FFileHelper::LoadFileToArray(Actual, *Fixture.Storage.Filename()) && Actual == Expected; };
+    // The coordinator's default; the domain belongs to the UI settings module, not to the content catalog.
+    const float DefaultPan = 1800;
+    uint32 SavedSchema = 0;
+    FString Error;
+
+    // Schema 8 stores the camera-only pan speed: save, then restore it exactly.
+    TestEqual(TEXT("Schema 8 is the current local settings format"), ULDControlSettings::CurrentSchema, 8);
+    TestTrue(TEXT("The camera pan domain is 900..3600 cm/s"),
+        ULDControlSettings::MinCameraPanCmPerSec == 900.f && ULDControlSettings::MaxCameraPanCmPerSec == 3600.f);
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("The default camera pan speed is 1800 cm/s"),
+        Applied->GetCameraPanCmPerSec() == DefaultPan && GetDefault<ULDControlSettings>()->CameraPanCmPerSec == DefaultPan);
+    TestTrue(TEXT("The applied owner accepts a legal pan speed and marks it unsaved"),
+        Applied->SetAppliedCameraPanSpeed(2700, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->GetCameraPanCmPerSec() == 2700.f);
+    TestTrue(TEXT("The pan speed is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    TestTrue(TEXT("The verified file declares schema 8"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 8u);
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 8 round trip restores the exact pan speed as persistence verified"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetCameraPanCmPerSec() == 2700.f
+        && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    for (float Bound : { ULDControlSettings::MinCameraPanCmPerSec, ULDControlSettings::MaxCameraPanCmPerSec })
+    {
+        TestTrue(TEXT("Both domain bounds are legal pan speeds"), Applied->SetAppliedCameraPanSpeed(Bound, Error) && Applied->GetCameraPanCmPerSec() == Bound);
+        TestTrue(TEXT("A domain bound is saved and verified"), Applied->SaveLocalSettings().IsSaved());
+        const auto BoundLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("A domain bound reloads exactly"),
+            BoundLoad.Status == ELDLocalSettingsLoadStatus::Loaded && BoundLoad.Settings && BoundLoad.Settings->GetCameraPanCmPerSec() == Bound);
+    }
+
+    // Only finite values inside the domain reach the applied owner; a draft never takes one.
+    auto* Draft = Applied->CreateDraft();
+    TestFalse(TEXT("A draft cannot set the applied pan speed"), Draft->SetAppliedCameraPanSpeed(1200, Error));
+    TestTrue(TEXT("A refused draft pan speed is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->CameraPanCmPerSec == 3600.f);
+    for (float Invalid : { 899.f, 3601.f, 0.f, -1800.f, std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() })
+    {
+        TestFalse(TEXT("A non-finite or out-of-domain pan speed is refused"), Applied->SetAppliedCameraPanSpeed(Invalid, Error));
+        TestTrue(TEXT("A refused pan speed is explained and keeps the applied value"), !Error.IsEmpty() && Applied->CameraPanCmPerSec == 3600.f);
+    }
+    TestTrue(TEXT("Refused pan speeds never mark the verified owner dirty"), Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    for (float Invalid : { std::numeric_limits<float>::quiet_NaN(), 3900.f })
+    {
+        Draft->CameraPanCmPerSec = Invalid;
+        TestFalse(TEXT("Apply refuses a draft carrying a non-finite or out-of-domain pan speed"), Applied->ApplyLocalSettings(*Draft, Error));
+        TestTrue(TEXT("The refusal names the pan speed and keeps the verified applied value"), Error.Contains(TEXT("镜头平移速度"))
+            && Applied->CameraPanCmPerSec == 3600.f && Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    }
+
+    // Restoring local defaults covers the pan speed but never the player name.
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    Applied->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring local defaults returns the pan speed to 1800 cm/s and keeps the player name"),
+        Applied->GetCameraPanCmPerSec() == DefaultPan && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+
+    // A saved pan speed outside the domain rejects the whole file like an out-of-range zoom or volume; the file is left alone.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    for (float BadPan : { 899.f, 3601.f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity() })
+    {
+        Values->CameraPanCmPerSec = BadPan;
+        const auto BadPanFile = FixtureBytes(*Values);
+        Write(BadPanFile);
+        const auto BadPanLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An invalid saved pan speed makes the file Corrupt, without settings or recovery data"),
+            BadPanLoad.Status == ELDLocalSettingsLoadStatus::Corrupt && !BadPanLoad.Settings && !BadPanLoad.RecoverablePreferences
+            && BadPanLoad.Message.Contains(TEXT("镜头平移速度")));
+        TestTrue(TEXT("Rejecting a saved pan speed leaves the file byte-identical"), OnDisk(BadPanFile));
+    }
+
+    // Schema 7 has the volume but no pan speed: an explicit migration keeps everything it stored and uses the default.
+    Values->Bindings[TEXT("Skill1")] = EKeys::F6;
+    Values->Zoom = 1550;
+    Values->MasterVolume = .4f;
+    // Never written by the schema 7 layout; the migration must not pick it up from anywhere.
+    Values->CameraPanCmPerSec = 3000;
+    const auto PanlessFile = FixtureBytes(*Values, PanlessFixtureSchema, 0);
+    Write(PanlessFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 7 file is an explicit successful migration, never plain Loaded"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
+    TestTrue(TEXT("The migration keeps the name, volume, bindings and camera preferences and uses the default pan speed"), Migrated.Settings
+        && Migrated.Settings->GetCameraPanCmPerSec() == DefaultPan && Migrated.Settings->MasterVolume == .4f
+        && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
+        && Migrated.Settings->Valid());
+    TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"), Migrated.Settings
+        && Migrated.Settings->GetPhase() == ELDLocalSettingsPhase::ConfirmedApplied && !Migrated.Settings->NeedsRecovery());
+    TestTrue(TEXT("The schema 7 migration message names the default pan speed"),
+        Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("镜头平移速度使用默认值 1800 cm/s")));
+    TestTrue(TEXT("Loading never rewrites the schema 7 file"), OnDisk(PanlessFile));
+    TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
+    TestTrue(TEXT("The rewritten file declares schema 8"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 8u);
+    const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The rewritten file loads as current with the kept values and the default pan speed"),
+        Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->GetCameraPanCmPerSec() == DefaultPan
+        && Upgraded.Settings->MasterVolume == .4f && Upgraded.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Upgraded.Settings->Zoom == 1550);
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    Write(FixtureBytes(*Values, PanlessFixtureSchema, 0));
+    const auto PanlessRejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 7 file with a retired action keeps the rejection and recovery path, with the default pan speed"),
+        PanlessRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !PanlessRejected.Settings && PanlessRejected.RecoverablePreferences
+        && PanlessRejected.RecoverablePreferences->GetCameraPanCmPerSec() == DefaultPan
+        && PanlessRejected.RecoverablePreferences->MasterVolume == .4f && PanlessRejected.Message.Contains(TEXT("Development")));
+    Values->Bindings.Remove(TEXT("Development"));
+    auto DamagedPanless = PanlessFile;
+    DamagedPanless.Last() ^= 1;
+    Write(DamagedPanless);
+    TestTrue(TEXT("A damaged schema 7 file is Corrupt"),
+        ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+
+    // Schemas 5 and 6 still migrate explicitly, with the default pan speed as well as the default volume.
+    for (const uint32 Older : { NamelessFixtureSchema, VolumelessFixtureSchema })
+    {
+        const auto OlderFile = FixtureBytes(*Values, Older, 0);
+        Write(OlderFile);
+        const auto OlderLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An older schema still migrates with the default pan speed and the default volume"),
+            OlderLoad.Status == ELDLocalSettingsLoadStatus::Migrated && OlderLoad.Settings && OlderLoad.Settings->GetCameraPanCmPerSec() == DefaultPan
+            && OlderLoad.Settings->MasterVolume == 1.f && OlderLoad.Settings->Key(TEXT("Skill1")) == EKeys::F6 && OlderLoad.Settings->IsDirty());
+        TestTrue(TEXT("The older migration message names the default pan speed"),
+            OlderLoad.Message.Contains(TEXT("迁移")) && OlderLoad.Message.Contains(TEXT("镜头平移速度使用默认值 1800 cm/s")));
+        TestTrue(TEXT("Loading never rewrites an older file"), OnDisk(OlderFile));
+    }
+
+    // Recovery data from a rejected current file carries its validated pan speed into the session; the gated file stays unchanged.
+    Values->CameraPanCmPerSec = 2400;
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    const auto RejectedFile = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Write(RejectedFile);
+    auto* RecoveryInstance = NewObject<ULDGameInstance>();
+    auto* Recovered = RecoveryInstance->UseIsolatedLocalSettings(Fixture.Id);
+    if (!TestNotNull(TEXT("The rejected fixture still supplies session settings"), Recovered)) { return false; }
+    TestTrue(TEXT("Recovery keeps the validated pan speed for the session and requires explicit replacement"),
+        Recovered->GetCameraPanCmPerSec() == 2400.f && Recovered->NeedsRecovery());
+    TestTrue(TEXT("The gated flush keeps the rejected file byte-identical"),
+        RecoveryInstance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired && OnDisk(RejectedFile));
+    TestTrue(TEXT("Confirmed recovery writes the kept pan speed in the current schema"), RecoveryInstance->ConfirmLocalSettingsRecovery().IsSaved());
+    const auto Replaced = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The replacement restores the kept pan speed"),
+        Replaced.Status == ELDLocalSettingsLoadStatus::Loaded && Replaced.Settings && Replaced.Settings->GetCameraPanCmPerSec() == 2400.f);
+    auto* ResetDraft = Recovered->CreateDraft();
+    ResetDraft->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring defaults through the game instance applies and saves the default pan speed"),
+        RecoveryInstance->ApplyLocalSettings(*ResetDraft).IsSaved() && Recovered->GetCameraPanCmPerSec() == DefaultPan);
+    const auto Restored = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Restart restores the default pan speed and keeps the player name"),
+        Restored.Status == ELDLocalSettingsLoadStatus::Loaded && Restored.Settings && Restored.Settings->GetCameraPanCmPerSec() == DefaultPan
+        && Restored.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
     return true;
 }
 
@@ -723,6 +890,55 @@ bool FLDLocalDisplayTrialTest::RunTest(const FString& Parameters)
         Instance->BeginDisplayTrial(Draft, Instance).Status == ELDDisplaySettingsStatus::Unavailable);
     TestTrue(TEXT("No trial cannot be confirmed as applied"),
         Instance->ConfirmDisplayTrial(1).Status == ELDDisplaySettingsStatus::StaleTrial);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDisplayProductDefaultsTest, "Lockdown.Rules.LocalDisplayProductDefaults",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalDisplayProductDefaultsTest::RunTest(const FString& Parameters)
+{
+    auto* VSync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+    int32 EngineVSync = 0;
+    if (!TestNotNull(TEXT("The engine VSync console variable exists"), VSync)
+        || !TestTrue(TEXT("The engine VSync default is a number"), LexTryParseString(EngineVSync, *VSync->GetDefaultValue()))) { return false; }
+    // A detached live owner whose every restorable value differs from the product defaults; no real viewport is touched.
+    auto* Live = NewObject<UGameUserSettings>();
+    Live->SetScreenResolution(FIntPoint(1280, 720));
+    Live->SetFullscreenMode(EWindowMode::Windowed);
+    Live->ConfirmVideoMode();
+    Live->SetVSyncEnabled(EngineVSync == 0);
+    Live->ScalabilityQuality.SetFromSingleQualityLevel(0);
+    const auto Before = FLDDisplaySettings::Read(*Live);
+    const FIntPoint Desktop(2560, 1440);
+    FLDDisplaySettings Defaults;
+    FString Error;
+    if (!TestTrue(TEXT("Product defaults resolve for a known desktop size"),
+        FLDDisplaySettings::ProductDefaults(*Live, Desktop, Defaults, Error) && Error.IsEmpty())) { return false; }
+    TestTrue(TEXT("Computing the defaults never modifies the live settings owner"),
+        FLDDisplaySettings::Read(*Live) == Before && Live->GetLastConfirmedScreenResolution() == FIntPoint(1280, 720));
+    TestTrue(TEXT("The window mode is the engine default"), Defaults.WindowMode == UGameUserSettings::GetDefaultWindowMode());
+    TestTrue(TEXT("The unset default resolution in borderless mode is the desktop size"), Defaults.Resolution == Desktop);
+    TestTrue(TEXT("VSync is the engine's r.VSync default, not the live value"),
+        Defaults.bVSync == (EngineVSync != 0) && Defaults.bVSync != Before.bVSync);
+    Scalability::FQualityLevels EngineQuality;
+    EngineQuality.SetDefaults();
+    const auto& Q = Defaults.Quality;
+    TestTrue(TEXT("Every quality group is the engine default level"),
+        Q.ViewDistanceQuality == EngineQuality.ViewDistanceQuality && Q.AntiAliasingQuality == EngineQuality.AntiAliasingQuality
+        && Q.ShadowQuality == EngineQuality.ShadowQuality && Q.GlobalIlluminationQuality == EngineQuality.GlobalIlluminationQuality
+        && Q.ReflectionQuality == EngineQuality.ReflectionQuality && Q.PostProcessQuality == EngineQuality.PostProcessQuality
+        && Q.TextureQuality == EngineQuality.TextureQuality && Q.EffectsQuality == EngineQuality.EffectsQuality
+        && Q.FoliageQuality == EngineQuality.FoliageQuality && Q.ShadingQuality == EngineQuality.ShadingQuality
+        && Q.LandscapeQuality == EngineQuality.LandscapeQuality);
+    TestTrue(TEXT("The default quality is not the live Low preset"), Q != Before.Quality && Q.GetSingleQualityLevel() != 0);
+    TestTrue(TEXT("The fullscreen shortcut preference stays the live one"), Defaults.PreferredFullscreenMode == Before.PreferredFullscreenMode);
+    TestTrue(TEXT("The product defaults are valid display settings"), Defaults.IsValid());
+    TestFalse(TEXT("Product defaults are not the current values that ResetToCurrentSettings keeps"), Defaults == Before);
+    TestFalse(TEXT("Restoring this mode needs the keep/revert display trial"), Defaults.SameMode(Before));
+    auto Unchanged = Before;
+    TestFalse(TEXT("An unknown desktop size is refused instead of inventing a resolution"),
+        FLDDisplaySettings::ProductDefaults(*Live, FIntPoint::ZeroValue, Unchanged, Error));
+    TestTrue(TEXT("The refusal is explained and leaves the output untouched"), !Error.IsEmpty() && Unchanged == Before);
     return true;
 }
 

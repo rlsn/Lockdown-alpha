@@ -48,6 +48,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DisplayFeedback;
     UPROPERTY() TObjectPtr<USlider> VolumeSlider;
     UPROPERTY() TObjectPtr<UTextBlock> VolumeLabel;
+    UPROPERTY() TObjectPtr<UTextBlock> PanSpeedLabel;
     TWeakObjectPtr<ULDGameInstance> SettingsInstance;
     FLDDisplaySettings DisplayDraft;
     TArray<FIntPoint> Resolutions;
@@ -74,6 +75,10 @@ private:
     void ApplyDisplay();
     void ConfirmDisplay(uint64 Id);
     void CancelDisplay(uint64 Id);
+    // Restore defaults (UI_AND_SETTINGS 8): the local preferences apply at once, then the display draft becomes the product
+    // defaults and goes through the normal display apply, so a mode change still needs the keep/revert trial.
+    void ConfirmResetDefaults();
+    void RestoreDisplayDefaults(ULDGameInstance& Instance);
     FReply CaptureKey(FKey Key);
     void PreviewMasterVolume();
     void EndVolumeCapture(bool& bCaptured);

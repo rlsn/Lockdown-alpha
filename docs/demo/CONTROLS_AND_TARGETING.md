@@ -590,8 +590,8 @@ Fence.ThroughSequence 使用本流已发布事件序；无圈变更也封其真�
 客户端不会在图标到零时自行发一次免费动作。内容缺失/非法则启动或来源可用性明确失败，
 不使用旧 PrototypeTuning 数字兜底。
 
-本地键不属于战斗数值表：保留 `bEdgePan/bStartFollowing/Zoom/TextScale/Bindings`；
-拟补 `CameraPanCmPerSec`、`ZoomMinArmCm/ZoomMaxArmCm`、`ZoomStepCm`、
+本地键不属于战斗数值表：保留 `bEdgePan/bStartFollowing/Zoom/TextScale/Bindings`，并已实现 `CameraPanCmPerSec`
+（cm/s，默认 1800，合法域 900..3600）；拟补 `ZoomMinArmCm/ZoomMaxArmCm`、`ZoomStepCm`、
 `EdgePanBandViewportFraction`，由 `ULDControlSettings` 和 UI 设置模块维护单位/合法域/保存。
 这些值只作用镜头，不影响世界距离、视野或角色速度；不在内容表复制一套相机值。
 导航重算/无进展、回执容量、心跳周期/失联界限为工程限制，沿现有 liveness/导航边界集中定义，

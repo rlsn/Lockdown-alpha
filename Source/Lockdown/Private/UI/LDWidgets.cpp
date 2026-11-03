@@ -17,6 +17,7 @@ ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunc
 #include "Components/PanelWidget.h"
 #include "Components/EditableTextBox.h"
 #include "Components/ScrollBox.h"
+#include "Components/Slider.h"
 #include "Components/Border.h"
 #include "Rendering/DrawElements.h"
 UWidget* ULDPanel::FocusScope() const{return WidgetTree?WidgetTree->RootWidget:nullptr;}
@@ -44,7 +45,8 @@ TArray<UWidget*> ULDPanel::PanelFocusTargets() const
     TFunction<void(UWidget*)> Visit=[&](UWidget* W)
     {
         if(!W||!W->IsVisible()||!W->GetIsEnabled()){return;}
-        if((Cast<UButton>(W)&&CastChecked<UButton>(W)->GetIsFocusable())||Cast<UEditableTextBox>(W)){Result.Add(W);}
+        if((Cast<UButton>(W)&&CastChecked<UButton>(W)->GetIsFocusable())||(Cast<USlider>(W)&&CastChecked<USlider>(W)->IsFocusable)
+            ||Cast<UEditableTextBox>(W)){Result.Add(W);}
         if(auto* Panel=Cast<UPanelWidget>(W)){for(int32 I=0;I<Panel->GetChildrenCount();++I){Visit(Panel->GetChildAt(I));}}
     };
     Visit(FocusScope());return Result;

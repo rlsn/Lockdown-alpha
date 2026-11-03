@@ -5,6 +5,8 @@
 #include "Vision/LDViewTypes.h"
 #include "LDWorldViewRelay.generated.h"
 class ULDHumanoidVisualComponent;
+class UStaticMeshComponent;
+class ALDPlayerController;
 class UTexture2D;
 class UMaterialInstanceDynamic;
 class FLDDemoContentSnapshot;
@@ -82,7 +84,41 @@ private:
     FVector DisplayVelocity = FVector::ZeroVector;
     double LastApplyAt = -1;
     float FacingDegrees = 0;
-    uint8 Palette = 255;
+    uint16 Look = MAX_uint16;
+    bool bPlaced = false;
+};
+
+// Client-only marker under this machine's own living body, so the player finds themself at a glance (APP_SPEC 8).
+// Never replicated and never attached to anything but the local viewer's own body.
+UCLASS()
+class LOCKDOWN_API ALDOwnBodyMarker : public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDOwnBodyMarker();
+    // Follows Body's feet in the roster-slot tint; a null body hides the marker.
+    void Track(APawn* Body, uint8 Slot);
+private:
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Rim;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Core;
+    TWeakObjectPtr<APawn> Tracked;
+    uint8 TintSlot = MAX_uint8;
+};
+
+// Client-only presentation of one visible flight (a thrown chalk stub). It never collides, is never a target and
+// disappears as soon as the authorized frame no longer lists it.
+UCLASS()
+class LOCKDOWN_API ALDObservedProjectileProxy : public AActor
+{
+    GENERATED_BODY()
+public:
+    ALDObservedProjectileProxy();
+    virtual void Tick(float Delta) override;
+    void Apply(const FLDObservedProjectileView& Projectile);
+    FGuid ObservedHandle;
+private:
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
+    FVector Destination = FVector::ZeroVector;
     bool bPlaced = false;
 };
 
@@ -102,12 +138,18 @@ public:
     { return Receiver.FindUnit(Handle, ObservationEpoch, Out); }
     const TArray<FLDObservedClear>& RecentClears() const { return LastClears; }
     int32 ProxyCount() const { return Proxies.Num(); }
+    int32 ProjectileProxyCount() const { return ProjectileProxies.Num(); }
+    // Display location (body centre) of a unit presented right now: its proxy's interpolated pose. False unless the
+    // current frame lists this handle and epoch and its proxy is placed, so callers never label a hidden or stale unit.
+    bool ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const;
 private:
     void Present(const TArray<FLDObservedClear>& Cleared);
     void Refuse(const FString& Error);
     bool EnsureCatalog(FString& Error);
     bool ExpectedWorld(FLDWorldRevision& Out) const;
     void SyncProxies();
+    // Marks this viewer's own living body with a local ring; hides it while dead or bodiless.
+    void TrackOwnBody(const ALDPlayerController& Owning);
     void AttachFog();
     void UploadFog();
     FLDObservedFrameReceiver Receiver;
@@ -115,6 +157,8 @@ private:
     bool bCatalogReady = false;
     TArray<FLDObservedClear> LastClears;
     UPROPERTY() TMap<FGuid,TObjectPtr<ALDObservedEntityProxy>> Proxies;
+    UPROPERTY() TMap<FGuid,TObjectPtr<ALDObservedProjectileProxy>> ProjectileProxies;
+    UPROPERTY() TObjectPtr<ALDOwnBodyMarker> OwnMarker;
     UPROPERTY() TObjectPtr<UTexture2D> FogTexture;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> FogMaterial;
     TWeakObjectPtr<AActor> CameraOwner;

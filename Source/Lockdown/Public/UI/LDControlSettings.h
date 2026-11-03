@@ -75,6 +75,11 @@ struct LOCKDOWN_API FLDDisplaySettings
     Scalability::FQualityLevels Quality;
 
     static FLDDisplaySettings Read(const UGameUserSettings& Settings);
+    // Product defaults for "restore defaults" (UI_AND_SETTINGS 8): SetToDefaults on a transient object of the live
+    // settings class, never ResetToCurrentSettings, which only copies the present window state. An unset default
+    // resolution and borderless mode use Desktop, as on a first run; VSync is the engine's r.VSync default because
+    // SetToDefaults leaves it unchanged; the fullscreen-shortcut preference stays the live one. Live is not modified.
+    static bool ProductDefaults(const UGameUserSettings& Live, const FIntPoint& Desktop, FLDDisplaySettings& Out, FString& Error);
     bool SameMode(const FLDDisplaySettings& Other) const;
     bool operator==(const FLDDisplaySettings& Other) const;
     bool IsValid() const;
@@ -135,8 +140,11 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 7;
+    static constexpr int32 CurrentSchema = 8;
     static constexpr int32 MaxPlayerNameChars = 16;
+    // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
+    static constexpr float MinCameraPanCmPerSec = 900;
+    static constexpr float MaxCameraPanCmPerSec = 3600;
     UPROPERTY(SaveGame) int32 Schema=CurrentSchema;
     UPROPERTY(SaveGame) TMap<FName,FKey> Bindings;
     UPROPERTY(SaveGame) bool bEdgePan=true;
@@ -147,6 +155,9 @@ public:
     UPROPERTY(SaveGame) FString PlayerName;
     // Linear 0..1 gain of the whole Demo sound output; 1, the default, applies no attenuation.
     UPROPERTY(SaveGame) float MasterVolume=1;
+    // Keyboard and edge pan speed of the camera only; it never changes world distances, vision or body speed.
+    // The 1800 default is the coordinator's decision, not a balance-tested value.
+    UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -156,6 +167,8 @@ public:
     FLDLocalSettingsSaveResult SaveLocalSettings();
     bool SetAppliedZoom(float Value, FString& Error);
     bool SetAppliedMasterVolume(float Value, FString& Error);
+    bool SetAppliedCameraPanSpeed(float Value, FString& Error);
+    float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
     void SetAppliedFollowing(bool Value);
     // Local format check only; the name travels as the ?Name= URL option and the session domain still normalizes or rejects it.
     static bool ValidatePlayerName(const FString& Name, FString& Error);
@@ -172,7 +185,8 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
-    // Restores keys, camera, text and master volume only; the player name is never cleared by a defaults reset.
+    // Restores keys, camera (including the pan speed), text and master volume only; the player name is never cleared by a
+    // defaults reset. Display values belong to UGameUserSettings; the settings panel restores them through the display trial.
     void ResetLocalDefaults();
 private:
     void CopyPreferences(const ULDControlSettings& Other);

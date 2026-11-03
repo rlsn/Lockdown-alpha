@@ -580,7 +580,10 @@ void ULDNavigationComponent::PanCamera(const FVector2D& Axis, float Delta)
 {
     if (!Axis.IsNearlyZero())
     {
-        CameraCentre+=FRotator(0,-45,0).RotateVector(FVector(Axis.Y,Axis.X,0))*1800*Delta;
+        // The applied local camera speed (cm/s, UI settings); before settings apply, the setting's own default.
+        const ALDPlayerController* PC=Controller();
+        const float Speed=PC&&PC->Controls?PC->Controls->GetCameraPanCmPerSec():GetDefault<ULDControlSettings>()->GetCameraPanCmPerSec();
+        CameraCentre+=FRotator(0,-45,0).RotateVector(FVector(Axis.Y,Axis.X,0))*Speed*Delta;
         bFollowCamera=false;
     }
 }

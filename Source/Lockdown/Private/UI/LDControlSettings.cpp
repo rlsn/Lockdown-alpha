@@ -3,6 +3,7 @@
 #include "Internationalization/Regex.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Crc.h"
 #include "Misc/FileHelper.h"
@@ -98,10 +99,12 @@ namespace
     constexpr uint32 LegacySaveGameMagic = 0x53415647;
     // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
     constexpr uint32 RetiredRegistrySchema = 4;
-    // Schema 5 is the whitelist without PlayerName and MasterVolume; schema 6 adds PlayerName only. Both are migrated
-    // explicitly, keep the default master volume and are rewritten as the current schema on the next verified save.
+    // Schema 5 is the whitelist without PlayerName, MasterVolume and CameraPanCmPerSec; schema 6 adds PlayerName and
+    // schema 7 MasterVolume. All three are migrated explicitly, keep the default of every preference they lack and are
+    // rewritten as the current schema on the next verified save.
     constexpr uint32 NamelessSchema = 5;
     constexpr uint32 VolumelessSchema = 6;
+    constexpr uint32 PanlessSchema = 7;
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -302,6 +305,11 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
     { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
     if (!FMath::IsFinite(MasterVolume) || MasterVolume < 0 || MasterVolume > 1)
     { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
+    if (!FMath::IsFinite(CameraPanCmPerSec) || CameraPanCmPerSec < MinCameraPanCmPerSec || CameraPanCmPerSec > MaxCameraPanCmPerSec)
+    {
+        Error = FString::Printf(TEXT("镜头平移速度超出 %.0f–%.0f cm/s 的支持范围。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
+        return false;
+    }
     // An empty name is a valid unset name; only a chosen name must pass the local format check.
     FString NameError;
     if (!PlayerName.IsEmpty() && !ValidatePlayerName(PlayerName, NameError))
@@ -350,6 +358,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     Zoom = Other.Zoom;
     PlayerName = Other.PlayerName;
     MasterVolume = Other.MasterVolume;
+    CameraPanCmPerSec = Other.CameraPanCmPerSec;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -395,6 +404,21 @@ bool ULDControlSettings::SetAppliedMasterVolume(float Value, FString& Error)
     if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
     { Error = TEXT("主音量未应用：音量必须在 0–100% 之间。"); return false; }
     MasterVolume = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedCameraPanSpeed(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("镜头平移速度未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!FMath::IsFinite(Value) || Value < MinCameraPanCmPerSec || Value > MaxCameraPanCmPerSec)
+    {
+        Error = FString::Printf(TEXT("镜头平移速度未应用：速度必须在 %.0f–%.0f cm/s 之间。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
+        return false;
+    }
+    CameraPanCmPerSec = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     Error.Empty();
     return true;
@@ -452,6 +476,7 @@ void ULDControlSettings::ResetLocalDefaults()
     TextScale = CurrentDefaults->TextScale;
     Zoom = CurrentDefaults->Zoom;
     MasterVolume = CurrentDefaults->MasterVolume;
+    CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
     ResetBindings();
 }
 
@@ -488,7 +513,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     uint32 Magic = 0, SavedSchema = 0, Checksum = 0;
     Reader << Magic << SavedSchema << Checksum;
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
-    const bool Migrating = Magic == LocalSettingsMagic && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema);
+    const bool Migrating = Magic == LocalSettingsMagic
+        && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -501,10 +527,11 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
     Reader << Edge << Follow << Settings->TextScale << Settings->Zoom;
-    // Schema 6 added the player name and schema 7 the master volume, both between the preferences and the binding list;
-    // an older layout leaves MasterVolume at its default.
-    if (SavedSchema == VolumelessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
-    if (SavedSchema == CurrentSchema) { Reader << Settings->MasterVolume; }
+    // Schema 6 added the player name, schema 7 the master volume and schema 8 the camera pan speed, each between the
+    // preferences and the binding list; an older layout leaves every later field at its default.
+    if (SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
+    if (SavedSchema == PanlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->MasterVolume; }
+    if (SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -549,12 +576,17 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5/6 migration: the validated values and the default master volume apply now and stay dirty
-        // until a verified current-schema save; loading never rewrites the old file.
+        // Explicit schema 5/6/7 migration: the validated values and the defaults of the missing preferences apply now and
+        // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
-        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, SavedSchema == NamelessSchema
-            ? TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。主音量使用默认值 100%。请在开始页设置名称后再建房或加入。")
-            : TEXT("已从旧版本设置迁移：名称、按键、镜头与文字偏好已保留，主音量使用默认值 100%，下次保存时写入新格式。") };
+        const FString PanDefault = FString::Printf(TEXT("镜头平移速度使用默认值 %.0f cm/s"), Settings->CameraPanCmPerSec);
+        const FString Message = SavedSchema == NamelessSchema
+            ? TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。主音量使用默认值 100%，") + PanDefault
+                + TEXT("。请在开始页设置名称后再建房或加入。")
+            : SavedSchema == VolumelessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头与文字偏好已保留，主音量使用默认值 100%，") + PanDefault + TEXT("，下次保存时写入新格式。")
+            : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字与主音量偏好已保留，") + PanDefault + TEXT("，下次保存时写入新格式。");
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
     return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };
@@ -569,13 +601,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("已在本次运行中应用；原设置文件保持不变。请先在设置中确认替换，再保存。") }; }
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
-    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, binding count, bindings.
+    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
+    // binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0;
-    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume;
+    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();
@@ -630,6 +663,25 @@ FLDDisplaySettings FLDDisplaySettings::Read(const UGameUserSettings& Settings)
     Result.bVSync = Settings.IsVSyncEnabled();
     Result.Quality = Settings.ScalabilityQuality;
     return Result;
+}
+bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, const FIntPoint& Desktop, FLDDisplaySettings& Out, FString& Error)
+{
+    auto* VSync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+    int32 DefaultVSync = 0;
+    if (!VSync || !LexTryParseString(DefaultVSync, *VSync->GetDefaultValue()))
+    { Error = TEXT("无法读取引擎的垂直同步默认值，显示与画质未恢复默认。"); return false; }
+    auto* EngineDefaults = NewObject<UGameUserSettings>(GetTransientPackage(), Live.GetClass(), NAME_None, RF_Transient);
+    EngineDefaults->SetToDefaults();
+    FLDDisplaySettings Result = Read(*EngineDefaults);
+    if (Result.Resolution.X <= 0 || Result.Resolution.Y <= 0 || Result.WindowMode == EWindowMode::WindowedFullscreen)
+    { Result.Resolution = Desktop; }
+    Result.PreferredFullscreenMode = Live.GetPreferredFullscreenMode();
+    Result.bVSync = DefaultVSync != 0;
+    if (!Result.IsValid())
+    { Error = TEXT("无法确定默认的分辨率、窗口模式或画质，显示与画质未恢复默认。"); return false; }
+    Out = Result;
+    Error.Empty();
+    return true;
 }
 bool FLDDisplaySettings::SameMode(const FLDDisplaySettings& Other) const
 { return Resolution == Other.Resolution && WindowMode == Other.WindowMode; }

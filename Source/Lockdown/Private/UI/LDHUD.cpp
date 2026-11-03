@@ -12,6 +12,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -94,6 +95,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph)
         {
             OutGlyph=Text(TEXT(""),GlyphSize);OutGlyph->SetAutoWrapText(false);OutGlyph->SetJustification(ETextJustify::Center);
+            // The glyph sits on any of the six identity tints, bright ones included; an outline keeps it readable on each.
+            auto GlyphFont=OutGlyph->GetFont();GlyphFont.OutlineSettings.OutlineSize=2;GlyphFont.OutlineSettings.OutlineColor=FLinearColor(0,0,0,.85f);OutGlyph->SetFont(GlyphFont);
             OutFrame=WidgetTree->ConstructWidget<UBorder>();OutFrame->SetHorizontalAlignment(HAlign_Center);OutFrame->SetVerticalAlignment(VAlign_Center);OutFrame->SetContent(OutGlyph);
             auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Size);Box->SetHeightOverride(Size);Box->SetContent(OutFrame);
             return Box;
@@ -154,13 +157,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* SelfHead=WidgetTree->ConstructWidget<UHorizontalBox>();
         UBorder* SP=nullptr;UTextBlock* SG=nullptr;SelfHead->AddChildToHorizontalBox(Portraits(64,26,SP,SG))->SetPadding(FMargin(0,0,10,0));Portrait=SP;PortraitGlyph=SG;
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        SelfName=Text(TEXT(""),18);SelfName->SetAutoWrapText(false);NameBox->AddChildToVerticalBox(SelfName);
+        // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (UI 3.3).
+        SelfName=Text(TEXT(""),18);SelfName->SetAutoWrapText(false);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
         LifeText=Text(TEXT(""),14);NameBox->AddChildToVerticalBox(LifeText)->SetPadding(FMargin(0,4,0,0));
         // Temporary statuses and passives are separate lines, so a control status is never lost among passives.
         SelfStatusText=Text(TEXT(""),13);SelfStatusText->SetColorAndOpacity(FLinearColor(1,.7f,.45f));NameBox->AddChildToVerticalBox(SelfStatusText)->SetPadding(FMargin(0,2,0,0));
         PassiveText=Text(TEXT(""),12);PassiveText->SetColorAndOpacity(FLinearColor(.72f,.8f,.86f));NameBox->AddChildToVerticalBox(PassiveText)->SetPadding(FMargin(0,2,0,0));
-        SelfHead->AddChildToHorizontalBox(NameBox)->SetVerticalAlignment(VAlign_Center);
-        auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(250);SelfWidth->SetContent(SelfHead);
+        // The text column fills what the portrait leaves, so the life, status and passive lines wrap inside it.
+        auto* NameSlot=SelfHead->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(300);SelfWidth->SetClipping(EWidgetClipping::ClipToBounds);SelfWidth->SetContent(SelfHead);
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetPadding(FMargin(0,0,14,0));
         auto* Stats=WidgetTree->ConstructWidget<UVerticalBox>();
         Stats->AddChildToVerticalBox(Bar(FLinearColor(.72f,.2f,.17f),B,T,280));HealthBar=B;HealthText=T;
@@ -173,8 +178,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
             auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
-            Entry.Key=Text(TEXT(""),13);Entry.Key->SetAutoWrapText(false);Entry.Key->SetColorAndOpacity(FLinearColor(1,.82f,.4f));Lines->AddChildToVerticalBox(Entry.Key);
-            Entry.Name=Text(TEXT(""),13);Lines->AddChildToVerticalBox(Entry.Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            // Every line stays inside the slot: key and kind share the head row and end in an ellipsis when they do not fit,
+            // the name wraps and ends in an ellipsis on its last visible line, and the tooltip keeps the full text.
+            Lines->SetClipping(EWidgetClipping::ClipToBounds);
+            auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();Lines->AddChildToVerticalBox(Head);
+            Entry.Key=Text(TEXT(""),13);Entry.Key->SetAutoWrapText(false);Entry.Key->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Entry.Key->SetColorAndOpacity(FLinearColor(1,.82f,.4f));Head->AddChildToHorizontalBox(Entry.Key);
+            Entry.Kind=Text(TEXT(""),12);Entry.Kind->SetAutoWrapText(false);Entry.Kind->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Entry.Kind->SetColorAndOpacity(FLinearColor(.72f,.8f,.86f));
+            auto* KindSlot=Head->AddChildToHorizontalBox(Entry.Kind);KindSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));KindSlot->SetVerticalAlignment(VAlign_Bottom);KindSlot->SetPadding(FMargin(5,0,0,0));
+            Entry.Name=Text(TEXT(""),13);Entry.Name->SetTextOverflowPolicy(ETextOverflowPolicy::MultilineEllipsis);Entry.Name->SetClipping(EWidgetClipping::ClipToBounds);Lines->AddChildToVerticalBox(Entry.Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
             Entry.State=Text(TEXT(""),12);Lines->AddChildToVerticalBox(Entry.State);
             Entry.Cooldown=WidgetTree->ConstructWidget<UProgressBar>();Entry.Cooldown->SetFillColorAndOpacity(FLinearColor(.85f,.85f,.9f,.8f));Entry.Cooldown->SetPercent(0);
             auto* SweepBox=WidgetTree->ConstructWidget<USizeBox>();SweepBox->SetHeightOverride(5);SweepBox->SetContent(Entry.Cooldown);Lines->AddChildToVerticalBox(SweepBox)->SetPadding(FMargin(0,3,0,0));
@@ -185,7 +196,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto ButtonStyle=Entry.Button->GetStyle();ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
             Entry.Button->SetContent(Entry.Frame);
             if(UButtonSlot* FrameSlot=Cast<UButtonSlot>(Entry.Frame->Slot)){FrameSlot->SetHorizontalAlignment(HAlign_Fill);FrameSlot->SetVerticalAlignment(VAlign_Fill);}
-            auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetWidthOverride(92);SlotSize->SetHeightOverride(92);SlotSize->SetContent(Entry.Button);
+            // 112 leaves a 92-unit text box (button content padding 4+4, frame padding 6+6): five size-13 CJK glyphs per line,
+            // also with the rounded glyph advances of the 720p UI scale.
+            auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetWidthOverride(112);SlotSize->SetHeightOverride(92);SlotSize->SetContent(Entry.Button);
             // Character actives (Q/W) and equipment actives (1/2) are separate groups, never one merged bar.
             Actions->AddChildToHorizontalBox(SlotSize)->SetPadding(FMargin(Index==2?18:0,0,6,0));
         }
@@ -204,9 +217,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Bottom->AddChildToHorizontalBox(UtilityWidth);
         Band=Panel(Bottom,true);Place(Band,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-12));
 
-        Toast=Text(TEXT(""),16);ToastPanel=Panel(Toast,false);Place(ToastPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-150));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
+        Toast=Text(TEXT(""),16);ToastPanel=Panel(Toast,false);Place(ToastPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-178));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
         ArmedText=Text(TEXT(""),15);ArmedText->SetColorAndOpacity(FLinearColor(1,.85f,.45f));
-        ArmedPanel=Panel(ArmedText,false);Place(ArmedPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-196));ArmedPanel->SetVisibility(ESlateVisibility::Collapsed);
+        ArmedPanel=Panel(ArmedText,false);Place(ArmedPanel,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-224));ArmedPanel->SetVisibility(ESlateVisibility::Collapsed);
 
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
         AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);ShopPanel=CreateWidget<ULDShopPanel>(PC);
@@ -329,6 +342,7 @@ void ULDHUD::RefreshReadModel()
 
     const FString Name=LDHUD::RosterName(Lobby,O.ContenderId);
     HudSetText(SelfName,Name.IsEmpty()?FString(TEXT("名单同步中")):Name);
+    if(!SelfName->GetToolTipText().ToString().Equals(SelfName->GetText().ToString(),ESearchCase::CaseSensitive)){SelfName->SetToolTipText(SelfName->GetText());}
     HudSetText(PortraitGlyph,Name.IsEmpty()?FString(TEXT("?")):Name.Left(1));
     if(const auto* Body=Cast<ALDCharacter>(PC->GetPawn())){Portrait->SetBrushColor(LDHUD::PaletteColor(Body->PresentationKey));}
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));
@@ -405,7 +419,7 @@ void ULDHUD::RefreshReadModel()
         Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
-        HudSetText(Entry.Key,View.Key+TEXT(" · ")+View.Kind);HudSetText(Entry.Name,View.Name);HudSetText(Entry.State,View.State);
+        HudSetText(Entry.Key,View.Key);HudSetText(Entry.Kind,View.Kind);HudSetText(Entry.Name,View.Name);HudSetText(Entry.State,View.State);
         Entry.Cooldown->SetPercent(View.CooldownFraction);
         const bool bThisArmed=bArmed&&ArmedEntry==Wanted;
         if(bThisArmed){ArmedName=View.Name;}
@@ -448,7 +462,7 @@ void ULDHUD::RefreshReadModel()
         const FString SubjectName=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::RosterName(Lobby,Subject.ContenderId):FString();
         const LDHUD::FObservedCard Card=LDHUD::ObservedCard(Subject,SubjectName,Content,Frame.Frame?Frame.Frame->SampledAtServerSec:0.);
         HudSetText(TargetTitle,Card.Title);HudSetText(TargetGlyph,Card.Title.Left(1));
-        TargetPortrait->SetBrushColor(Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PaletteColor(Subject.Presentation):FLinearColor(.45f,.32f,.12f));
+        TargetPortrait->SetBrushColor(Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PaletteColor(Subject.Presentation):ULDHumanoidVisualComponent::MonsterTint(Subject.CreatureId));
         TargetHealthBar->SetPercent(Card.Health.Fraction);HudSetText(TargetHealth,Card.Health.Text);
         HudSetShown(TargetManaRow,Card.bMana,ESlateVisibility::SelfHitTestInvisible);
         if(Card.bMana){TargetManaBar->SetPercent(Card.Mana.Fraction);HudSetText(TargetMana,Card.Mana.Text);}

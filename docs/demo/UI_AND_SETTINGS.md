@@ -448,10 +448,10 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | --- | --- | --- |
 | 名称 / `ULDControlSettings` | `PlayerName`，显示使用会话域规范化后的公共名称 | Start 编辑，本机保存；房间公开名称由服务器验证。恢复游戏设置不隐式删名称；不保存 join 密钥、比赛数据或新增账号页。 |
 | 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。删除 Profile/Hybrid/Tactical 迁移和旧运行槽选择。 |
-| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale`；拟增 `CameraPanCmPerSec, ZoomMinArmCm, ZoomMaxArmCm, ZoomStepCm, EdgePanBandViewportFraction` | Zoom 是厘米臂长，速度 cm/s，边缘带 viewport 比例，TextScale 倍率。有限值/上下界关系沿操作域唯一定义，不从旧 1400/1800/8px 当批准默认。镜头不授予视野。 |
+| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec`；拟增 `ZoomMinArmCm, ZoomMaxArmCm, ZoomStepCm, EdgePanBandViewportFraction` | Zoom 是厘米臂长，边缘带 viewport 比例，TextScale 倍率。`CameraPanCmPerSec` 已实现为本地设置：镜头键盘/边缘平移速度 cm/s，合法域为 900–3600 的有限值，默认 1800 为协调决定（非平衡测试值）；设置页以 300 cm/s 步进、确认即应用，schema 8 保存，schema 5–7 显式迁移为默认值。其余有限值/上下界关系沿操作域唯一定义，不从旧 1400/8px 当批准默认。镜头不授予视野。 |
 | 显示/画质 / `UGameUserSettings` | 实际支持分辨率、窗口模式、VSync、整体画质预设 | 只有分辨率/窗口模式进入 trial。一起编辑的 VSync/画质留在草稿，确认模式后才应用；单独改后两者用明确 Apply。不建庞大高级渲染中心，游戏仍不暂停。 |
 | 音量 / 本地偏好 + Engine 声音分组 | 单一 `MasterVolume`，无量纲 0..1 | 本 Demo 声音统一经 Master SoundClass/SoundMix 生效，不修改共享 CDO；应用后实际音频响应。没有音频消费者时不把滑条当完成。 |
-| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 先显示范围再确认；显示仍需试用/回滚；不清本局进度、身份或姓名。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
+| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 已实现：确认前列出全部范围，不清本局进度、身份或姓名。确认后先应用并保存本地偏好默认值，再把显示草稿设为产品默认（临时对象 `SetToDefaults` 的窗口模式与整体画质，未设分辨率及无边框取桌面尺寸，VSync 取 `r.VSync` 引擎默认）；分辨率/窗口模式不同则走同一试用/回滚，VSync/画质随这次显示应用，已是默认则说明且不试用；已有试用或恢复进行时不恢复任何项。取消试用只回滚显示。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
 
 本地操作明确区分 **EditingDraft → DisplayTrial → ConfirmedApplied → PersistenceVerified**；
 不涉及模式改变的本地设置可在明确 Apply 后直接进入 ConfirmedApplied。

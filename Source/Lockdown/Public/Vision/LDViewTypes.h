@@ -9,7 +9,7 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 1;
+    constexpr uint32 Schema = 2;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -18,6 +18,10 @@ namespace LDObservation
     constexpr int32 MaxUnits = 16;
     constexpr int32 MaxStatuses = 8;
     constexpr int32 MaxTerminations = 16;
+    // Visible flights per frame; the nearest are kept when more are in sight.
+    constexpr int32 MaxProjectiles = 16;
+    // One identity tint per seat of the six-contender roster (APP_SPEC 1).
+    constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
     enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32 };
     constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment;
@@ -27,6 +31,8 @@ namespace LDObservation
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
 // Combat owns visible action cues; adding one is a schema change.
 UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2, Hit = 3 };
+// Declared before the wire projectile record that carries it; Combat maps each projectile source to one look.
+UENUM() enum class ELDObservedProjectileLook : uint8 { Chalk = 1 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
 
@@ -67,6 +73,7 @@ struct FLDObservedUnitView
     UPROPERTY() FVector_NetQuantize10 FeetCm = FVector::ZeroVector;
     UPROPERTY() uint16 Facing = 0;
     UPROPERTY() ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
+    UPROPERTY() uint16 ActionCueAgeMs = 0; // time since the current cue began on the authority clock; 0 without a cue
     UPROPERTY() FGuid ContenderId;  // Contender identity -> public roster name
     UPROPERTY() uint8 CreatureId = 0; // CampMember identity -> ELDDemoMonsterId
     UPROPERTY() uint8 Level = 0;
@@ -86,6 +93,17 @@ struct FLDObservedUnitTermination
     UPROPERTY() uint32 TerminationSequence = 0;
     UPROPERTY() int64 OccurredAtServerMs = 0; // display/archive only
     UPROPERTY() ELDObservedTerminationKind Kind = ELDObservedTerminationKind::ObservedDeath;
+};
+
+// One visible flight. It names no caster, effect or source and is never a target: only where it is now and how it looks.
+USTRUCT()
+struct FLDObservedProjectileView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Handle; // fresh for each visibility interval of one observer
+    UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector; // ground point under the flight
+    UPROPERTY() uint16 Heading = 0;
+    UPROPERTY() ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
 };
 
 USTRUCT()
@@ -114,6 +132,7 @@ struct FLDWorldView
     UPROPERTY() FLDObservedFootprint Footprint;
     UPROPERTY() TArray<FLDObservedUnitView> Units;
     UPROPERTY() TArray<FLDObservedUnitTermination> RecentTerminations;
+    UPROPERTY() TArray<FLDObservedProjectileView> Projectiles;
     bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess);
 };
 template<> struct TStructOpsTypeTraits<FLDWorldView> : TStructOpsTypeTraitsBase2<FLDWorldView>
@@ -156,8 +175,6 @@ struct FLDObservedPublicFacts
     int64 ActionCueAtMs = 0;
 };
 
-UENUM() enum class ELDObservedProjectileLook : uint8 { Chalk = 1 };
-
 // Server-only authority record of one projectile in flight, sampled by the observation owner. Never serialized.
 struct FLDObservedProjectileFact
 {
@@ -196,6 +213,7 @@ namespace LDObservation
 {
     // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
     LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
+    LOCKDOWN_API bool ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error);
     LOCKDOWN_API bool ValidateTermination(const FLDObservedUnitTermination& Termination, FString& Error);
     LOCKDOWN_API bool ValidateView(const FLDWorldView& View, FString& Error);
     LOCKDOWN_API bool ValidateConceal(const FLDObservedConceal& Conceal, FString& Error);

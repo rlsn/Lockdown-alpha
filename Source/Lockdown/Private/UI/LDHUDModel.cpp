@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
 #include "Combat/LDAttributeProjection.h"
@@ -70,8 +71,7 @@ FString LDHUD::RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId)
 }
 FLinearColor LDHUD::PaletteColor(uint8 Presentation)
 {
-    static const FLinearColor Palette[]={{.15f,.38f,.4f},{.35f,.23f,.15f},{.27f,.3f,.45f},{.35f,.37f,.21f}};
-    return Palette[Presentation%4];
+    return ULDHumanoidVisualComponent::ContenderTint(Presentation);
 }
 
 LDHUD::FResourceView LDHUD::Resource(const FString& Label,double Current,double Max,bool bRoundUp)
@@ -373,7 +373,7 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         return Text.IsEmpty()?FString(TEXT("无属性加成")):Text;
     }
     case ELDDemoEffectOp::OutOfCombatRegen: return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后面子回复 +")+HudRational(Effect.HPPerSec)+TEXT("/s");
-    case ELDDemoEffectOp::Lifesteal: return TEXT("普攻造成的面子损失的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
+    case ELDDemoEffectOp::Lifesteal: return TEXT("弹脑瓜崩造成的面子损失的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" 最大胆量");
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
@@ -551,7 +551,7 @@ FString LDHUD::CombatRejectText(ELDCombatReject Reject)
     case ELDCombatReject::NoActiveEffect: return TEXT("无主动效果");
     case ELDCombatReject::Busy: return TEXT("正在执行其他动作");
     case ELDCombatReject::Cooldown: return TEXT("冷却中");
-    case ELDCombatReject::AttackNotReady: return TEXT("普攻尚未就绪");
+    case ELDCombatReject::AttackNotReady: return TEXT("弹脑瓜崩尚未就绪");
     case ELDCombatReject::InsufficientMana: return TEXT("胆量不足");
     case ELDCombatReject::ControlBlocked: return TEXT("受控制无法使用");
     case ELDCombatReject::TargetUnavailable: return TEXT("目标不可用");

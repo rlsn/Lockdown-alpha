@@ -89,6 +89,14 @@ private:
     TArray<TArray<FVector2D>> Blockers;
 };
 
+namespace LDObservation
+{
+    // Flights in sight of SourceFootCm under the same rule as units, nearest first, at most MaxProjectiles.
+    // A flight beyond the registered ground is simply out of sight; a non-finite flight or a changed world is a fault.
+    LOCKDOWN_API bool SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
+        const TArray<FLDObservedProjectileFact>& Facts, TArray<const FLDObservedProjectileFact*>& Out, FString& Error);
+}
+
 // Per-observer authorization bookkeeping. It owns opaque handles, epochs, revisions, ObservedDeath
 // facts and the single current navigation pin; HP, life and body truth stay with their core owners.
 class LOCKDOWN_API FLDObserverLedger
@@ -100,6 +108,10 @@ public:
     bool AllocateRevision(uint32& Out, FString& Error);
     bool Sample(const TArray<const FLDObservedTarget*>& Visible, TArray<FGuid>& Removed,
         TArray<FLDObservedUnitView>& Units, FString& Error);
+    // Visible flights: a fresh opaque handle per visibility interval, keyed by the server-only flight key.
+    // Removed lists handles of flights that left sight or ended; output order is observer-local.
+    bool SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
+        TArray<FLDObservedProjectileView>& Out, FString& Error);
     ETerminate Terminate(const FLDCombatBodyRef& Victim, const FLDMatchContext& InMatch, double OccurredAtSeconds,
         int64 OccurredAtServerMs, FLDObservedTerminationFact& Out, FString& Error);
     bool BindOrder(const FLDMoveIdentity& Order, const FGuid& Handle, uint32 ObservationEpoch, FString& Error);
@@ -129,9 +141,15 @@ private:
         FGuid Handle;
         uint32 Epoch = 0;
     };
+    struct FProjectileBinding
+    {
+        FGuid Key;
+        FGuid Handle;
+    };
     bool OrderBound(const FLDObservedTerminationFact& Fact) const;
     bool Newer(const FLDMoveIdentity& Candidate, const FLDMoveIdentity& Current) const;
     TArray<FBinding> Bindings;
+    TArray<FProjectileBinding> ProjectileBindings;
     TArray<FLDObservedTerminationFact> Terminations;
     TOptional<FOrderPin> Pin;
     uint32 Match = 0, Gen = 0, Rev = 0, Life = 0, NextEpoch = 0, NextSequence = 0;
@@ -183,7 +201,8 @@ private:
     // Authority-time sight that also proves the registered world has not changed under observation.
     ELDSightResult CurrentSight(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     bool GatherTargets(TArray<FLDObservedTarget>& Out, FString& Error) const;
-    bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets, bool bPublish, FString& Error);
+    bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
+        const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error);
     static FVector FootOf(const ALDCharacter& Body);
     TArray<FObserver> Observers;
     FLDMatchContext ActiveMatch;

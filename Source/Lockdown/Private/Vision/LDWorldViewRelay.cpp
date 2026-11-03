@@ -9,6 +9,9 @@
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "Camera/CameraComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -82,6 +85,8 @@ void FLDObservedFrameReceiver::ClearUnits(ELDObservedClearReason Reason, TArray<
         Cleared.Add(Clear);
     }
     Frame.Units.Reset();
+    // Flights are presentation only: they have no epoch or clear record, they simply stop being drawn.
+    Frame.Projectiles.Reset();
 }
 
 void FLDObservedFrameReceiver::ApplyTermination(const FLDObservedUnitTermination& Termination, TArray<FLDObservedClear>& Cleared)
@@ -143,6 +148,7 @@ FLDObservedFrameReceiver::EResult FLDObservedFrameReceiver::AcceptConceal(const 
     if (!Advance(Notice.MatchGeneration, Notice.Generation, Notice.Revision, Cleared)) { return EResult::Stale; }
     for (const FGuid& Handle : Notice.Removed)
     {
+        Frame.Projectiles.RemoveAll([&Handle](const FLDObservedProjectileView& Projectile) { return Projectile.Handle == Handle; });
         const int32 Index = Frame.Units.IndexOfByPredicate([&Handle](const FLDObservedUnitView& Unit) { return Unit.Handle == Handle; });
         if (Index == INDEX_NONE) { continue; }
         FLDObservedClear Clear;
@@ -243,15 +249,18 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     ObservedEpoch = Unit.ObservationEpoch;
     FacingDegrees = float(Unit.Facing) / 65536.f * 360.f;
     const bool bCamp = Unit.Kind == ELDObservedUnitKind::CampMember;
-    const uint8 NextPalette = bCamp ? uint8(1) : uint8(Unit.Presentation % 4);
-    if (Palette != NextPalette)
+    // Contenders wear their stable roster-slot tint; camp NPCs have their own look and never a contender colour.
+    const uint16 NextLook = bCamp ? uint16(0x100 | Unit.CreatureId) : uint16(Unit.Presentation);
+    if (Look != NextLook)
     {
-        Palette = NextPalette;
-        Body->ApplyPalette(Palette);
+        Look = NextLook;
+        if (bCamp) { Body->ApplyMonsterLook(Unit.CreatureId); }
+        else { Body->ApplyPalette(Unit.Presentation); }
     }
     const double Scale = !bCamp ? 1.0 : Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian) ? 1.3 : .8;
     Body->SetRelativeScale3D(FVector(Scale));
-    Body->SetCue(0);
+    // The same cue byte as the owner's own body: action pose plus one marker shape per public status.
+    Body->SetCue(ALDCharacter::PresentationCue(Unit.ActionCue, Unit.Statuses));
 }
 
 void ALDObservedEntityProxy::Tick(float Delta)
@@ -260,6 +269,106 @@ void ALDObservedEntityProxy::Tick(float Delta)
     SetActorLocation(FMath::VInterpTo(GetActorLocation(), Destination, Delta, 18.f));
     SetActorRotation(FRotator(0, FacingDegrees, 0));
     Body->Animate(DisplayVelocity, Delta);
+}
+
+ALDOwnBodyMarker::ALDOwnBodyMarker()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = false;
+    SetActorEnableCollision(false);
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder"));
+    Rim = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("OwnRingRim"));
+    Core = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("OwnRingCore"));
+    for (UStaticMeshComponent* Disc : {Rim.Get(), Core.Get()})
+    {
+        Disc->SetupAttachment(RootComponent);
+        Disc->SetStaticMesh(Cylinder.Object);
+        Disc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Disc->SetCanEverAffectNavigation(false);
+        Disc->SetCastShadow(false);
+    }
+    // A bright rim around a disc in the player's own roster tint, just above the ground and below status rings.
+    Rim->SetRelativeLocation(FVector(0, 0, .5));
+    Rim->SetRelativeScale3D(FVector(1.35, 1.35, .01));
+    Core->SetRelativeLocation(FVector(0, 0, .8));
+    Core->SetRelativeScale3D(FVector(1.1, 1.1, .012));
+    SetActorHiddenInGame(true);
+}
+
+void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
+{
+    if (!Body)
+    {
+        if (Tracked.IsValid()) { DetachFromActor(FDetachmentTransformRules::KeepWorldTransform); }
+        Tracked.Reset();
+        SetActorHiddenInGame(true);
+        return;
+    }
+    if (Tracked.Get() != Body)
+    {
+        const UCapsuleComponent* Capsule = Body->FindComponentByClass<UCapsuleComponent>();
+        AttachToActor(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        SetActorRelativeLocation(FVector(0, 0, -(Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 90.0)));
+        Tracked = Body;
+    }
+    if (TintSlot != Slot)
+    {
+        UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
+        if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
+        UMaterialInstanceDynamic* RimTint = UMaterialInstanceDynamic::Create(Material, this);
+        RimTint->SetVectorParameterValue(TEXT("Tint"), FLinearColor(1.f, .85f, .2f));
+        Rim->SetMaterial(0, RimTint);
+        UMaterialInstanceDynamic* CoreTint = UMaterialInstanceDynamic::Create(Material, this);
+        CoreTint->SetVectorParameterValue(TEXT("Tint"), ULDHumanoidVisualComponent::ContenderTint(Slot));
+        Core->SetMaterial(0, CoreTint);
+        TintSlot = Slot;
+    }
+    SetActorHiddenInGame(false);
+}
+
+ALDObservedProjectileProxy::ALDObservedProjectileProxy()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = true;
+    SetActorEnableCollision(false);
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder"));
+    Chalk = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ObservedChalk"));
+    Chalk->SetupAttachment(RootComponent);
+    Chalk->SetStaticMesh(Cylinder.Object);
+    Chalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Chalk->SetCanEverAffectNavigation(false);
+    // An exaggerated chalk stub lying along the flight direction, readable from the gameplay camera.
+    Chalk->SetRelativeRotation(FRotator(90, 0, 0));
+    Chalk->SetRelativeScale3D(FVector(.14, .14, .34));
+}
+
+void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile)
+{
+    // The flight is drawn at chest height over its authorized ground point.
+    const FVector Next = FVector(Projectile.PositionCm) + FVector(0, 0, 100);
+    if (!bPlaced || ObservedHandle != Projectile.Handle)
+    {
+        SetActorLocation(Next);
+        bPlaced = true;
+        if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
+        {
+            UMaterialInstanceDynamic* Tint = UMaterialInstanceDynamic::Create(Material, this);
+            Tint->SetVectorParameterValue(TEXT("Tint"), FLinearColor(.95f, .95f, .9f));
+            Chalk->SetMaterial(0, Tint);
+        }
+        else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
+    }
+    ObservedHandle = Projectile.Handle;
+    Destination = Next;
+    SetActorRotation(FRotator(0, float(Projectile.Heading) / 65536.f * 360.f, 0));
+}
+
+void ALDObservedProjectileProxy::Tick(float Delta)
+{
+    Super::Tick(Delta);
+    SetActorLocation(FMath::VInterpTo(GetActorLocation(), Destination, Delta, 25.f));
 }
 
 ALDWorldViewRelay::ALDWorldViewRelay()
@@ -278,6 +387,10 @@ void ALDWorldViewRelay::EndPlay(const EEndPlayReason::Type Reason)
     LastClears = Cleared;
     for (auto& Pair : Proxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
     Proxies.Empty();
+    for (auto& Pair : ProjectileProxies) { if (IsValid(Pair.Value)) { Pair.Value->Destroy(); } }
+    ProjectileProxies.Empty();
+    if (IsValid(OwnMarker)) { OwnMarker->Destroy(); }
+    OwnMarker = nullptr;
     Super::EndPlay(Reason);
 }
 
@@ -364,6 +477,18 @@ void ALDWorldViewRelay::Present(const TArray<FLDObservedClear>& Cleared)
     UploadFog();
 }
 
+bool ALDWorldViewRelay::ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const
+{
+    FLDObservedUnitView Unit;
+    const TObjectPtr<ALDObservedEntityProxy>* Proxy = Proxies.Find(Handle);
+    if (!Proxy || !IsValid(*Proxy) || (*Proxy)->ObservedEpoch != ObservationEpoch || !Receiver.FindUnit(Handle, ObservationEpoch, Unit))
+    {
+        return false;
+    }
+    OutWorld = (*Proxy)->GetActorLocation();
+    return true;
+}
+
 void ALDWorldViewRelay::SyncProxies()
 {
     const FLDObservedFrameRead Snapshot = Receiver.Read();
@@ -388,6 +513,29 @@ void ALDWorldViewRelay::SyncProxies()
     for (auto It = Proxies.CreateIterator(); It; ++It)
     {
         if (Shown.Contains(It.Key())) { continue; }
+        if (IsValid(It.Value())) { It.Value()->Destroy(); }
+        It.RemoveCurrent();
+    }
+    TSet<FGuid> Flying;
+    if (Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current)
+    {
+        for (const FLDObservedProjectileView& Projectile : Snapshot.Frame->Projectiles)
+        {
+            Flying.Add(Projectile.Handle);
+            TObjectPtr<ALDObservedProjectileProxy>& Proxy = ProjectileProxies.FindOrAdd(Projectile.Handle);
+            if (!IsValid(Proxy))
+            {
+                FActorSpawnParameters Params;
+                Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                Proxy = GetWorld()->SpawnActor<ALDObservedProjectileProxy>(ALDObservedProjectileProxy::StaticClass(),
+                    FTransform(FVector(Projectile.PositionCm)), Params);
+            }
+            if (IsValid(Proxy)) { Proxy->Apply(Projectile); }
+        }
+    }
+    for (auto It = ProjectileProxies.CreateIterator(); It; ++It)
+    {
+        if (Flying.Contains(It.Key())) { continue; }
         if (IsValid(It.Value())) { It.Value()->Destroy(); }
         It.RemoveCurrent();
     }
@@ -452,6 +600,20 @@ void ALDWorldViewRelay::UploadFog()
     FogSerial = Snapshot.LocalSerial;
 }
 
+void ALDWorldViewRelay::TrackOwnBody(const ALDPlayerController& Owning)
+{
+    // Same condition that shows the own body (ALDCharacter::Tick): only this viewer's current living body.
+    ALDCharacter* Own = Cast<ALDCharacter>(Owning.GetPawn());
+    const bool bAlive = Own && Owning.OwnerState.LifePhase == ELDLifePhase::Alive && Owning.OwnerState.BodyRef.IsValid();
+    if (bAlive && !IsValid(OwnMarker))
+    {
+        FActorSpawnParameters Params;
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        OwnMarker = GetWorld()->SpawnActor<ALDOwnBodyMarker>(ALDOwnBodyMarker::StaticClass(), FTransform::Identity, Params);
+    }
+    if (IsValid(OwnMarker)) { OwnMarker->Track(bAlive ? Own : nullptr, bAlive ? Own->PresentationKey : 0); }
+}
+
 void ALDWorldViewRelay::Tick(float Delta)
 {
     Super::Tick(Delta);
@@ -459,14 +621,18 @@ void ALDWorldViewRelay::Tick(float Delta)
     // Present only for this machine's real viewer: never for a server-side opponent or a remote client's server copy.
     if (!Owning || !Owning->GetLocalPlayer()) { return; }
     AttachFog();
+    TrackOwnBody(*Owning);
     TArray<FLDObservedClear> Cleared;
     const uint32 OwnerMatch = Owning->OwnerState.Match;
+    bool bReset = false;
     if (OwnerMatch != 0 && Receiver.CursorMatch() != 0 && OwnerMatch != Receiver.CursorMatch()
         && Receiver.Read().Status != ELDObservedViewStatus::Unavailable)
     {
         Receiver.Reset(ELDObservedClearReason::MatchReset, Cleared);
+        bReset = true;
     }
-    Receiver.Tick(FPlatformTime::Seconds(), Cleared);
-    if (Cleared.Num() > 0) { Present(Cleared); }
+    // A reset or timeout clears units and flights alike, even when no unit was presented.
+    const bool bTimedOut = Receiver.Tick(FPlatformTime::Seconds(), Cleared);
+    if (bReset || bTimedOut || Cleared.Num() > 0) { Present(Cleared); }
     else { UploadFog(); }
 }
