@@ -14,19 +14,25 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Ticker.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Dom/JsonObject.h"
+#include "Engine/GameInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Framework/LDDemoEntry.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "NavigationSystem.h"
+#include "Region/LDMapDefinition.h"
+#include "Region/LDMapGeometry.h"
 #include "Serialization/JsonSerializer.h"
 #include "ShaderCompiler.h"
 #include "UnrealClient.h"
@@ -38,14 +44,22 @@ namespace
         FString Name;
         FVector Focus = FVector::ZeroVector;
         float ArmCm = 1400.f;
+        // Straight down from ArmCm above Focus, +X to the right, +Y down (the editor top view).
+        bool bTopDown = false;
     };
+
+    // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
+    constexpr double ArtSweepStepCm = 100.;
+    const float ArtSweepArms[] = { 1100.f, 1400.f, 1700.f };
+    // Heights on a standing body that must stay visible: upper chest and top of the head.
+    const double ArtSweepBodyCm[] = { 130., 170. };
 
     struct FArtCaptureProbe
     {
         TWeakObjectPtr<UWorld> World;
         TWeakObjectPtr<ACameraActor> Camera;
         FString Directory, PendingImage;
-        TArray<TSharedPtr<FJsonValue>> Checks, Images, Bodies;
+        TArray<TSharedPtr<FJsonValue>> Checks, Images, Bodies, Decorations, Occluders, OccludedPoints;
         TArray<FArtShot> Shots;
         double StartedAt = FPlatformTime::Seconds(), NextAt = FPlatformTime::Seconds() + 3.;
         int32 Stage = 0, Shot = 0;
@@ -71,6 +85,9 @@ namespace
             Report->SetArrayField(TEXT("checks"), Checks);
             Report->SetArrayField(TEXT("screenshots"), Images);
             Report->SetArrayField(TEXT("bodies"), Bodies);
+            Report->SetArrayField(TEXT("decorations"), Decorations);
+            Report->SetArrayField(TEXT("occluders"), Occluders);
+            Report->SetArrayField(TEXT("occluded_points"), OccludedPoints);
             FString Json;
             const FString Path = Directory / TEXT("DemoArt.json");
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
@@ -178,11 +195,117 @@ namespace
             Check(Navigation && NavChecks > 0 && NavMisses == 0, FString::Printf(TEXT("Navmesh still covers the floor under all %d on-floor decorations"), NavChecks));
         }
 
+        // Sweeps every standable floor point at every zoom: a prop hides a body when it cuts the camera's line to the
+        // body's upper chest or head. Records each decoration's footprint and every hidden point for the layout map.
+        void CheckOcclusion(const ULDArtCatalog& Catalog)
+        {
+            FString Error;
+            TSharedPtr<const FLDDemoContentSnapshot> Content;
+            TSharedPtr<const FLDDemoWorldGeometry> Layout;
+            const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+            FVector FloorMin = FVector::ZeroVector, FloorMax = FVector::ZeroVector;
+            if (!Check(LDDemoEntry::LoadRuntimeContent(Content, Error) && Content && Definition && Definition->Read(*Content, Layout, Error) && Layout
+                && Layout->Surfaces.Num() == 1 && Layout->Surfaces[0].MinCm.ToVector(FloorMin, Error) && Layout->Surfaces[0].MaxCm.ToVector(FloorMax, Error),
+                TEXT("The approved world geometry is readable for the occlusion sweep ") + Error))
+            {
+                return;
+            }
+            const FLDDemoRational& Radius = Content->Get().Parameters.CollisionRadiusCm;
+            const double Body = Radius.Denominator > 0 ? double(Radius.Numerator) / double(Radius.Denominator) : 0.;
+            TArray<FBox> Blocked;
+            for (const FLDDemoWorldBlocker& Blocker : Layout->Blockers)
+            {
+                FBox Box(ForceInit);
+                for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
+                {
+                    FVector Value;
+                    if (Point.ToVector(Value, Error)) { Box += Value; }
+                }
+                Blocked.Add(Box.ExpandBy(FVector(Body, Body, 0.)));
+            }
+            TMap<FString, const FLDArtProp*> Props;
+            for (const FLDArtProp& Prop : Catalog.Props) { Props.Add(Prop.Id, &Prop); }
+            TArray<FBox> Boxes;
+            for (const FLDArtDecoration& Decoration : Catalog.Decorations)
+            {
+                const FBox Box = Props.FindRef(Decoration.Prop)->Mesh->GetBoundingBox().TransformBy(Decoration.Transform);
+                Boxes.Add(Box);
+                auto Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("prop"), Decoration.Prop);
+                Entry->SetStringField(TEXT("zone"), LDArt::ZoneId(Decoration.Zone));
+                Entry->SetArrayField(TEXT("min"), { MakeShared<FJsonValueNumber>(Box.Min.X), MakeShared<FJsonValueNumber>(Box.Min.Y), MakeShared<FJsonValueNumber>(Box.Min.Z) });
+                Entry->SetArrayField(TEXT("max"), { MakeShared<FJsonValueNumber>(Box.Max.X), MakeShared<FJsonValueNumber>(Box.Max.Y), MakeShared<FJsonValueNumber>(Box.Max.Z) });
+                Decorations.Add(MakeShared<FJsonValueObject>(Entry));
+            }
+            const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+            TArray<int32> Counts;
+            Counts.SetNumZeroed(Boxes.Num());
+            int32 Points = 0, Hidden = 0;
+            for (double X = FloorMin.X + Body; X <= FloorMax.X - Body; X += ArtSweepStepCm)
+            {
+                for (double Y = FloorMin.Y + Body; Y <= FloorMax.Y - Body; Y += ArtSweepStepCm)
+                {
+                    const FVector Foot(X, Y, 0.);
+                    if (Blocked.ContainsByPredicate([&Foot](const FBox& Box) { return Box.IsInsideXY(Foot); })) { continue; }
+                    ++Points;
+                    TSet<int32> Hiders;
+                    for (const float Arm : ArtSweepArms)
+                    {
+                        const FVector Eye = ALDCharacter::DefaultArmCameraPose(Foot + FVector(0., 0., HalfHeight), Arm).GetLocation();
+                        for (const double Height : ArtSweepBodyCm)
+                        {
+                            const FVector Target = Foot + FVector(0., 0., Height);
+                            for (int32 Index = 0; Index < Boxes.Num(); ++Index)
+                            {
+                                if (FMath::LineBoxIntersection(Boxes[Index], Eye, Target, Target - Eye)) { Hiders.Add(Index); }
+                            }
+                        }
+                    }
+                    if (Hiders.IsEmpty()) { continue; }
+                    ++Hidden;
+                    TArray<TSharedPtr<FJsonValue>> Names;
+                    for (const int32 Index : Hiders)
+                    {
+                        ++Counts[Index];
+                        Names.Add(MakeShared<FJsonValueString>(Catalog.Decorations[Index].Prop));
+                    }
+                    auto Entry = MakeShared<FJsonObject>();
+                    Entry->SetNumberField(TEXT("x"), X);
+                    Entry->SetNumberField(TEXT("y"), Y);
+                    Entry->SetArrayField(TEXT("props"), Names);
+                    OccludedPoints.Add(MakeShared<FJsonValueObject>(Entry));
+                }
+            }
+            bool bOnlyFlagpole = true;
+            for (int32 Index = 0; Index < Boxes.Num(); ++Index)
+            {
+                if (!Counts[Index]) { continue; }
+                const FLDArtDecoration& Decoration = Catalog.Decorations[Index];
+                bOnlyFlagpole &= Decoration.Zone == ELDArtZone::Capture;
+                auto Entry = MakeShared<FJsonObject>();
+                Entry->SetStringField(TEXT("prop"), Decoration.Prop);
+                Entry->SetStringField(TEXT("zone"), LDArt::ZoneId(Decoration.Zone));
+                Entry->SetNumberField(TEXT("height_cm"), Boxes[Index].Max.Z);
+                Entry->SetNumberField(TEXT("hidden_points"), Counts[Index]);
+                Occluders.Add(MakeShared<FJsonValueObject>(Entry));
+            }
+            Check(Points > 0 && bOnlyFlagpole, FString::Printf(TEXT("Occlusion sweep over %d standable floor points at %d zooms: %d points have the upper chest or head behind a prop, and only the listed capture flagpole does it"),
+                Points, int32(UE_ARRAY_COUNT(ArtSweepArms)), Hidden));
+        }
+
         bool Setup(UWorld& Target)
         {
             const FLDArtResolved* Art = ULDArtSubsystem::Get(&Target);
             if (!Check(Art != nullptr, TEXT("The art catalog resolved at startup"))) { return false; }
             CheckDecorations(Target);
+#if WITH_EDITORONLY_DATA
+            // The art master is authored by the import commandlet; its graph must load where shaders are compiled.
+            const auto* Master = LoadObject<UMaterial>(nullptr, TEXT("/Game/Lockdown/Art/Materials/M_ArtSurface.M_ArtSurface"));
+            const UMaterialEditorOnlyData* Inputs = Master ? Master->GetEditorOnlyData() : nullptr;
+            Check(Inputs && Inputs->BaseColor.IsConnected() && Inputs->EmissiveColor.IsConnected() && Master->GetExpressions().Num() >= 5,
+                FString::Printf(TEXT("M_ArtSurface loads its BaseTexture x Tint colour and Flash emissive graph (%d expressions)"), Master ? Master->GetExpressions().Num() : -1));
+#endif
+            CheckOcclusion(*Target.GetGameInstance()->GetSubsystem<ULDArtSubsystem>()->GetCatalog());
             // Lineups on open floor (core south of the flagpole, outer ring north of S07/S08), across the -45 degree camera.
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
             const float FaceCamera = 135.f;
@@ -210,16 +333,28 @@ namespace
                     }
                 }
             }
+            // Bodies standing on routes next to every kind of prop: the five gates, around the flagpole and the shop,
+            // and in front of wall-base benches. The one behind the flagpole (south-east of it) shows the listed occluder.
+            const FVector Routes[] = {
+                {1979., 643., 0.}, {0., 2081., 0.}, {-1979., 643., 0.}, {-1223., -1684., 0.}, {1223., -1684., 0.},
+                {247., 247., 0.}, {-247., 247., 0.}, {247., -247., 0.}, {-247., -247., 0.},
+                {428., 778., 0.}, {778., 428., 0.}, {1128., 778., 0.},
+                {4720., 3000., 0.}, {4720., 2400., 0.}, {3000., 4720., 0.}, {-4720., -3000., 0.}, {-3000., -4720., 0.} };
+            for (int32 Index = 0; Index < UE_ARRAY_COUNT(Routes); ++Index)
+            {
+                const uint8 Seat = uint8(Index % LDArt::SeatCount);
+                SpawnBody(Target, *Art->ForSeat(Seat), ULDHumanoidVisualComponent::ContenderTint(Seat), Routes[Index], FaceCamera + 30.f * Index, ELDArtAnim::Idle);
+            }
             Shots = {
                 {TEXT("Characters-Identity"), Identity, 1100.f},
                 {TEXT("Characters-States"), States + Down * 260.f, 1300.f},
                 {TEXT("Characters-GameZoom"), Identity, 1400.f},
-                {TEXT("Field-Capture"), FVector(0., 0., 0.), 1700.f},
-                {TEXT("Field-Shop"), FVector(778., 778., 0.), 1400.f},
-                {TEXT("Field-EastWall"), FVector(4300., 600., 0.), 1700.f},
-                {TEXT("Field-SouthCorner"), FVector(3900., -3900., 0.), 1700.f},
-                {TEXT("Field-NorthWestCorner"), FVector(-3900., 3900., 0.), 1700.f},
+                {TEXT("Route-Capture"), FVector(0., 0., 0.), 1400.f},
+                {TEXT("Route-Shop"), FVector(778., 778., 0.), 1400.f},
+                {TEXT("Route-GateNorth"), FVector(0., 2081., 0.), 1400.f},
+                {TEXT("Route-EastBenches"), FVector(4400., 2800., 0.), 1400.f},
                 {TEXT("Field-Overview"), FVector(0., 0., 0.), 9000.f},
+                {TEXT("Map-TopDown"), FVector(0., 0., 0.), 24000.f, true},
             };
             FActorSpawnParameters Spawn;
             Spawn.ObjectFlags |= RF_Transient;
@@ -263,7 +398,9 @@ namespace
             APlayerController* Controller = Target.GetFirstPlayerController();
             if (!Camera.IsValid() || !Controller) { return Finish(TEXT("No capture camera or local player controller")); }
             const FArtShot& Current = Shots[Shot];
-            Camera->SetActorTransform(ALDCharacter::DefaultArmCameraPose(Current.Focus, Current.ArmCm));
+            Camera->SetActorTransform(Current.bTopDown
+                ? FTransform(FRotator(-90., -90., 0.), FVector(Current.Focus.X, Current.Focus.Y, Current.ArmCm))
+                : ALDCharacter::DefaultArmCameraPose(Current.Focus, Current.ArmCm));
             if (Controller->GetViewTarget() != Camera.Get() || Stage == 1)
             {
                 Controller->SetViewTarget(Camera.Get());

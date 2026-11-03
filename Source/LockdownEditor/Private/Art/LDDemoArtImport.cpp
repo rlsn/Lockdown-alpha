@@ -477,9 +477,11 @@ namespace
     }
 
     // One opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
-    UMaterial* ArtMasterMaterial(FString& Error)
+    // An existing master is reused untouched: re-saving a loaded material from this commandlet drops its graph.
+    UMaterial* ArtMasterMaterial(bool& bCreated, FString& Error)
     {
-        if (FPackageName::DoesPackageExist(ArtMasterPackage)) { return ArtLoadOrCreate<UMaterial>(ArtMasterPackage, false); }
+        bCreated = !FPackageName::DoesPackageExist(ArtMasterPackage);
+        if (!bCreated) { return ArtLoadOrCreate<UMaterial>(ArtMasterPackage, false); }
         UMaterial* Material = ArtLoadOrCreate<UMaterial>(ArtMasterPackage, true);
         auto* White = LoadObject<UTexture>(nullptr, TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"));
         if (!Material || !White) { ArtFail(Error, TEXT("Cannot create the art master material.")); return nullptr; }
@@ -798,6 +800,13 @@ namespace
             UAnimSequence* Sequence = ArtFindClip(Sequences, Mesh->GetName(), Spec2.Clip);
             if (!Sequence)
             {
+                // A re-import replaces existing clips in place without listing them; load them by their package path.
+                const FString Name = Mesh->GetName() + ArtAssetName(Spec2.Clip);
+                Sequence = ArtLoadOrCreate<UAnimSequence>(Folder / Name, false);
+                if (Sequence && Sequence->GetSkeleton() != Mesh->GetSkeleton()) { Sequence = nullptr; }
+            }
+            if (!Sequence)
+            {
                 FString Names;
                 for (const UAnimSequence* Candidate : Sequences) { Names += Candidate->GetName() + TEXT(" "); }
                 return ArtFail(Error, FString::Printf(TEXT("Character %s has no single clip %s among: %s"), *Spec.Id, *Spec2.Clip, *Names));
@@ -850,10 +859,11 @@ bool LDDemoArtImport::Import(FString& Error)
     FArtManifest Manifest;
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     TArray<UObject*> Assets;
-    UMaterial* Master = ArtMasterMaterial(Error);
+    bool bNewMaster = false;
+    UMaterial* Master = ArtMasterMaterial(bNewMaster, Error);
     auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, true);
     if (!Master || !Catalog) { return ArtFail(Error, TEXT("The art master material or catalog cannot be created: ") + Error); }
-    Assets.Add(Master);
+    if (bNewMaster) { Assets.Add(Master); }
     Catalog->Characters.Reset();
     Catalog->Seats.Reset();
     Catalog->Monsters.Reset();

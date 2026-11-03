@@ -159,8 +159,9 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
         for (const FSkeletalMaterial& Slot : Body.Mesh->GetMaterials())
         {
             FLinearColor Value;
-            TestTrue(TEXT("Material lives in the art folder and exposes the tint and flash: ") + Body.Id + TEXT(".") + Slot.MaterialSlotName.ToString(),
-                Slot.MaterialInterface->GetPathName().StartsWith(ArtRoot)
+            const UMaterial* Base = Slot.MaterialInterface ? Slot.MaterialInterface->GetMaterial() : nullptr;
+            TestTrue(TEXT("Material and its master live in the art folder and expose the tint and flash: ") + Body.Id + TEXT(".") + Slot.MaterialSlotName.ToString(),
+                Slot.MaterialInterface->GetPathName().StartsWith(ArtRoot) && Base && Base->GetPathName().StartsWith(ArtRoot)
                 && Slot.MaterialInterface->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::TintParameter), Value)
                 && Slot.MaterialInterface->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::FlashParameter), Value));
         }
@@ -196,8 +197,9 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
 
     // Placement zones against the approved D02 layout.
     const int32 WallBase = ArtFindDecoration(*Catalog, ELDArtZone::WallBase), Outside = ArtFindDecoration(*Catalog, ELDArtZone::Outside);
-    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture);
-    if (TestTrue(TEXT("The catalog has wall-base, outside and capture decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE && Capture != INDEX_NONE))
+    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture), Shop = ArtFindDecoration(*Catalog, ELDArtZone::Shop);
+    if (TestTrue(TEXT("The catalog has wall-base, outside, capture and shop decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
+        && Capture != INDEX_NONE && Shop != INDEX_NONE))
     {
         ULDArtCatalog* Copy = ArtCopy(*Catalog);
         Copy->Decorations[WallBase].Transform.SetLocation(FVector(0, -400, 0));
@@ -214,6 +216,9 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Capture].Transform.AddToTranslation(FVector(250, 0, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("An off-centre capture landmark is rejected"), TEXT("centred"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Shop].Transform.SetScale3D(Copy->Decorations[Shop].Transform.GetScale3D() * FVector(1, 1, 2));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A shop landmark tall enough to hide bodies is rejected"), TEXT("hide bodies"));
     }
 
     // Display only in a live world: nothing collides, overlaps, blocks a trace or reaches navigation.

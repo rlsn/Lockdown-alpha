@@ -128,6 +128,8 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             { return PlaceFail(Error, Label + TEXT(" is not centred on its world anchor.")); }
             if (FMath::Max(Box.GetExtent().X, Box.GetExtent().Y) > Limit)
             { return PlaceFail(Error, FString::Printf(TEXT("%s is wider than a %.0f cm landmark around its anchor."), *Label, Limit)); }
+            if (!bCapture && Box.Max.Z > OccluderHeightCm)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall; at the shop it would hide bodies above %.0f cm."), *Label, Box.Max.Z, OccluderHeightCm)); }
             break;
         }
         default:

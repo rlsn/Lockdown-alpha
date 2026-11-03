@@ -207,7 +207,7 @@
       "pack": "kenney-coaster-kit",
       "pack_path": "Models/GLB format/stall-food.glb",
       "sha256": "c2598eaec07802394740e77b1248066522caf678e8306cf7ab7c53e7b22e4e43",
-      "purpose": "Snack kiosk dressing the campus shop"
+      "purpose": "Snack kiosk dressing the campus shop, kept below 150 cm so it never hides a body"
     },
     {
       "path": "Kenney/CityKitCommercial/building-k.glb",
@@ -525,7 +525,7 @@
     {
       "id": "snack_stall",
       "source": "Kenney/CoasterKit/stall-food.glb",
-      "scale": 1.3
+      "scale": 0.95
     },
     {
       "id": "building_shops",
@@ -556,7 +556,7 @@
       "zone": "shop",
       "x": 778,
       "y": 778,
-      "yaw": -135
+      "yaw": 180
     },
     {
       "prop": "building_block",
