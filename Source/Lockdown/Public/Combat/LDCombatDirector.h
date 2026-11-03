@@ -196,6 +196,8 @@ public:
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
 
     // ---- Growth compound commits.
+    // A locked death credited to this contender still awaits its reward (this boundary's set or its one retry).
+    bool OwesRewardTo(const FGuid& Recipient) const;
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -209,6 +211,7 @@ private:
     friend class ALDGameMode;
     friend class FLDDemoCoreTest;
     friend class FLDRewardSettlementTest;
+    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).

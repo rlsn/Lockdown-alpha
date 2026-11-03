@@ -490,9 +490,8 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, c
     return ELDRewardOutcome::Granted;
 }
 
-bool ALDEconomyDirector::RetireLeftAccounts(const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDEconomyDirector::RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    ALDGameMode* M = Mode();
     for (const FGuid& Id : Roster)
     {
         if (Retired.Contains(Id))
@@ -501,7 +500,13 @@ bool ALDEconomyDirector::RetireLeftAccounts(const FLDGameplayWritePermit& Permit
         }
         FLDContenderLifeRead Life;
         FString LifeError;
-        if (!M->ReadContenderLife(Match, Id, Life, LifeError) || Life.Phase != ELDLifePhase::Left)
+        if (!M.ReadContenderLife(Match, Id, Life, LifeError) || Life.Phase != ELDLifePhase::Left)
+        {
+            continue;
+        }
+        // A death credited to him before he left is still owed; the account stays open until it settles
+        // (its single retry runs at the next DeathsAndRewards, before the next Transactions retires it).
+        if (M.Combat && M.Combat->OwesRewardTo(Id))
         {
             continue;
         }
@@ -596,7 +601,7 @@ bool ALDEconomyDirector::ProcessTransactions(const FLDGameplayWritePermit& Permi
             return false;
         }
     }
-    return RetireLeftAccounts(Permit, Error) && CompactLedger(Error);
+    return RetireLeftAccounts(*M, Permit, Error) && CompactLedger(Error);
 }
 
 bool ALDEconomyDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FString& Error)
