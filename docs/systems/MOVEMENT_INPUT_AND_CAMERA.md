@@ -161,7 +161,9 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 等待镜头从这一生最后的镜头中心起步，只夹在静态地图边界内，不跟随任何单位、不产生游戏移动，
 也不改变视野来源；复活后由新身体接回镜头并恢复已保存的跟随偏好。
 
-小地图的坐标转换应使用当前地图定义。点击静态地图不授予对隐藏单位的锁定或远程交互能力，
+小地图的坐标转换使用当前地图定义与本地 `MinimapOrientation`：跟随镜头（默认，地图上方即屏幕上方）、跟随角色朝向、固定正北（世界 −Y 朝上）。
+三种都是真实俯视的旋转加统一缩放，绘制、镜头框和拖图/右键移动共用 `LDMinimap::MakeView/ToFrame/ToWorld`，不镜像。
+点击静态地图不授予对隐藏单位的锁定或远程交互能力，
 远处镜头也不会把身体的攻击/商店距离一起移动。
 小地图左键拖动只移动镜头，死亡等待期间也可用；右键移动仍要求 `CanWorldCommand`。
 
@@ -186,14 +188,16 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec` 和绑定是完整正向清单。
-当前文件 schema 是 8，与产品/网络版本无关；旧通用 SaveGame 格式及 4–8 以外的 schema 返回不支持，不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation` 和绑定是完整正向清单。
+当前文件 schema 是 9，与产品/网络版本无关；旧通用 SaveGame 格式及 4–9 以外的 schema 返回不支持，不静默覆盖。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
 `CameraPanCmPerSec` 是键盘/边缘平移的镜头速度（cm/s），默认 1800，合法域 900..3600（只作用镜头，
 不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页以 300 cm/s 步进经
 `SetAppliedCameraPanSpeed` 应用，导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
+`MinimapOrientation` 是小地图朝向（0 跟随镜头、1 跟随角色朝向、2 固定正北），默认跟随镜头（用户决定）；
+越界值使文件按 `Corrupt` 处理。设置页“小地图朝向”的三个按钮经 `SetAppliedMinimapOrientation` 应用，恢复默认还原为跟随镜头。
 设置页的“恢复默认”先列出全部范围（显示/画质、音量、按键、镜头/文字；名称与本局进度不变）再确认：
 本地偏好先还原并保存，显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
 分辨率或窗口模式变化仍走保留/回滚试用，VSync 与画质随该次应用生效；与当前显示相同时不发起试用。
@@ -208,7 +212,8 @@ schema 5 是不含名称的同一正向清单，按显式迁移读取：校验�
 立即生效，下一次 flush 写成当前 schema，加载本身不改写旧文件。
 schema 6 是含名称但不含主音量的同一清单，同样显式迁移：名称、绑定和镜头/文字偏好保留，主音量取默认 1。
 schema 7 是不含镜头平移速度的同一清单，显式迁移时平移速度取默认 1800；schema 5、6 迁移同样取 1800。
-schema 5、6、7 中的损坏、非法偏好或注册表外动作
+schema 8 是不含小地图朝向的同一清单，显式迁移时朝向取跟随镜头；schema 5–7 迁移同样取跟随镜头。
+schema 5–8 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
@@ -270,7 +275,8 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
-schema 5/6/7 显式迁移与主音量、镜头平移速度保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`）、
+schema 5–8 显式迁移与主音量、镜头平移速度、小地图朝向保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`）、
+小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
 产品显示默认（`LocalDisplayProductDefaults`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、
 试用 ID/截止边界、引擎配置自动写保护和显示配置实际回读；

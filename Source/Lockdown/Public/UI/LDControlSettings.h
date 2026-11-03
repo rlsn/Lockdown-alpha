@@ -54,7 +54,7 @@ struct FLDLocalSettingsLoadResult
 {
     ELDLocalSettingsLoadStatus Status = ELDLocalSettingsLoadStatus::ReadFailed;
     ULDControlSettings* Settings = nullptr;
-    // A rejected binding set can still carry validated, unrelated camera/text/volume preferences and player name.
+    // A rejected binding set can still carry validated, unrelated camera/text/volume/minimap preferences and player name.
     ULDControlSettings* RecoverablePreferences = nullptr;
     FString Message;
 };
@@ -135,12 +135,15 @@ struct FLDControlBinding
     FKey Key;
     bool Axis=false;
 };
+// Which ground direction the minimap draws straight up (LDMinimap): the camera's ground forward, the own living body's
+// facing (the camera's while there is no body) or world -Y. Saved as this value; any other stored value is rejected.
+UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 };
 UCLASS()
 class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 8;
+    static constexpr int32 CurrentSchema = 9;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -158,6 +161,8 @@ public:
     // Keyboard and edge pan speed of the camera only; it never changes world distances, vision or body speed.
     // The 1800 default is the coordinator's decision, not a balance-tested value.
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
+    // Minimap presentation only; it never changes what the minimap may show. The Camera default is the user's decision.
+    UPROPERTY(SaveGame) ELDMinimapOrientation MinimapOrientation=ELDMinimapOrientation::Camera;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -169,6 +174,10 @@ public:
     bool SetAppliedMasterVolume(float Value, FString& Error);
     bool SetAppliedCameraPanSpeed(float Value, FString& Error);
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
+    bool SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error);
+    ELDMinimapOrientation GetMinimapOrientation() const { return MinimapOrientation; }
+    // Player-facing name of an orientation (跟随镜头 / 跟随角色朝向 / 固定正北); empty for any other value.
+    static FString MinimapOrientationLabel(ELDMinimapOrientation Value);
     void SetAppliedFollowing(bool Value);
     // Local format check only; the name travels as the ?Name= URL option and the session domain still normalizes or rejects it.
     static bool ValidatePlayerName(const FString& Name, FString& Error);
@@ -185,8 +194,9 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
-    // Restores keys, camera (including the pan speed), text and master volume only; the player name is never cleared by a
-    // defaults reset. Display values belong to UGameUserSettings; the settings panel restores them through the display trial.
+    // Restores keys, camera (including the pan speed), text, master volume and minimap orientation only; the player name is
+    // never cleared by a defaults reset. Display values belong to UGameUserSettings; the settings panel restores them through
+    // the display trial.
     void ResetLocalDefaults();
 private:
     void CopyPreferences(const ULDControlSettings& Other);

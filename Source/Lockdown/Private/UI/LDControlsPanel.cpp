@@ -36,6 +36,15 @@ namespace
     const TCHAR* ControlsOnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
     // One press of the camera pan speed buttons; the legal domain itself belongs to ULDControlSettings.
     constexpr float ControlsPanStepCmPerSec=300;
+    constexpr ELDMinimapOrientation ControlsOrientations[]={ELDMinimapOrientation::Camera,ELDMinimapOrientation::Facing,ELDMinimapOrientation::North};
+    FName ControlsOrientationButton(ELDMinimapOrientation Value)
+    {return Value==ELDMinimapOrientation::Facing?FName(TEXT("MinimapFacing")):Value==ELDMinimapOrientation::North?FName(TEXT("MinimapNorth")):FName(TEXT("MinimapCamera"));}
+    // The applied orientation keeps an amber fill; the row label also names it, so the choice never relies on colour alone.
+    void ControlsMarkChoice(UWidgetTree* Tree,FName Name,bool bChosen,const FSlateColor& RestTint)
+    {
+        auto* Button=CastChecked<UButton>(Tree->FindWidget(Name));FButtonStyle Style=Button->GetStyle();
+        Style.Normal.TintColor=bChosen?FSlateColor(FLinearColor(.36f,.27f,.06f)):RestTint;Button->SetStyle(Style);
+    }
 }
 
 TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
@@ -68,12 +77,12 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.06f,.16f,.94f,.96f));Frame->SetOffsets(FMargin(0));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
-        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字与音量改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
+        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字、小地图与音量改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
         Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
-        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（分辨率、窗口模式、垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度）。名称与本局进度不变。分辨率或窗口模式改变时仍需在倒计时内选择保留，否则只恢复原显示模式。"));Main->AddChildToVerticalBox(ResetRows);
+        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（分辨率、窗口模式、垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度与小地图朝向）。名称与本局进度不变。分辨率或窗口模式改变时仍需在倒计时内选择保留，否则只恢复原显示模式。"));Main->AddChildToVerticalBox(ResetRows);
         Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ConfirmResetDefaults();});
         Choice(ResetRows,TEXT("保持当前设置"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
-        RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
+        RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字、小地图与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
         Choice(RecoveryRows,TEXT("确认替换"),TEXT("ConfirmRecovery"),[this]()
         {ShowChild(EChildConfirmation::None);if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}Populate();});
         Choice(RecoveryRows,TEXT("保持文件不变"),TEXT("KeepSettingsFile"),[this](){ShowChild(EChildConfirmation::None);});
@@ -136,8 +145,16 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         {ChangePreference([](auto& S){S.CameraPanCmPerSec=FMath::Max(S.CameraPanCmPerSec-ControlsPanStepCmPerSec,ULDControlSettings::MinCameraPanCmPerSec);});},false,TEXT("SlowerCameraPan")));
         PanButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT(""),[this]()
         {ChangePreference([](auto& S){S.CameraPanCmPerSec=FMath::Min(S.CameraPanCmPerSec+ControlsPanStepCmPerSec,ULDControlSettings::MaxCameraPanCmPerSec);});},false,TEXT("FasterCameraPan")));
+        OrientationLabel=LDWidgets::Text(WidgetTree,TEXT(""));Content->AddChildToVerticalBox(OrientationLabel)->SetPadding(FMargin(0,12,0,4));
+        auto* OrientationButtons=WidgetTree->ConstructWidget<UWrapBox>();OrientationButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(OrientationButtons);
+        for(const ELDMinimapOrientation Option:ControlsOrientations)
+        {
+            OrientationButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,ULDControlSettings::MinimapOrientationLabel(Option),[this,Option]()
+            {ChangePreference([Option](auto& S){S.MinimapOrientation=Option;});},false,ControlsOrientationButton(Option)));
+        }
+        ChoiceRestTint=CastChecked<UButton>(WidgetTree->FindWidget(ControlsOrientationButton(ELDMinimapOrientation::Camera)))->GetStyle().Normal.TintColor;
         auto* Footer=WidgetTree->ConstructWidget<UWrapBox>();Footer->SetInnerSlotPadding(FVector2D(8));Main->AddChildToVerticalBox(Footer)->SetPadding(FMargin(0,12,0,0));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复显示、画质、音量、按键、镜头与文字默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复显示、画质、音量、按键、镜头、文字与小地图默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("重试本地保存"),[this]()
         {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}},false,TEXT("RetryLocalSave")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复无法读取或不兼容的设置"),[this](){ShowRecoveryConfirmation();},false,TEXT("RecoverLocalSettings")));
@@ -162,11 +179,14 @@ void ULDControlsPanel::PopulatePreferences()
 {
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;const int32 Volume=FMath::RoundToInt(100*Applied.MasterVolume);
     const float Pan=Applied.GetCameraPanCmPerSec();
-    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    const ELDMinimapOrientation Orientation=Applied.GetMinimapOrientation();const FString OrientationName=ULDControlSettings::MinimapOrientationLabel(Orientation);
+    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 小地图朝向 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,*OrientationName,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
     VolumeLabel->SetText(FText::FromString(FString::Printf(TEXT("主音量 %d%%"),Volume)));
     PanSpeedLabel->SetText(FText::FromString(FString::Printf(TEXT("镜头平移速度 %.0f cm/s"),Pan)));
     ControlsSetButton(WidgetTree,TEXT("SlowerCameraPan"),FString::Printf(TEXT("减慢 %.0f cm/s"),ControlsPanStepCmPerSec),Pan>ULDControlSettings::MinCameraPanCmPerSec);
     ControlsSetButton(WidgetTree,TEXT("FasterCameraPan"),FString::Printf(TEXT("加快 %.0f cm/s"),ControlsPanStepCmPerSec),Pan<ULDControlSettings::MaxCameraPanCmPerSec);
+    OrientationLabel->SetText(FText::FromString(TEXT("小地图朝向：")+OrientationName));
+    for(const ELDMinimapOrientation Option:ControlsOrientations){ControlsMarkChoice(WidgetTree,ControlsOrientationButton(Option),Option==Orientation,ChoiceRestTint);}
 }
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
 {
@@ -312,7 +332,7 @@ void ULDControlsPanel::ConfirmResetDefaults()
     {Feedback->SetText(FText::FromString(TEXT("显示试用或恢复仍在进行：请先保留或恢复显示模式，再恢复默认。没有恢复任何设置。")));return;}
     auto* Draft=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls->CreateDraft();
     Draft->ResetLocalDefaults();
-    Feedback->SetText(FText::FromString(TEXT("恢复按键、镜头、文字与音量默认值：")+Instance->ApplyLocalSettings(*Draft).Message));
+    Feedback->SetText(FText::FromString(TEXT("恢复按键、镜头、文字、小地图与音量默认值：")+Instance->ApplyLocalSettings(*Draft).Message));
     Populate();
     RestoreDisplayDefaults(*Instance);
 }
