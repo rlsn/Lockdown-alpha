@@ -103,20 +103,22 @@
 
 ## 未运行、未实现与已知限制
 
-- **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态。
+- **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
-  D09、D11、D13 与内容报告 §15 的扩展不在运行输入中。
-- **未运行**：跨机器局域网与公网直连；人类试玩与数值平衡；Shipping 配置打包；
-  真实 OS 失焦与显示模式切换；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
-  音效的人工试听（场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
+  D09、D11、D13 与内容报告 §15 的扩展不在运行输入中（[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)、[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)、[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）。
+- **未运行**：跨机器局域网与公网直连（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）；人类试玩与数值平衡；Shipping 配置打包（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）；
+  真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
+  音效的人工试听（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#10](https://github.com/rlsn/Lockdown-alpha/issues/10)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
 - **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
-- **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整）；
-  截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动 PSO 缓存），退出码仍为 0。
+- **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#43](https://github.com/rlsn/Lockdown-alpha/issues/43)）；
+  截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
+  其余缺陷、体验与覆盖缺口见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#56](https://github.com/rlsn/Lockdown-alpha/issues/56)。
 
 ## 剩余工作
 
-1. CT06 的全部提供者封桶、root motion 全链与历史时刻子段姿态。
-2. 跨机器局域网与公网直连验证、人类试玩与数值平衡（D09、D11 的数值调整在这之后再定）。
-3. Shipping 配置打包与分发。
-4. D13 校园补给箱与 D14（[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波）按用户决定逐批审查后再进入运行输入。
-5. 音效人工试听、真实显示模式与 OS 失焦检查。
+1. CT06 的全部提供者封桶、root motion 全链与历史时刻子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
+2. 跨机器局域网与公网直连验证（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）、人类试玩与数值平衡（D09、D11 的数值调整在这之后再定：[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)）。
+3. Shipping 配置打包与分发（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）。
+4. D13 校园补给箱（[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)）与 D14（[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波，[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）按用户决定逐批审查后再进入运行输入。
+5. 音效人工试听、完整 UI 人工验收、真实显示模式与 OS 失焦检查（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）。
+6. 测试覆盖缺口、已知缺陷与体验打磨：见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#56](https://github.com/rlsn/Lockdown-alpha/issues/56)。
