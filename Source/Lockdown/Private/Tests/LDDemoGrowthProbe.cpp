@@ -4,6 +4,8 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevGrowthFixture.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
 #include "Economy/LDEconomyDirector.h"
@@ -195,6 +197,73 @@ TArray<TSharedPtr<FJsonValue>> GrowthProbeItems(const FLDEquipmentView& View)
     }
     return Rows;
 }
+
+// The buyer's six opportunities in order, preset by the Host through the DEV growth fixture (-LDDevGrowthFixture). The
+// buyer takes Cards[0] every time: guard_pulse into Q (the A10 choice), guard_pulse to rank 2, arc_bolt into W,
+// binding_snare over Q's cooling rank-2 guard_pulse, guard_pulse again over W, then attr_vitality while dead.
+struct FGrowthProbeOffer
+{
+    const TCHAR* Cards[3];
+};
+
+const FGrowthProbeOffer GrowthProbePlan[] = {
+    {{TEXT("active_guard_pulse"), TEXT("attr_might"), TEXT("attr_focus")}},
+    {{TEXT("active_guard_pulse"), TEXT("attr_reach"), TEXT("attr_resolve")}},
+    {{TEXT("active_arc_bolt"), TEXT("attr_might"), TEXT("attr_focus")}},
+    {{TEXT("active_binding_snare"), TEXT("attr_reach"), TEXT("attr_resolve")}},
+    {{TEXT("active_guard_pulse"), TEXT("attr_might"), TEXT("attr_focus")}},
+    {{TEXT("attr_vitality"), TEXT("attr_might"), TEXT("attr_focus")}},
+};
+
+constexpr int32 GrowthProbePlannedOffers = UE_ARRAY_COUNT(GrowthProbePlan);
+// Gold of the Host's own DEV grant before it attacks the buyer; its XP matches the buyer's level so the duel is even.
+constexpr int64 GrowthProbeHostGrantGold = 120;
+
+TArray<FName> GrowthProbePlannedCards(int32 Index)
+{
+    const FGrowthProbeOffer& Planned = GrowthProbePlan[Index];
+    return {FName(Planned.Cards[0]), FName(Planned.Cards[1]), FName(Planned.Cards[2])};
+}
+
+// The head offer is the preset of its opportunity: the same three cards in the same order.
+bool GrowthProbeIsPreset(const FLDProgressionView& View)
+{
+    const int32 Index = int32(View.Offer.OpportunityOrdinal) - 1;
+    if (!View.bHasOffer || Index < 0 || Index >= GrowthProbePlannedOffers || View.Offer.Options.Num() != 3)
+    {
+        return false;
+    }
+    const TArray<FName> Planned = GrowthProbePlannedCards(Index);
+    for (int32 Card = 0; Card < 3; ++Card)
+    {
+        if (View.Offer.Options[Card].DefinitionId != Planned[Card])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+const FLDLearnedSkillView* GrowthProbeSkill(const FLDProgressionView& View, FName Id)
+{
+    return View.Skills.FindByPredicate([Id](const FLDLearnedSkillView& SkillRow) { return SkillRow.DefinitionId == Id; });
+}
+
+const FLDLearnedSkillView* GrowthProbeActiveIn(const FLDProgressionView& View, uint8 Slot)
+{
+    return View.Skills.FindByPredicate([Slot](const FLDLearnedSkillView& SkillRow) { return SkillRow.bActive && SkillRow.Slot == Slot; });
+}
+
+FString GrowthProbeSkillsText(const FLDProgressionView& View)
+{
+    FString Text;
+    for (const FLDLearnedSkillView& SkillRow : View.Skills)
+    {
+        Text += FString::Printf(TEXT("%s%s r%u%s"), Text.IsEmpty() ? TEXT("") : TEXT(", "), *SkillRow.DefinitionId.ToString(),
+            uint32(SkillRow.Rank), SkillRow.bActive ? (SkillRow.Slot == 0 ? TEXT(" Q") : TEXT(" W")) : TEXT(""));
+    }
+    return Text.IsEmpty() ? FString(TEXT("none")) : Text;
+}
 }
 
 // Global name, matching the other DEV probe classes; it only uses public game mode, controller and growth reads.
@@ -206,6 +275,9 @@ public:
         Join, Lobby, Spawned, Victim,
         ToSite, KillSeek, KillWait, Choice, ChoiceQuery,
         ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Activate, Sell, WalkOut, Outside,
+        // Q/W replacement and a choice while dead on the Host's preset offers: two more planned choices, Q's skill in
+        // use, the replacement, the relearn, then the Host kills the buyer and it chooses while dead.
+        Advance, UseSkill, Replace, Relearn, AwaitDeath, DeadChoice, Respawn,
         // New-match isolation: the Host ends the first match, the room returns to a new Lobby generation and a
         // second normal match must start from clean owner state.
         EndFirst, AwaitLobby, SecondLobby, SecondSpawned, SecondReplay, SecondQuote, SecondAudit
@@ -292,6 +364,45 @@ public:
 
     // Host: the victim's current life.
     uint32 VictimLife = 0;
+
+    // One planned choice in flight after the shop (replacement, relearn, choice while dead) and what it must change.
+    struct FChoiceCall
+    {
+        FString Step;
+        FLDChoiceCommand Sent;
+        FLDChoiceOption Picked;
+        FLDProgressionView Before;
+        int32 SubmitMark = 0;
+        int32 ResultMark = 0;
+        uint64 PublishMark = 0;
+        double SentAt = 0;
+        double QuietUntil = 0;
+        bool bSent = false;
+    };
+    FChoiceCall Planned;
+
+    // Client1: Q/W replacement. The forgotten skill's persistent track and deadline, and the rejected unconfirmed try.
+    bool bUnconfirmedDone = false, bSkillSent = false, bSkillCooling = false;
+    uint32 SkillReceiptMark = 0;
+    FName ForgottenId;
+    uint8 ForgottenRank = 0;
+    FGuid ForgottenTrack;
+    int64 ForgottenReadyAtMs = 0;
+    TSharedPtr<FJsonObject> ReplaceRow;
+
+    // Client1: the death the Host deals and the choice confirmed while dead.
+    uint32 DeathLife = 0;
+    int64 DeathRespawnAtMs = 0, DeadMaxHPP2 = 0, GrownMaxHPP2 = 0;
+    TSharedPtr<FJsonObject> DeathRow;
+
+    // Host: the DEV fixture presets, its own grant and the attack that kills the buyer.
+    bool bHostGrantSent = false, bHostGranted = false, bBuyerKilled = false;
+    uint64 HostGrantTicket = 0;
+    int64 HostGrantXP = 0, HostGoldBefore = 0;
+    uint8 HostGrantLevel = 0;
+    int32 HostAttackOrders = 0;
+    FLDMoveIdentity HostAttackOrder;
+    double HostKillStartedAt = 0;
 
     // New-match isolation. The first match's identities and dirty owner state, then the second match's checks.
     bool bSecondMatch = false, bResultChecked = false, bReplaySent = false;
@@ -626,6 +737,33 @@ public:
             TEXT("The Progression provider opened one ledger account per locked contender at the approved starting gold"));
     }
 
+    // Host, first spawned frame: the DEV fixture presets the buyer's six offers before its first reward can draw one.
+    bool PresetBuyerOffers(const ALDPlayerController& PC)
+    {
+        ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+        if (!Check(LDDevGrowthFixture::IsSwitchPresent() && Mode && Mode->Development, TEXT("Fixture"),
+            TEXT("The Listen Host runs with -LDDevGrowthFixture and owns the growth director")))
+        {
+            return false;
+        }
+        FString Refusal;
+        const TArray<FName> Twice = {FName(TEXT("active_guard_pulse")), FName(TEXT("active_guard_pulse")), FName(TEXT("attr_might"))};
+        Check(!Mode->Development->DevQueueOffer(ClientId, Twice, Refusal) && !Refusal.IsEmpty(), TEXT("Fixture"),
+            TEXT("The fixture refuses a preset that repeats a card, with a reason"), Refusal);
+        for (int32 Index = 0; Index < LDDemoGrowthScenario::GrowthProbePlannedOffers; ++Index)
+        {
+            const TArray<FName> Cards = LDDemoGrowthScenario::GrowthProbePlannedCards(Index);
+            FString QueueError;
+            const bool bQueued = Mode->Development->DevQueueOffer(ClientId, Cards, QueueError);
+            if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture queues the buyer's offer %d: %s, %s, %s"), Index + 1,
+                *Cards[0].ToString(), *Cards[1].ToString(), *Cards[2].ToString()), QueueError))
+            {
+                return false;
+            }
+        }
+        return Mark(TEXT("OffersPreset.json"));
+    }
+
     bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
     {
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
@@ -655,6 +793,7 @@ public:
         if (!Passed) { return Finish(); }
         if (IsHost())
         {
+            if (!PresetBuyerOffers(PC)) { return Finish(); }
             SetStage(EStage::Victim);
             return true;
         }
@@ -766,7 +905,7 @@ public:
         return true;
     }
 
-    // ---- Host: the victim never attacks; it walks back to its duel site after every respawn. ----
+    // ---- Host: the victim never attacks until the buyer asks to die; it walks back to its duel site after every respawn. ----
 
     bool TickVictim(double Now, ALDPlayerController& PC)
     {
@@ -783,6 +922,11 @@ public:
                 NextCommandAt = 0;
             }
             const bool bAtSite = FVector::Dist2D(Body->GetNavAgentLocation(), HostSite) <= LDDemoGrowthScenario::GrowthProbeArrivalCm;
+            // A Host that respawned elsewhere first walks back into sight of the buyer.
+            if (Exists(TEXT("KillMe.json")) && !bBuyerKilled && (bAtSite || bHostGrantSent))
+            {
+                return TickKillBuyer(Now, PC, *Mode);
+            }
             if (!bAtSite && !PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
                 if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
@@ -795,6 +939,91 @@ public:
             }
         }
         return Exists(TEXT("Client1Match1Done.json")) ? EndFirstMatch(Now, PC, *Mode) : true;
+    }
+
+    // Host, once the buyer has replaced and relearned its skill: its own DEV grant first (the buyer's level, and gold
+    // through the DevFixture ledger cause), then its own attack orders kill the buyer for the choice while dead.
+    bool TickKillBuyer(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
+    {
+        const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
+        const FLDObservedUnitView* Buyer = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, ClientId) : nullptr;
+        const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
+        const FLDEquipmentView* OwnEquipment = PC.ReadOwnEquipment();
+        if (HostKillStartedAt == 0)
+        {
+            HostKillStartedAt = Now;
+        }
+        if (!bHostGrantSent)
+        {
+            if (!Buyer || !OwnProgression || !OwnEquipment || !Mode.Economy)
+            {
+                if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A14"), TEXT("The Host never saw the buyer it was asked to kill"));
+            }
+            const TArray<int64>& Thresholds = Catalog->Get().Progression.XPThresholds;
+            HostGrantLevel = uint8(FMath::Clamp<int32>(Buyer->Level, 1, Thresholds.Num()));
+            HostGrantXP = FMath::Max<int64>(0, Thresholds[HostGrantLevel - 1] - OwnProgression->CumulativeXP);
+            HostGoldBefore = OwnEquipment->Gold;
+            FString GrantError;
+            HostGrantTicket = Mode.Economy->DevGrantReward(HostId, HostGrantXP, LDDemoGrowthScenario::GrowthProbeHostGrantGold, GrantError);
+            bHostGrantSent = true;
+            HostKillStartedAt = Now;
+            return Check(HostGrantTicket != 0, TEXT("Fixture"), TEXT("The fixture queues the Host's own XP and gold grant and returns a ticket"),
+                FString::Printf(TEXT("ticket=%llu xp=%lld gold=%lld level %u->%u %s"), HostGrantTicket, HostGrantXP,
+                    LDDemoGrowthScenario::GrowthProbeHostGrantGold, uint32(OwnProgression->Level), uint32(HostGrantLevel), *GrantError))
+                ? true : Finish();
+        }
+        if (!bHostGranted)
+        {
+            FString Detail;
+            const ELDDevGrantStatus Status = Mode.Economy ? Mode.Economy->DevGrantStatus(HostGrantTicket, Detail) : ELDDevGrantStatus::Unknown;
+            if (Status == ELDDevGrantStatus::Rejected || Status == ELDDevGrantStatus::Unknown)
+            {
+                return Fail(TEXT("Fixture"), TEXT("The Host's DEV grant was not committed: ") + Detail);
+            }
+            const bool bVisible = Status == ELDDevGrantStatus::Granted && OwnProgression && OwnEquipment
+                && OwnProgression->Level == HostGrantLevel && OwnEquipment->Gold == HostGoldBefore + LDDemoGrowthScenario::GrowthProbeHostGrantGold;
+            if (!bVisible)
+            {
+                if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("Fixture"), TEXT("The Host's DEV grant did not reach its own growth view in time: ") + Detail);
+            }
+            Check(true, TEXT("Fixture"),
+                TEXT("The grant commits in a Transactions phase through the reward composite and reaches the Host's own view"),
+                FString::Printf(TEXT("%s; level %u gold %lld"), *Detail, uint32(OwnProgression->Level), OwnEquipment->Gold));
+            bHostGranted = true;
+            HostAttackOrders = 0;
+            HostKillStartedAt = Now;
+            return true;
+        }
+        const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
+        const bool bOrderEnded = HostAttackOrders > 0 && Latest.Identity == HostAttackOrder && (Latest.Status == ELDOrderStatus::Rejected
+            || Latest.Status == ELDOrderStatus::Cancelled || Latest.Status == ELDOrderStatus::Completed);
+        if (bOrderEnded && Latest.Status == ELDOrderStatus::Completed && Latest.Failure == ELDOrderFailure::TargetDied)
+        {
+            bBuyerKilled = true;
+            Check(true, TEXT("A14"), TEXT("The Host's own attack order killed the buyer"),
+                FString::Printf(TEXT("orders=%d seconds=%.1f"), HostAttackOrders, Now - HostKillStartedAt));
+            return true;
+        }
+        if (HostAttackOrders == 0 || bOrderEnded)
+        {
+            if (!Buyer)
+            {
+                if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
+                return Fail(TEXT("A14"), TEXT("The buyer left the Host's sight before it died"));
+            }
+            if (HostAttackOrders >= LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
+            {
+                return Fail(TEXT("A14"), TEXT("The Host's attack kept ending without the buyer's death: ") + PC.Navigation->Status);
+            }
+            PC.Navigation->AttackUnit(Buyer->Handle, Buyer->ObservationEpoch);
+            HostAttackOrder = PC.Navigation->LocalIdentity();
+            ++HostAttackOrders;
+            return true;
+        }
+        if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
+        return Fail(TEXT("A14"), TEXT("The Host's attack did not kill the buyer within its budget"));
     }
 
     // Both roles: the first match's identities and dirty owner state, kept for the second match and the report.
@@ -1030,10 +1259,12 @@ public:
 
     bool TickClient(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
+        // The buyer dies once, on purpose, after the replacement; until then it keeps its first life.
+        const bool bDeathStage = Stage == EStage::AwaitDeath || Stage == EStage::DeadChoice || Stage == EStage::Respawn;
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
-        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != 1)
+        if (!bDeathStage && (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != 1))
         {
-            return Fail(TEXT("N03"), TEXT("The buyer lost its first life although the victim never attacks"));
+            return Fail(TEXT("N03"), TEXT("The buyer lost its first life before the Host was asked to kill it"));
         }
         switch (Stage)
         {
@@ -1052,6 +1283,13 @@ public:
         case EStage::Sell: return TickSell(Now, PC);
         case EStage::WalkOut: return TickToSite(Now, PC, *Body, KillSite, EStage::Outside, TEXT("A17"));
         case EStage::Outside: return TickOutside(Now, PC, *Body, Lobby);
+        case EStage::Advance: return TickAdvance(Now, PC);
+        case EStage::UseSkill: return TickUseSkill(Now, PC);
+        case EStage::Replace: return TickReplace(Now, PC);
+        case EStage::Relearn: return TickRelearn(Now, PC);
+        case EStage::AwaitDeath: return TickAwaitDeath(Now, PC);
+        case EStage::DeadChoice: return TickDeadChoice(Now, PC);
+        case EStage::Respawn: return TickRespawn(Now, PC);
         case EStage::SecondReplay: return TickSecondReplay(Now, PC);
         case EStage::SecondQuote: return TickSecondQuote(PC);
         default: return Fail(TEXT("Net"), TEXT("The buyer reached a stage of another role"));
@@ -1081,6 +1319,12 @@ public:
     // AttackUnit intent on its observer handle (what a right click on the unit sends).
     bool TickKillSeek(double Now, ALDPlayerController& PC)
     {
+        // The Host presets every offer of this match before the first reward can draw one.
+        if (Kills == 0 && AttackOrders == 0 && !Exists(TEXT("OffersPreset.json")))
+        {
+            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("Fixture"), TEXT("The Host never confirmed the buyer's preset offers"));
+        }
         const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
         const FLDObservedUnitView* Victim = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, HostId) : nullptr;
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
@@ -1201,19 +1445,16 @@ public:
         return true;
     }
 
-    // First card of the head offer that needs no Q/W replacement.
+    // The planned card of the head offer; the Host preset every offer of this match.
     const FLDChoiceOption* PickOption(const FLDProgressionView& View) const
     {
-        int32 Actives = 0;
-        for (const FLDLearnedSkillView& Learned : View.Skills)
+        const int32 Index = int32(View.Offer.OpportunityOrdinal) - 1;
+        if (Index < 0 || Index >= LDDemoGrowthScenario::GrowthProbePlannedOffers)
         {
-            Actives += Learned.bActive ? 1 : 0;
+            return nullptr;
         }
-        const bool bActiveSlotFree = Actives < Catalog->Get().Progression.ActiveSlots;
-        return View.Offer.Options.FindByPredicate([bActiveSlotFree](const FLDChoiceOption& Card)
-        {
-            return Card.Kind != ELDChoiceOptionKind::LearnActive || bActiveSlotFree;
-        });
+        const FName Wanted(LDDemoGrowthScenario::GrowthProbePlan[Index].Cards[0]);
+        return View.Offer.Options.FindByPredicate([Wanted](const FLDChoiceOption& Card) { return Card.DefinitionId == Wanted; });
     }
 
     bool BuildShowsChoice(const FLDProgressionView& View) const
@@ -1250,7 +1491,12 @@ public:
                 return Fail(TEXT("A10"), TEXT("The earned opportunity never offered a choosable head offer"));
             }
             const FLDChoiceOption* Chosen = PickOption(*ProgView);
-            if (!Chosen) { return Fail(TEXT("A10"), TEXT("The head offer has no card that is legal without a replacement")); }
+            if (!Check(LDDemoGrowthScenario::GrowthProbeIsPreset(*ProgView) && Chosen && Chosen->Kind == ELDChoiceOptionKind::LearnActive,
+                TEXT("Fixture"), TEXT("The first head offer is exactly the Host's preset, and its planned card learns an active"),
+                FString::Printf(TEXT("ordinal=%u"), uint32(ProgView->Offer.OpportunityOrdinal))))
+            {
+                return Finish();
+            }
             FLDChoiceCommand Command;
             Command.OfferId = ProgView->Offer.OfferId;
             Command.OfferRevision = ProgView->Offer.OfferRevision;
@@ -1868,6 +2114,434 @@ public:
         Check(Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen, TEXT("A01"),
             TEXT("The match stayed open through the whole scenario"));
         if (!Passed) { return Finish(); }
+        // The remaining preset offers drive the Q/W replacement and, after the Host kills the buyer, a choice while dead.
+        Planned = FChoiceCall();
+        SetStage(EStage::Advance);
+        return true;
+    }
+
+    // ---- Client1: Q/W replacement and a choice while dead, on the Host's preset offers ----
+
+    // Sends the planned card of the head offer. ReplaceSlot >= 0 confirms the replacement of that Q/W slot; bUnconfirmed
+    // sends the planned active without any replacement terms (it must be refused and consume nothing).
+    bool SendPlanned(ALDPlayerController& PC, const FString& Step, int32 ReplaceSlot, bool bUnconfirmed = false)
+    {
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        Planned = FChoiceCall();
+        Planned.Step = Step;
+        Planned.bSent = true;
+        const FLDChoiceOption* Option = View ? PickOption(*View) : nullptr;
+        if (!Check(View && View->bCanChoose && LDDemoGrowthScenario::GrowthProbeIsPreset(*View) && Option, TEXT("Fixture"),
+            Step + TEXT(": the head offer is exactly the Host's preset for its opportunity, with its planned card"),
+            View ? FString::Printf(TEXT("ordinal=%u %s"), uint32(View->Offer.OpportunityOrdinal),
+                *LDDemoGrowthScenario::GrowthProbeProgressionText(*View)) : FString(TEXT("no progression view"))))
+        {
+            return false;
+        }
+        FLDChoiceCommand Command;
+        Command.OfferId = View->Offer.OfferId;
+        Command.OfferRevision = View->Offer.OfferRevision;
+        Command.OptionId = Option->OptionId;
+        Command.ExpectedBuildRevision = View->BuildRevision;
+        Command.CatalogDigest = View->CatalogDigest;
+        if (ReplaceSlot >= 0 && !bUnconfirmed)
+        {
+            const FLDLearnedSkillView* Old = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, uint8(ReplaceSlot));
+            if (!Check(Old && FLDDefinitionWire::Encode(Old->DefinitionId, Command.ExpectedOldSkillId), TEXT("A12"),
+                Step + TEXT(": the slot to replace holds a learned active skill")))
+            {
+                return false;
+            }
+            Command.bReplace = true;
+            Command.ReplaceSlot = uint8(ReplaceSlot);
+            Command.ExpectedOldRank = Old->Rank;
+            Command.bReplaceConfirmed = true;
+        }
+        Planned.Before = *View;
+        Planned.Picked = *Option;
+        // The exact terms SubmitChoice sends: it fills Generation, Life and the life phase from OwnerState.
+        Planned.Sent = Command;
+        Planned.Sent.Generation = PC.OwnerState.Match;
+        Planned.Sent.Life = PC.OwnerState.Life;
+        Planned.Sent.ExpectedLifePhase = PC.OwnerState.LifePhase;
+        Planned.SubmitMark = Submits.Num();
+        Planned.ResultMark = ChoiceResults.Num();
+        Planned.PublishMark = PC.OwnerState.Growth.PublishRevision;
+        Planned.SentAt = FPlatformTime::Seconds();
+        const uint64 Peeked = PC.PeekGrowthRequestId(ELDGrowthFamily::Choice);
+        ELDGrowthReason LocalReason = ELDGrowthReason::None;
+        Planned.Sent.RequestId = PC.SubmitChoice(Command, LocalReason);
+        return Check(Planned.Sent.RequestId != 0 && Planned.Sent.RequestId == Peeked && LocalReason == ELDGrowthReason::None, TEXT("A24"),
+            Step + TEXT(" goes through SubmitChoice with the next choice request id"),
+            FString::Printf(TEXT("request=%llu peek=%llu local=%s"), Planned.Sent.RequestId, Peeked, LDGrowthWire::ReasonName(LocalReason)));
+    }
+
+    // The planned choice's pending admission, its final receipt and the owner publication carrying it.
+    LDDemoGrowthScenario::EGrowthProbeWait AwaitPlanned(double Now, const ALDPlayerController& PC, const FLDChoiceReceipt*& Out,
+        FString& Why) const
+    {
+        Out = nullptr;
+        const FLDSubmitResult* Admission = FindSubmit(ELDGrowthFamily::Choice, Planned.Sent.RequestId, Planned.SubmitMark);
+        const FLDChoiceReceiptQueryResult* Answer = FindChoiceAnswer(Planned.Sent.RequestId, Planned.ResultMark);
+        if (Admission && Admission->Status != ELDAdmissionStatus::AcceptedPending)
+        {
+            Why = TEXT("not admitted pending: ") + LDDemoGrowthScenario::GrowthProbeReason(Admission->Reason);
+            return LDDemoGrowthScenario::EGrowthProbeWait::Failed;
+        }
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        const bool bFinal = Admission && Answer && Answer->Lookup == ELDReceiptLookup::Final && Answer->bHasReceipt;
+        const bool bPublished = bFinal && View && PC.OwnerState.Growth.PublishRevision > Planned.PublishMark
+            && (Answer->Receipt.Header.Outcome != ELDReceiptOutcome::Applied
+                || View->ProgressionRevision == Answer->Receipt.Header.Revisions.ProgressionRevision);
+        if (!bPublished)
+        {
+            if (Now - Planned.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds)
+            {
+                return LDDemoGrowthScenario::EGrowthProbeWait::Waiting;
+            }
+            Why = TEXT("no admission, final receipt and owner publication arrived in time");
+            return LDDemoGrowthScenario::EGrowthProbeWait::Failed;
+        }
+        Out = &Answer->Receipt;
+        return LDDemoGrowthScenario::EGrowthProbeWait::Ready;
+    }
+
+    const FLDCombatEntryView* CurrentEntry(const ALDPlayerController& PC, ELDCombatEntry Wanted) const
+    {
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        return Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life
+            ? LDDemoGrowthScenario::GrowthProbeEntry(Own, Wanted) : nullptr;
+    }
+
+    // Offers 2 and 3: guard_pulse in Q rises to rank 2, then arc_bolt takes the free W slot.
+    bool TickAdvance(double Now, ALDPlayerController& PC)
+    {
+        if (!Planned.bSent)
+        {
+            const FLDProgressionView* View = PC.ReadOwnProgression();
+            if (!View || !View->bCanChoose || !View->bHasOffer)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A12"), TEXT("The next preset offer never became choosable"));
+            }
+            return SendPlanned(PC, View->ConsumedThrough == 1 ? TEXT("upgrade-q") : TEXT("learn-w"), -1) ? true : Finish();
+        }
+        const FLDChoiceReceipt* Final = nullptr;
+        FString Why;
+        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitPlanned(Now, PC, Final, Why);
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+        {
+            return Fail(TEXT("A12"), Planned.Step + TEXT(" did not complete: ") + Why);
+        }
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
+        const FLDLearnedSkillView* W = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) : nullptr;
+        const FString Detail = View ? LDDemoGrowthScenario::GrowthProbeSkillsText(*View) : FString(TEXT("no progression view"));
+        const bool bApplied = Final->Header.Outcome == ELDReceiptOutcome::Applied && !Final->bReplaced && Final->DefinitionId == Planned.Picked.DefinitionId;
+        if (Planned.Step == TEXT("upgrade-q"))
+        {
+            Check(bApplied && Final->Kind == ELDChoiceOptionKind::UpgradeActive && Final->NewRank == 2 && Q
+                && Q->DefinitionId == Planned.Picked.DefinitionId && Q->Rank == 2 && !W, TEXT("A12"),
+                TEXT("The Q skill rises to rank 2 before it is replaced"), Detail);
+            if (!Passed) { return Finish(); }
+            Planned = FChoiceCall();
+            StageAt = Now;
+            return true;
+        }
+        Check(bApplied && Final->Kind == ELDChoiceOptionKind::LearnActive && Final->NewRank == 1 && Q && Q->Rank == 2 && W
+            && W->DefinitionId == Planned.Picked.DefinitionId && W->Rank == 1, TEXT("A12"),
+            TEXT("A second active takes the free W slot, so Q and W are both held"), Detail);
+        if (!Passed) { return Finish(); }
+        Planned = FChoiceCall();
+        bSkillSent = false;
+        SetStage(EStage::UseSkill);
+        return true;
+    }
+
+    // Q's rank-2 skill puts its own persistent track on cooldown; that deadline has to survive forgetting the skill.
+    bool TickUseSkill(double Now, ALDPlayerController& PC)
+    {
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
+        const FLDCombatEntryView* Entry = CurrentEntry(PC, ELDCombatEntry::Q);
+        const int64 AsOfMs = PC.CombatView.AsOfMs;
+        if (!bSkillSent)
+        {
+            if (!Q || !Entry || Entry->DefinitionId != Q->DefinitionId || Entry->Rank != Q->Rank || !Entry->IssuedCooldownId.IsValid()
+                || Entry->ReadyAtMs > AsOfMs)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A12"), TEXT("Combat never showed Q's rank-2 skill installed and ready on its own track"));
+            }
+            ForgottenId = Q->DefinitionId;
+            ForgottenRank = Q->Rank;
+            ForgottenTrack = Entry->IssuedCooldownId;
+            SkillReceiptMark = PC.CombatReceiptSerial;
+            PC.ActivateCombatEntry(ELDCombatEntry::Q);
+            bSkillSent = true;
+            StageAt = Now;
+            return true;
+        }
+        const FLDCombatActionReceipt& Latest = PC.LatestCombatReceipt;
+        if (PC.CombatReceiptSerial != SkillReceiptMark && Latest.Entry == ELDCombatEntry::Q && Latest.Phase == ELDCombatPhase::Rejected)
+        {
+            return Fail(TEXT("A12"), TEXT("Q's active was rejected: ") + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Latest.Reject)));
+        }
+        if (!Entry || Entry->IssuedCooldownId != ForgottenTrack || Entry->ReadyAtMs <= AsOfMs)
+        {
+            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("A12"), TEXT("Using Q's skill did not put its own track on cooldown"));
+        }
+        ForgottenReadyAtMs = Entry->ReadyAtMs;
+        Check(true, TEXT("A12"), TEXT("Using Q's rank-2 skill cools its own persistent track until a fixed deadline"),
+            FString::Printf(TEXT("%s r%u track %s ready at %lld as of %lld"), *ForgottenId.ToString(), uint32(ForgottenRank),
+                *LDDemoGrowthScenario::GrowthProbeGuid(ForgottenTrack), ForgottenReadyAtMs, AsOfMs));
+        bUnconfirmedDone = false;
+        Planned = FChoiceCall();
+        SetStage(EStage::Replace);
+        return true;
+    }
+
+    // Offer 4: a third active while Q and W are held. Picking it without a confirmed replacement is refused and
+    // consumes nothing; the confirmed replacement of Q forgets the cooling skill with its rank and installs the new one.
+    bool TickReplace(double Now, ALDPlayerController& PC)
+    {
+        if (!Planned.bSent)
+        {
+            return SendPlanned(PC, bUnconfirmedDone ? TEXT("replace-q") : TEXT("pick-without-replacement"), 0, !bUnconfirmedDone)
+                ? true : Finish();
+        }
+        const FLDChoiceReceipt* Final = nullptr;
+        FString Why;
+        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitPlanned(Now, PC, Final, Why);
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+        {
+            return Fail(TEXT("A12"), Planned.Step + TEXT(" did not complete: ") + Why);
+        }
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        if (!bUnconfirmedDone)
+        {
+            Check(Final->Header.Outcome == ELDReceiptOutcome::Rejected
+                && LDGrowthWire::Reason(Final->Header.Reason) == ELDGrowthReason::ReplacementRequired && View && View->bHasOffer
+                && View->Offer.OfferId == Planned.Before.Offer.OfferId && View->ConsumedThrough == Planned.Before.ConsumedThrough
+                && View->PendingChoiceCount == Planned.Before.PendingChoiceCount && View->BuildRevision == Planned.Before.BuildRevision
+                && LDDemoGrowthScenario::GrowthProbeSkillsText(*View) == LDDemoGrowthScenario::GrowthProbeSkillsText(Planned.Before), TEXT("A12"),
+                TEXT("Picking a new active while Q and W are held, without a confirmed replacement, is refused and consumes nothing"),
+                FString::Printf(TEXT("reason=%s %s"), *LDDemoGrowthScenario::GrowthProbeReason(Final->Header.Reason),
+                    View ? *LDDemoGrowthScenario::GrowthProbeProgressionText(*View) : TEXT("no progression view")));
+            if (!Passed) { return Finish(); }
+            bUnconfirmedDone = true;
+            Planned = FChoiceCall();
+            StageAt = Now;
+            return true;
+        }
+        const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
+        const FLDLearnedSkillView* W = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) : nullptr;
+        const FString Detail = View ? LDDemoGrowthScenario::GrowthProbeSkillsText(*View) : FString(TEXT("no progression view"));
+        Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDChoiceOptionKind::LearnActive
+            && Final->DefinitionId == Planned.Picked.DefinitionId && Final->NewRank == 1 && Final->bReplaced && Final->ReplacedSlot == 0
+            && Final->ReplacedSkillId == ForgottenId && Final->ReplacedRank == ForgottenRank, TEXT("A12"),
+            TEXT("The confirmed replacement of Q applies once and names the forgotten skill and its rank"),
+            FString::Printf(TEXT("replaced %s r%u in slot %u by %s r%u"), *Final->ReplacedSkillId.ToString(), uint32(Final->ReplacedRank),
+                uint32(Final->ReplacedSlot), *Final->DefinitionId.ToString(), uint32(Final->NewRank)));
+        Check(View && Q && Q->DefinitionId == Planned.Picked.DefinitionId && Q->Rank == 1 && W && W->Rank == 1
+            && !LDDemoGrowthScenario::GrowthProbeSkill(*View, ForgottenId), TEXT("A12"),
+            TEXT("Q now holds the new skill at rank 1; the forgotten skill and its rank are gone from the build"), Detail);
+        const FLDChoiceOption* Again = View && View->bHasOffer ? View->Offer.Options.FindByPredicate([this](const FLDChoiceOption& Card)
+        {
+            return Card.DefinitionId == ForgottenId;
+        }) : nullptr;
+        Check(Again && Again->Kind == ELDChoiceOptionKind::LearnActive && Again->FromRank == 0 && Again->ToRank == 1, TEXT("A12"),
+            TEXT("The forgotten skill returns only as a rank-1 card: its old rank is kept nowhere"),
+            Again ? FString::Printf(TEXT("kind=%u rank %u->%u"), uint32(Again->Kind), uint32(Again->FromRank), uint32(Again->ToRank))
+                : FString(TEXT("not offered")));
+        if (!Passed) { return Finish(); }
+        Planned = FChoiceCall();
+        SetStage(EStage::Relearn);
+        return true;
+    }
+
+    // Combat binds Q's new skill to its own ready track. Offer 5 relearns the forgotten skill over W: it must bind the
+    // old persistent track with its original deadline, so forgetting did not wash the cooldown.
+    bool TickRelearn(double Now, ALDPlayerController& PC)
+    {
+        const int64 AsOfMs = PC.CombatView.AsOfMs;
+        if (!Planned.bSent)
+        {
+            const FLDProgressionView* View = PC.ReadOwnProgression();
+            const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
+            const FLDCombatEntryView* QEntry = CurrentEntry(PC, ELDCombatEntry::Q);
+            if (!Q || !QEntry || QEntry->DefinitionId != Q->DefinitionId)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A12"), TEXT("Combat never installed Q's new skill"));
+            }
+            Check(QEntry->Rank == 1 && QEntry->IssuedCooldownId.IsValid() && QEntry->IssuedCooldownId != ForgottenTrack
+                && QEntry->ReadyAtMs <= AsOfMs, TEXT("A12"), TEXT("Q's new skill binds its own ready track: the slot hands no cooldown over"),
+                FString::Printf(TEXT("%s track %s ready at %lld as of %lld"), *QEntry->DefinitionId.ToString(),
+                    *LDDemoGrowthScenario::GrowthProbeGuid(QEntry->IssuedCooldownId), QEntry->ReadyAtMs, AsOfMs));
+            if (!Passed) { return Finish(); }
+            return SendPlanned(PC, TEXT("relearn-over-w"), 1) ? true : Finish();
+        }
+        const FLDChoiceReceipt* Final = nullptr;
+        FString Why;
+        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitPlanned(Now, PC, Final, Why);
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+        {
+            return Fail(TEXT("A12"), Planned.Step + TEXT(" did not complete: ") + Why);
+        }
+        const FLDCombatEntryView* WEntry = CurrentEntry(PC, ELDCombatEntry::W);
+        if (!WEntry || WEntry->DefinitionId != ForgottenId)
+        {
+            if (Now - Planned.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("A12"), TEXT("Combat never installed the relearned skill in W"));
+        }
+        const FLDProgressionView* View = PC.ReadOwnProgression();
+        const FLDLearnedSkillView* W = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) : nullptr;
+        Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDChoiceOptionKind::LearnActive
+            && Final->DefinitionId == ForgottenId && Final->NewRank == 1 && Final->bReplaced && Final->ReplacedSlot == 1 && W
+            && W->DefinitionId == ForgottenId && W->Rank == 1 && WEntry->Rank == 1, TEXT("A12"),
+            TEXT("Relearning the forgotten skill over W starts again at rank 1"),
+            View ? LDDemoGrowthScenario::GrowthProbeSkillsText(*View) : FString(TEXT("no progression view")));
+        const bool bStillCooling = ForgottenReadyAtMs > AsOfMs;
+        Check(WEntry->IssuedCooldownId == ForgottenTrack && WEntry->ReadyAtMs == ForgottenReadyAtMs, TEXT("A12"),
+            TEXT("The relearned skill binds its old persistent track with the original deadline: forgetting did not wash the cooldown"),
+            FString::Printf(TEXT("track %s ready at %lld (original %lld) as of %lld, still cooling=%d"),
+                *LDDemoGrowthScenario::GrowthProbeGuid(WEntry->IssuedCooldownId), WEntry->ReadyAtMs, ForgottenReadyAtMs, AsOfMs,
+                bStillCooling ? 1 : 0));
+        ReplaceRow = MakeShared<FJsonObject>();
+        ReplaceRow->SetStringField(TEXT("forgotten"), ForgottenId.ToString());
+        ReplaceRow->SetNumberField(TEXT("forgotten_rank"), ForgottenRank);
+        ReplaceRow->SetStringField(TEXT("track"), LDDemoGrowthScenario::GrowthProbeGuid(ForgottenTrack));
+        ReplaceRow->SetNumberField(TEXT("ready_at_ms"), double(ForgottenReadyAtMs));
+        ReplaceRow->SetStringField(TEXT("relearned_track"), LDDemoGrowthScenario::GrowthProbeGuid(WEntry->IssuedCooldownId));
+        ReplaceRow->SetNumberField(TEXT("relearned_ready_at_ms"), double(WEntry->ReadyAtMs));
+        ReplaceRow->SetBoolField(TEXT("still_cooling"), bStillCooling);
+        if (!Passed || !Mark(TEXT("KillMe.json"))) { return Finish(); }
+        SetStage(EStage::AwaitDeath);
+        return true;
+    }
+
+    // The Host's own attack kills the buyer: the dead owner keeps its growth, has no body and waits for its respawn.
+    bool TickAwaitDeath(double Now, ALDPlayerController& PC)
+    {
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        const bool bDead = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == 1;
+        const bool bViewDead = Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life && !Own.bHasBody;
+        if (!bDead || !bViewDead)
+        {
+            // The Host may first respawn and walk back before its grant and attack.
+            const bool bWaiting = (PC.OwnerState.LifePhase == ELDLifePhase::Alive || bDead) && PC.OwnerState.Life == 1;
+            if (bWaiting && Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeReturnSeconds
+                + LDDemoGrowthScenario::GrowthProbeKillSeconds)
+            {
+                return true;
+            }
+            return Fail(TEXT("A14"), FString::Printf(TEXT("The Host did not kill the buyer in time (phase %s, life %u)"),
+                *StaticEnum<ELDLifePhase>()->GetNameStringByValue(int64(PC.OwnerState.LifePhase)), PC.OwnerState.Life));
+        }
+        DeathLife = PC.OwnerState.Life;
+        DeathRespawnAtMs = PC.OwnerState.RespawnAtMs;
+        DeadMaxHPP2 = Own.MaxHPP2;
+        Check(PC.OwnerState.Hp == 0 && Own.HPP2 == 0 && DeathRespawnAtMs > 0 && DeadMaxHPP2 > 0, TEXT("A14"),
+            TEXT("The Host's attack killed the buyer: dead, no body, zero HP, a respawn time set and the next life's build projected"),
+            FString::Printf(TEXT("life %u respawn at %lld hp %.0f, view hp=%lld max=%lld"), DeathLife, DeathRespawnAtMs, PC.OwnerState.Hp,
+                Own.HPP2, DeadMaxHPP2));
+        if (!Passed) { return Finish(); }
+        Planned = FChoiceCall();
+        SetStage(EStage::DeadChoice);
+        return true;
+    }
+
+    // Offer 6 while dead: the choice changes only the persistent build. The owner stays dead on the same life with the
+    // same respawn time and no HP, while the projection of its next life grows by the card.
+    bool TickDeadChoice(double Now, ALDPlayerController& PC)
+    {
+        if (!Planned.bSent)
+        {
+            const FLDProgressionView* View = PC.ReadOwnProgression();
+            if (!View || !View->bCanChoose || View->LifePhase != ELDLifePhase::Dead)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A14"), TEXT("The dead owner never saw its head offer as choosable"));
+            }
+            return SendPlanned(PC, TEXT("choose-while-dead"), -1) ? true : Finish();
+        }
+        const FLDChoiceReceipt* Final = nullptr;
+        FString Why;
+        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitPlanned(Now, PC, Final, Why);
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+        {
+            return Fail(TEXT("A14"), Planned.Step + TEXT(" did not complete: ") + Why);
+        }
+        if (Planned.QuietUntil == 0)
+        {
+            const FLDProgressionView* View = PC.ReadOwnProgression();
+            const FLDAttributeCardView* Before = Planned.Before.AttributeCards.FindByPredicate([this](const FLDAttributeCardView& CardRow)
+            {
+                return CardRow.DefinitionId == Planned.Picked.DefinitionId;
+            });
+            const FLDAttributeCardView* After = View ? View->AttributeCards.FindByPredicate([this](const FLDAttributeCardView& CardRow)
+            {
+                return CardRow.DefinitionId == Planned.Picked.DefinitionId;
+            }) : nullptr;
+            Check(Planned.Sent.ExpectedLifePhase == ELDLifePhase::Dead && Planned.Sent.Life == DeathLife
+                && Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Header.OriginalLifePhase == ELDLifePhase::Dead
+                && Final->Header.OriginalLife == DeathLife && Final->DefinitionId == Planned.Picked.DefinitionId, TEXT("A14"),
+                TEXT("A choice confirmed while dead is admitted for the Dead phase of the current life and applies"),
+                FString::Printf(TEXT("life %u card %s"), DeathLife, *Planned.Picked.DefinitionId.ToString()));
+            Check(After && After->Count == (Before ? Before->Count : 0) + 1, TEXT("A14"), TEXT("The dead owner's build shows the chosen card"),
+                View ? LDDemoGrowthScenario::GrowthProbeProgressionText(*View) : FString(TEXT("no progression view")));
+            if (!Passed) { return Finish(); }
+            // A choice that revived, healed or moved the respawn would show within this quiet period.
+            Planned.QuietUntil = Now + LDDemoGrowthScenario::GrowthProbeQuietSeconds;
+            return true;
+        }
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        const bool bGrown = Own.Generation == PC.OwnerState.Match && Own.Life == DeathLife && Own.MaxHPP2 != DeadMaxHPP2;
+        if (Now < Planned.QuietUntil || (!bGrown && Now - Planned.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds))
+        {
+            return true;
+        }
+        GrownMaxHPP2 = Own.MaxHPP2;
+        Check(PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == DeathLife && PC.OwnerState.RespawnAtMs == DeathRespawnAtMs
+            && PC.OwnerState.Hp == 0 && !Own.bHasBody && Own.HPP2 == 0 && GrownMaxHPP2 > DeadMaxHPP2, TEXT("A14"),
+            TEXT("Choosing while dead changes only the build: no early respawn, the same respawn time, no heal, a larger next-life maximum"),
+            FString::Printf(TEXT("phase %s life %u respawn at %lld (was %lld) hp %.0f; view body=%d hp=%lld max %lld -> %lld"),
+                *StaticEnum<ELDLifePhase>()->GetNameStringByValue(int64(PC.OwnerState.LifePhase)), PC.OwnerState.Life,
+                PC.OwnerState.RespawnAtMs, DeathRespawnAtMs, PC.OwnerState.Hp, Own.bHasBody ? 1 : 0, Own.HPP2, DeadMaxHPP2, GrownMaxHPP2));
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::Respawn);
+        return true;
+    }
+
+    // The normal respawn after the approved delay: a new life with full HP and MP at the maximum grown while dead.
+    bool TickRespawn(double Now, ALDPlayerController& PC)
+    {
+        const FLDCombatOwnerView& Own = PC.CombatView;
+        const bool bAlive = PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.Life == DeathLife + 1
+            && Cast<ALDCharacter>(PC.GetPawn()) && Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life && Own.bHasBody;
+        if (!bAlive)
+        {
+            if (Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            return Fail(TEXT("A14"), TEXT("The buyer did not respawn after the approved delay"));
+        }
+        Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MaxMPP2 > 0 && Own.MPP2 == Own.MaxMPP2, TEXT("A14"),
+            TEXT("The normal respawn restores full HP and MP at the maximum grown while dead"),
+            FString::Printf(TEXT("life %u hp %lld/%lld mp %lld/%lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MPP2, Own.MaxMPP2));
+        DeathRow = MakeShared<FJsonObject>();
+        DeathRow->SetNumberField(TEXT("life"), DeathLife);
+        DeathRow->SetNumberField(TEXT("respawn_at_ms"), double(DeathRespawnAtMs));
+        DeathRow->SetStringField(TEXT("card"), Planned.Picked.DefinitionId.ToString());
+        DeathRow->SetNumberField(TEXT("max_hp_p2_before"), double(DeadMaxHPP2));
+        DeathRow->SetNumberField(TEXT("max_hp_p2_after"), double(GrownMaxHPP2));
+        DeathRow->SetNumberField(TEXT("respawned_life"), PC.OwnerState.Life);
+        DeathRow->SetNumberField(TEXT("respawn_hp_p2"), double(Own.HPP2));
+        if (!Passed) { return Finish(); }
         // The first match is done and dirty; the Host ends it and the second match must start from clean owner state.
         RecordFirstMatch(PC);
         if (!Mark(TEXT("Client1Match1Done.json"))) { return Finish(); }
@@ -1979,8 +2653,9 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host that never attacks, ends the first match without a winner and checks its own state in a second normal match. Not camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, one choice, two-slot shop trades and an item active through the owning connection, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that presets the buyer's offers, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant and kills the buyer, ends the first match without a winner and checks its own state in a second normal match. Not camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, choices on the Host's preset offers, two-slot shop trades and an item active through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+        Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), int32(Stage));
@@ -2008,6 +2683,9 @@ public:
         if (IsHost())
         {
             Report->SetStringField(TEXT("start_gate_blocker"), StartBlocker);
+            Report->SetNumberField(TEXT("host_grant_xp"), double(HostGrantXP));
+            Report->SetNumberField(TEXT("host_grant_gold"), double(bHostGrantSent ? LDDemoGrowthScenario::GrowthProbeHostGrantGold : 0));
+            Report->SetBoolField(TEXT("buyer_killed"), bBuyerKilled);
         }
         else
         {
@@ -2020,6 +2698,8 @@ public:
             Report->SetArrayField(TEXT("kill_rows"), KillRows);
             Report->SetObjectField(TEXT("choice"), ChoiceRow.IsValid() ? ChoiceRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
             Report->SetArrayField(TEXT("shop_steps"), ShopRows);
+            Report->SetObjectField(TEXT("replacement"), ReplaceRow.IsValid() ? ReplaceRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+            Report->SetObjectField(TEXT("dead_choice"), DeathRow.IsValid() ? DeathRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         }
         Written = Save(Report, Role + TEXT(".json"));
         UE_LOG(LogTemp, Display, TEXT("LD_DEMO_GROWTH_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
