@@ -31,7 +31,8 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 小卖部页面是 HUD 停靠的
 `ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订；
 三选一页面 `ULDChoicesPanel` 同样只读 `ReadOwnProgression`，经 `SubmitChoice` 提交；开局 Offer 首次到达本人、
-尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择。
+尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择；
+玩家 6 s 内未点选卡片时面板自动收起为待选提示（`LDHUD::FChoicesFold`），收起不改变机会与 Offer。
 
 ## 物品身份不是格子
 

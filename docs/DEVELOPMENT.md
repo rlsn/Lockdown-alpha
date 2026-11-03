@@ -184,6 +184,8 @@ DEV probe 只在带开关时生效，证据先写入包内 `Lockdown\Artifacts`�
 `-NetEmulation '-PktLag=40 -PktLagVariance=10 -PktLoss=1 -PktDup=1 -PktOrder=1'` 这类引擎包模拟参数
 （只在 Development/编辑器构建生效），每个角色进程只影响自己发出的包；
 runner 核对每个角色的日志确实解析了每一项。这只是同机模拟，不代表跨机器局域网或公网直连。
+`RunDemoCombatCheck.ps1` 与 `RunDemoVisionCheck.ps1` 的 Host 主视图默认 1280×720，
+加 `-Resolution 1080p` 以 `-ForceRes` 渲染 1920×1080（输出目录带 `-1080p` 后缀），用于两种分辨率的截图审阅。
 源码、配置和生成输入在一次原生构建/运行期间保持稳定。
 删除反射类型或成员前，可用 `AuditAssetReferences.ps1 -RequestPath <审计请求JSON>`。
 它在旧原生类仍存在时加载全部项目包，记录 AssetRegistry、linker import/soft/name 表、

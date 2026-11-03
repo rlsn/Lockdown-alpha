@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDHUDModel.h"
 #include "Development/LDGrowthProtocol.h"
 #include "LDChoicesPanel.generated.h"
 class UTextBlock;
@@ -34,6 +35,13 @@ public:
     virtual bool HasChildConfirmation() const override {return bReplacing;}
     virtual bool CloseChildConfirmation() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
+    // The HUD opened this panel for the opening offer (D10): it folds back to the pending pill after a few seconds unless
+    // the player engages with it (LDHUD::FChoicesFold).
+    void MarkOpenedAutomatically();
+    // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
+    void UpdateFold(bool bOwnHit);
+    // A previewed card, the replacement confirmation or a request in flight.
+    bool IsEngaged() const {return Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual UWidget* FocusScope() const override;
@@ -71,6 +79,8 @@ private:
     FString PendingName;
     bool bOpen=false;
     bool bReplacing=false;
+    LDHUD::FChoicesFold Fold;
+    double UiNow() const;
     void Send(const FLDChoiceCommand& Command);
     void ShowFinal(const FLDChoiceReceipt& Receipt);
     void FinishRequest();
