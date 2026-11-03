@@ -1,12 +1,12 @@
-# Demo 世界、营地与视野实施准备报告
+# Demo 世界、营地与视野
 
 本文服务于 [App Spec](../APP_SPEC.md) §2、§6、§7、§9 的同一个 Demo。
-**布局、数值引用和新增接口都是本 PR 的待审设计，不是已经批准的产品规则或已经完成的实现。**
-本轮只研究、审核和编写文档，没有修改 Source、Config、Content、SourceData 或 Scripts。
+**2026-11-02 用户已批准现有单层布局作为唯一 Demo 地图，
+并批准所引用的完整首版内容与数值作为首次实际试玩输入。**
+原生查询、生成、资产、营地、观察和联网接线已经接入 Demo；批准不是平衡测试结果。
 
-源码证据基线为 `fa11d09a762bccadf495191072e222dd158fc014`。
-先读取 README、App Spec、AGENTS、DEVELOPMENT 及相关系统手册，再核对实际实现；
-文中“现有”指该基线的事实，“拟新增／改造”指后续任务。
+原始研究基于收敛前的源码基线 `fa11d09`；当前实现以源码和技术手册为准。
+先读取 README、App Spec、AGENTS、DEVELOPMENT 及相关系统手册，再核对实际实现。
 联合身份、事务和时序以 [共享契约](SHARED_CONTRACTS.md) SC-02、SC-03、SC-05、SC-07、SC-09 为边界；
 本模块不另建世界时钟、战斗生命、奖励账本或占领胜负状态。
 
@@ -26,7 +26,7 @@
   -> 改造 ULDMapDefinition + ULDMapRegistry / 唯一地图 Builder
   -> 同一静态地面、阻走、阻视线与公开地点定义
   -> CharacterMovement + LDNavigationComponent / Combat 身体
-  -> ALDWorldDirector 的营地职责 / 核心生命与死亡事实
+  -> ALDCampDirector（LDCampLifecycle 记账 + LDCampDecision 纯决策）/ 核心生命与死亡事实
   -> ALDVisionDirector 的每观察者授权
   -> 一版有界稀疏 FLDWorldView + LDWorldViewRelay
   -> 本人原生身体、他者观察代理、HUD、小地图、AI 受限投影
@@ -43,9 +43,8 @@
 | `ULDMapDefinition` 锁定 96 POI、24 出生、144 建筑、11 城镇等旧完整图结构 | 保留闭合导入、稳定 ID、反射回核，删除旧数量／城市语义；不是把旧地图缩放。`Source\Lockdown\Private\Region\LDMapDefinition.cpp:112-157` |
 | Registry 仍限制 B90 standalone；旧 Region 为固定服务地址 | Registry 必须接服务器世界与新地点种类。`Source\Lockdown\Private\Region\LDMapRegistry.cpp:14-61`；`Region\LDRegionDefinition.cpp:17-38,43-68` |
 | 原生导航已有地面查询、agent 投影、拒绝 partial path、合法接近点和取消身份 | 核心复用，拆掉地图分支和 Site／B91 Cast；不新增位置积分器。`Source\Lockdown\Private\Navigation\LDNavigationComponent.cpp:70-94,154-193,237-306` |
-| `ALDWorldPawn/ALDWorldDirector` 确有营地战斗，当前为三组、每组同时一只、十二次生命预算 | 改造为五组、两档、逐成员生命、清空后整组刷新；不能称“完全没有可复用营地”。`Source\Lockdown\Private\World\LDWorldDirector.cpp:36-112` |
-| 当前两个身体 DTO 都不含目标 HP/MaxHP；旧视野还有 public/ward/Heart/tower 来源 | 明确字段白名单与唯一身体来源，不能用 Host 的 Combat 全表补 Tooltip。`Source\Lockdown\Public\Vision\LDViewTypes.h:18-47`；`Public\World\LDEnvironmentDirector.h:27-45` |
-| B92 无 UI 席位关闭 Tick，居民日程不是自主发育对手 | 仅抽取合适的权威入口；不继承居民、24 席位、离线接管。`Source\Lockdown\Private\Population\LDB92Roster.cpp:29-33,119-143`；`LDB92Routines.cpp:37-101` |
+| 旧三组营地 Actor（每组同时一只、十二次生命预算）已删除，只抽出参数化追击/活动范围/成员回位/稳定选敌的纯值决策 | 五组、两档、逐成员生命、清空后整组刷新由 `World\LDCampDirector` 在核心身体/生命上实现，并在 Actions 阶段调用该纯决策。`Source\Lockdown\Public\World\LDCampDecision.h`、`LDCampDirector.h` |
+| 当前两个身体 DTO 都不含目标 HP/MaxHP；旧视野还有 public/ward/Heart/tower 来源 | 明确字段白名单与唯一身体来源，不能用 Host 的 Combat 全表补 Tooltip。`Source\Lockdown\Public\Vision\LDViewTypes.h:18-47` |
 
 上表中未重复根路径的 `Framework`、`Region` 等路径均位于 `Source\Lockdown\Private`；
 下文证据继续使用仓库相对路径，行号对应上述基线，不对应未来重构后的行号。
@@ -65,7 +64,7 @@
 | `UNIT.BasicAttackRangeCm`、`STAT.AttackRangeCm` | 初始值与当前派生值分开；订单/接近/释放读取当前攻击范围，脚点 XY 中心距不重复加减碰撞半径 |
 | `VISION.RadiusCm` | 身体来源范围；镜头、公开地点、占领提示不增加来源 |
 | `SHOP.InteractRadiusCm` | 脚点至固定商店交互锚点的 XY 中心距；本体占地内不能强塞寻路目标 |
-| `CAPTURE.RadiusCm`、`CAPTURE.HoldSec` | 脚点是否进入闭圆盘和连续独占时长；脚点入圈不等于整胶囊入圈 |
+| `CAPTURE.RadiusCm`、`CAPTURE.HoldSec` | 脚点是否进入闭圆盘和独占进度所需时长；脚点入圈不等于整胶囊入圈 |
 | `MATCH.DevelopmentSec`、`LIFE.RespawnSec`、`LIFE.ProtectionSec` | 发育、死亡和复活资格由核心控制；保护可以主动解除，不能当作固定额外回防延迟 |
 | `CAMP.Low/High.CountPerCamp`、`HP/Armor/Attack/RewardXP/RewardGold` | 世界只绑定内容定义及成员；血量和奖励不在营地管理器另存另一真相 |
 | `CAMP.Low/High.RespawnSec/LeashRadiusCm/LoseTargetGraceSec` | 清营计时、活动域与失目标等待；源参数变化须重算回位、出生和争圈关系 |
@@ -87,6 +86,11 @@
 外围墙厚300cm，内/外表面分别为±5000/±5300。
 采用单层静态平地和一个 NavMeshBounds，不加入坡地、城市、河流、楼层、可破坏建筑、梯绳或隐身地形。
 地面、占领标记和出生/营地标记不挡视线；占领圈不是实体碰撞体。
+
+校园表现按 [App Spec §1/§6.1](../APP_SPEC.md)；本报告已批准的单层地图布局、点位、高度和技术标签不随换皮改变。
+SHOP 显示为小卖部、CAPTURE 显示为升旗台；升旗台主题不新增可站立高层或实体碰撞。
+当前世界中的升旗台边界是各端本地生成的平线（`ALDCaptureMarker`，见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)），
+按注册锚点与 `CAPTURE.RadiusCm` 绘制、随公开圈态变色，无碰撞且不挡视线。
 
 五营地在约2600cm环上，每个正对一个入口；十出生点在约4400cm外环上。
 外部连通环带可以绕行侦察，内侧五墙提供绕角、追击/脱离及视野取舍；
@@ -114,8 +118,8 @@
 | CAPTURE | (0,0) | 不适用 | 不适用 | 唯一自动占领圆圈；半径引用内容表 |
 
 Low成员位置已收敛为整数厘米，组内实际中心距分别为149.265、149.265、150.426cm，
-不是声称取整后仍“精确150cm”。当前角色/野怪半径候选40cm，三组均不重叠；
-也为内容候选180cm余波提供同组两个合法受害生命的正例。
+不是声称取整后仍“精确150cm”。已批准首轮角色/野怪半径40cm，三组均不重叠；
+也为首轮内容180cm横扫副击提供同组两个合法受害生命的正例。
 营地预留500cm半径的静态清空地面，但这不是自动警戒范围或Leash的新上限，更不是安全区。
 高档增加风险/收益来自内容和战斗，不靠额外封锁道路或隐藏地点。
 开局同样允许多人竞争同一 Low；本图不为每名玩家分配专属营地。
@@ -135,8 +139,8 @@ Low成员位置已收敛为整数厘米，组内实际中心距分别为149.265�
 | 地面/圈/营地/出生标记 | 由上述地点和合法地面派生 | 否 | 否 | 地面/叠加表现 |
 
 商店低台面是首版“阻走但不阻视线”的明确实例，不增加可攻击/可破坏能力。
-建议身体视线采样面为脚点上120cm，墙挡该射线而台面不挡；
-这些高度同属待审几何/表现建议，须与实际Character和镜头在锁定引擎验证。
+身体视线采样面采用脚点上120cm，墙挡该射线而台面不挡；
+这些高度属于已批准单层方案，仍须与实际Character和镜头在锁定引擎验证。
 无“仅阻视线”的产品对象，不为凑分类新增烟雾/草丛。
 
 | 入口 | 两侧墙 | 原始点模型净宽 cm | 40cm miter外扩后保守净宽 cm | 连接 |
@@ -270,17 +274,18 @@ High中心有怪物，Low中心到两个成员约75cm，也不能当作40+40cm�
 这里不计敌方协助位移，不借前端回执、换槽或卖出重买制造第三次额度。
 保护可以提前解除，**不能在最短返场时间后再加3s保护**。
 
-内容候选 `LIFE.RespawnSec=26 > CAPTURE.HoldSec=25` 的作用仅是：
-最后阵亡者不能单靠复活返场这一途径，否决一段已经开始且无人争夺的完整占领。
-这不是保证多人对抗必然在固定时间结束，也不排除存续效果、其他存活者和合法争夺造成中断。
+内容值 `LIFE.RespawnSec=26 > CAPTURE.HoldSec=25`（D01 批准为试玩输入）的作用仅是：
+最后阵亡者不能单靠复活返场这一途径，打断一段已经开始且无人争夺的完整占领。
+D12 改为争夺只暂停原占领者进度后，这一关系的数值暂不变，待数值轮复核。
+这不是保证多人对抗必然在固定时间结束，也不排除存续效果、其他存活者和合法争夺暂停该占领。
 无需为了该条件扩大地图或改变十点抽样。
 
 ### 2.7 成长射程与群攻的空间接缝
 
 用户已确认初始近战单体普攻，装备/属性可提供群攻与射程成长。
 世界订单读取当前 `STAT.AttackRangeCm`，不能永久用初始 `UNIT.BasicAttackRangeCm`。
-内容候选的最大派生范围660cm、180cm余波只作为本次几何覆盖输入，权威数值仍在内容表。
-Low组内149.265..150.426cm间距提供两名受害者均可被合法余波覆盖的正例；
+内容候选的最大派生范围660cm、180cm横扫副击只作为本次几何覆盖输入，权威数值仍在内容表。
+Low组内149.265..150.426cm间距提供两名受害者均可被合法横扫覆盖的正例；
 500cm隔墙样例提供“在660cm距离内但不可穿墙命中/观察”的反例。
 
 群攻从已接受 `AttackId` 的权威效果上下文进入 `QueryCombatContacts`，
@@ -306,13 +311,14 @@ Shop/圈相离和上述构造上界均已复算。
 精确复现只需§2.2/§2.3的整数几何、§2.4七个偏移、内容参数快照以及上述算法；
 不得取SVG标记半径或旧三角函数坐标作为第二输入。
 miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模型；
-原生碰撞skin、地板间隙、NavMesh离散化、动态占位和视觉可读性尚未测。
+这些离线结果不证明原生碰撞skin、地板间隙、NavMesh离散化、动态占位或视觉可读性。
+当前 Bootstrap 已覆盖静态真实碰撞/导航/保存重载；实际身体运动、动态占位和视觉验收仍须单独完成。
 静态图形和Python结果不证明UE路径、Host表现、AI行为或人类游玩已经通过。
 
 ## 3. SC-07 查询契约与共享责任
 
-以下名称是**拟实施的唯一适配接口，不是当前已存在的 C++ API**。
-函数落在保留的 MapRegistry、Ground、Navigation、Vision、WorldDirector 和 Combat 边界，
+以下是世界域的唯一适配接口，已在源码中实现；表中签名是语义简写，确切声明以源码为准。
+函数落在保留的 MapRegistry、Ground、Navigation、Vision、Combat 与营地 Director（`World\LDCampDirector`）边界，
 不要求为每一行新增一个 Manager、Actor、缓存或可写状态表。
 
 ### 3.1 值、身份与调用权限
@@ -323,18 +329,18 @@ miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模
 | `FLDVictimKey` | 生命身份统一为核心的Kind/EntityId/Life；不以原生Combat Identity的FGuid冒充Life，也不另建营地生命计数 |
 | `FLDCombatBodyRef` | 需要对应实际身体时使用核心的Victim+BodyIdentity；OwnerState uint32 Life与Combat FGuid Identity的映射由核心维护 |
 | `FLDGameplayWritePermit` | 核心为当前提交调用栈签发的借用许可，绑定Boundary/Phase/GateRevision；不含调用者所有权证明，不得复制、保存、网络传入或自行构造 |
-| `FLDWorldRevision`（其他世界签名简写为`WorldRevision`） | 世界域拟建纯值：`FName MapId; uint32 LayoutRevision; uint32 GeometryRevision`；不是核心Context，不替代Match/Life/Order/Epoch/ViewRevision/schema |
+| `FLDWorldRevision`（其他世界签名简写为`WorldRevision`） | 世界域纯值：`FName MapId; uint32 LayoutRevision; uint32 GeometryRevision`；不是核心Context，不替代Match/Life/Order/Epoch/ViewRevision/schema |
 | `GroundedFootSample` | 从当前权威身体和原生 walkable floor 取得的脚点、支持面/连续地面 patch、grounded 事实；不是把任意点击投影到地面后的“假落地” |
 | `ObserverContext` | 服务器绑定的真人拥有连接、对应参赛AI，或仅供营地反击校验的CampMember上下文；无身体／新生命／换局须更新。营地成员不创建参赛席位/PlayerState/钱包或另一网络视图，不能给玩家或同营共享视野 |
 | `ObservedHandle` | 观察者局部的 opaque token 与观察 epoch；服务器映射到目标共同生命，客户端不能用 Actor 指针、公开参赛 ID 或 CampId 代替它 |
 | `ObservedFrame` | 当前授权字段及 generation/revision；快照不是永久命令授权，合法的新帧不应使仍可见的旧句柄每帧无故失效 |
 | `AuthorityEffectContext` | 仅 Combat 已接受效果的 ID、实际归属、来源生命、定义/权限与求值时刻；不能由 UI 或 AI 请求获得此权限 |
 
-核心已收敛的拟建类型如下，正式定义归
+核心类型如下，正式定义归
 [会话与对局报告](SESSION_MATCH_LIFECYCLE.md)，本报告只引用，不再定义同义类型：
 
 ```cpp
-// Proposed shared core types; not existing source declarations.
+// Shared core types, semantic summary; see the source for exact declarations.
 FLDMatchContext { uint32 Generation; FGuid LedgerMatch; }
 FLDVictimKey { ELDVictimKind Kind; FGuid EntityId; uint32 Life; }
 FLDCombatBodyRef { FLDVictimKey Victim; FGuid BodyIdentity; }
@@ -350,8 +356,8 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 身体脚点统一为直立 capsule 的权威位置减 scaled half-height。
 导航仍以原生 `GetNavAgentLocation` 工作，接线时核对二者支持面和技术容差，
 不保存另一份可修改的人物位置。
-现有先例：`Source\Lockdown\Private\Region\LDMapSurfaceSubsystem.cpp:25-36`、
-`Combat\LDRiverEnvironment.cpp:131-139`、`Navigation\LDNavigationComponent.cpp:83-89`。
+现有先例：`Source\Lockdown\Private\Combat\LDRiverEnvironment.cpp:131-139`、
+`Navigation\LDNavigationComponent.cpp:83-89`。
 技术 floor gap 容差须在 UE 5.8.4 校准，不在文档中编造跨楼层容差。
 
 ### 3.2 正式适配签名
@@ -359,7 +365,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 `Result<T>` 表示“有值成功或有类型的错误”；不是建议用默认 `T` 冒充失败，
 也不要求引入新的通用结果库。网络命令仍使用现有回执与身份机制。
 
-| 拟实施签名 | 生产者、结果和接受条件 | 消费者／失效点 |
+| 签名（语义简写） | 生产者、结果和接受条件 | 消费者／失效点 |
 | --- | --- | --- |
 | `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint) -> Result<LegalGround>` | World/Ground；有限坐标、边界、支持面、完整占地；计划投影须显式报告位移与同层结果 | 点击、导航、出生；不能用规划投影结果替代交易/圈内的当前身体位置 |
 | `QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule) -> Result<CompletePath>` | Navigation；正确 native agent、两端合法、完整路径、对应 GeometryRevision | 移动与离线/原生路线检查；partial、无 nav data、失配或长期无进展必须拒绝/停止 |
@@ -368,11 +374,11 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 | `FindApproach(ObserverContext, Origin, UnitHandle or PublicPOI, RangeCm, Capsule) -> Result<Approach>` | 单位先重新解析；固定地点从地图注册表取；在碰撞外、范围内找合法完整路径 | 攻击接近/商店接近；单位失明不更新真实隐藏坐标，路径成功不授予交易权 |
 | `TraceSight(SourceGround, TargetSample, WorldRevision) -> Result<SightResult>` | World/Vision；有限、同层与固定 eye/target sample、范围及阻视线几何；与阻走分开 | 授权层与 Combat 几何；公开地点/静态 ray 结果不是单位锁定权限 |
 | `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision) -> FLDShopEligibilityResult` | 下方唯一四参类型；Transactions借用作用域内按当前实际子时刻验证身体/世界、合法脚点/区域与中心距；不增加LOS条件 | Vendor绑定真实调用者与BuyerBody，最终安装前仍核permit/生命/会话/quote/余额/槽位/revision；结果不是长期交易授权 |
-| `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、连续独占和唯一胜负归核心，不受观察权限影响 |
+| `QueryCircleMembership(CaptureId, GroundedFootSample, WorldRevision) -> Result<CircleGeometry>` | 同一合法地面 patch、实际脚点、闭圆盘内、完整身体站位不穿阻走体 | 只产生几何事实；是否有效参赛、独占计时/争夺暂停和唯一胜负归核心，不受观察权限影响 |
 | `ExtractCircleCrossings(CaptureId, ActualMotionSegments, WorldRevision) -> Result<GeometryTransitions>` | 对实际提交的连续运动片段求圈内转换；不连续 placement 只取实际前/后状态 | 生产者封装实际身份/序号/时间；最终水位须等同批晚因果工作闭合后Sealing，不能随首段运动提前发布；不从代理或末帧补历史 |
 | `QueryCombatContacts(AuthorityEffectContext, BoundedShape, WorldRevision) -> Result<BoundedVictimSamples>` | 仅权威 Combat 执行器；用现有 Combat 身体注册表加世界静态几何/楼层裁剪，无第二 Bodies 表 | 覆盖内容许可的普攻派生群攻、地面范围及释放后效果；隐藏受害者查询结果不进入 UI、AI、公共消息或命中预览 |
 
-`QueryShopEligibility` 是拟建在现有MapRegistry边界的服务器提交期只读查询，唯一实参类型如下：
+`QueryShopEligibility` 是现有 MapRegistry 边界上的服务器提交期只读查询，唯一实参类型如下：
 
 ```cpp
 FLDShopEligibilityResult QueryShopEligibility(
@@ -384,7 +390,7 @@ FLDShopEligibilityResult QueryShopEligibility(
 
 `FLDShopEligibilityResult` 是本世界域原有“ShopEligibilitySample或类型错误”结果形状的具体拟名，
 不是新增核心封包/状态。成功样本只含对应ShopId/WorldRevision、实际采样时刻、合法脚点/支持面及距离；
-非成功没有可当作通过的默认样本。此处声明尚未实现，不创建新Manager或时钟。
+非成功没有可当作通过的默认样本。它已实现于 `World\LDShopEligibility.cpp`（类型在 `World\LDWorldQueryTypes.h`），不创建新Manager或时钟。
 
 | 检查层 | 当前调用/阶段的确切责任 |
 | --- | --- |
@@ -526,18 +532,16 @@ OutsideRange/NoCompletePath/NotAtHome或旧请求拒绝只结束该业务，不�
 
 ### 4.1 真实复用点及必须移除的旧政策
 
-`ALDWorldDirector::Prepare` 现有寻敌、`ALDWorldPawn` 的 Combat 注册与原生 AI 移动可以改造；
-当前重新扫描所有 Controller、最近目标、直接追加 Hit 和物种特判不能原样成为 Demo AI。
-无目标时立即回满血、未真正到家就重置、忽略 MoveTo 返回值、有限 `CampIds[3][12]` 都需改掉。
-刷新当前在上次生成时设置截止，不是最后一名成员死亡后计时。
-证据：`Source\Lockdown\Private\World\LDWorldDirector.cpp:36-87`、
-`Source\Lockdown\Public\World\LDWorldDirector.h:20-35,47-93`。
+旧营地 Actor 已整体删除，只抽出无 Actor/World 访问的纯值决策 `Public\World\LDCampDecision.h`：
+只在 N03 记录的、实际攻击过本营的参赛者身体中稳定选敌，目标须在怪物 `PerceptionRadiusCm`
+（从成员当前脚点量）内；Leash 只按成员自身到 Camp 锚点判定，不过滤 Leash 圈外的目标，回位到自己的 MemberHome。
+`World\LDCampDirector` 把它接到核心：Combat 注册、合法完整路径与动作执行由核心提供，
+不恢复旧的全 Controller 扫描、最近目标、直接追加 Hit、物种特判或忽略 MoveTo 结果。
+无目标立即回满血、未真正到家就重置、有限 `CampIds[3][12]` 与按上次生成计时的刷新均不迁移。
 
-旧 `ALDWildSentinel` 按本批贡献最多者发奖且每人最多两次，不符合最后一击独占。
-旧 Camp 的空归属致死可能保留先前 `LastOwner`，回位也未完整清理归属。
-这些是静态确认的迁移风险，**不是本轮已运行复现的 bug 结果**。
-证据：`Source\Lockdown\Private\Region\LDRegionDirector.cpp:98-108`；
-`Source\Lockdown\Private\World\LDWorldDirector.cpp:68,90-110`。
+旧 Sentinel 按本批贡献最多者发奖且每人最多两次，旧 Camp 的空归属致死可能保留先前 `LastOwner`，
+回位也未完整清理归属；这些实现已删除。最后一击每生命一次收益与回位不发奖由 `RunDemoCampCheck.ps1`
+在真实拥有连接上验证；无主、自杀与离局击杀的零奖励由成长奖励入口按致死事实判定，营地场景未覆盖。
 
 ### 4.2 唯一身份映射
 
@@ -552,9 +556,9 @@ OutsideRange/NoCompletePath/NotAtHome或旧请求拒绝只结束该业务，不�
 ```
 
 `MemberLife` 只是共同 `FLDVictimKey.Life` 的引用，不是另一个自增计数。
-当前 Combat `FLDBodyCombatState::Identity` 为 FGuid，`FLDCombatHit` 已有
-`TargetLife`、`SourceIdentity`、`CreditOwner`、`Periodic`：
-`Source\Lockdown\Public\Combat\LDCombatDirector.h:16-30,129-152`。
+营地 EntityId 每局按 (CampId, Slot) 分配一次，Life 只在核心整组提交新生命时递增（`World\LDCampLifecycle`）；
+Combat 身体以 `FLDCombatBodyRef{Victim, BodyIdentity}` 标识，命中 `FLDCombatHit` 绑定目标 BodyRef 与
+`SourceBody`/`CreditOwner`（`Source\Lockdown\Public\Combat\LDCombatDirector.h`）。
 与 OwnerState `uint32 Life` 的映射由核心保持，不能把两者强转或用 CampSlot 推导生命。
 
 CampId/Slot/Generation 是索引和回核元数据，**不能加入奖励主键以令同一死亡有多把可领奖键**。
@@ -575,10 +579,10 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 
 首版固定为**仅受攻击后反击、同营共同反击但不共享隐藏位置、Returning可正常受伤/控制且不回头追击、
 成功回营重置存活成员满已定义血蓝/清临时效果与仇恨/技能就绪**。
-这些行为不再是待选方案；具体内容数值与空间尺寸仍须PR审查。
+这些行为已由营地循环实现；数值取自已批准内容（`SourceData\Demo\content.json` 的 `CAMP.*`）。
 不保留居民日程、自动近距警戒、回位无敌或旧有限生命预算作为运行模式。
 
-| 状态/事件 | 拟实施行为 | 不能出现的结果 |
+| 状态/事件 | 行为 | 不能出现的结果 |
 | --- | --- | --- |
 | 组生成 → IdleAwaitAttack | 全部成员完成ground/nav/capsule预约后一次发布整组，每名成员独立生命/Combat状态；未受攻击不先手 | 两只Low叠点、半组可战斗/可领奖、仅因玩家走近/路过就获取目标 |
 | 已确认受击 → 同营反击评估 | Combat已提交敌对接触事实通知同一Camp；所有仍存活且不在Returning的成员各自验证合法目标/视线/来源生命后发意图 | 用无效攻击意图/Miss/TargetUnavailable触发；共享隐藏坐标/Actor；把无主伤害指给最近玩家 |
@@ -596,9 +600,11 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 Low 部分清理后，已死亡成员保持死亡，直到该组真正清空再整组刷新；
 回位仅重置已成功到家的存活成员，未到家的成员继续自己的Returning，已死亡成员不复活。
 没有MP资源定义的怪物保持NotApplicable，不为“满蓝”补一份临时Mana默认值。
-回位无路／无进展必须停止不合法动作并报 `NoCompletePath`/诊断，
-按有界重试策略处理；不得通过穿墙、瞬移回家或静默永久悬挂伪装成功。
-刷新落点被动态占用时保留同一 ticket，在原营地局部合法落点处理，不随机换营地。
+回位无路／无进展必须停止不合法动作并报诊断，不得通过穿墙、瞬移回家或伪装成功。
+当前实现：规划被拒时停止并按 ReturnEpoch 记一次 `LD_CAMP_RETURN_BLOCKED`，2s 无进展记
+`LD_CAMP_PATH_STALLED`，之后每个 Actions 边界重新规划，没有重试上限或其他收尾。
+刷新落点被动态占用时保留同一 ticket，在原营地局部合法落点每个 RespawnsAndWorld 边界重试
+（首次记 `LD_CAMP_REFRESH_BLOCKED`），不随机换营地；开局整组落点被占则开局失败。
 无法完整生成的状态不公开成“已刷新”。
 
 攻击事实重复或失视野后的隐藏伤害不能无限重启LoseTargetGrace；没有新合法观察时，只等待到期后回位，
@@ -610,14 +616,14 @@ SpawnBlocked、动态占位、回位失败的原子性/反馈/恢复属于工程
 
 ### 4.4 与Combat共用的受击事实与原子回营重置
 
-下列为与战斗域收敛的**唯一拟建内部接口**，不是当前已存在的API，更不是客户端RPC：
+下列为与战斗域共用的服务器内部接口（不是客户端RPC），均已实现：
 
 | 交接 | 正式契约 |
 | --- | --- |
-| 受击事实 | `FLDCombatHostileContact` 在内部ApplyHit成功提交后生成：`HitKey, VictimBody, ReleasedSourceRef, SourceBodyAtRelease, CreditOwner（可空）, EventStamp, 已提交敌对接触/控制结果` |
-| 世界消费 | `ALDWorldDirector::OnCombatHostileContact(const FLDCombatHostileContact&, Permit)` 幂等消费，只改变合法反击意图，不伤害/发奖 |
+| 受击事实 | `FLDCombatHostileContact{HitId, VictimBody, SourceBody, CreditOwner, OccurredAtSeconds}`（`Public\Combat\LDCombatTypes.h`）；Combat 在 Effects 阶段 ApplyHit 提交后，对缓解后伤害>0或实际施加控制的命中（含致死命中）生成，只对 CampMember 受害者调用 `ALDCampDirector::OnCombatHostileContact` |
+| 营地消费 | 按 VictimBody 验证本营存活成员，把来源参赛者当前生命的身体幂等记入全营敌对来源（Returning 成员不记，早于出生/重置时刻的接触不重开仇恨）；之后每个 Actions 边界由 `LDCampDecision` 产生意图，普攻经 Combat `SubmitAction` 提交；不伤害/发奖 |
 | 重置准备 | `Combat::PrepareCampReset(const FLDCampResetInput&, const FLDGameplayWritePermit&) -> FLDCampResetPrepareResult` |
-| 同次安装 | `Combat::ApplyCampReset(FLDPreparedCampReset&&, Permit)` 与世界成员状态安装同次提交；可失败检查在Prepare，安装无正常失败路径 |
+| 同次安装 | `Combat::ApplyCampReset(FLDPreparedCampReset&&, Permit)` 后营地同次完成 ResetKey；可失败检查在Prepare，安装无正常失败路径 |
 
 触发必须是内容认可并已经成功作用于该野怪的敌对接触/控制结果，不把玩家解除保护用的
 `AggressiveIntent`、未命中、不可达或资源不足请求当成怪物受击。
@@ -632,13 +638,13 @@ World先按VictimBody验证本营成员与代次，再给同营投递最小攻�
 不能只因独立效果释放较早就误丢掉后续合法命中。
 反击进入现有Combat动作链与前摇，不能回填到触发命中之前的Actions阶段，也不能在通知里直接追加第二套Hit。
 
-`FLDCampResetInput` 由世界提供 `CampId/MemberId`、当前 `FLDCombatBodyRef`、
-Returning与真实 `HomeProof`、当前ReturnOrder、World/Member/Resource/CombatState修订及 `ReturnEpoch:uint64`。
-这里MemberId是本营稳定成员序号，不是观察句柄或新的生命编号。
-`HomeProof` 必须来自实际回位订单与当前权威脚点/支持面/完整capsule，
-在同一WorldRevision下证明脚点至固定MemberHome中心距不超过 `CAMP.ResetArrivalRadiusCm`。
-该参数当前候选100cm：按原八个home和40cm外扩静态模型，整个100cm脚点归位区域均无静态阻挡，
-最小额外余量401.769409cm；这不是原生或多人动态围堵已经通过。
+`FLDCampResetInput` 为 `{Body, ReturnEpoch, HomeFootCm, ExpectedResourceRevision, ExpectedStateRevision}`：
+当前 CampMember 身体、本次 Returning 周期、成员固定 MemberHome 脚点，以及同一边界 `ReadCombatBody` 读到的资源/状态修订。
+营地先自行判定 `HomeProof`：成员在登记地面上落地、支持面相同，
+脚点至固定MemberHome中心距不超过 `CAMP.ResetArrivalRadiusCm`；Combat 再校验距离与修订，
+距离超限、致死中或形状错误返回 InvalidInput，修订已变返回 StaleBuild，营地都留到下一边界重试。
+该参数在已批准内容中为100cm：按原八个home和40cm外扩静态模型，整个100cm脚点归位区域均无静态阻挡，
+最小额外余量401.769409cm；这不证明多人动态围堵下也能到家。
 不能让导航的agent-overlap自动再加半径而停在范围外，也不强snap被占中心、穿人或漂移MemberHome。
 两个Low的归位区域可以重叠，实际实体仍须合法动态站位；近家不等于无条件通过HomeProof。
 
@@ -677,10 +683,10 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 拟改成世界坐标上的当前授权，栅格/遮罩仅派生显示；
 不将 cell-center 误差变成“脚点可见但网格中心不可见”的未批准玩法。
 视線与行走能力独立：`LDGroundAim`、`LDVision` 已是不同通道，
-但旧 Builder 默认 BlockAll/Floor 二分仍须改造。
-证据：`Config\DefaultEngine.ini:9-11`；
-`Source\LockdownEditor\Private\ScaffoldBootstrap\LDRegionBootstrap.cpp:44-49`；
-`LDB90BootstrapCommandlet.cpp:70-82`。
+当前 `LDDemoWorldBuilder` 按 world2 的独立阻走/阻视线字段生成真实碰撞，保留低台面的差异。
+这不自动完成上述每观察者授权改造。通道与实际生成入口见 `Config\DefaultEngine.ini` 和
+`Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp`；
+旧 Region Builder 的二分行为只属于剩余迁移对象。
 
 ### 5.2 字段权限矩阵
 
@@ -689,12 +695,12 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 | 静态地图 | 地形、阻走/阻视线分类、固定 Camp/Spawn/Shop/Capture ID与坐标 | 不广播营地剩余怪数、HP、刷新倒计时、隐藏占位者 |
 | 自身 | 自身血蓝、等级/经验/金币、技能/装备/冷却、状态和合法回执 | 不通过其他参赛者的账本/构筑补全信息 |
 | 当前可见单位 | opaque Handle、类别/外观、获准位置/朝向、合法动作表现；名称/等级/血量/蓝量/状态/两件装备 | 无技能清单、CD、其他最终属性、金币/经验进度、实例/来源/库存版本；失明清目标、停追击、撤销实时更新与依附呈现 |
-| 公共占领 | 开放/发育信息、当前占领者公开身份、进度、争夺和唯一结果 | 不附隐藏 Pawn 位置/速度/血蓝、圈内名单/精确人数、观察句柄或公共视野来源 |
+| 公共占领 | 开放/发育信息、当前占领者（含争夺中被暂停的原占领者）公开身份、进度或暂停进度、争夺和唯一结果 | 不附隐藏 Pawn 位置/速度/血蓝、圈内名单/精确人数、观察句柄或公共视野来源 |
 | 全场击杀 | 击杀者、被击杀参赛者、获准的可理解原因 | 普通打野不发全场横幅，不附隐藏坐标/构筑；无主死亡不凭空指派击杀者 |
 | AI 决策 | 自身投影、同授权 ObservedFrame、静态地图、公共占领/击杀信息 | 不访问 UWorld/Combat::Bodies/Controller/Roster全表来补全迷雾情报 |
 | 权威效果查询 | 已接受效果在定义允许范围内的静态/身体交集 | 只供 Combat 结算；不能反流成 AI 侦察、客户端命中列表或精确伤害来源坐标 |
 
-**已确认的对手字段范围**：用户要求“名称等级血量蓝量状态装备，不显示技能/冷却/属性/金币这些”。
+**已确认的对手字段范围**：用户要求“名称等级血量蓝量状态装备，不显示技能/冷却/属性/金币这些”；之后批准的例外是施法那一刻显示该次技能或装备名称（[内容报告](CONTENT_AND_BALANCE.md) CB-P10）。
 由此统一为名称、等级、HP/MaxHP、MP/MaxMP、可见状态及两个装备槽的公开定义；
 不保留LastSeen单位标记。
 装备tooltip只引用公开静态catalog的名称/图标/说明，不演算目标最终属性或展示技能/来源CD。
@@ -710,11 +716,8 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 
 现有小图 `FLDWorldView` 为固定 60×40、2400 cells，Current/Explored 各300 bytes，
 实体 count 上限512，含自定义有界编解码；
-B91 身体/门数组上限128是在 RPC 解码后检查，没有等价的数组解码前上限。
 `Source\Lockdown\Public\Vision\LDViewTypes.h:10-16,171-180`；
-`Private\Vision\LDViewTypes.cpp:3-26`；
-`Public\World\LDEnvironmentDirector.h:185-198`；
-`Private\World\LDB91Controller.cpp:27-52`。
+`Private\Vision\LDViewTypes.cpp:3-26`。
 
 后续保留一个经 schema 更新的 `FLDWorldView`：
 世界坐标量化、地图修订、观察者生命/视图 generation、revision、
@@ -723,11 +726,11 @@ B91 身体/门数组上限128是在 RPC 解码后检查，没有等价的数组�
 同步修改生产者、NetSerialize、接收游标、代理、雾材质参数、小地图、HUD、AI 及测试。
 不能只扩大数组/修改坐标而保留旧60×40 `AttachFog/UploadFog`。
 
-UI的拟建读取口为 `ALDWorldViewRelay::ReadObservedFrame() const`：
+UI的读取口为 `ALDWorldViewRelay::ReadObservedFrame() const`：
 返回只读 `FLDWorldView` 与本地 `ViewStatus`，不接受任意ObserverId，不提供authority getter。
 同一schema建议字段为 `uint32 Schema/MatchGeneration/ObserverLife/Generation/Revision`、
 `WorldRevision`、`double SampledAtServerSec`（本局服务器秒）、有界Units与本人来源Footprint。
-单位条目 `FLDObservedUnitView` 是该帧内的拟建record，不是第二条协议；字段为
+单位条目 `FLDObservedUnitView` 是该帧内的record，不是第二条协议；字段为
 `FGuid Handle`、`uint32 ObservationEpoch/StateRevision/AuthorizedFieldMask`、
 明确编号的Kind/Presentation、`FVector_NetQuantize10 FeetCm`、量化Facing、获准Action/StateCue。
 `StateRevision`只描述该观察epoch内获准呈现的变化，不直接复制私有Build/Inventory/ItemRevision。
@@ -748,9 +751,9 @@ DefinitionId用匹配的公开catalog解析名称、图标和静态说明，未�
 HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性。
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
 
-可见Returning统一使用同一 `Statuses` 中拟注册的公共显示定义
-`StatusDefinitionId=camp_returning`（“回位中”）。
-它仅由发布端在当前获准可见的CampMember确处于Returning时派生，
+可见Returning统一使用同一 `Statuses` 中已注册的公共显示定义
+`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回岗中”）。
+它由 `ALDCampDirector::AppendObservedFacts` 在 Vision 发布当前获准可见、确处于Returning的CampMember时追加，
 无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
 被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。
 该cue不增加无敌、不可攻击或玩家追击限制；AI可据它按自身当前视野/射程/投入预算做止损，
@@ -818,9 +821,8 @@ Active帧必须完整解码2048字节，不能接收任意数组长度。
 旧match/life或离局后迟到回调不能恢复效果/目标/圈人数。
 
 现有 `Sample` 以 revision 与 revision+1 区分 conceal/full，
-`FViewCursor` 拒旧，Relay 超时清代理；这些机制可复用：
+Relay 超时清代理；这些机制可复用（R02 的视图拒旧由新 relay 的接收游标实现，见 §7 W5）：
 `Source\Lockdown\Private\Vision\LDVisionDirector.cpp:234-326`；
-`Source\Lockdown\Public\Core\LDRules.h:71-87`；
 `Source\Lockdown\Private\Vision\LDWorldViewRelay.cpp:89-125,160-169`。
 现有 `EndLife` 主要清 ward，**不等于观察者死亡已旋转全部句柄**；
 `Ids` 离开视野后还可保留同 GUID，必须补上观察 epoch/身体生命绑定与接收端检查。
@@ -829,11 +831,10 @@ Active帧必须完整解码2048字节，不能接收任意数组长度。
 ### 5.4 普通 Listen Host 的呈现门槛
 
 Host 同时持有权威世界与本地玩家画面，owner-only replication 不会自动隐藏该进程内的原生身体。
-现有两个发布器在采样时隐藏非本地原生 Body，并排除自身代理；
+现有发布器在采样时隐藏非本地原生 Body，并排除自身代理；
 这只证明已有局部保护，**没有证明新生命生成到首次采样之间不会闪现**。
 证据：`Source\Lockdown\Private\Character\LDCharacter.cpp:20-30,77-87`；
-`Vision\LDVisionDirector.cpp:238-246`；
-`World\LDEnvironmentDirector.cpp:249-254`。
+`Vision\LDVisionDirector.cpp:238-246`。
 
 目标是本人只用原生预测身体，他者只用当前授权观察呈现；
 原生他者及附属表现必须从出生起默认不向本地普通观察者暴露，不等第一次采样才隐藏。
@@ -849,7 +850,10 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 
 ## 6. 具体复用、删除、新增与依赖顺序
 
-本节是后续实施清单，**本轮没有执行删除或二进制改动**。
+**实施状态：** 本节列出的删除闭包（架构 D01–D32）已在当前集成分支完成，删除前均经 C3/C4 核验；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。下文保留为设计时的复用与闭包说明，其中“后续实施”“待/先/再删”等表述指当时的实施顺序，不再是待办。
+
+本节区分已落地的静态世界生成/加载与尚未关闭的旧消费者、动态世界和观察职责；
+当前接口见[世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)，不能把静态世界检查当整域完成。
 只删除失效职责，必要机制先抽取；不会为了删河流而误删首版已选战斗效果真正依赖的通用状态/去重代码。
 
 ### 6.1 复用与新增
@@ -858,14 +862,14 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 | --- | --- | --- |
 | 原机制保留 | `Character\LDCharacter`、`LDCharacterMovementComponent`；`Navigation\LDNavigationComponent` | saved moves、Match/Life/Order/Epoch、完整路径与 AddMovementInput；去旧地图/Cargo/第二surface分支，不新建运动系统 |
 | 改造保留 | `Region\LDMapDefinition.h/.cpp`、`LDMapRegistry.h/.cpp`、`ALDMapAnchor` | GameMode、Ground、Navigation、Builder和旧B91都引用；解除96/24/城市/standalone限制，绑定唯一地图/地点/支持面 |
-| 抽取算法 | `Region\LDMapApproaches.cpp:10-31` | 真实路径 Length/Tail/AtRemaining 可保留；旧 Collect 的 ruin/boss/heart/forge目标与固定测距不保留 |
+| 已替换 | `Region\LDMapRegistry` 的 `QueryCompletePath` | 旧 MapApproaches 的 Length/Tail/AtRemaining 无 Demo 消费者，已随 B90 工具删除；接近与完整路径只走 Registry，不保留第二实现 |
 | 保留设施 | `Region\LDRegionNavBounds.h/.cpp` | 两类Builder与GameMode都使用；Configure 的 cooked envelope 不是旧城市玩法，不能随 RegionDefinition 一起删 |
 | 抽取改造 | `Core\LDGroundQueries.h/.cpp` | 去掉“是否存在 EnvironmentDirector”选择世界规则的分支；局部地面、capsule和阻视线不混用 |
-| 改造保留 | `World\LDWorldDirector.h/.cpp` 中营地索引、`ALDWorldPawn` | 迁移为共同 Combat 生命、行为phase与组刷新；删除塔/boss/旧Heart、LastOwner兜底和有限预算 |
+| 抽取新增 | `World\LDCampDecision.h/.cpp`、`World\LDCampLifecycle`、`World\LDCampDirector`、`World\LDCampMember` | 旧营地 Actor 只抽出参数化追击/活动范围/成员回位/稳定选敌的纯值决策；名册与每局记账、野怪身体、共同 Combat 生命、组刷新与回营 Reset 由 Director 在核心上实现 |
 | 改造保留 | `Vision\LDVisionDirector`、`LDViewTypes`、`LDWorldViewRelay`、`ALDObservedEntityProxy` | 代理定义就在Relay文件中；无单独 `LDObservedEntityProxy.cpp`。统一稀疏codec、字段、生命周期与Host呈现 |
-| 拟新增 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 复用确定性编码/哈希校验；只引用内容定义，不在世界输入复制战斗数值。这些路径/脚本当前不存在 |
-| 拟新增 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生，不手写hash；运行模块声明准确 payload 依赖，不把整份SourceData打包 |
-| 唯一终态根，待生成 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 工程命名/根已固定，资源尚未创建或验证；一个资产负责人在锁定UE中生成，唯一Anchor/默认类/加载路径/签名一致 |
+| 已实现 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 严格作者字段/类型/cm语义与确定性生成已落地；只引用中央内容，不复制另一份战斗数值 |
+| 已生成 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生world2字节与contract；原生/生成链回核实际来源，不手写hash，不把整份SourceData目录加入运行包 |
+| 唯一已生成根 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 同一Bootstrap生成/重载验证唯一Anchor、完整凸多边形、native/cooked bounds、同源NavAgent与地点路径；不是动态营地或实际多人移动验收 |
 | 共享表现保留/改造 | `M_Character`、`M_Ground/M_Stone`、`DA_PrototypeTuning`、`WBP_UIRoot`、保留输入动作、`M_Fog/T_FogClosed` | Character、代理、PlayerController、Bootstrap字符串和Blueprint默认值仍引用；雾栅格改造不等于可以删全部材质/UI/Input |
 
 本表简写原生路径均对应 `Source\Lockdown\Public` 的头或 `Source\Lockdown\Private` 的实现；
@@ -877,34 +881,20 @@ Builder 位于 `Source\LockdownEditor\Private\ScaffoldBootstrap`。
 
 | 删除/拆除组 | 具体对象 | 删除前必须迁移的真实调用 |
 | --- | --- | --- |
-| 旧区域/服务地址 | `Public\Region\LDRegionDefinition.h`、`Private\Region\LDRegionDefinition.cpp`、`LDRegion::*`、旧RegionAnchor | `Objectives\LDObjectiveDirector.cpp:14,71-75,224-227`、`Navigation\LDNavigationComponent.cpp:15,77,168-173`、`Inventory\LDVendorDirector.cpp:13,19-33`、`UI\LDMinimap.cpp:25-28,46-78`、`Framework\LDGameMode.cpp:187,227,275,418` |
-| 居民/哨卫/WatchControl | `Region\LDRegionDirector.h/.cpp`；`LDCharacter.h:35-44` 与 `.cpp:98-123` 的 `ALDResident`，而非整个Character | Combat/Sentinel特判、GameMode居民生成、Vision分类、角色Tick回调；`Private\Combat\LDCombatDirector.cpp:106-107,159-161,303,349,375` |
-| 旧营地预算及Heart | `CampIds[3][12]`、`ULDWorldCatalog`、固定Kind/Immune、自动近距获取扫描及对应半径/开关、discovery/PvP上限、TowerSight、`Private\World\LDWorldLeases.cpp`、`LDWorldClaims.cpp` 旧授权规则 | Combat、Objectives、Inventory、Production与Vision仍调用 WorldDirector；反击改接唯一HostileContact事实，旧自动获取字段从有效schema删除而非置0；`LDWorldClock.cpp`通用到期函数先归置 |
-| 独立B90模式/第二surface | `Region\LDB90Preview.h/.cpp`、`LDMapSurfaceSubsystem.h/.cpp` 的preview wet/frozen切片 | Registry/CMC、B90 probes与旧脚本仍依赖；保留所需几何测试后删模式，不保留F9/F10旧玩法入口 |
-| B91第二观测与室内/门 | `Public\World\LDEnvironmentDirector.h` 中B91 GameMode/Controller/HUD和旧DTO/RPC；`Private\World\LDEnvironmentDirector.cpp`、`LDB91Controller.cpp`、`LDB91ObjectsClient.cpp`、`LDB91SurfaceClient.cpp`、`LDB91SourceControls.cpp`、`LDB91SourceHUD.cpp` | 先将Ray/当前授权/稀疏坐标接唯一Vision；Ground、Movement、Navigation中的Cast及B92继承类必须替换；不能只删cpp留UHT父类 |
-| 可搬运/森林/工具/恢复 | `LDWorldObjects`、`LDPortableTools`、`LDB91Forest`；Private World下 `LDWorldTools/Traversal/Forestry/Ignition/Grass.cpp`、`LDSaplings.cpp`、`LDWorldCheckpoint.cpp`、`LDCheckpointGeometry.cpp`、`LDB91Checkpoint.h/.cpp` | `LDWorldObjects.cpp:144-166,361-389` 依赖全套Objects/Tools/Traversal/Forest/人口服务；Combat命中/ForceDrop、Movement cargo与client代理先摘除 |
-| 人口/日程/接管席位 | `Population\LDB92Roster`、`LDB92Routines`、对应contract及旧population/schedules输入 | GameMode、Combat RoleDied、WorldObjects经济、Environment SealedCargo、Inventory pre-consume同步；与经济域共同抽取事务，不删除共享Ledger |
+| 旧区域/服务地址 | `Public\Region\LDRegionDefinition.h`、`Private\Region\LDRegionDefinition.cpp`、`LDRegion::*`、旧RegionAnchor | `Navigation\LDNavigationComponent.cpp:15,77,168-173`、`UI\LDMinimap.cpp:25-28,46-78`、`Framework\LDGameMode.cpp:187,227,275,418` |
+| 居民 | `LDCharacter.h:35-44` 与 `.cpp:98-123` 的 `ALDResident`，而非整个Character | GameMode居民生成、Vision分类、角色Tick回调及 Combat 的旧 Sentinel/Resident 特判；`Private\Combat\LDCombatDirector.cpp:106-107,159-161,303,349,375` |
 | 插眼/公共传感器/提示旁路 | `ALDWard/PlaceWard/SetPublicSensor`、HeartSensor/TowerSight、未选Footstep/Trail自动泄露路径、`IA_Ward`及IMC绑定 | `LDVisionDirector.cpp:88-116,150-211,328-329`、PlayerController RPC、Input/UMG、Combat目标种类、Bootstrap动作生成；UENUM保留项编号不能因删除中间项静默漂移 |
 | 旧地图资产 | Generated Maps下 `L_MigrationSandbox/L_FunctionalTests/L_DevelopmentRegion/L_RegionAlternate/L_V07Region/L_V08Region.umap`；V09 `L_V09Full/DA_FullMap`及144块旧terrain、旧river材质实例 | 必要测试迁到唯一Demo夹具；Frontend仍需保留/更新。Package、Open脚本、地图默认GameMode、Bootstrap生成/校验清单先替换 |
 | 旧世界DataAsset/配置 | `DA_CivicRegion/DA_AlternateRegion/DA_TacticalRegion/DA_ElementalRegion`、`Generated\V07\DA_WorldCatalog`；`RegionLayout/V07RegionLayout/V08RegionLayout.json` 的旧输入 | 旧map Anchor强引用、LoadObject测试、Bootstrap；`BootstrapLayout.json` 原始文本签名还影响共享材质/Input/UI，不能无分析整份删除 |
-| 旧world生成链 | `SyncV07WorldData.py` 及 world专用JSON/payload/contract；`SyncV09Data.py` 旧城市/河流输入；`SyncB91Data/Objects/Tools/Traversal/Forestry/Grass/Forest.py`；`SyncB92Population.py` | 各消费者改接唯一世界后删除；`SyncB92Economy.py` 与经济域共同处理；V07/V08通用enum/catalog按真正保留战斗内容处理，不全库替换Bxx/Vxx编号 |
 | 第二动态surface发布 | `Private\Combat\LDFullMapSurfaces.cpp` 的第二观测流、B90静态河流来源 | 若首版效果确实需通用有界状态，保留其付款/来源/life去重后并入唯一授权；不用“地图没河流”误删选定技能结算 |
 | 相关技术手册 | 实施后校准 `docs\systems\WORLD_AND_DATA_PIPELINE.md`、`VISION_AND_UI.md`、`MOVEMENT_INPUT_AND_CAMERA.md` 的生成/查询/观测/运动入口 | 保留仍准确的组件知识，删除已经失效的段落/重复旧模式说明；不先把当前真实实现写成已迁移，也不为Demo另建版本文档树或把报告当生成输入 |
-
-生成依赖不是一排独立脚本：
-`SyncV07WorldData.py:4-25` 还读取 `Config\RegionLayout.json` 并硬编码三营地点；
-`SyncV09Data.py:9-13,20-128` 消费旧World JSON及 `travel_table.csv`；
-`SyncB91Forestry.py:10-25,30-49` 读取**已生成** map_b90 和 Traversal contract，
-Grass 再依赖 Forestry，Forest 再依赖 Grass；
-`Private\World\LDWorldObjects.cpp:73` 的 ActiveContract 最终取 ForestWorld hash。
-必须按依赖向上解除并同步删除，不能篡改一个最终宏跳过断言。
 
 ### 6.3 唯一终态世界根与生成/加载/Cook改接
 
 **工程终态固定为 `L_Demo.umap + DA_DemoWorld.uasset`，不是待用户二选一的命名。**
 架构、核心与构建清单均使用下表；`L_DevelopmentRegion/DA_CivicRegion`只作为迁移/删除对象，
 不保留为并行根、兼容壳、重定向玩法或缺新资产时的回退。
-这里确定的是根和依赖归属，不代表新资源已生成；布局/数值仍按本文候选接受PR审查。
+这里确定的是根和依赖归属，不代表新资源已生成；现有布局/数值已于2026-11-02获准用于首轮实施与试玩。
 
 | 对象 | 唯一最终标识与责任 |
 | --- | --- |
@@ -919,10 +909,10 @@ Grass 再依赖 Forestry，Forest 再依赖 Grass；
 | 引用入口 | 必须改接到唯一根的内容 |
 | --- | --- |
 | `Scripts\BootstrapAssets.ps1:1-14`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:270-326,330-405` | 保留统一Bootstrap门面，Generate/Validate均生成或校验L_Demo、DA_DemoWorld及必要共享资产；不再默认生成/要求旧Region地图与Civic资产 |
-| `Source\LockdownEditor\Private\ScaffoldBootstrap\LDRegionBootstrap.cpp:79-94`；`LDB90BootstrapCommandlet.cpp:42-45,234-298` | 将需要的MapDefinition、mesh/nav、保存/签名机制归入上述Demo生成路径，移除旧四Region/完整城市根与独立生成清单；不留另一B90发布根 |
-| `Source\Lockdown\Private\UI\LDUIRoot.cpp:368-371`；`Scripts\OpenStandalone.ps1:2-8`及旧OpenB90/OpenB91 URL入口 | 前端Host与正式启动指向L_Demo；删除`L_DevelopmentRegion?Profile=V05`、旧`?game=`世界跳转/兼容启动分支；无Profile启动前端仍合法 |
+| `Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp` | 所需MapDefinition、mesh/nav、保存/签名机制已进入统一Bootstrap，旧B90独占Builder/脚本已删除；其余Region/世界消费者仍随具体闭包退出 |
+| `Source\Lockdown\Private\UI\LDUIRoot.cpp:368-371`；`Scripts\OpenStandalone.ps1:2-8` | 前端Host与正式启动指向L_Demo；删除`L_DevelopmentRegion?Profile=V05`、旧`?game=`世界跳转/兼容启动分支；无Profile启动前端仍合法 |
 | `Source\Lockdown\Private\Framework\LDGameMode.cpp:145-180,214-277`；`Region\LDMapDefinition.cpp:275-281`、`LDMapRegistry.cpp:14-61` | 唯一战局初始化、Anchor/Definition查询和Registry绑定使用新根；解除旧profile/standalone/城市数量门槛，不以旧目录填充缺失定义 |
-| `Config\DefaultEngine.ini:4-7`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236` | 前端默认入口可保留；仍指旧地图的Editor启动配置改接Demo根；新图WorldSettings绑定唯一核心`ALDGameMode`，不保存旧Preview/B91/B92模式作为默认类 |
+| `Config\DefaultEngine.ini`；`Source\LockdownEditor\Private\ScaffoldBootstrap\LDDemoWorldBuilder.cpp` | 默认前端与新图核心`ALDGameMode`已绑定；地图保存自己的Demo导航配置，不保存旧Preview/B91/B92模式作为默认类 |
 | `Source\Lockdown\Lockdown.Build.cs:8-22` | Stage唯一世界payload `Content\Lockdown\Data\Demo\world.json`及实际保留内容；同步生成`LDDemoWorldContract.h`，移除旧world载荷依赖，不将SourceData整包运行时分发 |
 | `Scripts\PackageWin64.ps1:7-19`；`Config\DefaultGame.ini:25-29` | 发布map清单只有前端与L_Demo所需入口，DataAsset经新根引用/明确Cook闭包纳入；收窄Generated的宽Cook规则，不让旧地图/DataAsset因残存引用或CookAlways混入 |
 | 旧LoadObject/LoadClass、Blueprint默认值、地图Actor/WorldSettings、测试地图与启动脚本 | 原生替换引用并重存；保留测试机制但改用唯一Demo夹具，C3完成后移除旧包及专用入口，不用空类、旧名包或永久redirector维持假兼容 |
@@ -936,7 +926,8 @@ C3先完成新根生成、真实引用替换与必要原生验证，再退旧包
 
 ### 6.4 二进制和 Cook 的硬门槛
 
-本轮没有反序列化/编译任何 uasset/umap，**静态研究不能证明资产已无引用**。
+**静态研究不能证明资产已无引用**。静态世界子片已有实际引用审计、生成与重载检查，
+但其结果仅覆盖该闭包，不证明后续旧世界、输入、材质或动态观察资产均可删除。
 地图默认GameMode、Blueprint父类/GeneratedClass、USTRUCT/UENUM默认值、材质纹理、
 IMC InputAction、DataAsset UPROPERTY 和字符串 LoadObject/LoadClass 都可能留下真实依赖。
 没有文本 `FSoftObjectPath` 命中也不证明无 soft 引用或运行时拼接加载。
@@ -947,7 +938,7 @@ IMC InputAction、DataAsset UPROPERTY 和字符串 LoadObject/LoadClass 都可�
 | `Config\DefaultGame.ini:25-29` | 当前 CookAlways 覆盖 Generated 资产根；这不等价于任意非资产 JSON 都被 Stage，也不能只靠显式map列表证明旧图不进包 |
 | `Scripts\PackageWin64.ps1:7-19`、`OpenStandalone.ps1:2-8` | Bootstrap、七张旧map列表和profile，替换为Frontend菜单与L_Demo战局闭包；Lobby/Match/Results在该同一战局世界，不另留Lobby地图根 |
 | `ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:118-126,166-237,270-326,330-405` | 整体配置MD5影响共享材质/Input/UI；生成/Validate必须不再重建已删除旧地图/动作 |
-| `ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:236,283-298` | 旧umap保存的默认类及NavAgent参数；不是只改全局DefaultGameMode就完成迁移 |
+| `ScaffoldBootstrap\LDDemoWorldBuilder.cpp`；`Navigation\LDDemoNavigationSystem.cpp` | 地图保存的默认类、实际brush/cooked envelope和注册前的同源NavAgent；不是只改全局DefaultGameMode或注册后改半径 |
 
 删除顺序：锁定共同契约/参数及资产负责人 → 抽取必要算法/回执/授权 →
 所有消费者改接单一世界 → 更新编译输入/签名/默认类/Stage清单 →
@@ -1009,7 +1000,7 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 删除闭包 | 文本/生成/Stage清单无旧模式入口，保留符号仍可解析 | Asset Registry/Blueprint默认值/构建/Bootstrap/Cook/实际包加载 |
 | 唯一世界根 | 仅L_Demo/DA_DemoWorld作为战局根，Frontend为菜单；新根缺失明确失败，无Civic/Development回退 | C3引用替换/退旧后再次Generate不重造旧包，Cook/Stage和包内Registry无双根、兼容壳或旧默认类 |
 
-连续占领必须额外测试：一段实际运动首尾都在圈外但穿过短弦；
+占领归约必须额外测试：一段实际运动首尾都在圈外但穿过短弦；
 同帧入圈后离圈；完成时刻恰好发生争夺/死亡；同刻回位不能发奖；
 原子placement失败回滚不产生圈转换；缺提供者水位不提前判胜。
 不能把纯圆交点计算、host-only调试、传送授予或旧报告当正常完整对局。
@@ -1023,19 +1014,13 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | --- | --- |
 | 对应Sync `--check` + 单一受影响 `Test*Import.py` | 数据变更先查确定性、来源/contract及拒绝输入；旧World JSON一致不证明新布局可达 |
 | `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | `Scripts\BootstrapAssets.ps1:1-14`；当前Scaffold入口不自动替代B90 Builder，也不创建缺失资产 |
-| `.\Scripts\BuildB90Map.ps1 -Validate` | `Scripts\BuildB90Map.ps1:1-16`；仅记录现有完整图原生检查，不支持 `-Mode Validate`；机制迁入统一Demo Bootstrap后删除旧专用入口，不保留独立根或兼容启动壳 |
+| `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | 当前唯一Demo的typed资产、真实几何/碰撞、导航、地点/落地和保存重载检查；旧BuildB90Map专用入口已删除，不保留转发壳 |
 | `.\Scripts\RunNavigationCheck.ps1 -Region -RoundTripMs 100 -JitterMs 10` | `Scripts\RunNavigationCheck.ps1:1-32`；独立连接框架可复用，现有V05/无可见Host夹具不能证明Demo Host |
-| `.\Scripts\RunViewNetworkCheck.ps1` | `Scripts\RunViewNetworkCheck.ps1:1-35`；只支持其现有参数，旧ward/public sensor/小图场景须改；没有任意RTT参数 |
+| `.\Scripts\RunDemoVisionCheck.ps1` | `Scripts\RunDemoVisionCheck.ps1`；参赛渲染 Listen Host＋两个拥有客户端经正常大厅开局，只有 `-EngineRoot`/`-TimeoutSeconds` 参数；Client1 丢帧用引擎网络模拟（非 Shipping）；正常开局门禁打开前无法运行；没有任意RTT参数 |
 | `.\Scripts\RunCombatNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10 -Rendered -RenderRole B` | `Scripts\RunCombatNetworkCheck.ps1:1-38`；复用真实连接传输框架，不自动覆盖新Camp/Shop/圈 |
-| `Lockdown.Rules.ViewOrdering / ViewPayload / ViewPrivacySchema` | `Private\Tests\LDRulesTests.cpp:64-79`；`LDViewTests.cpp:8-69`；codec/游标/字段检查不证明Host画面、继承字段或AI策略 |
-| `Lockdown.Rules.B90ApproachPaths / B90Map` | `Private\Tests\LDB90RulesTests.cpp:10-68`；路径数学/导入检查可抽取，旧城市数据和目标集合不作为Demo依赖 |
+| `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight} / ViewPrivacySchema` | `Private\Tests\LDDemoVisionTests.cpp`；`LDViewTests.cpp:6-35`；codec/游标/字段检查不证明Host画面、继承字段或AI策略 |
+| `Lockdown.Rules.DemoWorld.TypedProjection / ExactSignedGeometry / AtomicAssetRoundTrip` | `Private\Tests\LDDemoContentCatalogTests.cpp`；当前地图投影、精确几何与资产往返；旧 `B90ApproachPaths` 路径数学/导入检查已随 B90 工具删除，旧城市数据和目标集合不作为Demo依赖 |
 | Editor/Game构建、唯一Bootstrap、Cook/Stage/包加载 | 原生接口/资产变更的必要后续门槛；精确参数/环境按DEVELOPMENT，锁定UE5.8.4，不改共享引擎掩盖失败 |
-
-**检查器迁移风险**：当前 `FLDEnvironmentViewEntry` 反射包含10字段，
-`Private\World\LDB91NetClient.cpp:94-101` 会输出它们，
-而 `Scripts\CheckB91Network.py:16-20` 只接受旧7字段或加 Light 的8字段。
-这是静态集合比较确认的漂移，不是本轮跑出的引擎失败日志。
-迁移到单一schema时须逐字段审查并更新生产/检查双方，不删除断言、不隐藏真实字段、不拿旧报告充数。
 
 ## 9. 独立研究、审核结论与仍有效风险
 
@@ -1057,22 +1042,25 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 对八个既有MemberHome的100cm归位区域，独立QA另确认最小额外静态余量约401.769409288cm；
 此项仅复用未改变的几何输入做圆区净空检查，没有把动态占位、联合安装或原生回位记成通过。
 
-| 验证层 | 本轮状态 |
+| 验证层 | 状态 |
 | --- | --- |
-| 文档/范围 | HEAD基线、两份独立研究、关键源引用、相对链接与SVG坐标已核对；本分支只交付本文与设计图 |
+| 文档/范围 | 原始研究的源码基线、两份独立研究与SVG仍说明方案依据；当前实施事实以源码和技术手册为准 |
 | 离线几何 | 作者与独立QA均完成10项基础几何自测及本布局审计；独立实现另核验路线/上界和近战接近 |
-| 当前旧数据一致性 | 工程研究执行 `SyncV07WorldData.py --check`、`SyncV09Data.py --check`、`SyncB91Data.py --check` 通过；只证明旧输入/输出一致，绝不是Demo新生成链已完成 |
-| 未实现 | 本文拟建查询/DTO接线、唯一Demo输入/生成资产、完整营地/对手AI与相关新场景；本轮没有写入这些实现 |
-| 未运行 | UE启动、Editor/Game构建、Bootstrap、原生NavMesh、真实Listen Host/两个拥有客户端、AI/人类完整对局、Reference Viewer/Asset Registry、Cook/Stage/包加载 |
-| 已确认、待实现 | 仅受击后同营反击且不共享隐藏位置、Returning正常伤害/控制不重新追击、成功回营满定义资源/清临时仇恨/技能就绪且无新生命/奖励、Shop无额外LOS；可见字段/失明停追击/死亡镜头/独立效果规则亦不再待选 |
-| 待PR审查 | 布局/高度/显示分辨率、内容候选数值及具体工程实现方案；SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
+| 已实现静态子片 | 批准作者/载荷、严格world2投影、唯一原生地图/目录、凸多边形碰撞与NavAgent/地面/完整路径/保存重载检查 |
+| 已实现 | 真实身体/订单/许可/事件水位、稀疏观察/授权终止、对手AI及其跨域消费者；拥有连接见 Core、Vision、Opponent 场景 |
+| 营地循环 | 已实现（`World\LDCampDirector`）；`RunDemoCampCheck.ps1` 在实际 Listen Host 加两个拥有客户端上通过五营落点、不先手、整组反击、每生命一次收益、按内容计时整组刷新与拴绳回营重置；SpawnBlocked/动态占位、Returning 受控暂停与故障注入未运行 |
+| 已有拥有连接子场景 | 实际Listen Host和两个拥有客户端在无玩法身体的Lobby加载同一根/名单/原生地面与导航；不代表稀疏观察、AI或实际身体运动 |
+| 未运行 | SpawnBlocked/动态占位、Returning 受控暂停与故障注入；跨机器联机与人类完整对局 |
+| 已确认规则 | 仅受击后同营反击且不共享隐藏位置、Returning正常伤害/控制不重新追击、成功回营满定义资源/清临时仇恨/技能就绪且无新生命/奖励已由营地循环实现；Shop无额外LOS；可见字段/失明停追击/死亡镜头/独立效果规则亦不再待选 |
+| 已批准首轮输入 | 2026-11-02用户批准现有单层布局及完整内容数值；不重复要求选择地图或既有参数，不声称原生/联网/平衡通过 |
+| 工程风险 | SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
 
 仍有效的风险必须随任务分派保留：
 
 | 风险 | 后续必过门槛 |
 | --- | --- |
-| 模型40cm不等于原生身体/NavAgent已统一；旧构造/Tuning/Nav资产有不同尺寸，旧Sprint校验也不能直接承接新MoveSpeed | `Source\Lockdown\Private\Character\LDCharacter.cpp:25-35,63-74`、`Source\Lockdown\Private\Core\LDPrototypeTuning.cpp:10-25`、`Source\LockdownEditor\Private\ScaffoldBootstrap\LDB90BootstrapCommandlet.cpp:283-293` 的真实接线、重生成与原生行走 |
-| 七局部候选可能被动态占位封锁；准备/commit/Finalize、组刷新和控制下回位还只是契约 | 并发占位/碰撞/故障注入、显式SpawnBlocked、无正常失败Finalize、无幽灵生命或半组、Returning受控期间正确暂停与恢复 |
+| 同源Demo capsule/NavAgent配置已接通，但不能据此把真实拥有身体/动态行走记为通过；剩余旧Tuning/Sprint消费者仍待裁剪 | `Character\LDCharacter::ConfigureDemoMovement`、`Navigation\LDDemoNavigationSystem`与`LDDemoWorldBuilder`实际配置/保存检查之外，继续验证原生CMC行走和全部消费者 |
+| 七局部候选可能被动态占位封锁；组刷新与受控回位已实现，但封锁、并发占位与 Returning 受控暂停未在原生场景中运行 | 并发占位/碰撞/故障注入、显式SpawnBlocked、无幽灵生命或半组、Returning受控期间正确暂停与恢复 |
 | 现有CMC回调不能自动证明采到全部子段，且旧WorldClock有回拨路径 | UE5.8.4扩展点核验；短弦/滑墙/截短位移、真实秒排序、同桶事件/水位/退休/新局压力场景 |
 | 新P2/装备/状态/死亡终止/覆盖codec及附属效果存在跨消费者泄露面 | 预分配前有界解码、完整字段白名单、未知/不适用区别、丢包/乱序/旧epoch、Host首次生成与视野外效果/音源/碰撞实测 |
 | 文本删除清单不能覆盖全部Blueprint/默认类/动态加载与Cook闭包 | 资产引用扫描、Blueprint编译/保存、Editor/Game、唯一Bootstrap、Cook/Stage与实际包加载；不通过删断言或保留旧模式兜底 |

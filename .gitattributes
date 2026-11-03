@@ -1,13 +1,19 @@
 # Unreal packages remain binary and are stored through Git LFS.
 *.uasset filter=lfs diff=lfs merge=lfs -text
 *.umap filter=lfs diff=lfs merge=lfs -text
+# Audio: third-party CC0 sound sources are binary as well.
+*.ogg filter=lfs diff=lfs merge=lfs -text
+# Art: third-party CC0 model and texture sources are binary or embed binary buffers.
+/SourceData/Art/**/*.gltf filter=lfs diff=lfs merge=lfs -text
+/SourceData/Art/**/*.glb filter=lfs diff=lfs merge=lfs -text
+/SourceData/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Human-readable documentation uses one portable text format.
 *.md text eol=lf
 
 # These inputs and payloads participate in native content signatures.
-/Config/BootstrapLayout.json text eol=lf
 /SourceData/** -text
-/Content/Lockdown/Data/V07/*.json text eol=lf
-/Content/Lockdown/Data/V08/*.json -text
-/Content/Lockdown/Data/V09/*.json -text
+/Content/Lockdown/Data/Demo/*.json -text
+/Source/Lockdown/Private/World/LDDemoWorldContract.h -text
+/Source/Lockdown/Private/Development/LDDemoContentContract.h -text
+/Source/Lockdown/Public/Development/LDDemoContentIds.h -text

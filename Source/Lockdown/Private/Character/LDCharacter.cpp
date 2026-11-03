@@ -1,18 +1,18 @@
 #include "Character/LDCharacter.h"
+#include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
-#include "Core/LDPrototypeTuning.h"
 #include "Camera/CameraComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/PointLightComponent.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
-#include "Framework/LDGameMode.h"
-#include "Combat/LDCombatDirector.h"
-#include "Region/LDRegionDirector.h"
+#include "Framework/LDDemoEntry.h"
+#include "Combat/LDCombatCues.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
+#include "Region/LDMapRegistry.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer.SetDefaultSubobjectClass<ULDCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -29,9 +29,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     GetCapsuleComponent()->SetCanEverAffectNavigation(false);
     UCharacterMovementComponent* Movement = GetCharacterMovement();
-    Movement->MaxWalkSpeed = 180;
-    Movement->MaxAcceleration = 1800;
-    Movement->BrakingDecelerationWalking = 1800;
+    Movement->MaxAcceleration = 8000;
+    Movement->BrakingDecelerationWalking = 8000;
     Movement->MaxStepHeight = 35;
     Movement->SetWalkableFloorAngle(40);
     Movement->bOrientRotationToMovement = false;
@@ -39,7 +38,9 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Movement->NavAgentProps.bCanJump = false;
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("SharedBody"));
     Body->SetupAttachment(GetRootComponent());
-    PortableGlow=CreateDefaultSubobject<UPointLightComponent>(TEXT("OwnerCosmeticToolLight"));PortableGlow->SetupAttachment(GetRootComponent());PortableGlow->SetMobility(EComponentMobility::Movable);PortableGlow->SetCastShadows(false);PortableGlow->SetIntensity(1500);PortableGlow->SetLightColor(FLinearColor(1.f,.65f,.25f));PortableGlow->SetVisibility(false);
+    Body->SetVisibility(false,true);
+    // The Demo presents bodies only through SharedBody; the inherited, asset-less character mesh never renders.
+    GetMesh()->SetHiddenInGame(true);
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteRotation(true);
@@ -58,66 +59,136 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Camera->PostProcessSettings.MotionBlurAmount = 0;
 }
 
-void ALDCharacter::SetPortableLight(uint8 Mode)
-{PortableGlow->SetAttenuationRadius(Mode==2?800:600);PortableGlow->SetVisibility(Mode==1||Mode==2);}
+bool ALDCharacter::ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error)
+{
+    FCollisionShape Capsule;
+    if (!ULDMapRegistry::ContentCapsule(Content, Capsule, Error)) { return false; }
+    const auto& Speed = Content.Get().Parameters.MoveSpeedCmPerSec.Base;
+    if (Speed.Denominator <= 0)
+    {
+        Error = TEXT("Demo movement speed has a nonpositive denominator.");
+        return false;
+    }
+    const double NativeSpeed = double(Speed.Numerator) / double(Speed.Denominator);
+    if (!FMath::IsFinite(NativeSpeed) || NativeSpeed <= 0 || NativeSpeed > MAX_flt)
+    {
+        Error = TEXT("Demo movement speed is outside the native movement range.");
+        return false;
+    }
+    auto* Movement = CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement());
+    GetCapsuleComponent()->SetCapsuleSize(Capsule.GetCapsuleRadius(), Capsule.GetCapsuleHalfHeight());
+    Movement->NavAgentProps.AgentRadius = Capsule.GetCapsuleRadius();
+    Movement->NavAgentProps.AgentHeight = Capsule.GetCapsuleHalfHeight() * 2;
+    Movement->MaxWalkSpeed = float(NativeSpeed);
+    Error.Reset();
+    return true;
+}
+
 void ALDCharacter::BeginPlay()
 {
     Super::BeginPlay();
-    Tuning = LoadObject<ULDPrototypeTuning>(nullptr, TEXT("/Game/Lockdown/Generated/Data/DA_PrototypeTuning.DA_PrototypeTuning"));
     FString Error;
-    if (!Tuning || !Tuning->Validate(Error)) { UE_LOG(LogTemp, Fatal, TEXT("Invalid prototype tuning: %s"), *Error); return; }
-    GetCapsuleComponent()->SetCapsuleSize(Tuning->CapsuleRadius, Tuning->CapsuleHalfHeight);
-    GetCharacterMovement()->MaxWalkSpeed = Tuning->WalkSpeed;
-    CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->SprintSpeed = Tuning->SprintSpeed;
-    if (HasAuthority()) { PresentationKey = uint8(FMath::RandRange(0,3)); }
+    if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap)
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED Body creation is outside the registered Demo world."));
+        Destroy();
+        return;
+    }
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    if (!LDDemoEntry::LoadRuntimeContent(Content,Error) || !ConfigureDemoMovement(*Content,Error))
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"),*Error);
+        Destroy();
+        return;
+    }
+    if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
     OnRep_Presentation();
-    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Mode->Combat->Register(this);}}}
 }
 
 void ALDCharacter::Tick(float Delta)
 {
     Super::Tick(Delta);
-    if(!GetController()||!GetController()->IsLocalController()){SetPortableLight(0);}
-    if(HasAuthority()){if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){if(Mode->Combat){Body->SetCue(Mode->Combat->CueFor(this));}}}
-    else if(const auto* PC=Cast<ALDPlayerController>(GetController())){Body->SetCue(PC->OwnerState.ActionCue);}
-    Body->Animate(GetVelocity(), Delta);
-    if (const ALDPlayerController* PC=Cast<ALDPlayerController>(GetController()))
-    { if (PC->IsLocalController()) { Body->SetVisibility(PC->OwnerState.bActive,true); } }
+    auto* PC=Cast<ALDPlayerController>(GetController());
+    const bool OwnBody=PC && PC->GetLocalPlayer() && PC->GetPawn()==this
+        && PC->OwnerState.LifePhase==ELDLifePhase::Alive && PC->OwnerState.BodyRef.IsValid();
+    Body->SetVisibility(OwnBody,true);
+    if (!OwnBody) { return; }
+    ShownOwner=PC;
+    ShownLife=PC->OwnerState.Life;
+    // The own body shows the cue and markers others see, from its own Combat projection at the public clock.
+    const FLDCombatOwnerView& View=PC->CombatView;
+    int64 NowMs=0;
+    LDCombatCues::FCue Selected;
+    TArray<FLDObservedStatus> Statuses;
+    if (PC->ReadDemoAuthorityTimeMs(NowMs) && View.bHasBody && View.Generation==PC->OwnerState.Match
+        && View.Life==PC->OwnerState.Life)
+    {
+        Selected=LDCombatCues::Select(View.Cues,NowMs);
+        for (const FLDCombatStatusView& Status : View.Statuses)
+        {
+            if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
+            { Statuses.Add({Status.StatusId,1,Status.ExpiresAtMs}); }
+        }
+        if (NowMs<PC->OwnerState.ProtectedUntilMs)
+        { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
+    }
+    const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
+    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f);
+    Body->Animate(GetVelocity(),Delta);
+    // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
+    if (Selected.Cue==ELDObservedActionCue::Hit && Selected.AtMs!=ShakeHitAtMs)
+    {
+        ShakeHitAtMs=Selected.AtMs;
+        ShakeAge=0.f;
+    }
+    ShakeAge+=Delta;
+    constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
+    const float Amplitude=ShakeAge<ShakeSeconds ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
+    Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
 }
 
-void ALDCharacter::SetSprint(bool bSprint) { CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->bWantsSprint = bSprint; }
+void ALDCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+    // The authority removes a dead contender's body at once; its owner sees it fall where it stood. A removal that is
+    // not that life's death (a match end or a departure) leaves nothing once the owner's projection disagrees.
+    const ALDPlayerController* ShownTo=ShownOwner.Get();
+    if (Reason==EEndPlayReason::Destroyed && ShownTo && GetWorld() && !GetWorld()->bIsTearingDown)
+    {
+        ALDBodyPuppet::SpawnOwnFall(*Body,*ShownTo,ShownLife);
+    }
+    Super::EndPlay(Reason);
+}
+
+uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses)
+{
+    uint8 Code=Cue==ELDObservedActionCue::Attack ? 1 : Cue==ELDObservedActionCue::Cast ? 2 : Cue==ELDObservedActionCue::Hit ? 4 : 0;
+    for (const FLDObservedStatus& Status : Statuses)
+    {
+        switch (static_cast<ELDDemoStatusId>(Status.StatusId))
+        {
+        case ELDDemoStatusId::Root: Code|=16; break;
+        case ELDDemoStatusId::CampReturning: Code|=32; break;
+        case ELDDemoStatusId::Shield: Code|=64; break;
+        case ELDDemoStatusId::RespawnProtection: Code|=128; break;
+        default: break;
+        }
+    }
+    return Code;
+}
+
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
-void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = FMath::Clamp(CameraArm->TargetArmLength - Axis * 80, 1100.0f, 1700.0f); }
+void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = ZoomedArmLength(CameraArm->TargetArmLength, Axis); }
+float ALDCharacter::ZoomedArmLength(float ArmLength, float Axis) { return FMath::Clamp(ArmLength - Axis * 80, 1100.0f, 1700.0f); }
+FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLength)
+{
+    // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.
+    const USpringArmComponent* Arm = GetDefault<ALDCharacter>()->CameraArm;
+    const FRotator Rotation = Arm->GetRelativeRotation();
+    return FTransform(Rotation, Origin + Arm->TargetOffset - Rotation.Vector() * ArmLength);
+}
 void ALDCharacter::OnRep_Presentation() { Body->ApplyPalette(PresentationKey); }
 void ALDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ALDCharacter, PresentationKey);
-}
-
-ALDResident::ALDResident(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
-{
-    bReplicates = false;
-    AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
-    AIControllerClass = AAIController::StaticClass();
-}
-
-void ALDResident::Tick(float Delta)
-{
-    Super::Tick(Delta);
-    if (!HasAuthority()) { return; }
-    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();if(Mode&&Mode->Region&&Mode->Region->UpdateResident(this)){return;}
-    if (GetVelocity().Size2D() > 5) { SetFacing(GetVelocity().Rotation().Yaw); }
-    NextDecision -= Delta;
-    if (NextDecision > 0) { return; }
-    NextDecision = FMath::FRandRange(3.0f,7.0f);
-    if (AAIController* AI = Cast<AAIController>(GetController()))
-    {
-        AI->SetReplicates(false);
-        if (UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
-        {
-            FNavLocation Destination;
-            if (Nav->GetRandomReachablePointInRadius(Mode&&Mode->Region&&Mode->Combat->StateFor(this)?Mode->Combat->StateFor(this)->Home:GetActorLocation(),Mode&&Mode->Region?250:650,Destination)) { AI->MoveToLocation(Destination.Location, 35); }
-        }
-    }
 }

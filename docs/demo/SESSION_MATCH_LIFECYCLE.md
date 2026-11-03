@@ -1,19 +1,19 @@
-# Demo 会话、对局与生命生命周期
+# Demo 会话、对局与生命周期
 
 **目标：v0.10.0 · 架构职责：M1 / M2 / M5 · Unreal Engine 5.8.4**
 
-产品规则以 [App Spec](../APP_SPEC.md) 为准；实施依赖以
-[架构审计](ARCHITECTURE.md)、[共享契约](SHARED_CONTRACTS.md) 和
-[实施计划](IMPLEMENTATION_PLAN.md) 为准。本报告只提供实施设计，不实现游戏或裁剪工程。
-下文的正式目标类型、函数、状态和验收场景均为**拟建或拟改造**，不是现有 API 或运行通过声明。
-运行源码证据固定于 `fa11d09a762bccadf495191072e222dd158fc014`；
-当前分支上的准备文档提交不改变这一运行基线。
+产品规则以 [App Spec](../APP_SPEC.md) 为准；跨模块接口以
+[架构审计](ARCHITECTURE.md) 和 [共享契约](SHARED_CONTRACTS.md) 为准。
+本文规定会话、阶段、生命边界、批次/写闸、占领归约与唯一结果必须保持的契约，
+并在 §9 列出实现这些契约的源码与检查入口。§3–§6 中的类型与签名描述契约形状；
+与源码命名不同时以 §9 所列源码为准，但契约本身不能因此放宽。
+本文不是运行通过声明；当前自动化覆盖与证据限制见 §10、§12。
 
 ## 1. 结论与责任边界
 
 选择**同一 Listen 世界内的单一会话/对局流程**：现有会话组件改接 M9G 的唯一 `L_Demo` 世界，
 从前端创建或 IP 加入后进入 Lobby；
-Host 在真人全部准备后开始；发育期结束开放唯一圈；连续独占成功锁定唯一结果；
+Host 在真人全部准备后开始；发育期结束开放唯一圈；独占进度达到规定时长锁定唯一结果；
 Host 带仍连接的房间回 Lobby，再完整初始化新局。Lobby 和结果是该世界的阶段，
 不是另外保留旧 profile、额外玩法地图或世界检查点恢复模式。
 
@@ -23,15 +23,14 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 也不能将旧本地重载测试视为同房间多人新局的证明。
 
 本域是共享比赛身份、比赛时钟、实际事件批次及消费水位、生命边界和终局写闸的
-**唯一正式提供者**。这些职责接回现有 GameMode/Combat 调度和 Objective，
+**唯一正式提供者**。这些职责接回现有 GameMode/Combat 调度，单圈归约也归 GameMode 核心，
 不新增通用事件总线、第二套身体表、移动积分器、经济账本或独立胜负 Manager。
 
 | 所有者 | 本域规定的职责 | 不越过的边界 |
 | --- | --- | --- |
 | `ULDGameInstance` | 本进程连接尝试、失败归属、本地反馈、网络比赛代次分配 | 不保存跨局战力，不替服务器判定成功，不迁移 Host |
-| `ALDGameMode` | 房间身份/准入/准备/名单；Match 映射；参赛资格/生命；批次和写闸；唯一结果 | 不自行实现命中、发金币、生成三选一或积分移动 |
+| `ALDGameMode` | 房间身份/准入/准备/名单；Match 映射；参赛资格/生命；批次和写闸；唯一圈的占领归约（独占计时、争夺暂停、失效清零）、完成提案与唯一结果（N02 归核心 GameMode，由 `FLDCaptureReducer` 实现）；生命侧（`EndContenderLife`、复活、保护解除）在 `LDGameModeLife.cpp`，由 Combat 维护 | 不自行实现命中、发金币、生成三选一或积分移动；圈归约不读客户端位置或借迷雾判断，不另交第二个结果 |
 | `ALDCombatDirector` | 既有权威推进入口；身体、动作、伤害/控制；首次致死事实 | 死亡只生产一次；生命域消费同一事实，不再认定另一死亡 |
-| `ALDObjectiveDirector` | 唯一圈的连续独占归约、完成提案 | 不读客户端位置或借迷雾判断；不直接提交第二个结果 |
 | 操作域 / CharacterMovement | 实际执行的移动、碰撞、位移分段与运动完成水位 | 不由圈 Tick 推导轨迹；不把当前姿态回填过去 |
 | 世界域 | 十点抽样与同点合法落地；圈几何/交点；营地实体生命映射 | 不再维护一份占领状态或参赛者生命计数 |
 | 成长/装备/经济域 | 致死事实的金币+经验+等级+机会复合提交、Offer、构筑、装备和回执 | 只接受本域当前批次许可；不另外生成 Match、DeathKey 或结束时钟 |
@@ -45,8 +44,8 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | 开始条件 | 仅 Host 可开始；全部已连接真人含 Host 都准备；AI 不伪造玩家 Ready RPC；开始时锁定真实参赛名单。 |
 | 联机边界 | IP 直连；局域网和正确配置防火墙/手动端口转发的公网可达地址；无自动 NAT 穿透、中继、中途加入、重连或 Host 迁移。 |
 | 唯一目标 | 发育期可以战斗/成长/购物而不能占领获胜；之后同一个圈一直开放，不重新关闭、轮换或因无人占领而超时结算。 |
-| 连续独占 | 只有仍在本局、存活、非复活保护的参赛真人/AI 计数；野怪、尸体、商店、技能表现不计数。独占必须是同一参赛者连续的一整段，不累计。 |
-| 清零条件 | 另一有效参赛者进入、占领者离圈/死亡/离局即破坏连续性；争夺结束后重新计完整一段。中间进出即使发生在同一帧也不能遗漏。 |
+| 独占与暂停 | 只有仍在本局、存活、非复活保护的参赛真人/AI 计数；野怪、尸体、商店、技能表现不计数。只有一名有效参赛者时为他计时；争夺只暂停原占领者已持有的进度，争夺结束仍由他独占时从暂停值续计，其他人既不累积也不继承。 |
+| 清零条件 | 原占领者离圈/死亡/离局（含争夺进行中）即清零其进度，下一名独占者从 0 开始；圈内无人也清零。中间进出即使发生在同一帧也不能遗漏。 |
 | 不清零条件 | 圈内移动、攻击、施法、受伤、控制本身不清零；由此实际离圈或死亡才按相应事件处理。保护者不推进也不争夺。 |
 | 唯一结果 | 到期时先处理相关真实事件并证明提供者水位闭合，再重查；成功只锁一个胜者。Host 主动结束无胜者；没有击杀/财富/等级/时间积分胜利。 |
 | 出生与复活 | 每次从同一组全部十点独立等概率、有放回抽取；可抽回同点。碰撞只在选中点作必要合法落地/防重叠，不改按危险、视野或敌人距离挑点。 |
@@ -82,8 +81,8 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
 | `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；全部可提交后统一开始 `Development` | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
-| `Development` / 开放到期 | 使用服务器截止时刻进入 `CaptureOpen`，只在开放后建立占领连续段 | 仍可升级、购物、战斗；不能把发育期圈内停留时间算入独占。 |
-| `CaptureOpen` / 完成提案 | 闭合真实事件边界、重新判定连续性；GameMode 先锁结果和写闸，进入 `Results` | 多个提案不能互相覆盖；未闭合水位不是成功，旧局/旧生命/旧连续段提案拒绝。 |
+| `Development` / 开放到期 | 使用服务器截止时刻进入 `CaptureOpen`，只在开放后开始计占领进度 | 仍可升级、购物、战斗；不能把发育期圈内停留时间算入独占。 |
+| `CaptureOpen` / 完成提案 | 闭合真实事件边界、重新判定独占；GameMode 先锁结果和写闸，进入 `Results` | 多个提案不能互相覆盖；未闭合水位不是成功，旧局/旧生命/旧 CaptureEpoch 的提案拒绝。 |
 | 活跃阶段 / Host 结束 | 在权威边界提交 `HostEnded`，无胜者，进入 `Results` | 不借终止挑选最高分；与自然胜利的竞争按批次顺序裁定，不能先发布两个结果。 |
 | `Results` / Host 返回 Lobby | 先保持旧闸关闭，进入 `Resetting`；全域失效、拆除身体和局内对象、换 Match 后发布 `Lobby` | 保留已连接房间，不要求客户端伪造一次重连；全真人 Ready 清除，不能自动重开。 |
 | 任意房间阶段 / 普通成员离开 | 立即撤销资格/命令、移除身体及碰撞、取消未结束独立效果；其余人继续正常规则 | 不是死亡、不发离开奖励、不接管AI；已发生命中/致死不回滚，已锁事实的结算接收记录不因身体移除而删除。 |
@@ -119,8 +118,9 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 
 ## 4. 唯一核心身份与写权限
 
-以下类型由本报告单点定义，实施时放在现有 `Framework` 的窄共享头
-`LDMatchLifecycleTypes.h`；这是**拟新增文件**，本轮不创建。
+以下类型由本报告单点定义，统一归 `Framework` 的窄共享头 `LDMatchLifecycleTypes.h`。
+该文件已有 Match 上下文、阶段/参赛种类及房间回执基础；下列完整 Victim/Body/DeathKey、
+实际时序/许可和相关消费者仍是后续核心实施，不把已有头文件当作全部类型已接通。
 不将这些内部上下文全部机械序列化进每个 RPC。
 
 ```cpp
@@ -221,15 +221,16 @@ MissingDemoDefinition / SpawnBlocked / MatchClosed / AuthorityFault`。
 
 ### 4.2 读模型及权限
 
-| 拟建/改造投影 | 生产者 / 允许字段 | 版本与清理 |
+| 投影 | 生产者 / 允许字段 | 版本与清理 |
 | --- | --- | --- |
 | `FLDLobbyView` → GameState | GameMode：本局网络 Generation、阶段、RosterRevision、真人/AI 名单、名称、Host、Ready、AI 数量、可开始状态及公开拒绝原因 | 房间公开；Ready 变化有单独发布 revision。离局移除名单项；新局更新代次，旧 OnRep 不能覆盖。 |
-| `FLDPublicMatchView` → GameState | GameMode/Objective：阶段、服务器时间同步锚、开放截止、圈状态、当前占领者、连续段起点/截止、结果身份/原因/唯一胜者 | 圈和结果全场公开，不包含隐藏坐标、生命表、MP、钱包、装备或敌方构筑。客户端只估算显示进度。 |
+| `FLDPublicMatchView` → GameState | GameMode（含圈归约）：阶段、服务器时间同步锚、开放截止、圈状态、进度持有者（独占者或争夺中被暂停的原占领者）、独占段起点/截止、暂停进度、结果身份/原因/唯一胜者 | 圈和结果全场公开，不包含隐藏坐标、生命表、MP、钱包、装备或敌方构筑。客户端只估算显示进度。 |
 | `FLDOwnerState` 目标字段 | 本人的 ContenderId、BodyRef/Life、存活/等待/保护、复活及保护截止、已授权的成长/装备/冷却投影 | 只给拥有连接或对应 AI；死亡清理旧身体引用，候选和来源冷却仍来自其持久所有者；换 Match 全部换代。 |
 | 观测 DTO | Vision 按当前观察权限发布身体及已批准表现字段；BodyRef 不直接充当永久可用的目标句柄 | 隐藏/死亡/离开/终局撤销；旧句柄不能解析新生命。正常 Host 的原生 Mesh/附属表现与代理一起遵守授权。 |
 | 连接错误 / 会话回执 | GameInstance 的当前尝试、拥有者命令回执 | 只回所属本地玩家；取消连接后迟到的旧错误不覆盖新尝试，不清另一个 PIE 世界。 |
 
 “全场占领者”不自动授予该角色坐标或视野。公共圈 DTO 只需无占领者、独占者或争夺状态，
+以及争夺中被暂停的原占领者和其暂停进度，
 不发布完整圈内实体名单来暴露保护者或隐藏身体。
 结算已确认公开所有参赛者的名称、击杀、死亡、最终等级，并标明赢家、结束原因和本局用时；
 只在终局冻结后公开，不变成局内实时全员属性页，也不按统计决定胜负。
@@ -241,8 +242,10 @@ MissingDemoDefinition / SpawnBlocked / MatchClosed / AuthorityFault`。
 ELDMatchEndReason Reason; TOptional<FGuid> Winner; int64 StartedAtMs; int64 EndedAtMs;
 int64 DurationMs; TArray<FLDResultRow> Rows; }`，
 由内部 ResultReceipt 投影，**不发送 LedgerMatch**。`FLDPublicMatchView` 的正式时间字段
-为 `ServerNowMs / OpenAtMs / SoloSinceMs / DueAtMs`，另带 `PublicRevision`、
-`CircleState / Occupier / CaptureEpoch / Result`；没有独占者的时刻使用明确空值，
+为 `ServerNowMs / OpenAtMs / SoloSinceMs / DueAtMs / PausedProgressMs`，另带 `PublicRevision`、
+`CircleState / Occupier / CaptureEpoch / Result`；`SoloSinceMs / DueAtMs` 只在独占时有值，
+续计时 `SoloSinceMs` 为恢复时刻减暂停值，`DueAtMs` 即真实完成时刻；争夺中两者为 0，
+被暂停的原占领者由 `Occupier` 与 `PausedProgressMs` 表示。没有进度持有者的时刻使用明确空值，
 不是让零 Guid/默认时间冒充一名占领者。名单条目身份、真人/AI、Host、Ready 的字段
 由 `FLDLobbyView` 发布；Owner 的时间字段为 `RespawnAtMs / ProtectedUntilMs`。
 时间同步锚同时携带 `double ServerSampleWorldSeconds`，来自服务器同一游戏时间采样；
@@ -266,15 +269,15 @@ const FLDMatchContext&) -> FLDAIRegistrationResult` 只在 Starting 接受已冻
 不能多建角色。它不生成额外人数、免费资源或独立生命表。
 失败明确返回 WrongPhase/InvalidRosterSlot/AlreadyBound/StaleMatch，不由 AI 补建一个“临时角色”。
 真人/AI 按显式 ELDContenderKind 计数，不按 IsPlayerController、NetConnection 是否为空
-或 Pawn 数猜测。AI 域拟建 `ALDOpponentController : ALDPlayerController`，
+或 Pawn 数猜测。AI 域的 `ALDOpponentController : ALDPlayerController` 由 OpponentAI 提供者在 Prepare 中按冻结名额生成，
 直接复用基类的 StateFor/BuildFor/Holder 路径而不经过 B91/B92；没有 LocalPlayer/UI/网络
 连接，不伪造 RPC，也不能落入 NPCBuild。核心注册后才调用其 `BindRegisteredSelf`，
-AI 不 friend 直写 Contenders；ReadAISelf/RequestAISnapshot 必须验证注册的 adapter 与 Match。
+AI 不 friend 直写 Contenders；ReadAISelf 必须验证注册的 adapter 与 Match。
 
 `ReadAISelf(const FLDAIContenderBinding&) const -> FLDAISelfReadResult` 校验该绑定所属的
 注册 Controller 和当前 Match，只返回该 AI 的同一 Owner 投影；
 公共阶段/圈用 `ReadPublicMatch() const -> FLDPublicMatchView`。
-AI 自己的 `ALDOpponentController::RequestAISnapshot` 只是组合这两个只读入口和获准
+AI 自己的 `ALDOpponentController::BuildFrame` 只是组合这两个只读入口和获准
 Observer 的适配，不另加一个 GameMode 查询真相或在 AI 中复制生命状态。
 观察权限与目标解析由世界提供的 ObserverContext 接入，不将 GameMode 全表作为 AI 感知。
 操作域的服务器 `FLDOrderCaller` 使用 MatchContext+BodyRef，
@@ -290,7 +293,10 @@ Death/Respawn/ProtectionEnded/Left 的提交分别推进该参赛实体 LifeRevi
 `NotifyMatchClosed(const FLDMatchClosed&)` 带当前 Context 和不可变 ResultReceipt，
 在写闸关闭后通知取消；`NotifyMatchReset(const FLDMatchReset&)` 明确
 OldContext/NewContext 和新的 Lobby 修订。通知均由 GameMode 产生，
-消费者不能靠回调重新打开闸门。AI 在 Publish 后的获准快照上进行短寿命策略调度，
+消费者不能靠回调重新打开闸门。AI 控制器在 MatchReset 回调里只停止全部活动，不当场销毁：
+其身体由 `RetireAuthorityCore` 按真人同一路径退役、记录随后丢弃，控制器在下一帧确认 Match 已换代后自毁，
+此时 `Logout` 找不到记录，不会走离局路径；它也覆盖 `ClientTravelInternal` 不执行 travel，
+以免无连接控制器的 Client RPC 在 Host 进程本地执行。AI 在 Publish 后的获准快照上进行短寿命策略调度，
 其结果只提交给下一实际边界的领域意图队列；不在本批后半部回插 Actions，
 也不直接获得 `FLDGameplayWritePermit` 改战斗/经济。
 
@@ -433,7 +439,7 @@ Life 自己从当前 Actions 边界生成 Stamp，不接收调用者伪造的时
 | 来源冷却 | 不退款、不清零 | 同一来源 readiness 随服务器时间继续；不放在易被销毁的 Pawn 独占存储 | 不再可提交动作；失源规则由内容/战斗明确 | 不再释放；显示冻结/结束由结果 UI 决定 | 新时间域；不继承旧锁，也不接受旧回执 |
 | HP/MP、临时控制、保护 | 按真实动作结果，不给UI无敌 | 死亡不战斗；复活满HP/MP清旧控制、原子建立保护 | 立即移除身体及可攻击/阻路碰撞，不计战斗/圈 | 不再治疗、伤害、控制或复活 | 全新身体和生命边界 |
 | 商店会话、报价、未提交买卖 | 关闭/停止由商店域取消未提交工作；不撤销已成交事务 | 旧会话失效；死亡不能买卖，复活重新校验范围 | 会话/报价失效 | 拒绝首次提交，无部分改钱/物 | 新会话/报价版本，旧请求明确拒绝 |
-| 占领连续段 | 单纯停止/面板/战斗不清零 | 死亡立即清零；保护既不占也不争 | 离局事件清零，不按人数直接胜利 | 一次结果后不再推进 | 回发育期，旧进度/结果不能复用 |
+| 占领进度 | 单纯停止/面板/战斗不清零 | 死亡立即清零；保护既不占也不争 | 离局事件清零，不按人数直接胜利 | 一次结果后不再推进 | 回发育期，旧进度/结果不能复用 |
 | 观察句柄、代理、私有回执 | 取消选择不改变服务器可见集合 | 旧生命观测撤销；自身持久信息保留 | 关闭所属通道，撤销旧目标授权 | 清理实时世界更新，保留获准结果 | 代次全换；旧投影/ACK 不覆盖 |
 | 本地名称、按键、画质、音量、镜头偏好 | 按本地设置保存 | 保留 | 保留 | 保留 | 保留；不夹带任何局内战力 |
 
@@ -533,8 +539,8 @@ release 起点生成，按内容公式给出的毫秒时长安全相加/上取�
 
 ### 6.2 原生运动的真实生产点
 
-操作域的拟建 `FLDAuthorityMotionSegment` 使用 §4 的 `FLDCombatBodyRef`，
-以及 `ProviderStreamId / SegmentSequence / WorldRevision / FromFootCm / ToFootCm /
+操作域以 `FLDNativeMotionBatch`（`LDNativeMotionTypes.h`，按 §4 的 `FLDCombatBodyRef` 归属）发布原生运动，
+契约字段包括 `ProviderStreamId / SegmentSequence / WorldRevision / FromFootCm / ToFootCm /
 StartServerSeconds / EndServerSeconds / MotionKind`。所有秒字段来自核心 Step。
 `MotionKind` 区分实际自愿移动、root motion、击退/位移和落地；不连续落地不沿一条
 虚构的瞬移连线制造圈内穿越。具体几何查询只归世界域。
@@ -595,12 +601,12 @@ Combat 在一个已记录时间边界读取位置时只能使用该真实子段�
 | `PublishCapturePresence(const FLDCapturePresenceEvent&) -> FLDEventReceipt` | Motion 发布 Body、Stamp、Inside 的实际变更；世界只提供计算结果。 |
 | `PublishCaptureEligibility(const FLDCaptureEligibilityEvent&) -> FLDEventReceipt` | 仅 Session/Life 发布 Joined、Left、Died、Respawned、ProtectionEnded 之一；Respawned原子含保护期限，Combat经生命入口触发，不重复发死亡或中间无保护Alive。 |
 | `PublishThrough(const FLDProviderFence&) -> FLDFenceReceipt` | 事件先于水位；检查注册流、当前 Match、连续序列和单调时间。重复完全相同水位可幂等，矛盾/退回/越过未发布事件拒绝。 |
-| `AckConsumed(const FLDAuthorityBoundary&)` | 只有 Combat 的边界位置读取和 Objective 的归约均完成后通知提供者释放已消费前缀；保留下一段所需末端锚点。 |
+| `AckConsumed(const FLDAuthorityBoundary&)` | 只有 Combat 的边界位置读取和 GameMode 圈归约均完成后通知提供者释放已消费前缀；保留下一段所需末端锚点。 |
 | `EndContenderLife(const FLDCommittedDeath&, const FLDGameplayWritePermit&) -> FLDLifeReceipt` | 消费一次 Combat 死亡事实，提交生命/资格和复活等待；不在此改金币。 |
 | `EndProtectionForAggressiveIntent(Caller, Match, Body, Intent, Permit) -> FLDProtectionReceipt` | 完整签名见 §5.3；Navigation/Combat 共享，识别新进攻意图即解保护，不等待语义动作成功。 |
 | `IsGameplayWriteOpen(const FLDMatchContext&) const -> bool` | 只读快速检查，不是足以绕过正式提交许可的证明。 |
 | `ValidateWritePermit(const FLDGameplayWritePermit&, ELDCommitPhase) -> ELDCommitReject` | 最终提交点核对当前 Match、批次、阶段、许可代次和闸门。 |
-| `TryCloseMatch(const FLDResultProposal&, const FLDAuthorityBoundary&) -> FLDResultReceipt` | 唯一结果 CAS 语义；占领提案须带当前连续段身份及完整边界证明，HostEnd 须来自已验证权限。 |
+| `TryCloseMatch(const FLDResultProposal&, const FLDAuthorityBoundary&) -> FLDResultReceipt` | 唯一结果 CAS 语义；占领提案须带当前 CaptureEpoch、独占者及完整边界证明，HostEnd 须来自已验证权限。 |
 | `FailAuthorityBoundary(const FLDAuthorityBoundary&, const FLDAuthorityFault&) -> FLDFaultReceipt` | 必需工作无法完成时锁故障和写闸，明确未支付/未完成；不是正常 Result 或成功 Fence，不补写旧局。 |
 
 `FLDCapturePresenceEvent` 和 `FLDCaptureEligibilityEvent` 都包含同一 BodyRef/Stamp；
@@ -612,7 +618,7 @@ StaleLife、UnknownStream、SequenceGap、TimeRegression、AlreadyClosed 和故�
 提供者注册集合由当前 Match 和身体注册决定：Session、Combat、Life、World、
 Progression 各一个服务流，Motion 按当前身体各一个流。没有工作的服务仍封闭空批次。
 World/Progression 水位分别证明本边界营地生命/刷新及致死复合奖励/事务已经处理，
-不是让 Objective 读取它们的私有业务表。
+不是让圈归约读取它们的私有业务表。
 同一 Body 的强制位移和自愿运动不能各发一个互不知情的 Motion 完成水位。
 
 核心只关闭所有相关流已覆盖的边界。只有 ThroughMs 足够而序号缺失仍不能通过；
@@ -636,6 +642,18 @@ World/Progression 水位分别证明本边界营地生命/刷新及致死复合�
 过窗返回 ReceiptExpired 与获准当前状态，旧 Life 仍由水位永久拒绝，不能再造死亡/奖励。
 待处理 DeathFact 不得被压缩掉，领域业务回执按成长/账本自己的保留规则处理，
 核心不复制另一份无限账史。长期循环验收须证明退休缓存不随累计死亡次数线性增长。
+
+**当前实现的落地形式**（同步驱动，不另设事件平台）：圈的 Motion 事实不由运动提供者自行求交，
+而是核心在 `CompleteNativeMotion` 接受批次后经 `PublishCaptureMotion` 交给 `LDCaptureCircle::Extract`
+求出带原始秒的进出；生命侧事实经 `PublishCaptureEligibility(Permit, FLDCaptureEligibilityEvent)` 提交，
+Left 只由核心离局路径产生。Motion 流的 Fence 等价物是 Capture 阶段的逐身体本步证据检查
+（本步新登记的生命除外）；`ExecuteCapturePhase / ExecuteClosePhase / ExecuteCapturePublish`
+分别承担归约、先锁闸后冻结结果、无 permit 清理发布，`TryCloseMatch` 为其内部唯一结果入口。
+提供者 MatchClosed/MatchReset/Prepare 钩子与正常开局门禁由 `LDMatchProviders` 静态注册；
+关闭先停本人视图再释放身体与资源记录：世界拆除（`bIsTearingDown`，引擎在网络驱动销毁远端 Pawn 前置位）、
+Host 关房（`Closing`）与 `RetireMatch`（`Resetting`）期间 `SyncOwner` 不发布、也不判投影故障，
+进入新 Lobby 后按新代重新发布；其余阶段照常做完整投影校验。
+详见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)。
 
 ### 6.4 固定批次顺序及提交许可
 
@@ -691,7 +709,7 @@ uint64 GateRevision; }` 只由核心为当前调用栈发放，不发给网络�
 例如保护者在 1000.8ms 已离圈、1001ms 才保护到期，两事件虽同在 1001 桶，
 仍必须先离圈再解除保护，不能因 Session 排在 Motion 前就虚构短暂争夺。
 又如运动中有效竞争者先进入、
-本批后被击杀，已有的争夺必须清零；若其死亡在更早事实中已经提交，后面的尸体位置
+本批后被击杀，这次争夺必须纳入（暂停原占领者进度）；若其死亡在更早事实中已经提交，后面的尸体位置
 不再计入。后于完成时刻的事件不能回填过去；迟到网络命令只在实际服务器接受时间排队。
 
 在阶段 6 更新来源/属性所需的同步派生变更仍须在本批内完成并更新相应资格事件；
@@ -707,24 +725,30 @@ uint64 GateRevision; }` 只由核心为当前调用栈发放，不发给网络�
 过期效果无法在真实证据下完整处理时进入边界故障，不伪造 OccurredAtMs、
 不把遗漏视为无伤害、更不能给圈一个默认成功。
 
-### 6.5 连续占领归约与唯一结果
+### 6.5 占领归约与唯一结果
 
-Objective 持有当前有效集合、`CaptureEpoch`、独占者、`SoloSinceMs` 和 `DueAtMs`；
-它们是同一归约器状态，不是每个角色一条可累计的占领进度。
-每次破坏连续性都推进 Epoch；结果提案包含 Match、CaptureEpoch、占领者、
+GameMode 圈归约持有当前有效集合、`CaptureEpoch`、进度持有者、`SoloSinceMs`、`DueAtMs`
+和争夺中的暂停进度；它们是同一归约器状态，至多一名持有者，不是每个角色一条可累计的占领进度。
+圈状态或持有者每次变化都推进 Epoch；结果提案包含 Match、CaptureEpoch、占领者、
 DueAtMs 和已闭合的 Boundary。旧 Epoch 的 Timer 回调永远不能为新一段计时完成。
 
 开放前归约位置/资格，但不累计；到开放时刻建立新的计时段。
-开放后空集合或至少两名有效者使进度归零；从这些状态变为唯一有效者，从该次变更开始。
-唯一占领者不变的圈内移动/战斗不重置；同一帧中先争夺再恢复独占也必须新开一段。
+开放后空集合清零。唯一有效者从该次变更开始计时；若他就是争夺暂停的持有者，
+`SoloSinceMs` 回拨为恢复时刻减暂停值，`DueAtMs` 为其加完整时长，即从暂停值续计。
+至少两名有效者时，持有者进度冻结为暂停值，其他人不累积；持有者离圈、死亡或离局即清零，
+即使争夺仍在继续也无人继承。与独占同一毫秒桶内开始的争夺暂停值为零，按无持有者处理。
+唯一占领者不变的圈内移动/战斗不重置；同一帧中先争夺再恢复独占按暂停/续计归约，
+争夺事件不丢失、进度也不丢失。争夺暂停持有者时，归约器给驱动一个停靠边界
+`ClosedThrough + max(Hold − Paused, 1)`，保证恢复后的截止不早于恢复所在步的终点；
+截止仍被越过即为“漏切完成边界”故障。
 保护者进出不会改变有效集合；其保护结束则是独立资格事件，不能等到下一次碰撞回调。
 
 `TryCloseMatch` 的占领成功条件必须同时包括当前上下文、写闸开放、
 已封闭至 DueAtMs 的相关事件前缀、当前未过期的 CaptureEpoch、
-该时间边界仍连续独占，以及没有未处理的必需死亡奖励/派生工作。
+该时间边界仍唯一独占，以及没有未处理的必需死亡奖励/派生工作。
 只通过 Timer 或 UI 倒计时不是完成证明。提交一次
 `FLDResultReceipt { Match, ResultId, ResultSerial, Reason, OptionalWinner, EndedAtMs }`，
-GameState 与 Objective 只读同一结果，不各写一个赢家。
+GameState 与圈归约只读同一结果，不各写一个赢家。
 
 HostEnd 按实际受理时刻关闭，不宣称已经封闭其后尚未执行的毫秒桶；
 只能在更早已提交的必需工作全部结清后受理，无赢家且不等待未来输入。
@@ -753,7 +777,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 对仍活跃的当前局，入口一次性切换 `Faulted`、关闭全域玩法写闸并使旧 permit 失效，
 保留哪些事实已提交/哪些奖励未支付的真实区别，拒绝后续补奖或新玩法提交。
 该失败边界不推进成功消费水位，不写 NoReward 来掩盖支付失败，
-也不让 Objective 跳过该故障获得胜利。已支付的事务仍只能只读重放。
+也不让圈归约跳过该故障获得胜利。已支付的事务仍只能只读重放。
 若正常结果先已锁定，返回 AlreadyTerminal 并记录错误，不能用故障覆盖已存在的胜者。
 
 随后以明确的权威故障通知结束 Pending，沿 GameInstance 的失败路径回前端并清理退休局；
@@ -772,11 +796,11 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | 正式参数 / 政策键 | 类型、单位和消费者 | 接入与正反验收 |
 | --- | --- | --- |
-| `MATCH.DevelopmentSec` | 有界时长，作者秒；GameMode/Objective/UI | 开始提交后建立开放截止；到期前不能获胜，开放后不再关闭。旧 SourceData 发育值不能作缺值 fallback。 |
-| `CAPTURE.HoldSec` | 有界时长，作者秒；Objective | 从当前连续段开始建立完成截止；争夺/离圈重开完整一段，非致命战斗不重开。 |
-| `LIFE.RespawnSec` | 有界时长，作者秒；生命域 | 当前内容候选为常量，不按等级/人数变化；这是待审内容方案，不自行加入缩放公式。死亡事实建立期限一次，重复死亡不再延长或缩短。 |
-| `LIFE.ProtectionSec` | 有界时长，作者秒；生命/Combat/Objective/UI | 成功复活建立保护期限；到期等号、合法主动解除、不能占圈均按 §5/6。 |
-| `CAPTURE.RadiusCm` | 厘米，脚点 XY 中心的圆半径；World 查询 | 使用世界统一边界包含规则，不在 Objective/Combat/UI 分别加减碰撞半径或容差。 |
+| `MATCH.DevelopmentSec` | 有界时长，作者秒；GameMode 阶段与圈归约/UI | 开始提交后建立开放截止；到期前不能获胜，开放后不再关闭。旧 SourceData 发育值不能作缺值 fallback。 |
+| `CAPTURE.HoldSec` | 有界时长，作者秒；GameMode 圈归约 | 从独占段开始（续计时回拨暂停值）建立完成截止；争夺只暂停原占领者，离圈/死亡/离局清零，非致命战斗不影响。 |
+| `LIFE.RespawnSec` | 有界时长，作者秒；生命域 | 当前内容为常量（D01 批准为试玩输入），不按等级/人数变化，不自行加入缩放公式。死亡事实建立期限一次，重复死亡不再延长或缩短。 |
+| `LIFE.ProtectionSec` | 有界时长，作者秒；生命/Combat/圈归约/UI | 成功复活建立保护期限；到期等号、合法主动解除、不能占圈均按 §5/6。 |
+| `CAPTURE.RadiusCm` | 厘米，脚点 XY 中心的圆半径；World 查询 | 使用世界统一边界包含规则，不在圈归约/Combat/UI 分别加减碰撞半径或容差。 |
 | `UNIT.CollisionRadiusCm` | 厘米，参与者碰撞尺度；World/原生身体 | 只服务必要合法落地/防重叠及碰撞，不据此扩大圈、加危险评分或重抽锚点。 |
 | `POLICY.InvalidAggressionProtection` | 已确认 `BreakOnAggressiveIntent`；Combat/生命 | 外层身份/当前生命/shape/请求/闸门验证后，进攻意图即解保护；路径/目标/来源/资源等语义失败也解除，具体入口见§5.3。 |
 | `POLICY.DeadChoiceCommit` | 已确认 `Allowed`；成长/生命/UI | 死亡可确认，只改持久构筑；重验Life+ExpectedLifePhase，不能提前复活/治疗尸体，不能执行死前Alive确认。 |
@@ -789,27 +813,25 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 精度和安全加法必须验证，溢出不能产生“立即到期”或无限保护。
 内容输入沿批准定义 → `SourceData\Demo` 唯一作者域 → 统一内容 compiler →
 `Data\Demo` 内容载荷/根 manifest/contract → `ULDDemoContentCatalog` 导入与开局校验。
-世界几何仍使用 §9.3 的独立 `demo_world` / `SyncDemoWorldData` 链；
+世界几何使用独立的 `demo_world` / `SyncDemoWorldData` 链（见世界报告）；
 不让游戏读取本文，不手填生成哈希，也不回落旧 prototype/V08 目录。
 
 死亡静态自由镜头、不新增活体视野、无LastSeen标记、可见对手字段及终局统计
 已确认，按§4白名单接线，不能继续列为未定。
-基础普攻近战单体及经装备/属性获得群攻、射程成长已确认，
-具体内容/数值仍需批准，不从这项形态规则擅定伤害或距离。
-目前本模块没有另需用户选择的生命周期分支；仍待审的是中央具体数值/目录及相应内容定义，
-只阻塞其消费切片，不阻塞 B01 准入/代次/失败合同或独立 B02/B03 闭包。
-同世界阶段选择、毫秒转换、HostEnd 的工程先后、类型命名、请求窗口及水位证明
-已经是本报告的工程设计，不再当作需要用户拍板的玩法问题。
+基础普攻近战单体及经装备/属性获得群攻、射程成长已确认；具体数值由 D01 批准为试玩输入，
+批准不等于已平衡。D12 把争夺改为暂停后，`CAPTURE.HoldSec` 与 `LIFE.RespawnSec` 数值暂不变，
+待数值轮复核（见内容报告）。本模块没有另需用户选择的生命周期分支；
+同世界阶段选择、毫秒转换、HostEnd 的工程先后、类型命名、请求窗口及水位证明属于工程设计。
 
 ## 8. 具体正反验收
 
-**本节是后续实施的场景设计，均未在本轮运行。**
+**本节是验收设计；已自动化的部分及其范围见 §10，未列入 §10 的条目没有自动化证据。**
 `H` 表示有正常主画面的参赛 Listen Host；`C1/C2` 是独立进程、真实拥有连接的客户端；
 `A1–A3` 是实际参赛 AI。真实连接不是调用一下服务器函数或只有 Host 的调试世界。
 完整场景另外分别记录 LAN 与正确配置后的公网结果，同机回环不能代替它们。
 
 纯规则夹具可以注入确定的时间/随机流/故障，验证精确边界；集成验收必须让事件从
-原生运动、拥有者 RPC、实际命中和真实断开入口产生，不能只往 Objective 填一张最终人数表。
+原生运动、拥有者 RPC、实际命中和真实断开入口产生，不能只往圈归约填一张最终人数表。
 完整 Demo 场景必须用批准内容正常普攻发育、成长、购物和争圈，
 不使用调试授予、传送、固定胜者或强制完成按钮。
 
@@ -844,16 +866,16 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | LF-09 | 同Effects集合互杀且会升级；死后独立效果命中；致死1000.2ms/离局1000.8ms及相反顺序 | 基准全先锁、死者合法收奖；致死在前则EligibleAtDeath不被后离局撤销，settlement-only结清；离局在前取消效果无新死，不按同桶阶段倒排。 |
 | LF-10 | 死亡确认/替换、迟到Alive确认、上限成长；离局有身体/独立效果 | Dead确认只改保留构筑，旧Phase拒绝，尸体不治；复活满新上限；离局立即移体/碰撞、取消未结效果，不回滚先前事实。 |
 
-### 8.3 连续占领与实际事件水位
+### 8.3 占领与实际事件水位
 
 | ID | 前置和动作 | 精确正反断言 |
 | --- | --- | --- |
 | CP-01 | 发育期一直站圈，跨开放时刻 | 开放前无进度/胜利；从开放边界才开始新段，期间仍能成长/购物。 |
-| CP-02 | 空圈→独占→两有效者争夺→原占领者独占 | 无人/争夺归零；原占领者也重新完整计时，不保留累计时间。 |
-| CP-03 | 圈内走动、普攻、施法、装备主动、非致命伤害和原地控制；对照击退出圈/致死 | 前组不改变连续段；后组必须清零。 |
+| CP-02 | 空圈→独占→两有效者争夺→原占领者独占；对照争夺中原占领者离圈/死亡/离局 | 无人清零；争夺暂停原占领者进度、他人不累积，恢复独占从暂停值续计；原占领者失效即清零，下一独占者从 0 开始。 |
+| CP-03 | 圈内走动、普攻、施法、装备主动、非致命伤害和原地控制；对照击退出圈/致死 | 前组不改变进度；后组必须清零。 |
 | CP-04 | 唯一保护者；独占者旁保护者；受保护新生命落圈；圈内野怪/尸体/商店/特效 | 无效实体不占不争；新生命不短暂暴露无保护Alive；代理不双计数；保护结束才具资格。 |
-| CP-05 | 同一原生步中占领者离开再返回；竞争者进入再离开；滑移/绕角产生多次穿越 | 最终位置相同也保留中间变更，旧段作废；不能只用步首/末快照。 |
-| CP-06 | 同刻竞争者先有效进入再死亡；对照先死亡再经过 | 前者已破坏连续性，即使末态只剩原占领者也不赢；后者不计尸体。旧生命事件不能因本批新 Life 已登记而被抹掉。 |
+| CP-05 | 同一原生步中占领者离开再返回；竞争者进入再离开；滑移/绕角产生多次穿越 | 最终位置相同也保留中间变更：占领者离开即清零，竞争者进出按暂停/续计；不能只用步首/末快照。 |
+| CP-06 | 同刻竞争者先有效进入再死亡；对照先死亡再经过 | 前者是一次真实争夺，期间原占领者不累积；后者不计尸体。旧生命事件不能因本批新 Life 已登记而被抹掉。 |
 | CP-07 | 在 `DueAtMs - 1`、`DueAtMs`、`DueAtMs + 1` 分别发生进入/离圈/死亡/离局 | 前两组阻止原胜利；之后事件不得回填推翻已合法锁定的结果。使用实际服务器发生时间，不用客户端报告。 |
 | CP-08 | 圈内保护者恰在完成时刻到期；对照在完成之后到期；本时刻只有非致命伤害 | 同刻保护到期形成争夺；后到期不倒灌；单纯非致命伤害仍可完成。 |
 | CP-09 | 非整数毫秒交点略早/正好/略晚于截止；同毫秒两次穿越；保护者1000.8ms离圈、1001ms到期 | ceil不把截止后事件归前；先原始时间再真正同时因果序；最后一例不虚构争夺，不能按Session/Motion阶段逆序。 |
@@ -881,208 +903,52 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 时间/流序/水位、提交阶段及回执，不向玩家错误信息泄露这些内部审计字段。
 输出写忽略的 `Artifacts`；本报告不引用旧输出作为当前通过证据。
 
-## 9. 源码证据与删除、改造、抽取闭包
+## 9. 实现位置
 
-独立工程研究比较了基线与当前文档 HEAD：`Source`、`Config`、`SourceData`、`Content`、
-`Scripts` 和 `Lockdown.uproject` 没有运行差异。下列行号属于 `fa11d09`。
-“原样复用”仅指列出的局部机制，不授权保留其整个旧模块/政策。
+旧 Objective/Claim/路线/站桩、旧 profile、死亡税、安全最远出生、checkpoint/restore 与旧时钟分派已删除；
+现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。
+下列源码均在 `Source\Lockdown` 下，是本文契约的唯一实现；不另设管理器或第二套状态。
 
-### 9.1 现有事实和目标替换点
-
-| 编号 / 当前真实入口 | 已核验事实 | 改造/抽取/删除与前置 |
+| 职责 | 源码 | 要点 |
 | --- | --- | --- |
-| E01 [LDUIRoot.cpp:368–396](../../Source/Lockdown/Private/UI/LDUIRoot.cpp#L368-L396)、[DefaultEngine.ini:3–7](../../Config/DefaultEngine.ini#L3-L7) | Host 固定旧 `L_DevelopmentRegion?listen?Profile=V05`；Join 走 ClientTravel；Leave 本地 OpenLevel 前端，没有同房间新局入口 | 改造R13/N01/D01/D16：首次建房改入L_Demo，GameMode接DA_DemoWorld/MapRegistry；删旧Profile/Civic加载路径。回Lobby仍同世界重置，不保留旧图或本地重载兜底。 |
-| E02 [LDGameInstance.cpp:8–45](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp#L8-L45) | 有网络/旅行失败委托及 pending-driver 的 GameInstance 归属核对；NetworkFailed 丢弃传入 Error，反馈仍粗略 | 保留归属/弱回调，改造连接 Attempt、错误分类和旧回调隔离。不能把一次失败归到其他 PIE 世界。 |
-| E03 [LDGameMode.cpp:144–179](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L144-L179)、[315–359](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L315-L359) | 多 profile、旧四人上限、PreLogin/PostLogin 二次检查，项目未覆写 Login；PostLogin 初始化职业 Build | R06/N01：三真人准入的共用检查、Starting 锁、最终注册前复查。职业初始化和旧容量删除，AI 独立计数，不从已有 Pawn 数推席位。 |
-| E04 [LDGameMode.cpp:211–310](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L211-L310)、[490–519](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L490-L519) | 世界启动生成旧服务/居民；开始启用旧经济/银行/制作和 MatchDeadline，没有为全体重新随机初生 | D01/N01：明确 Starting 预备/全量提交；不再次调用 StartPlay 冒充 Reset，不启旧世界来获得圈时钟。 |
-| E05 [LDGameMode.cpp:223–226](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L223-L226)、[378–386](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L378-L386)、[LDEconomyDirector.cpp:19–45](../../Source/Lockdown/Private/Economy/LDEconomyDirector.cpp#L19-L45) | Vision 从 GI 增 Generation，Owner 从 Vision 抄 Match；Economy 自行 NewGuid 初始化 Ledger | R06/R08：反转为 GameMode 单点上下文向各域下发。删除 Economy 自行选局 Guid，不把投影当身份来源。 |
-| E06 [LDGameMode.h:78–91](../../Source/Lockdown/Public/Framework/LDGameMode.h#L78-L91)、[LDViewTypes.h:67–165](../../Source/Lockdown/Public/Vision/LDViewTypes.h#L67-L165) | 私有参赛记录/OwnerState 混有成长、库存、生命和旧任务；没有目标待选队列 | 保留唯一私有状态和 SyncOwner 投影，去 Controller/Pawn 生命周期耦合；成长域接自己的实际存储，禁止第二钱包/候选表。 |
-| E07 [LDCharacterMovementComponent.cpp:22–101](../../Source/Lockdown/Private/Character/LDCharacterMovementComponent.cpp#L22-L101)、[LDNavigationComponent.cpp:96–150](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L96-L150)、[237–319](../../Source/Lockdown/Private/Navigation/LDNavigationComponent.cpp#L237-L319) | 有 saved move 身份、禁止跨代合并、Order/Epoch/确认/心跳；导航仍有 local-controller 假设，OnMovementUpdated 不记录完整轨迹 | 原样复用 R01/R02 的身份/预测机制，改造 R05 的服务端适配与真实子段。删除旧分派，不增加第二移动积分器。 |
-| E08 [LDCombatDirector.cpp:206–224](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L206-L224)、[254–388](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp#L254-L388)、[LDWorldClock.cpp:9–28](../../Source/Lockdown/Private/World/LDWorldClock.cpp#L9-L28) | Finished 前仍采环境，Finished 分支仍调用服务；旧 WorldRuntime 才驱动时钟，临时改写 World 时间，缺流/水位 | R07/D10/N02：保留到期推进/重入目的，按 §6 替换 driver 与全部写入口；旧 hold/回拨/依赖整个 WorldRuntime 的政策真删。 |
-| E09 [LDTacticalRules.cpp:4](../../Source/Lockdown/Private/Combat/LDTacticalRules.cpp#L4) | 现有 Milliseconds 使用 floor | 事件转换不能原样使用；集中 checked ceil，精确整数期限不经浮点往返。存活消费者统一迁移，不能保留两种圈时间解释。 |
-| E10 [LDObjectiveDirector.cpp:93–171](../../Source/Lockdown/Private/Objectives/LDObjectiveDirector.cpp#L93-L171)、[234–360](../../Source/Lockdown/Private/Objectives/LDObjectiveDirector.cpp#L234-L360)、[LDWorldClaims.cpp:8–28](../../Source/Lockdown/Private/World/LDWorldClaims.cpp#L8-L28) | Claim 有授权/路线/静止/hold/deadline，技能/控制可打断；Finish 先取消再写 EndReason | D08/D09/N02：Objective 原位替换为唯一圈 reducer 和提案，结果所有权接 GameMode；删 Claim/路线/RPC/旧 UI，不留旧 fallback。 |
-| E11 [LDGameMode.cpp:181–194](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L181-L194)、[413–440](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L413-L440)、[LDRegionDefinition.cpp:47–63](../../Source/Lockdown/Private/Region/LDRegionDefinition.cpp#L47-L63) | 初生 TakeSpawn 抽后 RemoveAtSwap，无放回且有硬编码兜底；复活筛 Safe/Farthest；布局带旧 City/Heart 条件 | R06/R11/C2：改接世界十点统一采样/Reserve；删随机池移除、安全最远策略和旧缺图默认位置。 |
-| E12 [LDGameMode.cpp:388–411](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L388-L411)、[441–458](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L441-L458)、[LDInventoryDirector.cpp:78–103](../../Source/Lockdown/Private/Inventory/LDInventoryDirector.cpp#L78-L103) | 死亡先回调后 inactive，并有 DeathTax/掉落；复活先增 Life 后失败回退；库存死亡仍解绑/掉落/消耗 | M5 先失效旧身体再取消，改为准备后生命原子提交；删死亡税/掉落/生命回退。成长装备所有者同步保留，不能只删一条扣钱语句。 |
-| E13 [LDCharacter.cpp:63–74](../../Source/Lockdown/Private/Character/LDCharacter.cpp#L63-L74)、[25–30](../../Source/Lockdown/Private/Character/LDCharacter.cpp#L25-L30) | BeginPlay 自动注册 Combat，Pawn 对 Pawn Ignore | 准备中的身体不得自动参战；接预备/激活边界。同点防重叠需真实实现，不能宣称现有碰撞已解决。 |
-| E14 [LDSkillExecution.cpp:17–33](../../Source/Lockdown/Private/Combat/LDSkillExecution.cpp#L17-L33)、[LDGameMode.cpp:522–544](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L522-L544) | 有持久 Build/readiness 基础，但身体 BasicReady 等并未完整跨死恢复；AwardExperience 缺阶段检查 | 抽取必要来源冷却到仍在局内的持久所有者；新身体只投影。同一奖励入口必须验证 permit，不能继续直写 XP。 |
-| E15 [LDTacticalExecution.cpp:31–59](../../Source/Lockdown/Private/Combat/LDTacticalExecution.cpp#L31-L59)、[LDContentActions.cpp:45](../../Source/Lockdown/Private/Combat/LDContentActions.cpp#L45)、[LDContentGeometry.cpp:57–62](../../Source/Lockdown/Private/Combat/LDContentGeometry.cpp#L57-L62) | ApplyStatus 缺统一复活保护检查，主动入口反而拒绝保护者；CancelTactical/DestroyField 可改 readiness/库存/账务 | C1/R07：进攻意图外层验证后即解保护，语义失败也生效；取消拆成 cancel-only，所有副作用经最终闸验证。不能仅给 Finish 补 bool。 |
-| E16 [LDWorldDirector.cpp:90–110](../../Source/Lockdown/Private/World/LDWorldDirector.cpp#L90-L110)、[LDEconomyLedger.cpp:36–100](../../Source/Lockdown/Private/Economy/LDEconomyLedger.cpp#L36-L100) | 旧 LastOwner/LastDamageOwner 信用、Reward 另造事务 ID；Ledger 有精确条款重放/原子性但无终局概念 | N03/R08/R10：Combat 固定 DeathKey/所有者，成长复合提交；删旧信用兜底/限额。Ledger 机制可复用，不承担第二生命/胜负。 |
-| E17 [LDVisionDirector.cpp:150–158](../../Source/Lockdown/Private/Vision/LDVisionDirector.cpp#L150-L158)、[LDWorldViewRelay.cpp:100–126](../../Source/Lockdown/Private/Vision/LDWorldViewRelay.cpp#L100-L126) | Register 发现旧观察者直接返回；relay 能换代清代理 | 新局须显式清服务器探索/句柄表，不只改 Generation；复用客户端换代清理，不开放全 PlayerState/身体复制绕过隐私。 |
-| E18 [LDB92Roster.cpp:32–33](../../Source/Lockdown/Private/Population/LDB92Roster.cpp#L32-L33)、[117–199](../../Source/Lockdown/Private/Population/LDB92Roster.cpp#L117-L199)、[LDGameMode.cpp:373](../../Source/Lockdown/Private/Framework/LDGameMode.cpp#L373) | B92 是持久席位/人接管/离线转 AI；旧 Logout 可重选 LobbyHost | D06：删旧接管闭包；M12 接真实参赛 AI；本流程不移交 Host，不拿 seat 当自主 AI。 |
+| 房间、准入、名称、命令回执 | `Private\Framework\LDGameModeSession.cpp`、`LDPlayerSession.cpp`；`Public/Private\Framework\LDMatchLifecycleTypes.*` | PreLogin/最终入房两次准入，`?LDName=` 经 `ResolveContenderName` 解析（缺省“玩家”，非法明确拒绝）；`ProcessSessionCommand` 每次可能改动 `Contenders` 后重新查找记录。拒绝与回执文案为中文。 |
+| 开局、Starting、Prepare、出生 | `Private\Framework\LDGameModeMatch.cpp`、`LDMatchProviders.cpp` | `LDMatchProviders` 门禁：Combat、Progression、Shop、Camps 及（有 AI 名额时）OpponentAI 都注册才可开始；Prepare 失败走同一 `RetireMatch`，发布新一代 Lobby 与明确失败。 |
+| 写闸、阶段、回 Lobby、关房、本人视图发布 | `Private\Framework\LDGameMode.cpp`、`LDGameModeLifecycle.cpp` | `RetireMatch` 先关闸，再按注册逆序调 MatchReset，`RetireAuthorityCore`/`RetireMatchDomains` 拆除，丢弃 AI 与离局记录后换代。`SyncOwner` 在世界拆除、`Closing`、`Resetting` 时不发布、不判投影故障；Host 换图前在 `PreLoadMapWithContext` 关闭房间并通知成员。 |
+| 生命、复活、保护解除 | `Private\Framework\LDGameModeLife.cpp` | 由 Combat 维护；向本模块发布 Joined/Respawned/ProtectionEnded/Died/Left 资格事件。 |
+| 权威推进与阶段调用点 | `Private\Combat\LDCombatDriver.cpp`、`Private\World\LDWorldClock.cpp` | 由 Combat 维护；Transactions 后依次调用 `ExecuteCapturePhase` → `ExecuteClosePhase` → `ExecuteCapturePublish`，以 `NextCaptureDueMs` 切步。 |
+| 占领归约、结果、公共投影 | `Public/Private\Framework\LDCaptureReducer.*`、`LDCaptureTypes.*`、`Private\Framework\LDGameModeCapture.cpp` | 见 §6.5；`FLDPublicMatchView`/`FLDResultView`/`FLDKillFeedView` 经各自 Validate/Accept 拒旧与拒畸形。 |
+| 圈几何与世界边界表现 | `Public/Private\World\LDCaptureCircle.*`、`LDCaptureMarker.*` | `LDCaptureCircle::Extract` 求真实进出；`ALDCaptureMarker` 是各端本地、无碰撞的边界环，颜色随公开圈态，不参与判定。 |
 
-### 9.2 本模块触及的有限文件组
+## 10. 检查入口
 
-表中 `Public/Private` 是 `Source\Lockdown` 下的实际头/实现配对，并非对目录执行通配删除。
-共享文件由对应所有者协调改造；本轮只列计划，不执行任何一项源码/资产删除。
-
-| 类别 / 架构编号 | 文件、符号与调用者 | 替换和删除顺序 |
+| 入口 | 覆盖 | 不覆盖 |
 | --- | --- | --- |
-| 原样局部复用 R01/R02/R08 | `Public\Core\LDRules.h::FViewCursor`、`Public\Framework\LDCommandLiveness.h::Fresh`、`Private\Character\LDCharacterMovementComponent.cpp` saved move/serialize、`Private\Economy\LDEconomyLedger.cpp::Commit/Receipt/Reconcile` | 保留当前拒旧/预测/原子性；同文件旧 DeathCost/Heart/ForProfile 和无消费者字段另删，不整包原样保留。 |
-| 改造 R06/R13/N01 | `Public/Private\Framework\LDGameMode.h/.cpp`、`LDGameInstance.h/.cpp`、`LDPlayerController.h/.cpp`；`Public/Private\UI\LDUIRoot.h/.cpp`；`Public\Vision\LDViewTypes.h` | 先连接命令/DTO/唯一 Context/阶段/错误与 Reset，再断旧职业/容量/profile/主机重选；UI 和生产者同批更新。 |
-| 改造/抽取 R05/R07/R10/N02 | `Public/Private\Combat\LDCombatDirector.h/.cpp`、`Private\World\LDWorldClock.cpp`、`Public/Private\Objectives\LDObjectiveDirector.h/.cpp`、`Public/Private\Navigation\LDNavigationComponent.h/.cpp`、`Public/Private\Character\LDCharacterMovementComponent.h/.cpp` | 先接完整 step/Body/流/permit/单圈生产消费者，再删旧时钟分派、hold/deadline；不能先删时钟后由 UI 接管。 |
-| 本域拟新增 | `Public\Framework\LDMatchLifecycleTypes.h`；`Private\Framework\LDMatchLifecycle.cpp`；现有 Tests 下 `LDMatchLifecycleTests.cpp` | 前者仅共享窄类型，后者是现有 GameMode 的实现拆分，不新增 Manager；测试验证真实契约。只有实施任务才创建。 |
-| 协同改造 C1/M4/M9G | `Private\Combat\LDTacticalExecution.cpp`、`LDTacticalFields.cpp`、`LDContentActions.cpp`、`LDContentRelease.cpp`、`LDContentLifecycle.cpp`、`LDContentGeometry.cpp`、`LDSkillExecution.cpp` | 核对所有状态/击退/落地/效果销毁和取消回调；接同一运动/生命/闸门。保留效果集合按批准目录，不整包默认保留。 |
-| 协同改造 M6–M9 | `Public/Private\World\LDWorldDirector.h/.cpp`、`Economy\LDEconomyDirector.h/.cpp`、`Inventory\LDInventoryDirector.h/.cpp`、`LDVendorDirector.h/.cpp`、`Development\LDCharacterBuild.h/.cpp`、`LDDevelopmentDirector.h/.cpp` | 先切到相同 DeathKey/Match、预备提交及全保留/Reset，再删除旧 LastOwner、PvP 限额、税/掉落和各自另造局 Guid。 |
-| 真删 D08/D09/D10 | `Private\World\LDWorldClaims.cpp`、`LDWorldLeases.cpp`；`Public\Objectives\LDObjectiveRules.h` 的旧 Claim/授权/deadline；GameMode 旧安全出生/死亡税/profile 分支 | 先替换 Objective/World/Controller/UI/clock 消费者和场景，再删符号/调用/旧条件；不能留恒真旧 predicate。 |
-| 真删 D06 | `Public/Private\Population\LDB92Roster.h/.cpp` 及架构 D06 明列的 Controller、数据、UI、Transfer/Release 消费闭包 | 真实 Demo AI 通过现有参赛记录/领域入口接通；解除跨域引用后再删，不从类名判断全部人口依赖已消失。 |
-| 真删 D12/B03 | `Public/Private\World\LDB91Checkpoint.h/.cpp`、`Private\World\LDWorldCheckpoint.cpp`、`LDCheckpointGeometry.cpp`、`Private\Combat\LDCombatCheckpoint.cpp`；WorldObjects checkpoint 成员/命令 | 先断 console/flags/probe/serializer/EnvironmentSettled 独占边，再删；不动本地设置 Save，同世界 Reset 不调用这些恢复函数。 |
+| `Lockdown.Rules.DemoCapture.Continuity`、`.ContestPause`、`.ProtectionAndContracts` | 开放边界、同桶中间进出、争夺暂停/续计、持有者离圈/死亡/离局清零且不继承、空圈清零、截止桶争夺、停靠边界、漏切边界与契约故障、保护者不占不争 | 原生运动产生的事件序列（由场景覆盖一部分） |
+| `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 圈求交、公共 DTO 校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
+| `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
+| `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个拥有客户端经正常大厅开局：名单与结算行显示所选名称；两次争夺暂停并续计（C07）；争夺中持有者离圈后清零、另一人从零计、圈空后原持有者从零完成（C18）；唯一结果与写闸关闭；边界环出现/变色/移除；同世界回新一代 Lobby 并正常开出第二局、核对干净开局与旧代请求拒绝 | 争夺中持有者死亡、3+3、AI、网络异常 |
+| `Scripts\RunDemoSessionFaultCheck.ps1` | 客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态、Host 经菜单离开 | 跨机器局域网与公网 |
+| `Scripts\RunDemoOpponentCheck.ps1` | AI 绑定、自主循环、D12 下的争圈行为、AI 获胜与回 Lobby 后退役 | 真人离开、网络异常 |
 
-### 9.3 配置、生成输入和资产根
-
-终态世界根由 M9G `WORLD_CAMPS_AND_VISION.md` 单点确定：
-`Content\Lockdown\Generated\Maps\L_Demo.umap` 与
-`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset`，均为拟生成资产。
-对应的 Unreal travel 包名为 `/Game/Lockdown/Generated/Maps/L_Demo`；
-DataAsset 完整对象路径为 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`，
-类型是改造后的 `ULDMapDefinition`，由唯一 `ALDMapAnchor` 引用。
-入口、Builder/Validate 及 Cook/包内加载回核使用同一组包/对象标识，而非只核对磁盘文件名。
-`L_Frontend` 仅作菜单；Lobby/Match/Results 仍在同一个 `L_Demo` Listen 世界内转换。
-Frontend 与共享 UI 继续复用；旧 `L_DevelopmentRegion`/`DA_CivicRegion` 只在 C3
-引用迁移期间保持可加载，迁移完成后退役，不能同时列为第二套终态根。
-这是唯一世界资产/生成接线的校准，不新增 mode/profile 或改变本报告的核心类型、对局调度。
-
-当前三个配置文件有四份区域定义：`Config\RegionLayout.json` 的 Civic Reach、
-Reflected Reach，`Config\V07RegionLayout.json` 的 B76 Civic Reach，
-`Config\V08RegionLayout.json` 的 B82 River Reach，均为六个 spawn。
-实际出生消费 DataAsset 的 Spawns，并非已经有十个可直接使用的 PlayerStart；
-`LDRegionBootstrap.cpp:56` 的单个 PlayerStart 也不能作十点验收。
-
-| 处置 / 有限路径 | 当前生产者/消费者与前提 |
-| --- | --- |
-| 改造 `Config\DefaultEngine.ini`、`DefaultGame.ini`、`BootstrapLayout.json` | 前端/唯一Demo的默认map/mode、旧容量、AlwaysCook及生成清单同改；C4核对有效配置。BootstrapLayout签名还影响共享材质/Input/UI，不能因换世界整份盲删。 |
-| 裁剪 `Config\RegionLayout.json`、`V07RegionLayout.json`、`V08RegionLayout.json` 的旧布局输入；`SourceData\Catalogs\V07\world_and_routes.json`、`v07_rules.json` | 旧Region/Anchor、Scaffold及SyncV07WorldData有消费者；先改接M9G唯一世界输入/生成，再按C3/P0–P5删除旧输入和相关依赖，不保留Civic布局分支。 |
-| 拟建唯一内容作者域 `SourceData\Demo\content.json`、`content.schema.json`、`native_ids.json` | 按中央内容报告迁入获审定义和必要稳定编号；统一Demo内容compiler生成demo_content.json/根manifest/contract，经ULDDemoContentCatalog导入，不把旧prototype/V08当第二目标作者域。 |
-| 迁移后退役 `SourceData\Character\prototype_rules.json`、架构D21及中央内容清单中的旧V07/V08目录、`Scripts\SyncB84Data.py` 等旧内容生成/导入链 | 它们只作当前消费和迁移证据。Scaffold旧CharacterCatalog导入、SyncB84读取LDAcquisitionCatalog.cpp的耦合须先解除；必要机制/ID迁入新域，C1/C3及消费者切换后按中央CB-D01–04真删，不留fallback。 |
-| 复用/改造 `Content\Lockdown\Generated\Maps\L_Frontend.umap`、`UI\WBP_UIRoot.uasset` | 保留前端和共享UI根，Host/加入/结果入口改接同一Demo会话，不承接旧世界DataAsset加载。 |
-| 拟生成 `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | M9G资产负责人通过唯一Builder生成；改造ULDMapDefinition/ULDMapRegistry/ALDMapAnchor，默认GameMode、Anchor、加载路径及签名一致，不另建Core地图Builder。 |
-| 迁移后退役 `Content\Lockdown\Generated\Maps\L_DevelopmentRegion.umap`、`Content\Lockdown\Generated\Data\DA_CivicRegion.uasset` | C3迁移期间旧包/必要反射类保持可加载，以便重存当前消费者；新根可用且引用迁移完成后真删旧包/旧入口，不作运行fallback或终态Cook根。 |
-| 迁移后退役 `Content\Lockdown\Generated\Data\DA_CharacterCatalog.uasset` 及中央内容CB-D03中的旧目录资产/contract | 先接统一内容compiler、根manifest和ULDDemoContentCatalog，改接Bootstrap/loader/Stage并完成C3，再删除；旧资产可加载的迁移阶段不是第二终态目录。 |
-| 必查当前引用 `Content\Lockdown\Generated\Data\DA_PrototypeTuning.uasset`、`Input\IMC_Gameplay.uasset`、`Materials\M_Character.uasset`、`Materials\M_Fog.uasset`、`Materials\T_FogClosed.uasset` | Character、UI、Relay有消费者；T_FogClosed在Materials。必要技术/表现配置按C1/C3复用，旧玩法数值不作为第二作者源，不因占位或技术旧名盲删。 |
-| 退役候选 `Content\Lockdown\Generated\Maps\L_MigrationSandbox.umap`、`L_FunctionalTests.umap`、`L_RegionAlternate.umap`、`L_V07Region.umap`、`L_V08Region.umap`；`Data\DA_AlternateRegion.uasset`、`DA_TacticalRegion.uasset`、`DA_ElementalRegion.uasset` | 当前磁盘存在，Scaffold/RegionBootstrap 仍生产；按 D18/C2/C3 先迁存活根/WorldSettings/WBP/反射引用和生成清单，再删除旧包，不能靠文本无命中宣称安全。 |
-| 改造 `Scripts\OpenStandalone.ps1`、`OpenPackaged.ps1`、`PackageWin64.ps1`、`BootstrapAssets.ps1`；两个 `Lockdown.Build.cs` / `LockdownEditor.Build.cs` | 保留的启动/打包入口改接新根，统一Bootstrap显式调用唯一Demo Builder并承接必要生成/验证机制；删旧profile/多图分派，更新UAT地图、RuntimeDependencies/AlwaysCook和Validate清单。 |
-| 仅迁移参考/机制抽取，随后删除 `Scripts\BuildB90Map.ps1` | 所需机制先迁入统一Demo Bootstrap；调用者及生成/验证依赖完成改接、C3迁移完成后，按World处置和架构D31删除旧专用脚本，不留独立入口、转发壳或备用脚本。 |
-
-中央内容生产链按 `CONTENT_AND_BALANCE.md` 的唯一作者域/内容compiler生成
-`Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json` 和
-`LDDemoContentContract.h`，由 `ULDDemoContentCatalog` 持有不可变定义；
-Bootstrap核对其完整派生字段，M1及战斗/成长/商店等加载同一根身份，不保留旧catalog兜底。
-这不合并或替代世界几何作者域：内容根manifest按中央合同引用世界载荷/合同摘要，
-几何的独立输入与生成仍由M9G负责，本模块不创建第二份内容或世界生成器。
-
-唯一世界生产链是 M9G 拟建的 `SourceData\World\demo_world.json` / closed schema →
-`Scripts\SyncDemoWorldData.py` → `Content\Lockdown\Data\Demo\world.json` /
-`Source\Lockdown\Private\World\LDDemoWorldContract.h` →
-`Source\LockdownEditor\Private\ScaffoldBootstrap` 内收敛后的唯一世界 Builder →
-`L_Demo` / `DA_DemoWorld`。现有 Scaffold 的共享材质/Input/UI职责可复用，
-但其Generate/Validate必须显式接入该Builder，不能假定当前Scaffold已覆盖另一地图生成器，
-也不能继续重建计划删除的旧Region图。
-
-M1负责前端/GameMode/默认配置和世界Registry的消费改接，M9G负责输入/Builder/资产迁移，
-构建与发布负责人核对Bootstrap、Cook/Stage及包内注册表。
-最终必须证明项目地图根仅Frontend和L_Demo，DA_DemoWorld可被唯一Anchor/Registry加载，
-旧根/重定向/动态字符串无当前消费者且不再生成或进入最终包；
-仅修改UAT的map参数不能排除广域AlwaysCook残留，须核对新隔离输出。
-
-缩写路径沿同一 `Generated` 子目录展开；表中现有资产仅确认文件存在和静态引用，
-新Demo根/生成链尚未创建或运行。未验证LFS实体、AssetRegistry、Blueprint/CDO、
-WorldSettings、动态加载或cook，不能据此宣布旧包已可安全删除。
-最终删除必须按架构 P0–P5：展开引用 → 接回必需组件 → 改生成/加载和迁移存活资产
-→ 真删 → 同步门禁/手册 → 实际加载/构建/cook/场景证明。
-不以本报告授权无条件删除旧 V07 loader、完整 B84、整图、材质、IMC 或插件。
-
-### 9.4 runner 与断言迁移
-
-| 当前真实入口 / 证据 | 保留目的 | 目标迁移和明确不能声称 |
-| --- | --- | --- |
-| [LDRulesTests.cpp:64–79](../../Source/Lockdown/Private/Tests/LDRulesTests.cpp#L64-L79)，`Lockdown.Rules.ViewOrdering` | Generation/revision 拒旧 | 增同世界换局/旧回包，不能只改 OwnerState 不清 Vision 表。 |
-| [LDInputRulesTests.cpp:6–38](../../Source/Lockdown/Private/Tests/LDInputRulesTests.cpp#L6-L38)，`ControlMappings` / `IssuedCommandLiveness` | 本地 Save、非未来时间、严格失活边界 | 迁目标输入/Actual 时钟；删旧 profile hold 断言，不把 Save 删进 B03。 |
-| `Private\Tests\LDNavigationProbe.cpp`；`Scripts\RunNavigationCheck.ps1` | Stop、旧 Life ACK、saved move、观察失效的夹具目的 | 加原生 step、完整子段、拥有连接和不双积分；当前导航检查不是完整圈时序证明。 |
-| `Private\Tests\LDDevelopmentProbe.cpp` / `Scripts\RunDevelopmentCheck.ps1` | Lobby/Ready、重复死亡、身体/Build cooldown | 删除职业/人数/死亡税断言，补所有来源冷却和新局初始化；不保留旧玩法运行入口。 |
-| [LDResetProbe.cpp:33–89](../../Source/Lockdown/Private/Tests/LDResetProbe.cpp#L33-L89) / `Scripts\RunResetCheck.ps1` | 脏状态、旧代次 RPC/Actor/回包的夹具目的 | 当前是多次 OpenLevel 重开 World，不能证明连接保留；迁为同 World 周期验证，更新真实用例集合。 |
-| `Private\Tests\LDObjectiveProbe.cpp`、`LDObjectiveNetworkProbe.cpp` / `Scripts\RunObjectiveCheck.ps1`、`RunObjectiveNetworkCheck.ps1` | 阶段驱动、真实拥有交互、单结果的夹具结构 | 删 Main/ExactDeadline/LateClaim/NoClaim/Withdraw/Assault/Seal 的旧语义；新增 §8，不以改测试名替代。 |
-| `Private\Tests\LDWorldBoundary.cpp:38–47,124–145` / `Scripts\RunWorldBoundaryCheck.ps1` | 迟到采样、明确边界、结果恰一次的检查目的 | 当前直接改 World 时间/位置并用旧 Claim；删 Stun/Interrupt/Release 清 Claim 断言，不能冒充真实运动证据。文件不是 `LDWorldBoundaryProbe.cpp`。 |
-| [LDEconomyRulesTests.cpp:15–75](../../Source/Lockdown/Private/Tests/LDEconomyRulesTests.cpp#L15-L75)，`EconomyAccounting`；[LDViewTests.cpp:39–64](../../Source/Lockdown/Private/Tests/LDViewTests.cpp#L39-L64)，`ViewPrivacySchema` | 全量失败/重复/溢出/复算、反射隐私白名单 | 迁当前实际操作/字段集合并补 DeathKey/闸门；不关闭断言或用旧数量充数。 |
-| `Scripts\RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1` | 多进程、拥有客户端和网络模拟的启动基础 | 当前 packaged authority 可为不参赛 LDRemoteAuthority；必须增加正常可见且参赛 Host，不能替代公网验证。 |
-| [RunTests.ps1:2–21](../../Scripts/RunTests.ps1#L2-L21) | 报告缺失/失败/未完成均失败 | 当前整个 Lockdown.Rules 和旧数量/TradePrivacy 强制项须迁明确用例集合；不能仅降低数量门槛。 |
-
-工程实施先运行本批最小规则/输入拒绝检查，再在修改原生/反射/资产后做
-Editor/Game 构建、Bootstrap Validate 及所需真实场景。
-当前 runner 的现有参数以其声明为准，不在此编造已经可用的 Demo selector。
-本轮仅文档，不执行这些昂贵命令，也不把旧报告写成当前通过。
-
-## 10. 可分派实施切片及门槛
-
-以下是后续代码任务，不是本次已执行进度；各切片仍在同一 Demo 链路内替换旧入口，
-不并排新增一个可选旧模式。
-
-| 任务 | 责任 / 精确交付 | 真正前置 | 退出证据 |
-| --- | --- | --- | --- |
-| SM-T01 单入口、房间和准入 | M1/M11：E01–E04 的 Host/Join/错误、Ready/AI/HostStart、名单锁、Starting 失败；架构 B01 对应入口/参数部分 | 已定 Spec/本报告会话契约；本批 C3/C4 核验 | 旧选择明确拒绝、无缺输入 fallback；SM-01–09 的本批场景、UHT/构建和默认根有效。缺内容时正确拒绝不算可玩 Demo。 |
-| SM-T02 核心上下文、资格与写闸 | M1/M5：§4 的 Generation/Guid 映射、Contender/Body/Life/DeathKey、借用 permit、结果单写者、公开/私有投影 | SM-T01 的拥有者/名单入口；Combat/成长/世界共同类型采用 | Economy/Vision 不再独立造局，旧 Match/Life/permit 拒绝，结果 CAS/取消重入 FN-03/04。 |
-| SM-T03 原生 step 和完整时间边界 | M2，操作/Combat/世界协作：§6 的 BeginAuthorityStep、CMC 子段、边界姿态、空流/退休/Sealing/Ack | SM-T02；M3 原生运动适配和 M9G 几何；相关 C2 输入 | CP-05–12，远程 packed moves/root motion/击退/回滚 scope 与不双积分；不能仅有纯 DTO/假事件测试。 |
-| SM-T04 致死、保留、复活和保护 | M5，Combat/成长/世界协作：首次事实、复合奖励、死者资格、同点 Reserve/提交/Finalize、全部冷却保留 | SM-T02/03；Combat 致死/成长准备提交/World 预留；批准的相关 LIFE 参数及受影响政策 | LF-01–09；金币/XP 不半奖，成功新生命不回退；真实拥有连接下的到期/重放/故障。政策未定分支单列阻塞。 |
-| SM-T05 单圈归约和唯一结果 | M2：Objective 替换 Claim/deadline；事件序列/连续段、完成提案和先锁闸 | SM-T02/03；SM-T04 的生命事件；批准的发育/圈参数 | CP 全组和 FN-01–04；接入成长后补奖励/交易竞争，不能只用 Host 调试强制赢。 |
-| SM-T06 同房间回 Lobby/新局 | M1/M5，各状态所有者共同 Reset：不重进 StartPlay、不 travel、不 restore checkpoint | SM-T01/02；各域明确 retire/reset/新初始化；完整验收依赖 SM-T04/05 | FN-05/06，连接保持、旧服务不在 Lobby 偷跑，Vision 服务器表与客户端代理都清，旧 Guid/Generation/回执无执行权。 |
-| SM-T07 生产链与裁剪闭合 | M9G唯一Builder生成L_Demo/DA_DemoWorld，M1改接入口/Registry，发布负责人收敛Bootstrap/Cook/Stage；处理§9闭包 | 本闭包P0–P4和适用C1–C4；旧根保持可加载至C3迁移完成，不等无关参数 | SM-11单根/无旧图fallback或最终包残留，资产/构建/Bootstrap/cook真实证据，旧符号/输入/图/runner无消费者及FN-08。 |
-
-**B01–B03 与 C1–C4 的界线：**
-
-| 架构门槛 | 本模块的具体影响 |
-| --- | --- |
-| B01 | 先做入口/身份/阶段和旧输入/缺输入拒绝，不等待完整技能目录；不能把拒绝开局包装成正常 Demo。 |
-| B02 | 玩家交易 RPC/服务/面板/Cancel/Pending/TradePrivacy 闭包同步真删；保留 Ledger/Vendor/Inventory 的有效原子性和来源测试，不依赖新价格。 |
-| B03 | checkpoint/restore 的 console/参数/序列化/probe/EnvironmentSettled 独占依赖删除；本地设置 Save 不动，多人新局由 SM-T06 提供。 |
-| C1 | 只阻塞相关实际效果/属性/冷却/内容保留集及相应数值验收；未选目录不能作为全部保留的理由。 |
-| C2 | 阻塞实际唯一地图/十点/圈几何和其资产迁移，结构数量本身已定；不阻塞基础身份/准入或 B02/B03。 |
-| C3 | 反射类型与二进制资产物理删除前查 Blueprint/CDO/WorldSettings/硬软及动态引用，迁移重存存活根后再删。 |
-| C4 | 模块/插件/ini 的真实消费者和合并后有效配置必须核实，不修改共享引擎/插件安装掩盖依赖错误。 |
-
-基础实施可以开始，但完整 M1/M2/M5 仍受实际原生 driver 接线、各领域合约落实、
-批准参数/受影响政策和真实场景门槛约束。该结论不声称一个报告已经让 Demo 可运行，
-也不把本模块之外的内容/AI/视野/成长完成情况推导为通过。
+各角色 runner 要求恰好报告其稳定检查 id，缺失、多出或重复都失败。
 
 ## 11. SC-09 对接交付表
 
 | 必需项 | 本模块的正式交付 | 生产者 / 消费者与失效规则 |
 | --- | --- | --- |
-| 状态所有者 / 函数 | §1、§3、§4：GameMode 阶段/参赛资格/结果；Combat 唯一 AdvanceAuthority/SampleBoundary；Objective 单圈归约 | GameState/OwnerState/AI 都是获准投影。没有 GameMode/Combat 两个相互推进的调度器或重复可写结果。 |
+| 状态所有者 / 函数 | §1、§3、§4：GameMode 阶段/参赛资格/结果；Combat 唯一权威推进；GameMode 单圈归约 | GameState/OwnerState/AI 都是获准投影。没有 GameMode/Combat 两个相互推进的调度器或重复可写结果。 |
 | Match 双表示 | §4 的 `FLDMatchContext{Generation,LedgerMatch}`；GetMatchContext；GI 只分配不回退 Generation | 网络 Generation 与 Ledger Guid 显式映射；成功新局/失败启动换代；旧匹配请求拒绝，不能强转/猜 Guid。 |
-| Contender / Body / Life / Death | §4/5 的VictimKey、BodyRef、LifePhase、DeathKey、CommittedDeath/RewardBasis含EligibleAtDeath、EndContenderLife、AI绑定 | 每个Effects集合先全锁再奖；不以更晚离局撤销资格；死亡可选但重查Phase/不治尸体，成功复活才增Life。 |
-| 命令、结果、权限 | §4.1 的 ServerSetReady/SetAICount/StartMatch/EndMatch/ReturnToLobby/LeaveRoom；SessionReceipt | 拥有连接与 Host 服务端解析；按阶段/结构版本接受；单在途、精确条款/ProcessedThrough/过窗拒绝。AI 不伪造 RPC。 |
-| 时间 / 序号 / 水位 | §6 的 Step、EventStamp、ProviderFence、Boundary、Begin/Validate/CompleteBodyMotion、PublishPresence/Eligibility/Through、AckConsumed | 原始OccurredAtSeconds跨流排序、Ms只ceil桶；段序不同于事件序；Fence只取已完成整数边界，空流/退休/因果子批次闭合。 |
-| 终局与非重入提交 | §6 的借用 GameplayWritePermit、ValidateWritePermit、TryCloseMatch、ResultReceipt/ResultView、FailAuthorityBoundary/FaultReceipt | 最终点核许可；先锁闸再取消；闸后不首次提交。必需失败有界重试后明确故障关闭，不造成功Fence/NoReward/胜者。 |
-| 取消/死亡/离开/新局 | §5.4 矩阵；§3.3 同世界 Reset；§4.3 生命周期通知 | 保留候选/财产/持续冷却，清短寿命动作；旧主体事件按合法已接受前缀消费，退休后的新请求拒绝；Host 故障不转移。 |
-| 参数/单位/政策 | §7 正式 MATCH/CAPTURE/LIFE/UNIT/POLICY 键及唯一内容所有者 | 死亡选择/意图解保护/比例/来源冷却/死亡独立效果继续/离局取消均已确认；具体数值/内容仍待审，无默认值。 |
-| 公共/私有读权限 | §4.2/4.3：Lobby/PublicMatch/ResultView/Owner/AI self；LifeNotice/MatchClosed/MatchReset | 全场圈例外无隐藏坐标/构筑，ResultView 不发 LedgerMatch；旧 Generation/revision 清理；Host 同样受限。 |
-| 接线、真实删除和验证 | §8–10 的 E01–18、有限文件/资产/runner、SM-T01–07、B/C/P 门槛 | 生产者、消费者、UHT/序列化、生成/cook、测试和手册同闭包；不凭文本研究盲删二进制，不把旧调试 runner 当新 Demo 通过。 |
+| Contender / Body / Life / Death | §4/5 的 VictimKey、BodyRef、LifePhase、DeathKey、EndContenderLife、AI 绑定 | 每个 Effects 集合先全锁再奖；死亡可选但重查 Phase/不治尸体，成功复活才增 Life。 |
+| 命令、结果、权限 | §4.1 的 Ready/SetAICount/StartMatch/EndMatch/ReturnToLobby；离开沿用断开/`Logout`；SessionReceipt | 拥有连接与 Host 服务端解析；单在途、精确条款/过窗拒绝。AI 不伪造 RPC。 |
+| 时间 / 序号 / 水位 | §6 的 Step、事件时间、提供者前缀、Boundary、运动与资格发布 | 原始秒跨流排序、毫秒只 ceil 桶；只封闭已完成整数边界。 |
+| 终局与非重入提交 | §6 的借用 GameplayWritePermit、ValidateWritePermit、TryCloseMatch、ResultView、故障关闭 | 先锁闸再清理/发布；闸后不首次提交；必需失败明确故障关闭，不造胜者。 |
+| 取消/死亡/离开/新局 | §5.4 矩阵；§3.3 同世界 Reset；§4.3 生命周期通知 | 保留候选/财产/持续冷却，清短寿命动作；退休后的新请求拒绝；Host 故障不转移。 |
+| 参数/单位/政策 | §7 的 MATCH/CAPTURE/LIFE/UNIT/POLICY 键，数值单点在内容报告 | D01 批准为试玩输入，不等于已平衡；无默认值。 |
+| 公共/私有读权限 | §4.2/4.3：Lobby/PublicMatch/ResultView/Owner/AI self；LifeNotice/MatchClosed/MatchReset | 全场圈只公开状态、进度持有者与进度，无隐藏坐标/构筑；ResultView 不发 LedgerMatch；Host 同样受限。 |
 
-## 12. 独立研究、审核和证据限制
+## 12. 证据限制
 
-| 实际专家 | 独立职责 / 本模块采用的结果 | 证据级别 |
-| --- | --- | --- |
-| `lifecycle-rules-researcher`，agent `64686d59-3f9d-44f5-8505-c25e52a8ef63` | 独立产品/状态机研究；确认同世界方案符合 Spec，覆盖连接取消竞争、失败开局、十点重试、死亡保留、中间争夺和新局隔离 | 已完成研究；没有写本模块整合稿，没有运行游戏，也不担任最终 QA。 |
-| `lifecycle-ue-auditor`，agent `5c59b29b-ebcb-4af4-ae02-e81aaffb96ae` | 独立源码/UE 时序审计；定位真实调用/资产/runner，提出原生 step、边界姿态、毫秒桶闭合、Finalize 前置准备与同世界 Reset 的约束 | 已完成源码研究及有限路径补核；未修改文件，未构建/加载二进制/联机，也不担任最终 QA。 |
-| `lifecycle-multiplayer-qa`，agent `d1ed9b2d-1b3d-404f-a7a9-eb8eb4fa1a83` | 未参与前两份研究或整合稿写作；独立核对流程、真实源码、同刻竞态、失保/死亡/离局/新局和跨域提交完整性 | 独立复核完成：SM-QA-01 原始亚毫秒跨流排序、SM-QA-02 每个Effects致死集合快照屏障均已解决；当前模块无进一步高置信文档阻塞。不是原生运行通过。 |
-
-审核还确认退休流/回执压缩、过窗拒旧和长期容量场景已补齐；
-子时刻阶段推进、整数封桶、致死资格冻结、settlement-only、原子复活、
-结果统计与故障关闭在文档层面自洽。源代码、资产和实际连接的后续证据门槛仍按 §8–10 执行。
-CurrentFloor 的确定负结果与未知证据分流、同 XY 落地恢复及 CP-10/14 也已由同一 QA 定点复核，无新增文档阻塞。
-INT-01/P2 的唯一 `L_Demo`/`DA_DemoWorld` 根、旧包 C3 迁移后退役及 Builder/Bootstrap/Cook 责任已对照 M9G 原文复核，无新增文档阻塞；不代表资产迁移或原生验证已执行。
-正式 Unreal 包/对象标识及 INT-02 相关的唯一内容作者域、根 manifest/catalog 和旧内容链退役已由同一 QA 窄复核；World 独立几何链不变，无新增文档阻塞。
-
-普通事务固定在 Capture 之前，采用 §6 的唯一完整批次；本报告不保留第二种排序方案。
-研究、整合与独立审核不代替原生实现验证；本文只对已列静态证据和目标设计负责。
-
-工程专家经 Context7 核验的公开语义包括
-[Game Mode and Game State](https://dev.epicgames.com/documentation/unreal-engine/game-mode-and-game-state-in-unreal-engine)、
-[Actor Ticking](https://dev.epicgames.com/documentation/unreal-engine/actor-ticking-in-unreal-engine)、
-[FScopedMovementUpdate](https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/Engine/FScopedMovementUpdate) 和
-[Travelling in Multiplayer](https://dev.epicgames.com/documentation/en-us/unreal-engine/travelling-in-multiplayer-in-unreal-engine)。
-它们支持 PreLogin 与最终注册之间重查、Tick 依赖不等于完整历史、移动 scope 可能撤销、
-以及本方案不需要跨世界重连；不是对项目锁定 UE 5.8.4 原生执行路径的实机证明。
-
-**本轮未运行** Unreal、Editor/Game 构建、Bootstrap/生成器、原生自动化、LAN/公网、
-发布包或完整对局；未实施任何代码/配置/SourceData/Content/Scripts 裁剪。
-本报告可以作为已独立审核的文档模块交付；具体参数/内容审核、原生接线及资产证明
-仍分别约束相应实施切片，不等于完整 Demo 已经实现或运行通过。
+- 上表规则测试与场景只在同一台机器的回环连接上运行；跨机器局域网与公网直连没有证据。
+- 3+3 满员、打包版与网络异常由集成按批联合测试；某次运行的结论以当次 `Artifacts` 报告为准，本文不引用旧报告作为当前通过。
+- 争夺中持有者死亡后清零只有规则测试证据；D12 后 `CAPTURE.HoldSec` 与 `LIFE.RespawnSec` 未做数值复核。
+- 视野过滤不能防范恶意 Host；Host 断线时客户端按引擎默认约 60 秒连接超时后才回到菜单。

@@ -18,76 +18,339 @@ SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案�
 
 | 输入/入口 | 输出或消费者 |
 | --- | --- |
-| `SourceData\Character\prototype_rules.json` | `LDScaffoldBootstrapCommandlet` 导入角色目录 |
-| `SourceData\Catalogs\V07` + `SyncV07*Data.py` | `Content\Lockdown\Data\V07`、对应 contract；World 同时维护 `Config\V07RegionLayout.json` |
-| `SourceData\Catalogs\V08` + `SyncB84Data.py` | 三个 `*_b84.json`、B84Manifest、`LDB84Contract.h` |
-| `SourceData\World` + `SyncV09Data.py` | 地图载荷、地图 contract；包含 `travel_table.csv` 输入 |
-| `SyncB91Data.py`、`SyncB91Objects.py`、`SyncB91Tools.py`、`SyncB91Traversal.py`、`SyncB91Grass.py`、`SyncB91Forest.py` | 环境/物件载荷及相互关联的 contract |
-| `SyncB92Economy.py`、`SyncB92Population.py` | 当前经济与人口/活动输入及对应 contract |
+| `SourceData\Demo\content.json`、`SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo world→content 生成链及原生 Bootstrap；不是旧 prototype 导入入口 |
 
-`SyncB91Forestry.py` 等链路还消费前序生成结果；不要跳过中间步骤或只手写最终宏。
-`CatalogTools.py` 复用 schema、确定性编码与原生 ID 校验，B84 生成不依赖历史说明或档案 ZIP。
+`CatalogTools.py` 提供 Demo 生成器复用的确定性编码与原生 ID 校验。
 schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.10.0`。
 
 源数据按 UTF-8 读取；涉及按字节计算的 SHA/MD5 时保留原始编码和换行。
 `native_ids.json` 保留稳定原生编号，不通过重排枚举自动“修正”已有 ID。
 `--check` 比较现有载荷与生成结果而不写文件；不一致应定位输入/生成链，不能删除断言或重写期望值。
 
+## Demo 内容编译合同
+
+`Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
+定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
+`Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
+旧技能编号 0–61、旧物品编号 0–98 不得复用；新编号必须同时匹配作者映射与原生声明。
+
+生产输入必须是经审查的 `SourceData\Demo\content.json`，其中
+`identity.approval.status` 为 `approved`，`decision` 引用实际审批决定。
+这个字段记录审批，不是编译器授予审批。没有已批准内容或真实世界产物时明确拒绝，
+不创建 `content.json`、不从旧目录补值，也没有 candidate/fixture 运行开关。
+`Scripts\DemoContentTestFixtures.py` 仅在 unittest 的 `Artifacts` 临时根提供合成机制夹具；
+其审批形状的测试元数据、数值和几何均不能作为产品输入。
+
+| 边界 | 当前编译器行为 |
+| --- | --- |
+| 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
+| 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/金币/XP 为 int64 |
+| 完整定义 | 角色参数、三份完整技能 rank/effects、属性奖励、两装备能力定义、价格/售价、XP 阈值、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
+| 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、金币或其他玩法状态 |
+| 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
+| 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
+
+大整数不得经过 JSON double 再取回。原生消费者需按整数 token/明确整数编码解析这些字段，
+不能用 UE 的浮点 JSON 读取当作完整 typed importer。定义 ID 的窄 wire 为 64 字节：
+最多 63 字节小写 ASCII、NUL 终止、余字节为零；目录 digest 为 32 原始字节，显示才用 64 位小写 hex。
+纯 wire 编解码与格式拒绝在 `DemoContent.py` 中提供，不替代业务域对未知/退役 ID 的拒绝。
+
+世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
+包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
+十 Spawn、五 Camp、一 Shop、一 Capture 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
+坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
+**不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
+世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
+丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
+不能仅手写 world 和匹配摘要让正式链通过。
+
+世界生成头依次包含 `#pragma once`、`LD_DEMO_WORLD_SCHEMA_VERSION`、
+`LD_DEMO_WORLD_PROJECTION_REVISION` 和
+`LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT("…")`。根 manifest 覆盖内容、显示投影、作者 schema、
+native_ids、原生编号声明、handler/projection 修订、世界子载荷和世界头的真实摘要。
+所有摘要按文件完整字节计算，不规范化换行；manifest 自身不保存自身哈希。
+根摘要由 `CatalogTools.encode` 编码规范树后求 SHA-256，写入内容头
+`LD_DEMO_CATALOG_SHA256` / `LD_DEMO_CATALOG_DIGEST_BYTES`。
+内容头还提供 `LD_DEMO_CONTENT_SCHEMA_VERSION`、`LD_DEMO_CONTENT_HANDLER_REVISION`、
+`LD_DEMO_CONTENT_PROJECTION_REVISION`、`LD_DEMO_CONTENT_PAYLOAD_SHA256`。
+这些 revision 描述投影合同，**不证明原生 gameplay handler 已实现**。
+
+```powershell
+python -B .\Scripts\SyncDemoContentData.py --check
+python -B -m unittest discover -s .\Scripts -p "TestDemoContentImport.py"
+```
+
+`--check` 不生成或修复文件。生成模式需要 Windows 文件共享语义，不在其他平台退回不受保护的
+“比较后替换”。生成器先取得排他事务标记，再对全部输入和三个输出持有拒写/拒删除的句柄，
+包括本次无需重写的输出；已有写入者会使本次生成明确失败。取得保护后重新比较快照，
+同时核对命名路径与句柄身份，避免编辑器临时文件替换或原地保存落入检查与写入之间。
+
+全量暂存后，只通过这些受保护的句柄原地写入，manifest 最后写；回滚也使用同一组句柄，
+不再用带竞态的 `os.replace` 恢复旧文件。写入后、备份清理后和事务标记移除后都核验全部
+输入/输出；最后一次核验是成功提交点，此时保护尚未释放。检测到的冲突字节不被回滚覆盖。
+这不是全局多文件原子事务：读者仍须验证根与子摘要，进程中断不能把混合代次当作有效目录。
+
+`Content\Lockdown\Data\Demo\.compile.lock` 是 fsync 后的恢复记录，包含每个输出的原始字节
+（Base64；原本不存在的文件明确为 null）、期望新字节、阶段和错误信息，不只是一个 PID。
+备份目录部分或全部删除后，清理/解锁失败仍在保护区内回滚，完整原件仍可从记录恢复。
+无法重新取得主标记时，在 `Artifacts\DemoContent\recovery-*.json` 持久化同样的证据。
+未解决的记录会阻止重新生成和 `--check`，即使当前输出恰好与期望字节相同也不能走 no-op 绕过。
+`RecoveryRequired` 要求检查实际字节并人工解决，不能直接删标记重试。
+提交点之后若仅句柄收尾失败，错误明确携带 `committed=True`，保留原件，但不再对已解除保护的
+文件冒险回滚；如果连恢复证据也无法持久化则明确报 `RecoveryPersistenceFailed`，不谎称原件已保存。
+
+`verify_runtime_files(root, expected_digest)` 只验证当前根、子文件和生成头的字节一致性。
+这里的 root 是包含生成头的工作区；包内原生校验应使用编译入的头常量，
+不能因此把 SourceData、脚本或源码头加入运行包。
+它不读取 docs 或旧目录，也不证明审批、原生 handler、DataAsset、Bootstrap 或可玩状态；
+唯一 `ULDDemoContentCatalog` 实现下述原生导入、精确资产投影校验及入口/Bootstrap 消费，
+各玩法领域经它读取字段；字段消费、资产生成/Cook 与世界生成分别由各领域规则、Bootstrap 和打包版场景验证。
+
 ## 资产导入与打包
 
-`LDScaffoldBootstrapCommandlet` 读取 `Config\BootstrapLayout.json`、角色输入及当前载荷，
-保存和核对 DataAsset、地图、输入和表现资产。
+`LDScaffoldBootstrapCommandlet` 的公开入口已收敛到 Demo：
+先验证编入程序的根/子载荷 SHA-256，再导入或校验唯一 `DA_DemoContent`、`DA_DemoWorld`、
+前端、`L_Demo` 和 WBP 根。纯载荷检查不要求尚待生成的 DataAsset；正常运行入口仍要求原生资产校验，
+不能用生成前置检查代替游戏准入。
+Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、唯一 MapAnchor、
+十个唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent 和地点连通。
+它不把资产存在当作导航、战斗或真实联机验收。
 
-- Generate 生成缺失内容；Validate 检查已有资产与签名。
-- Regenerate 会替换受生成器管理的资产，必须明确需要，不能作为绕过签名失败的默认动作。
-- 手工制作资产不要放到生成器负责覆盖的目录内。
-- 生成签名、原生加载时的内容摘要和 Cook 依赖是同一条一致性链。
-- `.uasset`/`.umap` 通过 Unreal 生成和 Git LFS 管理，不作为普通文本改写。
+`LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、十个真实多边形阻挡、
+十个出生标记与一个原生导航区域。旋转墙不是 AABB 近似，商店台面阻走但不阻视线。
+同一次生成还用代码重建三份只用引擎能力的表现材质，并布置场景光照：
+`M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹（条纹间约 1 米柔和过渡，叠加几米尺度的低频明暗）、
+外圈红色跑道与白色内线，`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；
+`M_DemoApron` 是比草坪暗的暖灰校园铺地（约 2 米见方的板块、深色缝和轻微风化），
+铺在地面下方 1cm、每边超出场地 40m 的纯视觉铺地上，让墙外的装饰和建筑站在地面上而不是悬在虚空中；
+一个投影阴影（含短接触阴影）的大气太阳、SkyAtmosphere、
+实时捕获的较弱天光、轻度高度雾和一个无界后期（曝光补偿 -0.8、局部曝光对比还原为 1、泛光、饱和度、对比度、暗角）。
+它们不碰撞、不影响导航或视线，也不被任何规则读取；铺地也不投影、不带几何身份标签。
+Validate 要求它们各恰好一个，地面/阻挡/铺地分别使用这三份材质，并核对铺地的位置、尺寸和无碰撞、无导航。
+保存校验同时要求地面/阻挡保持 WorldStatic object type 和 Pawn 阻挡响应，
+并逐项核对凸元局部 Transform 为 Identity 及全部顶点，不能只看 Actor transform、
+原始 VertexData、导航或 LOS。专用原生规则使用隔离包真实保存、卸载和重载，
+覆盖仅改 Pawn 响应、object type 和凸元局部平移的损坏，不修改生产资产。
+`ULDMapDefinition` 只导入根合同约束的 Demo 世界；保存投影逐字段精确回核，失败不先清空资产。
+它只保留 SourceJson/Checksum 与导入、投影准备、校验和读取；旧城市/河流/路线字段、
+旧 map JSON 导入和独立 B90 Builder/脚本入口已在资产引用审计后删除。
+Generate/Regenerate 不生成旧区域、职业目录、固定旧输入或旧地图；
+`SourceData` 只剩 Demo 内容与 Demo 世界两组作者输入。
+`.uasset`/`.umap` 仍通过 Unreal 和 Git LFS 管理，不以文本拼接修改。
 
-`Lockdown.Build.cs` 声明运行载荷依赖；`PackageWin64.ps1` 在打包前做 Bootstrap Validate，
-从项目设置读取产品版本，并记录 SourceData 等源输入以及包文件摘要。
+`Lockdown.Build.cs` 只声明三个 Demo JSON 的 UFS staging 和两份生成头的外部构建依赖，不再声明旧运行载荷；
+字节参与摘要的 Demo JSON、生成头及原生编号头有精确 `-text` 规则，不经 Git 换行转换。
+`PackageWin64.ps1` 在打包前做 Demo compiler 检查和 Bootstrap Validate，
+只选择前端与 Demo map set，从项目设置读取产品版本，并记录源输入与包文件摘要。
+缺少实际 Demo 输入或原生世界资产时不能进入旧图打包路径。
 SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才能启动。
+
+### Demo 原生不可变内容目录
+
+`Development\LDDemoContentCatalog.h` 的 `ULDDemoContentCatalog` 是 Demo 内容导入提供者；
+固定资产路径为 `/Game/Lockdown/Generated/Data/DA_DemoContent.DA_DemoContent`。
+它只保存定义，不保存 Match、角色生命、HP/MP、钱包、选择或冷却状态，也不启动对局。
+原生编号来自 `LDDemoContentIds.h` 的保留编号；能解析某个 opcode **不代表战斗处理器已接通**。
+
+作者链为 `Scripts\DemoContent.py` / `SyncDemoContentData.py`：
+`SourceData\Demo\content.json`、schema 与 native_ids，加上世界载荷/contract，
+生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 和
+`Source\Lockdown\Private\Development\LDDemoContentContract.h`。
+这里的原生实现不创建正式 content、world、manifest、contract 或 `.uasset`，
+也不通过编译器夹具批准候选值。只有实际审批和相应生成/资产接线完成后才能启用正式内容。
+
+| API | 输入、结果与失败边界 |
+| --- | --- |
+| `FLDDemoContentDigest::ParseHex` | 64 个小写十六进制字符转为 32 raw bytes；不接受大小写别名、截断或额外字符 |
+| `FLDDemoContentBundle::ReadImportFiles` | 从指定工程根读取 content、manifest、world、两份生成 contract、内容 schema、native_ids、原生 ID 头及世界作者/schema，共十份原始字节；缺失/空文件/超过 8 MiB 拒绝，输出参数不变 |
+| `PrepareImport` / `PrepareImportFromFiles` | 传入目标资产及独立可信的当前根摘要，例如实际生成 contract 的 `LD_DEMO_CATALOG_SHA256`；不能先计算待导入 manifest 的摘要再把它当作生产准入依据。全部校验成功才产生绑定目标及导入代次的不透明 `FLDDemoPreparedContent` |
+| `CommitImport` | Game thread 上核对目标、导入代次、当前可信根及文件快照后消费一次 token，一次安装完整字节与 typed definitions；失败导入不先清空原资产。保存包仍由编辑器/Bootstrap 所有者负责 |
+| `ValidatePrepared` | 对照当前 freshly prepared 定义，比较全部保存字节及全部反射属性；包括每个 rank/effect、可选能力的存在性和数组，不只比较 checksum |
+| `Validate(ExpectedRoot)` / `Read(ExpectedRoot)` | 重新严格解析保存字节并比较完整投影。只有相符时才返回 `TSharedPtr<const FLDDemoContentSnapshot>`；旧快照保持不可变，旧资产不因以前导入成功而获得新根的有效性 |
+| `ReadRuntimeFiles` / `Load` | 当前 runtime data 目录必须同时存在并匹配 manifest/content/world；`Load` 使用固定资产根和 `Content\Lockdown\Data\Demo`。不在运行时读 SourceData/源码、不采用旧目录或存储字节代替缺失的当前载荷 |
+
+根摘要是完整规范 manifest **文件字节**的 SHA-256，manifest 内没有自哈希。
+原生加载核对内容 schema1/handler1/projection3、世界 schema2/projection2、每个子文件摘要、显示子树摘要、
+native ID 映射与编译枚举、world contract 的原始字节摘要及其 payload/revision。
+作者 schema/原生头的摘要是由可信根固定的来源字节身份；实际可接受字段/类型/操作由
+原生投影代码再次关闭校验，不在游戏中执行作者 JSON Schema 或源码。
+准备 token 绑定目标对象身份、导入代次及可信根；文件准备还冻结全部输入字节。
+提交前在拒写的读取句柄范围内重查文件，旧准备不能覆盖更新导入，也不能换目标或根继续使用。
+保存投影比较递归检查字符串的精确内容，不依赖默认不区分大小写的 FString 反射相等性。
+
+`LDDemoContentDefinitions.h` 的成员区分 P2、R4 basis points、毫秒及约分有理数；
+参数、公式/政策枚举、角色、完整三级效果、属性、装备、经验、营地和显示定义均有原生成员。
+`Snapshot.Get()` 和 `FindAbility/FindAttribute/FindEquipment/FindMonster/FindDisplay`
+提供只读消费；查找失败给出错误，不返回伪造的默认定义。世界几何仅用于检查已编译的
+边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。
+
+显示行另含玩家可见的 `name_text`/`description_text`（projection 3）。编译器 `display_text` 与原生
+`ValidateDisplayText` 使用同一约束：两项必填，名称至多 32、说明至多 160 个 Unicode 标量；拒绝控制、
+不可见、双向及四字节字符、花括号和首尾空格；说明不得含数字，数值只由 typed 字段显示；名称在全部显示行中唯一。
+`LDDemoContentText::Build` 从已验证定义生成 namespace `DemoContent` 的字符串表，键为
+`<contentId>.name`/`<contentId>.description`。`LDDemoEntry::LoadRuntimeContent` 在
+`ULDDemoContentCatalog::Load` 成功后以 `LDDemoContentText::TableId()` 注册该表，客户端与 Host 走同一路径；
+同一进程重复注册相同文本为空操作，同 ID 已有不同条目则加载失败，不混用两套文本。
+
+UE 5.8 的 `StoreNumbersAsStrings` 保留 `EJson::Number` 及其数字词法。
+导入先拒绝重复键、坏 UTF-8/Unicode、非整数词法、超 int64 和非规范编码，
+再从词法读取整数；不经 `double` 取回大整数。每个字段再验证单位、范围、
+ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、感知半径与构筑上界。
+导入期有理数运算使用带位宽预检的 UE `TBigInt` 暂存；不是另一套游戏伤害计算。
+共享 `FNumbers` 按符号和正幅值比较，避开锁定 UE 负数关系运算的错误/递归，不修改共享引擎。
+几何负坐标、正负分数和 int64 边界由原生专用规则覆盖。
+
+`RunTests.ps1` 调用 `ExportDemoNativeFixtures.py --output <全新 Artifacts 子目录>`，
+只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content。
+向原生自动化传 `-LDDemoContentFixtures="<该目录>"`，执行
+`Lockdown.Rules.DemoContent.TypedProjection`、`.StrictRefusal`、`.AtomicAssetRoundTrip`。
+缺少夹具会失败而非跳过。覆盖全部反射字段的独立断言、每个 rank 数量字段变异、
+完整保存投影逐字段损坏拒绝、内存 DataAsset 序列化、失败保留与当前文件/根拒旧。
+这些证明导入和定义一致性，不证明真实 `.uasset` 保存/Cook、图标资源解析、地图生成、
+战斗公式执行或完整多人对局。正常入口在可信编译摘要下调用 runtime `Load`，
+Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资产不能由夹具补位。
 
 ## 世界组件
 
-`ULDRegionDefinition`/`ALDRegionDirector` 维护区域定义；
-`ULDMapDefinition`、`LDMapRegistry`、`LDMapApproaches` 与编辑器 Builder
-承担完整地图的定义、稳定地址、拟合与接近点。
+`ULDMapDefinition`、`LDMapRegistry` 与编辑器 Builder 提供唯一 Demo 世界的
+typed 投影、稳定地址、原生地面、完整路径及接近点查询。
+`ALDRegionNavBounds` 仍由 `LDDemoWorldBuilder` 生成和校验，不能随旧 Region 名称误删。
+旧区域导演、哨兵、WatchControl、全图预览、`LDMapApproaches` 与旧 RegionDefinition/Anchor 已删除。
 
-`LDGroundQueries` 提供可行走表面查询。厘米坐标、接地面、高低层、碰撞与视线是相关但不同的判断，
-不能以“画面看起来在同一个地方”替代它们。`ULDMapSurfaceSubsystem`
-是特定地图模式的静态表面/接触切片，不是任意 profile 自动启用的全局效果服务。
+`FLDWorldRevision` 只含 MapId/LayoutRevision/GeometryRevision，不另分配 Match 身份。
+`ULDMapRegistry::QueryGround` 要求显式注册 SurfaceHint、当前世界修订和正确 capsule；
+返回局部实际支持面，不把高处输入向下吸附。`QueryCompletePath` 重新验证端点，
+拒绝 partial 和未声明的 XY 投影，保留路径长度与实际投影量；这些查询不授予交易或观察权限。
+`ULDDemoNavigationSystem` 仍使用同一个原生 `UNavigationSystemV1`/Recast，
+在导航数据注册前用中央内容半径和现有身体高度配置该世界，不在注册后改 agent 或复制数值到 ini。
+角色的 Demo 分支消费同一 capsule/基础移动速度，不从旧 PrototypeTuning 补 Demo 参数。
+CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)，拥有身体的移动由 `RunDemoCoreCheck.ps1` 验证。
+`RunDemoWorldRoomCheck.ps1` 只覆盖三个实际真人 Lobby 进程的保存世界加载、统一根/名单、
+本地拥有连接和原生 shop 路径；其零 Pawn 断言确认 Lobby 阶段不生成玩法身体，
+不代替身体移动、AI 或完整多人对局场景。
+
+`LDGroundQueries` 的静态地面与平面可达性能力仍由核心维护，不是观察权限、完整路径或
+带世界修订/SurfaceHint/capsule 的 Demo 落地证明。正式路径与落地使用上述 Registry 查询，
+观察使用单一 `TraceSight`/Observer 边界，不以 `ClearSegment` 代替。
 
 定义中的地址与视觉 Actor 不是同一身份；重复导入、世界重载不能重复生成地点、奖励源或权威记录。
 新地图先验证合法出生、地点连通、入口与阻挡，再接入交互。
 
-## 动态阻挡与对象生命周期
+### 美术素材与装饰
 
-`ALDEnvironmentDirector`、`ALDWorldObjects` 等分别负责环境观察/门与真实物件记录。
-门的物理碰撞、视线代理、导航 revision 和合法表现必须对应同一次权威变化。
-接受阻挡后，尚未刷新的旧路径只能停止/重算，不能继续穿越。
-更新一个门或箱子应局部处理，不无条件重建整个地图。
+角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、若干 Kenney 套件），
+只提交实际选用的 `.gltf`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
+`SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
+逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、纪律委员、体育老师）的显示身高、着色槽、右手骨骼、
+朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与两档野怪各用哪个身体；道具的基础缩放，
+以及每个装饰的放置区域、位置与朝向。出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py` 从 glTF 数据测得，
+`--check` 拒绝与清单不符的数值。
 
-对象能力独立：阻挡行走不自动代表阻挡视线、有库存、可摧毁或能产出奖励。
-背负物、地面物、固定物和库存实例之间应只有一个位置/所有者记录；
-摆放检查完整占地与支撑面，不只检查中心点。
+`Scripts\ImportDemoArt.ps1 -Mode Import` 经 Interchange 导入到 `Content\Lockdown\Art`，
+所有材质槽换成 `M_ArtSurface` 的实例（向量参数 `Tint` 身份色、`Flash` 自发光），并保存类型化目录
+`DA_DemoArt`（`ULDArtCatalog`）。`-Mode Validate`（Bootstrap Validate 也执行）拒绝清单外的文件、
+许可原文不是 CC0 的包、源哈希变化、不是由当前源字节导入的资产、与清单不符的目录项和违反放置区域的装饰。
+资产经 `DirectoriesToAlwaysCook` 进入包。
 
-梯子/绳索等现有链接的预约、起终点和原生运动要一致；死亡、取消、控制器交接先清理预约和进行中的动作。
-这些实现约束可复用，但对应玩法是否进入 Demo 仍由 App Spec 决定。
+`ULDArtSubsystem` 在游戏实例启动时解析目录一次；缺失或不完整时记录 `LD_ART_CATALOG_INVALID` 并返回空，
+不用占位身体；身体接线拿不到条目时记录 `LD_BODY_ART_UNAVAILABLE` 且不绘制。
+
+身体：参赛者六个座位共用 Quaternius `Casual_2`（显示身高 175 cm），纪律委员（`monster_scavenger`）用女装
+`Suit`（170 cm），体育老师（`monster_guardian`）用 `Casual_Hoodie`（205 cm）。只改显示，不改胶囊
+（半径 40、半高 90）。目录给出每个身体的 `MeshTransform`（缩放 = 显示身高 / 绑定姿势身高，偏航由清单的
+朝向骨骼算出、使模型正前方对齐 +X，脚底落在胶囊底面）、`TintSlots`（着色材质槽）、`HandBone`（`Wrist_R`）与 `RunSpeedCmPerSec`
+（Run 播放速率 = 移动速度 / 该值）。Interchange 把 glTF 骨骼名中的 `.` 换成 `_`。
+座位色和野怪色由 `ULDHumanoidVisualComponent` 唯一定义，经 `Tint` 写入目录列出的槽。
+状态动画均为原地播放、无根运动：Idle、Run、Attack = `Punch_Right`、Cast = `Interact`、Hit = `HitRecieve`
+（加速到 0.3 s 内）、Death、Spawn = `Wave`；包内没有对应动作的状态用相近动画替代，替代理由写在清单
+`substitute` 字段，出手时刻写在 `impact_sec`。
+
+装饰：`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`
+（成功 `LD_ART_DECORATIONS_READY`，失败 `LD_ART_DECORATIONS_UNAVAILABLE` 且不生成）：
+不复制、不保存，全部实例无碰撞、不产生重叠、对所有通道 Ignore、不影响导航，
+因此不改变 D02 的墙体、视线与 navmesh。生成后按整个碰撞响应容器核对全部 Ignore；
+不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
+`LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
+`outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
+`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与升旗台；
+`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位），小卖部高度不超过 150 cm，
+以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
+清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
+强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`，HUD 遮挡时经 MID 设置 `LDFade`（0 不透明、1 最淡）。
+没有找到 CC0 的篮球架，未加入。
+
+母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 由导入器在 C++ 中一次性创建；commandlet
+重新加载时其节点图为空，导入器因此从不重新保存已存在的母材质。要修改母材质，先删除对应 `.uasset`，
+再运行 `ImportDemoArt.ps1 -Mode Import` 重建。`Scripts\CaptureDemoArt.ps1`（DEV `-LDDemoArtCapture`）
+渲染身体、动画姿势、场地俯视与路线遮挡扫描，`Scripts\DrawDemoArtLayout.py` 画出道具布局图；输出在
+`Artifacts`。原始下载包不入库。
+
+## 营地与占领的复用边界
+
+营地追击、回位、活动范围和稳定选敌保留为参数化纯决策 `LDCampDecision`，不读取 Actor/World 全局，
+也不创建另一份身体、战斗或奖励状态。调用方须从批准内容、地图注册表和新观测服务提供输入。
+`TraceSight` 只判定静态遮挡：它按 `VISION.RadiusCm` 构建，不是营地感知半径；
+其 InvalidPoint/StaleWorld 由调用层作为故障上抛。纯决策只从 N03 记录的、实际攻击过本营的参赛者
+身体中选敌，营地成员和未攻击本营的旁观者即使更近也不选；目标还须在该怪物
+`PerceptionRadiusCm`（内容规定等于 LeashRadiusCm，从成员当前脚点量，含边界）以内。
+感知半径大于 TraceSight 半径时明确失败；不保留旧 Blind 缩半径或 200/650/1000 默认值。
+活动范围只按成员自身到 Camp 锚点的 XY 距离判定，不按目标位置过滤：站在 Leash 圈外但在感知内的
+攻击者仍可选；成员严格超界才转 Returning，之后不再选敌、受击也不回追。
+回位目标是该成员在注册表中的 MemberHome，不是全组共用 Camp 中心。
+观察读取失败必须在调用层按权威故障处理，纯函数也拒绝未完成的读取，不能当空候选成功。
+
+营地运行由两层组成，都不另存身体、生命、战斗或奖励真值：
+
+- `World\LDCampLifecycle`：纯记账。由批准内容的营地放置/怪物定义和世界营地锚点/成员 home 生成五营两档名册；
+  每局为固定 (营地, 槽位) 分配一次 EntityId，`Life` 只镜像核心生命，并只在整组生成提交时递增。
+  最后一名成员死亡时按死亡事实的权威整数毫秒固定清营时刻、按该档 `RespawnMs` 定刷新期限，不再从秒换算；死亡按生命幂等。
+  反击只接受参赛者来源，全营共享来源身份而非坐标；Returning 成员忽略受击；
+  出生或回营重置时刻之前的接触不能重开仇恨；每名参赛者只保留当前生命，总数受名单上限约束。
+  每次进入 Returning 递增 ReturnEpoch，重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只能完成一次。
+- `World\LDCampDirector`：Camps match provider 在 Starting 的 Prepare 中生成（服务器、不复制）并建名册，
+  MatchReset 时销毁全部野怪身体并丢弃本局记账。各入口只在 Combat 驱动的对应阶段校验借用许可后执行：
+  初始化 RespawnsAndWorld 内整组生成；Motion 用同一 CMC 推进与 `LDPathSteering` 跟随完整路径；
+  规划起点和追击终点经 `LDPathSteering::PlanStart` 落到一个胶囊半径内的 navmesh 点（贴墙/贴身时脚点可能在
+  Recast 收缩边外），已在 navmesh 上的 home 原样保留；
+  Actions 读取 Combat 身体状态、用 `TraceSight` 从成员脚点证明来源可见后调用 `LDCampDecision`，
+  普攻经 Combat `SubmitAction` 提交；Effects 消费已提交的 `FLDCombatHostileContact`；
+  DeathsAndRewards 在核心结束生命后只记账并销毁野怪身体，奖励由成长唯一 sink 支付；
+  RespawnsAndWorld 先对真实到家（同一支持面、`CAMP.ResetArrivalRadiusCm` 内）的存活成员调用
+  Combat `PrepareCampReset/ApplyCampReset`，再处理到期的整组刷新。`NextRefreshDueMs` 向 Combat 驱动报告最早的
+  待刷新期限，使刷新恰好落在该步边界。刷新落点被动态占用时保留同一票据，
+  只在本营成员 home 的局部偏移内重试，不换营地、不发布半组。落点原点与参赛者出生相同
+  （支持面 + 胶囊半高 + CMC 地面带中值），交给核心前已 FindFloor 并在登记地板上 walkable；
+  胶囊底直接贴地会在进入 Walking 时被 CMC 抬升，精确落点校验随即拒绝。
+- 野怪身体 `ALDCampMemberCharacter` 不复制；观察只经 Vision 授权帧，`AppendObservedFacts`
+  只补 CreatureId 和单层无期限的 `camp_returning`，`PublicViews` 只给固定营地 Id/档位/怪物/锚点。
+
+旧营地 Actor、职业/技能初始包、三营地/有限刷新预算、Boss/Tower/圣坛与探索奖励不作备用实现。
+
+唯一占领归约和结果所有者是 GameMode 核心的 `FLDCaptureReducer`（`Framework\LDCaptureReducer`，
+圈内进出由 `World\LDCaptureCircle` 提取），不再保留独立 Objective Actor、HeartSensor、
+Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
+归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
 
 ## 保存与复位边界
 
-当前世界检查点只覆盖其显式允许的状态，不是完整对局恢复服务。
-恢复不能补回已消耗的物品、燃料、奖励或来源预算；观察句柄与服务报价要由当前连接重新建立。
-有活动所有者或未决效果的状态若不支持，应明确拒绝，而不是保存部分状态后声称完整成功。
-新局重置与恢复同一局是两种操作，不能混用。
+世界不提供持久检查点、自动保存或恢复入口。物品身份、消耗与原子提交由当前库存/账本维护，
+不通过旧世界文件或已退役的物件服务重建和补发。
+新局和新身体的隔离仍走 GameMode 的 Match/Life 与各领域拒旧协议，见
+[架构与网络](ARCHITECTURE_AND_NETWORKING.md#请求代次与回执)；
+`RunDemoCaptureCheck.ps1` 与 `RunDemoGrowthCheck.ps1` 的第二局阶段在拥有连接上核对新局开局状态与旧代请求拒绝。
+
+本地按键与镜头偏好仍由 `ULDControlSettings::Save/Load` 管理，见
+[移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md#相机与小地图)，不保存局内战力或世界状态。
 
 ## 检查入口
 
 对应 Sync `--check`、`Test*Import.py`、Bootstrap Validate 先验证生成链。
-几何、导航与实际交互用 `RunB90Structure.ps1`、`RunB90River.ps1`、`RunB90Traversal.ps1`、`RunB91Check.ps1`、
-`RunB91Network.ps1` 等既有场景按需覆盖。
-`RunB91Completion.ps1` 使用当前运行结果汇总，不依赖冻结文档档案。
+几何与导航使用当前 `Lockdown.Rules.DemoWorld` 和 Bootstrap 校验；
+观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
+真实拥有连接使用 `RunDemoWorldRoomCheck.ps1`（Lobby）、`RunDemoCoreCheck.ps1`（身体与地面）、
+`RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（占领与终局 N02）；
+全部场景及打包版运行方式见[开发指南](../DEVELOPMENT.md#最小验证选择)。
+旧 B90/B91、World/Objective/Region probe 已删除，不作为验收入口。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
 
 工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。

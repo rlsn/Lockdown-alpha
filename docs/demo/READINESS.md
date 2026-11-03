@@ -2,42 +2,54 @@
 
 产品目标以 [App Spec](../APP_SPEC.md) 为准；当前组件接口以
 [系统手册](../DEVELOPMENT.md#按任务读取系统手册) 和实际源码为准。
-实施依赖见 [实施计划](IMPLEMENTATION_PLAN.md)，跨模块边界见
-[共享契约](SHARED_CONTRACTS.md)，依赖级复用与删除清单见
+模块边界见 [实施计划](IMPLEMENTATION_PLAN.md)，跨模块契约见
+[共享契约](SHARED_CONTRACTS.md)，依赖级复用与已完成的删除闭包见
 [架构审计](ARCHITECTURE.md)。
 
 ## 结论与使用边界
 
-**可以开始基础实施；八领域和首版候选内容的文档输入已齐；完整 Demo 实现仍有审批与工程验证门槛。**
+**v0.10.0 Demo 的完整流程已经实现。** 流程为：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）
+→ 从零打野、对抗、三选一与购物 → 开圈争夺 → 唯一结果 → Host 带仍在线的房间回 Lobby 开新局。
+运行入口只有前端与唯一 Demo 世界；旧 profile、旧地图与旧选择会被明确拒绝，
+[架构审计](ARCHITECTURE.md) §3.2 的删除闭包（含玩家交易与世界检查点）已经完成。
+所有联机验证都在同一台机器的回环连接上运行。
 
-App Spec 已明确核心循环、结构数量、联机边界和验收结果，六册系统手册也足以定位
-可复用的运动、权威命令、战斗、事务、视野和生成链。无需继续等待一份更大的总规格，
-才能开始梳理单一运行入口、状态所有权、读模型和拒绝路径。
-经独立审核的架构清单已进一步界定 B01 入口/基础门禁、B02 玩家交易闭包、
-B03 世界检查点闭包；这三批的规划输入不依赖尚未选定的技能、装备数值或地图尺度。
-实际删除前仍要执行各批所需的资产/反射引用、有效配置/插件、构建/UHT 与组件检查。
-操作与目标模块的目标合同和正反场景也已完成独立静态审核；其 CT06 原生运动事件、
-核心/战斗/世界联合接线及内容/资产条件仍未执行，不能据此把该模块或整局标为运行通过。
-会话/生命周期、世界/营地/视野和 AI 的模块合同已加入同一评估；
-它们提供正式接口与候选内容接线，不代表中央数值已批准，也不替代原生接线与运行验证。
-战斗、成长/装备/经济、UI/设置和中央内容也已有经独立审核的报告。
-完整包面向 main 交付以独立跨文件一致性总审为门槛；消费方统一引用中央内容，不各自复制参数或公式。
+运行输入是用户批准的首版内容与数值、唯一单层地图布局与操作规则，用于首次试玩。
+**批准不是平衡测试结果。**
 
-现有运行入口仍执行旧规则。文档现已给出目标合同、有限首版目录、公式/参数候选和目标验收，
-不需要实现者自行填值；但候选数值待本PR审查，原生时序/资产/真实连接和人类平衡仍需实施验证。
-这些是明确的审批/实现门槛，不等于仍缺一份内容文档，也不能据此宣称新 Demo 已经可玩。
+### 最终验收
 
-本评估的源码基线是 `fa11d09`。证据是当前文件和接口的静态核对，不是构建、真实联机、
-数值平衡或完整对局的运行证明。本轮交付只更新文档，不修改运行代码、配置、数据或资产。
+冻结提交 `6f8bca8` 的 Development 包是当前唯一的已知可用构建。证据保存在本机忽略的 `Artifacts` 中。
 
-| 就绪层级 | 含义 | 当前可承诺的范围 |
+| 检查 | 结果 |
+| --- | --- |
+| `BuildEditor.ps1`、`BuildGame.ps1`（`-FullUnity`）、`RunTests.ps1`（147 项必需规则）、Python 测试、`BootstrapAssets.ps1`（含音效与美术目录校验） | 通过 |
+| `VerifyCleanCheckout.ps1` | 通过：隔离检出中的构建、Bootstrap 与规则 |
+| `PackageWin64.ps1` | 通过，manifest 记录该提交且无未提交改动 |
+| 打包版场景：Core、Combat（含操作手感数据与 9 张截图）、Growth（含第二局与账本独立复算）、SessionFault（六段） | 全部通过 |
+| 打包版场景：Camp、Capture（含第二局）、Vision（另重复 3 次）、Opponent 满员（3 真人 + 3 AI）、网络模拟下的满员、一次有声运行 | 全部通过；在产品代码相同的 `9167f8d` 包上运行，两包之间只差 DEV 夹具、probe、一个场景脚本的等待时间与文档 |
+
+有声运行确认三端的音频设备初始化、`LD_AUDIO_CATALOG_READY 15 cues` 与 `LD_AUDIO_MIX_APPLIED`，没有音效错误日志；
+这不代替人工试听。网络模拟满员局没有 AI 死亡，死亡与复活相关检查报告为未覆盖；正常满员局已覆盖这些检查。
+
+### 产品决定的落地状态
+
+| 决定 | 内容 | 状态 |
 | --- | --- | --- |
-| 可开始基础实施 | 产品边界、依赖清单和分批检查门槛明确 | 架构 B01 的入口/拒旧/缺输入合同、B02 玩家交易闭包、B03 世界检查点闭包；先核对本批引用与依赖再删除，不擅自填玩法参数 |
-| 条件就绪 | 目标接口、候选内容和跨域顺序已有定义，正式参数审批与实际接线证据仍缺 | 战斗属性、占点、成长装备、营地、AI、完整 UI；按下文门槛逐模块开工 |
-| 完整文档输入已齐 | 八领域、架构闭包、共享契约与完整首版候选已提供，需完成总审和PR审查 | 能按明确依赖进入实施；候选值不自动批准，CT06/C3/C4/真实对局未运行不算通过；不能将此称为已实现 Demo |
-
-这里的“可开始”描述后续代码任务的安全起点，不授权本次文档 PR 顺带实施。
-专家提出的首版数值可以进入文档供 PR 审查；**待审建议不是已批准参数，更不是平衡测试结果。**
+| D01 | 首版内容与数值（[内容与数值](CONTENT_AND_BALANCE.md) §3–6、§10、§12、§14） | 已进入运行输入，未做平衡测试 |
+| D02 | 唯一单层地图布局（[世界/营地/视野](WORLD_CAMPS_AND_VISION.md) §2、§6、§8） | 已实现，由 Bootstrap 生成 `L_Demo` |
+| D03 | 攻击移动的自动选敌与续行（[操作§4.2](CONTROLS_AND_TARGETING.md#42-右键普攻与-a-攻击移动)） | 已实现 |
+| D04、D05 | 校园世界观的名称、术语与游戏内说明文案 | 已实现；运行内容 ID、数值与资产身份不变 |
+| D06 | CC0 音效包与主音量设置 | 已实现，15 个音效；未做人工试听 |
+| D07 | 小地图朝向设置：跟随镜头（默认）、跟随角色朝向、固定正北 | 已实现 |
+| D08 | CC0 骨骼角色与校园装饰道具，道具只做装饰 | 已实现；旗杆遮挡时淡化 |
+| D10 | 开局三选一：开局一次，每次升级一次，整局最多 10 次 | 已实现，AI 同样处理 |
+| D12 | 升旗台争夺暂停原占领者进度，恢复独占后续计 | 已实现；复活时长等相关数值未改 |
+| D15 | 保持 MOBA 点击操作并打磨手感：点击与悬停标记、按住右键持续移动、施法预输入、可选快速施法（默认关闭） | 已实现 |
+| D16 | 施法那一刻显示技能或装备名称，不显示等级与冷却 | 已实现 |
+| D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 暂缓，未进入运行输入 |
+| D13 | 校园补给箱 | 下一轮再定，未实现 |
+| D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 已批准方向，未进入运行输入 |
 
 ## 已确认的实施方向
 
@@ -45,9 +57,9 @@ B03 世界检查点闭包；这三批的规划输入不依赖尚未选定的技�
 - 不需要的代码、配置、资产、数据、工具、测试和过期文档最终真实删除；
   不保留备用旧模式、兼容壳、备份目录或放弃方案。
 - 必需底层组件原样复用、改造或抽取；不因旧玩法需要删除而全盘重写运动、结算或观测系统。
-- 本阶段只准备可审查的文档。具体删除闭包以经审核的架构裁剪清单为依据，
+- 具体删除闭包以架构裁剪清单及当前真实依赖为依据，
   不从文件名里的 V07/V08/V09/Bxx 推断应该删除什么。
-- 技术命名、类型映射和调度接线由工程研究确定；影响未定玩法的选择必须明确作为设计待审项。
+- 技术命名、类型映射和调度接线由工程实现决定；会新增或改变玩法的选择先交用户决定。
 
 ## 现有证据与不能据此得出的结论
 
@@ -55,95 +67,73 @@ B03 世界检查点闭包；这三批的规划输入不依赖尚未选定的技�
 
 | 证据 | 已核对入口 | 可以复用或确认的事实 | 不能据此声称 |
 | --- | --- | --- | --- |
-| E01 | [LDUIRoot.cpp](../../Source/Lockdown/Private/UI/LDUIRoot.cpp)，`ULDUIRoot::Host` | 当前 Host 打开开发地图并显式使用 `Profile=V05` | 默认开始入口已运行目标 Demo |
-| E02 | [LDGameMode.h](../../Source/Lockdown/Public/Framework/LDGameMode.h)，[LDGameMode.cpp](../../Source/Lockdown/Private/Framework/LDGameMode.cpp) | 有 `StateFor`、`ContenderId`、Lobby、生命和终局入口；当前开始规则仍检查旧人数/职业，`EndContenderLife` 扣金，`ReturnSpawn` 筛选安全/最远位置 | 三真人加三 AI、死亡全保留、十点等概率随机已成立 |
-| E03 | [LDCharacterBuild.h](../../Source/Lockdown/Public/Development/LDCharacterBuild.h)，[LDV08Loadout.h](../../Source/Lockdown/Public/Development/LDV08Loadout.h) | 有构筑 revision、动作来源、来源失效和派生投影；当前仍是六维属性、按格式区分的多槽布局 | MOBA 属性、三选一、Q/W 与两装备已经实现 |
-| E04 | [LDNavigationComponent.h](../../Source/Lockdown/Public/Navigation/LDNavigationComponent.h) | `FLDMoveIdentity` 的 Match/Life/Order/Epoch、导航确认/停止、镜头接口存在 | 攻击移动、全部目标形式和新输入映射已端到端接通 |
-| E05 | [LDTacticalRequest.h](../../Source/Lockdown/Public/Combat/LDTacticalRequest.h)，[LDCombatDirector.cpp](../../Source/Lockdown/Private/Combat/LDCombatDirector.cpp) | 来源/目标/版本请求、`Sample` 中命中与死亡提交链可复用 | 新伤害公式、来源冷却策略和占领同刻规则已经确定 |
-| E06 | [LDObjectiveRules.h](../../Source/Lockdown/Public/Objectives/LDObjectiveRules.h) | 当前是工作、Claim、路线和 deadline 等旧目标规则 | 无前置、连续独占、无超时胜利只需更换显示名称 |
-| E07 | [LDVendorDirector.h](../../Source/Lockdown/Public/Inventory/LDVendorDirector.h)，[LDEconomyLedger.h](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h) | 有商店会话/报价/库存版本及事务 ID、Cause、原子金币和物品变更；Vendor 当前仍面向书籍技能 | 两件装备的买卖、满槽处理、死亡保留和无套利已成立 |
+| E01 | [LDUIRoot.cpp](../../Source/Lockdown/Private/UI/LDUIRoot.cpp)，`ULDUIRoot::Host`；[LDDemoEntry.cpp](../../Source/Lockdown/Private/Framework/LDDemoEntry.cpp) | Host 只请求 Demo Listen 世界；本地及原生入口拒绝旧 profile/map/GameMode 与缺失/不匹配载荷 | 拒绝路径和前端可用就表示完整 Demo 可以开局 |
+| E02 | [LDGameMode.h](../../Source/Lockdown/Public/Framework/LDGameMode.h)，[LDGameModeSession.cpp](../../Source/Lockdown/Private/Framework/LDGameModeSession.cpp)，[LDGameModeLife.cpp](../../Source/Lockdown/Private/Framework/LDGameModeLife.cpp) | 同一私有记录提供 Match 双身份、三真人准入、Host/Ready/AI 名额和有界会话回执；死亡、复活与成长经 Combat/Development 提供者接入同一记录 | AI 名额配置本身就是自主 AI，或旧死亡/安全出生方法可直接用于 Demo |
+| E03 | [LDProgressionRules.h](../../Source/Lockdown/Public/Development/LDProgressionRules.h)，[LDGrowthProtocol.h](../../Source/Lockdown/Public/Development/LDGrowthProtocol.h)，[LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp) | 等级/经验、持久三选一机会队列、Q/W 与被动构筑、两装备来源与来源失效已实现，经同一账本与回执提交 | 纯值规则或回执通过就等于拥有连接下的成长与商店完成（真实连接见 `RunDemoGrowthCheck.ps1`） |
+| E04 | [LDOrderTypes.h](../../Source/Lockdown/Public/Navigation/LDOrderTypes.h)，[LDNavigationComponent.h](../../Source/Lockdown/Public/Navigation/LDNavigationComponent.h) | `FLDMoveIdentity` 的 Match/Life/Order/Epoch、移动/攻击单位/攻击移动/商店接近订单、导航确认/停止、镜头接口存在 | 订单类型存在就等于拥有连接下的端到端行为（真实连接见 `RunDemoCombatCheck.ps1`） |
+| E05 | [LDCombatTypes.h](../../Source/Lockdown/Public/Combat/LDCombatTypes.h)，[LDCombatActions.cpp](../../Source/Lockdown/Private/Combat/LDCombatActions.cpp)，[LDCombatDriver.cpp](../../Source/Lockdown/Private/Combat/LDCombatDriver.cpp) | 来源/目标/版本请求、动作受理与同一到期边界的命中/死亡提交链 | 公式已批准就等于每个效果的实际命中结果正确（见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
+| E06 | [LDCaptureReducer.h](../../Source/Lockdown/Public/Framework/LDCaptureReducer.h)，[LDGameModeCapture.cpp](../../Source/Lockdown/Private/Framework/LDGameModeCapture.cpp) | 连续独占圈归约、完成提案与唯一结果锁定已实现；旧工作/Claim/路线/deadline 目标规则已删除 | 纯归约测试通过就等于拥有连接下的占领与终局（真实连接见 `RunDemoCaptureCheck.ps1`） |
+| E07 | [LDEconomyLedger.h](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h)，[LDVendorDirector.h](../../Source/Lockdown/Public/Inventory/LDVendorDirector.h) | 账本有事务 ID、Cause、原子金币与物品变更；商店会话/报价/回执由 `ALDVendorDirector` 实现 | 账本复算通过就等于拥有连接下的买卖、满槽与死亡保留都正确（真实连接见 `RunDemoGrowthCheck.ps1`） |
 | E08 | [LDViewTypes.h](../../Source/Lockdown/Public/Vision/LDViewTypes.h)，[视野与 UI](../systems/VISION_AND_UI.md) | 自身投影与观测记录分开；有 generation/revision 与隐藏/过期机制 | 任意现有地图格式都能直接接入，或 AI/UI 可读取全部服务器状态 |
-| E09 | [LDB92Roster.h](../../Source/Lockdown/Public/Population/LDB92Roster.h)，`ALDB92SeatController` | 存在无本地 UI 的权威控制接口；代码明确不宣称已有自主参赛策略 | 已有能发育、选择、购物并争圈的对手 AI |
-| E10 | [prototype_rules.json](../../SourceData/Character/prototype_rules.json)，[V08 目录](../../SourceData/Catalogs/V08)，[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 旧角色/目录输入仍被当前生成链消费，有稳定 ID、schema 与载荷契约 | 旧基值、奖励、时长和目录自动获准成为 Demo 数值 |
-| E11 | [LDCharacterBuildTests.cpp](../../Source/Lockdown/Private/Tests/LDCharacterBuildTests.cpp)，[LDV08LoadoutTests.cpp](../../Source/Lockdown/Private/Tests/LDV08LoadoutTests.cpp)，[LDObjectiveRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDObjectiveRulesTests.cpp) | 当前断言包含开局技能、死亡扣金、多槽和 deadline 等旧行为 | 保留所有旧断言或仅让旧套件全绿就满足 Demo |
-| E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[开发指南](../DEVELOPMENT.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口仍检查旧测试数量与 `TradePrivacy` | 删除旧测试后只降低数量门槛就是完成测试迁移 |
-| E13 | [架构审计](ARCHITECTURE.md)，§3、§4、§8 | R01–R15 复用、D01–D34 删除、N01–N09 新增清单及 C1–C4/B01–B03 门槛已完成独立静态审核；明确到事件水位、反射/资产和 runner 依赖 | 已完成代码裁剪、资产可安全盲删，或所有 Demo 领域接口已经实现/批准 |
-| E14 | [操作与目标](CONTROLS_AND_TARGETING.md)，§5、§7.3、§10、§11 | 单一订单、只收件入口、写许可激活/原子交接、CMC 子段/事件序/Fence、授权终止及 24 组正反场景有经独立审核的拟建合同 | CT06 原生挂接、资产迁移、真实连接或全部 D1 已完成；核心类型仍由生命周期域单点定义 |
-| E15 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md)，§4–6、§8、§12 | 唯一核心 Match/Victim/Body/DeathKey、实际时间/许可/写闸、RewardBasis、settlement-only、结果和故障退出经独立静态审核 | 原生 step/CMC、资产、3+3 或同房间新局已运行；不能另造第二驱动 |
-| E16 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md)，§2–5、§9 | 单一候选几何及 SVG、十锚点与局部落地、同核营地生命、稀疏视图/授权终止和离线模型有独立审核依据 | 100m 布局/尺寸或内容常量已获产品批准；七局部槽不是七十个随机出生点，模型不是原生可达/公平性证明 |
-| E17 | [对手 AI](OPPONENT_AI.md)，§3、§6–9 | 无连接 Controller 适配、同一权威接口、P0–P9 策略、12 个 AI 叶参数引用和 15 组验收有独立静态审核 | 已有实战 AI、批准数值或新建第二世界/经济状态；已对齐的参数键仍以中央内容报告为唯一来源 |
-| E18 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md)，§3–8、§13–15 | 唯一动作/属性/P2/来源写入、不可变致死集合、CampReset最终上限次序及34组验收有独立审核 | JSON/hash修改即可实现效果；当前原生导入仍需typed投影与消费者接线，未运行游戏验证 |
-| E19 | [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md)，§3–8、§12 | Gold/XP/等级/机会复合提交、账本复算/退休、持久候选、独立CD债与tagged查询有独立审核 | Ledger已经自动覆盖XP，或业务缓存可代替完整复算/拒旧；实际目录/数值与真实连接仍未通过 |
-| E20 | [UI与设置](UI_AND_SETTINGS.md)，§4–8、§11–12 | TopInputLayer、合法投影、历史查询、显示trial回滚/保存和原生界面迁移有独立审核 | 占位界面、void SaveSettings、nullrhi截图或文档表格已经证明真实UI/音频/保存成立 |
-| E21 | [内容与数值](CONTENT_AND_BALANCE.md)，§3–14 | 完整有限目录、唯一参数/公式、严格Decimal/定点树/根manifest方案、逐字段行为验收及独立模型复算已提供 | 目录/数值/技术精度已被本PR批准，或离线模型已证明原生、真实3+3及人类平衡 |
+| E09 | [LDOpponentController.h](../../Source/Lockdown/Public/AI/LDOpponentController.h)，[LDOpponentPolicy.h](../../Source/Lockdown/Public/AI/LDOpponentPolicy.h) | 每个 AI 槽由独立 `ALDOpponentController` 驱动，经与真人相同的领域入口发育、选择、购物并争圈 | 纯策略测试通过就等于满员对局可玩（真实连接见 `RunDemoOpponentCheck.ps1`） |
+| E10 | [SourceData/Demo](../../SourceData/Demo)，[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)，[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 唯一作者域、schema、稳定 ID 与载荷契约；首版内容与数值已于 2026-11-02 获批 | 首次试玩输入获批就是平衡测试结论 |
+| E11 | [LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)，[LDCombatSourceRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDCombatSourceRulesTests.cpp) | `Lockdown.Rules.DemoGrowth*` 与战斗来源用例覆盖等级/机会、三选一、替换、两装备与来源冷却 | 规则套件全绿就满足拥有连接下的 Demo 行为 |
+| E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)，[开发指南](../DEVELOPMENT.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口核对明确的当前用例集合，拒绝缺项、重复、失败与未完成 | 当前组件套件通过就等于 Demo 专属规则与真实场景均已实现 |
+| E13 | [架构审计](ARCHITECTURE.md)，§3、§4、§8 | R01–R15 复用、D01–D34 删除闭包（已完成）、N01–N09 新增清单及 C1–C4 门槛 | 资产可不经 C3 盲删，或删除闭包完成就等于 Demo 行为已验收 |
+| E14 | [操作与目标](CONTROLS_AND_TARGETING.md)，§5、§7.3、§10、§11 | 单一订单、只收件入口、写许可激活/原子交接、CMC 子段/事件序、授权终止已按该合同实现，拥有连接见 `RunDemoCombatCheck.ps1` | CT06 的全部提供者封桶（正式 Motion Fence/Sealing）已完成；核心类型仍由生命周期域单点定义 |
+| E15 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md)，§4–6、§8、§12 | 唯一核心 Match/Victim/Body/DeathKey、实际时间/许可/写闸、RewardBasis、settlement-only、结果和故障退出已实现；3+3、同房间新局与网络异常见 Opponent、Capture、SessionFault 场景 | 跨机器联机已经验证；不能另造第二驱动 |
+| E16 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md)，§2–5、§9；[当前世界管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 现有100m单层布局于2026-11-02获首轮批准；严格world2生产者、原生目录/唯一地图、凸多边形碰撞和导航保存/重载检查已接通；营地、稀疏观测与实际运动见 `RunDemoCampCheck.ps1`、`RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1` | 七局部槽是七十个随机出生点，或静态导航检查等于动态落地、真实拥有连接、公平性及完整地图玩法通过 |
+| E17 | [对手 AI](OPPONENT_AI.md)，§3、§6–9 | 无连接 Controller 适配、同一权威接口、P0–P9 策略与 AI 叶参数已实现，参数随中央方案获批；满员对局见 `RunDemoOpponentCheck.ps1` | AI 可新建第二世界/经济状态或读取隐藏状态；参数仍以中央内容报告为唯一来源 |
+| E18 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md)，§3–8、§13–15 | 唯一动作/属性/P2/来源写入、不可变致死集合、CampReset最终上限次序及34组验收有独立审核；typed 内容定义导入见 E21 | JSON/hash 或原生定义投影一致即可实现效果（实际执行见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
+| E19 | [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md)，§3–8、§12 | Gold/XP/等级/机会复合提交、账本复算/退休、持久候选、独立CD债与tagged查询有独立审核 | Ledger已经自动覆盖XP，或业务缓存可代替完整复算/拒旧（真实连接见 `RunDemoGrowthCheck.ps1`） |
+| E20 | [UI与设置](UI_AND_SETTINGS.md)，§4–8、§11–12；[当前本地设置接口](../systems/MOVEMENT_INPUT_AND_CAMERA.md) | 本地类型化加载/保存、隔离测试存储、磁盘回读和显示试用生命周期已有实现；玩法界面经各领域的合法投影与单一输入层接线（`Lockdown.Rules.HUD*`） | 规则测试与离屏截图已经证明真实显示模式切换、OS 输入与音效听感 |
+| E21 | [内容与数值](CONTENT_AND_BALANCE.md)，§3–14；[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)；[LDDemoContentCatalog.h](../../Source/Lockdown/Public/Development/LDDemoContentCatalog.h)；[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 批准方案已生成正式作者数据/载荷/原生目录；严格 Decimal/定点、受保护输出、不可变 typed 目录及全字段校验接同一可信根。世界源/schema亦受独立字段/cm合同与字节身份约束 | 定义导入、地图生成或输入批准就表示已经实现战斗处理器、真实3+3与人类平衡 |
 
-## 按需求域判断开工门槛
+## App Spec 完成标准的覆盖
 
-这些领域覆盖 App Spec 的全部产品章节；不是八份互相独立的产品规格。
-表内区分已具备的设计输入与尚缺的审批、实施和运行证据，不表示仍缺领域报告或所有底层代码均不存在。
+“场景”指 DEV 拥有连接场景（`RunDemo*Check.ps1`，发布验收在打包版上运行），“规则”指 `RunTests.ps1` 的必需规则。
+每个场景覆盖与不覆盖的内容见[开发指南](../DEVELOPMENT.md#最小验证选择)。
 
-| 领域与 Spec 章节 | 已有基础 | 已有设计与剩余实施条件 | 开工门槛 |
-| --- | --- | --- | --- |
-| 会话、联机、对局、占领、生命；§1、§2、§7.1、§9 | E01、E02、E05、E06、E08、E13、E15 | 正式核心提供者和生命周期已给出；仍需跨域字段/阶段接线、原生事件/水位、真实联机和内容输入 | B01 及核心合同可先实施；正常流程按领域/资产/连接门槛推进，不把入口拒绝或接口表当完整可玩 |
-| 操作与目标；§3.1 | E04、E05、E08、E14 | 单一订单/目标/取消/捕获及核心/Combat/World 消费合同已给出；尚需 CT06 子段挂接、输入资产迁移和联合运行验证 | 模块文档静态审核通过，实施条件就绪；按 CT 任务门槛接线和验证，不把接口表或旧 runner 通过当运行完成 |
-| 战斗与属性；§3.2、§7.1 | E03、E05、E18 | 目标命令/来源/P2/控制/归属、复合投影及中央公式/目录引用已给出；仍需候选审批、typed导入/handler及原生效果结果 | 可按合同分段实现；首版数值批准和真实消费验证仍必需，不将静态设计当运行通过 |
-| 成长、装备与经济；§4、§5 | E02、E03、E05、E07、E19 | 原子奖励/候选/两装备/独立冷却/查询形状与生成/复算合同已定义；尚需实际根manifest、目录消费、精度/复算和真实拥有连接验证 | 以同一核心DeathKey/permit及Combat投影落地；不能先改钱包/旧Build再补账，不能用旧值补内容 |
-| 世界、营地与视野；§6 | E04、E08、E10、E16 | 几何/查询/稀疏观测方案已给出；候选布局/常量、实际生成/导航/碰撞、最新营地/商店规则的具体接线仍需对应审核/验证 | 十锚点无偏有放回，不把局部碰撞槽改成新随机池；已确认的反击/回位/商店规则按 Spec，原生和参数审批不能省 |
-| 对手 AI；§7.2 | E04、E05、E07、E08、E09、E17 | 自主策略和正式消费接口已给出，12 个叶参数已对应中央内容；仍需参数审批、全部领域实际服务与 3+3 场景 | 可先实现注册/受限输入/拒旧；完整核心循环依赖成长、世界、战斗，不能把席位或策略文档当可玩 AI |
-| UI 与设置；§8、§3.1、§9 | E01、E04、E08、E20 | 单一Root/输入层、全部界面与只读模型/错误/设置trial已设计；仍需实际控件、资产/声音、保存回读和可视Host/客户端 | 按正式提供者投影实现，不让Widget直写权威或把查询未命中/试用值写成成功 |
-| 内容与数值；§10，服务全部章节 | E03、E05、E07、E10、E18、E21 | 完整候选、跨域参数/精度及生成/消费合同已给出；剩余是 PR 审批、实际数据生成和原生行为落地 | 经审查后的值进入单一源/载荷/contract链；先拒绝输入与生成一致性，再验证typed消费者，不拿旧SourceData补值 |
-
-## App Spec 完成标准的证据缺口
-
-以下逐项对应 §11。它定义后续实现要补的证据，不是本轮已执行的测试报告。
-
-| 完成标准 | 牵头领域 / 依赖 | 当前不能跨过的门槛 |
+| 完成标准 | 覆盖来源 | 未运行或只有部分覆盖 |
 | --- | --- | --- |
-| 正常启动 | 会话、UI / 架构 | 默认入口到菜单、Lobby、开局、设置、退出的一条真实流程，而非 profile 指令 |
-| 满规模联机 | 会话、AI / 视野、UI | Host 加两名真实拥有客户端及三 AI；未使用名额不补角色；名单锁定与失败反馈 |
-| 地图与寻路 | 世界、操作 / 内容 | 单图对象数量和十点合法性、全部必要地点连通、实际身体不穿阻挡 |
-| 营地反击与回位 | 世界、战斗 / 内容、AI | 未受击不主动、同组共同反击不共享隐藏坐标；Returning 可受伤/控制/击杀且不回追；实际到家仅存活成员满血蓝/清临时效果仇恨/技能就绪，无复活死者/新 Life/奖励 |
-| 从零发育 | 战斗、世界、成长 / 内容 | 只靠初始近战单体普攻可打低难营地，经真实奖励首次升级和购买；不得调试授予 |
-| 普攻成长 | 战斗、成长 / 内容、操作、UI | 首版装备或属性提供群攻和增加攻击距离的真实路径；不永久限制为单体近战，也不强制投射物 |
-| 成长边界 | 成长 / 内容、UI | 1至10级、最多九次机会、单技能三级、三张不同合法卡、队列/重放一致；死亡等待可确认，仅更新构筑，不治疗或提前复活 |
-| 上限变化 | 战斗、成长 / 内容、UI | 存活时升级/属性/装备变更保持原血蓝百分比；最终上限一次投影、精度/取整往返不获益；死亡不治疗，复活仍按新上限满血蓝 |
-| 技能替换 | 成长、战斗 / UI | 满 Q/W 明确确认替换，旧技能等级遗忘，再学一级；失源期间冷却继续，重学沿用原结束时间 |
-| 装备边界 | 成长、战斗 / UI、内容 | 两件且无背包、允许同款两件；基础属性加成相加、同名被动只生效一次；两份主动独立冷却，可连续使用两次；失源期间继续计时，重购沿用原结束时间 |
-| 奖励与死亡 | 战斗、成长、生命 | 一次死亡一次奖励；财产/成长/候选保留；已释放独立效果在正常死亡或出售/遗忘后继续，未释放/持续绑定动作按规则取消；旧目标生命不转移 |
-| 复活保护 | 生命、战斗、占领 / UI | 十点等概率满血蓝复活/清临时控制/冷却继续；保护免伤免控且不计占领；技术准入后进攻意图即解除，目标/距离/蓝量无效也解除；旧身份/代次/终局拒绝不改角色，资格事件进入圈判定 |
-| 占领规则 | 对局、世界 / 战斗、生命 | 开放门槛、争夺/离圈/死亡清零、受伤不清零、完成同刻重查、唯一最终结果 |
-| 视野一致 | 世界、UI、操作、AI | 可见对手仅名称/等级/血蓝/状态/装备；失视取消锁定并停该追击，无 LastSeen；死亡镜头只静态/公共；隐藏状态不进入客户端或 AI，公开通知不带隐藏坐标 |
-| AI 可玩 | AI / 全部权威服务、内容 | 不发资源、不传送、不全知，自主发育到争圈获胜，并处理死亡和失败回执 |
-| UI 完整 | UI / 全部读模型 | 界面可操作、反馈真实、不旁路权限；结算列全体（含离局）名称/击杀/死亡/最终等级及赢家、原因/用时，只展示不判胜 |
-| 网络失败 | 会话、UI、战斗 | 超员/已开局/版本/地址/Host失败反馈；普通离局立即移除身体并取消未完效果；保留结果行，LAN与正确配置公网分别覆盖 |
-| 新局隔离 | 会话 / 全部模块 | 全域换局、过期 RPC/回执/观察拒绝，只保存允许的本地名称与设置 |
-| 正常完整对局 | 集成 / 全部领域 | 批准内容下从菜单到结算再开局；无调试授予、强制判胜或绕开真实拥有客户端 |
+| 正常启动 | 场景：每个角色从包内启动，经 Lobby 正常开局，以退出码 0 结束；SessionFault 使用前端加入控件；Combat 在局内打开设置。规则：`DemoEntryContract`、`DemoEntryObservation` 拒绝旧入口 | 前端界面点击“建房”；真人 OS 输入 |
+| 满规模联机 | 场景：Opponent 以参赛的 Listen Host、两个拥有客户端和三个 AI 开局，名单锁定，AI 不补位、不替换；SessionFault 的真实加入按钮在满员时被拒并显示原因。规则：`DemoLobbyAuthority` 拒绝第四名真人和开局后加入，空 AI 名额不补人 | 跨机器联机；Opponent 中真人不参战 |
+| 地图与寻路 | Bootstrap Validate 与 `DemoWorld.*`：对象数量、十个出生锚点、凸多边形碰撞与地点连通；`ArtDecorations` 与 `CaptureDemoArt.ps1`：装饰无碰撞、不挡视线、不改 navmesh。场景 Core：拥有身体经完整路线和原生 CMC 到达终点。场景 Combat：Recast 收缩边外的脚点作为点选地面被拒、作为追击终点可规划 | — |
+| 营地反击与回位 | 场景 Camp：未受击不先手、整组反击、拴绳回营只重置一次且不发奖、清营后按批准时长整组刷新，另存回岗与刷新截图。规则：`DemoCamp.*`、`CampDecision` | 回营途中的受伤与控制没有拥有连接场景 |
+| 从零发育 | 场景：Camp 中两次低档营地最后一击按批准值发放并升到 2 级；Growth 只靠真实击杀获得经验与金币，完成选择并购买；Opponent 中 AI 从零发育、购物并获胜 | — |
+| 普攻成长 | 场景 Combat：学到增程属性后，右键追击在超出基础射程处命中。规则：`DemoAttributeProjection.*` 覆盖射程加成与群攻被动的来源归属 | 群攻（值日扫帚横扫）只有规则层覆盖 |
+| 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
+| 上限变化 | 场景 Growth：死亡期间选择最大面子属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
+| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
+| 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | 方向冲刺等其他装备主动没有拥有连接场景 |
+| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图与 HUD 看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景 |
+| 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
+| 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |
+| 视野一致 | 场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
+| AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的占领者留圈迎战，最终按占领获胜 | 本局没有出现的情形报告为未覆盖，不计为通过 |
+| UI 完整 | 规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
+| 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、三真人满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断 |
+| 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、金币、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
+| 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 占领获胜、结果和回 Lobby；Capture 中真人占领获胜后开第二局 | 三名真人的完整对局与人类试玩 |
 
-## 真正的阻塞与可以并行的工作
+## 未运行、未实现与已知限制
 
-| 缺口 | 阻塞范围 | 不必因此停下的工作 | 必须交付的封口结果 |
-| --- | --- | --- | --- |
-| 架构 C3/C4 的实际引用与消费证明 | 本批涉及的反射类型/资产删除，以及模块/插件/合并后配置修改 | 按已审 B01–B03 展开引用、改接源调用、准备组件检查；不等无关数值 | 当前资产/动态加载/反射根引用证明；实际配置/插件消费；本批构建/UHT 与有效组件结果 |
-| 跨域运行接线 | 命中/奖励/选择/交易/占点实际联接 | 核心正式类型与领域消费合同已提供，可按合同实施局部提供者 | 提供者和消费者按同一请求键/版本/参数/时序运行的证据；不重复定义 Match/DeathKey/时钟/驱动，不以接口文档替代联合验证 |
-| 首版候选的PR审批与落地 | 正式数值运行输入及实际战斗/成长/营地/AI/完整对局 | 完整方案已给出，可实施参数化接口/严格校验与机制测试，不自行补临时值 | 按候选审批状态生成源/载荷/contract并验证实际行为；不把审批待完成重新描述为文档缺失 |
-| 目标场景及删除后的验证入口 | Demo 完成声明和发布 | 设计最小测试夹具和现有检查复用方案 | 每个 §11 场景的前置、动作、精确断言、真实连接拓扑与输出；清除旧规则专用断言而保留有效不变量 |
+- **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
+  当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
+  D09、D11、D13 与内容报告 §15 的扩展不在运行输入中（[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)、[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)、[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）。
+- **未运行**：跨机器局域网与公网直连（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）；人类试玩与数值平衡；Shipping 配置打包（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）；
+  真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
+  音效的人工试听（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#10](https://github.com/rlsn/Lockdown-alpha/issues/10)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
+- **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
+- **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#43](https://github.com/rlsn/Lockdown-alpha/issues/43)）；
+  截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
+  其余缺陷、体验与覆盖缺口见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。
 
-字段名称、内部类划分、秒与毫秒的转换实现，以及可满足同刻约束的确定性调度方案，
-应由模块研究与审核决定，不把它们全部升级为产品问题。
-SpawnBlocked、资源预留失败及类型/重试算法是工程恢复与原生验证责任，
-不泛化为等待用户设计技术细节的产品空白。
-若某个提案会新增/改变玩法，则明确回到产品审核；不能以“技术默认”掩盖行为选择。
-架构 C1 只约束内容/效果相关保留集，C2 只约束实际几何/资产相关保留集；
-二者不是所有基础裁剪的全局前置条件。B01–B03 通过也不代替完整对局或资产/cook 总门槛。
+## 剩余工作
 
-## 完整包的交付与实施门槛
-
-完整候选设计包交付必须同时满足：
-
-- 八个领域都有具体、经审核的目标设计，与 App Spec、共享契约和最终架构裁剪结论一致。
-- 首版技能、装备、营地与角色目录可枚举，参数/公式有单一来源和依据；未批准部分明确阻塞正式数值输入，不阻塞无关基础工作。
-- 所有跨域命令、事件、读模型、取消/死亡/终局/新局处理均有唯一解释；没有无负责人待定项。
-- 每个 §11 场景都有可执行的验证设计，旧测试、工具与生成链的迁移/删除责任明确。
-- 独立集成审核检查跨文件一致性、源码引用和结论强度；未解问题明确报告，而不是默默填值。
-
-文档输入齐备和静态总审通过后，仍需要相应审批、实现、构建、真实连接与完整对局验证，才能称为 Demo ready。
+1. CT06 的全部提供者封桶、root motion 全链与历史时刻子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
+2. 跨机器局域网与公网直连验证（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）、人类试玩与数值平衡（D09、D11 的数值调整在这之后再定：[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)）。
+3. Shipping 配置打包与分发（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）。
+4. D13 校园补给箱（[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)）与 D14（[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波，[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）按用户决定逐批审查后再进入运行输入。
+5. 音效人工试听、完整 UI 人工验收、真实显示模式与 OS 失焦检查（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）。
+6. 测试覆盖缺口、已知缺陷与体验打磨：见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。

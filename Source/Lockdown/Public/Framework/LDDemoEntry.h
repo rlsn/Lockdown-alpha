@@ -1,0 +1,38 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+class FLDDemoContentSnapshot;
+
+namespace LDDemoEntry
+{
+    inline constexpr TCHAR FrontendMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Frontend");
+    inline constexpr TCHAR WorldMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Demo");
+    inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
+    inline constexpr uint32 WireProtocol = 5;
+
+    LOCKDOWN_API bool ValidateSelection(const FString& PackageName, const FString& Options, FString& Error);
+    LOCKDOWN_API bool VerifyRuntimeFiles(FString& Error, FString* CatalogDigest = nullptr);
+    LOCKDOWN_API bool VerifyPayloadFiles(FString& Error, FString* CatalogDigest = nullptr);
+    LOCKDOWN_API bool LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error);
+    LOCKDOWN_API bool VerifyWorldPackages(FString& Error);
+    LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
+    LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
+    LOCKDOWN_API bool VerifyFileHash(const FString& File, const FString& ExpectedSHA256, FString& Error);
+
+    // A Host's PreLogin refusal reaches the joining client as "<Code>: <English detail>". The code is the stable
+    // contract: the client shows only the reason mapped from it, never the English detail or engine text.
+    namespace JoinRefusal
+    {
+        inline constexpr TCHAR RoomNotReady[] = TEXT("MissingDemoDefinition");
+        inline constexpr TCHAR MatchAlreadyStarted[] = TEXT("MatchAlreadyStarted");
+        inline constexpr TCHAR RoomFull[] = TEXT("RoomFull");
+        inline constexpr TCHAR ProtocolMismatch[] = TEXT("ProtocolMismatch");
+        inline constexpr TCHAR ProductMismatch[] = TEXT("ProductMismatch");
+        inline constexpr TCHAR ContentMismatch[] = TEXT("ContentMismatch");
+        inline constexpr TCHAR InvalidName[] = TEXT("InvalidName");
+    }
+    LOCKDOWN_API FString MakeJoinRefusal(const TCHAR* Code, const TCHAR* Detail);
+    // True only for a known refusal code; OutReason is the player-facing reason naming that code.
+    LOCKDOWN_API bool DescribeJoinRefusal(const FString& ServerMessage, FString& OutReason);
+}

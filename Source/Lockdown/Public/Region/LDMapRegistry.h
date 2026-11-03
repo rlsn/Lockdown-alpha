@@ -1,10 +1,19 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "CollisionShape.h"
+#include "World/LDWorldQueryTypes.h"
 #include "LDMapRegistry.generated.h"
 class ULDMapDefinition;
 class UPrimitiveComponent;
 class FJsonObject;
+class FLDDemoContentSnapshot;
+struct FLDDemoWorldGeometry;
+struct FLDMatchContext;
+struct FLDSpawnRequestKey;
+class FLDGameplayWritePermit;
+class FLDSpawnSelection;
+class FLDSpawnReservation;
 
 struct FLDMapBinding
 {
@@ -14,15 +23,15 @@ struct FLDMapBinding
     TArray<FVector> HubPath;
 };
 
-// B90 world-local spatial addresses. Declared service functions have no B92
-// transaction handler here; aliases resolve to one address, never another source.
 UCLASS()
 class LOCKDOWN_API ULDMapRegistry : public UWorldSubsystem
 {
     GENERATED_BODY()
 public:
+    virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void OnWorldBeginPlay(UWorld& World) override;
-    bool Enabled() const { return Definition!=nullptr; }
+    bool Enabled() const { return Definition.IsValid() && Geometry.IsValid() && WorldRevision.IsValid(); }
     uint32 Generation=0;
     bool Rebuild(FString& Error);
     bool Ensure(FString& Error);
@@ -31,8 +40,38 @@ public:
     const TArray<FLDMapBinding>& ServiceSeats() const { return ServiceBindings; }
     FString CanonicalBindings() const;
     TSharedRef<FJsonObject> Report() const;
+    const FLDWorldRevision& Revision() const { return WorldRevision; }
+    const FLDDemoWorldGeometry* GetGeometry() const { return Geometry.Get(); }
+    static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
+    bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
+        FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+    bool QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,
+        const FCollisionShape& Capsule, FLDCompletePath& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+    bool FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
+        const FCollisionShape& Capsule, FLDLegalGround& OutGround, FLDCompletePath& OutPath,
+        ELDWorldQueryFailure& Failure, FString& Error) const;
+    bool QueryShopReach(const FLDWorldRevision& Expected, const FVector& FootCm, bool& WithinReach,
+        ELDWorldQueryFailure& Failure, FString& Error) const;
+    FLDShopEligibilityResult QueryShopEligibility(const FLDGameplayWritePermit& Permit,
+        const FLDCombatBodyRef& Buyer, FName ShopId, const FLDWorldRevision& Expected) const;
+    bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
+    bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
+        const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
+    bool ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelection>& Selection, const FCollisionShape& Capsule,
+        const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out, FString& Error);
+    bool ValidateSpawnReservation(const TSharedPtr<const FLDSpawnReservation>& Reservation,
+        const FLDGameplayWritePermit& Permit, const AActor* PreparedBody, FString& Error) const;
+    bool ReleaseSpawnReservation(TSharedPtr<const FLDSpawnReservation>& Reservation, FString& Error);
+    bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
+        const FLDGameplayWritePermit& Permit, FString& Error);
 private:
-    const ULDMapDefinition* Definition=nullptr;
+    struct FSpawnState;
+    TSharedPtr<FSpawnState> SpawnState;
+    TWeakObjectPtr<const ULDMapDefinition> Definition;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    FLDWorldRevision WorldRevision;
+    TWeakObjectPtr<UPrimitiveComponent> GroundComponent;
     TArray<FLDMapBinding> Bindings,ServiceBindings;
 };
 

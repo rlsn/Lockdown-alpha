@@ -1,86 +1,129 @@
 # 库存、商店与事务
 
-可复用的是身份、版本校验、原子提交和反馈机制，不是全部现有经济玩法。
-Demo 仅有两件装备与地图商店，具体范围见 [App Spec](../APP_SPEC.md)。
+可复用的是身份、版本校验、原子提交和反馈机制。
+Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.md)；
+目标合同见 [成长、装备与经济](../demo/PROGRESSION_EQUIPMENT_ECONOMY.md)。
 
 ## 状态与入口
 
 | 入口 | 责任 |
 | --- | --- |
-| `Inventory\LDInventoryTypes` | 物品种类、物理实例、库存投影与绑定 |
-| `Inventory\LDInventoryDirector` | 拥有关系、组织/使用请求、回执、生命清理 |
-| `Inventory\LDVendorDirector` | 商店会话、报价版本、购买队列与最终结果 |
-| `Inventory\LDTradeDirector` | 当前实现中的双方交换和预约生命周期 |
-| `Economy\LDEconomyLedger` | 纯权威账本、账户/物品变更、预算和事务回执 |
-| `Economy\LDB92Services`、`LDB92Economy` | 完整地图服务的接入与账本投影 |
+| `Economy\LDEconomyLedger` | 纯权威账本：每参赛者一份 Gold、两槽装备实例、独立提交/发行序号、审计前缀与有界尾部 |
+| `Economy\LDEconomyDirector` | 成长/商店域枢纽：唯一账本、死亡奖励汇点、Transactions 分派、账户退休与拥有者发布 |
+| `Development\LDDevelopmentDirector` | 等级/XP、机会队列与唯一持久三选一、Q/W 与被动、属性卡 |
+| `Inventory\LDInventoryDirector` | 从账本读取自身两槽装备与可见对手装备外观；不持有第二份库存 |
+| `Inventory\LDVendorDirector` | 商店会话、报价、单件 Buy/Sell 复合事务与回执 |
+| `Development\LDGrowthProtocol.h` | 命令、回执、查询、提交结果与三类本人视图的线协议 |
+| `Economy\LDGrowthProviders.cpp` | 向对局门禁注册 Progression/Shop 提供者及最终等级读取 |
 
-运行时头文件/实现分别位于 `Source\Lockdown\Public` 与 `Private`。
-`Framework\LDPlayerInventory.cpp`、`LDPlayerVendor.cpp` 等负责拥有连接的 RPC 接线，
-相应 `UI\LDInventory*Panel.cpp` 只表现合法状态。
+`ALDEconomyDirector::SpawnDomain` 在核心初始化时创建四个 director，`RetireDomain` 随
+`ALDGameMode::RetireMatchDomains` 退休；Progression 提供者的 Prepare 以锁定名单（真人加 AI 槽）
+初始化账本账户（`SHOP.StartingGold`）与成长记录（每人一次开局机会及其已抽好的首组 Offer）。
+复活、开店或读取投影都不会初始化钱包，也不会再授予开局机会。
+
+拥有连接的 RPC 在 `Framework\LDPlayerGrowth.cpp`：`SubmitChoice/SubmitShopCommand`
+分配本族 RequestId 并在 RPC 前记入在途，服务器入口只调用对应 `Queue*`。
+开店意图没有请求号：`BeginPlay` 绑定 `Navigation->OnShopArrived`，拥有者客户端在当前 ApproachShop
+绑定到达时以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；本地拒绝与服务器结果
+都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
+本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`（Listen Host 的本地控制器由 `SyncOwner` 直接写入并调用
+`OnRep_OwnerState`）；`ReadOwnShop` 只在当前生命已 Opened 时有效。
+小卖部页面是 HUD 停靠的
+`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订；
+三选一页面 `ULDChoicesPanel` 同样只读 `ReadOwnProgression`，经 `SubmitChoice` 提交；开局 Offer 首次到达本人、
+尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择。
 
 ## 物品身份不是格子
 
-每个物品有稳定 ID、定义、所在位置与 revision。一个权威实例只有一个位置；
-背包、装备绑定、快捷入口、地面物体和 UI 图标不能成为多份独立库存。
+每件装备实例由账本发行：`InstanceId` 一一编码本局 `LedgerMatch` 与 `IssueSerial`，
+记录定义、拥有者、槽位（0/1）与 ItemRevision。一个实例只有一个位置，两槽之外没有背包或地面位置。
+同款两件是两个实例；第三件在准备阶段以 `EquipmentFull` 拒绝（先于余额检查，满槽时先卖是唯一出路），
+不自动出售或替换。
+来源冷却身份（`IssuedCooldownId`）与回绑由 Combat 持有，买卖只把变更后的完整装备列表交给 Combat 准备。
 
-排序或更换显示格子不改变实例 ID。动作/快捷引用按 ID 解析，不保存 Widget 指针或容易变化的数组下标。
-消费、丢失所有权或解除来源时，在同一提交中清理相关引用，保持物品或来源 cooldown。
-预约不转移所有权，不提供额外容量，也不能阻止必须发生的死亡清理。
+## 复合事务
 
-当前库存容量与多绑定布局仍是已有运行规则。不能只缩小 HUD 就宣称实现 Demo 两装备限制；
-容量、购买、派生属性、动作来源、复制和测试需要一起调整。
+奖励、选择和买卖都按同一形状提交：纯 Prepare 完成全部可失败工作（整数 checked、版本、容量、
+Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入不会失败的 Apply，然后标记发布。
 
-## 商店会话与报价
+| 事务 | 同次提交 |
+| --- | --- |
+| `CommitDeathReward` | DeathKey 去重与事实指纹；Mint 金币 + 累计 XP + 逐级机会；升级时 Combat 投影；无主/自杀/离局为 NoReward |
+| `CommitPendingChoice` | 原卡/版本/生死阶段重查；学习、升阶、属性或确认替换；消费一次机会；之后才抽下一组 |
+| `CommitPendingShopCommand` | 会话/报价/世界资格/余额/槽位重查；Burn+Create 或 Consume+Mint；BuildRevision 与 Combat 投影 |
 
-`ALDVendorDirector::Open` 为合法的当前连接建立会话和报价。
-`Queue` 带有 match/life/request、会话 ID、报价版本、展示价格和库存版本；
-`Sample` 通过实际服务处理一次事务。
-
-- 验证当前生命、距离/视野和服务状态，再检查价格、金币与容量。
-- 展示过期价格的旧点击不能按新价格悄悄成交；刷新并等待新的明确操作。
-- Pending 只表示已发请求，不意味着已拥有物品。
-- 成功后扣费、生成/转移实例、更新库存与回执必须一致。
-- 重复请求返回同一结果；创建失败不能留下扣款或虚假成功。
-- 死亡、离开、终局或失效会话后，迟到请求不得继续购买。
-
-当前 Vendor 仍提供书籍等既有功能；Demo 装备购买与出售需按新规格接入，不能只重命名按钮。
+`ProcessTransactions` 按服务器受理顺序处理开店意图、选择与买卖，之后退休已离局账户并压缩账本。
+单条请求失败只形成拒绝回执；只有失去写许可等权威故障才返回 false。
+`PublishGrowth(Boundary)` 在 Close 之后执行，不需要许可，只对变化者调用 `SyncOwner` 并推送终态回执。
 
 ## 账本接口
 
-`LDEconomy::FLedger` 是不参与 UObject 复制的权威域。
-`Initialize` 建立一局的起始账户/预算；`OpenAccount` 不重置已有余额。
-`Commit(FTransaction)` 接受具有唯一事务 ID 与 Cause 的金钱、物品和可选预算变更。
-`Receipt`、`Reconcile`、`ExportJson` 用于查重、一致性与诊断。
+`LDEconomy::FLedger` 不参与 UObject 复制。`Initialize` 只在新局建立一次；`Prepare(FTransaction)`
+按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币）在完整后像上校验，返回可移动的
+`FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。
+提交序号与发行序号独立于尾部长度，失败不推进任何计数。
 
-`FGoldDelta` 携带预期账户 revision；`FItemDelta` 携带操作、预期物品 revision、
-来源/去向、定义及父身份。Create、Transfer、Consume 与质量/临时变化不是同一种操作。
-金币使用有界整数，并区分流转、明确 Mint 与 Burn，不能把初始化或读取投影当作奖励来源。
+尾部容量为 64 条工程限额，不是对局次数上限。`TryCompactResolvedPrefix` 在维护点从旧前缀独立重放
+全部尾部，与当前状态逐账户、实例、库存修订与总量比对一致后折叠成新前缀；被 pin、序号不符或历史不一致时
+不覆盖。`Reconcile` 以同一重放核对 `初始总量 + Mint - Burn`。
+账户退休是带核心离局戳的独立提交：金币和冻结装备仍参与审计，之后不再接受金钱或物品变化。
 
-复合事务先验证全部后果，再应用全部变更。任意一部分失败则不部分成交；
-奖励预算、输入消费、输出创建和父身份在同一事务中维护，不能分别重试。
-账本账户退休仍参与总量核对，不能通过“删除记录”隐藏丢失的资源。
+业务去重分层完成：请求序号屏障（每族 64 份回执窗口与终结水位）、DeathKey 生命水位与事实指纹、
+以及尾部内的业务键/条款冲突检查。窗口外的旧请求返回 `ReceiptExpired`，不重新执行。
 
-## 复用已有交易安全性
+## 对外信息
 
-现有 `LDTradeDirector` 的流程是邀请、编辑、双方 Ready、精确版本确认和终局。
-编辑、相关物品或余额变化会使批准失效；第二份有效确认才能提交。
-应先投影双方交换后的库存容量，而不是只看交易前是否满包。
-
-这套修订/预约/原子性知识可用于其他事务，但玩家互相交易不属于当前 Demo。
-不要把当前交易的社交 UI、银行、采购或职业体系作为保留文档后的新增需求。
-
-## 清理和对外信息
-
-`EndLife`、`Logout`、终局与新局重置要协调预约、库存、派生动作和世界实例。
-当前实现存在自身的死亡损失策略，不能当成 Demo 全保留规则已经实现。
-
-普通客户端只接收自己的库存、合法报价、被明确公开的交易项和结果。
-账本导出、隐藏钱包、物品血缘全表与内部失败细节不能用来填充对手 Tooltip。
-失败反馈应可理解，但不能成为探测隐藏库存或 NPC 身份的接口。
+普通客户端只接收自己的 Gold、装备、等级、Offer、商店报价与自身回执。
+可见对手只经世界/视野发布获得两槽装备定义（`ProjectObservedEquipment`），
+不含实例、修订、冷却、金币、XP 或技能。拒绝原因只给有权的本人。
 
 ## 检查入口
 
-使用 `RunInventoryCheck.ps1`、`RunVendorCheck.ps1`、`RunTradeCheck.ps1`、
-相应原生规则测试，以及 `CheckEconomyEvidence.py` 的实际账本复算。
-完整地图服务另有 `RunB92Services.ps1` 等场景；这类当前结果校验不是已经删除的冻结档案复演。
-重点是重复提交、旧版本、金币不足、满容量、创建失败、死亡/交易竞争和新局隔离。
+`RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
+`DemoGrowthProgression`、`DemoGrowthOpening` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
+等级/候选/替换纯规则、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）与本人视图隐私白名单。
+账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
+导出 schema 3 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
+时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
+
+DEV 成长夹具（`Development\LDDevGrowthFixture.*`）只在 `WITH_DEV_AUTOMATION_TESTS` 构建中存在，
+只在以 `-LDDevGrowthFixture` 启动的权威进程、Lobby 或当前开放对局内生效，没有 RPC，客户端、AI 和正常玩法不会调用。
+Host 的 DEV probe 在游戏线程直接调用：
+`ALDDevelopmentDirector::DevQueueOffer(Contender, 三个定义)` 为该参赛者之后生成的队首 Offer 按先进先出各预置一组，
+入队时按当前构筑的 `LegalPool` 校验（恰好三张互异、种类由构筑推出、不超过剩余可抽的 Offer 数），
+抽取时按当次合法池再验，失效则打 `LD_DEV_FIXTURE_PRESET_REFUSED` 错误并按正常种子抽取。
+开局 Offer 在 `BeginMatch` 中生成、早于任何对局内调用，而成长域四个 director 直到 Start 时才创建，
+因此 Lobby 阶段改用 `LDDevGrowthFixture::StageOffer(World, Contender, 三个定义)`：由夹具自身暂存给下一局
+（按空的开局构筑校验，接收者须是当前 Lobby 成员）；`BeginMatch` 经 `TakeStaged` 把锁定名单内的暂存移入本局队列，
+由开局 Offer 先消费，名单外的暂存记错误丢弃，旧局队列从不带入新局。
+选择仍经 `SubmitChoice`→`CommitPendingChoice`→Combat 安装。
+`ALDEconomyDirector::DevGrantReward(Contender, XP, Gold)` 排入下一个 Transactions 阶段，
+与死亡奖励共用 `CommitRewardParts` 复合提交（账本 cause `DevFixture` 铸币、`PrepareExperience` 与 Combat 投影），
+不伪造死亡事实；返回票号由 `DevGrantStatus` 轮询 Pending/Granted/Rejected。
+开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币；
+只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
+未加时任何夹具证据都判失败。
+`RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
+在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
+双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，
+不重发开局机会；一个真实拥有客户端
+经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
+买两件带无目标主动的同款、满槽 `EquipmentFull`、同号重放，用其中一件的主动（另一件轨道保持就绪），
+出售用过的那件后报价显示其冷却债会被继承，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
+在 W 学第二个主动并使用 Q；Q/W 已满时只点新主动不确认替换被 `ReplacementRequired` 拒绝且不消费，
+确认替换 Q 后旧技能及等级从构筑消失、新技能 1 级绑定自己的就绪轨道，被遗忘的技能只以 1 级学习卡返回，
+重学到 W 后绑定原 `IssuedCooldownId` 与原截止时间。随后 Host 经夹具给自己发同等级 XP 与金币（账本 `DevFixture`），
+用自己的攻击命令击杀买方；买方死亡等待中确认一次选择：按 Dead 阶段受理并应用，仍为同一 Life 与复活时间、
+无身体、HP 为零，只有下一条命的最大 HP 增长，正常复活后满血满蓝。Host 随后走到低档营地 L1 补掉两只野怪；
+作为 Listen Host 的击杀者，它对买方和两只野怪的每笔奖励都要在本人 `OwnerState.Growth`（本地控制器由 `SyncOwner`
+直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的零花钱/等级文本里达到精确的新值。Host 导出账本证据由
+`CheckEconomyEvidence.py --dev-fixture` 复算并与双方本人投影比对，且只列出 Host 自己那笔夹具铸币。
+随后 Host 无胜者结束本局并回到新一代 Lobby，
+两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、
+只有本局新抽的一次开局机会（不是第一局的任何 Offer），Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
+且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
+开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、抢圈或终局。
+已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。
+真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
+纯规则通过不代表联机场景已经通过。

@@ -1,95 +1,1003 @@
 #include "Inventory/LDVendorDirector.h"
-#include "Combat/LDTacticalCatalog.h"
-#include "Economy/LDCommerceDirector.h"
-#include "Economy/LDBankDirector.h"
-#include "Inventory/LDTradeDirector.h"
-#include "Inventory/LDInventoryDirector.h"
-#include "Framework/LDGameMode.h"
-#include "Framework/LDPlayerController.h"
-#include "Character/LDCharacter.h"
+
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
-#include "Objectives/LDObjectiveDirector.h"
-#include "Region/LDRegionDefinition.h"
-#include "Vision/LDVisionDirector.h"
-#include "Core/LDGroundQueries.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-bool ALDVendorDirector::Eligible(ALDPlayerController* PC) const
+#include "Framework/LDGameMode.h"
+#include "Inventory/LDInventoryDirector.h"
+#include "Misc/ScopeExit.h"
+#include "Region/LDMapRegistry.h"
+#include "Serialization/MemoryWriter.h"
+#include "World/LDWorldQueryTypes.h"
+
+namespace
 {
-    const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M?const_cast<ALDGameMode*>(M)->StateFor(PC):nullptr;const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;const auto* S=M&&M->Combat?M->Combat->StateFor(Body):nullptr;
-    const FVector Site=LDRegion::Site(GetWorld(),1);const double Now=GetWorld()->GetTimeSeconds();
-    return BookPrice>0&&BookPrice<=1000000&&CatalogRevision&&M&&M->IsPlaying()&&O&&O->bActive&&Body&&S&&S->Hp>0&&M->Combat->Allows(const_cast<ALDCharacter*>(Body),LDTactical::EAction::Service)&&Now>=O->ProtectedUntil&&Now>=S->ProtectionUntil&&!S->Action&&!O->DevelopmentKind&&!M->Objectives->HasChannel(PC)&&FVector::Dist2D(Body->GetActorLocation(),Site)<=120&&LDGround::ClearSegment(GetWorld(),Body->GetActorLocation(),Site)&&M->Vision->Ray({Body->GetActorLocation(),120,M->Vision->LevelAt(Body->GetActorLocation())},Site);
-}
-bool ALDVendorDirector::TakeToken(FClient& C)
-{const double Now=GetWorld()->GetTimeSeconds();C.Tokens=FMath::Min(4.,C.Tokens+FMath::Max(0.,Now-C.At)*4);C.At=Now;if(C.Tokens<1){return false;}--C.Tokens;return true;}
-FLDVendorQuote ALDVendorDirector::Quote(ALDPlayerController* PC,const FClient& C) const
+const FLDDemoEquipmentDefinition* VendorFindEquipment(const FLDDemoContentSnapshot& Catalog, FName Id)
 {
-    FLDVendorQuote Q;Q.Match=C.Match;Q.Life=C.Life;Q.Token=C.Token;Q.Session=C.Session;Q.CatalogRevision=CatalogRevision;
-    if(C.Session.IsValid()){const auto Skills=OfferedSkills(GetWorld()->GetAuthGameMode<ALDGameMode>()->IsTacticalProfile(),GetWorld()->GetAuthGameMode<ALDGameMode>()->RulesVersion());for(auto Skill:Skills){FLDVendorOffer Offer;Offer.Skill=Skill;Offer.Price=BookPrice;Q.Offers.Add(Offer);}}return Q;
-}
-bool ALDVendorDirector::ValidSession(ALDPlayerController* PC,const FClient& C) const
-{const auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=const_cast<ALDGameMode*>(M)->StateFor(PC);const auto* S=M->Combat->StateFor(PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr);return C.Session.IsValid()&&O&&O->Match==C.Match&&O->Life==C.Life&&S&&S->LastDamage==C.Damage&&Eligible(PC);}
-void ALDVendorDirector::Open(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token)
-{
-    auto& C=Clients.FindOrAdd(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();const auto* O=M->StateFor(PC);
-    if(!Token||Token<=C.ClosedThrough||Token<=C.Token){return;}
-    C.Token=Token;C.Session.Invalidate();
-    if(!TakeToken(C)||!O||O->Match!=Match||O->Life!=Life||!Eligible(PC)){PC->ClientVendorClosed(Token,TEXT("Approach the Guild within 120 cm, alive, unprotected and unoccupied"));return;}
-    if(M->Bank){M->Bank->Invalidate(PC);}
-    if(M->Commerce){M->Commerce->Invalidate(PC);}
-    if(M->Trade){M->Trade->CancelFor(PC);}
-    C.Match=Match;C.Life=Life;C.Damage=M->Combat->StateFor(Cast<ALDCharacter>(PC->GetPawn()))->LastDamage;C.Session=FGuid::NewGuid();C.SentRevision=CatalogRevision;C.SentPrice=BookPrice;
-    PC->ClientVendorQuote(*O,Quote(PC,C));
-}
-void ALDVendorDirector::Close(ALDPlayerController* PC,uint32 Token)
-{auto& C=Clients.FindOrAdd(PC);C.ClosedThrough=FMath::Max(C.ClosedThrough,Token);if(C.Token<=Token){C.Session.Invalidate();}}
-void ALDVendorDirector::Reply(ALDPlayerController* PC,uint32 Id,const FReceipt& Receipt)
-{
-    auto& C=Clients.FindOrAdd(PC);C.Receipts.Add(Id,Receipt);while(C.Receipts.Num()>64){uint32 Old=MAX_uint32;for(const auto& Pair:C.Receipts){Old=FMath::Min(Old,Pair.Key);}C.Receipts.Remove(Old);}
-    if(const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC)){PC->ClientVendorResult(*O,Id,Quote(PC,C),Receipt.Item,Receipt.Reason);}
-}
-void ALDVendorDirector::Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Id,FGuid Session,uint32 Revision,int32 Price,uint32 InventoryRevision,ELDSkill Skill)
-{
-    if(auto* Clock=GetWorld()->GetAuthGameMode<ALDGameMode>()->Combat.Get()){Clock->FlushPastCommand();}
-    auto& C=Clients.FindOrAdd(PC);const auto* O=GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC);
-    if(!Id||!O||O->Match!=Match||O->Life!=Life){PC->ClientIntentResult(Id,TEXT("Purchase unavailable or stale life"));return;}
-    if(const auto* R=C.Receipts.Find(Id)){if(!R->bFinal){return;}PC->ClientVendorResult(*O,Id,Quote(PC,C),R->Item,R->Reason);return;}
-    if(Id<=C.LastRequest){PC->ClientIntentResult(Id,TEXT("Expired purchase request"));return;}
-    int32 Pending=0;for(const auto& R:Requests){Pending+=R.PC==PC;}if(!TakeToken(C)||Pending>=2){PC->ClientIntentResult(Id,TEXT("Vendor busy; try again"));return;}
-    C.LastRequest=Id;C.Receipts.Add(Id,{FGuid(),TEXT("Purchase pending"),false});GetWorld()->GetAuthGameMode<ALDGameMode>()->Objectives->CancelClaimForAction(PC,GetWorld()->GetTimeSeconds());Requests.Add({PC,Match,Life,Id,Session,Revision,Price,InventoryRevision,Skill});
-}
-void ALDVendorDirector::Request(const FRequest& R)
-{
-    auto* PC=R.PC.Get();if(!PC){return;}auto& C=Clients.FindChecked(PC);auto* M=GetWorld()->GetAuthGameMode<ALDGameMode>();auto* O=M->StateFor(PC);auto Reject=[&](const TCHAR* Text){Reply(PC,R.Id,{FGuid(),Text});};
-    if(!O||O->Match!=R.Match||O->Life!=R.Life||R.Session!=C.Session||!ValidSession(PC,C)){Reject(TEXT("Vendor closed; nothing spent"));return;}
-    if(R.QuoteRevision!=CatalogRevision||R.Price!=BookPrice){Reject(TEXT("Catalog updated. Review the price and click Buy again"));return;}
-    if(!LDDevelopmentTransaction::Sold(R.Skill)&&!(M->IsTacticalProfile()&&uint8(R.Skill)>=10&&M->TacticalCatalog->Find(R.Skill)&&M->TacticalCatalog->Find(R.Skill)->Circle==1)){Reject(TEXT("This book is not sold here"));return;}
-    if(R.InventoryRevision!=O->Inventory.Revision){Reject(TEXT("Bag changed; review and click Buy again"));return;}
-    FString CapacityReason;if(!M->Inventory->HasSpace(PC,ELDItemKind::Book,&CapacityReason)){Reply(PC,R.Id,{FGuid(),CapacityReason+TEXT("; nothing spent")});return;}
-    if(O->Gold<BookPrice){Reject(TEXT("Not enough gold; nothing spent"));return;}
-    ALDBook* Book=bFailCreation?nullptr:GetWorld()->SpawnActor<ALDBook>();bFailCreation=false;if(!Book){Reject(TEXT("Book creation failed; nothing spent"));return;}Book->Skill=R.Skill;Book->State=0;
-    if(!M->Inventory->Adopt(PC,Book,TEXT("OfficialBookPurchase"),false)){Book->Destroy();Reject(TEXT("Inventory full; nothing spent"));return;}O->Gold-=BookPrice;M->RecordEconomyGold(TEXT("OfficialBookPurchase"),0,BookPrice);M->SyncOwner(PC);Reply(PC,R.Id,{Book->Identity,FString::Printf(TEXT("Purchased one %s book for %d gold"),LDDevelopment::SkillName(R.Skill),BookPrice)});
-}
-void ALDVendorDirector::Sample(double Now)
-{
-    for(auto It=Clients.CreateIterator();It;++It)
+    if (Id.IsNone())
     {
-        auto* PC=It.Key().Get();if(!PC){It.RemoveCurrent();continue;}auto& C=It.Value();if(!C.Session.IsValid()){continue;}
-        if(!ValidSession(PC,C)){C.Session.Invalidate();PC->ClientVendorClosed(C.Token,TEXT("Vendor closed: range, sight, damage or eligibility changed"));}
-        else if(C.SentRevision!=CatalogRevision||C.SentPrice!=BookPrice){C.SentRevision=CatalogRevision;C.SentPrice=BookPrice;PC->ClientVendorQuote(*GetWorld()->GetAuthGameMode<ALDGameMode>()->StateFor(PC),Quote(PC,C));}
+        return nullptr;
     }
-    const auto Pending=MoveTemp(Requests);Requests.Reset();for(const auto& R:Pending){Request(R);}
+    return Catalog.Get().Equipment.FindByPredicate([Id](const FLDDemoEquipmentDefinition& Row) { return FName(*Row.Id) == Id; });
 }
-void ALDVendorDirector::FailNextCreationForProbe()
+
+// Public shop and world identities of an open intent; false when its shape is invalid.
+bool VendorDecodeOpen(const FLDShopOpenCommand& Command, FName& OutShopId, FLDWorldRevision& OutWorld)
 {
-#if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("LDVendorProbe"))){bFailCreation=true;}
-#endif
+    OutWorld = FLDWorldRevision();
+    OutWorld.LayoutRevision = Command.WorldLayoutRevision;
+    OutWorld.GeometryRevision = Command.WorldGeometryRevision;
+    const bool bShopDecoded = Command.ShopId.Decode(OutShopId);
+    const bool bMapDecoded = Command.WorldMapId.Decode(OutWorld.MapId);
+    return Command.Generation != 0 && Command.Life != 0 && bShopDecoded && bMapDecoded && OutWorld.IsValid();
 }
 
-void ALDVendorDirector::Invalidate(ALDPlayerController* PC){auto* C=Clients.Find(PC);if(C&&C->Session.IsValid()){C->Session.Invalidate();PC->ClientVendorClosed(C->Token,TEXT("Vendor closed: another service opened"));}}
+bool VendorSameOpen(const FLDShopOpenCommand& A, const FLDShopOpenCommand& B)
+{
+    return A.Generation == B.Generation && A.Life == B.Life && A.ShopId == B.ShopId && A.WorldMapId == B.WorldMapId
+        && A.WorldLayoutRevision == B.WorldLayoutRevision && A.WorldGeometryRevision == B.WorldGeometryRevision;
+}
 
-TArray<ELDSkill> ALDVendorDirector::OfferedSkills(bool Tactical,uint8 Rules)
-{TArray<ELDSkill> Skills={ELDSkill::Step,ELDSkill::Spark,ELDSkill::Patch,ELDSkill::Parley};if(Tactical){if(const auto* C=ULDTacticalCatalog::Load(Rules)){for(const auto& D:C->Abilities){if(D.Circle==1){Skills.Add(D.Skill);}}}}return Skills;}
+// One object per command: Buy names a catalog definition at its shown price, Sell one exact instance revision.
+bool VendorCommandShape(const FLDShopCommand& Command)
+{
+    FName MapId;
+    if (Command.Generation == 0 || Command.Life == 0 || Command.RequestId == 0 || !Command.SessionId.IsValid()
+        || Command.QuoteRevision == 0 || !Command.WorldMapId.Decode(MapId) || Command.WorldLayoutRevision == 0
+        || Command.WorldGeometryRevision == 0 || Command.ExpectedAccountRevision == 0
+        || Command.ExpectedInventoryRevision == 0 || Command.ExpectedBuildRevision == 0
+        || !LDGrowthWire::IsKnownShopKind(Command.Kind))
+    {
+        return false;
+    }
+    if (Command.Kind == ELDShopCommandKind::Buy)
+    {
+        FName DefinitionId;
+        return Command.DefinitionId.Decode(DefinitionId) && Command.BuyPrice > 0 && !Command.Instance.IsValid()
+            && Command.ExpectedItemRevision == 0 && Command.SellPrice == 0;
+    }
+    return Command.Instance.IsValid() && Command.ExpectedItemRevision > 0 && Command.SellPrice >= 0
+        && Command.DefinitionId == FLDDefinitionWire() && Command.BuyPrice == 0;
+}
+
+// Canonical business record of one shop request: the ledger key and terms of exactly this contender request.
+void VendorCanonicalCommand(const FGuid& LedgerMatch, const FGuid& ContenderId, const FLDShopCommand& Command,
+    TArray<uint8>& Out)
+{
+    Out.Reset();
+    FMemoryWriter Writer(Out);
+    FString Tag = TEXT("shop-command");
+    FGuid MatchId = LedgerMatch;
+    FGuid Contender = ContenderId;
+    FLDShopCommand Copy = Command;
+    uint8 Kind = uint8(Copy.Kind);
+    Writer << Tag << MatchId << Contender << Copy.RequestId << Copy.Generation << Copy.Life << Kind << Copy.SessionId
+        << Copy.QuoteRevision;
+    Writer.Serialize(Copy.CatalogDigest.Bytes, sizeof(Copy.CatalogDigest.Bytes));
+    Writer.Serialize(Copy.WorldMapId.Bytes, sizeof(Copy.WorldMapId.Bytes));
+    Writer << Copy.WorldLayoutRevision << Copy.WorldGeometryRevision << Copy.ExpectedAccountRevision
+        << Copy.ExpectedInventoryRevision << Copy.ExpectedBuildRevision;
+    Writer.Serialize(Copy.DefinitionId.Bytes, sizeof(Copy.DefinitionId.Bytes));
+    Writer << Copy.BuyPrice << Copy.Instance << Copy.ExpectedItemRevision << Copy.SellPrice;
+}
+
+ELDGrowthReason VendorEligibilityReason(const FLDShopEligibilityResult& Eligibility)
+{
+    if (Eligibility.CommitFailure != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::StaleContext;
+    }
+    if (Eligibility.Succeeded)
+    {
+        return Eligibility.WithinReach ? ELDGrowthReason::None : ELDGrowthReason::OutsideRange;
+    }
+    switch (Eligibility.WorldFailure)
+    {
+    case ELDWorldQueryFailure::StaleWorld: return ELDGrowthReason::StaleWorld;
+    case ELDWorldQueryFailure::NotGrounded: return ELDGrowthReason::NotGrounded;
+    case ELDWorldQueryFailure::InvalidSurface:
+    case ELDWorldQueryFailure::WrongSurface: return ELDGrowthReason::WrongSurface;
+    case ELDWorldQueryFailure::InvalidPosition:
+    case ELDWorldQueryFailure::InvalidCapsule: return ELDGrowthReason::InvalidGround;
+    // A failed query without a typed world failure is a broken World contract, not an approach error.
+    case ELDWorldQueryFailure::MissingWorld:
+    case ELDWorldQueryFailure::None: return ELDGrowthReason::DataNotReady;
+    default: return ELDGrowthReason::InvalidApproachRegion;
+    }
+}
+
+ELDGrowthReason VendorLedgerReason(LDEconomy::EPrepareError Error)
+{
+    switch (Error)
+    {
+    case LDEconomy::EPrepareError::InsufficientGold: return ELDGrowthReason::InsufficientGold;
+    case LDEconomy::EPrepareError::AccountStale: return ELDGrowthReason::AccountStale;
+    case LDEconomy::EPrepareError::InventoryStale: return ELDGrowthReason::InventoryStale;
+    case LDEconomy::EPrepareError::EquipmentFull:
+    case LDEconomy::EPrepareError::SlotOccupied: return ELDGrowthReason::EquipmentFull;
+    case LDEconomy::EPrepareError::UnknownItem:
+    case LDEconomy::EPrepareError::NotOwner: return ELDGrowthReason::ItemNotOwned;
+    case LDEconomy::EPrepareError::ItemStale: return ELDGrowthReason::ItemStale;
+    case LDEconomy::EPrepareError::Overflow: return ELDGrowthReason::ArithmeticOverflow;
+    case LDEconomy::EPrepareError::JournalFull: return ELDGrowthReason::PrepareUnavailable;
+    case LDEconomy::EPrepareError::DuplicateBusinessKey:
+    case LDEconomy::EPrepareError::BusinessKeyConflict: return ELDGrowthReason::RequestConflict;
+    case LDEconomy::EPrepareError::RetiredAccount: return ELDGrowthReason::LeftMatch;
+    default: return ELDGrowthReason::DataInvalid;
+    }
+}
+
+ELDGrowthReason VendorCombatReason(ELDCombatPrepareError Error)
+{
+    switch (Error)
+    {
+    case ELDCombatPrepareError::NumericUnderflow: return ELDGrowthReason::NumericUnderflow;
+    case ELDCombatPrepareError::NumericDomain: return ELDGrowthReason::NumericDomain;
+    case ELDCombatPrepareError::StaleBuild: return ELDGrowthReason::BuildStale;
+    case ELDCombatPrepareError::UnknownContender: return ELDGrowthReason::NotContender;
+    case ELDCombatPrepareError::CapacityExceeded: return ELDGrowthReason::CapacityExceeded;
+    case ELDCombatPrepareError::InvalidInput:
+    case ELDCombatPrepareError::Catalog: return ELDGrowthReason::DataInvalid;
+    case ELDCombatPrepareError::NotAuthority:
+    case ELDCombatPrepareError::StaleMatch: return ELDGrowthReason::MatchClosed;
+    case ELDCombatPrepareError::None: break;
+    }
+    // A failed prepare without a typed error is a broken Combat contract, never a success.
+    return ELDGrowthReason::PrepareUnavailable;
+}
+}
+
+ALDVendorDirector::ALDVendorDirector()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = false;
+}
+
+ALDGameMode* ALDVendorDirector::Mode() const
+{
+    UWorld* World = GetWorld();
+    return World ? World->GetAuthGameMode<ALDGameMode>() : nullptr;
+}
+
+bool ALDVendorDirector::BeginMatch(const FLDMatchContext& InMatch, const TArray<FGuid>& Roster,
+    TSharedPtr<const FLDDemoContentSnapshot> InContent, FString& Error)
+{
+    Error.Reset();
+    if (!InMatch.IsValid() || !InContent.IsValid())
+    {
+        Error = TEXT("The shop needs the current match and the approved Demo catalog.");
+        return false;
+    }
+    if (Roster.IsEmpty())
+    {
+        Error = TEXT("The shop needs at least one locked roster contender.");
+        return false;
+    }
+    TMap<FGuid, FRecord> NewRecords;
+    NewRecords.Reserve(Roster.Num());
+    for (const FGuid& Id : Roster)
+    {
+        if (!Id.IsValid() || NewRecords.Contains(Id))
+        {
+            Error = TEXT("Shop roster contenders must be valid and distinct.");
+            return false;
+        }
+        NewRecords.Add(Id);
+    }
+    Match = InMatch;
+    Content = MoveTemp(InContent);
+    Records = MoveTemp(NewRecords);
+    return true;
+}
+
+FLDShopOpenResult ALDVendorDirector::QueueShopOpen(const FGuid& ContenderId, const FLDShopOpenCommand& Command)
+{
+    FLDShopOpenResult Result;
+    Result.Generation = Command.Generation;
+    Result.Life = Command.Life;
+    FName ShopId;
+    FLDWorldRevision ExpectedWorld;
+    const bool bShape = VendorDecodeOpen(Command, ShopId, ExpectedWorld);
+    Result.ShopId = ShopId;
+    const auto Reject = [&Result](ELDGrowthReason Why)
+    {
+        Result.OpenStatus = ELDShopOpenStatus::Rejected;
+        Result.Reason = LDGrowthWire::Raw(Why);
+        return Result;
+    };
+    if (!bShape)
+    {
+        return Reject(ELDGrowthReason::InvalidRequest);
+    }
+    if (!Match.IsValid() || Command.Generation != Match.Generation)
+    {
+        return Reject(ELDGrowthReason::OldMatch);
+    }
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record)
+    {
+        return Reject(ELDGrowthReason::NotContender);
+    }
+    if (Record->PendingOpen.IsSet())
+    {
+        if (!VendorSameOpen(Record->PendingOpen->Command, Command))
+        {
+            return Reject(ELDGrowthReason::RequestInFlight);
+        }
+        Result.OpenStatus = ELDShopOpenStatus::Pending;
+        return Result;
+    }
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Economy)
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_OPEN_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+            *ContenderId.ToString());
+        return Reject(ELDGrowthReason::NotAuthority);
+    }
+    // A closed match never runs another Transactions phase, so a new intent could never be answered.
+    if (!GameMode->IsGameplayWriteOpen(Match))
+    {
+        return Reject(ELDGrowthReason::MatchClosed);
+    }
+    FPendingOpen Intent;
+    Intent.Command = Command;
+    Intent.Arrival = GameMode->Economy->NextArrival();
+    Record->PendingOpen.Emplace(MoveTemp(Intent));
+    Result.OpenStatus = ELDShopOpenStatus::Pending;
+    return Result;
+}
+
+FLDShopOpenResult ALDVendorDirector::ReadShop(const FGuid& ContenderId) const
+{
+    FLDShopOpenResult Result;
+    Result.Generation = Match.Generation;
+    const auto Reject = [&Result](ELDGrowthReason Why)
+    {
+        Result.OpenStatus = ELDShopOpenStatus::Rejected;
+        Result.Reason = LDGrowthWire::Raw(Why);
+        return Result;
+    };
+    const FRecord* Record = Records.Find(ContenderId);
+    if (!Record)
+    {
+        return Reject(ELDGrowthReason::NotContender);
+    }
+    const ALDGameMode* GameMode = Mode();
+    if (!GameMode)
+    {
+        return Reject(ELDGrowthReason::NotAuthority);
+    }
+    FLDContenderLifeRead Life;
+    FString LifeError;
+    if (!GameMode->ReadContenderLife(Match, ContenderId, Life, LifeError))
+    {
+        return Reject(ELDGrowthReason::StaleContext);
+    }
+    Result.Life = Life.Life;
+    if (Record->PendingOpen.IsSet() && Record->PendingOpen->Command.Life == Life.Life)
+    {
+        FName PendingShop;
+        Result.ShopId = Record->PendingOpen->Command.ShopId.Decode(PendingShop) ? PendingShop : FName();
+        Result.OpenStatus = ELDShopOpenStatus::Pending;
+        return Result;
+    }
+    if (Record->Session.IsSet() && Record->Session->Life == Life.Life && Life.Phase == ELDLifePhase::Alive)
+    {
+        Result.ShopId = Content.IsValid() ? FName(*Content->Get().World.ShopId) : FName();
+        FLDShopView View;
+        if (!BuildView(ContenderId, Record->Session.GetValue(), View))
+        {
+            return Reject(ELDGrowthReason::DataNotReady);
+        }
+        Result.OpenStatus = ELDShopOpenStatus::Opened;
+        Result.bHasView = true;
+        Result.View = MoveTemp(View);
+        return Result;
+    }
+    const FLDShopOpenResult& Last = Record->LastOpen;
+    if (Last.OpenStatus == ELDShopOpenStatus::Rejected && Last.Generation == Match.Generation && Last.Life == Life.Life)
+    {
+        Result.ShopId = Last.ShopId;
+        return Reject(LDGrowthWire::Reason(Last.Reason));
+    }
+    return Result;
+}
+
+bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Session, FLDShopView& Out) const
+{
+    Out = FLDShopView();
+    const ALDGameMode* GameMode = Mode();
+    const UWorld* World = GetWorld();
+    const ULDMapRegistry* Registry = World ? World->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Content.IsValid() || !GameMode || !GameMode->Economy || !GameMode->Development || !GameMode->Combat
+        || !Registry || !Registry->Enabled())
+    {
+        return false;
+    }
+    const LDEconomy::FLedger& Book = GameMode->Economy->GetLedger();
+    if (!Book.IsInitialized() || !Book.Account(ContenderId))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    const FLDWorldRevision& WorldRevision = Registry->Revision();
+    Out.ShopId = FName(*Definitions.World.ShopId);
+    Out.SessionId = Session.SessionId;
+    Out.Life = Session.Life;
+    Out.QuoteRevision = Session.QuoteRevision;
+    Out.CatalogDigest = Definitions.Identity.Root;
+    Out.WorldMapId = WorldRevision.MapId;
+    Out.WorldLayoutRevision = WorldRevision.LayoutRevision;
+    Out.WorldGeometryRevision = WorldRevision.GeometryRevision;
+    const FLDCombatCaller Caller = GameMode->Development->MakeCaller(ContenderId);
+    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
+    Book.OwnerItems(ContenderId, Owned);
+    Out.Items.Reserve(Definitions.Equipment.Num());
+    for (const FLDDemoEquipmentDefinition& Definition : Definitions.Equipment)
+    {
+        FLDShopItemView& Item = Out.Items.AddDefaulted_GetRef();
+        Item.DefinitionId = FName(*Definition.Id);
+        Item.BuyPrice = Definition.BuyPrice;
+        Item.SellGold = Definition.SellGold;
+        Item.bHasActive = Definition.HasActive;
+        if (!Definition.HasActive)
+        {
+            continue;
+        }
+        // A copy in every slot leaves no purchase of this item to preview (EquipmentFull) and no free track to bind.
+        int32 HeldCopies = 0;
+        for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
+        {
+            HeldCopies += Pair.Value.Definition == Item.DefinitionId ? 1 : 0;
+        }
+        if (HeldCopies >= LDEconomy::EquipmentSlots)
+        {
+            continue;
+        }
+        // Display only: the purchase receipt carries the cooldown Combat actually bound.
+        const FLDGearBindingPreview Preview = GameMode->Combat->PreviewGearBinding(Caller, Item.DefinitionId);
+        if (!Preview.bValid)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_PREVIEW_UNAVAILABLE contender=%s item=%s: %s"), *ContenderId.ToString(),
+                *Definition.Id, *Preview.Error);
+            continue;
+        }
+        Item.bInheritsCooldown = Preview.bInherits;
+        Item.InheritedReadyAtMs = Preview.bInherits ? Preview.ReadyAtMs : 0;
+    }
+    Out.Sellable.Reserve(Owned.Num());
+    for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
+    {
+        const FLDDemoEquipmentDefinition* Definition = VendorFindEquipment(*Content, Pair.Value.Definition);
+        if (!Definition)
+        {
+            Out = FLDShopView();
+            return false;
+        }
+        FLDShopSellView& Sell = Out.Sellable.AddDefaulted_GetRef();
+        Sell.SlotIndex = Pair.Value.Slot;
+        Sell.Instance = Pair.Key;
+        Sell.ItemRevision = Pair.Value.Revision;
+        Sell.DefinitionId = Pair.Value.Definition;
+        Sell.SellPrice = Definition->SellGold;
+    }
+    return true;
+}
+
+FLDSubmitResult ALDVendorDirector::QueueShopCommand(const FGuid& ContenderId, const FLDShopCommand& Command)
+{
+    FLDSubmitResult Result;
+    Result.Generation = Command.Generation;
+    Result.Family = ELDGrowthFamily::Shop;
+    Result.RequestId = Command.RequestId;
+    const auto Reject = [&Result](ELDGrowthReason Why)
+    {
+        Result.Status = ELDAdmissionStatus::AdmissionRejected;
+        Result.Reason = LDGrowthWire::Raw(Why);
+        return Result;
+    };
+    if (!VendorCommandShape(Command))
+    {
+        return Reject(ELDGrowthReason::InvalidRequest);
+    }
+    if (!Match.IsValid() || Command.Generation != Match.Generation)
+    {
+        return Reject(ELDGrowthReason::OldMatch);
+    }
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record)
+    {
+        return Reject(ELDGrowthReason::NotContender);
+    }
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Economy)
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_COMMAND_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+            *ContenderId.ToString());
+        return Reject(ELDGrowthReason::NotAuthority);
+    }
+    // Only a request that opens the next sequence takes a server arrival; a closed match opens none, while
+    // replays of an accepted or final request still answer from the stream.
+    const bool bOpensSequence = !Record->Requests.GetPending()
+        && Command.RequestId == Record->Requests.GetFinalizedThrough() + 1;
+    if (bOpensSequence && !GameMode->IsGameplayWriteOpen(Match))
+    {
+        return Reject(ELDGrowthReason::MatchClosed);
+    }
+    FLDPendingReceiptInfo Info;
+    Info.OriginalLife = Command.Life;
+    Info.OriginalLifePhase = ELDLifePhase::Alive;
+    const uint64 Arrival = bOpensSequence ? GameMode->Economy->NextArrival() : 0;
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    const FLDShopReceipt* Final = nullptr;
+    bool bReserved = false;
+    Result.Status = Record->Requests.Admit(Command, Command.RequestId, Info, Arrival, Reason, Final, bReserved);
+    Result.Reason = LDGrowthWire::Raw(Reason);
+    Result.bSequenceReserved = bReserved;
+    if (Result.Status == ELDAdmissionStatus::Final && Final)
+    {
+        Result.bHasShopReceipt = true;
+        Result.ShopReceipt = *Final;
+    }
+    return Result;
+}
+
+FLDShopReceiptQueryResult ALDVendorDirector::QueryShopReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const
+{
+    FLDShopReceiptQueryResult Result;
+    Result.Query = Query;
+    const FRecord* Record = Records.Find(ContenderId);
+    if (Query.Family != ELDGrowthFamily::Shop || !Match.IsValid() || Query.Generation != Match.Generation || !Record)
+    {
+        Result.Lookup = ELDReceiptLookup::InvalidContext;
+        return Result;
+    }
+    const FLDShopReceipt* Final = nullptr;
+    const FLDPendingReceiptInfo* PendingInfo = nullptr;
+    Result.Lookup = Record->Requests.Lookup(Query.RequestId, Final, PendingInfo);
+    if (Result.Lookup == ELDReceiptLookup::Pending && PendingInfo)
+    {
+        Result.bHasPending = true;
+        Result.Pending = *PendingInfo;
+    }
+    else if (Result.Lookup == ELDReceiptLookup::Final && Final)
+    {
+        Result.bHasReceipt = true;
+        Result.Receipt = *Final;
+    }
+    return Result;
+}
+
+void ALDVendorDirector::CollectPending(TArray<FLDPendingGrowthIntent>& Out) const
+{
+    for (const auto& Pair : Records)
+    {
+        if (Pair.Value.PendingOpen.IsSet())
+        {
+            FLDPendingGrowthIntent& Intent = Out.AddDefaulted_GetRef();
+            Intent.Kind = FLDPendingGrowthIntent::EKind::ShopOpen;
+            Intent.Contender = Pair.Key;
+            Intent.Arrival = Pair.Value.PendingOpen->Arrival;
+        }
+        if (const auto* PendingCommand = Pair.Value.Requests.GetPending())
+        {
+            FLDPendingGrowthIntent& Intent = Out.AddDefaulted_GetRef();
+            Intent.Kind = FLDPendingGrowthIntent::EKind::ShopCommand;
+            Intent.Contender = Pair.Key;
+            Intent.Arrival = PendingCommand->Arrival;
+        }
+    }
+}
+
+FLDShopOpenResult ALDVendorDirector::OpenPendingShop(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit)
+{
+    FLDShopOpenResult Result;
+    Result.Generation = Match.Generation;
+    FRecord* Record = Records.Find(ContenderId);
+    ALDGameMode* GameMode = Mode();
+    // An unusable permit or a broken dispatch contract consumes nothing; the boundary must fault.
+    if (!Record || !Record->PendingOpen.IsSet() || !GameMode || !GameMode->Economy || !Content.IsValid()
+        || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        if (Record && Record->PendingOpen.IsSet())
+        {
+            Result.Generation = Record->PendingOpen->Command.Generation;
+            Result.Life = Record->PendingOpen->Command.Life;
+        }
+        Result.OpenStatus = ELDShopOpenStatus::Rejected;
+        Result.Reason = LDGrowthWire::Raw(ELDGrowthReason::AuthorityFault);
+        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_OPEN_FAULT contender=%s: no pending open, growth domain or current Transactions permit"),
+            *ContenderId.ToString());
+        return Result;
+    }
+    const FLDShopOpenCommand Command = Record->PendingOpen->Command;
+    Record->PendingOpen.Reset();
+    Result.Generation = Command.Generation;
+    Result.Life = Command.Life;
+    FName ShopId;
+    FLDWorldRevision ExpectedWorld;
+    const bool bShape = VendorDecodeOpen(Command, ShopId, ExpectedWorld);
+    Result.ShopId = ShopId;
+    // Every terminal outcome becomes the last open result and is delivered with the next publication.
+    const auto Complete = [&](ELDGrowthReason Why)
+    {
+        Result.OpenStatus = Why == ELDGrowthReason::None ? ELDShopOpenStatus::Opened : ELDShopOpenStatus::Rejected;
+        Result.Reason = LDGrowthWire::Raw(Why);
+        if (Why != ELDGrowthReason::None && Record->Session.IsSet() && Record->Session->Life == Command.Life)
+        {
+            // A failed open leaves no executable session of that life behind.
+            Record->Session.Reset();
+        }
+        FLDShopOpenResult Last = Result;
+        Last.bHasView = false;
+        Last.View = FLDShopView();
+        Record->LastOpen = MoveTemp(Last);
+        Record->UnpublishedOpen.Emplace(Result);
+        GameMode->Economy->MarkDirty(ContenderId);
+        return Result;
+    };
+    if (!bShape)
+    {
+        return Complete(ELDGrowthReason::InvalidRequest);
+    }
+    if (Command.Generation != Match.Generation)
+    {
+        return Complete(ELDGrowthReason::OldMatch);
+    }
+    FLDContenderLifeRead Life;
+    FString LifeError;
+    if (!GameMode->ReadContenderLife(Match, ContenderId, Life, LifeError))
+    {
+        return Complete(ELDGrowthReason::StaleContext);
+    }
+    if (Life.Phase == ELDLifePhase::Left)
+    {
+        return Complete(ELDGrowthReason::LeftMatch);
+    }
+    if (Life.Life != Command.Life)
+    {
+        return Complete(ELDGrowthReason::OldLife);
+    }
+    if (Life.Phase != ELDLifePhase::Alive)
+    {
+        return Complete(ELDGrowthReason::Dead);
+    }
+    if (!GameMode->IsGameplayWriteOpen(Match))
+    {
+        return Complete(ELDGrowthReason::MatchClosed);
+    }
+    if (ShopId != FName(*Content->Get().World.ShopId))
+    {
+        return Complete(ELDGrowthReason::UnknownShop);
+    }
+    const UWorld* World = GetWorld();
+    const ULDMapRegistry* Registry = World ? World->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Registry || !Registry->Enabled())
+    {
+        return Complete(ELDGrowthReason::DataNotReady);
+    }
+    if (ExpectedWorld != Registry->Revision())
+    {
+        return Complete(ELDGrowthReason::StaleWorld);
+    }
+    const ELDGrowthReason Eligibility = VendorEligibilityReason(
+        Registry->QueryShopEligibility(Permit, Life.Body, ShopId, ExpectedWorld));
+    if (Eligibility != ELDGrowthReason::None)
+    {
+        return Complete(Eligibility);
+    }
+    FSession Session;
+    if (Record->Session.IsSet() && Record->Session->Life == Life.Life)
+    {
+        Session = Record->Session.GetValue();
+    }
+    else
+    {
+        Session.SessionId = FGuid::NewGuid();
+        Session.Life = Life.Life;
+        Session.QuoteRevision = 1;
+    }
+    FLDShopView View;
+    if (!BuildView(ContenderId, Session, View))
+    {
+        return Complete(ELDGrowthReason::DataNotReady);
+    }
+    Record->Session.Emplace(Session);
+    Result.bHasView = true;
+    Result.View = MoveTemp(View);
+    return Complete(ELDGrowthReason::None);
+}
+
+FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit)
+{
+    FRecord* Record = Records.Find(ContenderId);
+    const auto* Pending = Record ? Record->Requests.GetPending() : nullptr;
+    FLDShopCommand Command;
+    FLDPendingReceiptInfo Info;
+    if (Pending)
+    {
+        Command = Pending->Command;
+        Info = Pending->Info;
+    }
+    ALDGameMode* GameMode = Mode();
+    // Neither finalized nor applied: the Transactions dispatcher faults the authority boundary.
+    const auto Fault = [&](const TCHAR* Diagnostic)
+    {
+        FLDShopReceipt Receipt;
+        Receipt.Kind = Command.Kind;
+        FLDGrowthReceiptHeader& Header = Receipt.Header;
+        Header.Generation = Command.Generation;
+        Header.Family = ELDGrowthFamily::Shop;
+        Header.RequestId = Command.RequestId;
+        Header.OriginalLife = Info.OriginalLife;
+        Header.OriginalLifePhase = Info.OriginalLifePhase;
+        Header.Outcome = ELDReceiptOutcome::Rejected;
+        Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::AuthorityFault);
+        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_COMMIT_FAULT contender=%s request=%llu: %s"), *ContenderId.ToString(),
+            Command.RequestId, Diagnostic);
+        return Receipt;
+    };
+    if (!Pending || !GameMode || !GameMode->Economy || !GameMode->Development || !GameMode->Combat || !Content.IsValid())
+    {
+        return Fault(TEXT("no pending shop command or growth domain"));
+    }
+    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return Fault(TEXT("the Transactions write permit is not current"));
+    }
+    const auto Reject = [&](ELDGrowthReason Why) { return Finish(ContenderId, *Record, Why, Permit); };
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    if (Command.Generation != Match.Generation)
+    {
+        return Reject(ELDGrowthReason::OldMatch);
+    }
+    if (Command.CatalogDigest != Definitions.Identity.Root)
+    {
+        return Reject(ELDGrowthReason::CatalogMismatch);
+    }
+    FLDContenderLifeRead Life;
+    FString LifeError;
+    if (!GameMode->ReadContenderLife(Match, ContenderId, Life, LifeError))
+    {
+        return Reject(ELDGrowthReason::StaleContext);
+    }
+    if (Life.Phase == ELDLifePhase::Left)
+    {
+        return Reject(ELDGrowthReason::LeftMatch);
+    }
+    if (Life.Life != Command.Life)
+    {
+        return Reject(ELDGrowthReason::OldLife);
+    }
+    if (Life.Phase != ELDLifePhase::Alive)
+    {
+        return Reject(ELDGrowthReason::Dead);
+    }
+    if (!GameMode->IsGameplayWriteOpen(Match))
+    {
+        return Reject(ELDGrowthReason::MatchClosed);
+    }
+    if (!Record->Session.IsSet() || Record->Session->SessionId != Command.SessionId || Record->Session->Life != Life.Life)
+    {
+        return Reject(ELDGrowthReason::NoShopSession);
+    }
+    if (Record->Session->QuoteRevision != Command.QuoteRevision)
+    {
+        return Reject(ELDGrowthReason::QuoteStale);
+    }
+    const UWorld* World = GetWorld();
+    const ULDMapRegistry* Registry = World ? World->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Registry || !Registry->Enabled())
+    {
+        return Reject(ELDGrowthReason::DataNotReady);
+    }
+    FLDWorldRevision ExpectedWorld;
+    ExpectedWorld.LayoutRevision = Command.WorldLayoutRevision;
+    ExpectedWorld.GeometryRevision = Command.WorldGeometryRevision;
+    if (!Command.WorldMapId.Decode(ExpectedWorld.MapId) || ExpectedWorld != Registry->Revision())
+    {
+        return Reject(ELDGrowthReason::StaleWorld);
+    }
+    // Death, reach, grounding and the match gate are re-sampled for this commit; the open never authorizes it.
+    const ELDGrowthReason Eligibility = VendorEligibilityReason(
+        Registry->QueryShopEligibility(Permit, Life.Body, FName(*Definitions.World.ShopId), ExpectedWorld));
+    if (Eligibility != ELDGrowthReason::None)
+    {
+        return Reject(Eligibility);
+    }
+    LDEconomy::FLedger& Ledger = GameMode->Economy->MutableLedger();
+    const LDEconomy::FAccount* Account = Ledger.Account(ContenderId);
+    if (!Account)
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_ACCOUNT_MISSING contender=%s"), *ContenderId.ToString());
+        return Reject(ELDGrowthReason::DataInvalid);
+    }
+    if (Account->Revision != Command.ExpectedAccountRevision)
+    {
+        return Reject(ELDGrowthReason::AccountStale);
+    }
+    if (Ledger.InventoryRevision(ContenderId) != Command.ExpectedInventoryRevision)
+    {
+        return Reject(ELDGrowthReason::InventoryStale);
+    }
+    const FLDGrowthBuild* Build = GameMode->Development->FindBuild(ContenderId);
+    if (!Build)
+    {
+        return Reject(ELDGrowthReason::NotContender);
+    }
+    if (Build->Revision != Command.ExpectedBuildRevision)
+    {
+        return Reject(ELDGrowthReason::BuildStale);
+    }
+
+    const bool bBuy = Command.Kind == ELDShopCommandKind::Buy;
+    LDEconomy::FTransaction Transaction;
+    TArray<uint8> Canonical;
+    VendorCanonicalCommand(Match.LedgerMatch, ContenderId, Command, Canonical);
+    Transaction.BusinessKey = ALDEconomyDirector::BusinessKey(Canonical);
+    ALDEconomyDirector::Terms(Canonical, Transaction.Terms);
+    Transaction.CommitBatch = Permit.GetBoundary().BatchSerial;
+    LDEconomy::FGoldChange Gold;
+    Gold.Account = ContenderId;
+    Gold.ExpectedRevision = Command.ExpectedAccountRevision;
+    FName DefinitionId;
+    uint8 SlotIndex = 0;
+    uint64 SoldIssueSerial = 0;
+    if (bBuy)
+    {
+        FName WireDefinition;
+        const FLDDemoEquipmentDefinition* Definition = Command.DefinitionId.Decode(WireDefinition)
+            ? VendorFindEquipment(*Content, WireDefinition) : nullptr;
+        if (!Definition)
+        {
+            return Reject(ELDGrowthReason::UnknownItem);
+        }
+        if (Command.BuyPrice != Definition->BuyPrice)
+        {
+            return Reject(ELDGrowthReason::PriceChanged);
+        }
+        TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
+        Ledger.OwnerItems(ContenderId, Owned);
+        bool bTaken[LDEconomy::EquipmentSlots] = {};
+        for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
+        {
+            if (Pair.Value.Slot < LDEconomy::EquipmentSlots)
+            {
+                bTaken[Pair.Value.Slot] = true;
+            }
+        }
+        int32 FreeSlot = INDEX_NONE;
+        for (int32 Slot = 0; Slot < LDEconomy::EquipmentSlots && FreeSlot == INDEX_NONE; ++Slot)
+        {
+            if (!bTaken[Slot])
+            {
+                FreeSlot = Slot;
+            }
+        }
+        // Both positions held: never auto-sell or replace; the owner sells first in a separate request.
+        // Capacity is reported before the balance because selling first is the only way forward.
+        if (Owned.Num() >= LDEconomy::EquipmentSlots || FreeSlot == INDEX_NONE)
+        {
+            return Reject(ELDGrowthReason::EquipmentFull);
+        }
+        if (Account->Gold < Command.BuyPrice)
+        {
+            return Reject(ELDGrowthReason::InsufficientGold);
+        }
+        DefinitionId = FName(*Definition->Id);
+        SlotIndex = uint8(FreeSlot);
+        Gold.Delta = -Command.BuyPrice;
+        Transaction.Cause = LDEconomy::ECause::Buy;
+        Transaction.Burn = Command.BuyPrice;
+        LDEconomy::FCreateItem Create;
+        Create.Owner = ContenderId;
+        Create.ExpectedInventoryRevision = Command.ExpectedInventoryRevision;
+        Create.Definition = DefinitionId;
+        Create.Slot = SlotIndex;
+        Transaction.Create.Emplace(Create);
+    }
+    else
+    {
+        const LDEconomy::FItem* Item = Ledger.Item(Command.Instance);
+        if (!Item || Item->Owner != ContenderId)
+        {
+            return Reject(ELDGrowthReason::ItemNotOwned);
+        }
+        if (Item->Revision != Command.ExpectedItemRevision)
+        {
+            return Reject(ELDGrowthReason::ItemStale);
+        }
+        const FLDDemoEquipmentDefinition* Definition = VendorFindEquipment(*Content, Item->Definition);
+        if (!Definition)
+        {
+            return Reject(ELDGrowthReason::DataInvalid);
+        }
+        if (Command.SellPrice != Definition->SellGold)
+        {
+            return Reject(ELDGrowthReason::PriceChanged);
+        }
+        DefinitionId = Item->Definition;
+        SlotIndex = Item->Slot;
+        SoldIssueSerial = Item->IssueSerial;
+        Gold.Delta = Command.SellPrice;
+        Transaction.Cause = LDEconomy::ECause::Sell;
+        Transaction.Mint = Command.SellPrice;
+        LDEconomy::FConsumeItem Consume;
+        Consume.Instance = Command.Instance;
+        Consume.ExpectedItemRevision = Command.ExpectedItemRevision;
+        Consume.Owner = ContenderId;
+        Consume.ExpectedInventoryRevision = Command.ExpectedInventoryRevision;
+        Transaction.Consume.Emplace(Consume);
+    }
+    Transaction.Gold.Emplace(Gold);
+
+    // Pure prepare of every part; nothing below changes gold, items, build or sources until the final install.
+    Ledger.Pin();
+    ON_SCOPE_EXIT
+    {
+        Ledger.Unpin();
+    };
+    LDEconomy::FPrepareResult PreparedLedger = Ledger.Prepare(Transaction);
+    if (!PreparedLedger.IsSuccess())
+    {
+        const ELDGrowthReason LedgerReason = VendorLedgerReason(PreparedLedger.Error);
+        if (LedgerReason == ELDGrowthReason::DataInvalid)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_LEDGER_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
+                Command.RequestId, LDEconomy::FLedger::ErrorName(PreparedLedger.Error), *PreparedLedger.Message);
+        }
+        return Reject(LedgerReason);
+    }
+    const LDEconomy::FPreparedCommit& LedgerPlan = PreparedLedger.Value.GetValue();
+    const uint64* AfterInventory = LedgerPlan.After().InventoryRevisions.Find(ContenderId);
+    if (!AfterInventory)
+    {
+        return Reject(ELDGrowthReason::DataInvalid);
+    }
+    const uint64 ResultInventoryRevision = *AfterInventory;
+
+    FLDPrepareGrowthResult PreparedGrowth = GameMode->Development->PrepareEquipmentChange(ContenderId);
+    if (!PreparedGrowth.IsSuccess())
+    {
+        return Reject(PreparedGrowth.Reason != ELDGrowthReason::None ? PreparedGrowth.Reason : ELDGrowthReason::PrepareUnavailable);
+    }
+    const uint64 ResultBuildRevision = PreparedGrowth.Value->Build().Revision;
+
+    TArray<FLDEquippedItemValue> Equipped;
+    ALDInventoryDirector::EquippedItems(LedgerPlan.After(), ContenderId, Equipped);
+    FLDExpectedBuildVersions Installed;
+    if (!GameMode->Development->ReadCombatInstalled(ContenderId, Installed))
+    {
+        return Reject(ELDGrowthReason::NotContender);
+    }
+    FLDCombatPrepareResult PreparedCombat = GameMode->Combat->PrepareBuildChange(GameMode->Development->MakeCaller(ContenderId),
+        GameMode->Development->MakeProjectionInput(PreparedGrowth.Value->Build(), Equipped, ResultInventoryRevision), Installed);
+    if (!PreparedCombat.IsSuccess())
+    {
+        const ELDGrowthReason CombatReason = VendorCombatReason(PreparedCombat.Error);
+        if (CombatReason == ELDGrowthReason::DataInvalid || CombatReason == ELDGrowthReason::PrepareUnavailable)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_PROJECTION_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
+                Command.RequestId, LDGrowthWire::ReasonName(CombatReason), *PreparedCombat.Message);
+        }
+        return Reject(CombatReason);
+    }
+
+    const LDEconomy::FJournalEntry& Entry = LedgerPlan.Entry();
+    FLDShopReceipt Receipt;
+    Receipt.Instance = bBuy ? Entry.CreatedInstance : Command.Instance;
+    Receipt.IssueSerial = bBuy ? Entry.CreatedIssueSerial : SoldIssueSerial;
+    Receipt.DefinitionId = DefinitionId;
+    Receipt.SlotIndex = SlotIndex;
+    Receipt.ActualGoldDelta = Gold.Delta;
+    Receipt.bHasLedgerSerial = true;
+    Receipt.LedgerSerial = Entry.Serial;
+    FLDResultRevisions& Revisions = Receipt.Header.Revisions;
+    Revisions.bHasAccount = true;
+    Revisions.AccountRevision = Entry.ResultAccountRevision;
+    Revisions.bHasInventory = true;
+    Revisions.InventoryRevision = ResultInventoryRevision;
+    Revisions.bHasBuild = true;
+    Revisions.BuildRevision = ResultBuildRevision;
+    if (bBuy)
+    {
+        for (const FLDCombatBindingPlan& Binding : PreparedCombat.Value->Bindings())
+        {
+            if (Binding.Source.ItemInstance == Entry.CreatedInstance)
+            {
+                Receipt.bHasSource = true;
+                Receipt.IssuedCooldownId = Binding.IssuedCooldownId;
+                Receipt.ReadyAtMs = Binding.ReadyAtMs;
+                break;
+            }
+        }
+    }
+
+    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return Fault(TEXT("the Transactions write permit expired before the composite install"));
+    }
+    // Every part is prepared and the permit re-checked; the composite install below cannot fail.
+    FLDExpectedBuildVersions Install;
+    Install.BuildRevision = ResultBuildRevision;
+    Install.InventoryRevision = ResultInventoryRevision;
+    Ledger.ApplyPrepared(MoveTemp(PreparedLedger.Value.GetValue()));
+    PreparedGrowth.Value->SetCombatInstall(Install);
+    GameMode->Development->ApplyPreparedGrowth(MoveTemp(PreparedGrowth.Value.GetValue()), Permit);
+    GameMode->Combat->ApplyBuildChange(MoveTemp(PreparedCombat.Value.GetValue()), Permit);
+    return Finish(ContenderId, *Record, ELDGrowthReason::None, Permit, MoveTemp(Receipt));
+}
+
+FLDShopReceipt ALDVendorDirector::Finish(const FGuid& ContenderId, FRecord& Record, ELDGrowthReason Reason,
+    const FLDGameplayWritePermit& Permit, FLDShopReceipt Receipt)
+{
+    const auto* Pending = Record.Requests.GetPending();
+    check(Pending != nullptr);
+    ALDGameMode* GameMode = Mode();
+    if (Reason != ELDGrowthReason::None)
+    {
+        // Rejected: no committed payload; the current guards are sync hints only, never committed versions.
+        Receipt = FLDShopReceipt();
+        FLDResultRevisions& Hints = Receipt.Header.Revisions;
+        if (GameMode && GameMode->Economy)
+        {
+            const LDEconomy::FLedger& Book = GameMode->Economy->GetLedger();
+            if (const LDEconomy::FAccount* Account = Book.Account(ContenderId))
+            {
+                Hints.bHasAccount = true;
+                Hints.AccountRevision = Account->Revision;
+            }
+            if (const uint64 CurrentInventory = Book.InventoryRevision(ContenderId))
+            {
+                Hints.bHasInventory = true;
+                Hints.InventoryRevision = CurrentInventory;
+            }
+        }
+        if (const FLDGrowthBuild* Build = (GameMode && GameMode->Development) ? GameMode->Development->FindBuild(ContenderId) : nullptr)
+        {
+            Hints.bHasBuild = true;
+            Hints.BuildRevision = Build->Revision;
+        }
+    }
+    Receipt.Kind = Pending->Command.Kind;
+    FLDGrowthReceiptHeader& Header = Receipt.Header;
+    Header.Generation = Pending->Command.Generation;
+    Header.Family = ELDGrowthFamily::Shop;
+    Header.RequestId = Pending->Command.RequestId;
+    Header.OriginalLife = Pending->Info.OriginalLife;
+    Header.OriginalLifePhase = Pending->Info.OriginalLifePhase;
+    Header.Outcome = Reason == ELDGrowthReason::None ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected;
+    Header.Reason = LDGrowthWire::Raw(Reason);
+    Header.bHasCommitBatch = true;
+    Header.CommitBatch = Permit.GetBoundary().BatchSerial;
+    Record.Requests.Finalize(Receipt);
+    Record.Unpublished.Add(Receipt);
+    if (GameMode && GameMode->Economy)
+    {
+        GameMode->Economy->MarkDirty(ContenderId);
+    }
+    return Receipt;
+}
+
+void ALDVendorDirector::TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDShopReceipt>& Out)
+{
+    Out.Reset();
+    if (FRecord* Record = Records.Find(ContenderId))
+    {
+        Out = MoveTemp(Record->Unpublished);
+    }
+}
+
+bool ALDVendorDirector::TakeOpenResult(const FGuid& ContenderId, FLDShopOpenResult& Out)
+{
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record || !Record->UnpublishedOpen.IsSet())
+    {
+        return false;
+    }
+    Out = MoveTemp(Record->UnpublishedOpen.GetValue());
+    Record->UnpublishedOpen.Reset();
+    return true;
+}

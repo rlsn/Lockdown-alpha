@@ -1,92 +1,866 @@
 #include "UI/LDControlSettings.h"
-#include "Kismet/GameplayStatics.h"
+#include "Containers/StringConv.h"
+#include "Internationalization/Regex.h"
+#include "GameFramework/GameUserSettings.h"
+#include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/Crc.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/BufferArchive.h"
+#include "Serialization/MemoryReader.h"
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#endif
 
-const TArray<FLDControlBinding>& ULDControlSettings::Defaults(bool Tactical)
+struct FLDDisplayConfigGuardData
 {
-    static const TArray<FLDControlBinding> Values={
-        {TEXT("Select"),TEXT("Select / confirm target"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),TEXT("Move / approach / cancel targeting"),EKeys::RightMouseButton},
-        {TEXT("Attack"),TEXT("Arm basic attack"),EKeys::A},
-        {TEXT("Skill1"),TEXT("Equipped skill 1"),EKeys::Q},{TEXT("Skill2"),TEXT("Equipped skill 2"),EKeys::W},
-        {TEXT("Skill3"),TEXT("Equipped skill 3"),EKeys::E},{TEXT("Skill4"),TEXT("Equipped skill 4"),EKeys::R},
-        {TEXT("Item1"),TEXT("Quick item 1"),EKeys::One},{TEXT("Item2"),TEXT("Quick item 2"),EKeys::Two},
-        {TEXT("Item3"),TEXT("Quick item 3"),EKeys::Three},{TEXT("Item4"),TEXT("Quick item 4"),EKeys::Four},
-        {TEXT("Stop"),TEXT("Stop movement / current action"),EKeys::S},
-        {TEXT("Sprint"),TEXT("Hold sprint"),EKeys::LeftShift},{TEXT("Inventory"),TEXT("Inventory"),EKeys::I},
-        {TEXT("Development"),TEXT("Character / preparation"),EKeys::P},
-        {TEXT("PanUp"),TEXT("Pan camera up"),EKeys::Up},{TEXT("PanDown"),TEXT("Pan camera down"),EKeys::Down},
-        {TEXT("PanLeft"),TEXT("Pan camera left"),EKeys::Left},{TEXT("PanRight"),TEXT("Pan camera right"),EKeys::Right},
-        {TEXT("Recenter"),TEXT("Hold camera recenter"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("Toggle camera follow"),EKeys::Home},
-        {TEXT("Zoom"),TEXT("Camera zoom"),EKeys::MouseWheelAxis,true},
-        {TEXT("Help"),TEXT("Help / controls / settings"),EKeys::F1},{TEXT("Back"),TEXT("Back / cancel (reserved)"),EKeys::Escape}
+    struct FValue
+    {
+        FString Section, Key, Value;
+        bool bPresent = false;
     };
-    static const TArray<FLDControlBinding> TacticalValues=[](){auto V=Values;V.RemoveAll([](const auto& B){return B.Action==TEXT("Item4");});V.Insert({TEXT("Skill5"),TEXT("Equipped skill 5"),EKeys::D},7);return V;}();
-    return Tactical?TacticalValues:Values;
-}
-const TArray<FLDControlBinding>& ULDControlSettings::HybridDefaults()
-{static const TArray<FLDControlBinding> Values=[](){auto V=Defaults(true);V.Insert({TEXT("Skill6"),TEXT("Shared action 6"),EKeys::G},8);V.Insert({TEXT("Item4"),TEXT("Physical accessory 4"),EKeys::Four},12);for(auto& B:V){if(B.Action.ToString().StartsWith(TEXT("Item"))){B.Label=TEXT("Physical accessory ")+B.Action.ToString().Right(1);}}return V;}();return Values;}
-bool ULDControlSettings::MigrateHybrid()
+    struct FFile
+    {
+        FString Filename;
+        bool bPreviousNoSave = false;
+        TArray<FValue> Values;
+    };
+    TArray<FFile> Files;
+};
+
+bool FLDDisplayConfigWriteGuard::Begin(FConfigCacheIni& Cache, const FString& SettingsFile,
+    const FString& QualityFile, const FString& SettingsSection, FString& Error)
 {
-    Bindings.Remove(TEXT("Context"));Bindings.Remove(TEXT("Trade"));
-    if(Profile==8&&Schema==3){return Valid();}auto Old=Bindings;Profile=8;Schema=3;Bindings.Reset();TSet<FKey> Used;
-    for(const auto& B:Definitions()){if(const auto* K=Old.Find(B.Action);K&&K->IsValid()&&!K->IsGamepadKey()&&!K->IsAxis2D()&&!K->IsAxis3D()&&(B.Axis?*K==EKeys::MouseWheelAxis:!K->IsAxis1D())&&(B.Action==TEXT("Back")?*K==EKeys::Escape:*K!=EKeys::Escape)&&*K!=EKeys::MouseScrollUp&&*K!=EKeys::MouseScrollDown&&!Used.Contains(*K)){Bindings.Add(B.Action,*K);Used.Add(*K);}}
-    const TArray<FKey> Spare={EKeys::B,EKeys::C,EKeys::H,EKeys::J,EKeys::K,EKeys::L,EKeys::M,EKeys::N,EKeys::O,EKeys::U,EKeys::V,EKeys::X,EKeys::Y,EKeys::Z,EKeys::Five,EKeys::Six};
-    for(const auto& B:Definitions()){if(Bindings.Contains(B.Action)){continue;}FKey K=B.Key;if(Used.Contains(K)){const auto* Free=Spare.FindByPredicate([&](FKey Value){return !Used.Contains(Value);});if(!Free){return false;}K=*Free;}Bindings.Add(B.Action,K);Used.Add(K);}return Valid();
+    if (IsActive() || SettingsFile.IsEmpty() || QualityFile.IsEmpty() || SettingsSection.IsEmpty()
+        || !Cache.FindConfigFile(SettingsFile) || !Cache.FindConfigFile(QualityFile))
+    { Error = TEXT("显示配置不可用或已被保护，未开始显示试用。"); return false; }
+    auto Captured = MakeShared<FLDDisplayConfigGuardData>();
+    auto Capture = [&](const FString& Filename, const FString& Section, const TCHAR* Key)
+    {
+        auto* File = Captured->Files.FindByPredicate([&](const auto& Entry) { return Entry.Filename == Filename; });
+        if (!File)
+        {
+            FLDDisplayConfigGuardData::FFile Entry;
+            Entry.Filename = Filename;
+            Entry.bPreviousNoSave = Cache.FindConfigFile(Filename)->NoSave;
+            Captured->Files.Add(MoveTemp(Entry));
+            File = &Captured->Files.Last();
+        }
+        FLDDisplayConfigGuardData::FValue Value;
+        Value.Section = Section;
+        Value.Key = Key;
+        Value.bPresent = Cache.GetString(*Section, Key, Value.Value, Filename);
+        File->Values.Add(MoveTemp(Value));
+    };
+    for (const TCHAR* Key : { TEXT("ResolutionSizeX"), TEXT("ResolutionSizeY"),
+        TEXT("LastUserConfirmedResolutionSizeX"), TEXT("LastUserConfirmedResolutionSizeY"),
+        TEXT("FullscreenMode"), TEXT("LastConfirmedFullscreenMode"), TEXT("PreferredFullscreenMode"),
+        TEXT("LastUserConfirmedDisplayID"), TEXT("LastUserConfirmedDisplayIndex"), TEXT("bUseVSync") })
+    { Capture(SettingsFile, SettingsSection, Key); }
+    for (const TCHAR* Key : { TEXT("sg.ResolutionQuality"), TEXT("sg.ViewDistanceQuality"),
+        TEXT("sg.AntiAliasingQuality"), TEXT("sg.ShadowQuality"), TEXT("sg.GlobalIlluminationQuality"),
+        TEXT("sg.ReflectionQuality"), TEXT("sg.PostProcessQuality"), TEXT("sg.TextureQuality"),
+        TEXT("sg.EffectsQuality"), TEXT("sg.FoliageQuality"), TEXT("sg.ShadingQuality"), TEXT("sg.LandscapeQuality") })
+    { Capture(QualityFile, TEXT("ScalabilityGroups"), Key); }
+    for (const auto& File : Captured->Files) { Cache.FindConfigFile(File.Filename)->NoSave = true; }
+    Data = MoveTemp(Captured);
+    Error.Empty();
+    return true;
+}
+
+bool FLDDisplayConfigWriteGuard::Release(FConfigCacheIni& Cache, FString& Error)
+{
+    if (!Data) { Error.Empty(); return true; }
+    for (const auto& File : Data->Files)
+    {
+        if (!Cache.FindConfigFile(File.Filename))
+        { Error = TEXT("受保护的显示配置已不存在，显示设置仍禁止保存。"); return false; }
+    }
+    // Use cache mutators so UE's saved-layer change tracking also loses any automatic trial writes.
+    for (const auto& File : Data->Files)
+    {
+        for (const auto& Value : File.Values)
+        {
+            if (Value.bPresent) { Cache.SetString(*Value.Section, *Value.Key, *Value.Value, File.Filename); }
+            else { Cache.RemoveKey(*Value.Section, *Value.Key, File.Filename); }
+        }
+    }
+    for (const auto& File : Data->Files) { Cache.FindConfigFile(File.Filename)->NoSave = File.bPreviousNoSave; }
+    Data.Reset();
+    Error.Empty();
+    return true;
+}
+
+namespace
+{
+    constexpr uint32 LocalSettingsMagic = 0x4C444353;
+    constexpr uint32 LegacySaveGameMagic = 0x53415647;
+    // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
+    constexpr uint32 RetiredRegistrySchema = 4;
+    // Schema 5 is the whitelist without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation; schema 6 adds
+    // PlayerName, schema 7 MasterVolume, schema 8 CameraPanCmPerSec and schema 9 MinimapOrientation (QuickCast is new in
+    // of every preference they lack and are rewritten as the current schema on the next verified save.
+    constexpr uint32 NamelessSchema = 5;
+    constexpr uint32 VolumelessSchema = 6;
+    constexpr uint32 PanlessSchema = 7;
+    constexpr uint32 OrientationlessSchema = 8;
+    constexpr uint32 QuickCastlessSchema = 9;
+    constexpr int64 MaxSettingsBytes = 65536;
+    constexpr int32 MaxBindingCount = 64;
+
+    bool IsSupportedOrientation(ELDMinimapOrientation Value)
+    { return Value == ELDMinimapOrientation::Camera || Value == ELDMinimapOrientation::Facing || Value == ELDMinimapOrientation::North; }
+
+    bool IsRegistered(FName Action)
+    { return ULDControlSettings::Definitions().ContainsByPredicate([&](const FLDControlBinding& B) { return B.Action == Action; }); }
+
+    TArray<FString> UnregisteredActions(const TMap<FName, FKey>& Bindings)
+    {
+        TArray<FString> Names;
+        for (const auto& Pair : Bindings) { if (!IsRegistered(Pair.Key)) { Names.Add(Pair.Key.ToString()); } }
+        Names.Sort();
+        return Names;
+    }
+
+    TArray<FString> MissingActions(const TMap<FName, FKey>& Bindings)
+    {
+        TArray<FString> Names;
+        for (const auto& B : ULDControlSettings::Definitions()) { if (!Bindings.Contains(B.Action)) { Names.Add(B.Action.ToString()); } }
+        return Names;
+    }
+
+    FString DescribeActions(const TArray<FString>& Names)
+    {
+        constexpr int32 Shown = 12;
+        FString Text;
+        for (int32 Index = 0; Index < Names.Num() && Index < Shown; ++Index)
+        {
+            if (Index) { Text += TEXT(", "); }
+            Text += Names[Index];
+        }
+        if (Names.Num() > Shown) { Text += FString::Printf(TEXT(" 等另外 %d 个"), Names.Num() - Shown); }
+        return Text;
+    }
+
+    enum class ELocalFileLookup : uint8 { Present, Missing, Failed };
+
+#if PLATFORM_WINDOWS
+    FString WindowsSettingsPath(const FString& Filename, bool ForWrite)
+    {
+        FString Path = ForWrite
+            ? IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*Filename)
+            : IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*Filename);
+        Path.ReplaceInline(TEXT("/"), TEXT("\\"));
+        return Path;
+    }
+#endif
+
+    ELocalFileLookup LookupSettingsFile(const FLDLocalSettingsStorage& Storage, FString& Error)
+    {
+#if PLATFORM_WINDOWS
+        const DWORD Attributes = ::GetFileAttributesW(*WindowsSettingsPath(Storage.Filename(), false));
+        const DWORD NativeError = Attributes == INVALID_FILE_ATTRIBUTES ? ::GetLastError() : ERROR_SUCCESS;
+        if (Attributes == INVALID_FILE_ATTRIBUTES)
+        {
+            if (NativeError == ERROR_FILE_NOT_FOUND || NativeError == ERROR_PATH_NOT_FOUND)
+            { return ELocalFileLookup::Missing; }
+            Error = FString::Printf(TEXT("无法读取本地设置文件信息（Windows 错误 %u）。文件未被替换。"), uint32(NativeError));
+            return ELocalFileLookup::Failed;
+        }
+        if (Attributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            Error = TEXT("无法读取本地设置文件：该路径是一个文件夹。");
+            return ELocalFileLookup::Failed;
+        }
+        return ELocalFileLookup::Present;
+#else
+        Error = TEXT("本地设置存储需要受支持的 Windows 文件实现。");
+        return ELocalFileLookup::Failed;
+#endif
+    }
+
+    bool AtomicReplaceSettingsFile(const FString& Filename, const FString& Temporary, FString& Error)
+    {
+#if PLATFORM_WINDOWS
+        const FString Target = WindowsSettingsPath(Filename, true), Source = WindowsSettingsPath(Temporary, true);
+        HANDLE File = ::CreateFileW(*Source, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (File == INVALID_HANDLE_VALUE)
+        {
+            Error = FString::Printf(TEXT("偏好已应用，但无法打开替换文件进行持久写入（Windows 错误 %u）。原文件已保留。"), uint32(::GetLastError()));
+            return false;
+        }
+        const bool Flushed = ::FlushFileBuffers(File) != 0;
+        const DWORD FlushError = Flushed ? ERROR_SUCCESS : ::GetLastError();
+        const bool Closed = ::CloseHandle(File) != 0;
+        const DWORD CloseError = Closed ? ERROR_SUCCESS : ::GetLastError();
+        if (!Flushed || !Closed)
+        {
+            Error = FString::Printf(TEXT("偏好已应用，但无法将替换文件写入磁盘（Windows 错误 %u）。原文件已保留。"), uint32(Flushed ? CloseError : FlushError));
+            return false;
+        }
+        // A sibling temporary file keeps this a same-volume rename. Never predelete or allow copy fallback.
+        if (!::MoveFileExW(*Source, *Target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        {
+            Error = FString::Printf(TEXT("偏好已应用，但原子替换失败（Windows 错误 %u）。原文件已保留，请重试保存。"), uint32(::GetLastError()));
+            return false;
+        }
+        return true;
+#else
+        Error = TEXT("此平台不支持本地设置原子替换。原文件已保留。");
+        return false;
+#endif
+    }
+
+    bool ReadConfigFromDisk(const FString& Filename, FConfigFile& Out)
+    {
+        FString Contents;
+        if (Filename.IsEmpty() || !FFileHelper::LoadFileToString(Contents, *Filename)) { return false; }
+        Out.ProcessInputFileContents(Contents, Filename);
+        return true;
+    }
+
+    bool IntMatches(const FConfigFile& File, const TCHAR* Section, const TCHAR* Key, int32 Expected)
+    {
+        FString Value;
+        return File.GetString(Section, Key, Value) && Value.TrimStartAndEnd() == FString::FromInt(Expected);
+    }
+}
+
+FLDLocalSettingsStorage FLDLocalSettingsStorage::User()
+{
+    FLDLocalSettingsStorage Result;
+    // The former primary file name is kept so an old saved layout is reported and recovered, not silently ignored.
+    Result.Path = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"), TEXT("LockdownLocalControlsV1.sav"));
+    return Result;
+}
+
+FLDLocalSettingsStorage FLDLocalSettingsStorage::Automation(const FGuid& Fixture)
+{
+    FLDLocalSettingsStorage Result;
+    Result.bAutomation = true;
+    if (Fixture.IsValid())
+    {
+        Result.Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("Artifacts"), TEXT("Automation"), TEXT("LocalSettings"),
+            Fixture.ToString(EGuidFormats::Digits) + TEXT(".sav"));
+    }
+    return Result;
+}
+
+const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
+{
+    // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
+    static const TArray<FLDControlBinding> Values={
+        {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
+        {TEXT("Navigate"),TEXT("移动 / 攻击 / 前往小卖部"),EKeys::RightMouseButton},
+        {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
+        {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
+        {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
+        {TEXT("Stop"),TEXT("停止"),EKeys::S},
+        {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
+        {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
+        {TEXT("PanLeft"),TEXT("镜头左移"),EKeys::Left},{TEXT("PanRight"),TEXT("镜头右移"),EKeys::Right},
+        {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Home},
+        {TEXT("Zoom"),TEXT("镜头缩放"),EKeys::MouseWheelAxis,true},
+        {TEXT("Back"),TEXT("返回 / 取消（保留键）"),EKeys::Escape}
+    };
+    return Values;
 }
 FKey ULDControlSettings::Key(FName Action) const
-{if(Action==TEXT("Context")||Action==TEXT("Trade")){return FKey();}if(const FKey* K=Bindings.Find(Action)){return *K;}for(const auto& B:Definitions()){if(B.Action==Action){return B.Key;}}return FKey();}
+{
+    if (!IsRegistered(Action)) { return FKey(); }
+    const FKey* Key = Bindings.Find(Action);
+    return Key ? *Key : FKey();
+}
 FString ULDControlSettings::Label(FName Action) const {return Key(Action).GetDisplayName().ToString();}
-void ULDControlSettings::ResetBindings(){Bindings.Reset();for(const auto& B:Definitions()){Bindings.Add(B.Action,B.Key);}}
+void ULDControlSettings::ResetBindings()
+{
+    Bindings.Reset();
+    for (const auto& B : Definitions()) { Bindings.Add(B.Action, B.Key); }
+    if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
+}
 bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
 {
     const auto* Definition=Definitions().FindByPredicate([&](const FLDControlBinding& B){return B.Action==Action;});
-    if(!Definition||Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Escape is reserved for Back.");return false;}
+    if(!Definition){Error=TEXT("此动作不在当前按键注册表中。");return false;}
+    if(Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Esc 保留给返回 / 取消。");return false;}
     if(!NewKey.IsValid()||NewKey.IsGamepadKey()||NewKey.IsAxis2D()||NewKey.IsAxis3D()
         ||(Definition->Axis&&NewKey!=EKeys::MouseWheelAxis)||(!Definition->Axis&&NewKey.IsAxis1D()))
-    {Error=Definition->Axis?TEXT("Zoom uses the mouse wheel axis."):TEXT("Choose a keyboard key or mouse button.");return false;}
+    {Error=Definition->Axis?TEXT("镜头缩放只能使用鼠标滚轮。"):TEXT("请选择键盘按键或鼠标按键。");return false;}
     for(const auto& B:Definitions())
     {
         const FKey Other=Key(B.Action);
         const bool WheelOverlap=(NewKey==EKeys::MouseScrollUp||NewKey==EKeys::MouseScrollDown)&&Other==EKeys::MouseWheelAxis;
-        if(B.Action!=Action&&(Other==NewKey||WheelOverlap)){Error=TEXT("Already used by ")+B.Label+TEXT(". Choose another key.");return false;}
+        if(B.Action!=Action&&(Other==NewKey||WheelOverlap)){Error=TEXT("该键已被“")+B.Label+TEXT("”使用，请选择其他键。");return false;}
     }
-    Bindings.Add(Action,NewKey);Error.Empty();return true;
+    Bindings.Add(Action,NewKey);
+    if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
+    Error.Empty();return true;
 }
 bool ULDControlSettings::Valid() const
 {
-    if(Schema!=(Profile==8?3:Profile==7?2:1)||(Profile!=6&&Profile!=7&&Profile!=8)||Bindings.Num()!=Definitions().Num()||Key(TEXT("Back"))!=EKeys::Escape||!FMath::IsFinite(TextScale)||TextScale<1||TextScale>1.25||!FMath::IsFinite(Zoom)||Zoom<1100||Zoom>1700){return false;}
+    FString Error;
+    return ValidateLocalSettings(Error);
+}
+bool ULDControlSettings::ValidatePreferences(FString& Error) const
+{
+    if (!FMath::IsFinite(TextScale) || TextScale < 1 || TextScale > 1.25
+        || !FMath::IsFinite(Zoom) || Zoom < 1100 || Zoom > 1700)
+    { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
+    if (!FMath::IsFinite(MasterVolume) || MasterVolume < 0 || MasterVolume > 1)
+    { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
+    if (!FMath::IsFinite(CameraPanCmPerSec) || CameraPanCmPerSec < MinCameraPanCmPerSec || CameraPanCmPerSec > MaxCameraPanCmPerSec)
+    {
+        Error = FString::Printf(TEXT("镜头平移速度超出 %.0f–%.0f cm/s 的支持范围。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
+        return false;
+    }
+    if (!IsSupportedOrientation(MinimapOrientation))
+    { Error = TEXT("小地图朝向不是支持的选项（跟随镜头、跟随角色朝向或固定正北）。"); return false; }
+    // An empty name is a valid unset name; only a chosen name must pass the local format check.
+    FString NameError;
+    if (!PlayerName.IsEmpty() && !ValidatePlayerName(PlayerName, NameError))
+    { Error = TEXT("名称无效：") + NameError; return false; }
+    Error.Empty();
+    return true;
+}
+bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
+{
+    if (Schema != CurrentSchema)
+    { Error = TEXT("本地设置的格式版本不受支持。"); return false; }
+    if (!ValidatePreferences(Error)) { return false; }
+    const auto Unknown = UnregisteredActions(Bindings);
+    const auto Missing = MissingActions(Bindings);
+    if (Unknown.Num() || Missing.Num())
+    {
+        Error = TEXT("按键绑定与 Demo 操作不一致");
+        if (Unknown.Num()) { Error += TEXT("；已退役或未知的动作：") + DescribeActions(Unknown); }
+        if (Missing.Num()) { Error += TEXT("；缺少的动作：") + DescribeActions(Missing); }
+        Error += TEXT("。请恢复默认按键。");
+        return false;
+    }
+    if (Key(TEXT("Back")) != EKeys::Escape)
+    { Error = TEXT("返回 / 取消必须保持为 Esc。请恢复默认按键。"); return false; }
     TSet<FKey> Seen;
     for(const auto& B:Definitions())
-    {const FKey K=Key(B.Action);if(!Bindings.Contains(B.Action)||!K.IsValid()||K.IsGamepadKey()||K.IsAxis2D()||K.IsAxis3D()||Seen.Contains(K)||(!B.Axis&&K.IsAxis1D())||(B.Axis&&K!=EKeys::MouseWheelAxis)){return false;}Seen.Add(K);}
-    return !Seen.Contains(EKeys::MouseScrollUp)&&!Seen.Contains(EKeys::MouseScrollDown);
+    {
+        const FKey K=Key(B.Action);
+        if(!K.IsValid()||K.IsGamepadKey()||K.IsAxis2D()||K.IsAxis3D()||Seen.Contains(K)
+            ||(!B.Axis&&K.IsAxis1D())||(B.Axis&&K!=EKeys::MouseWheelAxis)
+            ||K==EKeys::MouseScrollUp||K==EKeys::MouseScrollDown)
+        { Error = TEXT("已保存的按键包含无效键、轴或冲突。请恢复默认按键。"); return false; }
+        Seen.Add(K);
+    }
+    Error.Empty();
+    return true;
 }
-bool ULDControlSettings::MigrateTactical()
+
+void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
 {
-    Bindings.Remove(TEXT("Context"));Bindings.Remove(TEXT("Trade"));
-    if(Profile==7&&Schema==2){return Valid();}
-    const auto Old=Bindings;TMap<FName,FKey> Next;const auto& Def=Defaults(true);TSet<FKey> Used;
-    // D belongs to slot five after migration. Existing actions bound to D relocate.
-    Used.Add(EKeys::D);Next.Add(TEXT("Skill5"),EKeys::D);
-    for(const auto& B:Def){if(B.Action==TEXT("Skill5")){continue;}const auto* Existing=Old.Find(B.Action);const FKey K=Existing?*Existing:B.Key;
-        const bool ValidKey=K.IsValid()&&!K.IsGamepadKey()&&!K.IsAxis2D()&&!K.IsAxis3D()&&(B.Axis?K==EKeys::MouseWheelAxis:!K.IsAxis1D())&&(B.Action==TEXT("Back")?K==EKeys::Escape:K!=EKeys::Escape)&&K!=EKeys::MouseScrollUp&&K!=EKeys::MouseScrollDown;
-        if(ValidKey&&!Used.Contains(K)){Next.Add(B.Action,K);Used.Add(K);}}
-    const TArray<FKey> Spare={EKeys::B,EKeys::C,EKeys::G,EKeys::H,EKeys::J,EKeys::K,EKeys::L,EKeys::M,EKeys::N,EKeys::O,EKeys::U,EKeys::V,EKeys::X,EKeys::Y,EKeys::Z,EKeys::Four,EKeys::Five};
-    for(const auto& B:Def){if(Next.Contains(B.Action)){continue;}FKey K=B.Key;if(Used.Contains(K)){const auto* Free=Spare.FindByPredicate([&](FKey Key){return !Used.Contains(Key);});if(!Free){return false;}K=*Free;}Next.Add(B.Action,K);Used.Add(K);}
-    Bindings=MoveTemp(Next);Profile=7;Schema=2;return Valid();
+    Schema = Other.Schema;
+    Bindings = Other.Bindings;
+    bEdgePan = Other.bEdgePan;
+    bStartFollowing = Other.bStartFollowing;
+    TextScale = Other.TextScale;
+    Zoom = Other.Zoom;
+    PlayerName = Other.PlayerName;
+    MasterVolume = Other.MasterVolume;
+    CameraPanCmPerSec = Other.CameraPanCmPerSec;
+    MinimapOrientation = Other.MinimapOrientation;
+    bQuickCast = Other.bQuickCast;
 }
-ULDControlSettings* ULDControlSettings::Load(const FString& Slot,uint8 RequestedProfile)
+
+ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
 {
-    const bool Hybrid=RequestedProfile==8;const bool Tactical=RequestedProfile>=7;const FString LegacySlot=Slot==TEXT("LockdownLocalControlsV1")||Slot.StartsWith(TEXT("LockdownControlsProbe_"))?Slot:TEXT("LockdownLocalControlsV1");
-    const FString SafeSlot=Hybrid?LegacySlot+TEXT("_V08"):Tactical?(LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07")):LegacySlot;
-    auto* Settings=UGameplayStatics::DoesSaveGameExist(SafeSlot,0)?Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(SafeSlot,0)):nullptr;
-    if(!Settings&&Hybrid){const FString Previous=LegacySlot==TEXT("LockdownLocalControlsV1")?TEXT("LockdownLocalControlsV07"):LegacySlot+TEXT("_V07");if(UGameplayStatics::DoesSaveGameExist(Previous,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(Previous,0));}}
-    if(!Settings&&Tactical&&UGameplayStatics::DoesSaveGameExist(LegacySlot,0)){Settings=Cast<ULDControlSettings>(UGameplayStatics::LoadGameFromSlot(LegacySlot,0));}
-    if(!Settings){Settings=CastChecked<ULDControlSettings>(UGameplayStatics::CreateSaveGameObject(StaticClass()));Settings->ResetBindings();}
-    Settings->Bindings.Remove(TEXT("Context"));Settings->Bindings.Remove(TEXT("Trade"));
-    if(!FMath::IsFinite(Settings->TextScale)||Settings->TextScale<1||Settings->TextScale>1.25){Settings->TextScale=1;}if(!FMath::IsFinite(Settings->Zoom)||Settings->Zoom<1100||Settings->Zoom>1700){Settings->Zoom=1400;}
-    if(Hybrid){if(!Settings->MigrateHybrid()){Settings->Profile=8;Settings->Schema=3;Settings->ResetBindings();}}
-    else if(Tactical){if(!Settings->MigrateTactical()){Settings->Profile=7;Settings->Schema=2;Settings->ResetBindings();}}
-    else if(!Settings->Valid()){Settings->Profile=6;Settings->Schema=1;Settings->ResetBindings();}
-    Settings->StorageSlot=SafeSlot;return Settings;
+    auto* Settings = NewObject<ULDControlSettings>();
+    Settings->Storage = InStorage;
+    Settings->ResetBindings();
+    Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    return Settings;
 }
-bool ULDControlSettings::Save() const{return UGameplayStatics::SaveGameToSlot(const_cast<ULDControlSettings*>(this),StorageSlot,0);}
+
+ULDControlSettings* ULDControlSettings::CreateDraft() const
+{
+    auto* Draft = NewObject<ULDControlSettings>();
+    Draft->CopyPreferences(*this);
+    return Draft;
+}
+
+bool ULDControlSettings::ApplyLocalSettings(const ULDControlSettings& Draft, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("只能应用到当前生效的本地设置，不能应用到草稿。"); return false; }
+    if (!Draft.ValidateLocalSettings(Error)) { return false; }
+    CopyPreferences(Draft);
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedZoom(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft || !FMath::IsFinite(Value) || Value < 1100 || Value > 1700)
+    { Error = TEXT("镜头缩放未保存：当前应用的镜头值无效。"); return false; }
+    Zoom = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedMasterVolume(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("主音量未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
+    { Error = TEXT("主音量未应用：音量必须在 0–100% 之间。"); return false; }
+    MasterVolume = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedCameraPanSpeed(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("镜头平移速度未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!FMath::IsFinite(Value) || Value < MinCameraPanCmPerSec || Value > MaxCameraPanCmPerSec)
+    {
+        Error = FString::Printf(TEXT("镜头平移速度未应用：速度必须在 %.0f–%.0f cm/s 之间。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
+        return false;
+    }
+    CameraPanCmPerSec = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("小地图朝向未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!IsSupportedOrientation(Value))
+    { Error = TEXT("小地图朝向未应用：只能选择跟随镜头、跟随角色朝向或固定正北。"); return false; }
+    MinimapOrientation = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+FString ULDControlSettings::MinimapOrientationLabel(ELDMinimapOrientation Value)
+{
+    switch (Value)
+    {
+    case ELDMinimapOrientation::Camera: return TEXT("跟随镜头");
+    case ELDMinimapOrientation::Facing: return TEXT("跟随角色朝向");
+    case ELDMinimapOrientation::North: return TEXT("固定正北");
+    }
+    return FString();
+}
+
+void ULDControlSettings::SetAppliedFollowing(bool Value)
+{
+    bStartFollowing = Value;
+    if (Phase != ELDLocalSettingsPhase::EditingDraft) { Phase = ELDLocalSettingsPhase::ConfirmedApplied; }
+}
+
+bool ULDControlSettings::ValidatePlayerName(const FString& Name, FString& Error)
+{
+    if (Name.IsEmpty()) { Error = TEXT("名称不能为空。"); return false; }
+    if (Name.TrimStartAndEnd().Len() != Name.Len()) { Error = TEXT("名称开头和结尾不能有空格。"); return false; }
+    // The name is a ?LDName= URL option, so URL/option delimiters and quoting characters are never accepted.
+    static const FString Reserved = TEXT("?=#/\\:%&\"'<>|");
+    int32 Characters = 0;
+    for (int32 Index = 0; Index < Name.Len(); ++Index)
+    {
+        const uint32 Char = uint32(Name[Index]);
+        ++Characters;
+        // A complete UTF-16 surrogate pair is one character; a lone surrogate is invalid text.
+        if (StringConv::IsHighSurrogate(Char) && Index + 1 < Name.Len() && StringConv::IsLowSurrogate(uint32(Name[Index + 1])))
+        { ++Index; continue; }
+        if (Char < 0x20 || (Char >= 0x7F && Char <= 0x9F) || FChar::IsControl(TCHAR(Char))
+            || StringConv::IsHighSurrogate(Char) || StringConv::IsLowSurrogate(Char) || !StringConv::IsValidCodepoint(Char))
+        { Error = TEXT("名称不能包含控制字符或无效字符。"); return false; }
+        int32 Found = INDEX_NONE;
+        if (Reserved.FindChar(TCHAR(Char), Found))
+        { Error = TEXT("名称不能包含 ? = # / \\ : % & \" ' < > | 这些字符。"); return false; }
+    }
+    if (Characters > MaxPlayerNameChars)
+    { Error = FString::Printf(TEXT("名称最多 %d 个字符。"), MaxPlayerNameChars); return false; }
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedPlayerName(const FString& Name, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("名称未保存：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!ValidatePlayerName(Name, Error)) { return false; }
+    PlayerName = Name;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    return true;
+}
+
+void ULDControlSettings::ResetLocalDefaults()
+{
+    const auto* CurrentDefaults = GetDefault<ULDControlSettings>();
+    Schema = CurrentSchema;
+    bEdgePan = CurrentDefaults->bEdgePan;
+    bStartFollowing = CurrentDefaults->bStartFollowing;
+    TextScale = CurrentDefaults->TextScale;
+    Zoom = CurrentDefaults->Zoom;
+    MasterVolume = CurrentDefaults->MasterVolume;
+    CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
+    MinimapOrientation = CurrentDefaults->MinimapOrientation;
+    bQuickCast = CurrentDefaults->bQuickCast;
+    ResetBindings();
+}
+
+FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalSettingsStorage& InStorage)
+{
+    if (!InStorage.IsValid())
+    { return { ELDLocalSettingsLoadStatus::InvalidStorage, nullptr, nullptr, TEXT("本地设置存储无效，未选择任何用户文件。") }; }
+
+    auto& Files = IFileManager::Get();
+    const FString& Filename = InStorage.Filename();
+    FString LookupError;
+    const ELocalFileLookup Lookup = LookupSettingsFile(InStorage, LookupError);
+    if (Lookup == ELocalFileLookup::Failed)
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, LookupError }; }
+    if (Lookup == ELocalFileLookup::Missing)
+    { return { ELDLocalSettingsLoadStatus::Missing, CreateSessionSettings(InStorage), nullptr, TEXT("没有已保存的本地偏好。当前使用默认值，尚未保存。") }; }
+    TUniquePtr<FArchive> FileReader(Files.CreateFileReader(*Filename, FILEREAD_Silent));
+    if (!FileReader)
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件，请检查文件访问权限后重试。") }; }
+    const int64 Size = FileReader->TotalSize();
+    if (Size < 0)
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件大小。文件未被替换。") }; }
+    if (Size < 12 || Size > MaxSettingsBytes)
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置文件大小无效。文件未被替换。") }; }
+    TArray<uint8> Bytes;
+    Bytes.SetNumUninitialized(int32(Size));
+    FileReader->Serialize(Bytes.GetData(), Size);
+    const bool ReadError = FileReader->IsError();
+    if (!FileReader->Close() || ReadError)
+    { return { ELDLocalSettingsLoadStatus::ReadFailed, nullptr, nullptr, TEXT("无法读取本地设置文件。文件未被替换。") }; }
+
+    FMemoryReader Reader(Bytes, true);
+    Reader.ArMaxSerializeSize = MaxSettingsBytes;
+    uint32 Magic = 0, SavedSchema = 0, Checksum = 0;
+    Reader << Magic << SavedSchema << Checksum;
+    const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
+    const bool Migrating = Magic == LocalSettingsMagic
+        && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
+            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema);
+    if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
+    { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
+    if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置文件已损坏。文件未被替换。") }; }
+
+    auto* Settings = NewObject<ULDControlSettings>();
+    Settings->Storage = InStorage;
+    uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
+    int32 Count = 0;
+    FString SavedName;
+    if (RetiredRegistry) { Reader << RetiredSelector; }
+    Reader << Edge << Follow << Settings->TextScale << Settings->Zoom;
+    // Schema 6 added the player name, schema 7 the master volume, schema 8 the camera pan speed and schema 9 the minimap
+    // orientation, each between the preferences and the binding list; an older layout leaves every later field at its default.
+    if (SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema
+        || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
+    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema)
+    { Reader << Settings->MasterVolume; }
+    if (SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
+    if (SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Orientation; }
+    if (SavedSchema == CurrentSchema) { Reader << Quick; }
+    Reader << Count;
+    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Count < 0 || Count > MaxBindingCount)
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
+    if (SavedName.Len() != FCString::Strlen(*SavedName))
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
+    Settings->bEdgePan = Edge != 0;
+    Settings->bStartFollowing = Follow != 0;
+    Settings->bQuickCast = Quick != 0;
+    Settings->PlayerName = SavedName;
+    // Kept as stored: an unsupported value is rejected by the preference validation below, like an out-of-range zoom.
+    Settings->MinimapOrientation = static_cast<ELDMinimapOrientation>(Orientation);
+    for (int32 Index = 0; Index < Count && !Reader.IsError(); ++Index)
+    {
+        FString Action, Key;
+        Reader << Action << Key;
+        if (Reader.IsError() || Action.IsEmpty() || Action.Len() > 64 || Key.IsEmpty() || Key.Len() > 64
+            || Action.Len() != FCString::Strlen(*Action) || Key.Len() != FCString::Strlen(*Key)
+            || Settings->Bindings.Contains(FName(*Action)))
+        { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的按键列表格式错误。文件未被替换。") }; }
+        Settings->Bindings.Add(FName(*Action), FKey(FName(*Key)));
+    }
+    if (Reader.IsError() || !Reader.AtEnd())
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容不完整或包含多余数据。文件未被替换。") }; }
+    FString Error;
+    if (RetiredRegistry)
+    {
+        // Explicit incompatibility: no saved binding is loaded or migrated, including names the Demo still uses.
+        const FString Retired = DescribeActions(UnregisteredActions(Settings->Bindings));
+        Settings->ResetBindings();
+        const bool PreferencesValid = Settings->ValidatePreferences(Error);
+        FString Message = TEXT("已保存的按键来自旧版操作布局");
+        if (!Retired.IsEmpty()) { Message += TEXT("（已退役动作：") + Retired + TEXT("）"); }
+        Message += TEXT("。没有加载或转换任何旧按键；当前使用 Demo 默认按键，旧文件保持不变。");
+        Message += PreferencesValid ? TEXT("有效的镜头与文字偏好已保留。") : TEXT("其镜头或文字偏好也无效，未保留。");
+        return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, PreferencesValid ? Settings : nullptr, Message };
+    }
+    const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
+    if (!Settings->ValidatePreferences(Error))
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Origin + Error + TEXT("文件未被替换。") }; }
+    if (!Settings->ValidateLocalSettings(Error))
+    {
+        // Recovery data carries only validated preferences; rejected binding names never reach a runtime object.
+        Settings->ResetBindings();
+        return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, Settings, Origin + Error + TEXT("其他有效的本地偏好可以保留。") };
+    }
+    if (Migrating)
+    {
+        // Explicit schema 5–9 migration: the validated values and the defaults of the missing preferences apply now and
+        // stay dirty until a verified current-schema save; loading never rewrites the old file.
+        Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+        const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
+        const FString PanDefault = FString::Printf(TEXT("镜头平移速度使用默认值 %.0f cm/s，"), Settings->CameraPanCmPerSec) + OrientationDefault;
+        const FString Message = SavedSchema == NamelessSchema
+            ? TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。主音量使用默认值 100%，") + PanDefault
+                + TEXT("。请在开始页设置名称后再建房或加入。")
+            : SavedSchema == VolumelessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头与文字偏好已保留，主音量使用默认值 100%，") + PanDefault + TEXT("，下次保存时写入新格式。")
+            : SavedSchema == PanlessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字与主音量偏好已保留，") + PanDefault + TEXT("，下次保存时写入新格式。")
+            : SavedSchema == OrientationlessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度）、文字与主音量偏好已保留，") + OrientationDefault
+                + TEXT("，下次保存时写入新格式。")
+            : TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。");
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message };
+    }
+    Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
+    return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };
+}
+
+FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
+{
+    FString Error;
+    if (Phase == ELDLocalSettingsPhase::EditingDraft || !Storage.IsValid() || !ValidateLocalSettings(Error))
+    { return { ELDLocalSettingsSaveStatus::Invalid, Error.IsEmpty() ? TEXT("只能保存已确认应用、且指定了存储位置的本地偏好。") : Error }; }
+    if (bRecoveryRequired)
+    { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("已在本次运行中应用；原设置文件保持不变。请先在设置中确认替换，再保存。") }; }
+
+    // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
+    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
+    // minimap orientation, quick cast, binding count, bindings.
+    FBufferArchive Payload;
+    uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
+    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
+    FString SavedName = PlayerName;
+    int32 Count = Definitions().Num();
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Count;
+    for (const auto& Binding : Definitions())
+    {
+        FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();
+        Payload << Action << KeyName;
+    }
+    FBufferArchive Bytes;
+    uint32 Magic = LocalSettingsMagic, SavedSchema = CurrentSchema, Checksum = FCrc::MemCrc32(Payload.GetData(), Payload.Num());
+    Bytes << Magic << SavedSchema << Checksum;
+    Bytes.Append(Payload);
+    if (Bytes.IsError() || Bytes.Num() > MaxSettingsBytes)
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("无法序列化本地设置内容。") }; }
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    auto& Files = IFileManager::Get();
+    const FString& Filename = Storage.Filename();
+    if (!Files.MakeDirectory(*FPaths::GetPath(Filename), true))
+    { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("偏好已应用，但无法创建本地设置文件夹。请重试保存。") }; }
+    const FString Temporary = Filename + TEXT(".tmp-") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
+    auto RemoveTemporary = [&]()
+    {
+        if (Files.FileExists(*Temporary) && !Files.Delete(*Temporary, false, false, true))
+        { UE_LOG(LogTemp, Warning, TEXT("Could not remove local settings temporary file: %s"), *Temporary); }
+    };
+    if (!FFileHelper::SaveArrayToFile(Bytes, *Temporary))
+    {
+        RemoveTemporary();
+        return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("偏好已应用，但写入本地设置文件失败。请重试保存。") };
+    }
+    TArray<uint8> Readback;
+    if (!FFileHelper::LoadFileToArray(Readback, *Temporary) || Readback != Bytes)
+    {
+        RemoveTemporary();
+        return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("偏好已应用，但无法核验新文件。原文件已保留。") };
+    }
+    if (!AtomicReplaceSettingsFile(Filename, Temporary, Error))
+    {
+        RemoveTemporary();
+        return { ELDLocalSettingsSaveStatus::WriteFailed, Error };
+    }
+    Readback.Reset();
+    if (!FFileHelper::LoadFileToArray(Readback, *Filename) || Readback != Bytes)
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("偏好已应用，但回读已保存的文件失败。持久化未核验，请重试保存。") }; }
+    Phase = ELDLocalSettingsPhase::PersistenceVerified;
+    return { ELDLocalSettingsSaveStatus::Saved, TEXT("本地偏好已保存，并已从磁盘核验。") };
+}
+
+FLDDisplaySettings FLDDisplaySettings::Read(const UGameUserSettings& Settings)
+{
+    FLDDisplaySettings Result;
+    Result.Resolution = Settings.GetScreenResolution();
+    Result.WindowMode = Settings.GetFullscreenMode();
+    Result.PreferredFullscreenMode = Settings.GetPreferredFullscreenMode();
+    Result.bVSync = Settings.IsVSyncEnabled();
+    Result.Quality = Settings.ScalabilityQuality;
+    return Result;
+}
+bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, const FIntPoint& Desktop, FLDDisplaySettings& Out, FString& Error)
+{
+    auto* VSync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+    int32 DefaultVSync = 0;
+    if (!VSync || !LexTryParseString(DefaultVSync, *VSync->GetDefaultValue()))
+    { Error = TEXT("无法读取引擎的垂直同步默认值，显示与画质未恢复默认。"); return false; }
+    auto* EngineDefaults = NewObject<UGameUserSettings>(GetTransientPackage(), Live.GetClass(), NAME_None, RF_Transient);
+    EngineDefaults->SetToDefaults();
+    FLDDisplaySettings Result = Read(*EngineDefaults);
+    if (Result.Resolution.X <= 0 || Result.Resolution.Y <= 0 || Result.WindowMode == EWindowMode::WindowedFullscreen)
+    { Result.Resolution = Desktop; }
+    Result.PreferredFullscreenMode = Live.GetPreferredFullscreenMode();
+    Result.bVSync = DefaultVSync != 0;
+    if (!Result.IsValid())
+    { Error = TEXT("无法确定默认的分辨率、窗口模式或画质，显示与画质未恢复默认。"); return false; }
+    Out = Result;
+    Error.Empty();
+    return true;
+}
+bool FLDDisplaySettings::SameMode(const FLDDisplaySettings& Other) const
+{ return Resolution == Other.Resolution && WindowMode == Other.WindowMode; }
+bool FLDDisplaySettings::operator==(const FLDDisplaySettings& Other) const
+{ return SameMode(Other) && PreferredFullscreenMode == Other.PreferredFullscreenMode && bVSync == Other.bVSync && Quality == Other.Quality; }
+bool FLDDisplaySettings::IsValid() const
+{
+    if (Resolution.X <= 0 || Resolution.Y <= 0
+        || (WindowMode != EWindowMode::Windowed && WindowMode != EWindowMode::WindowedFullscreen && WindowMode != EWindowMode::Fullscreen)
+        || (PreferredFullscreenMode != EWindowMode::Fullscreen && PreferredFullscreenMode != EWindowMode::WindowedFullscreen)
+        || !FMath::IsFinite(Quality.ResolutionQuality) || Quality.ResolutionQuality < 0 || Quality.ResolutionQuality > 100) { return false; }
+    for (int32 Value : { Quality.ViewDistanceQuality, Quality.AntiAliasingQuality, Quality.ShadowQuality,
+        Quality.GlobalIlluminationQuality, Quality.ReflectionQuality, Quality.PostProcessQuality, Quality.TextureQuality,
+        Quality.EffectsQuality, Quality.FoliageQuality, Quality.ShadingQuality, Quality.LandscapeQuality })
+    { if (Value < 0 || Value > 4) { return false; } }
+    return true;
+}
+
+uint64 FLDDisplayTrialState::Begin(const FLDDisplaySettings& Confirmed, const FLDDisplaySettings& Draft, double Now, double Duration)
+{
+    if (ActiveId || Sequence == MAX_uint64 || !Confirmed.IsValid() || !Draft.IsValid()
+        || !FMath::IsFinite(Now) || !FMath::IsFinite(Duration) || Duration <= 0 || !FMath::IsFinite(Now + Duration)) { return 0; }
+    Before = Confirmed;
+    Pending = Draft;
+    Deadline = Now + Duration;
+    ActiveId = ++Sequence;
+    return ActiveId;
+}
+bool FLDDisplayTrialState::IsExpired(double Now) const
+{ return ActiveId != 0 && (!FMath::IsFinite(Now) || Now >= Deadline); }
+bool FLDDisplayTrialState::Invalidate(uint64 Id)
+{
+    if (!IsCurrent(Id)) { return false; }
+    ActiveId = 0;
+    Deadline = 0;
+    return true;
+}
+double FLDDisplayTrialState::Remaining(double Now) const
+{ return ActiveId && FMath::IsFinite(Now) ? FMath::Max(0., Deadline - Now) : 0.; }
+
+bool LDLocalSettings::ResolveConfigDestination(FConfigCacheIni& Cache, const FString& ConfigId, FString& Filename, FString& Error)
+{
+    Filename.Reset();
+    Error.Reset();
+    if (ConfigId.IsEmpty())
+    {
+        Error = TEXT("配置标识为空，无法核验实际文件。");
+        return false;
+    }
+    const auto* Branch = Cache.FindBranch(FName(*ConfigId), ConfigId);
+    if (!Branch || Branch->IniPath.IsEmpty())
+    {
+        Error = TEXT("配置目标不可用：") + ConfigId + TEXT("。无法核验实际文件。");
+        return false;
+    }
+    Filename = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*Branch->IniPath);
+    if (Filename.IsEmpty())
+    {
+        Error = TEXT("无法解析配置目标：") + ConfigId + TEXT("。");
+        return false;
+    }
+    return true;
+}
+
+FLDLocalSettingsSaveResult LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(
+    FConfigCacheIni& Cache, const FString& SettingsFile, const FString& QualityFile,
+    const FString& SettingsSection, const FLDDisplaySettings& Expected)
+{
+    if (SettingsFile.IsEmpty() || QualityFile.IsEmpty() || SettingsSection.IsEmpty() || !Expected.IsValid())
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("显示持久化目标或预期值无效，未写入画质文件。") }; }
+    FString PhysicalSettings, PhysicalQuality, ResolutionError;
+    if (!ResolveConfigDestination(Cache, SettingsFile, PhysicalSettings, ResolutionError)
+        || !ResolveConfigDestination(Cache, QualityFile, PhysicalQuality, ResolutionError))
+    { return { ELDLocalSettingsSaveStatus::WriteFailed, ResolutionError }; }
+    if (SettingsFile != QualityFile)
+    {
+        const auto* Quality = Cache.FindConfigFile(QualityFile);
+        if (!Quality)
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但独立的画质配置不可用。请重试保存。") }; }
+        if (Quality->NoSave)
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但独立的画质配置禁止写入。持久化未核验。") }; }
+        if (!Cache.Flush(false, QualityFile))
+        { return { ELDLocalSettingsSaveStatus::WriteFailed, TEXT("显示改动已应用，但写入独立的画质配置失败。请重试保存。") }; }
+    }
+    return VerifyDisplaySettingsFile(PhysicalSettings, PhysicalQuality, SettingsSection, Expected);
+}
+
+FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
+    const FString& SettingsFile, const FString& QualityFile, const FString& SettingsSection, const FLDDisplaySettings& Expected)
+{
+    if (!Expected.IsValid() || SettingsSection.IsEmpty())
+    { return { ELDLocalSettingsSaveStatus::Invalid, TEXT("预期的显示状态无效，无法核验显示值。") }; }
+    FConfigFile Display, Quality;
+    if (!ReadConfigFromDisk(SettingsFile, Display) || !ReadConfigFromDisk(QualityFile, Quality))
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但无法读取实际配置文件。请重试保存。") }; }
+    FString VSync;
+    const TCHAR* Section = *SettingsSection;
+    const bool DisplayMatches = IntMatches(Display, Section, TEXT("ResolutionSizeX"), Expected.Resolution.X)
+        && IntMatches(Display, Section, TEXT("ResolutionSizeY"), Expected.Resolution.Y)
+        && IntMatches(Display, Section, TEXT("LastUserConfirmedResolutionSizeX"), Expected.Resolution.X)
+        && IntMatches(Display, Section, TEXT("LastUserConfirmedResolutionSizeY"), Expected.Resolution.Y)
+        && IntMatches(Display, Section, TEXT("FullscreenMode"), int32(Expected.WindowMode))
+        && IntMatches(Display, Section, TEXT("LastConfirmedFullscreenMode"), int32(Expected.WindowMode))
+        && IntMatches(Display, Section, TEXT("PreferredFullscreenMode"), int32(Expected.PreferredFullscreenMode))
+        && Display.GetString(Section, TEXT("bUseVSync"), VSync)
+        && VSync.Equals(Expected.bVSync ? TEXT("True") : TEXT("False"), ESearchCase::IgnoreCase);
+    const TCHAR* QualitySection = TEXT("ScalabilityGroups");
+    const bool QualityMatches = IntMatches(Quality, QualitySection, TEXT("sg.ViewDistanceQuality"), Expected.Quality.ViewDistanceQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.AntiAliasingQuality"), Expected.Quality.AntiAliasingQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.ShadowQuality"), Expected.Quality.ShadowQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.GlobalIlluminationQuality"), Expected.Quality.GlobalIlluminationQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.ReflectionQuality"), Expected.Quality.ReflectionQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.PostProcessQuality"), Expected.Quality.PostProcessQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.TextureQuality"), Expected.Quality.TextureQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.EffectsQuality"), Expected.Quality.EffectsQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.FoliageQuality"), Expected.Quality.FoliageQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.ShadingQuality"), Expected.Quality.ShadingQuality)
+        && IntMatches(Quality, QualitySection, TEXT("sg.LandscapeQuality"), Expected.Quality.LandscapeQuality);
+    FString ScaleText;
+    bool ScaleMatches = false;
+    if (Quality.GetString(QualitySection, TEXT("sg.ResolutionQuality"), ScaleText))
+    {
+        double Scale = 0;
+        const FRegexPattern Number(TEXT("^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"));
+        FRegexMatcher Matcher(Number, ScaleText);
+        ScaleMatches = Matcher.FindNext() && Matcher.GetMatchEnding() == ScaleText.Len()
+            && ScaleText.Len() == FCString::Strlen(*ScaleText)
+            && LexTryParseString(Scale, *ScaleText) && FMath::IsFinite(Scale)
+            && FMath::IsNearlyEqual(Scale, double(Expected.Quality.ResolutionQuality), .0001);
+    }
+    if (!DisplayMatches || !QualityMatches || !ScaleMatches)
+    { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但磁盘上的值不一致。持久化未核验，请重试保存。") }; }
+    return { ELDLocalSettingsSaveStatus::Saved, TEXT("显示设置已保存，并已从磁盘核验。") };
+}

@@ -10,7 +10,8 @@
 | 运行模块 | `Source\Lockdown\Lockdown.Build.cs` | CharacterMovement、Enhanced Input、UMG、导航、AI、网络与规则 |
 | 编辑器模块 | `Source\LockdownEditor` | 导入、Bootstrap、生成资产与保存包；不进入运行模块依赖 |
 | 进程内会话 | `Framework\LDGameInstance.h/.cpp` | 网络/旅行失败回到前端，保存本地连接反馈 |
-| 世界规则 | `Framework\LDGameMode.h/.cpp` | profile 选择、服务初始化、Lobby、私有参赛记录、生命与成长 |
+| 正常游戏旅行 | `Framework\LDGameEngine.h/.cpp` | 在创建世界之前拒绝旧本地 URL/模式或缺输入；GameInstance 单独执行带错误反馈的前端恢复 |
+| 世界规则 | `Framework\LDGameMode.h/.cpp`、`LDGameModeSession.cpp`、`LDGameModeLifecycle.cpp` | 唯一 Demo 准入、Match 映射、Lobby、生命绑定、窄时序/写许可和会话回执；旧玩法提供者不自动创建 |
 | 公共状态 | `ALDGameState`，定义在 `LDGameMode.h` | 明确公开的 Lobby、目标、时间及终局状态 |
 | 玩家意图 | `Framework\LDPlayerController.h` 及各 `LDPlayer*.cpp` | 自身状态、RPC、输入路由和回执 |
 | 身体 | `Character\LDCharacter.h/.cpp` | 原生运动、相机和可辨识表现，不自行结算经济或胜利 |
@@ -21,13 +22,49 @@
 ## 进入一局
 
 `Config\DefaultEngine.ini` 指定 `L_Frontend`、`ALDGameMode` 与 `ULDGameInstance`。
-`ULDUIRoot::Host` 用 `OpenLevel` 打开监听世界；`Join` 检查地址/端口后调用 `ClientTravel`。
-当前默认 Host 入口显式选择 `L_DevelopmentRegion?listen?Profile=V05`。
-`OpenStandalone.ps1 -Profile ...` 可以选择已有工程 profile；不能把切换 profile 当作新 Demo 已接通。
+正常游戏引擎设置为 `ULDGameEngine`。仅设置 `InitGame` 的 ErrorMessage 不会阻止 UE 5.8.4
+继续初始化世界；仅返回空 GameMode 也会使正常游戏的本地玩家创建触发引擎 fatal。
+因此正式本地旅行先在 `Browse` 拒绝，返回 Failure 并保留原 URL/原因，
+`StartGameInstance` 再发起独立的干净前端旅行；这不是把拒绝的请求标为成功。
+GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径与保存的模式，作为第二层防护。
+`ULDUIRoot::Host` 只请求 `L_Demo?listen?LDName=<本人名称>`，Join 在 wire/产品/目录参数后同样附 `?LDName=`；
+引擎会用在线子系统昵称覆盖保留键 `?Name=`（`UPendingNetGame` 与本地玩家 `SpawnPlayActor`），所以名称不走该键。
+名称先经本地 `ValidatePlayerName` 校验且必填；服务器在 PreLogin 与 `InitNewPlayer` 用同一规则解析 `LDName`
+（`LDMatchLifecycle::ResolveContenderName`），非法即明确拒绝（`InvalidName:`），缺省时取明确默认名“玩家”，
+并以 `ChangeName` 同步 PlayerState；入房时 PlayerState 名称再按同一规则核对，在线子系统昵称不会成为参赛名。
+Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
+读取的是原始字节，不规范化换行，也不回退旧目录。`LDDemoEntry::ValidateSelection` 只接受
+完整的前端/Demo 包路径，剥离 PIE 前缀，但不接受同短名的其他包、旧 Profile 或 Humans 覆盖项。
+旧保存模式和地图的物理移除须与资产引用审计同批完成，不保留可启动的旧预览分支。
 
-`ALDGameMode::InitGame` 拒绝未知 profile，并确定要加载的目录、控制器和服务。
-`PreLogin`/`PostLogin` 校验准入；Lobby 的准备和开始由服务器处理。
-`SetLobbyChoice`、`StartDevelopmentMatch` 是当前 Lobby 规则入口，不应在 Widget 中重新实现人数或开局判定。
+`ALDGameMode::InitGame` 为有效 Demo 房间一次创建 `FLDMatchContext`；
+网络 Generation 通过 GameInstance 的有界单调分配器取得，LedgerMatch 单独生成并显式绑定。
+`PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与三真人容量；
+不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。两处拒绝都以 `<原因码>: <英文说明>` 送出稳定原因码
+（`LDDemoEntry::JoinRefusal`：MissingDemoDefinition、MatchAlreadyStarted、RoomFull、ProtocolMismatch、
+ProductMismatch、ContentMismatch、InvalidName）；`PreLogin` 的这些检查先于引擎会话的人数检查，否则满员只得到不带原因码的
+"Server full."。客户端只把已知原因码映射为中文原因并附上该码，不显示英文说明或引擎文本：`PreLogin` 拒绝随待连接失败送达；
+`PostLogin` 拒绝时客户端已载入房间，原因经 `ClientWasKicked` 送达后返回前端。拒绝或网络、旅行失败使客户端离开房间世界时，
+第一个原因保留到前端，随后同一世界的断线不再覆盖它；正在离开的房间世界也不再建立房间界面，以免界面把该原因记为已显示。
+前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。正常开局由 `LDMatchProviders` 门禁：
+Combat、Progression（含最终等级读取）、Shop、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
+Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lobby 的 StartBlocker 与 Start 回执。
+提供者以各自翻译单元中的静态 `FRegistrar` 登记钩子（Prepare/MatchClosed/MatchReset/LifeCommitted/
+ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于玩法已正确接通。
+
+`ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
+发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
+`EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
+`ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
+Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
+因此 GameMode 在本世界的 `PreLoadMapWithContext`（早于关闭网络驱动）关闭房间并向每名成员发出带原因的
+`ClientDemoRoomClosed`，这些通知随引擎关闭各连接前的最后一次发送先于断线到达，客户端以该原因返回前端。
+Host 进程被结束或窗口被直接关闭时没有这一步，客户端显示会话中断。
+Ready 是设置布尔值，不是服务器 Toggle。准备变化只推进公共发布版本；
+成员/AI 数量改变才推进结构版本并清除所有真人 Ready。
+`FLDSessionRequestWindow` 只保存当前在途请求、最近终态及处理水位：
+同键同条款重放，改条款拒绝，过窗拒旧，同域重入不能开始第二次写入。
+这是会话窗口，不代替经济账本、战斗或导航各自的去重机制。
 
 Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹配服务，也不会自动解决 NAT。
 必须分别验证独立拥有客户端和可见的 Listen Host；拥有 Host 进程的人本来就能访问权威状态，
@@ -37,10 +74,24 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 
 - `FLDOwnerState` 属于具体连接的自身投影；`ALDGameMode::StateFor` 是服务器访问参赛状态的入口。
 - 玩家身体和 PlayerState 的网络归属不能泄露其他人的私有资源。
+- `ALDPlayerState` 只对拥有者相关，并按引擎默认每秒更新一次。Listen Host 默认每秒只 tick
+  `NetClientTicksPerSecond` 个客户端连接，帧率高于 100 fps 时每帧只轮到一个；这与 1 Hz 更新锁相后，
+  会把本人 PlayerState 的首次复制推迟数秒到近 20 秒。因此 `Config\DefaultEngine.ini` 的 `[ConsoleVariables]`
+  设 `net.MaxConnectionsToTickPerServerFrame=8`，每个复制帧都 tick 全部客户端连接（最多两名远端真人）。
 - 其他身体的可见表现主要通过观测中继，而不是把所有权威 Actor 广播出去后在 UI 上隐藏。
 - GameState 只放明确公开的事实，不应成为全部玩家位置、背包和构筑的总表。
-- 完整地图的 `ALDB91Controller`、`ALDB92Controller` 有独立的观测/服务协议，
-  不应把它们的稀疏记录强塞进小地图的固定网格格式。
+- `ALDGameState::DemoLobby` 是名单、Host/Ready/AI 名额及公开阻塞原因的只读投影，
+  不包含 LedgerMatch、身体坐标或私有构筑。每个 AI 名额在开局时绑定一个服务器 `ALDOpponentController`。
+- `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
+  Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
+- `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与圈状态来源：阶段、开放时刻、圈状态
+  （未开放/无人/独占/争夺）、唯一进度持有者（独占者，或争夺中被暂停的原占领者及其 `PausedProgressMs`）、
+  CaptureEpoch 及独占起点/完成时刻；不列圈内人数、
+  保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
+  按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
+  `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置。
+  三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
+- 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
 
 详细可见性机制见 [视野与 UI](VISION_AND_UI.md)。
 
@@ -54,21 +105,77 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 不能重复发钱、创建物品或施放效果。旧 life 的投射物、输入、菜单报价和移动确认不能作用于新身体。
 UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执。
 
-`ULDNavigationComponent` 的取消 epoch、库存/商店的 request 回执和完整地图的 world receipt
+`ULDNavigationComponent` 的取消 epoch 与库存/商店的 request 回执
 是不同领域的版本，不要用一个全局“最新版本号”替代全部语义。
 
 ## 生命周期与失败
 
-`EndContenderLife`、`ReturnDueContenders`、`RestartPlayer`、`Logout` 负责身体与私有参赛记录的协调。
-死亡/断线需要取消正在进行的交互、导航和交易，再按当前实现完成必要清理；不能只销毁 Pawn。
-返回时重新建立生命代次与连接投影，不能用旧菜单或观察句柄继续操作。
+Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当前成员失效；
+Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
+死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
+（撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
+到 `RespawnAtMs` 时从十个出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
+`SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
+成长、商店、营地与终局按各自提供者接入。
+`IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit。
+`LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
+GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
+`Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
+初次身体绑定只接受已登记的 Unspawned 主体、当前 Starting permit 和重新核验的真实合法位置，
+重复调用不再初始化资源。初次出生与复活共用同一抽点/落地/准备/提交路径；初次出生不附加保护。
+
+GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Combat driver 按真实可达整数上界
+推进同一 CMC 区间；不写 `UWorld::TimeSeconds`。`AuthoritySecondsToNowMs` 使用受检 floor，
+事件/接收审计桶使用受检 ceil，整数期限直接受检相加，不经 double 往返。
+迟收地面意图携核心生成的 NotBefore 时间，不能作用于更早原生区间。
+`FLDGameplayWritePermit` 仅由核心在当前调用栈构造，禁止复制/移动；
+最终写入重查 Owner、Match、边界、阶段、GateRevision 和当前借用地址，重入不能再发许可。
+阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Transactions → Capture → Close
+的契约顺序每步各执行一次，不为未接通阶段签发成功证明。Close 锁定唯一结果后，driver 仍完成该边界并调用
+无 permit 的发布（成长 `PublishGrowth`、`ExecuteCapturePublish`），然后停止推进。
+当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
+和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
+不允许两次记录之间的无凭据位置写悄悄成为新起点。退休后的已接纳批次不因弱 Pawn 指针失效而丢弃。
+精确前缀确认、原生记录和完成计数都不是提供者 Fence 或可关闭比赛的凭据；
+任一阶段缺少 Combat/圈事件消费或 Sealing 时明确故障，不能让缺失服务自动给出空成功。
+
+`RunDemoEntryCheck.ps1` 使用真实游戏进程验证旧保存模式与显式 `?game=` 请求。
+开发测试观察器区分“创建世界前拒绝”和“实际观察到被拒绝世界”；
+后者从世界初始化/Actor 生成及子系统创建/激活处累计记录，销毁和回菜单不清除计数。
+最后的前端 live census 只是补充，不能替代累计的“未激活旧玩法”证据。
 
 `ULDGameInstance::NetworkFailed` 处理 pending connection 的 WorldContext 归属，
 避免把一次连接失败写入另一个 PIE 实例。错误信息到前端，不无限停留在失效世界中。
 
-`ALDB92Roster` 提供持久席位与控制器交接，但这不是经过认证的断线重连服务。
-`ALDB92SeatController` 提供无本地 UI 的权威接口，也不是已经完成的自主发育对手 AI。
-新 Demo 的不重连规则、人数和 AI 策略需要按 App Spec 实施。
+每个对手 AI 槽由一个服务器 `ALDOpponentController` 驱动，经同一核心注册绑定、受限观察与权威命令接入，
+不沿用旧 B92 席位接管或控制器交接；策略、请求与回执见[对手 AI](../demo/OPPONENT_AI.md)。
+本局不重连，人数和 AI 行为按 App Spec。
+
+占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
+`FLDCaptureReducer` 是唯一占领归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
+（Joined/Respawned 带保护截止与初始支持样本、ProtectionEnded、Died 带 DeathKey 与击杀者），
+Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptureCircle::Extract` 求出带真实时刻的
+进出（连续子段求交、支持面变化与不连续修正只取前后态；脚点在闭圆盘内且站在注册地面才算占用）。
+事实按提交序入队，到其整数桶封闭时才按原始秒、阶段、提交序归约，同一边界内的进出/死亡/保护变化
+全部保留；保护者既不占也不争，开放前不计时，Solo 起点取向上取整桶，完成时刻 `DueAtMs` 由驱动切步。
+争夺冻结原占领者的进度（其他人不累积），他再次独占时 `SoloSinceMs` 回拨暂停值续计；他离圈、死亡或离局即清零，
+下一独占者从 0 开始。争夺暂停持有者期间 `NextDueMs` 为 `ClosedThrough + max(Hold − Paused, 1)`，
+使续计的截止不会落进已提交的步内。
+驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
+`ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
+`ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。
+漏切完成边界、保护到期未收到 ProtectionEnded、缺运动证据或结果行无法冻结都是明确故障，不默认判胜。
+世界里的升旗台边界是本地表现 `ALDCaptureMarker`：各端在接受的 `PublicMatch` 处于发育/开放/结算时，
+按本机注册的 CAPTURE 锚点与 `CAPTURE.RadiusCm` 在地面铺一圈 2cm 平线（复用已烘焙的引擎方块与
+`M_Character` 的 `Tint`，无碰撞、不影响寻路/视线/高度），颜色跟随公开圈态（未开灰、开放黄、独占绿、
+争夺红），换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
+普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
+`ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
+`RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
+丢弃 AI 与已离局记录后为在线真人换新 Generation/LedgerMatch 并清 Ready 与会话窗口。
+本人视图发布（`SyncOwner`）先于身体和资源记录停止：世界拆除（`bIsTearingDown` 早于网络驱动销毁
+远端 Pawn）、Host 关房（`Closing`）与 `RetireMatch`（`Resetting`）期间不发布、不判投影故障，
+新 Lobby 按新代重新发布；正常对局阶段仍做完整投影校验，真故障照常进入 `Faulted`。
 
 ## 扩展与检查
 
@@ -76,6 +183,16 @@ UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执�
 修改序列化时同步生产者、消费者、上限检查、代次拒绝和客户端显示，不能只改结构体尺寸。
 新的公开信息必须显式决定，不通过日志、提示或失败原因意外公开。
 
-当前入口：`RunResetCheck.ps1`、`RunCombatNetworkCheck.ps1`、`RunViewNetworkCheck.ps1`，
+当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 离开与失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
+Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
+`Lockdown.Rules.DemoCapture`（归约器连续性、争夺暂停/续计/清零、保护与契约故障、圈几何、公共读模型、提供者门禁、
+Host 结束/回 Lobby 与换代隔离）和
+`RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
+固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
+`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺暂停与续计、
+原占领者离圈后清零且他人从零计时、
+唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
+空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、抢圈复位与旧代请求以 StaleMatch 拒绝；
+它同样不代替 3+3、AI 或网络异常验收。

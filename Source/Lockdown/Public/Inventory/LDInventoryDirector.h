@@ -1,36 +1,40 @@
 #pragma once
+
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Inventory/LDInventoryTypes.h"
+#include "Combat/LDCombatTypes.h"
+#include "Development/LDGrowthProtocol.h"
+#include "Economy/LDEconomyLedger.h"
+#include "Vision/LDViewTypes.h"
 #include "LDInventoryDirector.generated.h"
-class ALDPlayerController;
-UCLASS(Config=Game)
-class LOCKDOWN_API ALDInventoryDirector:public AActor
+
+class FLDDemoContentSnapshot;
+
+// N05 equipment reads over the single ledger: two real positions per contender, no bag, no physical holder.
+UCLASS()
+class LOCKDOWN_API ALDInventoryDirector : public AActor
 {
     GENERATED_BODY()
+
 public:
-    ALDInventoryDirector(){bReplicates=false;}
-    UPROPERTY(Config) int32 Capacity=24;
-    void Initialize(ALDPlayerController* PC);
-    bool HasSpace(ALDPlayerController* PC,ELDItemKind Kind,FString* Reason=nullptr) const;
-    ALDItem* Owned(AActor* Container,FGuid Id) const;
-    bool Adopt(ALDPlayerController* PC,ALDItem* Item,FName CreationCause=NAME_None,bool Journal=true);
-    void Remove(ALDPlayerController* PC,ALDItem* Item,bool Consume,FName Cause=NAME_None);
-    void Changed(ALDPlayerController* PC);
-    void EndLife(ALDPlayerController* PC,bool Retiring=false);
-    void QuotePickup(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Token,FGuid Observed);
-    void Queue(ALDPlayerController* PC,uint32 Match,uint32 Life,uint32 Request,uint32 InventoryRevision,uint8 Command,FGuid Item,uint32 ItemRevision,uint8 Slot,FVector Point);
-    void Sample(double Now);
-    bool Complete(ALDPlayerController* PC,uint32 Request,const FString& Reason);
-    void FailNextWardForProbe();
+    ALDInventoryDirector();
+
+    // Match start: the approved catalog that resolves the public definitions of observed equipment.
+    void BeginMatch(TSharedPtr<const FLDDemoContentSnapshot> InContent);
+
+    // Own gold and both slots for the owner projection and that contender's AI.
+    FLDEquipmentView ReadEquipment(const FGuid& ContenderId) const;
+    // Visible-opponent equipment for the observation publisher only, after it has verified the observer's
+    // current handle: the native ELDDemoEquipmentId of each slot (0 = empty). No instance, revision, cooldown,
+    // gold or skill data. An unknown definition is an explicit catalog error, never a fake empty slot.
+    bool ProjectObservedEquipment(const FGuid& ContenderId, FLDObservedEquipmentView& Out, FString& Error) const;
+
+    // Equipped instances of one contender in slot order (Item1 = slot 0, Item2 = slot 1) from a ledger state,
+    // either the live state or a prepared after-state of a composite commit.
+    static void EquippedItems(const LDEconomy::FAuditState& State, const FGuid& ContenderId, TArray<FLDEquippedItemValue>& Out);
+
 private:
-    friend class ALDInventoryProbe;
-    struct FRequest{TWeakObjectPtr<ALDPlayerController> PC;uint32 Match,Life,Id,InventoryRevision;uint8 Command;FGuid Item;uint32 ItemRevision;uint8 Slot;FVector Point;};
-    struct FClient{uint32 Last=0;double At=0,Tokens=8;TMap<uint32,FString> Receipts;};
-    TMap<TWeakObjectPtr<ALDPlayerController>,FClient> Clients;
-    TArray<FRequest> Requests;
-    bool bFailWard=false;
-    void Request(const FRequest& R,double Now);
-    void Reply(ALDPlayerController* PC,uint32 Id,const FString& Reason);
-    bool Eligible(ALDPlayerController* PC,double Now) const;
+    const LDEconomy::FLedger* Ledger() const;
+
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
 };

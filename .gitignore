@@ -25,6 +25,7 @@ Saved/
 *.vcxproj.user
 *.sln.docstates
 *.code-workspace
+__pycache__/
 .vscode/*
 !.vscode/mcp.json
 

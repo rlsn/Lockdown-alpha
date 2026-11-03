@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "retired_ranges": {
+    "abilities": [0, 61],
+    "equipment": [0, 98]
+  },
+  "character": {
+    "character_demo": 1
+  },
+  "abilities": {
+    "active_arc_bolt": 62,
+    "active_guard_pulse": 63,
+    "active_binding_snare": 64,
+    "passive_battle_rhythm": 65,
+    "passive_second_wind": 66,
+    "passive_precision": 67
+  },
+  "attributes": {
+    "attr_might": 1,
+    "attr_focus": 2,
+    "attr_vitality": 3,
+    "attr_resolve": 4,
+    "attr_reach": 5
+  },
+  "equipment": {
+    "item_iron_plate": 99,
+    "item_edge_blade": 100,
+    "item_runic_focus": 101,
+    "item_siphon_emblem": 102,
+    "item_phase_anchor": 103,
+    "item_arcane_battery": 104,
+    "item_echo_maul": 105
+  },
+  "monsters": {
+    "monster_scavenger": 1,
+    "monster_guardian": 2
+  },
+  "statuses": {
+    "root": 1,
+    "shield": 2,
+    "camp_returning": 3,
+    "respawn_protection": 4
+  },
+  "effect_ops": {
+    "damage": 1,
+    "shield": 2,
+    "dispel_root": 3,
+    "root": 4,
+    "stat_bonus": 5,
+    "out_of_combat_regen": 6,
+    "lifesteal": 7,
+    "dash": 8,
+    "restore_mana": 9,
+    "cleave": 10
+  }
+}

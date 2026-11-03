@@ -1,0 +1,1710 @@
+{
+  "abilities": [
+    {
+      "cooldown_family": "cd_arc_bolt",
+      "id": "active_arc_bolt",
+      "kind": "active",
+      "native_id": 62,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "mana_cost": {
+            "p2": 4500,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 7000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 10000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 8500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 14000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "DirectionProjectile",
+        "projectile_radius": {
+          "denominator": 1,
+          "numerator": 45,
+          "unit": "cm"
+        },
+        "projectile_speed": {
+          "denominator": 1,
+          "numerator": 1600,
+          "unit": "cm/s"
+        },
+        "range": {
+          "denominator": 1,
+          "numerator": 650,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown_family": "cd_binding_snare",
+      "id": "active_binding_snare",
+      "kind": "active",
+      "native_id": 64,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 14000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "root",
+              "opcode": 4
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 13000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1300,
+                "unit": "ms"
+              },
+              "op": "root",
+              "opcode": 4
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 12000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 6000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1600,
+                "unit": "ms"
+              },
+              "op": "root",
+              "opcode": 4
+            }
+          ],
+          "mana_cost": {
+            "p2": 7000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 550,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown_family": "cd_guard_pulse",
+      "id": "active_guard_pulse",
+      "kind": "active",
+      "native_id": 63,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 16000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 9000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "dispel_root",
+              "opcode": 3
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 14000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "dispel_root",
+              "opcode": 3
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 12000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 22000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "dispel_root",
+              "opcode": 3
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
+      "id": "passive_battle_rhythm",
+      "kind": "passive",
+      "native_id": 65,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "AttackSpeedBonusRatio": {
+                  "bp": 800,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "AttackSpeedBonusRatio": {
+                  "bp": 1400,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "AttackSpeedBonusRatio": {
+                  "bp": 2000,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "id": "passive_precision",
+      "kind": "passive",
+      "native_id": 67,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "CritChanceBonusRatio": {
+                  "bp": 800,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "CritChanceBonusRatio": {
+                  "bp": 1400,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "CritChanceBonusRatio": {
+                  "bp": 2000,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "id": "passive_second_wind",
+      "kind": "passive",
+      "native_id": 66,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "delay": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "op": "out_of_combat_regen",
+              "opcode": 6,
+              "rate": {
+                "denominator": 1,
+                "numerator": 3,
+                "unit": "hp/s"
+              }
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "delay": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "op": "out_of_combat_regen",
+              "opcode": 6,
+              "rate": {
+                "denominator": 1,
+                "numerator": 5,
+                "unit": "hp/s"
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "delay": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "op": "out_of_combat_regen",
+              "opcode": 6,
+              "rate": {
+                "denominator": 1,
+                "numerator": 7,
+                "unit": "hp/s"
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    }
+  ],
+  "attributes": [
+    {
+      "id": "attr_focus",
+      "native_id": 2,
+      "stats": {
+        "APFlat": {
+          "p2": 1600,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "id": "attr_might",
+      "native_id": 1,
+      "stats": {
+        "ADFlat": {
+          "p2": 800,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "id": "attr_reach",
+      "native_id": 5,
+      "stats": {
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        }
+      }
+    },
+    {
+      "id": "attr_resolve",
+      "native_id": 4,
+      "stats": {
+        "ArmorFlat": {
+          "p2": 600,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 600,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "id": "attr_vitality",
+      "native_id": 3,
+      "stats": {
+        "MaxHPFlat": {
+          "p2": 10000,
+          "unit": "hp"
+        }
+      }
+    }
+  ],
+  "camps": {
+    "monsters": [
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 4800,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1539,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 13,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 42000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_guardian",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1100,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 520,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 2,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1100,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 65000,
+          "unit": "ms"
+        },
+        "reward_gold": 120,
+        "reward_xp": 160,
+        "tier": "High"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 1000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1250,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 150,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 4,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 350,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 2,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 9000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_scavenger",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 900,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 3000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 480,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 1,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 900,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 40000,
+          "unit": "ms"
+        },
+        "reward_gold": 30,
+        "reward_xp": 40,
+        "tier": "Low"
+      }
+    ],
+    "placements": [
+      {
+        "anchor_id": "h1",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h2",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "l1",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l2",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l3",
+        "monster_id": "monster_scavenger"
+      }
+    ]
+  },
+  "character": {
+    "basic_attack": {
+      "ad_ratio": {
+        "bp": 10000,
+        "unit": "ratio"
+      },
+      "damage_type": "Physical",
+      "interval_ms": 1429,
+      "target_mode": "Unit"
+    },
+    "id": "character_demo",
+    "native_id": 1
+  },
+  "display": [
+    {
+      "description_key": "active_arc_bolt.description",
+      "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成社死伤害。伤害随缺德值提高，不会正中要害。",
+      "icon_id": "icon_active_arc_bolt",
+      "id": "active_arc_bolt",
+      "name_key": "active_arc_bolt.name",
+      "name_text": "粉笔头",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_binding_snare.description",
+      "description_text": "对一名看得见的敌人造成社死伤害并让其定身。伤害随缺德值提高，不会正中要害。",
+      "icon_id": "icon_active_binding_snare",
+      "id": "active_binding_snare",
+      "name_key": "active_binding_snare.name",
+      "name_text": "扒裤衩",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_guard_pulse.description",
+      "description_text": "给自己加上淡定，并立刻解除身上所有定身。淡定量随缺德值提高。",
+      "icon_id": "icon_active_guard_pulse",
+      "id": "active_guard_pulse",
+      "name_key": "active_guard_pulse.name",
+      "name_text": "假装无事发生",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_focus.description",
+      "description_text": "本局永久提高缺德值。",
+      "icon_id": "icon_attr_focus",
+      "id": "attr_focus",
+      "name_key": "attr_focus.name",
+      "name_text": "刷整蛊视频",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_might.description",
+      "description_text": "本局永久提高手劲。",
+      "icon_id": "icon_attr_might",
+      "id": "attr_might",
+      "name_key": "attr_might.name",
+      "name_text": "举铁",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_reach.description",
+      "description_text": "本局永久提高弹脑瓜崩的攻击距离。",
+      "icon_id": "icon_attr_reach",
+      "id": "attr_reach",
+      "name_key": "attr_reach.name",
+      "name_text": "长臂猿",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_resolve.description",
+      "description_text": "本局永久同时提高抗揍和脸皮。",
+      "icon_id": "icon_attr_resolve",
+      "id": "attr_resolve",
+      "name_key": "attr_resolve.name",
+      "name_text": "穿秋裤",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_vitality.description",
+      "description_text": "本局永久提高最大面子，当前面子按比例一起涨。",
+      "icon_id": "icon_attr_vitality",
+      "id": "attr_vitality",
+      "name_key": "attr_vitality.name",
+      "name_text": "食堂加餐",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "camp_returning.description",
+      "description_text": "野怪正在回岗，途中不攻击也不换目标，但仍会挨打；回到岗位后恢复满面子。",
+      "icon_id": "icon_camp_returning",
+      "id": "camp_returning",
+      "name_key": "camp_returning.name",
+      "name_text": "回岗中",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "character_demo.description",
+      "description_text": "已成年的大一新生。开局只会弹脑瓜崩，升级后挑选技能或属性奖励，也能去小卖部买装备。",
+      "icon_id": "icon_character_demo",
+      "id": "character_demo",
+      "name_key": "character_demo.name",
+      "name_text": "大一新生",
+      "namespace": "DemoContent",
+      "portrait_icon_id": "portrait_character_demo"
+    },
+    {
+      "description_key": "item_arcane_battery.description",
+      "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。",
+      "icon_id": "icon_item_arcane_battery",
+      "id": "item_arcane_battery",
+      "name_key": "item_arcane_battery.name",
+      "name_text": "保温杯",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_echo_maul.description",
+      "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。",
+      "icon_id": "icon_item_echo_maul",
+      "id": "item_echo_maul",
+      "name_key": "item_echo_maul.name",
+      "name_text": "值日扫帚",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_edge_blade.description",
+      "description_text": "提高手劲和手速。",
+      "icon_id": "icon_item_edge_blade",
+      "id": "item_edge_blade",
+      "name_key": "item_edge_blade.name",
+      "name_text": "鸡毛掸子",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_iron_plate.description",
+      "description_text": "提高最大面子和抗揍。",
+      "icon_id": "icon_item_iron_plate",
+      "id": "item_iron_plate",
+      "name_key": "item_iron_plate.name",
+      "name_text": "《五年挨打三年模拟》",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_phase_anchor.description",
+      "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。",
+      "icon_id": "icon_item_phase_anchor",
+      "id": "item_phase_anchor",
+      "name_key": "item_phase_anchor.name",
+      "name_text": "跑道钉鞋",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_runic_focus.description",
+      "description_text": "提高缺德值和鬼点子。",
+      "icon_id": "icon_item_runic_focus",
+      "id": "item_runic_focus",
+      "name_key": "item_runic_focus.name",
+      "name_text": "辣条",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_siphon_emblem.description",
+      "description_text": "提高手劲和脸皮。被动「长脸」：弹脑瓜崩让对方实际丢掉的面子，按比例回到自己身上。",
+      "icon_id": "icon_item_siphon_emblem",
+      "id": "item_siphon_emblem",
+      "name_key": "item_siphon_emblem.name",
+      "name_text": "老爸的皮带",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_guardian.description",
+      "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。",
+      "icon_id": "icon_monster_guardian",
+      "id": "monster_guardian",
+      "name_key": "monster_guardian.name",
+      "name_text": "体育老师",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_scavenger.description",
+      "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。",
+      "icon_id": "icon_monster_scavenger",
+      "id": "monster_scavenger",
+      "name_key": "monster_scavenger.name",
+      "name_text": "纪律委员",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "passive_battle_rhythm.description",
+      "description_text": "学会后持续提高手速。",
+      "icon_id": "icon_passive_battle_rhythm",
+      "id": "passive_battle_rhythm",
+      "name_key": "passive_battle_rhythm.name",
+      "name_text": "单身二十年的手速",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "passive_precision.description",
+      "description_text": "学会后提高弹脑瓜崩的正中要害率，对技能无效。",
+      "icon_id": "icon_passive_precision",
+      "id": "passive_precision",
+      "name_key": "passive_precision.name",
+      "name_text": "正中要害",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "passive_second_wind.description",
+      "description_text": "脱离战斗一段时间后，额外提高面子回复；一进入战斗，额外回复立刻停止。",
+      "icon_id": "icon_passive_second_wind",
+      "id": "passive_second_wind",
+      "name_key": "passive_second_wind.name",
+      "name_text": "多喝热水",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "respawn_protection.description",
+      "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。",
+      "icon_id": "icon_respawn_protection",
+      "id": "respawn_protection",
+      "name_key": "respawn_protection.name",
+      "name_text": "复活保护",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "root.description",
+      "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。",
+      "icon_id": "icon_root",
+      "id": "root",
+      "name_key": "root.name",
+      "name_text": "定身",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "shield.description",
+      "description_text": "先替你挡下伤害，被打空或到时间就消失。",
+      "icon_id": "icon_shield",
+      "id": "shield",
+      "name_key": "shield.name",
+      "name_text": "淡定",
+      "namespace": "DemoContent"
+    }
+  ],
+  "equipment": [
+    {
+      "active": {
+        "cooldown_family": "cd_arcane_battery",
+        "rank": {
+          "cooldown": {
+            "ms": 40000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "restore_mana",
+              "opcode": 9,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 12000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "op": "shield",
+              "opcode": 2
+            }
+          ],
+          "mana_cost": {
+            "p2": 0,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "Self"
+        },
+        "windup": {
+          "ms": 0,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 400,
+      "id": "item_arcane_battery",
+      "native_id": 104,
+      "passive": null,
+      "sell_gold": 260,
+      "stats": {
+        "MagicResistFlat": {
+          "p2": 1000,
+          "unit": "points"
+        },
+        "MaxMPFlat": {
+          "p2": 12000,
+          "unit": "mp"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 400,
+      "id": "item_echo_maul",
+      "native_id": 105,
+      "passive": {
+        "effects": [
+          {
+            "op": "cleave",
+            "opcode": 10,
+            "radius": {
+              "denominator": 1,
+              "numerator": 180,
+              "unit": "cm"
+            },
+            "ratio": {
+              "bp": 3500,
+              "unit": "ratio"
+            }
+          }
+        ],
+        "family": "passive_cleave"
+      },
+      "sell_gold": 260,
+      "stats": {
+        "ADFlat": {
+          "p2": 1400,
+          "unit": "points"
+        },
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 320,
+      "id": "item_edge_blade",
+      "native_id": 100,
+      "passive": null,
+      "sell_gold": 208,
+      "stats": {
+        "ADFlat": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 1000,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 310,
+      "id": "item_iron_plate",
+      "native_id": 99,
+      "passive": null,
+      "sell_gold": 201,
+      "stats": {
+        "ArmorFlat": {
+          "p2": 1500,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 18000,
+          "unit": "hp"
+        }
+      }
+    },
+    {
+      "active": {
+        "cooldown_family": "cd_phase_anchor",
+        "rank": {
+          "cooldown": {
+            "ms": 28000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 450,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "dash",
+              "opcode": 8
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "DirectionDash"
+        },
+        "windup": {
+          "ms": 0,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 400,
+      "id": "item_phase_anchor",
+      "native_id": 103,
+      "passive": null,
+      "sell_gold": 260,
+      "stats": {
+        "MoveSpeedBonusRatio": {
+          "bp": 1200,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 360,
+      "id": "item_runic_focus",
+      "native_id": 101,
+      "passive": null,
+      "sell_gold": 234,
+      "stats": {
+        "APFlat": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 1500,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 360,
+      "id": "item_siphon_emblem",
+      "native_id": 102,
+      "passive": {
+        "effects": [
+          {
+            "op": "lifesteal",
+            "opcode": 7,
+            "ratio": {
+              "bp": 1500,
+              "unit": "ratio"
+            }
+          }
+        ],
+        "family": "passive_siphon"
+      },
+      "sell_gold": 234,
+      "stats": {
+        "ADFlat": {
+          "p2": 1200,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 1200,
+          "unit": "points"
+        }
+      }
+    }
+  ],
+  "formulas": {
+    "AttackIntervalMs": "CeilReciprocalMs",
+    "AttackMoveAcquireRadius": "MinVisionTwiceAttackRange",
+    "AttackRange": "BasePlusFlat",
+    "AttackSpeed": "BaseTimesAdditiveRatio",
+    "AttackWindupMs": "CeilBaseWindupTimesBaseOverCurrentAS",
+    "CooldownMs": "CeilBaseTimesScaleOverScalePlusHaste",
+    "Crit": "OncePerPrimaryAttack",
+    "Damage": "FloorP2ThenShieldThenHP",
+    "HasteScale": {
+      "p2": 10000,
+      "unit": "points"
+    },
+    "MoveSpeed": "BaseTimesAdditiveRatio",
+    "Regen": "CarrySubP2Remainder",
+    "Resistance": "PointsOverScalePlusPoints",
+    "ResistanceScale": {
+      "p2": 10000,
+      "unit": "points"
+    },
+    "ResourceMaxChange": "FloorFinalRatioRejectAliveUnderflow",
+    "SellGold": "FloorPurchasePriceTimesSellRatio",
+    "StatProjection": "AddFlatThenAdditivePercent",
+    "XPToNext": "LinearIncrement"
+  },
+  "identity": {
+    "approval": {
+      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. First implementation/playtest baseline, not a balance-validation claim.",
+      "status": "approved"
+    },
+    "handler_revision": 1,
+    "projection_revision": 3,
+    "schema_version": 1
+  },
+  "parameters": {
+    "AI.CaptureReactionBudgetSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "AI.DecisionIntervalSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "AI.EngagementBudgetSec": {
+      "ms": 40000,
+      "unit": "ms"
+    },
+    "AI.ExploreRevisitIntervalSec": {
+      "ms": 20000,
+      "unit": "ms"
+    },
+    "AI.HighCampEntryHPRatio": {
+      "bp": 8000,
+      "unit": "ratio"
+    },
+    "AI.HighCampReserveHPRatio": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
+    "AI.LowCampReserveHPRatio": {
+      "bp": 1500,
+      "unit": "ratio"
+    },
+    "AI.ResumeFarmHPRatio": {
+      "bp": 6000,
+      "unit": "ratio"
+    },
+    "AI.RetreatHPRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "AI.RetryPolicy.InitialBackoffSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "AI.RetryPolicy.MaxAttempts": 3,
+    "AI.RetryPolicy.MaxBackoffSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "CAMP.ResetArrivalRadiusCm": {
+      "denominator": 1,
+      "numerator": 100,
+      "unit": "cm"
+    },
+    "CAPTURE.HoldSec": {
+      "ms": 25000,
+      "unit": "ms"
+    },
+    "CAPTURE.RadiusCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "CHOICE.BaseWeight": 1,
+    "LIFE.ProtectionSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "LIFE.RespawnSec": {
+      "ms": 26000,
+      "unit": "ms"
+    },
+    "MATCH.DevelopmentSec": {
+      "ms": 180000,
+      "unit": "ms"
+    },
+    "REWARD.PlayerGold.Base": 80,
+    "REWARD.PlayerGold.PerLevel": 10,
+    "REWARD.PlayerXP.Base": 100,
+    "REWARD.PlayerXP.PerLevel": 20,
+    "SHOP.InteractRadiusCm": {
+      "denominator": 1,
+      "numerator": 350,
+      "unit": "cm"
+    },
+    "SHOP.SellRatio": {
+      "bp": 6500,
+      "unit": "ratio"
+    },
+    "SHOP.StartingGold": 150,
+    "STAT.AD.Base": {
+      "p2": 5400,
+      "unit": "points"
+    },
+    "STAT.AD.Max": {
+      "p2": 25000,
+      "unit": "points"
+    },
+    "STAT.AD.Min": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.AD.PerLevel": {
+      "p2": 320,
+      "unit": "points"
+    },
+    "STAT.AP.Base": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.AP.Max": {
+      "p2": 25000,
+      "unit": "points"
+    },
+    "STAT.AP.Min": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.AP.PerLevel": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.Armor.Base": {
+      "p2": 1800,
+      "unit": "points"
+    },
+    "STAT.Armor.Max": {
+      "p2": 20000,
+      "unit": "points"
+    },
+    "STAT.Armor.Min": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.Armor.PerLevel": {
+      "p2": 200,
+      "unit": "points"
+    },
+    "STAT.AttackRange.Max": {
+      "denominator": 1,
+      "numerator": 1000,
+      "unit": "cm"
+    },
+    "STAT.AttackRange.Min": {
+      "denominator": 1,
+      "numerator": 80,
+      "unit": "cm"
+    },
+    "STAT.AttackSpeed.Max": {
+      "denominator": 2,
+      "numerator": 5,
+      "unit": "attacks/s"
+    },
+    "STAT.AttackSpeed.Min": {
+      "denominator": 10,
+      "numerator": 3,
+      "unit": "attacks/s"
+    },
+    "STAT.AttackSpeedPerLevelRatio": {
+      "bp": 200,
+      "unit": "ratio"
+    },
+    "STAT.BaseAttackSpeed": {
+      "denominator": 10,
+      "numerator": 7,
+      "unit": "attacks/s"
+    },
+    "STAT.CooldownHaste.Base": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.CooldownHaste.Max": {
+      "p2": 6000,
+      "unit": "points"
+    },
+    "STAT.CritChance.Base": {
+      "bp": 0,
+      "unit": "ratio"
+    },
+    "STAT.CritMultiplier": {
+      "bp": 20000,
+      "unit": "ratio"
+    },
+    "STAT.HPRegen.Base": {
+      "denominator": 5,
+      "numerator": 8,
+      "unit": "hp/s"
+    },
+    "STAT.HPRegen.Max": {
+      "denominator": 1,
+      "numerator": 12,
+      "unit": "hp/s"
+    },
+    "STAT.HPRegen.Min": {
+      "denominator": 1,
+      "numerator": 0,
+      "unit": "hp/s"
+    },
+    "STAT.HPRegen.PerLevel": {
+      "denominator": 25,
+      "numerator": 3,
+      "unit": "hp/s"
+    },
+    "STAT.MPRegen.Base": {
+      "denominator": 5,
+      "numerator": 6,
+      "unit": "mp/s"
+    },
+    "STAT.MPRegen.Max": {
+      "denominator": 1,
+      "numerator": 4,
+      "unit": "mp/s"
+    },
+    "STAT.MPRegen.Min": {
+      "denominator": 1,
+      "numerator": 0,
+      "unit": "mp/s"
+    },
+    "STAT.MPRegen.PerLevel": {
+      "denominator": 25,
+      "numerator": 2,
+      "unit": "mp/s"
+    },
+    "STAT.MagicResist.Base": {
+      "p2": 1800,
+      "unit": "points"
+    },
+    "STAT.MagicResist.Max": {
+      "p2": 20000,
+      "unit": "points"
+    },
+    "STAT.MagicResist.Min": {
+      "p2": 0,
+      "unit": "points"
+    },
+    "STAT.MagicResist.PerLevel": {
+      "p2": 200,
+      "unit": "points"
+    },
+    "STAT.MaxHP.Base": {
+      "p2": 62000,
+      "unit": "hp"
+    },
+    "STAT.MaxHP.Max": {
+      "p2": 300000,
+      "unit": "hp"
+    },
+    "STAT.MaxHP.Min": {
+      "p2": 100,
+      "unit": "hp"
+    },
+    "STAT.MaxHP.PerLevel": {
+      "p2": 5800,
+      "unit": "hp"
+    },
+    "STAT.MaxMP.Base": {
+      "p2": 28000,
+      "unit": "mp"
+    },
+    "STAT.MaxMP.Max": {
+      "p2": 80000,
+      "unit": "mp"
+    },
+    "STAT.MaxMP.Min": {
+      "p2": 0,
+      "unit": "mp"
+    },
+    "STAT.MaxMP.PerLevel": {
+      "p2": 2200,
+      "unit": "mp"
+    },
+    "STAT.MoveSpeed.Max": {
+      "denominator": 1,
+      "numerator": 900,
+      "unit": "cm/s"
+    },
+    "STAT.MoveSpeed.Min": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm/s"
+    },
+    "TIMING.DefendRouteBudgetSec": {
+      "ms": 16000,
+      "unit": "ms"
+    },
+    "UNIT.BasicAttackRangeCm": {
+      "denominator": 1,
+      "numerator": 220,
+      "unit": "cm"
+    },
+    "UNIT.BasicAttackWindupSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "UNIT.CollisionRadiusCm": {
+      "denominator": 1,
+      "numerator": 40,
+      "unit": "cm"
+    },
+    "UNIT.MoveSpeedCmPerSec": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm/s"
+    },
+    "VISION.RadiusCm": {
+      "denominator": 1,
+      "numerator": 1400,
+      "unit": "cm"
+    },
+    "XP.BaseToNext": 80,
+    "XP.IncreasePerLevel": 20
+  },
+  "policies": {
+    "BasicSecondaryTriggers": "Disabled",
+    "CampAggroTrigger": "ConfirmedCombatHit",
+    "CampGroupRetaliation": true,
+    "CampManaPolicy": "NotApplicable",
+    "CampResetPolicy": "ReturnThenReset",
+    "CampReturningControllable": true,
+    "CampReturningDamageable": true,
+    "CritSampling": "OncePerAttackId",
+    "DeadChoiceCommit": "Allowed",
+    "DuplicateEquipment": "Allowed",
+    "DuplicateEquipmentActive": "IndependentSources",
+    "DuplicateEquipmentPassive": "OncePerFamily",
+    "InvalidAggressionProtection": "BreakOnAggressiveIntent",
+    "LifestealBasis": "PrimaryBasicAttackHPLost",
+    "LifestealRecursiveTriggers": "Disabled",
+    "MissingSourceCooldown": "ContinueServerTime",
+    "RegenIntegration": "CarrySubP2Remainder",
+    "ReleasedEffectSourceLoss": "ContinueForRemainingContender",
+    "ResourceMaxChange": "PreserveRatio",
+    "RootBlocks": [
+      "Move",
+      "Dash"
+    ],
+    "ShieldPolicy": "ReplaceIfNotWeaker",
+    "ShopRequiresLineOfSight": false,
+    "SourceLeave": "CancelUnsettledNoRefund",
+    "StatStacking": "AddFlatThenAdditivePercent"
+  },
+  "progression": {
+    "active_slots": 2,
+    "equipment_slots": 2,
+    "max_choices": 10,
+    "max_level": 10,
+    "max_skill_rank": 3,
+    "xp_start": 0,
+    "xp_thresholds": [
+      0,
+      80,
+      180,
+      300,
+      440,
+      600,
+      780,
+      980,
+      1200,
+      1440
+    ],
+    "xp_to_next": [
+      80,
+      100,
+      120,
+      140,
+      160,
+      180,
+      200,
+      220,
+      240
+    ]
+  },
+  "world": {
+    "camp_ids": [
+      "h1",
+      "h2",
+      "l1",
+      "l2",
+      "l3"
+    ],
+    "capture_id": "capture",
+    "map_id": "demo_world",
+    "shop_id": "shop",
+    "spawn_ids": [
+      "s00",
+      "s01",
+      "s02",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s07",
+      "s08",
+      "s09"
+    ]
+  }
+}

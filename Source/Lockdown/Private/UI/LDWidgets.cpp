@@ -1,32 +1,59 @@
 #include "UI/LDWidgets.h"
+#include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
 #include "Styling/CoreStyle.h"
 UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size)
 {
     auto* W=Tree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
-    W->SetColorAndOpacity(FLinearColor(.9f,.94f,.96f));W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
+    W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
-ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World)
+ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
 {
-    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>():Tree->ConstructWidget<ULDCommandButton>();W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
-    auto Style=W->GetStyle();Style.Normal.TintColor=FSlateColor(FLinearColor(.045f,.12f,.15f));Style.Hovered.TintColor=FSlateColor(FLinearColor(.09f,.24f,.27f));Style.Pressed.TintColor=FSlateColor(FLinearColor(.12f,.32f,.32f));
+    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
+    // Flat rounded faces from one teal family replace the stock engine chrome; the hairline edge keeps the shape readable on
+    // any panel, and the same padding pressed or released keeps the caption still.
+    auto Face=[](const FLinearColor& Fill,const FLinearColor& Edge){FSlateRoundedBoxBrush Brush(Fill,6.f,Edge,1.f);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;};
+    auto Style=W->GetStyle();
+    Style.Normal=Face(FLinearColor(.045f,.12f,.15f),FLinearColor(.12f,.30f,.33f));Style.Hovered=Face(FLinearColor(.09f,.24f,.27f),FLinearColor(.30f,.62f,.62f));
+    Style.Pressed=Face(FLinearColor(.12f,.32f,.32f),FLinearColor(.40f,.75f,.72f));Style.Disabled=Face(FLinearColor(.035f,.05f,.065f),FLinearColor(.08f,.11f,.13f));
     Style.NormalPadding=FMargin(12,11);Style.PressedPadding=FMargin(12,11);W->SetStyle(Style);W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);return W;
 }
 
 #include "Components/PanelWidget.h"
 #include "Components/EditableTextBox.h"
 #include "Components/ScrollBox.h"
+#include "Components/Slider.h"
 #include "Components/Border.h"
 #include "Rendering/DrawElements.h"
 UWidget* ULDPanel::FocusScope() const{return WidgetTree?WidgetTree->RootWidget:nullptr;}
+bool ULDPanel::IsPanelHit(FVector2D Absolute) const
+{
+    const UWidget* Area=HitArea();
+    return IsPanelOpen()&&IsVisible()&&Area&&Area->IsVisible()&&Area->GetCachedGeometry().IsUnderLocation(Absolute);
+}
+void ULDPanel::ApplyTextScale(float Scale)
+{
+    // Only a built tree is rescaled; recording the scale earlier would leave later-built text at the base size.
+    if(Scale<=0.f||FMath::IsNearlyEqual(Scale,AppliedTextScale)||!WidgetTree||!WidgetTree->RootWidget){return;}
+    TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);
+    for(UWidget* W:All){if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);Label->SetFont(Font);}}
+    AppliedTextScale=Scale;
+}
+void ULDPanel::ScaleNewText(UTextBlock* Label) const
+{
+    if(!Label||FMath::IsNearlyEqual(AppliedTextScale,1.f)){return;}
+    auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*AppliedTextScale);Label->SetFont(Font);
+}
 TArray<UWidget*> ULDPanel::PanelFocusTargets() const
 {
     TArray<UWidget*> Result;
     TFunction<void(UWidget*)> Visit=[&](UWidget* W)
     {
         if(!W||!W->IsVisible()||!W->GetIsEnabled()){return;}
-        if((Cast<UButton>(W)&&CastChecked<UButton>(W)->GetIsFocusable())||Cast<UEditableTextBox>(W)){Result.Add(W);}
+        if((Cast<UButton>(W)&&CastChecked<UButton>(W)->GetIsFocusable())||(Cast<USlider>(W)&&CastChecked<USlider>(W)->IsFocusable)
+            ||Cast<UEditableTextBox>(W)){Result.Add(W);}
         if(auto* Panel=Cast<UPanelWidget>(W)){for(int32 I=0;I<Panel->GetChildrenCount();++I){Visit(Panel->GetChildAt(I));}}
     };
     Visit(FocusScope());return Result;
@@ -60,9 +87,7 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
 }
 UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)
 {
-    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrushColor(FLinearColor(.025f,.045f,.07f,.99f));W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
-}
-UScrollBox* LDWidgets::OfferTray(UWidgetTree* Tree,UTextBlock*& Label,int32 Size)
-{
-    Label=Text(Tree,TEXT(""),Size);auto* Scroll=Tree->ConstructWidget<UScrollBox>();Scroll->SetAlwaysShowScrollbar(true);Scroll->AddChild(Label);return Scroll;
+    // The white rounded face takes its fill from the brush colour, so a caller that recolours a panel keeps its shape and rim.
+    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,6.f,LDHUDStyle::PanelRim,1.f));
+    W->SetBrushColor(LDHUDStyle::PanelFill);W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
 }
