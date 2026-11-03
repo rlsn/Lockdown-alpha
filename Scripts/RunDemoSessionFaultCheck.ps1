@@ -44,6 +44,12 @@ $required = @{
     'Race/Joiner' = @('The frontend offers the name, address, port and Join controls',
         'A join that loses the race to the match start is refused with its own reason', 'A refused join stays on the frontend',
         'The Join control is usable again after a refusal')
+    'HostLeave/HostMatch' = @($connection, 'Every provider is wired: the ready room may start normally',
+        'The Host holds a live match with its owning client before it leaves', 'The in-match menu offers leave and its confirmation')
+    'HostLeave/Host' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
+    'HostLeave/Client1Match' = @($connection)
+    'HostLeave/Client1' = @('The room closed because the Host left through its menu', 'The client shows that the Host left, not a lost connection',
+        'A closed room never produced a result table', 'A closed room is not reported as a failed join')
 }
 
 function New-LoopbackPort {
@@ -226,11 +232,34 @@ try {
     Stop-Role $raceHost 'Race Host'
     Assert-FaultLogs 'Race' @('Joiner')
 
+    # Phase 6: the Listen Host leaves mid-match through its real menu. The room closes for its client when the Host's
+    # map change begins, before the engine shuts the connection down, so the client shows that the Host left.
+    $directory = Join-Path $launch.ProbeOutput 'HostLeave'
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    $port = New-LoopbackPort
+    $leavingHost = Start-FaultRole -Phase 'HostLeave' -Role 'Host' -Url "/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=LeavingHost" -Port $port -Ui
+    Wait-FaultFiles $directory @('HostJoined.json') @($leavingHost)
+    $remaining = Start-FaultRole -Phase 'HostLeave' -Role 'Client1' -Url (& $clientUrl $port 'FaultRemaining') -Ui
+    Wait-FaultFiles $directory @('HostMatch.json', 'Host.json', 'Client1Match.json', 'Client1.json') @($leavingHost, $remaining)
+    $null = Read-FaultReport 'HostLeave' 'HostMatch'
+    $null = Read-FaultReport 'HostLeave' 'Host'
+    $null = Read-FaultReport 'HostLeave' 'Client1Match'
+    $hostLeftReport = Read-FaultReport 'HostLeave' 'Client1'
+    if (-not (Select-String -LiteralPath (Join-Path $output 'HostLeave-Host.log') -Pattern 'LD_DEMO_ROOM_CLOSED_BY_HOST' -SimpleMatch -Quiet)) {
+        throw "The Host's room did not close before its map change: $output"
+    }
+    Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Exit'
+    Stop-Role $remaining 'Client after the Host left'
+    Set-Content -LiteralPath (Join-Path $directory 'Finish') -Value 'Complete'
+    Stop-Role $leavingHost 'Leaving Host'
+    Assert-FaultLogs 'HostLeave' @('Client1')
+
     $kind = if ($launch.Packaged) { "packaged build $($launch.Package)" } else { 'editor game target' }
     Write-Host ("DEV-only session faults passed on the ${kind}: mid-match menu leave (match continued, no death notice, Host-ended result marks the leaver left with no kill credited); " +
         "Host killed mid-match -> client menu shows '$($orphanReport.summary.notice)'; failed joins -> '$($joinReport.summary.closed_port_notice)' and '$($joinReport.summary.unresolvable_host_notice)'; " +
         "refused joins -> '$($refuseReport.summary.version_mismatch_notice)', '$($refuseReport.summary.room_full_notice)' and '$($refuseReport.summary.match_started_notice)'; " +
-        "a join that lost the race to the start -> '$($raceReport.summary.race_notice)'. " +
+        "a join that lost the race to the start -> '$($raceReport.summary.race_notice)'; " +
+        "Host left through its menu -> client menu shows '$($hostLeftReport.summary.notice)'. " +
         "All on one machine's loopback: not LAN or public internet. Evidence: $output")
 }
 finally {

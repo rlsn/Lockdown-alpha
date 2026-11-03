@@ -55,6 +55,7 @@ class ALDCombatDirector;
 class ALDPlayerController;
 class ALDCharacter;
 class FLDDemoContentSnapshot;
+struct FWorldContext;
 struct FLDNativeMotionBatch;
 struct FLDCommittedDeath;
 struct FLDAggressiveIntent;
@@ -93,6 +94,7 @@ public:
     virtual void PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage) override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
@@ -241,6 +243,11 @@ private:
     bool CheckDemoStartInputs(FString& Reason) const;
     TWeakObjectPtr<ALDPlayerController> LobbyHost;
     TMap<TWeakObjectPtr<ALDPlayerController>,FLDContenderRecord> Contenders;
+    // The Listen Host leaving closes the room for every member. Its map change shuts the net driver down before its
+    // controller logs out, so the room closes when that map change begins, while the members' connections still exist.
+    void HostWorldUnloading(const FWorldContext& Context, const FString& Map);
+    void CloseRoomForHostDeparture(const ALDPlayerController* Host);
+    FDelegateHandle HostTravelHandle;
     FRandomStream SpawnRandom;
     // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
     // Locked Combat death -> life ends once; the body leaves combat and the capture set, growth is kept.

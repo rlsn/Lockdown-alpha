@@ -270,10 +270,11 @@ void ULDGameInstance::ReturnAfterRefusal(UWorld* World, const FString& ServerMes
     if (!LDDemoEntry::DescribeJoinRefusal(ServerMessage, Reason)) { Reason = TEXT("房主拒绝了加入。"); }
     ReturnAfterFailure(World, Reason);
 }
+void ULDGameInstance::ReturnAfterRoomClosed(UWorld* World, const FString& Reason) { ReturnAfterFailure(World, Reason); }
 void ULDGameInstance::ReturnAfterFailure(UWorld* World, const FString& Error)
 {
     if (!World || World->GetGameInstance() != this) { return; }
-    // A refusal is followed by its connection closing: the room's first failure stays the shown reason.
+    // A refusal or a closed room is followed by its connection closing: the room's first reason stays the shown one.
     if (World == LeavingWorld.Get()) { return; }
     PrepareLocalSettingsForTravel();
     ConnectionMessage = Error;

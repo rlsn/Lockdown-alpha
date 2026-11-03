@@ -53,6 +53,10 @@ ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于
 发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
 `EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
+Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
+因此 GameMode 在本世界的 `PreLoadMapWithContext`（早于关闭网络驱动）关闭房间并向每名成员发出带原因的
+`ClientDemoRoomClosed`，这些通知随引擎关闭各连接前的最后一次发送先于断线到达，客户端以该原因返回前端。
+Host 进程被结束或窗口被直接关闭时没有这一步，客户端显示会话中断。
 Ready 是设置布尔值，不是服务器 Toggle。准备变化只推进公共发布版本；
 成员/AI 数量改变才推进结构版本并清除所有真人 Ready。
 `FLDSessionRequestWindow` 只保存当前在途请求、最近终态及处理水位：
@@ -172,7 +176,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 修改序列化时同步生产者、消费者、上限检查、代次拒绝和客户端显示，不能只改结构体尺寸。
 新的公开信息必须显式决定，不通过日志、提示或失败原因意外公开。
 
-当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
+当前入口：`RunDemoCaptureCheck.ps1`（终局与回 Lobby）、`RunDemoSessionFaultCheck.ps1`（中途离开、Host 离开与失联、加入失败与拒绝）、`RunDemoCombatCheck.ps1`、`RunDemoVisionCheck.ps1`，
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、

@@ -7,10 +7,12 @@
 #include "Region/LDMapRegistry.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Vision/LDVisionDirector.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/GameSession.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/UObjectGlobals.h"
 
 ALDPlayerState::ALDPlayerState() { bOnlyRelevantToOwner=true; bAlwaysRelevant=false; }
 
@@ -173,6 +175,7 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     MatchPhase=ELDMatchPhase::Lobby;
     RosterRevision=1;
     bEntryAccepted=true;
+    HostTravelHandle=FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this,&ALDGameMode::HostWorldUnloading);
     // Three humans plus three AI never reallocate record storage that callers briefly hold.
     Contenders.Reserve(6);
     if (GameSession) { GameSession->MaxPlayers=3; }
@@ -251,18 +254,7 @@ void ALDGameMode::Logout(AController* Exiting)
     if (Record && IsMemberPresent(Record->Session))
     {
         const FGuid Session=Record->Session;
-        if (LobbyHost==Controller)
-        {
-            MatchPhase=ELDMatchPhase::Closing;
-            if (GateRevision!=MAX_uint64) { ++GateRevision; }
-            if (Vision) { Vision->EndMatch(); }
-            for (const auto& Pair : Contenders)
-            {
-                if (auto* Member=Pair.Key.Get(); Member && Member!=Controller)
-                { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("房主已离开，房间已关闭（不支持更换房主）。")); }
-            }
-            LobbyHost.Reset();
-        }
+        if (LobbyHost==Controller) { CloseRoomForHostDeparture(Controller); }
         // An ordinary leave is not a death: no reward, no automatic win. The body leaves now,
         // the reducer receives the leave at its actual receipt instant and the result row stays.
         const bool InMatch=IsGameplayWriteOpen(MatchContext);
@@ -293,6 +285,36 @@ void ALDGameMode::Logout(AController* Exiting)
         PublishLobby();
     }
     Super::Logout(Exiting);
+}
+
+void ALDGameMode::CloseRoomForHostDeparture(const ALDPlayerController* Host)
+{
+    MatchPhase=ELDMatchPhase::Closing;
+    if (GateRevision!=MAX_uint64) { ++GateRevision; }
+    if (Vision) { Vision->EndMatch(); }
+    for (const auto& Pair : Contenders)
+    {
+        if (auto* Member=Pair.Key.Get(); Member && Member!=Host)
+        { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("房主已离开，房间已关闭（不支持更换房主）。")); }
+    }
+    LobbyHost.Reset();
+}
+
+void ALDGameMode::HostWorldUnloading(const FWorldContext& Context,const FString& Map)
+{
+    // Only this Listen Host's own map change; the reliable notices go out with the engine's final flush of each
+    // connection, ahead of its close.
+    const ALDPlayerController* Host=LobbyHost.Get();
+    if (Context.World()!=GetWorld() || GetNetMode()!=NM_ListenServer || !Host || !Host->IsLocalController()) { return; }
+    UE_LOG(LogTemp,Display,TEXT("LD_DEMO_ROOM_CLOSED_BY_HOST generation=%u next=%s"),MatchContext.Generation,*Map);
+    CloseRoomForHostDeparture(Host);
+}
+
+void ALDGameMode::EndPlay(const EEndPlayReason::Type Reason)
+{
+    FCoreUObjectDelegates::PreLoadMapWithContext.Remove(HostTravelHandle);
+    HostTravelHandle.Reset();
+    Super::EndPlay(Reason);
 }
 
 FLDOwnerState* ALDGameMode::StateFor(ALDPlayerController* PC)

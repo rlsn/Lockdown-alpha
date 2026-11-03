@@ -107,8 +107,9 @@ void ALDPlayerController::ClientDemoRoomClosed_Implementation(uint32 Generation,
     if (!Generation || (OwnerState.Match != Generation && (!Public || Public->DemoLobby.Generation != Generation))) { return; }
     DemoPendingSequence = 0;
     ClearControls();
-    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ConnectionMessage = Reason; }
-    ClientTravel(LDDemoEntry::FrontendMap, TRAVEL_Absolute);
+    // The Host's closing connection follows this notice; the room's first reason is the one shown.
+    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ReturnAfterRoomClosed(GetWorld(), Reason); }
+    else { ClientTravel(LDDemoEntry::FrontendMap, TRAVEL_Absolute); }
 }
 
 void ALDPlayerController::ClientWasKicked_Implementation(const FText& KickReason)

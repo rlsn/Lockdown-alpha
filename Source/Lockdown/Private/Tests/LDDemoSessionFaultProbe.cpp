@@ -33,10 +33,14 @@ namespace LDSessionFaultProbeInternal
 // Refuse: a live Host refuses real Join presses for another product version, a full room and a started match.
 // Race: a real Join passes PreLogin, then the Host starts while that client loads the room; the final admission check
 // refuses it with the started-match reason.
-enum class ELDSessionFaultMode : uint8 { Leave, HostLoss, Join, Refuse, Race };
+// HostLeave: the Listen Host leaves mid-match through its real in-match menu; its client lands on the frontend with
+// the Host-left reason, never a lost-connection notice.
+enum class ELDSessionFaultMode : uint8 { Leave, HostLoss, Join, Refuse, Race, HostLeave };
 enum class ELDSessionFaultStage : uint8 { Join, Lobby, Starting, Match, Ending, Frontend, Done };
 
 const TCHAR* const LeaveRequested = TEXT("Client2LeaveRequested.json");
+const TCHAR* const HostLeaveRequested = TEXT("HostLeaveRequested.json");
+const TCHAR* const HostLeftText = TEXT("房主已离开");
 const TCHAR* const HostKilled = TEXT("HostKilled");
 const TCHAR* const SawResults = TEXT("Client1SawResults.json");
 const TCHAR* const ConnectingPrefix = TEXT("正在连接");
@@ -180,7 +184,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("mode"), Mode == ELDSessionFaultMode::Leave ? TEXT("Leave")
             : Mode == ELDSessionFaultMode::HostLoss ? TEXT("HostLoss") : Mode == ELDSessionFaultMode::Refuse ? TEXT("Refuse")
-            : Mode == ELDSessionFaultMode::Race ? TEXT("Race") : TEXT("Join"));
+            : Mode == ELDSessionFaultMode::Race ? TEXT("Race") : Mode == ELDSessionFaultMode::HostLeave ? TEXT("HostLeave") : TEXT("Join"));
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetStringField(TEXT("scope"), TEXT("DEV-only session faults through the real entry, menu and frontend paths on one machine's loopback. Not LAN or public internet."));
         Report->SetObjectField(TEXT("summary"), Summary);
@@ -201,6 +205,16 @@ public:
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetArrayField(TEXT("checks"), Checks);
         return Check(Save(Report, Role + TEXT("Match.json")), TEXT("The in-match part of the role is persisted"));
+    }
+
+    // The real in-match menu: open the leave confirmation, then confirm it.
+    bool PressLeave(ALDPlayerController& PC)
+    {
+        UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"));
+        if (Leave) { Leave->OnClicked.Broadcast(); }
+        UButton* Confirm = FindIn<UButton>(PC.RootUI, TEXT("ConfirmLeaveMatch"));
+        if (Confirm) { Confirm->OnClicked.Broadcast(); }
+        return Check(Leave && Confirm, TEXT("The in-match menu offers leave and its confirmation"));
     }
 
     bool Tick();
@@ -326,8 +340,9 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         if (!Mark(Role + TEXT("InMatch.json"))) { return Finish(); }
         // The departing or disconnected roles continue on the frontend in a new probe instance.
         HandedOff = (Mode == ELDSessionFaultMode::Leave && Role == TEXT("Client2"))
-            || (Mode == ELDSessionFaultMode::HostLoss && Role == TEXT("Client1"));
-        if (Mode == ELDSessionFaultMode::HostLoss && HandedOff && !SaveMatchPart()) { return Finish(); }
+            || (Mode == ELDSessionFaultMode::HostLoss && Role == TEXT("Client1")) || Mode == ELDSessionFaultMode::HostLeave;
+        if ((Mode == ELDSessionFaultMode::HostLoss || Mode == ELDSessionFaultMode::HostLeave) && Role == TEXT("Client1")
+            && !SaveMatchPart()) { return Finish(); }
         Stage = ELDSessionFaultStage::Match;
         StageAt = FPlatformTime::Seconds();
         return true;
@@ -342,30 +357,33 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
                 && RemoteControllers(World) == ExpectedHumans() - 1, TEXT("Refused joins never enter the room or its running match"));
             return Finish();
         }
-        if (Mode == ELDSessionFaultMode::HostLoss)
+        if (Mode == ELDSessionFaultMode::HostLoss || Mode == ELDSessionFaultMode::HostLeave)
         {
             if (Role == TEXT("Client1"))
             {
                 if (View.Phase == ELDMatchPhase::Results && !MarkedResults) { MarkedResults = Mark(SawResults); }
                 return true;
             }
-            if (!Exists(TEXT("Client1InMatch.json"))) { return true; }
+            if (LeaveSent || !Exists(TEXT("Client1InMatch.json"))) { return true; }
             auto* Authority = World.GetAuthGameMode<ALDGameMode>();
-            Check(Authority && Authority->IsGameplayWriteOpen(Authority->GetMatchContext()) && PC.OwnerState.LifePhase == ELDLifePhase::Alive
-                && RemoteControllers(World) == 1, TEXT("The Host holds a live match with its owning client before it is lost"));
+            const bool bLive = Authority && Authority->IsGameplayWriteOpen(Authority->GetMatchContext())
+                && PC.OwnerState.LifePhase == ELDLifePhase::Alive && RemoteControllers(World) == 1;
             Summary->SetNumberField(TEXT("generation"), double(View.Generation));
-            return Finish();
+            if (Mode == ELDSessionFaultMode::HostLoss)
+            {
+                Check(bLive, TEXT("The Host holds a live match with its owning client before it is lost"));
+                return Finish();
+            }
+            // HostLeave: the Host leaves through its real menu and continues on its own frontend.
+            if (!Check(bLive, TEXT("The Host holds a live match with its owning client before it leaves"))
+                || !PressLeave(PC) || !SaveMatchPart() || !Mark(HostLeaveRequested)) { return Finish(); }
+            LeaveSent = true;
+            return true;
         }
         if (Role == TEXT("Client2"))
         {
             if (LeaveSent || !AllMarkers(TEXT("InMatch.json"))) { return true; }
-            // The real in-match menu: open the leave confirmation, then confirm it.
-            const bool bOpened = PC.RootUI && FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"));
-            if (bOpened) { FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"))->OnClicked.Broadcast(); }
-            UButton* Confirm = FindIn<UButton>(PC.RootUI, TEXT("ConfirmLeaveMatch"));
-            if (Confirm) { Confirm->OnClicked.Broadcast(); }
-            if (!Check(bOpened && Confirm, TEXT("The in-match menu offers leave and its confirmation"))
-                || !SaveMatchPart() || !Mark(LeaveRequested)) { return Finish(); }
+            if (!PressLeave(PC) || !SaveMatchPart() || !Mark(LeaveRequested)) { return Finish(); }
             LeaveSent = true;
             return true;
         }
@@ -411,13 +429,28 @@ bool FLDDemoSessionFaultProbe::TickFrontend(ALDPlayerController& PC, UWorld& Wor
     auto* Instance = Cast<ULDGameInstance>(PC.GetGameInstance());
     UUserWidget* Root = PC.RootUI;
     if (!Instance || !Root) { return true; }
-    if (Mode == ELDSessionFaultMode::Leave)
+    if (Mode == ELDSessionFaultMode::Leave || (Mode == ELDSessionFaultMode::HostLeave && Role == TEXT("Host")))
     {
         if (FPlatformTime::Seconds() - StageAt < 2.) { return true; }
         Check(Instance->ConnectionMessage.IsEmpty(), TEXT("A voluntary leave is not reported as a failure"));
         Check(FindShownText(Root, [](const FString& Shown) { return Shown.Contains(JoinFailedPrefix) || Shown.Contains(InterruptedText); }).IsEmpty(),
             TEXT("The menu shows no failure or interruption after a voluntary leave"));
         Summary->SetBoolField(TEXT("left_to_menu"), true);
+        return Finish();
+    }
+    if (Mode == ELDSessionFaultMode::HostLeave)
+    {
+        // The client of a room its Host closed: the Host-left reason, not the connection loss that followed it.
+        const FString Shown = FindShownText(Root, [](const FString& Text)
+        { return Text.Contains(HostLeftText) || Text.Contains(InterruptedText) || Text.StartsWith(JoinFailedPrefix); });
+        if (Instance->ConnectionMessage.IsEmpty() || Shown.IsEmpty()) { return true; }
+        Check(Exists(HostLeaveRequested), TEXT("The room closed because the Host left through its menu"));
+        Check(Shown.Contains(HostLeftText) && Instance->ConnectionMessage.Contains(HostLeftText) && !Shown.Contains(InterruptedText),
+            TEXT("The client shows that the Host left, not a lost connection"));
+        Check(!Exists(SawResults), TEXT("A closed room never produced a result table"));
+        Check(!Shown.StartsWith(JoinFailedPrefix), TEXT("A closed room is not reported as a failed join"));
+        Summary->SetStringField(TEXT("notice"), Shown);
+        Summary->SetStringField(TEXT("message"), Instance->ConnectionMessage);
         return Finish();
     }
     if (Mode == ELDSessionFaultMode::HostLoss)
@@ -563,7 +596,8 @@ void Start(ALDPlayerController& Controller)
     Probe->Mode = ModeText == TEXT("HostLoss") ? ELDSessionFaultMode::HostLoss
         : ModeText == TEXT("Join") ? ELDSessionFaultMode::Join
         : ModeText == TEXT("Refuse") ? ELDSessionFaultMode::Refuse
-        : ModeText == TEXT("Race") ? ELDSessionFaultMode::Race : ELDSessionFaultMode::Leave;
+        : ModeText == TEXT("Race") ? ELDSessionFaultMode::Race
+        : ModeText == TEXT("HostLeave") ? ELDSessionFaultMode::HostLeave : ELDSessionFaultMode::Leave;
     const bool bJoiner = Probe->Role == TEXT("Joiner");
     const bool bRoomRole = Probe->Role == TEXT("Host") || Probe->Role == TEXT("Client1");
     const bool bLiveHostJoiner = Probe->Mode == ELDSessionFaultMode::Refuse || Probe->Mode == ELDSessionFaultMode::Race;
@@ -574,7 +608,7 @@ void Start(ALDPlayerController& Controller)
     // The joiners live on the frontend; one probe per process follows every frontend reload.
     const bool bFrontendJoiner = Probe->Mode == ELDSessionFaultMode::Join || (bLiveHostJoiner && bJoiner);
     if (!bArguments || !bRole || (ModeText != TEXT("Leave") && ModeText != TEXT("HostLoss") && ModeText != TEXT("Join")
-            && ModeText != TEXT("Refuse") && ModeText != TEXT("Race"))
+            && ModeText != TEXT("Refuse") && ModeText != TEXT("Race") && ModeText != TEXT("HostLeave"))
         || Timeout < 120 || Timeout > 900 || (Probe->Mode == ELDSessionFaultMode::Join && (Probe->ClosedPort < 1 || Probe->ClosedPort > 65535))
         || (bLiveHostJoiner && bJoiner && (Probe->HostPort < 1 || Probe->HostPort > 65535))
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
@@ -587,10 +621,12 @@ void Start(ALDPlayerController& Controller)
     const FString Map = UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName());
     if (Map == LDDemoEntry::FrontendMap)
     {
-        // The frontend instance owns a joiner role, or continues a role that left or lost its match.
+        // The frontend instance owns a joiner role, or continues a role that left, lost or saw the Host close its match.
         const bool bContinue = bFrontendJoiner
             || (Probe->Mode == ELDSessionFaultMode::Leave && Probe->Role == TEXT("Client2") && Probe->Exists(LeaveRequested))
-            || (Probe->Mode == ELDSessionFaultMode::HostLoss && Probe->Role == TEXT("Client1") && Probe->Exists(TEXT("Client1InMatch.json")));
+            || (Probe->Mode == ELDSessionFaultMode::HostLoss && Probe->Role == TEXT("Client1") && Probe->Exists(TEXT("Client1InMatch.json")))
+            || (Probe->Mode == ELDSessionFaultMode::HostLeave
+                && Probe->Exists(Probe->Role == TEXT("Host") ? FString(HostLeaveRequested) : FString(TEXT("Client1InMatch.json"))));
         if (!bContinue) { return; }
         if (bFrontendJoiner)
         {
