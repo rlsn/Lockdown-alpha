@@ -45,6 +45,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoAttributeProjection.Envelope",
         "Lockdown.Rules.DemoAttributeProjection.Refusals",
         "Lockdown.Rules.DemoAttributeProjection.ResourceMaxChange",
+        "Lockdown.Rules.DemoCombatCues.Selection",
         "Lockdown.Rules.DemoCombatEvaluation.Damage",
         "Lockdown.Rules.DemoCombatEvaluation.DamageDomains",
         "Lockdown.Rules.DemoCombatEvaluation.ExactDamage",
