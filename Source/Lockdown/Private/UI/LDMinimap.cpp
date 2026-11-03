@@ -37,10 +37,13 @@ struct FLDMinimapStatic
     bool bContentTried=false,bGroundLogged=false,bResolved=false,bValid=false;
     FLDWorldRevision World;
     // Areas are clipped to the registered ground. Bounds is the box the view fits: every registered blocker, site, capture
-    // zone and spawn point as registered, kept to the ground (outer walls may lie wholly beyond it).
+    // zone and spawn point as registered, kept to the ground (outer walls may lie wholly beyond it). FitRadius is the
+    // turning views' circle about its centre: the farthest site, spawn, capture-zone or inner blocker point plus a margin,
+    // never more than the box's half diagonal; 0 when there is none.
     TArray<FArea> Areas;
     TArray<FSite> Sites;
     FBox2D Bounds=FBox2D(ForceInit);
+    double FitRadius=0.;
     // North-up plane (+X right, +Y down) at Scale frame units per cm from Origin; a view only rotates it.
     FVector2D Origin=FVector2D::ZeroVector;
     double Scale=-1.;
@@ -50,7 +53,7 @@ struct FLDMinimapStatic
     TArray<FRun> MemberShadow,MemberBody;
 };
 
-LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg)
+LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg,double FitRadius)
 {
     FView View;
     const FVector2D Span=Fit.GetSize();
@@ -67,8 +70,10 @@ LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fi
     View.Centre=Fit.GetCenter();View.FrameSize=FrameSize;
     const double Margin=FMath::Min(EdgeMargin,.25*FMath::Min(FrameSize.X,FrameSize.Y));const FVector2D Room=FrameSize-FVector2D(2.*Margin);
     // Facing fits the circumscribed circle; the others fit the rotated box's bounds, whose extent along a frame axis is
-    // the box span projected onto that axis's ground direction.
-    View.Scale=View.Mode==ELDMinimapOrientation::Facing?FMath::Min(Room.X,Room.Y)/Span.Size()
+    // the box span projected onto that axis's ground direction. A content radius replaces both for the turning views.
+    const bool bTurning=View.Mode!=ELDMinimapOrientation::North;
+    View.Scale=bTurning&&FMath::IsFinite(FitRadius)&&FitRadius>0.?FMath::Min(Room.X,Room.Y)/(2.*FitRadius)
+        :View.Mode==ELDMinimapOrientation::Facing?FMath::Min(Room.X,Room.Y)/Span.Size()
         :FMath::Min(Room.X/(Span.X*FMath::Abs(View.Right.X)+Span.Y*FMath::Abs(View.Right.Y)),Room.Y/(Span.X*FMath::Abs(View.Forward.X)+Span.Y*FMath::Abs(View.Forward.Y)));
     if(!FMath::IsFinite(View.Scale)||View.Scale<=0.){return FView();}
     return View;
@@ -92,6 +97,8 @@ FVector LDMinimap::ClampToGround(const FVector& World,const FBox2D& Ground)
 
 namespace
 {
+// Room around the farthest fitted point in the turning views, so a body walking just past a spawn stays on the map.
+constexpr double MinimapFitMarginCm=600.;
 // The minimap shares the registered ground bounds that observation coverage indexes.
 bool MinimapGroundBounds(const UWorld* World,FBox2D& Out)
 {
@@ -144,16 +151,20 @@ double MinimapArea(const TArray<FVector2D>& Polygon)
 // for the approved one. Spawn anchors are never drawn; they only keep the playable area inside the fit.
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
-    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);
+    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);Cache.FitRadius=0.;
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
     {Error=FString::Printf(TEXT("Approved content names map %s but the registered world is %s."),*Approved.World.MapId,*Geometry.MapId);return false;}
     auto ToCm=[&Error](const FString& Id,const FLDDemoWorldPoint& Point,FVector2D& Result)
     {FVector Cm;if(!Point.ToVector(Cm,Error)){Error=Id+TEXT(": ")+Error;return false;}Result=FVector2D(Cm.X,Cm.Y);return true;};
     FBox2D Content(ForceInit);
+    // Points the turning views keep inside their circle: sites, spawns, the capture zone and blocker corners strictly
+    // inside the ground (the outer fence lies on or beyond its edge and only bounds the empty field corners).
+    TArray<FVector2D> FitPoints;
+    auto Inside=[&Ground](const FVector2D& Point){return Point.X>Ground.Min.X&&Point.X<Ground.Max.X&&Point.Y>Ground.Min.Y&&Point.Y<Ground.Max.Y;};
     // An area is fitted as registered but keeps only its part on the ground; one left without area is not drawn.
-    auto Keep=[&Content,&Ground](FLDMinimapStatic::FArea& Area)
+    auto Keep=[&Content,&Ground,&FitPoints,&Inside](FLDMinimapStatic::FArea& Area)
     {
-        for(const FVector2D& Point:Area.Cm){Content+=Point;}
+        for(const FVector2D& Point:Area.Cm){Content+=Point;if(Inside(Point)){FitPoints.Add(Point);}}
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
@@ -170,7 +181,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
-        Content+=Site.Cm;
+        Content+=Site.Cm;FitPoints.Add(Site.Cm);
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn){continue;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Shop){Site.Kind=FLDMinimapStatic::ESite::Shop;}
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
@@ -196,6 +207,9 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     {Cache.Bounds=FBox2D(FVector2D(FMath::Max(Content.Min.X,Ground.Min.X),FMath::Max(Content.Min.Y,Ground.Min.Y)),FVector2D(FMath::Min(Content.Max.X,Ground.Max.X),FMath::Min(Content.Max.Y,Ground.Max.Y)));}
     const FVector2D Span=Cache.Bounds.GetSize();
     if(!Cache.Bounds.bIsValid||!(Span.X>0.)||!(Span.Y>0.)){Cache.Bounds=Ground;}
+    const FVector2D Centre=Cache.Bounds.GetCenter();double Farthest=-1.;
+    for(const FVector2D& Point:FitPoints){Farthest=FMath::Max(Farthest,FVector2D::Distance(Point,Centre));}
+    if(Farthest>=0.){Cache.FitRadius=FMath::Min(Farthest+MinimapFitMarginCm,.5*Cache.Bounds.GetSize().Size());}
     return true;
 }
 void MinimapLayoutStatic(FLDMinimapStatic& Cache,const FVector2D& Origin,double Scale)
@@ -266,7 +280,8 @@ LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FLDMinimapS
     // Without a camera manager the camera yaw is unknown; the Camera view then keeps the north yaw instead of a guess.
     const double CameraYaw=PC.PlayerCameraManager?double(PC.PlayerCameraManager->GetCameraRotation().Yaw):LDMinimap::NorthYawDeg;
     const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr;
-    return LDMinimap::MakeView(Mode,MinimapStaticCurrent(Cache,World)?Cache.Bounds:Ground,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.);
+    return LDMinimap::MakeView(Mode,MinimapStaticCurrent(Cache,World)?Cache.Bounds:Ground,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.,
+        MinimapStaticCurrent(Cache,World)?Cache.FitRadius:0.);
 }
 }
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()

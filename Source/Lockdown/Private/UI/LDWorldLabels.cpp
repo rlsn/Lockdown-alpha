@@ -28,7 +28,7 @@ constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
-constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=16.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
+constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
 constexpr float WorldPipWidth=10.f,WorldPipHeight=4.f,WorldPipGap=2.f;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
@@ -161,7 +161,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
     const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),16,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),16,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),14,TextScale);
     // The level badge grows with the text preference, so its number always fits.
-    const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),11,TextScale,1);
+    const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),13,TextScale,1);
     const float BadgeSide=FMath::RoundToFloat(WorldBadgeSide*TextScale),BadgeRim=BadgeSide+2.f;
     const TSharedRef<FSlateFontMeasure> FontMeasure=Renderer->GetFontMeasureService();
     const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));

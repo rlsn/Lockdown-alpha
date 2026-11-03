@@ -18,13 +18,14 @@ namespace LDHUDStyle
     // Outline behind world-anchored text and bars, so they read over any ground or body.
     inline const FLinearColor Rim(0.f,0.f,0.f,.85f);
 
-    // Resources
-    inline const FLinearColor OwnHealth(.30f,.80f,.36f);
-    inline const FLinearColor EnemyHealth(.86f,.26f,.21f);
-    inline const FLinearColor CampHealth(.95f,.62f,.18f);
-    inline const FLinearColor Mana(.25f,.50f,.95f);
+    // Resources. Values are linear (Slate converts to sRGB), so saturated fills need low channels; white bar text with a
+    // dark outline then keeps its contrast.
+    inline const FLinearColor OwnHealth(.05f,.45f,.08f);
+    inline const FLinearColor EnemyHealth(.70f,.07f,.05f);
+    inline const FLinearColor CampHealth(.85f,.32f,.03f);
+    inline const FLinearColor Mana(.05f,.22f,.85f);
     inline const FLinearColor Shield(0.f,.78f,1.f);
-    inline const FLinearColor Experience(.86f,.70f,.22f);
+    inline const FLinearColor Experience(.70f,.45f,.05f);
     inline const FLinearColor BarTrack(.04f,.05f,.07f,.85f);
 
     // Floating feedback
