@@ -156,6 +156,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 开圈 / 开始占领或换人 / 争夺 | `PublicMatch` 的开放状态与 `CaptureEpoch`（只在 CaptureOpen 阶段） | 每个 epoch 一次；占领类提示 1 秒内最多一次 |
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中面子下降且上限未降；致死一击交给社死音效 | 0.2 秒内最多一次 |
+| 本人淡定吸收（`SelfShieldHit`） | 同一投影中面子未降而淡定减少，且淡定状态仍在或在其列出的到期前消失（与
 | 本人技能或装备主动释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
 | 购买或出售成功 / 交易被拒 | 本人小卖部提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
@@ -169,11 +170,13 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
+一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如淡定吸收复用受击的 `impactGeneric_light_000.ogg`；
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
 BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
 结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
+复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（淡定吸收为 -6 dB，音量约为受击的一半）；被复用的文件只计一次中位数。
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
 很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；

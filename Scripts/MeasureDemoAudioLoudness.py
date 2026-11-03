@@ -7,7 +7,9 @@ Scripts/ImportDemoAudio.ps1 -Mode Import) and its measured "loudness_lufs" chang
 
 Loudness is the maximum momentary loudness (ITU-R BS.1770 K-weighting, 400 ms window, 10 ms hop,
 channel energies summed) so short cues are measured over the same window as long jingles. Every cue is
-brought to the median of all cues, and a boost is capped so the sample peak stays at or below PEAK_LIMIT.
+brought to the median of all source files, and a boost is capped so the sample peak stays at or below PEAK_LIMIT.
+A cue may reuse another cue's file with an optional "level_db" offset (e.g. -6 for a quieter variant), applied
+after that normalization and cap.
 """
 
 import argparse
@@ -67,10 +69,14 @@ def main():
     for cue in manifest["cues"]:
         samples, rate = soundfile.read(ROOT / cue["source"], dtype="float64", always_2d=True)
         measured.append((cue, max_momentary_loudness(samples, rate), float(np.abs(samples).max())))
-    target = float(np.median([loudness for _, loudness, _ in measured]))
+    # A file reused by several cues counts once for the target.
+    first = {}
+    for cue, loudness, _ in measured:
+        first.setdefault(cue["source"], loudness)
+    target = float(np.median(list(first.values())))
     print(f"target {target:.2f} LUFS (median max momentary loudness)")
     for cue, loudness, peak in measured:
-        volume = min(10 ** ((target - loudness) / 20), PEAK_LIMIT / peak)
+        volume = min(10 ** ((target - loudness) / 20), PEAK_LIMIT / peak) * 10 ** (cue.get("level_db", 0.0) / 20)
         volume = round(max(volume, MIN_VOLUME), 3)
         cue["loudness_lufs"] = round(loudness, 2)
         cue["volume"] = volume

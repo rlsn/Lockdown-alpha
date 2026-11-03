@@ -63,6 +63,8 @@ private:
     uint64 HitRevision = 0;
     int64 HitHPP2 = 0;
     int64 HitMaxHPP2 = 0;
+    int64 HitShieldP2 = 0;
+    int64 HitShieldEndsAtMs = 0;    // end of the shield status listed with the baseline; 0 when none was listed
     double LastHitAt = -1e9;
     uint32 GrowthMatch = 0;
     uint8 GrowthLevel = 0;
