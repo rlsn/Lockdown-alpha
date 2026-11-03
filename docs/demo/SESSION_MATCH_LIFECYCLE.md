@@ -269,15 +269,15 @@ const FLDMatchContext&) -> FLDAIRegistrationResult` 只在 Starting 接受已冻
 不能多建角色。它不生成额外人数、免费资源或独立生命表。
 失败明确返回 WrongPhase/InvalidRosterSlot/AlreadyBound/StaleMatch，不由 AI 补建一个“临时角色”。
 真人/AI 按显式 ELDContenderKind 计数，不按 IsPlayerController、NetConnection 是否为空
-或 Pawn 数猜测。AI 域拟建 `ALDOpponentController : ALDPlayerController`，
+或 Pawn 数猜测。AI 由 `ALDOpponentController : ALDPlayerController` 驱动，
 直接复用基类的 StateFor/BuildFor/Holder 路径而不经过 B91/B92；没有 LocalPlayer/UI/网络
 连接，不伪造 RPC，也不能落入 NPCBuild。核心注册后才调用其 `BindRegisteredSelf`，
-AI 不 friend 直写 Contenders；ReadAISelf/RequestAISnapshot 必须验证注册的 adapter 与 Match。
+AI 不 friend 直写 Contenders；ReadAISelf 必须验证注册的 adapter 与 Match。
 
 `ReadAISelf(const FLDAIContenderBinding&) const -> FLDAISelfReadResult` 校验该绑定所属的
 注册 Controller 和当前 Match，只返回该 AI 的同一 Owner 投影；
 公共阶段/圈用 `ReadPublicMatch() const -> FLDPublicMatchView`。
-AI 自己的 `ALDOpponentController::RequestAISnapshot` 只是组合这两个只读入口和获准
+AI 自己的 `ALDOpponentController::BuildFrame` 只是组合这两个只读入口和获准
 Observer 的适配，不另加一个 GameMode 查询真相或在 AI 中复制生命状态。
 观察权限与目标解析由世界提供的 ObserverContext 接入，不将 GameMode 全表作为 AI 感知。
 操作域的服务器 `FLDOrderCaller` 使用 MatchContext+BodyRef，
