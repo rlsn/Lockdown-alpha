@@ -25,6 +25,7 @@ namespace LDHUD
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString EquipmentName(const FLDDemoContentDefinitions* Content,uint8 EquipmentId);
+    LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
     LOCKDOWN_API FString RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId);
     // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
@@ -55,6 +56,9 @@ namespace LDHUD
 
     // Rounds a live remainder up to the next tenth, so it cannot read 0.0s while the deadline is still ahead.
     LOCKDOWN_API FString TenthsUp(int64 RemainingMs);
+    // Remainder drawn over a cooling action slot: whole seconds rounded up from ten seconds, tenths rounded up below, so it
+    // never reads 0.0 while time remains; empty once the track is ready.
+    LOCKDOWN_API FString CooldownText(int64 RemainingMs);
     // Owner life line from the Lives projection. "Now" is only the matching authority clock sample: without one the
     // remaining time is unavailable, and a live countdown never reads zero before that clock reaches the deadline.
     LOCKDOWN_API FString LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs);
@@ -77,9 +81,27 @@ namespace LDHUD
         float Progress=0.f;
     };
     // Public capture state (APP_SPEC 2.2). Reaching zero only waits for the authority; it never announces a winner.
-    LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs);
+    // A contested circle with a paused holder (D12) shows the paused progress against HoldMs, the approved CAPTURE hold;
+    // without a holder the contest names no one and shows no progress.
+    LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs,int64 HoldMs=0);
+    // The one most useful next step for the own player, shown under the public capture line: a pending growth choice,
+    // then the open capture point, then the dearest approved item the own gold buys while a slot is empty, then early
+    // farming. Own projections, the public match and approved prices only; never a hidden unit or another wallet.
+    // Empty when nothing applies or the match is not running.
+    LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    struct FKillFeedLineView
+    {
+        FString Text;
+        bool bSelf=false;
+    };
+    // A notice naming the player as victim or killer says 你 there and is marked so the feed can highlight it.
+    LOCKDOWN_API FKillFeedLineView KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    // Cause line of the own death banner: the newest public notice of this generation naming the player as the victim at or
+    // after NotBeforeMs (when the life that died was first seen alive, so an older death is never shown). Killers come from
+    // the public roster and camp tiers from approved display text; empty while no such notice is known.
+    LOCKDOWN_API FString DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName);
     LOCKDOWN_API FString ResultHeadline(const FLDResultView& Result,const FString& WinnerName);
     struct FResultRowView
     {
@@ -138,8 +160,19 @@ namespace LDHUD
         uint32 ExecutionBlocks=0;
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
+        FString Countdown;        // CooldownText of the remainder; empty when not cooling
+        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. 胆量 30; empty without one
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
+    // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty
+    // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
+    enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
+    struct FActionLookView
+    {
+        EActionLook Look=EActionLook::Blocked;
+        FString Caption;
+    };
+    LOCKDOWN_API FActionLookView ActionLook(const FActionView& View,bool bArmed);
 
     struct FObservedCard
     {
@@ -154,9 +187,6 @@ namespace LDHUD
     // SC-07 whitelist only: name, level, HP, MP, public statuses and two equipment definitions.
     LOCKDOWN_API FObservedCard ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
     LOCKDOWN_API FString ObservedUnit(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
-    // Map fractions over the registered ground bounds that observation coverage also uses.
-    LOCKDOWN_API FVector2D MapPoint(const FVector& World,const FBox2D& Ground);
-    LOCKDOWN_API FVector MapWorld(const FVector2D& Fraction,const FBox2D& Ground);
 
     // Typed parameters of approved content (CONTENT 12.5): prose comes from the display table, numbers only from the
     // immutable snapshot fields, formatted here without recomputing any battle formula.
@@ -207,4 +237,7 @@ namespace LDHUD
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
+    // The same execution failure for the pressed Q/W/1/2 slot, which already names its entry: the reason only. Empty for
+    // other entries and for anything CombatReceiptNotice would not report as a failure.
+    LOCKDOWN_API FString CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt);
 }

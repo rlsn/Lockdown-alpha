@@ -180,9 +180,13 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Prop lives in the art folder: ") + Prop.Id, Prop.Mesh->GetPathName().StartsWith(ArtRoot));
         for (const FStaticMaterial& Slot : Prop.Mesh->GetStaticMaterials())
         {
+            float Fade = -1.f;
             TestTrue(TEXT("Prop material lives in the art folder: ") + Prop.Id, Slot.MaterialInterface && Slot.MaterialInterface->GetPathName().StartsWith(ArtRoot));
+            TestEqual(TEXT("Only fadeable prop materials expose the fade parameter: ") + Prop.Id, Slot.MaterialInterface
+                && Slot.MaterialInterface->GetScalarParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::FadeParameter), Fade), Prop.bFadeable);
         }
     }
+    TestTrue(TEXT("The capture flagpole is the fadeable occluder"), Catalog->Props.ContainsByPredicate([](const FLDArtProp& Prop) { return Prop.Id == TEXT("flagpole") && Prop.bFadeable; }));
     TestTrue(TEXT("Every decoration respects its D02 placement zone: ") + Error, LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error));
     return true;
 }
@@ -233,6 +237,11 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A built set refuses a second build"), Set->Build(Art, Error));
     TestEqual(TEXT("Every catalog placement is one instance"), Set->GetInstanceCount(), Catalog->Decorations.Num());
     TestTrue(TEXT("Every part is display only"), Set->IsPresentationOnly());
+    for (const UInstancedStaticMeshComponent* Part : Set->GetParts())
+    {
+        const FLDArtProp* Prop = Catalog->Props.FindByPredicate([Part](const FLDArtProp& Candidate) { return Candidate.Mesh == Part->GetStaticMesh(); });
+        TestTrue(TEXT("Exactly the fadeable props carry the fade tag on their own component"), Prop && Part->ComponentHasTag(ULDArtCatalog::FadeableTag) == Prop->bFadeable);
+    }
     // A blocking control body proves the traces are live while decorations stay invisible to them.
     const FVector Probe(0, 0, 50);
     auto* Control = World->SpawnActor<AStaticMeshActor>(Probe, FRotator::ZeroRotator);

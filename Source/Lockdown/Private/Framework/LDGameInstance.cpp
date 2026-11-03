@@ -309,6 +309,8 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
             LocalControlSettings->MasterVolume = Loaded.RecoverablePreferences->MasterVolume;
             LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
+            LocalControlSettings->MinimapOrientation = Loaded.RecoverablePreferences->MinimapOrientation;
+            LocalControlSettings->bQuickCast = Loaded.RecoverablePreferences->bQuickCast;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");

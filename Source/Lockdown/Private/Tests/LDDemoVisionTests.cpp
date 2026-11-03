@@ -343,6 +343,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Baseline mutation frame encodes"), Encodes(Mutated([](FLDWorldView&) {})));
     TestFalse(TEXT("Unknown schema refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = LDObservation::Schema + 1; })));
     TestFalse(TEXT("The retired schema 1 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 1; })));
+    TestFalse(TEXT("The retired schema 2 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 2; })));
     TestFalse(TEXT("Capacity is never truncated"), Encodes(Mutated([](FLDWorldView& V)
     { while (V.Units.Num() <= LDObservation::MaxUnits) { V.Units.Add(ContenderUnit()); } })));
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
@@ -456,7 +457,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ActionEquipment"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look")});
@@ -901,9 +902,10 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionCueAgeMs = 180;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
+    View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues and their ages round-trip"), Wire(View, Read) && Read.Units.Num() == 2
-        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
+        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7 && Read.Units[0].ActionEquipment == 0
         && Read.Units[1].ActionCue == ELDObservedActionCue::Hit && Read.Units[1].ActionCueAgeMs == 40);
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
@@ -919,6 +921,17 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
+    // A cast may name its one public source at that moment (user-approved CB-P10 amendment); nothing else may.
+    FLDObservedUnitView Named = ContenderUnit();
+    Named.ActionCue = ELDObservedActionCue::Cast;
+    Named.ActionCueAgeMs = 30;
+    Named.ActionEquipment = 3;
+    TestTrue(TEXT("A cast may name one equipment source"), LDObservation::ValidateUnit(Named, Error));
+    Named.ActionAbility = 7;
+    TestFalse(TEXT("A cast names at most one source"), LDObservation::ValidateUnit(Named, Error));
+    Named.ActionEquipment = 0;
+    Named.ActionCue = ELDObservedActionCue::Attack;
+    TestFalse(TEXT("Only a cast names a source"), LDObservation::ValidateUnit(Named, Error));
     for (uint8 Seat = 0; Seat < LDObservation::MaxPresentations; ++Seat)
     {
         FLDObservedUnitView Unit = ContenderUnit();
@@ -1055,5 +1068,65 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         && Receiver.Read().Frame && Receiver.Read().Frame->Projectiles.IsEmpty());
     return true;
 }
-} // namespace LDDemoVisionTests
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPresentationTest, "Lockdown.Rules.DemoVision.Presentation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
+{
+    namespace P = LDObservedPresentation;
+    auto Point = [](double At, const FVector& Location, float Yaw, bool bSnap = false)
+    {
+        P::FPoint Out;
+        Out.At = At;
+        Out.Location = Location;
+        Out.Yaw = Yaw;
+        Out.bSnap = bSnap;
+        return Out;
+    };
+    const TArray<P::FPoint> Path = {Point(10.0, FVector(0, 0, 90), 350.f, true), Point(10.1, FVector(50, 0, 90), 10.f),
+        Point(10.2, FVector(100, 20, 90), 10.f), Point(10.3, FVector(900, 20, 90), 90.f, true)};
+    P::FPose Pose = P::Sample(Path, 9.9);
+    TestTrue(TEXT("Before the first sample the pose waits at it"), Pose.Reached == INDEX_NONE && Pose.Location.Equals(FVector(0, 0, 90)) && Pose.Velocity.IsZero());
+    Pose = P::Sample(Path, 10.05);
+    TestTrue(TEXT("Between two samples the pose is linear and moves at their speed"), Pose.Reached == 0
+        && Pose.Location.Equals(FVector(25, 0, 90), .001) && Pose.Velocity.Equals(FVector(500, 0, 0), .001));
+    TestTrue(TEXT("Yaw takes the shorter arc across north"), FMath::IsNearlyEqual(FRotator::NormalizeAxis(double(Pose.Yaw)), 0.0, 0.01));
+    Pose = P::Sample(Path, 10.25);
+    TestTrue(TEXT("A snap sample is reached by a jump, never by a sweep"), Pose.Reached == 2 && Pose.Location.Equals(FVector(100, 20, 90)) && Pose.Velocity.IsZero());
+    Pose = P::Sample(Path, 10.3);
+    TestTrue(TEXT("The snap sample shows once the clock reaches it"), Pose.Reached == 3 && Pose.Location.Equals(FVector(900, 20, 90)));
+    Pose = P::Sample(Path, 12.0);
+    TestTrue(TEXT("After the newest sample the pose holds it: nothing is extrapolated"), Pose.Reached == 3
+        && Pose.Location.Equals(FVector(900, 20, 90)) && Pose.Velocity.IsZero() && FMath::IsNearlyEqual(Pose.Yaw, 90.f));
+    TestTrue(TEXT("No sample, no pose"), P::Sample(TArray<P::FPoint>(), 10.0).Reached == INDEX_NONE);
+
+    TestTrue(TEXT("The first arrival seeds the offset"), FMath::IsNearlyEqual(P::TrackOffset(false, 0, 0, 105.0, 100.0), 5.0));
+    TestTrue(TEXT("An earlier arrival lowers the offset at once"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 105.08, 100.1), 4.98));
+    TestTrue(TEXT("A late arrival raises it only by the bounded growth"),
+        FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 105.2, 100.1), 5.0 + .1 * P::OffsetGrowthPerSecond));
+    TestTrue(TEXT("Growth never passes the arrival itself"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, 100.0, 105.11, 100.1), 5.01));
+    TestTrue(TEXT("A jump beyond the reseed bound adopts the new clock"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 200.0, 10.0), 190.0));
+    TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPropFadeTest, "Lockdown.Rules.DemoVision.PropFade",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
+{
+    // A thin pole at the origin, 600 cm tall; the camera looks down from behind it at -60 degrees.
+    const FBox Pole(FVector(-15, -15, 0), FVector(15, 15, 600));
+    const FVector Camera(-1000, 0, 1500);
+    TestTrue(TEXT("A pole between the camera and a body's chest occludes it"), LDPropFade::Occludes(Pole, Camera, FVector(300, 0, 90)));
+    TestFalse(TEXT("A pole beside the line does not"), LDPropFade::Occludes(Pole, Camera, FVector(300, 600, 90)));
+    TestFalse(TEXT("A body in front of the pole is not hidden by it"), LDPropFade::Occludes(Pole, Camera, FVector(-400, 0, 90)));
+    TestFalse(TEXT("An unset prop never occludes"), LDPropFade::Occludes(FBox(ForceInit), Camera, FVector(300, 0, 90)));
+    float Fade = 0.f;
+    Fade = LDPropFade::Step(Fade, true, .1f);
+    TestTrue(TEXT("Fading in is gradual"), Fade > 0.f && Fade < 1.f);
+    Fade = LDPropFade::Step(Fade, true, 1.f);
+    TestTrue(TEXT("Fading in stops at full"), Fade == 1.f);
+    Fade = LDPropFade::Step(Fade, false, 1.f);
+    TestTrue(TEXT("Clearing the line fades back to opaque"), Fade == 0.f);
+    return true;
+}} // namespace LDDemoVisionTests
 #endif

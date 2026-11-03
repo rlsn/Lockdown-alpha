@@ -510,7 +510,8 @@
     {
       "id": "flagpole",
       "source": "Kenney/RacingKit/flagRed.glb",
-      "scale": 6.0
+      "scale": 6.0,
+      "fadeable": true
     },
     {
       "id": "grandstand",

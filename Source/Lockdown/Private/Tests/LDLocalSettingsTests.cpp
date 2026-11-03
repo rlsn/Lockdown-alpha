@@ -44,12 +44,15 @@ namespace
         }
     };
 
-    // Schema 5 is the migratable layout without PlayerName, MasterVolume and CameraPanCmPerSec, schema 6 the one without
-    // MasterVolume and CameraPanCmPerSec, schema 7 the one without CameraPanCmPerSec; every other schema writes the
-    // current whitelist order.
+    // Schema 5 is the migratable layout without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation, schema 6
+    // the one without MasterVolume and the later fields, schema 7 the one without CameraPanCmPerSec and MinimapOrientation,
+    // schema 8 the one without MinimapOrientation, schema 9 the one without QuickCast; every other schema writes the current
+    // whitelist order.
     constexpr uint32 NamelessFixtureSchema = 5;
     constexpr uint32 VolumelessFixtureSchema = 6;
     constexpr uint32 PanlessFixtureSchema = 7;
+    constexpr uint32 OrientationlessFixtureSchema = 8;
+    constexpr uint32 QuickCastlessFixtureSchema = 9;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -62,6 +65,12 @@ namespace
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema) { float Volume = Values.MasterVolume; Payload << Volume; }
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema)
         { float PanSpeed = Values.CameraPanCmPerSec; Payload << PanSpeed; }
+        if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
+            && Schema != OrientationlessFixtureSchema)
+        { uint8 Orientation = uint8(Values.MinimapOrientation); Payload << Orientation; }
+        if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
+            && Schema != OrientationlessFixtureSchema && Schema != QuickCastlessFixtureSchema)
+        { uint8 Quick = Values.bQuickCast ? 1 : 0; Payload << Quick; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -192,6 +201,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     auto* Draft = Applied->CreateDraft();
     Draft->TextScale = 1.25f;
     Draft->bEdgePan = false;
+    Draft->MinimapOrientation = ELDMinimapOrientation::Facing;
     FString Error;
     TestTrue(TEXT("Draft binding change is legal"), Draft->Rebind(TEXT("Skill1"), EKeys::F6, Error));
     TestTrue(TEXT("EditingDraft cannot save"), Draft->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
@@ -205,7 +215,8 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Only verified save clears dirty"), Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
     Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Restart reads confirmed preferences"), Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
-        && Loaded.Settings->TextScale == 1.25f && !Loaded.Settings->bEdgePan && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+        && Loaded.Settings->TextScale == 1.25f && !Loaded.Settings->bEdgePan && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Loaded.Settings->GetMinimapOrientation() == ELDMinimapOrientation::Facing);
     TestTrue(TEXT("An unset (empty) name is valid, saves and reloads as unset"), Loaded.Settings && Loaded.Settings->PlayerName.IsEmpty());
     const FString ChineseName = TEXT("阴人王 小明");
     TestTrue(TEXT("The applied owner accepts a Chinese name with an inner space"), Applied->SetAppliedPlayerName(ChineseName, Error));
@@ -635,8 +646,7 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     uint32 SavedSchema = 0;
     FString Error;
 
-    // Schema 8 stores the camera-only pan speed: save, then restore it exactly.
-    TestEqual(TEXT("Schema 8 is the current local settings format"), ULDControlSettings::CurrentSchema, 8);
+    // The current schema stores the camera-only pan speed: save, then restore it exactly.
     TestTrue(TEXT("The camera pan domain is 900..3600 cm/s"),
         ULDControlSettings::MinCameraPanCmPerSec == 900.f && ULDControlSettings::MaxCameraPanCmPerSec == 3600.f);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
@@ -645,9 +655,10 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The applied owner accepts a legal pan speed and marks it unsaved"),
         Applied->SetAppliedCameraPanSpeed(2700, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->GetCameraPanCmPerSec() == 2700.f);
     TestTrue(TEXT("The pan speed is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
-    TestTrue(TEXT("The verified file declares schema 8"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 8u);
+    TestTrue(TEXT("The verified file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("A schema 8 round trip restores the exact pan speed as persistence verified"),
+    TestTrue(TEXT("A current-schema round trip restores the exact pan speed as persistence verified"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetCameraPanCmPerSec() == 2700.f
         && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
     for (float Bound : { ULDControlSettings::MinCameraPanCmPerSec, ULDControlSettings::MaxCameraPanCmPerSec })
@@ -722,7 +733,8 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
         Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("镜头平移速度使用默认值 1800 cm/s")));
     TestTrue(TEXT("Loading never rewrites the schema 7 file"), OnDisk(PanlessFile));
     TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
-    TestTrue(TEXT("The rewritten file declares schema 8"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 8u);
+    TestTrue(TEXT("The rewritten file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The rewritten file loads as current with the kept values and the default pan speed"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->GetCameraPanCmPerSec() == DefaultPan
@@ -783,6 +795,159 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsMinimapOrientationTest, "Lockdown.Rules.LocalSettingsMinimapOrientation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit minimap orientation fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto OnDisk = [&](const TArray<uint8>& Expected) { TArray<uint8> Actual; return FFileHelper::LoadFileToArray(Actual, *Fixture.Storage.Filename()) && Actual == Expected; };
+    const ELDMinimapOrientation Camera = ELDMinimapOrientation::Camera, Facing = ELDMinimapOrientation::Facing, North = ELDMinimapOrientation::North;
+    uint32 SavedSchema = 0;
+    FString Error;
+
+    // Schema 9 added the minimap orientation; 跟随镜头 is the user's default.
+    TestTrue(TEXT("Every orientation has its player-facing name and no other value has one"),
+        ULDControlSettings::MinimapOrientationLabel(Camera).Equals(TEXT("跟随镜头"), ESearchCase::CaseSensitive)
+        && ULDControlSettings::MinimapOrientationLabel(Facing).Equals(TEXT("跟随角色朝向"), ESearchCase::CaseSensitive)
+        && ULDControlSettings::MinimapOrientationLabel(North).Equals(TEXT("固定正北"), ESearchCase::CaseSensitive)
+        && ULDControlSettings::MinimapOrientationLabel(static_cast<ELDMinimapOrientation>(3)).IsEmpty());
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("The default minimap orientation follows the camera"),
+        Applied->GetMinimapOrientation() == Camera && GetDefault<ULDControlSettings>()->MinimapOrientation == Camera);
+    for (const ELDMinimapOrientation Value : { Facing, North, Camera })
+    {
+        TestTrue(TEXT("The applied owner accepts every orientation and marks it unsaved"),
+            Applied->SetAppliedMinimapOrientation(Value, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->GetMinimapOrientation() == Value);
+        TestTrue(TEXT("The orientation is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+        TestTrue(TEXT("The verified file declares the current schema"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
+        const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("A current-schema round trip restores the exact orientation as persistence verified"),
+            Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetMinimapOrientation() == Value
+            && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    }
+
+    // Only the three orientations reach the applied owner; a draft never takes one.
+    TestTrue(TEXT("Prepare a verified 固定正北"), Applied->SetAppliedMinimapOrientation(North, Error) && Applied->SaveLocalSettings().IsSaved());
+    auto* Draft = Applied->CreateDraft();
+    TestFalse(TEXT("A draft cannot set the applied orientation"), Draft->SetAppliedMinimapOrientation(Facing, Error));
+    TestTrue(TEXT("A refused draft orientation is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->MinimapOrientation == North);
+    for (const uint8 Invalid : { uint8(3), uint8(255) })
+    {
+        TestFalse(TEXT("An unknown orientation is refused"), Applied->SetAppliedMinimapOrientation(static_cast<ELDMinimapOrientation>(Invalid), Error));
+        TestTrue(TEXT("A refused orientation is explained and keeps the applied value"), !Error.IsEmpty() && Applied->MinimapOrientation == North);
+        Draft->MinimapOrientation = static_cast<ELDMinimapOrientation>(Invalid);
+        TestFalse(TEXT("Apply refuses a draft carrying an unknown orientation"), Applied->ApplyLocalSettings(*Draft, Error));
+        TestTrue(TEXT("The refusal names the minimap orientation and keeps the verified applied value"), Error.Contains(TEXT("小地图朝向"))
+            && Applied->MinimapOrientation == North && Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    }
+
+    // Restoring local defaults returns to 跟随镜头 but never clears the player name.
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    Applied->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring local defaults returns the orientation to Camera and keeps the player name"),
+        Applied->GetMinimapOrientation() == Camera && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+
+    // A stored orientation outside the enumeration rejects the whole file like an out-of-range zoom; the file is left alone.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    for (const uint8 Invalid : { uint8(3), uint8(255) })
+    {
+        Values->MinimapOrientation = static_cast<ELDMinimapOrientation>(Invalid);
+        const auto BadFile = FixtureBytes(*Values);
+        Write(BadFile);
+        const auto BadLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An invalid saved orientation makes the file Corrupt, without settings or recovery data"),
+            BadLoad.Status == ELDLocalSettingsLoadStatus::Corrupt && !BadLoad.Settings && !BadLoad.RecoverablePreferences
+            && BadLoad.Message.Contains(TEXT("小地图朝向")));
+        TestTrue(TEXT("Rejecting a saved orientation leaves the file byte-identical"), OnDisk(BadFile));
+    }
+
+    // Schema 8 has the pan speed but no orientation: an explicit migration keeps everything it stored and uses 跟随镜头.
+    Values->Bindings[TEXT("Skill1")] = EKeys::F6;
+    Values->Zoom = 1550;
+    Values->MasterVolume = .4f;
+    Values->CameraPanCmPerSec = 2700;
+    // Never written by the schema 8 layout; the migration must not pick it up from anywhere.
+    Values->MinimapOrientation = North;
+    const auto OrientationlessFile = FixtureBytes(*Values, OrientationlessFixtureSchema, 0);
+    Write(OrientationlessFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 8 file is an explicit successful migration, never plain Loaded"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
+    TestTrue(TEXT("The migration keeps the name, volume, pan speed, bindings and camera preferences and uses Camera"), Migrated.Settings
+        && Migrated.Settings->GetMinimapOrientation() == Camera && Migrated.Settings->GetCameraPanCmPerSec() == 2700.f
+        && Migrated.Settings->MasterVolume == .4f && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
+        && Migrated.Settings->Valid());
+    TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"), Migrated.Settings
+        && Migrated.Settings->GetPhase() == ELDLocalSettingsPhase::ConfirmedApplied && !Migrated.Settings->NeedsRecovery());
+    TestTrue(TEXT("The schema 8 migration message names the default orientation"),
+        Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("小地图朝向使用默认值“跟随镜头”")));
+    TestTrue(TEXT("Loading never rewrites the schema 8 file"), OnDisk(OrientationlessFile));
+    TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
+    TestTrue(TEXT("The rewritten file declares the current schema"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
+    const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The rewritten file loads as current with the kept values and Camera"),
+        Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->GetMinimapOrientation() == Camera
+        && Upgraded.Settings->GetCameraPanCmPerSec() == 2700.f && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    Write(FixtureBytes(*Values, OrientationlessFixtureSchema, 0));
+    const auto OrientationlessRejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 8 file with a retired action keeps the rejection and recovery path, with Camera"),
+        OrientationlessRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !OrientationlessRejected.Settings
+        && OrientationlessRejected.RecoverablePreferences && OrientationlessRejected.RecoverablePreferences->GetMinimapOrientation() == Camera
+        && OrientationlessRejected.RecoverablePreferences->GetCameraPanCmPerSec() == 2700.f
+        && OrientationlessRejected.Message.Contains(TEXT("Development")));
+    Values->Bindings.Remove(TEXT("Development"));
+    auto DamagedOrientationless = OrientationlessFile;
+    DamagedOrientationless.Last() ^= 1;
+    Write(DamagedOrientationless);
+    TestTrue(TEXT("A damaged schema 8 file is Corrupt"),
+        ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+
+    // Schemas 5, 6 and 7 still migrate explicitly, with Camera as well as their older defaults.
+    for (const uint32 Older : { NamelessFixtureSchema, VolumelessFixtureSchema, PanlessFixtureSchema })
+    {
+        const auto OlderFile = FixtureBytes(*Values, Older, 0);
+        Write(OlderFile);
+        const auto OlderLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An older schema still migrates with Camera and the default pan speed"),
+            OlderLoad.Status == ELDLocalSettingsLoadStatus::Migrated && OlderLoad.Settings && OlderLoad.Settings->GetMinimapOrientation() == Camera
+            && OlderLoad.Settings->GetCameraPanCmPerSec() == 1800.f && OlderLoad.Settings->Key(TEXT("Skill1")) == EKeys::F6 && OlderLoad.Settings->IsDirty());
+        TestTrue(TEXT("The older migration message names the default orientation"),
+            OlderLoad.Message.Contains(TEXT("迁移")) && OlderLoad.Message.Contains(TEXT("小地图朝向使用默认值“跟随镜头”")));
+        TestTrue(TEXT("Loading never rewrites an older file"), OnDisk(OlderFile));
+    }
+
+    // Recovery data from a rejected current file carries its validated orientation into the session; the gated file stays unchanged.
+    Values->MinimapOrientation = Facing;
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    const auto RejectedFile = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Write(RejectedFile);
+    auto* RecoveryInstance = NewObject<ULDGameInstance>();
+    auto* Recovered = RecoveryInstance->UseIsolatedLocalSettings(Fixture.Id);
+    if (!TestNotNull(TEXT("The rejected fixture still supplies session settings"), Recovered)) { return false; }
+    TestTrue(TEXT("Recovery keeps the validated orientation for the session and requires explicit replacement"),
+        Recovered->GetMinimapOrientation() == Facing && Recovered->NeedsRecovery());
+    TestTrue(TEXT("The gated flush keeps the rejected file byte-identical"),
+        RecoveryInstance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired && OnDisk(RejectedFile));
+    TestTrue(TEXT("Confirmed recovery writes the kept orientation in the current schema"), RecoveryInstance->ConfirmLocalSettingsRecovery().IsSaved());
+    const auto Replaced = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The replacement restores the kept orientation"),
+        Replaced.Status == ELDLocalSettingsLoadStatus::Loaded && Replaced.Settings && Replaced.Settings->GetMinimapOrientation() == Facing);
+    auto* ResetDraft = Recovered->CreateDraft();
+    ResetDraft->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring defaults through the game instance applies and saves Camera"),
+        RecoveryInstance->ApplyLocalSettings(*ResetDraft).IsSaved() && Recovered->GetMinimapOrientation() == Camera);
+    const auto Restored = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Restart restores Camera and keeps the player name"),
+        Restored.Status == ELDLocalSettingsLoadStatus::Loaded && Restored.Settings && Restored.Settings->GetMinimapOrientation() == Camera
+        && Restored.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.LocalControlRegistryIsolation",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
@@ -826,13 +991,15 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("阴人王"), Error));
     Settings->TextScale = 1.25f;
     Settings->Zoom = 1600;
+    Settings->MinimapOrientation = ELDMinimapOrientation::North;
     Settings->ResetBindings();
     TestTrue(TEXT("Resetting bindings preserves unrelated preferences and the name"), Settings->TextScale == 1.25f && Settings->Zoom == 1600
-        && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        && Settings->MinimapOrientation == ELDMinimapOrientation::North && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
     Settings->ResetLocalDefaults();
     const auto* Defaults = GetDefault<ULDControlSettings>();
-    TestTrue(TEXT("Restoring local defaults resets keys, camera and text but never deletes the player name"),
+    TestTrue(TEXT("Restoring local defaults resets keys, camera, text and the minimap orientation but never deletes the player name"),
         Settings->TextScale == Defaults->TextScale && Settings->Zoom == Defaults->Zoom && HasExactDemoDefaults(*Settings)
+        && Settings->MinimapOrientation == Defaults->MinimapOrientation
         && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Settings->Valid());
     auto* Draft = Settings->CreateDraft();
     Draft->Bindings.Add(TEXT("Sprint"), EKeys::LeftShift);
@@ -1217,6 +1384,52 @@ bool FLDLocalDisplayNativeSaveFlushTest::RunTest(const FString& Parameters)
     QualityBranch->IniPath.Reset();
     TestFalse(TEXT("Missing destination cannot fall back to a relative config identifier"),
         LDLocalSettings::ResolveConfigDestination(NamedCache, TEXT("Engine"), Physical, ResolutionError));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsQuickCastTest, "Lockdown.Rules.LocalSettingsQuickCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit quick cast fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    FString Error;
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("Quick cast is off by default: a skill key arms for a left-click confirmation"),
+        !Applied->GetQuickCast() && !GetDefault<ULDControlSettings>()->bQuickCast);
+    auto* Draft = Applied->CreateDraft();
+    Draft->bQuickCast = true;
+    TestTrue(TEXT("Applying a draft turns quick cast on"), Applied->ApplyLocalSettings(*Draft, Error) && Applied->GetQuickCast());
+    TestTrue(TEXT("Quick cast is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores quick cast"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetQuickCast());
+
+    // A schema 9 file has no quick cast field: it migrates with quick cast off, whatever the writer held.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    Values->bQuickCast = true;
+    Write(FixtureBytes(*Values, QuickCastlessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 9 file migrates explicitly with quick cast off and its other preferences kept"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.Settings->GetQuickCast()
+        && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Migrated.Message.Contains(TEXT("快速施法默认关闭")));
+
+    // A stored flag other than 0 or 1 is malformed, never read as on.
+    TArray<uint8> Bad = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Values->bQuickCast = false;
+    const TArray<uint8> Good = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    int32 FlagAt = INDEX_NONE;
+    for (int32 Index = 12; Index < Good.Num() && Index < Bad.Num(); ++Index) { if (Good[Index] != Bad[Index]) { FlagAt = Index; break; } }
+    if (TestTrue(TEXT("The quick cast byte is located in the fixture"), FlagAt != INDEX_NONE))
+    {
+        Bad[FlagAt] = 2;
+        const uint32 Checksum = FCrc::MemCrc32(Bad.GetData() + 12, Bad.Num() - 12);
+        FMemory::Memcpy(Bad.GetData() + 8, &Checksum, sizeof(Checksum));
+        Write(Bad);
+        TestTrue(TEXT("A malformed quick cast flag is corrupt"), ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+    }
     return true;
 }
 #endif

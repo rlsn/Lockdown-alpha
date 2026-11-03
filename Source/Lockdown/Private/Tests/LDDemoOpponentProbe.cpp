@@ -15,7 +15,9 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Inventory/LDInventoryDirector.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
+#include "UnrealClient.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -40,6 +42,7 @@ constexpr int64 RequestWindowMs = 30000;
 constexpr uint32 MaxBodyRequestsPerWindow = 40;
 constexpr int64 RespawnSlackMs = 2500;
 constexpr int64 ActAfterRespawnMs = 10000;
+constexpr int64 OpeningPickWithinMs = 10000;
 constexpr double MinTravelCm = 1000.;
 
 int32 CountKind(const FLDLobbyView& Lobby, ELDContenderKind Kind)
@@ -98,6 +101,8 @@ struct FLDOpponentProbeTrack
     int64 MaxLevel = 0;
     int64 MaxXP = 0;
     int64 MaxConsumed = 0;
+    // Match ms at the first sample that saw a consumed choice; the D10 opening pick resolves right after spawn.
+    int64 OpeningPickMs = -1;
     int64 MaxGold = 0;
     int32 MaxItems = 0;
     FString Gear;
@@ -116,8 +121,13 @@ public:
     bool Passed = true, Written = false, StartSent = false, ReturnSent = false;
     bool RosterKept = true, ReadsKept = true;
     uint32 FirstGeneration = 0;
-    int64 RespawnMs = 0, NextSampleMs = 0;
+    int64 RespawnMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
+    // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
+    int32 Shots = 0;
+    double MatchSeenAt = 0, LastShotAt = 0;
+    TArray<TSharedPtr<FJsonValue>> Screenshots;
+    void CaptureHost(const ALDPlayerController& Owner);
     TSet<FGuid> OpponentIds;
     TArray<FLDOpponentProbeTrack> Tracks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -278,6 +288,7 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const int64 Now = Mode.GetAuthorityNowMs();
     if (Now < NextSampleMs) { return; }
     NextSampleMs = Now + SampleMs;
+    if (StartedAtMs < 0) { StartedAtMs = Mode.ReadPublicMatch().StartedAtMs; }
     // No backfill or replacement: the same three adapters for the same three contenders throughout.
     TSet<FGuid> Live;
     for (TActorIterator<ALDOpponentController> It(&World); It; ++It)
@@ -335,10 +346,33 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         }
         else { Track.bHasFeet = false; }
         ReadGrowth(Mode, Track);
+        if (Track.OpeningPickMs < 0 && Track.MaxConsumed >= 1) { Track.OpeningPickMs = Now - StartedAtMs; }
         Track.Requests.Add(TPair<int64, uint32>(Now, Body));
         while (Track.Requests.Num() > 1 && Track.Requests[0].Key < Now - RequestWindowMs) { Track.Requests.RemoveAt(0); }
         Track.MaxWindowRequests = FMath::Max(Track.MaxWindowRequests, Body - Track.Requests[0].Value);
     }
+}
+
+void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
+{
+    // Only a rendered Host takes them: the opening HUD (own bars, pending three-choice, minimap), then the first two
+    // moments an AI stands in the Host's current sight, where cooldowns, floating numbers and falls can show.
+    if (!FApp::CanEverRender() || Shots >= 3) { return; }
+    const double Now = FPlatformTime::Seconds();
+    if (MatchSeenAt == 0) { MatchSeenAt = Now; }
+    int32 Visible = 0;
+    if (const ALDWorldViewRelay* Relay = Owner.LocalView())
+    {
+        const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
+        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current) { Visible = Read.Frame->Units.Num(); }
+    }
+    const bool bOpening = Shots == 0 && Now - MatchSeenAt >= 8.;
+    const bool bSighted = Shots > 0 && Visible > 0 && Now - LastShotAt >= 6.;
+    if (!bOpening && !bSighted) { return; }
+    const FString File = FString::Printf(TEXT("HostMatch%d.png"), ++Shots);
+    LastShotAt = Now;
+    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
+    Screenshots.Add(MakeShared<FJsonValueString>(File));
 }
 
 void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const FLDResultView& Result)
@@ -346,7 +380,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
     bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
+    bool OpeningPicks = true;
     uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0;
+    uint32 PausedHolds = 0, PausedHoldsKept = 0, PausedHoldsBroken = 0, Challenges = 0, ChallengesKept = 0, ChallengesBroken = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
     {
@@ -377,6 +413,13 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         DeathsSeen += Track.Deaths;
         QuietWhileDead &= Track.bQuietWhileDead;
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
+        OpeningPicks &= Track.OpeningPickMs >= 0 && Track.OpeningPickMs <= OpeningPickWithinMs;
+        PausedHolds += T.PausedHolds;
+        PausedHoldsKept += T.PausedHoldsKept;
+        PausedHoldsBroken += T.PausedHolds - T.PausedHoldsKept - T.PausedHoldsReleased;
+        Challenges += T.Challenges;
+        ChallengesKept += T.ChallengesKept;
+        ChallengesBroken += T.Challenges - T.ChallengesKept - T.ChallengesReleased;
         const FLDResultRow* Row = Result.Rows.FindByPredicate([&Track](const FLDResultRow& R) { return R.ContenderId == Track.Contender; });
         auto Value = MakeShared<FJsonObject>();
         Value->SetStringField(TEXT("contender"), Track.Contender.ToString(EGuidFormats::Digits));
@@ -385,6 +428,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("level"), double(Track.MaxLevel));
         Value->SetNumberField(TEXT("xp"), double(Track.MaxXP));
         Value->SetNumberField(TEXT("choices"), double(Track.MaxConsumed));
+        Value->SetNumberField(TEXT("opening_pick_ms"), double(Track.OpeningPickMs));
         Value->SetNumberField(TEXT("gold_max"), double(Track.MaxGold));
         Value->SetNumberField(TEXT("items_max"), Track.MaxItems);
         Value->SetStringField(TEXT("gear"), Track.Gear);
@@ -404,6 +448,13 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("trades"), T.Trades);
         Value->SetNumberField(TEXT("builds_refused"), T.BuildsRefused);
         Value->SetNumberField(TEXT("max_body_requests_30s"), Track.MaxWindowRequests);
+        Value->SetNumberField(TEXT("paused_holds"), T.PausedHolds);
+        Value->SetNumberField(TEXT("paused_holds_kept"), T.PausedHoldsKept);
+        Value->SetNumberField(TEXT("paused_holds_released"), T.PausedHoldsReleased);
+        Value->SetNumberField(TEXT("challenges"), T.Challenges);
+        Value->SetNumberField(TEXT("challenges_kept"), T.ChallengesKept);
+        Value->SetNumberField(TEXT("challenges_released"), T.ChallengesReleased);
+        Value->SetNumberField(TEXT("holder_attacks"), T.HolderAttacks);
         Rows.Add(MakeShared<FJsonValueObject>(Value));
     }
     Summary->SetArrayField(TEXT("opponents"), Rows);
@@ -421,6 +472,14 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
+    Check(OpeningPicks, TEXT("D10: every AI resolved its opening pick within ten seconds of the start"));
+    // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
+    Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
+        : !PausedHoldsBroken && PausedHoldsKept ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
+        TEXT("D12: an AI holding paused progress stays to fight in the circle, leaving only at its stop-loss line"));
+    Record(!Challenges ? ELDOpponentProbeCheck::NotExercised
+        : !ChallengesBroken && ChallengesKept ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
+        TEXT("D12: an AI inside a contest against a rival's paused progress keeps fighting there instead of leaving to farm or shop"));
     Check(!Mode.IsGameplayWriteOpen(Mode.GetMatchContext()) && Mode.ReadPublicMatch().ResultId == Result.ResultId,
         TEXT("The authority gate is closed by the same result it published"));
 }
@@ -529,7 +588,7 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Match:
     {
-        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen)) { Sample(*World, *Mode); }
+        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen)) { Sample(*World, *Mode); CaptureHost(*PC); }
         if (!bHost)
         {
             // Ordinary vision decides what an owning client sees of the AI; this is evidence, not a requirement.
@@ -558,7 +617,7 @@ bool FLDDemoOpponentProbe::Tick()
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
         Summary->SetNumberField(TEXT("duration_ms"), double(Result.DurationMs));
-        if (bHost) { CloseHost(*Mode, Result.EndedAtMs, Result); }
+        if (bHost) { Summary->SetArrayField(TEXT("screenshots"), Screenshots); CloseHost(*Mode, Result.EndedAtMs, Result); }
         else { Summary->SetNumberField(TEXT("max_seen_opponents"), MaxSeenOpponents); }
         if (!Passed || !Mark(Role + TEXT("Results.json"))) { return Finish(); }
         Stage = ELDOpponentProbeStage::Results;

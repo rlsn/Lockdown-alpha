@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "UI/LDMinimap.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -77,10 +78,11 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Roster names come from the public roster"),LDHUD::RosterName(Lobby,Rival.ContenderId),FString(TEXT("同学甲")));
     TestTrue(TEXT("An unlisted contender has no invented roster name"),LDHUD::RosterName(Lobby,FGuid::NewGuid()).IsEmpty()&&LDHUD::RosterName(Lobby,FGuid()).IsEmpty());
     const FBox2D Ground(FVector2D(-5000,-5000),FVector2D(5000,5000));
-    const FVector World(-1700,-1000,200);const auto Fraction=LDHUD::MapPoint(World,Ground);const auto Back=LDHUD::MapWorld(Fraction,Ground);
-    TestTrue(TEXT("Map conversion round trips XY and deliberately grants no height or dynamic target"),FVector::Dist2D(World,Back)<.001&&Back.Z==0);
-    const FVector Edge=LDHUD::MapWorld(FVector2D(5,-3),Ground);
-    TestTrue(TEXT("Map edge clamp stays inside the registered ground"),Edge.X>=Ground.Min.X&&Edge.X<Ground.Max.X&&Edge.Y>Ground.Min.Y&&Edge.Y<=Ground.Max.Y);
+    const LDMinimap::FView MapView=LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,FVector2D(240,240),0.,false,0.);
+    const FVector World(-1700,-1000,200);const FVector Back=LDMinimap::ToWorld(MapView,LDMinimap::ToFrame(MapView,World));
+    TestTrue(TEXT("Map conversion round trips XY and deliberately grants no height or dynamic target"),MapView.IsValid()&&FVector::Dist2D(World,Back)<.001&&Back.Z==0);
+    const FVector Edge=LDMinimap::ClampToGround(LDMinimap::ToWorld(MapView,FVector2D(5,-3)*MapView.FrameSize),Ground);
+    TestTrue(TEXT("Map edge clamp stays inside the registered ground"),Edge.X>=Ground.Min.X&&Edge.X<Ground.Max.X&&Edge.Y>=Ground.Min.Y&&Edge.Y<Ground.Max.Y&&Edge.Z==0);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLifeStatusTest,"Lockdown.Rules.HUDLifeStatus",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -189,7 +191,15 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An open empty circle has no occupier"),LDHUD::Circle(Public,FString(),true,0).Line,FString(TEXT("升旗台已开放 · 无人占领")));
     Public.CircleState=ELDCircleState::Contested;
     const LDHUD::FCircleView Contested=LDHUD::Circle(Public,TEXT("同学甲"),true,0);
-    TestTrue(TEXT("Contesting shows the reset without naming anyone or showing progress"),Contested.Line==TEXT("升旗台争夺中 · 占领进度清零")&&!Contested.bProgress);
+    TestTrue(TEXT("A contest without a holder names no one and shows no progress"),Contested.Line==TEXT("升旗台争夺中 · 无人保有进度")&&!Contested.bProgress);
+    {
+        FLDPublicMatchView Paused=Public;Paused.Occupier=FGuid::NewGuid();Paused.PausedProgressMs=12001;
+        const LDHUD::FCircleView Held=LDHUD::Circle(Paused,TEXT("同学甲"),true,0,25000);
+        TestTrue(TEXT("A paused holder's progress shows against the approved hold, rounded up"),
+            Held.Line==TEXT("升旗台争夺中 · 进度暂停 13/25 s（同学甲）")&&Held.bProgress&&FMath::IsNearlyEqual(Held.Progress,12001.f/25000.f));
+        TestTrue(TEXT("Without the approved hold the paused seconds still show, without a bar"),
+            LDHUD::Circle(Paused,TEXT("同学甲"),true,0).Line==TEXT("升旗台争夺中 · 同学甲 的进度暂停在 13 s")&&!LDHUD::Circle(Paused,TEXT("同学甲"),true,0).bProgress);
+    }
     Public.CircleState=ELDCircleState::Solo;Public.SoloSinceMs=100000;Public.DueAtMs=125000;
     const LDHUD::FCircleView Solo=LDHUD::Circle(Public,TEXT("同学甲"),true,110000);
     TestTrue(TEXT("Solo progress runs from the public solo start to its due time"),Solo.bProgress&&FMath::IsNearlyEqual(Solo.Progress,.4f,.0001f)&&Solo.Line==TEXT("同学甲 正在独占升旗台 · 剩余 15.0s"));
@@ -332,6 +342,158 @@ bool FLDHUDIdentityPaletteTest::RunTest(const FString& Parameters)
         for(int32 Slot=0;Slot<6;++Slot)
         {TestTrue(*FString::Printf(TEXT("Creature %d is not drawn in roster slot %d's tint"),int32(Monster),Slot),Spread(Camp,LDHUD::PaletteColor(uint8(Slot)))>=.1f);}
     }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCooldownTextTest,"Lockdown.Rules.HUDCooldownText",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDCooldownTextTest::RunTest(const FString& Parameters)
+{
+    TestTrue(TEXT("A ready track draws no remainder"),LDHUD::CooldownText(0).IsEmpty()&&LDHUD::CooldownText(-250).IsEmpty());
+    TestEqualSensitive(TEXT("From ten seconds the remainder reads in whole seconds"),LDHUD::CooldownText(12000),FString(TEXT("12")));
+    TestEqualSensitive(TEXT("Whole seconds round up"),LDHUD::CooldownText(12001),FString(TEXT("13")));
+    TestEqualSensitive(TEXT("Exactly ten seconds reads whole"),LDHUD::CooldownText(10000),FString(TEXT("10")));
+    TestEqualSensitive(TEXT("A remainder that rounds up to ten seconds reads whole, never 10.0"),LDHUD::CooldownText(9950),FString(TEXT("10")));
+    TestEqualSensitive(TEXT("Below ten seconds the remainder reads in tenths"),LDHUD::CooldownText(3200),FString(TEXT("3.2")));
+    TestEqualSensitive(TEXT("Tenths round up"),LDHUD::CooldownText(3201),FString(TEXT("3.3")));
+    TestEqualSensitive(TEXT("The last tenth below ten seconds"),LDHUD::CooldownText(9900),FString(TEXT("9.9")));
+    TestEqualSensitive(TEXT("Any live remainder reads at least a tenth, never 0.0"),LDHUD::CooldownText(1),FString(TEXT("0.1")));
+    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("粉笔头");Bolt.bHasActive=true;Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;
+    TestEqualSensitive(TEXT("The slot view carries the remainder drawn over the mask"),LDHUD::Action(Bolt,Context).Countdown,FString(TEXT("3.2")));
+    Context.NowMs=8000;
+    TestTrue(TEXT("The remainder disappears once the authority clock reaches the track end"),LDHUD::Action(Bolt,Context).Countdown.IsEmpty());
+    Context.NowMs=4800;Context.bClock=false;
+    TestTrue(TEXT("Without the authority clock no remainder is drawn"),LDHUD::Action(Bolt,Context).Countdown.IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionStatesTest,"Lockdown.Rules.HUDActionStates",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
+{
+    LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("粉笔头");Bolt.Rank=1;Bolt.bHasActive=true;Bolt.ManaCostP2=3050;
+    LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
+    LDHUD::FActionLookView Shown=LDHUD::ActionLook(View,false);
+    TestEqualSensitive(TEXT("The cost chip rounds the mana cost down, like the shown mana"),View.Cost,FString(TEXT("胆量 30")));
+    TestTrue(TEXT("A ready, affordable active looks ready and says so"),Shown.Look==LDHUD::EActionLook::Ready&&Shown.Caption==TEXT("就绪"));
+    Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
+    TestTrue(TEXT("A cooling active names the cooldown and carries its remainder"),Shown.Look==LDHUD::EActionLook::Cooling&&Shown.Caption==TEXT("冷却中")&&View.Countdown==TEXT("3.2"));
+    Context.ManaP2=1000;View=LDHUD::Action(Bolt,Context);
+    TestTrue(TEXT("A cooldown outranks missing mana"),LDHUD::ActionLook(View,false).Look==LDHUD::EActionLook::Cooling);
+    Bolt.ReadyAtMs=0;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
+    TestTrue(TEXT("Missing mana without a cooldown has its own look and caption and still sends"),Shown.Look==LDHUD::EActionLook::NoMana&&Shown.Caption==TEXT("胆量不足")&&View.bCanSubmitIntent);
+    Bolt.bControlled=true;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
+    TestTrue(TEXT("A control status outranks missing mana and is named"),Shown.Look==LDHUD::EActionLook::Controlled&&Shown.Caption==TEXT("受控"));
+    Bolt.ReadyAtMs=8000;View=LDHUD::Action(Bolt,Context);
+    TestTrue(TEXT("A control status outranks the cooldown, whose remainder still shows"),LDHUD::ActionLook(View,false).Look==LDHUD::EActionLook::Controlled&&View.Countdown==TEXT("3.2"));
+    Shown=LDHUD::ActionLook(View,true);
+    TestTrue(TEXT("The armed entry outranks its remaining limits"),Shown.Look==LDHUD::EActionLook::Armed&&Shown.Caption==TEXT("选择目标"));
+    Bolt.bControlled=false;Bolt.ReadyAtMs=0;Context.ManaP2=10000;
+    LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);Shown=LDHUD::ActionLook(View,true);
+    TestTrue(TEXT("An empty slot looks empty even when armed; its name says so and it has no cost"),Shown.Look==LDHUD::EActionLook::Empty&&Shown.Caption.IsEmpty()&&View.Cost.IsEmpty()&&View.Name==TEXT("空槽"));
+    LDHUD::FActionInput Plate;Plate.Slot=LDHUD::EActionSlot::Item1;Plate.bProjected=true;Plate.bHasSource=true;Plate.Name=TEXT("《五年挨打三年模拟》");Plate.ManaCostP2=2000;
+    View=LDHUD::Action(Plate,Context);Shown=LDHUD::ActionLook(View,false);
+    TestTrue(TEXT("A source without an active looks empty, says why and shows no cost"),Shown.Look==LDHUD::EActionLook::Empty&&Shown.Caption==TEXT("无主动效果")&&View.Cost.IsEmpty());
+    Context.bAlive=false;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,true);
+    TestTrue(TEXT("A dead owner's slot is blocked and named, never armed"),Shown.Look==LDHUD::EActionLook::Blocked&&Shown.Caption==TEXT("社死中"));
+    Context.bAlive=true;Bolt.ServerBlock=TEXT("目标不可用");View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
+    TestTrue(TEXT("A published server reason blocks the look with that reason"),Shown.Look==LDHUD::EActionLook::Blocked&&Shown.Caption==TEXT("目标不可用"));
+    Bolt.ServerBlock.Reset();Bolt.ManaCostP2=0;
+    TestTrue(TEXT("An active without a cost shows no chip"),LDHUD::Action(Bolt,Context).Cost.IsEmpty());
+    LDHUD::FActionInput Unprojected=Bolt;Unprojected.bProjected=false;Unprojected.ManaCostP2=5000;View=LDHUD::Action(Unprojected,Context);
+    TestTrue(TEXT("Without a projection there is no cost and the slot is unsynced"),View.Cost.IsEmpty()&&LDHUD::ActionLook(View,false).Look==LDHUD::EActionLook::Blocked);
+    FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::OutOfRange;
+    TestEqualSensitive(TEXT("The pressed slot shows the reason of the player's failed request"),LDHUD::CombatReceiptSlotNotice(Receipt),FString(TEXT("超出射程")));
+    Receipt.Entry=ELDCombatEntry::Basic;
+    TestTrue(TEXT("The basic attack has no slot to tell"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
+    Receipt.Entry=ELDCombatEntry::Item2;Receipt.Reject=ELDCombatReject::Cancelled;
+    TestTrue(TEXT("A cancel tells the slot nothing"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
+    Receipt.Reject=ELDCombatReject::Cooldown;Receipt.Origin=ELDCombatRequestOrigin::Nav;
+    TestTrue(TEXT("A navigation-issued request tells the slot nothing"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
+    Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Phase=ELDCombatPhase::Accepted;
+    TestTrue(TEXT("An accepted request tells the slot nothing"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDeathCauseTest,"Lockdown.Rules.HUDDeathCause",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDDeathCauseTest::RunTest(const FString& Parameters)
+{
+    const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid();
+    FLDLobbyView Lobby;
+    FLDLobbyMember Me;Me.ContenderId=Self;Me.Name=TEXT("我");Lobby.Members.Add(Me);
+    FLDLobbyMember Killer;Killer.ContenderId=Rival;Killer.Name=TEXT("同学甲");Lobby.Members.Add(Killer);
+    FLDKillFeedView Feed;Feed.Generation=7;
+    auto AddNotice=[&Feed](uint64 Serial,const FGuid& Victim,const FGuid& By,ELDKillCause Kind,int64 AtMs)
+    {FLDKillNotice Entry;Entry.Serial=Serial;Entry.Victim=Victim;Entry.Killer=By;Entry.Cause=Kind;Entry.OccurredAtMs=AtMs;Feed.Notices.Add(Entry);};
+    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,TEXT("纪律委员"),TEXT("体育老师"));};
+    AddNotice(1,Self,FGuid(),ELDKillCause::CampHigh,10000);
+    AddNotice(2,Other,Rival,ELDKillCause::Contender,30000);
+    AddNotice(3,Self,Rival,ELDKillCause::Contender,50000);
+    TestEqualSensitive(TEXT("The newest own death names its killer from the public roster"),CauseAt(7,40000),FString(TEXT("被 同学甲 送去社死")));
+    TestTrue(TEXT("A feed of another generation is not this match"),CauseAt(8,0).IsEmpty()&&CauseAt(0,0).IsEmpty());
+    TestTrue(TEXT("Before this life's notice arrives an older death never stands in"),CauseAt(7,60000).IsEmpty());
+    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,TEXT("纪律委员"),TEXT("体育老师")).IsEmpty());
+    Feed.Notices.RemoveAt(2);
+    TestEqualSensitive(TEXT("A camp death names the approved creature of its tier"),CauseAt(7,0),FString(TEXT("被体育老师送去社死")));
+    TestTrue(TEXT("Another contender's death is never the player's cause"),CauseAt(7,20000).IsEmpty());
+    AddNotice(4,Self,FGuid(),ELDKillCause::CampLow,70000);
+    TestEqualSensitive(TEXT("The low camp tier has its own creature"),CauseAt(7,60000),FString(TEXT("被纪律委员送去社死")));
+    AddNotice(5,Self,FGuid::NewGuid(),ELDKillCause::Contender,80000);
+    TestEqualSensitive(TEXT("A killer missing from the roster is not given an invented name"),CauseAt(7,60000),FString(TEXT("被 未列名参赛者 送去社死")));
+    AddNotice(6,Self,FGuid(),ELDKillCause::Unowned,90000);
+    TestEqualSensitive(TEXT("A death without a contender owner says so"),CauseAt(7,60000),FString(TEXT("无参赛者击杀")));
+    FLDOwnerState Own;Own.LifePhase=ELDLifePhase::Dead;Own.RespawnAtMs=12000;
+    const FString Note=LDHUD::Death(Own,true,0).Note;
+    TestTrue(TEXT("The death note is one short line that keeps the build and the choices"),Note.Len()<=24&&!Note.Contains(TEXT("；"))&&!Note.Contains(TEXT("\n"))
+        &&Note.Contains(TEXT("全部保留"))&&Note.Contains(TEXT("选卡不影响复活")));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDKillFeedSelfTest,"Lockdown.Rules.HUDKillFeedSelf",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
+{
+    const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid();
+    auto Line=[](const FLDKillNotice& Source,const FGuid& Viewer,const TCHAR* VictimName,const TCHAR* KillerName)
+    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,TEXT("纪律委员"),TEXT("体育老师"));};
+    FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;Notice.Victim=Rival;Notice.Killer=Self;
+    LDHUD::FKillFeedLineView Shown=Line(Notice,Self,TEXT("乙"),TEXT("我"));
+    TestTrue(TEXT("The player's own kill says 你 and is highlighted"),Shown.bSelf&&Shown.Text==TEXT("你 让 乙 社死了"));
+    Notice.Victim=Self;Notice.Killer=Rival;Shown=Line(Notice,Self,TEXT("我"),TEXT("甲"));
+    TestTrue(TEXT("The player's own death says 你 and is highlighted"),Shown.bSelf&&Shown.Text==TEXT("甲 让 你 社死了"));
+    Notice.Cause=ELDKillCause::CampLow;Notice.Killer.Invalidate();Shown=Line(Notice,Self,TEXT("我"),TEXT(""));
+    TestTrue(TEXT("A camp death of the player says 你"),Shown.bSelf&&Shown.Text==TEXT("你 被纪律委员送去社死"));
+    Notice.Cause=ELDKillCause::Contender;Notice.Victim=Other;Notice.Killer=Rival;Shown=Line(Notice,Self,TEXT("丙"),TEXT("甲"));
+    TestTrue(TEXT("Other contenders keep their roster names and are not highlighted"),!Shown.bSelf&&Shown.Text==TEXT("甲 让 丙 社死了"));
+    Notice.Victim=Self;
+    TestFalse(TEXT("Without an own identity nothing is marked or renamed"),Line(Notice,FGuid(),TEXT("我"),TEXT("甲")).bSelf||Line(Notice,FGuid(),TEXT("我"),TEXT("甲")).Text.Contains(TEXT("你")));
+    Notice.Cause=ELDKillCause::CampHigh;Notice.Victim=Other;Notice.Killer=Self;Shown=Line(Notice,Self,TEXT("丙"),TEXT("我"));
+    TestTrue(TEXT("Only a contender kill can credit the player"),!Shown.bSelf&&Shown.Text==TEXT("丙 被体育老师送去社死"));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDNextStepTest,"Lockdown.Rules.HUDNextStep",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
+{
+    HudRegisterFixtureTable();
+    ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
+    FLDDemoContentDefinitions Content=HudFixtureContent();
+    for(FLDDemoEquipmentDefinition& Item:Content.Equipment){Item.BuyPrice=300;}
+    const FGuid Self=FGuid::NewGuid();
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=4;Growth.Level=1;
+    FLDEquipmentView Wallet;Wallet.bValid=true;Wallet.Generation=4;Wallet.Gold=150;
+    for(uint8 Index=0;Index<2;++Index){FLDEquipmentSlotView Slot;Slot.SlotIndex=Index;Wallet.Slots.Add(Slot);}
+    auto Step=[&](){return LDHUD::NextStep(Public,Self,&Growth,&Wallet,&Content);};
+    TestEqualSensitive(TEXT("A fresh contender is pointed at the camps"),Step(),FString(TEXT("下一步：去打附近的野怪拿经验和零花钱（右键攻击）")));
+    Wallet.Gold=320;
+    TestEqualSensitive(TEXT("Affordable gear for an empty slot names the approved item"),Step(),FString(TEXT("下一步：零花钱够买「《五年挨打三年模拟》」，去小卖部")));
+    Wallet.Slots[0].bOccupied=true;Wallet.Slots[1].bOccupied=true;Growth.Level=3;
+    TestTrue(TEXT("Full slots and a grown contender need no hint"),Step().IsEmpty());
+    Growth.PendingChoiceCount=2;
+    TestEqualSensitive(TEXT("A pending growth choice comes first"),Step(),FString(TEXT("下一步：选择成长 ×2（点技能栏上方的金色提示）")));
+    Growth.PendingChoiceCount=0;Public.Phase=ELDMatchPhase::CaptureOpen;
+    TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步：升旗台已开放，去中心抢圈")));
+    Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
+    TestEqualSensitive(TEXT("The own occupation is encouraged instead"),Step(),FString(TEXT("坚持住：你正在占领升旗台")));
+    Public.Phase=ELDMatchPhase::Results;
+    TestTrue(TEXT("Outside a running match there is no hint"),Step().IsEmpty());
+    Public.Phase=ELDMatchPhase::Development;Growth.Generation=3;Wallet.Generation=3;Wallet.Slots[0].bOccupied=false;
+    TestTrue(TEXT("Projections of another match never give a hint"),Step().IsEmpty());
     return true;
 }
 #endif

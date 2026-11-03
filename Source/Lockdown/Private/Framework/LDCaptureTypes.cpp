@@ -41,9 +41,12 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     if (View.ServerNowMs < 0 || View.StartedAtMs < 0 || View.OpenAtMs < View.StartedAtMs)
     { return FailCaptureView(Error, TEXT("Invalid public match times.")); }
     const bool Solo = View.CircleState == ELDCircleState::Solo;
-    if (Solo != View.Occupier.IsValid()
+    const bool Paused = View.CircleState == ELDCircleState::Contested && View.Occupier.IsValid();
+    if ((Solo || Paused) != View.Occupier.IsValid()
         || (Solo ? (View.SoloSinceMs < View.OpenAtMs || View.DueAtMs <= View.SoloSinceMs)
-                 : (View.SoloSinceMs != 0 || View.DueAtMs != 0)))
+                 : (View.SoloSinceMs != 0 || View.DueAtMs != 0))
+        || (Paused ? (View.PausedProgressMs <= 0 || View.PausedProgressMs > View.ServerNowMs - View.OpenAtMs)
+                   : View.PausedProgressMs != 0))
     { return FailCaptureView(Error, TEXT("Capture occupier and progress do not match the circle state.")); }
     switch (View.Phase)
     {
