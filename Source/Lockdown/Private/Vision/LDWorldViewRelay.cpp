@@ -849,6 +849,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         {
             // The fade needs the material's LDFade parameter; without it the prop hides while it occludes instead.
             Prop.bResolved = true;
+            Prop.bCastShadow = Primitive->CastShadow;
             if (UMeshComponent* Mesh = Cast<UMeshComponent>(Primitive))
             {
                 float Value = 0;
@@ -876,6 +877,8 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         const float Next = LDPropFade::Step(Prop.Fade, bOccluding, Delta);
         if (Next == Prop.Fade && Prop.bResolved && (Next == 0.f || Next == 1.f) && Prop.bParameter) { continue; }
         Prop.Fade = Next;
+        // A faded prop's shadow would still darken the bodies it no longer hides; it returns with the opaque prop.
+        const bool bShadow = Prop.bCastShadow && Prop.Fade <= 0.f;
         if (Prop.bParameter)
         {
             for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)

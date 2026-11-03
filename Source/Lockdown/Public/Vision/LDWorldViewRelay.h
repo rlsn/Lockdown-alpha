@@ -241,6 +241,7 @@ private:
         float Fade = 0;
         bool bResolved = false;
         bool bParameter = false;
+        bool bCastShadow = false;  // the prop's own shadow setting, restored when it is opaque again
     };
     TArray<FFadeableProp> FadeableProps;
     double FadeablesScannedAt = -1;

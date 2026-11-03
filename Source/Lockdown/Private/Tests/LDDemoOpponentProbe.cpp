@@ -363,8 +363,17 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
     int32 Visible = 0;
     if (const ALDWorldViewRelay* Relay = Owner.LocalView())
     {
+        // Only an opponent AI in the Host's current sight counts, and after the opening only while it acts (an attack,
+        // cast or hit cue), so the shots catch fights rather than the other humans standing nearby.
         const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
-        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current) { Visible = Read.Frame->Units.Num(); }
+        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
+        {
+            for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+            {
+                Visible += Unit.Kind == ELDObservedUnitKind::Contender && OpponentIds.Contains(Unit.ContenderId)
+                    && Unit.ActionCue != ELDObservedActionCue::None ? 1 : 0;
+            }
+        }
     }
     const bool bOpening = Shots == 0 && Now - MatchSeenAt >= 8.;
     const bool bSighted = Shots > 0 && Visible > 0 && Now - LastShotAt >= 6.;
