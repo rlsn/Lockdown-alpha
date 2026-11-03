@@ -92,6 +92,7 @@ public:
     virtual void StartPlay() override;
     virtual void RestartPlayer(AController* NewPlayer) override;
     virtual void PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage) override;
+    virtual FString InitNewPlayer(APlayerController* NewPlayerController,const FUniqueNetIdRepl& UniqueId,const FString& Options,const FString& Portal=TEXT("")) override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;

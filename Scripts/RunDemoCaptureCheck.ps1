@@ -20,10 +20,17 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
-    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','R02','R03','R04','R05','R06','R10')
+    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
+    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','C16','C17','R02','R03','R04','R05','R06','R10')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
+# The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
+# Host's has one inner space). They are built from code points so this script stays ASCII.
+function Get-CaptureName {
+    param([Parameter(Mandatory)][string]$Role)
+    $points = @{ Host = 0x62A2,0x5708,0x20,0x623F,0x4E3B; Client1 = 0x62A2,0x5708,0x7532; Client2 = 0x62A2,0x5708,0x4E59 }[$Role]
+    -join ($points | ForEach-Object { [char]$_ })
+}
 
 function Start-CaptureRole {
     param([string]$Role,[string]$Url)
@@ -63,10 +70,10 @@ function Wait-CaptureReports {
 }
 
 try {
-    Start-CaptureRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoCaptureHost'
+    Start-CaptureRole 'Host' ('/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName={0}' -f (Get-CaptureName 'Host'))
     Wait-CaptureReports @('HostJoined.json')
     foreach ($index in 1..2) {
-        $url = '127.0.0.1:{0}?Name=DemoCaptureClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
+        $url = '127.0.0.1:{0}?LDName={1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,(Get-CaptureName "Client$index"),$wire,$version,$digest
         Start-CaptureRole "Client$index" $url
     }
     Wait-CaptureReports @('Host.json','Client1.json','Client2.json')

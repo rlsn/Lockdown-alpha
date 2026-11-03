@@ -1,6 +1,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDPlayerController.h"
+#include "UI/LDControlSettings.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerState.h"
 
@@ -79,11 +80,20 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
         Reason = TEXT("The Listen Host has not joined the room yet.");
         return false;
     }
+    // InitNewPlayer applied the validated ?LDName= or the explicit default; a fixture without a name takes the
+    // default, and any other PlayerState name (an online subsystem nickname) is refused rather than shown.
+    FString Name = Controller->PlayerState ? Controller->PlayerState->GetPlayerName() : FString();
+    if (Name.IsEmpty()) { Name = LDMatchLifecycle::DefaultContenderName; }
+    else if (FString NameError; !ULDControlSettings::ValidatePlayerName(Name, NameError))
+    {
+        Reason = TEXT("InvalidName: the contender name is not a chosen Demo name: ") + NameError;
+        return false;
+    }
     if (!AdvanceRoster(Reason)) { return false; }
     if (!LobbyHost.IsValid()) { LobbyHost = Controller; }
     FLDContenderRecord Record;
     Record.Session = FGuid::NewGuid();
-    Record.Name = Controller->PlayerState ? Controller->PlayerState->GetPlayerName().Left(64) : TEXT("玩家");
+    Record.Name = Name;
     Record.State.Match = MatchContext.Generation;
     Record.State.Life = 0;
     Record.State.bActive = false;
