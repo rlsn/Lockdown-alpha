@@ -123,6 +123,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalDisplayProductDefaults",
         "Lockdown.Rules.LocalDisplayNativeSaveFlush",
         "Lockdown.Rules.LocalDisplayPersistenceReadback",
+        "Lockdown.Rules.LocalDisplayRenderScale",
         "Lockdown.Rules.LocalDisplayTrialLifecycle",
         "Lockdown.Rules.LocalSettingsPersistence",
         "Lockdown.Rules.LocalSettingsAtomicReplaceFailure",

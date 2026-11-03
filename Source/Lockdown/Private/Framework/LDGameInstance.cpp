@@ -573,6 +573,10 @@ FLDDisplaySettingsResult ULDGameInstance::ApplyNonResolutionAndSave(const FLDDis
     bDisplaySettingsDirty = true;
     if (Settings->IsVSyncDirty() || Scalability::GetQualityLevels() != Draft.Quality)
     { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("显示模式已确认，但垂直同步或画质没有完全应用。请检查引擎覆盖设置后重试；尚未确认能够保存。")); }
+    // The default render scale (0) is a no-op in the engine; without this, restoring defaults kept the old scale until restart.
+    auto* ScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+    if (!ScreenPercentage || !LDLocalSettings::ApplyRenderScale(*ScreenPercentage, Draft.Quality.ResolutionQuality))
+    { return SetDisplayResult(ELDDisplaySettingsStatus::ApplyFailed, TEXT("显示模式已确认，但渲染比例没有回到项目默认值。请重试；尚未确认能够保存。")); }
     return RetryDisplaySave();
 }
 

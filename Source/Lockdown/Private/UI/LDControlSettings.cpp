@@ -817,6 +817,13 @@ FLDLocalSettingsSaveResult LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(
     return VerifyDisplaySettingsFile(PhysicalSettings, PhysicalQuality, SettingsSection, Expected);
 }
 
+bool LDLocalSettings::ApplyRenderScale(IConsoleVariable& ScreenPercentage, float ResolutionQuality)
+{
+    if (ResolutionQuality != 0.f) { return true; }
+    ScreenPercentage.Unset(ECVF_SetByScalability);
+    return (ScreenPercentage.GetFlags() & ECVF_SetByMask) != ECVF_SetByScalability;
+}
+
 FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     const FString& SettingsFile, const FString& QualityFile, const FString& SettingsSection, const FLDDisplaySettings& Expected)
 {
