@@ -16,6 +16,7 @@ class LOCKDOWN_API ALDCharacter : public ACharacter
 public:
     explicit ALDCharacter(const FObjectInitializer& ObjectInitializer);
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void Tick(float Delta) override;
     bool ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error);
     void SetFacing(float Yaw);
@@ -37,4 +38,11 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 protected:
     UFUNCTION() void OnRep_Presentation();
+private:
+    // The local owner and life this body was last shown for: its removal after that life's death leaves a fall.
+    TWeakObjectPtr<class ALDPlayerController> ShownOwner;
+    uint32 ShownLife = 0;
+    // A restrained shake of the own camera from the start of each hit the own body takes.
+    int64 ShakeHitAtMs = 0;
+    float ShakeAge = 1.f;
 };

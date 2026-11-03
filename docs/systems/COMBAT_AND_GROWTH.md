@@ -78,6 +78,13 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 `RespawnProtection` 的单层状态及精确期限，不存成可驱散的 Combat buff，不在读取时补默认等级；
 命中点以同一生命状态做统一保护闸（免伤免控，群攻副目标排除保护者）。
 公开 Root/Shield 提示同样在读取时由当前 Combat 状态派生，不另存一份可漂移的公开状态。
+动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
+`AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
+身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）：
+普攻先后摆再挥击前冲并在出手处闪光；施法举手蓄力后前推；受击闪白转红、后仰、胸前闪光，本人镜头轻微震动；
+定身为脚下脉动红环加脚镣，淡定为旋转的蓝色栅栏罩加光环，复活保护为光柱加环绕金球；
+带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地倒地、下沉、缩没
+（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；粉笔头飞行由 `ULDFlightTrailComponent` 拖出粉尘。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
 
@@ -104,7 +111,8 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
-攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；成长与商店的纯规则是
+攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+`DemoBodyMotion.*` 覆盖身体表现时间轴（挥击、施法、受击、出现、倒地与同一动作的重启判定）；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
@@ -113,9 +121,13 @@ Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地
 远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、死亡期间小地图平移驱动的静态镜头、
 十点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
 随后 Host 的 DEV 成长夹具（只有 Host 带 `-LDDevGrowthFixture`）为双方预置下一组选项并发放到目标等级的经验，
-双方经普通 `SubmitChoice` 学会 attr_reach、扒裤衩、粉笔头与假装无事发生，再经快捷入口的准备与确认施放：
+Host 经普通 `SubmitChoice` 学会 attr_reach 与扒裤衩，Client1 学会假装无事发生与粉笔头，再经快捷入口的准备与确认施放：
 扒裤衩定身 Client1 且 Host 的观察帧看到 Root、假装无事发生在定身到期前加护盾并解除定身、
-粉笔头作为 Chalk 投射物事实沿瞄准方向飞行并命中、增程卡让右键追击在基础射程之外落下普攻；
+Client1 从较远的对决点扔出的粉笔头作为 Chalk 投射物事实飞向 Host 并命中、增程卡让右键追击在基础射程之外落下普攻。
+Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回可能卡住游戏线程数秒，先在这里吸收）、
+本人被远程普攻击中、自己的观察帧显示定身、护盾、飞行中的粉笔头，以及本人普攻挥击时各读回一帧
+（`HostSees-DuelSite/OwnHit/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），只在读回的那一帧仍显示该时刻时保存，
+供人工审阅画面可读性，不做像素比对；
 装备主动与营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
 旧 Combat/Content probe 与 runner 已删除。
 新动作 presenter 的来源、资源和冷却表现由 N04/N05 与 UI 接线后验证，不保留无消费者的旧动作栏。

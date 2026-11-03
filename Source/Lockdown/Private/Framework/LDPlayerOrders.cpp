@@ -147,12 +147,24 @@ bool ALDPlayerController::ReadShopInteraction(FName& OutShopId, uint32& OutLife)
     return Navigation && Navigation->ReadShopInteraction(OutShopId,OutLife);
 }
 
+void ALDPlayerController::PostIntentNotice(const FString& Text)
+{
+    if (Text.IsEmpty() || !IsLocalController()) { return; }
+    if (IntentFeedbackSerial==MAX_uint32)
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_INTENT_FEEDBACK_EXHAUSTED"));
+        return;
+    }
+    ++IntentFeedbackSerial;
+    IntentFeedback=Text;
+}
+
 void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
 {
     if (!IsLocalController()) { return; }
     if (NextDirectSequence==MAX_uint64)
     {
-        IntentFeedback=TEXT("技能请求编号已用尽，无法再发送");
+        PostIntentNotice(TEXT("技能请求编号已用尽，无法再发送"));
         return;
     }
     FLDCombatActionRequest Request;

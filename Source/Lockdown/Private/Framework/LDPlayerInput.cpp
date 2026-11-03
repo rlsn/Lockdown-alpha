@@ -168,7 +168,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     {
         Inspected.Invalidate();
         InspectedEpoch=0;
-        IntentFeedback=TEXT("目标已不可见");
+        PostIntentNotice(TEXT("目标已不可见"));
     }
     if (HUDUI) { HUDUI->RefreshReadModel(); }
 }
@@ -214,8 +214,7 @@ void ALDPlayerController::V05Pressed(FName Action)
         // The static death camera has no living body to centre on or follow, and never another player's (CONTROLS 3.3).
         if (IsAwaitingRespawn())
         {
-            IntentFeedback=TEXT("无存活角色");
-            if (IntentFeedbackSerial<MAX_uint32) { ++IntentFeedbackSerial; }
+            PostIntentNotice(TEXT("无存活角色"));
             return;
         }
         if (Action==TEXT("Recenter")) { Navigation->Recenter(true); return; }
