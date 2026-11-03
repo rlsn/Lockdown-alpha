@@ -159,6 +159,7 @@ ELDCommitReject ALDGameMode::BeginAuthorityStep(ALDCombatDirector& Driver, const
     bAuthorityStepOpen = true;
     bAuthorityPhaseExecuted = false;
     bSettlementStep = false;
+    bCaptureCompletesInsideStep = false;
     return ELDCommitReject::None;
 }
 
@@ -177,6 +178,7 @@ ELDCommitReject ALDGameMode::BeginSettlementStep(ALDCombatDirector& Driver, cons
     bAuthorityStepOpen = true;
     bAuthorityPhaseExecuted = false;
     bSettlementStep = true;
+    bCaptureCompletesInsideStep = false;
     return ELDCommitReject::None;
 }
 

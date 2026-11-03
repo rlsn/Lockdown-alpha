@@ -39,6 +39,13 @@ public:
     bool IsActive() const { return bActive; }
     bool Enqueue(const FLDCaptureEvent& Event, FString& Error);
     bool CloseBoundary(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
+    // Closes a step whose only work after Motion is this capture (see CompletionInsideMs): a segment due
+    // strictly inside it completes at its due instant and the facts after that instant are discarded.
+    bool CloseThroughCompletion(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
+    // The instant strictly before AtMs at which the facts enqueued so far complete a segment (a paused holder
+    // who becomes sole again inside the step); MAX_int64 when they do not. Facts that can still arrive in this
+    // step are stamped AtMs, so they can neither cause nor cancel an earlier completion.
+    int64 CompletionInsideMs(int64 AtMs) const;
 
     bool IsOpen() const { return bOpen; }
     ELDCircleState GetState() const { return State; }
@@ -52,9 +59,9 @@ public:
     int64 GetPausedProgressMs() const { return State == ELDCircleState::Contested ? Paused : 0; }
     int64 GetOpenAtMs() const { return OpenAt; }
     int64 GetClosedThroughMs() const { return ClosedThrough; }
-    // Next integer boundary the authority driver must stop at: the opening while closed, the
-    // completion while one contender holds the circle, and while a contest pauses a holder
-    // the earliest boundary at which his resumed segment could complete. Otherwise MAX_int64.
+    // Next integer boundary the authority driver must stop at: the opening while closed and the
+    // completion while one contender holds the circle. Otherwise MAX_int64: a paused contest adds no
+    // stop, because a resume can only come from motion inside a step and is closed by CompletionInsideMs.
     int64 NextDueMs() const;
     // Commit-order view used to validate motion evidence before its boundary closes.
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
@@ -72,6 +79,7 @@ private:
     };
     static bool Transition(TMap<FGuid, FMember>& Members, const FLDCaptureEvent& Event, bool bTimeOrdered, FString& Error);
     bool Evaluate(const FLDCaptureEventTime& At, FString& Error);
+    bool Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
 
     TMap<FGuid, FMember> Committed;
     TMap<FGuid, FMember> Reduced;

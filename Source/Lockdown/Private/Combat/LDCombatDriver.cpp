@@ -51,7 +51,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     if (const auto* Mode=Core())
     {
         Consider(Mode->NextLifeDueMs());
-        // Opening time and the Solo completion must each be an exact step boundary.
+        // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
+        // contest is closed at its own instant by CaptureCompletesInsideStep, so it adds no stop here.
         Consider(Mode->NextCaptureDueMs());
         // A cleared camp refreshes exactly at its integer deadline, not on the following boundary.
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
@@ -116,25 +117,36 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (!PC->Navigation->AdvanceAuthorityMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
             }
             return true;
-        },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Session,[&](const FLDGameplayWritePermit& Permit)
+        },Error))
+        { return false; }
+        // A paused holder who becomes sole again during this motion and is due before the step's end wins at that
+        // instant: the step's later boundary instant must not act, so only owed rewards settle before Capture.
+        const bool bCaptureInside=Mode->CaptureCompletesInsideStep();
+        const bool bWorldRan=bCaptureInside
+            ? Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
+            {
+                if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+                return RunRewardRetries(Permit,Error);
+            },Error)
+            : (Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Session,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->ExpireProtections(Permit,Error); },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
+            && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
             { return RunActions(Permit,Error); },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
+            && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
             { return RunEffects(Permit,Error); },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
+            && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             { return RunDeaths(Permit,Error); },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
+            && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
                 return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error);
             },Error)
-            || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
+            && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 return Mode->Economy->ProcessTransactions(Permit,Error);
-            },Error)
+            },Error));
+        if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
             { return Mode->ExecuteCapturePhase(Permit,Error); },Error)
             // Close locks the unique result and shuts the write gate before any cleanup or publication.
