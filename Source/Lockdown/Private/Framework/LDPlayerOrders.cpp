@@ -5,6 +5,7 @@
 #include "Combat/LDCombatPreInput.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDControlSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 
@@ -33,6 +34,17 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     {
         bAttackMoveArmed=false;
         ArmedEntry=Entry;
+        // Quick cast (local setting): fires at the pointer at once when it already names the aim; a unit skill without
+        // a visible unit under the pointer stays armed for the ordinary left-click confirmation.
+        if (Controls && Controls->GetQuickCast())
+        {
+            FGuid Handle;
+            uint32 Epoch=0;
+            FHitResult GroundHit;
+            const bool bAimReady=Mode==ELDDemoTargetMode::Unit ? ObservedUnderPointer(Handle,Epoch)
+                : Navigation->GroundUnderPointer(GroundHit);
+            if (bAimReady) { ConfirmArmedCombat(); }
+        }
         return;
     }
     // Self, an empty slot or gear without an active still reaches the server: the attempt is judged there
