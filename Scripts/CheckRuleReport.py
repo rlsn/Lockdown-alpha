@@ -103,6 +103,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoVision.Projectiles",
         "Lockdown.Rules.DemoVision.Presentation",
         "Lockdown.Rules.DemoVision.PropFade",
+        "Lockdown.Rules.DemoVision.FlightTrail",
         "Lockdown.Rules.DemoWorld.TypedProjection",
         "Lockdown.Rules.DemoWorld.ExactSignedGeometry",
         "Lockdown.Rules.DemoWorld.SavedCollisionResponses",

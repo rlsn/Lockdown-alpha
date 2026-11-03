@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -1862,8 +1863,11 @@ public:
             const FVector Drawn = It->GetActorLocation();
             const double ClearCm = FVector::Dist2D(Drawn, FVector(Unit->FeetCm));
             if (It->IsHidden() || ClearCm < LDDemoCombatScenario::CombatProbeFlightClearCm) { continue; }
-            Facts = FString::Printf(TEXT("flights=%d chalk_drawn_at=%s chalk_clear_of_client1_cm=%.0f "),
-                Frame->Projectiles.Num(), *Drawn.ToCompactString(), ClearCm) + SeenFacts(*Unit);
+            // The chalk-dust trail is drawn behind the flight in the same frame (issue #57).
+            const ULDFlightTrailComponent* Trail = It->GetTrail();
+            if (!Trail || Trail->ShownPuffs() == 0) { continue; }
+            Facts = FString::Printf(TEXT("flights=%d chalk_drawn_at=%s chalk_clear_of_client1_cm=%.0f trail_puffs=%d trail_cm=%.0f "),
+                Frame->Projectiles.Num(), *Drawn.ToCompactString(), ClearCm, Trail->ShownPuffs(), Trail->LengthCm()) + SeenFacts(*Unit);
             return true;
         }
         return false;
