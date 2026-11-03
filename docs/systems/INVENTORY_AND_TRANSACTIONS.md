@@ -96,11 +96,18 @@ Host 的 DEV probe 在游戏线程直接调用：
 开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币；
 只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
 未加时任何夹具证据都判失败。
-`RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者，一个真实拥有客户端
+`RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
+开局即为买方预置全部六组 Offer（先拒绝一组重复卡的预置）；一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
 买两件带无目标主动的同款、满槽 `EquipmentFull`、同号重放，用其中一件的主动（另一件轨道保持就绪），
-出售用过的那件后报价显示其冷却债会被继承，最后离店 `OutsideRange`；Host 导出账本证据由
-`CheckEconomyEvidence.py` 复算并与客户端本人投影比对。随后 Host 无胜者结束本局并回到新一代 Lobby，
+出售用过的那件后报价显示其冷却债会被继承，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
+在 W 学第二个主动并使用 Q；Q/W 已满时只点新主动不确认替换被 `ReplacementRequired` 拒绝且不消费，
+确认替换 Q 后旧技能及等级从构筑消失、新技能 1 级绑定自己的就绪轨道，被遗忘的技能只以 1 级学习卡返回，
+重学到 W 后绑定原 `IssuedCooldownId` 与原截止时间。随后 Host 经夹具给自己发同等级 XP 与金币（账本 `DevFixture`），
+用自己的攻击命令击杀买方；买方死亡等待中确认一次选择：按 Dead 阶段受理并应用，仍为同一 Life 与复活时间、
+无身体、HP 为零，只有下一条命的最大 HP 增长，正常复活后满血满蓝。Host 导出账本证据由
+`CheckEconomyEvidence.py --dev-fixture` 复算并与客户端本人投影比对，且只列出 Host 自己那笔夹具铸币。
+随后 Host 无胜者结束本局并回到新一代 Lobby，
 两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无机会/技能/属性卡/装备、
 Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
 且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
