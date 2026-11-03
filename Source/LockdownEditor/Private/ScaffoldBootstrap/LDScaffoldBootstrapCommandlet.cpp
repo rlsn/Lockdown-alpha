@@ -22,7 +22,9 @@
 
 ULDScaffoldBootstrapCommandlet::ULDScaffoldBootstrapCommandlet()
 {
-    IsClient = false;
+    // A client, like the editor: as a dedicated server the linker drops editor-game-optional exports such as
+    // material expressions, so the art validation below would see empty master graphs and maps would lose them.
+    IsClient = true;
     IsEditor = true;
     LogToConsole = true;
 }
