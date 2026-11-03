@@ -894,7 +894,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     if(!Target)
     {
         UE_LOG(LogTemp,Warning,TEXT("LD_UI_MAIN_PANEL_UNREGISTERED %d"),int32(Panel));
-        PC->IntentFeedback=TEXT("该面板在当前版本尚未接入。");
+        PC->PostIntentNotice(TEXT("该面板在当前版本尚未接入。"));
         return;
     }
     if(Target->IsPanelOpen()){Target->ClosePanel();}

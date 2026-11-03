@@ -141,6 +141,11 @@ bool FLDWorldLabelsStatusLineTest::RunTest(const FString& Parameters)
     const FString MixedLine=Status(Mixed,10.);
     TestEqualSensitive(TEXT("Public statuses keep frame order with approved names, stacks and remaining time"),MixedLine,FString(TEXT("定身 2.5s · 淡定 ×2 1.0s · 复活保护 1.5s")));
     TestEqualSensitive(TEXT("The label reads exactly like the target card's status line"),TEXT("状态：")+MixedLine,LDHUD::ObservedCard(Mixed,TEXT("同学甲"),&Content,10.).Statuses);
+    const LDWorldLabels::FLabel MixedLabel=LDWorldLabels::Build(Mixed,TEXT("同学甲"),&Content,10.);
+    FString Joined;for(const LDWorldLabels::FLabel::FStatusPart& Part:MixedLabel.StatusParts){Joined+=(Joined.IsEmpty()?TEXT(""):TEXT(" · "))+Part.Text;}
+    TestTrue(TEXT("Coloured status parts are the line's own parts, each with its status, in frame order"),Joined==MixedLine&&MixedLabel.StatusParts.Num()==3
+        &&MixedLabel.StatusParts[0].StatusId==uint8(ELDDemoStatusId::Root)&&MixedLabel.StatusParts[1].StatusId==uint8(ELDDemoStatusId::Shield)
+        &&MixedLabel.StatusParts[2].StatusId==uint8(ELDDemoStatusId::RespawnProtection));
     FLDObservedUnitView Camp=WorldLabelCampMember(ELDDemoMonsterId::MonsterScavenger);Camp.Statuses.Add(WorldLabelStatus(ELDDemoStatusId::CampReturning,0));
     TestEqualSensitive(TEXT("An untimed status shows just its approved name"),Status(Camp,10.),FString(TEXT("回岗中")));
     Camp.Statuses.Add(WorldLabelStatus(ELDDemoStatusId::Root,10800));

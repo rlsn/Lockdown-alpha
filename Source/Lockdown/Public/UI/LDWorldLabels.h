@@ -17,8 +17,15 @@ namespace LDWorldLabels
 {
     struct FLabel
     {
+        // One public status as shown: its text and its definition, so it can be drawn in that status's marker colour.
+        struct FStatusPart
+        {
+            FString Text;
+            uint8 StatusId=0;
+        };
         FString Name;          // empty when the public roster does not list the contender: never invented
         FString Status;        // public statuses as on the target card, without its prefix; empty when there are none
+        TArray<FStatusPart> StatusParts;  // the parts Status joins with " · ", in the same order
         bool bContender=false;
         uint8 Presentation=0;  // contender identity tint key; 0 for camp members
         uint8 CreatureId=0;    // camp member definition; 0 for contenders

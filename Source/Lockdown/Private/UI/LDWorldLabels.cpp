@@ -37,6 +37,18 @@ float WorldBarWidth(const LDWorldLabels::FLabel& Label)
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
 const FLinearColor WorldLabelCampInk(1.f,.8f,.42f);
 const FLinearColor WorldLabelStatusInk(.8f,.93f,1.f);
+// Status text shares the body markers' tints (Combat's LDHumanoidVisualComponent): root magenta, 淡定 cyan, respawn
+// protection white-gold; other statuses keep the plain status ink.
+FLinearColor WorldStatusInk(uint8 StatusId)
+{
+    switch(static_cast<ELDDemoStatusId>(StatusId))
+    {
+    case ELDDemoStatusId::Root: return FLinearColor(1.f,.02f,.58f);
+    case ELDDemoStatusId::Shield: return LDHUDStyle::Shield;
+    case ELDDemoStatusId::RespawnProtection: return FLinearColor(1.f,.92f,.62f);
+    default: return WorldLabelStatusInk;
+    }
+}
 const FLinearColor WorldPipCooling(FColor(0x3A,0x3F,0x46));
 const FLinearColor WorldPipControlled(FColor(0xB0,0x4A,0xCF));
 // The HUD band's action order and the own status control bits that forbid each entry kind, as in ULDHUD's action
@@ -69,6 +81,7 @@ LDWorldLabels::FLabel LDWorldLabels::Build(const FLDObservedUnitView& Unit,const
         if(Status.Stacks>1){Part+=FString::Printf(TEXT(" ×%d"),Status.Stacks);}
         if(Status.ExpiresAtServerMs>0){Part+=TEXT(" ")+LDHUD::TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
         Label.Status+=(Label.Status.IsEmpty()?TEXT(""):TEXT(" · "))+Part;
+        Label.StatusParts.Add({MoveTemp(Part),Status.StatusId});
     }
     return Label;
 }
@@ -294,7 +307,30 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             Bottom-=Entry.Row+WorldRowGap;
         }
         if(!Label.Name.IsEmpty()){Line(Label.Name,Label.bContender?ContenderFont:CampFont,Label.bContender?WorldLabelContenderInk:WorldLabelCampInk,CentreX,Bottom);}
-        if(!Label.Status.IsEmpty()){Line(Label.Status,StatusFont,WorldLabelStatusInk,CentreX,Bottom);}
+        if(!Label.StatusParts.IsEmpty())
+        {
+            // Each status in the colour of its body marker (Combat's root, shield and protection tints); the text names it.
+            const FString Separator=TEXT(" · ");const float SeparatorWidth=FontMeasure->Measure(Separator,StatusFont).X;
+            float Width=0.f,Height=0.f;
+            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
+            {
+                const FVector2f Extent=FontMeasure->Measure(Label.StatusParts[Index].Text,StatusFont);
+                Width+=Extent.X+(Index>0?SeparatorWidth:0.f);Height=FMath::Max(Height,Extent.Y);
+            }
+            float X=CentreX-Width*.5f;const float Top=Bottom-Height;
+            auto Draw=[&](const FString& Text,const FLinearColor& Ink)
+            {
+                const FVector2f Extent=FontMeasure->Measure(Text,StatusFont);
+                FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(X,Top))),Text,StatusFont,ESlateDrawEffect::None,Ink);
+                X+=Extent.X;
+            };
+            for(int32 Index=0;Index<Label.StatusParts.Num();++Index)
+            {
+                if(Index>0){Draw(Separator,WorldLabelStatusInk);}
+                Draw(Label.StatusParts[Index].Text,WorldStatusInk(Label.StatusParts[Index].StatusId));
+            }
+            Bottom=Top;
+        }
     }
     return Base+4;
 }
