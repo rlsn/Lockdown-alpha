@@ -29,7 +29,12 @@ int64 FLDCaptureReducer::NextDueMs() const
 {
     if (!bActive) { return MAX_int64; }
     if (!bOpen) { return OpenAt; }
-    return State == ELDCircleState::Solo ? DueAt : MAX_int64;
+    if (State == ELDCircleState::Solo) { return DueAt; }
+    if (State != ELDCircleState::Contested || !Occupier.IsValid()) { return MAX_int64; }
+    // A resume in the next step happens no earlier than ClosedThrough + 1, so stopping here
+    // keeps every resumed completion at or after the end of the step that resumes it.
+    const int64 Remaining = FMath::Max<int64>(Hold - Paused, 1);
+    return Remaining > MAX_int64 - ClosedThrough ? MAX_int64 : ClosedThrough + Remaining;
 }
 
 bool FLDCaptureReducer::IsCommittedAliveBody(const FLDCombatBodyRef& Body) const
@@ -147,16 +152,54 @@ bool FLDCaptureReducer::Enqueue(const FLDCaptureEvent& Event, FString& Error)
 bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, FString& Error)
 {
     if (!bOpen) { return true; }
+    const int64 Now = At.BucketMs;
+    if (State == ELDCircleState::Solo && Now > DueAt)
+    {
+        Error = TEXT("The authority driver skipped the capture completion boundary.");
+        return false;
+    }
     FGuid Only;
     int32 Count = 0;
+    bool bHolderEffective = false;
     for (const auto& Pair : Reduced)
     {
         const FMember& Member = Pair.Value;
-        if (Member.Phase == ELDLifePhase::Alive && !Member.bProtected && Member.bInside && ++Count == 1) { Only = Pair.Key; }
+        if (Member.Phase != ELDLifePhase::Alive || Member.bProtected || !Member.bInside) { continue; }
+        if (++Count == 1) { Only = Pair.Key; }
+        bHolderEffective |= Pair.Key == Occupier;
     }
     const ELDCircleState Next = Count == 0 ? ELDCircleState::Empty
         : Count == 1 ? ELDCircleState::Solo : ELDCircleState::Contested;
-    if (Next == State && (Next != ELDCircleState::Solo || Only == Occupier)) { return true; }
+    // Exit, death, departure or protection ends the holder's progress; nobody inherits it.
+    FGuid NextHolder = bHolderEffective ? Occupier : FGuid();
+    int64 NextPaused = bHolderEffective ? Paused : 0;
+    int64 NextSince = 0;
+    int64 NextDue = 0;
+    if (Next == ELDCircleState::Solo)
+    {
+        if (State == ELDCircleState::Solo && NextHolder == Only) { return true; }
+        // The paused holder resumes from his frozen progress; any other sole contender starts at zero.
+        const int64 Resumed = NextHolder == Only ? NextPaused : 0;
+        NextHolder = Only;
+        NextSince = Now - Resumed;
+        NextPaused = 0;
+        if (!LDMatchLifecycle::AddDurationMs(NextSince, Hold, NextDue, Error)) { return false; }
+    }
+    else if (Next == ELDCircleState::Contested)
+    {
+        if (State == ELDCircleState::Solo && NextHolder.IsValid()) { NextPaused = Now - SoloSince; }
+        if (NextPaused <= 0)
+        {
+            NextHolder.Invalidate();
+            NextPaused = 0;
+        }
+    }
+    else
+    {
+        NextHolder.Invalidate();
+        NextPaused = 0;
+    }
+    if (Next == State && NextHolder == Occupier) { return true; }
     if (Epoch == MAX_uint64)
     {
         Error = TEXT("Capture epoch exhausted.");
@@ -164,15 +207,10 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, FString& Error)
     }
     ++Epoch;
     State = Next;
-    if (Next == ELDCircleState::Solo)
-    {
-        Occupier = Only;
-        SoloSince = At;
-        return LDMatchLifecycle::AddDurationMs(At.BucketMs, Hold, DueAt, Error);
-    }
-    Occupier.Invalidate();
-    SoloSince = {};
-    DueAt = 0;
+    Occupier = NextHolder;
+    SoloSince = NextSince;
+    DueAt = NextDue;
+    Paused = NextPaused;
     return true;
 }
 
@@ -235,7 +273,7 @@ bool FLDCaptureReducer::CloseBoundary(int64 AtMs, TOptional<FLDCaptureProposal>&
     ClosedThrough = AtMs;
     if (State == ELDCircleState::Solo && DueAt == AtMs)
     {
-        Proposal = FLDCaptureProposal{Epoch, Occupier, SoloSince.BucketMs, DueAt};
+        Proposal = FLDCaptureProposal{Epoch, Occupier, SoloSince, DueAt};
     }
     Error.Reset();
     return true;

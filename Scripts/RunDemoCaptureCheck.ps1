@@ -20,8 +20,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
-    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','C16','C17','R02','R03','R04','R05','R06','R10')
+    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','C18','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
+    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','C16','C17','C18','R02','R03','R04','R05','R06','R10')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the

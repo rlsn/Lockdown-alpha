@@ -85,7 +85,8 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
 - `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与圈状态来源：阶段、开放时刻、圈状态
-  （未开放/无人/独占/争夺）、唯一占领者、CaptureEpoch 及独占起点/完成时刻；不列圈内人数、
+  （未开放/无人/独占/争夺）、唯一进度持有者（独占者，或争夺中被暂停的原占领者及其 `PausedProgressMs`）、
+  CaptureEpoch 及独占起点/完成时刻；不列圈内人数、
   保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置。
@@ -151,12 +152,15 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 本局不重连，人数和 AI 行为按 App Spec。
 
 占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
-`FLDCaptureReducer` 是唯一连续独占归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
+`FLDCaptureReducer` 是唯一占领归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
 （Joined/Respawned 带保护截止与初始支持样本、ProtectionEnded、Died 带 DeathKey 与击杀者），
 Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptureCircle::Extract` 求出带真实时刻的
 进出（连续子段求交、支持面变化与不连续修正只取前后态；脚点在闭圆盘内且站在注册地面才算占用）。
 事实按提交序入队，到其整数桶封闭时才按原始秒、阶段、提交序归约，同一边界内的进出/死亡/保护变化
 全部保留；保护者既不占也不争，开放前不计时，Solo 起点取向上取整桶，完成时刻 `DueAtMs` 由驱动切步。
+争夺冻结原占领者的进度（其他人不累积），他再次独占时 `SoloSinceMs` 回拨暂停值续计；他离圈、死亡或离局即清零，
+下一独占者从 0 开始。争夺暂停持有者期间 `NextDueMs` 为 `ClosedThrough + max(Hold − Paused, 1)`，
+使续计的截止不会落进已提交的步内。
 驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
 `ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。
@@ -183,11 +187,12 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
-`Lockdown.Rules.DemoCapture`（归约器连续性/保护与契约故障、圈几何、公共读模型、提供者门禁、
+`Lockdown.Rules.DemoCapture`（归约器连续性、争夺暂停/续计/清零、保护与契约故障、圈几何、公共读模型、提供者门禁、
 Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
-`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺、
+`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺暂停与续计、
+原占领者离圈后清零且他人从零计时、
 唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
 空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、抢圈复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。
