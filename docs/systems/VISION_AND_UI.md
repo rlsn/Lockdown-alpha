@@ -12,7 +12,7 @@
 | `Vision\LDWorldViewRelay` | 每个拥有连接一个 relay：接收游标、超时清除、代理与迷雾表现 |
 | `ALDObservedEntityProxy` | 客户端非复制的人形表现，无碰撞，不参与权威战斗或资源所有权；参赛者按名册座位着色，营地 NPC 用独立外观；动作与状态经共用的 cue 字节呈现，动作年龄取样本自带年龄加上呈现时钟越过该样本的时间；授权的观察死亡（`ObservedDeath`）先留下 Combat 的客户端倒地副本 `ALDBodyPuppet::SpawnFall` 再移除代理，离开视野、超时与复位只移除 |
 | `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（粉笔头，+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
-| `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`，目前只有升旗台旗杆）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1（抖动淡化），不挡回到 0；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化 |
+| `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`，目前只有升旗台旗杆）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或因装饰无碰撞而穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给每个淡化材质设 `LDFadeStrength` = `FadedStrength`（1），所以完全淡化时旗杆消失，而不是留下一条抖动网点柱；淡化期间关闭投影。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化 |
 | `ALDOwnBodyMarker` | 只在本机生成、挂在本机存活身体脚下的光圈，用于一眼认出自己；死亡或无身体时隐藏 |
 
 导演只读核心的身体、生命和资源，不另存 HP、Life 或身体表。
@@ -188,7 +188,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“弹脑瓜崩”文案与头像/身体共用的六色。
 - `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars,ReadinessPips}`（`LDWorldLabelsTests`）
   覆盖头顶名字、状态行、只显示白名单（胆量、装备、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与淡定收比，以及就绪点分类。
-- `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`HUDNextStep` 覆盖下一步提示的优先级与别局投影不提示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值。
+- `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`HUDNextStep` 覆盖下一步提示的优先级与别局投影不提示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值。
 - `Lockdown.Rules.DemoVision.Presentation` 覆盖呈现时钟：样本间线性插值、最新样本之后保持不外推、跳变样本不扫过、朝向走短弧，以及时钟偏移的下调、限速上调与重设。
 - `Lockdown.Rules.WorldFeedback.{Priming,OwnDamageAndHeal,Shield,VisibleUnits,RewardsAndLevel,Kill,Text}`（`LDWorldFeedbackTests`）
   覆盖画面回馈事件：首样本与换代只重设基线、回血容差与最大值变化不飘字、淡定增减与自然到期、可见单位相邻帧差与重现不补发、

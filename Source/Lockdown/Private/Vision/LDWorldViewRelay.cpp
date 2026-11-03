@@ -256,6 +256,14 @@ double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, doubl
 bool LDPropFade::Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target)
 {
     if (!Bounds.IsValid) { return false; }
+    // Decorations have no collision, so a body can stand inside or against the prop: the pole then runs through the body
+    // on screen even though the body is not behind it.
+    if (Target.Z >= Bounds.Min.Z && Target.Z <= Bounds.Max.Z)
+    {
+        const double OutX = FMath::Max3(Bounds.Min.X - Target.X, 0., Target.X - Bounds.Max.X);
+        const double OutY = FMath::Max3(Bounds.Min.Y - Target.Y, 0., Target.Y - Bounds.Max.Y);
+        if (OutX * OutX + OutY * OutY <= PierceRadiusCm * PierceRadiusCm) { return true; }
+    }
     const FVector Span = Target - Camera;
     const double Length = Span.Size();
     if (Length <= TargetClearCm) { return false; }
@@ -861,7 +869,12 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                 }
                 if (bAll)
                 {
-                    for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index) { Prop.Materials.Add(Mesh->CreateDynamicMaterialInstance(Index)); }
+                    for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
+                    {
+                        UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
+                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+                        Prop.Materials.Add(Dynamic);
+                    }
                 }
                 Prop.bParameter = bAll;
             }
@@ -879,6 +892,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         Prop.Fade = Next;
         // A faded prop's shadow would still darken the bodies it no longer hides; it returns with the opaque prop.
         const bool bShadow = Prop.bCastShadow && Prop.Fade <= 0.f;
+        if (Primitive->CastShadow != bShadow) { Primitive->SetCastShadow(bShadow); }
         if (Prop.bParameter)
         {
             for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)

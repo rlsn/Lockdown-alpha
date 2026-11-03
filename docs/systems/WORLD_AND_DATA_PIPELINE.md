@@ -276,7 +276,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 `capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位），小卖部高度不超过 150 cm，
 以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
-强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`，HUD 遮挡时经 MID 设置 `LDFade`（0 不透明、1 最淡）。
+材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
 
 母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 的节点图就是导入器 C++ 中的 `ArtMasterMaterial`：

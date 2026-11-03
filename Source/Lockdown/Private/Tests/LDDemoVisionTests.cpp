@@ -1119,6 +1119,11 @@ bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A pole between the camera and a body's chest occludes it"), LDPropFade::Occludes(Pole, Camera, FVector(300, 0, 90)));
     TestFalse(TEXT("A pole beside the line does not"), LDPropFade::Occludes(Pole, Camera, FVector(300, 600, 90)));
     TestFalse(TEXT("A body in front of the pole is not hidden by it"), LDPropFade::Occludes(Pole, Camera, FVector(-400, 0, 90)));
+    // Decorations have no collision: a body can stand in the pole, or against it on the camera's side.
+    TestTrue(TEXT("A body standing inside the pole is run through by it"), LDPropFade::Occludes(Pole, Camera, FVector(5, 0, 90)));
+    TestTrue(TEXT("A body touching the pole on the camera's side is run through by it"), LDPropFade::Occludes(Pole, Camera, FVector(-15 - LDPropFade::PierceRadiusCm + 1, 0, 160)));
+    TestFalse(TEXT("A body clear of the pole on the camera's side is not"), LDPropFade::Occludes(Pole, Camera, FVector(-15 - LDPropFade::PierceRadiusCm - 5, 0, 90)));
+    TestFalse(TEXT("A target above the prop is not run through by it"), LDPropFade::Occludes(Pole, Camera, FVector(-40, 0, 700)));
     TestFalse(TEXT("An unset prop never occludes"), LDPropFade::Occludes(FBox(ForceInit), Camera, FVector(300, 0, 90)));
     float Fade = 0.f;
     Fade = LDPropFade::Step(Fade, true, .1f);
