@@ -61,6 +61,8 @@ public:
     virtual void ClientTravelInternal_Implementation(const FString& URL, ETravelType TravelType, bool bSeamless,
         FGuid MapPackageGuid) override;
     const FLDOpponentRequestTally& GetRequestTally() const { return Tally; }
+    // Reason of the latest decision; evidence for checkers only, never a policy input.
+    ELDOpponentReason GetReportedReason() const { return ReportedReason; }
 
 private:
     // One spatial order exactly as it was sent. The incumbent is the last order Navigation admitted; a newer
