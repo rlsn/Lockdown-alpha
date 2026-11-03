@@ -45,8 +45,11 @@ private:
     // Places a limb box hanging from Joint along Direction, without twisting it about its own length.
     void PlaceLimb(int32 Index, const FVector& Joint, const FVector& Direction, float HalfLength);
     void Tint(int32 Index, const FLinearColor& Colour);
+    // Places each shown marker's near-black twin behind it on the local view ray.
+    void PlaceEdges();
     UPROPERTY() TObjectPtr<USceneComponent> Pivot;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Edges;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Tints;
     TArray<FLinearColor> BaseColours;
     // Eased toward the action timeline, so an ending cue settles instead of snapping to rest.

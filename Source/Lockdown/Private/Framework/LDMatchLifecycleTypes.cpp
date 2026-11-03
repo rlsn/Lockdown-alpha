@@ -1,4 +1,5 @@
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDDemoEntry.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/LDControlSettings.h"
 
@@ -185,7 +186,7 @@ bool LDMatchLifecycle::ResolveContenderName(const FString& Options, FString& Out
     const FString Requested = UGameplayStatics::ParseOption(Options, TEXT("LDName"));
     if (!ULDControlSettings::ValidatePlayerName(Requested, Error))
     {
-        Error = TEXT("InvalidName: ") + Error;
+        Error = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::InvalidName, *Error);
         return false;
     }
     OutName = Requested;

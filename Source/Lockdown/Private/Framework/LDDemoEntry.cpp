@@ -218,6 +218,7 @@ bool LDDemoEntry::DescribeJoinRefusal(const FString& ServerMessage, FString& Out
     else if (Is(JoinRefusal::ProtocolMismatch)) { Reason = TEXT("版本与房主不兼容，网络协议不同"); Hint = SameBuild; }
     else if (Is(JoinRefusal::ProductMismatch)) { Reason = TEXT("版本与房主不兼容，产品版本不同"); Hint = SameBuild; }
     else if (Is(JoinRefusal::ContentMismatch)) { Reason = TEXT("版本与房主不兼容，内容数据不同"); Hint = SameBuild; }
+    else if (Is(JoinRefusal::InvalidName)) { Reason = TEXT("房主不接受这个玩家名称"); Hint = TEXT("请修改名称后再加入。"); }
     else if (Is(JoinRefusal::RoomNotReady)) { Reason = TEXT("房主的房间尚未就绪"); }
     else { return false; }
     OutReason = FString::Printf(TEXT("%s（%s）。%s"), Reason, *Code, Hint);
