@@ -457,4 +457,4 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 | 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query、准入后Token、Prepare/ApplyBuildChange及营地回位重置（`FLDCampResetKey`）；正文区分持久来源与独立已释放效果，不复用旧family-max |
 | 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
 | UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
-| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；现有数值与精度已获用户批准并生成运行输入，不是平衡测试结果 |
+| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试；旧内容链已全部退出（内容报告 §11）；现有数值与精度已获用户批准并生成运行输入，不是平衡测试结果 |
