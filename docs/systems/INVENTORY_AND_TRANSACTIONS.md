@@ -93,9 +93,10 @@ Host 的 DEV probe 在游戏线程直接调用：
 `ALDDevelopmentDirector::DevQueueOffer(Contender, 三个定义)` 为该参赛者之后生成的队首 Offer 按先进先出各预置一组，
 入队时按当前构筑的 `LegalPool` 校验（恰好三张互异、种类由构筑推出、不超过剩余可抽的 Offer 数），
 抽取时按当次合法池再验，失效则打 `LD_DEV_FIXTURE_PRESET_REFUSED` 错误并按正常种子抽取。
-开局 Offer 在 `BeginMatch` 中生成、早于任何对局内调用，因此在 Lobby 阶段调用时改为暂存给下一局
-（按空的开局构筑校验，接收者须是当前 Lobby 成员）；`BeginMatch` 把锁定名单内的暂存移入本局队列并由开局 Offer 先消费，
-名单外的暂存记错误丢弃，旧局队列从不带入新局。
+开局 Offer 在 `BeginMatch` 中生成、早于任何对局内调用，而成长域四个 director 直到 Start 时才创建，
+因此 Lobby 阶段改用 `LDDevGrowthFixture::StageOffer(World, Contender, 三个定义)`：由夹具自身暂存给下一局
+（按空的开局构筑校验，接收者须是当前 Lobby 成员）；`BeginMatch` 经 `TakeStaged` 把锁定名单内的暂存移入本局队列，
+由开局 Offer 先消费，名单外的暂存记错误丢弃，旧局队列从不带入新局。
 选择仍经 `SubmitChoice`→`CommitPendingChoice`→Combat 安装。
 `ALDEconomyDirector::DevGrantReward(Contender, XP, Gold)` 排入下一个 Transactions 阶段，
 与死亡奖励共用 `CommitRewardParts` 复合提交（账本 cause `DevFixture` 铸币、`PrepareExperience` 与 Combat 投影），

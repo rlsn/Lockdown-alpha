@@ -5,7 +5,6 @@
 #include "Development/LDDevGrowthFixture.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
-#include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Inventory/LDInventoryDirector.h"
 
@@ -190,20 +189,7 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     Records = MoveTemp(NewRecords);
 #if WITH_DEV_AUTOMATION_TESTS
     // Presets staged in the Lobby serve this match's first heads, the opening offer included; nothing older survives.
-    DevOfferQueue.Reset();
-    for (TPair<FGuid, TArray<TArray<FName>>>& Staged : DevStagedOffers)
-    {
-        if (Records.Contains(Staged.Key))
-        {
-            DevOfferQueue.Add(Staged.Key, MoveTemp(Staged.Value));
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s staged in the Lobby is not in the locked roster"),
-                *Staged.Key.ToString());
-        }
-    }
-    DevStagedOffers.Reset();
+    LDDevGrowthFixture::TakeStaged(Roster, DevOfferQueue);
 #endif
     // The opening offer is drawn and kept now, exactly like a later queue head; closing, death or a retry never redraws it.
     for (const FGuid& Id : Roster)
@@ -862,15 +848,11 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
         return false;
     }
     const ALDGameMode* GameMode = Mode();
-    if (GameMode && GameMode->ReadLobby().Phase == ELDMatchPhase::Lobby)
-    {
-        return DevStageOffer(*GameMode, ContenderId, DefinitionIds, Error);
-    }
     const FRecord* Record = Records.Find(ContenderId);
     if (!Match.IsValid() || !Content.IsValid() || !GameMode || GameMode->GetMatchContext() != Match
         || !GameMode->IsGameplayWriteOpen(Match))
     {
-        Error = TEXT("A preset offer needs the Lobby or the current open match.");
+        Error = TEXT("A preset offer needs the current open match; in the Lobby use LDDevGrowthFixture::StageOffer.");
         return false;
     }
     if (!Record)
@@ -898,36 +880,4 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
     return true;
 }
 
-bool ALDDevelopmentDirector::DevStageOffer(const ALDGameMode& GameMode, const FGuid& ContenderId, const TArray<FName>& DefinitionIds,
-    FString& Error)
-{
-    if (!GameMode.ReadLobby().Members.ContainsByPredicate([&ContenderId](const FLDLobbyMember& Member)
-        { return Member.ContenderId == ContenderId; }))
-    {
-        Error = TEXT("The preset recipient is not a member of this Lobby.");
-        return false;
-    }
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDDemoEntry::LoadRuntimeContent(Catalog, Error) || !Catalog)
-    {
-        if (Error.IsEmpty()) { Error = TEXT("The approved Demo catalog is unavailable for a staged preset."); }
-        return false;
-    }
-    // A staged offer is checked against the empty build every match starts with; each draw re-resolves it again.
-    TArray<LDProgression::FLegalOption> Resolved;
-    if (!LDDevGrowthFixture::ResolvePreset(*Catalog, FLDGrowthBuild(), DefinitionIds, Resolved, Error))
-    {
-        return false;
-    }
-    TArray<TArray<FName>>& Staged = DevStagedOffers.FindOrAdd(ContenderId);
-    if (Staged.Num() >= Catalog->Get().Progression.MaxChoices)
-    {
-        Error = FString::Printf(TEXT("No offer is left to stage: %d staged of %d."), Staged.Num(), Catalog->Get().Progression.MaxChoices);
-        return false;
-    }
-    const int32 Position = Staged.Add(DefinitionIds) + 1;
-    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE staged offer for the next match contender=%s position=%d cards=%s,%s,%s"),
-        *ContenderId.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
-    return true;
-}
 #endif

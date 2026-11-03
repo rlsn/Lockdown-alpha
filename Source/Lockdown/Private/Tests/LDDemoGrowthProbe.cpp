@@ -789,24 +789,26 @@ public:
             TEXT("The Progression provider opened one ledger account per locked contender at the approved starting gold"));
     }
 
-    // Host, in the Lobby before Start: the DEV fixture stages the buyer's six offers, its opening offer first.
+    // Host, in the Lobby before Start: the DEV fixture stages the buyer's six offers, its opening offer first. The growth
+    // domain does not exist yet, so the fixture holds them until BeginMatch draws the opening offer.
     bool PresetBuyerOffers(const ALDPlayerController& PC)
     {
-        ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-        if (!Check(LDDevGrowthFixture::IsSwitchPresent() && Mode && Mode->Development && ClientId.IsValid(), TEXT("Fixture"),
-            TEXT("The Listen Host runs with -LDDevGrowthFixture, owns the growth director and sees the buyer in its Lobby")))
+        const UWorld* LobbyWorld = PC.GetWorld();
+        const ALDGameMode* Mode = LobbyWorld->GetAuthGameMode<ALDGameMode>();
+        if (!Check(LDDevGrowthFixture::IsSwitchPresent() && Mode && !Mode->Development && ClientId.IsValid(), TEXT("Fixture"),
+            TEXT("The Listen Host runs with -LDDevGrowthFixture and sees the buyer in its Lobby, before any growth domain exists")))
         {
             return false;
         }
         FString Refusal;
         const TArray<FName> Twice = {FName(TEXT("active_guard_pulse")), FName(TEXT("active_guard_pulse")), FName(TEXT("attr_might"))};
-        Check(!Mode->Development->DevQueueOffer(ClientId, Twice, Refusal) && !Refusal.IsEmpty(), TEXT("Fixture"),
+        Check(!LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, Twice, Refusal) && !Refusal.IsEmpty(), TEXT("Fixture"),
             TEXT("The fixture refuses a preset that repeats a card, with a reason"), Refusal);
         for (int32 Index = 0; Index < LDDemoGrowthScenario::GrowthProbePlannedOffers; ++Index)
         {
             const TArray<FName> Cards = LDDemoGrowthScenario::GrowthProbePlannedCards(Index);
             FString QueueError;
-            const bool bQueued = Mode->Development->DevQueueOffer(ClientId, Cards, QueueError);
+            const bool bQueued = LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, Cards, QueueError);
             if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture stages the buyer's offer %d: %s, %s, %s"), Index + 1,
                 *Cards[0].ToString(), *Cards[1].ToString(), *Cards[2].ToString()), QueueError))
             {

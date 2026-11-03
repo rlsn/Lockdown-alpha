@@ -532,18 +532,20 @@ public:
         return true;
     }
 
-    // Host, in the Lobby before Start: the fixture stages each role's first offers, the opening one included, one planned card per offer.
+    // Host, in the Lobby before Start: the fixture stages each role's first offers, the opening one included, one planned card per
+    // offer. The growth domain does not exist before Start, so the fixture holds them until BeginMatch.
     bool QueuePresets(ALDGameMode& Mode)
     {
         FString QueueError;
-        bool bQueued = LDDevGrowthFixture::IsSwitchPresent() && Mode.Development != nullptr && HostId.IsValid() && ClientId.IsValid();
+        const UWorld* LobbyWorld = Mode.GetWorld();
+        bool bQueued = LDDevGrowthFixture::IsSwitchPresent() && HostId.IsValid() && ClientId.IsValid();
         for (const FName& Card : LDDemoCombatScenario::CombatProbeSkillPlan(true))
         {
-            bQueued = bQueued && Mode.Development->DevQueueOffer(HostId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
+            bQueued = bQueued && LDDevGrowthFixture::StageOffer(LobbyWorld, HostId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
         }
         for (const FName& Card : LDDemoCombatScenario::CombatProbeSkillPlan(false))
         {
-            bQueued = bQueued && Mode.Development->DevQueueOffer(ClientId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
+            bQueued = bQueued && LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, LDDemoCombatScenario::CombatProbePreset(Card), QueueError);
         }
         return Check(bQueued, TEXT("Skills"),
             TEXT("The Host's DEV growth fixture (-LDDevGrowthFixture) stages both roles' opening and next offers in the Lobby"), QueueError);
