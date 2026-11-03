@@ -2271,17 +2271,17 @@ public:
             }
             UsedTrack = Used->IssuedCooldownId;
             KeptTrack = Kept->IssuedCooldownId;
-            ActivateReceiptMark = PC.CombatReceiptSerial;
+            ActivateReceiptMark = PC.CombatReceipts.Serial();
             PC.ActivateCombatEntry(UsedEntry);
             bActivateSent = true;
             StageAt = Now;
             return true;
         }
-        const FLDCombatActionReceipt& Latest = PC.LatestCombatReceipt;
-        if (PC.CombatReceiptSerial != ActivateReceiptMark && Latest.Entry == UsedEntry && Latest.Phase == ELDCombatPhase::Rejected)
+        if (const FLDCombatActionReceipt* Refused = PC.CombatReceipts.FindLatestSince(ActivateReceiptMark,
+            [UsedEntry](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == UsedEntry && Receipt.Phase == ELDCombatPhase::Rejected; }))
         {
             return Fail(TEXT("A19"), TEXT("The item's active was rejected: ")
-                + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Latest.Reject)));
+                + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Refused->Reject)));
         }
         if (!Used || Used->IssuedCooldownId != UsedTrack || Used->ReadyAtMs <= Own.AsOfMs)
         {
@@ -2553,16 +2553,16 @@ public:
             ForgottenId = Q->DefinitionId;
             ForgottenRank = Q->Rank;
             ForgottenTrack = Entry->IssuedCooldownId;
-            SkillReceiptMark = PC.CombatReceiptSerial;
+            SkillReceiptMark = PC.CombatReceipts.Serial();
             PC.ActivateCombatEntry(ELDCombatEntry::Q);
             bSkillSent = true;
             StageAt = Now;
             return true;
         }
-        const FLDCombatActionReceipt& Latest = PC.LatestCombatReceipt;
-        if (PC.CombatReceiptSerial != SkillReceiptMark && Latest.Entry == ELDCombatEntry::Q && Latest.Phase == ELDCombatPhase::Rejected)
+        if (const FLDCombatActionReceipt* Refused = PC.CombatReceipts.FindLatestSince(SkillReceiptMark,
+            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q && Receipt.Phase == ELDCombatPhase::Rejected; }))
         {
-            return Fail(TEXT("A12"), TEXT("Q's active was rejected: ") + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Latest.Reject)));
+            return Fail(TEXT("A12"), TEXT("Q's active was rejected: ") + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Refused->Reject)));
         }
         if (!Entry || Entry->IssuedCooldownId != ForgottenTrack || Entry->ReadyAtMs <= AsOfMs)
         {
