@@ -3,6 +3,10 @@
 *.umap filter=lfs diff=lfs merge=lfs -text
 # Audio: third-party CC0 sound sources are binary as well.
 *.ogg filter=lfs diff=lfs merge=lfs -text
+# Art: third-party CC0 model and texture sources are binary or embed binary buffers.
+/SourceData/Art/**/*.gltf filter=lfs diff=lfs merge=lfs -text
+/SourceData/Art/**/*.glb filter=lfs diff=lfs merge=lfs -text
+/SourceData/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Human-readable documentation uses one portable text format.
 *.md text eol=lf

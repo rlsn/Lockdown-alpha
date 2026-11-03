@@ -232,6 +232,31 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 定义中的地址与视觉 Actor 不是同一身份；重复导入、世界重载不能重复生成地点、奖励源或权威记录。
 新地图先验证合法出生、地点连通、入口与阻挡，再接入交互。
 
+### 美术素材与装饰
+
+角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、若干 Kenney 套件），
+只提交实际选用的 `.gltf`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
+`SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
+逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、纪律委员、体育老师）的显示身高、着色槽、右手骨骼、
+朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与两档野怪各用哪个身体；道具的基础缩放，
+以及每个装饰的放置区域、位置与朝向。出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py` 从 glTF 数据测得，
+`--check` 拒绝与清单不符的数值。
+
+`Scripts\ImportDemoArt.ps1 -Mode Import` 经 Interchange 导入到 `Content\Lockdown\Art`，
+所有材质槽换成 `M_ArtSurface` 的实例（向量参数 `Tint` 身份色、`Flash` 自发光），并保存类型化目录
+`DA_DemoArt`（`ULDArtCatalog`）。`-Mode Validate`（Bootstrap Validate 也执行）拒绝清单外的文件、
+许可原文不是 CC0 的包、源哈希变化、不是由当前源字节导入的资产、与清单不符的目录项和违反放置区域的装饰。
+资产经 `DirectoriesToAlwaysCook` 进入包。
+
+`ULDArtSubsystem` 在游戏实例启动时解析目录一次；缺失或不完整时记录 `LD_ART_CATALOG_INVALID` 并返回空，
+不用占位身体。身体接线读取 `ForSeat`/`ForMonster`，座位色仍由 `ULDHumanoidVisualComponent::ContenderTint`
+唯一定义，目录只给着色槽。`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`：
+不复制、不保存，全部实例无碰撞、不产生重叠、对所有通道 Ignore、不影响导航，
+因此不改变 D02 的墙体、视线与 navmesh。`LDArt::CheckPlacements` 按已批准世界逐个核对区域：
+`outside` 不压场地地面；`wall_base` 在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、
+商店与升旗台；`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位）。
+没有找到 CC0 的篮球架，未加入。
+
 ## 营地与占领的复用边界
 
 营地追击、回位、活动范围和稳定选敌保留为参数化纯决策 `LDCampDecision`，不读取 Actor/World 全局，
