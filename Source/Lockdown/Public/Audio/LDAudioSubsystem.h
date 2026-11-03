@@ -32,6 +32,8 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<USoundBase>> CueSounds;
     FString CatalogError;
     float MasterVolume = 1.f;
+    // Last volume handed to the device's class override; -1 until the first push.
+    float AppliedVolume = -1.f;
     bool bMixPushed = false;
     uint32 PushedDevice = 0;
     bool bReportedUnavailable = false;

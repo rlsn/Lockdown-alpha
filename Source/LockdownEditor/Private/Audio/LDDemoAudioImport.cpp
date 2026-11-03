@@ -29,6 +29,8 @@ namespace
     {
         ELDAudioCue Cue = ELDAudioCue::None;
         FString Source;
+        // Loudness-normalized playback volume measured by Scripts/MeasureDemoAudioLoudness.py; the source bytes stay unchanged.
+        float Volume = 1.f;
     };
 
     bool AudioFail(FString& Error, const FString& Message) { Error = Message; return false; }
@@ -91,13 +93,16 @@ namespace
             const TSharedPtr<FJsonObject>* Entry = nullptr;
             FAudioManifestCue Cue;
             FString Id, Pack, Hash;
+            double Volume = 0;
             const ELDAudioCue Expected = ELDAudioCue(Index + 1);
             if (!(*Cues)[Index]->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("cue"), Id) || !LDAudio::ParseCueId(Id, Cue.Cue)
                 || Cue.Cue != Expected || !(*Entry)->TryGetStringField(TEXT("pack"), Pack) || !PackIds.Contains(Pack)
                 || !(*Entry)->TryGetStringField(TEXT("source"), Cue.Source) || !(*Entry)->TryGetStringField(TEXT("sha256"), Hash)
                 || !AudioSafeRelative(Cue.Source) || Listed.Contains(Cue.Source)
-                || !(Cue.Source.EndsWith(TEXT(".ogg")) || Cue.Source.EndsWith(TEXT(".wav"))))
-            { return AudioFail(Error, FString::Printf(TEXT("Cue entry %d must be %s with a declared pack and a unique .ogg/.wav source."), Index, *LDAudio::CueId(Expected))); }
+                || !(Cue.Source.EndsWith(TEXT(".ogg")) || Cue.Source.EndsWith(TEXT(".wav")))
+                || !(*Entry)->TryGetNumberField(TEXT("volume"), Volume) || !FMath::IsFinite(Volume) || Volume < 0.1 || Volume > 2.0)
+            { return AudioFail(Error, FString::Printf(TEXT("Cue entry %d must be %s with a declared pack, a unique .ogg/.wav source and a 0.1..2 volume."), Index, *LDAudio::CueId(Expected))); }
+            Cue.Volume = float(Volume);
             if (!AudioCheckHash(Cue.Source, Hash, Error)) { return false; }
             Listed.Add(Cue.Source);
             Out.Add(MoveTemp(Cue));
@@ -192,6 +197,7 @@ bool LDDemoAudioImport::Import(FString& Error)
         Wave->SoundClassObject = Master;
         Wave->bLooping = false;
         Wave->AttenuationSettings = nullptr;
+        Wave->Volume = Cue.Volume;
         Wave->MarkPackageDirty();
         FLDAudioCueEntry& Entry = Catalog->Cues.AddDefaulted_GetRef();
         Entry.Cue = Cue.Cue;
@@ -225,6 +231,8 @@ bool LDDemoAudioImport::Validate(FString& Error)
         if (Wave->GetOutermost()->GetName() != Expected)
         { return AudioFail(Error, FString::Printf(TEXT("Cue %s uses %s instead of %s."), *LDAudio::CueId(Cue.Cue), *Wave->GetPathName(), *Expected)); }
         if (!AudioImportedFromCurrentBytes(*Wave, Cue.Source, Error)) { return false; }
+        if (!FMath::IsNearlyEqual(Wave->Volume, Cue.Volume, 1e-4f))
+        { return AudioFail(Error, FString::Printf(TEXT("Cue %s plays at volume %.3f, the manifest says %.3f; run ImportDemoAudio.ps1 -Mode Import."), *LDAudio::CueId(Cue.Cue), Wave->Volume, Cue.Volume)); }
     }
     Error.Reset();
     return true;
