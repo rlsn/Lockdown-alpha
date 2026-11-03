@@ -1,6 +1,7 @@
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDVisionDirector.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapDefinition.h"
@@ -1132,6 +1133,39 @@ bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fading in stops at full"), Fade == 1.f);
     Fade = LDPropFade::Step(Fade, false, 1.f);
     TestTrue(TEXT("Clearing the line fades back to opaque"), Fade == 0.f);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionFlightTrailTest, "Lockdown.Rules.DemoVision.FlightTrail",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionFlightTrailTest::RunTest(const FString& Parameters)
+{
+    using namespace LDFlightTrail;
+    TArray<FPuff> Puffs;
+    Layout(0.f, Puffs);
+    TestTrue(TEXT("A chalk standing still has no trail"), Puffs.IsEmpty());
+    Layout(MinSpacingCm / SpacingPerSpeed - 1.f, Puffs);
+    TestTrue(TEXT("A drift below the threshold shows no trail"), Puffs.IsEmpty());
+    // The approved active_arc_bolt flies at 1600 cm/s; the proxy reaches about 70 % of it in the first frames.
+    for (const float Speed : {1120.f, 1600.f})
+    {
+        Layout(Speed, Puffs);
+        if (!TestEqual(FString::Printf(TEXT("A flying chalk draws every puff (%.0f cm/s)"), Speed), Puffs.Num(), PuffCount)) { return false; }
+        TestTrue(TEXT("The trail starts at the chalk's tail"), Puffs[0].OffsetCm - Puffs[0].DiameterCm * .5f <= 0.f);
+        const FPuff& Last = Puffs.Last();
+        TestTrue(FString::Printf(TEXT("The trail is at least twice the 50 cm chalk (%.0f cm/s)"), Speed), Last.OffsetCm + Last.DiameterCm * .5f >= 100.f);
+        TestTrue(TEXT("The head is about as thick as the 22 cm chalk"), Puffs[0].DiameterCm >= 18.f);
+        bool bTaper = true, bStreak = true;
+        for (int32 Index = 1; Index < Puffs.Num(); ++Index)
+        {
+            bTaper &= Puffs[Index].DiameterCm < Puffs[Index - 1].DiameterCm && Puffs[Index].OffsetCm > Puffs[Index - 1].OffsetCm;
+            if (Index <= PuffCount / 2)
+            {
+                bStreak &= Puffs[Index].OffsetCm - Puffs[Index - 1].OffsetCm <= (Puffs[Index].DiameterCm + Puffs[Index - 1].DiameterCm) * .5f;
+            }
+        }
+        TestTrue(TEXT("Puffs thin away from the chalk"), bTaper);
+        TestTrue(FString::Printf(TEXT("The thick half overlaps into one streak (%.0f cm/s)"), Speed), bStreak);
+    }
     return true;
 }} // namespace LDDemoVisionTests
 #endif

@@ -11,7 +11,7 @@
 | `Vision\LDViewTypes` | 冻结的 `FLDWorldView` 观测帧、隐藏通知与终结通知的线缆格式和校验；保存与加载都会校验 |
 | `Vision\LDWorldViewRelay` | 每个拥有连接一个 relay：接收游标、超时清除、代理与迷雾表现 |
 | `ALDObservedEntityProxy` | 客户端非复制的人形表现，无碰撞，不参与权威战斗或资源所有权；参赛者按名册座位着色，营地 NPC 用独立外观；动作与状态经共用的 cue 字节呈现，动作年龄取样本自带年龄加上呈现时钟越过该样本的时间；授权的观察死亡（`ObservedDeath`）先留下 Combat 的客户端倒地副本 `ALDBodyPuppet::SpawnFall` 再移除代理，离开视野、超时与复位只移除 |
-| `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（粉笔头，+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
+| `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（粉笔头，+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾：从粉笔尾端起 14 个白色粉团由约 20 cm 渐细到 8 cm，间距随近期速度、最多 11 cm，1600 cm/s 时约 1.5 m 长、前半段连成一条实线，静止时不显示；布局为纯函数 `LDFlightTrail::Layout`，由 `Lockdown.Rules.DemoVision.FlightTrail` 覆盖，`RunDemoCombatCheck.ps1` 的 `HostSees-ChalkFlight.png` 只在拖尾已绘制时截取），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
 | `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`，目前只有升旗台旗杆）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或因装饰无碰撞而穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给每个淡化材质设 `LDFadeStrength` = `FadedStrength`（1），所以完全淡化时旗杆消失，而不是留下一条抖动网点柱；淡化期间关闭投影。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化 |
 | `ALDOwnBodyMarker` | 只在本机生成、挂在本机存活身体脚下的光圈，用于一眼认出自己；死亡或无身体时隐藏 |
 

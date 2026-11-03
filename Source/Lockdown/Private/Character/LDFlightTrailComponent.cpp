@@ -6,18 +6,36 @@
 
 namespace LDFlightTrailDetail
 {
-    constexpr int32 PuffCount = 7;
-    // Spacing follows the recent speed (a chalk at 1600 cm/s strings out to its cap), up to this many cm.
-    constexpr float SpacingPerSpeed = .022f, MaxSpacingCm = 26.f, MinSpacingCm = 2.f;
-    const FLinearColor Dust(.96f, .96f, .9f), FadedDust(.62f, .68f, .78f);
+    // Chalk white near the chalk, a pale cool grey at the tail: both stay far brighter than the lawn.
+    const FLinearColor Dust(.98f, .98f, .95f), FadedDust(.86f, .88f, .9f);
+    // /Engine/BasicShapes/Sphere is 100 cm across.
+    constexpr float SphereDiameterCm = 100.f;
+}
+
+float LDFlightTrail::SpacingCm(float SpeedCmPerSec)
+{
+    return FMath::Min(FMath::Max(SpeedCmPerSec, 0.f) * SpacingPerSpeed, MaxSpacingCm);
+}
+
+void LDFlightTrail::Layout(float SpeedCmPerSec, TArray<FPuff>& Out)
+{
+    Out.Reset();
+    const float Spacing = SpacingCm(SpeedCmPerSec);
+    if (Spacing < MinSpacingCm) { return; }
+    for (int32 Index = 0; Index < PuffCount; ++Index)
+    {
+        const float Along = float(Index) / float(PuffCount - 1);
+        FPuff& Puff = Out.AddDefaulted_GetRef();
+        Puff.DiameterCm = FMath::Lerp(HeadDiameterCm, TailDiameterCm, Along);
+        Puff.OffsetCm = Spacing * (float(Index) + .5f);
+    }
 }
 
 ULDFlightTrailComponent::ULDFlightTrailComponent()
 {
-    using namespace LDFlightTrailDetail;
     PrimaryComponentTick.bCanEverTick = true;
     static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere"));
-    for (int32 Index = 0; Index < PuffCount; ++Index)
+    for (int32 Index = 0; Index < LDFlightTrail::PuffCount; ++Index)
     {
         UStaticMeshComponent* Puff = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("TrailPuff%d"), Index));
         Puff->SetStaticMesh(SphereMesh.Object);
@@ -45,7 +63,7 @@ void ULDFlightTrailComponent::OnRegister()
     for (int32 Index = 0; Index < Puffs.Num(); ++Index)
     {
         UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
-        Instance->SetVectorParameterValue(TEXT("Tint"), FMath::Lerp(Dust, FadedDust, float(Index) / float(PuffCount - 1)));
+        Instance->SetVectorParameterValue(TEXT("Tint"), FMath::Lerp(Dust, FadedDust, float(Index) / float(Puffs.Num() - 1)));
         Puffs[Index]->SetMaterial(0, Instance);
     }
     bTinted = true;
@@ -63,14 +81,17 @@ void ULDFlightTrailComponent::TickComponent(float Delta, ELevelTick TickType, FA
     }
     LastWorld = Here;
     bHasLast = true;
-    const float Spacing = FMath::Min(SpeedCmPerSec * SpacingPerSpeed, MaxSpacingCm);
-    const bool bShown = Spacing >= MinSpacingCm;
+    TArray<LDFlightTrail::FPuff> Layout;
+    LDFlightTrail::Layout(SpeedCmPerSec, Layout);
+    Shown = Layout.Num();
+    ShownLengthCm = Layout.IsEmpty() ? 0.f : Layout.Last().OffsetCm + Layout.Last().DiameterCm * .5f;
     for (int32 Index = 0; Index < Puffs.Num(); ++Index)
     {
+        const bool bShown = Layout.IsValidIndex(Index);
         Puffs[Index]->SetHiddenInGame(!bShown);
         if (!bShown) { continue; }
         // Backward along the host's facing, thinning away from the chalk.
-        Puffs[Index]->SetRelativeLocation(FVector(-Spacing * float(Index + 1), 0, 0));
-        Puffs[Index]->SetRelativeScale3D(FVector(.13f - .015f * float(Index)));
+        Puffs[Index]->SetRelativeLocation(FVector(-Layout[Index].OffsetCm, 0, 0));
+        Puffs[Index]->SetRelativeScale3D(FVector(Layout[Index].DiameterCm / SphereDiameterCm));
     }
 }

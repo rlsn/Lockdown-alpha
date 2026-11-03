@@ -194,6 +194,7 @@ public:
     void End(double LocalSeconds);
     bool IsFinished(double AtServerSec, double LocalSeconds) const;
     FGuid ObservedHandle;
+    const ULDFlightTrailComponent* GetTrail() const { return Trail; }
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;

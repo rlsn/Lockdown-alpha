@@ -431,9 +431,11 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     // An exaggerated chalk stub lying along the flight direction (+X), readable from the gameplay camera at 720p.
     Chalk->SetRelativeRotation(FRotator(90, 0, 0));
     Chalk->SetRelativeScale3D(FVector(.22, .22, .5));
-    // Chalk dust strung out behind the flight; the proxy faces +X along its heading.
+    // Chalk dust strung out behind the flight from the chalk's tail (its 50 cm stub is centred on the root); the proxy
+    // faces +X along its heading.
     Trail = CreateDefaultSubobject<ULDFlightTrailComponent>(TEXT("Trail"));
     Trail->SetupAttachment(RootComponent);
+    Trail->SetRelativeLocation(FVector(-25, 0, 0));
 }
 
 void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec)
