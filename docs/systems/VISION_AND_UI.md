@@ -141,7 +141,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 `ULDAudioSubsystem`（GameInstance 子系统）在启动时一次性加载 `/Game/Lockdown/Audio/DA_DemoAudio`
 （`ULDAudioCatalog`），按 `ELDAudioCue` 解析全部音效。目录缺失、条目缺失或乱序、声音未归入
 `SC_DemoMaster`、循环或没有时长都记录 `LD_AUDIO_CATALOG_INVALID` 错误，不静默降级；
-没有音频设备（如 `-nosound` 自动化）只记录一次 Display 级 `LD_AUDIO_DEVICE_UNAVAILABLE`。
+没有音频设备（如 `-nosound` 自动化）只记录一次 Display 级 `LD_AUDIO_DEVICE_UNAVAILABLE`；
+目录解析失败后，首次请求播放还会记录一次 Warning 级 `LD_AUDIO_CUE_UNAVAILABLE`。
 所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
 
 `ULDHUD` 每帧把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
@@ -165,13 +166,14 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 新增的任何 Demo 声音都必须归入 `SC_DemoMaster`，否则目录校验失败、音量也控制不到它。
 
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
-逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`，
+逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
+kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
 BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
 结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
-很短的本人反馈音受峰值上限约束，仍比 jingle 低几 dB。
+很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
 `-Mode Validate`（Bootstrap Validate 也会执行）拒绝清单外的文件、许可原文不是 CC0 的包、
 源文件哈希变化，以及不是由当前源字节导入、或播放音量与清单不符的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
