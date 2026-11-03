@@ -21,16 +21,28 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $requiredChecks = @{
     Host = @('#C1','#C2','#C3','#C4','#C5','#C6','#C7')
     Client1 = @('#C1','#C3','#C4','#C5','#C7')
-    Client2 = @('#C1','#C6')
+    Client2 = @('#C1','#C6','#C9')
 }
+# Kept by the rendered Client2 for presentation review only: required as PNG files, never pixel-compared.
+$images = @('CampGuardianReturning.png','CampLowPair.png')
 
 function Start-CampRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCampProbe -LDDemoCampRole={2} -LDDemoCampTimeout={3} -LDDemoCampOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    # Client2 is the one rendered owner and takes the screenshots; the other roles need no renderer.
+    $render = if ($Role -eq 'Client2') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' } else { '-nullrhi' }
+    $arguments = '-unattended -nop4 -nosound {6} -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCampProbe -LDDemoCampRole={2} -LDDemoCampTimeout={3} -LDDemoCampOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log"),$render
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
+}
+
+function Test-CampPng {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    $stream = [IO.File]::OpenRead($Path)
+    try { $head = [byte[]]::new(8); $read = $stream.Read($head, 0, 8) } finally { $stream.Dispose() }
+    return $read -eq 8 -and $head[0] -eq 0x89 -and $head[1] -eq 0x50 -and $head[2] -eq 0x4E -and $head[3] -eq 0x47
 }
 
 function Get-CampFailure {
@@ -82,16 +94,24 @@ try {
     if (@($reports | Where-Object { $_.generation -ne $reports[0].generation }).Count) {
         throw "Roles disagree on the match generation: $output"
     }
+    foreach ($image in $images) {
+        if (@($reports[2].screenshots) -notcontains $image -or -not (Test-CampPng (Join-Path $evidence $image))) {
+            throw "Client2 kept no PNG screenshot $image. Evidence: $output"
+        }
+    }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
     foreach ($process in @($processes)[1..2]) {
-        if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Camp client did not exit cleanly: $output" }
+        # The rendered Client2 also flushes its shader cache writes before it exits.
+        $grace = if ($process.Id -eq $processes[2].Id) { 120000 } else { 30000 }
+        if (-not $process.WaitForExit($grace) -or $process.ExitCode -ne 0) { throw "Camp client did not exit cleanly: $output" }
     }
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Camp scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host "DEV-only normal-start camp scenario passed on real owned connections. Not 3+3, AI, capture or balance acceptance. Evidence: $output"
+    $shots = ($images | ForEach-Object { Join-Path $output $_ }) -join '; '
+    Write-Host "DEV-only normal-start camp scenario passed on real owned connections. Not 3+3, AI, capture or balance acceptance. Screenshots for presentation review (not pixel-compared): $shots. Evidence: $output"
 }
 finally {
     foreach ($process in $processes) {
