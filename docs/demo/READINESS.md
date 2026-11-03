@@ -112,7 +112,7 @@
 | 视野一致 | 场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
 | AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的占领者留圈迎战，最终按占领获胜 | 本局没有出现的情形报告为未覆盖，不计为通过 |
 | UI 完整 | 规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
-| 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、三真人满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断 |
+| 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、三真人满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断 |
 | 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、金币、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
 | 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 占领获胜、结果和回 Lobby；Capture 中真人占领获胜后开第二局 | 三名真人的完整对局与人类试玩 |
 

@@ -50,6 +50,11 @@ $required = @{
     'HostLeave/Client1Match' = @($connection)
     'HostLeave/Client1' = @('The room closed because the Host left through its menu', 'The client shows that the Host left, not a lost connection',
         'A closed room never produced a result table', 'A closed room is not reported as a failed join')
+    'HostQuit/Host' = @($connection, 'Every provider is wired: the ready room may start normally',
+        'The Host holds a live match with its owning client before it quits')
+    'HostQuit/Client1Match' = @($connection)
+    'HostQuit/Client1' = @('The interruption follows the Host quitting mid-match', 'A Host quit never produced a result table',
+        'A lost session is not reported as a failed join')
 }
 
 function New-LoopbackPort {
@@ -255,12 +260,36 @@ try {
     Stop-Role $leavingHost 'Leaving Host'
     Assert-FaultLogs 'HostLeave' @('Client1')
 
+    # Phase 7: the Listen Host's process quits normally mid-match, as closing its window does, while its client is still
+    # connected. The engine tears the world down (PreExit) with that connection open; the Host must exit cleanly with no
+    # authority fault in its log, and its client lands on an interrupted menu without a result table.
+    $directory = Join-Path $launch.ProbeOutput 'HostQuit'
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    $port = New-LoopbackPort
+    $quittingHost = Start-FaultRole -Phase 'HostQuit' -Role 'Host' -Url "/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=QuittingHost" -Port $port
+    Wait-FaultFiles $directory @('HostJoined.json') @($quittingHost)
+    $quitClient = Start-FaultRole -Phase 'HostQuit' -Role 'Client1' -Url (& $clientUrl $port 'FaultQuitClient') -Ui
+    # The Host exits by itself once it reported, so only the client is watched for an early exit here.
+    Wait-FaultFiles $directory @('Host.json', 'Client1Match.json') @($quitClient)
+    $null = Read-FaultReport 'HostQuit' 'Host'
+    $null = Read-FaultReport 'HostQuit' 'Client1Match'
+    Stop-Role $quittingHost 'Quitting Host'
+    if (-not (Select-String -LiteralPath (Join-Path $output 'HostQuit-Host.log') -Pattern 'LD_DEMO_SESSION_FAULT_HOST_QUIT' -SimpleMatch -Quiet)) {
+        throw "The Host did not quit with its client connected: $output"
+    }
+    Wait-FaultFiles $directory @('Client1.json') @($quitClient)
+    $hostQuitReport = Read-FaultReport 'HostQuit' 'Client1'
+    Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Exit'
+    Stop-Role $quitClient 'Client after the Host quit'
+    Assert-FaultLogs 'HostQuit' @('Client1')
+
     $kind = if ($launch.Packaged) { "packaged build $($launch.Package)" } else { 'editor game target' }
     Write-Host ("DEV-only session faults passed on the ${kind}: mid-match menu leave (match continued, no death notice, Host-ended result marks the leaver left with no kill credited); " +
         "Host killed mid-match -> client menu shows '$($orphanReport.summary.notice)'; failed joins -> '$($joinReport.summary.closed_port_notice)' and '$($joinReport.summary.unresolvable_host_notice)'; " +
         "refused joins -> '$($refuseReport.summary.version_mismatch_notice)', '$($refuseReport.summary.room_full_notice)' and '$($refuseReport.summary.match_started_notice)'; " +
         "a join that lost the race to the start -> '$($raceReport.summary.race_notice)'; " +
-        "Host left through its menu -> client menu shows '$($hostLeftReport.summary.notice)'. " +
+        "Host left through its menu -> client menu shows '$($hostLeftReport.summary.notice)'; " +
+        "Host quit with its client connected -> no authority fault, client menu shows '$($hostQuitReport.summary.notice)'. " +
         "All on one machine's loopback: not LAN or public internet. Evidence: $output")
 }
 finally {
