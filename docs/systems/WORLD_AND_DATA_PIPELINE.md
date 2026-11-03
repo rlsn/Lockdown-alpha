@@ -279,9 +279,19 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
 
-母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 由导入器在 C++ 中一次性创建；commandlet
-重新加载时其节点图为空，导入器因此从不重新保存已存在的母材质。要修改母材质，先删除对应 `.uasset`，
-再运行 `ImportDemoArt.ps1 -Mode Import` 重建。`Scripts\CaptureDemoArt.ps1`（DEV `-LDDemoArtCapture`）
+母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 的节点图就是导入器 C++ 中的 `ArtMasterMaterial`：
+每次 `ImportDemoArt.ps1 -Mode Import` 都在原资产上丢弃旧图并按代码重建（表达式与参数 GUID 由包名和图中位置导出，
+重建后保持不变；引擎自生成的 id 仍会让文件字节变化），再与其他美术资产一同保存。
+要修改母材质，改 `ArtMasterMaterial` 与同文件的 `ArtCheckMasterGraph` 后运行 Import；
+在编辑器里直接改资产会在下次 Import 时被覆盖。Import 与 Validate 都检查加载出的节点图
+（表达式数、参数名、BaseColor/Roughness/Emissive/OpacityMask 连接、混合模式），不符即以
+`LD_DEMO_ART_REJECTED ... does not hold the importer's graph` 失败，不会保存空图。
+过去“commandlet 重新加载时节点图为空”的根因是该 commandlet 设了 `IsClient = false`：无客户端的进程
+按专用服务器加载包，链接器会跳过编辑器游戏非必载的导出（材质表达式即是），于是读到空图、再保存即变黑。
+美术导入 commandlet 与 `LDScaffoldBootstrap`（它的 Validate 也调用美术校验）现为 `IsClient = true`，
+美术导入与校验在 `GIsClient` 为假时直接拒绝运行。仍为 `IsClient = false` 的 commandlet
+（`LDDemoAudioImport`、`LDAssetReferenceAudit`）加载材质时同样看不到节点图，
+不要用它们保存任何材质。`Scripts\CaptureDemoArt.ps1`（DEV `-LDDemoArtCapture`）
 渲染身体、动画姿势、场地俯视与路线遮挡扫描，`Scripts\DrawDemoArtLayout.py` 画出道具布局图；输出在
 `Artifacts`。原始下载包不入库。
 
