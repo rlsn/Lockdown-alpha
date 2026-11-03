@@ -20,38 +20,6 @@ namespace LDPlayerOrdersDetail
         return Mode==ELDDemoTargetMode::Unit || Mode==ELDDemoTargetMode::DirectionProjectile
             || Mode==ELDDemoTargetMode::DirectionDash;
     }
-
-    const TCHAR* RejectText(ELDCombatReject Reason)
-    {
-        switch (Reason)
-        {
-        case ELDCombatReject::InvalidRequest: return TEXT("invalid request");
-        case ELDCombatReject::NotOwner: return TEXT("not the current owner");
-        case ELDCombatReject::StaleMatch: return TEXT("another match");
-        case ELDCombatReject::StaleLife: return TEXT("another life");
-        case ELDCombatReject::StaleRequest: return TEXT("stale request");
-        case ELDCombatReject::RequestConflict: return TEXT("request conflict");
-        case ELDCombatReject::ReceiptExpired: return TEXT("receipt expired");
-        case ELDCombatReject::Cancelled: return TEXT("cancelled");
-        case ELDCombatReject::StaleSource: return TEXT("the source changed; prepare it again");
-        case ELDCombatReject::SourceUnavailable: return TEXT("empty slot");
-        case ELDCombatReject::NoActiveEffect: return TEXT("no active effect");
-        case ELDCombatReject::Busy: return TEXT("busy");
-        case ELDCombatReject::Cooldown: return TEXT("on cooldown");
-        case ELDCombatReject::AttackNotReady: return TEXT("attack not ready");
-        case ELDCombatReject::InsufficientMana: return TEXT("not enough mana");
-        case ELDCombatReject::ControlBlocked: return TEXT("blocked by a control effect");
-        case ELDCombatReject::TargetUnavailable: return TEXT("target unavailable");
-        case ELDCombatReject::InvalidDirection: return TEXT("invalid direction");
-        case ELDCombatReject::OutOfRange: return TEXT("out of range");
-        case ELDCombatReject::Blocked: return TEXT("blocked");
-        case ELDCombatReject::Dead: return TEXT("dead");
-        case ELDCombatReject::MatchClosed: return TEXT("match closed");
-        case ELDCombatReject::AuthorityDataUnavailable: return TEXT("server data unavailable");
-        case ELDCombatReject::CapacityUnavailable: return TEXT("server capacity unavailable");
-        default: return TEXT("rejected");
-        }
-    }
 }
 
 void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
@@ -67,7 +35,6 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     {
         bAttackMoveArmed=false;
         ArmedEntry=Entry;
-        IntentFeedback=Mode==ELDDemoTargetMode::Unit?TEXT("Left-click a visible unit"):TEXT("Left-click to aim");
         return;
     }
     // Self, an empty slot or gear without an active still reaches the server: the attempt is judged there
@@ -88,7 +55,6 @@ void ALDPlayerController::ArmAttackMove()
     if (!IsLocalController() || !CanWorldCommand()) { return; }
     ArmedEntry=ELDCombatEntry::None;
     bAttackMoveArmed=true;
-    IntentFeedback=TEXT("Attack-move: left-click a destination");
 }
 
 bool ALDPlayerController::CancelArmedCombat()
@@ -175,7 +141,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
     if (!IsLocalController()) { return; }
     if (NextDirectSequence==MAX_uint64)
     {
-        IntentFeedback=TEXT("Combat request sequence exhausted; no further action can be sent.");
+        IntentFeedback=TEXT("技能请求编号已用尽，无法再发送");
         return;
     }
     FLDCombatActionRequest Request;
@@ -232,19 +198,13 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
     ClientCombatReceipt(Mode->Combat->CancelAction(Caller,Request));
 }
 
+// Only records the receipt: the HUD alone presents combat receipts (LDHUD::CombatReceiptNotice).
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {
     if (Receipt.Generation!=OwnerState.Match) { return; }
     LatestCombatReceipt=Receipt;
     if (CombatReceiptSerial<MAX_uint32) { ++CombatReceiptSerial; }
     else { UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
-    FString Text;
-    if (Receipt.Phase==ELDCombatPhase::Rejected)
-    { Text=FString(TEXT("Action rejected: "))+LDPlayerOrdersDetail::RejectText(Receipt.Reject); }
-    if (Receipt.bProtectionRemoved) { Text+=Text.IsEmpty()?TEXT("Protection removed"):TEXT(" (protection removed)"); }
-    if (Text.IsEmpty()) { return; }
-    IntentFeedback=Text;
-    if (IntentFeedbackSerial<MAX_uint32) { ++IntentFeedbackSerial; }
 }
 
 void ALDPlayerController::OnRep_CombatView()

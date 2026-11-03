@@ -603,15 +603,28 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
         if (!Body || !Body->Action.IsSet() || Body->bPendingDeath) { continue; }
         const FLDCombatAction Action=Body->Action.GetValue();
         ELDCombatReject Reject=ELDCombatReject::None;
+        // A released action stays visible for its cue window (LDCombatCues); a refused release shows nothing more.
+        const auto Released=[this,Actor,&Action,Now]()
+        {
+            if (FLDBodyCombatState* After=Bodies.Find(Actor))
+            {
+                After->Cues.bReleasedBasic=Action.Kind==ELDCombatActionKind::Basic;
+                After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
+                After->Cues.ReleasedAtMs=Now;
+                MarkViewChanged(After->Victim.EntityId);
+            }
+        };
         if (Action.Kind==ELDCombatActionKind::Basic)
         {
             if (!ReleaseBasic(*Actor,*Body,Action,Reject,Error)) { return false; }
+            if (Reject==ELDCombatReject::None) { Released(); }
             // A Nav-origin basic reports through its order; only Direct requests own a combat receipt.
             if (Action.Key.Origin==ELDCombatRequestOrigin::Direct) { FinishDirectReceipt(Entry.Key,Action,Reject); }
             continue;
         }
         if (!ReleaseAbility(*Actor,*Body,Action,Reject,Error)) { return false; }
         FinishAction(*Body,Reject,Reject==ELDCombatReject::None);
+        if (Reject==ELDCombatReject::None) { Released(); }
         FinishDirectReceipt(Entry.Key,Action,Reject);
     }
     return true;

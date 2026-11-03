@@ -411,6 +411,22 @@ struct FLDCombatAttributeRowView
     UPROPERTY() bool bClamped=false;
 };
 
+// Action-cue facts of one body life at authority ms: the last released action, the dash end and the last landed hit
+// (body state), plus the action winding up (filled when read). LDCombatCues selects the visible cue from them.
+USTRUCT()
+struct FLDCombatCueFacts
+{
+    GENERATED_BODY()
+    UPROPERTY() bool bActing=false;
+    UPROPERTY() bool bActingBasic=false;
+    UPROPERTY() int64 ActingStartedAtMs=0;
+    UPROPERTY() bool bReleasedBasic=false;
+    UPROPERTY() int64 ReleasedStartedAtMs=0;
+    UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
+    UPROPERTY() int64 DashUntilMs=0;
+    UPROPERTY() int64 LastHitAtMs=0;                 // 0 = not hit in this life
+};
+
 // Single owner publication of the Combat self projection; consumers reject an older Revision.
 USTRUCT()
 struct FLDCombatOwnerView
@@ -440,4 +456,6 @@ struct FLDCombatOwnerView
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
     UPROPERTY() bool bOutOfCombatRegenActive=false;
+    // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
+    UPROPERTY() FLDCombatCueFacts Cues;
 };

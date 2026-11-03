@@ -168,7 +168,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     {
         Inspected.Invalidate();
         InspectedEpoch=0;
-        IntentFeedback=TEXT("Target no longer visible");
+        IntentFeedback=TEXT("目标已不可见");
     }
     if (HUDUI) { HUDUI->RefreshReadModel(); }
 }

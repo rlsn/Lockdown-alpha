@@ -500,7 +500,8 @@ public:
         if (Stage==2)
         {
             if (Nav->HasMoveOrder()) { return true; }
-            Check(Nav->Status.Contains(TEXT("surface"),ESearchCase::IgnoreCase),
+            const FLDOrderReceipt& Refused=Nav->LatestReceipt();
+            Check(Refused.Status==ELDOrderStatus::Rejected && Refused.Failure==ELDOrderFailure::InvalidGround,
                 TEXT("Missing explicit target SurfaceHint is refused on the owning RPC"));
             if (!Passed) { return Finish(); }
             StartPosition=Body->GetActorLocation();
@@ -517,7 +518,9 @@ public:
         }
         else if (Stage==4)
         {
-            if (Nav->Status!=TEXT("Stopped")) { return true; }
+            const FLDOrderReceipt& Stopped=Nav->LatestReceipt();
+            if (Stopped.Identity!=Nav->LocalIdentity() || Stopped.Status!=ELDOrderStatus::Cancelled
+                || Stopped.Failure!=ELDOrderFailure::Stopped) { return true; }
             StageAt=FPlatformTime::Seconds();
             Stage=5;
         }
@@ -591,7 +594,8 @@ public:
             Nav->NavigateGround(Goal->Position,Goal->Surface);
             Stage=9;
         }
-        else if (Stage==9 && !Nav->HasMoveOrder() && Nav->Status==TEXT("Arrived"))
+        else if (Stage==9 && !Nav->HasMoveOrder() && Nav->LatestReceipt().Status==ELDOrderStatus::Completed
+            && Nav->LatestReceipt().Failure==ELDOrderFailure::None)
         {
             // The server completes the order with its own body inside the receipt's acceptance radius. The owning client's
             // predicted foot is only kept within the engine's uncorrected position error of the server's, so that error
