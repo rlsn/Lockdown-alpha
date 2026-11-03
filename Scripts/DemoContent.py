@@ -720,9 +720,10 @@ def validate_numbers(data):
 
 
 def _choice_bonus(data, field):
+    budget = data["progression"]["max_choices"]
     best_attribute = max((quantity(row["stats"].get(field, {"p2": 0}))
                           for row in data["attributes"]), default=Fraction(0))
-    best = [count * best_attribute for count in range(10)]
+    best = [count * best_attribute for count in range(budget + 1)]
     for ability in data["abilities"]:
         if ability["kind"] != "passive":
             continue
@@ -735,9 +736,9 @@ def _choice_bonus(data, field):
                 elif effect["op"] == "out_of_combat_regen" and field == "HPRegen":
                     bonus += quantity(effect["rate"])
             alternatives.append((rank["rank"], bonus))
-        best = [max(best[budget - cost] + bonus for cost, bonus in alternatives if cost <= budget)
-                for budget in range(10)]
-    return best[9]
+        best = [max(best[spent - cost] + bonus for cost, bonus in alternatives if cost <= spent)
+                for spent in range(budget + 1)]
+    return best[budget]
 
 
 def _validate_build_envelope(data):
@@ -753,7 +754,7 @@ def _validate_build_envelope(data):
                 base += 9 * quantity(params["STAT." + stat + ".PerLevel"])
         maximum = base + _choice_bonus(data, field) + 2 * equipment
         require(maximum <= quantity(params["STAT." + stat + ".Max"]),
-                "BuildEnvelope", stat, "a legal nine-choice/two-item build exceeds the declared bound")
+                "BuildEnvelope", stat, "a legal max_choices/two-item build exceeds the declared bound")
     for field, base_key, maximum_key, level_key in (
         ("AttackSpeedBonusRatio", "STAT.BaseAttackSpeed", "STAT.AttackSpeed.Max", "STAT.AttackSpeedPerLevelRatio"),
         ("MoveSpeedBonusRatio", "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Max", None),

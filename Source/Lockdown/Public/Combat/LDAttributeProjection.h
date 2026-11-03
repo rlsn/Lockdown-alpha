@@ -160,7 +160,7 @@ struct FLDResourceMaxChangeResult
 namespace LDAttributeProjection
 {
     // Pure projection over the borrowed catalog: no world, clock, randomness, resource store or commit.
-    // Passive ranks plus card counts must fit min(Level - 1, MaxChoices); this bounds only the
+    // Passive ranks plus card counts must fit min(Level, MaxChoices) (the opening choice plus one per level-up); this bounds only the
     // sources visible here and does not replace the growth domain's complete build validation.
     LOCKDOWN_API FLDAttributeProjectionResult Project(
         const FLDAttributeBuildValues& Build, const FLDDemoContentSnapshot& Catalog);

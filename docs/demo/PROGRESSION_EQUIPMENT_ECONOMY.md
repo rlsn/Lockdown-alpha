@@ -26,7 +26,7 @@ Inventory、Vendor，使死亡奖励、选择和买卖分别进入同一权威�
 | 已确认的产品约束 | 本域必须落实的结果 |
 | --- | --- |
 | 所有人初始近战、单体普攻；群攻和攻击距离可经装备或属性成长获得 | 初始构筑不授主动；获准的攻击距离、普攻群攻修正进入同一 Combat 投影，不是只有面板数值。 |
-| 1 至 10 级，每升级一次三选一，最多九次 | 累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
+| 1 至 10 级，开局一次、每升级一次三选一，最多十次 | 开局机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
 | 三张不同且合法的卡；技能最高三级 | 未学技能仅提供一级学习，已学未满级仅提供下一阶，满级排除；属性卡不可冒充三个相同选项。 |
 | Q/W 两角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；再学一级。被动无独立槽上限。 |
 | 两装备、无背包、允许同款双持，满槽先卖后买 | 容量由权威物品位置限制，不由 UI 格子限制；售出和随后买入是两个独立事务。 |
@@ -78,17 +78,19 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 | 唯一写入者 / 目标类型 | 真相与限制 | 只读消费者 |
 | --- | --- | --- |
 | `ALDDevelopmentDirector` 修改参赛记录中的 `FLDCharacterBuild` | Level；当前已学技能及 rank；Q/W；永久属性贡献；BuildRevision。奖励/选择可改其获准字段；买卖只能通过 Development prepared patch 推进装备派生的 BuildRevision，不能直接改等级/技能。不得接客户端完整 Build。 | Combat 准备投影、自身 UI、该参赛 AI。 |
-| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、已获/已消费机会边界、当前一个 `FLDChoiceOffer`、局内私有随机材料、最多九次选择结果。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
+| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、已获/已消费机会边界、当前一个 `FLDChoiceOffer`、局内私有随机材料、最多十次选择结果。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
 | 精简后的 `ALDEconomyDirector::Ledger` | 唯一 `int64 Gold`、AccountRevision；物品 `InstanceId / DefinitionId / Owner / EquipmentSlot / ItemRevision`；每 owner 的 InventoryRevision。每活实例只有一个位置，最多两个活装备位置。 | Inventory 查询/准备、自身钱物 DTO；Combat 只消费来源和属性，不改账。 |
 | `ALDInventoryDirector` | 两槽资格、实例解析、准备变更；不另存可写 Items/Bindings/Actor Holder 镜像。槽只允许 0/1，无背包、Quick、地面掉落位置。 | `FLDEquipmentView`、Vendor、Combat 准备器。 |
 | Combat 写参赛持久 `FLDSourceReadiness` | 实际来源 → `IssuedCooldownId` 绑定、SourceBindingRevision；每个 ID 的 ReadyAtMs 和 ReadinessRevision；被动来源集合及需保留的触发状态。成长只提供 prepared 来源增删。 | Q/W、1/2、属性面板、AI 自身读模型。 |
 | Vendor 的 `FLDShopSession` 与领域请求记录 | ShopId、SessionId、Life、QuoteRevision、局内 CatalogDigest、请求序列/条款/结果；不是持有装备或金币的权威。 | 当前拥有者商店页及 AI 购物适配。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写账、成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
-机会队列采用最多九项的有界表示：`EarnedThrough`、`ConsumedThrough` 表示连续机会序号，
+机会队列采用最多十项的有界表示：`EarnedThrough`、`ConsumedThrough` 表示连续机会序号，
 待处理区间是二者之间尚未消费的序号，队首是 `ConsumedThrough + 1`。
-每次升级记录对应序号及原奖励关联；选择结果最多九份，不能因回执窗口淘汰而丢失
-“这个 Offer 已消费”的证明。`EarnedThrough` 必须等于当前等级减一；
+开局机会与每次升级各记录对应序号（升级另记原奖励关联）；选择结果最多十份，不能因回执窗口淘汰而丢失
+“这个 Offer 已消费”的证明。1 号是开局机会：成长 `BeginMatch`（对局 Prepare、发育期开放前）
+授予它并同时生成保留其首张 Offer；复活从不再授予，新 Match 整体重建。达到 k 级授予 k 号机会，
+`EarnedThrough` 必须等于当前等级；
 二者在同一奖励 patch 中推进，`ConsumedThrough` 只能随有效选择推进。
 PendingChoiceCount 从队列计算，UI 不保存另一可写次数。
 
@@ -120,7 +122,7 @@ Account revisions 均为 `uint32`，目标统一升为 `uint64`；Combat 已采�
 | ContenderId / LedgerMatch / OfferId / OptionId / ItemInstance / IssuedCooldownId / ShopSessionId | `FGuid`，UE内置四个uint32的16字节编码 | 有效ID非零；可选项单独带存在标志，不拿零GUID当成功默认。Offer/Option/会话由服务器一次建立；Item按§4发行；CD每定义最多两份。新Match无旧执行权。 |
 | RequestId / Ledger Serial / IssueSerial / CommitOrdinal | `uint64` | 请求每Family从1开始，只在新Match重置；死亡不重置。Ledger/发行独立计数见§4，CommitOrdinal由核心给。0不表示一笔成功业务。 |
 | Build / Inventory / Item / Account / Progression / Offer / Quote / SourceBinding / Readiness revisions | `uint64`，包括所有Expected/Guard引用 | 匹配初始化或对象建立完成后基准为1，只由相应唯一写入者checked递增；当前倒计时不逐帧增修订。不能截断后比较。 |
-| Level / Rank / OpportunityOrdinal / SlotIndex | `uint8` | Level=1..10、已学Rank=1..3、机会=1..9、Slot=0/1；队列计数可为0。未学/空槽用可选存在位，不伪造Rank0技能记录。 |
+| Level / Rank / OpportunityOrdinal / SlotIndex | `uint8` | Level=1..10、已学Rank=1..3、机会=1..10、Slot=0/1；队列计数可为0。未学/空槽用可选存在位，不伪造Rank0技能记录。 |
 | Gold / XP / P2 Current与Max | `int64` | Gold/XP非负；资源域依内容/Combat；任何乘加/存储越界在prepare拒绝。 |
 | ReadyAtMs / AtMs / 运行时毫秒期限 | `int64` | 当前Match绝对时间；ReadyAtMs=0仅表示未开始CD的初始就绪，无负期限。原始事件秒为核心`double OccurredAtSeconds`，不得用毫秒桶代替先后。 |
 | `FLDCatalogDigest` | `uint8 Bytes[32]`，SHA-256，wire固定32原始字节 | 不传FString/变长hex；日志/展示是64个小写十六进制字符，边界验证后转换。本局固定，不因开面板换摘要。 |
@@ -259,7 +261,7 @@ Progression 才发布 Through；空批同样封时间水位，但不制造假交
   双击 Pending 按钮复用原请求，不新造第二次购买；真正购买第二件需前次终态和当前版本。
 - 延续 Vendor 的 **64 份最终表现回执窗口**作为工程限额，另保存已处理序号水位。
   超窗返回 `ReceiptExpired` 与合法当前状态，不重执行、不猜测历史成功。
-  窗口不是选择结果历史：九次已消费 Offer 的小型结果索引保留整局。
+  窗口不是选择结果历史：最多十次已消费 Offer 的小型结果索引保留整局。
 - 死亡回执使用 DeathKey 与原始事实指纹。完整回包可有界淘汰，但核心对应实体已解决 Life
   水位及当前未决事实不能提前丢弃；旧 Life 无回包时明确拒旧，不能当第一次死亡。
   改 Source/Effect/DeathSerial/BodyIdentity 只会与原事实冲突，不能产生第二份奖励。
@@ -297,7 +299,7 @@ InitialGoldTotal记录获准初始化总量，后续Mint/Burn从零累计，复�
    比较当前唯一 Ledger 状态；任何不一致为 `CorruptHistory`，不能覆盖差异。
 3. 预分配由复算结果构成的新 Prefix(S) 和空 Tail；同时确认请求/死亡拒旧水位仍完备。
 4. 一次交换 Prefix/Tail 并释放旧记录；NextCommitSerial、NextIssueSerial、钱包/物品/
-   业务修订、回包窗口、死亡水位和九次选择结果完全不变。准备失败保留旧 Prefix/Tail。
+   业务修订、回包窗口、死亡水位和十次选择结果完全不变。准备失败保留旧 Prefix/Tail。
 
 `FLDLedgerCompactResult` 为 `Compacted / NothingToCompact / Pinned / PrepareUnavailable /
 CorruptHistory`。被 pin 或准备失败时不假成功；可选命令明确未提交，必需奖励按 §4.3
@@ -370,16 +372,16 @@ Gold、XP、阈值运算及审计累计的任何越界必须在整奖准备阶�
 | --- | --- | --- |
 | `NoOpportunity` | 奖励提交推进已获机会；没有未决 Offer 时准备队首。 | 否 |
 | `HeadReady` | 当前构筑已生效后，以局内固定目录、队首私有随机材料生成三个不同合法 Option，保存一次。 | 否 |
-| `Offered` | HUD 提示待选数；由玩家主动开面板，不强夺战斗输入。不打开、关闭、重开、死亡均读同组。 | 否 |
+| `Offered` | HUD 提示待选数；开局 Offer 只为真人自动打开一次面板，其余由玩家主动开面板，不强夺战斗输入。不打开、关闭、重开、死亡均读同组。 | 否 |
 | 本地卡片/替换草稿 | 预览卡片与 Q/W；返回、Esc、取消替换只清草稿，不改服务器 Offer。 | 否 |
 | `RequestPending` | 最终点击提交一个 Option 及必要替换确认；显示等待，不能本地先改 rank 或减机会。关闭面板不声称撤回已受理意图。 | 否 |
 | `Committed` | 同一复合提交应用效果、遗忘/装槽、来源失效、最终属性、机会消费和结果；之后才生成下一队首。 | 恰一次 |
 | 拒绝 / 版本恢复 | 返回原因和同一个 Offer 的当前保护版本；重新明确确认，不换卡、不替换其他目标。 | 否 |
 | `Frozen / InvalidMatch` | 终局只读冻结，离开失去提交资格；新局所有旧身份无执行权。 | 否 |
 
-首个队首在奖励提交后同一调度链立即生成，不等“首次打开页面”才抽；
-后续队首只在前一次选择已经应用后生成。连升九次也最多同时一份 Offer，
-余下机会保留队列，不预抽九组再修补非法升级。
+开局队首在 `BeginMatch` 中随 1 号机会生成；队列为空时奖励授予的队首在奖励提交后同一调度链立即生成，不等“首次打开页面”才抽；
+后续队首只在前一次选择已经应用后生成。开局机会未用又连升九次（共十次待选）也最多同时一份 Offer，
+余下机会保留队列，不预抽十组再修补非法升级。
 
 准备阶段可以对 prospective Build 枚举下一队首的合法池并预留空间，**不能提前生成、
 公开或消费下一组随机结果**。实际抽样在本次状态应用后、整体 Publish 前完成；
@@ -423,11 +425,11 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 
 覆盖须以最终目录摘要重算，展开每次合法选项及满槽的两个替换去向；
 状态必须包含已消费机会数，不能将遗忘前后的投入损失合并掉。
-前九次选择中的任一生成点，至多已有八次投入；当前三级技能最多两个，
-六种技能中至少四种仍能学习或升阶。若五属性在全部可达状态仍完整合法，则候选数量
+十次选择中的任一生成点，至多已有九次投入；当前三级技能最多三个，
+六种技能中至少三种仍能学习或升阶。若五属性在全部可达状态仍完整合法，则候选数量
 足以产生三张互异卡。**属性前提必须证明，不能仅凭结构计数认定完成。**
 
-内容验证需覆盖五属性各九次重复、所有零/一/两件装备的 **36 种多重集合**、等级成长、
+内容验证需覆盖五属性各十次重复、所有零/一/两件装备的 **36 种多重集合**、等级成长、
 三级被动、公式顺序和取整，拒绝“承诺增加但静默 cap 掉”或复合卡只应用一半。
 AP 在尚无 AP 加成来源时可作为前置投资，UI 不应谎称它即时增强无 AP 加成的普攻。
 旧四属性/六装备模型的候选最小值、转移数和极值不能作为当前新池通过证据。
@@ -695,7 +697,7 @@ K/D 由核心按唯一 DeathKey 归约，不从奖励回执再计一次，也不
 | 对象/动作 | 取消或关窗 | 死亡/复活 | 普通离局 | 终局 | 新局 |
 | --- | --- | --- | --- | --- | --- |
 | XP/等级/永久属性/技能/金币/装备 | 不变 | 全部保留，不再初始化；复活投影同构筑 | 不转移给替补或新加入者 | 冻结 | 按批准初始输入重建 |
-| 队列/固定 Offer | 只清本地草稿，Pending 查真实结果 | 原卡/机会保留；可用当前Dead阶段确认，只更新持久Build；旧阶段拒绝 | 不再提交 | 冻结，不继续选 | 清队列/Offer/结果域 |
+| 队列/固定 Offer | 只清本地草稿，Pending 查真实结果 | 原卡/机会保留，复活不再授开局机会；可用当前Dead阶段确认，只更新持久Build；旧阶段拒绝 | 不再提交 | 冻结，不继续选 | 清队列/Offer/结果域，重新授予开局机会及其首张 Offer |
 | 来源/IssuedCooldownId/ReadyAtMs | 不因图标/草稿清除；售出/遗忘不取消独立已释放效果 | 时间继续；独立效果续原期限，新身体重绑保留来源 | 禁止新命令并取消尚未结束独立效果，不追溯改写既成事实 | 不再释放，展示只读 | 旧 ID/期限全部失效 |
 | 商店会话/未提交买卖 | 关闭表现不声称回滚已受理交易 | 死亡失效；复活必须新 Life/会话 | 失效，未提交拒绝 | 新成交拒绝 | 旧报价/会话无效 |
 | 致死到奖励 | 不是 UI 可取消意图 | 死者可收合法存续效果奖励 | 按实际致死时资格，后来离局不撤销；离局先则不再产生效果击杀 | 无新提交；必需未决不越过正常闸 | 旧 DeathKey 拒绝 |
@@ -715,7 +717,7 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | 累计 XP 的有界整数；严格递增阈值，等级合法；运行 int64，算术检查后再存储。 | PrepareExperience；逐级跨阈值、十级 MAX、无十一阈值。 |
 | `REWARD.PlayerXP / PlayerGold` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP / RewardGold` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
-| `CHOICE.MaxCount / BaseWeight / CHOICE.<id>` | 次数/正整数抽样权重；属性增量按内容量纲；复合项全量预检。 | 合法池、九次界限、无放回、五属性重复及36装备组合。 |
+| `CHOICE.MaxCount / BaseWeight / CHOICE.<id>` | 次数/正整数抽样权重；属性增量按内容量纲；复合项全量预检。 | 合法池、十次界限（含开局一次）、无放回、五属性重复及36装备组合。 |
 | `ABILITY.<id>.Rank[r]` | 三级正式效果、目标、法力/时间/距离、伤害与触发规则。 | Build/Combat；rank 演进、重新学习、未选 handler 删除依据。 |
 | `ITEM.<id>.BuyPrice / Stats / Passive / Active` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、独立来源、商店显示与实际能力。 |
 | `SHOP.StartingGold / SellRatio`、`FORMULA.SellGold` | 比例按内容固定精度/精确有理值解释，乘法检查溢出，**仅最终卖价向下取整到整金币**；不拿 UI 浮点值结算。 | 初始化/卖出；非负、卖价不超买价、循环无正金币收益。 |
@@ -825,7 +827,7 @@ IssuedCooldownId、Permit/fence/故障恢复与 owner 投影。不要求新建�
 | A03 死者/互杀/离开 | 同Effects集合双死先锁完整致死等级/资格再奖；后续因果集合用当时新等级。先致死后离局/重试仍沿原资格，离局先则效果取消；同ceil桶真实先后不混，清理不产击杀。 |
 | A04 DeathKey 去重 | 重放相同事实，继而改变 Source/Effect/DeathSerial/BodyIdentity；最多一次结果，改条款报冲突不改收款人；合法 NoReward 也不能改源重领。 |
 | A05 营地生命周期 | 每成员每Life一次；回位途中可真实致死并按旧Life结一次，到家仅存活者Reset满资源/清临时/CD就绪，不复活死者、不增Life/发奖；刷新不二次奖励，旧Life不命中新生体。 |
-| A06 奖励边界 | 每级阈值前/恰到/越过、一次多级至10、延迟九次；机会逐级准确、无第十次。满10继续XP提案按内容批准结果验证。 |
+| A06 奖励边界 | 每级阈值前/恰到/越过、一次多级至10、延迟十次（开局一次加九次升级）；开局机会与逐级机会准确、无第十一次。满10继续XP提案按内容批准结果验证。 |
 | A07 整奖失败 | 分别注入账本、成长、Combat、Offer工作区、回执/outbox准备失败及整数越界；所有钱/XP/等级/机会/RNG/修订不变，无半奖或 NoReward fallback。 |
 | A08 水位/故障 | 必需奖励未决时正常 Capture 不推进；同事实有限恢复，失败经核心明确故障关闭且无正常胜者；空批 fence 正确，生产者前缀无缺口。 |
 | A09 Permit | 错 Match/Batch/Phase/GateRevision、跨 callback/下一批旧许可在第一次 mutation 前拒绝；子 Apply 不会半途正常失败。 |

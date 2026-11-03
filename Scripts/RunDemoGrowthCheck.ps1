@@ -22,8 +22,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Ledger','Fixture','A14','N03','Iso')
-    Client1 = @('Net','Start','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso')
+    Host = @('Net','Start','Opening','Ledger','Fixture','A14','N03','Iso')
+    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso')
 }
 
 function Start-GrowthRole {
@@ -94,6 +94,17 @@ try {
             if (@($reports[$role].checks | Where-Object { $_.id -eq $id }).Count -eq 0) { throw "$role report lacks its $id checks: $output" }
         }
     }
+    # D10: each owner opened both matches with exactly one pending opening choice; the buyer's first was its staged preset.
+    foreach ($role in $roles) {
+        foreach ($field in @('opening','second_opening')) {
+            $row = $reports[$role].$field
+            if ($null -eq $row -or [long]$row.pending -ne 1 -or [long]$row.earned -ne 1 -or [long]$row.consumed -ne 0 -or [long]$row.ordinal -ne 1) {
+                throw "$role did not open its $field match with exactly one pending opening choice: $output"
+            }
+        }
+        if ($reports[$role].opening.offer -eq $reports[$role].second_opening.offer) { throw "$role's second match reused its opening offer: $output" }
+    }
+    if (-not $reports['Client1'].opening.staged_preset) { throw "The buyer's opening offer is not the Host's staged preset: $output" }
     $hostReport = $reports['Host']
     $buyer = $reports['Client1']
     if (-not $hostReport.growth_fixture -or $buyer.growth_fixture -or -not $hostReport.buyer_killed) {
@@ -172,7 +183,8 @@ try {
         throw "LD_DEV_FIXTURE_ACTIVE must be logged by the Host and never by the owning client: $output"
     }
     Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
-        "presets the buyer's offers) plus one owning client; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
+        "stages the buyer's offers in the Lobby) plus one owning client; each owner opened each match with exactly one pending opening " +
+        "choice, never re-granted by a respawn; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
         "replay / item active / sell with cooldown debt / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
         "unconfirmed pick, relearned at rank 1 on its old track and deadline; after the Host's own DevFixture grant it killed the buyer, " +
         "which chose while dead without revive or heal and respawned full; the Host's own kill and two low-camp last hits paid their " +

@@ -233,8 +233,9 @@ class ApprovedDemoData(unittest.TestCase):
         }
         for identity, stats in expected.items():
             self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
-        for stat, maximum in (("MaxHP", "2402"), ("MaxMP", "718"), ("AD", "194.8"), ("AP", "204"),
-                              ("Armor", "120"), ("MagicResist", "114")):
+        # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
+        for stat, maximum in (("MaxHP", "2502"), ("MaxMP", "718"), ("AD", "202.8"), ("AP", "220"),
+                              ("Armor", "126"), ("MagicResist", "120")):
             field = stat + "Flat"
             base = amount(self.catalog.parameter("STAT." + stat + ".Base")) + 9 * amount(self.catalog.parameter("STAT." + stat + ".PerLevel"))
             equipment = max(amount(row["stats"][field]) if field in row["stats"] else Fraction(0) for row in self.data["equipment"])

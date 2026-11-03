@@ -1098,8 +1098,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     FString Missing;
     bool bApproved = Test.TestTrue(TEXT("Fixture carries XP.Threshold 0/80/180/300/440/600/780/980/1200/1440"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 10, MaxChoices 9, MaxSkillRank 3, two active and two equipment slots"),
-        Curve.MaxLevel == 10 && Curve.MaxChoices == 9 && Curve.MaxSkillRank == 3 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 10, MaxChoices 10 (opening + nine level-ups), MaxSkillRank 3, two active and two equipment slots"),
+        Curve.MaxLevel == 10 && Curve.MaxChoices == 10 && Curve.MaxSkillRank == 3 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level and REWARD.PlayerGold 80 + 10/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20 && Tuning.PlayerGoldBase == 80 && Tuning.PlayerGoldPerLevel == 10);
     bApproved &= Test.TestTrue(TEXT("Fixture carries CHOICE.BaseWeight 1, SHOP.StartingGold 150 and SHOP.SellRatio .65"),
@@ -1248,7 +1248,7 @@ bool GrowthTestPlan(FAutomationTestBase& Test, const FLDDemoProgressionDefinitio
     int32 ExpectedLevel, int32 ExpectedEarnedThrough, const TCHAR* What)
 {
     LDProgression::FExperienceChange Change;
-    const ELDGrowthReason Outcome = LDProgression::PlanExperience(Curve, CurrentXP, CurrentLevel, uint8(CurrentLevel - 1), Grant, Change);
+    const ELDGrowthReason Outcome = LDProgression::PlanExperience(Curve, CurrentXP, CurrentLevel, CurrentLevel, Grant, Change);
     bool bGood = GrowthTestReason(Test, FString::Printf(TEXT("%s: outcome"), What), Outcome, ELDGrowthReason::None);
     bGood &= Test.TestEqual(FString::Printf(TEXT("%s: cumulative XP"), What), Change.NewXP, CurrentXP + Grant);
     bGood &= Test.TestEqual(FString::Printf(TEXT("%s: level before"), What), int32(Change.LevelBefore), int32(CurrentLevel));
@@ -1282,18 +1282,22 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("A refused LevelForXP reports no level"), int32(RefusedLevel), 0);
 
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 80, 2, 1, TEXT("80 XP at level 1"));
-    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 1440, 10, 9, TEXT("1440 XP at level 1"));
-    bGood &= GrowthTestPlan(Test, Curve, 1440, 10, 1000, 10, 9, TEXT("1000 XP at level 10"));
+    // The opening opportunity is ordinal 1, so a contender holds as many opportunities as its level.
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 79, 1, 1, TEXT("79 XP at level 1 keeps only the opening opportunity"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 80, 2, 2, TEXT("80 XP at level 1"));
+    bGood &= GrowthTestPlan(Test, Curve, 0, 1, 1440, 10, 10, TEXT("1440 XP at level 1"));
+    bGood &= GrowthTestPlan(Test, Curve, 1440, 10, 1000, 10, 10, TEXT("1000 XP at level 10"));
     LDProgression::FExperienceChange Change;
-    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 10, 9, 1, Change),
+    bGood &= GrowthTestReason(Test, TEXT("1 XP past the int64 bound"), LDProgression::PlanExperience(Curve, MAX_int64, 10, 10, 1, Change),
         ELDGrowthReason::ArithmeticOverflow);
     bGood &= Test.TestTrue(TEXT("An overflowing plan carries no partial result"), Change.NewXP == 0 && Change.LevelAfter == 0);
-    bGood &= GrowthTestReason(Test, TEXT("80 XP recorded as level 1"), LDProgression::PlanExperience(Curve, 80, 1, 0, 20, Change),
+    bGood &= GrowthTestReason(Test, TEXT("80 XP recorded as level 1"), LDProgression::PlanExperience(Curve, 80, 1, 1, 20, Change),
         ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("Level 1 without its opening opportunity"),
+        LDProgression::PlanExperience(Curve, 0, 1, 0, 80, Change), ELDGrowthReason::DataInvalid);
     bGood &= GrowthTestReason(Test, TEXT("Level 2 without its earned opportunity"),
-        LDProgression::PlanExperience(Curve, 80, 2, 0, 20, Change), ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("A negative XP grant"), LDProgression::PlanExperience(Curve, 0, 1, 0, -1, Change),
+        LDProgression::PlanExperience(Curve, 80, 2, 1, 20, Change), ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("A negative XP grant"), LDProgression::PlanExperience(Curve, 0, 1, 1, -1, Change),
         ELDGrowthReason::DataInvalid);
 
     const uint8 MaxLevel = uint8(Curve.MaxLevel);
@@ -1765,6 +1769,103 @@ bool GrowthTestExactFields(FAutomationTestBase& Test, const UScriptStruct* Struc
         *Struct->GetName(), *Extra, *Missing), Extra.IsEmpty() && Missing.IsEmpty());
 }
 
+// D10: BeginMatch hands every roster contender, human or AI, exactly one opening opportunity with its kept first offer.
+// Only a level crossed adds another (a death or respawn has no growth entry), and a new match starts over at one.
+bool GrowthTestRunOpening(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
+    {
+        return false;
+    }
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!Test.TestNotNull(TEXT("An isolated world for the growth director"), World))
+    {
+        return false;
+    }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    ALDDevelopmentDirector* Development = World->SpawnActor<ALDDevelopmentDirector>();
+    if (!Test.TestNotNull(TEXT("A growth director"), Development))
+    {
+        return false;
+    }
+    const FGuid Human(0xD10, 0, 0, 1);
+    const FGuid Bot(0xD10, 0, 0, 2);
+    const FGuid Late(0xD10, 0, 0, 3);
+    FLDMatchContext First;
+    First.Generation = 1;
+    First.LedgerMatch = FGuid(0xD10, 1, 0, 0);
+    FString Error;
+    if (!Test.TestTrue(FString::Printf(TEXT("The first match begins (%s)"), *Error), Development->BeginMatch(First, {Human, Bot}, Catalog, Error)))
+    {
+        return false;
+    }
+    TArray<LDProgression::FLegalOption> Pool;
+    bool bGood = GrowthTestReason(Test, TEXT("The starting build's legal pool"), LDProgression::LegalPool(*Catalog, FLDGrowthBuild(), Pool),
+        ELDGrowthReason::None);
+    const auto CheckOpening = [&Test, &Pool](const FLDProgressionView& View, uint32 Generation, const FString& Who)
+    {
+        bool bOpening = Test.TestTrue(Who + TEXT(": level 1 at the opening XP holds exactly one unconsumed opportunity"),
+            View.bValid && View.Generation == Generation && View.Level == 1 && View.CumulativeXP == 0 && View.EarnedThrough == 1
+            && View.ConsumedThrough == 0 && View.PendingChoiceCount == 1);
+        bOpening &= Test.TestTrue(Who + TEXT(": the opening offer is kept as opportunity 1 with three distinct cards"),
+            View.bHasOffer && View.Offer.OpportunityOrdinal == 1 && View.Offer.OfferId.IsValid() && View.Offer.Options.Num() == 3
+            && View.Offer.Options[0].DefinitionId != View.Offer.Options[1].DefinitionId
+            && View.Offer.Options[0].DefinitionId != View.Offer.Options[2].DefinitionId
+            && View.Offer.Options[1].DefinitionId != View.Offer.Options[2].DefinitionId);
+        for (const FLDChoiceOption& Option : View.Offer.Options)
+        {
+            bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: opening card %s is legal for the starting build"), *Who,
+                *Option.DefinitionId.ToString()), GrowthTestPoolHas(Pool, Option.Kind, Option.DefinitionId, Option.FromRank, Option.ToRank));
+        }
+        return bOpening;
+    };
+    TMap<FGuid, FGuid> FirstOffers;
+    for (const FGuid& Id : {Human, Bot})
+    {
+        const FString Who = Id == Human ? TEXT("Human") : TEXT("AI");
+        const FLDProgressionView View = Development->ReadProgression(Id);
+        bGood &= CheckOpening(View, First.Generation, Who);
+        FirstOffers.Add(Id, View.Offer.OfferId);
+        const FLDProgressionView Again = Development->ReadProgression(Id);
+        bGood &= Test.TestTrue(Who + TEXT(": a later read (as after a death or respawn) neither grants nor redraws"),
+            Again.EarnedThrough == 1 && Again.PendingChoiceCount == 1 && Again.Offer.OfferId == View.Offer.OfferId
+            && Again.Offer.OfferRevision == View.Offer.OfferRevision && Again.ProgressionRevision == View.ProgressionRevision);
+    }
+    bGood &= Test.TestNotEqual(TEXT("Each contender draws its own opening offer"), FirstOffers[Human], FirstOffers[Bot]);
+
+    // XP short of level 2 adds nothing; each level crossed adds exactly one behind the kept opening offer, ten in all.
+    const FLDPrepareGrowthResult Short = Development->PrepareExperience(Human, 79);
+    bGood &= Test.TestTrue(TEXT("79 XP keeps only the opening opportunity and its offer"), Short.IsSuccess()
+        && Short.Value->Build().Level == 1 && Short.Value->Progression().EarnedThrough == 1
+        && Short.Value->Progression().Offer.IsSet() && Short.Value->Progression().Offer->OfferId == FirstOffers[Human]);
+    const FLDPrepareGrowthResult Up = Development->PrepareExperience(Human, 80);
+    bGood &= Test.TestTrue(TEXT("Level 2 adds opportunity 2 behind the unchanged opening offer"), Up.IsSuccess()
+        && Up.Value->Build().Level == 2 && Up.Value->Progression().EarnedThrough == 2 && Up.Value->Progression().PendingCount() == 2
+        && Up.Value->Progression().Offer.IsSet() && Up.Value->Progression().Offer->OfferId == FirstOffers[Human]);
+    const FLDPrepareGrowthResult Top = Development->PrepareExperience(Human, 1440);
+    bGood &= Test.TestTrue(TEXT("Level 10 holds MaxChoices opportunities: the opening one and nine level-ups"), Top.IsSuccess()
+        && Top.Value->Build().Level == 10 && Top.Value->Progression().EarnedThrough == 10
+        && int32(Top.Value->Progression().EarnedThrough) == Catalog->Get().Progression.MaxChoices);
+
+    FLDMatchContext Second;
+    Second.Generation = 2;
+    Second.LedgerMatch = FGuid(0xD10, 2, 0, 0);
+    if (!Test.TestTrue(FString::Printf(TEXT("A new match begins (%s)"), *Error), Development->BeginMatch(Second, {Human, Late}, Catalog, Error)))
+    {
+        return false;
+    }
+    const FLDProgressionView Again = Development->ReadProgression(Human);
+    bGood &= CheckOpening(Again, Second.Generation, TEXT("Human in the new match"));
+    bGood &= Test.TestNotEqual(TEXT("The new match draws a new opening offer"), Again.Offer.OfferId, FirstOffers[Human]);
+    bGood &= CheckOpening(Development->ReadProgression(Late), Second.Generation, TEXT("A contender new to the second match"));
+    bGood &= Test.TestFalse(TEXT("A contender outside the new roster has no growth record"), Development->ReadProgression(Bot).bValid);
+    return bGood;
+}
+
 bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
 {
     // Any field added to the private growth views must be added here deliberately (and told to UI).
@@ -1885,6 +1986,14 @@ bool FLDDemoGrowthProgressionTest::RunTest(const FString& Parameters)
     const bool bProgression = GrowthTestRunProgression(*this);
     const bool bFixture = GrowthTestRunDevFixture(*this);
     return bProgression && bFixture;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthOpeningTest, "Lockdown.Rules.DemoGrowthOpening",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthOpeningTest::RunTest(const FString& Parameters)
+{
+    return GrowthTestRunOpening(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthPrivacySchemaTest, "Lockdown.Rules.DemoGrowthPrivacySchema",

@@ -188,8 +188,9 @@ private:
             Cards.Add(Attribute);
             ConsumedChoices += Card.Count;
         }
-        // Each passive rank and each card consumed one level-up choice; unseen active choices only tighten this bound.
-        const int64 VisibleChoiceBound = FMath::Min<int64>(int64(Build.Level) - 1, Progression.MaxChoices);
+        // Each passive rank and each card consumed one choice: the opening one plus one per level-up, so the level bounds
+        // them; unseen active choices only tighten this bound.
+        const int64 VisibleChoiceBound = FMath::Min<int64>(int64(Build.Level), Progression.MaxChoices);
         if (ConsumedChoices > VisibleChoiceBound)
         {
             return Refuse(EError::InputDomain, TEXT("ChoiceBudget"), FString::Printf(

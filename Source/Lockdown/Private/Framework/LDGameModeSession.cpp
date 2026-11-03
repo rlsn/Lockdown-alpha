@@ -86,7 +86,8 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     if (Name.IsEmpty()) { Name = LDMatchLifecycle::DefaultContenderName; }
     else if (FString NameError; !ULDControlSettings::ValidatePlayerName(Name, NameError))
     {
-        Reason = TEXT("InvalidName: the contender name is not a chosen Demo name: ") + NameError;
+        Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::InvalidName,
+            *(TEXT("the contender name is not a chosen Demo name: ") + NameError));
         return false;
     }
     if (!AdvanceRoster(Reason)) { return false; }

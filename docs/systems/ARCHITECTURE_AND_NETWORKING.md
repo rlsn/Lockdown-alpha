@@ -42,7 +42,7 @@ Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
 `PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与三真人容量；
 不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。两处拒绝都以 `<原因码>: <英文说明>` 送出稳定原因码
 （`LDDemoEntry::JoinRefusal`：MissingDemoDefinition、MatchAlreadyStarted、RoomFull、ProtocolMismatch、
-ProductMismatch、ContentMismatch）；`PreLogin` 的这些检查先于引擎会话的人数检查，否则满员只得到不带原因码的
+ProductMismatch、ContentMismatch、InvalidName）；`PreLogin` 的这些检查先于引擎会话的人数检查，否则满员只得到不带原因码的
 "Server full."。客户端只把已知原因码映射为中文原因并附上该码，不显示英文说明或引擎文本：`PreLogin` 拒绝随待连接失败送达；
 `PostLogin` 拒绝时客户端已载入房间，原因经 `ClientWasKicked` 送达后返回前端。拒绝或网络、旅行失败使客户端离开房间世界时，
 第一个原因保留到前端，随后同一世界的断线不再覆盖它；正在离开的房间世界也不再建立房间界面，以免界面把该原因记为已显示。

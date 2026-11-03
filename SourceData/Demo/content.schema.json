@@ -155,7 +155,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds"],
       "properties": {
-        "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 9},
+        "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 10},
         "max_skill_rank": {"type": "integer", "const": 3}, "active_slots": {"type": "integer", "const": 2},
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
         "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}}

@@ -104,7 +104,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
         && P.AttackSpeed.Base.Numerator == 7 && P.AttackSpeed.Base.Denominator == 10 && P.AttackSpeedPerLevelBp == 200
         && P.MoveSpeedCmPerSec.Base.Numerator == 600 && P.MoveSpeedCmPerSec.Base.Denominator == 1
         && P.AttackRangeCm.Base.Numerator == 220 && P.AttackRangeCm.Base.Denominator == 1
-        && Progression.MaxLevel == 10 && Progression.MaxChoices == 9 && Progression.MaxSkillRank == 3
+        && Progression.MaxLevel == 10 && Progression.MaxChoices == 10 && Progression.MaxSkillRank == 3
         && Progression.EquipmentSlots == 2);
 }
 
@@ -772,7 +772,7 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= ExpectAttributes(Test, TEXT("Three rank-three passives use all nine choices"), Projection.Final, AllPassives);
+    bGood &= ExpectAttributes(Test, TEXT("Three rank-three passives use nine of the ten choices"), Projection.Final, AllPassives);
     bGood &= Test.TestTrue(TEXT("Passive order changes neither attributes nor explanations"), SameAttributes(Projection, Reversed));
 
     FExpectedAttributes Combined = ApprovedLevel(10);
@@ -807,43 +807,43 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return ProjectBuild(Test, Label, Build, *Catalog, Projection);
     };
-    // CONTENT_AND_BALANCE section 3.2: nine choices toward one coordinate plus its best two items.
-    if (!Envelope(TEXT("HP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_vitality"), 9)},
+    // CONTENT_AND_BALANCE section 3.2: all ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
+    if (!Envelope(TEXT("HP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_vitality"), 10)},
         {TEXT("item_iron_plate"), TEXT("item_iron_plate")})))
     {
         return false;
     }
-    bool bGood = Test.TestEqual(TEXT("HP envelope is 2402"), Projection.Final.MaxHPP2, int64(240200));
+    bool bGood = Test.TestEqual(TEXT("HP envelope is 2502"), Projection.Final.MaxHPP2, int64(250200));
     if (!Envelope(TEXT("MP envelope"), MakeBuild(10, {}, {}, {TEXT("item_arcane_battery"), TEXT("item_arcane_battery")})))
     {
         return false;
     }
     bGood &= Test.TestEqual(TEXT("MP envelope is 718"), Projection.Final.MaxMPP2, int64(71800));
-    if (!Envelope(TEXT("AD envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_might"), 9)},
+    if (!Envelope(TEXT("AD envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_might"), 10)},
         {TEXT("item_edge_blade"), TEXT("item_edge_blade")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AD envelope is 194.8"), Projection.Final.ADP2, int64(19480));
-    if (!Envelope(TEXT("AP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_focus"), 9)},
+    bGood &= Test.TestEqual(TEXT("AD envelope is 202.8"), Projection.Final.ADP2, int64(20280));
+    if (!Envelope(TEXT("AP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_focus"), 10)},
         {TEXT("item_runic_focus"), TEXT("item_runic_focus")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AP envelope is 204"), Projection.Final.APP2, int64(20400));
+    bGood &= Test.TestEqual(TEXT("AP envelope is 220"), Projection.Final.APP2, int64(22000));
     bGood &= Test.TestEqual(TEXT("Haste envelope is 30"), Projection.Final.CooldownHasteP2, int64(3000));
-    if (!Envelope(TEXT("Armor envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 9)},
+    if (!Envelope(TEXT("Armor envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
         {TEXT("item_iron_plate"), TEXT("item_iron_plate")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Armor envelope is 120"), Projection.Final.ArmorP2, int64(12000));
-    if (!Envelope(TEXT("Magic resist envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 9)},
+    bGood &= Test.TestEqual(TEXT("Armor envelope is 126"), Projection.Final.ArmorP2, int64(12600));
+    if (!Envelope(TEXT("Magic resist envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
         {TEXT("item_siphon_emblem"), TEXT("item_siphon_emblem")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 114"), Projection.Final.MagicResistP2, int64(11400));
+    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 120"), Projection.Final.MagicResistP2, int64(12000));
     bGood &= ExpectFamilies(Test, TEXT("Magic resist envelope"), Projection,
         {{TEXT("passive_siphon"), TEXT("item_siphon_emblem"), {0, 1}}});
     if (!Envelope(TEXT("Attack-speed envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 3)}, {},
@@ -858,12 +858,12 @@ bool RunEnvelope(FAutomationTestBase& Test)
         return false;
     }
     bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 744"), Projection.Final.MoveSpeedCmPerSec, MakeRational(744));
-    if (!Envelope(TEXT("Range envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_reach"), 9)},
+    if (!Envelope(TEXT("Range envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_reach"), 10)},
         {TEXT("item_echo_maul"), TEXT("item_echo_maul")})))
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Range envelope is 660"), Projection.Final.AttackRangeCm, MakeRational(660));
+    bGood &= ExpectRational(Test, TEXT("Range envelope is 700"), Projection.Final.AttackRangeCm, MakeRational(700));
     bGood &= ExpectFamilies(Test, TEXT("Range envelope"), Projection, {{TEXT("passive_cleave"), TEXT("item_echo_maul"), {0, 1}}});
     if (!Envelope(TEXT("Crit envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_precision"), 3)})))
     {
@@ -981,21 +981,23 @@ bool RunRefusals(FAutomationTestBase& Test)
         Cards(TEXT("attr_might"), 1)}), EError::DuplicateSource, TEXT("AttributeCards[1]"));
     bGood &= Refused(TEXT("Zero-count attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 0)}),
         EError::InputDomain, TEXT("AttributeCards[0]"));
-    bGood &= Refused(TEXT("Level 1 has no earned choice"), MakeBuild(1, {}, {Cards(TEXT("attr_might"), 1)}),
+    bGood &= Refused(TEXT("Level 1 holds only its opening choice: two cards exceed it"), MakeBuild(1, {}, {Cards(TEXT("attr_might"), 2)}),
         EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("Ten cards exceed nine choices"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 10)}),
+    bGood &= Refused(TEXT("Eleven cards exceed ten choices"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 11)}),
         EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("A rank-three passive plus seven cards exceed nine choices"),
-        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 7)}), EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("A rank-three passive at level 3 exceeds two choices"),
-        MakeBuild(3, {Passive(TEXT("passive_battle_rhythm"), 3)}), EError::InputDomain, TEXT("ChoiceBudget"));
+    bGood &= Refused(TEXT("A rank-three passive plus eight cards exceed ten choices"),
+        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 8)}), EError::InputDomain, TEXT("ChoiceBudget"));
+    bGood &= Refused(TEXT("A rank-three passive at level 2 exceeds two choices"),
+        MakeBuild(2, {Passive(TEXT("passive_battle_rhythm"), 3)}), EError::InputDomain, TEXT("ChoiceBudget"));
     bGood &= Refused(TEXT("Twenty-one AD cards are refused before any attribute bound"),
         MakeBuild(10, {}, {Cards(TEXT("attr_might"), 21)}), EError::InputDomain, TEXT("ChoiceBudget"));
     FLDAttributeProjection Projection;
+    bGood &= ProjectBuild(Test, TEXT("A level-1 build with its opening card"),
+        MakeBuild(1, {}, {Cards(TEXT("attr_might"), 1)}), *Catalog, Projection);
     bGood &= ProjectBuild(Test, TEXT("A build exactly at the visible choice bound"),
-        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 6)}), *Catalog, Projection);
-    bGood &= ProjectBuild(Test, TEXT("A rank-three passive at level 4"),
-        MakeBuild(4, {Passive(TEXT("passive_battle_rhythm"), 3)}), *Catalog, Projection);
+        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 7)}), *Catalog, Projection);
+    bGood &= ProjectBuild(Test, TEXT("A rank-three passive at level 3"),
+        MakeBuild(3, {Passive(TEXT("passive_battle_rhythm"), 3)}), *Catalog, Projection);
     return bGood;
 }
 

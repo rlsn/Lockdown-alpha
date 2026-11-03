@@ -30,6 +30,7 @@ namespace LDDemoEntry
         inline constexpr TCHAR ProtocolMismatch[] = TEXT("ProtocolMismatch");
         inline constexpr TCHAR ProductMismatch[] = TEXT("ProductMismatch");
         inline constexpr TCHAR ContentMismatch[] = TEXT("ContentMismatch");
+        inline constexpr TCHAR InvalidName[] = TEXT("InvalidName");
     }
     LOCKDOWN_API FString MakeJoinRefusal(const TCHAR* Code, const TCHAR* Detail);
     // True only for a known refusal code; OutReason is the player-facing reason naming that code.
