@@ -91,7 +91,7 @@ public:
     FLDChoiceReceipt CommitPendingChoice(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
     // ---- Composite-commit parts for rewards and shop transactions ----
-    // Cumulative XP, level and one opportunity per level crossed; BuildRevision advances only with the level.
+    // Cumulative XP, level and one opportunity per level crossed (after the opening one); BuildRevision advances only with the level.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
     // Equipment changes advance BuildRevision once; the offer keeps its cards and only refreshes its guard.
     FLDPrepareGrowthResult PrepareEquipmentChange(const FGuid& ContenderId) const;
@@ -112,7 +112,8 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV growth fixture (LDDevGrowthFixture.h): queues one three-card offer for this contender's next drawn head offers,
     // oldest first. Every definition must be a legal choice of the current build and an offer must still be left to
-    // draw; each head draw re-resolves its preset against that draw's legal pool.
+    // draw; each head draw re-resolves its preset against that draw's legal pool. Called in the Lobby, it stages the
+    // offer for the next match instead (checked against the empty starting build), so its opening offer can be preset.
     bool DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
 #endif
 
@@ -130,6 +131,9 @@ private:
         const FLDGameplayWritePermit* Permit);
     void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
     ALDGameMode* Mode() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    bool DevStageOffer(const ALDGameMode& GameMode, const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
+#endif
 
     FLDMatchContext Match;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -138,5 +142,7 @@ private:
 #if WITH_DEV_AUTOMATION_TESTS
     // Queued DEV preset offers per contender, oldest first; cleared by every new match.
     TMap<FGuid, TArray<TArray<FName>>> DevOfferQueue;
+    // Offers staged in the Lobby for the next match; BeginMatch moves the roster's into DevOfferQueue and drops the rest.
+    TMap<FGuid, TArray<TArray<FName>>> DevStagedOffers;
 #endif
 };

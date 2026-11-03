@@ -175,7 +175,7 @@ def content_fixture():
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)}},
         "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps,
-        "progression": {"max_level": 10, "max_choices": 9, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
+        "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810]},
         "world": {"map_id": "demo_world", "spawn_ids": [f"s{index:02d}" for index in range(10)],
                   "camp_ids": ["l1", "h1", "l2", "h2", "l3"], "shop_id": "shop", "capture_id": "capture"},

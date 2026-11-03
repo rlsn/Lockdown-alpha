@@ -62,6 +62,7 @@ struct FLDProgressionState
     int64 CumulativeXP = 0;
     uint64 Revision = 1;
     // Opportunities are contiguous ordinals 1..EarnedThrough; the queue head is ConsumedThrough + 1.
+    // Ordinal 1 is the opening choice granted by BeginMatch; ordinal k (k >= 2) is earned by reaching level k.
     uint8 EarnedThrough = 0;
     uint8 ConsumedThrough = 0;
     TOptional<FLDChoiceOfferState> Offer;
@@ -117,7 +118,8 @@ namespace LDProgression
 
     // Highest level whose cumulative threshold XP has reached; thresholds are strictly increasing from 0.
     LOCKDOWN_API ELDGrowthReason LevelForXP(const FLDDemoProgressionDefinition& Progression, int64 XP, uint8& OutLevel);
-    // XP is cumulative int64; each level crossed earns exactly one opportunity, never past MaxLevel - 1.
+    // XP is cumulative int64. The opening opportunity is already earned (EarnedThrough == level); each level crossed
+    // earns exactly one more, so EarnedThrough follows the level and never passes MaxLevel (= MaxChoices).
     LOCKDOWN_API ELDGrowthReason PlanExperience(const FLDDemoProgressionDefinition& Progression, int64 CurrentXP,
         uint8 CurrentLevel, uint8 EarnedThrough, int64 Grant, FExperienceChange& Out);
     // REWARD.PlayerXP/PlayerGold at the frozen victim level.

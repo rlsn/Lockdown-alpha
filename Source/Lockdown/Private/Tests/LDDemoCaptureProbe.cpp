@@ -464,10 +464,10 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
     for (const FLDEquipmentSlotView& Slot : Equipment.Slots) { bSlotsEmpty &= !Slot.bOccupied; }
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry) { return !Entry.DefinitionId.IsNone(); });
-    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 0
-        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 0 && !Progress.bHasOffer
+    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
+        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
         && bSlotsEmpty && bNoEntries && Own.EquipmentPassives.IsEmpty() && PC.ReadOwnShop() == nullptr,
-        TEXT("R04"), TEXT("No learned skill, attribute card, equipment, pending choice or shop session"));
+        TEXT("R04"), TEXT("No learned skill, attribute card, equipment or shop session; only this match's unconsumed opening choice"));
     Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
         TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));

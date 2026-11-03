@@ -252,7 +252,7 @@
     ]
   },
   "progression": {
-    "max_level": 10, "max_choices": 9, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
+    "max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
     "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440]
   },
   "world": {

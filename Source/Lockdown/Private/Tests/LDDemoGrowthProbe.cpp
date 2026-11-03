@@ -203,9 +203,10 @@ TArray<TSharedPtr<FJsonValue>> GrowthProbeItems(const FLDEquipmentView& View)
     return Rows;
 }
 
-// The buyer's six opportunities in order, preset by the Host through the DEV growth fixture (-LDDevGrowthFixture). The
-// buyer takes Cards[0] every time: guard_pulse into Q (the A10 choice), guard_pulse to rank 2, arc_bolt into W,
-// binding_snare over Q's cooling rank-2 guard_pulse, guard_pulse again over W, then attr_vitality while dead.
+// The buyer's first six opportunities in order, staged by the Host in the Lobby through the DEV growth fixture
+// (-LDDevGrowthFixture); the first is the match's opening offer. The buyer takes Cards[0] every time: guard_pulse into Q
+// (the A10 choice), guard_pulse to rank 2, arc_bolt into W, binding_snare over Q's cooling rank-2 guard_pulse, guard_pulse
+// again over W, then attr_vitality while dead. Later opportunities draw ordinary offers and stay unchosen.
 struct FGrowthProbeOffer
 {
     const TCHAR* Cards[3];
@@ -437,6 +438,11 @@ public:
     int32 HostCampKills = 0, HostCampOrders = 0, HostCampNavigate = 0;
     FLDMoveIdentity HostCampOrder;
     TSharedPtr<FJsonObject> HostKillerRow;
+
+    // D10: the buyer's presets staged in the Lobby, and each match's opening opportunity as the owner first saw it.
+    bool bPresetsStaged = false;
+    FGuid StagedClientId;
+    TSharedPtr<FJsonObject> OpeningRow, SecondOpeningRow;
 
     // New-match isolation. The first match's identities and dirty owner state, then the second match's checks.
     bool bSecondMatch = false, bResultChecked = false, bReplaySent = false;
@@ -746,6 +752,18 @@ public:
             return Now - StartRequestedAt < 30.0 ? true
                 : Fail(Id, TEXT("Every human is ready but the room still refuses the start: ") + StartBlocker);
         }
+        // The opening offer is drawn when the match begins, so the buyer's presets are staged in the Lobby before Start.
+        if (!bSecondMatch && !bPresetsStaged)
+        {
+            ClientId.Invalidate();
+            for (const FLDLobbyMember& LobbyMember : Lobby.Members)
+            {
+                if (LobbyMember.Kind == ELDContenderKind::Human && !LobbyMember.Host) { ClientId = LobbyMember.ContenderId; }
+            }
+            if (!PresetBuyerOffers(PC)) { return Finish(); }
+            StagedClientId = ClientId;
+            bPresetsStaged = true;
+        }
         if (Now >= NextCommandAt)
         {
             PC.StartDemoMatch();
@@ -771,12 +789,12 @@ public:
             TEXT("The Progression provider opened one ledger account per locked contender at the approved starting gold"));
     }
 
-    // Host, first spawned frame: the DEV fixture presets the buyer's six offers before its first reward can draw one.
+    // Host, in the Lobby before Start: the DEV fixture stages the buyer's six offers, its opening offer first.
     bool PresetBuyerOffers(const ALDPlayerController& PC)
     {
         ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-        if (!Check(LDDevGrowthFixture::IsSwitchPresent() && Mode && Mode->Development, TEXT("Fixture"),
-            TEXT("The Listen Host runs with -LDDevGrowthFixture and owns the growth director")))
+        if (!Check(LDDevGrowthFixture::IsSwitchPresent() && Mode && Mode->Development && ClientId.IsValid(), TEXT("Fixture"),
+            TEXT("The Listen Host runs with -LDDevGrowthFixture, owns the growth director and sees the buyer in its Lobby")))
         {
             return false;
         }
@@ -789,13 +807,41 @@ public:
             const TArray<FName> Cards = LDDemoGrowthScenario::GrowthProbePlannedCards(Index);
             FString QueueError;
             const bool bQueued = Mode->Development->DevQueueOffer(ClientId, Cards, QueueError);
-            if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture queues the buyer's offer %d: %s, %s, %s"), Index + 1,
+            if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture stages the buyer's offer %d: %s, %s, %s"), Index + 1,
                 *Cards[0].ToString(), *Cards[1].ToString(), *Cards[2].ToString()), QueueError))
             {
                 return false;
             }
         }
-        return Mark(TEXT("OffersPreset.json"));
+        return Mark(TEXT("OffersStaged.json"));
+    }
+
+    // D10: the owner's first view of a match holds exactly one unconsumed opening opportunity with its kept offer of three
+    // distinct cards; the buyer's first-match opening offer is the first offer the Host staged in the Lobby.
+    bool CheckOpening(const FLDProgressionView& View, const TCHAR* Id, TSharedPtr<FJsonObject>& Row, bool bStagedPreset)
+    {
+        const TArray<FLDChoiceOption>& Cards = View.Offer.Options;
+        const bool bDistinct = Cards.Num() == 3 && Cards[0].DefinitionId != Cards[1].DefinitionId
+            && Cards[0].DefinitionId != Cards[2].DefinitionId && Cards[1].DefinitionId != Cards[2].DefinitionId;
+        Row = MakeShared<FJsonObject>();
+        Row->SetNumberField(TEXT("level"), View.Level);
+        Row->SetNumberField(TEXT("earned"), View.EarnedThrough);
+        Row->SetNumberField(TEXT("consumed"), View.ConsumedThrough);
+        Row->SetNumberField(TEXT("pending"), View.PendingChoiceCount);
+        Row->SetNumberField(TEXT("ordinal"), View.bHasOffer ? View.Offer.OpportunityOrdinal : 0);
+        Row->SetStringField(TEXT("offer"), LDDemoGrowthScenario::GrowthProbeGuid(View.Offer.OfferId));
+        Row->SetStringField(TEXT("cards"), FString::JoinBy(Cards, TEXT(","), [](const FLDChoiceOption& Card) { return Card.DefinitionId.ToString(); }));
+        Row->SetBoolField(TEXT("staged_preset"), LDDemoGrowthScenario::GrowthProbeIsPreset(View));
+        bool bGood = Check(View.Level == 1 && View.EarnedThrough == 1 && View.ConsumedThrough == 0 && View.PendingChoiceCount == 1
+            && View.bHasOffer && View.Offer.OpportunityOrdinal == 1 && View.Offer.OfferId.IsValid() && bDistinct, Id,
+            TEXT("The match opens with exactly one pending three-choice: its kept opening offer of three distinct cards"),
+            LDDemoGrowthScenario::GrowthProbeProgressionText(View));
+        if (bStagedPreset)
+        {
+            bGood &= Check(LDDemoGrowthScenario::GrowthProbeIsPreset(View), TEXT("Fixture"),
+                TEXT("The buyer's opening offer is exactly the first offer the Host staged in the Lobby"), Row->GetStringField(TEXT("cards")));
+        }
+        return bGood;
     }
 
     bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
@@ -817,17 +863,21 @@ public:
         }
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
             TEXT("The first body is an unprotected initial life"));
-        Check(ProgView->Level == 1 && ProgView->CumulativeXP == Defs.Progression.XPStart && ProgView->EarnedThrough == 0
-            && ProgView->PendingChoiceCount == 0 && !ProgView->bHasOffer && ProgView->CatalogDigest == Defs.Identity.Root,
-            TEXT("Start"), TEXT("Growth starts at level 1 with the approved XP start, no opportunity and the current catalog"),
+        Check(ProgView->Level == 1 && ProgView->CumulativeXP == Defs.Progression.XPStart && ProgView->CatalogDigest == Defs.Identity.Root,
+            TEXT("Start"), TEXT("Growth starts at level 1 with the approved XP start and the current catalog"),
             LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
+        CheckOpening(*ProgView, TEXT("Opening"), OpeningRow, !IsHost());
         Check(EquipView->Gold == Defs.Parameters.StartingGold && bSlotsEmpty && PC.ReadOwnShop() == nullptr, TEXT("Start"),
             TEXT("The account starts at the approved starting gold with two explicit empty slots and no shop session"),
             FString::Printf(TEXT("gold=%lld slots=%d"), EquipView->Gold, EquipView->Slots.Num()));
         if (!Passed) { return Finish(); }
         if (IsHost())
         {
-            if (!PresetBuyerOffers(PC)) { return Finish(); }
+            if (!Check(bPresetsStaged && StagedClientId == ClientId, TEXT("Fixture"),
+                TEXT("The Lobby presets were staged for exactly this match's buyer")) || !Mark(TEXT("OffersPreset.json")))
+            {
+                return Finish();
+            }
             SetStage(EStage::Victim);
             return true;
         }
@@ -1258,6 +1308,11 @@ public:
         FirstMatchRow->SetNumberField(TEXT("level"), FirstProgression.Level);
         FirstMatchRow->SetNumberField(TEXT("xp"), double(FirstProgression.CumulativeXP));
         FirstMatchRow->SetNumberField(TEXT("pending_choices"), FirstProgression.PendingChoiceCount);
+        FirstMatchRow->SetNumberField(TEXT("earned_choices"), FirstProgression.EarnedThrough);
+        // D10: deaths and respawns never re-grant the opening opportunity; only levels add opportunities.
+        Check(ProgView && PC.OwnerState.Life > 1 && FirstProgression.EarnedThrough == FirstProgression.Level, TEXT("Opening"),
+            TEXT("After dying and respawning the owner holds exactly its opening opportunity plus one per level crossed"),
+            FString::Printf(TEXT("life %u: %s"), PC.OwnerState.Life, *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
         FirstMatchRow->SetNumberField(TEXT("skills"), FirstProgression.Skills.Num());
         FirstMatchRow->SetNumberField(TEXT("attribute_cards"), FirstProgression.AttributeCards.Num());
         FirstMatchRow->SetNumberField(TEXT("cooldown_debt_ready_at_ms"), double(FirstDebtReadyAtMs));
@@ -1391,11 +1446,17 @@ public:
         uint8 StartLevel = 0;
         const bool bStartLevel = LDProgression::LevelForXP(Defs.Progression, Defs.Progression.XPStart, StartLevel) == ELDGrowthReason::None;
         Check(bStartLevel && Progress.Generation == SecondGeneration && Progress.Level == StartLevel
-            && Progress.CumulativeXP == Defs.Progression.XPStart && Progress.EarnedThrough == 0 && Progress.ConsumedThrough == 0
-            && Progress.PendingChoiceCount == 0 && !Progress.bHasOffer && Progress.CatalogDigest == Defs.Identity.Root, TEXT("Iso"),
-            TEXT("Level, XP and opportunities restart at the content's opening values with no offer"),
+            && Progress.CumulativeXP == Defs.Progression.XPStart && Progress.CatalogDigest == Defs.Identity.Root, TEXT("Iso"),
+            TEXT("Level and XP restart at the content's opening values"),
             FString::Printf(TEXT("now %s; first match ended at %s"), *LDDemoGrowthScenario::GrowthProbeProgressionText(Progress),
                 *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
+        // D10: the new match grants its own single opening opportunity with a newly drawn offer; nothing of the first carries over.
+        CheckOpening(Progress, TEXT("Iso"), SecondOpeningRow, false);
+        Check(OpeningRow.IsValid() && Progress.Offer.OfferId.IsValid()
+            && LDDemoGrowthScenario::GrowthProbeGuid(Progress.Offer.OfferId) != OpeningRow->GetStringField(TEXT("offer"))
+            && Progress.Offer.OfferId != FirstProgression.Offer.OfferId, TEXT("Iso"),
+            TEXT("The second match's opening offer is newly drawn, not the first match's opening or last head offer"),
+            SecondOpeningRow.IsValid() ? SecondOpeningRow->GetStringField(TEXT("cards")) : FString());
         Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty(), TEXT("Iso"),
             TEXT("No learned active or passive skill and no attribute card is carried into the second match"),
             FString::Printf(TEXT("skills %d->%d cards %d->%d"), FirstProgression.Skills.Num(), Progress.Skills.Num(),
@@ -1609,8 +1670,8 @@ public:
         Check(ProgView.CumulativeXP == KillBefore.CumulativeXP + KillXP && EquipView.Gold == GoldBeforeKill + KillGold, TEXT("N03"),
             TEXT("One kill pays exactly the approved bounty of the frozen victim level, gold and XP in one owner publication"), Detail);
         Check(LevelReason == ELDGrowthReason::None && ProgView.Level == ExpectedLevel
-            && ProgView.PendingChoiceCount == ProgView.Level - 1 - ProgView.ConsumedThrough, TEXT("A06"),
-            TEXT("Level and pending opportunities follow the approved XP thresholds: one opportunity per level crossed"), Detail);
+            && ProgView.PendingChoiceCount == ProgView.Level - ProgView.ConsumedThrough, TEXT("A06"),
+            TEXT("Level and pending opportunities follow the approved XP thresholds: the opening one plus one per level crossed"), Detail);
         const TSharedRef<FJsonObject> KillRow = MakeShared<FJsonObject>();
         KillRow->SetNumberField(TEXT("index"), Kills + 1);
         KillRow->SetNumberField(TEXT("victim_level"), VictimLevel);
@@ -2866,8 +2927,8 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that presets the buyer's offers, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, choices on the Host's preset offers, two-slot shop trades and an item active through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: exactly one pending opening choice at each match start (never re-granted by a respawn), real kill rewards, choices on the Host's preset offers, two-slot shop trades and an item active through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
@@ -2875,6 +2936,9 @@ public:
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetNumberField(TEXT("second_generation"), SecondGeneration);
         Report->SetObjectField(TEXT("match1"), FirstMatchRow.IsValid() ? FirstMatchRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+        Report->SetObjectField(TEXT("opening"), OpeningRow.IsValid() ? OpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+        Report->SetObjectField(TEXT("second_opening"),
+            SecondOpeningRow.IsValid() ? SecondOpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         if (const ALDPlayerController* PC = Controller.Get())
         {
             Report->SetNumberField(TEXT("generation"), PC->OwnerState.Match);
