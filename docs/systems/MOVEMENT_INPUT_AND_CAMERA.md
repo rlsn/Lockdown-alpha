@@ -219,6 +219,8 @@ schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`Ca
 设置页的“恢复默认”先列出全部范围（显示/画质、音量、按键、镜头/文字；名称与本局进度不变）再确认：
 本地偏好先还原并保存，显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
 分辨率或窗口模式变化仍走保留/回滚试用，VSync 与画质随该次应用生效；与当前显示相同时不发起试用。
+默认画质的渲染比例 `ResolutionQuality` 为 0（沿用项目的 `r.ScreenPercentage`），引擎对 0 不做任何事；
+`ULDGameInstance` 每次应用画质后经 `LDLocalSettings::ApplyRenderScale` 撤销 Scalability 优先级的旧比例，渲染比例立即回到项目默认，无需重启。
 `PlayerName` 为空表示尚未设置，绝不填入默认名；它不是比赛数据，恢复默认（`ResetLocalDefaults`/`ResetBindings`）也不删除它。
 调用方用 `SetAppliedPlayerName` 修改已应用对象，并通过 `ULDGameInstance::RequestLocalSettingsFlush()` 请求保存；草稿不能改名称。
 `ValidatePlayerName` 只做本地格式检查：非空、首尾无空白、最多 16 个字符（UTF-16 代理对算一个）、
