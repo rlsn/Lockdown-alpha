@@ -17,6 +17,21 @@
 运行输入是用户批准的首版内容与数值、唯一单层地图布局与操作规则，用于首次试玩。
 **批准不是平衡测试结果。**
 
+### 最终验收
+
+冻结提交 `6f8bca8` 的 Development 包是当前唯一的已知可用构建。证据保存在本机忽略的 `Artifacts` 中。
+
+| 检查 | 结果 |
+| --- | --- |
+| `BuildEditor.ps1`、`BuildGame.ps1`（`-FullUnity`）、`RunTests.ps1`（147 项必需规则）、Python 测试、`BootstrapAssets.ps1`（含音效与美术目录校验） | 通过 |
+| `VerifyCleanCheckout.ps1` | 通过：隔离检出中的构建、Bootstrap 与规则 |
+| `PackageWin64.ps1` | 通过，manifest 记录该提交且无未提交改动 |
+| 打包版场景：Core、Combat（含操作手感数据与 9 张截图）、Growth（含第二局与账本独立复算）、SessionFault（六段） | 全部通过 |
+| 打包版场景：Camp、Capture（含第二局）、Vision（另重复 3 次）、Opponent 满员（3 真人 + 3 AI）、网络模拟下的满员、一次有声运行 | 全部通过；在产品代码相同的 `9167f8d` 包上运行，两包之间只差 DEV 夹具、probe、一个场景脚本的等待时间与文档 |
+
+有声运行确认三端的音频设备初始化、`LD_AUDIO_CATALOG_READY 15 cues` 与 `LD_AUDIO_MIX_APPLIED`，没有音效错误日志；
+这不代替人工试听。网络模拟满员局没有 AI 死亡，死亡与复活相关检查报告为未覆盖；正常满员局已覆盖这些检查。
+
 ### 产品决定的落地状态
 
 | 决定 | 内容 | 状态 |
@@ -112,7 +127,7 @@
 - **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
 - **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#43](https://github.com/rlsn/Lockdown-alpha/issues/43)）；
   截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
-  其余缺陷、体验与覆盖缺口见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#56](https://github.com/rlsn/Lockdown-alpha/issues/56)。
+  其余缺陷、体验与覆盖缺口见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。
 
 ## 剩余工作
 
@@ -121,4 +136,4 @@
 3. Shipping 配置打包与分发（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）。
 4. D13 校园补给箱（[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)）与 D14（[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波，[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）按用户决定逐批审查后再进入运行输入。
 5. 音效人工试听、完整 UI 人工验收、真实显示模式与 OS 失焦检查（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）。
-6. 测试覆盖缺口、已知缺陷与体验打磨：见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#56](https://github.com/rlsn/Lockdown-alpha/issues/56)。
+6. 测试覆盖缺口、已知缺陷与体验打磨：见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。
