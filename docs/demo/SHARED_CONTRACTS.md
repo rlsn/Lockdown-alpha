@@ -228,7 +228,7 @@ Host 离开是会话结束，不执行普通客户端离开的继续对局路径
 不因受击回头重追。实际到家且仍存活的成员满血蓝、清临时效果/仇恨、技能就绪，
 不复活死成员、不增 Life、不发奖励。这一野怪重置不适用于参赛者的冷却/比例保留规则。
 具体反击输入只消费 Combat 成功提交的 `FLDCombatHostileContact`，
-由 N03 营地接线幂等记录本营敌对来源，再经 `LDCampDecision` 纯决策生成反击意图（营地原语待 N03 接线）；Miss/无效攻击意图不触发反击。
+由 `World\LDCampDirector` 幂等记录本营敌对来源，再经 `LDCampDecision` 纯决策生成反击意图；Miss/无效攻击意图不触发反击。
 `PrepareCampReset/ApplyCampReset` 归 Combat，World 提供实际 HomeProof 和 ReturnEpoch；
 重置键为 LedgerMatch + 完整 VictimKey + ReturnEpoch，只有新 Returning 周期才推进epoch。
 纯Prepare先清局部候选临时状态，再计算最终上限并准备满资源，最后与World状态原子安装；

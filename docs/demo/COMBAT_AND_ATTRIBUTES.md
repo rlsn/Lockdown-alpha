@@ -708,7 +708,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | R07 抽取 | `LDTacticalRules.cpp` 的动作禁止/状态到期、`LDTacticalExecution.cpp` 的必要命中和释放前验证 | 仅保留批准 Root/盾/净化/伤害/投射物/位移原语；公式/状态全集/旧取消恢复/旧盾上限不原样带入。 |
 | R07/R09 改造 | `LDContentActions/Release/Lifecycle.cpp`、`LDV08Loadout.cpp`、`LDV08Modifiers.cpp` | Source/阶段重验、有限 proc 去重、双独立 CD；删除 family-max 和固定 bit 表。现有低层入口内部化，无旧公共旁路。 |
 | R08 抽取 | `Economy\LDEconomyLedger.{h,cpp}` 的同条款幂等、溢出/版本拒绝、全验证后写、Reconcile | 金币仍同账本；成长域补复合死亡提交，不能把 XP 放第二金币真相。 |
-| R10/R11 改造/抽取 | 营地：旧营地 Actor 已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收。位移：`CharacterMovement` 的 RootMotionSource、`LDTacticalFields.cpp` swept capsule、`LDContentGeometry.cpp` 合法落点 | 怪物执行接同 Combat，世界负责真正几何/生命映射；位移不是寻路瞬移替代，默认旧距离/地图分支删除。 |
+| R10/R11 改造/抽取 | 营地：旧营地 Actor 已删除；`World\LDCampDirector` 用抽取的 `LDCampDecision` 在核心上实现营地。位移：`CharacterMovement` 的 RootMotionSource、`LDTacticalFields.cpp` swept capsule、`LDContentGeometry.cpp` 合法落点 | 怪物执行接同 Combat，世界负责真正几何/生命映射；位移不是寻路瞬移替代，默认旧距离/地图分支删除。 |
 | R12/R13 改造 | `Vision\LDVisionDirector/LDWorldViewRelay/LDViewTypes`、`Framework\LDPlayerController`、`UI\LDHUDModel` | 当前 owner/observer 白名单、typed 结果、正常 Host 附件过滤；保持 cursor/Conceal 不变量。 |
 | N03/N04/N05 必要新增 | 动作 DTO 仍拟置于 `Public\Combat\LDCombatTypes.h`；纯属性/比例入口现位于 `Public\Combat\LDAttributeProjection.h`、`Private\Combat\LDAttributeProjection.cpp` | 放置本文窄 DTO/纯规则和检查结果；执行留现有 Director/拆分 cpp，不加第二 Director、GAS 状态层或通用事件平台。 |
 | N02/N09 配套 | 现有 CombatTests/TacticalTests/LoadoutTests/ViewTests、相关 runner；旧 compiler/importer 的必要严格校验机制 | 机制抽取到内容域唯一 Demo compiler/`ULDDemoContentCatalog`，补 typed effects/rank/MP/属性读取及下节断言；旧生成/加载入口退出，不靠类型表宣称效果已接通。 |
@@ -726,7 +726,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | D15 | `LDV08Loadout.cpp` 重复 active-family 拒绝/十一绑定/六共享动作；`LDInventoryTypes/Director` 背包/重量/Quick/掉落/旧 metadata | 两实例/QW/12/来源事务替代；删旧 family-max 的 Actions/Release/HUD 三端，不只换保管 CD 的字段。 |
 | D16/D27 | `LDPlayerController.h/.cpp`、`LDPlayerInventory.cpp` 旧多个 RPC/字符串回执/hold/probe/Pending；DevelopmentPanel/InventoryPanel 的旧 UFUNCTION Route、OnClicked/AddDynamic 和 Press/Release | 新 void RPC、双请求域、typed 回执、规范空入口先解保护及窄 UI 动作接通；删六属性/旧服务页签及绑定，不留死委托。 |
 | D17 | `LDVisionDirector/LDViewTypes/LDWorldViewRelay` 旧来源/kind/AuthorizedCue；`LDCharacter/LDHumanoidVisualComponent` 旧居民/工具/状态 marker | 生产→授权→发布→proxy/HUD/Host 附件→wire 白名单闭合，保留必要身体/碰撞/观测游标。 |
-| D08/R10 | 旧营地 Actor 的 LastOwner 兜底、每调用新事务、只 XP/限额/间隔及平行 NextAttack 已删除 | N03 以同 DeathKey/RewardBasis/CommitDeathReward 和 Camp/Member 接线实现；保留 self 拒绝目的，回位不是死亡；营地原语待 N03 接线。 |
+| D08/R10 | 旧营地 Actor 的 LastOwner 兜底、每调用新事务、只 XP/限额/间隔及平行 NextAttack 已删除 | N03 以同 DeathKey/RewardBasis/CommitDeathReward 和 Camp/Member 接线实现；保留 self 拒绝目的，回位不是死亡；营地接线见 `World\LDCampDirector`。 |
 
 ### 11.3 数据、反射、资产与工具闭包
 
