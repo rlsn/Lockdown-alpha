@@ -60,6 +60,8 @@ struct FLDBodyCombatState
     int64 DashUntilMs=0;
     // Released action and last landed hit of this life for the visible action cue.
     FLDCombatCueFacts Cues;
+    // Source of the last released action (the visible Cast cue's ability or gear once its windup released).
+    FLDCombatSourceRef ReleasedSource;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
 };
@@ -183,6 +185,9 @@ public:
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // Action cue of a registered body at NowMs (LDCombatCues); None after a lethal hit (LDCombatObservation.cpp).
     void AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut) const;
+    // The approved native ids of the cast the body's visible Cast cue shows at NowMs (Q/W ability or gear active, dash
+    // included); both zero when no Cast cue shows. Fails only when a cast source has no approved definition.
+    bool ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const;
     // Every projectile still in flight after the last Effects advance, for the observation owner to sample.
     // Fails without output for a projectile whose source has no approved look.
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;

@@ -30,6 +30,33 @@ void ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCueAtMs=Cue.AtMs;
 }
 
+bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const
+{
+    OutAbility=OutEquipment=0;
+    const FLDBodyCombatState* State=StateFor(&Body);
+    if (!State || State->bPendingDeath) { return true; }
+    const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
+    if (Cue.Cue!=ELDObservedActionCue::Cast) { return true; }
+    // The Cast cue shows the winding-up ability when that is the newest, else the released one (LDCombatCues).
+    const bool bActing=State->Action.IsSet() && State->Action->Kind!=ELDCombatActionKind::Basic
+        && State->Action->StartedAtMs==Cue.AtMs;
+    const FLDCombatSourceRef& Source=bActing ? State->Action->Source : State->ReleasedSource;
+    const FLDDemoContentSnapshot* Content=Catalog();
+    FString Error;
+    if (Content && Source.Kind==ELDCombatSourceKind::Learned)
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (Content->FindAbility(Source.DefinitionId.ToString(),Ability,Error)) { OutAbility=Ability->NativeId; return true; }
+    }
+    else if (Content && Source.Kind==ELDCombatSourceKind::Gear)
+    {
+        const FLDDemoEquipmentDefinition* Item=nullptr;
+        if (Content->FindEquipment(Source.DefinitionId.ToString(),Item,Error)) { OutEquipment=Item->NativeId; return true; }
+    }
+    UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
+    return false;
+}
+
 bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const
 {
     Out.Reset();
