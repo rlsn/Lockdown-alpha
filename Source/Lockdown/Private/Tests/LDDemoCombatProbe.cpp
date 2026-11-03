@@ -73,8 +73,9 @@ constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
 // Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range and beyond the
-// reach-carded basic range, so the arc bolt flies and the reach card's chase must close in before its hit lands.
-constexpr double CombatProbeSkillGapCm = 450.0;
+// reach-carded basic range even when both bodies stop at the far edge of their arrival slack, so the arc bolt flies
+// and the reach card's chase must close in before its hit lands.
+constexpr double CombatProbeSkillGapCm = 420.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
