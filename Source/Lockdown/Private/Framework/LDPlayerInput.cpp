@@ -96,6 +96,7 @@ void ALDPlayerController::ReleaseLocalInput()
 {
     bFreshInputRequired=true;
     CancelArmedCombat();
+    QueuedCombat={};
     if (Navigation) { Navigation->Recenter(false); }
 }
 
@@ -158,6 +159,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     }
     // A child confirmation or text edit that opens over an armed preview cancels it before the next frame (UI 4).
     if (IsWorldInputCaptured()) { CancelArmedCombat(); }
+    FlushQueuedCombat();
     if (GetPawn()!=PreferencesPawn.Get())
     {
         PreferencesPawn=GetPawn();

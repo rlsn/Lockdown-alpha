@@ -2,6 +2,7 @@
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatPreInput.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -11,9 +12,6 @@ namespace LDPlayerOrdersDetail
 {
     const FLDCombatEntryView* FindEntry(const FLDCombatOwnerView& View, ELDCombatEntry Entry)
     { return View.Entries.FindByPredicate([Entry](const FLDCombatEntryView& Row) { return Row.Entry==Entry; }); }
-
-    bool IsDirectEntry(ELDCombatEntry Entry)
-    { return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2; }
 
     bool IsArmedMode(ELDDemoTargetMode Mode)
     {
@@ -26,7 +24,7 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
 {
     // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
     // sends (UI 4); the root already cancelled any older preview.
-    if (!IsLocalController() || !LDPlayerOrdersDetail::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
+    if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
     const bool bHeld=View && !View->DefinitionId.IsNone() && View->bHasActive;
@@ -130,6 +128,7 @@ void ALDPlayerController::StopCombatAndOrders()
     // from the world, so it never stops the accepted order those leave running (UI 4, 7).
     if (IsWorldInputSuppressed()) { return; }
     CancelArmedCombat();
+    QueuedCombat={};
     Navigation->Stop();
     // Cancels every Direct request issued so far, including ones the server has not received yet.
     if (!IsLocalController() || NextDirectSequence==0 || OwnerState.LifePhase!=ELDLifePhase::Alive) { return; }
@@ -160,6 +159,46 @@ void ALDPlayerController::PostIntentNotice(const FString& Text)
 }
 
 void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+{
+    if (!IsLocalController()) { return; }
+    int64 NowMs=0;
+    ReadDemoAuthorityTimeMs(NowMs);
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    if (bCurrentView && LDCombatPreInput::IsDirectEntry(Entry) && LDCombatPreInput::IsWindingUp(CombatView,NowMs))
+    {
+        QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds()};
+        return;
+    }
+    QueuedCombat={};
+    SendCombatNow(Entry,Aim);
+}
+
+// The held press goes out as an ordinary Direct request (fresh sequence, current source revision) once the own windup
+// ended; a new life or match, suppressed input or an expired hold drops it.
+void ALDPlayerController::FlushQueuedCombat()
+{
+    if (QueuedCombat.Entry==ELDCombatEntry::None) { return; }
+    if (QueuedCombat.Match!=OwnerState.Match || QueuedCombat.Life!=OwnerState.Life || !CanWorldCommand())
+    {
+        QueuedCombat={};
+        return;
+    }
+    if (FPlatformTime::Seconds()-QueuedCombat.QueuedAt>LDCombatPreInput::HoldSeconds)
+    {
+        QueuedCombat={};
+        PostIntentNotice(TEXT("前一个技能未结束，预输入已取消"));
+        return;
+    }
+    int64 NowMs=0;
+    ReadDemoAuthorityTimeMs(NowMs);
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    if (bCurrentView && LDCombatPreInput::IsWindingUp(CombatView,NowMs)) { return; }
+    const FQueuedCombat Held=QueuedCombat;
+    QueuedCombat={};
+    SendCombatNow(Held.Entry,Held.Aim);
+}
+
+void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
 {
     if (!IsLocalController()) { return; }
     if (NextDirectSequence==MAX_uint64)

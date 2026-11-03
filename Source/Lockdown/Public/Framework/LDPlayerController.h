@@ -174,6 +174,17 @@ private:
     // cleared and every key must be released before the next world command.
     void ReleaseLocalInput();
     void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target);
+    // Pre-input (LDCombatPreInput): one Direct press held during the own ability windup, sent when it ends.
+    struct FQueuedCombat
+    {
+        ELDCombatEntry Entry=ELDCombatEntry::None;
+        FLDCombatTarget Aim;
+        uint32 Match=0,Life=0;
+        double QueuedAt=0;
+    };
+    FQueuedCombat QueuedCombat;
+    void FlushQueuedCombat();
+    void SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Target);
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
     bool bAttackMoveArmed=false;
     uint64 NextDirectSequence=0;

@@ -92,6 +92,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
      本地路线检查不通过的点静默跳过；每单都是新 identity，经同一订单簿与 0.1 s 激活节流，最新待处理单替换旧单。
    - 世界点击、悬停与武装确认共用 `PointerPosition`/`GroundUnderPointer`；DEV 场景可用 `DevSetPointer`
      代替鼠标（仅 `WITH_DEV_AUTOMATION_TESTS` 生效）。
+   - 预输入（`LDCombatPreInput`）：自己的 Q/W/1/2 技能前摇期间再按的 Direct 键在拥有客户端暂存一个（新按的替换旧的），
+     前摇结束（已到 `ActionReleaseAtMs` 或视图不再显示前摇）时作为普通 Direct 请求发出（新序号、当前来源修订）；
+     S、新生命/新对局、输入被抑制即丢弃，暂存超过 1 s 丢弃并提示。普攻无需暂存：攻击订单本就在服务器等身体空闲。
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000（原 1800），
      600 cm/s 基础移速约 75 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
