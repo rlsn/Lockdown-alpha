@@ -511,7 +511,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
     if (Request.Kind==ELDSpatialOrderKind::MoveGround || Request.Kind==ELDSpatialOrderKind::AttackMove)
     {
         FVector Projected;
-        if (!Plan(Request.GroundCm,Request.SurfaceHint,Order.Points,Projected,WorldFailure,Detail))
+        if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Ground,Order.Points,Projected,WorldFailure,Detail))
         {
             Failure=LDNavOrdersDetail::FromWorld(WorldFailure);
             UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
@@ -570,7 +570,9 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         if (!Order.bEngaged)
         {
             FVector Projected;
-            if (!Plan(Sample.FootCm,Order.Surface,Order.Points,Projected,WorldFailure,Detail))
+            // The target is a body: against a wall, another body or cutting a corner its foot can sit in Recast's
+            // margin, so the chase plans to its nearest navmesh point within one capsule radius.
+            if (!Plan(Sample.FootCm,Order.Surface,LDPathSteering::EGoal::Body,Order.Points,Projected,WorldFailure,Detail))
             {
                 Failure=ELDOrderFailure::NoCompletePath;
                 UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
@@ -649,7 +651,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         FVector Projected;
         ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
         FString Detail;
-        if (!Plan(Order.Destination,Order.Surface,Path,Projected,Failure,Detail))
+        if (!Plan(Order.Destination,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,Failure,Detail))
         {
             UE_LOG(LogTemp,Display,TEXT("LD_NAV_RESUME_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
             EndActive(ELDOrderStatus::Cancelled,LDNavOrdersDetail::FromWorld(Failure),true);
@@ -779,7 +781,7 @@ bool ULDNavigationComponent::EngageTarget(ALDGameMode& Mode, ALDCharacter& Body,
     FVector Projected;
     ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
     FString Detail;
-    if (Plan(Sample.FootCm,Order.Surface,Path,Projected,Failure,Detail))
+    if (Plan(Sample.FootCm,Order.Surface,LDPathSteering::EGoal::Body,Path,Projected,Failure,Detail))
     {
         Order.Points=MoveTemp(Path);
         Order.PointIndex=Order.Points.Num()>1?1:0;
@@ -850,7 +852,7 @@ void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now,
     FVector Projected;
     ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
     FString Detail;
-    if (!Plan(Order.Goal,Order.Surface,Path,Projected,Failure,Detail))
+    if (!Plan(Order.Goal,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,Failure,Detail))
     {
         UE_LOG(LogTemp,Display,TEXT("LD_NAV_REPLAN_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
         EndActive(ELDOrderStatus::Cancelled,LDNavOrdersDetail::FromWorld(Failure),true);

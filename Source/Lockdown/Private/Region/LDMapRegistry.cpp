@@ -297,10 +297,13 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
     for (const FNavPathPoint& Point : Result.Path->GetPathPoints()) { Candidate.Points.Add(Point.Location); }
     Candidate.StartProjectionCm = Candidate.Points[0] - CurrentFrom.SurfaceCm;
     Candidate.EndProjectionCm = Candidate.Points.Last() - CurrentTo.SurfaceCm;
-    if (Candidate.StartProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER
-        || Candidate.EndProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+    if (Candidate.StartProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
     {
-        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: navigation adjusted an endpoint's XY position."), Failure, Error);
+        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: navigation adjusted the route start's XY position."), Failure, Error);
+    }
+    if (Candidate.EndProjectionCm.SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+    {
+        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: navigation adjusted the destination's XY position."), Failure, Error);
     }
     Candidate.LengthCm = Result.Path->GetLength();
     if (!FMath::IsFinite(Candidate.LengthCm) || Candidate.LengthCm < 0)

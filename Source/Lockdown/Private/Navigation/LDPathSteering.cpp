@@ -73,4 +73,19 @@ namespace LDPathSteering
         return Registry.QueryGround(Registry.Revision(),FVector(OnMesh.Location.X,OnMesh.Location.Y,BodyGround.FootCm.Z),
             Capsule,BodyGround.SurfaceId,Out,Failure,Error);
     }
+
+    bool PlanRoute(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FVector& Goal, FName SurfaceId,
+        EGoal GoalKind, const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& OutGoal,
+        ELDWorldQueryFailure& Failure, FString& Error)
+    {
+        FLDLegalGround From, GoalGround;
+        if (!PlanStart(Registry,BodyGround,Capsule,From,Failure,Error)
+            || !Registry.QueryGround(Registry.Revision(),Goal,Capsule,SurfaceId,GoalGround,Failure,Error)) { return false; }
+        if (GoalKind==EGoal::Body)
+        {
+            if (!PlanStart(Registry,GoalGround,Capsule,OutGoal,Failure,Error)) { return false; }
+        }
+        else { OutGoal=GoalGround; }
+        return Registry.QueryCompletePath(Registry.Revision(),From,OutGoal,Capsule,OutPath,Failure,Error);
+    }
 }

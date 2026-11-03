@@ -10,6 +10,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
@@ -29,6 +30,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "NavigationData.h"
+#include "NavigationSystem.h"
 #include "Serialization/JsonSerializer.h"
 
 // Owned-connection combat and orders scenario (COMBAT_AND_ATTRIBUTES, CONTROLS_AND_TARGETING). Client1 acts only
@@ -58,6 +61,12 @@ constexpr uint32 CombatProbeSettingsHeartbeats = 4;
 constexpr double CombatProbeSettingsProgress = 0.4;
 // After Settings closes the same walk must still be running, or have arrived, with nothing replayed.
 constexpr double CombatProbeSettingsAfterSeconds = 1.0;
+// Chase-goal regression: fixed bearings and reach around the Host's site, a coarse step that cannot skip a body-wide
+// off-mesh band, and the resolution of the edge search.
+constexpr int32 CombatProbeChaseBearings = 16;
+constexpr double CombatProbeChaseStepCm = 25.0;
+constexpr double CombatProbeChaseReachCm = 3000.0;
+constexpr double CombatProbeChaseResolutionCm = 0.5;
 
 double CombatProbeRational(const FLDDemoRational& Value)
 {
@@ -140,6 +149,7 @@ public:
     bool bDeathCameraChecked = false;
 
     // Host: the hits it took, its kill and the audited respawn.
+    bool bChaseGoalChecked = false;
     int64 HpAtStopP2 = -1, BasicIntervalMs = 0, RespawnAtMs = 0, ProtectedUntilMs = 0;
     double StopSampledAt = 0;
     FLDMoveIdentity KillOrder;
@@ -466,6 +476,11 @@ public:
         if (PC.Navigation->HasMoveOrder()) { return true; }
         if (FVector::Dist2D(Body->GetNavAgentLocation(), Site) <= LDDemoCombatScenario::CombatProbeArrivalCm)
         {
+            if (IsHost() && !bChaseGoalChecked)
+            {
+                bChaseGoalChecked = true;
+                if (!CheckChaseGoal(PC)) { return Finish(); }
+            }
             if (!Mark(Role + TEXT("AtSite.json"))) { return Finish(); }
             SetStage(IsHost() ? EStage::Struck : EStage::AttackMove);
             return true;
@@ -479,6 +494,91 @@ public:
         ++NavigateAttempts;
         StageAt = Now;
         return true;
+    }
+
+    // Deterministic chase-goal regression on the real Demo world and navmesh. Along fixed bearings from the Host's public
+    // duel site (anchors and approved radii only, never where a body stopped), the first legal foot just outside the
+    // eroded navmesh edge stands where a target pressed against a wall or another body, or cutting a corner, stands. As
+    // a clicked ground goal it stays refused; as a chased body's goal (the planner of AttackUnit admission and chase
+    // replans) it routes to its nearest navmesh point within one capsule radius.
+    bool CheckChaseGoal(const ALDPlayerController& PC)
+    {
+        const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        auto* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(PC.GetWorld());
+        const ANavigationData* Data = Nav ? Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate) : nullptr;
+        const FName Surface = PC.Navigation->GroundSurfaceHint();
+        FCollisionShape Capsule;
+        FLDLegalGround HostGround, Start;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        FString Problem;
+        if (!Registry || !Data || Surface.IsNone() || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Problem)
+            || !Registry->QueryGround(Registry->Revision(), HostSite, Capsule, Surface, HostGround, Failure, Problem)
+            || !LDPathSteering::PlanStart(*Registry, HostGround, Capsule, Start, Failure, Problem))
+        {
+            return Check(false, TEXT("ChaseGoal"), TEXT("The Host's duel site has registered ground and navigation for the chase-goal check"), Problem);
+        }
+        const double HalfHeight = Capsule.GetCapsuleHalfHeight();
+        const auto OnMesh = [Nav, Data, HalfHeight](const FVector& Point)
+        {
+            FNavLocation Projected;
+            return Nav->ProjectPointToNavigation(Point, Projected, FVector(0.1, 0.1, HalfHeight), Data)
+                && FVector::DistSquared2D(Projected.Location, Point) <= UE_KINDA_SMALL_NUMBER;
+        };
+        if (!OnMesh(Start.SurfaceCm))
+        {
+            return Check(false, TEXT("ChaseGoal"), TEXT("The Host's planned start lies on the navmesh"), Start.SurfaceCm.ToCompactString());
+        }
+        FVector Margin = FVector::ZeroVector;
+        bool bFound = false;
+        for (int32 Bearing = 0; Bearing < LDDemoCombatScenario::CombatProbeChaseBearings && !bFound; ++Bearing)
+        {
+            const FVector Direction = FVector::ForwardVector.RotateAngleAxis(
+                360.0 * Bearing / LDDemoCombatScenario::CombatProbeChaseBearings, FVector::UpVector);
+            double Inside = 0, Outside = -1;
+            for (double Along = LDDemoCombatScenario::CombatProbeChaseStepCm; Along <= LDDemoCombatScenario::CombatProbeChaseReachCm;
+                Along += LDDemoCombatScenario::CombatProbeChaseStepCm)
+            {
+                if (!OnMesh(Start.SurfaceCm + Direction * Along)) { Outside = Along; break; }
+                Inside = Along;
+            }
+            if (Outside < 0) { continue; }
+            while (Outside - Inside > LDDemoCombatScenario::CombatProbeChaseResolutionCm)
+            {
+                const double Mid = 0.5 * (Inside + Outside);
+                (OnMesh(Start.SurfaceCm + Direction * Mid) ? Inside : Outside) = Mid;
+            }
+            // Off the mesh yet legal for the capsule: inside Recast's margin, not past a floor edge or into a wall.
+            const FVector Candidate = Start.SurfaceCm + Direction * Outside;
+            FLDLegalGround Legal;
+            ELDWorldQueryFailure CandidateFailure = ELDWorldQueryFailure::None;
+            FString CandidateError;
+            if (Registry->QueryGround(Registry->Revision(), Candidate, Capsule, Surface, Legal, CandidateFailure, CandidateError))
+            {
+                Margin = Candidate;
+                bFound = true;
+            }
+        }
+        if (!bFound)
+        {
+            return Check(false, TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge exists around the Host's site"),
+                Start.SurfaceCm.ToCompactString());
+        }
+        FLDCompletePath Strict, Chase;
+        FLDLegalGround StrictGoal, ChaseGoal;
+        ELDWorldQueryFailure StrictFailure = ELDWorldQueryFailure::None, ChaseFailure = ELDWorldQueryFailure::None;
+        FString StrictError, ChaseError;
+        const bool bStrict = LDPathSteering::PlanRoute(*Registry, HostGround, Margin, Surface, LDPathSteering::EGoal::Ground,
+            Capsule, Strict, StrictGoal, StrictFailure, StrictError);
+        const bool bChase = LDPathSteering::PlanRoute(*Registry, HostGround, Margin, Surface, LDPathSteering::EGoal::Body,
+            Capsule, Chase, ChaseGoal, ChaseFailure, ChaseError);
+        const FString Where = TEXT("foot=") + Margin.ToCompactString();
+        Check(!bStrict && StrictFailure == ELDWorldQueryFailure::Unreachable && StrictError.Contains(TEXT("destination")),
+            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge stays refused as a clicked ground goal, naming the destination"),
+            Where + TEXT(" ") + StrictError);
+        return Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
+            TEXT("ChaseGoal"),
+            TEXT("The same foot as a chased body's goal routes completely to its nearest navmesh point within one capsule radius"),
+            Where + TEXT(" planned=") + ChaseGoal.SurfaceCm.ToCompactString() + TEXT(" ") + ChaseError);
     }
 
     // Client1 opens Settings through its production entry over the accepted first walk and holds it past the order

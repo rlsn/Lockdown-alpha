@@ -5,6 +5,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Navigation/LDOrderTypes.h"
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDPathSteering.h"
 #include "World/LDWorldQueryTypes.h"
 #include "LDNavigationComponent.generated.h"
 
@@ -141,7 +142,9 @@ private:
     bool QueryBodyGround(FLDLegalGround& Out, FCollisionShape& Capsule, ELDWorldQueryFailure& Failure, FString& Error) const;
     // Route start for every planner: the body's registered ground through LDPathSteering::PlanStart.
     bool QueryPlanStart(FLDLegalGround& Out, FCollisionShape& Capsule, ELDWorldQueryFailure& Failure, FString& Error) const;
-    bool Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected,
+    // Route from this owner's body to Goal: a clicked ground point stays strict; a chased body's foot is planned as a
+    // body goal (LDPathSteering::PlanRoute). Projected is the planned end.
+    bool Plan(const FVector& Goal, FName SurfaceHint, LDPathSteering::EGoal GoalKind, TArray<FVector>& Out, FVector& Projected,
         ELDWorldQueryFailure& Failure, FString& Error);
     bool ShopAt(const FVector& GroundPoint, FName& OutShop);
     // ---- Owning client.

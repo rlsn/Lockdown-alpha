@@ -88,6 +88,14 @@ namespace LDNavigationDetail
         { Text+=TEXT(" (protection removed)"); }
         return Text;
     }
+
+    // Owner prediction of an attack order plans a body goal: a chase receipt carries the target's foot, and an
+    // attack-move's ground goal is already the server's strict on-mesh point, which the body snap leaves unchanged.
+    LDPathSteering::EGoal PredictedGoal(ELDSpatialOrderKind Kind)
+    {
+        return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove
+            ? LDPathSteering::EGoal::Body : LDPathSteering::EGoal::Ground;
+    }
 }
 
 ULDNavigationComponent::ULDNavigationComponent()
@@ -184,26 +192,25 @@ bool ULDNavigationComponent::QueryPlanStart(FLDLegalGround& Out, FCollisionShape
         && LDPathSteering::PlanStart(*GetWorld()->GetSubsystem<ULDMapRegistry>(),Body,Capsule,Out,Failure,Error);
 }
 
-bool ULDNavigationComponent::Plan(const FVector& Surface, FName SurfaceHint, TArray<FVector>& Out, FVector& Projected,
-    ELDWorldQueryFailure& Failure, FString& Error)
+bool ULDNavigationComponent::Plan(const FVector& Goal, FName SurfaceHint, LDPathSteering::EGoal GoalKind, TArray<FVector>& Out,
+    FVector& Projected, ELDWorldQueryFailure& Failure, FString& Error)
 {
     const double Started=FPlatformTime::Seconds();
     ++QueryCount;
     ON_SCOPE_EXIT { QueryMilliseconds+=(FPlatformTime::Seconds()-Started)*1000; };
     Out.Reset();
-    if (Surface.ContainsNaN())
+    if (Goal.ContainsNaN())
     {
         Failure=ELDWorldQueryFailure::InvalidPosition;
         Error=TEXT("InvalidPosition: nonfinite destination.");
         return false;
     }
-    FLDLegalGround From, To;
+    FLDLegalGround Body, To;
     FCollisionShape Capsule;
-    if (!QueryPlanStart(From,Capsule,Failure,Error)) { return false; }
-    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!QueryBodyGround(Body,Capsule,Failure,Error)) { return false; }
     FLDCompletePath Path;
-    if (!Registry->QueryGround(Registry->Revision(),Surface,Capsule,SurfaceHint,To,Failure,Error)
-        || !Registry->QueryCompletePath(Registry->Revision(),From,To,Capsule,Path,Failure,Error)) { return false; }
+    if (!LDPathSteering::PlanRoute(*GetWorld()->GetSubsystem<ULDMapRegistry>(),Body,Goal,SurfaceHint,GoalKind,Capsule,Path,To,
+        Failure,Error)) { return false; }
     Out=MoveTemp(Path.Points);
     Projected=To.SurfaceCm;
     Failure=ELDWorldQueryFailure::None;
@@ -452,7 +459,7 @@ void ULDNavigationComponent::ApplyPrediction()
     FVector Projected;
     ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
     FString Error;
-    if (!Plan(ActiveGoal,GroundSurfaceHint(),Points,Projected,Failure,Error))
+    if (!Plan(ActiveGoal,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(ActiveKind),Points,Projected,Failure,Error))
     {
         bFollowing=false;
         if (ActiveKind==ELDSpatialOrderKind::MoveGround) { Stop(); Status=PC->IntentFeedback=Error; }
@@ -535,7 +542,8 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
             FVector Projected;
             ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
             FString Error;
-            if (Plan(Destination,GroundSurfaceHint(),Points,Projected,Failure,Error)) { PointIndex=Points.Num()>1?1:0; }
+            if (Plan(Destination,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(ActiveKind),Points,Projected,Failure,Error))
+            { PointIndex=Points.Num()>1?1:0; }
             else { Stop(); Status=PC->IntentFeedback=Error; }
         }
     }
