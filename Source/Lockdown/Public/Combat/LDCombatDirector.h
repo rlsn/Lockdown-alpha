@@ -196,6 +196,8 @@ public:
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
 
     // ---- Growth compound commits.
+    // A locked death credited to this contender still awaits its reward (this boundary's set or its one retry).
+    bool OwesRewardTo(const FGuid& Recipient) const;
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -208,6 +210,8 @@ public:
 private:
     friend class ALDGameMode;
     friend class FLDDemoCoreTest;
+    friend class FLDRewardSettlementTest;
+    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
@@ -229,6 +233,10 @@ private:
     bool RunActions(const FLDGameplayWritePermit& Permit, FString& Error);
     bool RunEffects(const FLDGameplayWritePermit& Permit, FString& Error);
     bool RunDeaths(const FLDGameplayWritePermit& Permit, FString& Error);
+    // The single second attempt of every reward refused as retryable at the previous boundary.
+    bool RunRewardRetries(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Same-instant boundary of a capture completion that still owed a reward: retries, then Close.
+    bool RunSettlementStep(const FLDMatchContext& Match, FString& Error);
     // One growth reward per locked death; a retryable refusal gets exactly one more attempt next boundary.
     bool CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error);
     bool PublishOwnerViews(FString& Error);

@@ -67,6 +67,8 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 全部尾部，与当前状态逐账户、实例、库存修订与总量比对一致后折叠成新前缀；被 pin、序号不符或历史不一致时
 不覆盖。`Reconcile` 以同一重放核对 `初始总量 + Mint - Burn`。
 账户退休是带核心离局戳的独立提交：金币和冻结装备仍参与审计，之后不再接受金钱或物品变化。
+仍有已锁死亡奖励欠给该离局参赛者（本边界待结算或待重试，`ALDCombatDirector::OwesRewardTo`）时暂不退休，
+待下一边界的唯一重试结清后再退休，重试不会命中 `RetiredAccount`。
 
 业务去重分层完成：请求序号屏障（每族 64 份回执窗口与终结水位）、DeathKey 生命水位与事实指纹、
 以及尾部内的业务键/条款冲突检查。窗口外的旧请求返回 `ReceiptExpired`，不重新执行。
@@ -80,7 +82,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 检查入口
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
-`DemoGrowthProgression`、`DemoGrowthOpening` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
+`DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
 等级/候选/替换纯规则、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
 导出 schema 3 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块），`python -B Scripts\CheckEconomyEvidence.py <证据>`

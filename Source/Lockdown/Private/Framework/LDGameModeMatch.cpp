@@ -127,6 +127,7 @@ void ALDGameMode::RetireAuthorityCore()
     AuthorityNowMs = 0;
     bAuthorityStepOpen = false;
     bAuthorityPhaseExecuted = false;
+    bSettlementStep = false;
     LastAuthorityPhase = ELDCommitPhase::Session;
 }
 

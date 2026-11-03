@@ -228,8 +228,15 @@ Combat 持有已提交死亡事实（`ALDCombatDirector` 的待结算与重试�
 **重试仍失败，或错误已不可恢复，则该边界返回错误，GameMode 以 `FaultAuthority` 进入 `Faulted`
 （无正常胜者）；该奖励明确未支付，关闭后不后台补发。** 不无限 Pending，
 也不回滚已经锁定的死亡来制造另一发奖机会。
-若重试前写闸已关闭（正常终局已锁定），Combat 记录 `LD_REWARD_UNPAID_AT_CLOSE` 并丢弃该重试，不覆盖胜者。
-要求：必需奖励处于待重试时，正常 Capture/终局不应越过它完成结算。
+待重试奖励存在时，任何结果都不能锁定（`TryCloseMatch` 返回 `RewardPending`），Host 结束返回 `RequestInFlight`，
+等下一边界的重试结清。待重试奖励只能来自已关闭边界的 DeathsAndRewards，而该边界自身的 Capture 可能恰在同刻完成：
+此时 Close 保留完成提案（`LD_CAPTURE_CLOSE_AWAITS_REWARD`），driver 随即开一个同刻的**结算边界**
+（新 BatchSerial、相同 AtMs、不推进时间、不执行 Motion/Actions/Effects/Transactions/Capture），
+只在其 DeathsAndRewards 用新许可做那唯一一次重试，再由其 Close 以原完成时刻和原占领者锁定结果。
+因此完成时刻仍精确，终局后不再产生战斗、交易或新死亡，奖励先于结果结清；
+重试仍失败则照上文权威故障、无正常胜者：故障诊断写明该死亡未支付，保留的完成提案随故障一起放弃。
+若写闸被其他故障关闭时仍有奖励留在重试列表，Combat 记录 `LD_REWARD_UNPAID_AT_FAULT` 并丢弃，不后台补发；
+新局的 Combat 与完成提案随旧局退休。
 
 离局的身体/效果立即清理，但本局参赛记录和账本不能先删除或退休到无法结算。
 关闭新命令权限与偿付既成事实是两件事；这不是离局后新发奖资格或断线重连能力。
@@ -303,7 +310,9 @@ Prepare 检查当前账户/修订（已退休为 `AlreadyRetired`）；Apply占�
 Reconcile 与证据复算按 AccountRetire 条目验证旧修订/false状态、重放true和新修订及关联戳；
 压缩后的Prefix继续携带这些结果，不能从当前账户补标志以掩盖缺日志。
 退休账户及其冻结物品仍参与本局审计；不出售、转移或重新开放该账户。
-要求：退休前应先结清该参赛者作为收款人的待重试奖励；当前 `RetireLeftAccounts` 不检查这一前置。
+离局参赛者仍是某个已锁死亡的收款人（本边界待结算或待重试奖励，`ALDCombatDirector::OwesRewardTo`）时，
+`RetireLeftAccounts` 跳过他，账户保持开放；下一边界 DeathsAndRewards 的唯一重试先结清，随后的 Transactions 再退休
+（`Lockdown.Rules.DemoGrowthRetireAwaitsReward`）。因此重试不会命中 `RetiredAccount`。
 
 **三个准入屏障必须在 Ledger Prepare 之前生效：**
 请求序号不大于 FinalizedThrough 时仅查已有回包/拒旧；DeathKey 的 Life 不大于对应
@@ -816,7 +825,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | A05 营地生命周期 | 每成员每Life一次；回位途中可真实致死并按旧Life结一次，到家仅存活者Reset满资源/清临时/CD就绪，不复活死者、不增Life/发奖；刷新不二次奖励，旧Life不命中新生体。 |
 | A06 奖励边界 | 每级阈值前/恰到/越过、一次多级至10、延迟十次（开局一次加九次升级）；开局机会与逐级机会准确、无第十一次；满10后XP继续累计但不升级/不授机会。 |
 | A07 整奖失败 | 分别注入账本、成长、Combat、Offer工作区、回执/outbox准备失败及整数越界；所有钱/XP/等级/机会/RNG/修订不变，无半奖或 NoReward fallback。 |
-| A08 重试/故障 | 必需奖励暂失败时只在下一边界重试一次；仍失败经 `FaultAuthority` 明确故障关闭且无正常胜者；必需奖励未决时正常 Capture 不应越过它（§4.3 要求）。 |
+| A08 重试/故障 | 必需奖励暂失败时只在下一边界重试一次；仍失败经 `FaultAuthority` 明确故障关闭且无正常胜者；必需奖励未决时 Capture 完成与 Host 结束都不越过它：同刻完成先经结算边界重试再锁定，Host 结束返回 `RequestInFlight`（`Lockdown.Rules.DemoCore.RewardSettlementBeforeClose`）。 |
 | A09 Permit | 错 Match/Batch/Phase/GateRevision、跨 callback/下一批旧许可在第一次 mutation 前拒绝；子 Apply 不会半途正常失败。 |
 | A10 持久三卡 | 连升/关闭重开/死亡/重复查询不改 OfferId/OptionId/内容/RNG；只有本次选择应用后才生成下一组；不打开窗口也已固定队首。 |
 | A11 合法池 | 对当前3/3/5池真实可达生成状态及36装备多重集合验证；满 Q/W、满rank、所有替换分支、属性复选、复合增量全可兑现且三卡互异。 |

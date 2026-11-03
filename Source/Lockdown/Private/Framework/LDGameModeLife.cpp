@@ -54,10 +54,16 @@ bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhas
             Error = FString::Printf(TEXT("Authority phase %u has no wired provider."), uint32(Phase));
             return false;
         }
-        if (Phase == ELDCommitPhase::Motion ? bAuthorityPhaseExecuted
+        if (bSettlementStep && Phase != ELDCommitPhase::DeathsAndRewards && Phase != ELDCommitPhase::Close)
+        {
+            Error = TEXT("A settlement boundary only retries owed rewards and then closes.");
+            return false;
+        }
+        const ELDCommitPhase First = bSettlementStep ? ELDCommitPhase::DeathsAndRewards : ELDCommitPhase::Motion;
+        if (Phase == First ? bAuthorityPhaseExecuted
             : (!bAuthorityPhaseExecuted || Order <= PhaseOrder(LastAuthorityPhase)))
         {
-            Error = TEXT("Authority phases run once each, Motion first, then in contract order.");
+            Error = TEXT("Authority phases run once each, Motion (or a settlement's DeathsAndRewards) first, then in contract order.");
             return false;
         }
     }
@@ -96,14 +102,16 @@ bool ALDGameMode::FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error)
     const bool bClosedHere = bResultLocked && LastAuthorityPhase == ELDCommitPhase::Close;
     if (Combat != &Driver || !bAuthorityStepOpen || ActiveWritePermit
         || (!IsGameplayWriteOpen(MatchContext) && !bClosedHere)
-        || !bAuthorityPhaseExecuted || PhaseOrder(LastAuthorityPhase) < PhaseOrder(ELDCommitPhase::Actions))
+        || !bAuthorityPhaseExecuted || PhaseOrder(LastAuthorityPhase) < PhaseOrder(ELDCommitPhase::Actions)
+        || (bSettlementStep && LastAuthorityPhase != ELDCommitPhase::Close))
     {
         Error = TEXT("Cannot finish a missing, active or closed authority step.");
         return false;
     }
+    // A settlement boundary integrates no time, so no body has native motion to complete.
     for (const auto& Pair : Lives)
     {
-        if (Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.CompletedMotionStep != AuthorityStep.StepSerial)
+        if (!bSettlementStep && Pair.Value.Phase == ELDLifePhase::Alive && Pair.Value.CompletedMotionStep != AuthorityStep.StepSerial)
         {
             Error = TEXT("A registered live body has not completed native motion for this step.");
             return false;
@@ -112,6 +120,7 @@ bool ALDGameMode::FinishAuthorityStep(ALDCombatDirector& Driver, FString& Error)
     AuthorityNowSeconds = AuthorityStep.EndServerSeconds;
     AuthorityNowMs = AuthorityBoundary.AtMs;
     bAuthorityStepOpen = false;
+    bSettlementStep = false;
     return PublishAuthorityClock(Error);
 }
 

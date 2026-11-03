@@ -4,6 +4,7 @@
 
 #include "../Development/LDDemoContentJson.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -2006,6 +2007,94 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthPrivacySchemaTest, "Lockdown.Rules
 bool FLDDemoGrowthPrivacySchemaTest::RunTest(const FString& Parameters)
 {
     return GrowthTestRunPrivacy(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAccountRetireAwaitsRewardTest, "Lockdown.Rules.DemoGrowthRetireAwaitsReward",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDAccountRetireAwaitsRewardTest::RunTest(const FString& Parameters)
+{
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated retirement world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    if (!Mode || !Public || !Driver || !Economy) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
+    Mode->GameState = Public;
+    Mode->MatchContext = {1, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    Mode->Combat = Driver;
+    Mode->Economy = Economy;
+    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
+    const FGuid Killer = FGuid::NewGuid();
+    const FGuid Stayer = FGuid::NewGuid();
+    // The killer's fatal hit was locked while he was in the match; he left before its reward was retried.
+    for (const FGuid& Id : {Killer, Stayer})
+    {
+        auto& Life = Mode->Lives.Add(Id);
+        Life.Kind = ELDVictimKind::Contender;
+        Life.Phase = Id == Killer ? ELDLifePhase::Left : ELDLifePhase::Unspawned;
+        Life.Life = 1;
+        Life.Revision = 2;
+    }
+    FString Error;
+    Economy->Match = Mode->MatchContext;
+    Economy->Roster = {Killer, Stayer};
+    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Economy->Roster, 300, Error)))
+    { AddError(Error); return false; }
+    FLDCommittedDeath Owed;
+    Owed.Key = {Mode->MatchContext.LedgerMatch, {ELDVictimKind::CampMember, FGuid::NewGuid(), 1}};
+    Owed.CreditOwner = Killer;
+    Owed.RewardBasis.bCreditOwnerEligibleAtDeath = true;
+    Driver->RetryRewards.Add(Owed);
+    World->Tick(LEVELTICK_TimeOnly, .025f);
+
+    // The reward the retry would mint into the killer's account at the next boundary.
+    const auto RetryMint = [&]()
+    {
+        const LDEconomy::FAccount* Account = Economy->Ledger.Account(Killer);
+        LDEconomy::FTransaction Mint;
+        Mint.Cause = LDEconomy::ECause::DeathReward;
+        Mint.BusinessKey = FGuid::NewGuid();
+        Mint.CommitBatch = Mode->AuthorityStep.StepSerial + 1;
+        Mint.Mint = 20;
+        Mint.Gold.Emplace(LDEconomy::FGoldChange{Killer, Account ? Account->Revision : 0, 20});
+        return Economy->Ledger.Prepare(Mint);
+    };
+    const auto RunTransactions = [&](int64 EndAtMs)
+    {
+        const bool Ran = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, EndAtMs) == ELDCommitReject::None
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
+                [&](const FLDGameplayWritePermit& Permit) { return Economy->RetireLeftAccounts(*Mode, Permit, Error); }, Error)
+            && Mode->FinishAuthorityStep(*Driver, Error);
+        if (!Ran) { AddError(FString::Printf(TEXT("Transactions boundary failed: %s"), *Error)); }
+        return Ran;
+    };
+
+    if (!RunTransactions(10)) { return false; }
+    const LDEconomy::FAccount* Account = Economy->Ledger.Account(Killer);
+    TestTrue(TEXT("A contender who left keeps his account open while a reward owed to him awaits its retry"),
+        Account && !Account->bRetired && !Economy->Retired.Contains(Killer));
+    TestTrue(TEXT("The owed retry can still be paid into that account"), RetryMint().IsSuccess());
+    TestTrue(TEXT("A present contender is never retired"),
+        Economy->Ledger.Account(Stayer) && !Economy->Ledger.Account(Stayer)->bRetired);
+
+    // The next boundary's DeathsAndRewards settled the retry; retirement then proceeds.
+    Driver->RetryRewards.Reset();
+    if (!RunTransactions(20)) { return false; }
+    Account = Economy->Ledger.Account(Killer);
+    TestTrue(TEXT("Once nothing is owed, the account retires through its ledger entry"),
+        Account && Account->bRetired && Economy->Retired.Contains(Killer));
+    TestTrue(TEXT("A retired account receives no later gold"),
+        RetryMint().Error == LDEconomy::EPrepareError::RetiredAccount);
+    return true;
 }
 
 #endif

@@ -76,8 +76,13 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         return false;
     }
     TGuardValue<bool> Advancing(bAdvancing,true);
-    while (Mode->IsGameplayWriteOpen(Match) && Mode->GetAuthorityNowMs()<ThroughMs)
+    while (Mode->IsGameplayWriteOpen(Match) && (Mode->IsCloseAwaitingSettlement() || Mode->GetAuthorityNowMs()<ThroughMs))
     {
+        if (Mode->IsCloseAwaitingSettlement())
+        {
+            if (!RunSettlementStep(Match,Error)) { return false; }
+            continue;
+        }
         const int64 Now=Mode->GetAuthorityNowMs();
         const int64 End=FMath::Min(Now+FMath::Min(MaxStepMs,ThroughMs-Now),NextDueMs(Now));
         Mode->ReleaseConsumedMotion();
@@ -146,10 +151,10 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
     }
     if (!Mode->IsGameplayWriteOpen(Match) && !RetryRewards.IsEmpty())
     {
-        // The result closed with a retryable reward still pending: it stays explicitly unpaid.
+        // No result locks over an owed reward, so only a fault closes the gate here: the reward stays explicitly unpaid.
         for (const auto& Fact : RetryRewards)
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_REWARD_UNPAID_AT_CLOSE victim=%s life=%u"),
+            UE_LOG(LogTemp,Error,TEXT("LD_REWARD_UNPAID_AT_FAULT victim=%s life=%u"),
                 *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life);
         }
         RetryRewards.Reset();
@@ -157,6 +162,32 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
     // After Close the observation owner may already have ended with the match; owner views still settle.
     if (Mode->IsGameplayWriteOpen(Match) && !Mode->Vision->PublishAuthority(Match,Error)) { return false; }
     return PublishOwnerViews(Error);
+}
+
+bool ALDCombatDirector::RunSettlementStep(const FLDMatchContext& Match, FString& Error)
+{
+    auto* Mode=Core();
+    const auto Admission=Mode->BeginSettlementStep(*this,Match);
+    if (Admission!=ELDCommitReject::None)
+    {
+        Error=FString::Printf(TEXT("Core refused the settlement step: %u."),uint8(Admission));
+        return false;
+    }
+    if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
+        {
+            if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+            return RunRewardRetries(Permit,Error);
+        },Error)
+        || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Close,[&](const FLDGameplayWritePermit& Permit)
+        { return Mode->ExecuteClosePhase(Permit,Error); },Error)
+        || !Mode->FinishAuthorityStep(*this,Error)
+        || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+        || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
+    {
+        if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+        return false;
+    }
+    return true;
 }
 
 bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -236,13 +267,7 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
     { Error=TEXT("Deaths require the current DeathsAndRewards permit."); return false; }
     if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
-    // A reward refused as retryable at the previous boundary gets its single second attempt first.
-    const TArray<FLDCommittedDeath> Retries=MoveTemp(RetryRewards);
-    RetryRewards.Reset();
-    for (const auto& Fact : Retries)
-    {
-        if (!CommitReward(Fact,true,Permit,Error)) { return false; }
-    }
+    if (!RunRewardRetries(Permit,Error)) { return false; }
     if (PendingDeaths.IsEmpty()) { return true; }
     // Every fact of this Effects set was locked before any of them is consumed.
     TArray<FLDCommittedDeath> Deaths=MoveTemp(PendingDeaths);
@@ -268,6 +293,27 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     for (const auto& Fact : Deaths)
     {
         if (!CommitReward(Fact,false,Permit,Error)) { return false; }
+    }
+    return true;
+}
+
+bool ALDCombatDirector::OwesRewardTo(const FGuid& Recipient) const
+{
+    const auto Owed=[&Recipient](const FLDCommittedDeath& Fact) { return Fact.CreditOwner==Recipient; };
+    return Recipient.IsValid() && (RetryRewards.ContainsByPredicate(Owed) || PendingDeaths.ContainsByPredicate(Owed));
+}
+
+bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Mode=Core();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
+    { Error=TEXT("Reward retries require the current DeathsAndRewards permit."); return false; }
+    // A reward refused as retryable at the previous boundary gets its single second attempt first.
+    const TArray<FLDCommittedDeath> Retries=MoveTemp(RetryRewards);
+    RetryRewards.Reset();
+    for (const auto& Fact : Retries)
+    {
+        if (!CommitReward(Fact,true,Permit,Error)) { return false; }
     }
     return true;
 }
