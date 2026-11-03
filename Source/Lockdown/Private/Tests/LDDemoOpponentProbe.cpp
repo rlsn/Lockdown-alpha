@@ -103,6 +103,10 @@ struct FLDOpponentProbeTrack
     int64 MaxConsumed = 0;
     // Match ms at the first sample that saw a consumed choice; the D10 opening pick resolves right after spawn.
     int64 OpeningPickMs = -1;
+    // Development only: XP at the last sample before the circle opened, and sampled time spent dead or recovering
+    // under the approved regeneration. A stuck AI shows neither.
+    int64 DevXP = 0;
+    int64 DevRecoverOrDeadMs = 0;
     int64 MaxGold = 0;
     int32 MaxItems = 0;
     FString Gear;
@@ -121,7 +125,7 @@ public:
     bool Passed = true, Written = false, StartSent = false, ReturnSent = false;
     bool RosterKept = true, ReadsKept = true;
     uint32 FirstGeneration = 0;
-    int64 RespawnMs = 0, NextSampleMs = 0, StartedAtMs = -1;
+    int64 RespawnMs = 0, DevelopmentMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
     // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
     int32 Shots = 0;
@@ -289,7 +293,9 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const int64 Now = Mode.GetAuthorityNowMs();
     if (Now < NextSampleMs) { return; }
     NextSampleMs = Now + SampleMs;
-    if (StartedAtMs < 0) { StartedAtMs = Mode.ReadPublicMatch().StartedAtMs; }
+    const FLDPublicMatchView Public = Mode.ReadPublicMatch();
+    if (StartedAtMs < 0) { StartedAtMs = Public.StartedAtMs; }
+    const bool bDevelopment = Public.Phase == ELDMatchPhase::Development;
     // No backfill or replacement: the same three adapters for the same three contenders throughout.
     TSet<FGuid> Live;
     for (TActorIterator<ALDOpponentController> It(&World); It; ++It)
@@ -348,6 +354,12 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         else { Track.bHasFeet = false; }
         ReadGrowth(Mode, Track);
         if (Track.OpeningPickMs < 0 && Track.MaxConsumed >= 1) { Track.OpeningPickMs = Now - StartedAtMs; }
+        if (bDevelopment)
+        {
+            Track.DevXP = Track.MaxXP;
+            const bool bRecovering = Life.Phase == ELDLifePhase::Dead || AI->GetReportedReason() == ELDOpponentReason::Recover;
+            Track.DevRecoverOrDeadMs += bRecovering ? SampleMs : 0;
+        }
         Track.Requests.Add(TPair<int64, uint32>(Now, Body));
         while (Track.Requests.Num() > 1 && Track.Requests[0].Key < Now - RequestWindowMs) { Track.Requests.RemoveAt(0); }
         Track.MaxWindowRequests = FMath::Max(Track.MaxWindowRequests, Body - Track.Requests[0].Value);
@@ -394,7 +406,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
     bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
-    bool OpeningPicks = true;
+    bool OpeningPicks = true, DevGrowth = true;
     uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0;
     uint32 PausedHolds = 0, PausedHoldsKept = 0, PausedHoldsBroken = 0, Challenges = 0, ChallengesKept = 0, ChallengesBroken = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
@@ -428,6 +440,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         QuietWhileDead &= Track.bQuietWhileDead;
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
         OpeningPicks &= Track.OpeningPickMs >= 0 && Track.OpeningPickMs <= OpeningPickWithinMs;
+        // An early rival fight at level one can leave a body waiting on regeneration for most of development; that is
+        // the approved pacing, not a stall. Without XP, at least half of development must have been dead or recovering.
+        DevGrowth &= Track.DevXP > 0 || 2 * Track.DevRecoverOrDeadMs >= DevelopmentMs;
         PausedHolds += T.PausedHolds;
         PausedHoldsKept += T.PausedHoldsKept;
         PausedHoldsBroken += T.PausedHolds - T.PausedHoldsKept - T.PausedHoldsReleased;
@@ -443,6 +458,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("xp"), double(Track.MaxXP));
         Value->SetNumberField(TEXT("choices"), double(Track.MaxConsumed));
         Value->SetNumberField(TEXT("opening_pick_ms"), double(Track.OpeningPickMs));
+        Value->SetNumberField(TEXT("dev_xp"), double(Track.DevXP));
+        Value->SetNumberField(TEXT("dev_recover_or_dead_ms"), double(Track.DevRecoverOrDeadMs));
         Value->SetNumberField(TEXT("gold_max"), double(Track.MaxGold));
         Value->SetNumberField(TEXT("items_max"), Track.MaxItems);
         Value->SetStringField(TEXT("gear"), Track.Gear);
@@ -487,6 +504,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
     Check(OpeningPicks, TEXT("D10: every AI resolved its opening pick within ten seconds of the start"));
+    Check(DevGrowth, TEXT("Every AI gained experience before the circle opened, unless it spent at least half of development dead or recovering"));
     // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
     Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
         : !PausedHoldsBroken && PausedHoldsKept ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
@@ -522,12 +540,14 @@ bool FLDDemoOpponentProbe::Tick()
     if (!PC || !World || !Public) { return true; }
     if (!Content)
     {
-        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || Content->Get().Parameters.RespawnMs <= 0)
+        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || Content->Get().Parameters.RespawnMs <= 0
+            || Content->Get().Parameters.DevelopmentMs <= 0)
         {
-            Check(false, TEXT("Approved content with a positive respawn delay loads"));
+            Check(false, TEXT("Approved content with positive respawn and development durations loads"));
             return Finish();
         }
         RespawnMs = Content->Get().Parameters.RespawnMs;
+    DevelopmentMs = Content->Get().Parameters.DevelopmentMs;
     }
     const bool bHost = Role == TEXT("Host");
     if (bHost && !Mode) { return true; }
