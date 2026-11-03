@@ -2,17 +2,18 @@
 
 本报告面向 v0.10.0 Demo 的实施与首次实际试玩。产品约束来自
 [App Spec](../APP_SPEC.md)；**2026-11-02 用户已批准本文 §1–14 的既有完整首版内容与数值方案，
-作为首次实际试玩输入。** 这包括现有目录、公式、精度与参数方案，
-不是当前运行实现或平衡验收的完成声明。
-核对源码的基线为 `fa11d09a762bccadf495191072e222dd158fc014`。
+作为首次实际试玩输入。** 这包括现有目录、公式、精度与参数方案；批准不等于平衡验收通过。
+批准值的唯一运行输入是 `SourceData\Demo\content.json`（经 `Scripts\SyncDemoContentData.py` 生成载荷与原生契约），
+本文表格必须与其一致；发现不一致时修正后经同一 Sync 重新生成，不在代码里另设默认值。
 
-本文只维护本模块最终推荐方案、实施约束和验收边界，不保存放弃方案或研究过程记录。
-实现时按已批准的现有方案，由同一数据链生成并验证载荷；后续新增或改变的玩法仍须明确审查，
-不能直接把本报告中的表格视为已经生效的 SourceData。
+本文只维护本模块最终方案、实施约束和验收边界，不保存放弃方案或研究过程记录。
+后续新增或改变的玩法仍须明确审查，并由同一数据链生成和验证载荷。
 
-2026-11-02 批准的校园换皮第一批仅把中文显示名、术语和文案换皮写入文档；本节既有内容 ID、显示键及全部已批准首版
-数值保持不变，不修改 SourceData、载荷或资产。世界观与玩家显示术语只以 App Spec §1 为准。
-后续校园构筑扩展集中在 §15：方向已批准，建议数值仍须逐批复核，尚未进入运行输入。
+2026-11-02 批准的校园换皮第一批只改中文显示名、术语和文案：既有内容 ID、显示键及全部已批准首版
+数值保持不变，显示名与说明已写入 `content.json` 的 `display` 行。世界观与玩家显示术语只以 App Spec §1 为准。
+后续校园构筑扩展集中在 §15：方向已批准，建议数值仍须逐批复核，不在当前运行输入中。
+其中首个扩展批次的条目选择（主动 老妈的拖鞋、风骚走位、夺命连环掏、屁遁，被动 视力5.0、急了，装备 弹弓）
+是待用户决定的提案，未获批准、未实现，不属于当前目录、SourceData 或运行输入。
 
 ## 1. 不得改动的产品边界
 
@@ -351,7 +352,8 @@ ReplaceIfNotWeaker替换，不变成240点叠加盾。独立CD不豁免控制、
 
 ### 6.1 经验与击杀
 
-`XP.Start=0`，`XP.MaxLevel=10`、`CHOICE.MaxCount=10` 是 Spec 固定值。
+`XP.Start=0`，`XP.MaxLevel=10`、`CHOICE.MaxCount=10` 是 Spec 固定值
+（`content.json` 的 `progression.xp_start / max_level / max_choices`，另有 `max_skill_rank=3`、`active_slots=2`、`equipment_slots=2`）。
 XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的第二账。
 
 | 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
@@ -359,15 +361,18 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 | `XP.Threshold[L]` | 0 | 80 | 180 | 300 | 440 | 600 | 780 | 980 | 1200 | 1440 |
 | 该级到下级 XP | 80 | 100 | 120 | 140 | 160 | 180 | 200 | 220 | 240 | 不再升级 |
 
-开局进入发育期时先有一次机会，之后逐个跨越阈值各新增一次，最高十次；升十级以后继续记录合法奖励的累计XP，但不能生成第十一次选择。
+阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=80`、`XP.IncreasePerLevel=20`（`FORMULA.XPToNext`）一致。
+比赛开始时（成长 `BeginMatch`，即 Progression 提供者 Prepare，早于发育期开放）每名参赛者（真人与 AI）获得 1 号机会并固定其首张三选一；
+之后每达到 k 级授予 k 号机会，已获机会数恒等于等级，最高十次；复活不再授予，新局重建。真人的开局面板在本局首次显示该 Offer 时自动打开一次，不代选。
+升十级以后继续记录合法奖励的累计XP，但不能生成第十一次选择。
 累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和、不转金币；UI十级显示MAX而非暗示11级。
 全部奖励归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
 
 | 奖励参数/公式 ID | 已批准值，整数 | 样例与归属 |
 | --- | --- | --- |
-| `REWARD.PlayerXP` | $100+20(L_{victim}-1)$ | 击杀Lv1得100XP、Lv10得280XP；以致死瞬间受害者等级快照 |
-| `REWARD.PlayerGold` | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；没有助攻/范围奖励 |
-| `CAMP.Low.RewardXP/RewardGold` | 每只40XP/30金币 | 整组80XP/60金币，首个完整低营即可首次升级 |
+| `REWARD.PlayerXP`（`.Base=100`、`.PerLevel=20`） | $100+20(L_{victim}-1)$ | 击杀Lv1得100XP、Lv10得280XP；以致死瞬间受害者等级快照 |
+| `REWARD.PlayerGold`（`.Base=80`、`.PerLevel=10`） | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；没有助攻/范围奖励 |
+| `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只40XP/30金币 | 整组80XP/60金币，首个完整低营即可首次升级 |
 | `CAMP.High.RewardXP/RewardGold` | 每只160XP/120金币 | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
 
 不保留旧 PvP 配对冷却、总XP上限、固定击杀次数池。合法新生命可继续产生奖励；
@@ -461,7 +466,7 @@ Root 只会暂时禁止运动，不把返回订单变成追击。沿合法路径
 主动满槽的新主动分别展开两个明确替换后果。属性选择在此模型只按总次数归并：
 本目录已另证五种增量都不影响候选合法性且永远有效，才允许这种归并，不能拿它验证有属性封顶的其他目录。
 
-| 项目 | 本轮离线结果 |
+| 项目 | 离线结果 |
 | --- | --- |
 | 各层状态数，消费0..9次 | 1、7、28、86、218、476、921、1605、2556、3766 |
 | 实际生成候选前的状态-次数对 | 9664 |
@@ -472,8 +477,9 @@ Root 只会暂时禁止运动，不把返回订单变成追击。沿合法路径
 | 双持装备多重集合 | 36种（空、七种单件、28种两件含重复）；五种属性连续十次均仍有正增量 |
 
 这证明的是目录/状态模型的合法性，不证明 UI、随机质量或真实服务器 offer 去重。
-运行若仍遇到不足三候选，应保留XP/机会并明确 `CandidateCoverageFailure`，不能返回成功空组、
-复制同一张卡或自动代选。
+运行时 `ALDDevelopmentDirector::BeginMatch` 先检查一级空构筑至少有三个合法候选，
+每次准备新队首时若合法池不足三项，以 `DataInvalid` 拒绝整次变更（XP、等级、机会均不提交）；
+不返回成功空组、复制同一张卡或自动代选。
 
 ### 7.2 普攻开荒与战力样例
 
@@ -605,69 +611,62 @@ S00/S03购物前HP分别704.52/709.29；期间野怪一直按首击后共同反�
 
 ## 9. 现有工程的真实复用边界
 
-以下是独立内容工程研究核对源码后的结论，不是把旧机制批准进入 Demo。
-引用行号均对应报告开头的基线；`Public`/`Private` 简写以 `Source\Lockdown` 为根。
+下表列出当前代码中消费本报告内容的落点（`Public`/`Private` 简写以 `Source\Lockdown` 为根）。
+旧 V07/V08/B84 目录、`LDCharacterBuild`、`LDInventoryTypes`、`LDGearRules`、`LDV08*`、`LDContent*`、`LDTacticalCatalog`、
+旧营地/Sentinel Actor 及其测试与生成脚本已按[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)删除，不作为现状或数值来源。
 
-| 证据 | 真实文件与符号 | 对本方案的约束 |
+| 证据 | 当前文件与符号 | 对本方案的约束 |
 | --- | --- | --- |
-| E01 | `SourceData\Catalogs\V08\catalog.schema.json:19–22,56–58,66–172,182–185`；`Scripts\SyncB84Data.py:15–55,70–104` | 当前强制 52 能力、80 物品、20 配方、18 modifier、9 preset；52 能力全部是 learned active，不能证明角色学习被动已具备 |
-| E02 | `Scripts\CatalogTools.py:8–31,34–116`，尤其 `read_json:13–17` | 可复用规范编码/重复ID/原生映射；reader拒显式NaN/Infinity常量，但普通数值先变float会丢词法精度，且1e309可先变inf，须改造。schema验证器也仅支持显式子集 |
-| E03 | `Public\Development\LDCharacterBuild.h:8–69,106–145`；`Private\Development\LDCharacterBuild.cpp:20–56,92–137,162–211` | 六维属性、15 级旧曲线、职业起手技能、点数/等级门槛及禁止降 rank 均需替换；旧 wire 的 62 ranks、6 actions、11 bindings、5-bit 属性不能直接塞入新模型 |
-| E04 | `Public\Inventory\LDInventoryTypes.h:8–73`；`Private\Combat\LDTacticalRequest.cpp:2–25`；`Private\Framework\LDPlayerController.cpp:563–580` | 保留物理实例、revision、来源重解析与回执；定义 ID 当前最多 63 UTF-8 bytes。坐标 wire 自设上限与 slot 位宽须跟世界/新协议一起修改 |
-| E05 | `Private\Combat\LDTacticalCatalog.cpp:16–61`；`Public\Combat\LDTacticalCatalog.h:8–26` | importer 不解析 `effects`；RankKey 是 FString，Magnitudes 才是 int32 数组。每技能只接受一个 rank_scaling 键，并把其数值转成 int32；仅改 JSON/SHA 不会改变硬编码效果 |
-| E06 | `Private\Inventory\LDEquipmentCatalog.cpp:15–59`；`Private\Inventory\LDGearRules.cpp:4–78` | 当前装备按部位、六维预算和特定武器类型派生；`active_mana_cost` 没有通用投影。任意新装备字段都必须有真实消费者 |
-| E07 | `Public\Combat\LDTacticalRules.h:7–41`；`Private\Combat\LDTacticalRules.cpp:4–53`；`Private\Combat\LDCombatDirector.cpp:73–94,261–389` | 有物理/魔法伤害、状态矩阵、减伤后屏障和回复余数底座；现有护甲为点、MR 为比例，没有完整 AP/暴击/冷却属性模型。`Damage` 返回 Contact，不能直接当吸血所需 HP 损失 |
-| E08 | `Private\Combat\LDContentActions.cpp:34–113`；`LDContentRelease.cpp:22–150`；`LDV08Catalog.cpp:12–58` | 多数效果按技能名/operation 分支写死，部分先分配地表环境。应抽取所需伤害、几何、状态原语，不继承整套 Fire/Wet/环境玩法 |
-| E09 | `Public\Combat\LDCombatDirector.h:16–154`；`Private\Combat\LDContentGeometry.cpp:64–71`；`LDContentLifecycle.cpp:60–68,106–107` | source/caster、target life、CreditOwner 和预算身份已有部分区分；未形成完整统一 EffectContext。不同旧持续效果死亡策略不同，不能笼统宣称全部保留或全部取消 |
-| E10 | `Private\Development\LDV08Loadout.cpp:22–76`；`Private\Combat\LDContentActions.cpp:39–40,82–109`；`LDV08Modifiers.cpp:12–43` | 来源失效清入口但保留 learned cooldown；装备已有实例 ReadyAt 与 owner family 锁思想。旧六共享槽/四 accessory/18 modifier 必须退出 |
-| E11 | `Private\Framework\LDGameMode.cpp:388–409,437–452,522–537`；`Private\Inventory\LDInventoryDirector.cpp:78–99` | 当前仍扣死亡金币/掉落部分物品；最大资源变更已有 min 裁剪可改造。角色技能 cooldown 未整体重建不等于基础普攻/proc/所有来源已满足新死亡规则 |
-| E12 | 旧营地/Sentinel Actor 已删除；营地只保留 `Public\World\LDCampDecision.h` 纯决策 | 旧三组营地各 12 次、PvP XP-only/配对冷却/累计上限、Sentinel 同批最大伤害获奖都不是新五组两档/最后一击规则，不作 N03 模板 |
-| E13 | `Public\Economy\LDEconomyLedger.h:7–89`；`Private\Economy\LDEconomyLedger.cpp:6–131`；`LDEconomyDirector.cpp:19–34,111–136` | int64、一次性 receipt、同 ID 异 terms 拒绝、原子预检和 Mint/Burn 可复用；全局有限奖励池在上层，不应以巨大预算代替删除限制 |
-| E14 | `LDEconomyLedger.cpp`；`LDInventoryTypes.cpp:36–88` | 原子账本与实例/容量机制保留；装备 paid creation 骨架（Acquisition）已随经济闭包退役，旧书店报价/会话已随旧 Vendor 退役，因此没有目标两装备买卖；账本 UnitWeight 还会加载旧目录，须拆掉隐藏依赖 |
-| E15 | `Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp:113–119,239–272,456`；`LDRegionBootstrap.cpp:79–94` | Bootstrap 无条件依赖旧 Character/V07 目录与四区域；新资产签名链建立前，删除输入会直接破坏导入 |
-| E16 | `Source\Lockdown\Lockdown.Build.cs:10–22`；`Private\Framework\LDGameMode.cpp:144–179`；`Config\DefaultGame.ini:19–26,36–38`；`Scripts\PackageWin64.ps1:7–20` | 启动、stage、整 Generated Cook 和七张旧地图列表都必须切换，不能只改变可见菜单 |
-| E17 | 旧 V09/B91 地图与物件生成链已删除 | 其 96 POI、117 route、24 spawn、144 building、36 service 等硬断言不迁；唯一 Demo 世界由 `Scripts\SyncDemoWorldData.py` 前置链提供 |
-| E18 | `Scripts\TestB84Import.py:14–134`；`Private\Tests\LDTacticalRulesTests.cpp:7–61`；`LDV08LoadoutTests.cpp:11–70`；`Scripts\RunTests.ps1`、`CheckRuleReport.py` | 可抽取拒绝/来源/原子性测试；原生用例按明确集合核对，但旧 52/80/62/6/11 断言不能保留为新 Demo 完成标准 |
+| E01 | `SourceData\Demo\content.json`、`content.schema.json`、`native_ids.json` | 唯一作者输入：1 角色、3 主动、3 被动、5 属性卡、7 装备、2 野怪、成长/奖励/商店参数与政策；没有第二作者源 |
+| E02 | `Scripts\DemoContent.py`、`Scripts\SyncDemoContentData.py`、`Scripts\CatalogTools.py` | reader 以 `Decimal`/整数解析数值并拒绝 NaN/Infinity、bool 冒充整数与超精度，再转规范定点树交 `CatalogTools.encode`；Sync 生成载荷、manifest 与原生契约并可 `--check` |
+| E03 | `Public\Development\LDDemoContentCatalog.h`、`LDDemoContentDefinitions.h`、`LDDemoContentIds.h`；`Private\Development\LDDemoContentImport.cpp`、`LDDemoContentValidation.cpp`、`LDDemoContentContract.h` | `ULDDemoContentCatalog`（DataAsset）加载不可变 `FLDDemoContentSnapshot` 并按根摘要核验；原生 ID 只追加（技能 62–67、装备 99–105），旧 0–61/0–98 编号不复用 |
+| E04 | `Public\Development\LDProgressionRules.h`、`LDDevelopmentDirector.h`、`LDGrowthProtocol.h` | `FLDGrowthBuild`（等级、Q/W 主动、被动 rank、属性卡计数）、XP→等级、合法池/三选一抽样、替换遗忘；定义 ID 线格式为 63 字节 `FLDDefinitionWire` |
+| E05 | `Public\Combat\LDAttributeProjection.h`、`Public\Combat\LDTacticalRules.h` | 单一属性投影（含 AP/暴击/Haste/射程）与伤害、普攻节拍、冷却时长、Root/屏障/回复规则；伤害结果分离 `DamageP2 / ShieldAbsorbedP2 / HPLostP2` |
+| E06 | `Private\Combat\LDCombatActions.cpp`、`LDCombatEffects.cpp`、`LDCombatSources.cpp`、`LDCombatLife.cpp` | 按批准 effect op（`ELDDemoEffectOp`）执行主动/被动/装备主动；来源冷却轨道 `FLDCombatTrack`（每装备定义最多两条 `IssuedCooldownId`）与构筑安装 `PrepareBuildChange/ApplyBuildChange` |
+| E07 | `Public\Economy\LDEconomyLedger.h`、`LDEconomyDirector.h` | int64 账本、精确条款与预期修订、原子 Prepare/Apply、审计前缀压缩/复算；死亡奖励按 DeathKey 一次结算，无全局有限奖励池 |
+| E08 | `Public\Inventory\LDVendorDirector.h`、`LDInventoryDirector.h` | 唯一商店的会话/报价、一次一件 Buy/Sell、两槽投影；卖价取目录预算的 `SellGold` |
+| E09 | `Public\World\LDCampDirector.h`、`LDCampLifecycle.h`、`LDCampDecision.h` | 五组两档营地、逐成员生命、清空后刷新、回位重置；奖励只经核心致死事实，不另发清营奖 |
+| E10 | `Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp`、`Source\Lockdown\Lockdown.Build.cs`、`Config\DefaultGame.ini`、`Scripts\PackageWin64.ps1` | Bootstrap 生成/核验 `DA_DemoContent`；RuntimeDependencies 只 stage `Content\Lockdown\Data\Demo` 的 `demo_content.json/manifest.json/world.json`；打包只用 Demo 地图 |
+| E11 | `Private\Tests\LDDemoContentCatalogTests.cpp`、`LDGrowthRulesTests.cpp`、`LDAttributeProjectionTests.cpp`、`LDCombatSourceRulesTests.cpp`；`Scripts\TestDemoContentImport.py`、`TestDemoApprovedImport.py`、`RunTests.ps1`、`CheckRuleReport.py` | 输入拒绝、批准内容导入、成长/账本、属性投影与来源规则的现有检查入口；旧 52/80/62/6/11 数量断言已删除 |
 
 ### 9.1 效果能力不是一个“法术”标签
 
-原生已有 Attack/Skill/Item/Move/Dash/Service 的允许性检查，以及 Stun、Silence、
-Mute、Root、Disarm 等不同控制。伤害类型、角色/装备来源、目标形式、暴击许可、
-触发许可与控制禁止动作必须分别投影。物理技能仍是角色 Skill 来源，不因伤害为物理而
-绕过 Silence；装备主动仍检查 Item/Mute。未进入首版目录的控制与效果无需作为可玩内容保留。
+当前唯一控制状态是 Root（`EFFECT.Root`，按 `POLICY.RootBlocks` 只禁止 Move/Dash）；旧的 Stun、Silence、
+Mute、Disarm 等控制已随旧战斗链删除，未进入首版目录的控制没有运行实现。伤害类型、角色/装备来源、目标形式、暴击许可、
+触发许可与控制禁止动作分别投影；物理技能仍是角色 Skill 来源，装备主动仍是 Item 来源。
 
-本目录的直接伤害、治疗/屏障与控制原语可以从 E07–E10 抽取；法强、通用暴击/冷却属性、
-角色被动三级、属性卡和完整效果程序需要改造/新增。若使用伤害触发效果，应新增统一结果投影
-`raw / mitigated / shield_absorbed / hp_lost`；不得把当前 Contact 当作实际掉血。
-每个内容字段在导入投影与处理器中都要有消费者，未知字段、未知操作或缺少处理器应拒绝，
+本目录的直接伤害、治疗/屏障与控制原语、法强、通用暴击/冷却属性、角色被动三级与属性卡
+由 E04–E06 的 typed 定义与处理器执行。伤害触发效果使用统一结果投影
+（`DamageP2 / ShieldAbsorbedP2 / HPLostP2`）；吸血等只读实际掉血，不把接触当作掉血。
+每个内容字段在导入投影与处理器中都要有消费者，未知字段、未知操作或缺少处理器被拒绝，
 不允许成功加载但只显示一个无法兑现的按钮。
 
 ## 10. 数据、来源与提交契约
 
 ### 10.1 唯一作者域与生成映射
 
-建议新增一个小的 `SourceData\Demo` 作者域：`content.json`、严格 `content.schema.json`
-及稳定 `native_ids.json`。首版目录足够小，角色、属性/公式、三级能力、装备、成长和营地可放在
-同一内容文件内；没有必要预先拆出七套独立生成管线。地图坐标仍来自世界模块自己的作者域，
+`SourceData\Demo` 作者域由 `content.json`、严格 `content.schema.json`
+及稳定 `native_ids.json` 组成。角色、属性/公式、三级能力、装备、成长和营地放在
+同一内容文件内，只有一条生成管线。地图坐标来自世界模块自己的作者域（`SourceData\World`），
 这里只引用五个营地、商店、圆圈和出生点的稳定锚点。
 
-| 作者段与稳定键 | 必须投影的内容 | 目标消费者/拟增产物 |
+| 作者段与稳定键 | 必须投影的内容 | 当前消费者/生成产物 |
 | --- | --- | --- |
-| `character`、`UNIT.*`、`STAT.*`、`FORMULA.*` | 基值、成长、完整量纲、边界、普攻、回复/伤害/冷却公式 ID | 改造 `FLDCharacterBuild` 与同一战斗属性投影，UI/AI 只读 |
+| `character`、`UNIT.*`、`STAT.*`、`FORMULA.*` | 基值、成长、完整量纲、边界、普攻、回复/伤害/冷却公式 ID | `FLDGrowthBuild` 输入 Combat 的单一属性投影（`LDAttributeProjection`），UI/AI 只读 |
 | `abilities`、`ABILITY.*` | 每项显式三份完整 rank；target、windup、费用/CD、各 typed effect、来源/生命周期 | 统一技能目录投影和所选原生 handler，不只映射一个 RankKey |
-| `attributes`、`CHOICE.*`、`XP.*` | 正确整数阈值、候选权重/条件、永久增量、最多十次机会（含开局一次） | 现有成长域新增 server-owned offer，不允许客户端上传任意 Build |
-| `equipment`、`ITEM.*`、`SHOP.*` | 价格、售价公式、属性、0/1 主动入口、被动、重复/堆叠/冷却族 | 两件真实实例、Vendor/账本/战斗派生，不建立影子背包 |
-| `camps`、`CAMP.Low.*`、`CAMP.High.*`、`REWARD.*` | 构成/战斗/每生命收益/清空刷新/回位，五个锚点引用 | 世界/营地域产生致死事件，单一奖励提交 |
+| `attributes`、`CHOICE.*`、`XP.*`、`progression` | 正确整数阈值、候选权重/条件、永久增量、最多十次机会（含开局一次） | `ALDDevelopmentDirector` 的服务器 Offer 与 `LDProgressionRules`；客户端不能上传任意 Build |
+| `equipment`、`ITEM.*`、`SHOP.*` | 价格、预算卖价、属性、0/1 主动入口、被动、重复/堆叠/冷却族 | `ALDVendorDirector`/`LDEconomy::FLedger` 的两件真实实例与 Combat 来源，不建立影子背包 |
+| `camps`、`CAMP.Low.*`、`CAMP.High.*`、`REWARD.*` | 构成/战斗/每生命收益/清空刷新/回位，五个锚点引用 | 营地域与 Combat 产生致死事实，`ALDEconomyDirector::CommitDeathReward` 单一奖励提交 |
 | `timing`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` | 秒制作者参数及公式；不混入地图坐标或当前 deadline | 现有对局时钟、生命与占领域，不创建第二时钟 |
-| `identity` | schema、原生定义 ID、handler/projection revision、世界合同摘要 | `Content\Lockdown\Data\Demo\demo_content.json`、manifest、拟增 `LDDemoContentContract.h` |
+| `identity` | schema、原生定义 ID、handler/projection revision、世界合同摘要 | `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json`、生成的 `Private\Development\LDDemoContentContract.h` |
 
-沿已有 JSON → 原生类型 → DataAsset → Bootstrap Validate 方式，建议用一个
-`ULDDemoContentCatalog` 替换旧玩法目录入口；它只拥有不可变内容定义，不拥有第二份角色/钱/HP。
-拟增的 Demo Sync 必须同时生成载荷、manifest 和 contract。Bootstrap 不仅核对摘要，
+沿 JSON → 原生类型 → DataAsset → Bootstrap Validate 方式，`ULDDemoContentCatalog`（`DA_DemoContent`）
+是唯一玩法目录入口；它只拥有不可变内容定义，不拥有第二份角色/钱/HP。
+`Scripts\SyncDemoContentData.py` 同时生成载荷、manifest 和 contract。Bootstrap 不仅核对摘要，
 也核对保存资产的全部派生字段。改变每个 rank 的效果/系数/费用时，实际原生计算结果必须变化。
 
-原生枚举不能重排或复用已占编号。当前 `ELDSkill` 为 0–61、`ELDItemKind` 已到 98；
-退出的旧身份可以迁为保留编号/墓碑，**不因此保留旧处理器或旧目录**。
+原生枚举不能重排或复用已占编号。旧技能 0–61、旧物品 0–98 编号保留不复用，
+Demo 技能使用 62–67、装备使用 99–105（`LDDemoContentIds.h`）；**不因此保留旧处理器或旧目录**。
 本报告的内容 ID 使用小写 ASCII、长度不超过当前 63-byte 限制，避免 FName 大小写别名。
 新 schema 和 wire 是独立技术身份，不以产品版本号或 `RulesVersion >= 7` 选择所有新行为。
 
@@ -689,13 +688,12 @@ Generation/参赛生命代次Life仍为uint32，原生身体/效果GUID等不同
 负周期/非正重复间隔、不可解析引用、无处理器、错 rank 数与数值溢出。
 失败不得更新任何产物或部分投影，也不得丢掉坏来源后返回“成功”的构筑。
 
-`read_json`不能原样承担新精度合同：原始 `0.0100000000000000001` 若先被Python float读成.01，
-之后再 `Decimal(str(value))` 已无法发现超精度；`1e309`也可能在reader阶段先变inf。
-因此在任何float转换前保留十进制词法/Decimal，按字段做有限性、范围及P2/R4/Sec的精确可表示检查。
-schema数值类型谓词须适配这个作者阶段；随后生成只含规范定点整数、必要有界比率分子/分母、
+作者 reader（`Scripts\DemoContent.py`）以 `parse_float=Decimal` 读取 JSON，在任何 float 转换前保留十进制词法，
+按字段做有限性、范围及P2/R4/Sec的精确可表示检查；原始 `0.0100000000000000001` 这类超精度和 `1e309` 不会先被 float 吞掉。
+随后生成只含规范定点整数、必要有界比率分子/分母、
 字符串/布尔/结构的原生投影。`CatalogTools.encode`只接规范化树，不直接序列化不支持的Decimal。
 大整数不得经double取回；相应字段按显式整数wire或十进制字符串解析。
-输入拒绝测试必须包含上述超精度/指数溢出原文，而不只对已解析float做IsFinite。
+输入拒绝测试（`Scripts\TestDemoContentImport.py`）包含上述超精度/指数溢出原文，而不只对已解析float做IsFinite。
 
 ### 10.2 能力身份、冷却债务与快照
 
@@ -738,7 +736,7 @@ source/绑定/target/距离/MP/CD等动作合法性校验。包括AttackUnit、A
 
 本局该owner+角色技能定义确无历史记录时，首次合法学习在成长Prepare/Commit中准备并发行唯一第一条冷却记录；
 已有记录的重学/升级/换槽复用原记录和结束时间，learned来源不发行第二条。
-对装备定义，确无任何已签发轨道的空集合，首次合法购买在准备阶段拟建第一份IssuedCooldownId，成交才发布。
+对装备定义，确无任何已签发轨道的空集合，首次合法购买在准备阶段准备第一份IssuedCooldownId，成交才发布。
 已有轨道时，先绑定仍未到期的未绑定债务，按ReadyAt降序、稳定ID打破平局；
 没有这类债务才使用已到期空轨道。只有已有一份轨道绑定在真实持有的第一件装备、
 且本次是合法购买第二件时，才准备第二份；不能以新实例、售出解绑或换槽冒充“无历史首次获取”。
@@ -784,7 +782,7 @@ Max同比后积分余数仍是原资源点的未入账小量，不随Max放大�
 不囤积未来回复；死亡/新life清除瞬时积分余数。这不是第二份可写HP/MP或另一时钟。
 
 奖励以 HP 从正变零的唯一致死事实为基础。XP、金币和派生升级机会应先同时 Prepare，
-在同一可去重提交边界兑现，不能先改 Ledger 再执行可能失败的 `AwardXP`。
+在同一可去重提交边界兑现（`ALDEconomyDirector::CommitDeathReward`），不能先改 Ledger 再执行可能失败的成长准备。
 来源 Pawn 已死但所属参赛者仍在局内，不影响已合法释放效果的奖励归属；无合法所有者则不发奖励。
 参赛者离局不是死亡，不发离开奖励。回位只是存活生命的 reset，不发奖、不创建新获奖生命。
 
@@ -793,110 +791,42 @@ Max同比后积分余数仍是原资源点的未入账小量，不随Max放大�
 极长局如果碰到技术整数/累计审计边界，必须明确失败并记录，不能 wrap、静默饱和或声称已正常发奖；
 不以预设超大预算、NPC 钱包或刷新轮数限制冒充无限循环。
 
-## 11. 删除、复用与实施先后
+## 11. 旧实现的退出
 
-**实施状态：** 本节列出的删除闭包（架构 D01–D32）已在当前集成分支完成，删除前均经 C3/C4 核验；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。下文保留为设计时的复用与闭包说明，其中“后续实施”“待/先/再删”等表述指当时的实施顺序，不再是待办。
-
-### 11.1 组件处置
-
-| 处置 | 真实文件组/符号 | 实施要求 |
-| --- | --- | --- |
-| 原样复用机制 | `CatalogTools::encode/rows_by_id/native_ids`；`LDTactical::FState::Has/Mask`；match/life/token/revision/epoch 查验 | encode只消费规范化原生树；保留确定性、到期比较、来源与请求边界 |
-| 改造复用 | `CatalogTools::read_json` 与 schema 数值类型/字段检查 | 在float之前保留Decimal/词法，精确验单位/精度/范围后转定点；编码阶段与作者校验阶段分开 |
-| 改造复用 | `LDCharacterBuild`、`LDDevelopment::Valid/Prepare/AwardXP`、`LDV08::Project/InvalidateSources` | 改为 MOBA 属性、十级十选择（含开局一次）、遗忘和 server offer；纯投影保留，N04 新建真实成长提供者，不恢复旧站点 Actor 或并行另一份 Build |
-| 改造复用 | `FLDInventory`、`LDInventoryDirector::Initialize/Changed/EndLife`、`LDInventory::Fits/Valid/Remove` | 两物理装备、死亡保留、原子移除来源；退出 weight/多部位/书籍/消耗品，不只是 HUD 缩格 |
-| 抽取并改造 | `FLedger::Commit`、库存实例/容量；同名 `ALDVendorDirector` 新建 | 遵守“先分配→账本提交→Publish”（旧 Acquisition 服务已随经济闭包退役，不作抽取源）；会话/报价/回执按合同新建（旧书店 Vendor 已退役）；新增出售，原书店/获取系统不作第二购买路径 |
-| 抽取并改造 | `LDEconomy::FLedger::Commit/Reconcile` 与 `LDInventoryTypes::UnitWeight` | 保留账本预检/原子性/身份/审计，移除定义合法性经 UnitWeight 加载旧目录的依赖 |
-| 抽取并改造 | `LDCombatDirector::RequestContent/ReleaseContent/PrepareTactical/Sample`；`LDV08Catalog::ReleaseCatalog` | 统一所选 typed handler 和真实 MP/CD；删旧名称分支、白名单、施法环境门槛和旧参数 |
-| 抽取 | `LDV08Modifiers::ClaimProc/AugmentBasic`；`LDContentLifecycle` tick/life 处理 | 保留来源锁和周期计划机制；角色/装备被动进入同一来源模型，不保留整套 18 modifier/地表反应 |
-| 抽取（旧实现已删除） | `World\LDCampDecision` 纯值营地决策 | 旧营地/Sentinel Actor 的生成、索敌、信用与奖励入口已删除；`World\LDCampDirector` 在核心上用抽取的 `LDCampDecision` 实现五组两档、每成员新 life、最后一击回执与清空后刷新；不恢复有限轮数、最大伤害获奖或旧 PvP 限制 |
-| 新增最小职责 | Demo strict schema/compiler、完整效果投影、MOBA evaluator、offer 协议、角色被动、统一奖励 plan、装备出售 | 接入现有领域和唯一 owner 真值；不得平行新建战斗、货币、资源或世界状态系统 |
-
-### 11.2 必须实际退出的目录与断言
-
-| 删除组 | 精确范围 | 删除前依赖 |
-| --- | --- | --- |
-| CB-D01 旧作者输入 | `SourceData\Character\prototype_rules.json`；`SourceData\Catalogs\V07` 的 abilities/items/acquisition/starter_kits；`V08` 的 abilities/items/acquisition/starter_kits/environment/modifier_contracts/catalog.schema/native_ids | 先抽取必要稳定编号与本报告获审定义至唯一 Demo 域；不是加 enabled=false |
-| CB-D02 旧运行载荷 | `Content\Lockdown\Data\V07` 的 combat/equipment/acquisition/b71_combat；`Content\Lockdown\Data\V08` 的旧 catalog、`*_b81/b82/b83/b84`、ImportManifest/B81–B84Manifest | 消费者和 stage 全部切换后删除整个不再使用的旧内容产物集合 |
-| CB-D03 旧资产/contract | `Generated\Data\DA_CharacterCatalog.uasset`；`Generated\V07\DA_CombatCatalog/DA_EquipmentCatalog/DA_AcquisitionCatalog/DA_WorldCatalog.uasset`；`LDTacticalContract.h`、`LDEquipmentContract.h`、`LDAcquisitionContract.h`、`LDB81/82/83/84Contract.h` | 新 DataAsset/manifest/contract 可生成与验证；UE 资产引用核对后用 UE/LFS 处理，不编辑二进制或手写哈希 |
-| CB-D04 旧生成/导入 | `Scripts\SyncV07CombatData.py`、`SyncV07EquipmentData.py`、`SyncV07AcquisitionData.py`、`SyncB84Data.py`；旧 Character/Tactical/Equipment/Acquisition importer 的 52/28、80/40/20/12、6 starter、多 schema/fallback | 新 Demo compiler、typed 投影及拒绝夹具先就绪；无消费者的旧 catalog 类/文件随之删除 |
-| CB-D05 旧内容业务 | `LDContentActions/Release`、`LDTacticalExecution`、`LDV08Catalog` 未入选技能/环境/门/职业/consent；`LDV08Loadout` 的 Preset/Traits/6+11/排他；`LDGearRules` 的 NaturalGate/六维预算/quality/部位武器；未入选 modifier 表 | 先抽取本目录实际用到的底层原语，再删除旧分支与其目录依赖，不全表保留作“通用支持” |
-| CB-D06 剩余目录/死亡/奖励 | `LDAcquisitionCatalog` 中尚被读取的定义；`LDGameMode::EndContenderLife` DeathTax；`LDInventoryDirector::EndLife` 掉物；旧 PvPKill/Sentinel/finite budget | 接入新买卖、构筑、死亡保留和统一 last-hit reward 后，移除剩余旧政策；不得假定纯账本已有完整奖励/商店服务 |
-| CB-D07 世界前置 | 旧 V09/B91 空间/服务输入与生成链已随世界闭包删除；旧地图/目录资产由集成按 C3 迁移 | 世界模块负责所需几何/查询和五营地/十出生点前置链；本项不越权删地图，唯一 Demo 发布前必须解除剩余旧资产依赖 |
-| CB-D08 启动与打包 | `LDScaffoldBootstrapCommandlet` 旧 catalog 强制导入；`LDRegionBootstrap` 四区域要求；`LDGameMode::InitGame` 旧 profile/fallback；`Lockdown.Build.cs` RuntimeDependencies；`DefaultGame.ini` 旧库存/BookPrice/整 Generated Cook；`PackageWin64.ps1` 旧地图列表 | 新资产签名链与唯一 Demo 加载通过后切换；保留真正需要的前端，不保留备用旧玩法 |
-| CB-D09 旧产品断言 | 旧目录数量、62/6/11、职业/书籍/配方/preset/有限奖励公式测试 | 先迁移机制夹具并同步 `CheckRuleReport.py` 的显式必需用例集合，再删不适用期望；不得注释断言或单纯调低总数掩盖缺测 |
-
-CB-D03 的资产路径以 `Content\Lockdown` 为根，contract 分别在
-`Source\Lockdown\Private\Combat`、`Inventory`、`Development`、`World`。
-各文件组须做文本引用与 UE 资产/Cook 引用两种检查；“未搜索到文本消费者”不能证明二进制资产无引用。
-没有要求把所有 Vxx/Bxx 字符串改成 0.10.0，保留的技术身份与退出的玩法内容是不同问题。
-
-以下编号映射已对照架构报告 `c2cde4f1e5e493d3697b97d1a24c664fe96d9638` 的
-`docs\demo\ARCHITECTURE.md` §3.2 原表。`CB-Dxx` 是本模块处置组，`Dxx` 是总架构处置组，
-不重新编号或另造第二套总计划。
-
-| 本模块组 | 架构处置组 | 共同完成边界 |
-| --- | --- | --- |
-| CB-D01 | D21、D22、D23 | 获审内容与必要保留编号进入唯一作者域，旧完整目录/原型输入退出 |
-| CB-D02 | D20、D21 | V07/B81–84 旧载荷和 manifest 与全部消费者一并退出 |
-| CB-D03 | D20、D21、D23 | 旧目录资产/contract 先断 Bootstrap、loader、生成与 Cook 四类引用 |
-| CB-D04 | D05、D20、D21、D23、D32 | acquisition.cpp 的 compiler 耦合、旧 loader fallback 和生成/拒绝夹具同时迁移 |
-| CB-D05 | D14、D15；关联 D11、D17 | 获审 ID → handler/状态/序列化/表现/用例保留集；未选效果及其环境/观察依赖退出 |
-| CB-D06 | D03、D05、D07、D08、D15、D16 | 抽取账本/商店机制后退出书籍/掉落/有限奖励与对应 RPC/UI |
-| CB-D07 | D06、D11、D13、D19、D22、D32 | 世界团队负责新查询/地图 producer，内容不再依赖城市、人口或旧物件载荷 |
-| CB-D08 | D01、D18、D19、D25、D26 | 唯一入口、地图、配置、Bootstrap、RuntimeDependencies 和包内资产闭合 |
-| CB-D09 | D27–D34 | 迁移必要断言与真实网络检查，再删旧 probe/runner/门槛；各实施批次同步校准系统手册 |
-
-### 11.3 依赖顺序
-
-1. 审查本报告的完整目录、公式和基础行为，世界提供同口径路径与查询合同。
-2. 新定义/稳定 ID/typed handler 和现有 Build/伤害结果投影先就绪；每个作者字段可被执行。
-3. 先做严格输入拒绝、精度和引用校验，再生成 Demo 载荷/manifest/contract；`--check` 重跑一致。
-4. Bootstrap 接入并核对全部派生字段；统一切换 GameMode、战斗、成长、物品、商店、奖励、RPC、UI、AI。
-5. 按 CB-D01–CB-D09 删除旧输入、生成器、载荷、处理器、fallback、强制 Cook 和旧产品断言，世界前置同步交接。
-6. 完成 Editor/Game 构建、Bootstrap Generate/Validate、Cook、包内加载与真实拥有连接场景。
-
-中间迁移提交可以有先后，但不能作为发布用的永久双模式。旧目录仍是前置、旧数量断言仍在强制，
-或新目录仅能显示不能执行时，不能宣称代码库已经完成唯一 Demo 接线。
+旧作者输入与运行载荷（V07/V08/B81–B84）、旧目录资产与 contract、旧生成/导入脚本、未入选的旧内容业务、
+DeathTax/掉物/有限奖励等旧死亡与奖励政策、旧启动/打包依赖以及旧产品数量断言都已从代码库退出，
+不保留备用旧模式；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。
+保留并改造复用的组件及其当前文件见 §9，内容消费者见 §12。
 
 ## 12. 原生消费者、命令与结果验收
 
-### 12.1 账本定义依赖的最小抽取
+### 12.1 账本与定义的依赖边界
 
-当前 `LDEconomyLedger.h:3` 包含 Inventory 类型，`LDEconomyLedger.cpp:61–64` 通过
-`LDInventory::UnitWeight` 校验定义；后者又加载旧 Equipment/Acquisition。
-必须同时拆除头文件与运行查询边，不能只把重量改成0或信任调用者传来的 `bKnownDefinition`。
-
-拟议纯接口为不可变 `FValidatedItemDefinitions::Check(FItemDefinitionId, EItemOp)`，
-返回明确的 UnknownId/RetiredId/UnsupportedOperation 等结果；由唯一 Demo 编译/导入阶段
-对照 stable ID、原生 handler 与所有字段约束构造。调用者没有修改快照或任意返回 true 的回调入口。
-定义 ID 与 Create/Transfer/Consume 等纯值类型抽出 Inventory/UObject 依赖，
-保留已有编号；Transfer 原语不意味着开放玩家交易。
-
-现有 `FLedger::Initialize` 接收该只读定义快照，`Commit` 在内部调用 Check 后仍执行所有
-所有权/revision/实例/金额/receipt 预检。现有 `Reconcile` 的重放使用**同一份**局内内容快照，
-不重新加载“最新目录”。快照保持至该局账本/审计结束，新局重新建立；Ledger 不加载 UObject、
-不访问 World、不读旧 catalog。这是改造同一个账本，不是新增权威经济系统。
-正式 C++ 类型/文件由成长装备经济域按这条依赖约束封口，以上名称是目标接口，不冒充现存 API。
+`LDEconomy::FLedger`（`Public\Economy\LDEconomyLedger.h`）是纯值账本：只依赖 CoreMinimal，
+不包含 Inventory 类型、不加载 UObject、不访问 World、不读任何目录，也没有旧 `UnitWeight` 查询边。
+账本只校验账户/实例存在、所有权、修订、槽位容量、金额与整数范围；
+装备定义合法性在进入账本之前由 `ALDVendorDirector` 按本局不可变 `FLDDemoContentSnapshot`
+解析商品与卖价，未知定义以 `UnknownItem` 拒绝，不信任调用者传来的“已知定义”标志。
+`Reconcile`、`TryCompactResolvedPrefix` 与 DEV 证据导出只重放账本自身条目，不重新加载“最新目录”；
+快照保持至该局结束，新局重新建立。这是同一个账本，不是新增权威经济系统。
 
 ### 12.2 字段到实际结果的闭合
 
-这是最小字段族映射；实施 compiler 必须为**每个作者叶子字段**登记类型、单位转换、
+这是最小字段族映射；compiler 为**每个作者叶子字段**登记类型、单位转换、
 原生成员、唯一消费函数、拒绝条件和行为用例。运行字段/表现字段/构建元数据分开；
-不允许未知字段先留在 `ActiveJson` 里以后再说。
-表中 “新增/改造” 明确指未来工作，现有符号来自 §9 证据。
+未知字段直接拒绝。“原生消费者”列是当前代码落点（见 §9）。
 
-| 字段族与目标投影 | 原生消费者/现状 | 拒绝条件 | 必须验证的实际结果 |
+| 字段族与投影 | 原生消费者 | 拒绝条件 | 必须验证的实际结果 |
 | --- | --- | --- | --- |
-| `STAT.*`、`UNIT.*` → typed stat definition / 最终属性投影 | `LDCharacterBuild::MaxHP/BasicDamage`、`LDGearRules`、`LDTacticalRules`、`LDCharacterMovementComponent`；六维须替换，AP/crit/haste新增 | 错量纲、未知属性、非有限、范围倒置、溢出、数值下溢、无消费者 | 每字段单独变异：HP容量、真实掉血、移动/节拍/范围变化；仅加AP不改变普攻；Max同比且闭环不获益 |
-| `ABILITY.*.Rank[r]` → 完整 rank/effect/geometry 定义 | `LDTacticalCatalog` 目前只读单一 RankKey；`LDContentRelease/LDV08Catalog` 按名分支，须 typed dispatch | 缺级、错级数、额外/未知操作、参数与目标类型不匹配、小数截断 | 三个等级每个伤害/系数/盾量/Root期限变化都影响实际结果，不只SHA |
-| `ABILITY.*`、`ITEM.*.Active` 的 MP/时间/族 → cost/timing/source 投影 | `RequestContent/ReleaseContent` 已有角色费用；装备通用非零MP新增 | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改装备ManaCost确实改变MP；换槽/重购不能重置 |
-| 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDV08Modifiers::ClaimProc/AugmentBasic` 和生命周期原语抽取；角色被动三级新增 | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
-| `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `FLedger::Commit` 与库存实例机制（旧 Acquisition paid creation 已退役）、同名 `ALDVendorDirector` 新建 quote/receipt；出售新增 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
-| `XP.*`、`REWARD.*`、`CHOICE.*` → progression/reward/offer 投影 | `LDCharacterBuild::AwardXP`、GameMode XP入口改造；旧营地 Reward/PvPKill 已删除，奖励语义见 N03 验收 | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；最后一击XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
-| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | 旧营地 Spawn/Prepare/NextEvent 已删除；营地由 `World\LDCampDirector` 读取 `CAMP.*`；对局/生命/占領域；3×12等旧模型已退出 | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
-| 定义/handler/family/schema ID → 不可变索引/来源键 | `FLDActionRef`、`LDTacticalRequest`、`LDPlayerController::ServerTacticalAction` 与纯定义 Check | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重购新实例仍读应有债务 |
-| 名称/说明/图标/目标预览 → 本人或获准的表现投影 | HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效；无主动装备1/2明确不可用 |
+| `STAT.*`、`UNIT.*` → typed stat definition / 最终属性投影 | `LDAttributeProjection`（属性/资源同比）、`LDTacticalRules`（伤害/节拍/冷却）、`LDCharacterMovementComponent`（移速） | 错量纲、未知属性、非有限、范围倒置、溢出、数值下溢、无消费者 | 每字段单独变异：HP容量、真实掉血、移动/节拍/范围变化；仅加AP不改变普攻；Max同比且闭环不获益 |
+| `ABILITY.*.Rank[r]` → 完整 rank/effect/geometry 定义 | `LDDemoContentImport` 的三级 typed 定义；`LDCombatActions`/`LDCombatEffects` 按 `ELDDemoEffectOp` 分派 | 缺级、错级数、额外/未知操作、参数与目标类型不匹配、小数截断 | 三个等级每个伤害/系数/盾量/Root期限变化都影响实际结果，不只SHA |
+| `ABILITY.*`、`ITEM.*.Active` 的 MP/时间/族 → cost/timing/source 投影 | `LDCombatActions`（释放扣费）、`LDCombatSources`（`FLDCombatTrack` 冷却轨道） | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改装备ManaCost确实改变MP；换槽/重购不能重置 |
+| 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDCombatEffects`、`LDCombatSources`、`LDTacticalRules`（Root/屏障/回复） | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
+| `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `ALDVendorDirector`（会话/报价/Buy/Sell/回执）与 `LDEconomy::FLedger`；`SHOP.StartingGold` 由 `FLedger::Initialize` 写入 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
+| `XP.*`、`REWARD.*`、`CHOICE.*`、`progression` → progression/reward/offer 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（机会/Offer/选择）、`ALDEconomyDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；最后一击XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
+| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `ALDCampDirector`/`LDCampLifecycle`/`LDCampDecision`、GameMode 生命与占领（`LDGameModeLife`、`LDGameModeCapture`） | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
+| 定义/handler/family/schema ID → 不可变索引/来源键 | `LDDemoContentIds.h` 原生编号、`FLDDefinitionWire`、`FLDCombatSourceRef` | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重购新实例仍读应有债务 |
+| 名称/说明/图标/目标预览 → 本人或获准的表现投影 | `LDDemoContentText`（`DemoContent` 字符串表）、HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效；无主动装备1/2明确不可用 |
 
 ### 12.3 权威写入者与生命周期交接
 
@@ -914,9 +844,8 @@ CB-D03 的资产路径以 `Content\Lockdown` 为根，contract 分别在
 持续被动与交易请求分别按 §2/10 生命周期处理，不以一个“全部清空”策略替代。
 设计数值验证需要各域真实生产者/消费者；不能以 UI 禁用按钮替代服务器拒绝。
 
-订单接线引用操作模块 `e33e947898a6ff582026187adb932cfa3e14fa3b` 的
-`CONTROLS_AND_TARGETING.md` §5：拟建的 `ULDNavigationComponent::SubmitOrder` /
-`CancelOrder` / `CommitActionHandoff` / `OnCombatOutcome` 挂在现有组件上。
+订单接线见[操作与目标选择](CONTROLS_AND_TARGETING.md)：现有 `ULDNavigationComponent::SubmitOrder` /
+`CancelOrder` 处理空间订单。
 空间订单只含MoveGround/AttackUnit/AttackMove/ApproachShop；普攻逐次交给Combat，
 Navigation的MoveIdentity/AttackCycle只作关联，不拥有CombatToken、NextAttackAt或副击结算。
 Queued不取消原订单，Combat准入后的正式handoff才原子替换；群攻不生成副攻击订单。
@@ -940,10 +869,8 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 | CB-T09 | 全部关键路径/高速双持/dash回防；伤害和Root本身不清占领；保护者不计人数；同刻重查与一次终局 |
 | CB-T10 | Listen Host本人+2真正拥有客户端+3AI的正常闭环；所有人同样来源/经济/视野；返回Lobby再开局彻底隔离 |
 
-可复用 `TestB84Import` 的拒绝方法、Tactical/Loadout/Inventory/Economy 的纯规则夹具和
-Combat/Content/View/Vendor 等网络 runner 的收集框架，但须撤去旧模式/数量/角色假定。
-新必需列表替代旧测试总数门槛；结果区分通过、失败、未运行、未实现。仅文档本轮不运行
-Editor/Game/Bootstrap/Cook 或人类平衡局，不把旧场景报告充当新数据通过证据。
+现有检查入口见 §9 E11 与 `Scripts\RunTests.ps1`；旧 B84/Tactical/Loadout/Inventory 夹具与旧模式/数量/角色假定已删除。
+新必需列表替代旧测试总数门槛；结果区分通过、失败、未运行、未实现，不把旧场景报告充当新数据通过证据。
 
 ### 12.5 UI/AI可读定义与显示引用
 
@@ -959,7 +886,7 @@ Editor/Game/Bootstrap/Cook 或人类平衡局，不把旧场景报告充当新�
 显示名与说明作为显示行的 `name_text`/`description_text` 进入 SourceData，经同一 Sync/check 生成载荷并计入根摘要；
 运行时由已验证内容注册 `DemoContent` 字符串表，缺失条目是内容错误。说明不含数字，
 等级、费用、冷却、射程与期限等数值由 typed 字段显示。
-这是拟新增原生资源/本地化引用，不宣称图标已生成；Bootstrap须核验解析，不静默用缺失资源。
+导入器（`LDDemoContentImport`）校验这些键与图标语义 ID 的规范形式；仓库当前没有对应图标资产，不宣称图标已生成。
 占位图形可用自有箭头、护盾、锁链等简单轮廓与文字，不能复制外部游戏素材，也不能只靠颜色分辨。
 
 状态显示名为：`root`「定身」、`shield`「淡定」、`camp_returning`「回岗中」；
@@ -1013,10 +940,10 @@ UI不能硬编码一套伤害或CD公式；最终 `STAT.MoveSpeedCmPerSec`、`ST
 | [Epic：Data Assets](https://dev.epicgames.com/documentation/unreal-engine/data-assets-in-unreal-engine) | 复用既有DataAsset导入定义的工程路径 | 不要求另迁GAS/Asset Manager；不是完整字段已经被项目消费的证明 |
 | [Epic：EPathFollowingReachMode](https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/AIModule/EPathFollowingReachMode) | 导航 reach mode可能把agent/goal半径加入acceptance，不能混作玩法中心距 | 不证明当前候选地图的NavMesh或目标接近已经通过 |
 
-设计模型以本报告公开的输入和公式可复算；本轮执行脚本保存为会话工件
+设计模型以本报告公开的输入和公式可复算；当时的执行脚本保存为会话工件
 `content_choice_model.py`、`content_balance_model.py`、`content_world_calibration.py`，
-另有独立审核程序 `content-independent-qa-model.py` 与结果；它们不是运行代码或生成输入。
-参数进入实施后，必须迁入正式纯规则/内容测试，不能让产品依赖会话工件路径。
+另有独立审核程序 `content-independent-qa-model.py` 与结果；它们不是运行代码或生成输入，
+产品与检查不依赖会话工件路径，正式检查入口见 §9 E11。
 
 ## 14. 专家范围与审核结论
 
@@ -1026,7 +953,7 @@ UI不能硬编码一套伤害或CD公式；最终 `STAT.MoveSpeedCmPerSec`、`ST
 | 实际角色 | 独立范围 | 交付/证据边界 |
 | --- | --- | --- |
 | `content-design-expert` 玩法/经济/数值研究 | 独立阅读Spec、公开机制参考、最小目录与成长/经济/时间模型 | 提供初版设计依据；整合按全规模供给、AP实效、精度及用户确认的PreserveRatio收敛，不把初稿结果直接当结论 |
-| `content-engineering-expert` Unreal内容/数据工程研究 | 独立核对SourceData、原生import/handler、source/wire/ledger、生成/加载/删除链；定点复核比例量化 | §9 E01–E18、§10–12；旧B84/V09一致性仅证明基线；515000组整数量化检查不替代原生实现 |
+| `content-engineering-expert` Unreal内容/数据工程研究 | 独立核对SourceData、原生import/handler、source/wire/ledger、生成/加载/删除链；定点复核比例量化 | 设计时基线源码证据、§10–12；旧B84/V09一致性仅证明当时基线；515000组整数量化检查不替代原生实现 |
 | `content-independent-qa` 独立数值/QA | 整合后独立状态枚举、时序/伤害/比例/CD/买卖/群攻、世界输入算术、原生消费者与新用户行为核对 | **准备文档有条件通过；无本轮剩余必修阻塞**。已关闭供给界限、精确reader处置、逐成员成长及意图副作用四项问题 |
 
 独立完整五属性模型检查了 **75837个候选前状态、849510次转移、最少9个合法候选、36种装备组合**；
@@ -1044,7 +971,7 @@ UI不能硬编码一套伤害或CD公式；最终 `STAT.MoveSpeedCmPerSec`、`ST
 | **已批准首轮输入** | 2026-11-02用户批准现有完整目录、伤害/费用/价格/奖励/时长/空间参数、公式与P2量化方案；批准用于首次实际试玩，不是平衡结论 |
 | **已有机制** | 严格compiler、typed原生目录、精确资产投影校验与入口/Bootstrap消费；当前接口见[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) |
 | **已落地输入** | 批准方案的正式作者/载荷/原生目录与唯一静态世界已生成；这只证明输入及静态资产链，不代替实际战斗/成长效果 |
-| **仍需实施** | 全部玩法字段消费及对应旧代码/数据/断言退出 |
+| **原生消费** | 首版字段的原生消费者见 §9、§12.2；旧代码/数据/断言的删除范围见[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束) |
 | **仍需运行验证** | 正式内容下的Bootstrap/Cook、真实拥有连接、UI复制、动态围堵/实际导航和人类平衡局；组件构建、旧检查结果或这些Python模型不能替代 |
 
 剩余风险在上述实施验证边界内：静态路径不代表动态拥堵；风筝/协同反击与技能走位会改变站桩成本；
