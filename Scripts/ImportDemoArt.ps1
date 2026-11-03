@@ -3,6 +3,7 @@ param([string]$EngineRoot, [ValidateSet('Import','Validate')][string]$Mode='Vali
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Validate
 & python -B (Join-Path $PSScriptRoot 'MeasureDemoArt.py') --check | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'SourceData/Art/art_assets.json disagrees with the measured character sources (Scripts/MeasureDemoArt.py --check).' }
 $output = New-LDArtifactDirectory "DemoArt-$Mode"

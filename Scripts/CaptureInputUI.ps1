@@ -3,6 +3,7 @@ param([string]$EngineRoot,[ValidateRange(1280,2560)][int]$Width=1280,[ValidateRa
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine=Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
+Set-LDPlatformValidation Skip
 $binary=Join-Path $engine 'Engine\Binaries\Win64\UnrealEditor.exe'
 $project=Join-Path (Get-LDProjectRoot) 'Lockdown.uproject'
 $output=New-LDArtifactDirectory ('InputUI-'+$Width+'x'+$Height+'-Frontend')
