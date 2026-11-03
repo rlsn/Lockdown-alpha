@@ -254,7 +254,11 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         {
             if (MatchPhase == ELDMatchPhase::Results) { Receipt.Reason = ELDSessionReject::MatchClosed; }
             else if (!IsGameplayWriteOpen(MatchContext)) { Receipt.Reason = ELDSessionReject::WrongPhase; }
-            else if (bAuthorityStepOpen || ActiveWritePermit) { Receipt.Reason = ELDSessionReject::RequestInFlight; }
+            else if (bAuthorityStepOpen || ActiveWritePermit || PendingCapture.IsSet() || HasPendingRewardRetries())
+            {
+                // An owed reward settles at the next boundary (and a completed capture with it) before any end.
+                Receipt.Reason = ELDSessionReject::RequestInFlight;
+            }
             else if (!TryCloseMatch(ELDMatchEndReason::HostEnded, FGuid(), AuthorityNowMs, Receipt.Detail))
             {
                 FaultAuthority(Receipt.Detail);

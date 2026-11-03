@@ -1,5 +1,6 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDPlayerController.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDNativeMotionTypes.h"
@@ -289,6 +290,205 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
         && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
     TestTrue(TEXT("Repeated fault report is idempotent"),
         Mode->ReportAuthorityFault(Mode->MatchContext,TEXT("Controlled provider failure")) && Mode->GateRevision==OpenGate+1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDRewardSettlementTest, "Lockdown.Rules.DemoCore.RewardSettlementBeforeClose",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
+{
+    FLDMatchProviderHooks Progression;
+    Progression.ReadFinalLevel=[](const ALDGameMode&,const FGuid&,uint8& Level,FString&) { Level=2; return true; };
+    LDMatchProviders::FScopedTestTable Providers({{ELDMatchProvider::Progression,Progression}});
+    struct FMatch
+    {
+        ALDGameMode* Mode=nullptr;
+        ALDGameState* Public=nullptr;
+        ALDCombatDirector* Driver=nullptr;
+        ALDPlayerController* Host=nullptr;
+        FGuid Winner;
+    };
+    TArray<UWorld*> Worlds;
+    ON_SCOPE_EXIT { for (UWorld* World : Worlds) { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); } };
+    // An open match whose sole contender holds the circle from 1 ms; the hold completes at exactly 11 ms.
+    const auto Open=[&](FMatch& Out)
+    {
+        const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+        if (!World) { return false; }
+        GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+        Worlds.Add(World);
+        Out.Mode=World->SpawnActor<ALDGameMode>();
+        Out.Public=World->SpawnActor<ALDGameState>();
+        Out.Driver=World->SpawnActor<ALDCombatDirector>();
+        Out.Host=World->SpawnActor<ALDPlayerController>();
+        if (!Out.Mode || !Out.Public || !Out.Driver || !Out.Host) { return false; }
+        Out.Host->SetAsLocalPlayerController();
+        auto* Mode=Out.Mode;
+        Mode->bDemoWorld=Mode->bEntryAccepted=Mode->bAuthorityInitialized=true;
+        Mode->GameState=Out.Public;
+        Mode->MatchContext={1,FGuid::NewGuid()};
+        Mode->MatchPhase=ELDMatchPhase::Development;
+        Mode->RosterRevision=1;
+        Mode->Combat=Out.Driver;
+        Mode->AuthorityStep={Mode->MatchContext,1,0,0};
+        Out.Winner=FGuid::NewGuid();
+        FLDContenderRecord Record;
+        Record.Session=Out.Winner;
+        Record.Name=TEXT("Holder");
+        Mode->Contenders.Add(Out.Host,Record);
+        Mode->RosterOrder={Out.Winner};
+        Mode->LobbyHost=Out.Host;
+        // Present, but without a live body: the fixture has no native motion to integrate.
+        auto& Life=Mode->Lives.Add(Out.Winner);
+        Life.Kind=ELDVictimKind::Contender;
+        Life.Phase=ELDLifePhase::Unspawned;
+        FString Error;
+        FLDCaptureEvent Joined;
+        Joined.Kind=ELDCaptureEventKind::Joined;
+        Joined.Body={{ELDVictimKind::Contender,Out.Winner,1},FGuid::NewGuid()};
+        Joined.Phase=ELDCommitPhase::RespawnsAndWorld;
+        Joined.bInside=true;
+        if (!Mode->CaptureReducer.Begin(0,10,Error) || !FLDCaptureEventTime::FromMs(1,Joined.Time,Error)
+            || !Mode->CaptureReducer.Enqueue(Joined,Error))
+        {
+            AddError(Error);
+            return false;
+        }
+        World->Tick(LEVELTICK_TimeOnly,.025f);
+        return true;
+    };
+    const auto RetryFact=[](const FMatch& Match)
+    {
+        FLDCommittedDeath Fact;
+        Fact.Key={Match.Mode->MatchContext.LedgerMatch,{ELDVictimKind::CampMember,FGuid::NewGuid(),1}};
+        Fact.CreditOwner=Match.Winner;
+        return Fact;
+    };
+    // Boundary 11: a kill's reward is refused as retryable, then the hold completes at the same instant.
+    const auto RunCaptureBoundary=[&](FMatch& Match)
+    {
+        FString Error;
+        auto* Mode=Match.Mode;
+        auto* Driver=Match.Driver;
+        const bool Ran=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,11)==ELDCommitReject::None
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Motion,[](const auto&) { return true; },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::DeathsAndRewards,
+                [&](const auto&) { Driver->RetryRewards.Add(RetryFact(Match)); return true; },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Capture,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteCapturePhase(Permit,Error); },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Close,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error)
+            && Mode->FinishAuthorityStep(*Driver,Error);
+        if (!Ran) { AddError(FString::Printf(TEXT("Capture boundary failed: %s"),*Error)); }
+        return Ran;
+    };
+
+    FMatch Held;
+    if (!TestTrue(TEXT("Settlement fixture opens"),Open(Held))) { return false; }
+    auto* Mode=Held.Mode;
+    Held.Driver->RetryRewards.Add(RetryFact(Held));
+    FLDSessionRequest End;
+    End.Key={Mode->MatchContext.Generation,1};
+    End.Command=ELDSessionCommand::EndMatch;
+    End.ExpectedRosterRevision=Mode->RosterRevision;
+    TestTrue(TEXT("The Host cannot end the match over a reward that awaits its retry"),
+        Mode->ProcessSessionCommand(Held.Host,End).Reason==ELDSessionReject::RequestInFlight
+        && !Mode->bResultLocked && Mode->IsGameplayWriteOpen(Mode->MatchContext));
+    FString Error;
+    TestFalse(TEXT("No result locks while a required reward awaits its retry"),
+        Mode->TryCloseMatch(ELDMatchEndReason::HostEnded,FGuid(),Mode->GetAuthorityNowMs(),Error));
+    TestTrue(TEXT("The refused close names the pending reward"),Error.Contains(TEXT("reward")));
+    Held.Driver->RetryRewards.Reset();
+
+    FMatch Captured;
+    if (!TestTrue(TEXT("Capture fixture opens"),Open(Captured))) { return false; }
+    Mode=Captured.Mode;
+    if (!RunCaptureBoundary(Captured)) { return false; }
+    TestTrue(TEXT("The completed hold waits for the pending reward instead of locking over it"),
+        !Mode->bResultLocked && Mode->IsGameplayWriteOpen(Mode->MatchContext) && Mode->PendingCapture.IsSet()
+        && Mode->PendingCapture->Occupier==Captured.Winner && Mode->PendingCapture->DueAtMs==11);
+    auto* Driver=Captured.Driver;
+    TestTrue(TEXT("A held completion admits no later instant"),
+        Mode->IsCloseAwaitingSettlement() && Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,12)==ELDCommitReject::WrongPhase);
+    const uint64 CaptureStep=Mode->AuthorityStep.StepSerial;
+    TestTrue(TEXT("The settlement boundary repeats the completion instant with a fresh batch"),
+        Mode->BeginSettlementStep(*Driver,Mode->MatchContext)==ELDCommitReject::None
+        && Mode->AuthorityBoundary.AtMs==11 && Mode->AuthorityBoundary.BatchSerial==CaptureStep+1
+        && Mode->AuthorityStep.StartServerSeconds==Mode->AuthorityStep.EndServerSeconds);
+    TestFalse(TEXT("A settlement boundary integrates no motion"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Motion,[](const auto&) { return true; },Error));
+    TestFalse(TEXT("A settlement boundary runs no actions, transactions or capture"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Actions,[](const auto&) { return true; },Error)
+        || Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Transactions,[](const auto&) { return true; },Error)
+        || Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Capture,[](const auto&) { return true; },Error));
+    bool RetriedOnce=false;
+    TestTrue(TEXT("The owed reward gets its single retry under the settlement permit"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
+        {
+            RetriedOnce=Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)==ELDCommitReject::None
+                && Permit.GetBoundary().AtMs==11 && Driver->RetryRewards.Num()==1 && !Mode->bResultLocked;
+            Driver->RetryRewards.Reset();
+            return true;
+        },Error) && RetriedOnce);
+    TestTrue(TEXT("Close then locks the winner at the exact completion instant"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Close,
+            [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error)
+        && Mode->bResultLocked && !Mode->IsGameplayWriteOpen(Mode->MatchContext) && !Mode->PendingCapture.IsSet()
+        && Mode->ResultView.Reason==ELDMatchEndReason::CaptureCompleted && Mode->ResultView.Winner==Captured.Winner
+        && Mode->ResultView.EndedAtMs==11);
+    TestTrue(TEXT("The settlement boundary completes without moving the clock"),
+        Mode->FinishAuthorityStep(*Driver,Error) && !Mode->bSettlementStep && Mode->GetAuthorityNowMs()==11
+        && Captured.Public->DemoClock.StepSerial==CaptureStep+1 && Captured.Public->DemoClock.NowMs==11);
+    TestTrue(TEXT("No step follows the locked result"),
+        Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,12)==ELDCommitReject::MatchClosed
+        && Mode->BeginSettlementStep(*Driver,Mode->MatchContext)==ELDCommitReject::MatchClosed);
+
+    // The retry did not pay: no normal winner is locked over it, and the fault leaves nothing for the next match.
+    FMatch Unpaid;
+    if (!TestTrue(TEXT("Unpaid fixture opens"),Open(Unpaid))) { return false; }
+    Mode=Unpaid.Mode;
+    Driver=Unpaid.Driver;
+    if (!RunCaptureBoundary(Unpaid)) { return false; }
+    TestTrue(TEXT("The unpaid fixture holds its completion"),Mode->IsCloseAwaitingSettlement()
+        && Mode->BeginSettlementStep(*Driver,Mode->MatchContext)==ELDCommitReject::None);
+    TestTrue(TEXT("Retries run before the settlement Close"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::DeathsAndRewards,[](const auto&) { return true; },Error));
+    TestFalse(TEXT("A settlement Close refuses to lock over a reward still owed"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Close,
+            [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error));
+    TestTrue(TEXT("The refusal locks nothing"),!Mode->bResultLocked && !Mode->PendingCapture.IsSet());
+    AddExpectedError(TEXT("LD_DEMO_AUTHORITY_FAULT The settlement boundary still owes a reward"),EAutomationExpectedErrorFlags::Contains,1);
+    TestTrue(TEXT("The driver's failure faults the match without a winner"),
+        Mode->ReportAuthorityFault(Mode->MatchContext,Error) && Mode->MatchPhase==ELDMatchPhase::Faulted
+        && !Mode->bResultLocked && !Mode->bSettlementStep && !Mode->bAuthorityStepOpen
+        && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
+    Mode->RetireMatchDomains();
+    TestTrue(TEXT("Retiring the match drops its held completion and owed rewards with its Combat owner"),
+        !Mode->PendingCapture.IsSet() && !Mode->Combat && !Mode->HasPendingRewardRetries() && !Mode->CaptureReducer.IsActive());
+
+    // The driver's real failure path: the single retry is consumed and refused again before Close runs.
+    FMatch Failed;
+    if (!TestTrue(TEXT("Failed-retry fixture opens"),Open(Failed))) { return false; }
+    Mode=Failed.Mode;
+    Driver=Failed.Driver;
+    if (!RunCaptureBoundary(Failed)) { return false; }
+    TestTrue(TEXT("The failed-retry fixture holds its completion"),
+        Mode->BeginSettlementStep(*Driver,Mode->MatchContext)==ELDCommitReject::None);
+    TestFalse(TEXT("A retry refused again fails the settlement boundary"),
+        Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::DeathsAndRewards,[&](const auto&)
+        {
+            const TArray<FLDCommittedDeath> Retries=MoveTemp(Driver->RetryRewards);
+            Driver->RetryRewards.Reset();
+            Error=FString::Printf(TEXT("Controlled second refusal of %d owed reward"),Retries.Num());
+            return false;
+        },Error));
+    AddExpectedError(TEXT("LD_DEMO_AUTHORITY_FAULT Controlled second refusal of 1 owed reward"),EAutomationExpectedErrorFlags::Contains,1);
+    TestTrue(TEXT("The fault abandons the held completion: no winner is ever locked"),
+        Mode->ReportAuthorityFault(Mode->MatchContext,Error) && Mode->MatchPhase==ELDMatchPhase::Faulted
+        && !Mode->bResultLocked && !Mode->PendingCapture.IsSet() && !Mode->IsCloseAwaitingSettlement()
+        && !Mode->bSettlementStep && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
     return true;
 }
 #endif

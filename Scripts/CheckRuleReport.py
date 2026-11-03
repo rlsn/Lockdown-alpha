@@ -37,6 +37,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCore.BodyIdentity",
         "Lockdown.Rules.DemoCore.CheckedTime",
         "Lockdown.Rules.DemoCore.ClockProjection",
+        "Lockdown.Rules.DemoCore.RewardSettlementBeforeClose",
         "Lockdown.Rules.DemoCore.ScopedAuthority",
         "Lockdown.Rules.DemoMotionProbe.Slide",
         "Lockdown.Rules.DemoMotionProbe.StepUpRollback",

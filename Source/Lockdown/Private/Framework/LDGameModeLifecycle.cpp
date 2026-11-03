@@ -144,6 +144,8 @@ ELDCommitReject ALDGameMode::BeginAuthorityStep(ALDCombatDirector& Driver, const
     if (Match != MatchContext) { return ELDCommitReject::StaleMatch; }
     if (!IsGameplayWriteOpen(Match)) { return ELDCommitReject::MatchClosed; }
     if (ActiveWritePermit || bAuthorityStepOpen) { return ELDCommitReject::Reentrant; }
+    // A held capture completion admits only its settlement boundary, never a later instant.
+    if (PendingCapture.IsSet()) { return ELDCommitReject::WrongPhase; }
     if (EndAtMs <= AuthorityNowMs) { return ELDCommitReject::TimeRegression; }
     int64 Available = 0;
     FString Error;
@@ -156,6 +158,25 @@ ELDCommitReject ALDGameMode::BeginAuthorityStep(ALDCombatDirector& Driver, const
     AuthorityBoundary = {MatchContext, AuthorityStep.StepSerial, EndAtMs};
     bAuthorityStepOpen = true;
     bAuthorityPhaseExecuted = false;
+    bSettlementStep = false;
+    return ELDCommitReject::None;
+}
+
+ELDCommitReject ALDGameMode::BeginSettlementStep(ALDCombatDirector& Driver, const FLDMatchContext& Match)
+{
+    if (!HasAuthority() || Combat != &Driver) { return ELDCommitReject::NotAuthority; }
+    if (Match != MatchContext) { return ELDCommitReject::StaleMatch; }
+    if (!IsGameplayWriteOpen(Match)) { return ELDCommitReject::MatchClosed; }
+    if (ActiveWritePermit || bAuthorityStepOpen) { return ELDCommitReject::Reentrant; }
+    if (!PendingCapture.IsSet() || PendingCapture->DueAtMs != AuthorityNowMs || !HasPendingRewardRetries())
+    { return ELDCommitReject::WrongPhase; }
+    if (AuthorityStep.StepSerial == MAX_uint64) { return ELDCommitReject::CounterExhausted; }
+    // No time passes: the boundary only gives the owed reward its fresh permit before the same-instant Close.
+    AuthorityStep = {MatchContext, AuthorityStep.StepSerial + 1, AuthorityNowSeconds, AuthorityNowSeconds};
+    AuthorityBoundary = {MatchContext, AuthorityStep.StepSerial, AuthorityNowMs};
+    bAuthorityStepOpen = true;
+    bAuthorityPhaseExecuted = false;
+    bSettlementStep = true;
     return ELDCommitReject::None;
 }
 
@@ -402,6 +423,7 @@ void ALDGameMode::FaultAuthority(const FString& Error)
     {
         // A locked result is never replaced by a later fault: the room stays in Results.
         bAuthorityStepOpen = false;
+        bSettlementStep = false;
         UE_LOG(LogTemp, Error, TEXT("LD_DEMO_AUTHORITY_FAULT_AFTER_RESULT %s"), *Error);
         return;
     }
@@ -409,6 +431,9 @@ void ALDGameMode::FaultAuthority(const FString& Error)
     MatchPhase = ELDMatchPhase::Faulted;
     if (GateRevision != MAX_uint64) { ++GateRevision; }
     bAuthorityStepOpen = false;
+    bSettlementStep = false;
+    // A completion held for an owed reward never locks once the match faulted.
+    PendingCapture.Reset();
     if (Vision) { Vision->EndMatch(); }
     for (auto& Pair : Lives)
     {
