@@ -441,6 +441,11 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.SoloSinceMs = CaptureReducer.GetSoloSinceMs();
         View.DueAtMs = CaptureReducer.GetDueAtMs();
     }
+    else if (View.CircleState == ELDCircleState::Contested)
+    {
+        View.Occupier = CaptureReducer.GetOccupier();
+        View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
+    }
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     return View;
 }

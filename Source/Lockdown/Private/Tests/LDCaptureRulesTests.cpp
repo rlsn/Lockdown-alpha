@@ -100,36 +100,38 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
 
     Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.2003), true), TEXT("B enters"));
     Probe.Close(1201, false, TEXT("Contest has no completion"));
-    TestTrue(TEXT("A second eligible body contests and clears progress"),
-        Probe.Reducer.GetState() == ELDCircleState::Contested && !Probe.Reducer.GetOccupier().IsValid()
-        && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == MAX_int64);
+    TestTrue(TEXT("A second eligible body contests and pauses the holder's progress"),
+        Probe.Reducer.GetState() == ELDCircleState::Contested && Probe.Reducer.GetOccupier() == A
+        && Probe.Reducer.GetPausedProgressMs() == 201 && Probe.Reducer.GetSoloSinceMs() == 0
+        && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == 1201 + 500 - 201);
     Probe.Add(CapturePresence(BodyB, CaptureMs(1300), false), TEXT("B leaves"));
     Probe.Close(1300, false, TEXT("Re-solo does not complete"));
-    Probe.ExpectSolo(A, 1300, 1800, TEXT("The previous occupier restarts a complete segment"));
+    Probe.ExpectSolo(A, 1099, 1599, TEXT("The holder resumes from his paused progress"));
 
     Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.4001), true), TEXT("B touches in"));
     Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.4002), false), TEXT("B leaves within the same boundary"));
     Probe.Close(1401, false, TEXT("Intermediate contest inside one boundary"));
-    Probe.ExpectSolo(A, 1401, 1901, TEXT("An enter-then-exit inside one boundary still breaks continuity"));
-    TestTrue(TEXT("Every continuity break advances the public epoch"), Probe.Reducer.GetEpoch() == FirstEpoch + 4);
+    Probe.ExpectSolo(A, 1099, 1599, TEXT("An enter-then-exit inside one boundary pauses and resumes without loss"));
+    TestTrue(TEXT("Every pause and resume advances the public epoch"), Probe.Reducer.GetEpoch() == FirstEpoch + 4);
 
     Probe.Add(CapturePresence(BodyC, CaptureSeconds(1.5004), true), TEXT("C enters"));
     Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyC, CaptureMs(1501), ELDCommitPhase::DeathsAndRewards), TEXT("C dies"));
     Probe.Close(1501, false, TEXT("Enter then die in one boundary"));
-    Probe.ExpectSolo(A, 1501, 2001, TEXT("A contender who entered before dying broke the segment"));
+    Probe.ExpectSolo(A, 1099, 1599, TEXT("A contender who entered before dying paused the segment without clearing it"));
+    TestTrue(TEXT("The intermediate contest was reduced, not collapsed"), Probe.Reducer.GetEpoch() == FirstEpoch + 6);
 
-    Probe.Close(2000, false, TEXT("Quiet boundary before completion"));
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(2.0005), true), TEXT("B enters inside the completion bucket"));
-    Probe.Close(2001, false, TEXT("A contest in the completion bucket prevents the win"));
-    TestTrue(TEXT("Due-bucket entry contests"), Probe.Reducer.GetState() == ELDCircleState::Contested);
-    Probe.Add(CapturePresence(BodyB, CaptureMs(2100), false), TEXT("B leaves again"));
-    Probe.Close(2100, false, TEXT("A re-solo"));
-    Probe.ExpectSolo(A, 2100, 2600, TEXT("Completion resets after the contest"));
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(2.6005), true), TEXT("B enters after the completion instant"));
+    Probe.Close(1598, false, TEXT("Quiet boundary before completion"));
+    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.5985), true), TEXT("B enters inside the completion bucket"));
+    Probe.Close(1599, false, TEXT("A contest in the completion bucket prevents the win"));
+    TestTrue(TEXT("Due-bucket entry pauses the full progress"), Probe.Reducer.GetState() == ELDCircleState::Contested
+        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == 500
+        && Probe.Reducer.NextDueMs() == 1600);
+    Probe.Add(CapturePresence(BodyB, CaptureMs(1600), false), TEXT("B leaves again"));
+    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.6005), true), TEXT("B enters after the completion instant"));
     TOptional<FLDCaptureProposal> Proposal;
-    TestTrue(TEXT("Completion boundary closes"), Probe.Reducer.CloseBoundary(2600, Proposal, Probe.Error));
-    TestTrue(TEXT("Later facts cannot backfill an earlier completion"),
-        Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == 2600 && Proposal->SoloSinceMs == 2100
+    TestTrue(TEXT("Completion boundary closes"), Probe.Reducer.CloseBoundary(1600, Proposal, Probe.Error));
+    TestTrue(TEXT("A fully paused holder completes the instant he is sole again; later facts cannot backfill it"),
+        Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == 1600 && Proposal->SoloSinceMs == 1100
         && Proposal->Epoch == Probe.Reducer.GetEpoch());
 
     FCaptureReducerProbe Sub{*this};
@@ -144,6 +146,99 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
     Sub.Close(1200, false, TEXT("Leaving does not complete or award"));
     TestTrue(TEXT("A contender who left neither holds nor wins"), Sub.Reducer.GetState() == ELDCircleState::Empty
         && Sub.Reducer.NextDueMs() == MAX_int64);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureContestPauseTest, "Lockdown.Rules.DemoCapture.ContestPause",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
+{
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1), BodyC = CaptureTestBody(C, 1);
+    auto ExpectPaused = [this](FCaptureReducerProbe& Probe, const FGuid& Holder, int64 PausedMs, const TCHAR* What)
+    {
+        const bool HasHolder = Holder.IsValid();
+        TestTrue(What, Probe.Reducer.GetState() == ELDCircleState::Contested && Probe.Reducer.GetOccupier() == Holder
+            && Probe.Reducer.GetPausedProgressMs() == PausedMs && Probe.Reducer.GetSoloSinceMs() == 0
+            && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == (HasHolder
+                ? Probe.Reducer.GetClosedThroughMs() + FMath::Max<int64>(500 - PausedMs, 1) : MAX_int64));
+    };
+
+    FCaptureReducerProbe Probe{*this};
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, Probe.Error));
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.Add(CaptureJoined(BodyC, false), TEXT("C joins outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(100), true), TEXT("B enters"));
+    Probe.Close(100, false, TEXT("Contest"));
+    ExpectPaused(Probe, A, 100, TEXT("The holder's progress is paused"));
+    Probe.Close(300, false, TEXT("A long contest"));
+    ExpectPaused(Probe, A, 100, TEXT("Nobody accumulates while contested"));
+    Probe.Add(CapturePresence(BodyA, CaptureMs(350), false), TEXT("The paused holder leaves the circle"));
+    Probe.Close(350, false, TEXT("Holder exit"));
+    Probe.ExpectSolo(B, 350, 850, TEXT("The holder who leaves loses his progress and nobody inherits it"));
+
+    Probe.Add(CapturePresence(BodyA, CaptureMs(400), true), TEXT("A returns"));
+    Probe.Close(400, false, TEXT("Second contest"));
+    ExpectPaused(Probe, B, 50, TEXT("The new holder's own progress is paused"));
+    const uint64 PausedEpoch = Probe.Reducer.GetEpoch();
+    Probe.Add(CapturePresence(BodyC, CaptureMs(410), true), TEXT("C joins the contest"));
+    Probe.Close(410, false, TEXT("Contest grows"));
+    ExpectPaused(Probe, B, 50, TEXT("A larger contest keeps the paused holder"));
+    TestEqual(TEXT("An unchanged contest publishes nothing new"), Probe.Reducer.GetEpoch(), PausedEpoch);
+    Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyB, CaptureMs(450), ELDCommitPhase::DeathsAndRewards),
+        TEXT("The paused holder dies"));
+    Probe.Close(450, false, TEXT("Holder death"));
+    ExpectPaused(Probe, FGuid(), 0, TEXT("A dead holder's progress is cleared even while the contest continues"));
+    TestEqual(TEXT("Clearing the holder is a public change"), Probe.Reducer.GetEpoch(), PausedEpoch + 1);
+    Probe.Add(CapturePresence(BodyC, CaptureMs(500), false), TEXT("C leaves"));
+    Probe.Close(500, false, TEXT("Contest ends without a holder"));
+    Probe.ExpectSolo(A, 500, 1000, TEXT("The next sole contender starts from zero"));
+
+    Probe.Add(CapturePresence(BodyC, CaptureMs(600), true), TEXT("C enters"));
+    Probe.Add(CaptureFact(ELDCaptureEventKind::Left, BodyA, CaptureMs(650), ELDCommitPhase::Session),
+        TEXT("The holder leaves the match during the contest"));
+    Probe.Close(650, false, TEXT("Departure"));
+    Probe.ExpectSolo(C, 650, 1150, TEXT("A departed holder forfeits his paused progress"));
+    Probe.Add(CapturePresence(BodyC, CaptureMs(700), false), TEXT("C exits while sole"));
+    Probe.Add(CapturePresence(BodyC, CaptureMs(800), true), TEXT("C returns"));
+    Probe.Close(800, false, TEXT("Empty then sole"));
+    Probe.ExpectSolo(C, 800, 1300, TEXT("An empty circle clears progress, even for the same contender"));
+
+    FCaptureReducerProbe Same{*this};
+    TestTrue(TEXT("Reducer begins"), Same.Reducer.Begin(0, 500, Same.Error));
+    Same.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Same.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Same.Close(0, false, TEXT("Open"));
+    Same.Add(CapturePresence(BodyB, CaptureSeconds(.2002), true), TEXT("B enters"));
+    Same.Add(CapturePresence(BodyA, CaptureSeconds(.2004), false), TEXT("A leaves at a later instant of the same boundary"));
+    Same.Close(201, false, TEXT("Same-boundary handoff"));
+    Same.ExpectSolo(B, 201, 701, TEXT("Facts of one boundary are reduced in order: the holder's exit hands nothing over"));
+
+    FCaptureReducerProbe Cap{*this};
+    TestTrue(TEXT("Reducer begins"), Cap.Reducer.Begin(0, 500, Cap.Error));
+    Cap.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Cap.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Cap.Close(0, false, TEXT("Open"));
+    Cap.Add(CapturePresence(BodyB, CaptureMs(450), true), TEXT("B enters late in the segment"));
+    Cap.Close(450, false, TEXT("Late contest"));
+    ExpectPaused(Cap, A, 450, TEXT("A late contest stops the driver where a resume could still complete"));
+    TestEqual(TEXT("The driver stops after at most the remaining hold"), Cap.Reducer.NextDueMs(), int64(500));
+    FCaptureReducerProbe Skipped = Cap;
+    Skipped.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    TOptional<FLDCaptureProposal> Proposal;
+    TestFalse(TEXT("A resumed completion skipped by the driver fails loudly"),
+        Skipped.Reducer.CloseBoundary(520, Proposal, Skipped.Error) || Proposal.IsSet());
+    FCaptureReducerProbe Hidden = Cap;
+    Hidden.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    Hidden.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the skipped completion"));
+    TestFalse(TEXT("A later contest cannot hide a skipped resumed completion"),
+        Hidden.Reducer.CloseBoundary(520, Proposal, Hidden.Error) || Proposal.IsSet());
+    Cap.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
+    Cap.Close(500, false, TEXT("The capped boundary"));
+    Cap.ExpectSolo(A, 10, 510, TEXT("The resumed segment keeps its paused progress"));
+    Cap.Close(510, true, TEXT("The resumed segment completes at its real due instant"));
     return true;
 }
 
@@ -172,7 +267,11 @@ bool FLDCaptureProtectionTest::RunTest(const FString& Parameters)
     AtDue.Add(CaptureFact(ELDCaptureEventKind::ProtectionEnded, SecondB, CaptureMs(500), ELDCommitPhase::Session),
         TEXT("Protection expires at the completion instant"));
     AtDue.Close(500, false, TEXT("Half-open protection end contests at the same instant"));
-    TestTrue(TEXT("Expiry at the completion instant contests"), AtDue.Reducer.GetState() == ELDCircleState::Contested);
+    TestTrue(TEXT("Expiry at the completion instant pauses the full progress"),
+        AtDue.Reducer.GetState() == ELDCircleState::Contested && AtDue.Reducer.GetOccupier() == A
+        && AtDue.Reducer.GetPausedProgressMs() == 500 && AtDue.Reducer.NextDueMs() == 501);
+    AtDue.Add(CapturePresence(SecondB, CaptureMs(501), false), TEXT("B leaves"));
+    AtDue.Close(501, true, TEXT("Sole again with the full paused progress completes at that instant"));
 
     FCaptureReducerProbe Later{*this};
     Prepare(Later, 600);
@@ -350,7 +449,30 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     };
     Malformed([](FLDPublicMatchView& View) { View.Occupier.Invalidate(); }, TEXT("Solo without occupier"));
     Malformed([](FLDPublicMatchView& View) { View.CircleState = ELDCircleState::Contested; },
-        TEXT("Contest cannot expose an occupier or progress"));
+        TEXT("A contest exposes no running segment"));
+    Malformed([](FLDPublicMatchView& View) { View.PausedProgressMs = 1000; }, TEXT("A running segment has no paused progress"));
+    FLDPublicMatchView Paused = Open;
+    ++Paused.PublicRevision;
+    Paused.CircleState = ELDCircleState::Contested;
+    Paused.SoloSinceMs = 0;
+    Paused.DueAtMs = 0;
+    Paused.PausedProgressMs = 5000;
+    FLDPublicMatchView PausedLatest = Latest;
+    TestEqual(TEXT("A contest names its paused holder and frozen progress"),
+        LDCapture::AcceptPublicMatchView(Paused, PausedLatest, Error), ELDLobbyProjectionResult::Accepted);
+    auto MalformedPause = [&](TFunctionRef<void(FLDPublicMatchView&)> Mutate, const TCHAR* What)
+    {
+        FLDPublicMatchView Candidate = Paused;
+        Mutate(Candidate);
+        FLDPublicMatchView Scratch = Latest;
+        TestEqual(What, LDCapture::AcceptPublicMatchView(Candidate, Scratch, Error), ELDLobbyProjectionResult::Malformed);
+    };
+    MalformedPause([](FLDPublicMatchView& View) { View.PausedProgressMs = 0; }, TEXT("A paused holder has progress"));
+    MalformedPause([](FLDPublicMatchView& View) { View.Occupier.Invalidate(); }, TEXT("Paused progress names its holder"));
+    MalformedPause([](FLDPublicMatchView& View) { View.PausedProgressMs = 10001; },
+        TEXT("Paused progress cannot exceed the open time"));
+    MalformedPause([](FLDPublicMatchView& View) { View.CircleState = ELDCircleState::Empty; },
+        TEXT("An empty circle holds no progress"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Development; },
         TEXT("Development cannot publish an open circle"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Lobby; }, TEXT("Lobby publishes no capture state"));
