@@ -2,6 +2,7 @@
 
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevGrowthFixture.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
@@ -184,6 +185,9 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     Content = MoveTemp(InContent);
     MatchSecret = FGuid::NewGuid();
     Records = MoveTemp(NewRecords);
+#if WITH_DEV_AUTOMATION_TESTS
+    DevOfferQueue.Reset();
+#endif
     return true;
 }
 
@@ -710,10 +714,35 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         && Progression.LastOfferRevision < MAX_uint64,
         TEXT("A head draw needs an empty offer slot over a non-empty opportunity queue."));
     const uint8 Ordinal = static_cast<uint8>(Progression.ConsumedThrough + 1);
+    const int64 Weight = Content->Get().Parameters.ChoiceBaseWeight;
+    const uint64 Seed = LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal);
     TArray<LDProgression::FLegalOption> Picked;
-    verifyf(LDProgression::DrawThree(Pool, Content->Get().Parameters.ChoiceBaseWeight,
-        LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal), Picked) == ELDGrowthReason::None && Picked.Num() == 3,
-        TEXT("The prepared head pool must yield three distinct options."));
+#if WITH_DEV_AUTOMATION_TESTS
+    TArray<TArray<FName>>* Presets = DevOfferQueue.Find(ContenderId);
+    TArray<TArray<FName>> NoPresets;
+    bool bPreset = false;
+    FString PresetError;
+    const ELDGrowthReason DrawReason = LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Presets ? *Presets : NoPresets, Picked,
+        bPreset, PresetError);
+    if (!PresetError.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s ordinal=%u, drawn normally: %s"),
+            *ContenderId.ToString(), uint32(Ordinal), *PresetError);
+    }
+    else if (bPreset)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE preset offer contender=%s ordinal=%u cards=%s,%s,%s"),
+            *ContenderId.ToString(), uint32(Ordinal), *Picked[0].DefinitionId.ToString(), *Picked[1].DefinitionId.ToString(),
+            *Picked[2].DefinitionId.ToString());
+    }
+    if (Presets && Presets->IsEmpty())
+    {
+        DevOfferQueue.Remove(ContenderId);
+    }
+#else
+    const ELDGrowthReason DrawReason = LDProgression::DrawThree(Pool, Weight, Seed, Picked);
+#endif
+    verifyf(DrawReason == ELDGrowthReason::None && Picked.Num() == 3, TEXT("The prepared head pool must yield three distinct options."));
     FLDChoiceOfferState Offer;
     Offer.OfferId = FGuid::NewGuid();
     Offer.Ordinal = Ordinal;
@@ -802,3 +831,44 @@ void ALDDevelopmentDirector::TakeFinalReceipts(const FGuid& ContenderId, TArray<
         Record->Unpublished.Reset();
     }
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error)
+{
+    if (!LDDevGrowthFixture::Admit(GetWorld(), Error))
+    {
+        return false;
+    }
+    const ALDGameMode* GameMode = Mode();
+    const FRecord* Record = Records.Find(ContenderId);
+    if (!Match.IsValid() || !Content.IsValid() || !GameMode || GameMode->GetMatchContext() != Match
+        || !GameMode->IsGameplayWriteOpen(Match))
+    {
+        Error = TEXT("A preset offer needs the current open match.");
+        return false;
+    }
+    if (!Record)
+    {
+        Error = TEXT("The preset recipient is not a contender of this match.");
+        return false;
+    }
+    TArray<LDProgression::FLegalOption> Resolved;
+    if (!LDDevGrowthFixture::ResolvePreset(*Content, Record->Build, DefinitionIds, Resolved, Error))
+    {
+        return false;
+    }
+    // Every opportunity up to MaxChoices draws one head; the current head, if any, is already drawn.
+    const TArray<TArray<FName>>* Queued = DevOfferQueue.Find(ContenderId);
+    const int32 Drawn = int32(Record->Progression.ConsumedThrough) + (Record->Progression.Offer.IsSet() ? 1 : 0);
+    if (Drawn + (Queued ? Queued->Num() : 0) >= Content->Get().Progression.MaxChoices)
+    {
+        Error = FString::Printf(TEXT("No offer is left to preset: %d drawn and %d queued of %d."), Drawn, Queued ? Queued->Num() : 0,
+            Content->Get().Progression.MaxChoices);
+        return false;
+    }
+    const int32 Position = DevOfferQueue.FindOrAdd(ContenderId).Add(DefinitionIds) + 1;
+    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued offer contender=%s position=%d cards=%s,%s,%s"),
+        *ContenderId.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
+    return true;
+}
+#endif

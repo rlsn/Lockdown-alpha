@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDGameInstance.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/FileManager.h"
@@ -42,8 +43,10 @@ namespace
         }
     };
 
-    // Schema 5 is the migratable layout without PlayerName; every other schema writes the current whitelist order.
+    // Schema 5 is the migratable layout without PlayerName and MasterVolume, schema 6 the one without MasterVolume;
+    // every other schema writes the current whitelist order.
     constexpr uint32 NamelessFixtureSchema = 5;
+    constexpr uint32 VolumelessFixtureSchema = 6;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -53,6 +56,7 @@ namespace
         int32 Count = Values.Bindings.Num();
         Payload << Edge << Follow << Text << Zoom;
         if (Schema != NamelessFixtureSchema) { FString Name = Values.PlayerName; Payload << Name; }
+        if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema) { float Volume = Values.MasterVolume; Payload << Volume; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -203,7 +207,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A chosen name is applied but not yet saved"), Applied->IsDirty());
     TestTrue(TEXT("The current schema saves the player name"), Applied->SaveLocalSettings().IsSaved());
     Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-    TestTrue(TEXT("Schema 6 round trip keeps the exact Chinese name with every other preference"),
+    TestTrue(TEXT("Schema 7 round trip keeps the exact Chinese name with every other preference"),
         Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
         && Loaded.Settings->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive)
         && Loaded.Settings->TextScale == 1.25f && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6);
@@ -454,6 +458,161 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     DamagedPrevious.Last() ^= 1;
     Write(DamagedPrevious);
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsMasterVolumeTest, "Lockdown.Rules.LocalSettingsMasterVolume",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit volume fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto OnDisk = [&](const TArray<uint8>& Expected) { TArray<uint8> Actual; return FFileHelper::LoadFileToArray(Actual, *Fixture.Storage.Filename()) && Actual == Expected; };
+    uint32 SavedSchema = 0;
+    FString Error;
+
+    // Schema 7 stores the volume itself: save, then restore it exactly.
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestEqual(TEXT("The default master volume is full, without attenuation"), Applied->MasterVolume, 1.f);
+    TestTrue(TEXT("The applied owner accepts a non-default volume and marks it unsaved"),
+        Applied->SetAppliedMasterVolume(.35f, Error) && Error.IsEmpty() && Applied->IsDirty());
+    TestTrue(TEXT("The volume is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    TestTrue(TEXT("The verified file declares schema 7"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 7u);
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 7 round trip restores the exact volume as persistence verified"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->MasterVolume == .35f
+        && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+
+    // Only finite 0..1 values reach the applied owner; a draft never takes one.
+    auto* Draft = Applied->CreateDraft();
+    TestFalse(TEXT("A draft cannot set the applied volume"), Draft->SetAppliedMasterVolume(.5f, Error));
+    TestTrue(TEXT("A refused draft volume is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->MasterVolume == .35f);
+    for (float Invalid : { std::numeric_limits<float>::quiet_NaN(), -.01f, 1.01f, std::numeric_limits<float>::infinity() })
+    {
+        TestFalse(TEXT("A non-finite or out-of-range volume is refused"), Applied->SetAppliedMasterVolume(Invalid, Error));
+        TestTrue(TEXT("A refused volume is explained and keeps the applied value"), !Error.IsEmpty() && Applied->MasterVolume == .35f);
+    }
+    TestTrue(TEXT("Refused volumes never mark the verified owner dirty"), Applied->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
+    TestTrue(TEXT("Silence is a supported volume"), Applied->SetAppliedMasterVolume(0.f, Error) && Applied->MasterVolume == 0.f);
+    TestTrue(TEXT("Full volume is a supported volume"), Applied->SetAppliedMasterVolume(1.f, Error) && Applied->MasterVolume == 1.f);
+
+    // Restoring local defaults covers the volume but never the player name.
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("Prepare a non-default volume"), Applied->SetAppliedMasterVolume(.2f, Error));
+    Applied->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring local defaults returns the volume to full and keeps the player name"),
+        Applied->MasterVolume == GetDefault<ULDControlSettings>()->MasterVolume && Applied->MasterVolume == 1.f
+        && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+
+    // A saved volume outside 0..1 rejects the whole file like an out-of-range zoom, and the file is left alone.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    for (float BadVolume : { 1.5f, -.01f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity() })
+    {
+        Values->MasterVolume = BadVolume;
+        const auto BadVolumeFile = FixtureBytes(*Values);
+        Write(BadVolumeFile);
+        const auto BadVolumeLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An invalid saved volume makes the file Corrupt, without settings or recovery data"),
+            BadVolumeLoad.Status == ELDLocalSettingsLoadStatus::Corrupt && !BadVolumeLoad.Settings && !BadVolumeLoad.RecoverablePreferences
+            && BadVolumeLoad.Message.Contains(TEXT("主音量")));
+        TestTrue(TEXT("Rejecting a saved volume leaves the file byte-identical"), OnDisk(BadVolumeFile));
+    }
+
+    // Schema 6 has the name but no volume: an explicit migration keeps what it stored and uses the default volume.
+    Values->Bindings[TEXT("Skill1")] = EKeys::F6;
+    Values->Zoom = 1550;
+    // Never written by the schema 6 layout; the migration must not pick it up from anywhere.
+    Values->MasterVolume = .2f;
+    const auto VolumelessFile = FixtureBytes(*Values, VolumelessFixtureSchema, 0);
+    Write(VolumelessFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 6 file is an explicit successful migration, never plain Loaded"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
+    TestTrue(TEXT("The migration keeps the name, bindings and camera preferences and uses the full default volume"), Migrated.Settings
+        && Migrated.Settings->MasterVolume == 1.f && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
+        && Migrated.Settings->Valid());
+    TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && !Migrated.Settings->NeedsRecovery());
+    TestTrue(TEXT("The schema 6 migration message names the default volume"),
+        Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("主音量使用默认值 100%")));
+    TestTrue(TEXT("Loading never rewrites the schema 6 file"), OnDisk(VolumelessFile));
+    TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
+    TestTrue(TEXT("The rewritten file declares schema 7"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 7u);
+    const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The rewritten file loads as current with the kept name and the default volume"),
+        Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->MasterVolume == 1.f
+        && Upgraded.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Upgraded.Settings->Zoom == 1550);
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    Write(FixtureBytes(*Values, VolumelessFixtureSchema, 0));
+    const auto VolumelessRejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 6 file with a retired action keeps the rejection and recovery path, with the default volume"),
+        VolumelessRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !VolumelessRejected.Settings && VolumelessRejected.RecoverablePreferences
+        && VolumelessRejected.RecoverablePreferences->MasterVolume == 1.f && VolumelessRejected.Message.Contains(TEXT("Development"))
+        && VolumelessRejected.RecoverablePreferences->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+    Values->Bindings.Remove(TEXT("Development"));
+    auto DamagedVolumeless = VolumelessFile;
+    DamagedVolumeless.Last() ^= 1;
+    Write(DamagedVolumeless);
+    TestTrue(TEXT("A damaged schema 6 file is Corrupt"),
+        ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+
+    // Schema 5 (no name, no volume) still migrates explicitly.
+    const auto NamelessFile = FixtureBytes(*Values, NamelessFixtureSchema, 0);
+    Write(NamelessFile);
+    const auto Nameless = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 5 file still migrates with the default volume and an unset name"),
+        Nameless.Status == ELDLocalSettingsLoadStatus::Migrated && Nameless.Settings && Nameless.Settings->MasterVolume == 1.f
+        && Nameless.Settings->PlayerName.IsEmpty() && Nameless.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Nameless.Settings->IsDirty());
+    TestTrue(TEXT("The schema 5 migration message names the default volume and still asks for a name"),
+        Nameless.Message.Contains(TEXT("主音量使用默认值 100%")) && Nameless.Message.Contains(TEXT("名称")));
+    TestTrue(TEXT("Loading never rewrites the schema 5 file"), OnDisk(NamelessFile));
+
+    // The game instance applies a slider value to the live owner at once and leaves the write to its debounced flush.
+    auto* Instance = NewObject<ULDGameInstance>();
+    TestNull(TEXT("A game instance that never ran Init has no audio subsystem"), Instance->GetSubsystem<ULDAudioSubsystem>());
+    auto* Session = Instance->UseIsolatedLocalSettings(Fixture.Id);
+    if (!TestNotNull(TEXT("The isolated fixture supplies the applied settings"), Session)) { return false; }
+    TestTrue(TEXT("The migrated values flush as schema 7 and leave the owner clean"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
+    TArray<uint8> Verified;
+    TestTrue(TEXT("Read the verified bytes"), FFileHelper::LoadFileToArray(Verified, *Fixture.Storage.Filename()));
+    const auto Changed = Instance->SetAppliedMasterVolume(.6f);
+    TestTrue(TEXT("Without an audio subsystem the volume still applies to the live owner and marks it unsaved"),
+        Changed.Status == ELDLocalSettingsSaveStatus::NoChanges && Changed.Message.Contains(TEXT("60%"))
+        && Session->MasterVolume == .6f && Session->IsDirty());
+    TestEqual(TEXT("The game instance reports the volume message"), Instance->GetLocalSettingsMessage(), Changed.Message);
+    TestTrue(TEXT("A slider value waits for the debounced flush instead of writing the file"),
+        Instance->IsLocalSettingsFlushPending() && OnDisk(Verified));
+    const auto Refused = Instance->SetAppliedMasterVolume(std::numeric_limits<float>::quiet_NaN());
+    TestTrue(TEXT("A non-finite volume is refused explicitly and keeps the applied value"),
+        Refused.Status == ELDLocalSettingsSaveStatus::Invalid && !Refused.Message.IsEmpty() && Session->MasterVolume == .6f);
+    TestTrue(TEXT("The flush writes the applied volume"), Instance->FlushLocalSettings().IsSaved() && !Session->IsDirty());
+    const auto Flushed = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Restart restores the flushed volume"),
+        Flushed.Status == ELDLocalSettingsLoadStatus::Loaded && Flushed.Settings && Flushed.Settings->MasterVolume == .6f);
+    auto* ResetDraft = Session->CreateDraft();
+    ResetDraft->ResetLocalDefaults();
+    TestTrue(TEXT("Restoring defaults through the game instance applies and saves the default volume"),
+        Instance->ApplyLocalSettings(*ResetDraft).IsSaved() && Session->MasterVolume == 1.f);
+
+    // Recovery data from a rejected file carries its validated volume into the session; the gated file stays unchanged.
+    Values->MasterVolume = .4f;
+    Values->Bindings.Add(TEXT("Development"), EKeys::F9);
+    const auto RejectedFile = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Write(RejectedFile);
+    auto* RecoveryInstance = NewObject<ULDGameInstance>();
+    auto* Recovered = RecoveryInstance->UseIsolatedLocalSettings(Fixture.Id);
+    if (!TestNotNull(TEXT("The rejected fixture still supplies session settings"), Recovered)) { return false; }
+    TestTrue(TEXT("Recovery keeps the validated volume for the session and requires explicit replacement"),
+        Recovered->MasterVolume == .4f && Recovered->NeedsRecovery());
+    const auto Gated = RecoveryInstance->SetAppliedMasterVolume(.5f);
+    TestTrue(TEXT("A recovery-gated volume change applies without promising an automatic save"),
+        Gated.Status == ELDLocalSettingsSaveStatus::NoChanges && Recovered->MasterVolume == .5f && !Gated.Message.Contains(TEXT("稍后自动保存")));
+    TestTrue(TEXT("The gated flush keeps the rejected file byte-identical"),
+        RecoveryInstance->FlushLocalSettings().Status == ELDLocalSettingsSaveStatus::RecoveryRequired && OnDisk(RejectedFile));
     return true;
 }
 

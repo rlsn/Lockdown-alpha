@@ -98,8 +98,10 @@ namespace
     constexpr uint32 LegacySaveGameMagic = 0x53415647;
     // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
     constexpr uint32 RetiredRegistrySchema = 4;
-    // Schema 5 is the current whitelist without PlayerName; it is migrated explicitly and rewritten as the current schema.
+    // Schema 5 is the whitelist without PlayerName and MasterVolume; schema 6 adds PlayerName only. Both are migrated
+    // explicitly, keep the default master volume and are rewritten as the current schema on the next verified save.
     constexpr uint32 NamelessSchema = 5;
+    constexpr uint32 VolumelessSchema = 6;
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -298,6 +300,8 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
     if (!FMath::IsFinite(TextScale) || TextScale < 1 || TextScale > 1.25
         || !FMath::IsFinite(Zoom) || Zoom < 1100 || Zoom > 1700)
     { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
+    if (!FMath::IsFinite(MasterVolume) || MasterVolume < 0 || MasterVolume > 1)
+    { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
     // An empty name is a valid unset name; only a chosen name must pass the local format check.
     FString NameError;
     if (!PlayerName.IsEmpty() && !ValidatePlayerName(PlayerName, NameError))
@@ -345,6 +349,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     TextScale = Other.TextScale;
     Zoom = Other.Zoom;
     PlayerName = Other.PlayerName;
+    MasterVolume = Other.MasterVolume;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -378,6 +383,18 @@ bool ULDControlSettings::SetAppliedZoom(float Value, FString& Error)
     if (Phase == ELDLocalSettingsPhase::EditingDraft || !FMath::IsFinite(Value) || Value < 1100 || Value > 1700)
     { Error = TEXT("镜头缩放未保存：当前应用的镜头值无效。"); return false; }
     Zoom = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedMasterVolume(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("主音量未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
+    { Error = TEXT("主音量未应用：音量必须在 0–100% 之间。"); return false; }
+    MasterVolume = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     Error.Empty();
     return true;
@@ -434,6 +451,7 @@ void ULDControlSettings::ResetLocalDefaults()
     bStartFollowing = CurrentDefaults->bStartFollowing;
     TextScale = CurrentDefaults->TextScale;
     Zoom = CurrentDefaults->Zoom;
+    MasterVolume = CurrentDefaults->MasterVolume;
     ResetBindings();
 }
 
@@ -470,7 +488,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     uint32 Magic = 0, SavedSchema = 0, Checksum = 0;
     Reader << Magic << SavedSchema << Checksum;
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
-    const bool Migrating = Magic == LocalSettingsMagic && SavedSchema == NamelessSchema;
+    const bool Migrating = Magic == LocalSettingsMagic && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -483,8 +501,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
     Reader << Edge << Follow << Settings->TextScale << Settings->Zoom;
-    // Only the current schema stores the player name, between the preferences and the binding list.
-    if (SavedSchema == CurrentSchema) { Reader << SavedName; }
+    // Schema 6 added the player name and schema 7 the master volume, both between the preferences and the binding list;
+    // an older layout leaves MasterVolume at its default.
+    if (SavedSchema == VolumelessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
+    if (SavedSchema == CurrentSchema) { Reader << Settings->MasterVolume; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -529,10 +549,12 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5 migration: the validated values apply now and stay dirty until a verified current-schema save.
+        // Explicit schema 5/6 migration: the validated values and the default master volume apply now and stay dirty
+        // until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
-        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
-            TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。请在开始页设置名称后再建房或加入。") };
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, SavedSchema == NamelessSchema
+            ? TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。主音量使用默认值 100%。请在开始页设置名称后再建房或加入。")
+            : TEXT("已从旧版本设置迁移：名称、按键、镜头与文字偏好已保留，主音量使用默认值 100%，下次保存时写入新格式。") };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
     return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };
@@ -547,13 +569,13 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("已在本次运行中应用；原设置文件保持不变。请先在设置中确认替换，再保存。") }; }
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
-    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), binding count, bindings.
+    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0;
-    float SavedTextScale = TextScale, SavedZoom = Zoom;
+    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

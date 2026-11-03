@@ -79,9 +79,23 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 `DemoGrowthProgression` 与 `DemoGrowthPrivacySchema` 覆盖线编码、账本守恒/压缩/退休、请求窗口、
 等级/候选/替换纯规则与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
-导出 schema 2 证据（审计前缀、其后日志尾与当前状态），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+导出 schema 3 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块），`python -B Scripts\CheckEconomyEvidence.py <证据>`
 逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
 时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
+
+DEV 成长夹具（`Development\LDDevGrowthFixture.*`）只在 `WITH_DEV_AUTOMATION_TESTS` 构建中存在，
+只在以 `-LDDevGrowthFixture` 启动的权威进程、当前开放对局内生效，没有 RPC，客户端、AI 和正常玩法不会调用。
+Host 的 DEV probe 在游戏线程直接调用：
+`ALDDevelopmentDirector::DevQueueOffer(Contender, 三个定义)` 为该参赛者之后生成的队首 Offer 按先进先出各预置一组，
+入队时按当前构筑的 `LegalPool` 校验（恰好三张互异、种类由构筑推出、不超过剩余可抽的 Offer 数），
+抽取时按当次合法池再验，失效则打 `LD_DEV_FIXTURE_PRESET_REFUSED` 错误并按正常种子抽取；
+选择仍经 `SubmitChoice`→`CommitPendingChoice`→Combat 安装。
+`ALDEconomyDirector::DevGrantReward(Contender, XP, Gold)` 排入下一个 Transactions 阶段，
+与死亡奖励共用 `CommitRewardParts` 复合提交（账本 cause `DevFixture` 铸币、`PrepareExperience` 与 Combat 投影），
+不伪造死亡事实；返回票号由 `DevGrantStatus` 轮询 Pending/Granted/Rejected。
+开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币；
+只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
+未加时任何夹具证据都判失败。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者，一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
 买两件带无目标主动的同款、满槽 `EquipmentFull`、同号重放，用其中一件的主动（另一件轨道保持就绪），
