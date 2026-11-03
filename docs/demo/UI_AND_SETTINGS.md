@@ -514,67 +514,18 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 事件发生时序仍用核心原始时间，不由显示秒数决定。
 全部展示取整、数值格式化只影响文字，不修改血蓝、费用、CD、进度或胜负判断。
 
-## 10. SC-09 F：精确复用、删除、新增及闭包顺序
+## 10. SC-09 F：复用、删除与防回归
 
-**实施状态：** 本节列出的删除闭包（架构 D01–D32）已在当前集成分支完成，删除前均经 C3/C4 核验；现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。下文保留为复用与闭包的设计依据，其中“后续实施”“待/先/再删”等表述指当时的实施顺序，不再是待办。
+UI 闭包的删除（架构 D01–D32）已在集成分支完成；退役范围和不得恢复的内容以
+[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。当前组件见 §2。保持以下约束：
 
-R/D/N 及 C1–C4/P0–P5 沿 [架构审计 §3/§8](ARCHITECTURE.md)。短路径 `Public/Private` 均以 `Source\Lockdown` 为根；
-每行只处理写明的文件/符号，非整个目录，Shared 头/配置/二进制先协调所属域。
-
-### 10.1 原生 UI 与调用者
-
-| 精确落点 | 处置与消费者 | 替换前提/顺序 |
-| --- | --- | --- |
-| `Public\UI\LDWidgets.h`、`Private\UI\LDWidgets.cpp`：`ULDCommandButton/ULDPanel/LDWidgets::Text/Button/Panel/PanelFocusTargets/MovePanelFocus` | R13 局部复用 native 构造/Tab 焦点；改造 capture/子确认 | 各 Panel/HUD 改接唯一 Root 输入层；不留无消费者的备用控件。 |
-| `Public\UI\LDUIRoot.h`、`Private\UI\LDUIRoot.cpp` | R13/N01/N07 改造根；D01/D16 删除 Laborer/Rogue/Scholar、ToggleSensor/Fixtures/FixtureBack/SeedSeal、Defence 旧函数组及 delegate/UPROPERTY、旧 starters/Heart/work/status 图 | 先接菜单/生命周期与 TopInputLayer；旧反射仍可加载时 C3 重存 WBP，再删旧事件/成员；不留空旧方法。 |
-| `Public\UI\LDHUD.h`、`Private\UI\LDHUD.cpp` | 改成二+二、本人状态/圈/通知/唯一结果；删 ContextButton、工作/shortage/source 数、六+四构造及 RulesVersion/profile/map-name 分派 | Controller、Root hit-test、probe 同步改接；来源/结果投影先到，旧计时/死亡税 UI 再真删。 |
-| `Public\UI\LDHUDModel.h`、`Private\UI\LDHUDModel.cpp`、`Private\UI\LDV08HUDModel.cpp`（已随 UI 闭包退役） | R13：旧 `LDV08HUDModel.cpp` 及其 `LDHUD::Action` 已随 UI 闭包退役，删除而未抽取；`LDHUD::Action(...) -> FActionView` 已按 §5.1 在唯一 HUDModel 中新建。PublicOpening/EconomyStep 旧规则、手工属性/范围常量和族 CD 合并已在 UI 闭包中完成 | BindingView/属性/公共投影稳定后替换消费者；没有 `LDV08HUDModel.h`，不虚列文件。 |
-| `Public\UI\LDAttributesPanel.h`、`Private\UI\LDAttributesPanel.cpp`、`Public\UI\LDChoicesPanel.h`、`Private\UI\LDChoicesPanel.cpp` | N04/N07 新建的属性与三选一面板，由 HUD 停靠并向 Root 登记；只读合法自身投影和持久 Offer | QueueChoice/回执/当前 LifePhase 与真实控件一起接入，不添加不可执行的替代按钮。 |
-| `Public\UI\LDShopPanel.h`、`Private\UI\LDShopPanel.cpp`（替代已删除的 `LDInventoryPanel`） | N05 两装备+Shop：当前 Opened 报价、本人两槽、Buy/Sell 与卖出子确认 | 只接真实提供者 `SubmitShopCommand`；旧整理/拖拽/丢弃控件随面板删除，不以拖拽自动替换。 |
-| `Public\UI\LDControlSettings.h`、`Private\UI\LDControlSettings.cpp`、`Public\UI\LDControlsPanel.h`、`Private\UI\LDControlsPanel.cpp` | R13 复用 Rebind/Valid/Save 职责，补 §8；D16/D24 删 Profile、HybridDefaults/MigrateHybrid/MigrateTactical、旧槽/profile fallback、Rules8 说明和独立导航 bool | 单对象/单 schema 与显式 LoadResult 先接；旧 migration tests 随消费者迁，隔离保存不回落真实槽。 |
-| `Public\UI\LDMinimap.h`、`Private\UI\LDMinimap.cpp` | R12/R13/N07 改用 ReadObservedFrame/WorldRevision/Footprint；删旧 60×40/Explored/固定六 site、独立鼠标按键判断 | 世界唯一协议与输入 capture 先到；不增 LastSeen，不凭亮格填单位；death camera 只静态。 |
-| `Public\Framework\LDPlayerController.h`、`Private\Framework\LDPlayerController.cpp`、`Private\Framework\LDPlayerInput.cpp` | R02/R13/N01/N06/N07 保留 caller/owner cursor/动态 mappings；改 receipt 和失效；D16/D24/D27 删静态 IA/旧 SkillInputContext、V05/旧 context/ward/fixture 分派、无消费者 flags/RPC aliases；删空 `EndSkillGesture` | 输入、领域回执、Root 同批；保留 Match/Life/Order/Epoch，不用恒真 profile helper。 |
-| `Private\Framework\LDPlayerInventory.cpp`（已删除）与 N04/N05 的新命令接缝 | 旧库存转发与面板开关已删；Choice/Shop/query 在 `LDPlayerGrowth.cpp` 按目标合同新建，不恢复旧整份 Build、读书或生产 RPC | Combat 装备主动独立于商店会话；不留下无服务的 Server 调用或临时成功回执。 |
-| `Private\Framework\LDPlayerBank.cpp`、`LDPlayerCommerce.cpp`、`LDPlayerProduction.cpp`、`LDPlayerDevelopment.cpp`、旧 `LDPlayerVendor.cpp` | D02/D05/D16 **由集成在同次切换真删文件**；Controller 的 include、UFUNCTION、View/cache/token/friend、旧 `InventoryPending` 聚合及已删 Panel/Transaction 调用同步去除 | 不把无服务 Server 调用改成静默 return，不保留空兼容入口；N04/N05 窄请求由新提供者实际实现。 |
-| `Public\Framework\LDGameInstance.h`、`Private\Framework\LDGameInstance.cpp` | R13/N01 改 attempt/本地偏好 flush；保留 WorldContext/delegate 配对；D12/D27 删除 ResetEvidence/DevelopmentResetEvidence/B90ResetEvidence 旧 probe 依赖 | 生命周期负责 Generation；B03 删世界 checkpoint 不触碰本地设置保存。 |
-
-外围 UI 也属于闭包，不在其他目录留备用入口：B91 独立控制器/HUD/来源控件与 B90 Preview HUD/Mode
-已随 D11/D13 闭包删除，不保留其反射/override/RPC；只抽当前图/输入所需能力，不把旧预览模式改名成死亡镜头。
-
-### 10.2 资产、Input、反射、配置与新增
-
-| 精确资产/生产消费链 | 目标与门槛 |
+| 范围 | 当前事实与约束 |
 | --- | --- |
-| `Content\Lockdown\Generated\UI\WBP_UIRoot.uasset`；`LDScaffoldBootstrapCommandlet.cpp:210–226` → `LDPlayerController.cpp:104` 字符串 LoadClass | R14 保留当前资产身份和 native 父类；新增页面在原 native 文件，不另造 WBP 页面树。C3 检查父类/事件/CDO/生成类与 delegate，编译重存后才删旧反射方法。 |
-| `Content\Lockdown\Generated\Input\IMC_Gameplay.uasset` 及 `IA_Aim/IA_Move/IA_Sprint/IA_Attack/IA_Dash/IA_Assassinate/IA_Interact/IA_Ward/IA_Help/IA_Menu/IA_Zoom.uasset` | D24 最终删除这十二个包；不是只删五个旧技能资产。唯一动态注册接好 → 移除 `InitializeLocalUI/SetupInputComponent` 静态加载/拼接、Bootstrap 274–326 的固定生成/签名检测 → C3 迁移所有引用 → 真删。保留 Space 等现用键，不再造另一 IMC。 |
-| `Content\Lockdown\Generated\Materials\M_Character.uasset` | R04/R14 保留身体/授权代理实际消费者；旧 Seal/Grass 引用随 D 删除，不能因“占位”删掉当前材质。 |
-| 同目录 `M_Fog.uasset/T_FogClosed.uasset`；Bootstrap 165–209 → Relay AttachFog/UploadFog | R12/R14 改造成世界 Footprint 的显示投影，不保留 60×40 权限假设；换相机/EndPlay 清旧 blendable。C3 材质编译和低画质/无 postprocess 隐私门槛必需。 |
-| 同目录 `M_Ground/M_Soil/M_Fuel/M_Metal/M_River/M_Stone/M_Tree.uasset` | 仅 C2 当前地图无用且 C3 无引用的部分删除；不是 UI 可单独按文本命中决定的资产。 |
-| `Content\Lockdown\Audio\SC_DemoMaster.uasset`、`SMix_DemoUser.uasset`（与 `DA_DemoAudio`、`Cues\SW_*` 一起由 `ImportDemoAudio.ps1` 从 `SourceData\Audio` 导入，Bootstrap Validate 校验） | 仅承接 §8 的一个主音量链，所有保留的 Demo UI/战斗/公共提示音统一接入。不得生成后无声音消费者；实际听测/Cook 未完成不称音量可用。 |
-| 头像/内容图标 | 头像是 HUD 内的原生占位（座位色底 + 字形，等级角标叠在右下），技能/装备在动作格中以文字名称显示；不需要贴图或 Blueprint。改用导入素材时须补逐 IconId 的资产映射与 C3/Cook。 |
-| `Config\DefaultEngine.ini/DefaultInput.ini/DefaultGame.ini`、`Source\Lockdown\Lockdown.Build.cs`、`Source\LockdownEditor\LockdownEditor.Build.cs`、`Lockdown.uproject` | D25/D26 保留当前前端/GameMode/GI、LDGroundAim/LDVision、DPI、EnhancedInput、Runtime/Editor 分离；核对合并后有效值与插件/资产消费后删旧容量/书价/profile/CommonUI 无用项、RuntimeDependencies/AlwaysCook/旧 maps。版本取现有 GeneralProjectSettings section，不新增字面量来源。 |
-
-二进制清理前必须合并 AssetRegistry/Reference Viewer 的 hard/soft/management 引用、
-Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstrap、Cook/staging 根。
-在旧类仍可加载时迁移存活资产，再重启加载、UHT/Blueprint 编译、Bootstrap Validate、Cook；
-生成器不得重新生成已删 IA/旧 UI。`.uasset/.umap` 保持 Git LFS，不文本拼接。
-
-### 10.3 测试/probe 消费者及实施顺序
-
-| 当前精确入口 | 保留/替换/删除 |
-| --- | --- |
-| `Private\Tests\LDInputRulesTests.cpp`、`LDHUDRulesTests.cpp`、`LDViewTests.cpp` | 改造 ControlMappings/IssuedCommandLiveness、HUDObservationBoundary、`DemoVision.Codec`/ViewPrivacySchema；保留拒旧/原子性/隐私，替换旧四技能、八字段/旧公共字段数、60×40 和“敌血蓝永远 Unknown”断言。递归检查嵌套状态/装备，不只数顶层字段。 |
-| `Public\Tests\LDInputProbe.h`、`Private\Tests\LDInputProbe.cpp/LDHUDProbeExtension.cpp`；`Scripts\RunInputCheck.ps1/RunHUDCheck.ps1` | 复用真实 EnhancedInput/Slate、full-conceal、重复 toast/旧 ACK 夹具；HUD extension 属 InputProbe，不虚构 ALDHUDProbe。删旧 ward/死亡税/deadline/固定计数与非参赛 Host 拓扑，改 §11 场景。 |
-| `Private\Tests\LDDemoVisionProbe.h/.cpp`；`Scripts\RunDemoVisionCheck.ps1` | 已替换旧 ViewNetwork probe/runner：真实 owner 受限注册表、单连接丢帧后的超时清除与无 LastSeen、正常可视 Listen Host 生成当帧隐藏且只经自身投影呈现；乱序/过期、跨 owner 句柄与嵌套白名单由 `Lockdown.Rules.DemoVision.*` 承接；旧公共 sensor/ward 已删；镜头不增加视野权限属 CT-A14。 |
-| `Private\Tests\LDInventoryRulesTests.cpp/LDLoadoutRulesTests.cpp/LDV08LoadoutTests.cpp/LDEconomyRulesTests.cpp` | 保留实例/来源/容量/精确条款和原子拒绝；N05 补真实创建失败与拥有连接场景，不将无效输出 ID 的纯账本检查冒充 Actor 分配失败。 |
-| `Scripts\CaptureInputUI.ps1`、现有 Demo frontend 原生夹具 | 复用实际 RHI 截图与独立 UserDir，覆盖前端/设置 100/125% 与显示草稿丢弃；旧场景和授予参数不再提供。截图存在不证明 OS 输入、声音或完整游戏 UI。 |
-| 动作栏读模型（`LDHUD::Action`）验收 | 必须验证资源边界、实际来源、控制反馈、冷却端点及失源不自动补位；旧动作栏及其字段不再作为实现或测试替代。 |
-| `Scripts\RunTests.ps1`、`CheckRuleReport.py`、`TestRuleReport.py` | 按明确的当前必需用例集合核对，并校验其与源码注册一致；迁移 UI/Shop/Choice 断言时同步维护，保留 failed/notRun/inProcess/缺报告失败，不用成功数量掩盖缺测。 |
-
-顺序按每个闭包的 P0–P5：先列生产消费/反射 → 原领域/窄投影与唯一输入改接 →
-迁移存活资产/生成配置 → 真删旧文件/字段/RPC/页签/探针 → 当前断言/手册同步 →
-本批验证与最终总门禁。B01 可先做菜单/准入失败合同，基础闭包不等无关平衡参数；
-完整 UI 随 I1–I7 各域接线，I8 复核全链，不等最后才做 HUD，也不要求先可玩旧模式才能删闭包。
+| 原生 UI | 所有页面在 `Source\Lockdown\{Public,Private}\UI` 的 native 类中构建，不另造 WBP 页面树、第二 UI 框架或备用控件；旧职业选择、Seal/Heart、六+四技能栏、库存整理/丢弃、多 profile 设置与迁移、`LDV08HUDModel` 均已删除，不恢复。 |
+| 输入 | 只保留动态 Enhanced Input 注册；旧静态 `IMC_Gameplay` 与各 `IA_*` 资产已删除，生成器不会再生成它们。 |
+| 资产 | `Content\Lockdown\Generated\UI\WBP_UIRoot.uasset` 保持以 `ULDUIRoot` 为父类，由 Controller 加载生成类；`Materials\M_Fog.uasset` 是迷雾显示投影，不承载权限。主音量链（`SC_DemoMaster`、`SMix_DemoUser`）由 `ImportDemoAudio.ps1` 导入并经 Bootstrap Validate 校验。头像/图标见 §2 与 §3。 |
+| 二进制清理 | `.uasset/.umap` 用 Git LFS；删除前合并 AssetRegistry hard/soft 引用、Blueprint/CDO、native `LoadObject/LoadClass`、ini、Bootstrap 与 Cook 根，再重启加载、Bootstrap Validate、Cook。 |
+| 测试与 probe | 规则测试：`LDHUDRulesTests`、`LDInputRulesTests`、`LDViewTests`、`LDDemoVisionTests`、`LDLocalSettingsTests`、`LDMinimapTests`、`LDWorldFeedbackTests`；联机：`LDDemoVisionProbe`（`RunDemoVisionCheck.ps1`）与 FullRoom（`RunDemoOpponentCheck.ps1`）。必需用例集合由 `Scripts\RunTests.ps1` 与规则报告检查维护，失败、未运行或缺报告均视为失败。 |
 
 ## 11. SC-09 G：正反验收与证据边界
 
@@ -615,32 +566,18 @@ Blueprint/CDO/WorldSettings、native 拼接 LoadObject/LoadClass、ini、Bootstr
 LAN 与正确配置可达公网分别记录，loopback 不证明公网/NAT。
 所有输出进忽略的 Artifacts。
 
-## 12. 专家闭环、公开依据与限制
+## 12. 设计依据
 
-| 独立角色 | 真实 agent 身份 | 本模块交付 |
-| --- | --- | --- |
-| MOBA UX/信息呈现研究 | `demo-ui-ux-expert` · `b8df29a8-89fd-445e-94bb-65601430a7a7` | 完整屏幕/状态、原创线框、输入/失败/权限与公开 UX 研究已完成；未审计 native 实现，未兼任 QA。 |
-| UE UI/输入/复制/设置工程研究 | `demo-ui-unreal-expert` · `eb9e3b78-1233-42bb-8bee-2d68532861cf` | native UI、DTO/RPC、设置、生成资产/调用者/探针静态研究完成；核对 139 处源码引用范围，未改运行文件，未兼任 QA。 |
-| 独立 UX/权限/生命周期 QA | `demo-ui-qa-auditor` · `a57db409-324a-4e3b-9a56-83f39b5f893a` | 在两份研究和整合稿齐备后独立全文审核，并对显示试用/中断收尾、Esc/模态组合修订作同人定点复核。最终静态文档审核通过，无剩余高置信度必须修订项；未兼任作者。 |
+本文的屏幕、输入、权限与生命周期设计经 MOBA UX、UE 工程与独立 QA 三方研究审核后收口；
+原始研究保存在会话工件，不复制进仓库。保留的关键结论：Shop 是普通面板、受伤不自动关闭；
+进攻执行限制不能吞掉规范化意图；面板可见不等于阻止世界输入，仍按 Handled/capture 合同处理。
 
-原始研究仅在会话工件保存，不把聊天、逐轮更正或弃用备选方案复制进仓库。
-本次完成文档相对链接/源码行号、明确列举的文件路径、表格结构与 diff 检查；
-三位实际 agent 的研究及审核闭环均已完成，结论仅限此模块文档。
-整合采用工程证据与最终产品约束：例如 Shop 是普通面板、不因受伤自动关闭；
-进攻执行限制不能吞规范化意图；visible 并不天然阻止世界输入，仍须 Handled/capture 合同。
-
-公开资料核验日期 **2026-11-01**。两位研究者均实际检索/读取；UE 资料经 Context7 官方文档集合
-及 Epic 原文交叉核对。下列只支撑机制/UX 理由，不批准游戏数值，不证明 5.8.4 补丁已编译通过。
-
-| 来源 | 本报告采用边界 |
-| --- | --- |
-| [Game Accessibility Guidelines：不只靠固定颜色传递重要信息](https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-a-fixed-colour-alone/) | 文字/形状/图标与颜色共同表达状态，不复制其他游戏美术。 |
-| [Nielsen Norman Group：Progress Indicators](https://www.nngroup.com/articles/progress-indicators/) | 输入后立即给在途反馈，长等待有明确状态/恢复路径；不是“取消可以回滚任何已提交操作”。 |
-| [Epic：Enhanced Input](https://dev.epicgames.com/documentation/en-us/unreal-engine/enhanced-input-in-unreal-engine) | LocalPlayer 动态 context、action 生命周期；支持保留现有动态注册，不证明项目已无穿透。 |
-| [Epic：SetInputMode_GameAndUIEx](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/UMG/UWidgetBlueprintLibrary/SetInputMode_GameAndUIEx?application_version=5.6) | UI 未处理输入可下探 controller；确切 API 原文为 5.6，不能充当锁定引擎测试。 |
-| [Epic：Actor Owner and Owning Connection](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-owner-and-owning-connection-in-unreal-engine)、[Replicated Object Execution Order](https://dev.epicgames.com/documentation/en-us/unreal-engine/replicated-object-execution-order-in-unreal-engine) | owner 连接与跨 Actor/OnRep 到达限制；不把可靠 RPC 当业务恰一次，不把 relevancy 当 Host 本地视野。 |
-| [Epic：Saving and Loading Your Game](https://dev.epicgames.com/documentation/en-us/unreal-engine/saving-and-loading-your-game-in-unreal-engine)、[SaveGameToSlot](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/UGameplayStatics/SaveGameToSlot?application_version=5.6) | bool/失败处理、非 transient 字段保存边界；小 save 可同步，异步仍需项目处理乱序。 |
-| [Epic：UGameUserSettings](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/UGameUserSettings?application_version=5.6) | 应用/保存、确认/回退的职责和 void 保存结果；运行 API/配置文件行为仍需 5.8.4 实证。 |
-| [Epic：Sound Classes](https://dev.epicgames.com/documentation/en-us/unreal-engine/sound-classes-in-unreal-engine)、[UMG Optimization Guidelines](https://dev.epicgames.com/documentation/en-us/unreal-engine/optimization-guidelines-for-umg-in-unreal-engine) | 真实主音量分组、投影事件驱动；不凭通用建议声称本项目性能或声音通过。 |
-
-上述研究只支撑设计理由；实现的构建、联机与视觉证据见集成的门禁与联合测试结果。
+外部依据只支撑机制与 UX 理由，不批准数值：
+[Game Accessibility Guidelines（不只靠颜色）](https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-a-fixed-colour-alone/)、
+[NN/g Progress Indicators](https://www.nngroup.com/articles/progress-indicators/)、
+Epic 文档 [Enhanced Input](https://dev.epicgames.com/documentation/en-us/unreal-engine/enhanced-input-in-unreal-engine)、
+[Actor Owner and Owning Connection](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-owner-and-owning-connection-in-unreal-engine)、
+[Saving and Loading Your Game](https://dev.epicgames.com/documentation/en-us/unreal-engine/saving-and-loading-your-game-in-unreal-engine)、
+[UGameUserSettings](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/UGameUserSettings?application_version=5.6)、
+[Sound Classes](https://dev.epicgames.com/documentation/en-us/unreal-engine/sound-classes-in-unreal-engine)。
+实现的构建、联机与视觉证据见集成门禁与联合测试结果。
