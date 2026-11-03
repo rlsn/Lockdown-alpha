@@ -356,10 +356,6 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
     if(Card.bEquipment){Text+=TEXT("\n")+Card.Equipment;}
     return Text;
 }
-FVector2D LDHUD::MapPoint(const FVector& P,const FBox2D& G)
-{const FVector2D Span=G.GetSize();return FVector2D((P.X-G.Min.X)/Span.X,1-(P.Y-G.Min.Y)/Span.Y);}
-FVector LDHUD::MapWorld(const FVector2D& P,const FBox2D& G)
-{const FVector2D Span=G.GetSize();return FVector(G.Min.X+FMath::Clamp(P.X,0.,.999999)*Span.X,G.Min.Y+(1-FMath::Clamp(P.Y,.000001,1.))*Span.Y,0);}
 
 namespace
 {

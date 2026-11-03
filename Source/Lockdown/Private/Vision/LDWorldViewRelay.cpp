@@ -1,5 +1,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDBodyPuppet.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Framework/LDPlayerController.h"
@@ -301,9 +303,12 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
     if (Pose.Reached != INDEX_NONE && Points[Pose.Reached].At > ShownAt)
     {
         // The same cue byte as the owner's own body: action pose plus one marker shape per public status, shown when
-        // the clock reaches the sample that carried them.
+        // the clock reaches the sample that carried them. An action's age is its age in that sample plus the time the
+        // clock has run past it, so its timeline stays in step with the delayed pose.
         const LDObservedPresentation::FFacts& Reached = Facts[Pose.Reached];
-        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses));
+        const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
+            : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
+        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age);
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)
@@ -312,6 +317,14 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         Facts.RemoveAt(0, Pose.Reached);
     }
     Body->Animate(Pose.Velocity.GetClampedToMaxSize(1000.0), Delta);
+}
+
+void ALDObservedEntityProxy::PlayDeathFall() const
+{
+    if (IsValid(Body) && !ALDBodyPuppet::SpawnFall(*Body))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
+    }
 }
 
 ALDOwnBodyMarker::ALDOwnBodyMarker()
@@ -386,6 +399,9 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     // An exaggerated chalk stub lying along the flight direction (+X), readable from the gameplay camera at 720p.
     Chalk->SetRelativeRotation(FRotator(90, 0, 0));
     Chalk->SetRelativeScale3D(FVector(.22, .22, .5));
+    // Chalk dust strung out behind the flight; the proxy faces +X along its heading.
+    Trail = CreateDefaultSubobject<ULDFlightTrailComponent>(TEXT("Trail"));
+    Trail->SetupAttachment(RootComponent);
 }
 
 void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec)
@@ -543,7 +559,10 @@ void ALDWorldViewRelay::Present(const TArray<FLDObservedClear>& Cleared)
     for (const FLDObservedClear& Clear : Cleared)
     {
         TObjectPtr<ALDObservedEntityProxy> Proxy;
-        if (Proxies.RemoveAndCopyValue(Clear.Handle, Proxy) && IsValid(Proxy)) { Proxy->Destroy(); }
+        if (!Proxies.RemoveAndCopyValue(Clear.Handle, Proxy) || !IsValid(Proxy)) { continue; }
+        // Only an authorized observed death falls; leaving sight, timeouts and resets simply remove the body.
+        if (Clear.Reason == ELDObservedClearReason::ObservedDeath) { Proxy->PlayDeathFall(); }
+        Proxy->Destroy();
     }
     SyncProxies();
     UploadFog();

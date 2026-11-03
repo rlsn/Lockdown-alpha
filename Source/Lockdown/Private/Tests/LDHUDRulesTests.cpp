@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "UI/LDMinimap.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -77,10 +78,11 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Roster names come from the public roster"),LDHUD::RosterName(Lobby,Rival.ContenderId),FString(TEXT("同学甲")));
     TestTrue(TEXT("An unlisted contender has no invented roster name"),LDHUD::RosterName(Lobby,FGuid::NewGuid()).IsEmpty()&&LDHUD::RosterName(Lobby,FGuid()).IsEmpty());
     const FBox2D Ground(FVector2D(-5000,-5000),FVector2D(5000,5000));
-    const FVector World(-1700,-1000,200);const auto Fraction=LDHUD::MapPoint(World,Ground);const auto Back=LDHUD::MapWorld(Fraction,Ground);
-    TestTrue(TEXT("Map conversion round trips XY and deliberately grants no height or dynamic target"),FVector::Dist2D(World,Back)<.001&&Back.Z==0);
-    const FVector Edge=LDHUD::MapWorld(FVector2D(5,-3),Ground);
-    TestTrue(TEXT("Map edge clamp stays inside the registered ground"),Edge.X>=Ground.Min.X&&Edge.X<Ground.Max.X&&Edge.Y>Ground.Min.Y&&Edge.Y<=Ground.Max.Y);
+    const LDMinimap::FView MapView=LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,FVector2D(240,240),0.,false,0.);
+    const FVector World(-1700,-1000,200);const FVector Back=LDMinimap::ToWorld(MapView,LDMinimap::ToFrame(MapView,World));
+    TestTrue(TEXT("Map conversion round trips XY and deliberately grants no height or dynamic target"),MapView.IsValid()&&FVector::Dist2D(World,Back)<.001&&Back.Z==0);
+    const FVector Edge=LDMinimap::ClampToGround(LDMinimap::ToWorld(MapView,FVector2D(5,-3)*MapView.FrameSize),Ground);
+    TestTrue(TEXT("Map edge clamp stays inside the registered ground"),Edge.X>=Ground.Min.X&&Edge.X<Ground.Max.X&&Edge.Y>=Ground.Min.Y&&Edge.Y<Ground.Max.Y&&Edge.Z==0);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLifeStatusTest,"Lockdown.Rules.HUDLifeStatus",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

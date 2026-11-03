@@ -84,6 +84,11 @@ FVector LDMinimap::ToWorld(const FView& View,const FVector2D& Local)
     const FVector2D Along=(Local-View.FrameSize*.5)/View.Scale;const FVector2D Offset=View.Right*Along.X-View.Forward*Along.Y;
     return FVector(View.Centre.X+Offset.X,View.Centre.Y+Offset.Y,0.);
 }
+FVector LDMinimap::ClampToGround(const FVector& World,const FBox2D& Ground)
+{
+    const FVector2D Span=Ground.GetSize();
+    return FVector(FMath::Clamp(World.X,Ground.Min.X,Ground.Min.X+.999999*Span.X),FMath::Clamp(World.Y,Ground.Min.Y,Ground.Min.Y+.999999*Span.Y),0.);
+}
 
 namespace
 {
@@ -273,16 +278,15 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
     // Death keeps camera operations (UI 4); a ground order still needs the controller's world-command gate.
-    if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->IntentFeedback=TEXT("社死中只能移动镜头，不能下达移动");}return false;}
-    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->IntentFeedback=TEXT("小地图不可用：未加载 Demo 世界");return false;}
+    if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(TEXT("社死中只能移动镜头，不能下达移动"));}return false;}
+    FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
     const LDMinimap::FView View=MinimapLiveView(*PC,MinimapCache(StaticMap),GetWorld(),Ground,FrameSize);
-    if(!View.IsValid()){PC->IntentFeedback=TEXT("小地图不可用：尚未完成布局");return false;}
+    if(!View.IsValid()){PC->PostIntentNotice(TEXT("小地图不可用：尚未完成布局"));return false;}
     // A point off the ground (a turned corner, the fitted margin) is clamped onto it like any edge point; a move is then
     // still validated against the public ground below.
-    const FVector Point=LDMinimap::ToWorld(View,P*View.FrameSize);const FVector2D Span=Ground.GetSize();
-    const FVector XY(FMath::Clamp(Point.X,Ground.Min.X,Ground.Min.X+.999999*Span.X),FMath::Clamp(Point.Y,Ground.Min.Y,Ground.Min.Y+.999999*Span.Y),0.);
+    const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Ground);
     if(!Move){PC->Navigation->PanTo(XY);return true;}
-    FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->IntentFeedback=TEXT("无法到达该位置");return false;}
+    FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
     PC->Navigation->Navigate(Surface);return true;
 }
 FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)

@@ -179,9 +179,6 @@ namespace LDHUD
     // SC-07 whitelist only: name, level, HP, MP, public statuses and two equipment definitions.
     LOCKDOWN_API FObservedCard ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
     LOCKDOWN_API FString ObservedUnit(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
-    // Map fractions over the registered ground bounds that observation coverage also uses.
-    LOCKDOWN_API FVector2D MapPoint(const FVector& World,const FBox2D& Ground);
-    LOCKDOWN_API FVector MapWorld(const FVector2D& Fraction,const FBox2D& Ground);
 
     // Typed parameters of approved content (CONTENT 12.5): prose comes from the display table, numbers only from the
     // immutable snapshot fields, formatted here without recomputing any battle formula.

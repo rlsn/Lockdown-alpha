@@ -37,6 +37,9 @@ namespace LDMinimap
     LOCKDOWN_API FVector2D ToFrame(const FView& View,const FVector& World);
     // Ground point (Z = 0) under a frame point: the exact inverse of ToFrame, unclamped.
     LOCKDOWN_API FVector ToWorld(const FView& View,const FVector2D& Local);
+    // A gesture's ground point: X and Y clamped inside the registered ground (half-open at the far edges), Z = 0. The
+    // map grants no height and no target; a move is still validated against the ground surface below.
+    LOCKDOWN_API FVector ClampToGround(const FVector& World,const FBox2D& Ground);
 }
 
 UCLASS()

@@ -5,6 +5,7 @@
 #include "Vision/LDViewTypes.h"
 #include "LDWorldViewRelay.generated.h"
 class ULDHumanoidVisualComponent;
+class ULDFlightTrailComponent;
 class UStaticMeshComponent;
 class ALDPlayerController;
 class UTexture2D;
@@ -119,6 +120,8 @@ public:
     void Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec);
     // Poses the body at the relay's delayed presentation time; the relay drives every proxy from one clock.
     void Present(double AtServerSec, float Delta);
+    // An authorized observed death: leaves a client-only falling copy of this body before the proxy is removed.
+    void PlayDeathFall() const;
     FGuid ObservedHandle;
     uint32 ObservedEpoch = 0;
 private:
@@ -165,6 +168,7 @@ public:
     FGuid ObservedHandle;
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
+    UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;
     double EndedAt = -1;
     bool bPlaced = false;

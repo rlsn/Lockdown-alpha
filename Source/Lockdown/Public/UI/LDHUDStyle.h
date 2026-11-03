@@ -2,7 +2,8 @@
 #include "CoreMinimal.h"
 
 // Shared in-match presentation tokens, so the HUD band, overhead bars, world feedback and minimap keep one visual
-// language: the own body reads green, other contenders red, camp members amber, mana blue and 淡定 pale blue.
+// language: the own body reads green, other contenders red, camp members amber, mana blue and 淡定 the bright cyan of
+// the body's shield marker.
 // Local presentation only; no gameplay value or rule lives here. Sizes are Slate units at the 1080p reference.
 namespace LDHUDStyle
 {
@@ -22,7 +23,7 @@ namespace LDHUDStyle
     inline const FLinearColor EnemyHealth(.86f,.26f,.21f);
     inline const FLinearColor CampHealth(.95f,.62f,.18f);
     inline const FLinearColor Mana(.25f,.50f,.95f);
-    inline const FLinearColor Shield(.86f,.93f,1.f);
+    inline const FLinearColor Shield(0.f,.78f,1.f);
     inline const FLinearColor Experience(.86f,.70f,.22f);
     inline const FLinearColor BarTrack(.04f,.05f,.07f,.85f);
 
@@ -30,7 +31,7 @@ namespace LDHUDStyle
     inline const FLinearColor DamageDealt(1.f,.93f,.80f);
     inline const FLinearColor DamageTaken(1.f,.36f,.30f);
     inline const FLinearColor Heal(.45f,.95f,.50f);
-    inline const FLinearColor ShieldGain(.70f,.88f,1.f);
+    inline const FLinearColor ShieldGain(.45f,.90f,1.f);
     inline const FLinearColor GoldGain(1.f,.84f,.30f);
     inline const FLinearColor ExperienceGain(.80f,.66f,1.f);
     inline const FLinearColor Celebration(1.f,.86f,.36f);
