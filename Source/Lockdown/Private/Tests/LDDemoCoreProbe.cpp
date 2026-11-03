@@ -18,6 +18,7 @@
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "GameFramework/GameNetworkManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -592,7 +593,13 @@ public:
         }
         else if (Stage==9 && !Nav->HasMoveOrder() && Nav->Status==TEXT("Arrived"))
         {
-            Check(FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=41
+            // The server completes the order with its own body inside the receipt's acceptance radius. The owning client's
+            // predicted foot is only kept within the engine's uncorrected position error of the server's, so that error
+            // bounds the client-side distance on top of the radius.
+            const FLDOrderReceipt& Arrived=Nav->LatestReceipt();
+            const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
+            Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
+                && FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
             Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==1,
                 TEXT("Navigation and corrections do not allocate a new body or life"));
