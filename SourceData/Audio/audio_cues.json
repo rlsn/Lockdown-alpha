@@ -70,7 +70,9 @@
       "pack_path": "Audio/Pizzicato jingles/jingles_PIZZI13.ogg",
       "sha256": "44f5b9d0d3ed9835a015e72199b4b82acc2e7f322c342c4f8f8bf1abd3537214",
       "duration_sec": 0.881,
-      "purpose": "全场击杀通知"
+      "purpose": "全场击杀通知",
+      "loudness_lufs": -12.88,
+      "volume": 0.993
     },
     {
       "cue": "CaptureOpened",
@@ -79,7 +81,9 @@
       "pack_path": "Audio/threeTone2.ogg",
       "sha256": "124198c80ff2e1826230be606aa3dcdd90262272bb545f621a9eb91dccfd5c9d",
       "duration_sec": 0.866,
-      "purpose": "升旗台开放"
+      "purpose": "升旗台开放",
+      "loudness_lufs": -11.59,
+      "volume": 0.855
     },
     {
       "cue": "CaptureStarted",
@@ -88,7 +92,9 @@
       "pack_path": "Audio/phaserUp3.ogg",
       "sha256": "d6edcbde2c7190e275ef3eba08a8886129153a361cd0e16dc0fb58206deb5e53",
       "duration_sec": 0.522,
-      "purpose": "开始占领或占领者变化"
+      "purpose": "开始占领或占领者变化",
+      "loudness_lufs": -14.0,
+      "volume": 1.076
     },
     {
       "cue": "CaptureContested",
@@ -97,7 +103,9 @@
       "pack_path": "Audio/twoTone2.ogg",
       "sha256": "e8e4a2d9faa4344f4722de9ef81103290858bbcd80f1dc686879128cae52e9f0",
       "duration_sec": 0.731,
-      "purpose": "升旗台争夺"
+      "purpose": "升旗台争夺",
+      "loudness_lufs": -12.95,
+      "volume": 1.0
     },
     {
       "cue": "MatchVictory",
@@ -106,7 +114,9 @@
       "pack_path": "Audio/Steel jingles/jingles_STEEL10.ogg",
       "sha256": "88a6645658b15dc327a2377ca7354e364625f081cd6ff9fda0b46dc54f664b71",
       "duration_sec": 0.909,
-      "purpose": "本人获胜"
+      "purpose": "本人获胜",
+      "loudness_lufs": -9.81,
+      "volume": 0.697
     },
     {
       "cue": "MatchDefeat",
@@ -115,7 +125,9 @@
       "pack_path": "Audio/Sax jingles/jingles_SAX07.ogg",
       "sha256": "241c8570fbded819ee0205e4be3efa80aeb834a70df89318da88f9e219798b11",
       "duration_sec": 1.74,
-      "purpose": "本人落败"
+      "purpose": "本人落败",
+      "loudness_lufs": -15.65,
+      "volume": 1.365
     },
     {
       "cue": "MatchEndedNoWinner",
@@ -124,7 +136,9 @@
       "pack_path": "Audio/Steel jingles/jingles_STEEL00.ogg",
       "sha256": "8799eb726d784ae0aa1a9df80648a873ac60015bc00aea12c8e2dd1431a2bd7d",
       "duration_sec": 0.933,
-      "purpose": "无胜者结束"
+      "purpose": "无胜者结束",
+      "loudness_lufs": -12.56,
+      "volume": 0.956
     },
     {
       "cue": "SelfHit",
@@ -133,7 +147,9 @@
       "pack_path": "Audio/impactGeneric_light_000.ogg",
       "sha256": "f0e982611e97512fee5f777986b67e8b435434b601f94992ec044f7e89fb5acb",
       "duration_sec": 0.139,
-      "purpose": "本人受击"
+      "purpose": "本人受击",
+      "loudness_lufs": -23.01,
+      "volume": 1.096
     },
     {
       "cue": "SelfCast",
@@ -142,7 +158,9 @@
       "pack_path": "Audio/drop_002.ogg",
       "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218",
       "duration_sec": 0.191,
-      "purpose": "本人技能或装备主动释放成功"
+      "purpose": "本人技能或装备主动释放成功",
+      "loudness_lufs": -20.61,
+      "volume": 1.073
     },
     {
       "cue": "PurchaseSucceeded",
@@ -151,7 +169,9 @@
       "pack_path": "Audio/handleCoins.ogg",
       "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab",
       "duration_sec": 0.846,
-      "purpose": "购买或出售成功"
+      "purpose": "购买或出售成功",
+      "loudness_lufs": -19.4,
+      "volume": 0.929
     },
     {
       "cue": "TradeRejected",
@@ -160,7 +180,9 @@
       "pack_path": "Audio/error_006.ogg",
       "sha256": "a97513d7fd2b12b1210c423be943b4c1ab0e899b11db95855e9b74836e646ae0",
       "duration_sec": 0.5,
-      "purpose": "交易被拒"
+      "purpose": "交易被拒",
+      "loudness_lufs": -18.4,
+      "volume": 1.039
     },
     {
       "cue": "LevelUp",
@@ -169,7 +191,9 @@
       "pack_path": "Audio/powerUp7.ogg",
       "sha256": "9048d651b51f528099c384566b0d4c6c597bee8b56c48f3adab7a901feba0fa5",
       "duration_sec": 0.522,
-      "purpose": "升级或出现新的三选一"
+      "purpose": "升级或出现新的三选一",
+      "loudness_lufs": -11.65,
+      "volume": 0.861
     },
     {
       "cue": "SelfDeath",
@@ -178,7 +202,9 @@
       "pack_path": "Audio/phaserDown3.ogg",
       "sha256": "19fd2f5bb8448e022381f1a72c36117d4adcb521ebeb697e888bfaf7945cfa56",
       "duration_sec": 0.496,
-      "purpose": "本人社死"
+      "purpose": "本人社死",
+      "loudness_lufs": -12.52,
+      "volume": 0.952
     },
     {
       "cue": "SelfRespawn",
@@ -187,7 +213,9 @@
       "pack_path": "Audio/confirmation_002.ogg",
       "sha256": "33b17a9a9a2397c62b285c52c33a907fdffb476909c99e42dde603f6a7a8b12c",
       "duration_sec": 0.539,
-      "purpose": "本人复活"
+      "purpose": "本人复活",
+      "loudness_lufs": -12.04,
+      "volume": 0.901
     },
     {
       "cue": "UIClick",
@@ -196,7 +224,9 @@
       "pack_path": "Audio/select_002.ogg",
       "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012",
       "duration_sec": 0.043,
-      "purpose": "界面点击（设置页主音量试听）"
+      "purpose": "界面点击（设置页主音量试听）",
+      "loudness_lufs": -22.35,
+      "volume": 1.062
     }
   ]
 }

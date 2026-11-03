@@ -135,14 +135,20 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
 经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。
+覆盖实际交给音频设备时（首次推送和每次音量变化）记录 Display 级 `LD_AUDIO_MIX_APPLIED device=<id> volume=<v>`。
 新增的任何 Demo 声音都必须归入 `SC_DemoMaster`，否则目录校验失败、音量也控制不到它。
 
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`，
 各包的许可原文 `License.txt` 与文件放在同一目录。
+每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
+BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
+结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
+该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
+很短的本人反馈音受峰值上限约束，仍比 jingle 低几 dB。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
 `-Mode Validate`（Bootstrap Validate 也会执行）拒绝清单外的文件、许可原文不是 CC0 的包、
-源文件哈希变化，以及不是由当前源字节导入的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
+源文件哈希变化，以及不是由当前源字节导入、或播放音量与清单不符的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
 
 ## 检查入口
 

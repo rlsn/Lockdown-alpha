@@ -70,13 +70,20 @@ bool ULDAudioSubsystem::PushVolume(UWorld* World)
     if (!Catalog || !World || !GEngine || !GEngine->UseSound()) { return false; }
     FAudioDeviceHandle Device = World->GetAudioDevice();
     if (!Device.IsValid()) { return false; }
-    // One override on the user mix: the master class and its children follow the applied local volume.
-    Device->SetSoundMixClassOverride(Catalog->UserMix, Catalog->MasterClass, MasterVolume, 1.f, 0.f, true);
-    if (!bMixPushed || PushedDevice != Device.GetDeviceID())
+    const uint32 DeviceId = Device.GetDeviceID();
+    const bool bNewDevice = !bMixPushed || PushedDevice != DeviceId;
+    if (bNewDevice || AppliedVolume != MasterVolume)
+    {
+        // One override on the user mix: the master class and its children follow the applied local volume.
+        Device->SetSoundMixClassOverride(Catalog->UserMix, Catalog->MasterClass, MasterVolume, 1.f, 0.f, true);
+        AppliedVolume = MasterVolume;
+        UE_LOG(LogTemp, Display, TEXT("LD_AUDIO_MIX_APPLIED device=%u volume=%.2f"), DeviceId, MasterVolume);
+    }
+    if (bNewDevice)
     {
         Device->PushSoundMixModifier(Catalog->UserMix);
         bMixPushed = true;
-        PushedDevice = Device.GetDeviceID();
+        PushedDevice = DeviceId;
     }
     return true;
 }
