@@ -115,10 +115,12 @@ try {
     $captures = ($screenshots | ForEach-Object { Join-Path $output $_ }) -join ', '
     $hostFeel = $hostReport.feel
     $clientFeel = $reports['Client1'].feel
-    $feel = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms), ramp to full speed " +
+    $feel = ("Control feel (measured, ms): Host right-click to motion $($hostFeel.click_to_move_ms) " +
+        "($($hostFeel.click_frames) frames, longest $($hostFeel.click_longest_frame_ms); walked $($hostFeel.spawn_to_click_ms) after spawn once frames settled), ramp to full speed " +
         "$($hostFeel.ramp_to_full_speed_ms), S from $([math]::Round($hostFeel.stop_from_speed)) cm/s to still $($hostFeel.stop_to_still_ms) " +
         "over $([math]::Round($hostFeel.stop_distance_cm)) cm, next walk $($hostFeel.restart_click_to_move_ms) (frame $([math]::Round($hostFeel.frame_ms,1))); " +
-        "Client1 right-click to Activated receipt $($clientFeel.click_to_activated_receipt_ms), to motion $($clientFeel.click_to_move_ms), " +
+        "Client1 right-click to Activated receipt $($clientFeel.click_to_activated_receipt_ms), to motion $($clientFeel.click_to_move_ms) " +
+        "($($clientFeel.click_frames) frames, longest $($clientFeel.click_longest_frame_ms)), " +
         "ramp $($clientFeel.ramp_to_full_speed_ms), S to Stopped receipt $($clientFeel.stop_to_stopped_receipt_ms) " +
         "(frame $([math]::Round($clientFeel.frame_ms,1))); acceleration $($hostFeel.max_acceleration), braking " +
         "$($hostFeel.braking_deceleration_walking), speed $($hostFeel.max_walk_speed) cm/s.")
