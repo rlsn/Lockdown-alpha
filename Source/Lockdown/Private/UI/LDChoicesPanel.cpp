@@ -6,6 +6,8 @@
 #include "Components/ButtonSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/ScrollBox.h"
+#include "Components/ScrollBoxSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -31,27 +33,32 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto Text=[this](const FString& Value,int32 Size){return LDWidgets::Text(WidgetTree,Value,Size);};
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        Header=Text(TEXT(""),20);Top->AddChildToHorizontalBox(Header)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        Header=Text(TEXT(""),17);Top->AddChildToHorizontalBox(Header)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("ChoicesClose")));
-        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,12));
+        // The three cards stack in a right-hand column, so the panel never covers the own body and its surroundings while
+        // the match keeps running; a long card list scrolls instead of growing into the band.
+        auto* Row=WidgetTree->ConstructWidget<UVerticalBox>();
+        CardScroll=WidgetTree->ConstructWidget<UScrollBox>();CardScroll->AddChild(Row);
+        auto* ScrollSize=WidgetTree->ConstructWidget<USizeBox>();ScrollSize->SetMaxDesiredHeight(440);ScrollSize->SetContent(CardScroll);
+        Root->AddChildToVerticalBox(ScrollSize)->SetPadding(FMargin(0,8));
         for(int32 Index=0;Index<3;++Index)
         {
             FCardWidgets& Card=Cards.AddDefaulted_GetRef();
             auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
             Card.Kind=Text(TEXT(""),13);Card.Kind->SetColorAndOpacity(FLinearColor(1,.82f,.4f));Lines->AddChildToVerticalBox(Card.Kind);
-            Card.Name=Text(TEXT(""),20);Lines->AddChildToVerticalBox(Card.Name)->SetPadding(FMargin(0,4,0,0));
-            Card.Rank=Text(TEXT(""),14);Lines->AddChildToVerticalBox(Card.Rank);
-            Card.Body=Text(TEXT(""),14);Lines->AddChildToVerticalBox(Card.Body)->SetPadding(FMargin(0,8,0,0));
+            Card.Name=Text(TEXT(""),17);Lines->AddChildToVerticalBox(Card.Name)->SetPadding(FMargin(0,2,0,0));
+            Card.Rank=Text(TEXT(""),13);Lines->AddChildToVerticalBox(Card.Rank);
+            Card.Body=Text(TEXT(""),13);Lines->AddChildToVerticalBox(Card.Body)->SetPadding(FMargin(0,4,0,0));
             Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){PreviewChoice(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
             Card.Button->SetContent(Lines);
-            auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(286);Size->SetMinDesiredHeight(240);Size->SetContent(Card.Button);
-            Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(0,0,Index<2?10:0,0));
+            auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(308);Size->SetContent(Card.Button);
+            Row->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,0,0,Index<2?8:0));
             CardWidgets.Add(Card.Button);CardWidgets.Add(Card.Kind);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Rank);CardWidgets.Add(Card.Body);
         }
-        auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Bottom);
-        Feedback=Text(TEXT(""),15);Bottom->AddChildToHorizontalBox(Feedback)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* Bottom=WidgetTree->ConstructWidget<UVerticalBox>();Root->AddChildToVerticalBox(Bottom);
+        Feedback=Text(TEXT(""),14);Bottom->AddChildToVerticalBox(Feedback);
         ConfirmButton=LDWidgets::Button(WidgetTree,TEXT("确认本次选择"),[this](){ConfirmChoice();},false,TEXT("ChoicesConfirm"));
-        Bottom->AddChildToHorizontalBox(ConfirmButton);
+        Bottom->AddChildToVerticalBox(ConfirmButton)->SetPadding(FMargin(0,6,0,0));
         auto* Replace=WidgetTree->ConstructWidget<UVerticalBox>();
         ReplaceText=Text(TEXT(""),16);Replace->AddChildToVerticalBox(ReplaceText);
         auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(Slots)->SetPadding(FMargin(0,8));
@@ -65,12 +72,14 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         ReplaceConfirmButton=LDWidgets::Button(WidgetTree,TEXT("确认替换并遗忘"),[this](){ConfirmChoice();},false,TEXT("ReplaceConfirm"));
         ReplaceActions->AddChildToHorizontalBox(ReplaceConfirmButton)->SetPadding(FMargin(0,0,10,0));
         ReplaceActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("返回三卡"),[this](){CloseChildConfirmation();},false,TEXT("ReplaceBack")));
-        ReplacePanel=LDWidgets::Panel(WidgetTree,Replace,FMargin(16));ReplacePanel->SetBrushColor(FLinearColor(.06f,.05f,.03f,.99f));ReplacePanel->SetVisibility(ESlateVisibility::Collapsed);
-        Root->AddChildToVerticalBox(ReplacePanel)->SetPadding(FMargin(0,12,0,0));
-        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));
-        auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(920);Width->SetContent(MainPanel);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Top);
-        Frame->SetPadding(FMargin(0,150,0,0));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Width);
+        ReplacePanel=LDWidgets::Panel(WidgetTree,Replace,FMargin(16));ReplacePanel->SetBrushColor(FLinearColor(.06f,.05f,.03f,.9f));ReplacePanel->SetVisibility(ESlateVisibility::Collapsed);
+        Cast<UScrollBoxSlot>(CardScroll->AddChild(ReplacePanel))->SetPadding(FMargin(0,10,0,0));
+        // A see-through backing in a right-hand column under the minimap: clear of the centre (the own body and about 5 m
+        // around it at either resolution) and of the bottom band.
+        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
+        auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(340);Width->SetContent(MainPanel);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Right);Frame->SetVerticalAlignment(VAlign_Top);
+        Frame->SetPadding(FMargin(0,350,16,0));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Width);
         WidgetTree->RootWidget=Frame;
         SetVisibility(ESlateVisibility::Collapsed);
     }
@@ -175,7 +184,7 @@ void ULDChoicesPanel::ConfirmChoice()
         if(!bReplacing)
         {
             // Child confirmation: both current actives, no default slot.
-            bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;ReplacePanel->SetVisibility(ESlateVisibility::Visible);
+            bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;ReplacePanel->SetVisibility(ESlateVisibility::Visible);if(CardScroll){CardScroll->ScrollToEnd();}
             for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
             {
                 const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
