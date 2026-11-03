@@ -26,7 +26,7 @@ namespace LDObservation
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
 // Combat owns visible action cues; adding one is a schema change.
-UENUM() enum class ELDObservedActionCue : uint8 { None = 0 };
+UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2, Hit = 3 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
 
@@ -151,6 +151,20 @@ struct FLDObservedPublicFacts
     uint8 CreatureId = 0;
     FLDObservedEquipmentView Equipment;
     TArray<FLDObservedStatus> Statuses;
+    // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
+    ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
+    int64 ActionCueAtMs = 0;
+};
+
+UENUM() enum class ELDObservedProjectileLook : uint8 { Chalk = 1 };
+
+// Server-only authority record of one projectile in flight, sampled by the observation owner. Never serialized.
+struct FLDObservedProjectileFact
+{
+    FGuid Key;                                   // the release's EffectId
+    FVector PositionCm = FVector::ZeroVector;    // current centre; Z is the releasing foot height
+    FVector2D Heading = FVector2D::ZeroVector;   // planar unit direction
+    ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
 };
 
 USTRUCT()

@@ -887,6 +887,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionToken=Body->Action->Token;
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
+            Out.Cues=CueFactsOf(*Body);
             Out.bRooted=LDTactical::RootBlocks(Body->Roots,NowMs,Policies,ELDDemoRootBlock::Move);
             if (Projection.OutOfCombatHPRegen.IsSet())
             {

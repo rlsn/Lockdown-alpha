@@ -7,7 +7,9 @@
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDDemoEntry.h"
+#include "Combat/LDCombatCues.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
 #include "Region/LDMapRegistry.h"
 
 ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
@@ -98,7 +100,6 @@ void ALDCharacter::BeginPlay()
         return;
     }
     if (HasAuthority()) { GetCharacterMovement()->SetComponentTickEnabled(false); }
-    if (HasAuthority()) { PresentationKey = uint8(FMath::RandRange(0,3)); }
     OnRep_Presentation();
 }
 
@@ -109,7 +110,43 @@ void ALDCharacter::Tick(float Delta)
     const bool OwnBody=PC && PC->GetLocalPlayer() && PC->GetPawn()==this
         && PC->OwnerState.LifePhase==ELDLifePhase::Alive && PC->OwnerState.BodyRef.IsValid();
     Body->SetVisibility(OwnBody,true);
-    if (OwnBody) { Body->Animate(GetVelocity(),Delta); }
+    if (!OwnBody) { return; }
+    // The own body shows the cue and markers others see, from its own Combat projection at the public clock.
+    const FLDCombatOwnerView& View=PC->CombatView;
+    int64 NowMs=0;
+    ELDObservedActionCue Cue=ELDObservedActionCue::None;
+    TArray<FLDObservedStatus> Statuses;
+    if (PC->ReadDemoAuthorityTimeMs(NowMs) && View.bHasBody && View.Generation==PC->OwnerState.Match
+        && View.Life==PC->OwnerState.Life)
+    {
+        Cue=LDCombatCues::Select(View.Cues,NowMs).Cue;
+        for (const FLDCombatStatusView& Status : View.Statuses)
+        {
+            if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
+            { Statuses.Add({Status.StatusId,1,Status.ExpiresAtMs}); }
+        }
+        if (NowMs<PC->OwnerState.ProtectedUntilMs)
+        { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
+    }
+    Body->SetCue(PresentationCue(Cue,Statuses));
+    Body->Animate(GetVelocity(),Delta);
+}
+
+uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses)
+{
+    uint8 Code=Cue==ELDObservedActionCue::Attack ? 1 : Cue==ELDObservedActionCue::Cast ? 2 : Cue==ELDObservedActionCue::Hit ? 4 : 0;
+    for (const FLDObservedStatus& Status : Statuses)
+    {
+        switch (static_cast<ELDDemoStatusId>(Status.StatusId))
+        {
+        case ELDDemoStatusId::Root: Code|=16; break;
+        case ELDDemoStatusId::CampReturning: Code|=32; break;
+        case ELDDemoStatusId::Shield: Code|=64; break;
+        case ELDDemoStatusId::RespawnProtection: Code|=128; break;
+        default: break;
+        }
+    }
+    return Code;
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }

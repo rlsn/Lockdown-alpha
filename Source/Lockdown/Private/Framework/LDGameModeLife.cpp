@@ -473,6 +473,17 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
         ++Life->SpawnSequence;
         Life->SpawnForLife = ProposedLife;
     }
+    // The first body fixes the contender's public identity slot: its position in the locked start roster.
+    if (Life->PresentationSlot == MAX_uint8)
+    {
+        const int32 Slot = RosterOrder.IndexOfByKey(Contender);
+        if (Slot == INDEX_NONE || Slot >= ALDCharacter::ContenderPresentations)
+        {
+            Error = TEXT("A placed contender has no public identity slot in the locked roster.");
+            return false;
+        }
+        Life->PresentationSlot = uint8(Slot);
+    }
     // A repeated request for the same life replays the original anchor instead of drawing again.
     const FLDSpawnRequestKey Request{MatchContext, Contender, ProposedLife, Life->SpawnSequence};
     TSharedPtr<const FLDSpawnSelection> Selection;
@@ -497,6 +508,7 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
     Body->SetReplicates(false);
     Body->SetActorHiddenInGame(true);
     Body->SetActorTickEnabled(false);
+    Body->PresentationKey = Life->PresentationSlot;
     if (!Body->ConfigureDemoMovement(*DemoContent, Error))
     {
         ReleasePlacedBody(Out);

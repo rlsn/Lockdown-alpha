@@ -176,6 +176,8 @@ private:
         uint32 SpawnForLife=0;
         FName SpawnAnchor;
         int32 SpawnOffset=INDEX_NONE;
+        // Public identity slot (locked roster position 0..5) for every body of this contender in this match.
+        uint8 PresentationSlot=MAX_uint8;
         FGuid MotionStreamId;
         FLDCombatBodyRef MotionBody;
         uint64 MotionThroughSequence=0;

@@ -726,7 +726,7 @@ public:
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
             return Fail(TEXT("Stop"), TEXT("S did not stop the engaged attack-move: ") + PC.Navigation->Status);
         }
-        Check(PC.Navigation->Status == TEXT("Stopped"), TEXT("Stop"),
+        Check(Latest.Status == ELDOrderStatus::Cancelled && Latest.Failure == ELDOrderFailure::Stopped, TEXT("Stop"),
             TEXT("S ends the engaged attack-move with a server Stopped receipt for this connection"), PC.Navigation->Status);
         if (!Passed || !Mark(TEXT("Client1Stopped.json"))) { return Finish(); }
         SetStage(EStage::AwaitDeath);

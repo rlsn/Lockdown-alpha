@@ -58,6 +58,8 @@ struct FLDBodyCombatState
     int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
     int64 MonsterNextAttackAtMs=0;         // contenders keep their cadence on the persistent record
     int64 DashUntilMs=0;
+    // Released action and last landed hit of this life for the visible action cue.
+    FLDCombatCueFacts Cues;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
 };
@@ -179,6 +181,13 @@ public:
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
+    // Action cue of a registered body at NowMs (LDCombatCues); None after a lethal hit (LDCombatObservation.cpp).
+    void AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut) const;
+    // Every projectile still in flight after the last Effects advance, for the observation owner to sample.
+    // Fails without output for a projectile whose source has no approved look.
+    bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
+    // A body life's cue facts with its winding-up action and dash filled in.
+    static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
 
     // ---- Growth compound commits.
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,

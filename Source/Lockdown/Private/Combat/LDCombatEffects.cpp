@@ -208,6 +208,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
+    // A hit that harmed or rooted the body is its visible Hit cue (LDCombatCues).
+    if (Damage.DamageP2>0 || bRoots)
+    {
+        Body->Cues.LastHitAtMs=NowMs;
+        MarkViewChanged(Body->Victim.EntityId);
+    }
     // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
     if ((Damage.DamageP2>0 || bRoots) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
     {

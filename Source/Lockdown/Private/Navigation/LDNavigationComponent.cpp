@@ -27,25 +27,25 @@ namespace LDNavigationDetail
         switch (Failure)
         {
         case ELDOrderFailure::None: return TEXT("");
-        case ELDOrderFailure::InvalidRequest: return TEXT("InvalidRequest: the order shape is invalid.");
-        case ELDOrderFailure::NotOwner: return TEXT("NotOwner: orders need the current owned body.");
-        case ELDOrderFailure::StaleMatch: return TEXT("StaleMatch: the order belongs to another match.");
-        case ELDOrderFailure::StaleLife: return TEXT("StaleLife: the order belongs to another life.");
-        case ELDOrderFailure::StaleOrder: return TEXT("StaleOrder: an older order or cancelled epoch cannot run again.");
-        case ELDOrderFailure::RequestConflict: return TEXT("RequestConflict: this identity has different order terms.");
-        case ELDOrderFailure::SequenceExhausted: return TEXT("SequenceExhausted: no further order identity is available.");
-        case ELDOrderFailure::InvalidGround: return TEXT("InvalidGround: the destination is not legal ground on the registered surface.");
-        case ELDOrderFailure::NoCompletePath: return TEXT("NoCompletePath: no complete walkable route exists.");
-        case ELDOrderFailure::PathBlocked: return TEXT("Path blocked");
-        case ELDOrderFailure::TargetUnavailable: return TEXT("Target unavailable");
-        case ELDOrderFailure::TargetDied: return TEXT("Target died");
-        case ELDOrderFailure::ShopUnavailable: return TEXT("Shop unavailable");
-        case ELDOrderFailure::Dead: return TEXT("Dead");
-        case ELDOrderFailure::MatchEnded: return TEXT("Match ended");
-        case ELDOrderFailure::Superseded: return TEXT("Superseded by a newer order");
-        case ELDOrderFailure::Stopped: return TEXT("Stopped");
-        case ELDOrderFailure::Expired: return TEXT("Order expired");
-        default: return TEXT("Order failed");
+        case ELDOrderFailure::InvalidRequest: return TEXT("订单无效");
+        case ELDOrderFailure::NotOwner: return TEXT("不是你当前的角色");
+        case ELDOrderFailure::StaleMatch:
+        case ELDOrderFailure::StaleLife:
+        case ELDOrderFailure::StaleOrder: return TEXT("订单已失效");
+        case ELDOrderFailure::RequestConflict: return TEXT("订单编号冲突");
+        case ELDOrderFailure::SequenceExhausted: return TEXT("订单编号已用尽");
+        case ELDOrderFailure::InvalidGround:
+        case ELDOrderFailure::NoCompletePath: return TEXT("无法到达该位置");
+        case ELDOrderFailure::PathBlocked: return TEXT("路线受阻");
+        case ELDOrderFailure::TargetUnavailable: return TEXT("目标不可见");
+        case ELDOrderFailure::TargetDied: return TEXT("目标已社死");
+        case ELDOrderFailure::ShopUnavailable: return TEXT("小卖部不可用");
+        case ELDOrderFailure::Dead: return TEXT("已社死");
+        case ELDOrderFailure::MatchEnded: return TEXT("本局已结束");
+        case ELDOrderFailure::Superseded: return TEXT("已被新订单替换");
+        case ELDOrderFailure::Stopped: return TEXT("已停止");
+        case ELDOrderFailure::Expired: return TEXT("订单已过期");
+        default: return TEXT("订单失败");
         }
     }
 
@@ -53,22 +53,22 @@ namespace LDNavigationDetail
     {
         switch (Kind)
         {
-        case ELDSpatialOrderKind::AttackUnit: return TEXT("Attack pending");
-        case ELDSpatialOrderKind::AttackMove: return TEXT("Attack-move pending");
-        case ELDSpatialOrderKind::ApproachShop: return TEXT("Shop approach pending");
-        default: return TEXT("Move pending");
+        case ELDSpatialOrderKind::AttackUnit: return TEXT("攻击请求已发送");
+        case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动已发送");
+        case ELDSpatialOrderKind::ApproachShop: return TEXT("正在前往小卖部");
+        default: return TEXT("移动请求已发送");
         }
     }
 
     const TCHAR* RunningText(const FLDOrderReceipt& Receipt)
     {
-        if (Receipt.bEngaged) { return TEXT("Attacking"); }
+        if (Receipt.bEngaged) { return TEXT("正在弹脑瓜崩"); }
         switch (Receipt.Kind)
         {
-        case ELDSpatialOrderKind::AttackUnit: return TEXT("Chasing target");
-        case ELDSpatialOrderKind::AttackMove: return TEXT("Attack-moving");
-        case ELDSpatialOrderKind::ApproachShop: return TEXT("Approaching shop");
-        default: return TEXT("Move accepted");
+        case ELDSpatialOrderKind::AttackUnit: return TEXT("追击目标");
+        case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动中");
+        case ELDSpatialOrderKind::ApproachShop: return TEXT("前往小卖部");
+        default: return TEXT("移动中");
         }
     }
 
@@ -77,15 +77,15 @@ namespace LDNavigationDetail
         FString Text;
         switch (Receipt.Status)
         {
-        case ELDOrderStatus::Queued: Text=bStop?TEXT("Stop pending"):PendingText(Receipt.Kind); break;
+        case ELDOrderStatus::Queued: Text=bStop?TEXT("停止请求已发送"):PendingText(Receipt.Kind); break;
         case ELDOrderStatus::Activated:
         case ELDOrderStatus::Progress: Text=RunningText(Receipt); break;
         case ELDOrderStatus::Completed:
-            Text=Receipt.Failure==ELDOrderFailure::None?TEXT("Arrived"):FailureText(Receipt.Failure); break;
+            Text=Receipt.Failure==ELDOrderFailure::None?TEXT("已到达"):FailureText(Receipt.Failure); break;
         default: Text=FailureText(Receipt.Failure); break;
         }
         if (Receipt.bProtectionRemoved && (Receipt.Status==ELDOrderStatus::Activated || Receipt.Status==ELDOrderStatus::Rejected))
-        { Text+=TEXT(" (protection removed)"); }
+        { Text+=TEXT("（复活保护已解除）"); }
         return Text;
     }
 
@@ -226,7 +226,7 @@ bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop)
     const FLDMapBinding* Shop=Registry && !ShopId.IsNone()?Registry->Resolve(ShopId,Registry->Generation):nullptr;
     if (!Shop || Loaded->Get().Parameters.ShopInteractRadiusCm.Denominator<=0)
     {
-        if (auto* PC=Controller()) { Status=PC->IntentFeedback=TEXT("The public shop is unavailable in this world."); }
+        if (auto* PC=Controller()) { Status=PC->IntentFeedback=TEXT("小卖部不可用"); }
         return false;
     }
     const auto& Radius=Loaded->Get().Parameters.ShopInteractRadiusCm;
@@ -240,7 +240,7 @@ bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out
     auto* PC=Controller();
     if (!PC || Serial==MAX_uint32 || (Cancel && Epoch==MAX_uint32))
     {
-        Status=TEXT("Movement identity exhausted; this body cannot issue another order.");
+        Status=TEXT("订单编号已用尽，无法再下达新订单");
         if (PC) { PC->IntentFeedback=Status; }
         UE_LOG(LogTemp, Error, TEXT("LD_NAV_IDENTITY_EXHAUSTED"));
         return false;
@@ -255,7 +255,7 @@ void ULDNavigationComponent::Navigate(const FVector& Surface)
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone())
     {
-        Status=TEXT("The current Demo has no single registered ground surface.");
+        Status=TEXT("当前地图没有可用地面");
         if (auto* PC=Controller()) { PC->IntentFeedback=Status; }
         return;
     }
@@ -268,7 +268,7 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     Request.Kind=ELDSpatialOrderKind::MoveGround;
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
-    SendOrder(Request,TEXT("Move pending"));
+    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
 }
 
 void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch)
@@ -277,7 +277,7 @@ void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 Observatio
     Request.Kind=ELDSpatialOrderKind::AttackUnit;
     Request.Observed=Observed;
     Request.ObservationEpoch=ObservationEpoch;
-    SendOrder(Request,TEXT("Attack pending"));
+    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
 }
 
 // A missing ground point is still sent: the server judges the intent and ends protection.
@@ -287,7 +287,7 @@ void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHin
     Request.Kind=ELDSpatialOrderKind::AttackMove;
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
-    SendOrder(Request,TEXT("Attack-move pending"));
+    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
 }
 
 void ULDNavigationComponent::ApproachShop(FName ShopId)
@@ -295,7 +295,7 @@ void ULDNavigationComponent::ApproachShop(FName ShopId)
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::ApproachShop;
     Request.ShopId=ShopId;
-    SendOrder(Request,TEXT("Shop approach pending"));
+    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
 }
 
 // The previous accepted order keeps running (and is still predicted) until the server activates this one.
@@ -329,7 +329,7 @@ void ULDNavigationComponent::Stop()
     bFollowing=false;
     Points.Reset();
     RefreshLocalActive();
-    Status=TEXT("Stop pending");
+    Status=TEXT("停止请求已发送");
     if (!PC->HasAuthority()) { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
     LocalSentAt=FPlatformTime::Seconds();
     ServerStop(Local);
@@ -462,7 +462,12 @@ void ULDNavigationComponent::ApplyPrediction()
     if (!Plan(ActiveGoal,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(ActiveKind),Points,Projected,Failure,Error))
     {
         bFollowing=false;
-        if (ActiveKind==ELDSpatialOrderKind::MoveGround) { Stop(); Status=PC->IntentFeedback=Error; }
+        if (ActiveKind==ELDSpatialOrderKind::MoveGround)
+        {
+            UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
+            Stop();
+            Status=PC->IntentFeedback=TEXT("无法到达该位置");
+        }
         else { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_PREDICTION_UNAVAILABLE %s"),*Error); }
         return;
     }
@@ -519,7 +524,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     bHadFocus=true;
     if (bLocalActive && Now-LastHeartbeatSent>=.5)
     {
-        if (HeartbeatSequence==MAX_uint32) { Stop(); Status=PC->IntentFeedback=TEXT("Movement heartbeat sequence exhausted."); }
+        if (HeartbeatSequence==MAX_uint32) { Stop(); Status=PC->IntentFeedback=TEXT("移动心跳编号已用尽"); }
         else { LastHeartbeatSent=Now; ServerHeartbeat(ClientActive.Order?ClientActive:Local,++HeartbeatSequence); }
     }
     TickCamera(Delta);
@@ -532,7 +537,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     if (Progress>=BestProgress+10) { BestProgress=Progress; LastProgress=Now; }
     if (Now-LastProgress>=OrderNoProgressSeconds)
     {
-        if (bReplanned) { Stop(); Status=PC->IntentFeedback=TEXT("Path blocked"); }
+        if (bReplanned) { Stop(); Status=PC->IntentFeedback=TEXT("路线受阻"); }
         else
         {
             bReplanned=true;
@@ -544,7 +549,12 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
             FString Error;
             if (Plan(Destination,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(ActiveKind),Points,Projected,Failure,Error))
             { PointIndex=Points.Num()>1?1:0; }
-            else { Stop(); Status=PC->IntentFeedback=Error; }
+            else
+            {
+                UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
+                Stop();
+                Status=PC->IntentFeedback=TEXT("无法到达该位置");
+            }
         }
     }
 }
