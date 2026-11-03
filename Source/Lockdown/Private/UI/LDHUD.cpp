@@ -548,13 +548,19 @@ void ULDHUD::RefreshReadModel()
     const bool bInputSuppressed=PC->IsWorldInputSuppressed();
     if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
     if(ChoicesPanel){ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
-    // D10: the opening three-choice opens its panel once, on the match's first shown frame, when nothing else is open;
-    // it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
-    if(ChoicesPanel&&PC->RootUI&&Progression&&Progression->Generation==O.Match&&AutoChoicesMatch!=O.Match)
+    // D10: the opening three-choice opens its panel once per match, when its offer first reaches this owner and nothing
+    // else is open; it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
+    // Growth may publish the match's progression before the opening offer, so the one chance waits for the offer itself.
+    if(ChoicesPanel&&PC->RootUI&&Progression&&Progression->Generation==O.Match&&AutoChoicesMatch!=O.Match
+        &&(Progression->bHasOffer||Progression->ConsumedThrough>0))
     {
         AutoChoicesMatch=O.Match;
         if(Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1
-            &&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::None){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+            &&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::None&&!PC->IsWorldInputCaptured())
+        {
+            PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);
+            if(!ChoicesPanel->IsPanelOpen()){UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel did not open."));}
+        }
     }
     if(ShopPanel)
     {
