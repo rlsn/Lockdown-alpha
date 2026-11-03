@@ -75,7 +75,7 @@ bool SameObservedStatuses(const TArray<FLDObservedStatus>& A, const TArray<FLDOb
 bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUnitView& B)
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
-        && A.ActionCue == B.ActionCue && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
+        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.ActionEquipment == B.ActionEquipment && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
         && A.Equipment.Slots[0] == B.Equipment.Slots[0] && A.Equipment.Slots[1] == B.Equipment.Slots[1]
@@ -787,7 +787,14 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a Combat action cue has no begin time at or before now.");
             return false;
         }
+        if ((Facts.ActionAbility != 0 || Facts.ActionEquipment != 0) && (Facts.ActionCue != ELDObservedActionCue::Cast || (Facts.ActionAbility != 0 && Facts.ActionEquipment != 0)))
+        {
+            Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a Combat cast source needs a Cast cue and exactly one ability or equipment.");
+            return false;
+        }
         Unit.ActionCue = Facts.ActionCue;
+        Unit.ActionAbility = Facts.ActionAbility;
+        Unit.ActionEquipment = Facts.ActionEquipment;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;

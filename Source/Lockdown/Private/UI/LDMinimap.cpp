@@ -427,20 +427,37 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         }
         if(Footprint.Num()==4){const FVector2f First=Footprint[0];Footprint.Add(First);Lines(11,Footprint,FLinearColor(1.f,1.f,1.f,.8f),1.5f);}
         FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
-        if(View.Mode!=ELDMinimapOrientation::North&&Renderer)
+        if(View.Mode!=ELDMinimapOrientation::North)
         {
-            // A turned map marks north (world -Y, up in 固定正北) just inside the frame edge, outlined over any layer.
-            FFontOutlineSettings Outline;Outline.OutlineSize=2;Outline.OutlineColor=FLinearColor(0.f,0.f,0.f,.85f);
-            const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
-            const FSlateFontInfo Font=FCoreStyle::GetDefaultFontStyle(TEXT("Bold"),float(FMath::Max(1,FMath::RoundToInt(12*TextScale))),Outline);
-            const FString North=TEXT("北");const FVector2f Extent=Renderer->GetFontMeasureService()->Measure(North,Font);
-            const FVector2D Toward(-View.Right.Y,View.Forward.Y),Half(Extent.X*.5+2.,Extent.Y*.5+2.),Middle=Size*.5;
-            double Reach=TNumericLimits<double>::Max();
-            for(int32 Axis=0;Axis<2;++Axis)
-            {if(FMath::Abs(Toward[Axis])>1e-6){Reach=FMath::Min(Reach,((Toward[Axis]>0.?Size[Axis]-Half[Axis]:Half[Axis])-Middle[Axis])/Toward[Axis]);}}
-            const FVector2D Mark=Middle+Toward*FMath::Max(0.,Reach);
-            FSlateDrawElement::MakeText(E,Base+12,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(float(Mark.X-Extent.X*.5),float(Mark.Y-Extent.Y*.5)))),North,Font,ESlateDrawEffect::None,FLinearColor(1.f,.86f,.42f));
+            // A turned square ground would leave beyond-ground corners in the frame: the turning views show a round window
+            // no larger than the circle the ground fills around the view centre, and cover the rest in the frame's colour.
+            const FVector2D Middle=Size*.5;
+            const double Inscribed=FMath::Min(FMath::Min(View.Centre.X-Ground.Min.X,Ground.Max.X-View.Centre.X),FMath::Min(View.Centre.Y-Ground.Min.Y,Ground.Max.Y-View.Centre.Y))*View.Scale;
+            const float Radius=float(FMath::Max(4.,FMath::Min(FMath::Min(Size.X,Size.Y)*.5-1.,Inscribed)));
+            const FLinearColor Outside(.02f,.03f,.05f);
+            for(int32 Row=0;Row<FMath::CeilToInt(Size.Y);++Row)
+            {
+                const float Dy=float(Row)+.5f-float(Middle.Y);
+                if(FMath::Abs(Dy)>=Radius){Box(12,FVector2f(0.f,float(Row)),FVector2f(float(Size.X),1.f),Outside);continue;}
+                const float Dx=FMath::Sqrt(Radius*Radius-Dy*Dy);
+                Box(12,FVector2f(0.f,float(Row)),FVector2f(FMath::Max(0.f,float(Middle.X)-Dx),1.f),Outside);
+                Box(12,FVector2f(float(Middle.X)+Dx,float(Row)),FVector2f(FMath::Max(0.f,float(Size.X-Middle.X)-Dx),1.f),Outside);
+            }
+            TArray<FVector2f> Rim;
+            for(int32 Step=0;Step<=64;++Step){const float Angle=2.f*PI*Step/64.f;Rim.Add(FVector2f(float(Middle.X)+FMath::Cos(Angle)*Radius,float(Middle.Y)+FMath::Sin(Angle)*Radius));}
+            Lines(13,Rim,FLinearColor(.42f,.55f,.62f,.8f),1.5f);
+            if(Renderer)
+            {
+                // North (world -Y, up in 固定正北) is marked just inside the window's rim, outlined over any layer.
+                FFontOutlineSettings Outline;Outline.OutlineSize=2;Outline.OutlineColor=FLinearColor(0.f,0.f,0.f,.85f);
+                const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
+                const FSlateFontInfo Font=FCoreStyle::GetDefaultFontStyle(TEXT("Bold"),float(FMath::Max(1,FMath::RoundToInt(12*TextScale))),Outline);
+                const FString North=TEXT("北");const FVector2f Extent=Renderer->GetFontMeasureService()->Measure(North,Font);
+                const FVector2D Toward(-View.Right.Y,View.Forward.Y);
+                const FVector2D Mark=Middle+Toward.GetSafeNormal()*FMath::Max(0.,double(Radius)-.5*FMath::Max(Extent.X,Extent.Y)-3.);
+                FSlateDrawElement::MakeText(E,Base+14,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(float(Mark.X-Extent.X*.5),float(Mark.Y-Extent.Y*.5)))),North,Font,ESlateDrawEffect::None,FLinearColor(1.f,.86f,.42f));
+            }
         }
     }
-    E.PopClip();return Base+12;
+    E.PopClip();return Base+14;
 }

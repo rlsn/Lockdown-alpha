@@ -206,8 +206,8 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation` 和绑定是完整正向清单。
-当前文件 schema 是 9，与产品/网络版本无关；旧通用 SaveGame 格式及 4–9 以外的 schema 返回不支持，不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast` 和绑定是完整正向清单。
+当前文件 schema 是 10，与产品/网络版本无关；旧通用 SaveGame 格式及 4–10 以外的 schema 返回不支持，不静默覆盖。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
@@ -231,7 +231,9 @@ schema 5 是不含名称的同一正向清单，按显式迁移读取：校验�
 schema 6 是含名称但不含主音量的同一清单，同样显式迁移：名称、绑定和镜头/文字偏好保留，主音量取默认 1。
 schema 7 是不含镜头平移速度的同一清单，显式迁移时平移速度取默认 1800；schema 5、6 迁移同样取 1800。
 schema 8 是不含小地图朝向的同一清单，显式迁移时朝向取跟随镜头；schema 5–7 迁移同样取跟随镜头。
-schema 5–8 中的损坏、非法偏好或注册表外动作
+schema 9 是不含快速施法的同一清单，显式迁移时快速施法取默认关闭；schema 5–8 迁移同样关闭。
+`bQuickCast`（设置页
+schema 5–9 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
@@ -293,7 +295,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
-schema 5–8 显式迁移与主音量、镜头平移速度、小地图朝向保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`）、
+schema 5–8 显式迁移与主音量、镜头平移速度、小地图朝向保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
 小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
 产品显示默认（`LocalDisplayProductDefaults`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、

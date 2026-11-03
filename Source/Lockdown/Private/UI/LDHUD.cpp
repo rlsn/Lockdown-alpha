@@ -199,6 +199,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
         auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(360);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
         CircleBox->AddChildToVerticalBox(CircleBarSize)->SetPadding(FMargin(0,6,0,0));
+        // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
+        NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
+        CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
         PhaseBanner=Panel(CircleBox,false);Place(PhaseBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,16));
         auto* FeedBox=WidgetTree->ConstructWidget<UVerticalBox>();
         for(int32 Row=0;Row<4;++Row)
@@ -477,9 +480,11 @@ void ULDHUD::RefreshReadModel()
     }
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
-    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs);
+    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs,Content?Content->Parameters.CaptureHoldMs:0);
     HudSetText(PhaseText,Circle.Line);CircleProgress->SetPercent(Circle.Progress);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
+    HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
+    HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshKillFeed(*GS,O.ContenderId,Content,bClock,NowMs);
     const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
@@ -856,29 +861,54 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     ELDCombatEntry Armed=ELDCombatEntry::None;
     const bool bArmedEntry=PC->ReadArmedCombatEntry(Armed);
     const auto* Self=Cast<ALDCharacter>(PC->GetPawn());
+    auto RangeRing=[&](const FVector& Feet,float RangeCm,const FLinearColor& Color,float Thickness)
+    {
+        TArray<FVector2D> Ring;
+        for(int32 Step=0;Step<=64;++Step)
+        {
+            const float Angle=2.f*PI*Step/64.f;FVector2D Point;
+            if(!Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Point)){return;}
+            Ring.Add(Point);
+        }
+        Lines(Ring,Color,Thickness);
+    };
+    const FLDOwnerState& Own=PC->OwnerState;
+    const bool bOwnCombat=Self&&Own.Life!=0&&PC->CombatView.bHasBody&&PC->CombatView.Generation==Own.Match&&PC->CombatView.Life==Own.Life;
+    if(bOwnCombat&&!bArmedEntry&&!PC->IsAttackMoveArmed()&&PC->CombatView.AttackRangeCm>0)
+    {
+        // A faint standing ring of the own 弹脑瓜崩 reach (the projected attack range, so range growth shows at once).
+        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        RangeRing(Feet,PC->CombatView.AttackRangeCm,FLinearColor(1.f,1.f,1.f,.22f),1.2f);
+    }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
     {
-        float RangeCm=0;bool bDirection=false;
+        float RangeCm=0;bool bDirection=false,bUnitTarget=false;
         if(bArmedEntry)
         {
             const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
             RangeCm=Source?float(Source->RangeCm):0.f;
             bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
+            bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
         }
-        else{RangeCm=PC->CombatView.AttackRangeCm;}
+        else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
         const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-        const FLinearColor Preview(1,.85f,.45f,.9f);
-        if(RangeCm>0)
+        FLinearColor Preview(1,.85f,.45f,.9f);
+        if(bUnitTarget&&RangeCm>0)
         {
-            TArray<FVector2D> Ring;
-            for(int32 Step=0;Step<=48;++Step)
+            // The unit the pointer would pick (the same selection as a click), from the current authorized frame only:
+            // green when its feet are within the server's foot-to-foot range, red otherwise.
+            FGuid Handle;uint32 Epoch=0;FLDObservedUnitView Hovered;
+            const ALDWorldViewRelay* Relay=PC->LocalView();
+            if(PC->ObservedUnderPointer(Handle,Epoch)&&Relay&&Relay->ReadUnit(Handle,Epoch,Hovered))
             {
-                const float Angle=2.f*PI*Step/48.f;FVector2D Point;
-                if(!Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Point)){Ring.Reset();break;}
-                Ring.Add(Point);
+                const bool bInRange=FVector::Dist2D(Feet,FVector(Hovered.FeetCm))<=RangeCm;
+                Preview=bInRange?FLinearColor(.35f,1.f,.45f,.95f):FLinearColor(1.f,.35f,.3f,.95f);
+                FVector Presented;FVector2D Mark;
+                if(Relay->ReadPresentedLocation(Handle,Epoch,Presented)&&Project(Presented,Mark))
+                {Lines({Mark+FVector2D(-26,-34),Mark+FVector2D(26,-34),Mark+FVector2D(26,34),Mark+FVector2D(-26,34),Mark+FVector2D(-26,-34)},Preview,2.5f);}
             }
-            if(Ring.Num()>1){Lines(Ring,Preview,1.5f);}
         }
+        if(RangeCm>0){RangeRing(Feet,RangeCm,Preview,1.5f);}
         FVector Origin,Direction;
         if(bDirection&&PC->DeprojectMousePositionToWorld(Origin,Direction)&&FMath::Abs(Direction.Z)>KINDA_SMALL_NUMBER)
         {

@@ -89,6 +89,7 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
+    UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;

@@ -3,7 +3,9 @@
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDDemoEntry.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDGameMode.h"
@@ -157,7 +159,17 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
         FUnit Next;
         Next.Handle=Unit.Handle;Next.Epoch=Unit.ObservationEpoch;Next.bCamp=Unit.Kind==ELDObservedUnitKind::CampMember;
         Next.HPP2=Unit.Health.CurrentP2;Next.MaxP2=Unit.Health.MaxP2;Next.SampledAtSec=Frame->SampledAtServerSec;
+        Next.Cue=uint8(Unit.ActionCue);Next.CueAgeMs=Unit.ActionCueAgeMs;Next.Ability=Unit.ActionAbility;Next.Equipment=Unit.ActionEquipment;
         const FUnit* Last=bPrime?nullptr:Units.FindByPredicate([&Next](const FUnit& Known){return Known.Handle==Next.Handle&&Known.Epoch==Next.Epoch;});
+        // A cast with a public source shows its name once: when the cue turns to Cast, restarts (its age falls) or names
+        // another source. A unit first seen mid-cast only primes, like its health.
+        const bool bCast=Next.Cue==uint8(ELDObservedActionCue::Cast)&&(Next.Ability!=0||Next.Equipment!=0);
+        if(Last&&bCast&&(Last->Cue!=Next.Cue||Next.CueAgeMs<Last->CueAgeMs||Last->Ability!=Next.Ability||Last->Equipment!=Next.Equipment))
+        {
+            FEvent& Event=Out.AddDefaulted_GetRef();
+            Event.Kind=EKind::UnitCast;Event.Amount=0;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
+            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Sample.CastName?Sample.CastName(Next.Ability,Next.Equipment):FString();
+        }
         if(Last&&Last->MaxP2==Next.MaxP2&&Last->bCamp==Next.bCamp)
         {
             const int64 Delta=Next.HPP2-Last->HPP2;
@@ -188,6 +200,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::Experience: return FString::Printf(TEXT("+%lld 经验"),Event.Amount);
     case EKind::LevelUp: return FString::Printf(TEXT("升到 %d 级！"),Event.Level);
     case EKind::Kill: return FString::Printf(TEXT("击败 %s！"),Event.Name.IsEmpty()?TEXT("对手"):*Event.Name);
+    case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
     }
     return FString();
 }
@@ -274,6 +287,7 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::Gold: return {LDHUDStyle::GoldGain,LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
+    case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
 }
@@ -377,6 +391,12 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
 void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
+    if(!bDisplayContentTried)
+    {
+        // Missing content stays visible: a cast then reads by its stable id (未知技能 #n).
+        bDisplayContentTried=true;FString Error;
+        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_WORLD_FEEDBACK_CONTENT_UNAVAILABLE %s"),*Error);}
+    }
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());const UWorld* World=GetWorld();
     const ALDGameState* Public=World?World->GetGameState<ALDGameState>():nullptr;
     if(!PC||!Public){return;}
@@ -400,6 +420,8 @@ void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
     Sample.bClock=PC->ReadDemoAuthorityTimeMs(Sample.NowMs);
     Sample.Frame=Frame;
     Sample.RosterName=[Public](const FGuid& Contender){return LDHUD::RosterName(Public->DemoLobby,Contender);};
+    const FLDDemoContentDefinitions* Content=DisplayContent?&DisplayContent->Get():nullptr;
+    Sample.CastName=[Content](uint8 Ability,uint8 Equipment){return Ability!=0?LDHUD::AbilityName(Content,Ability):LDHUD::EquipmentName(Content,Equipment);};
     TArray<LDWorldFeedback::FEvent> Events;
     Tracker.Observe(Sample,Events);
     for(const LDWorldFeedback::FEvent& Event:Events)

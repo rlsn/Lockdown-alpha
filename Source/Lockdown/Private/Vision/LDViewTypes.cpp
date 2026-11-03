@@ -121,7 +121,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Ar << Unit.Handle << Unit.ObservationEpoch << Unit.StateRevision << Unit.AuthorizedFieldMask << Kind << Unit.Presentation;
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
-    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs;
+    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionAbility << Unit.ActionEquipment;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -187,6 +187,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
         || (Unit.ActionCue == ELDObservedActionCue::None && Unit.ActionCueAgeMs != 0))
     { return FailObservation(Error, TEXT("Unknown observed action cue, or a cue age without a cue.")); }
+    if ((Unit.ActionAbility != 0 || Unit.ActionEquipment != 0) && (Unit.ActionCue != ELDObservedActionCue::Cast || (Unit.ActionAbility != 0 && Unit.ActionEquipment != 0)))
+    { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names exactly one ability or equipment.")); }
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;

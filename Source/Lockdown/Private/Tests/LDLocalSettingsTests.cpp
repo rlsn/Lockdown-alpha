@@ -46,11 +46,13 @@ namespace
 
     // Schema 5 is the migratable layout without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation, schema 6
     // the one without MasterVolume and the later fields, schema 7 the one without CameraPanCmPerSec and MinimapOrientation,
-    // schema 8 the one without MinimapOrientation; every other schema writes the current whitelist order.
+    // schema 8 the one without MinimapOrientation, schema 9 the one without QuickCast; every other schema writes the current
+    // whitelist order.
     constexpr uint32 NamelessFixtureSchema = 5;
     constexpr uint32 VolumelessFixtureSchema = 6;
     constexpr uint32 PanlessFixtureSchema = 7;
     constexpr uint32 OrientationlessFixtureSchema = 8;
+    constexpr uint32 QuickCastlessFixtureSchema = 9;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -66,6 +68,9 @@ namespace
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
             && Schema != OrientationlessFixtureSchema)
         { uint8 Orientation = uint8(Values.MinimapOrientation); Payload << Orientation; }
+        if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
+            && Schema != OrientationlessFixtureSchema && Schema != QuickCastlessFixtureSchema)
+        { uint8 Quick = Values.bQuickCast ? 1 : 0; Payload << Quick; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -801,8 +806,7 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
     uint32 SavedSchema = 0;
     FString Error;
 
-    // Schema 9 stores the minimap orientation; 跟随镜头 is the user's default.
-    TestEqual(TEXT("Schema 9 is the current local settings format"), ULDControlSettings::CurrentSchema, 9);
+    // Schema 9 added the minimap orientation; 跟随镜头 is the user's default.
     TestTrue(TEXT("Every orientation has its player-facing name and no other value has one"),
         ULDControlSettings::MinimapOrientationLabel(Camera).Equals(TEXT("跟随镜头"), ESearchCase::CaseSensitive)
         && ULDControlSettings::MinimapOrientationLabel(Facing).Equals(TEXT("跟随角色朝向"), ESearchCase::CaseSensitive)
@@ -816,9 +820,9 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("The applied owner accepts every orientation and marks it unsaved"),
             Applied->SetAppliedMinimapOrientation(Value, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->GetMinimapOrientation() == Value);
         TestTrue(TEXT("The orientation is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
-        TestTrue(TEXT("The verified file declares schema 9"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 9u);
+        TestTrue(TEXT("The verified file declares the current schema"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
         const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
-        TestTrue(TEXT("A schema 9 round trip restores the exact orientation as persistence verified"),
+        TestTrue(TEXT("A current-schema round trip restores the exact orientation as persistence verified"),
             Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetMinimapOrientation() == Value
             && Loaded.Settings->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified);
     }
@@ -883,7 +887,7 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
         Migrated.Message.Contains(TEXT("迁移")) && Migrated.Message.Contains(TEXT("小地图朝向使用默认值“跟随镜头”")));
     TestTrue(TEXT("Loading never rewrites the schema 8 file"), OnDisk(OrientationlessFile));
     TestTrue(TEXT("The next verified save writes the migrated values"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
-    TestTrue(TEXT("The rewritten file declares schema 9"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 9u);
+    TestTrue(TEXT("The rewritten file declares the current schema"), FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The rewritten file loads as current with the kept values and Camera"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->GetMinimapOrientation() == Camera
@@ -1380,6 +1384,52 @@ bool FLDLocalDisplayNativeSaveFlushTest::RunTest(const FString& Parameters)
     QualityBranch->IniPath.Reset();
     TestFalse(TEXT("Missing destination cannot fall back to a relative config identifier"),
         LDLocalSettings::ResolveConfigDestination(NamedCache, TEXT("Engine"), Physical, ResolutionError));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsQuickCastTest, "Lockdown.Rules.LocalSettingsQuickCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit quick cast fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    FString Error;
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("Quick cast is off by default: a skill key arms for a left-click confirmation"),
+        !Applied->GetQuickCast() && !GetDefault<ULDControlSettings>()->bQuickCast);
+    auto* Draft = Applied->CreateDraft();
+    Draft->bQuickCast = true;
+    TestTrue(TEXT("Applying a draft turns quick cast on"), Applied->ApplyLocalSettings(*Draft, Error) && Applied->GetQuickCast());
+    TestTrue(TEXT("Quick cast is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores quick cast"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->GetQuickCast());
+
+    // A schema 9 file has no quick cast field: it migrates with quick cast off, whatever the writer held.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    Values->bQuickCast = true;
+    Write(FixtureBytes(*Values, QuickCastlessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 9 file migrates explicitly with quick cast off and its other preferences kept"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.Settings->GetQuickCast()
+        && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Migrated.Message.Contains(TEXT("快速施法默认关闭")));
+
+    // A stored flag other than 0 or 1 is malformed, never read as on.
+    TArray<uint8> Bad = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Values->bQuickCast = false;
+    const TArray<uint8> Good = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    int32 FlagAt = INDEX_NONE;
+    for (int32 Index = 12; Index < Good.Num() && Index < Bad.Num(); ++Index) { if (Good[Index] != Bad[Index]) { FlagAt = Index; break; } }
+    if (TestTrue(TEXT("The quick cast byte is located in the fixture"), FlagAt != INDEX_NONE))
+    {
+        Bad[FlagAt] = 2;
+        const uint32 Checksum = FCrc::MemCrc32(Bad.GetData() + 12, Bad.Num() - 12);
+        FMemory::Memcpy(Bad.GetData() + 8, &Checksum, sizeof(Checksum));
+        Write(Bad);
+        TestTrue(TEXT("A malformed quick cast flag is corrupt"), ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+    }
     return true;
 }
 #endif

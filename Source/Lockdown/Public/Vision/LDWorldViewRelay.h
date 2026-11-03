@@ -7,6 +7,7 @@
 class ULDHumanoidVisualComponent;
 class ULDFlightTrailComponent;
 class UStaticMeshComponent;
+class UPrimitiveComponent;
 class ALDPlayerController;
 class UTexture2D;
 class UMaterialInstanceDynamic;
@@ -38,6 +39,7 @@ struct LOCKDOWN_API FLDObservedCatalog
     uint8 MaxLevel = 0;
     TSet<uint8> Equipment;
     TSet<uint8> Creatures;
+    TSet<uint8> Abilities;
     bool Build(const FLDDemoContentSnapshot& Content, FString& Error);
     bool Accepts(const FLDObservedUnitView& Unit, FString& Error) const;
 };
@@ -107,6 +109,23 @@ namespace LDObservedPresentation
     // Local-minus-authority clock offset from one arrival: an earlier arrival lowers it at once, later ones raise it by at
     // most OffsetGrowthPerSecond, and a jump beyond ReseedSeconds (another authority clock) re-seeds it.
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
+}
+
+// Client-only fading of tall props that stand between the gameplay camera and a body the player must see (A4). A prop
+// opts in with the component tag LDFadeable; its material fades through the scalar parameter LDFade (0 opaque, 1 most
+// faded). Only the own living body and units presented right now are tested, so a fade never reveals a hidden unit.
+namespace LDPropFade
+{
+    inline const FName Tag = TEXT("LDFadeable");
+    inline const FName Parameter = TEXT("LDFade");
+    // Room around the prop's bounds, and the stretch before the target that does not count (a prop at the body's own
+    // spot is not in front of it).
+    constexpr double BoundsSlackCm = 15.;
+    constexpr double TargetClearCm = 40.;
+    // Full fade in or out takes 1/FadePerSecond seconds.
+    constexpr float FadePerSecond = 6.f;
+    LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
+    LOCKDOWN_API float Step(float Current, bool bOccluding, float DeltaSeconds);
 }
 
 // Client-only presentation of one authorized unit. It never collides, navigates or owns gameplay state.
@@ -213,6 +232,18 @@ private:
     // Delayed authority time at which proxies and flights are posed.
     double PresentationAt(double LocalSeconds) const { return LocalSeconds - ClockOffset - LDObservedPresentation::DelaySeconds; }
     void PresentProxies(float Delta);
+    // Fades tagged props that hide the own body or a presented unit from the camera (LDPropFade).
+    void FadeOccludingProps(const ALDPlayerController& Owning, float Delta);
+    struct FFadeableProp
+    {
+        TWeakObjectPtr<UPrimitiveComponent> Primitive;
+        TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> Materials;
+        float Fade = 0;
+        bool bResolved = false;
+        bool bParameter = false;
+    };
+    TArray<FFadeableProp> FadeableProps;
+    double FadeablesScannedAt = -1;
     FLDObservedFrameReceiver Receiver;
     FLDObservedCatalog Catalog;
     bool bCatalogReady = false;

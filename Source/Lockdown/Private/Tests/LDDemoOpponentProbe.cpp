@@ -15,7 +15,9 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Inventory/LDInventoryDirector.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
+#include "UnrealClient.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -121,6 +123,11 @@ public:
     uint32 FirstGeneration = 0;
     int64 RespawnMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
+    // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
+    int32 Shots = 0;
+    double MatchSeenAt = 0, LastShotAt = 0;
+    TArray<TSharedPtr<FJsonValue>> Screenshots;
+    void CaptureHost(const ALDPlayerController& Owner);
     TSet<FGuid> OpponentIds;
     TArray<FLDOpponentProbeTrack> Tracks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -346,6 +353,28 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     }
 }
 
+void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
+{
+    // Only a rendered Host takes them: the opening HUD (own bars, pending three-choice, minimap), then the first two
+    // moments an AI stands in the Host's current sight, where cooldowns, floating numbers and falls can show.
+    if (!FApp::CanEverRender() || Shots >= 3) { return; }
+    const double Now = FPlatformTime::Seconds();
+    if (MatchSeenAt == 0) { MatchSeenAt = Now; }
+    int32 Visible = 0;
+    if (const ALDWorldViewRelay* Relay = Owner.LocalView())
+    {
+        const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
+        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current) { Visible = Read.Frame->Units.Num(); }
+    }
+    const bool bOpening = Shots == 0 && Now - MatchSeenAt >= 8.;
+    const bool bSighted = Shots > 0 && Visible > 0 && Now - LastShotAt >= 6.;
+    if (!bOpening && !bSighted) { return; }
+    const FString File = FString::Printf(TEXT("HostMatch%d.png"), ++Shots);
+    LastShotAt = Now;
+    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
+    Screenshots.Add(MakeShared<FJsonValueString>(File));
+}
+
 void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const FLDResultView& Result)
 {
     using namespace LDDemoOpponentProbeDetail;
@@ -559,7 +588,7 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Match:
     {
-        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen)) { Sample(*World, *Mode); }
+        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen)) { Sample(*World, *Mode); CaptureHost(*PC); }
         if (!bHost)
         {
             // Ordinary vision decides what an owning client sees of the AI; this is evidence, not a requirement.
@@ -588,7 +617,7 @@ bool FLDDemoOpponentProbe::Tick()
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
         Summary->SetNumberField(TEXT("duration_ms"), double(Result.DurationMs));
-        if (bHost) { CloseHost(*Mode, Result.EndedAtMs, Result); }
+        if (bHost) { Summary->SetArrayField(TEXT("screenshots"), Screenshots); CloseHost(*Mode, Result.EndedAtMs, Result); }
         else { Summary->SetNumberField(TEXT("max_seen_opponents"), MaxSeenOpponents); }
         if (!Passed || !Mark(Role + TEXT("Results.json"))) { return Finish(); }
         Stage = ELDOpponentProbeStage::Results;

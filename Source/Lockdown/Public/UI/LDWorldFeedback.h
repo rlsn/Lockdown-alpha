@@ -8,13 +8,14 @@ struct FLDProgressionView;
 struct FLDEquipmentView;
 struct FLDKillFeedView;
 struct FLDWorldView;
+class FLDDemoContentSnapshot;
 
 // Feedback where the player is looking (APP_SPEC 8): numbers over the own body and over visible units, the own rewards
 // beside the own body, and level-up and own-kill confirmations above it. Local presentation of approved facts only; it
 // never predicts, extrapolates or changes a gameplay value.
 namespace LDWorldFeedback
 {
-    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Gold, Experience, LevelUp, Kill };
+    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Gold, Experience, LevelUp, Kill, UnitCast };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
@@ -24,7 +25,7 @@ namespace LDWorldFeedback
         uint32 Epoch=0;
         int32 Level=0;             // LevelUp: the level reached
         bool bChoiceEarned=false;  // LevelUp: at least one three-choice was earned with it
-        FString Name;              // Kill: the victim's public roster name; empty when the roster does not list it
+        FString Name;              // Kill: the victim's public roster name; UnitCast: the cast's display name; empty when unknown
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
     };
     // One sample of the SC-07 inputs: the owner's own projections, room-public DTOs and the current authorized frame of
@@ -46,6 +47,8 @@ namespace LDWorldFeedback
         const FLDWorldView* Frame=nullptr;
         // Public roster name of a contender; empty when the roster does not list it.
         TFunction<FString(const FGuid&)> RosterName;
+        // Display name of a visible cast's source (an ability or an equipment native id, the other 0); empty when unknown.
+        TFunction<FString(uint8,uint8)> CastName;
     };
     // Turns consecutive samples into events. The first sample of a match only primes (and so does the first body view
     // of a life, the first frame of an observation generation and the first valid growth view after a missing one);
@@ -69,6 +72,11 @@ namespace LDWorldFeedback
             int64 HPP2=0;
             int64 MaxP2=0;
             double SampledAtSec=0;
+            // The unit's cue (ELDObservedActionCue), its age and cast source in that frame, so a new cast is told apart.
+            uint8 Cue=0;
+            uint16 CueAgeMs=0;
+            uint8 Ability=0;
+            uint8 Equipment=0;
         };
         void Reset(uint32 InMatch);
         void ObserveBody(const FSample& Sample,TArray<FEvent>& Out);
@@ -97,7 +105,7 @@ namespace LDWorldFeedback
         uint32 FrameRevision=0;
         TArray<FUnit> Units;
     };
-    // "-37", "+12", "+20 淡定", "-15 淡定", "+45 零花钱", "+60 经验", "升到 3 级！", "击败 同学甲！" (an unlisted victim reads 对手).
+    // "-37", "+12", "+20 淡定", "-15 淡定", "+45 零花钱", "+60 经验", "升到 3 级！", "击败 同学甲！" (an unlisted victim reads 对手),
     LOCKDOWN_API FString Text(const FEvent& Event);
     // Smaller second line of a level-up banner ("获得一次成长三选一"); empty for every other event.
     LOCKDOWN_API FString Subline(const FEvent& Event);
@@ -156,4 +164,7 @@ private:
     double LastTickAt=-1;
     uint32 ShownMatch=0;
     uint32 ShownLife=0;
+    // Approved public definitions, only for the display names of visible casts; loaded once per widget.
+    TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
+    bool bDisplayContentTried=false;
 };

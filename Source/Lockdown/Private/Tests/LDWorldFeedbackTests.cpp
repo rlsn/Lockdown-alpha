@@ -440,4 +440,46 @@ bool FLDWorldFeedbackTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A number shows its amount only, never a name or level"),LDWorldFeedback::Text(Number),FString(TEXT("-37")));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldFeedbackCastsTest,"Lockdown.Rules.WorldFeedback.Casts",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
+{
+    using LDWorldFeedback::EKind;
+    LDWorldFeedback::FTracker Tracker;
+    FLDObservedUnitView Rival=WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,50000,60000);
+    FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,1,10.);Frame.Units={Rival};
+    LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Frame=&Frame;
+    Sample.CastName=[](uint8 Ability,uint8 Equipment){return Ability==7?FString(TEXT("扒裤衩")):Equipment==3?FString(TEXT("跑道钉鞋")):FString();};
+    auto Step=[&Frame](uint32 Revision,ELDObservedActionCue Cue,uint16 AgeMs,uint8 Ability,uint8 Equipment)
+    {
+        Frame.Revision=Revision;Frame.SampledAtServerSec=10.+Revision*.1;
+        FLDObservedUnitView& Unit=Frame.Units[0];Unit.ActionCue=Cue;Unit.ActionCueAgeMs=AgeMs;Unit.ActionAbility=Ability;Unit.ActionEquipment=Equipment;
+    };
+    auto Casts=[&Tracker,&Sample]()
+    {
+        TArray<LDWorldFeedback::FEvent> Out;
+        for(const LDWorldFeedback::FEvent& Event:WorldFeedbackTestObserve(Tracker,Sample)){if(Event.Kind==EKind::UnitCast){Out.Add(Event);}}
+        return Out;
+    };
+    Step(1,ELDObservedActionCue::Cast,40,7,0);
+    TestTrue(TEXT("A unit first seen mid-cast only primes"),Casts().IsEmpty());
+    Step(2,ELDObservedActionCue::Cast,140,7,0);
+    TestTrue(TEXT("The same cast seen again stays quiet"),Casts().IsEmpty());
+    Step(3,ELDObservedActionCue::None,0,0,0);Casts();
+    Step(4,ELDObservedActionCue::Cast,60,7,0);
+    const TArray<LDWorldFeedback::FEvent> Named=Casts();
+    TestTrue(TEXT("A new cast shows its source's display name once, on that unit, stamped with its frame"),Named.Num()==1&&!Named[0].bOwn
+        &&Named[0].Handle==Rival.Handle&&Named[0].SampledAtServerSec==Frame.SampledAtServerSec&&LDWorldFeedback::Text(Named[0])==TEXT("扒裤衩！"));
+    Step(5,ELDObservedActionCue::Cast,20,0,3);
+    const TArray<LDWorldFeedback::FEvent> Item=Casts();
+    TestTrue(TEXT("A restarted cast with another source shows again: an equipment active reads by its equipment name"),
+        Item.Num()==1&&LDWorldFeedback::Text(Item[0])==TEXT("跑道钉鞋！"));
+    Step(6,ELDObservedActionCue::Attack,10,0,0);
+    TestTrue(TEXT("An attack or a hit never names anything"),Casts().IsEmpty());
+    Step(7,ELDObservedActionCue::Cast,10,0,0);
+    TestTrue(TEXT("A cast without a public source shows nothing"),Casts().IsEmpty());
+    LDWorldFeedback::FEvent Unknown;Unknown.Kind=EKind::UnitCast;
+    TestEqualSensitive(TEXT("An unknown source reads as a plain cast"),LDWorldFeedback::Text(Unknown),FString(TEXT("施法！")));
+    return true;
+}
 #endif
