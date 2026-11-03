@@ -39,7 +39,7 @@ public:
     double Deadline = 0, StageAt = 0, ReadyAt = 0;
     ELDCaptureProbeStage Stage = ELDCaptureProbeStage::Join;
     int32 ContestStep = 0;
-    bool Passed = true, Written = false, ReadySent = false, IdentitySaved = false, StartSent = false, ReturnSent = false;
+    bool Passed = true, Written = false, ReadySent = false, NamesChecked = false, StartSent = false, ReturnSent = false;
     bool SecondStartSent = false;
     bool SawContest = false;
     uint32 FirstGeneration = 0, SecondGeneration = 0;
@@ -97,24 +97,19 @@ public:
         return true;
     }
 
-    // Login names are replaced by the online subsystem, so roles exchange their contender identity.
-    bool SaveIdentity(const FGuid& Contender)
+    // The runner sends each role's chosen name as ?LDName=; the roster and the results must show exactly these,
+    // never the online subsystem's generated nickname. One inner space checks that it survives the URL.
+    static const TCHAR* ChosenName(const FString& Which)
     {
-        auto Value = MakeShared<FJsonObject>();
-        Value->SetStringField(TEXT("contender"), Contender.ToString(EGuidFormats::Digits));
-        if (Contender.IsValid() && Save(Value, Role + TEXT("Id.json"))) { return true; }
-        Error = TEXT("Could not persist the role's contender identity.");
-        Passed = false;
-        return false;
+        if (Which == TEXT("Host")) { return TEXT("抢圈 房主"); }
+        if (Which == TEXT("Client1")) { return TEXT("抢圈甲"); }
+        return TEXT("抢圈乙");
     }
 
-    bool LoadIdentity(const TCHAR* Name, FGuid& Out) const
+    static bool NamedOnce(const TArray<FLDLobbyMember>& Members, const TCHAR* Name)
     {
-        FString Json, Text;
-        TSharedPtr<FJsonObject> Value;
-        return FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, FString(Name) + TEXT("Id.json")))
-            && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Value) && Value.IsValid()
-            && Value->TryGetStringField(TEXT("contender"), Text) && FGuid::Parse(Text, Out) && Out.IsValid();
+        return Members.FilterByPredicate([Name](const FLDLobbyMember& Row)
+        { return Row.Kind == ELDContenderKind::Human && Row.Name.Equals(Name, ESearchCase::CaseSensitive); }).Num() == 1;
     }
 
     bool Finish()
@@ -256,14 +251,20 @@ bool FLDDemoCaptureProbe::Tick()
         return true;
     case ELDCaptureProbeStage::Lobby:
     {
-        if (!AllMarkers(TEXT("Joined.json")) || Lobby.Members.Num() != 3 || !EnsureReady(*PC, Lobby)) { return true; }
-        if (!IdentitySaved)
+        if (!AllMarkers(TEXT("Joined.json")) || Lobby.Members.Num() != 3) { return true; }
+        if (!NamesChecked)
         {
-            if (!SaveIdentity(PC->OwnerState.ContenderId)) { return Finish(); }
-            IdentitySaved = true;
+            const FLDLobbyMember* Self = Lobby.Members.FindByPredicate([PC](const FLDLobbyMember& Row)
+            { return Row.ContenderId == PC->OwnerState.ContenderId; });
+            Check(Self && Self->Name.Equals(ChosenName(Role), ESearchCase::CaseSensitive) && NamedOnce(Lobby.Members, ChosenName(TEXT("Host")))
+                && NamedOnce(Lobby.Members, ChosenName(TEXT("Client1"))) && NamedOnce(Lobby.Members, ChosenName(TEXT("Client2"))),
+                TEXT("C16"), TEXT("The roster shows each role's frontend name exactly, never an online subsystem nickname"));
+            NamesChecked = true;
+            if (!Passed) { return Finish(); }
         }
+        if (!EnsureReady(*PC, Lobby)) { return true; }
         if (Role != TEXT("Host")) { Stage = ELDCaptureProbeStage::Starting; return true; }
-        if (!AllHumansReady(Lobby) || StartSent || !AllMarkers(TEXT("Id.json"))) { return true; }
+        if (!AllHumansReady(Lobby) || StartSent) { return true; }
         if (!Check(Lobby.CanStart && Lobby.StartBlocker.IsEmpty(), TEXT("C02"), TEXT("Every provider is wired: the ready room may start normally")))
         {
             Error = TEXT("Normal start is still blocked: ") + Lobby.StartBlocker;
@@ -279,8 +280,10 @@ bool FLDDemoCaptureProbe::Tick()
         const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Body
             || PC->OwnerState.LifePhase != ELDLifePhase::Alive || !PC->CanWorldCommand()) { return true; }
-        Check(LoadIdentity(TEXT("Client1"), CapturerId)
-            && Lobby.Members.ContainsByPredicate([this](const FLDLobbyMember& Row) { return Row.ContenderId == CapturerId; }),
+        const FLDLobbyMember* Capturer = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
+        { return Row.Name.Equals(ChosenName(TEXT("Client1")), ESearchCase::CaseSensitive); });
+        CapturerId = Capturer ? Capturer->ContenderId : FGuid();
+        Check(Capturer && CapturerId.IsValid() && (Role != TEXT("Client1") || CapturerId == PC->OwnerState.ContenderId),
             TEXT("C03"), TEXT("The capturing contender is on the locked roster"));
         Check(View.Generation == FirstGeneration && View.OpenAtMs == View.StartedAtMs + DevelopmentMs
             && View.CircleState == ELDCircleState::NotOpen && !View.Occupier.IsValid(),
@@ -338,6 +341,20 @@ bool FLDDemoCaptureProbe::Tick()
         Check(Result.Rows.Num() == 3 && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }),
             TEXT("C09"), TEXT("The frozen result lists every contender with a committed final level"));
+        bool bRowNames = Result.Rows.Num() == 3;
+        for (const FLDResultRow& Row : Result.Rows)
+        {
+            const FLDLobbyMember* Listed = Lobby.Members.FindByPredicate([&Row](const FLDLobbyMember& Member)
+            { return Member.ContenderId == Row.ContenderId; });
+            bRowNames &= Listed && Row.Name.Equals(Listed->Name, ESearchCase::CaseSensitive);
+        }
+        for (const TCHAR* Which : {TEXT("Host"), TEXT("Client1"), TEXT("Client2")})
+        {
+            bRowNames &= Result.Rows.ContainsByPredicate([Which](const FLDResultRow& Row)
+            { return Row.Name.Equals(ChosenName(Which), ESearchCase::CaseSensitive); });
+        }
+        Check(bRowNames, TEXT("C17"), TEXT("The frozen result rows carry each contender's frontend name, the same as the roster"));
+        Summary->SetStringField(TEXT("name"), ChosenName(Role));
         const ALDCaptureMarker* Marker = Public->GetCaptureMarker();
         Check(Marker && Marker->GetGeneration() == View.Generation && Marker->GetShownState() == View.CircleState
             && MarkerObservations > 0 && MarkerMismatches == 0,

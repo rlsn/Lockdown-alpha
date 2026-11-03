@@ -24,18 +24,23 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report each check group it owns; a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection','Skills')
+    Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection','Skills','Render')
     Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection','Skills')
 }
 # Only the Host runs the DEV growth fixture: it presets offers and grants XP on its authority, with no RPC.
 $fixtureSwitch = '-LDDevGrowthFixture'
+# The Host's rendered captures of its own body and the observed skill moments, kept for presentation review and never
+# pixel-compared. The first (the duel site) also absorbs the stall of the process's first read-back.
+$screenshots = @('HostSees-DuelSite.png','HostSees-OwnHit.png','HostSees-Root.png','HostSees-Shield.png',
+    'HostSees-ChalkFlight.png','HostSees-OwnStrike.png')
 
 function Start-CombatRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
-    $portArgument = if ($Role -eq 'Host') { "-port=$port $fixtureSwitch" } else { '' }
-    $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    # The Host is a participating Listen Host with a real RHI main view; the owning client needs no renderer.
+    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port $fixtureSwitch" } else { '-nullrhi' }
+    $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
@@ -83,6 +88,13 @@ try {
     if ($hostReport.growth_fixture -ne $true -or $reports['Client1'].growth_fixture -ne $false) {
         throw "Only the Host may run with the DEV growth fixture: $output"
     }
+    foreach ($name in $screenshots) {
+        $image = Join-Path $evidence $name
+        if (@($hostReport.screenshots | Where-Object { $_.file -eq $name }).Count -ne 1 -or
+            -not (Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -le 0) {
+            throw "The participating Listen Host left no rendered capture $name of its observed skill moment: $output"
+        }
+    }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
     if (-not $processes[1].WaitForExit(30000) -or $processes[1].ExitCode -ne 0) { throw "Owning client did not exit cleanly: $output" }
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
@@ -99,15 +111,18 @@ try {
         Set-Content -LiteralPath (Join-Path $output 'DevFixture.json') -Encoding UTF8
     Assert-LDNetEmulationApplied -Output $output -Roles $roles -NetEmulation $NetEmulation
     $impairment = if ($NetEmulation) { " Every role ran under engine packet simulation ($NetEmulation) on one machine's loopback." } else { '' }
+    # Packaged evidence moves into $output when the run ends, so these are the captures' final paths in both modes.
+    $captures = ($screenshots | ForEach-Object { Join-Path $output $_ }) -join ', '
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
         "foot in the navmesh margin routes while the same clicked ground stays refused, Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
         "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then skills learned by ordinary " +
         "choices of DEV-fixture-preset offers: active_binding_snare root observed, active_guard_pulse shield and dispel, " +
-        "active_arc_bolt projectile hit ($($hostReport.projectile_samples) flight samples), an attr_reach basic hit at " +
-        "$($hostReport.reach_hit_cm) cm.$impairment " +
-        "DEV growth fixture: Host only ($fixtureSwitch). Not gear actives, camps, AI, capture or full-match acceptance. Evidence: $output")
+        "Client1's active_arc_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), an attr_reach basic " +
+        "hit at $($hostReport.reach_hit_cm) cm.$impairment " +
+        "DEV growth fixture: Host only ($fixtureSwitch). Rendered Host captures for presentation review (not pixel-compared): " +
+        "$captures. Not gear actives, camps, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
     foreach ($process in $processes) {

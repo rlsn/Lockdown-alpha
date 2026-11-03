@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -24,11 +25,15 @@
 #include "Camera/CameraActor.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
+#include "ImageUtils.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
@@ -36,12 +41,14 @@
 #include "NavigationData.h"
 #include "NavigationSystem.h"
 #include "Serialization/JsonSerializer.h"
+#include "UnrealClient.h"
 
 // Owned-connection combat and orders scenario (COMBAT_AND_ATTRIBUTES, CONTROLS_AND_TARGETING). Client1 acts only
 // through its own connection and the calls its hotkeys make; the participating Listen Host stands still while it is
 // attacked, audits those hits from its authority and then kills Client1 with an ordinary right-click order. Afterwards
 // both learn approved skills from offers the Host's DEV growth fixture (-LDDevGrowthFixture) presets and grants XP
-// for, choose them with the ordinary SubmitChoice and cast them through their hotkey entries. The probe never calls a
+// for, choose them with the ordinary SubmitChoice and cast them through their hotkey entries. The Host renders its
+// main view and keeps a capture of each observed skill moment for presentation review. The probe never calls a
 // driver entry, an _Implementation or a Combat write. Named, not anonymous: unity builds merge files.
 namespace LDDemoCombatScenario
 {
@@ -73,8 +80,9 @@ constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
 // Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range and beyond the
-// reach-carded basic range even when both bodies stop at the far edge of their arrival slack, so the arc bolt flies
-// and the reach card's chase must close in before its hit lands.
+// reach-carded basic range even when both bodies stop at the far edge of their arrival slack, so the reach card's
+// chase must close in before its hit lands. Client1 throws its arc bolt from its farther duel site, so the flight
+// spans several 100 ms observation publications the Host can render.
 constexpr double CombatProbeSkillGapCm = 420.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
@@ -84,8 +92,8 @@ constexpr double CombatProbeSkillSeconds = 3.0;
 // The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer.
 TArray<FName> CombatProbeSkillPlan(bool bHost)
 {
-    return bHost ? TArray<FName>{FName(TEXT("attr_reach")), FName(TEXT("active_binding_snare")), FName(TEXT("active_arc_bolt"))}
-        : TArray<FName>{FName(TEXT("active_guard_pulse"))};
+    return bHost ? TArray<FName>{FName(TEXT("attr_reach")), FName(TEXT("active_binding_snare"))}
+        : TArray<FName>{FName(TEXT("active_guard_pulse")), FName(TEXT("active_arc_bolt"))};
 }
 
 TArray<FName> CombatProbePreset(FName Card)
@@ -145,9 +153,9 @@ public:
         Join, Lobby, Spawned, ToSite,
         // Client1
         AttackMove, Engaged, Stopping, AwaitDeath, AwaitRespawn, Sighting, Spend, Settle, ToSkillSite, Rooted, Shielded,
-        SkillsDone,
+        ToThrowSite, Throw, SkillsDone,
         // Host
-        Struck, Quiet, Kill, KillWait, Respawn, Removal, Grant, Return, Snare, Rooting, ShieldSeen, Bolt, BoltFlight, Reach,
+        Struck, Quiet, Kill, KillWait, Respawn, Removal, Grant, Return, Snare, Rooting, ShieldSeen, BoltFlight, Reach,
         ReachHit, Wrap,
         // Both
         Learn
@@ -200,16 +208,31 @@ public:
     // Client1: the skill site on the open duel line, the snare's root deadline and the guard pulse's shield.
     FVector SkillSite = FVector::ZeroVector;
     int64 RootUntilMs = 0;
-    // Host: the fixture grants, then each cast's baseline on Client1's authority body and what the casts showed.
+    // Host: the fixture grants, then each cast's baseline on the struck authority body and what the casts showed.
     uint64 HostGrant = 0, ClientGrant = 0;
-    int64 HitBeforeMs = 0, PoolBeforeP2 = 0;
-    FVector BoltAim = FVector::ZeroVector;
+    int64 HitBeforeMs = 0, PoolBeforeP2 = 0, FlightFromMs = 0;
     FGuid BoltKey;
     FString FlightError;
     int32 ProjectileSamples = 0;
-    bool bBoltHeading = true, bCastCueSeen = false;
+    bool bBoltHeading = true, bCastCueSeen = false, bBoltLanded = false;
     double SkillGapCm = 0, ReachHitCm = 0;
     FLDMoveIdentity ReachOrder;
+
+    // Host: rendered evidence. One capture of the main view with its UI at a time; the engine's screenshot delegate
+    // hands over the frame it read back, which is kept only while that very frame still shows the moment.
+    struct FShot
+    {
+        FString File;                     // name in the evidence directory
+        TFunction<bool(FString&)> Shows;  // the moment is on the Host's current frame; fills what it shows
+        double Deadline = 0;
+        int32 ReadBacks = 0;
+        bool bSaved = false;
+        FString Facts, Problem;
+    };
+    TSharedPtr<FShot> Shot;
+    FDelegateHandle ShotHandle;
+    bool bShotTicking = false, bRenderWarm = false, bStruckSeen = false, bReachMeasured = false;
+    TArray<TSharedPtr<FJsonValue>> Screenshots;
 
     bool IsHost() const
     {
@@ -321,6 +344,8 @@ public:
         case EStage::ToSkillSite: return TickToSkillSite(Now, *PC);
         case EStage::Rooted: return TickRooted(Now, *PC);
         case EStage::Shielded: return TickShielded(Now, *PC);
+        case EStage::ToThrowSite: return TickToThrowSite(Now, *PC);
+        case EStage::Throw: return TickThrow(Now, *PC);
         case EStage::SkillsDone: return TickSkillsDone(Now, *PC);
         case EStage::Struck: return TickStruck(Now, *PC, *Mode);
         case EStage::Quiet: return TickQuiet(Now, *PC, *Mode);
@@ -332,8 +357,7 @@ public:
         case EStage::Return: return TickReturn(Now, *PC);
         case EStage::Snare: return TickSnare(Now, *PC, *Mode);
         case EStage::Rooting: return TickRooting(Now, *PC, *Mode);
-        case EStage::ShieldSeen: return TickShieldSeen(Now, *PC);
-        case EStage::Bolt: return TickBolt(Now, *PC, *Mode);
+        case EStage::ShieldSeen: return TickShieldSeen(Now, *PC, *Mode);
         case EStage::BoltFlight: return TickBoltFlight(Now, *PC, *Mode);
         case EStage::Reach: return TickReach(Now, *PC, *Mode);
         case EStage::ReachHit: return TickReachHit(Now, *PC, *Mode);
@@ -571,6 +595,25 @@ public:
             {
                 bChaseGoalChecked = true;
                 if (!CheckChaseGoal(PC)) { return Finish(); }
+            }
+            // The first read-back of a rendered view can stall the game thread for seconds, so the Host takes it here,
+            // before any timed moment, and keeps it as its view of the duel site.
+            if (IsHost() && !bRenderWarm)
+            {
+                if (!Shot)
+                {
+                    if (!Check(FApp::CanEverRender() && GEngine && GEngine->GameViewport && GEngine->GameViewport->GetWorld() == PC.GetWorld(),
+                        TEXT("Render"), TEXT("The participating Listen Host renders its main view (run with an RHI, e.g. -RenderOffScreen)")))
+                    {
+                        return Finish();
+                    }
+                    BeginShot(TEXT("HostSees-DuelSite.png"), [this](FString& Facts) { return ShowsOwn(ELDObservedActionCue::None, 0.f, 0.f, Facts); },
+                        LDDemoCombatScenario::CombatProbeStepSeconds);
+                    return true;
+                }
+                if (ShotPending()) { return true; }
+                if (!ShotSaved(TEXT("its own body at the duel site"))) { return Finish(); }
+                bRenderWarm = true;
             }
             if (!Mark(Role + TEXT("AtSite.json"))) { return Finish(); }
             SetStage(IsHost() ? EStage::Struck : EStage::AttackMove);
@@ -1125,13 +1168,60 @@ public:
             FString::Printf(TEXT("shield_p2=%lld shield_from_ms=%lld root_until_ms=%lld %s"), PC.CombatView.ShieldP2, ShieldFromMs,
                 RootUntilMs, *GuardError));
         if (!Passed || !Mark(TEXT("Client1Shielded.json"))) { return Finish(); }
+        NavigateAttempts = 0;
+        SetStage(EStage::ToThrowSite);
+        return true;
+    }
+
+    // Once the Host has captured the shield, Client1 walks back to its farther duel site to throw from there.
+    bool TickToThrowSite(double Now, ALDPlayerController& PC)
+    {
+        if (!Exists(TEXT("HostSawShield.json")))
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            return Fail(TEXT("Skills"), TEXT("The Host did not confirm the observed shield in time"));
+        }
+        bool bArrived = false;
+        if (!Walk(Now, PC, ClientSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+        if (bArrived) { SetStage(EStage::Throw); }
+        return true;
+    }
+
+    // The arc bolt flies along this owner's aim at the Host's observed feet.
+    bool TickThrow(double Now, ALDPlayerController& PC)
+    {
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
+        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, HostId) : nullptr;
+        const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false)[1]);
+        const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Bolt](const FLDCombatEntryView& Entry) { return Entry.Entry == Bolt; });
+        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
+        if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never became castable at a visible Host (unavailable=%d)"),
+                Row ? int32(Row->Unavailable) : -1));
+        }
+        const FVector Direction = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
+        if (Direction.IsNearlyZero())
+        {
+            return Fail(TEXT("Skills"), TEXT("Client1 has no planar aim at the Host's observed feet"));
+        }
+        FLDCombatTarget Aim;
+        Aim.Kind = ELDCombatTargetKind::Direction;
+        Aim.Direction = Direction;
+        if (!ArmAndConfirm(PC, Bolt, Aim)) { return Finish(); }
         SetStage(EStage::SkillsDone);
         return true;
     }
 
-    // Client1 stands still while the Host's bolt and reach-carded basic attack land, then reports on its second life.
+    // Client1 stands still while its bolt lands and the Host's reach-carded basic attack follows, then reports on its
+    // second life.
     bool TickSkillsDone(double Now, ALDPlayerController& PC)
     {
+        if (const FLDCombatActionReceipt* Refused = Refusal(PC))
+        {
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt was refused (reject=%d)"), int32(Refused->Reject)));
+        }
         if (!Exists(TEXT("HostSkillsDone.json")))
         {
             if (PC.OwnerState.Life == 2 && PC.OwnerState.LifePhase == ELDLifePhase::Alive
@@ -1139,7 +1229,7 @@ public:
             {
                 return true;
             }
-            return Fail(TEXT("Skills"), TEXT("The Host's casts did not finish while this second life stood at its skill site"));
+            return Fail(TEXT("Skills"), TEXT("The Host's checks did not finish while this second life stood at its duel site"));
         }
         return Finish();
     }
@@ -1159,10 +1249,24 @@ public:
         {
             return Fail(TEXT("AttackMove"), TEXT("The Host's first life ended during the attack-move"));
         }
-        if (Own->Resources.HpP2 < Own->Resources.MaxHpP2)
+        // The own body's reaction to the remote basic hit is captured from the frame the hit lands on.
+        if (!Shot && !bStruckSeen)
+        {
+            BeginShot(TEXT("HostSees-OwnHit.png"), [this](FString& Facts) { return ShowsOwn(ELDObservedActionCue::Hit, 0.f, .25f, Facts); },
+                2.0 * LDDemoCombatScenario::CombatProbeKillSeconds);
+        }
+        if (!bStruckSeen && Own->Resources.HpP2 < Own->Resources.MaxHpP2)
         {
             Check(true, TEXT("AttackMove"), TEXT("The Host's authority body takes the remote attack-move's basic hits"),
                 FString::Printf(TEXT("hp_p2=%lld/%lld"), Own->Resources.HpP2, Own->Resources.MaxHpP2));
+            bStruckSeen = true;
+            // A later hit of the same attack-move still serves; after that the capture has missed the moment.
+            if (Shot) { Shot->Deadline = FMath::Min(Shot->Deadline, FPlatformTime::Seconds() + LDDemoCombatScenario::CombatProbeSkillSeconds); }
+        }
+        if (bStruckSeen)
+        {
+            if (ShotPending()) { return true; }
+            if (!ShotSaved(TEXT("its own body reacting to a remote basic hit"))) { return Finish(); }
             SetStage(EStage::Quiet);
             return true;
         }
@@ -1341,7 +1445,7 @@ public:
         return true;
     }
 
-    // ---- Host: skills from the fixture's presets, the snare, the observed shield, the arc bolt and the reach card. ----
+    // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's arc bolt and the reach card. ----
 
     // The fixture's XP grants raise each role exactly to the level of its last planned card.
     bool TickGrant(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
@@ -1454,9 +1558,17 @@ public:
         return true;
     }
 
-    // Observers must see the root: the Host's own observation frame shows it on Client1 with its server deadline.
+    // Observers must see the root: the Host's own observation frame shows it on Client1 with its server deadline, and
+    // the Host keeps a rendered capture of it before Client1 may cleanse it.
     bool TickRooting(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
+        if (Shot)
+        {
+            if (ShotPending()) { return true; }
+            if (!ShotSaved(TEXT("Client1 rooted by the snare")) || !Mark(TEXT("HostSawRoot.json"))) { return Finish(); }
+            SetStage(EStage::ShieldSeen);
+            return true;
+        }
         if (const FLDCombatActionReceipt* Refused = Refusal(PC))
         {
             return Fail(TEXT("Skills"), FString::Printf(TEXT("The snare was refused (reject=%d)"), int32(Refused->Reject)));
@@ -1474,13 +1586,32 @@ public:
         Check(Victim->Cues.LastHitAtMs > HitBeforeMs && Root->ExpiresAtServerMs > Victim->Cues.LastHitAtMs, TEXT("Skills"),
             TEXT("The snare lands on Client1 and the Host's observation frame shows its root with the server deadline"),
             FString::Printf(TEXT("hit_ms=%lld root_until_ms=%lld"), Victim->Cues.LastHitAtMs, Root->ExpiresAtServerMs));
-        if (!Passed || !Mark(TEXT("HostSawRoot.json"))) { return Finish(); }
-        SetStage(EStage::ShieldSeen);
+        if (!Passed) { return Finish(); }
+        BeginShot(TEXT("HostSees-Root.png"), [this](FString& Facts) { return ShowsClient(ELDDemoStatusId::Root, false, Facts); },
+            LDDemoCombatScenario::CombatProbeSkillSeconds);
         return true;
     }
 
-    bool TickShieldSeen(double Now, ALDPlayerController& PC)
+    bool TickShieldSeen(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
+        if (Shot)
+        {
+            if (ShotPending()) { return true; }
+            if (!ShotSaved(TEXT("Client1's shield after its dispelled root"))) { return Finish(); }
+            // Client1's bolt targets the Host: its own authority body is the baseline, and the flight is sampled and
+            // captured on every frame until it lands.
+            const FLDBodyCombatState* Own = AuthorityState(Mode, &PC);
+            if (!Own) { return Fail(TEXT("Skills"), TEXT("The Host lost its authority body before Client1's bolt")); }
+            HitBeforeMs = Own->Cues.LastHitAtMs;
+            PoolBeforeP2 = Own->Resources.HpP2 + Own->Resources.ShieldP2;
+            FlightFromMs = Mode.GetAuthorityNowMs();
+            BeginShot(TEXT("HostSees-ChalkFlight.png"), [this](FString& Facts) { return ShowsFlight(Facts); },
+                LDDemoCombatScenario::CombatProbeStepSeconds);
+            if (!Mark(TEXT("HostSawShield.json"))) { return Finish(); }
+            SetStage(EStage::BoltFlight);
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::SampleFlight), 0.f);
+            return true;
+        }
         const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
         const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
         const bool bShield = Target && LDDemoCombatScenario::CombatProbeStatus(Target->Statuses, ELDDemoStatusId::Shield);
@@ -1492,39 +1623,12 @@ public:
                 int32(bShield), int32(bRoot)));
         }
         Check(true, TEXT("Skills"), TEXT("The Host observes Client1's shield and the dispelled root"));
-        SetStage(EStage::Bolt);
+        BeginShot(TEXT("HostSees-Shield.png"), [this](FString& Facts) { return ShowsClient(ELDDemoStatusId::Shield, true, Facts); },
+            LDDemoCombatScenario::CombatProbeSkillSeconds);
         return true;
     }
 
-    // The arc bolt flies along the Host's aim at Client1's observed feet.
-    bool TickBolt(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
-    {
-        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
-        const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
-        const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[2]);
-        const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Bolt](const FLDCombatEntryView& Entry) { return Entry.Entry == Bolt; });
-        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
-        const ALDCharacter* Other = ClientBody(Mode);
-        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
-        if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own || !Victim)
-        {
-            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never became castable at a visible Client1 (unavailable=%d)"),
-                Row ? int32(Row->Unavailable) : -1));
-        }
-        BoltAim = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
-        FLDCombatTarget Aim;
-        Aim.Kind = ELDCombatTargetKind::Direction;
-        Aim.Direction = BoltAim;
-        HitBeforeMs = Victim->Cues.LastHitAtMs;
-        PoolBeforeP2 = Victim->Resources.HpP2 + Victim->Resources.ShieldP2;
-        if (BoltAim.IsNearlyZero() || !ArmAndConfirm(PC, Bolt, Aim)) { return Finish(); }
-        SetStage(EStage::BoltFlight);
-        // The flight lasts a few hundred ms: sample the authority's projectile facts and the caster's cue every frame.
-        FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::SampleFlight), 0.f);
-        return true;
-    }
-
+    // Every frame of Client1's bolt: the authority's projectile facts and Client1's public cue.
     bool SampleFlight(float)
     {
         UWorld* Current = World.Get();
@@ -1533,56 +1637,219 @@ public:
         if (Written || Stage != EStage::BoltFlight || !Mode || !Mode->Combat || !PC || !FlightError.IsEmpty()) { return false; }
         TArray<FLDObservedProjectileFact> Flying;
         if (!Mode->Combat->ReadObservedProjectiles(Flying, FlightError)) { return false; }
+        const ALDPlayerController* Remote = Mode->FindContenderController(ClientId);
+        const ALDCharacter* Own = Cast<ALDCharacter>(PC->GetPawn());
+        const ALDCharacter* Other = ClientBody(*Mode);
+        // Client1 aims from its feet at the Host's: the flight heads along the same line while both stand still.
+        const FVector Toward = Own && Other
+            ? (ALDCombatDirector::FootOf(*Own) - ALDCombatDirector::FootOf(*Other)).GetSafeNormal2D() : FVector::ZeroVector;
         for (const FLDObservedProjectileFact& Fact : Flying)
         {
             if (Fact.Look != ELDObservedProjectileLook::Chalk) { continue; }
             ++ProjectileSamples;
             BoltKey = Fact.Key;
-            bBoltHeading &= FVector2D::DotProduct(Fact.Heading, FVector2D(BoltAim)) > 0.99;
+            bBoltHeading &= !Toward.IsNearlyZero() && FVector2D::DotProduct(Fact.Heading, FVector2D(Toward)) > 0.99;
         }
         FLDObservedPublicFacts Caster;
         FString CasterError;
-        bCastCueSeen |= Mode->ReadObservedPublicFacts(Mode->GetMatchContext(), PC->OwnerState.BodyRef, Caster, CasterError)
-            && Caster.ActionCue == ELDObservedActionCue::Cast;
+        bCastCueSeen |= Remote && Mode->ReadObservedPublicFacts(Mode->GetMatchContext(), Remote->OwnerState.BodyRef, Caster, CasterError)
+            && Caster.ActionCue == ELDObservedActionCue::Cast && Caster.ActionCueAtMs >= FlightFromMs;
         return true;
     }
 
     bool TickBoltFlight(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
-        if (const FLDCombatActionReceipt* Refused = Refusal(PC))
-        {
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt was refused (reject=%d)"), int32(Refused->Reject)));
-        }
         if (!FlightError.IsEmpty()) { return Fail(TEXT("Skills"), TEXT("Combat refused to read its projectiles: ") + FlightError); }
-        const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
-        const ALDCharacter* Other = ClientBody(Mode);
-        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
-        if (!Remote || !Victim || Victim->Cues.LastHitAtMs <= HitBeforeMs)
+        if (!bBoltLanded)
         {
-            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never hit Client1 (projectile samples=%d)"), ProjectileSamples));
+            const FLDBodyCombatState* Own = AuthorityState(Mode, &PC);
+            if (!Own || Own->Cues.LastHitAtMs <= HitBeforeMs)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("Client1's arc bolt never hit the Host (projectile samples=%d)"),
+                    ProjectileSamples));
+            }
+            TArray<FLDObservedProjectileFact> Flying;
+            FString FlyingError;
+            const bool bRead = Mode.Combat->ReadObservedProjectiles(Flying, FlyingError);
+            FLDObservedPublicFacts Struck;
+            FString StruckError;
+            const bool bStruck = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), PC.OwnerState.BodyRef, Struck, StruckError);
+            const int64 PoolP2 = Own->Resources.HpP2 + Own->Resources.ShieldP2;
+            const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld %s%s"),
+                ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
+                Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, *FlyingError, *StruckError);
+            Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
+                TEXT("Client1's arc bolt (active_arc_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
+            Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
+                TEXT("Skills"), TEXT("The arc bolt hits the Host, takes its shield or health and ends its flight"), Detail);
+            Check(bCastCueSeen && bStruck && Struck.ActionCue == ELDObservedActionCue::Hit && Struck.ActionCueAtMs == Own->Cues.LastHitAtMs,
+                TEXT("Skills"), TEXT("Public facts show Client1's Cast cue during its bolt and the Host's Hit cue from its landing"), Detail);
+            if (!Passed) { return Finish(); }
+            bBoltLanded = true;
+            // The landed flight leaves the frame at the next publication at the latest.
+            if (Shot) { Shot->Deadline = FMath::Min(Shot->Deadline, FPlatformTime::Seconds() + 1.0); }
         }
-        TArray<FLDObservedProjectileFact> Flying;
-        FString FlyingError;
-        const bool bRead = Mode.Combat->ReadObservedProjectiles(Flying, FlyingError);
-        FLDObservedPublicFacts Struck;
-        FString StruckError;
-        const bool bStruck = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), Remote->OwnerState.BodyRef, Struck, StruckError);
-        const int64 PoolP2 = Victim->Resources.HpP2 + Victim->Resources.ShieldP2;
-        const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld %s%s"),
-            ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
-            Victim->Cues.LastHitAtMs, Struck.ActionCueAtMs, *FlyingError, *StruckError);
-        Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
-            TEXT("The arc bolt (active_arc_bolt) flies as a Chalk projectile fact along the Host's aim before it lands"), Detail);
-        Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
-            TEXT("Skills"), TEXT("The arc bolt hits Client1, takes its shield or health and ends its flight"), Detail);
-        Check(bCastCueSeen && bStruck && Struck.ActionCue == ELDObservedActionCue::Hit && Struck.ActionCueAtMs == Victim->Cues.LastHitAtMs,
-            TEXT("Skills"), TEXT("Public facts show the Host's Cast cue during the bolt and Client1's Hit cue from its landing"), Detail);
-        if (!Passed) { return Finish(); }
+        if (ShotPending()) { return true; }
+        if (!ShotSaved(TEXT("Client1's chalk in flight on its own observation frame"))) { return Finish(); }
         SetStage(EStage::Reach);
         return true;
     }
 
+    // ---- Host: rendered evidence for presentation review, never compared by pixels. ----
+
+    // What the Host's current frame shows of Client1: where it stands, its cue and its public statuses.
+    static FString SeenFacts(const FLDObservedUnitView& Unit)
+    {
+        FString Statuses;
+        for (const FLDObservedStatus& Status : Unit.Statuses)
+        {
+            Statuses += FString::Printf(TEXT("%s%u"), Statuses.IsEmpty() ? TEXT("") : TEXT(","), uint32(Status.StatusId));
+        }
+        return FString::Printf(TEXT("client1_feet=%s client1_cue=%d client1_cue_age_ms=%u client1_statuses=[%s]"),
+            *FVector(Unit.FeetCm).ToCompactString(), int32(Unit.ActionCue), uint32(Unit.ActionCueAgeMs), *Statuses);
+    }
+
+    // Client1 on the Host's current frame with Status, and without a root when bFree.
+    bool ShowsClient(ELDDemoStatusId Status, bool bFree, FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        const FLDWorldView* Frame = PC ? LDDemoCombatScenario::CombatProbeFrame(*PC) : nullptr;
+        const FLDObservedUnitView* Unit = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        if (!Unit || !LDDemoCombatScenario::CombatProbeStatus(Unit->Statuses, Status)
+            || (bFree && LDDemoCombatScenario::CombatProbeStatus(Unit->Statuses, ELDDemoStatusId::Root)))
+        {
+            return false;
+        }
+        Facts = SeenFacts(*Unit);
+        return true;
+    }
+
+    // The Host's own body shows Wanted between MinAge and MaxAge seconds into it (None: any moment), by the same cue rule
+    // and clock its own body is drawn from; fills what it shows, with Client1 as the Host's frame shows it.
+    bool ShowsOwn(ELDObservedActionCue Wanted, float MinAge, float MaxAge, FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        int64 NowMs = 0;
+        if (!PC || !PC->ReadDemoAuthorityTimeMs(NowMs) || PC->CombatView.Generation != PC->OwnerState.Match
+            || PC->CombatView.Life != PC->OwnerState.Life)
+        {
+            return false;
+        }
+        const LDCombatCues::FCue Own = LDCombatCues::Select(PC->CombatView.Cues, NowMs);
+        const int64 AgeMs = Own.Cue == ELDObservedActionCue::None ? 0 : NowMs - Own.AtMs;
+        if (Wanted != ELDObservedActionCue::None
+            && (Own.Cue != Wanted || AgeMs < int64(1000.f * MinAge) || AgeMs > int64(1000.f * MaxAge)))
+        {
+            return false;
+        }
+        const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(*PC);
+        const FLDObservedUnitView* Unit = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
+        Facts = FString::Printf(TEXT("own_cue=%d own_cue_age_ms=%lld "), int32(Own.Cue), AgeMs)
+            + (Unit ? SeenFacts(*Unit) : FString(TEXT("client1=unseen")));
+        return true;
+    }
+
+    // A chalk in flight on the Host's current frame.
+    bool ShowsFlight(FString& Facts) const
+    {
+        const ALDPlayerController* PC = Controller.Get();
+        const FLDWorldView* Frame = PC ? LDDemoCombatScenario::CombatProbeFrame(*PC) : nullptr;
+        const FLDObservedProjectileView* Flight = Frame ? Frame->Projectiles.FindByPredicate([](const FLDObservedProjectileView& Row)
+        {
+            return Row.Look == ELDObservedProjectileLook::Chalk;
+        }) : nullptr;
+        if (!Flight) { return false; }
+        const FLDObservedUnitView* Unit = LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId);
+        Facts = FString::Printf(TEXT("flights=%d chalk_at=%s chalk_heading=%u "), Frame->Projectiles.Num(),
+            *FVector(Flight->PositionCm).ToCompactString(), uint32(Flight->Heading))
+            + (Unit ? SeenFacts(*Unit) : FString(TEXT("client1=unseen")));
+        return true;
+    }
+
+    // Opens the one capture: every frame until Seconds pass, a read-back is requested while the moment shows.
+    void BeginShot(const TCHAR* File, TFunction<bool(FString&)> Shows, double Seconds)
+    {
+        Shot = MakeShared<FShot>();
+        Shot->File = File;
+        Shot->Shows = MoveTemp(Shows);
+        Shot->Deadline = FPlatformTime::Seconds() + Seconds;
+        if (!ShotHandle.IsValid())
+        {
+            ShotHandle = UGameViewportClient::OnScreenshotCaptured().AddSP(AsShared(), &FLDDemoCombatProbe::OnShot);
+        }
+        if (!bShotTicking)
+        {
+            bShotTicking = true;
+            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::TickShot), 0.f);
+        }
+    }
+
+    bool TickShot(float)
+    {
+        const bool bOpen = !Written && ShotPending();
+        if (bOpen && FPlatformTime::Seconds() <= Shot->Deadline)
+        {
+            FString Facts;
+            if (!FScreenshotRequest::IsScreenshotRequested() && Shot->Shows(Facts))
+            {
+                FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Shot->File), true, false);
+            }
+            return true;
+        }
+        if (bOpen)
+        {
+            Shot->Problem = FString::Printf(TEXT("no rendered frame showed the moment before the deadline (%d read-backs)"), Shot->ReadBacks);
+        }
+        // An unanswered request must not be written by the engine once nothing checks its frame.
+        if (FScreenshotRequest::IsScreenshotRequested()) { FScreenshotRequest::Reset(); }
+        UGameViewportClient::OnScreenshotCaptured().Remove(ShotHandle);
+        ShotHandle.Reset();
+        bShotTicking = false;
+        return false;
+    }
+
+    // The engine's read-back of the Host's main view with its UI, on the frame it rendered.
+    void OnShot(int32 Width, int32 Height, const TArray<FColor>& Colors)
+    {
+        if (!ShotPending()) { return; }
+        ++Shot->ReadBacks;
+        FString Facts;
+        // The moment ended before this frame: TickShot asks for the next frame that still shows it.
+        if (!Shot->Shows(Facts)) { return; }
+        TArray64<uint8> Png;
+        FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(Colors.GetData(), Colors.Num()), Png);
+        const FString Path = FPaths::Combine(Output, Shot->File);
+        if (Png.IsEmpty() || !FFileHelper::SaveArrayToFile(Png, *Path))
+        {
+            Shot->Problem = TEXT("the rendered frame could not be written to ") + Path;
+            return;
+        }
+        Shot->bSaved = true;
+        Shot->Facts = FString::Printf(TEXT("%dx%d %s"), Width, Height, *Facts);
+        const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("file"), Shot->File);
+        Row->SetNumberField(TEXT("width"), Width);
+        Row->SetNumberField(TEXT("height"), Height);
+        Row->SetStringField(TEXT("shows"), Facts);
+        Screenshots.Add(MakeShared<FJsonValueObject>(Row));
+        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_SCREENSHOT %s %s"), *Path, *Shot->Facts);
+    }
+
+    bool ShotPending() const
+    {
+        return Shot && !Shot->bSaved && Shot->Problem.IsEmpty();
+    }
+
+    // Records the finished capture as a Render check and closes it.
+    bool ShotSaved(const TCHAR* Moment)
+    {
+        const bool bSaved = Shot && Shot->bSaved;
+        Check(bSaved, TEXT("Render"), FString::Printf(TEXT("The Host's rendered main view is captured while it shows %s"), Moment),
+            Shot ? (bSaved ? Shot->File + TEXT(" ") + Shot->Facts : Shot->Problem) : FString(TEXT("no capture was opened")));
+        Shot.Reset();
+        return bSaved;
+    }
     // The ordinary right-click lock from beyond the reach-carded range: the chase stops within it and the hit lands
     // from farther than the base basic range allows.
     bool TickReach(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
@@ -1599,46 +1866,56 @@ public:
         HitBeforeMs = Victim->Cues.LastHitAtMs;
         PC.Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch);
         ReachOrder = PC.Navigation->LocalIdentity();
+        // Every swing of this lock is a chance to capture the own body's strike.
+        BeginShot(TEXT("HostSees-OwnStrike.png"), [this](FString& Facts) { return ShowsOwn(ELDObservedActionCue::Attack, .17f, .32f, Facts); },
+            LDDemoCombatScenario::CombatProbeStepSeconds);
         SetStage(EStage::ReachHit);
         return true;
     }
 
     bool TickReachHit(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
-        const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
-        const ALDCharacter* Other = ClientBody(Mode);
-        const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
-        const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
-        if (Latest.Identity == ReachOrder && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled
-            || Latest.Status == ELDOrderStatus::Completed))
+        if (!bReachMeasured)
         {
-            return Fail(TEXT("Skills"), TEXT("The reach check's attack lock ended before its hit: ") + PC.Navigation->Status);
-        }
-        if (!Own || !Victim || Victim->Cues.LastHitAtMs <= HitBeforeMs)
-        {
-            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
-            return Fail(TEXT("Skills"), TEXT("The reach check's basic attack never hit Client1: ") + PC.Navigation->Status);
-        }
-        ReachHitCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
-        PC.StopCombatAndOrders();
-        const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        const double Base = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
-        const FLDDemoAttributeDefinition* Reach = nullptr;
-        FString ReachError;
-        double Bonus = 0;
-        if (Catalog->FindAttribute(LDDemoCombatScenario::CombatProbeSkillPlan(true)[0].ToString(), Reach, ReachError) && Reach)
-        {
-            for (const FLDDemoStatBonus& Stat : Reach->Stats)
+            const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
+            const ALDCharacter* Other = ClientBody(Mode);
+            const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
+            const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
+            if (Latest.Identity == ReachOrder && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled
+                || Latest.Status == ELDOrderStatus::Completed))
             {
-                Bonus += Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat ? LDDemoCombatScenario::CombatProbeRational(Stat.Cm) : 0.0;
+                return Fail(TEXT("Skills"), TEXT("The reach check's attack lock ended before its hit: ") + PC.Navigation->Status);
             }
+            if (!Own || !Victim || Victim->Cues.LastHitAtMs <= HitBeforeMs)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+                return Fail(TEXT("Skills"), TEXT("The reach check's basic attack never hit Client1: ") + PC.Navigation->Status);
+            }
+            ReachHitCm = FVector::Dist2D(ALDCombatDirector::FootOf(*Own), ALDCombatDirector::FootOf(*Other));
+            const FLDDemoContentDefinitions& Defs = Catalog->Get();
+            const double Base = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
+            const FLDDemoAttributeDefinition* Reach = nullptr;
+            FString ReachError;
+            double Bonus = 0;
+            if (Catalog->FindAttribute(LDDemoCombatScenario::CombatProbeSkillPlan(true)[0].ToString(), Reach, ReachError) && Reach)
+            {
+                for (const FLDDemoStatBonus& Stat : Reach->Stats)
+                {
+                    Bonus += Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat ? LDDemoCombatScenario::CombatProbeRational(Stat.Cm) : 0.0;
+                }
+            }
+            Check(Bonus > 0 && FMath::IsNearlyEqual(double(PC.CombatView.AttackRangeCm), Base + Bonus, 0.01)
+                && ReachHitCm > Base && ReachHitCm <= Base + Bonus + 1.0, TEXT("Skills"),
+                TEXT("The reach card lands a basic hit from beyond the base basic range in a real chase"),
+                FString::Printf(TEXT("hit_gap_cm=%.1f base_cm=%.0f bonus_cm=%.0f projected_cm=%.0f %s"), ReachHitCm, Base, Bonus,
+                    PC.CombatView.AttackRangeCm, *ReachError));
+            if (!Passed) { return Finish(); }
+            bReachMeasured = true;
         }
-        Check(Bonus > 0 && FMath::IsNearlyEqual(double(PC.CombatView.AttackRangeCm), Base + Bonus, 0.01)
-            && ReachHitCm > Base && ReachHitCm <= Base + Bonus + 1.0, TEXT("Skills"),
-            TEXT("The reach card lands a basic hit from beyond the base basic range in a real chase"),
-            FString::Printf(TEXT("hit_gap_cm=%.1f base_cm=%.0f bonus_cm=%.0f projected_cm=%.0f %s"), ReachHitCm, Base, Bonus,
-                PC.CombatView.AttackRangeCm, *ReachError));
-        if (!Passed || !Mark(TEXT("HostSkillsDone.json"))) { return Finish(); }
+        // The lock keeps swinging until a strike is captured.
+        if (ShotPending()) { return true; }
+        PC.StopCombatAndOrders();
+        if (!ShotSaved(TEXT("its own body's basic strike")) || !Mark(TEXT("HostSkillsDone.json"))) { return Finish(); }
         SetStage(EStage::Wrap);
         return true;
     }
@@ -1670,8 +1947,8 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach, active_binding_snare and active_arc_bolt by ordinary choices, roots Client1, observes its shield, hits it with a projectile and with a reach-carded basic attack. Not gear actives, camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse from a fixture-preset offer by an ordinary choice and casts it to shield itself and dispel the Host's root. Not gear actives, camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's arc bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not gear actives, camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse and active_arc_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the arc bolt at the Host. Not gear actives, camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetNumberField(TEXT("skills_learned"), SkillsLearned);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
@@ -1692,6 +1969,7 @@ public:
             Report->SetNumberField(TEXT("attack_orders"), AttackOrders);
             Report->SetNumberField(TEXT("skill_gap_cm"), SkillGapCm);
             Report->SetNumberField(TEXT("projectile_samples"), ProjectileSamples);
+            Report->SetArrayField(TEXT("screenshots"), Screenshots);
             Report->SetNumberField(TEXT("reach_hit_cm"), ReachHitCm);
         }
         else

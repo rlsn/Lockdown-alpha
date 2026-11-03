@@ -79,6 +79,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    只对该局的权威时钟（每局从 0 起算）和该命身份有效，而 Controller 跨局存活。新身份换绑时整体重建；
    Combat 的 MatchReset 经 `ResetMatch` 结束旧局订单并整体丢弃订单簿与内容缓存。
    回执序号是拥有连接的单调序，两端都不随局复位，客户端另按 Match/Life 过滤。
+7. 订单的发送、进行中与到达只写入组件自己的 `Status`；HUD 唯一的提示条只经 `PostIntentNotice`
+   收到真正的失败（无法到达、路线受阻、被拒、心跳耗尽、小卖部不可用等）与“复活保护已解除”，
+   玩家自己的新订单替换旧单或按 S 停止不算失败；同一失败再次发生时会再次提示。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，
@@ -204,8 +207,8 @@ schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`Ca
 `PlayerName` 为空表示尚未设置，绝不填入默认名；它不是比赛数据，恢复默认（`ResetLocalDefaults`/`ResetBindings`）也不删除它。
 调用方用 `SetAppliedPlayerName` 修改已应用对象，并通过 `ULDGameInstance::RequestLocalSettingsFlush()` 请求保存；草稿不能改名称。
 `ValidatePlayerName` 只做本地格式检查：非空、首尾无空白、最多 16 个字符（UTF-16 代理对算一个）、
-无控制字符或残缺代理，且不含经 URL 选项 `?Name=` 传递时有歧义的 `? = # / \ : % & " ' < > |`；
-空名称可以保存，但建房/加入前必须先设置。房间公开名称仍由服务器会话域规范化或拒绝。
+无控制字符或残缺代理，且不含经 URL 选项 `?LDName=` 传递时有歧义的 `? = # / \ : % & " ' < > |`；
+空名称可以保存，但建房/加入前必须先设置。服务器会话域以同一规则再次校验，非法即拒绝入房。
 文件中的非空非法名称使整个文件按 `Corrupt` 拒绝，且不提供恢复偏好。
 schema 5 是不含名称的同一正向清单，按显式迁移读取：校验通过的绑定和镜头/文字偏好原样保留，名称为空，
 返回 `Migrated` 及“先设置名称再建房或加入”的提示；对象处于 `ConfirmedApplied` 而非 `PersistenceVerified`，

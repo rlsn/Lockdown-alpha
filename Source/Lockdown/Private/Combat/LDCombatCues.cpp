@@ -25,5 +25,5 @@ LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 No
     {
         Offer(Hit,ELDObservedActionCue::Hit,Facts.LastHitAtMs,Facts.LastHitAtMs+HitHoldMs);
     }
-    return Cast.Cue!=ELDObservedActionCue::None ? Cast : Attack.Cue!=ELDObservedActionCue::None ? Attack : Hit;
+    return Cast.Cue!=ELDObservedActionCue::None ? Cast : Hit.Cue!=ELDObservedActionCue::None ? Hit : Attack;
 }

@@ -118,6 +118,11 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 
 `LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、十个真实多边形阻挡、
 十个出生标记与一个原生导航区域。旋转墙不是 AABB 近似，商店台面阻走但不阻视线。
+同一次生成还用代码重建两份只用引擎能力的表现材质，并布置场景光照：
+`M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹、外圈红色跑道与白色内线，
+`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；一个投影阴影的大气太阳、SkyAtmosphere、
+实时捕获的天光、轻度高度雾和一个无界后期（曝光补偿 -0.5、局部曝光对比还原为 1、泛光、饱和度、对比度、暗角）。
+它们不碰撞、不影响导航或视线，也不被任何规则读取；Validate 要求它们各恰好一个且地面/阻挡使用这两份材质。
 保存校验同时要求地面/阻挡保持 WorldStatic object type 和 Pawn 阻挡响应，
 并逐项核对凸元局部 Transform 为 Identity 及全部顶点，不能只看 Actor transform、
 原始 VertexData、导航或 LOS。专用原生规则使用隔离包真实保存、卸载和重载，

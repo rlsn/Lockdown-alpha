@@ -264,4 +264,8 @@ namespace LDMatchLifecycle
     LOCKDOWN_API ELDClockProjectionResult AcceptClockView(const FLDDemoClockView& Candidate,
         FLDDemoClockView& Latest, FString& Error);
     LOCKDOWN_API ELDLobbyProjectionResult AcceptLobbyView(const FLDLobbyView& Candidate, FLDLobbyView& Latest, FString& Error);
+    // The chosen display name travels as ?LDName= because the engine overwrites ?Name= with the online subsystem's
+    // nickname. An absent name takes the explicit default; a present one must pass the shared local name rule.
+    inline constexpr TCHAR DefaultContenderName[] = TEXT("玩家");
+    LOCKDOWN_API bool ResolveContenderName(const FString& Options, FString& OutName, FString& Error);
 }

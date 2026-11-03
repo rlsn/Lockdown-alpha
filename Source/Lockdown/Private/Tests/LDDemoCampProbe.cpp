@@ -22,11 +22,13 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
+#include "UnrealClient.h"
 #include "UObject/Package.h"
 
 // Owned-connection camp checks (App Spec §6.2/§11, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
@@ -87,8 +89,15 @@ public:
     // Owning-client state.
     int64 StartXP = -1, StartGold = -1;
     bool bArrived = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
-    bool bHit = false, bFleeing = false, bSawReturningCue = false, bCueShapeValid = true;
+    bool bSawReturningCue = false, bCueShapeValid = true;
     TSet<FGuid> SeenScavengers;
+    // Client2's high-camp route; Client2 is also the rendered owner that keeps the presentation screenshots.
+    enum class EHighStep : uint8 { Approach, Attack, Flee, FollowHome, ToLowCamp, Done };
+    EHighStep HighStep = EHighStep::Approach;
+    FString PendingImage;
+    double ImageAt = 0, LowShotSince = 0;
+    bool bGuardianShot = false;
+    TArray<TSharedPtr<FJsonValue>> Images;
     // Listen Host state.
     FGuid Client1, Client2;
     bool bCampsReady = false, bLowIdle = false, bLowEngaged = false, bLowCleared = false, bLowRefreshed = false, bHighReset = false;
@@ -251,6 +260,69 @@ public:
         StartGold = Owner.OwnerState.Growth.Equipment.Gold;
     }
 
+    // A new destination supersedes the current move order at once; Navigate() then only retries or arrives.
+    void IssueMove(double Now, ALDPlayerController& Owner, const FVector& Goal)
+    {
+        bArrived = false;
+        NavigateAttempts = 1;
+        NextOrderAt = Now + 1;
+        Owner.Navigation->Navigate(Goal);
+    }
+
+    // True when the unit's presented proxy projects into the inner rendered view, so its world label is drawn.
+    static bool CampOnScreen(const ALDPlayerController& Owner, const FLDObservedUnitView& Unit)
+    {
+        const ALDWorldViewRelay* Relay = Owner.LocalView();
+        FVector Centre;
+        FVector2D Screen;
+        int32 Width = 0, Height = 0;
+        Owner.GetViewportSize(Width, Height);
+        return Relay && Width > 0 && Height > 0 && Relay->ReadPresentedLocation(Unit.Handle, Unit.ObservationEpoch, Centre)
+            && Owner.ProjectWorldLocationToScreen(Centre, Screen)
+            && Screen.X >= Width * .1 && Screen.X <= Width * .9 && Screen.Y >= Height * .2 && Screen.Y <= Height * .85;
+    }
+
+    // One screenshot at a time, written by the next rendered frame and kept for presentation review only.
+    void RequestShot(const TCHAR* Name, double Now)
+    {
+        PendingImage = FPaths::Combine(Output, Name);
+        ImageAt = Now;
+        FScreenshotRequest::RequestScreenshot(PendingImage, true, false);
+    }
+
+    // 1 once the requested screenshot is on disk, 0 while no frame has written it yet, -1 once it is overdue.
+    int32 PendingShot(double Now)
+    {
+        if (IFileManager::Get().FileSize(*PendingImage) > 0)
+        {
+            Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));
+            PendingImage.Reset();
+            return 1;
+        }
+        return Now - ImageAt < 10 ? 0 : -1;
+    }
+
+    // Records the camp_returning cue shape of every visible camp member; returns the visible returning guardian.
+    const FLDObservedUnitView* ScanReturningCue(const FLDWorldView& Frame)
+    {
+        const FLDObservedUnitView* Guardian = nullptr;
+        for (const FLDObservedUnitView& Unit : Frame.Units)
+        {
+            if (Unit.Kind != ELDObservedUnitKind::CampMember) { continue; }
+            for (const FLDObservedStatus& Status : Unit.Statuses)
+            {
+                if (Status.StatusId != uint8(ELDDemoStatusId::CampReturning)) { continue; }
+                bCueShapeValid &= Status.Stacks == 1 && Status.ExpiresAtServerMs == 0;
+                if (Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian))
+                {
+                    bSawReturningCue = true;
+                    Guardian = &Unit;
+                }
+            }
+        }
+        return Guardian;
+    }
+
     bool TickLowCamp(double Now, ALDPlayerController& Owner)
     {
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
@@ -299,11 +371,9 @@ public:
         {
             const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
             const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
-            if (XP < 80 && Now - WatchSince < 5)
-            {
-                if (WatchSince == 0) { WatchSince = Now; }
-                return true;
-            }
+            // The clear marker can arrive before the last reward's owner projection; allow it 5 s to replicate.
+            if (WatchSince == 0) { WatchSince = Now; }
+            if (XP < 80 && Now - WatchSince < 5) { return true; }
             Check(bAttacking && bTookDamage, TEXT("#C4"), TEXT("The attacked camp retaliated against this contender"));
             Check(XP == 80 && Gold == 60 && Owner.OwnerState.Growth.Progression.Level == 2, TEXT("#C5"), FString::Printf(
                 TEXT("Two last hits on the low camp paid exactly 2 x 40 XP / 30 gold to this contender (XP +%lld, gold +%lld, level %u)"),
@@ -331,60 +401,104 @@ public:
         return true;
     }
 
+    // Client2 leashes H1's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
+    // checks): the returning guardian with its name and cue, then the refreshed low pair with their names. Adjacent low
+    // and high camps stand about 3057 cm apart, wider than any frame of the fixed camera, so each tier has its own shot.
     bool TickHighCamp(double Now, ALDPlayerController& Owner)
     {
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
-        if (!bArrived)
+        if (!FApp::CanEverRender()) { return Fail(TEXT("#C9"), TEXT("The screenshot owner runs without a renderer")); }
+        if (!PendingImage.IsEmpty())
         {
+            const int32 Shot = PendingShot(Now);
+            if (Shot < 0) { return Fail(TEXT("#C9"), TEXT("The rendered owner wrote no screenshot within 10 s")); }
+            if (Shot == 0) { return true; }
+        }
+        const FLDWorldView* Frame = CampCurrentFrame(Owner);
+        const FLDObservedUnitView* Returning = Frame ? ScanReturningCue(*Frame) : nullptr;
+        switch (HighStep)
+        {
+        case EHighStep::Approach:
             if (!Navigate(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
             SnapshotEconomy(Owner);
-            NavigateAttempts = 0;
-        }
-        const FLDWorldView* Frame = CampCurrentFrame(Owner);
-        if (!bHit)
+            HighStep = EHighStep::Attack;
+            return true;
+        case EHighStep::Attack:
         {
             const FLDObservedUnitView* Guardian = Frame ? NearestCreature(*Frame, ELDDemoMonsterId::MonsterGuardian, CampHighApproachCm) : nullptr;
-            if (Guardian && Guardian->Health.CurrentP2 < Guardian->Health.MaxP2) { bHit = true; }
+            if (Guardian && Guardian->Health.CurrentP2 < Guardian->Health.MaxP2)
+            {
+                // Break off after the first landed hit and run past the guardian's leash; the move supersedes the attack.
+                IssueMove(Now, Owner, CampFleeGoalCm);
+                HighStep = EHighStep::Flee;
+            }
             else if (Guardian && Now >= NextOrderAt && !Owner.Navigation->HasMoveOrder())
             {
                 Owner.Navigation->AttackUnit(Guardian->Handle, Guardian->ObservationEpoch);
                 NextOrderAt = Now + .5;
             }
-            if (!bHit) { return true; }
-            // Break off after the first landed hit and run past the guardian's leash; the move supersedes the attack.
-            bArrived = false;
-            bFleeing = true;
-            Owner.Navigation->Navigate(CampFleeGoalCm);
-            ++NavigateAttempts;
-            NextOrderAt = Now + 1;
+            return true;
         }
-        if (bFleeing && !bArrived)
+        case EHighStep::Flee:
+            if (!Returning) { return Navigate(Now, Owner, CampFleeGoalCm, TEXT("#C6")); }
+            // Walk back behind the returning guardian so it stays in the rendered view until its home reset.
+            IssueMove(Now, Owner, CampHighApproachCm);
+            HighStep = EHighStep::FollowHome;
+            return true;
+        case EHighStep::FollowHome:
         {
-            if (!Navigate(Now, Owner, CampFleeGoalCm, TEXT("#C6"))) { return false; }
-        }
-        if (Frame)
-        {
-            for (const FLDObservedUnitView& Unit : Frame->Units)
+            if (!bArrived && !Navigate(Now, Owner, CampHighApproachCm, TEXT("#C9"))) { return false; }
+            if (!bGuardianShot && Returning && CampOnScreen(Owner, *Returning))
             {
-                if (Unit.Kind != ELDObservedUnitKind::CampMember) { continue; }
-                for (const FLDObservedStatus& Status : Unit.Statuses)
+                RequestShot(TEXT("CampGuardianReturning.png"), Now);
+                bGuardianShot = true;
+                return true;
+            }
+            if (!Exists(TEXT("HighReset.json"))) { return true; }
+            if (!bGuardianShot)
+            { return Fail(TEXT("#C9"), TEXT("The returning guardian never stood in this owner's rendered view before its reset")); }
+            const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
+            const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
+            Check(bSawReturningCue && bCueShapeValid, TEXT("#C6"),
+                TEXT("The visible returning guardian carried only the single-stack untimed camp_returning cue"));
+            Check(XP == 0 && Gold == 0, TEXT("#C6"), FString::Printf(
+                TEXT("A leashed return and home reset paid nothing (XP +%lld, gold +%lld)"), XP, Gold));
+            IssueMove(Now, Owner, CampLowApproachCm);
+            HighStep = EHighStep::ToLowCamp;
+            return true;
+        }
+        case EHighStep::ToLowCamp:
+        {
+            if (!bArrived && !Navigate(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
+            if (!bArrived || !Exists(TEXT("LowRefreshed.json"))) { return true; }
+            if (LowShotSince == 0) { LowShotSince = Now; }
+            int32 Shown = 0;
+            if (Frame)
+            {
+                for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
-                    if (Status.StatusId != uint8(ELDDemoStatusId::CampReturning)) { continue; }
-                    bSawReturningCue |= Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian);
-                    bCueShapeValid &= Status.Stacks == 1 && Status.ExpiresAtServerMs == 0;
+                    Shown += Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
+                        && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
                 }
             }
+            if (Shown < 2)
+            {
+                if (Now - LowShotSince < 10) { return true; }
+                return Fail(TEXT("#C9"), FString::Printf(
+                    TEXT("The refreshed low pair never stood together in this owner's rendered view (%d shown)"), Shown));
+            }
+            RequestShot(TEXT("CampLowPair.png"), Now);
+            HighStep = EHighStep::Done;
+            return true;
         }
-        if (!Exists(TEXT("HighReset.json"))) { return true; }
-        const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
-        const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
-        Check(bSawReturningCue && bCueShapeValid, TEXT("#C6"),
-            TEXT("The visible returning guardian carried only the single-stack untimed camp_returning cue"));
-        Check(XP == 0 && Gold == 0, TEXT("#C6"), FString::Printf(
-            TEXT("A leashed return and home reset paid nothing (XP +%lld, gold +%lld)"), XP, Gold));
-        if (!Mark(TEXT("Client2Done.json"))) { return Finish(); }
-        Stage = 4;
+        case EHighStep::Done:
+            Check(true, TEXT("#C9"),
+                TEXT("The rendered owner kept CampGuardianReturning.png and CampLowPair.png for presentation review"));
+            if (!Mark(TEXT("Client2Done.json"))) { return Finish(); }
+            Stage = 4;
+            return true;
+        }
         return true;
     }
 
@@ -568,11 +682,12 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7). Not AI, capture, full-match or balance acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Not AI, capture, full-match or balance acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);
         Report->SetArrayField(TEXT("checks"), Checks);
+        Report->SetArrayField(TEXT("screenshots"), Images);
         if (const ALDPlayerController* Owner = Controller.Get())
         {
             Report->SetNumberField(TEXT("generation"), Owner->OwnerState.Match);

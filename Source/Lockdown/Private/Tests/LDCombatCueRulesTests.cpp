@@ -51,9 +51,10 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     FLDCombatCueFacts Busy=Struck;
     Busy.bActing=Busy.bActingBasic=true;
     Busy.ActingStartedAtMs=4100;
-    TestTrue(TEXT("Attack outranks Hit"), Is(Select(Busy,4150),Attack,4100));
+    TestTrue(TEXT("Hit outranks Attack, so a swinging body still shows the hit it takes"),
+        Is(Select(Busy,4150),Hit,4000) && Is(Select(Busy,4300),Attack,4100));
     Busy.ReleasedStartedAtMs=Busy.ReleasedAtMs=4120;
-    TestTrue(TEXT("Cast outranks Attack and Hit"), Is(Select(Busy,4150),Cast,4120));
+    TestTrue(TEXT("Cast outranks Hit and Attack"), Is(Select(Busy,4150),Cast,4120));
     FLDCombatCueFacts Again=Released;
     Again.bActing=Again.bActingBasic=true;
     Again.ActingStartedAtMs=1300;

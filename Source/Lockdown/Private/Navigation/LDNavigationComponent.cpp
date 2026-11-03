@@ -89,6 +89,20 @@ namespace LDNavigationDetail
         return Text;
     }
 
+    // The one notice a receipt may post to the HUD's toast line: a real failure and a removed respawn protection.
+    // Progress, arrival and the player's own replacing order or S stay in Status only (UI review P1).
+    FString NoticeText(const FLDOrderReceipt& Receipt)
+    {
+        const bool bEnded=Receipt.Status==ELDOrderStatus::Rejected || Receipt.Status==ELDOrderStatus::Cancelled
+            || Receipt.Status==ELDOrderStatus::Completed;
+        const bool bFailed=bEnded && Receipt.Failure!=ELDOrderFailure::None && Receipt.Failure!=ELDOrderFailure::Superseded
+            && Receipt.Failure!=ELDOrderFailure::Stopped;
+        FString Text=bFailed?FString(FailureText(Receipt.Failure)):FString();
+        if (Receipt.bProtectionRemoved && (Receipt.Status==ELDOrderStatus::Activated || Receipt.Status==ELDOrderStatus::Rejected))
+        { Text+=Text.IsEmpty()?TEXT("复活保护已解除"):TEXT("（复活保护已解除）"); }
+        return Text;
+    }
+
     // Owner prediction of an attack order plans a body goal: a chase receipt carries the target's foot, and an
     // attack-move's ground goal is already the server's strict on-mesh point, which the body snap leaves unchanged.
     LDPathSteering::EGoal PredictedGoal(ELDSpatialOrderKind Kind)
@@ -226,7 +240,7 @@ bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop)
     const FLDMapBinding* Shop=Registry && !ShopId.IsNone()?Registry->Resolve(ShopId,Registry->Generation):nullptr;
     if (!Shop || Loaded->Get().Parameters.ShopInteractRadiusCm.Denominator<=0)
     {
-        if (auto* PC=Controller()) { Status=PC->IntentFeedback=TEXT("小卖部不可用"); }
+        if (auto* PC=Controller()) { Status=TEXT("小卖部不可用"); PC->PostIntentNotice(Status); }
         return false;
     }
     const auto& Radius=Loaded->Get().Parameters.ShopInteractRadiusCm;
@@ -241,7 +255,7 @@ bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out
     if (!PC || Serial==MAX_uint32 || (Cancel && Epoch==MAX_uint32))
     {
         Status=TEXT("订单编号已用尽，无法再下达新订单");
-        if (PC) { PC->IntentFeedback=Status; }
+        if (PC) { PC->PostIntentNotice(Status); }
         UE_LOG(LogTemp, Error, TEXT("LD_NAV_IDENTITY_EXHAUSTED"));
         return false;
     }
@@ -256,7 +270,7 @@ void ULDNavigationComponent::Navigate(const FVector& Surface)
     if (Hint.IsNone())
     {
         Status=TEXT("当前地图没有可用地面");
-        if (auto* PC=Controller()) { PC->IntentFeedback=Status; }
+        if (auto* PC=Controller()) { PC->PostIntentNotice(Status); }
         return;
     }
     NavigateGround(Surface,Hint);
@@ -311,7 +325,7 @@ void ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     bLocalStop=false;
     bLocalPending=true;
     RefreshLocalActive();
-    Status=PC->IntentFeedback=PendingStatus;
+    Status=PendingStatus;
     LocalSentAt=FPlatformTime::Seconds();
     ServerSubmitOrder(Request);
 }
@@ -405,7 +419,10 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
         break;
     }
     if (bLocal || (bActive && !bLocalPending))
-    { Status=PC->IntentFeedback=LDNavigationDetail::ReceiptText(Receipt,bLocal && bLocalStop); }
+    {
+        Status=LDNavigationDetail::ReceiptText(Receipt,bLocal && bLocalStop);
+        PC->PostIntentNotice(LDNavigationDetail::NoticeText(Receipt));
+    }
     RefreshLocalActive();
     if (!ShopBindingId.IsNone() && Identity==ShopBindingIdentity)
     {
@@ -466,7 +483,7 @@ void ULDNavigationComponent::ApplyPrediction()
         {
             UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
             Stop();
-            Status=PC->IntentFeedback=TEXT("无法到达该位置");
+            Status=TEXT("无法到达该位置"); PC->PostIntentNotice(Status);
         }
         else { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_PREDICTION_UNAVAILABLE %s"),*Error); }
         return;
@@ -524,7 +541,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     bHadFocus=true;
     if (bLocalActive && Now-LastHeartbeatSent>=.5)
     {
-        if (HeartbeatSequence==MAX_uint32) { Stop(); Status=PC->IntentFeedback=TEXT("移动心跳编号已用尽"); }
+        if (HeartbeatSequence==MAX_uint32) { Stop(); Status=TEXT("移动心跳编号已用尽"); PC->PostIntentNotice(Status); }
         else { LastHeartbeatSent=Now; ServerHeartbeat(ClientActive.Order?ClientActive:Local,++HeartbeatSequence); }
     }
     TickCamera(Delta);
@@ -537,7 +554,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     if (Progress>=BestProgress+10) { BestProgress=Progress; LastProgress=Now; }
     if (Now-LastProgress>=OrderNoProgressSeconds)
     {
-        if (bReplanned) { Stop(); Status=PC->IntentFeedback=TEXT("路线受阻"); }
+        if (bReplanned) { Stop(); Status=TEXT("路线受阻"); PC->PostIntentNotice(Status); }
         else
         {
             bReplanned=true;
@@ -553,7 +570,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
             {
                 UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
                 Stop();
-                Status=PC->IntentFeedback=TEXT("无法到达该位置");
+                Status=TEXT("无法到达该位置"); PC->PostIntentNotice(Status);
             }
         }
     }

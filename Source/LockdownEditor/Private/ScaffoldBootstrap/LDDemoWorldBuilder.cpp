@@ -12,10 +12,16 @@
 #include "Builders/CubeBuilder.h"
 #include "Components/BrushComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
 #include "Engine/Level.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/SkyLight.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
@@ -23,6 +29,17 @@
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/FileManager.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionConstant3Vector.h"
+#include "Materials/MaterialExpressionFrac.h"
+#include "Materials/MaterialExpressionIf.h"
+#include "Materials/MaterialExpressionMin.h"
+#include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialExpressionOneMinus.h"
+#include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
 #include "Misc/FileHelper.h"
@@ -191,6 +208,193 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
     return Actor;
 }
 
+// Presentation of the generated world: engine-only materials and lighting, rebuilt from this code on every generation.
+// None of it collides, affects navigation or sight, or is read by any rule.
+const TCHAR* FieldMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoField");
+const TCHAR* WallMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoWall");
+
+FString ObjectPath(const TCHAR* PackagePath) { return FString(PackagePath) + TEXT(".") + FPackageName::GetShortName(PackagePath); }
+
+UMaterial* NewGeneratedMaterial(const TCHAR* PackagePath, FString& Error)
+{
+    UMaterial* Material = nullptr;
+    if (FPackageName::DoesPackageExist(PackagePath))
+    {
+        Material = LoadObject<UMaterial>(nullptr, *ObjectPath(PackagePath));
+        if (!Material) { Fail(Error, FString(TEXT("Existing generated material cannot be loaded: ")) + PackagePath); return nullptr; }
+        Material->GetOutermost()->FullyLoad();
+        Material->GetExpressionCollection().Empty();
+        UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
+        Inputs->BaseColor = FColorMaterialInput();
+        Inputs->Roughness = FScalarMaterialInput();
+        Inputs->Specular = FScalarMaterialInput();
+    }
+    else { Material = NewObject<UMaterial>(CreatePackage(PackagePath), *FPackageName::GetShortName(PackagePath), RF_Public | RF_Standalone); }
+    return Material;
+}
+
+template <typename T>
+T* AddNode(UMaterial& Material)
+{
+    T* Node = NewObject<T>(&Material);
+    Material.GetExpressionCollection().AddExpression(Node);
+    return Node;
+}
+
+UMaterialExpression* ColorNode(UMaterial& Material, const FLinearColor& Value)
+{
+    auto* Node = AddNode<UMaterialExpressionConstant3Vector>(Material);
+    Node->Constant = Value;
+    return Node;
+}
+
+UMaterialExpression* ScalarNode(UMaterial& Material, float Value)
+{
+    auto* Node = AddNode<UMaterialExpressionConstant>(Material);
+    Node->R = Value;
+    return Node;
+}
+
+UMaterialExpression* MaskNode(UMaterial& Material, UMaterialExpression* Input, bool R, bool G, bool B)
+{
+    auto* Node = AddNode<UMaterialExpressionComponentMask>(Material);
+    Node->Input.Connect(0, Input);
+    Node->R = R;
+    Node->G = G;
+    Node->B = B;
+    Node->A = false;
+    return Node;
+}
+
+// Below when Value < Threshold, otherwise Above.
+UMaterialExpression* ChooseNode(UMaterial& Material, UMaterialExpression* Value, float Threshold, UMaterialExpression* Below,
+    UMaterialExpression* Above)
+{
+    auto* Node = AddNode<UMaterialExpressionIf>(Material);
+    Node->A.Connect(0, Value);
+    Node->ConstB = Threshold;
+    Node->ALessThanB.Connect(0, Below);
+    Node->AEqualsB.Connect(0, Above);
+    Node->AGreaterThanB.Connect(0, Above);
+    return Node;
+}
+
+UMaterialExpression* MinNode(UMaterial& Material, UMaterialExpression* A, UMaterialExpression* B)
+{
+    auto* Node = AddNode<UMaterialExpressionMin>(Material);
+    Node->A.Connect(0, A);
+    Node->B.Connect(0, B);
+    return Node;
+}
+
+UMaterialExpression* OneMinusNode(UMaterial& Material, UMaterialExpression* Input)
+{
+    auto* Node = AddNode<UMaterialExpressionOneMinus>(Material);
+    Node->Input.Connect(0, Input);
+    return Node;
+}
+
+UMaterial* FinishMaterial(UMaterial& Material, UMaterialExpression* BaseColor, float Roughness, float Specular,
+    const TCHAR* PackagePath, FString& Error)
+{
+    UMaterialEditorOnlyData* Inputs = Material.GetEditorOnlyData();
+    Inputs->BaseColor.Connect(0, BaseColor);
+    Inputs->Roughness.Connect(0, ScalarNode(Material, Roughness));
+    Inputs->Specular.Connect(0, ScalarNode(Material, Specular));
+    Material.PreEditChange(nullptr);
+    Material.PostEditChange();
+    return LDDemoWorldBuilder::SaveAsset(Material, PackagePath, Error) ? &Material : nullptr;
+}
+
+// The school playground: two-tone mown turf inside a red running track with a white inner line, laid along the
+// ground's outline by the top face's 0..1 texture coordinates.
+UMaterial* BuildFieldMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(FieldMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    auto* UV = AddNode<UMaterialExpressionTextureCoordinate>(*Material);
+    UMaterialExpression* U = MaskNode(*Material, UV, true, false, false);
+    UMaterialExpression* V = MaskNode(*Material, UV, false, true, false);
+    UMaterialExpression* Edge = MinNode(*Material, MinNode(*Material, U, OneMinusNode(*Material, U)),
+        MinNode(*Material, V, OneMinusNode(*Material, V)));
+    auto* Bands = AddNode<UMaterialExpressionMultiply>(*Material);
+    Bands->A.Connect(0, U);
+    Bands->ConstB = 9.f;
+    auto* Stripe = AddNode<UMaterialExpressionFrac>(*Material);
+    Stripe->Input.Connect(0, Bands);
+    UMaterialExpression* Turf = ChooseNode(*Material, Stripe, .5f, ColorNode(*Material, FLinearColor(.06f, .21f, .045f)),
+        ColorNode(*Material, FLinearColor(.085f, .27f, .06f)));
+    UMaterialExpression* Inside = ChooseNode(*Material, Edge, .066f, ColorNode(*Material, FLinearColor(.82f, .82f, .78f)), Turf);
+    UMaterialExpression* Ground = ChooseNode(*Material, Edge, .06f, ColorNode(*Material, FLinearColor(.47f, .13f, .08f)), Inside);
+    return FinishMaterial(*Material, Ground, .92f, .3f, FieldMaterialPath, Error);
+}
+
+// School walls: cream plaster above a red skirting band at the foot.
+UMaterial* BuildWallMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(WallMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    UMaterialExpression* Height = MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), false, false, true);
+    UMaterialExpression* Wall = ChooseNode(*Material, Height, 45.f, ColorNode(*Material, FLinearColor(.42f, .1f, .07f)),
+        ColorNode(*Material, FLinearColor(.72f, .66f, .55f)));
+    return FinishMaterial(*Material, Wall, .85f, .35f, WallMaterialPath, Error);
+}
+
+// A clear afternoon: one warm sun drives the physical sky, the sky light captures that sky as ambient light, a light
+// height fog adds depth at the far edges, and an unbound post-process gives a mild grade.
+bool BuildEnvironment(UWorld& World, FString& Error)
+{
+    auto* Sun = World.SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-52, -35, 0));
+    auto* Sky = World.SpawnActor<ASkyAtmosphere>();
+    auto* Ambient = World.SpawnActor<ASkyLight>();
+    auto* Fog = World.SpawnActor<AExponentialHeightFog>();
+    auto* Post = World.SpawnActor<APostProcessVolume>();
+    if (!Sun || !Sky || !Ambient || !Ambient->GetLightComponent() || !Fog || !Fog->GetComponent() || !Post)
+    {
+        return Fail(Error, TEXT("Cannot create the Demo world environment."));
+    }
+    auto* Light = CastChecked<UDirectionalLightComponent>(Sun->GetLightComponent());
+    Light->SetMobility(EComponentMobility::Movable);
+    Light->SetIntensity(8.f);
+    Light->SetUseTemperature(true);
+    Light->SetTemperature(5600.f);
+    Light->SetCastShadows(true);
+    Light->SetAtmosphereSunLight(true);
+    Sun->SetActorLabel(TEXT("DemoSun"));
+    Sky->SetActorLabel(TEXT("DemoSkyAtmosphere"));
+    USkyLightComponent* SkyLight = Ambient->GetLightComponent();
+    SkyLight->SetMobility(EComponentMobility::Movable);
+    SkyLight->SourceType = SLS_CapturedScene;
+    SkyLight->SetRealTimeCapture(true);
+    SkyLight->SetIntensity(1.f);
+    Ambient->SetActorLabel(TEXT("DemoSkyLight"));
+    UExponentialHeightFogComponent* Haze = Fog->GetComponent();
+    Haze->SetFogDensity(.01f);
+    Haze->SetFogHeightFalloff(.2f);
+    Haze->SetStartDistance(3000.f);
+    Haze->SetFogMaxOpacity(.6f);
+    Fog->SetActorLabel(TEXT("DemoHeightFog"));
+    Post->bUnbound = true;
+    FPostProcessSettings& Grade = Post->Settings;
+    // The engine's default exposure bias (+1) and the project's flattened local exposure wash the bright field out.
+    Grade.bOverride_AutoExposureBias = true;
+    Grade.AutoExposureBias = -.5f;
+    Grade.bOverride_LocalExposureHighlightContrastScale = true;
+    Grade.LocalExposureHighlightContrastScale = 1.f;
+    Grade.bOverride_LocalExposureShadowContrastScale = true;
+    Grade.LocalExposureShadowContrastScale = 1.f;
+    Grade.bOverride_BloomIntensity = true;
+    Grade.BloomIntensity = .4f;
+    Grade.bOverride_ColorSaturation = true;
+    Grade.ColorSaturation = FVector4(1.15, 1.15, 1.15, 1.);
+    Grade.bOverride_ColorContrast = true;
+    Grade.ColorContrast = FVector4(1.1, 1.1, 1.1, 1.);
+    Grade.bOverride_VignetteIntensity = true;
+    Grade.VignetteIntensity = .3f;
+    Post->SetActorLabel(TEXT("DemoPostProcess"));
+    return true;
+}
+
 bool NavigationBounds(const FLDDemoWorldGeometry& Geometry, const FCollisionShape& Capsule, FBox& Out, FString& Error)
 {
     FVector Min, Max;
@@ -301,8 +505,10 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
     Anchor->Definition = &Definition;
     Anchor->SetActorLabel(TEXT("DemoWorldDefinition"));
     auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-    auto* GroundMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Ground.M_Ground"));
-    auto* StoneMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Stone.M_Stone"));
+    UMaterial* GroundMaterial = BuildFieldMaterial(Error);
+    if (!GroundMaterial) { return false; }
+    UMaterial* StoneMaterial = BuildWallMaterial(Error);
+    if (!StoneMaterial) { return false; }
     FVector Min, Max;
     if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
     const double Depth = Capsule.GetCapsuleHalfHeight();
@@ -327,14 +533,7 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
             Start->SetActorEnableCollision(false);
         }
     }
-    for (int32 I = 0; I < 2; ++I)
-    {
-        auto* Light = World->SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-60, I ? 145 : -35, 0));
-        if (!Light) { return Fail(Error, TEXT("Cannot create the shared world lighting.")); }
-        Light->GetLightComponent()->SetIntensity(I ? 1 : 5);
-        Light->GetLightComponent()->SetCastShadows(!I);
-        CastChecked<UDirectionalLightComponent>(Light->GetLightComponent())->SetForwardShadingPriority(I ? 1 : 2);
-    }
+    if (!BuildEnvironment(*World, Error)) { return false; }
     if (!BuildNavigation(*World, *Geometry, Capsule, Error)) { return false; }
     World->GetOutermost()->GetMetaData().SetValue(World, GeometryStamp, *Definition.Checksum);
     if (!UEditorLoadingAndSavingUtils::SaveMap(World, LDDemoEntry::WorldMap))
@@ -377,11 +576,25 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(FString(World.GetOutermost()->GetMetaData().GetValue(&World, GeometryStamp)).Equals(Definition.Checksum, ESearchCase::CaseSensitive),
         TEXT("Saved map stamp identifies the verified world payload"));
     int32 Anchors = 0, BoundsCount = 0, NavCount = 0, StaticCount = 0;
+    int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0;
     TMap<FString, const AStaticMeshActor*> Meshes;
     FBox ExpectedBounds;
     if (!NavigationBounds(*Geometry, Capsule, ExpectedBounds, Error)) { return false; }
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
+        if (const auto* Sun = Cast<ADirectionalLight>(Actor))
+        {
+            const auto* Light = Cast<UDirectionalLightComponent>(Sun->GetLightComponent());
+            Suns += Light && Light->IsUsedAsAtmosphereSunLight() && Light->CastShadows ? 1 : 100;
+        }
+        if (Cast<ASkyAtmosphere>(Actor)) { ++Skies; }
+        if (const auto* Ambient = Cast<ASkyLight>(Actor))
+        {
+            const auto* Light = Ambient->GetLightComponent();
+            SkyLights += Light && Light->bRealTimeCapture && Light->Mobility == EComponentMobility::Movable ? 1 : 100;
+        }
+        if (Cast<AExponentialHeightFog>(Actor)) { ++Fogs; }
+        if (const auto* Post = Cast<APostProcessVolume>(Actor)) { Grades += Post->bUnbound ? 1 : 100; }
         if (const auto* Anchor = Cast<ALDMapAnchor>(Actor))
         {
             ++Anchors;
@@ -414,6 +627,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     }
     Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 11,
         TEXT("Exact native anchor, navigation and static-geometry counts"));
+    Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
+        TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
     const auto* Navigation = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());
     Check(Navigation && Navigation->HasApprovedAgent()
         && World.GetWorldSettings()->GetNavigationSystemConfig()->NavigationSystemClass == FSoftClassPath(ULDDemoNavigationSystem::StaticClass()),
@@ -432,6 +647,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && FloorActor->GetActorRotation().IsNearlyZero()
             && CollisionChannelsMatch(*Component, true, false),
             TEXT("Ground transform, native support and sight classification match the source"));
+        const UMaterialInterface* Field = Component->GetMaterial(0);
+        Check(Field && Field->GetPathName() == ObjectPath(FieldMaterialPath), TEXT("The ground is the generated playground field"));
     }
     for (const auto& Blocker : Geometry->Blockers)
     {
@@ -443,6 +660,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         Check(Actor->GetActorTransform().Equals(FTransform::Identity, UE_KINDA_SMALL_NUMBER)
             && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
             TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
+        const UMaterialInterface* Wall = Component->GetMaterial(0);
+        Check(Wall && Wall->GetPathName() == ObjectPath(WallMaterialPath), TEXT("Blocker uses the generated school wall: ") + Blocker.Id);
         TArray<FVector> Expected;
         if (!BlockerVertices(Blocker, Expected, Error)) { return false; }
         if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Blocker.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Blocker.Id))

@@ -706,7 +706,8 @@ void ULDUIRoot::Host()
     Draft->Endpoint.Reset();
     Draft->Notice=TEXT("正在创建房间…");
     UpdateStartControls();
-    UGameplayStatics::OpenLevel(this,LDDemoEntry::WorldMap,true,FString::Printf(TEXT("listen?Name=%s"),*Name));
+    // The engine replaces ?Name= with the online subsystem's nickname; the chosen name travels as ?LDName=.
+    UGameplayStatics::OpenLevel(this,LDDemoEntry::WorldMap,true,FString::Printf(TEXT("listen?LDName=%s"),*Name));
 }
 
 void ULDUIRoot::Join()
@@ -742,7 +743,7 @@ void ULDUIRoot::Join()
     Draft->Notice=FString::Printf(TEXT("正在连接 %s…"),*Address);
     UpdateStartControls();
     CancelJoinButton->SetKeyboardFocus();
-    PC->ClientTravel(Address+FString::Printf(TEXT("?LDWire=%u?LDProduct=%s?LDCatalog=%s?Name=%s"),
+    PC->ClientTravel(Address+FString::Printf(TEXT("?LDWire=%u?LDProduct=%s?LDCatalog=%s?LDName=%s"),
         LDDemoEntry::WireProtocol,*Version,*Digest,*Name),TRAVEL_Absolute);
 }
 

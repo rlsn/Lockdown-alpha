@@ -1,4 +1,6 @@
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Kismet/GameplayStatics.h"
+#include "UI/LDControlSettings.h"
 
 namespace
 {
@@ -168,5 +170,25 @@ bool FLDSessionRequestWindow::Complete(const FLDSessionReceipt& Receipt)
     LastRequest = ActiveRequest;
     LastReceipt = Receipt;
     Pending = false;
+    return true;
+}
+
+bool LDMatchLifecycle::ResolveContenderName(const FString& Options, FString& OutName, FString& Error)
+{
+    OutName.Reset();
+    if (!UGameplayStatics::HasOption(Options, TEXT("LDName")))
+    {
+        OutName = DefaultContenderName;
+        Error.Reset();
+        return true;
+    }
+    const FString Requested = UGameplayStatics::ParseOption(Options, TEXT("LDName"));
+    if (!ULDControlSettings::ValidatePlayerName(Requested, Error))
+    {
+        Error = TEXT("InvalidName: ") + Error;
+        return false;
+    }
+    OutName = Requested;
+    Error.Reset();
     return true;
 }

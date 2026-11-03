@@ -478,8 +478,36 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     Mode->MatchPhase = ELDMatchPhase::Lobby;
     Mode->RosterRevision = 1;
     Mode->bDemoWorld = Mode->bEntryAccepted = true;
-    if (!TestTrue(TEXT("Two humans join the room"), Mode->AdmitRoomMember(Host, Error) && Mode->AdmitRoomMember(Guest, Error)))
+    // The chosen name travels as ?LDName=; the engine's ?Name= (online subsystem nickname) never names a contender.
+    FString Name;
+    TestTrue(TEXT("An absent chosen name takes the explicit default"),
+        LDMatchLifecycle::ResolveContenderName(TEXT("?listen?Name=Fak-B33A66484D3FB6B1"), Name, Error)
+        && Name.Equals(LDMatchLifecycle::DefaultContenderName, ESearchCase::CaseSensitive));
+    TestTrue(TEXT("The chosen name wins over the engine nickname and keeps its inner space"),
+        LDMatchLifecycle::ResolveContenderName(TEXT("?Name=Fak-1?LDName=同学 乙?LDWire=4"), Name, Error)
+        && Name.Equals(TEXT("同学 乙"), ESearchCase::CaseSensitive));
+    for (const TCHAR* Bad : {TEXT("?LDName="), TEXT("?LDName= 同学"), TEXT("?LDName=a/b"), TEXT("?LDName=12345678901234567")})
+    {
+        TestTrue(TEXT("An empty, padded, reserved-character or overlong chosen name is refused explicitly"),
+            !LDMatchLifecycle::ResolveContenderName(Bad, Name, Error) && Error.StartsWith(TEXT("InvalidName: ")) && Name.IsEmpty());
+    }
+    if (!TestTrue(TEXT("The Listen Host joins the room"), Mode->AdmitRoomMember(Host, Error))) { AddError(Error); return false; }
+    auto* GuestName = World->SpawnActor<ALDPlayerState>();
+    if (!TestNotNull(TEXT("Fixture player state"), GuestName)) { return false; }
+    Guest->PlayerState = GuestName;
+    GuestName->SetPlayerName(TEXT("Fak-B33A66484D3FB6B1D501039CE5B3D81C"));
+    const uint64 RosterBefore = Mode->RosterRevision;
+    TestTrue(TEXT("An online subsystem nickname is refused at admission, not shown, and the roster is unchanged"),
+        !Mode->AdmitRoomMember(Guest, Error) && Error.StartsWith(TEXT("InvalidName: ")) && Mode->RosterRevision == RosterBefore
+        && !Mode->Contenders.Contains(Guest));
+    GuestName->SetPlayerName(TEXT("同学 乙"));
+    if (!TestTrue(TEXT("The second human joins with the chosen name"), Mode->AdmitRoomMember(Guest, Error)))
     { AddError(Error); return false; }
+    TestTrue(TEXT("Admission keeps the chosen name; a nameless fixture takes the explicit default"),
+        Mode->Contenders.Find(Guest) && Mode->Contenders.Find(Guest)->Name.Equals(TEXT("同学 乙"), ESearchCase::CaseSensitive)
+        && Mode->Contenders.Find(Host) && (Host->PlayerState
+            ? Mode->Contenders.Find(Host)->Name.Equals(Host->PlayerState->GetPlayerName(), ESearchCase::CaseSensitive)
+            : Mode->Contenders.Find(Host)->Name.Equals(LDMatchLifecycle::DefaultContenderName, ESearchCase::CaseSensitive)));
     const FGuid GuestId = Mode->ContenderId(Guest);
 
     int32 Closed = 0, Resets = 0;
