@@ -809,7 +809,7 @@ Max同比后积分余数仍是原资源点的未入账小量，不随Max放大�
 | 抽取并改造 | `LDEconomy::FLedger::Commit/Reconcile` 与 `LDInventoryTypes::UnitWeight` | 保留账本预检/原子性/身份/审计，移除定义合法性经 UnitWeight 加载旧目录的依赖 |
 | 抽取并改造 | `LDCombatDirector::RequestContent/ReleaseContent/PrepareTactical/Sample`；`LDV08Catalog::ReleaseCatalog` | 统一所选 typed handler 和真实 MP/CD；删旧名称分支、白名单、施法环境门槛和旧参数 |
 | 抽取 | `LDV08Modifiers::ClaimProc/AugmentBasic`；`LDContentLifecycle` tick/life 处理 | 保留来源锁和周期计划机制；角色/装备被动进入同一来源模型，不保留整套 18 modifier/地表反应 |
-| 抽取（旧实现已删除） | `World\LDCampDecision` 纯值营地决策 | 旧营地/Sentinel Actor 的生成、索敌、信用与奖励入口已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收。五组两档、每成员新 life、最后一击回执与清空后刷新由 N03 在核心上实现；不恢复有限轮数、最大伤害获奖或旧 PvP 限制 |
+| 抽取（旧实现已删除） | `World\LDCampDecision` 纯值营地决策 | 旧营地/Sentinel Actor 的生成、索敌、信用与奖励入口已删除；`World\LDCampDirector` 在核心上用抽取的 `LDCampDecision` 实现五组两档、每成员新 life、最后一击回执与清空后刷新；不恢复有限轮数、最大伤害获奖或旧 PvP 限制 |
 | 新增最小职责 | Demo strict schema/compiler、完整效果投影、MOBA evaluator、offer 协议、角色被动、统一奖励 plan、装备出售 | 接入现有领域和唯一 owner 真值；不得平行新建战斗、货币、资源或世界状态系统 |
 
 ### 11.2 必须实际退出的目录与断言
@@ -894,7 +894,7 @@ CB-D03 的资产路径以 `Content\Lockdown` 为根，contract 分别在
 | 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDV08Modifiers::ClaimProc/AugmentBasic` 和生命周期原语抽取；角色被动三级新增 | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
 | `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `FLedger::Commit` 与库存实例机制（旧 Acquisition paid creation 已退役）、同名 `ALDVendorDirector` 新建 quote/receipt；出售新增 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
 | `XP.*`、`REWARD.*`、`CHOICE.*` → progression/reward/offer 投影 | `LDCharacterBuild::AwardXP`、GameMode XP入口改造；旧营地 Reward/PvPKill 已删除，奖励语义见 N03 验收 | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；最后一击XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
-| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | 旧营地 Spawn/Prepare/NextEvent 已删除；营地由抽取的 `LDCampDecision` 原语等待 N03 接线，奖励语义见 N03 验收；对局/生命/占領域；3×12等旧模型已退出 | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
+| `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | 旧营地 Spawn/Prepare/NextEvent 已删除；营地由 `World\LDCampDirector` 读取 `CAMP.*`；对局/生命/占領域；3×12等旧模型已退出 | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `FLDActionRef`、`LDTacticalRequest`、`LDPlayerController::ServerTacticalAction` 与纯定义 Check | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重购新实例仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效；无主动装备1/2明确不可用 |
 
