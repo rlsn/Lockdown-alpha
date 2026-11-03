@@ -3,7 +3,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatTypes.h"
+#include "Components/TextBlock.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDGrowthProtocol.h"
@@ -17,6 +19,9 @@
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
+#include "UI/LDHUD.h"
+#include "UI/LDHUDModel.h"
+#include "UObject/UnrealType.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Containers/Ticker.h"
@@ -218,6 +223,20 @@ const FGrowthProbeOffer GrowthProbePlan[] = {
 constexpr int32 GrowthProbePlannedOffers = UE_ARRAY_COUNT(GrowthProbePlan);
 // Gold of the Host's own DEV grant before it attacks the buyer; its XP matches the buyer's level so the duel is even.
 constexpr int64 GrowthProbeHostGrantGold = 120;
+// Approved melee approach of low camp L1 (WORLD_CAMPS_AND_VISION §2.5, shared with the camp scenario), its two
+// scavengers within the target search radius of that point.
+const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
+constexpr double GrowthProbeCampSearchCm = 600.0;
+constexpr int32 GrowthProbeLowCampMembers = 2;
+
+// A private text of the Host's rendered HUD, read through reflection: the HUD itself is not changed for the probe.
+FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
+{
+    const ULDHUD* Hud = PC.HUDUI;
+    const FObjectProperty* Property = Hud ? FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field) : nullptr;
+    const UTextBlock* Text = Property ? Cast<UTextBlock>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
+    return Text ? Text->GetText().ToString() : FString();
+}
 
 TArray<FName> GrowthProbePlannedCards(int32 Index)
 {
@@ -403,6 +422,21 @@ public:
     int32 HostAttackOrders = 0;
     FLDMoveIdentity HostAttackOrder;
     double HostKillStartedAt = 0;
+
+    // Host as killer: its own view and rendered HUD after its kill of the buyer, then after two low-camp last hits.
+    struct FHostReward
+    {
+        int64 XPBefore = 0;
+        int64 GoldBefore = 0;
+        uint64 PublishBefore = 0;
+        double Since = 0;
+    };
+    FHostReward HostKillReward, HostCampReward;
+    uint8 HostKillVictimLevel = 0;
+    bool bHostKillRewardSeen = false, bHostAtCamp = false, bHostCampDone = false;
+    int32 HostCampKills = 0, HostCampOrders = 0, HostCampNavigate = 0;
+    FLDMoveIdentity HostCampOrder;
+    TSharedPtr<FJsonObject> HostKillerRow;
 
     // New-match isolation. The first match's identities and dirty owner state, then the second match's checks.
     bool bSecondMatch = false, bResultChecked = false, bReplaySent = false;
@@ -927,6 +961,10 @@ public:
             {
                 return TickKillBuyer(Now, PC, *Mode);
             }
+            if (bBuyerKilled && !bHostCampDone)
+            {
+                return TickHostAsKiller(Now, PC);
+            }
             if (!bAtSite && !PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
                 if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
@@ -938,7 +976,8 @@ public:
                 NextCommandAt = Now + 1.0;
             }
         }
-        return Exists(TEXT("Client1Match1Done.json")) ? EndFirstMatch(Now, PC, *Mode) : true;
+        // The Host ends the first match only after its own kills were rewarded in its own view.
+        return Exists(TEXT("Client1Match1Done.json")) && bHostCampDone ? EndFirstMatch(Now, PC, *Mode) : true;
     }
 
     // Host, once the buyer has replaced and relearned its skill: its own DEV grant first (the buyer's level, and gold
@@ -994,6 +1033,7 @@ public:
             bHostGranted = true;
             HostAttackOrders = 0;
             HostKillStartedAt = Now;
+            HostKillReward = {OwnProgression->CumulativeXP, OwnEquipment->Gold, PC.OwnerState.Growth.PublishRevision, 0};
             return true;
         }
         const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
@@ -1002,8 +1042,10 @@ public:
         if (bOrderEnded && Latest.Status == ELDOrderStatus::Completed && Latest.Failure == ELDOrderFailure::TargetDied)
         {
             bBuyerKilled = true;
+            HostKillReward.Since = Now;
             Check(true, TEXT("A14"), TEXT("The Host's own attack order killed the buyer"),
-                FString::Printf(TEXT("orders=%d seconds=%.1f"), HostAttackOrders, Now - HostKillStartedAt));
+                FString::Printf(TEXT("orders=%d seconds=%.1f victim level %u"), HostAttackOrders, Now - HostKillStartedAt,
+                    uint32(HostKillVictimLevel)));
             return true;
         }
         if (HostAttackOrders == 0 || bOrderEnded)
@@ -1017,6 +1059,7 @@ public:
             {
                 return Fail(TEXT("A14"), TEXT("The Host's attack kept ending without the buyer's death: ") + PC.Navigation->Status);
             }
+            HostKillVictimLevel = Buyer->Level;
             PC.Navigation->AttackUnit(Buyer->Handle, Buyer->ObservationEpoch);
             HostAttackOrder = PC.Navigation->LocalIdentity();
             ++HostAttackOrders;
@@ -1024,6 +1067,174 @@ public:
         }
         if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
         return Fail(TEXT("A14"), TEXT("The Host's attack did not kill the buyer within its budget"));
+    }
+
+    // The Host's own reward as the Listen Host's HUD shows it: the local controller's owner view (SyncOwner applies it
+    // without replication) and the rendered HUD's gold and level texts must reach the exact expected values.
+    LDDemoGrowthScenario::EGrowthProbeWait AwaitHostReward(double Now, const ALDPlayerController& PC, const FHostReward& Mark,
+        int64 ExpectXP, int64 ExpectGold, FString& Detail) const
+    {
+        const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
+        const FLDEquipmentView* OwnEquipment = PC.ReadOwnEquipment();
+        const FString GoldText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("GoldText"));
+        const FString LevelText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("LevelText"));
+        LDHUD::FLevelView Level;
+        if (OwnProgression)
+        {
+            Level = LDHUD::Level(OwnProgression->Level, OwnProgression->MaxLevel, OwnProgression->CumulativeXP,
+                OwnProgression->LevelThresholdXP, OwnProgression->bHasNextThreshold, OwnProgression->NextThresholdXP);
+        }
+        Detail = FString::Printf(TEXT("own view xp %lld->%lld (want %lld) gold %lld->%lld (want %lld) publish %llu->%llu; HUD \"%s\" / \"%s\""),
+            Mark.XPBefore, OwnProgression ? OwnProgression->CumulativeXP : -1, ExpectXP, Mark.GoldBefore,
+            OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision, *GoldText, *LevelText);
+        const bool bView = OwnProgression && OwnEquipment && OwnProgression->CumulativeXP == ExpectXP && OwnEquipment->Gold == ExpectGold
+            && PC.OwnerState.Growth.PublishRevision > Mark.PublishBefore;
+        const bool bHud = bView && GoldText == LDHUD::Gold(ExpectGold) && LevelText.Contains(Level.Level) && LevelText.Contains(Level.Experience);
+        if (bHud)
+        {
+            return LDDemoGrowthScenario::EGrowthProbeWait::Ready;
+        }
+        return Now - Mark.Since <= LDDemoGrowthScenario::GrowthProbeRequestSeconds ? LDDemoGrowthScenario::EGrowthProbeWait::Waiting
+            : LDDemoGrowthScenario::EGrowthProbeWait::Failed;
+    }
+
+    // Host as killer: its kill of the buyer, then its last hits on both scavengers of low camp L1, each pay exactly the
+    // approved reward into the Host's own owner view and HUD.
+    bool TickHostAsKiller(double Now, ALDPlayerController& PC)
+    {
+        const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        FString Detail;
+        if (!bHostKillRewardSeen)
+        {
+            LDProgression::FRewardAmounts Bounty;
+            const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel),
+                HostKillVictimLevel, Bounty);
+            if (!Check(BountyReason == ELDGrowthReason::None && Bounty.XP > 0 && Bounty.Gold > 0, TEXT("N03"),
+                TEXT("The buyer's level at death has a positive approved bounty"), LDGrowthWire::ReasonName(BountyReason)))
+            {
+                return Finish();
+            }
+            const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitHostReward(Now, PC, HostKillReward,
+                HostKillReward.XPBefore + Bounty.XP, HostKillReward.GoldBefore + Bounty.Gold, Detail);
+            if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+            if (!Check(Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Ready, TEXT("N03"),
+                TEXT("The Listen Host's own kill of a contender pays the exact bounty into its own owner view and rendered HUD"),
+                FString::Printf(TEXT("victim L%u +%lld XP +%lld gold; %s"), uint32(HostKillVictimLevel), Bounty.XP, Bounty.Gold, *Detail)))
+            {
+                return Finish();
+            }
+            HostKillerRow = MakeShared<FJsonObject>();
+            HostKillerRow->SetNumberField(TEXT("contender_victim_level"), HostKillVictimLevel);
+            HostKillerRow->SetNumberField(TEXT("contender_xp"), double(Bounty.XP));
+            HostKillerRow->SetNumberField(TEXT("contender_gold"), double(Bounty.Gold));
+            bHostKillRewardSeen = true;
+            HostCampNavigate = 0;
+            NextCommandAt = 0;
+            return true;
+        }
+        const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+        if (!bHostAtCamp)
+        {
+            if (FVector::Dist2D(Body->GetNavAgentLocation(), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm)
+                <= LDDemoGrowthScenario::GrowthProbeArrivalCm)
+            {
+                const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
+                const FLDEquipmentView* OwnEquipment = PC.ReadOwnEquipment();
+                if (!OwnProgression || !OwnEquipment) { return Fail(TEXT("N03"), TEXT("The Host's own growth view vanished at the camp")); }
+                HostCampReward = {OwnProgression->CumulativeXP, OwnEquipment->Gold, PC.OwnerState.Growth.PublishRevision, Now};
+                HostCampOrders = 0;
+                bHostAtCamp = true;
+                return true;
+            }
+            if (!PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
+            {
+                if (HostCampNavigate >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
+                {
+                    return Fail(TEXT("N03"), TEXT("The Host could not reach low camp L1: ") + PC.IntentFeedback);
+                }
+                PC.Navigation->Navigate(LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
+                ++HostCampNavigate;
+                NextCommandAt = Now + 1.0;
+            }
+            return true;
+        }
+        if (HostCampKills < LDDemoGrowthScenario::GrowthProbeLowCampMembers)
+        {
+            const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
+            const bool bOrderEnded = HostCampOrders > 0 && Latest.Identity == HostCampOrder && (Latest.Status == ELDOrderStatus::Rejected
+                || Latest.Status == ELDOrderStatus::Cancelled || Latest.Status == ELDOrderStatus::Completed);
+            if (HostCampOrders > 0 && !bOrderEnded)
+            {
+                if (Now - HostCampReward.Since <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
+                return Fail(TEXT("N03"), TEXT("The Host's attack on the low camp did not end in time"));
+            }
+            if (bOrderEnded && Latest.Status == ELDOrderStatus::Completed && Latest.Failure == ELDOrderFailure::TargetDied)
+            {
+                ++HostCampKills;
+                HostCampOrders = 0;
+                if (HostCampKills >= LDDemoGrowthScenario::GrowthProbeLowCampMembers) { return true; }
+            }
+            // The camp retaliates as a group, so the next scavenger is near; a lost lock seeks the same camp again.
+            const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
+            const FLDObservedUnitView* Target = nullptr;
+            double Best = FMath::Square(LDDemoGrowthScenario::GrowthProbeCampSearchCm);
+            if (Frame)
+            {
+                for (const FLDObservedUnitView& Unit : Frame->Units)
+                {
+                    const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
+                    if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
+                        && Distance <= Best)
+                    {
+                        Target = &Unit;
+                        Best = Distance;
+                    }
+                }
+            }
+            if (!Target)
+            {
+                if (Now - HostCampReward.Since <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
+                return Fail(TEXT("N03"), FString::Printf(TEXT("No scavenger of low camp L1 was visible to the Host (%d killed)"), HostCampKills));
+            }
+            if (HostCampKills * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill + HostCampOrders
+                >= LDDemoGrowthScenario::GrowthProbeLowCampMembers * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
+            {
+                return Fail(TEXT("N03"), TEXT("The Host's attacks on the low camp kept ending without a death: ") + PC.Navigation->Status);
+            }
+            PC.Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch);
+            HostCampOrder = PC.Navigation->LocalIdentity();
+            ++HostCampOrders;
+            return true;
+        }
+        LDProgression::FRewardAmounts Monster;
+        const ELDGrowthReason MonsterReason = LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), Monster);
+        if (!Check(MonsterReason == ELDGrowthReason::None && Monster.XP > 0 && Monster.Gold > 0, TEXT("N03"),
+            TEXT("The low camp's scavenger has a positive approved reward"), LDGrowthWire::ReasonName(MonsterReason)))
+        {
+            return Finish();
+        }
+        if (HostCampReward.Since < HostKillReward.Since || HostCampKills != LDDemoGrowthScenario::GrowthProbeLowCampMembers)
+        {
+            return Fail(TEXT("N03"), TEXT("The Host's camp kills were counted out of order"));
+        }
+        const int64 Members = LDDemoGrowthScenario::GrowthProbeLowCampMembers;
+        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitHostReward(Now, PC, HostCampReward,
+            HostCampReward.XPBefore + Members * Monster.XP, HostCampReward.GoldBefore + Members * Monster.Gold, Detail);
+        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+        if (!Check(Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Ready, TEXT("N03"),
+            TEXT("The Listen Host's last hits on both low-camp scavengers pay their exact rewards into its own owner view and rendered HUD"),
+            FString::Printf(TEXT("%lld x (+%lld XP +%lld gold); %s"), Members, Monster.XP, Monster.Gold, *Detail)))
+        {
+            return Finish();
+        }
+        if (HostKillerRow.IsValid())
+        {
+            HostKillerRow->SetNumberField(TEXT("camp_kills"), HostCampKills);
+            HostKillerRow->SetNumberField(TEXT("camp_xp"), double(Members * Monster.XP));
+            HostKillerRow->SetNumberField(TEXT("camp_gold"), double(Members * Monster.Gold));
+        }
+        bHostCampDone = true;
+        return true;
     }
 
     // Both roles: the first match's identities and dirty owner state, kept for the second match and the report.
@@ -1117,7 +1328,9 @@ public:
                 PC.ReturnDemoToLobby();
                 NextCommandAt = Now + 3.0;
             }
-            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeTransitionSeconds) { return true; }
+            // The buyer also waits while the Host finishes its own rewarded kills before it ends the match.
+            const double Budget = LDDemoGrowthScenario::GrowthProbeTransitionSeconds + (IsHost() ? 0.0 : LDDemoGrowthScenario::GrowthProbeKillSeconds);
+            if (Now - StageAt <= Budget) { return true; }
             return Fail(TEXT("Iso"), FString::Printf(TEXT("The room did not return to a new Lobby generation (generation %u, phase %s, owner match %u)"),
                 Lobby.Generation, *StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Lobby.Phase)), PC.OwnerState.Match));
         }
@@ -2653,7 +2866,7 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that presets the buyer's offers, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant and kills the buyer, ends the first match without a winner and checks its own state in a second normal match. Not camps, AI, capture or full-match acceptance.")
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that presets the buyer's offers, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
             : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: real kill rewards, choices on the Host's preset offers, two-slot shop trades and an item active through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
@@ -2686,6 +2899,7 @@ public:
             Report->SetNumberField(TEXT("host_grant_xp"), double(HostGrantXP));
             Report->SetNumberField(TEXT("host_grant_gold"), double(bHostGrantSent ? LDDemoGrowthScenario::GrowthProbeHostGrantGold : 0));
             Report->SetBoolField(TEXT("buyer_killed"), bBuyerKilled);
+            Report->SetObjectField(TEXT("host_killer"), HostKillerRow.IsValid() ? HostKillerRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         }
         else
         {

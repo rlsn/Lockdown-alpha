@@ -63,7 +63,11 @@ void ALDPlayerController::BeginPlay()
 void ALDPlayerController::InitializeLocalUI()
 {
     if (!IsLocalController() || !GetLocalPlayer() || RootUI) { return; }
-    Controls=CastChecked<ULDGameInstance>(GetGameInstance())->GetLocalControlSettings();
+    auto* Instance=CastChecked<ULDGameInstance>(GetGameInstance());
+    // A room this client already leaves for a refusal or a closed room gets no room UI: building it would mark that
+    // reason as already seen, and the frontend would show none.
+    if (Instance->IsLeavingWorld(GetWorld())) { return; }
+    Controls=Instance->GetLocalControlSettings();
     bShowMouseCursor=true;
     const TSubclassOf<ULDUIRoot> RootClass=LoadClass<ULDUIRoot>(nullptr,TEXT("/Game/Lockdown/Generated/UI/WBP_UIRoot.WBP_UIRoot_C"));
     checkf(RootClass,TEXT("Missing UI root; run asset bootstrap"));

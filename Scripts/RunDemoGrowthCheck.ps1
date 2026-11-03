@@ -22,7 +22,7 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Ledger','Fixture','A14','Iso')
+    Host = @('Net','Start','Ledger','Fixture','A14','N03','Iso')
     Client1 = @('Net','Start','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso')
 }
 
@@ -99,6 +99,11 @@ try {
     if (-not $hostReport.growth_fixture -or $buyer.growth_fixture -or -not $hostReport.buyer_killed) {
         throw "Only the Host may run the DEV growth fixture, and it must have killed the buyer: $output"
     }
+    # The Listen Host as killer: its contender and camp rewards reached its own view and HUD (the probe's N03 checks).
+    if ([long]$hostReport.host_killer.contender_gold -le 0 -or [long]$hostReport.host_killer.camp_kills -ne 2 -or
+        [long]$hostReport.host_killer.camp_gold -le 0) {
+        throw "The Host's own kill rewards are missing from its report: $output"
+    }
     if (-not $buyer.replacement.track -or $buyer.replacement.track -ne $buyer.replacement.relearned_track -or
         [long]$buyer.replacement.ready_at_ms -ne [long]$buyer.replacement.relearned_ready_at_ms -or
         [long]$buyer.dead_choice.max_hp_p2_after -le [long]$buyer.dead_choice.max_hp_p2_before -or
@@ -127,6 +132,10 @@ try {
     $account = @($current.accounts | Where-Object { $_.id -eq $buyer.match1.entity })
     if ($account.Count -ne 1 -or [long]$account[0].gold -ne [long]$buyer.match1.gold) {
         throw "The first match's exported ledger and the owner projection disagree on the buyer's gold: $output"
+    }
+    $hostAccount = @($current.accounts | Where-Object { $_.id -eq $hostReport.match1.entity })
+    if ($hostAccount.Count -ne 1 -or [long]$hostAccount[0].gold -ne [long]$hostReport.match1.gold) {
+        throw "The first match's exported ledger and the Host's own projection disagree on the Host's gold: $output"
     }
     $ledgerItems = (Get-ItemKeys @($current.items | Where-Object { $_.owner -eq $buyer.match1.entity })) -join ','
     if ($ledgerItems -ne ((Get-ItemKeys $buyer.match1.items) -join ',')) {
@@ -166,11 +175,12 @@ try {
         "presets the buyer's offers) plus one owning client; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
         "replay / item active / sell with cooldown debt / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
         "unconfirmed pick, relearned at rank 1 on its old track and deadline; after the Host's own DevFixture grant it killed the buyer, " +
-        "which chose while dead without revive or heal and respawned full; first ledger replayed with --dev-fixture and equal to the " +
-        "owner projection. The Host then ended the match " +
+        "which chose while dead without revive or heal and respawned full; the Host's own kill and two low-camp last hits paid their " +
+        "exact rewards into its own view and rendered HUD; first ledger replayed with --dev-fixture and equal to both owner projections. " +
+        "The Host then ended the match " +
         "(no winner) and returned to Lobby generation $($buyer.second_generation): a second normal match started both owners at clean " +
         "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, quoted no inherited cooldown " +
-        "and opened a fresh ledger under a new LedgerMatch (replayed). Not camps, AI, capture or full-match acceptance. Evidence: $output")
+        "and opened a fresh ledger under a new LedgerMatch (replayed). Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
     foreach ($process in $processes) {
