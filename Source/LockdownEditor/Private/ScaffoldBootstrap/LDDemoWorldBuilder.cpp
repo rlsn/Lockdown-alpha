@@ -30,14 +30,19 @@
 #include "GameFramework/WorldSettings.h"
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialExpressionAbs.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionFrac.h"
 #include "Materials/MaterialExpressionIf.h"
+#include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Materials/MaterialExpressionMin.h"
 #include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionOneMinus.h"
+#include "Materials/MaterialExpressionSmoothStep.h"
+#include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialInterface.h"
@@ -306,8 +311,8 @@ UMaterial* FinishMaterial(UMaterial& Material, UMaterialExpression* BaseColor, f
     return LDDemoWorldBuilder::SaveAsset(Material, PackagePath, Error) ? &Material : nullptr;
 }
 
-// The school playground: two-tone mown turf inside a red running track with a white inner line, laid along the
-// ground's outline by the top face's 0..1 texture coordinates.
+// The school playground: two-tone mown turf with soft stripe edges and low-frequency patches, inside a red running
+// track with a white inner line, laid along the ground's outline by the top face's 0..1 texture coordinates.
 UMaterial* BuildFieldMaterial(FString& Error)
 {
     UMaterial* Material = NewGeneratedMaterial(FieldMaterialPath, Error);
@@ -317,13 +322,38 @@ UMaterial* BuildFieldMaterial(FString& Error)
     UMaterialExpression* V = MaskNode(*Material, UV, false, true, false);
     UMaterialExpression* Edge = MinNode(*Material, MinNode(*Material, U, OneMinusNode(*Material, U)),
         MinNode(*Material, V, OneMinusNode(*Material, V)));
+    // Nine stripe pairs; each stripe eases into the next over about a metre.
     auto* Bands = AddNode<UMaterialExpressionMultiply>(*Material);
     Bands->A.Connect(0, U);
     Bands->ConstB = 9.f;
-    auto* Stripe = AddNode<UMaterialExpressionFrac>(*Material);
-    Stripe->Input.Connect(0, Bands);
-    UMaterialExpression* Turf = ChooseNode(*Material, Stripe, .5f, ColorNode(*Material, FLinearColor(.06f, .21f, .045f)),
-        ColorNode(*Material, FLinearColor(.085f, .27f, .06f)));
+    auto* Phase = AddNode<UMaterialExpressionFrac>(*Material);
+    Phase->Input.Connect(0, Bands);
+    auto* Centred = AddNode<UMaterialExpressionSubtract>(*Material);
+    Centred->A.Connect(0, Phase);
+    Centred->ConstB = .5f;
+    auto* Offset = AddNode<UMaterialExpressionAbs>(*Material);
+    Offset->Input.Connect(0, Centred);
+    auto* Ease = AddNode<UMaterialExpressionSmoothStep>(*Material);
+    Ease->Value.Connect(0, Offset);
+    Ease->ConstMin = .21f;
+    Ease->ConstMax = .29f;
+    auto* Stripes = AddNode<UMaterialExpressionLinearInterpolate>(*Material);
+    Stripes->A.Connect(0, ColorNode(*Material, FLinearColor(.085f, .27f, .06f)));
+    Stripes->B.Connect(0, ColorNode(*Material, FLinearColor(.06f, .21f, .045f)));
+    Stripes->Alpha.Connect(0, Ease);
+    // Patches a few metres across keep the turf from reading as flat paint.
+    auto* Patches = AddNode<UMaterialExpressionNoise>(*Material);
+    Patches->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
+    Patches->Scale = .0015f;
+    Patches->NoiseFunction = NOISEFUNCTION_GradientALU;
+    Patches->Quality = 1;
+    Patches->Levels = 3;
+    Patches->bTurbulence = false;
+    Patches->OutputMin = .72f;
+    Patches->OutputMax = 1.18f;
+    auto* Turf = AddNode<UMaterialExpressionMultiply>(*Material);
+    Turf->A.Connect(0, Stripes);
+    Turf->B.Connect(0, Patches);
     UMaterialExpression* Inside = ChooseNode(*Material, Edge, .066f, ColorNode(*Material, FLinearColor(.82f, .82f, .78f)), Turf);
     UMaterialExpression* Ground = ChooseNode(*Material, Edge, .06f, ColorNode(*Material, FLinearColor(.47f, .13f, .08f)), Inside);
     return FinishMaterial(*Material, Ground, .92f, .3f, FieldMaterialPath, Error);
@@ -340,11 +370,11 @@ UMaterial* BuildWallMaterial(FString& Error)
     return FinishMaterial(*Material, Wall, .85f, .35f, WallMaterialPath, Error);
 }
 
-// A clear afternoon: one warm sun drives the physical sky, the sky light captures that sky as ambient light, a light
-// height fog adds depth at the far edges, and an unbound post-process gives a mild grade.
+// A clear afternoon: one warm, fairly low sun casts clear shadows and drives the physical sky; the sky light captures
+// that sky as softer ambient light, a light height fog adds depth at the far edges, and an unbound post-process grades.
 bool BuildEnvironment(UWorld& World, FString& Error)
 {
-    auto* Sun = World.SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-52, -35, 0));
+    auto* Sun = World.SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-45, -35, 0));
     auto* Sky = World.SpawnActor<ASkyAtmosphere>();
     auto* Ambient = World.SpawnActor<ASkyLight>();
     auto* Fog = World.SpawnActor<AExponentialHeightFog>();
@@ -355,18 +385,20 @@ bool BuildEnvironment(UWorld& World, FString& Error)
     }
     auto* Light = CastChecked<UDirectionalLightComponent>(Sun->GetLightComponent());
     Light->SetMobility(EComponentMobility::Movable);
-    Light->SetIntensity(8.f);
+    Light->SetIntensity(10.f);
     Light->SetUseTemperature(true);
     Light->SetTemperature(5600.f);
     Light->SetCastShadows(true);
     Light->SetAtmosphereSunLight(true);
+    // Short screen-space contact shadows ground the bodies on the turf.
+    Light->ContactShadowLength = .03f;
     Sun->SetActorLabel(TEXT("DemoSun"));
     Sky->SetActorLabel(TEXT("DemoSkyAtmosphere"));
     USkyLightComponent* SkyLight = Ambient->GetLightComponent();
     SkyLight->SetMobility(EComponentMobility::Movable);
     SkyLight->SourceType = SLS_CapturedScene;
     SkyLight->SetRealTimeCapture(true);
-    SkyLight->SetIntensity(1.f);
+    SkyLight->SetIntensity(.6f);
     Ambient->SetActorLabel(TEXT("DemoSkyLight"));
     UExponentialHeightFogComponent* Haze = Fog->GetComponent();
     Haze->SetFogDensity(.01f);
@@ -378,7 +410,7 @@ bool BuildEnvironment(UWorld& World, FString& Error)
     FPostProcessSettings& Grade = Post->Settings;
     // The engine's default exposure bias (+1) and the project's flattened local exposure wash the bright field out.
     Grade.bOverride_AutoExposureBias = true;
-    Grade.AutoExposureBias = -.5f;
+    Grade.AutoExposureBias = -.8f;
     Grade.bOverride_LocalExposureHighlightContrastScale = true;
     Grade.LocalExposureHighlightContrastScale = 1.f;
     Grade.bOverride_LocalExposureShadowContrastScale = true;
