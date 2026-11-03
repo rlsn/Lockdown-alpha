@@ -239,6 +239,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
     Out.Attributes = Projection.Value->Final;
     Out.Gold = Equipment.Gold;
     Out.BuildRevision = Progression.BuildRevision;
+    Out.Level = Progression.Level;
     Out.ChoicesConsumed = Progression.ConsumedThrough;
     Error.Reset();
     return true;

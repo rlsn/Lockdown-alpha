@@ -485,14 +485,19 @@ FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Targe
 
 const FLDOpponentUnit* CircleTarget(const FContext& C)
 {
+    // D12: a contest only pauses the holder's progress, so a rival holder inside the circle is fought first. It is
+    // matched by the authorized ContenderId of a visible unit, never turned into a target from the public id alone.
+    const FGuid& Holder = C.Frame.Public.Occupier;
+    const FLDOpponentUnit* Current = nullptr;
     const FLDOpponentUnit* Best = nullptr;
     for (const auto* Unit : C.Enemies)
     {
         if (Unit->bProtected || HandleSuppressed(C, *Unit) || FVector::Dist2D(Unit->FootCm, C.Capture->FootCm) > C.CaptureRadiusCm) { continue; }
-        if (IsCurrentTarget(C, *Unit)) { return Unit; }
+        if (Holder.IsValid() && Unit->Kind == ELDOpponentUnitKind::Contender && Unit->ContenderId == Holder) { return Unit; }
+        if (IsCurrentTarget(C, *Unit)) { Current = Unit; }
         if (!Best || UnitBefore(C, *Unit, *Best)) { Best = Unit; }
     }
-    return Best;
+    return Current ? Current : Best;
 }
 
 // Contest, defend or hold: move to the public circle entry, then fight only rivals inside it.
@@ -666,7 +671,8 @@ TArray<const FLDOpponentUnit*> CampMembers(const FContext& C, const FLDOpponentP
 const FLDOpponentPOI* SelectCamp(const FContext& C)
 {
     const auto& Self = C.Self;
-    const bool bGrowth = Self.ChoicesConsumed > 0 || !Self.Equipment[0].IsEmpty() || !Self.Equipment[1].IsEmpty();
+    // The opening pick is part of the starting build; growth means a level gained or equipment bought.
+    const bool bGrowth = Self.Level > 1 || !Self.Equipment[0].IsEmpty() || !Self.Equipment[1].IsEmpty();
     const bool bHighEntry = bGrowth && RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.HighCampEntryHPBp);
     FLDCampCostInput Input;
     Input.CurrentHpP2 = Self.HpP2;
@@ -1275,6 +1281,13 @@ uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self)
     }
 }
 
+bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog)
+{
+    const FLDOpponentPOI* Capture = Frame.POIs.FindByPredicate(
+        [](const FLDOpponentPOI& POI) { return POI.Kind == ELDOpponentPOIKind::Capture; });
+    return Capture && FVector::Dist2D(Frame.Self.FootCm, Capture->FootCm) <= Detail::ToDouble(Catalog.Get().Parameters.CaptureRadiusCm);
+}
+
 FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
     FLDOpponentPolicyState& State)
 {
@@ -1341,8 +1354,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
 
-    const bool bHoldingSolo = C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo
+    // D12: a contest only pauses the holder's progress and leaving or dying clears it, so a paused holder keeps holding
+    // and fights inside the circle like a solo holder; only the stop-loss line below lets it go.
+    const bool bHolder = C.bCaptureOpen && Frame.Public.Circle != ELDOpponentCircle::Empty
         && Frame.Public.Occupier == Self.ContenderId;
+    const bool bHoldingSolo = bHolder && Frame.Public.Circle == ELDOpponentCircle::Solo;
+    const bool bHoldingPaused = bHolder && Frame.Public.Circle == ELDOpponentCircle::Contested;
     bool bUrgent = false;
     if (C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo)
     {
@@ -1358,8 +1375,8 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     // §6.2: recovering still answers an urgent public defence; only below the stop-loss line without ready self-protection
     // does escaping come first, and such a body does not charge the holder. §6.1 P2: a body already contesting inside the
-    // circle stays and fights the rivals there instead of running out once the hold is broken; tagging the circle and
-    // fleeing would only restart the holder's timer.
+    // circle stays and fights the rivals there instead of running out once the hold is broken; under D12 tagging the circle
+    // and fleeing would only let the holder resume its paused progress.
     const bool bStopLoss = State.bRecovering && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp) && !ProtectionReady(C);
     const bool bContesting = C.bCaptureOpen && C.bInsideCircle && Frame.Public.Circle == ELDOpponentCircle::Contested;
     // §6.5 bounded investment: a contest of the circle that ends in a stop-loss exit is one failed attempt on the capture
@@ -1372,13 +1389,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
     FLDOpponentBodyIntent Intent;
-    if ((bHoldingSolo || ((bUrgent || bContesting) && !bStopLoss && bMayContest)) && CircleBody(C, bUrgent, Intent))
+    if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || ((bUrgent || bContesting) && !bStopLoss && bMayContest))
+        && CircleBody(C, bUrgent, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
-        if (bHoldingSolo || bUrgent)
+        if (bHolder || bUrgent)
         {
-            return Finish(EMode::DefendOrHold, bHoldingSolo ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
+            return Finish(EMode::DefendOrHold, bHolder ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
         }
         return Finish(EMode::Contest, EReason::ContestCapture);
     }

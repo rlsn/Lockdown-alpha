@@ -26,6 +26,16 @@ struct FLDOpponentRequestTally
     uint32 Choices = 0;
     uint32 Trades = 0;
     uint32 BuildsRefused = 0;
+    // D12 evidence from this adapter's own frames and decisions: decisions taken while it held progress a contest paused,
+    // and while it stood inside a contest against a rival's paused progress. Kept means it stayed in the fight; released
+    // means a stop-loss exit. HolderAttacks counts attack orders sent at the visible paused holder.
+    uint32 PausedHolds = 0;
+    uint32 PausedHoldsKept = 0;
+    uint32 PausedHoldsReleased = 0;
+    uint32 Challenges = 0;
+    uint32 ChallengesKept = 0;
+    uint32 ChallengesReleased = 0;
+    uint32 HolderAttacks = 0;
     uint32 BodyRequests() const { return Orders + Stops + Actions; }
 };
 
@@ -125,6 +135,7 @@ private:
     FLDOrderCaller OrderCaller(const FReads& Reads);
     void ForgetBodyWork();
     void Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision, const FString& Problem);
+    void NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision);
     void ReportTally();
 
     FLDAIContenderBinding Binding;
