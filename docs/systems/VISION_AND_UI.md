@@ -110,6 +110,40 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 增加 HUD 字段时同时检查服务器是否授权它、离开视野如何清理、life 改变如何失效，
 以及对应提示、特效和辅助显示是否绕过了同一限制。
 
+## 音效与音量
+
+`ULDAudioSubsystem`（GameInstance 子系统）在启动时一次性加载 `/Game/Lockdown/Audio/DA_DemoAudio`
+（`ULDAudioCatalog`），按 `ELDAudioCue` 解析全部音效。目录缺失、条目缺失或乱序、声音未归入
+`SC_DemoMaster`、循环或没有时长都记录 `LD_AUDIO_CATALOG_INVALID` 错误，不静默降级；
+没有音频设备（如 `-nosound` 自动化）只记录一次 Display 级 `LD_AUDIO_DEVICE_UNAVAILABLE`。
+所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
+
+`ULDHUD` 每帧把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
+跟踪器没有观察单位、Actor 或他人私有状态输入；新代次的首个样本只建立基线，不补放之前的变化。
+
+| 音效 | 唯一来源 | 只响一次的规则 |
+| --- | --- | --- |
+| 击杀通知 | `KillFeed` 新序号，与横幅相同的 6 秒新鲜度；本人是受害者时由社死音效代替 | 按代次与序号 |
+| 开圈 / 开始占领或换人 / 争夺 | `PublicMatch` 的开放状态与 `CaptureEpoch`（只在 CaptureOpen 阶段） | 每个 epoch 一次；占领类提示 1 秒内最多一次 |
+| 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
+| 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中面子下降且上限未降；致死一击交给社死音效 | 0.2 秒内最多一次 |
+| 本人技能或装备主动释放成功 | 本人 `LatestCombatReceipt`：Q/W/1/2，Finished/Released 且无拒绝 | 每个请求一次；别局或别条命的回执不响 |
+| 购买或出售成功 / 交易被拒 | 本人小卖部提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
+| 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
+| 本人社死 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
+| 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |
+
+主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
+经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。
+新增的任何 Demo 声音都必须归入 `SC_DemoMaster`，否则目录校验失败、音量也控制不到它。
+
+素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
+逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`，
+各包的许可原文 `License.txt` 与文件放在同一目录。
+`Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
+`-Mode Validate`（Bootstrap Validate 也会执行）拒绝清单外的文件、许可原文不是 CC0 的包、
+源文件哈希变化，以及不是由当前源字节导入的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
+
 ## 检查入口
 
 - `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何。
@@ -117,6 +151,9 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 - `HUDLifeStatus`（`LDHUDRulesTests`）覆盖自身生命行：权威时刻缺失时显示不可用，倒计时在截止前不显示 0，死亡不显示金币损失。
 - `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
   覆盖本人资源与等级、Q/W/1/2 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
+- `AudioCuePublic`、`AudioCueOwn`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
+  首样本基线与去重、别局/别命/迟到回执不响、目录完整性，以及实际 `DA_DemoAudio` 资产可解析；
+  它们不证明实际听感或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
 - `RunDemoVisionCheck.ps1`（`Tests\LDDemoVisionProbe`）：参赛且渲染的 Listen Host 与两个拥有客户端经正常大厅开局，
   三具身体走到公共占领锚点后，检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、

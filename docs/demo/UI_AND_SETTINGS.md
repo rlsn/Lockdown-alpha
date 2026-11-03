@@ -554,7 +554,7 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 | `Content\Lockdown\Generated\Materials\M_Character.uasset` | R04/R14 保留身体/授权代理实际消费者；旧 Seal/Grass 引用随 D 删除，不能因“占位”删掉当前材质。 |
 | 同目录 `M_Fog.uasset/T_FogClosed.uasset`；Bootstrap 165–209 → Relay AttachFog/UploadFog | R12/R14 改造成世界 Footprint 的显示投影，不保留 60×40 权限假设；换相机/EndPlay 清旧 blendable。C3 材质编译和低画质/无 postprocess 隐私门槛必需。 |
 | 同目录 `M_Ground/M_Soil/M_Fuel/M_Metal/M_River/M_Stone/M_Tree.uasset` | 仅 C2 当前地图无用且 C3 无引用的部分删除；不是 UI 可单独按文本命中决定的资产。 |
-| 拟新增 `Content\Lockdown\Generated\Audio\SC_DemoMaster.uasset`、`SMix_DemoUser.uasset` | 仅承接 §8 的一个主音量链，由现有 Scaffold Bootstrap 生成/校验，所有保留的 Demo UI/战斗/公共提示音统一接入。不得生成后无声音消费者；音效目录/实际听测/Cook 未完成不称音量可用。 |
+| `Content\Lockdown\Audio\SC_DemoMaster.uasset`、`SMix_DemoUser.uasset`（与 `DA_DemoAudio`、`Cues\SW_*` 一起由 `ImportDemoAudio.ps1` 从 `SourceData\Audio` 导入，Bootstrap Validate 校验） | 仅承接 §8 的一个主音量链，所有保留的 Demo UI/战斗/公共提示音统一接入。不得生成后无声音消费者；实际听测/Cook 未完成不称音量可用。 |
 | 头像/内容图标 | 本方案在 `LDWidgets.h/.cpp` 增 native Portrait/ContentIcon，占位绘制绑定已知 DISPLAY 键，不要求新贴图/Blueprint 文件。以后改导入素材须补逐 IconId 的资产映射与 C3/Cook，不自动批准额外素材目录。 |
 | `Config\DefaultEngine.ini/DefaultInput.ini/DefaultGame.ini`、`Source\Lockdown\Lockdown.Build.cs`、`Source\LockdownEditor\LockdownEditor.Build.cs`、`Lockdown.uproject` | D25/D26 保留当前前端/GameMode/GI、LDGroundAim/LDVision、DPI、EnhancedInput、Runtime/Editor 分离；核对合并后有效值与插件/资产消费后删旧容量/书价/profile/CommonUI 无用项、RuntimeDependencies/AlwaysCook/旧 maps。版本取现有 GeneralProjectSettings section，不新增字面量来源。 |
 

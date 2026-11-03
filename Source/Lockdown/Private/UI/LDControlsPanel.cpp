@@ -1,4 +1,5 @@
 #include "UI/LDControlsPanel.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Components/ButtonSlot.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDWidgets.h"
@@ -15,6 +16,8 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
+#include "Components/SizeBox.h"
+#include "Components/Slider.h"
 #include "Components/WrapBox.h"
 #include "Components/TextBlock.h"
 #include "GameFramework/GameUserSettings.h"
@@ -63,12 +66,12 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.06f,.16f,.94f,.96f));Frame->SetOffsets(FMargin(0));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
-        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头与文字改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
+        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字与音量改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
         Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
-        ResetRows=ChildRows(TEXT("只把按键、镜头与文字恢复为当前默认值？显示设置、名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
+        ResetRows=ChildRows(TEXT("只把按键、镜头、文字与音量恢复为当前默认值？显示设置、名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
         Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ShowChild(EChildConfirmation::None);ChangePreference([](auto& S){S.ResetLocalDefaults();});});
         Choice(ResetRows,TEXT("保持当前偏好"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
-        RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头与文字偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
+        RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
         Choice(RecoveryRows,TEXT("确认替换"),TEXT("ConfirmRecovery"),[this]()
         {ShowChild(EChildConfirmation::None);if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}Populate();});
         Choice(RecoveryRows,TEXT("保持文件不变"),TEXT("KeepSettingsFile"),[this](){ShowChild(EChildConfirmation::None);});
@@ -106,6 +109,16 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         DisplayRow(TEXT("ApplyDisplayDraft"),[this](){ApplyDisplay();});
         DisplayRow(TEXT("RetryDisplaySave"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplaySave().Message));PopulateDisplay();}});
         DisplayRow(TEXT("RetryDisplayRestore"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplayRestore().Message));PopulateDisplay();}});
+        Section(Content,TEXT("音量"));
+        VolumeLabel=LDWidgets::Text(WidgetTree,TEXT("主音量 100%"));Content->AddChildToVerticalBox(VolumeLabel);
+        VolumeSlider=WidgetTree->ConstructWidget<USlider>(USlider::StaticClass(),TEXT("MasterVolume"));
+        VolumeSlider->SetMinValue(0);VolumeSlider->SetMaxValue(1);VolumeSlider->SetStepSize(.05f);VolumeSlider->IsFocusable=true;
+        VolumeSlider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMasterVolumeChanged);
+        VolumeSlider->OnMouseCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureBegin);VolumeSlider->OnMouseCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureEnd);
+        VolumeSlider->OnControllerCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureBegin);VolumeSlider->OnControllerCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureEnd);
+        // The vertical box would stretch the size box to the full width; a left-aligned row keeps the slider at its override.
+        auto* VolumeBox=WidgetTree->ConstructWidget<USizeBox>();VolumeBox->SetWidthOverride(360);VolumeBox->SetHeightOverride(32);VolumeBox->SetContent(VolumeSlider);
+        auto* VolumeRow=Content->AddChildToVerticalBox(VolumeBox);VolumeRow->SetHorizontalAlignment(HAlign_Left);VolumeRow->SetPadding(FMargin(0,6));
         Section(Content,TEXT("按键"));
         auto* KeyButtons=WidgetTree->ConstructWidget<UWrapBox>();KeyButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(KeyButtons);
         KeyButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复默认按键"),[this](){ChangePreference([](auto& S){S.ResetBindings();});},false,TEXT("ResetBindings")));
@@ -116,7 +129,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("开局镜头跟随 开/关"),[this](){ChangePreference([](auto& S){S.bStartFollowing=!S.bStartFollowing;});},false,TEXT("ToggleStartFollow")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("文字大小 100% / 125%"),[this](){ChangePreference([](auto& S){S.TextScale=S.TextScale>1?1:1.25;});},false,TEXT("ApplyTextScale")));
         auto* Footer=WidgetTree->ConstructWidget<UWrapBox>();Footer->SetInnerSlotPadding(FVector2D(8));Main->AddChildToVerticalBox(Footer)->SetPadding(FMargin(0,12,0,0));
-        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复按键、镜头与文字默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
+        Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复按键、镜头、文字与音量默认值"),[this](){ShowChild(EChildConfirmation::LocalReset);},false,TEXT("ResetLocalDefaults")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("重试本地保存"),[this]()
         {if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->FlushLocalSettings(true).Message));Populate();}},false,TEXT("RetryLocalSave")));
         Footer->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复无法读取或不兼容的设置"),[this](){ShowRecoveryConfirmation();},false,TEXT("RecoverLocalSettings")));
@@ -129,12 +142,19 @@ void ULDControlsPanel::Populate()
     if(!Rows){return;}auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());Rows->ClearChildren();
     const float Scale=PC->Controls->TextScale;const int32 Size=FMath::RoundToInt(16*Scale);TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);for(auto* W:All){if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);T->SetFont(Font);}}AppliedTextScale=Scale;
     const auto& Applied=*PC->Controls;
-    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),100*Applied.TextScale,Applied.Zoom,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    PopulatePreferences();
+    bSyncingVolume=true;VolumeSlider->SetValue(Applied.MasterVolume);bSyncingVolume=false;
     for(const auto& B:Applied.Definitions())
     {
         const FName Id=B.Action;auto* Button=LDWidgets::Button(WidgetTree,B.Label+TEXT("  [")+Applied.Label(Id)+TEXT("]"),[this,Id](){Capture=Id;Feedback->SetText(FText::FromString(TEXT("按下新的键盘按键或鼠标按键以应用此绑定。Esc 取消。")));});
         CastChecked<UTextBlock>(Button->GetContent())->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));Button->SetIsEnabled(Id!=TEXT("Back"));Rows->AddChildToVerticalBox(Button)->SetPadding(FMargin(0,3));
     }
+}
+void ULDControlsPanel::PopulatePreferences()
+{
+    const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;const int32 Volume=FMath::RoundToInt(100*Applied.MasterVolume);
+    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    VolumeLabel->SetText(FText::FromString(FString::Printf(TEXT("主音量 %d%%"),Volume)));
 }
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
 {
@@ -147,6 +167,32 @@ void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Cha
         Populate();
     }
 }
+
+void ULDControlsPanel::HandleMasterVolumeChanged(float Value)
+{
+    auto* Instance=SettingsInstance.Get();auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bSyncingVolume||!Instance||!PC||!PC->Controls){return;}
+    // A drag reports many sub-percent values; only a changed whole percent is applied, and the instance saves it later.
+    const float Linear=FMath::RoundToFloat(Value*100)/100;
+    if(Linear==PC->Controls->MasterVolume){return;}
+    const auto Result=Instance->SetAppliedMasterVolume(Linear);
+    Feedback->SetText(FText::FromString(Result.Message));PopulatePreferences();
+    if(Result.Status==ELDLocalSettingsSaveStatus::Invalid){return;}
+    bVolumeSavePending=true;
+    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewMasterVolume();}
+}
+void ULDControlsPanel::HandleVolumeMouseCaptureBegin(){bVolumeMouseCapture=true;}
+void ULDControlsPanel::HandleVolumeMouseCaptureEnd(){EndVolumeCapture(bVolumeMouseCapture);}
+void ULDControlsPanel::HandleVolumeControllerCaptureBegin(){bVolumeControllerCapture=true;}
+void ULDControlsPanel::HandleVolumeControllerCaptureEnd(){EndVolumeCapture(bVolumeControllerCapture);}
+void ULDControlsPanel::EndVolumeCapture(bool& bCaptured)
+{
+    // A capture can report its end twice (touch release, lost capture); the preview plays once, after the last capture ends.
+    if(!bCaptured){return;}bCaptured=false;
+    if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewMasterVolume();}
+}
+void ULDControlsPanel::PreviewMasterVolume()
+{if(auto* Instance=SettingsInstance.Get()){if(auto* AudioOutput=Instance->GetSubsystem<ULDAudioSubsystem>()){AudioOutput->Play(ELDAudioCue::UIClick);}}}
 
 void ULDControlsPanel::ShowChild(EChildConfirmation Which)
 {
@@ -282,6 +328,8 @@ void ULDControlsPanel::ForceClose()
 {
     if(auto* Instance=SettingsInstance.Get()){Instance->CancelDisplayTrial(TrialId);Instance->FlushLocalSettings();}
     TrialId=0;Capture=NAME_None;bOpen=false;bDisplayDraftDirty=false;ShowChild(EChildConfirmation::None);
+    // The flush above already settled any pending volume save; a capture still open on the hidden slider ends silently.
+    bVolumeSavePending=false;bVolumeMouseCapture=false;bVolumeControllerCapture=false;
     SetVisibility(ESlateVisibility::Collapsed);
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
     {
@@ -308,6 +356,8 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     else if(Result.Status!=SeenDisplayStatus)
     {DisplayFeedback->SetText(FText::FromString(Result.Message));PopulateDisplay();}
     SeenDisplayStatus=Result.Status;
+    if(bVolumeSavePending&&!Instance->IsLocalSettingsFlushPending())
+    {bVolumeSavePending=false;Feedback->SetText(FText::FromString(Instance->GetLocalSettingsMessage()));PopulatePreferences();}
 }
 FReply ULDControlsPanel::CaptureKey(FKey Key)
 {

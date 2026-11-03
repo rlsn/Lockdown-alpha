@@ -18,6 +18,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "Audio/LDAudioSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
@@ -276,6 +277,8 @@ void ULDHUD::RefreshReadModel()
     const bool bOwnMatch=Public.Generation!=0&&Public.Generation==O.Match;
     const bool Playing=bOwnMatch&&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
     const bool bResults=bOwnMatch&&Public.Phase==ELDMatchPhase::Results;
+    // Cues follow every sample, including while a menu covers the HUD or the result is shown.
+    ObserveAudio(*PC,*GS);
     // Full-viewport menus draw below this widget, so the HUD steps aside while they are open.
     const bool Overlay=(PC->ControlsUI&&PC->ControlsUI->IsOpen())||(PC->RootUI&&PC->RootUI->IsMenuOpen());
     const bool bShow=Playing&&!Overlay;
@@ -468,9 +471,37 @@ void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
     if(Result.Family==ELDGrowthFamily::Choice&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
     else if(Result.Family==ELDGrowthFamily::Shop&&ShopPanel){ShopPanel->HandleSubmit(Result);}
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){TArray<ELDAudioCue> Cues;AudioCues.ObserveShopSubmit(Result,PC->OwnerState.Match,Cues);PlayAudioCues(Cues);}
 }
 void ULDHUD::HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
-void ULDHUD::HandleShopReceipt(const FLDShopReceiptQueryResult& Result){if(ShopPanel){ShopPanel->HandleReceipt(Result);}}
+void ULDHUD::HandleShopReceipt(const FLDShopReceiptQueryResult& Result)
+{
+    if(ShopPanel){ShopPanel->HandleReceipt(Result);}
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){TArray<ELDAudioCue> Cues;AudioCues.ObserveShopReceipt(Result,PC->OwnerState.Match,Cues);PlayAudioCues(Cues);}
+}
+void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)
+{
+    // Only room-public DTOs and the player's own projection/receipts: no observed unit, actor or other owner state.
+    const FLDOwnerState& O=PC.OwnerState;
+    FLDAudioFrame Frame;
+    Frame.Public=&Public.PublicMatch;Frame.KillFeed=&Public.KillFeed;Frame.Result=&Public.MatchResult;
+    Frame.Self=O.ContenderId;Frame.OwnMatch=O.Match;Frame.OwnLife=O.Life;Frame.OwnLifePhase=O.LifePhase;
+    Frame.OwnCombat=&PC.CombatView;Frame.OwnProgression=PC.ReadOwnProgression();
+    Frame.bClock=PC.ReadDemoAuthorityTimeMs(Frame.NowMs);Frame.LocalSeconds=GetWorld()->GetRealTimeSeconds();
+    TArray<ELDAudioCue> Cues;
+    AudioCues.Observe(Frame,Cues);
+    // A receipt that arrived before this HUD existed is not replayed.
+    if(!bAudioPrimed){bAudioPrimed=true;AudioCombatReceipt=PC.CombatReceiptSerial;}
+    if(PC.CombatReceiptSerial!=AudioCombatReceipt){AudioCombatReceipt=PC.CombatReceiptSerial;AudioCues.ObserveCombatReceipt(PC.LatestCombatReceipt,O.Match,O.Life,Cues);}
+    PlayAudioCues(Cues);
+}
+void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)
+{
+    if(Cues.IsEmpty()){return;}
+    UGameInstance* Instance=GetGameInstance();ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
+    if(!Audio){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
+    for(const ELDAudioCue Cue:Cues){Audio->Play(Cue);}
+}
 void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
 {
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());if(!PC){return;}
