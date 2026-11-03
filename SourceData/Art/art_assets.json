@@ -1,0 +1,1094 @@
+{
+  "schema": 1,
+  "packs": [
+    {
+      "id": "quaternius-ultimate-modular-men",
+      "name": "Ultimate Modular Men Pack (Feb 2022)",
+      "author": "Quaternius (quaternius.com)",
+      "page_url": "https://quaternius.com/packs/ultimatemodularcharacters.html",
+      "download_url": "https://drive.google.com/drive/folders/1USAAquX2JJWuA2m6zol0KUkFe3UkZ8zX",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "53601b6ff7e6c8adfee78d6ed2430aee0929eb9539571e8c9209a726cb48b9eb",
+      "license": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+      "license_file": "Quaternius/UltimateModularMen/License.txt",
+      "license_sha256": "e8dbf915a2b82229913e301a0787696611241bdefec4832bc084f54161db1efe"
+    },
+    {
+      "id": "quaternius-ultimate-modular-women",
+      "name": "Ultimate Modular Women Pack (April 2022)",
+      "author": "Quaternius (quaternius.com)",
+      "page_url": "https://quaternius.com/packs/ultimatemodularwomen.html",
+      "download_url": "https://drive.google.com/drive/folders/1720N9IGyQHXYvtvZJzazhxtTTlz-y2Vf",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "461baa2972be7de54b8705f90c1aa7f43f69a76ab01d184e8de1692e71ac9b11",
+      "license": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+      "license_file": "Quaternius/UltimateModularWomen/License.txt",
+      "license_sha256": "e8dbf915a2b82229913e301a0787696611241bdefec4832bc084f54161db1efe"
+    },
+    {
+      "id": "kenney-coaster-kit",
+      "name": "Coaster Kit (1.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/coaster-kit",
+      "download_url": "https://kenney.nl/download/6173736574732f636f61737465722d6b6974/ddeeda715ceb426256914fea73711a206ade47aa6a20cfc49ffd39a88f82070a?expires=1793684445",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "7723d02e3ea822371e12e14722e72d572fdb0384c1379c1469e0598a371f5c7a",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/CoasterKit/License.txt",
+      "license_sha256": "d762110e094924c157772570d034e6dc57d0cebf24663458dbb74e8c9958241a"
+    },
+    {
+      "id": "kenney-holiday-kit",
+      "name": "Holiday Kit (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/holiday-kit",
+      "download_url": "https://kenney.nl/download/6173736574732f686f6c696461792d6b6974/1e2068c789657870a15af99eca637bcf23c39b2d881f215bc5895809bed50c07?expires=1793684433",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "fde4d514d7297388d98058e8933ff614e071886f7ce57f9aea4b00d7698dd769",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/HolidayKit/License.txt",
+      "license_sha256": "6010f677d95f3ab7935faf873d8f4eb96ad1e5f02fd0e4659c9d92852b768d6a"
+    },
+    {
+      "id": "kenney-city-kit-suburban",
+      "name": "City Kit Suburban (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/city-kit-suburban",
+      "download_url": "https://kenney.nl/download/6173736574732f636974792d6b69742d737562757262616e/1b41df499e0412f0f67a5097d6deab484f74b83936338fda466afaba53bf1d4a?expires=1793684424",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "5869c35cf30b1c87bdb2d197b6d325eebadd2ef08ea27f04797e8e08d77a9a39",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/CityKitSuburban/License.txt",
+      "license_sha256": "d778fa769a89a7d9f167bc337fdf8fc2144e47d9abb0c35eb6ad897c0ee24d0a"
+    },
+    {
+      "id": "kenney-racing-kit",
+      "name": "Racing Kit (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/racing-kit",
+      "download_url": "https://kenney.nl/download/6173736574732f726163696e672d6b6974/6a4ad1649e38401eef294fcd6e00cc5d37e956f9a5603d8c0b21f7f30f898d56?expires=1793684424",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "8a71ea16219315a01d00d5a90c4f6b5c090faddbc56d80ecf727e2b3b853c6c0",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/RacingKit/License.txt",
+      "license_sha256": "905627df4313a9eb7fa9337129e572979ef51cc3857c8d2942e57ae84736096c"
+    },
+    {
+      "id": "kenney-mini-skate",
+      "name": "Mini Skate (2.0)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/mini-skate",
+      "download_url": "https://kenney.nl/download/6173736574732f6d696e692d736b617465/ec9cfa7e14c9360982c66e6a6b43ef7f3f84df18d3c9209a5e29c9ffeaad7d74?expires=1793684434",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "0ded0e7f95cdc2c0513a41986fde49977e7d1f4fa8653b375a5c7e909ef9d74a",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/MiniSkate/License.txt",
+      "license_sha256": "100866e5a0126adaf7e3aeec26329fab56ae2036f5ea91d30ba283f8df497e3c"
+    },
+    {
+      "id": "kenney-city-kit-commercial",
+      "name": "City Kit Commercial (2.1)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/city-kit-commercial",
+      "download_url": "https://kenney.nl/download/6173736574732f636974792d6b69742d636f6d6d65726369616c/a3ccc2340d1fcfad47c26af704fe42dd46788d677a68d311bc5b18251ec29f09?expires=1793684424",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "f8b09b081c2bb88bcc126e2dec1cb40fd0dad7e7e591b6c26aaefe96fb35276b",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/CityKitCommercial/License.txt",
+      "license_sha256": "c38cee408d022e57e44e49f1cd655c2fe0dc881a07b881276b795215cdc0de69"
+    },
+    {
+      "id": "kenney-city-kit-roads",
+      "name": "City Kit Roads (2.2)",
+      "author": "Kenney (www.kenney.nl)",
+      "page_url": "https://kenney.nl/assets/city-kit-roads",
+      "download_url": "https://kenney.nl/download/6173736574732f636974792d6b69742d726f616473/7c6fda827ec2e68c814e8d2130787c6a85e3e0e18c21f910f418f4d01543479d?expires=1793684424",
+      "downloaded": "2026-11-03",
+      "zip_sha256": "374a4552115cbd11b4ec5c930ee31a533562dc78a09af249a655d03f7ea3b959",
+      "license": "CC0 1.0 Universal (Creative Commons Zero)",
+      "license_file": "Kenney/CityKitRoads/License.txt",
+      "license_sha256": "d23f51360ca2cd81711bc5b09ddfb28ac94da96d7ca2dbdef12c50f33f35c353"
+    }
+  ],
+  "files": [
+    {
+      "path": "Quaternius/UltimateModularMen/Casual_2.gltf",
+      "pack": "quaternius-ultimate-modular-men",
+      "pack_path": "Ultimate Modular Men- Feb 2022/Individual Characters/glTF/Casual_2.gltf",
+      "sha256": "55c654d09a2a5ff6e3bd6158d4a1b462f181cd6f1e12a0f5e9d959f9c3abc438",
+      "purpose": "Contender body for all six seats (T-shirt tinted per seat) with its 24 embedded clips"
+    },
+    {
+      "path": "Quaternius/UltimateModularMen/Casual_Hoodie.gltf",
+      "pack": "quaternius-ultimate-modular-men",
+      "pack_path": "Ultimate Modular Men- Feb 2022/Individual Characters/glTF/Casual_Hoodie.gltf",
+      "sha256": "dd74886c26998a0fa888b4ce557a0932d7d97b0265dd4c763154d081b7a6cb98",
+      "purpose": "High camp tier body: PE teacher (hoodie tinted per tier, displayed taller)"
+    },
+    {
+      "path": "Quaternius/UltimateModularWomen/Suit.gltf",
+      "pack": "quaternius-ultimate-modular-women",
+      "pack_path": "Ultimate Modular Women - April 2022/Individual Characters/glTF/Suit.gltf",
+      "sha256": "937d5c8d08fb5570f6a4e1dd79a3878335444d175aae3b0e9e2babdac36a17f7",
+      "purpose": "Low camp tier body: discipline committee member in a suit (suit tinted per tier)"
+    },
+    {
+      "path": "Kenney/CoasterKit/tree.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/tree.glb",
+      "sha256": "72a75b4a86c99bb39605fc1e658e91f24c8e14d8238cf60e84cf066f3b642792",
+      "purpose": "Round deciduous tree outside the arena walls"
+    },
+    {
+      "path": "Kenney/CoasterKit/tree-large.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/tree-large.glb",
+      "sha256": "e6572eb6e14b404da88909b854734d991878ef278cead6ffd0afa852a4a6d59e",
+      "purpose": "Tall deciduous tree outside the arena walls"
+    },
+    {
+      "path": "Kenney/HolidayKit/tree.glb",
+      "pack": "kenney-holiday-kit",
+      "pack_path": "Models/GLB format/tree.glb",
+      "sha256": "05a6126b54444f9130a41a05fb133d10aaaa51d5c00741e2f8843cb777b00d24",
+      "purpose": "Pine tree at the outside corners"
+    },
+    {
+      "path": "Kenney/CoasterKit/flowers.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/flowers.glb",
+      "sha256": "55b401daea0065be2be7ab85b8a80344991107e6681792dca34e685c49496306",
+      "purpose": "Low flower bed along the inside of the outer walls"
+    },
+    {
+      "path": "Kenney/CityKitSuburban/planter.glb",
+      "pack": "kenney-city-kit-suburban",
+      "pack_path": "Models/GLB format/planter.glb",
+      "sha256": "a876e87d908f0397dcaf94b7705835447825c4c5b39195319535415386542c17",
+      "purpose": "Low flower planter along the inside of the outer walls"
+    },
+    {
+      "path": "Kenney/CoasterKit/bench.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/bench.glb",
+      "sha256": "186158dfd2cb41896a71e3bc73263be58458e0291456041861ecb3cb189a8461",
+      "purpose": "Campus bench against the inside of the outer walls"
+    },
+    {
+      "path": "Kenney/CoasterKit/trash.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/trash.glb",
+      "sha256": "8c21aa5218d0ff4eda68d2e7bf3920e6e6a6f38694679481153081ab3fbd4427",
+      "purpose": "Trash bin against the inside of the outer walls"
+    },
+    {
+      "path": "Kenney/RacingKit/flagRed.glb",
+      "pack": "kenney-racing-kit",
+      "pack_path": "Models/GLTF format/flagRed.glb",
+      "sha256": "ffe61934815e0b52104dd4f11d67f7dc98dbad1220d0d60947870a9081b80b87",
+      "purpose": "Flagpole at the centre of the flag-raising platform (capture circle)"
+    },
+    {
+      "path": "Kenney/RacingKit/grandStand.glb",
+      "pack": "kenney-racing-kit",
+      "pack_path": "Models/GLTF format/grandStand.glb",
+      "sha256": "6f5db4f9d9fd82080a561e78d6bc3420e5ed4ed7d8d91ed8bae7f5a7a469645b",
+      "purpose": "Grandstand behind the south wall"
+    },
+    {
+      "path": "Kenney/MiniSkate/benches.glb",
+      "pack": "kenney-mini-skate",
+      "pack_path": "Models/GLB format/benches.glb",
+      "sha256": "e16710a67619e5dcaebfe2b7ae670f85e090aae4fd52f83d384fa861782e5967",
+      "purpose": "Playground bleachers behind the south wall"
+    },
+    {
+      "path": "Kenney/CoasterKit/stall-food.glb",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/stall-food.glb",
+      "sha256": "c2598eaec07802394740e77b1248066522caf678e8306cf7ab7c53e7b22e4e43",
+      "purpose": "Snack kiosk dressing the campus shop"
+    },
+    {
+      "path": "Kenney/CityKitCommercial/building-k.glb",
+      "pack": "kenney-city-kit-commercial",
+      "pack_path": "Models/GLB format/building-k.glb",
+      "sha256": "afd36f573b9d6a6a890675aa0fbe762b29efb6258f322990752d79d9f0da42c6",
+      "purpose": "Campus building with shopfront outside the east and north walls"
+    },
+    {
+      "path": "Kenney/CityKitCommercial/building-j.glb",
+      "pack": "kenney-city-kit-commercial",
+      "pack_path": "Models/GLB format/building-j.glb",
+      "sha256": "eedc2690cda345b62351f03a218a817a6ad59f399c12e064ca5ff37333d059f5",
+      "purpose": "Four-storey campus block outside the east and north walls"
+    },
+    {
+      "path": "Kenney/CityKitRoads/light-curved.glb",
+      "pack": "kenney-city-kit-roads",
+      "pack_path": "Models/GLB format/light-curved.glb",
+      "sha256": "154dcce9d58ec2cd165e26c91a89c97bdd2838cf06d255099b3570df84f82ec6",
+      "purpose": "Street lamp outside the south and west walls"
+    },
+    {
+      "path": "Kenney/CoasterKit/Textures/colormap.png",
+      "pack": "kenney-coaster-kit",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "0d4947d34ff32acf4a359c7f22ca784e057e7e72f622170a9a77b6fc88fdb70e",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    },
+    {
+      "path": "Kenney/HolidayKit/Textures/colormap.png",
+      "pack": "kenney-holiday-kit",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "015fcc1664be7576f468a98bc4f5f329ef8b3c9caef0d85b2a4dc0ca69516863",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    },
+    {
+      "path": "Kenney/CityKitSuburban/Textures/colormap.png",
+      "pack": "kenney-city-kit-suburban",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "9b5de86078c25ef02351a80d35ff3c978693a1044565b73eedd9ae9b5b80665d",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    },
+    {
+      "path": "Kenney/MiniSkate/Textures/colormap.png",
+      "pack": "kenney-mini-skate",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "806ff16fd46a2a259485672edfdc71c3d1bce255db71c01abda9a095b5e661d2",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    },
+    {
+      "path": "Kenney/CityKitCommercial/Textures/colormap.png",
+      "pack": "kenney-city-kit-commercial",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "191bec3889aaaca5018380038fecc129ebb5c2182879a099b7b538b3fa050b5d",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    },
+    {
+      "path": "Kenney/CityKitRoads/Textures/colormap.png",
+      "pack": "kenney-city-kit-roads",
+      "pack_path": "Models/GLB format/Textures/colormap.png",
+      "sha256": "a48e2962661ae44368ffddf3054f80ed8491d082b757dcc3011184cd9a98b185",
+      "purpose": "Palette texture referenced by this kit's GLB models"
+    }
+  ],
+  "characters": [
+    {
+      "id": "contender",
+      "source": "Quaternius/UltimateModularMen/Casual_2.gltf",
+      "height_cm": 175,
+      "run_speed_cm_per_sec": 284.3,
+      "hand_bone": "Wrist_R",
+      "foot_bone": "Foot_L",
+      "forward_bones": [
+        "PT_L",
+        "PT_R"
+      ],
+      "tint_slots": [
+        "LightBrown"
+      ],
+      "colors": {
+        "Red_Dark": [
+          0.03,
+          0.03,
+          0.035
+        ]
+      },
+      "animations": [
+        {
+          "state": "Idle",
+          "clip": "Idle",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Run",
+          "clip": "Run",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Attack",
+          "clip": "Punch_Right",
+          "play_rate": 1.0,
+          "impact_sec": 0.565,
+          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+        },
+        {
+          "state": "Cast",
+          "clip": "Interact",
+          "play_rate": 1.0,
+          "impact_sec": 0.635,
+          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+        },
+        {
+          "state": "Hit",
+          "clip": "HitRecieve",
+          "play_rate": 1.9
+        },
+        {
+          "state": "Death",
+          "clip": "Death",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Spawn",
+          "clip": "Wave",
+          "play_rate": 1.0,
+          "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ]
+    },
+    {
+      "id": "monitor",
+      "source": "Quaternius/UltimateModularWomen/Suit.gltf",
+      "height_cm": 170,
+      "run_speed_cm_per_sec": 222.5,
+      "hand_bone": "Wrist_R",
+      "foot_bone": "Foot_L",
+      "forward_bones": [
+        "PT_L",
+        "PT_R"
+      ],
+      "tint_slots": [
+        "Black"
+      ],
+      "animations": [
+        {
+          "state": "Idle",
+          "clip": "Idle",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Run",
+          "clip": "Run",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Attack",
+          "clip": "Punch_Right",
+          "play_rate": 1.0,
+          "impact_sec": 0.707,
+          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+        },
+        {
+          "state": "Cast",
+          "clip": "Interact",
+          "play_rate": 1.0,
+          "impact_sec": 0.792,
+          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+        },
+        {
+          "state": "Hit",
+          "clip": "HitRecieve",
+          "play_rate": 2.4
+        },
+        {
+          "state": "Death",
+          "clip": "Death",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Spawn",
+          "clip": "Wave",
+          "play_rate": 1.0,
+          "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ]
+    },
+    {
+      "id": "teacher",
+      "source": "Quaternius/UltimateModularMen/Casual_Hoodie.gltf",
+      "height_cm": 205,
+      "run_speed_cm_per_sec": 330.8,
+      "hand_bone": "Wrist_R",
+      "foot_bone": "Foot_L",
+      "forward_bones": [
+        "PT_L",
+        "PT_R"
+      ],
+      "tint_slots": [
+        "Purple"
+      ],
+      "animations": [
+        {
+          "state": "Idle",
+          "clip": "Idle",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Run",
+          "clip": "Run",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Attack",
+          "clip": "Punch_Right",
+          "play_rate": 1.0,
+          "impact_sec": 0.565,
+          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+        },
+        {
+          "state": "Cast",
+          "clip": "Interact",
+          "play_rate": 1.0,
+          "impact_sec": 0.635,
+          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+        },
+        {
+          "state": "Hit",
+          "clip": "HitRecieve",
+          "play_rate": 1.9
+        },
+        {
+          "state": "Death",
+          "clip": "Death",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Spawn",
+          "clip": "Wave",
+          "play_rate": 1.0,
+          "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ]
+    }
+  ],
+  "seats": [
+    "contender",
+    "contender",
+    "contender",
+    "contender",
+    "contender",
+    "contender"
+  ],
+  "monsters": [
+    {
+      "creature": "monster_scavenger",
+      "character": "monitor"
+    },
+    {
+      "creature": "monster_guardian",
+      "character": "teacher"
+    }
+  ],
+  "props": [
+    {
+      "id": "tree_round",
+      "source": "Kenney/CoasterKit/tree.glb",
+      "scale": 4.2
+    },
+    {
+      "id": "tree_tall",
+      "source": "Kenney/CoasterKit/tree-large.glb",
+      "scale": 3.6
+    },
+    {
+      "id": "tree_pine",
+      "source": "Kenney/HolidayKit/tree.glb",
+      "scale": 3.9
+    },
+    {
+      "id": "flower_bed",
+      "source": "Kenney/CoasterKit/flowers.glb",
+      "scale": 2.0
+    },
+    {
+      "id": "planter",
+      "source": "Kenney/CityKitSuburban/planter.glb",
+      "scale": 3.0
+    },
+    {
+      "id": "bench",
+      "source": "Kenney/CoasterKit/bench.glb",
+      "scale": 2.0
+    },
+    {
+      "id": "trash_bin",
+      "source": "Kenney/CoasterKit/trash.glb",
+      "scale": 1.8
+    },
+    {
+      "id": "flagpole",
+      "source": "Kenney/RacingKit/flagRed.glb",
+      "scale": 6.0
+    },
+    {
+      "id": "grandstand",
+      "source": "Kenney/RacingKit/grandStand.glb",
+      "scale": 7.0
+    },
+    {
+      "id": "bleachers",
+      "source": "Kenney/MiniSkate/benches.glb",
+      "scale": 4.5
+    },
+    {
+      "id": "snack_stall",
+      "source": "Kenney/CoasterKit/stall-food.glb",
+      "scale": 1.3
+    },
+    {
+      "id": "building_shops",
+      "source": "Kenney/CityKitCommercial/building-k.glb",
+      "scale": 7.5
+    },
+    {
+      "id": "building_block",
+      "source": "Kenney/CityKitCommercial/building-j.glb",
+      "scale": 8.0
+    },
+    {
+      "id": "street_lamp",
+      "source": "Kenney/CityKitRoads/light-curved.glb",
+      "scale": 7.0
+    }
+  ],
+  "decorations": [
+    {
+      "prop": "flagpole",
+      "zone": "capture",
+      "x": 0,
+      "y": 0,
+      "yaw": 0
+    },
+    {
+      "prop": "snack_stall",
+      "zone": "shop",
+      "x": 778,
+      "y": 778,
+      "yaw": -135
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": 6150,
+      "y": -3600,
+      "yaw": -90
+    },
+    {
+      "prop": "building_shops",
+      "zone": "outside",
+      "x": 5950,
+      "y": -1700,
+      "yaw": -90
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": 6150,
+      "y": 100,
+      "yaw": -90
+    },
+    {
+      "prop": "building_shops",
+      "zone": "outside",
+      "x": 5950,
+      "y": 1900,
+      "yaw": -90
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": 6150,
+      "y": 3700,
+      "yaw": -90
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": -3600,
+      "y": 6150,
+      "yaw": 0
+    },
+    {
+      "prop": "building_shops",
+      "zone": "outside",
+      "x": -1700,
+      "y": 5950,
+      "yaw": 0
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": 100,
+      "y": 6150,
+      "yaw": 0
+    },
+    {
+      "prop": "building_shops",
+      "zone": "outside",
+      "x": 1900,
+      "y": 5950,
+      "yaw": 0
+    },
+    {
+      "prop": "building_block",
+      "zone": "outside",
+      "x": 3700,
+      "y": 6150,
+      "yaw": 0
+    },
+    {
+      "prop": "grandstand",
+      "zone": "outside",
+      "x": -350,
+      "y": -5900,
+      "yaw": 0
+    },
+    {
+      "prop": "grandstand",
+      "zone": "outside",
+      "x": 350,
+      "y": -5900,
+      "yaw": 0
+    },
+    {
+      "prop": "bleachers",
+      "zone": "outside",
+      "x": -4200,
+      "y": -5700,
+      "yaw": 0
+    },
+    {
+      "prop": "bleachers",
+      "zone": "outside",
+      "x": -2600,
+      "y": -5700,
+      "yaw": 0
+    },
+    {
+      "prop": "bleachers",
+      "zone": "outside",
+      "x": 2600,
+      "y": -5700,
+      "yaw": 0
+    },
+    {
+      "prop": "bleachers",
+      "zone": "outside",
+      "x": 4200,
+      "y": -5700,
+      "yaw": 0
+    },
+    {
+      "prop": "street_lamp",
+      "zone": "outside",
+      "x": -1500,
+      "y": -5450,
+      "yaw": 0
+    },
+    {
+      "prop": "street_lamp",
+      "zone": "outside",
+      "x": 1500,
+      "y": -5450,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_round",
+      "zone": "outside",
+      "x": -3400,
+      "y": -5800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_round",
+      "zone": "outside",
+      "x": 3400,
+      "y": -5800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_round",
+      "zone": "outside",
+      "x": -5750,
+      "y": -4000,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_tall",
+      "zone": "outside",
+      "x": -5750,
+      "y": -2400,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_round",
+      "zone": "outside",
+      "x": -5750,
+      "y": -800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_tall",
+      "zone": "outside",
+      "x": -5750,
+      "y": 800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_round",
+      "zone": "outside",
+      "x": -5750,
+      "y": 2400,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_tall",
+      "zone": "outside",
+      "x": -5750,
+      "y": 4000,
+      "yaw": 0
+    },
+    {
+      "prop": "street_lamp",
+      "zone": "outside",
+      "x": -5450,
+      "y": -1600,
+      "yaw": 90
+    },
+    {
+      "prop": "street_lamp",
+      "zone": "outside",
+      "x": -5450,
+      "y": 1600,
+      "yaw": 90
+    },
+    {
+      "prop": "tree_pine",
+      "zone": "outside",
+      "x": 5800,
+      "y": 5800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_pine",
+      "zone": "outside",
+      "x": -5800,
+      "y": 5800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_pine",
+      "zone": "outside",
+      "x": 5800,
+      "y": -5800,
+      "yaw": 0
+    },
+    {
+      "prop": "tree_pine",
+      "zone": "outside",
+      "x": -5800,
+      "y": -5800,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4200,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -3000,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 3000,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4200,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": -3600,
+      "y": 4920,
+      "yaw": 0
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": 3600,
+      "y": 4920,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -2000,
+      "y": 4880,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 2000,
+      "y": 4880,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": -600,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": 600,
+      "y": 4900,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4200,
+      "y": -4900,
+      "yaw": 180
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -3000,
+      "y": -4900,
+      "yaw": 180
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 3000,
+      "y": -4900,
+      "yaw": 180
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4200,
+      "y": -4900,
+      "yaw": 180
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": -3600,
+      "y": -4920,
+      "yaw": 0
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": 3600,
+      "y": -4920,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -2000,
+      "y": -4880,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 2000,
+      "y": -4880,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": -600,
+      "y": -4900,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": 600,
+      "y": -4900,
+      "yaw": 0
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": -4200,
+      "yaw": -90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": -3000,
+      "yaw": -90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": 3000,
+      "yaw": -90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": 4200,
+      "yaw": -90
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": 4920,
+      "y": -3600,
+      "yaw": 0
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": 4920,
+      "y": 3600,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 4880,
+      "y": -2000,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 4880,
+      "y": 2000,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": -600,
+      "yaw": 90
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": 4900,
+      "y": 600,
+      "yaw": 90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": -4200,
+      "yaw": 90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": -3000,
+      "yaw": 90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": 3000,
+      "yaw": 90
+    },
+    {
+      "prop": "bench",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": 4200,
+      "yaw": 90
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": -4920,
+      "y": -3600,
+      "yaw": 0
+    },
+    {
+      "prop": "trash_bin",
+      "zone": "wall_base",
+      "x": -4920,
+      "y": 3600,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -4880,
+      "y": -2000,
+      "yaw": 0
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -4880,
+      "y": 2000,
+      "yaw": 0
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": -600,
+      "yaw": 90
+    },
+    {
+      "prop": "planter",
+      "zone": "wall_base",
+      "x": -4900,
+      "y": 600,
+      "yaw": 90
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 4800,
+      "y": 4800,
+      "yaw": 45
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -4800,
+      "y": 4800,
+      "yaw": 45
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": 4800,
+      "y": -4800,
+      "yaw": 45
+    },
+    {
+      "prop": "flower_bed",
+      "zone": "wall_base",
+      "x": -4800,
+      "y": -4800,
+      "yaw": 45
+    }
+  ]
+}
