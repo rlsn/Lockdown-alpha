@@ -112,7 +112,9 @@ public:
     static constexpr const TCHAR* TintParameter = TEXT("Tint");
     static constexpr const TCHAR* FlashParameter = TEXT("Flash");
     // Fadeable props: scalar 0 opaque .. 1 faintest (dithered, no translucency sorting), on components tagged FadeableTag.
+    // At LDFade 1 a pixel survives with probability 1 - LDFadeStrength (default 0.9, i.e. about one pixel in ten).
     static constexpr const TCHAR* FadeParameter = TEXT("LDFade");
+    static constexpr const TCHAR* FadeStrengthParameter = TEXT("LDFadeStrength");
     static constexpr const TCHAR* FadeableTag = TEXT("LDFadeable");
     UPROPERTY(VisibleAnywhere) TArray<FLDArtCharacter> Characters;
     // Exactly one entry per seat 0..5, in seat order.

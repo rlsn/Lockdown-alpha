@@ -486,7 +486,7 @@ namespace
 
     // One opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
     // An existing master is reused untouched: re-saving a loaded material from this commandlet drops its graph.
-    // The fade variant is masked with a pixel dither on 1 - 0.7 x LDFade, so it fades without translucency sorting.
+    // The fade variant is masked with a pixel dither on 1 - LDFadeStrength x LDFade, so it fades without translucency sorting.
     UMaterial* ArtMasterMaterial(const TCHAR* PackageName, bool bFade, bool& bCreated, FString& Error)
     {
         bCreated = !FPackageName::DoesPackageExist(PackageName);
@@ -522,8 +522,12 @@ namespace
             Fade->DefaultValue = 0.f;
             Fade->UpdateParameterGuid(true, false);
             auto* Strength = ArtAddExpression<UMaterialExpressionMultiply>(*Material);
+            auto* Reach = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
+            Reach->ParameterName = ULDArtCatalog::FadeStrengthParameter;
+            Reach->DefaultValue = .9f;
+            Reach->UpdateParameterGuid(true, false);
             Strength->A.Connect(0, Fade);
-            Strength->ConstB = .7f;
+            Strength->B.Connect(0, Reach);
             auto* Opacity = ArtAddExpression<UMaterialExpressionOneMinus>(*Material);
             Opacity->Input.Connect(0, Strength);
             auto* Dithered = ArtAddExpression<UMaterialExpressionCustom>(*Material);
