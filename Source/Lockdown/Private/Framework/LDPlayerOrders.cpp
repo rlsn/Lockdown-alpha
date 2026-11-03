@@ -67,23 +67,24 @@ bool ALDPlayerController::CancelArmedCombat()
 
 bool ALDPlayerController::ConfirmArmedCombat()
 {
-    const bool bAttackMove=bAttackMoveArmed;
-    const ELDCombatEntry Entry=ArmedEntry;
-    if (!CancelArmedCombat()) { return false; }
-    if (!IsLocalController() || !CanWorldCommand()) { return true; }
-    FHitResult GroundHit;
-    const bool bGround=GetHitResultUnderCursor(ECC_GameTraceChannel1,false,GroundHit);
-    if (bAttackMove)
+    if (bAttackMoveArmed)
     {
+        CancelArmedCombat();
+        if (!IsLocalController() || !CanWorldCommand()) { return true; }
+        FHitResult GroundHit;
         // A confirmation without ground is still a normalized aggressive intent; the server rejects it explicitly.
-        if (bGround) { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint()); }
+        if (GetHitResultUnderCursor(ECC_GameTraceChannel1,false,GroundHit))
+        { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint()); }
         else { Navigation->AttackMove(FVector::ZeroVector,NAME_None); }
         return true;
     }
-    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
-    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
-    const ELDDemoTargetMode Mode=View?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+    if (ArmedEntry==ELDCombatEntry::None) { return false; }
+    // A missing or unresolved aim still confirms: the server rejects it explicitly.
     FLDCombatTarget Aim;
+    const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+    const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,ArmedEntry):nullptr;
+    const ELDDemoTargetMode Mode=View?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+    if (!IsLocalController() || !CanWorldCommand()) { return ConfirmArmedEntry(Aim); }
     if (Mode==ELDDemoTargetMode::Unit)
     {
         FGuid Handle;
@@ -97,8 +98,9 @@ bool ALDPlayerController::ConfirmArmedCombat()
     }
     else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash)
     {
+        FHitResult GroundHit;
         const auto* Body=Cast<ALDCharacter>(GetPawn());
-        if (Body && bGround)
+        if (Body && GetHitResultUnderCursor(ECC_GameTraceChannel1,false,GroundHit))
         {
             const FVector Foot=Body->GetActorLocation()-FVector(0,0,Body->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
             const FVector Direction=FVector(GroundHit.ImpactPoint.X-Foot.X,GroundHit.ImpactPoint.Y-Foot.Y,0).GetSafeNormal();
@@ -109,6 +111,15 @@ bool ALDPlayerController::ConfirmArmedCombat()
             }
         }
     }
+    return ConfirmArmedEntry(Aim);
+}
+
+bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim)
+{
+    const ELDCombatEntry Entry=ArmedEntry;
+    if (Entry==ELDCombatEntry::None) { return false; }
+    CancelArmedCombat();
+    if (!IsLocalController() || !CanWorldCommand()) { return true; }
     SendCombatAction(Entry,Aim);
     return true;
 }
