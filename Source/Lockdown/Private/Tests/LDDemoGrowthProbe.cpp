@@ -21,6 +21,8 @@
 #include "Region/LDMapRegistry.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDUIRoot.h"
+#include "UI/LDWorldFeedback.h"
 #include "UObject/UnrealType.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -237,6 +239,35 @@ FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
     const FObjectProperty* Property = Hud ? FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field) : nullptr;
     const UTextBlock* Text = Property ? Cast<UTextBlock>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
     return Text ? Text->GetText().ToString() : FString();
+}
+
+// The own reward lines the Host's rendered world feedback presented this match, read through reflection like the HUD
+// texts above; null when the layer does not exist.
+const TArray<FString>* GrowthProbeRewardLines(const ALDPlayerController& PC)
+{
+    const ULDUIRoot* Root = PC.RootUI;
+    const FObjectProperty* Property = Root ? FindFProperty<FObjectProperty>(ULDUIRoot::StaticClass(), TEXT("WorldFeedback")) : nullptr;
+    const ULDWorldFeedback* Feedback = Property ? Cast<ULDWorldFeedback>(Property->GetObjectPropertyValue_InContainer(Root)) : nullptr;
+    return Feedback ? &Feedback->DevPresentedRewards() : nullptr;
+}
+
+// True when the presented lines end with rewards adding up to exactly Gold and XP: walking back from the newest line,
+// "+N 零花钱" and "+N 经验" lines are summed until both totals are reached. Every reward with gold floats a gold line.
+bool GrowthProbeRewardTail(const TArray<FString>& Lines, int64 Gold, int64 XP, FString& Seen)
+{
+    int64 SumGold = 0, SumXP = 0;
+    int32 GoldLines = 0;
+    for (int32 Index = Lines.Num() - 1; Index >= 0 && (SumGold < Gold || SumXP < XP); --Index)
+    {
+        Seen = Lines[Index] + (Seen.IsEmpty() ? FString() : TEXT(" | ") + Seen);
+        FString Number = Lines[Index];
+        const bool bGold = Number.RemoveFromEnd(TEXT(" 零花钱"));
+        const bool bXP = !bGold && Number.RemoveFromEnd(TEXT(" 经验"));
+        if ((!bGold && !bXP) || !Number.RemoveFromStart(TEXT("+")) || !Number.IsNumeric()) { return false; }
+        (bGold ? SumGold : SumXP) += FCString::Atoi64(*Number);
+        GoldLines += bGold ? 1 : 0;
+    }
+    return SumGold == Gold && SumXP == XP && GoldLines > 0;
 }
 
 TArray<FName> GrowthProbePlannedCards(int32 Index)
@@ -1141,7 +1172,14 @@ public:
             OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision, *GoldText, *LevelText);
         const bool bView = OwnProgression && OwnEquipment && OwnProgression->CumulativeXP == ExpectXP && OwnEquipment->Gold == ExpectGold
             && PC.OwnerState.Growth.PublishRevision > Mark.PublishBefore;
-        const bool bHud = bView && GoldText == LDHUD::Gold(ExpectGold) && LevelText.Contains(Level.Level) && LevelText.Contains(Level.Experience);
+        // The rendered world feedback floats the same reward beside the own body: "+N 零花钱" with "+N 经验".
+        const TArray<FString>* Lines = LDDemoGrowthScenario::GrowthProbeRewardLines(PC);
+        FString Floated;
+        const bool bFloated = Lines && LDDemoGrowthScenario::GrowthProbeRewardTail(*Lines, ExpectGold - Mark.GoldBefore,
+            ExpectXP - Mark.XPBefore, Floated);
+        Detail += FString::Printf(TEXT("; floated \"%s\""), Lines ? *Floated : TEXT("<no world feedback layer>"));
+        const bool bHud = bView && bFloated && GoldText == LDHUD::Gold(ExpectGold) && LevelText.Contains(Level.Level)
+            && LevelText.Contains(Level.Experience);
         if (bHud)
         {
             return LDDemoGrowthScenario::EGrowthProbeWait::Ready;

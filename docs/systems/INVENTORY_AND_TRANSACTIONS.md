@@ -119,7 +119,8 @@ Host 的 DEV probe 在游戏线程直接调用：
 用自己的攻击命令击杀买方；买方死亡等待中确认一次选择：按 Dead 阶段受理并应用，仍为同一 Life 与复活时间、
 无身体、HP 为零，只有下一条命的最大 HP 增长，正常复活后满血满蓝。Host 随后走到低档营地 L1 补掉两只野怪；
 作为 Listen Host 的击杀者，它对买方和两只野怪的每笔奖励都要在本人 `OwnerState.Growth`（本地控制器由 `SyncOwner`
-直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的零花钱/等级文本里达到精确的新值。Host 导出账本证据由
+直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的零花钱/等级文本里达到精确的新值，
+渲染的画面回馈（`ULDWorldFeedback`，DEV 构建记录本局呈现过的奖励行）也必须以“+N 零花钱”“+N 经验”收尾且合计等于该笔奖励。Host 导出账本证据由
 `CheckEconomyEvidence.py --dev-fixture` 复算并与双方本人投影比对，且只列出 Host 自己那笔夹具铸币。
 随后 Host 无胜者结束本局并回到新一代 Lobby，
 两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、

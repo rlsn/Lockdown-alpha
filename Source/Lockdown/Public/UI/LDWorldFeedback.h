@@ -149,6 +149,11 @@ UCLASS()
 class LOCKDOWN_API ULDWorldFeedback : public UUserWidget
 {
     GENERATED_BODY()
+public:
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV scenarios: every own reward line ("+45 零花钱", "+60 经验") this widget presented in the current match, in order.
+    const TArray<FString>& DevPresentedRewards() const { return DevRewards; }
+#endif
 protected:
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
@@ -167,4 +172,8 @@ private:
     // Approved public definitions, only for the display names of visible casts; loaded once per widget.
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
+#if WITH_DEV_AUTOMATION_TESTS
+    TArray<FString> DevRewards;
+    uint32 DevRewardsMatch=0;
+#endif
 };
