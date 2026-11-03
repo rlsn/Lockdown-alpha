@@ -79,6 +79,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    只对该局的权威时钟（每局从 0 起算）和该命身份有效，而 Controller 跨局存活。新身份换绑时整体重建；
    Combat 的 MatchReset 经 `ResetMatch` 结束旧局订单并整体丢弃订单簿与内容缓存。
    回执序号是拥有连接的单调序，两端都不随局复位，客户端另按 Match/Life 过滤。
+7. 订单的发送、进行中与到达只写入组件自己的 `Status`；HUD 唯一的提示条只经 `PostIntentNotice`
+   收到真正的失败（无法到达、路线受阻、被拒、心跳耗尽、小卖部不可用等）与“复活保护已解除”，
+   玩家自己的新订单替换旧单或按 S 停止不算失败；同一失败再次发生时会再次提示。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，

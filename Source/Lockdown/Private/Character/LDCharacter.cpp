@@ -1,7 +1,9 @@
 #include "Character/LDCharacter.h"
+#include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -106,20 +108,22 @@ void ALDCharacter::BeginPlay()
 void ALDCharacter::Tick(float Delta)
 {
     Super::Tick(Delta);
-    const auto* PC=Cast<ALDPlayerController>(GetController());
+    auto* PC=Cast<ALDPlayerController>(GetController());
     const bool OwnBody=PC && PC->GetLocalPlayer() && PC->GetPawn()==this
         && PC->OwnerState.LifePhase==ELDLifePhase::Alive && PC->OwnerState.BodyRef.IsValid();
     Body->SetVisibility(OwnBody,true);
     if (!OwnBody) { return; }
+    ShownOwner=PC;
+    ShownLife=PC->OwnerState.Life;
     // The own body shows the cue and markers others see, from its own Combat projection at the public clock.
     const FLDCombatOwnerView& View=PC->CombatView;
     int64 NowMs=0;
-    ELDObservedActionCue Cue=ELDObservedActionCue::None;
+    LDCombatCues::FCue Selected;
     TArray<FLDObservedStatus> Statuses;
     if (PC->ReadDemoAuthorityTimeMs(NowMs) && View.bHasBody && View.Generation==PC->OwnerState.Match
         && View.Life==PC->OwnerState.Life)
     {
-        Cue=LDCombatCues::Select(View.Cues,NowMs).Cue;
+        Selected=LDCombatCues::Select(View.Cues,NowMs);
         for (const FLDCombatStatusView& Status : View.Statuses)
         {
             if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
@@ -128,8 +132,31 @@ void ALDCharacter::Tick(float Delta)
         if (NowMs<PC->OwnerState.ProtectedUntilMs)
         { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
     }
-    Body->SetCue(PresentationCue(Cue,Statuses));
+    const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
+    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f);
     Body->Animate(GetVelocity(),Delta);
+    // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
+    if (Selected.Cue==ELDObservedActionCue::Hit && Selected.AtMs!=ShakeHitAtMs)
+    {
+        ShakeHitAtMs=Selected.AtMs;
+        ShakeAge=0.f;
+    }
+    ShakeAge+=Delta;
+    constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
+    const float Amplitude=ShakeAge<ShakeSeconds ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
+    Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
+}
+
+void ALDCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+    // The authority removes a dead contender's body at once; its owner sees it fall where it stood. A removal that is
+    // not that life's death (a match end or a departure) leaves nothing once the owner's projection disagrees.
+    const ALDPlayerController* ShownTo=ShownOwner.Get();
+    if (Reason==EEndPlayReason::Destroyed && ShownTo && GetWorld() && !GetWorld()->bIsTearingDown)
+    {
+        ALDBodyPuppet::SpawnOwnFall(*Body,*ShownTo,ShownLife);
+    }
+    Super::EndPlay(Reason);
 }
 
 uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses)

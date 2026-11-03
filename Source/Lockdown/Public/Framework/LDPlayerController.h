@@ -112,6 +112,9 @@ public:
     bool ConfirmArmedEntry(const FLDCombatTarget& Aim);
     // S: stop orders and cancel interruptible Direct actions issued so far.
     void StopCombatAndOrders();
+    // One player-facing notice (a failure or a removed protection) for the HUD's single toast line; every post shows,
+    // even when it repeats the previous text. Order progress and arrival are never posted (UI review P1).
+    void PostIntentNotice(const FString& Text);
     // A child confirmation or a text edit owns input (UI 4): no new world command, armed preview or camera input
     // starts; accepted orders keep running.
     bool IsWorldInputCaptured() const;
