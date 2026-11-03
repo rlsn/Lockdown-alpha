@@ -2,6 +2,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Region/LDMapRegistry.h"
 #include "Tests/LDDemoEntryProbe.h"
@@ -38,10 +39,62 @@ void ALDGameState::OnRep_PublicMatch()
 {
     FString Error;
     const auto Result=LDCapture::AcceptPublicMatchView(PublicMatch,LatestPublicMatch,Error);
-    if (Result==ELDLobbyProjectionResult::Accepted) { return; }
-    PublicMatch=LatestPublicMatch;
-    if (Result==ELDLobbyProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+    if (Result!=ELDLobbyProjectionResult::Accepted)
+    {
+        PublicMatch=LatestPublicMatch;
+        if (Result==ELDLobbyProjectionResult::Malformed)
+        { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+    }
+    SyncCaptureMarker();
+}
+
+void ALDGameState::SyncCaptureMarker()
+{
+    UWorld* World=GetWorld();
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+        ||PublicMatch.Phase==ELDMatchPhase::Results;
+    // The boundary belongs to the Demo world's presentation; fixture worlds without its registry show none.
+    const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    ALDCaptureMarker* Marker=CaptureMarker.Get();
+    // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))
+    {
+        Marker->Destroy();
+        Marker=nullptr;
+        CaptureMarker.Reset();
+    }
+    if (!bShow) { return; }
+    if (!Marker)
+    {
+        if (CaptureMarkerFailedGeneration==PublicMatch.Generation) { return; }
+        FString Error;
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        const auto* Registry=World->GetSubsystem<ULDMapRegistry>();
+        const FLDMapBinding* Capture=nullptr;
+        double RadiusCm=0;
+        if (!Registry||!Registry->Enabled()) { Error=TEXT("The Demo world registry is not loaded."); }
+        else if (LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
+        {
+            const FLDDemoRational& Radius=Content->Get().Parameters.CaptureRadiusCm;
+            RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
+            Capture=Registry->Resolve(FName(*Content->Get().World.CaptureId),Registry->Generation);
+            if (!Capture) { Error=TEXT("The registered world has no capture anchor."); }
+        }
+        FActorSpawnParameters Spawn;
+        Spawn.ObjectFlags|=RF_Transient;
+        Marker=Capture?World->SpawnActor<ALDCaptureMarker>(Spawn):nullptr;
+        if (Capture&&!Marker) { Error=TEXT("The flagpole boundary actor could not be spawned."); }
+        if (!Marker||!Marker->Build(Capture->Position,RadiusCm,PublicMatch.Generation,Error))
+        {
+            if (Marker) { Marker->Destroy(); }
+            CaptureMarkerFailedGeneration=PublicMatch.Generation;
+            UE_LOG(LogTemp,Error,TEXT("LD_CAPTURE_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+            return;
+        }
+        CaptureMarker=Marker;
+    }
+    Marker->ShowState(PublicMatch.CircleState);
 }
 
 void ALDGameState::OnRep_MatchResult()
@@ -201,7 +254,7 @@ void ALDGameMode::Logout(AController* Exiting)
             for (const auto& Pair : Contenders)
             {
                 if (auto* Member=Pair.Key.Get(); Member && Member!=Controller)
-                { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("The Host left the room. Host migration is not supported.")); }
+                { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("房主已离开，房间已关闭（不支持更换房主）。")); }
             }
             LobbyHost.Reset();
         }

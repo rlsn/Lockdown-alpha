@@ -15,12 +15,12 @@ FString ALDGameMode::StartGateBlocker() const
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!Registry || !Registry->Enabled())
     {
-        return TEXT("The Demo world registry is not loaded; no match can start.");
+        return TEXT("Demo 世界数据未加载，无法开始对局。");
     }
     const FString Missing = LDMatchProviders::MissingForStart(!LobbyAISlots.IsEmpty());
     if (!Missing.IsEmpty())
     {
-        return FString::Printf(TEXT("Demo gameplay providers are not wired in this build: %s. No match will start."), *Missing);
+        return FString::Printf(TEXT("当前版本缺少 Demo 玩法模块（%s），无法开始对局。"), *Missing);
     }
     return FString();
 }
@@ -35,8 +35,9 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     auto Abort = [&](ELDSessionReject Why)
     {
         Reject = Why;
-        Detail = TEXT("The match could not start: ") + (Error.IsEmpty() ? FString(TEXT("unknown start failure.")) : Error);
-        UE_LOG(LogTemp, Warning, TEXT("LD_MATCH_START_ABORTED %s"), *Detail);
+        // The player sees the Chinese text of the reject reason; the diagnostic stays in the authority log.
+        Detail.Reset();
+        UE_LOG(LogTemp, Warning, TEXT("LD_MATCH_START_ABORTED %s"), Error.IsEmpty() ? TEXT("unknown start failure.") : *Error);
         if (MatchPhase == ELDMatchPhase::Faulted)
         {
             Reject = ELDSessionReject::AuthorityFault;
@@ -98,7 +99,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     PublishMatchOutcome();
     UE_LOG(LogTemp, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d open_at_ms=%lld"),
         MatchContext.Generation, RosterOrder.Num(), CaptureReducer.GetOpenAtMs());
-    Detail = TEXT("Match started.");
+    Detail = TEXT("对局开始。");
     return true;
 }
 
@@ -238,7 +239,7 @@ FLDAIRegistrationResult ALDGameMode::RegisterAIContender(AController& Controller
     FLDContenderRecord Record;
     Record.Session = Id;
     Record.Kind = ELDContenderKind::OpponentAI;
-    Record.Name = FString::Printf(TEXT("Opponent AI %d"), RosterSlot + 1);
+    Record.Name = FString::Printf(TEXT("AI 对手 %d"), RosterSlot + 1);
     Record.State.Match = MatchContext.Generation;
     RosterOrder.Add(Id);
     Lives.Add(Id);

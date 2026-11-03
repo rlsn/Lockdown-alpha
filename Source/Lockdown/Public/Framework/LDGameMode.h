@@ -7,6 +7,7 @@
 #include "Framework/LDCaptureReducer.h"
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
+#include "World/LDCaptureMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "LDGameMode.generated.h"
 
@@ -35,7 +36,13 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_KillFeed) FLDKillFeedView KillFeed;
     UFUNCTION() void OnRep_KillFeed();
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
+    // Local presentation only: the visible flagpole boundary of the current match, never replicated.
+    const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
 private:
+    // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
+    void SyncCaptureMarker();
+    TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
+    uint32 CaptureMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;

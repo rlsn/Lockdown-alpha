@@ -14,9 +14,11 @@
 #include "Region/LDMapRegistry.h"
 #include "World/LDCampDirector.h"
 #include "World/LDCampLifecycle.h"
+#include "World/LDCaptureMarker.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -45,6 +47,7 @@ public:
     FLDCombatBodyRef FirstBody;
     TSet<FGuid> FirstCampMembers;
     int64 FirstSoloSinceMs = -1;
+    int32 MarkerObservations = 0, MarkerMismatches = 0;
     int64 HoldMs = 0, DevelopmentMs = 0;
     FVector Center = FVector::ZeroVector, Staging = FVector::ZeroVector, Inside = FVector::ZeroVector;
     FName Surface;
@@ -162,12 +165,33 @@ public:
         }
     }
 
-    void Observe(const FLDPublicMatchView& View)
+    void Observe(const ALDGameState& Public)
     {
+        const FLDPublicMatchView& View = Public.PublicMatch;
         if (View.Phase != ELDMatchPhase::CaptureOpen) { return; }
         SawContest |= View.CircleState == ELDCircleState::Contested;
         if (View.CircleState == ELDCircleState::Solo && View.Occupier == CapturerId && FirstSoloSinceMs < 0)
         { FirstSoloSinceMs = View.SoloSinceMs; }
+        // The visible boundary must show exactly the public circle state this role has accepted.
+        const ALDCaptureMarker* Marker = Public.GetCaptureMarker();
+        ++MarkerObservations;
+        MarkerMismatches += !Marker || Marker->GetGeneration() != View.Generation || Marker->GetShownState() != View.CircleState ? 1 : 0;
+    }
+
+    static int32 MarkerActors(UWorld& World)
+    {
+        int32 Count = 0;
+        for (TActorIterator<ALDCaptureMarker> It(&World); It; ++It) { ++Count; }
+        return Count;
+    }
+
+    // One flat, collision-free ring for this generation at the approved radius around the registered anchor.
+    bool FreshMarker(const ALDGameState& Public, UWorld& World, uint32 Generation) const
+    {
+        const ALDCaptureMarker* Marker = Public.GetCaptureMarker();
+        return Marker && MarkerActors(World) == 1 && Marker->GetGeneration() == Generation && Marker->IsPresentationOnly()
+            && FVector::Dist2D(Marker->GetCenter(), Center) <= 1. && FMath::IsNearlyEqual(Marker->GetRadius(), RadiusCm, 1e-6)
+            && Marker->GetSegmentCount() > 0 && Marker->GetShownState() == ELDCircleState::NotOpen;
     }
 
     bool Tick();
@@ -215,7 +239,7 @@ bool FLDDemoCaptureProbe::Tick()
     }
     const FLDLobbyView& Lobby = Public->DemoLobby;
     const FLDPublicMatchView& View = Public->PublicMatch;
-    Observe(View);
+    Observe(*Public);
     auto* Nav = PC->Navigation.Get();
     // Only the Listen Host has the authority; clients read their own owner views only.
     ALDGameMode* Mode = World->GetAuthGameMode<ALDGameMode>();
@@ -265,6 +289,8 @@ bool FLDDemoCaptureProbe::Tick()
         Direction.Z = 0;
         Direction = Direction.GetSafeNormal();
         Check(!Direction.IsNearlyZero(), TEXT("C05"), TEXT("Spawned body is outside the circle centre"));
+        Check(FreshMarker(*Public, *World, View.Generation), TEXT("C13"),
+            TEXT("Every role shows one flat flagpole boundary at the approved radius around the anchor, without collision"));
         Staging = Center + Direction * (RadiusCm + 300.);
         Inside = Center + Direction * (RadiusCm - 250.);
         // The second match proves freshness against these first-match identities.
@@ -312,6 +338,11 @@ bool FLDDemoCaptureProbe::Tick()
         Check(Result.Rows.Num() == 3 && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }),
             TEXT("C09"), TEXT("The frozen result lists every contender with a committed final level"));
+        const ALDCaptureMarker* Marker = Public->GetCaptureMarker();
+        Check(Marker && Marker->GetGeneration() == View.Generation && Marker->GetShownState() == View.CircleState
+            && MarkerObservations > 0 && MarkerMismatches == 0,
+            TEXT("C14"), TEXT("The boundary mirrored every observed public circle state through the locked result"));
+        Summary->SetNumberField(TEXT("marker_observations"), MarkerObservations);
         Summary->SetNumberField(TEXT("first_solo_since_ms"), double(FirstSoloSinceMs));
         Summary->SetNumberField(TEXT("final_solo_since_ms"), double(View.SoloSinceMs));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
@@ -338,6 +369,8 @@ bool FLDDemoCaptureProbe::Tick()
             TEXT("C11"), TEXT("The same connections return to a new, unready Lobby generation"));
         Check(View.CircleState == ELDCircleState::NotOpen && !View.ResultId.IsValid() && !View.StartedAtMs,
             TEXT("C12"), TEXT("The new Lobby carries no capture state or result"));
+        Check(!Public->GetCaptureMarker() && MarkerActors(*World) == 0,
+            TEXT("C15"), TEXT("Returning to the Lobby removes the flagpole boundary"));
         SecondGeneration = Lobby.Generation;
         Summary->SetNumberField(TEXT("next_generation"), double(SecondGeneration));
         if (!Passed || !Mark(Role + TEXT("Lobby2.json"))) { return Finish(); }
@@ -426,6 +459,9 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     Check(bTracksReady && Own.NextAttackAtMs <= Own.AsOfMs && Own.ActionEntry == ELDCombatEntry::None
         && Own.ActionPhase == ELDCombatPhase::Finished,
         TEXT("R06"), TEXT("Every cooldown source is ready with no issued cooldown track carried from the first match"));
+    const auto* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+    Check(Public && FreshMarker(*Public, *PC.GetWorld(), SecondGeneration),
+        TEXT("R10"), TEXT("The second match shows one fresh flagpole boundary for its own generation"));
     Summary->SetNumberField(TEXT("second_generation"), double(SecondGeneration));
     if (Mode)
     {
@@ -464,7 +500,6 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
                 && !Match.DueAtMs && !Match.CaptureEpoch && !Match.ResultId.IsValid()
                 && Match.OpenAtMs == Match.StartedAtMs + DevelopmentMs;
         };
-        const auto* Public = PC.GetWorld()->GetGameState<ALDGameState>();
         Check(Clean(View) && Clean(Authority) && Public && Public->KillFeed.Generation == SecondGeneration
             && Public->KillFeed.Notices.IsEmpty()
             && !(Public->MatchResult.Generation == SecondGeneration && Public->MatchResult.ResultId.IsValid())
