@@ -1,5 +1,6 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDMinimap.h"
+#include "UI/LDWorldFeedback.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -494,6 +495,55 @@ bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Outside a running match there is no hint"),Step().IsEmpty());
     Public.Phase=ELDMatchPhase::Development;Growth.Generation=3;Wallet.Generation=3;Wallet.Slots[0].bOccupied=false;
     TestTrue(TEXT("Projections of another match never give a hint"),Step().IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDChoicesFoldTest,"Lockdown.Rules.HUDChoicesFold",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
+{
+    const double Wait=LDHUD::FChoicesFold::AutoOpenSeconds;
+    {
+        LDHUD::FChoicesFold Fold;
+        TestFalse(TEXT("A closed panel never folds"),Fold.ShouldFold(100.,false,true));
+        Fold.Opened(true,10.);
+        TestTrue(TEXT("The opening's automatic open is marked automatic"),Fold.IsAutomatic());
+        TestFalse(TEXT("The automatic open stays while its few seconds run"),Fold.ShouldFold(10.+Wait-.01,false,false));
+        TestTrue(TEXT("The automatic open folds back to the pending pill after its few seconds"),Fold.ShouldFold(10.+Wait,false,false));
+        Fold.Closed();
+        TestFalse(TEXT("A folded panel is closed"),Fold.IsAutomatic()||Fold.ShouldFold(10.+Wait+1.,false,true));
+    }
+    {
+        LDHUD::FChoicesFold Fold;Fold.Opened(true,0.);
+        TestFalse(TEXT("A previewed card or a request in flight keeps the panel open"),Fold.ShouldFold(Wait+1.,true,true));
+        TestFalse(TEXT("Engaging makes the automatic open the player's own: it no longer times out"),Fold.IsAutomatic()||Fold.ShouldFold(Wait+60.,false,false));
+        TestTrue(TEXT("A hit still folds it once the player is no longer engaged"),Fold.ShouldFold(Wait+61.,false,true));
+    }
+    {
+        LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
+        TestFalse(TEXT("A panel the player opened never times out"),Fold.IsAutomatic()||Fold.ShouldFold(600.,false,false));
+        TestTrue(TEXT("A hit on the own body folds the open panel"),Fold.ShouldFold(601.,false,true));
+        Fold.Closed();Fold.Opened(false,602.);
+        TestFalse(TEXT("The player's own reopening after a hit fold is respected while hits continue"),Fold.ShouldFold(603.,false,true));
+        Fold.Closed();Fold.Opened(false,700.);
+        TestTrue(TEXT("A later opening folds on a hit again"),Fold.ShouldFold(701.,false,true));
+        Fold.Closed();Fold.Opened(true,800.);Fold.Closed();Fold.Opened(false,801.);
+        TestTrue(TEXT("Only a hit fold, not a timed one, protects the next opening"),Fold.ShouldFold(802.,false,true));
+    }
+    {
+        // The HUD reads hits from the same own-body changes the world feedback floats: lost 面子 or absorbed 淡定.
+        LDWorldFeedback::FTracker Hits;FLDCombatOwnerView Combat;Combat.Generation=4;Combat.Life=2;Combat.bHasBody=true;Combat.Revision=1;Combat.HPP2=50000;Combat.MaxHPP2=60000;
+        FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=90000;Shield.AmountP2=3000;Combat.Statuses.Add(Shield);Combat.ShieldP2=3000;Combat.AsOfMs=1000;
+        LDWorldFeedback::FSample Body;Body.Match=4;Body.Life=2;Body.LifePhase=ELDLifePhase::Alive;Body.OwnCombat=&Combat;
+        auto Observe=[&Hits,&Body](){TArray<LDWorldFeedback::FEvent> Events;Hits.Observe(Body,Events);return Events;};
+        auto IsHit=[](const TArray<LDWorldFeedback::FEvent>& Events){return Events.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
+            {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});};
+        TestFalse(TEXT("The first own-body sample only primes"),IsHit(Observe()));
+        Combat.Revision=2;Combat.ShieldP2=1000;Combat.Statuses[0].AmountP2=1000;Combat.AsOfMs=1500;
+        TestTrue(TEXT("A hit fully absorbed by 淡定 is a hit"),IsHit(Observe()));
+        Combat.Revision=3;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=48000;Combat.AsOfMs=2000;
+        TestTrue(TEXT("Lost 面子 is a hit"),IsHit(Observe()));
+        Combat.Revision=4;Combat.HPP2=48100;Combat.AsOfMs=3000;
+        TestFalse(TEXT("Regeneration is not a hit"),IsHit(Observe()));
+    }
     return true;
 }
 #endif
