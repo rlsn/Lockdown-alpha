@@ -1,6 +1,7 @@
 #include "Audio/LDAudioCatalog.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "Audio/LDAudioTypes.h"
+#include "Development/LDDemoContentIds.h"
 #include "Misc/AutomationTest.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundMix.h"
@@ -102,6 +103,25 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=3;Combat.HPP2=1000;Frame.LocalSeconds=4;
     TestTrue(TEXT("An older combat revision is ignored"),AudioSample(Tracker,Frame).IsEmpty());
 
+    // 淡定 (shield): the own projection lists the shield status with its end; nothing else is read.
+    FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=9000;Shield.AmountP2=3000;
+    Combat.Revision=5;Combat.HPP2=40000;Combat.ShieldP2=3000;Combat.Statuses={Shield};Combat.AsOfMs=5000;Frame.LocalSeconds=4.5;
+    TestTrue(TEXT("Gaining a shield is silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=6;Combat.ShieldP2=1000;Combat.Statuses[0].AmountP2=1000;Combat.AsOfMs=5500;Frame.LocalSeconds=5;
+    TestTrue(TEXT("A hit the shield absorbs whole sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
+    Combat.Revision=7;Combat.ShieldP2=500;Combat.Statuses[0].AmountP2=500;Combat.AsOfMs=5550;Frame.LocalSeconds=5.1;
+    TestTrue(TEXT("Shield hits share the hit repeat limit"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=8;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=36000;Combat.AsOfMs=6000;Frame.LocalSeconds=6;
+    TestTrue(TEXT("A hit that breaks the shield and costs points is the ordinary hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfHit}));
+    Combat.Revision=9;Combat.ShieldP2=2000;Shield.AmountP2=2000;Shield.ExpiresAtMs=7000;Combat.Statuses={Shield};Combat.AsOfMs=6500;Frame.LocalSeconds=7;
+    AudioSample(Tracker,Frame);
+    Combat.Revision=10;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7000;Frame.LocalSeconds=8;
+    TestTrue(TEXT("A shield that runs out at its end is silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=11;Combat.ShieldP2=2000;Shield.ExpiresAtMs=9000;Combat.Statuses={Shield};Combat.AsOfMs=7500;Frame.LocalSeconds=9;
+    AudioSample(Tracker,Frame);
+    Combat.Revision=12;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7600;Frame.LocalSeconds=10;
+    TestTrue(TEXT("A shield broken before its end by a hit sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
+
     Growth.Level=2;Growth.EarnedThrough=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
     TestTrue(TEXT("The same level stays silent"),AudioSample(Tracker,Frame).IsEmpty());
@@ -186,7 +206,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     TArray<USoundWave*> Sounds;FString Error;
     Fill();
     TestTrue(TEXT("A complete catalog resolves every cue"),Catalog->Resolve(Sounds,Error)&&Sounds.Num()==int32(ELDAudioCue::Count)
-        &&Sounds[int32(ELDAudioCue::UIClick)]==Catalog->Cues.Last().Sound&&!Sounds[0]);
+        &&Sounds[int32(ELDAudioCue::Count)-1]==Catalog->Cues.Last().Sound&&!Sounds[0]);
     Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Sounds,Error));

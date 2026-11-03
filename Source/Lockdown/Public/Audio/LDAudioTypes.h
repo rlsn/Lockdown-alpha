@@ -23,6 +23,8 @@ enum class ELDAudioCue : uint8
     SelfDeath,
     SelfRespawn,
     UIClick,
+    // A hit fully absorbed by the own 淡定 (shield): the hit sound's sample, quieter.
+    SelfShieldHit,
     Count UMETA(Hidden)
 };
 

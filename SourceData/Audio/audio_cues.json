@@ -227,6 +227,18 @@
       "purpose": "界面点击（设置页主音量试听）",
       "loudness_lufs": -22.35,
       "volume": 1.062
+    },
+    {
+      "cue": "SelfShieldHit",
+      "pack": "kenney-impact-sounds",
+      "source": "Kenney/ImpactSounds/impactGeneric_light_000.ogg",
+      "pack_path": "Audio/impactGeneric_light_000.ogg",
+      "sha256": "f0e982611e97512fee5f777986b67e8b435434b601f94992ec044f7e89fb5acb",
+      "duration_sec": 0.139,
+      "purpose": "本人淡定（护盾）完全吸收伤害：复用受击音，低 6 dB",
+      "loudness_lufs": -23.01,
+      "level_db": -6.0,
+      "volume": 0.55
     }
   ]
 }

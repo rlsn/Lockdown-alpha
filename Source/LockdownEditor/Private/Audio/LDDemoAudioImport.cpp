@@ -50,7 +50,8 @@ namespace
             || AudioFail(Error, FString::Printf(TEXT("%s is missing or differs from its manifest SHA-256."), *Relative));
     }
 
-    // The manifest is the only audio source list: CC0 packs proven by their own license text, one hashed file per cue.
+    // The manifest is the only audio source list: CC0 packs proven by their own license text, one hashed file per cue (a cue
+    // may reuse another cue's file at its own volume; each cue still imports its own SoundWave).
     bool AudioLoadManifest(TArray<FAudioManifestCue>& Out, FString& Error)
     {
         Out.Reset();
@@ -67,7 +68,7 @@ namespace
         if (!Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 1 || !Json->TryGetArrayField(TEXT("packs"), Packs)
             || !Json->TryGetArrayField(TEXT("cues"), Cues) || Packs->IsEmpty())
         { return AudioFail(Error, TEXT("audio_cues.json needs schema 1, packs and cues.")); }
-        TSet<FString> Listed, PackIds;
+        TSet<FString> Listed, PackIds, LicenseFiles;
         for (const TSharedPtr<FJsonValue>& Value : *Packs)
         {
             const TSharedPtr<FJsonObject>* Pack = nullptr;
@@ -85,6 +86,7 @@ namespace
             { return AudioFail(Error, FString::Printf(TEXT("The license file of pack %s does not state CC0."), *Id)); }
             PackIds.Add(Id);
             Listed.Add(LicenseFile);
+            LicenseFiles.Add(LicenseFile);
         }
         if (Cues->Num() != LDAudio::CueCount)
         { return AudioFail(Error, FString::Printf(TEXT("audio_cues.json lists %d cues; the catalog needs %d."), Cues->Num(), LDAudio::CueCount)); }
@@ -98,10 +100,10 @@ namespace
             if (!(*Cues)[Index]->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("cue"), Id) || !LDAudio::ParseCueId(Id, Cue.Cue)
                 || Cue.Cue != Expected || !(*Entry)->TryGetStringField(TEXT("pack"), Pack) || !PackIds.Contains(Pack)
                 || !(*Entry)->TryGetStringField(TEXT("source"), Cue.Source) || !(*Entry)->TryGetStringField(TEXT("sha256"), Hash)
-                || !AudioSafeRelative(Cue.Source) || Listed.Contains(Cue.Source)
+                || !AudioSafeRelative(Cue.Source) || LicenseFiles.Contains(Cue.Source)
                 || !(Cue.Source.EndsWith(TEXT(".ogg")) || Cue.Source.EndsWith(TEXT(".wav")))
                 || !(*Entry)->TryGetNumberField(TEXT("volume"), Volume) || !FMath::IsFinite(Volume) || Volume < 0.1 || Volume > 2.0)
-            { return AudioFail(Error, FString::Printf(TEXT("Cue entry %d must be %s with a declared pack, a unique .ogg/.wav source and a 0.1..2 volume."), Index, *LDAudio::CueId(Expected))); }
+            { return AudioFail(Error, FString::Printf(TEXT("Cue entry %d must be %s with a declared pack, an .ogg/.wav source and a 0.1..2 volume."), Index, *LDAudio::CueId(Expected))); }
             Cue.Volume = float(Volume);
             if (!AudioCheckHash(Cue.Source, Hash, Error)) { return false; }
             Listed.Add(Cue.Source);
