@@ -2,11 +2,11 @@
 
 **目标：v0.10.0 Demo · 模块：总体架构 · 引擎：Unreal 5.8.4**
 
-本报告把 [App Spec](../APP_SPEC.md) 转成可分派的架构工作，不重新定义玩法。
-**现有事实**只由本基线源码支持；**建议**是尚未实施、需在对应模块落地并验收的设计。
-明确标注的**已确认决定**是实施约束，其余建议不是已批准的产品变更。
-文中的逻辑契约、任务和后续模块名称不是已有 API，文档修订也不表示运行代码已收敛。
-组件接口仍以 [系统手册](../DEVELOPMENT.md#按任务读取系统手册) 和实际代码为准。
+本报告把 [App Spec](../APP_SPEC.md) 转成架构工作，不重新定义玩法。
+它记录收敛前基线的依赖审计、复用边界与删除闭包，以及之后任何裁剪仍须遵守的防回归约束；
+§3.2 的删除闭包已经完成，运行代码已收敛为唯一 Demo 流程。
+文中的模块名称（M1–M12、N01–N09 等）是分工标识，不是 API；
+组件接口以 [系统手册](../DEVELOPMENT.md#按任务读取系统手册) 和实际代码为准，验收状态见[就绪评估](READINESS.md)。
 
 ## 1. 结论与范围
 
@@ -53,9 +53,8 @@ Demo 不需要的旧模式、政策、代码、输入、资产、脚本、测试
   Economy、Objectives、World、Vision、UI、Population、Region、Editor Bootstrap、
   相关 Tests 和 Scripts。缺失结论结合入口、生产者/消费者与跨 Source 搜索，
   不是“某个文件没找到某个名字”。
-- **本次为静态研究和文档审核。** 未运行 Unreal、构建、生成器、Bootstrap、原生测试、
-  联机场景或发布构建；未加载二进制地图/Blueprint。不能由此宣称资产视觉、寻路、
-  延迟体验或目标 Demo 已通过。源码缺少接线也不等于引擎缺少该基础能力。
+- 审计阶段是静态研究，没有运行 Unreal 或加载二进制资产；实施后的构建、资产引用审计、
+  规则与场景验证见[就绪评估](READINESS.md)。源码缺少接线也不等于引擎缺少该基础能力。
 - 所谓“可复用”指已存在且有价值的机制，不表示整个旧服务可直接启用，更不表示
   其原有数值、容量、地图形状或旧测试断言适用于 Demo。
 
@@ -425,7 +424,7 @@ manifest 内不放自身摘要。旧 SyncB84/旧作者域/旧 loader fallback �
 
 ## 5. 后续模块与真实依赖
 
-下表只建议下一个模块团队的边界；每个模块仍需独立研究/审核后才能形成实施方案。
+下表是实施时采用的模块边界，各模块已按此接入。
 依赖指**提供者契约或运行产物**，不要求前一模块全部 UI/内容完成才能开始研究。
 
 | 模块 | 分工与可交付接口 | 真实依赖/集成条件 |
@@ -493,7 +492,7 @@ T1/T8 的入口和检查分类应同步准备；收敛最终验收在 T3–T7/M1
 | `SyncB84Data.py` 与旧 Bootstrap 目录生成 | 输入拒绝、稳定 ID、哈希与 Validate/Generate | [SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)、[SyncDemoWorldData.py](../../Scripts/SyncDemoWorldData.py)、[TestDemoContentImport.py](../../Scripts/TestDemoContentImport.py)、[BootstrapAssets.ps1](../../Scripts/BootstrapAssets.ps1) |
 
 组件单测可以使用隔离输入或无旧玩法的测试地图，但不发布成另一个可选游戏模式。
-需真实场景的检查应改造现有 runner 或替换为 Demo 场景；迁移未完成记为未实现/未运行，
+需真实场景的检查已由上表的 Demo 场景替代；以后新增检查同样改造现有 runner，
 不能靠恢复旧 profile、维护两套玩法或删除仍有效的失败断言取得“通过”。
 纯旧玩法专测退役要标明理由与是否有 Demo 替代用例，不把旧测试计数当永久指标。
 
@@ -548,13 +547,12 @@ decoder 只接受当前支持集，不以连续 `Kind <= Last` 接受废弃操�
 
 ### 8.2 第一批开工范围
 
-**下面的基础闭包不等 C1/C2；但每一行都须先完成所列检查，才执行删除。**
-这不是全库一次性删除名单，也不是已经运行验证过的补丁。
-代码实施需另行分派，本报告只提供已界定的范围与门槛。
+以下是实施时的第一批闭包及当时的检查门槛，均已完成，保留为以后裁剪的范例：
+基础闭包不等 C1/C2，但每一行都先完成所列检查才执行删除。
 
 | 批次/删除与新增落点 | 先替代或断开什么；具体复用 | 本批检查与完成边界 |
 | --- | --- | --- |
-| B01 现有入口/基础门禁：D01 的入口选择部分、D25/D26 的旧选择器/参数、D27 的对应入口接线；补 N01/N09 的唯一入口/准入/缺输入拒绝合同，不代表本批完成这些 D 项的全部裁剪 | 先展开 `LDUIRoot` Host/Join → GameMode InitGame/StartPlay/StartDevelopmentMatch → OpenStandalone/PackageWin64/OpenPackaged/Bootstrap 的真实边；保留 R06 的身份/owner投影与 R03/R15 工具/目标。旧服务依赖按后续 D 闭包改接，不用恒真 profile、空旧接口或旧数值 fallback。 | 入口/脚本解析、旧 profile/旧图选择拒绝、缺 Demo 输入明确失败；受影响 Editor/Game 构建与 UHT、配置实际值和反射根加载检查。**不以正常 Demo 对局通过作为本批前提，也不把拒绝路径称为可玩 Demo**；完整加载/cook仍待相应 N08/C1/C2。未完成的旧领域删除继续列为后续任务，不伪装已裁完。 |
+| B01 现有入口/基础门禁：D01 的入口选择部分、D25/D26 的旧选择器/参数、D27 的对应入口接线；补 N01/N09 的唯一入口/准入/缺输入拒绝合同，不代表本批完成这些 D 项的全部裁剪 | 先展开 `LDUIRoot` Host/Join → GameMode InitGame/StartPlay/StartDevelopmentMatch → OpenStandalone/PackageWin64/OpenPackaged/Bootstrap 的真实边；保留 R06 的身份/owner投影与 R03/R15 工具/目标。旧服务依赖按后续 D 闭包改接，不用恒真 profile、空旧接口或旧数值 fallback。 | 入口/脚本解析、旧 profile/旧图选择拒绝、缺 Demo 输入明确失败；受影响 Editor/Game 构建与 UHT、配置实际值和反射根加载检查。**不以正常 Demo 对局通过作为本批前提，也不把拒绝路径称为可玩 Demo**；完整加载/cook仍待相应 N08/C1/C2。其余旧领域随后按 D 项闭包删除完毕。 |
 | B03 世界检查点闭包：D12＋D27/D31 中只属于 checkpoint/restore 的 probe/flags/输出复核＋D34 对应说明 | 断 `LD.B91.Checkpoint`、AutomaticCheckpoint/Restore、WorldObjects 检查点成员 → LDB91Checkpoint/LDWorldCheckpoint/LDCheckpointGeometry → Combat EnvironmentSettled。当前局重置仍归 GameMode 的 Match/life 协议；保留 R13 本地设置 Save，不迁入另一套保存系统。 | 查旧 console/参数/serializer/helper/probe 消费为零；受影响反射引用按 C3 核验；构建、保留的旧包/局代次拒绝规则及本地设置保存检查。不声称已完成多人回 Lobby；该运行验收仍属 N01/T7。**不需要先确定技能/装备/地图尺度。** |
 
 B01 是入口/依赖合同先行，不要求先实现全部 N01–N08；B03 可在明确取消/身份
@@ -582,7 +580,8 @@ Footstep 删除必须覆盖产生→提前授权→AuthorizedCue 发布→代理
 
 ### 8.4 资产和最终裁剪证明
 
-以下为实施时必须执行的验证，**本次文本研究均未执行，不能称为已验证可删资产**：
+实施中已执行删除前的资产引用审计（`AuditAssetReferences.ps1`）、构建/UHT 与 Bootstrap Validate；
+第 5 项的打包版场景结果见[就绪评估](READINESS.md)。以后的裁剪仍按这些步骤验证：
 
 1. 以最终 Frontend、唯一玩法图、root widget、当前角色/能力/装备定义和显式加载资源为根，
    合并 AssetRegistry/Reference Viewer 的 hard/soft/management 引用与 C++/配置/Bootstrap
@@ -603,7 +602,7 @@ Footstep 删除必须覆盖产生→提前授权→AuthorizedCue 发布→代理
 裁剪完成证据还包括：废弃符号/运行选择/资源路径在存活消费者中零引用；
 稳定技术 ID 例外各有当前消费者；无空旧类/兼容壳/废弃生成输出/注释实现/备用目录；
 README、DEVELOPMENT、系统手册与当前报告无失效链接或过期机制说明。
-历史只留在已有 Git 历史，不创建额外备份。本模块文档交付不代表这些实施检查已经通过。
+历史只留在已有 Git 历史，不创建额外备份。
 
 ## 9. 已确认行为与内容设计输入
 

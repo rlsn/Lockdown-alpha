@@ -1,13 +1,12 @@
-# Demo 世界、营地与视野实施准备报告
+# Demo 世界、营地与视野
 
 本文服务于 [App Spec](../APP_SPEC.md) §2、§6、§7、§9 的同一个 Demo。
 **2026-11-02 用户已批准现有单层布局作为唯一 Demo 地图，
 并批准所引用的完整首版内容与数值作为首次实际试玩输入。**
-原生查询、生成、资产、营地、观察和联网接线仍须实施验证；批准不等于地图已生成或平衡通过。
+原生查询、生成、资产、营地、观察和联网接线已经接入 Demo；批准不是平衡测试结果。
 
-源码证据基线为 `fa11d09a762bccadf495191072e222dd158fc014`。
-先读取 README、App Spec、AGENTS、DEVELOPMENT 及相关系统手册，再核对实际实现；
-文中“现有”指该基线的事实，“拟新增／改造”指后续任务。
+原始研究基于收敛前的源码基线 `fa11d09`；当前实现以源码和技术手册为准。
+先读取 README、App Spec、AGENTS、DEVELOPMENT 及相关系统手册，再核对实际实现。
 联合身份、事务和时序以 [共享契约](SHARED_CONTRACTS.md) SC-02、SC-03、SC-05、SC-07、SC-09 为边界；
 本模块不另建世界时钟、战斗生命、奖励账本或占领胜负状态。
 
@@ -318,7 +317,7 @@ miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模
 
 ## 3. SC-07 查询契约与共享责任
 
-以下名称是**拟实施的唯一适配接口，不是当前已存在的 C++ API**。
+以下是世界域的唯一适配接口，已在源码中实现；表中签名是语义简写，确切声明以源码为准。
 函数落在保留的 MapRegistry、Ground、Navigation、Vision、Combat 与营地 Director（`World\LDCampDirector`）边界，
 不要求为每一行新增一个 Manager、Actor、缓存或可写状态表。
 
@@ -330,18 +329,18 @@ miter角比真实圆胶囊的圆角更保守，沿边切线允许于该理想模
 | `FLDVictimKey` | 生命身份统一为核心的Kind/EntityId/Life；不以原生Combat Identity的FGuid冒充Life，也不另建营地生命计数 |
 | `FLDCombatBodyRef` | 需要对应实际身体时使用核心的Victim+BodyIdentity；OwnerState uint32 Life与Combat FGuid Identity的映射由核心维护 |
 | `FLDGameplayWritePermit` | 核心为当前提交调用栈签发的借用许可，绑定Boundary/Phase/GateRevision；不含调用者所有权证明，不得复制、保存、网络传入或自行构造 |
-| `FLDWorldRevision`（其他世界签名简写为`WorldRevision`） | 世界域拟建纯值：`FName MapId; uint32 LayoutRevision; uint32 GeometryRevision`；不是核心Context，不替代Match/Life/Order/Epoch/ViewRevision/schema |
+| `FLDWorldRevision`（其他世界签名简写为`WorldRevision`） | 世界域纯值：`FName MapId; uint32 LayoutRevision; uint32 GeometryRevision`；不是核心Context，不替代Match/Life/Order/Epoch/ViewRevision/schema |
 | `GroundedFootSample` | 从当前权威身体和原生 walkable floor 取得的脚点、支持面/连续地面 patch、grounded 事实；不是把任意点击投影到地面后的“假落地” |
 | `ObserverContext` | 服务器绑定的真人拥有连接、对应参赛AI，或仅供营地反击校验的CampMember上下文；无身体／新生命／换局须更新。营地成员不创建参赛席位/PlayerState/钱包或另一网络视图，不能给玩家或同营共享视野 |
 | `ObservedHandle` | 观察者局部的 opaque token 与观察 epoch；服务器映射到目标共同生命，客户端不能用 Actor 指针、公开参赛 ID 或 CampId 代替它 |
 | `ObservedFrame` | 当前授权字段及 generation/revision；快照不是永久命令授权，合法的新帧不应使仍可见的旧句柄每帧无故失效 |
 | `AuthorityEffectContext` | 仅 Combat 已接受效果的 ID、实际归属、来源生命、定义/权限与求值时刻；不能由 UI 或 AI 请求获得此权限 |
 
-核心已收敛的拟建类型如下，正式定义归
+核心类型如下，正式定义归
 [会话与对局报告](SESSION_MATCH_LIFECYCLE.md)，本报告只引用，不再定义同义类型：
 
 ```cpp
-// Proposed shared core types; not existing source declarations.
+// Shared core types, semantic summary; see the source for exact declarations.
 FLDMatchContext { uint32 Generation; FGuid LedgerMatch; }
 FLDVictimKey { ELDVictimKind Kind; FGuid EntityId; uint32 Life; }
 FLDCombatBodyRef { FLDVictimKey Victim; FGuid BodyIdentity; }
@@ -366,7 +365,7 @@ FLDDeathKey { FGuid LedgerMatch; FLDVictimKey Victim; }
 `Result<T>` 表示“有值成功或有类型的错误”；不是建议用默认 `T` 冒充失败，
 也不要求引入新的通用结果库。网络命令仍使用现有回执与身份机制。
 
-| 拟实施签名 | 生产者、结果和接受条件 | 消费者／失效点 |
+| 签名（语义简写） | 生产者、结果和接受条件 | 消费者／失效点 |
 | --- | --- | --- |
 | `QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint) -> Result<LegalGround>` | World/Ground；有限坐标、边界、支持面、完整占地；计划投影须显式报告位移与同层结果 | 点击、导航、出生；不能用规划投影结果替代交易/圈内的当前身体位置 |
 | `QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule) -> Result<CompletePath>` | Navigation；正确 native agent、两端合法、完整路径、对应 GeometryRevision | 移动与离线/原生路线检查；partial、无 nav data、失配或长期无进展必须拒绝/停止 |
@@ -727,11 +726,11 @@ Prepared结果先移除应清临时状态并投影重置后的最终资源上限
 同步修改生产者、NetSerialize、接收游标、代理、雾材质参数、小地图、HUD、AI 及测试。
 不能只扩大数组/修改坐标而保留旧60×40 `AttachFog/UploadFog`。
 
-UI的拟建读取口为 `ALDWorldViewRelay::ReadObservedFrame() const`：
+UI的读取口为 `ALDWorldViewRelay::ReadObservedFrame() const`：
 返回只读 `FLDWorldView` 与本地 `ViewStatus`，不接受任意ObserverId，不提供authority getter。
 同一schema建议字段为 `uint32 Schema/MatchGeneration/ObserverLife/Generation/Revision`、
 `WorldRevision`、`double SampledAtServerSec`（本局服务器秒）、有界Units与本人来源Footprint。
-单位条目 `FLDObservedUnitView` 是该帧内的拟建record，不是第二条协议；字段为
+单位条目 `FLDObservedUnitView` 是该帧内的record，不是第二条协议；字段为
 `FGuid Handle`、`uint32 ObservationEpoch/StateRevision/AuthorizedFieldMask`、
 明确编号的Kind/Presentation、`FVector_NetQuantize10 FeetCm`、量化Facing、获准Action/StateCue。
 `StateRevision`只描述该观察epoch内获准呈现的变化，不直接复制私有Build/Inventory/ItemRevision。
@@ -1043,18 +1042,18 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 对八个既有MemberHome的100cm归位区域，独立QA另确认最小额外静态余量约401.769409288cm；
 此项仅复用未改变的几何输入做圆区净空检查，没有把动态占位、联合安装或原生回位记成通过。
 
-| 验证层 | 本轮状态 |
+| 验证层 | 状态 |
 | --- | --- |
 | 文档/范围 | 原始研究的源码基线、两份独立研究与SVG仍说明方案依据；当前实施事实以源码和技术手册为准 |
 | 离线几何 | 作者与独立QA均完成10项基础几何自测及本布局审计；独立实现另核验路线/上界和近战接近 |
-| 已实现静态子片 | 批准作者/载荷、严格world2投影、唯一原生地图/目录、凸多边形碰撞与NavAgent/地面/完整路径/保存重载检查；不含完整营地和观察 |
-| 仍需实施 | 真实身体/订单/许可/事件水位、稀疏观察/授权终止、对手AI及其跨域消费者 |
+| 已实现静态子片 | 批准作者/载荷、严格world2投影、唯一原生地图/目录、凸多边形碰撞与NavAgent/地面/完整路径/保存重载检查 |
+| 已实现 | 真实身体/订单/许可/事件水位、稀疏观察/授权终止、对手AI及其跨域消费者；拥有连接见 Core、Vision、Opponent 场景 |
 | 营地循环 | 已实现（`World\LDCampDirector`）；`RunDemoCampCheck.ps1` 在实际 Listen Host 加两个拥有客户端上通过五营落点、不先手、整组反击、每生命一次收益、按内容计时整组刷新与拴绳回营重置；SpawnBlocked/动态占位、Returning 受控暂停与故障注入未运行 |
 | 已有拥有连接子场景 | 实际Listen Host和两个拥有客户端在无玩法身体的Lobby加载同一根/名单/原生地面与导航；不代表稀疏观察、AI或实际身体运动 |
-| 仍需运行 | 拥有连接下的动态占位、实际CMC/观察、AI/人类完整对局，以及剩余资产闭包/Cook/Stage/包加载；Lobby或旧检查不作为这些场景的当前证据 |
+| 未运行 | SpawnBlocked/动态占位、Returning 受控暂停与故障注入；跨机器联机与人类完整对局 |
 | 已确认规则 | 仅受击后同营反击且不共享隐藏位置、Returning正常伤害/控制不重新追击、成功回营满定义资源/清临时仇恨/技能就绪且无新生命/奖励已由营地循环实现；Shop无额外LOS；可见字段/失明停追击/死亡镜头/独立效果规则亦不再待选 |
 | 已批准首轮输入 | 2026-11-02用户批准现有单层布局及完整内容数值；不重复要求选择地图或既有参数，不声称原生/联网/平衡通过 |
-| 仍须工程验证 | 布局/高度的实际碰撞与呈现、显示分辨率和具体接线；SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
+| 工程风险 | SpawnBlocked/动态占位/重试原子性是工程合同与验证风险，不泛列为未决玩法 |
 
 仍有效的风险必须随任务分派保留：
 

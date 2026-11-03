@@ -5,9 +5,8 @@
 [系统手册](../DEVELOPMENT.md#按任务读取系统手册)。
 就绪范围和依赖见 [评估](READINESS.md) 与 [实施计划](IMPLEMENTATION_PLAN.md)。
 
-**这是目标接线契约，不是已实现 API 清单。** 标为“现有”的字段已经核对源码；
-语义字段用于模块对接，不宣称同名 C++ 类型、RPC 或数据 schema 已存在。
-正式类型/容器/函数由经审核的领域设计绑定到现有组件，不能据此再造一个通用状态系统。
+**这是跨模块语义契约，不是 API 清单。** 表中列出的类型与入口已在源码中实现；
+其余语义字段用于说明模块之间的约定，具体签名以各领域报告和源码为准，不能据此再造一个通用状态系统。
 核心类型和提交接口现在以 [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) §4–6 为唯一正式提供者；
 下列映射和领域转引必须与它一致，不建立同义的第二个核心头、时钟或驱动。
 首版参数数值只由内容与数值设计集中维护，本文件不设置数值默认值。
@@ -50,13 +49,13 @@ OwnerState、GameState、UI 和 AI 消费适当投影，不能互相回写成多
 
 目标核心映射如下，完整字段定义只在生命周期报告 §4/§6 维护：
 
-| 跨域语义 | 正式拟建类型/入口 | 集成约束 |
+| 跨域语义 | 正式类型/入口 | 集成约束 |
 | --- | --- | --- |
 | 比赛双身份 | `FLDMatchContext` / `GetMatchContext()` | Generation 为网络 `uint32`，LedgerMatch 为同局 `FGuid`，一一绑定；不得强转 |
 | 主体与身体 | `FLDVictimKey` / `FLDCombatBodyRef` | Kind/EntityId/Life 标识参赛者或营地成员生命，BodyIdentity 标识实际身体；不使用 Controller/槽位替代 |
 | 死亡去重 | `FLDDeathKey` | 仅 LedgerMatch + Victim；来源、效果、DeathSerial、时间和 CampGeneration 不进入可领奖主键 |
 | 生命阶段与变化 | `ELDLifePhase` / `FLDLifeNotice` | 阶段与 Life 不混同；LifeRevision 为生命通知版本，不代替订单/动作版本 |
-| 时间与事件 | `FLDAuthorityStep`、`FLDAuthorityEventStamp`、`FLDProviderFence`、`FLDAuthorityBoundary` | 使用核心定义的原始秒、发生桶、完整前缀和消费边界，不重建另一组 timestamp/watermark 字段 |
+| 时间与事件 | `FLDAuthorityStep`、`FLDAuthorityBoundary` | 使用核心定义的原始秒、发生桶和消费边界，不重建另一组 timestamp/watermark 字段；CT06 的提供者封桶（正式 Fence/Sealing）尚未实现 |
 | 写权限与保护意图 | `FLDGameplayWritePermit`、`FLDAggressiveIntent`、`FLDProtectionReceipt` | 核心发放当前借用作用域，最终提交再验证；禁止网络自填/跨帧保存许可 |
 
 每个目标命令必须交付：调用者由谁确定、所需 match/life、领域请求 ID、
@@ -157,7 +156,7 @@ ThroughMs 只能取实际完整处理的整数 Boundary.AtMs，不能 ceil 小�
 真正缺数据/查询未完成才阻挡 Fence。错误目标的 InvalidSurface/WrongSurface 不代表本人离圈，
 不能用目标规划投影伪造本人接地，也不能把普通语义拒绝升级为整局故障。
 RPC/服务器入口的收件不等于获得写权限。操作合同的 `SubmitOrder` 只排队，
-`CommitPendingOrders` 在核心 Actions 阶段重新校验当前 permit 才处理保护解除和订单激活；
+Actions 阶段的 `ProcessAuthorityOrders` 重新校验当前 permit 才处理保护解除和订单激活；
 动作/导航交接也在同一有效许可中原子提交。全域阶段序与核心类型由生命周期域唯一定义，
 不能将某个消费方的转引复制成另一套核心合同。
 
@@ -430,14 +429,14 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 仅已确认应用且可核验的本地值可保存，不把草稿/试用或局内数据持久化。
 完整应用、回滚与保存验证由 [UI §8](UI_AND_SETTINGS.md) 单点定义。
 
-每份领域设计交付时附下列对接信息，缺一项就不得宣称相关接口已可无歧义实施：
+领域接口新增或变更时，在对应领域文档中说明下列对接信息：
 
 | 交付项 | 必须回答 |
 | --- | --- |
 | 状态与正式接口 | 写入者是谁，具体类型/函数在哪个现有组件上，哪些字段只是投影 |
 | 命令与事件 | 参数/结果类型、身份、版本、来源、权限、提交阶段、拒绝和回执去重 |
 | 生命周期矩阵 | 取消、死亡、离开、终局、新局分别保留/清理什么；已释放效果如何处理 |
-| 内容引用 | 使用哪些正式目录/参数/公式键，单位和转换在哪里，是否仍是待审建议 |
+| 内容引用 | 使用哪些正式目录/参数/公式键，单位和转换在哪里，是否已批准进入运行输入 |
 | 接线与删除 | 替换哪些旧调用者/序列化/生成/资产/测试；删除后的依赖如何收口 |
 | 验证 | 生产者/消费者共同的正反例、真实拥有连接条件、同刻与重放断言、未覆盖限制 |
 
@@ -445,17 +444,17 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 
 ### 已接入的领域接口定义
 
-这里索引已审核的目标合同，不复制各领域私有类型。它们仍是拟建接口；
-共同的 Match/Body/Step/Stamp/Fence/WritePermit 类型由生命周期域定义，
+这里索引已接入的领域接口，不复制各领域私有类型。
+共同的 Match/Body/Step/WritePermit 类型由生命周期域定义，
 世界查询/观察类型由世界域定义，消费方不能另造同名核心状态。
 
-| 领域 | 唯一定义入口 | 关键交接与剩余门槛 |
+| 领域 | 唯一定义入口 | 关键交接 |
 | --- | --- | --- |
-| 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder`、`CommitPendingOrders(permit)`、`CommitActionHandoff` 归现有 Navigation；只收件不激活，动作交接原子；文档静态审核已完成，跨域核心收口、CT06 原生运动、内容/资产和真实连接验证仍需完成 |
+| 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder` 归现有 Navigation，只收件不激活；Actions 阶段由 `ProcessAuthorityOrders` 在当前 permit 下激活，动作交接原子；CT06 的全部提供者封桶与 root motion 全链尚未实现 |
 | 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可并做单圈归约；不新增第二核心 |
-| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；现有坐标/尺寸已获首轮批准，实际场景与资产仍需验证 |
-| AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；全部12个AI叶参数须落入唯一内容表 |
-| 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query/OnActionFinished、准入后Token、Prepare/ApplyBuildChange及CampReset；正文区分持久来源与独立已释放效果，不复用旧family-max |
+| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十点与局部槽区分；已批准的坐标/尺寸已生成 `L_Demo`，营地、观测与地面移动由 Camp、Vision、Core 场景覆盖 |
+| AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；AI 叶参数只在唯一内容表中定义 |
+| 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query、准入后Token、Prepare/ApplyBuildChange及营地回位重置（`FLDCampResetKey`）；正文区分持久来源与独立已释放效果，不复用旧family-max |
 | 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
 | UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
-| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；现有数值与精度已获2026-11-02用户批准，不是已生成运行输入或平衡通过 |
+| 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试及CB-D01–09退出闭包；现有数值与精度已获用户批准并生成运行输入，不是平衡测试结果 |
