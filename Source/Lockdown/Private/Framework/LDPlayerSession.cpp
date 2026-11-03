@@ -29,7 +29,7 @@ void ALDPlayerController::ReturnDemoToLobby()
     const auto* Public = GetWorld()->GetGameState<ALDGameState>();
     if (!Public || !Public->MatchResult.ResultId.IsValid() || Public->MatchResult.Generation != Public->DemoLobby.Generation)
     {
-        IntentFeedback = TEXT("No locked match result is available to leave.");
+        IntentFeedback = TEXT("没有已锁定的对局结果，无法带房间返回 Lobby。");
         ++IntentFeedbackSerial;
         return;
     }
@@ -41,7 +41,7 @@ void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool
     const auto* Public = GetWorld()->GetGameState<ALDGameState>();
     if (!Public || !Public->DemoLobby.Generation)
     {
-        IntentFeedback = TEXT("The Demo room has not finished loading.");
+        IntentFeedback = TEXT("房间尚未加载完成。");
         return;
     }
     if (DemoRequestGeneration != Public->DemoLobby.Generation)
@@ -51,12 +51,12 @@ void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool
     }
     if (DemoPendingSequence)
     {
-        IntentFeedback = TEXT("Wait for the pending room command to finish.");
+        IntentFeedback = TEXT("请等待上一个房间命令完成。");
         return;
     }
     if (DemoRequestSequence == MAX_uint64)
     {
-        IntentFeedback = TEXT("Room command sequence exhausted. Leave and create a new room.");
+        IntentFeedback = TEXT("房间命令编号已用尽，请离开并重新创建房间。");
         return;
     }
     FLDSessionRequest Request;
@@ -68,7 +68,7 @@ void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool
     Request.AICount = AICount;
     Request.ExpectedResult = ExpectedResult;
     DemoPendingSequence = Request.Key.RequestSequence;
-    IntentFeedback = TEXT("Room command pending...");
+    IntentFeedback = TEXT("房间命令处理中…");
     ServerDemoSessionCommand(Request);
 }
 
@@ -83,7 +83,7 @@ void ALDPlayerController::ServerDemoSessionCommand_Implementation(const FLDSessi
     {
         Receipt.Key = Request.Key;
         Receipt.Reason = ELDSessionReject::NotOwner;
-        Receipt.Detail = TEXT("No authoritative Demo room is available.");
+        Receipt.Detail = TEXT("没有可用的权威房间。");
     }
     ClientDemoSessionReceipt(Receipt);
 }
@@ -93,7 +93,7 @@ void ALDPlayerController::ClientDemoSessionReceipt_Implementation(const FLDSessi
     if (Receipt.Key.Generation != DemoRequestGeneration || Receipt.Key.RequestSequence != DemoPendingSequence) { return; }
     if (Receipt.Outcome == ELDSessionOutcome::Pending)
     {
-        IntentFeedback = TEXT("Room command pending...");
+        IntentFeedback = TEXT("房间命令处理中…");
         return;
     }
     DemoPendingSequence = 0;
@@ -109,4 +109,12 @@ void ALDPlayerController::ClientDemoRoomClosed_Implementation(uint32 Generation,
     ClearControls();
     if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ConnectionMessage = Reason; }
     ClientTravel(LDDemoEntry::FrontendMap, TRAVEL_Absolute);
+}
+
+void ALDPlayerController::ClientWasKicked_Implementation(const FText& KickReason)
+{
+    // Its PreLogin passed, but the room changed while it loaded; the coded refusal is its reason, not a lost session.
+    DemoPendingSequence = 0;
+    ClearControls();
+    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ReturnAfterRefusal(GetWorld(), KickReason.ToString()); }
 }

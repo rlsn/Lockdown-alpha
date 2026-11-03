@@ -19,4 +19,19 @@ namespace LDDemoEntry
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
     LOCKDOWN_API bool VerifyFileHash(const FString& File, const FString& ExpectedSHA256, FString& Error);
+
+    // A Host's PreLogin refusal reaches the joining client as "<Code>: <English detail>". The code is the stable
+    // contract: the client shows only the reason mapped from it, never the English detail or engine text.
+    namespace JoinRefusal
+    {
+        inline constexpr TCHAR RoomNotReady[] = TEXT("MissingDemoDefinition");
+        inline constexpr TCHAR MatchAlreadyStarted[] = TEXT("MatchAlreadyStarted");
+        inline constexpr TCHAR RoomFull[] = TEXT("RoomFull");
+        inline constexpr TCHAR ProtocolMismatch[] = TEXT("ProtocolMismatch");
+        inline constexpr TCHAR ProductMismatch[] = TEXT("ProductMismatch");
+        inline constexpr TCHAR ContentMismatch[] = TEXT("ContentMismatch");
+    }
+    LOCKDOWN_API FString MakeJoinRefusal(const TCHAR* Code, const TCHAR* Detail);
+    // True only for a known refusal code; OutReason is the player-facing reason naming that code.
+    LOCKDOWN_API bool DescribeJoinRefusal(const FString& ServerMessage, FString& OutReason);
 }

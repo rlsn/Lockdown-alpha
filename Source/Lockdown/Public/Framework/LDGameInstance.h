@@ -18,6 +18,9 @@ public:
     virtual void StartGameInstance() override;
     void RecordEntryRejectionBeforeWorld(const FString& URL, const FString& Reason);
     const FString& RejectedEntryURL() const { return LastRejectedEntryURL; }
+    // A refusal the Host sends after this client loaded the room (its final admission check): shows the coded reason
+    // and returns to the frontend.
+    void ReturnAfterRefusal(UWorld* World, const FString& ServerMessage);
     virtual void Init() override;
     virtual void Shutdown() override;
     ULDControlSettings* GetLocalControlSettings();
@@ -54,6 +57,8 @@ private:
     void NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkFailure::Type Type, const FString& Error);
     void TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString& Error);
     void ReturnAfterFailure(UWorld* World, const FString& Error);
+    // The room world being left after its first failure; later failures from it are consequences, not new reasons.
+    TWeakObjectPtr<UWorld> LeavingWorld;
     UPROPERTY(Transient) TObjectPtr<ULDControlSettings> LocalControlSettings;
     FLDLocalSettingsStorage IsolatedSettingsStorage;
     bool bUseIsolatedSettings = false;

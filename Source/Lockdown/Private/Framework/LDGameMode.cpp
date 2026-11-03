@@ -2,6 +2,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Region/LDMapRegistry.h"
 #include "Tests/LDDemoEntryProbe.h"
@@ -38,10 +39,62 @@ void ALDGameState::OnRep_PublicMatch()
 {
     FString Error;
     const auto Result=LDCapture::AcceptPublicMatchView(PublicMatch,LatestPublicMatch,Error);
-    if (Result==ELDLobbyProjectionResult::Accepted) { return; }
-    PublicMatch=LatestPublicMatch;
-    if (Result==ELDLobbyProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+    if (Result!=ELDLobbyProjectionResult::Accepted)
+    {
+        PublicMatch=LatestPublicMatch;
+        if (Result==ELDLobbyProjectionResult::Malformed)
+        { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+    }
+    SyncCaptureMarker();
+}
+
+void ALDGameState::SyncCaptureMarker()
+{
+    UWorld* World=GetWorld();
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+        ||PublicMatch.Phase==ELDMatchPhase::Results;
+    // The boundary belongs to the Demo world's presentation; fixture worlds without its registry show none.
+    const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    ALDCaptureMarker* Marker=CaptureMarker.Get();
+    // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))
+    {
+        Marker->Destroy();
+        Marker=nullptr;
+        CaptureMarker.Reset();
+    }
+    if (!bShow) { return; }
+    if (!Marker)
+    {
+        if (CaptureMarkerFailedGeneration==PublicMatch.Generation) { return; }
+        FString Error;
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        const auto* Registry=World->GetSubsystem<ULDMapRegistry>();
+        const FLDMapBinding* Capture=nullptr;
+        double RadiusCm=0;
+        if (!Registry||!Registry->Enabled()) { Error=TEXT("The Demo world registry is not loaded."); }
+        else if (LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
+        {
+            const FLDDemoRational& Radius=Content->Get().Parameters.CaptureRadiusCm;
+            RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
+            Capture=Registry->Resolve(FName(*Content->Get().World.CaptureId),Registry->Generation);
+            if (!Capture) { Error=TEXT("The registered world has no capture anchor."); }
+        }
+        FActorSpawnParameters Spawn;
+        Spawn.ObjectFlags|=RF_Transient;
+        Marker=Capture?World->SpawnActor<ALDCaptureMarker>(Spawn):nullptr;
+        if (Capture&&!Marker) { Error=TEXT("The flagpole boundary actor could not be spawned."); }
+        if (!Marker||!Marker->Build(Capture->Position,RadiusCm,PublicMatch.Generation,Error))
+        {
+            if (Marker) { Marker->Destroy(); }
+            CaptureMarkerFailedGeneration=PublicMatch.Generation;
+            UE_LOG(LogTemp,Error,TEXT("LD_CAPTURE_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+            return;
+        }
+        CaptureMarker=Marker;
+    }
+    Marker->ShowState(PublicMatch.CircleState);
 }
 
 void ALDGameState::OnRep_MatchResult()
@@ -156,20 +209,25 @@ void ALDGameMode::StartPlay()
 
 void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage)
 {
-    Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
-    if (!ErrorMessage.IsEmpty()) { return; }
-    if (!IsDemoRoom()) { ErrorMessage=TEXT("MissingDemoDefinition: this world is not an initialized Demo room."); return; }
-    if (!LDDemoEntry::ValidateSelection(GetWorld()->GetOutermost()->GetName(),Options,ErrorMessage)) { return; }
-    if (MatchPhase!=ELDMatchPhase::Lobby) { ErrorMessage=TEXT("MatchAlreadyStarted: mid-match joining and reconnecting are not supported."); return; }
-    if (Contenders.Num()>=3) { ErrorMessage=TEXT("RoomFull: the room already has three human players, including the Host."); return; }
-    if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(LDDemoEntry::WireProtocol))
-    { ErrorMessage=TEXT("ProtocolMismatch: use the same Demo network build as the Host."); return; }
+    using namespace LDDemoEntry;
+    // The Demo's own refusals run first and carry stable codes the client maps to its reason. The engine session's
+    // capacity check (MaxPlayers) would otherwise answer a full room with an uncoded "Server full.".
+    if (!IsDemoRoom())
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("this world is not an initialized Demo room.")); return; }
+    if (!ValidateSelection(GetWorld()->GetOutermost()->GetName(),Options,ErrorMessage)) { return; }
+    if (MatchPhase!=ELDMatchPhase::Lobby)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
+    if (Contenders.Num()>=3)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("the room already has three human players, including the Host.")); return; }
+    if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
     FString Version;
-    if (!LDDemoEntry::ReadProductVersion(Version,ErrorMessage)) { return; }
+    if (!ReadProductVersion(Version,ErrorMessage)) { return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDProduct"))!=Version)
-    { ErrorMessage=TEXT("ProductMismatch: use the same product version as the Host."); return; }
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProductMismatch,TEXT("use the same product version as the Host.")); return; }
     if (EntryCatalogDigest.IsEmpty() || UGameplayStatics::ParseOption(Options,TEXT("LDCatalog"))!=EntryCatalogDigest)
-    { ErrorMessage=TEXT("ContentMismatch: use the same approved Demo content as the Host."); }
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("use the same approved Demo content as the Host.")); return; }
+    Super::PreLogin(Options,Address,UniqueId,ErrorMessage);
 }
 
 void ALDGameMode::PostLogin(APlayerController* NewPlayer)
@@ -201,7 +259,7 @@ void ALDGameMode::Logout(AController* Exiting)
             for (const auto& Pair : Contenders)
             {
                 if (auto* Member=Pair.Key.Get(); Member && Member!=Controller)
-                { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("The Host left the room. Host migration is not supported.")); }
+                { Member->ClientDemoRoomClosed(MatchContext.Generation,TEXT("房主已离开，房间已关闭（不支持更换房主）。")); }
             }
             LobbyHost.Reset();
         }

@@ -10,22 +10,22 @@ namespace
     {
         switch (Reason)
         {
-        case ELDSessionReject::NotOwner: return TEXT("This connection is not a member of the room.");
-        case ELDSessionReject::NotHost: return TEXT("Only the Host can change AI slots, start, end or reset the match.");
-        case ELDSessionReject::WrongPhase: return TEXT("This room command is not available in the current phase.");
-        case ELDSessionReject::RoomFull: return TEXT("The room already has three human players, including the Host.");
-        case ELDSessionReject::NotAllReady: return TEXT("Every connected human player, including the Host, must be ready.");
-        case ELDSessionReject::StaleRoster: return TEXT("The room roster changed. Review it and ready again.");
-        case ELDSessionReject::StaleMatch: return TEXT("This request belongs to a different match.");
-        case ELDSessionReject::RequestConflict: return TEXT("This request ID was already used with different terms.");
-        case ELDSessionReject::RequestInFlight: return TEXT("Wait for the pending room command to finish.");
-        case ELDSessionReject::ReceiptExpired: return TEXT("This request is older than the retained receipt and will not execute again.");
-        case ELDSessionReject::MatchClosed: return TEXT("The match result is already locked.");
-        case ELDSessionReject::SpawnBlocked: return TEXT("The initial spawn could not be placed; the room returned to the Lobby.");
-        case ELDSessionReject::MissingDemoDefinition: return TEXT("The Demo match is not available in this build.");
-        case ELDSessionReject::AuthorityFault: return TEXT("The room stopped after an authority error. Return to the menu.");
+        case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
+        case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始或结束本局、带房间返回 Lobby。");
+        case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
+        case ELDSessionReject::RoomFull: return TEXT("房间已有 3 名真人（含房主）。");
+        case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");
+        case ELDSessionReject::StaleRoster: return TEXT("房间名单已变化，请确认后重新准备。");
+        case ELDSessionReject::StaleMatch: return TEXT("这个请求已不属于当前对局。");
+        case ELDSessionReject::RequestConflict: return TEXT("这个请求编号已用于不同的内容。");
+        case ELDSessionReject::RequestInFlight: return TEXT("请等待上一个房间命令完成。");
+        case ELDSessionReject::ReceiptExpired: return TEXT("这个请求早于已保留的回执，不会再次执行。");
+        case ELDSessionReject::MatchClosed: return TEXT("本局结果已锁定。");
+        case ELDSessionReject::SpawnBlocked: return TEXT("开局出生位置无法放置，房间已回到 Lobby。");
+        case ELDSessionReject::MissingDemoDefinition: return TEXT("当前版本无法开始 Demo 对局，房间已回到 Lobby。");
+        case ELDSessionReject::AuthorityFault: return TEXT("房间因权威错误已停止，请离开对局返回主菜单。");
         case ELDSessionReject::None: return TEXT("");
-        default: return TEXT("Invalid room command.");
+        default: return TEXT("无效的房间命令。");
         }
     }
 }
@@ -41,7 +41,7 @@ bool ALDGameMode::AdvanceRoster(FString& Reason)
     if (RosterRevision == MAX_uint64 || LobbyPublicRevision == MAX_uint64)
     {
         MatchPhase = ELDMatchPhase::Faulted;
-        Reason = TEXT("Room revision exhausted. Return to the menu before creating another room.");
+        Reason = TEXT("房间版本号已用尽，请返回主菜单后重新创建房间。");
         UE_LOG(LogTemp, Error, TEXT("LD_ROOM_REVISION_EXHAUSTED"));
         return false;
     }
@@ -64,13 +64,14 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     }
     if (MatchPhase != ELDMatchPhase::Lobby)
     {
-        Reason = TEXT("The match has already started. Mid-match joining and reconnecting are not supported.");
+        Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::MatchAlreadyStarted,
+            TEXT("The match has already started. Mid-match joining and reconnecting are not supported."));
         return false;
     }
     if (Contenders.Contains(Controller)) { return true; }
     if (Contenders.Num() >= 3)
     {
-        Reason = RejectionText(ELDSessionReject::RoomFull);
+        Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::RoomFull, *RejectionText(ELDSessionReject::RoomFull));
         return false;
     }
     if (!LobbyHost.IsValid() && !Controller->IsLocalController())
@@ -82,7 +83,7 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     if (!LobbyHost.IsValid()) { LobbyHost = Controller; }
     FLDContenderRecord Record;
     Record.Session = FGuid::NewGuid();
-    Record.Name = Controller->PlayerState ? Controller->PlayerState->GetPlayerName().Left(64) : TEXT("Player");
+    Record.Name = Controller->PlayerState ? Controller->PlayerState->GetPlayerName().Left(64) : TEXT("玩家");
     Record.State.Match = MatchContext.Generation;
     Record.State.Life = 0;
     Record.State.bActive = false;
@@ -132,7 +133,7 @@ FLDLobbyView ALDGameMode::ReadLobby() const
     {
         FLDLobbyMember Member;
         Member.ContenderId = LobbyAISlots[Index];
-        Member.Name = FString::Printf(TEXT("Opponent AI %d"), Index + 1);
+        Member.Name = FString::Printf(TEXT("AI 对手 %d"), Index + 1);
         Member.Kind = ELDContenderKind::OpponentAI;
         View.Members.Add(MoveTemp(Member));
     }
@@ -208,7 +209,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             Record->ReadyRosterRevision = RosterRevision;
             Receipt.Outcome = ELDSessionOutcome::Committed;
             Receipt.Reason = ELDSessionReject::None;
-            Receipt.Detail = Request.Ready ? TEXT("Ready.") : TEXT("Not ready.");
+            Receipt.Detail = Request.Ready ? TEXT("已准备。") : TEXT("已取消准备。");
         }
         else if (Request.Command == ELDSessionCommand::SetAICount)
         {
@@ -219,7 +220,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;
-                Receipt.Detail = Changed ? TEXT("AI slots updated. All human players must ready again.") : TEXT("AI slots unchanged.");
+                Receipt.Detail = Changed ? TEXT("AI 对手数量已更新，所有真人需要重新准备。") : TEXT("AI 对手数量未变化。");
             }
             else { Receipt.Reason = ELDSessionReject::AuthorityFault; }
         }
@@ -252,7 +253,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             {
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;
-                Receipt.Detail = TEXT("The Host ended the match without a winner.");
+                Receipt.Detail = TEXT("房主结束了本局，没有胜者。");
                 PublishOutcome = true;
             }
         }
@@ -269,7 +270,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             {
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;
-                Receipt.Detail = TEXT("The room returned to the Lobby for a new match.");
+                Receipt.Detail = TEXT("房间已回到 Lobby，可以准备新的一局。");
             }
         }
         else { Receipt.Reason = ELDSessionReject::InvalidRequest; }

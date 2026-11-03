@@ -30,6 +30,8 @@ public:
     UFUNCTION(Server,Reliable) void ServerDemoSessionCommand(const FLDSessionRequest& Request);
     UFUNCTION(Client,Reliable) void ClientDemoSessionReceipt(const FLDSessionReceipt& Receipt);
     UFUNCTION(Client,Reliable) void ClientDemoRoomClosed(uint32 Generation,const FString& Reason);
+    // The Host's final admission check kicks a joiner that lost the race to the match start or the last slot.
+    virtual void ClientWasKicked_Implementation(const FText& KickReason) override;
     void ClearControls(bool LifeChanged=false);
     bool CanWorldCommand() const;
     bool NavigationBindingsActive() const { return bNavigationContextActive; }
