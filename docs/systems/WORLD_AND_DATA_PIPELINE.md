@@ -253,15 +253,37 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 资产经 `DirectoriesToAlwaysCook` 进入包。
 
 `ULDArtSubsystem` 在游戏实例启动时解析目录一次；缺失或不完整时记录 `LD_ART_CATALOG_INVALID` 并返回空，
-不用占位身体。身体接线读取 `ForSeat`/`ForMonster`，座位色仍由 `ULDHumanoidVisualComponent::ContenderTint`
-唯一定义，目录只给着色槽。`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`：
+不用占位身体；身体接线拿不到条目时记录 `LD_BODY_ART_UNAVAILABLE` 且不绘制。
+
+身体：参赛者六个座位共用 Quaternius `Casual_2`（显示身高 175 cm），纪律委员（`monster_scavenger`）用女装
+`Suit`（170 cm），体育老师（`monster_guardian`）用 `Casual_Hoodie`（205 cm）。只改显示，不改胶囊
+（半径 40、半高 90）。目录给出每个身体的 `MeshTransform`（缩放 = 显示身高 / 绑定姿势身高，偏航由清单的
+朝向骨骼算出、使模型正前方对齐 +X，脚底落在胶囊底面）、`TintSlots`（着色材质槽）、`HandBone`（`Wrist_R`）与 `RunSpeedCmPerSec`
+（Run 播放速率 = 移动速度 / 该值）。Interchange 把 glTF 骨骼名中的 `.` 换成 `_`。
+座位色和野怪色由 `ULDHumanoidVisualComponent` 唯一定义，经 `Tint` 写入目录列出的槽。
+状态动画均为原地播放、无根运动：Idle、Run、Attack = `Punch_Right`、Cast = `Interact`、Hit = `HitRecieve`
+（加速到 0.3 s 内）、Death、Spawn = `Wave`；包内没有对应动作的状态用相近动画替代，替代理由写在清单
+`substitute` 字段，出手时刻写在 `impact_sec`。
+
+装饰：`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`
+（成功 `LD_ART_DECORATIONS_READY`，失败 `LD_ART_DECORATIONS_UNAVAILABLE` 且不生成）：
 不复制、不保存，全部实例无碰撞、不产生重叠、对所有通道 Ignore、不影响导航，
-因此不改变 D02 的墙体、视线与 navmesh。`LDArt::CheckPlacements` 按已批准世界逐个核对区域：
-`outside` 不压场地地面；`wall_base` 在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、
-商店与升旗台；`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位）。
-清单中标 `fadeable` 的道具（目前只有旗杆）使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，强度默认 0.9），
-由独立组件承载并带组件标签 `LDFadeable`，HUD 遮挡时经 MID 设置 `LDFade`（0 不透明、1 最淡）。
+因此不改变 D02 的墙体、视线与 navmesh。生成后按整个碰撞响应容器核对全部 Ignore；
+不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
+`LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
+`outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
+`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与升旗台；
+`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位），小卖部高度不超过 150 cm，
+以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
+清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
+强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`，HUD 遮挡时经 MID 设置 `LDFade`（0 不透明、1 最淡）。
 没有找到 CC0 的篮球架，未加入。
+
+母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 由导入器在 C++ 中一次性创建；commandlet
+重新加载时其节点图为空，导入器因此从不重新保存已存在的母材质。要修改母材质，先删除对应 `.uasset`，
+再运行 `ImportDemoArt.ps1 -Mode Import` 重建。`Scripts\CaptureDemoArt.ps1`（DEV `-LDDemoArtCapture`）
+渲染身体、动画姿势、场地俯视与路线遮挡扫描，`Scripts\DrawDemoArtLayout.py` 画出道具布局图；输出在
+`Artifacts`。原始下载包不入库。
 
 ## 营地与占领的复用边界
 
