@@ -343,6 +343,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Baseline mutation frame encodes"), Encodes(Mutated([](FLDWorldView&) {})));
     TestFalse(TEXT("Unknown schema refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = LDObservation::Schema + 1; })));
     TestFalse(TEXT("The retired schema 1 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 1; })));
+    TestFalse(TEXT("The retired schema 2 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 2; })));
     TestFalse(TEXT("Capacity is never truncated"), Encodes(Mutated([](FLDWorldView& V)
     { while (V.Units.Num() <= LDObservation::MaxUnits) { V.Units.Add(ContenderUnit()); } })));
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
@@ -456,7 +457,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ActionEquipment"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look")});
@@ -901,9 +902,10 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionCueAgeMs = 180;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
+    View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues and their ages round-trip"), Wire(View, Read) && Read.Units.Num() == 2
-        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
+        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7 && Read.Units[0].ActionEquipment == 0
         && Read.Units[1].ActionCue == ELDObservedActionCue::Hit && Read.Units[1].ActionCueAgeMs == 40);
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
@@ -919,6 +921,17 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
+    // A cast may name its one public source at that moment (user-approved CB-P10 amendment); nothing else may.
+    FLDObservedUnitView Named = ContenderUnit();
+    Named.ActionCue = ELDObservedActionCue::Cast;
+    Named.ActionCueAgeMs = 30;
+    Named.ActionEquipment = 3;
+    TestTrue(TEXT("A cast may name one equipment source"), LDObservation::ValidateUnit(Named, Error));
+    Named.ActionAbility = 7;
+    TestFalse(TEXT("A cast names at most one source"), LDObservation::ValidateUnit(Named, Error));
+    Named.ActionEquipment = 0;
+    Named.ActionCue = ELDObservedActionCue::Attack;
+    TestFalse(TEXT("Only a cast names a source"), LDObservation::ValidateUnit(Named, Error));
     for (uint8 Seat = 0; Seat < LDObservation::MaxPresentations; ++Seat)
     {
         FLDObservedUnitView Unit = ContenderUnit();
@@ -1096,5 +1109,24 @@ bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
     return true;
 }
-} // namespace LDDemoVisionTests
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPropFadeTest, "Lockdown.Rules.DemoVision.PropFade",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
+{
+    // A thin pole at the origin, 600 cm tall; the camera looks down from behind it at -60 degrees.
+    const FBox Pole(FVector(-15, -15, 0), FVector(15, 15, 600));
+    const FVector Camera(-1000, 0, 1500);
+    TestTrue(TEXT("A pole between the camera and a body's chest occludes it"), LDPropFade::Occludes(Pole, Camera, FVector(300, 0, 90)));
+    TestFalse(TEXT("A pole beside the line does not"), LDPropFade::Occludes(Pole, Camera, FVector(300, 600, 90)));
+    TestFalse(TEXT("A body in front of the pole is not hidden by it"), LDPropFade::Occludes(Pole, Camera, FVector(-400, 0, 90)));
+    TestFalse(TEXT("An unset prop never occludes"), LDPropFade::Occludes(FBox(ForceInit), Camera, FVector(300, 0, 90)));
+    float Fade = 0.f;
+    Fade = LDPropFade::Step(Fade, true, .1f);
+    TestTrue(TEXT("Fading in is gradual"), Fade > 0.f && Fade < 1.f);
+    Fade = LDPropFade::Step(Fade, true, 1.f);
+    TestTrue(TEXT("Fading in stops at full"), Fade == 1.f);
+    Fade = LDPropFade::Step(Fade, false, 1.f);
+    TestTrue(TEXT("Clearing the line fades back to opaque"), Fade == 0.f);
+    return true;
+}} // namespace LDDemoVisionTests
 #endif

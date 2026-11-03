@@ -133,6 +133,9 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         Section(Content,TEXT("按键"));
         auto* KeyButtons=WidgetTree->ConstructWidget<UWrapBox>();KeyButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(KeyButtons);
         KeyButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("恢复默认按键"),[this](){ChangePreference([](auto& S){S.ResetBindings();});},false,TEXT("ResetBindings")));
+        // Quick cast (off by default): a skill key casts at the pointed unit or toward the pointer at once; Combat falls back
+        // to arming when no unit is pointed.
+        KeyButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("快速施法 开/关"),[this](){ChangePreference([](auto& S){S.bQuickCast=!S.bQuickCast;});},false,TEXT("ToggleQuickCast")));
         Rows=WidgetTree->ConstructWidget<UVerticalBox>();Content->AddChildToVerticalBox(Rows);
         Section(Content,TEXT("镜头 / 文字"));
         auto* CameraButtons=WidgetTree->ConstructWidget<UWrapBox>();CameraButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(CameraButtons);
@@ -180,7 +183,7 @@ void ULDControlsPanel::PopulatePreferences()
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;const int32 Volume=FMath::RoundToInt(100*Applied.MasterVolume);
     const float Pan=Applied.GetCameraPanCmPerSec();
     const ELDMinimapOrientation Orientation=Applied.GetMinimapOrientation();const FString OrientationName=ULDControlSettings::MinimapOrientationLabel(Orientation);
-    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 小地图朝向 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,*OrientationName,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
+    Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：快速施法 %s · 边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 小地图朝向 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bQuickCast),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,*OrientationName,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
     VolumeLabel->SetText(FText::FromString(FString::Printf(TEXT("主音量 %d%%"),Volume)));
     PanSpeedLabel->SetText(FText::FromString(FString::Printf(TEXT("镜头平移速度 %.0f cm/s"),Pan)));
     ControlsSetButton(WidgetTree,TEXT("SlowerCameraPan"),FString::Printf(TEXT("减慢 %.0f cm/s"),ControlsPanStepCmPerSec),Pan>ULDControlSettings::MinCameraPanCmPerSec);

@@ -25,6 +25,7 @@ namespace LDHUD
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString EquipmentName(const FLDDemoContentDefinitions* Content,uint8 EquipmentId);
+    LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
     LOCKDOWN_API FString RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId);
     // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
@@ -81,6 +82,11 @@ namespace LDHUD
     };
     // Public capture state (APP_SPEC 2.2). Reaching zero only waits for the authority; it never announces a winner.
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs);
+    // The one most useful next step for the own player, shown under the public capture line: a pending growth choice,
+    // then the open capture point, then the dearest approved item the own gold buys while a slot is empty, then early
+    // farming. Own projections, the public match and approved prices only; never a hidden unit or another wallet.
+    // Empty when nothing applies or the match is not running.
+    LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
     struct FKillFeedLineView

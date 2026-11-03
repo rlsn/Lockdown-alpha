@@ -143,7 +143,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 9;
+    static constexpr int32 CurrentSchema = 10;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -163,6 +163,9 @@ public:
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
     // Minimap presentation only; it never changes what the minimap may show. The Camera default is the user's decision.
     UPROPERTY(SaveGame) ELDMinimapOrientation MinimapOrientation=ELDMinimapOrientation::Camera;
+    // Quick cast (off by default, CONTROLS 3): Combat casts a unit skill at the pointed visible unit and a direction skill
+    // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
+    UPROPERTY(SaveGame) bool bQuickCast=false;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -176,6 +179,7 @@ public:
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
     bool SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error);
     ELDMinimapOrientation GetMinimapOrientation() const { return MinimapOrientation; }
+    bool GetQuickCast() const { return bQuickCast; }
     // Player-facing name of an orientation (跟随镜头 / 跟随角色朝向 / 固定正北); empty for any other value.
     static FString MinimapOrientationLabel(ELDMinimapOrientation Value);
     void SetAppliedFollowing(bool Value);

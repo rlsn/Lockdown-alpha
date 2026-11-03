@@ -64,6 +64,32 @@ FString LDHUD::EquipmentName(const FLDDemoContentDefinitions* Content,uint8 Equi
     if(Content){if(const auto* Item=Content->Equipment.FindByPredicate([EquipmentId](const FLDDemoEquipmentDefinition& E){return E.NativeId==EquipmentId;})){return ContentName(Content,Item->Id);}}
     return FString::Printf(TEXT("未知装备 #%d"),EquipmentId);
 }
+FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content)
+{
+    if(Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
+    const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
+    if(bGrowth&&Progression->PendingChoiceCount>0){return FString::Printf(TEXT("下一步：选择成长 ×%d（点技能栏上方的金色提示）"),int32(Progression->PendingChoiceCount));}
+    if(Public.Phase==ELDMatchPhase::CaptureOpen)
+    {
+        if(Public.CircleState==ELDCircleState::Solo&&Self.IsValid()&&Public.Occupier==Self){return TEXT("坚持住：你正在占领升旗台");}
+        return TEXT("下一步：升旗台已开放，去中心抢圈");
+    }
+    const bool bWallet=Equipment&&Equipment->bValid&&Equipment->Generation==Public.Generation;
+    if(bWallet&&Content&&Equipment->Slots.ContainsByPredicate([](const FLDEquipmentSlotView& Slot){return !Slot.bOccupied;}))
+    {
+        const FLDDemoEquipmentDefinition* Best=nullptr;
+        for(const FLDDemoEquipmentDefinition& Item:Content->Equipment)
+        {if(Item.BuyPrice>0&&Item.BuyPrice<=Equipment->Gold&&(!Best||Item.BuyPrice>Best->BuyPrice)){Best=&Item;}}
+        if(Best){return TEXT("下一步：零花钱够买「")+ContentName(Content,Best->Id)+TEXT("」，去小卖部");}
+    }
+    if(bGrowth&&Progression->Level<=1){return TEXT("下一步：去打附近的野怪拿经验和零花钱（右键攻击）");}
+    return FString();
+}
+FString LDHUD::AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId)
+{
+    if(Content){if(const auto* Ability=Content->Abilities.FindByPredicate([AbilityId](const FLDDemoAbilityDefinition& A){return A.NativeId==AbilityId;})){return ContentName(Content,Ability->Id);}}
+    return FString::Printf(TEXT("未知技能 #%d"),AbilityId);
+}
 FString LDHUD::RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId)
 {
     const FLDLobbyMember* Member=ContenderId.IsValid()?Lobby.Members.FindByPredicate([&ContenderId](const FLDLobbyMember& M){return M.ContenderId==ContenderId;}):nullptr;

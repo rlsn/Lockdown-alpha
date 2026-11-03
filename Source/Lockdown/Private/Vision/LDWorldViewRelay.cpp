@@ -17,6 +17,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Camera/PlayerCameraManager.h"
 
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
@@ -30,6 +32,7 @@ bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& E
     MaxLevel = uint8(Definitions.Progression.MaxLevel);
     for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment) { Equipment.Add(Item.NativeId); }
     for (const FLDDemoMonsterDefinition& Monster : Definitions.Monsters) { Creatures.Add(Monster.NativeId); }
+    for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities) { Abilities.Add(Ability.NativeId); }
     Error.Reset();
     return true;
 }
@@ -48,6 +51,11 @@ bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error
             Error = TEXT("Observed equipment is not an approved public definition.");
             return false;
         }
+    }
+    if ((Unit.ActionAbility != 0 && !Abilities.Contains(Unit.ActionAbility)) || (Unit.ActionEquipment != 0 && !Equipment.Contains(Unit.ActionEquipment)))
+    {
+        Error = TEXT("Observed cast source is not an approved public definition.");
+        return false;
     }
     if (Unit.Kind == ELDObservedUnitKind::CampMember && !Creatures.Contains(Unit.CreatureId))
     {
@@ -245,6 +253,23 @@ double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, doubl
     return FMath::Min(Candidate, Offset + FMath::Max(0.0, SecondsSinceUpdate) * OffsetGrowthPerSecond);
 }
 
+bool LDPropFade::Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target)
+{
+    if (!Bounds.IsValid) { return false; }
+    const FVector Span = Target - Camera;
+    const double Length = Span.Size();
+    if (Length <= TargetClearCm) { return false; }
+    const FVector Direction = Span / Length;
+    const FVector End = Target - Direction * TargetClearCm;
+    return FMath::LineBoxIntersection(Bounds.ExpandBy(BoundsSlackCm), Camera, End, End - Camera);
+}
+
+float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
+{
+    const float Move = FadePerSecond * FMath::Max(DeltaSeconds, 0.f);
+    return bOccluding ? FMath::Min(1.f, Current + Move) : FMath::Max(0.f, Current - Move);
+}
+
 ALDObservedEntityProxy::ALDObservedEntityProxy()
 {
     bReplicates = false;
@@ -291,8 +316,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
         if (bCamp) { Body->ApplyMonsterLook(Unit.CreatureId); }
         else { Body->ApplyPalette(Unit.Presentation); }
     }
-    const double Scale = !bCamp ? 1.0 : Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian) ? 1.3 : .8;
-    Body->SetRelativeScale3D(FVector(Scale));
+    // Body height comes from the art catalog's mesh transform (Combat's visual); the proxy never rescales it.
 }
 
 void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
@@ -781,4 +805,82 @@ void ALDWorldViewRelay::Tick(float Delta)
     else { UploadFog(); }
     PresentProxies(Delta);
     BlendFog(Delta);
+    FadeOccludingProps(*Owning, Delta);
+}
+
+void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, float Delta)
+{
+    UWorld* World = GetWorld();
+    const double Now = FPlatformTime::Seconds();
+    // Decorations are spawned locally once per world; a slow rescan picks up a rebuilt set without a per-frame search.
+    if (FadeablesScannedAt < 0 || Now - FadeablesScannedAt > 2.0)
+    {
+        FadeablesScannedAt = Now;
+        TArray<UPrimitiveComponent*> Found;
+        for (TActorIterator<AActor> It(World); It; ++It)
+        {
+            TInlineComponentArray<UPrimitiveComponent*> Primitives(*It);
+            for (UPrimitiveComponent* Primitive : Primitives) { if (Primitive && Primitive->ComponentHasTag(LDPropFade::Tag)) { Found.Add(Primitive); } }
+        }
+        FadeableProps.RemoveAll([&Found](const FFadeableProp& Prop) { return !Prop.Primitive.IsValid() || !Found.Contains(Prop.Primitive.Get()); });
+        for (UPrimitiveComponent* Primitive : Found)
+        {
+            if (!FadeableProps.ContainsByPredicate([Primitive](const FFadeableProp& Prop) { return Prop.Primitive.Get() == Primitive; }))
+            { FFadeableProp& Prop = FadeableProps.AddDefaulted_GetRef(); Prop.Primitive = Primitive; }
+        }
+    }
+    if (FadeableProps.IsEmpty()) { return; }
+    // Targets: the own living body and every unit presented right now (head and chest), never a hidden or stale one.
+    TArray<FVector, TInlineAllocator<34>> Targets;
+    const APawn* Own = Owning.OwnerState.LifePhase == ELDLifePhase::Alive ? Owning.GetPawn().Get() : nullptr;
+    if (Own) { Targets.Add(Own->GetActorLocation()); Targets.Add(Own->GetActorLocation() + FVector(0, 0, 70)); }
+    for (const auto& Pair : Proxies)
+    {
+        if (!IsValid(Pair.Value)) { continue; }
+        Targets.Add(Pair.Value->GetActorLocation());
+        Targets.Add(Pair.Value->GetActorLocation() + FVector(0, 0, 70));
+    }
+    const FVector Camera = Owning.PlayerCameraManager ? Owning.PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
+    for (FFadeableProp& Prop : FadeableProps)
+    {
+        UPrimitiveComponent* Primitive = Prop.Primitive.Get();
+        if (!Primitive) { continue; }
+        if (!Prop.bResolved)
+        {
+            // The fade needs the material's LDFade parameter; without it the prop hides while it occludes instead.
+            Prop.bResolved = true;
+            if (UMeshComponent* Mesh = Cast<UMeshComponent>(Primitive))
+            {
+                float Value = 0;
+                bool bAll = Mesh->GetNumMaterials() > 0;
+                for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
+                {
+                    UMaterialInterface* Material = Mesh->GetMaterial(Index);
+                    bAll &= Material && Material->GetScalarParameterValue(FHashedMaterialParameterInfo(LDPropFade::Parameter), Value);
+                }
+                if (bAll)
+                {
+                    for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index) { Prop.Materials.Add(Mesh->CreateDynamicMaterialInstance(Index)); }
+                }
+                Prop.bParameter = bAll;
+            }
+            if (!Prop.bParameter)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
+                    *Primitive->GetPathName());
+            }
+        }
+        bool bOccluding = false;
+        const FBox Bounds = Primitive->Bounds.GetBox();
+        for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Bounds, Camera, Target)) { bOccluding = true; break; } }
+        const float Next = LDPropFade::Step(Prop.Fade, bOccluding, Delta);
+        if (Next == Prop.Fade && Prop.bResolved && (Next == 0.f || Next == 1.f) && Prop.bParameter) { continue; }
+        Prop.Fade = Next;
+        if (Prop.bParameter)
+        {
+            for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)
+            { if (UMaterialInstanceDynamic* Dynamic = Material.Get()) { Dynamic->SetScalarParameterValue(LDPropFade::Parameter, Prop.Fade); } }
+        }
+        else if (Primitive->bHiddenInGame != (Prop.Fade > .5f)) { Primitive->SetHiddenInGame(Prop.Fade > .5f); }
+    }
 }

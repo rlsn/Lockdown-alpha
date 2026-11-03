@@ -100,12 +100,13 @@ namespace
     // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
     constexpr uint32 RetiredRegistrySchema = 4;
     // Schema 5 is the whitelist without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation; schema 6 adds
-    // PlayerName, schema 7 MasterVolume and schema 8 CameraPanCmPerSec. All four are migrated explicitly, keep the default
+    // PlayerName, schema 7 MasterVolume, schema 8 CameraPanCmPerSec and schema 9 MinimapOrientation (QuickCast is new in
     // of every preference they lack and are rewritten as the current schema on the next verified save.
     constexpr uint32 NamelessSchema = 5;
     constexpr uint32 VolumelessSchema = 6;
     constexpr uint32 PanlessSchema = 7;
     constexpr uint32 OrientationlessSchema = 8;
+    constexpr uint32 QuickCastlessSchema = 9;
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -366,6 +367,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     MasterVolume = Other.MasterVolume;
     CameraPanCmPerSec = Other.CameraPanCmPerSec;
     MinimapOrientation = Other.MinimapOrientation;
+    bQuickCast = Other.bQuickCast;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -508,6 +510,7 @@ void ULDControlSettings::ResetLocalDefaults()
     MasterVolume = CurrentDefaults->MasterVolume;
     CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
     MinimapOrientation = CurrentDefaults->MinimapOrientation;
+    bQuickCast = CurrentDefaults->bQuickCast;
     ResetBindings();
 }
 
@@ -546,7 +549,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
     const bool Migrating = Magic == LocalSettingsMagic
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
-            || SavedSchema == OrientationlessSchema);
+            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -554,7 +557,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
 
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
-    uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation);
+    uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
     int32 Count = 0;
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
@@ -562,17 +565,20 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     // Schema 6 added the player name, schema 7 the master volume, schema 8 the camera pan speed and schema 9 the minimap
     // orientation, each between the preferences and the binding list; an older layout leaves every later field at its default.
     if (SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema
-        || SavedSchema == CurrentSchema) { Reader << SavedName; }
-    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->MasterVolume; }
-    if (SavedSchema == OrientationlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
-    if (SavedSchema == CurrentSchema) { Reader << Orientation; }
+        || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
+    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema)
+    { Reader << Settings->MasterVolume; }
+    if (SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
+    if (SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Orientation; }
+    if (SavedSchema == CurrentSchema) { Reader << Quick; }
     Reader << Count;
-    if (Reader.IsError() || Edge > 1 || Follow > 1 || Count < 0 || Count > MaxBindingCount)
+    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
     if (SavedName.Len() != FCString::Strlen(*SavedName))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
     Settings->bEdgePan = Edge != 0;
     Settings->bStartFollowing = Follow != 0;
+    Settings->bQuickCast = Quick != 0;
     Settings->PlayerName = SavedName;
     // Kept as stored: an unsupported value is rejected by the preference validation below, like an out-of-range zoom.
     Settings->MinimapOrientation = static_cast<ELDMinimapOrientation>(Orientation);
@@ -612,10 +618,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5/6/7/8 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–9 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
-        const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”");
+        const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
         const FString PanDefault = FString::Printf(TEXT("镜头平移速度使用默认值 %.0f cm/s，"), Settings->CameraPanCmPerSec) + OrientationDefault;
         const FString Message = SavedSchema == NamelessSchema
             ? TEXT("已从旧版本设置迁移：按键、镜头与文字偏好已保留，下次保存时写入新格式。主音量使用默认值 100%，") + PanDefault
@@ -624,8 +630,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头与文字偏好已保留，主音量使用默认值 100%，") + PanDefault + TEXT("，下次保存时写入新格式。")
             : SavedSchema == PanlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字与主音量偏好已保留，") + PanDefault + TEXT("，下次保存时写入新格式。")
-            : TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度）、文字与主音量偏好已保留，") + OrientationDefault
-                + TEXT("，下次保存时写入新格式。");
+            : SavedSchema == OrientationlessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度）、文字与主音量偏好已保留，") + OrientationDefault
+                + TEXT("，下次保存时写入新格式。")
+            : TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。");
         return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
@@ -642,13 +650,13 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
     // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
-    // minimap orientation, binding count, bindings.
+    // minimap orientation, quick cast, binding count, bindings.
     FBufferArchive Payload;
-    uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation);
+    uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

@@ -458,4 +458,34 @@ bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Only a contender kill can credit the player"),!Shown.bSelf&&Shown.Text==TEXT("丙 被体育老师送去社死"));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDNextStepTest,"Lockdown.Rules.HUDNextStep",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
+{
+    HudRegisterFixtureTable();
+    ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
+    FLDDemoContentDefinitions Content=HudFixtureContent();
+    for(FLDDemoEquipmentDefinition& Item:Content.Equipment){Item.BuyPrice=300;}
+    const FGuid Self=FGuid::NewGuid();
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=4;Growth.Level=1;
+    FLDEquipmentView Wallet;Wallet.bValid=true;Wallet.Generation=4;Wallet.Gold=150;
+    for(uint8 Index=0;Index<2;++Index){FLDEquipmentSlotView Slot;Slot.SlotIndex=Index;Wallet.Slots.Add(Slot);}
+    auto Step=[&](){return LDHUD::NextStep(Public,Self,&Growth,&Wallet,&Content);};
+    TestEqualSensitive(TEXT("A fresh contender is pointed at the camps"),Step(),FString(TEXT("下一步：去打附近的野怪拿经验和零花钱（右键攻击）")));
+    Wallet.Gold=320;
+    TestEqualSensitive(TEXT("Affordable gear for an empty slot names the approved item"),Step(),FString(TEXT("下一步：零花钱够买「《五年挨打三年模拟》」，去小卖部")));
+    Wallet.Slots[0].bOccupied=true;Wallet.Slots[1].bOccupied=true;Growth.Level=3;
+    TestTrue(TEXT("Full slots and a grown contender need no hint"),Step().IsEmpty());
+    Growth.PendingChoiceCount=2;
+    TestEqualSensitive(TEXT("A pending growth choice comes first"),Step(),FString(TEXT("下一步：选择成长 ×2（点技能栏上方的金色提示）")));
+    Growth.PendingChoiceCount=0;Public.Phase=ELDMatchPhase::CaptureOpen;
+    TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步：升旗台已开放，去中心抢圈")));
+    Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
+    TestEqualSensitive(TEXT("The own occupation is encouraged instead"),Step(),FString(TEXT("坚持住：你正在占领升旗台")));
+    Public.Phase=ELDMatchPhase::Results;
+    TestTrue(TEXT("Outside a running match there is no hint"),Step().IsEmpty());
+    Public.Phase=ELDMatchPhase::Development;Growth.Generation=3;Wallet.Generation=3;Wallet.Slots[0].bOccupied=false;
+    TestTrue(TEXT("Projections of another match never give a hint"),Step().IsEmpty());
+    return true;
+}
 #endif
