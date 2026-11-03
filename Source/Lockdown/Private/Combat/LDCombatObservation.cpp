@@ -19,15 +19,22 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
     return Facts;
 }
 
-void ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut) const
+bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut, FString& Error) const
 {
     InOut.ActionCue=ELDObservedActionCue::None;
     InOut.ActionCueAtMs=0;
     const FLDBodyCombatState* State=StateFor(&Body);
-    if (!State || State->bPendingDeath) { return; }
+    if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
+    uint8 Ability=0, Equipment=0;
+    if (!ObservedCastSource(Body,NowMs,Ability,Equipment))
+    {
+        Error=TEXT("The visible cast has no approved ability or gear source.");
+        return false;
+    }
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
+    return true;
 }
 
 bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const

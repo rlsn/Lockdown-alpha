@@ -184,7 +184,8 @@ public:
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // Action cue of a registered body at NowMs (LDCombatCues); None after a lethal hit (LDCombatObservation.cpp).
-    void AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut) const;
+    // Fails (with Error) when a visible cast has no approved source, so the publication fails rather than hiding it.
+    bool AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut, FString& Error) const;
     // The approved native ids of the cast the body's visible Cast cue shows at NowMs (Q/W ability or gear active, dash
     // included); both zero when no Cast cue shows. Fails only when a cast source has no approved definition.
     bool ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const;

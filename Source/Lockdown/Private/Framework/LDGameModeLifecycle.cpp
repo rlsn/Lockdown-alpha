@@ -369,7 +369,7 @@ bool ALDGameMode::ReadObservedPublicFacts(const FLDMatchContext& Match, const FL
     }
     // Root and Shield cues are derived from the live Combat state at this read, like protection.
     Combat->AppendObservedStatuses(*Actor,AuthorityNowMs,Candidate.Statuses);
-    Combat->AppendObservedAction(*Actor,AuthorityNowMs,Candidate);
+    if (!Combat->AppendObservedAction(*Actor,AuthorityNowMs,Candidate,Error)) { return false; }
     if (Body.Victim.Kind==ELDVictimKind::Contender && AuthorityNowMs<Life->ProtectedUntilMs)
     {
         Candidate.Statuses.Add({Protection,1,Life->ProtectedUntilMs});
