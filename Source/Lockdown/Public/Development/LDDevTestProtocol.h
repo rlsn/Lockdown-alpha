@@ -25,6 +25,13 @@ enum class ELDDevTestOp : uint8
     RefillResources = 3,
     // Amount == 0: every cooldown track of the caller (Q/W and gear, bound or debt) ready at the commit boundary.
     ResetCooldowns = 4,
+    // Definition = a skill or attribute card id: consumed as the head opportunity's choice, as if it had been offered.
+    // It must be a legal option of the current build; Slot 1/2 confirms replacing the active in Q/W, 0 replaces nothing.
+    LearnOption = 5,
+    // Definition = an item id, Slot 0: one Buy at the catalog price without a shop session or reach.
+    BuyItem = 6,
+    // Slot 1/2, no Definition: one Sell of the item in that equipment slot at the catalog price.
+    SellItem = 7,
 };
 
 USTRUCT()
@@ -37,6 +44,8 @@ struct LOCKDOWN_API FLDDevTestCommand
     UPROPERTY() uint64 RequestId = 0;
     UPROPERTY() ELDDevTestOp Op = ELDDevTestOp::None;
     UPROPERTY() int64 Amount = 0;
+    UPROPERTY() FLDDefinitionWire Definition;
+    UPROPERTY() uint8 Slot = 0;
 
     bool SameTerms(const FLDDevTestCommand& Other) const;
 };
@@ -63,6 +72,8 @@ struct LOCKDOWN_API FLDDevTestReceipt
     UPROPERTY() FLDDevTestReceiptHeader Header;
     UPROPERTY() ELDDevTestOp Op = ELDDevTestOp::None;
     UPROPERTY() int64 Amount = 0;
+    UPROPERTY() FName Definition;
+    UPROPERTY() uint8 Slot = 0;
     // Human-readable committed result or refusal, for the DEV console and log only.
     UPROPERTY() FString Detail;
 };
@@ -91,7 +102,9 @@ namespace LDDevTest
 {
     LOCKDOWN_API bool IsKnownOp(ELDDevTestOp Op);
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
-    // Request shape only: a known op, a non-zero request id and the op's amount domain (grants > 0, others == 0).
+    // Request shape only: a known op, a non-zero request id and the op's domain: grants an amount > 0 and nothing else;
+    // LearnOption a definition and slot 0..2; BuyItem a definition and slot 0; SellItem slot 1..2 and no definition;
+    // refill and reset nothing.
     // Context (match, life, permit) is checked by admission and the commit.
     LOCKDOWN_API ELDGrowthReason ValidateShape(const FLDDevTestCommand& Command);
     // Admission answer for a command refused before it reached a request stream.

@@ -2201,6 +2201,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Mode->Economy = Economy;
     Mode->Development = Development;
     Mode->Vendor = Vendor;
+    Mode->DemoContent = Catalog;
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
     const FGuid Tester(0xD7, 0, 0, 0x10);
     const FGuid Leaver(0xD7, 0, 0, 0x20);
@@ -2235,11 +2236,11 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Debt.ReadyAtMs = 0;
     World->Tick(LEVELTICK_TimeOnly, .025f);
 
-    // One 25 ms tick of native time; every boundary below advances 2 ms inside it.
+    // One 25 ms tick of native time; every boundary below advances 1 ms inside it.
     int64 StepAtMs = 0;
     const auto RunTransactions = [&]()
     {
-        StepAtMs += 2;
+        StepAtMs += 1;
         Error.Reset();
         const ELDCommitReject Begin = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs);
         if (Begin != ELDCommitReject::None)
@@ -2365,9 +2366,76 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         && LDGrowthWire::Reason(Receipt->Header.Reason) == ELDGrowthReason::LeftMatch);
     TestEqual(TEXT("The leaver's account received nothing"), Gold(Leaver), LeaverGold);
 
+    // ---- Learn: any legal card as the head opportunity's choice, with every choice rule ----
+    const auto Learn = [&](uint64 RequestId, const TCHAR* Id, uint8 Slot)
+    {
+        FLDDevTestCommand Out = Command(Gen, 1, RequestId, ELDDevTestOp::LearnOption, 0);
+        FLDDefinitionWire::Encode(FName(Id), Out.Definition);
+        Out.Slot = Slot;
+        return Out;
+    };
+    FLDDevTestCommand BadSlot = Learn(1, TEXT("attr_might"), 3);
+    GrowthTestReason(*this, TEXT("A learn names slot 0..2"), LDDevTest::ValidateShape(BadSlot), ELDGrowthReason::InvalidRequest);
+    FLDDevTestCommand NoDefinition = Command(Gen, 1, 1, ELDDevTestOp::LearnOption, 0);
+    GrowthTestReason(*this, TEXT("A learn names a definition"), LDDevTest::ValidateShape(NoDefinition), ELDGrowthReason::InvalidRequest);
+    FLDDevTestCommand SellNamed = Command(Gen, 1, 1, ELDDevTestOp::SellItem, 0);
+    SellNamed.Slot = 1;
+    FLDDefinitionWire::Encode(FName(TEXT("item_edge_blade")), SellNamed.Definition);
+    GrowthTestReason(*this, TEXT("A sell names a slot, not a definition"), LDDevTest::ValidateShape(SellNamed),
+        ELDGrowthReason::InvalidRequest);
+    FLDDevTestCommand SellNoSlot = Command(Gen, 1, 1, ELDDevTestOp::SellItem, 0);
+    GrowthTestReason(*this, TEXT("A sell names slot 1 or 2"), LDDevTest::ValidateShape(SellNoSlot), ELDGrowthReason::InvalidRequest);
+
+    const auto Commit = [&](const TCHAR* What, const FLDDevTestCommand& Sent, ELDGrowthReason Expected) -> const FLDDevTestReceipt*
+    {
+        Status(What, Economy->AdmitDevTest(Tester, Sent), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
+        if (!RunTransactions()) { return nullptr; }
+        const FLDDevTestReceipt* Final = LastReceipt(Tester);
+        if (TestTrue(FString(What) + TEXT(" finalizes"), Final && Final->Header.RequestId == Sent.RequestId))
+        {
+            GrowthTestReason(*this, FString(What) + TEXT(" (commit)"), LDGrowthWire::Reason(Final->Header.Reason), Expected);
+            return Final;
+        }
+        return nullptr;
+    };
+    if (!Commit(TEXT("Request 6: learn while unspawned"), Learn(6, TEXT("attr_might"), 0), ELDGrowthReason::LifePhaseChanged))
+    { return false; }
+    Mode->Lives.FindChecked(Tester).Phase = ELDLifePhase::Dead;
+    const FLDProgressionState* Before = Development->FindProgression(Tester);
+    const uint8 ConsumedBefore = Before ? Before->ConsumedThrough : 0;
+    if (!Commit(TEXT("Request 7: an id that is no legal option"), Learn(7, TEXT("attr_unknown"), 0), ELDGrowthReason::InvalidOption))
+    { return false; }
+    if (!Commit(TEXT("Request 8: replacing an empty Q"), Learn(8, TEXT("attr_might"), 1), ELDGrowthReason::ReplacementMismatch))
+    { return false; }
+    const FLDDevTestReceipt* LearnedReceipt = Commit(TEXT("Request 9: an attribute card while dead"), Learn(9, TEXT("attr_might"), 0),
+        ELDGrowthReason::None);
+    if (!LearnedReceipt) { return false; }
+    TestTrue(TEXT("The receipt names the learned definition"), LearnedReceipt->Definition == FName(TEXT("attr_might")));
+    const FLDGrowthBuild* AfterLearn = Development->FindBuild(Tester);
+    const FLDProgressionState* ProgressionAfter = Development->FindProgression(Tester);
+    TestTrue(TEXT("The card is in the build and the opening opportunity is consumed"),
+        AfterLearn && AfterLearn->Cards.Num() == 1 && AfterLearn->Cards[0].Id == FName(TEXT("attr_might"))
+        && AfterLearn->Cards[0].Count == 1 && ProgressionAfter && ProgressionAfter->ConsumedThrough == ConsumedBefore + 1
+        && ProgressionAfter->Records.Num() == 1);
+    TestTrue(TEXT("Combat installed the new build"), Driver->Records.FindChecked(Tester).Installed.BuildRevision == AfterLearn->Revision);
+    const FLDDevTestReceipt* NoOpportunity = Commit(TEXT("Request 10: learn with no opportunity left"),
+        Learn(10, TEXT("attr_focus"), 0), ELDGrowthReason::NoOffer);
+    TestTrue(TEXT("The refusal says to raise the level first"), NoOpportunity && NoOpportunity->Detail.Contains(TEXT("raise the level")));
+    TestTrue(TEXT("Nothing more was learned"), Development->FindBuild(Tester)->Cards.Num() == 1);
+
+    // Trades need a living body; a dead contender is refused before any ledger change.
+    FLDDevTestCommand Buy = Command(Gen, 1, 11, ELDDevTestOp::BuyItem, 0);
+    FLDDefinitionWire::Encode(FName(TEXT("item_edge_blade")), Buy.Definition);
+    const int64 GoldBeforeBuy = Gold(Tester);
+    if (!Commit(TEXT("Request 11: buy while dead"), Buy, ELDGrowthReason::Dead)) { return false; }
+    TestEqual(TEXT("A refused buy spends nothing"), Gold(Tester), GoldBeforeBuy);
+    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
+    Economy->Ledger.OwnerItems(Tester, Owned);
+    TestEqual(TEXT("A refused buy creates no item"), Owned.Num(), 0);
+
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 6, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 12, ELDDevTestOp::GrantGold, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
     Status(TEXT("A replay after the match closed"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);

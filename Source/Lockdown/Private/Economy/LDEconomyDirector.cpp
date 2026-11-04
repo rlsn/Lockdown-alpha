@@ -951,7 +951,7 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
     FDevTestRecord* Record = DevTests.Find(ContenderId);
     const auto* PendingEntry = Record ? Record->Stream.GetPending() : nullptr;
     ALDGameMode* M = Mode();
-    if (!PendingEntry || !M || !M->Combat || !M->Development
+    if (!PendingEntry || !M || !M->Combat || !M->Development || !M->Vendor
         || M->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None
         || Permit.GetBoundary().Match != Match)
     {
@@ -967,6 +967,11 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
     Receipt.Header.CommitBatch = Permit.GetBoundary().BatchSerial;
     Receipt.Op = Command.Op;
     Receipt.Amount = Command.Amount;
+    Receipt.Slot = Command.Slot;
+    // The shape was proven at admission: a learn or buy names a valid definition, every other op none.
+    FName Definition;
+    Command.Definition.Decode(Definition);
+    Receipt.Definition = Definition;
     ELDGrowthReason Reason = ELDGrowthReason::None;
     FString Detail;
     FLDContenderLifeRead Life;
@@ -1055,10 +1060,29 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
                 Reason = ELDGrowthReason::DataInvalid;
             }
             break;
+        case ELDDevTestOp::LearnOption:
+            // Like a choice: Alive or Dead may consume an opportunity.
+            Reason = LDGrowthWire::IsChoicePhase(Life.Phase)
+                ? M->Development->DevChooseOption(ContenderId, Definition, Command.Slot, Permit, Detail)
+                : ELDGrowthReason::LifePhaseChanged;
+            break;
+        case ELDDevTestOp::BuyItem:
+        case ELDDevTestOp::SellItem:
+            // Like a shop command: only a living contender trades.
+            Reason = Life.Phase == ELDLifePhase::Alive
+                ? M->Vendor->DevTrade(ContenderId, Command.Op == ELDDevTestOp::BuyItem, Definition, Command.Slot,
+                    Command.RequestId, Permit, Detail)
+                : ELDGrowthReason::Dead;
+            break;
         default:
             Reason = ELDGrowthReason::InvalidRequest;
             break;
         }
+    }
+    if (Reason == ELDGrowthReason::AuthorityFault)
+    {
+        Error = FString::Printf(TEXT("A DEV test command lost its growth domain or permit inside the Transactions phase: %s"), *Detail);
+        return false;
     }
     Receipt.Header.Outcome = Reason == ELDGrowthReason::None ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected;
     Receipt.Header.Reason = LDGrowthWire::Raw(Reason);

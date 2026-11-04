@@ -154,8 +154,13 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 | `ld.Dev.Gold <数量>` | 给自己加零花钱 |
 | `ld.Dev.Refill` | 活着时补满生命与法力 |
 | `ld.Dev.ResetCooldowns` | 自己的技能与装备冷却全部就绪 |
+| `ld.Dev.List` | 列出运行目录里全部技能、属性卡与装备的 id |
+| `ld.Dev.Learn <id> [Q\|W]` | 把任意合法的技能或属性卡当作当前这次三选一的结果；Q/W 都满时用 Q 或 W 确认替换 |
+| `ld.Dev.Buy <id>` / `ld.Dev.Sell <1\|2>` | 不去商店，按目录价格买入到空槽或卖出该槽装备 |
 
-命令只作用于发送者自己，经服务器在 Transactions 阶段提交，与正常奖励共用同一提交路径；
+学习仍受真实规则约束：要有一次未用的选择机会（没有时先用 `ld.Dev.XP` 升级）、等级上限、Q/W 两槽与选择数上限；
+买卖照样付钱和退钱、两槽满时拒绝。命令只作用于发送者自己，经服务器在 Transactions 阶段提交，
+与正常奖励、选择和买卖共用同一提交路径；
 没有开关的 Host、Shipping 构建、旧局或旧生命的请求都会被明确拒绝。
 测试会话的结果是夹具证据，不能当作无作弊完整对局的验收。实现与限制见[库存与事务](systems/INVENTORY_AND_TRANSACTIONS.md)。
 

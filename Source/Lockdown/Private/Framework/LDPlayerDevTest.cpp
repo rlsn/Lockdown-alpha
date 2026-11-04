@@ -3,6 +3,8 @@
 #include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
 #include "HAL/IConsoleManager.h"
 
 namespace
@@ -15,16 +17,26 @@ const TCHAR* DevTestOpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::GrantGold: return TEXT("加零花钱");
     case ELDDevTestOp::RefillResources: return TEXT("补满生命与法力");
     case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
+    case ELDDevTestOp::LearnOption: return TEXT("选择卡牌");
+    case ELDDevTestOp::BuyItem: return TEXT("购买装备");
+    case ELDDevTestOp::SellItem: return TEXT("出售装备");
     default: return TEXT("未知操作");
     }
 }
 }
 
-uint64 ALDPlayerController::SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason)
+uint64 ALDPlayerController::SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition,
+    uint8 Slot)
 {
     FLDDevTestCommand Command;
     Command.Op = Op;
     Command.Amount = Amount;
+    Command.Slot = Slot;
+    if (!Definition.IsNone() && !FLDDefinitionWire::Encode(Definition, Command.Definition))
+    {
+        OutLocalReason = ELDGrowthReason::InvalidRequest;
+        return 0;
+    }
     // The shape is checked before a request id is reserved, so a malformed command consumes nothing.
     Command.RequestId = 1;
     OutLocalReason = LDDevTest::ValidateShape(Command);
@@ -131,7 +143,7 @@ bool DevTestParseAmount(const TArray<FString>& Args, int64& Out, FOutputDevice& 
     return true;
 }
 
-void DevTestSend(UWorld* World, ELDDevTestOp Op, int64 Amount, FOutputDevice& Ar)
+void DevTestSend(UWorld* World, ELDDevTestOp Op, int64 Amount, FOutputDevice& Ar, FName Definition = NAME_None, uint8 Slot = 0)
 {
     ALDPlayerController* Controller = DevTestLocalController(World);
     if (!Controller)
@@ -140,14 +152,34 @@ void DevTestSend(UWorld* World, ELDDevTestOp Op, int64 Amount, FOutputDevice& Ar
         return;
     }
     ELDGrowthReason Reason = ELDGrowthReason::None;
-    const uint64 RequestId = Controller->SubmitDevTest(Op, Amount, Reason);
+    const uint64 RequestId = Controller->SubmitDevTest(Op, Amount, Reason, Definition, Slot);
     if (RequestId == 0)
     {
         Ar.Logf(TEXT("LD_DEV_TEST_REFUSED %s was not sent: %s"), LDDevTest::OpName(Op), LDGrowthWire::ReasonName(Reason));
         return;
     }
-    Ar.Logf(TEXT("LD_DEV_TEST_SENT %s amount=%lld request=%llu; the result follows as LD_DEV_TEST_RESULT."),
-        LDDevTest::OpName(Op), Amount, RequestId);
+    Ar.Logf(TEXT("LD_DEV_TEST_SENT %s amount=%lld definition=%s slot=%u request=%llu; the result follows as LD_DEV_TEST_RESULT."),
+        LDDevTest::OpName(Op), Amount, *Definition.ToString(), uint32(Slot), RequestId);
+}
+
+// The approved runtime catalog this process loaded; the authority validates every command against its own copy.
+TSharedPtr<const FLDDemoContentSnapshot> DevTestCatalog(FOutputDevice& Ar)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    FString Error;
+    if (!LDDemoEntry::LoadRuntimeContent(Catalog, Error) || !Catalog)
+    {
+        Ar.Logf(TEXT("LD_DEV_TEST_REFUSED the approved Demo catalog is unavailable: %s"), *Error);
+        return nullptr;
+    }
+    return Catalog;
+}
+
+FString DevTestDisplayName(const FLDDemoContentDefinitions& Definitions, const FString& Id)
+{
+    const FLDDemoDisplayDefinition* Display = Definitions.Display.FindByPredicate(
+        [&Id](const FLDDemoDisplayDefinition& Row) { return Row.Id == Id; });
+    return Display ? Display->NameText : FString(TEXT("(no display name)"));
 }
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestXP(
@@ -174,6 +206,81 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestGold(
             {
                 DevTestSend(World, ELDDevTestOp::GrantGold, Amount, Ar);
             }
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
+    TEXT("ld.Dev.List"),
+    TEXT("DEV test session: list every skill, attribute card and item id of the approved runtime catalog."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            const TSharedPtr<const FLDDemoContentSnapshot> Catalog = DevTestCatalog(Ar);
+            if (!Catalog)
+            {
+                return;
+            }
+            const FLDDemoContentDefinitions& Definitions = Catalog->Get();
+            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W], buy with ld.Dev.Buy <id>"),
+                Definitions.Progression.MaxSkillRank);
+            for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
+            {
+                Ar.Logf(TEXT("  %s %s %s"), Ability.Kind == ELDDemoAbilityKind::Active ? TEXT("active ") : TEXT("passive"),
+                    *Ability.Id, *DevTestDisplayName(Definitions, Ability.Id));
+            }
+            for (const FLDDemoAttributeDefinition& Attribute : Definitions.Attributes)
+            {
+                Ar.Logf(TEXT("  card    %s %s"), *Attribute.Id, *DevTestDisplayName(Definitions, Attribute.Id));
+            }
+            for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment)
+            {
+                Ar.Logf(TEXT("  item    %s %s buy %lld sell %lld%s"), *Item.Id, *DevTestDisplayName(Definitions, Item.Id),
+                    Item.BuyPrice, Item.SellGold, Item.HasActive ? TEXT(" (active)") : TEXT(""));
+            }
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestLearn(
+    TEXT("ld.Dev.Learn"),
+    TEXT("DEV test session: take <id> (skill or attribute card) as your current choice; [Q|W] confirms replacing that active."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            const FString SlotText = Args.Num() == 2 ? Args[1].TrimStartAndEnd().ToUpper() : FString();
+            const uint8 Slot = SlotText == TEXT("Q") ? 1 : SlotText == TEXT("W") ? 2 : 0;
+            if (Args.IsEmpty() || Args.Num() > 2 || (Args.Num() == 2 && Slot == 0))
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Learn <skill or card id> [Q|W]"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::LearnOption, 0, Ar, FName(*Args[0].TrimStartAndEnd()), Slot);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestBuy(
+    TEXT("ld.Dev.Buy"),
+    TEXT("DEV test session: buy <item id> at its catalog price into your free equipment slot, without visiting the shop."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (Args.Num() != 1)
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Buy <item id>"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::BuyItem, 0, Ar, FName(*Args[0].TrimStartAndEnd()));
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestSell(
+    TEXT("ld.Dev.Sell"),
+    TEXT("DEV test session: sell the item in equipment slot <1|2> at its catalog price, without visiting the shop."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            const FString SlotText = Args.Num() == 1 ? Args[0].TrimStartAndEnd() : FString();
+            if (SlotText != TEXT("1") && SlotText != TEXT("2"))
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Sell <1|2>"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::SellItem, 0, Ar, NAME_None, SlotText == TEXT("1") ? 1 : 2);
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefill(

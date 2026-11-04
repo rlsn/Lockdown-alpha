@@ -3,7 +3,7 @@
 bool FLDDevTestCommand::SameTerms(const FLDDevTestCommand& Other) const
 {
     return Generation == Other.Generation && Life == Other.Life && RequestId == Other.RequestId && Op == Other.Op
-        && Amount == Other.Amount;
+        && Amount == Other.Amount && Definition == Other.Definition && Slot == Other.Slot;
 }
 
 bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
@@ -14,6 +14,9 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::GrantGold:
     case ELDDevTestOp::RefillResources:
     case ELDDevTestOp::ResetCooldowns:
+    case ELDDevTestOp::LearnOption:
+    case ELDDevTestOp::BuyItem:
+    case ELDDevTestOp::SellItem:
         return true;
     default:
         return false;
@@ -28,6 +31,9 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::GrantGold: return TEXT("GrantGold");
     case ELDDevTestOp::RefillResources: return TEXT("RefillResources");
     case ELDDevTestOp::ResetCooldowns: return TEXT("ResetCooldowns");
+    case ELDDevTestOp::LearnOption: return TEXT("LearnOption");
+    case ELDDevTestOp::BuyItem: return TEXT("BuyItem");
+    case ELDDevTestOp::SellItem: return TEXT("SellItem");
     default: return TEXT("Unknown");
     }
 }
@@ -42,6 +48,18 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     if (bGrant ? Command.Amount <= 0 : Command.Amount != 0)
     {
         return ELDGrowthReason::NumericDomain;
+    }
+    const bool bNamesDefinition = Command.Op == ELDDevTestOp::LearnOption || Command.Op == ELDDevTestOp::BuyItem;
+    FName Decoded;
+    if (bNamesDefinition ? !Command.Definition.Decode(Decoded) : !(Command.Definition == FLDDefinitionWire()))
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnOption || Command.Op == ELDDevTestOp::SellItem ? 2 : 0;
+    const uint8 MinSlot = Command.Op == ELDDevTestOp::SellItem ? 1 : 0;
+    if (Command.Slot < MinSlot || Command.Slot > MaxSlot)
+    {
+        return ELDGrowthReason::InvalidRequest;
     }
     return ELDGrowthReason::None;
 }

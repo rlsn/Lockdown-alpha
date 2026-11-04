@@ -463,75 +463,34 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Replacement.OldRank = Command.ExpectedOldRank;
         Replacement.bConfirmed = Command.bReplaceConfirmed;
     }
-    FLDGrowthBuild NewBuild;
+    // Copies: the install replaces the offer that Offer and Option point into.
+    const FGuid OfferId = Offer.OfferId;
+    const uint8 Ordinal = Offer.Ordinal;
+    const FGuid OptionId = Option->OptionId;
     LDProgression::FAppliedOption AppliedOption;
-    const ELDGrowthReason OptionReason = LDProgression::ApplyOption(*Content, Build, *Option,
-        Command.bReplace ? &Replacement : nullptr, NewBuild, AppliedOption);
-    if (OptionReason != ELDGrowthReason::None)
+    const ELDGrowthReason InstallReason = InstallOption(ContenderId, *Record, *Option,
+        Command.bReplace ? &Replacement : nullptr, Command.RequestId, Permit, AppliedOption);
+    if (InstallReason == ELDGrowthReason::AuthorityFault)
     {
-        return Reject(OptionReason);
+        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu: permit lost before apply"),
+            *ContenderId.ToString(), Command.RequestId);
+        return DevelopmentFaultReceipt(Command, Info);
     }
-    if (Build.Revision == MAX_uint64 || Progression.Revision == MAX_uint64)
+    if (InstallReason != ELDGrowthReason::None)
     {
-        return Reject(ELDGrowthReason::ArithmeticOverflow);
-    }
-    NewBuild.Revision = Build.Revision + 1;
-    FLDProgressionState NewProgression = Progression;
-    NewProgression.ConsumedThrough = static_cast<uint8>(Progression.ConsumedThrough + 1);
-    NewProgression.Revision = Progression.Revision + 1;
-    NewProgression.Offer.Reset();
-    FLDChoiceRecord& Consumed = NewProgression.Records.AddDefaulted_GetRef();
-    Consumed.Ordinal = Offer.Ordinal;
-    Consumed.OfferId = Offer.OfferId;
-    Consumed.OptionId = Option->OptionId;
-    Consumed.RequestId = Command.RequestId;
-
-    // The next head is drawn only after this choice is installed; its pool is proven now.
-    TArray<LDProgression::FLegalOption> NextPool;
-    if (NewProgression.PendingCount() > 0)
-    {
-        const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, NewBuild, NextPool);
-        if (PoolReason != ELDGrowthReason::None || NextPool.Num() < 3)
-        {
-            return Reject(PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid);
-        }
-        if (NewProgression.LastOfferRevision == MAX_uint64)
-        {
-            return Reject(ELDGrowthReason::ArithmeticOverflow);
-        }
-    }
-
-    const LDEconomy::FLedger& Ledger = GameMode->Economy->GetLedger();
-    const uint64 InventoryRevision = Ledger.InventoryRevision(ContenderId);
-    if (InventoryRevision == 0)
-    {
-        return Reject(ELDGrowthReason::NotContender);
-    }
-    TArray<FLDEquippedItemValue> Equipped;
-    ALDInventoryDirector::EquippedItems(Ledger.State(), ContenderId, Equipped);
-    FLDCombatPrepareResult Projection = GameMode->Combat->PrepareBuildChange(MakeCaller(ContenderId),
-        MakeProjectionInput(NewBuild, Equipped, InventoryRevision), Record->CombatInstalled);
-    if (!Projection.IsSuccess())
-    {
-        const ELDGrowthReason CombatReason = DevelopmentCombatReason(Projection.Error);
-        if (CombatReason == ELDGrowthReason::DataInvalid || CombatReason == ELDGrowthReason::PrepareUnavailable)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_CHOICE_PROJECTION contender=%s %s: %s"), *ContenderId.ToString(),
-                LDGrowthWire::ReasonName(CombatReason), *Projection.Message);
-        }
-        return Reject(CombatReason);
+        return Reject(InstallReason);
     }
 
     FLDChoiceReceipt Receipt;
     DevelopmentFillHeader(Receipt.Header, Command, Info, ELDReceiptOutcome::Applied, ELDGrowthReason::None, &Permit);
     Receipt.Header.Revisions.bHasProgression = true;
-    Receipt.Header.Revisions.ProgressionRevision = NewProgression.Revision;
+    Receipt.Header.Revisions.ProgressionRevision = Record->Progression.Revision;
     Receipt.Header.Revisions.bHasBuild = true;
-    Receipt.Header.Revisions.BuildRevision = NewBuild.Revision;
-    Receipt.OfferId = Offer.OfferId;
-    Receipt.OptionId = Option->OptionId;
-    Receipt.OpportunityOrdinal = Offer.Ordinal;
-    Receipt.ConsumedThrough = NewProgression.ConsumedThrough;
+    Receipt.Header.Revisions.BuildRevision = Record->Build.Revision;
+    Receipt.OfferId = OfferId;
+    Receipt.OptionId = OptionId;
+    Receipt.OpportunityOrdinal = Ordinal;
+    Receipt.ConsumedThrough = Record->Progression.ConsumedThrough;
     Receipt.Kind = AppliedOption.Kind;
     Receipt.DefinitionId = AppliedOption.DefinitionId;
     Receipt.NewRank = AppliedOption.NewRank;
@@ -542,25 +501,8 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Receipt.ReplacedSkillId = AppliedOption.ReplacedId;
         Receipt.ReplacedRank = AppliedOption.ReplacedRank;
     }
-    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    if (Record->Progression.Offer.IsSet())
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu: permit lost before apply"),
-            *ContenderId.ToString(), Command.RequestId);
-        return DevelopmentFaultReceipt(Command, Info);
-    }
-
-    // Everything is prepared and the permit re-checked; the install below cannot fail. Offer, Option and the
-    // Build/Progression references must not be read after this point.
-    FLDExpectedBuildVersions Installed;
-    Installed.BuildRevision = NewBuild.Revision;
-    Installed.InventoryRevision = InventoryRevision;
-    GameMode->Combat->ApplyBuildChange(MoveTemp(Projection.Value.GetValue()), Permit);
-    Record->Build = MoveTemp(NewBuild);
-    Record->Progression = MoveTemp(NewProgression);
-    Record->CombatInstalled = Installed;
-    if (Record->Progression.PendingCount() > 0)
-    {
-        DrawHead(ContenderId, *Record, NextPool);
         Receipt.bHasNextOffer = true;
         Receipt.NextOfferId = Record->Progression.Offer->OfferId;
         Receipt.Header.Revisions.bHasOffer = true;
@@ -570,6 +512,100 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     Record->Unpublished.Add(Receipt);
     GameMode->Economy->MarkDirty(ContenderId);
     return Receipt;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, FRecord& Record, const FLDChoiceOption InOption,
+    const LDProgression::FReplacement* Replacement, uint64 RequestId, const FLDGameplayWritePermit& Permit,
+    LDProgression::FAppliedOption& OutApplied)
+{
+    ALDGameMode* GameMode = Mode();
+    const FLDGrowthBuild& Build = Record.Build;
+    const FLDProgressionState& Progression = Record.Progression;
+    if (!GameMode || !GameMode->Combat || !GameMode->Economy || !Content.IsValid() || !Progression.Offer.IsSet())
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    const FLDChoiceOfferState& Offer = Progression.Offer.GetValue();
+    // The single offer is always the head of a non-empty opportunity queue.
+    if (Offer.Ordinal != Progression.ConsumedThrough + 1 || Progression.ConsumedThrough >= Progression.EarnedThrough)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    FLDGrowthBuild NewBuild;
+    const ELDGrowthReason OptionReason = LDProgression::ApplyOption(*Content, Build, InOption, Replacement, NewBuild, OutApplied);
+    if (OptionReason != ELDGrowthReason::None)
+    {
+        return OptionReason;
+    }
+    if (Build.Revision == MAX_uint64 || Progression.Revision == MAX_uint64)
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    NewBuild.Revision = Build.Revision + 1;
+    FLDProgressionState NewProgression = Progression;
+    NewProgression.ConsumedThrough = static_cast<uint8>(Progression.ConsumedThrough + 1);
+    NewProgression.Revision = Progression.Revision + 1;
+    NewProgression.Offer.Reset();
+    FLDChoiceRecord& Consumed = NewProgression.Records.AddDefaulted_GetRef();
+    Consumed.Ordinal = Offer.Ordinal;
+    Consumed.OfferId = Offer.OfferId;
+    Consumed.OptionId = InOption.OptionId;
+    Consumed.RequestId = RequestId;
+
+    // The next head is drawn only after this choice is installed; its pool is proven now.
+    TArray<LDProgression::FLegalOption> NextPool;
+    if (NewProgression.PendingCount() > 0)
+    {
+        const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, NewBuild, NextPool);
+        if (PoolReason != ELDGrowthReason::None || NextPool.Num() < 3)
+        {
+            return PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid;
+        }
+        if (NewProgression.LastOfferRevision == MAX_uint64)
+        {
+            return ELDGrowthReason::ArithmeticOverflow;
+        }
+    }
+
+    const LDEconomy::FLedger& Ledger = GameMode->Economy->GetLedger();
+    const uint64 InventoryRevision = Ledger.InventoryRevision(ContenderId);
+    if (InventoryRevision == 0)
+    {
+        return ELDGrowthReason::NotContender;
+    }
+    TArray<FLDEquippedItemValue> Equipped;
+    ALDInventoryDirector::EquippedItems(Ledger.State(), ContenderId, Equipped);
+    FLDCombatPrepareResult Projection = GameMode->Combat->PrepareBuildChange(MakeCaller(ContenderId),
+        MakeProjectionInput(NewBuild, Equipped, InventoryRevision), Record.CombatInstalled);
+    if (!Projection.IsSuccess())
+    {
+        const ELDGrowthReason CombatReason = DevelopmentCombatReason(Projection.Error);
+        if (CombatReason == ELDGrowthReason::DataInvalid || CombatReason == ELDGrowthReason::PrepareUnavailable)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_CHOICE_PROJECTION contender=%s %s: %s"), *ContenderId.ToString(),
+                LDGrowthWire::ReasonName(CombatReason), *Projection.Message);
+        }
+        return CombatReason;
+    }
+    if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+
+    // Everything is prepared and the permit re-checked; the install below cannot fail. Offer and the
+    // Build/Progression references must not be read after this point.
+    FLDExpectedBuildVersions Installed;
+    Installed.BuildRevision = NewBuild.Revision;
+    Installed.InventoryRevision = InventoryRevision;
+    GameMode->Combat->ApplyBuildChange(MoveTemp(Projection.Value.GetValue()), Permit);
+    Record.Build = MoveTemp(NewBuild);
+    Record.Progression = MoveTemp(NewProgression);
+    Record.CombatInstalled = Installed;
+    if (Record.Progression.PendingCount() > 0)
+    {
+        DrawHead(ContenderId, Record, NextPool);
+    }
+    return ELDGrowthReason::None;
 }
 
 FLDChoiceReceipt ALDDevelopmentDirector::RejectPending(FRecord& Record, const FLDChoiceCommand& Command,
@@ -878,6 +914,72 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
     UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued offer contender=%s position=%d cards=%s,%s,%s"),
         *ContenderId.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
     return true;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::DevChooseOption(const FGuid& ContenderId, FName DefinitionId, uint8 ReplaceSlot,
+    const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!Record || !Content.IsValid())
+    {
+        Detail = TEXT("The contender has no growth record in this match.");
+        return ELDGrowthReason::NotContender;
+    }
+    const FLDProgressionState& Progression = Record->Progression;
+    if (!Progression.Offer.IsSet())
+    {
+        Detail = FString::Printf(TEXT("No opportunity is open (level %u, %u of %u earned opportunities consumed); raise the level first."),
+            uint32(Record->Build.Level), uint32(Progression.ConsumedThrough), uint32(Progression.EarnedThrough));
+        return ELDGrowthReason::NoOffer;
+    }
+    TArray<LDProgression::FLegalOption> Pool;
+    const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, Record->Build, Pool);
+    if (PoolReason != ELDGrowthReason::None)
+    {
+        return PoolReason;
+    }
+    const LDProgression::FLegalOption* Legal = Pool.FindByPredicate(
+        [DefinitionId](const LDProgression::FLegalOption& Row) { return Row.DefinitionId == DefinitionId; });
+    if (!Legal)
+    {
+        Detail = FString::Printf(TEXT("'%s' is not a legal choice of this build (unknown, at its rank cap or otherwise excluded)."),
+            *DefinitionId.ToString());
+        return ELDGrowthReason::InvalidOption;
+    }
+    FLDChoiceOption Option;
+    Option.OptionId = FGuid::NewGuid();
+    Option.Kind = Legal->Kind;
+    Option.DefinitionId = Legal->DefinitionId;
+    Option.FromRank = Legal->FromRank;
+    Option.ToRank = Legal->ToRank;
+    LDProgression::FReplacement Replacement;
+    if (ReplaceSlot != 0)
+    {
+        const int32 Index = Record->Build.ActiveInSlot(uint8(ReplaceSlot - 1));
+        if (Index == INDEX_NONE)
+        {
+            Detail = FString::Printf(TEXT("Slot %s holds no learned active skill to replace."), ReplaceSlot == 1 ? TEXT("Q") : TEXT("W"));
+            return ELDGrowthReason::ReplacementMismatch;
+        }
+        Replacement.Slot = uint8(ReplaceSlot - 1);
+        Replacement.OldSkillId = Record->Build.Skills[Index].Id;
+        Replacement.OldRank = Record->Build.Skills[Index].Rank;
+        Replacement.bConfirmed = true;
+    }
+    LDProgression::FAppliedOption Applied;
+    const ELDGrowthReason Reason = InstallOption(ContenderId, *Record, Option, ReplaceSlot != 0 ? &Replacement : nullptr, 0, Permit,
+        Applied);
+    if (Reason == ELDGrowthReason::None)
+    {
+        Detail = FString::Printf(TEXT("%s rank %u, opportunity %u consumed"), *Applied.DefinitionId.ToString(), uint32(Applied.NewRank),
+            uint32(Record->Progression.ConsumedThrough));
+        if (Applied.bReplaced)
+        {
+            Detail += FString::Printf(TEXT(", replaced %s rank %u"), *Applied.ReplacedId.ToString(), uint32(Applied.ReplacedRank));
+        }
+    }
+    return Reason;
 }
 
 #endif

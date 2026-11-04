@@ -226,6 +226,10 @@ const FGrowthProbeOffer GrowthProbePlan[] = {
 constexpr int32 GrowthProbePlannedOffers = UE_ARRAY_COUNT(GrowthProbePlan);
 // Gold of the Host's own DEV grant before it attacks the buyer; its XP matches the buyer's level so the duel is even.
 constexpr int64 GrowthProbeHostGrantGold = 120;
+// DEV test commands (#78): the Host's own DEV gold grant in the second match, and the bound for one DEV answer to settle
+// in the owner view (terminal result plus the replicated owner state).
+constexpr int64 GrowthProbeHostDevGold = 7;
+constexpr double GrowthProbeDevSettleSeconds = 15.0;
 // Approved melee approach of low camp L1 (WORLD_CAMPS_AND_VISION §2.5, shared with the camp scenario), its two
 // scavengers within the target search radius of that point.
 const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
@@ -331,7 +335,9 @@ public:
         Advance, UseSkill, Replace, Relearn, AwaitDeath, DeadChoice, Respawn,
         // New-match isolation: the Host ends the first match, the room returns to a new Lobby generation and a
         // second normal match must start from clean owner state.
-        EndFirst, AwaitLobby, SecondLobby, SecondSpawned, SecondReplay, SecondQuote, SecondAudit
+        EndFirst, AwaitLobby, SecondLobby, SecondSpawned, SecondReplay, SecondQuote, SecondAudit,
+        // DEV test commands (#78) after the clean second ledger: the buyer's remote owner RPC, the Host's own as Listen Host.
+        SecondDev, HostDev
     };
 
     // One shop request: the exact terms sent and the owner state it must change or leave untouched.
@@ -488,6 +494,25 @@ public:
     int32 ReplaySubmitMark = 0, ReplayResultMark = 0;
     double ReplaySentAt = 0, ReplayQuietUntil = 0;
 
+    // DEV test commands: the request in flight, every owner answer in arrival order and the committed gold grant.
+    struct FDevCall
+    {
+        FString Name;
+        FLDDevTestCommand Sent;
+        bool bSent = false;
+        int32 ResultMark = 0;
+        double SentAt = 0;
+        int64 GoldBefore = 0;
+    };
+    FDevCall Dev;
+    int32 DevStep = 0;
+    TArray<FLDDevTestResult> DevResults;
+    FDelegateHandle DevHandle;
+    FLDDevTestCommand DevGoldCommand;
+    int64 DevGrantGold = 0, Match2Gold = -1;
+    FName DevCardId;
+    TArray<TSharedPtr<FJsonValue>> DevRows;
+
     bool IsHost() const
     {
         return Role == TEXT("Host");
@@ -566,6 +591,10 @@ public:
         {
             if (const TSharedPtr<FLDDemoGrowthProbe> Pinned = Weak.Pin()) { Pinned->OpenResults.Add(Received); }
         });
+        DevHandle = Subject.OnDevTestResult.AddLambda([Weak](const FLDDevTestResult& Received)
+        {
+            if (const TSharedPtr<FLDDemoGrowthProbe> Pinned = Weak.Pin()) { Pinned->DevResults.Add(Received); }
+        });
         ArrivalHandle = Subject.Navigation->OnShopArrived.AddLambda([Weak](FName ArrivedShopId, uint32 ArrivedLife)
         {
             if (const TSharedPtr<FLDDemoGrowthProbe> Pinned = Weak.Pin()) { Pinned->Arrivals.Emplace(ArrivedShopId, ArrivedLife); }
@@ -580,6 +609,7 @@ public:
         Subject->OnChoiceReceipt.Remove(ChoiceHandle);
         Subject->OnShopReceipt.Remove(ShopHandle);
         Subject->OnShopOpenResult.Remove(OpenHandle);
+        Subject->OnDevTestResult.Remove(DevHandle);
         if (Subject->Navigation) { Subject->Navigation->OnShopArrived.Remove(ArrivalHandle); }
     }
 
@@ -658,7 +688,7 @@ public:
         }
         const FLDLobbyView& Lobby = Public->DemoLobby;
         // The buyer stopped early on a failed check: the Host closes its own report instead of waiting for markers.
-        if (IsHost() && Exists(TEXT("Client1.json")) && !Exists(TEXT("Client1Match2Done.json")))
+        if (IsHost() && Exists(TEXT("Client1.json")) && !Exists(TEXT("Client1DevDone.json")))
         {
             return Fail(TEXT("Net"), TEXT("The buyer ended its scenario early; see Client1.json for its failed check"));
         }
@@ -673,6 +703,7 @@ public:
         case EStage::SecondLobby: return TickLobby(Now, *PC, Lobby);
         case EStage::SecondSpawned: return TickSecondSpawned(Now, *PC, Lobby);
         case EStage::SecondAudit: return TickSecondAudit(*PC);
+        case EStage::HostDev: return TickHostDev(Now, *PC);
         default: return TickClient(Now, *PC, Lobby);
         }
     }
@@ -1558,6 +1589,268 @@ public:
             TEXT("The stale first-match requests committed nothing: the second match's ledger is exported with no commit"),
             ExportError);
         Check(Mode && Mode->IsGameplayWriteOpen(Mode->GetMatchContext()), TEXT("Iso"), TEXT("The second match stayed open for its checks"));
+        if (!Passed || !Mark(TEXT("HostLedger2.json"))) { return Finish(); }
+        SetStage(EStage::HostDev);
+        return true;
+    }
+
+    // ---- DEV test commands (#78), second match: after the Host exported the clean second ledger, each role sends DEV test
+    // commands through its own owning connection (Client1 remote, the Host as Listen Host) and sees every terminal answer
+    // and committed owner change; stale, conflicting and illegal requests are refused without changing anything. ----
+
+    enum class EDevWait : uint8 { Waiting, Done, Failed };
+
+    bool SendDev(double Now, ALDPlayerController& PC, const FString& Name, ELDDevTestOp Op, int64 Amount,
+        FName Definition = NAME_None, uint8 Slot = 0)
+    {
+        const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
+        Dev = FDevCall();
+        Dev.Name = Name;
+        Dev.ResultMark = DevResults.Num();
+        Dev.SentAt = Now;
+        Dev.GoldBefore = Equip ? Equip->Gold : -1;
+        ELDGrowthReason Local = ELDGrowthReason::None;
+        const uint64 RequestId = PC.SubmitDevTest(Op, Amount, Local, Definition, Slot);
+        if (!Check(RequestId != 0, TEXT("DevTest"), Name + TEXT(" is sent through SubmitDevTest"), LDGrowthWire::ReasonName(Local)))
+        {
+            return Finish();
+        }
+        Dev.Sent.Generation = PC.OwnerState.Match;
+        Dev.Sent.Life = PC.OwnerState.Life;
+        Dev.Sent.RequestId = RequestId;
+        Dev.Sent.Op = Op;
+        Dev.Sent.Amount = Amount;
+        Dev.Sent.Slot = Slot;
+        if (!Definition.IsNone())
+        {
+            FLDDefinitionWire::Encode(Definition, Dev.Sent.Definition);
+        }
+        Dev.bSent = true;
+        return true;
+    }
+
+    // A raw request through the owner RPC with its own ids: the stale, replayed and conflicting probes.
+    bool SendDevDirect(double Now, ALDPlayerController& PC, const FString& Name, const FLDDevTestCommand& Raw)
+    {
+        const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
+        Dev = FDevCall();
+        Dev.Name = Name;
+        Dev.ResultMark = DevResults.Num();
+        Dev.SentAt = Now;
+        Dev.GoldBefore = Equip ? Equip->Gold : -1;
+        Dev.Sent = Raw;
+        Dev.bSent = true;
+        PC.ServerDevTestCommand(Raw);
+        return true;
+    }
+
+    // The terminal answer to the request in flight: its final receipt or its admission refusal.
+    const FLDDevTestResult* DevAnswer() const
+    {
+        for (int32 Index = Dev.ResultMark; Index < DevResults.Num(); ++Index)
+        {
+            const FLDDevTestResult& Answer = DevResults[Index];
+            if (Answer.Generation == Dev.Sent.Generation && Answer.RequestId == Dev.Sent.RequestId
+                && (Answer.Status == ELDAdmissionStatus::Final || Answer.Status == ELDAdmissionStatus::AdmissionRejected))
+            {
+                return &Answer;
+            }
+        }
+        return nullptr;
+    }
+
+    // Waits for the terminal answer and the owner view it implies (Settled), bounded; then checks status, outcome and reason.
+    EDevWait AwaitDev(double Now, ELDAdmissionStatus Status, ELDReceiptOutcome Outcome, ELDGrowthReason Reason,
+        TFunctionRef<bool()> Settled)
+    {
+        const FLDDevTestResult* Answer = DevAnswer();
+        const bool bSettled = Answer && Settled();
+        if (!bSettled)
+        {
+            if (Now - Dev.SentAt < LDDemoGrowthScenario::GrowthProbeDevSettleSeconds) { return EDevWait::Waiting; }
+            Check(false, TEXT("DevTest"), Dev.Name + (Answer ? TEXT(": the owner view never showed the committed result")
+                : TEXT(": no terminal answer arrived")), Answer ? (Answer->bHasReceipt ? Answer->Receipt.Detail : Answer->Detail) : FString());
+            return EDevWait::Failed;
+        }
+        const ELDGrowthReason Got = LDGrowthWire::Reason(Answer->bHasReceipt ? Answer->Receipt.Header.Reason : Answer->Reason);
+        const bool bOutcome = Status != ELDAdmissionStatus::Final
+            || (Answer->bHasReceipt && Answer->Receipt.Header.Outcome == Outcome && Answer->Receipt.Header.RequestId == Dev.Sent.RequestId);
+        const FString Detail = FString::Printf(TEXT("status %u reason %s: %s"), uint32(Answer->Status), LDGrowthWire::ReasonName(Got),
+            Answer->bHasReceipt ? *Answer->Receipt.Detail : *Answer->Detail);
+        const bool bOk = Check(Answer->Status == Status && Got == Reason && bOutcome, TEXT("DevTest"), Dev.Name, Detail);
+        const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("step"), Dev.Name);
+        Row->SetStringField(TEXT("op"), LDDevTest::OpName(Dev.Sent.Op));
+        Row->SetNumberField(TEXT("request"), double(Dev.Sent.RequestId));
+        Row->SetStringField(TEXT("reason"), LDGrowthWire::ReasonName(Got));
+        Row->SetStringField(TEXT("detail"), Detail);
+        DevRows.Add(MakeShared<FJsonValueObject>(Row));
+        return bOk ? EDevWait::Done : EDevWait::Failed;
+    }
+
+    bool AdvanceDev(EDevWait Wait)
+    {
+        if (Wait == EDevWait::Failed) { return Finish(); }
+        if (Wait == EDevWait::Done)
+        {
+            ++DevStep;
+            Dev = FDevCall();
+        }
+        return true;
+    }
+
+    // Client1, second match: every DEV op through the remote owning connection, after the Host's clean second-ledger export.
+    bool TickSecondDev(double Now, ALDPlayerController& PC)
+    {
+        if (!Exists(TEXT("HostLedger2.json"))) { return true; }
+        const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
+        const FLDProgressionView* Prog = PC.ReadOwnProgression();
+        if (!Equip || !Prog || !Catalog) { return true; }
+        const auto GoldIs = [&PC](int64 Want) { const FLDEquipmentView* View = PC.ReadOwnEquipment(); return View && View->Gold == Want; };
+        const auto SlotOf = [&PC](FName Id) -> int32
+        {
+            const FLDEquipmentView* View = PC.ReadOwnEquipment();
+            const FLDEquipmentSlotView* Row = View ? View->Slots.FindByPredicate([Id](const FLDEquipmentSlotView& Slot)
+                { return Slot.bOccupied && Slot.DefinitionId == Id; }) : nullptr;
+            return Row ? int32(Row->SlotIndex) : INDEX_NONE;
+        };
+        const auto CardCount = [&PC](FName Id) -> int32
+        {
+            const FLDProgressionView* View = PC.ReadOwnProgression();
+            const FLDAttributeCardView* Row = View ? View->AttributeCards.FindByPredicate([Id](const FLDAttributeCardView& Card)
+                { return Card.DefinitionId == Id; }) : nullptr;
+            return Row ? int32(Row->Count) : 0;
+        };
+        if (DevCardId.IsNone() && !Catalog->Get().Attributes.IsEmpty())
+        {
+            DevCardId = FName(*Catalog->Get().Attributes[0].Id);
+        }
+        switch (DevStep)
+        {
+        case 0:
+            if (!Dev.bSent)
+            {
+                FLDDevTestCommand Raw;
+                Raw.Generation = FirstGeneration;
+                Raw.Life = PC.OwnerState.Life;
+                Raw.RequestId = 1;
+                Raw.Op = ELDDevTestOp::GrantGold;
+                Raw.Amount = 5;
+                return SendDevDirect(Now, PC, TEXT("A DEV command naming the first match is refused as OldMatch"), Raw);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::AdmissionRejected, ELDReceiptOutcome::None, ELDGrowthReason::OldMatch,
+                [&] { return GoldIs(Dev.GoldBefore); }));
+        case 1:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV gold grant commits once into the owner's own account"), ELDDevTestOp::GrantGold,
+                    ItemBuyPrice);
+            }
+            {
+                const EDevWait Wait = AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                    [&] { return GoldIs(Dev.GoldBefore + ItemBuyPrice); });
+                if (Wait == EDevWait::Done)
+                {
+                    DevGoldCommand = Dev.Sent;
+                    DevGrantGold = ItemBuyPrice;
+                }
+                return AdvanceDev(Wait);
+            }
+        case 2:
+            if (!Dev.bSent)
+            {
+                return SendDevDirect(Now, PC, TEXT("A replay of the committed grant answers its final receipt and commits nothing"),
+                    DevGoldCommand);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore); }));
+        case 3:
+            if (!Dev.bSent)
+            {
+                FLDDevTestCommand Raw = DevGoldCommand;
+                ++Raw.Amount;
+                return SendDevDirect(Now, PC, TEXT("The committed request id with other terms is refused as RequestConflict"), Raw);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::AdmissionRejected, ELDReceiptOutcome::None,
+                ELDGrowthReason::RequestConflict, [&] { return GoldIs(Dev.GoldBefore); }));
+        case 4:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV buy away from the shop pays the catalog price into a free slot"),
+                    ELDDevTestOp::BuyItem, 0, ItemId);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore - ItemBuyPrice) && SlotOf(ItemId) != INDEX_NONE; }));
+        case 5:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV cooldown reset applies to the owner's own tracks"), ELDDevTestOp::ResetCooldowns, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [] { return true; }));
+        case 6:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV refill applies to the living body"), ELDDevTestOp::RefillResources, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [] { return true; }));
+        case 7:
+            if (!Dev.bSent)
+            {
+                const int32 Slot = SlotOf(ItemId);
+                if (!Check(Slot != INDEX_NONE, TEXT("DevTest"), TEXT("The DEV-bought item is in the owner's equipment"))) { return Finish(); }
+                return SendDev(Now, PC, TEXT("A DEV sell away from the shop refunds the catalog sell price and empties the slot"),
+                    ELDDevTestOp::SellItem, 0, NAME_None, uint8(Slot + 1));
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore + ItemSellGold) && SlotOf(ItemId) == INDEX_NONE; }));
+        case 8:
+            if (!Dev.bSent)
+            {
+                if (!Check(!DevCardId.IsNone() && Prog->PendingChoiceCount == 1 && CardCount(DevCardId) == 0, TEXT("DevTest"),
+                    TEXT("The second match's opening opportunity is still open for a DEV learn"))) { return Finish(); }
+                return SendDev(Now, PC, TEXT("A DEV learn takes any legal card as the open opportunity's choice"),
+                    ELDDevTestOp::LearnOption, 0, DevCardId);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { const FLDProgressionView* View = PC.ReadOwnProgression();
+                    return View && CardCount(DevCardId) == 1 && View->PendingChoiceCount == 0; }));
+        case 9:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV learn with no opportunity left is refused as NoOffer"), ELDDevTestOp::LearnOption, 0,
+                    DevCardId);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Rejected, ELDGrowthReason::NoOffer,
+                [&] { return CardCount(DevCardId) == 1; }));
+        default:
+            if (Passed) { Mark(TEXT("Client1DevDone.json")); }
+            return Finish();
+        }
+    }
+
+    // Host, second match: its own DEV grant as a Listen Host, then the third ledger export once the buyer is done.
+    bool TickHostDev(double Now, ALDPlayerController& PC)
+    {
+        if (DevStep == 0)
+        {
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("The Listen Host's own DEV gold grant commits through its local owner RPC"),
+                    ELDDevTestOp::GrantGold, LDDemoGrowthScenario::GrowthProbeHostDevGold);
+            }
+            const auto GoldIs = [&PC](int64 Want) { const FLDEquipmentView* View = PC.ReadOwnEquipment(); return View && View->Gold == Want; };
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore + LDDemoGrowthScenario::GrowthProbeHostDevGold); }));
+        }
+        if (!Exists(TEXT("Client1DevDone.json"))) { return true; }
+        ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+        FString EvidenceText, ExportError;
+        const bool bExported = Mode && Mode->Economy && Mode->Economy->ExportLedgerEvidence(EvidenceText, ExportError)
+            && SaveText(EvidenceText, TEXT("LedgerEvidence3.json"));
+        Check(bExported, TEXT("DevTest"), TEXT("The authority exports the second match's ledger after both owners' DEV commands"),
+            ExportError);
         return Finish();
     }
 
@@ -1606,6 +1899,7 @@ public:
         case EStage::Respawn: return TickRespawn(Now, PC);
         case EStage::SecondReplay: return TickSecondReplay(Now, PC);
         case EStage::SecondQuote: return TickSecondQuote(PC);
+        case EStage::SecondDev: return TickSecondDev(FPlatformTime::Seconds(), PC);
         default: return Fail(TEXT("Net"), TEXT("The buyer reached a stage of another role"));
         }
     }
@@ -2951,8 +3245,11 @@ public:
             TEXT("Iso"), TEXT("The second match's fresh shop quote shows no inherited cooldown: the first match's debt did not survive"),
             FString::Printf(TEXT("session %s -> %s, first-match debt until %lld"), *LDDemoGrowthScenario::GrowthProbeGuid(FirstSessionId),
                 ShopView ? *LDDemoGrowthScenario::GrowthProbeGuid(ShopView->SessionId) : TEXT("none"), FirstDebtReadyAtMs));
-        if (Passed) { Mark(TEXT("Client1Match2Done.json")); }
-        return Finish();
+        // The second match's own gold before the DEV stage; the runner compares it with the fresh ledger's starting gold.
+        if (const FLDEquipmentView* EquipView = PC.ReadOwnEquipment()) { Match2Gold = EquipView->Gold; }
+        if (!Passed || !Mark(TEXT("Client1Match2Done.json"))) { return Finish(); }
+        SetStage(EStage::SecondDev);
+        return true;
     }
 
     bool Finish()
@@ -2974,6 +3271,7 @@ public:
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), int32(Stage));
         Report->SetArrayField(TEXT("checks"), Checks);
+        Report->SetArrayField(TEXT("dev_test"), DevRows);
         Report->SetNumberField(TEXT("second_generation"), SecondGeneration);
         Report->SetObjectField(TEXT("match1"), FirstMatchRow.IsValid() ? FirstMatchRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("opening"), OpeningRow.IsValid() ? OpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
@@ -3004,6 +3302,7 @@ public:
             Report->SetNumberField(TEXT("host_grant_gold"), double(bHostGrantSent ? LDDemoGrowthScenario::GrowthProbeHostGrantGold : 0));
             Report->SetBoolField(TEXT("buyer_killed"), bBuyerKilled);
             Report->SetObjectField(TEXT("host_killer"), HostKillerRow.IsValid() ? HostKillerRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+            Report->SetNumberField(TEXT("host_dev_gold"), double(DevStep > 0 ? LDDemoGrowthScenario::GrowthProbeHostDevGold : 0));
         }
         else
         {
@@ -3018,6 +3317,8 @@ public:
             Report->SetArrayField(TEXT("shop_steps"), ShopRows);
             Report->SetObjectField(TEXT("replacement"), ReplaceRow.IsValid() ? ReplaceRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
             Report->SetObjectField(TEXT("dead_choice"), DeathRow.IsValid() ? DeathRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+            Report->SetNumberField(TEXT("dev_grant_gold"), double(DevGrantGold));
+            Report->SetNumberField(TEXT("match2_gold"), double(Match2Gold));
         }
         Written = Save(Report, Role + TEXT(".json"));
         UE_LOG(LogTemp, Display, TEXT("LD_DEMO_GROWTH_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);

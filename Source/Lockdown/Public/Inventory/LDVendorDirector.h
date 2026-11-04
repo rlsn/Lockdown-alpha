@@ -39,6 +39,14 @@ public:
     FLDShopOpenResult OpenPendingShop(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
     // An AuthorityFault reason in the receipt means the boundary must fault.
     FLDShopReceipt CommitPendingShopCommand(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV test command (LDDevTestProtocol.h, Transactions permit): one Buy of ItemId (Slot 0) or one Sell of the item in
+    // Slot 1/2 at the catalog price, through the same ledger transaction and composite install as a shop command but
+    // without a shop session, quote or reach. The caller has checked match, life and Alive. None when installed; otherwise
+    // nothing changed, AuthorityFault meaning the boundary must fault.
+    ELDGrowthReason DevTrade(const FGuid& ContenderId, bool bBuy, FName ItemId, uint8 Slot, uint64 RequestId,
+        const FLDGameplayWritePermit& Permit, FString& Detail);
+#endif
 
     // Shop receipts finalized since the last publication, for the owning connection.
     void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDShopReceipt>& Out);
@@ -77,6 +85,12 @@ private:
     // Rejected with only the current account/inventory/build guards as sync hints.
     FLDShopReceipt Finish(const FGuid& ContenderId, FRecord& Record, ELDGrowthReason Reason,
         const FLDGameplayWritePermit& Permit, FLDShopReceipt Receipt = FLDShopReceipt());
+    // One Buy or Sell of Command's terms (kind, definition and price or instance, item revision and price, the expected
+    // account and inventory revisions) as one ledger transaction keyed by Canonical, with the build revision and the Combat
+    // projection, installed together. None with OutReceipt's committed payload; a rejection reason when nothing changed;
+    // AuthorityFault when the domain or the permit was lost before the install.
+    ELDGrowthReason CommitTrade(const FGuid& ContenderId, const FLDShopCommand& Command, const TArray<uint8>& Canonical,
+        const FLDGameplayWritePermit& Permit, FLDShopReceipt& OutReceipt);
     ALDGameMode* Mode() const;
 
     FLDMatchContext Match;

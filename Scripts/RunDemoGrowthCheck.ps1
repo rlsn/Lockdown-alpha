@@ -22,8 +22,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Opening','Ledger','Fixture','A14','N03','Iso')
-    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso')
+    Host = @('Net','Start','Opening','Ledger','Fixture','A14','N03','Iso','DevTest')
+    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
@@ -126,7 +126,7 @@ try {
         $buyer.second_generation -le $buyer.match1.generation) {
         throw "Roles did not observe the same first and second match generations: $output"
     }
-    foreach ($name in @('LedgerEvidence.json','LedgerEvidence2.json')) {
+    foreach ($name in @('LedgerEvidence.json','LedgerEvidence2.json','LedgerEvidence3.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $evidence $name))) { throw "The Host exported no $name`: $output" }
         # The independent replay of each exported ledger; a non-zero exit fails the run.
         Assert-LedgerEvidence $name
@@ -168,8 +168,28 @@ try {
         throw "The second match's ledger accounts are not exactly this match's two contenders: $output"
     }
     if (@($next.accounts | Where-Object { $_.gold -ne $second.startingGold -or $_.revision -ne '1' -or $_.retired }).Count -ne 0 -or
-        @($next.inventories | Where-Object { $_.revision -ne '1' }).Count -ne 0 -or [long]$buyer.final_gold -ne [long]$second.startingGold) {
+        @($next.inventories | Where-Object { $_.revision -ne '1' }).Count -ne 0 -or [long]$buyer.match2_gold -ne [long]$second.startingGold) {
         throw "A second-match account does not open at the approved starting gold and first revisions: $output"
+    }
+    # DEV test commands (#78), after the clean second ledger: exactly the two owners' own DEV gold grants are DevFixture mints;
+    # the buyer's DEV buy and sell are ordinary Buy/Sell entries, so its final gold and items equal the replayed ledger.
+    $third = Read-GrowthJson 'LedgerEvidence3.json'
+    if ($third.match -ne $second.match) { throw "The DEV-stage ledger is not the second match's: $output" }
+    $devGrants = @($third.devFixture.grants)
+    $buyerGrant = @($devGrants | Where-Object { $_.account -eq $buyer.entity })
+    $hostGrant = @($devGrants | Where-Object { $_.account -eq $hostReport.entity })
+    if (-not $third.devFixture.enabled -or $devGrants.Count -ne 2 -or $buyerGrant.Count -ne 1 -or $hostGrant.Count -ne 1 -or
+        [long]$buyerGrant[0].gold -ne [long]$buyer.dev_grant_gold -or [long]$hostGrant[0].gold -ne [long]$hostReport.host_dev_gold -or
+        [long]$buyer.dev_grant_gold -le 0 -or [long]$hostReport.host_dev_gold -le 0) {
+        throw "The DEV-stage ledger does not list exactly each owner's own DEV gold grant: $output"
+    }
+    $buyerAccount = @($third.current.accounts | Where-Object { $_.id -eq $buyer.entity })
+    if ($buyerAccount.Count -ne 1 -or [long]$buyerAccount[0].gold -ne [long]$buyer.final_gold -or
+        @($third.current.items | Where-Object { $_.owner -eq $buyer.entity }).Count -ne 0 -or @($buyer.final_items).Count -ne 0) {
+        throw "The DEV-stage ledger and the buyer's own projection disagree after its DEV buy and sell: $output"
+    }
+    if (@($buyer.dev_test).Count -ne 10 -or @($hostReport.dev_test).Count -ne 1) {
+        throw "A DEV test step is missing from the reports: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
     if (-not $processes[1].WaitForExit(30000) -or $processes[1].ExitCode -ne 0) { throw "Owning client did not exit cleanly: $output" }
@@ -192,7 +212,11 @@ try {
         "The Host then ended the match " +
         "(no winner) and returned to Lobby generation $($buyer.second_generation): a second normal match started both owners at clean " +
         "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, quoted no inherited cooldown " +
-        "and opened a fresh ledger under a new LedgerMatch (replayed). Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
+        "and opened a fresh ledger under a new LedgerMatch (replayed). DEV test commands: the buyer through its remote owner RPC " +
+        "(stale match, replay and conflict refused or answered without a second commit; gold grant, buy and sell away from the shop, " +
+        "cooldown reset, refill, learn on the open opportunity, learn without one refused) and the Host through its own as Listen " +
+        "Host; the DEV-stage ledger replayed with --dev-fixture lists exactly both owners' grants. " +
+        "Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
     foreach ($process in $processes) {
