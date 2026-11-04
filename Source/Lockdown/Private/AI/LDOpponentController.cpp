@@ -197,10 +197,10 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
+        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks);
 }
 
@@ -338,6 +338,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
         ? Public.Occupier : FGuid();
     Frame.Public.DueAtMs = Public.DueAtMs;
+    Frame.Public.Leader = Public.Leader.Leader;
+    Frame.Public.LeaderCircleCentreCm = Public.Leader.CircleCentreCm;
     Reads.ClaimedAirdrop = Public.Airdrop.Phase == ELDAirdropPhase::Claimed && Public.Airdrop.ClaimedBy == Own.ContenderId
         ? Public.Airdrop.Serial : 0;
     if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
@@ -815,6 +817,7 @@ void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const 
     const FString& Problem)
 {
     if (Decision.Mode == ReportedMode && Decision.Reason == ReportedReason && Problem == ReportedProblem) { return; }
+    Tally.LeaderHunts += Decision.Reason == ELDOpponentReason::HuntLeader && ReportedReason != ELDOpponentReason::HuntLeader ? 1 : 0;
     ReportedMode = Decision.Mode;
     ReportedReason = Decision.Reason;
     ReportedProblem = Problem;

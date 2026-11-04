@@ -92,6 +92,9 @@ namespace LDHUD
     // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
     // seconds who claimed it. Empty when there is no drop to show.
     LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs);
+    // D27 (#79): the public 通报批评 line: who is named and the bounty on them; the own player is told directly.
+    // Empty when nobody is named.
+    LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
     struct FKillFeedLineView

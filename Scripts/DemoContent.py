@@ -787,6 +787,11 @@ def validate_numbers(data):
             "InvalidPolicy", "AI", "camp reserve thresholds are inconsistent")
     require(p("AI.RetryPolicy.InitialBackoffSec") <= p("AI.RetryPolicy.MaxBackoffSec"),
             "InvalidTiming", "AI.RetryPolicy", "backoff interval exceeds its cap")
+    # D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    require(0 < p("LEADER.CircleMaxOffsetCm") <= p("LEADER.CircleRadiusCm")
+            and params["LEADER.MinLevel"] <= data["progression"]["max_level"]
+            and params["LEADER.BountyGoldPerRefresh"] <= params["LEADER.BountyGoldMax"],
+            "InvalidPolicy", "LEADER", "the circle must contain the leader, the level must exist and the cap must be reachable")
     # D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),

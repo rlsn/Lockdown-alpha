@@ -211,6 +211,7 @@ struct FContext
     double CaptureRadiusCm = 0;
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
+    double LeaderRadiusCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
     double VisionRadiusCm = 0;
@@ -230,10 +231,11 @@ struct FContext
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
+        LeaderRadiusCm = ToDouble(Content.Parameters.LeaderCircleRadiusCm);
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !Capture || !Shop)
         {
             return false;
         }
@@ -303,6 +305,28 @@ struct FContext
     {
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
+    }
+    // D27: the public place nearest the centre of another contender's 通报批评 circle, inside that circle, when its walk
+    // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
+    // minimum level with high-camp entry health.
+    const FLDOpponentPOI* LeaderHuntTarget() const
+    {
+        if (!Frame.Public.Leader.IsValid() || Frame.Public.Leader == Self.ContenderId
+            || Self.Level < Catalog.Get().Parameters.LeaderMinLevel || !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.HighCampEntryHPBp))
+        {
+            return nullptr;
+        }
+        const FVector& Centre = Frame.Public.LeaderCircleCentreCm;
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind == ELDOpponentPOIKind::Shop || !CanAttempt(PathKey(POI.Id))
+                || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
+            const double Distance = FVector::Dist2D(POI.FootCm, Centre);
+            if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)
+                || (Distance == FVector::Dist2D(Best->FootCm, Centre) && POI.Id.Compare(Best->Id) < 0)) { Best = &POI; }
+        }
+        return Best;
     }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
     bool NeedProtection() const { return !Threats.IsEmpty() && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ResumeFarmHPBp); }
@@ -1566,6 +1590,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         EndVisit(State, false);
         Body(Intent);
         return Finish(EMode::Contest, EReason::ContestCapture);
+    }
+    // D27 (#79): a strong, healthy body hunts a named leader for the bounty: below the circle and the airdrop, above
+    // farming, and never out of a camp fight it began. Once the leader is in sight the engage branch takes over.
+    if (const FLDOpponentPOI* Hunt = State.VisitEngagedAtMs == 0 ? C.LeaderHuntTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(MoveTo(C, *Hunt));
+        return Finish(EMode::Explore, EReason::HuntLeader);
     }
     if (FarmBody(C, Intent))
     {

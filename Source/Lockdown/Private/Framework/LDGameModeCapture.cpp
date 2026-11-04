@@ -190,6 +190,13 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         CountedDeaths.Add(DeathKey);
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
+        // D27: the shown leader's death spends the notice; its bounty was locked with the death.
+        if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
+        {
+            bPublicMatchDirty = true;
+            UE_LOG(LogTemp, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s bounty=%lld"), *Id.ToString(),
+                *Event.CreditContender.ToString(), LeaderNotice.LastDownBountyGold);
+        }
         FLDKillNotice& Notice = KillNotices.AddDefaulted_GetRef();
         Notice.Serial = ++NextKillSerial;
         Notice.Victim = Id;
@@ -512,6 +519,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     }
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     View.Airdrop = Airdrop.View();
+    View.Leader = LeaderNotice.View();
     return View;
 }
 

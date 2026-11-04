@@ -242,6 +242,15 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Another contender's claim names the public roster name"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,48000),
         FString(TEXT("甲 抢到了空投")));
     TestTrue(TEXT("The claim notice leaves after a few seconds"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,60000).IsEmpty());
+    // D27: the 通报批评 line names the leader and the bounty; the leader is told directly.
+    FLDLeaderView Named;
+    TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named,Me,FString()).IsEmpty());
+    Named.Leader=FGuid::NewGuid();Named.BountyGold=100;Named.RefreshedAtMs=20000;
+    TestEqualSensitive(TEXT("Another contender's notice names the public roster name and the bounty"),LDHUD::LeaderLine(Named,Me,TEXT("甲")),
+        FString(TEXT("通报批评：甲 · 赏金 +100 金币")));
+    Named.Leader=Me;
+    TestEqualSensitive(TEXT("The leader is told its place is public"),LDHUD::LeaderLine(Named,Me,TEXT("我")),
+        FString(TEXT("你被通报批评了！位置已在小地图公开 · 赏金 +100 金币")));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDContentParametersTest,"Lockdown.Rules.HUDContentParameters",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

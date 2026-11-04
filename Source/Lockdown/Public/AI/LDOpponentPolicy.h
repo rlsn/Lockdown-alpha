@@ -22,7 +22,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed, ContestAirdrop
+    AwaitReceipt, TargetSuppressed, ContestAirdrop, HuntLeader
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
@@ -108,6 +108,9 @@ struct FLDOpponentPublicMatch
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
     bool bAirdropLanded = false;
+    // D27: the public 通报批评 notice; Leader invalid when nobody is named.
+    FGuid Leader;
+    FVector LeaderCircleCentreCm = FVector::ZeroVector;
 };
 
 enum class ELDOpponentUnitKind : uint8 { Contender, CampMember };

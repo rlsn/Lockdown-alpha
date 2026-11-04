@@ -29,6 +29,8 @@ struct FLDMinimapStatic
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone };
     enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm };
+    // D27: the approved leader circle radius, read with the static map.
+    double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
     struct FSite { ESite Kind=ESite::Shop; FVector2D Cm=FVector2D::ZeroVector; };
     struct FRun { FVector2f Position=FVector2f::ZeroVector; FVector2f Extent=FVector2f::ZeroVector; FLinearColor Color=FLinearColor::White; };
@@ -180,6 +182,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     const FLDDemoRational& Radius=Approved.Parameters.CaptureRadiusCm;
     const double RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
     const FLDDemoRational& DormRadius=Approved.Parameters.DormRadiusCm;
+    const FLDDemoRational& LeaderRadius=Approved.Parameters.LeaderCircleRadiusCm;
+    Cache.LeaderRadiusCm=LeaderRadius.Denominator>0?double(LeaderRadius.Numerator)/double(LeaderRadius.Denominator):0.;
     const double DormRadiusCm=DormRadius.Denominator>0?double(DormRadius.Numerator)/double(DormRadius.Denominator):0.;
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
@@ -414,6 +418,14 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         if(const auto* Public=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr)
         {
             const FLDAirdropView& Drop=Public->PublicMatch.Airdrop;
+            // D27: the public 通报批评 circle, a dashed red ring of the approved radius around the published fuzzy centre.
+            const FLDLeaderView& Notice=Public->PublicMatch.Leader;
+            if(Public->PublicMatch.Generation==Own.Match&&Notice.Leader.IsValid()&&Cache.LeaderRadiusCm>0)
+            {
+                TArray<FVector2f> Ring;
+                for(int32 Step=0;Step<=40;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/40.;Ring.Add(Spot(Notice.CircleCentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Cache.LeaderRadiusCm));}
+                FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,FLinearColor(1.f,.32f,.28f,.95f),2.f,5.f);
+            }
             if(Public->PublicMatch.Generation==Own.Match&&(Drop.Phase==ELDAirdropPhase::Announced||Drop.Phase==ELDAirdropPhase::Landed))
             {
                 const FVector2f At=Spot(Drop.PositionCm);const FLinearColor Orange=ALDAirdropMarker::Color();

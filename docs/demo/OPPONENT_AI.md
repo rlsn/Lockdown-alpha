@@ -371,6 +371,11 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 它排在回防、独占和圈内争夺之后、普通争圈与打野之前，原因 `ContestAirdrop`（`DemoOpponentPolicy.Airdrop`）。
 拾取由权威按脚点判定，AI 不另行提交请求。
 
+通报批评（D27）读取公开对局视图中被通报者与模糊圆心，与真人看到的相同；被通报者若不可见，AI 不知道其实时位置。
+本人等级不低于 `LEADER.MinLevel`、生命不低于进入高级营地的门槛、不是被通报者本人、不在交战中的营地里时，
+走向圆内离圆心最近、未被失败抑制的公开地点（不含商店）；看到被通报者后由普通交战分支接手。
+它排在空投和普通争圈之后、打野之前，原因 `HuntLeader`（`DemoOpponentPolicy.HuntLeader`）。
+
 ### 6.3 普攻与每一个主动来源
 
 持续普攻只由 Nav AttackUnit/AttackMove 的 AttackCycle 驱动。

@@ -3582,6 +3582,23 @@
       "numerator": 400,
       "unit": "cm"
     },
+    "LEADER.BountyGoldMax": 250,
+    "LEADER.BountyGoldPerRefresh": 50,
+    "LEADER.CircleMaxOffsetCm": {
+      "denominator": 1,
+      "numerator": 1000,
+      "unit": "cm"
+    },
+    "LEADER.CircleRadiusCm": {
+      "denominator": 1,
+      "numerator": 1500,
+      "unit": "cm"
+    },
+    "LEADER.MinLevel": 3,
+    "LEADER.RefreshSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
     "LIFE.ProtectionSec": {
       "ms": 3000,
       "unit": "ms"

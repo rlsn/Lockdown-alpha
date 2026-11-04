@@ -843,6 +843,7 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         Basis.RewardDefinitionId=FName(*Content->Get().Character.Id);
         Basis.VictimLevelAtDeath=Record->Build.Level;
         Basis.VictimBuildRevisionAtDeath=Record->Installed.BuildRevision;
+        Basis.LeaderBountyGoldAtDeath=Mode->LeaderBountyFor(Body.Victim.EntityId);
     }
     else { Basis.RewardDefinitionId=Body.MonsterId; }
     // Credit eligibility is frozen at the fatal moment; a later leave or level-up never rewrites it.

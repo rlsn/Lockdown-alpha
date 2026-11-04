@@ -259,6 +259,19 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
+    // D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    {
+        const auto& Radius = P.LeaderCircleRadiusCm;
+        const auto& Offset = P.LeaderCircleMaxOffsetCm;
+        const bool bContained = Radius.Denominator > 0 && Offset.Denominator > 0 && Offset.Numerator > 0
+            && double(Offset.Numerator) / double(Offset.Denominator) <= double(Radius.Numerator) / double(Radius.Denominator);
+        if (!Check.Require(bContained && P.LeaderMinLevel >= 1 && P.LeaderMinLevel <= D.Progression.MaxLevel
+            && P.LeaderBountyGoldPerRefresh > 0 && P.LeaderBountyGoldPerRefresh <= P.LeaderBountyGoldMax, TEXT("LEADER"),
+            TEXT("the circle must contain the leader, the level must exist and the cap must be reachable")))
+        {
+            return false;
+        }
+    }
     // D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
     if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
         && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),

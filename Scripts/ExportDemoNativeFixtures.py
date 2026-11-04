@@ -181,7 +181,7 @@ def parameter_projection(parameters):
         ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"),
         ("AIRDROP.FirstLandSec", "AirdropFirstLandMs"), ("AIRDROP.IntervalSec", "AirdropIntervalMs"),
-        ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"),
+        ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
@@ -189,6 +189,7 @@ def parameter_projection(parameters):
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
         ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
+        ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
@@ -198,6 +199,8 @@ def parameter_projection(parameters):
         ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("AIRDROP.RewardGold", "AirdropRewardGold"),
+        ("LEADER.MinLevel", "LeaderMinLevel"), ("LEADER.BountyGoldPerRefresh", "LeaderBountyGoldPerRefresh"),
+        ("LEADER.BountyGoldMax", "LeaderBountyGoldMax"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}

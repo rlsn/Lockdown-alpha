@@ -56,6 +56,11 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         || (Drop.Phase == ELDAirdropPhase::Claimed ? Drop.ClaimedAtMs < Drop.LandAtMs : Drop.ClaimedAtMs != 0)
         || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
     { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
+    const FLDLeaderView& Named = View.Leader;
+    if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= View.StartedAtMs
+            || Named.RefreshedAtMs > View.ServerNowMs || Named.BountyGold <= 0)
+        : (Named.RefreshedAtMs != 0 || Named.BountyGold != 0 || !Named.CircleCentreCm.IsZero()))
+    { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the match clock.")); }
     switch (View.Phase)
     {
     case ELDMatchPhase::Development:
@@ -71,7 +76,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         break;
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
-            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop)
+            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop || Named.Leader.IsValid())
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no capture state.")); }
         break;
     }

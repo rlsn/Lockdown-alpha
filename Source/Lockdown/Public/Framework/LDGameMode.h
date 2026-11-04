@@ -10,6 +10,7 @@
 #include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
 #include "World/LDDormZones.h"
+#include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
 #include "World/LDAirdropMarker.h"
 #include "Vision/LDViewTypes.h"
@@ -150,6 +151,12 @@ public:
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
+    // D27 (#79) 通报批评: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
+    bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
+    int64 NextLeaderDueMs() const;
+    // The bounty a kill of Victim earns now (zero unless Victim is the shown leader); Combat locks it at the fatal moment.
+    int64 LeaderBountyFor(const FGuid& Victim) const;
+    const FLDLeaderState& GetLeaderNotice() const { return LeaderNotice; }
     // Right after Motion: whether this step's motion completes a capture segment strictly before the step's
     // end (a paused holder sole again). If so the driver skips the later gameplay phases of the step, retries
     // owed rewards, and Capture/Close lock the result at that earlier instant.
@@ -351,6 +358,7 @@ private:
     FLDCaptureCircle CaptureCircle;
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
+    FLDLeaderState LeaderNotice;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
     TSet<FLDDeathKey> CountedDeaths;

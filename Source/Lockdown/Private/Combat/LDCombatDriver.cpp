@@ -80,6 +80,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
         // D26: an airdrop is announced and lands on its exact boundary.
         Consider(Mode->NextAirdropDueMs());
+        // D27: the leader notice refreshes on its exact boundary.
+        Consider(Mode->NextLeaderDueMs());
     }
     return Due;
 }
@@ -164,7 +166,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
                 return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error)
-                    && Mode->AdvanceAirdrop(Permit,Error);
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {

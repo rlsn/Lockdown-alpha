@@ -34,6 +34,18 @@ struct FLDAirdropView
     UPROPERTY() int64 ClaimedAtMs = 0;
 };
 
+// D27 (#79) 通报批评: the current leader notice, public to every connection: who, a fuzzy circle that contains the
+// leader's foot at the refresh, and the bounty on top of the normal kill reward. Empty when nobody is named.
+USTRUCT()
+struct FLDLeaderView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Leader;
+    UPROPERTY() FVector CircleCentreCm = FVector::ZeroVector;
+    UPROPERTY() int64 RefreshedAtMs = 0;
+    UPROPERTY() int64 BountyGold = 0;
+};
+
 // Whole-room capture state. It names at most the single occupier and never lists bodies in the
 // circle, hidden positions, protection or private build data. Live time comes from DemoClock.
 USTRUCT()
@@ -59,6 +71,7 @@ struct FLDPublicMatchView
     UPROPERTY() int64 PausedProgressMs = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
+    UPROPERTY() FLDLeaderView Leader;
 };
 
 USTRUCT()

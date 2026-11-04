@@ -263,6 +263,13 @@ FString LDHUD::AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FS
     default: return FString();
     }
 }
+FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName)
+{
+    if(!Notice.Leader.IsValid()){return FString();}
+    const FString Bounty=FString::Printf(TEXT("赏金 +%lld 金币"),Notice.BountyGold);
+    if(Self.IsValid()&&Notice.Leader==Self){return TEXT("你被通报批评了！位置已在小地图公开 · ")+Bounty;}
+    return TEXT("通报批评：")+(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName)+TEXT(" · ")+Bounty;
+}
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;

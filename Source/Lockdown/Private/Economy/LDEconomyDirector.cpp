@@ -349,6 +349,14 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
             ? LDProgression::ContenderKillReward(Content->Get().Parameters, uint8(Content->Get().Progression.MaxLevel),
                 Basis.VictimLevelAtDeath, Amounts)
             : ELDGrowthReason::DataInvalid;
+        // D27: the leader bounty locked at the fatal moment comes on top of the normal kill reward.
+        const int64 Bounty = Basis.LeaderBountyGoldAtDeath;
+        if (AmountReason == ELDGrowthReason::None
+            && (Bounty < 0 || Bounty > Content->Get().Parameters.LeaderBountyGoldMax || Amounts.Gold > MAX_int64 - Bounty))
+        {
+            AmountReason = ELDGrowthReason::DataInvalid;
+        }
+        if (AmountReason == ELDGrowthReason::None) { Amounts.Gold += Bounty; }
     }
     else
     {

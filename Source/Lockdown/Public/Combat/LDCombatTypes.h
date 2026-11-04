@@ -183,6 +183,7 @@ struct FLDRewardBasis
     uint64 VictimBuildRevisionAtDeath=0;      // contender branch only (last build revision Combat installed)
     bool bCreditOwnerEligibleAtDeath=false;   // another contender, still in the match at the fatal time
     ELDNoRewardReason NoRewardReason=ELDNoRewardReason::NoOwner; // None iff eligible
+    int64 LeaderBountyGoldAtDeath=0;          // D27 contender branch only: the shown leader's bounty at the fatal moment
 };
 
 // Locked once at the first zero-HP commit; never rebuilt from HP, last attacker or current pawn.

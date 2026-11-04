@@ -106,6 +106,12 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // D27 (#79): the leader notice refreshes from this match's start.
+    if (!LDLeaderNotice::Resolve(*DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, LeaderNotice, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     bAuthorityInitialized = true;
     if (!PublishAuthorityClock(Error))
     {
@@ -127,6 +133,7 @@ void ALDGameMode::RetireMatchDomains()
     CaptureCircle={};
     DormZones={};
     Airdrop={};
+    LeaderNotice={};
     CaptureTracks.Reset();
     PendingCapture.Reset();
     bAuthorityInitialized=false;

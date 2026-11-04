@@ -45,6 +45,7 @@ def content_fixture():
         ("CAMP.ReturnDeadEndSec", "s", 4),
         ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
+        ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
@@ -58,6 +59,7 @@ def content_fixture():
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
         "CAMP.ReturnDeadEndPlans": 2, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
+        "LEADER.MinLevel": 2, "LEADER.BountyGoldPerRefresh": 40, "LEADER.BountyGoldMax": 200,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",

@@ -212,6 +212,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         AirdropText=OneLine(TEXT(""),15,520);AirdropText->SetJustification(ETextJustify::Center);
         AirdropText->SetColorAndOpacity(FSlateColor(ALDAirdropMarker::Color()));AirdropText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(AirdropText)->SetHorizontalAlignment(HAlign_Center);
+        // D27: the public 通报批评 line, in the minimap circle's red.
+        LeaderText=OneLine(TEXT(""),15,520);LeaderText->SetJustification(ETextJustify::Center);
+        LeaderText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f,.32f,.28f)));LeaderText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(LeaderText)->SetHorizontalAlignment(HAlign_Center);
         // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
         NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
@@ -522,6 +526,8 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
     HudSetText(AirdropText,LDHUD::AirdropLine(Public.Airdrop,O.ContenderId,LDHUD::RosterName(Lobby,Public.Airdrop.ClaimedBy),bClock,NowMs));
     HudSetShown(AirdropText,!AirdropText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetText(LeaderText,LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
+    HudSetShown(LeaderText,!LeaderText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshKillFeed(*GS,O.ContenderId,Content,bClock,NowMs);

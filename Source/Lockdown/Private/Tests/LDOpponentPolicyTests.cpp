@@ -1880,6 +1880,58 @@ bool RunAirdrop(FAutomationTestBase& Test)
         LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
     return bGood;
 }
+
+bool RunHuntLeader(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    Base.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel);
+    Base.Public.Leader = FGuid(0xE0, 0, 0, 7);
+    Base.Public.LeaderCircleCentreCm = FVector(1400, 1400, 0);
+    auto IsHunt = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::HuntLeader; };
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Hunter;
+    const auto Hunt = LDOpponentPolicy::Decide(Frame, C, Hunter);
+    bool bGood = Expect(Test, TEXT("D27: a strong healthy body walks to the public place nearest the leader's circle"), Hunt,
+        EMode::Explore, EBody::MoveGround, TEXT("h1"))
+        && Test.TestTrue(TEXT("Hunting the leader is its own reason"), IsHunt(Hunt));
+    Frame = Base;
+    Frame.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel - 1);
+    FLDOpponentPolicyState Weak;
+    bGood &= Test.TestFalse(TEXT("A body below the notice's minimum level does not hunt"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Weak)));
+    Frame = Base;
+    Frame.Public.Leader = Frame.Self.ContenderId;
+    FLDOpponentPolicyState Named;
+    bGood &= Test.TestFalse(TEXT("The named leader does not hunt itself"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Named)));
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestFalse(TEXT("A hurt body does not hunt"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Hurt)));
+    Frame = Base;
+    Frame.Public.LeaderCircleCentreCm = FVector(-3000, 0, 0);
+    FLDOpponentPolicyState Shopside;
+    bGood &= Test.TestFalse(TEXT("A circle with only the shop inside gives no place to hunt"),
+        IsHunt(LDOpponentPolicy::Decide(Frame, C, Shopside)));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    FLDOpponentPolicyState Both;
+    bGood &= Test.TestTrue(TEXT("A public airdrop outranks the hunt"),
+        LDOpponentPolicy::Decide(Frame, C, Both).Reason == ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.Leader.Invalidate();
+    FLDOpponentPolicyState Nobody;
+    bGood &= Expect(Test, TEXT("Without a named leader the body farms"), LDOpponentPolicy::Decide(Frame, C, Nobody),
+        EMode::Farm, EBody::MoveGround);
+    return bGood;
+}
 }
 }
 
@@ -1889,6 +1941,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.Dem
 bool FLDDemoOpponentAirdropTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunAirdrop(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentHuntLeaderTest, "Lockdown.Rules.DemoOpponentPolicy.HuntLeader",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentHuntLeaderTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunHuntLeader(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",
