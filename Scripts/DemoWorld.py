@@ -1,5 +1,6 @@
 """Single approved-world producer and closed polygon contract; no runtime navigation state."""
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from fractions import Fraction
 import heapq
@@ -687,6 +688,39 @@ def world_contract_bytes(payload):
     ).encode("ascii")
 
 
+# The only catalog sections validate_bindings may read. compile_world passes it exactly these, so reading any other
+# section fails instead of silently escaping the reuse key below.
+BINDING_SECTIONS = ("parameters", "world", "camps")
+_reuse = None
+
+
+@contextmanager
+def reuse_binding_reports():
+    """Within the block, reuse the binding report for an identical world payload and identical binding sections.
+
+    validate_bindings is the expensive, pure part of compile_world. Its key is the world payload bytes plus the
+    canonical BINDING_SECTIONS it is given, so a reused report is the one recomputing would produce. Test fixture
+    export uses this; nothing else does, and the cache is dropped when the block ends.
+    """
+    global _reuse
+    require(_reuse is None, "ReuseActive", SOURCE, "world binding reuse cannot be nested")
+    _reuse = {}
+    try:
+        yield
+    finally:
+        _reuse = None
+
+
+def _binding_report(world, raw, data):
+    view = MappingProxyType({section: data[section] for section in BINDING_SECTIONS})
+    if _reuse is None:
+        return content.freeze(validate_bindings(world, view))
+    key = (raw, encode(content.canonical(view)))
+    if key not in _reuse:
+        _reuse[key] = content.freeze(validate_bindings(world, view))
+    return _reuse[key]
+
+
 def compile_world(root=content.ROOT, author=None):
     root = Path(root)
     author = content.compile_author(root) if author is None else author
@@ -697,9 +731,9 @@ def compile_world(root=content.ROOT, author=None):
     world = project_author(source, inputs[SOURCE], inputs[SCHEMA_SOURCE])
     raw = encode(world)
     validate_payload(raw)
-    report = validate_bindings(world, author.catalog.data)
+    report = _binding_report(world, raw, author.catalog.data)
     outputs = {content.WORLD_OUTPUT: raw, content.WORLD_CONTRACT: world_contract_bytes(raw)}
     for relative, original in inputs.items():
         require(content.read_bytes(root, relative) == original, "InputsChanged", relative, "world input changed during compilation")
-    return WorldCompilation(content.freeze(world), content.freeze(report), MappingProxyType(outputs),
+    return WorldCompilation(content.freeze(world), report, MappingProxyType(outputs),
                             MappingProxyType(inputs), content.digest_to_wire(content.sha256(raw)))
