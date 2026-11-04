@@ -107,6 +107,27 @@ Host 的 DEV probe 在游戏线程直接调用：
 开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币；
 只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
 未加时任何夹具证据都判失败。
+
+DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framework\LDPlayerDevTest.cpp`）是同一开关下给拥有连接用的请求族，
+只改调用者自己的参赛者，不能指定别人。线协议在所有构建里存在，权威只在同一 `LDDevGrowthFixture::Admit`
+通过时受理（`WITH_DEV_AUTOMATION_TESTS` 构建、Host 带 `-LDDevGrowthFixture`、Demo 房间权威），否则回 `NotAuthority`。
+`SubmitDevTest` 与选择一样从已接受的 OwnerState 填 Generation/Life、分配 RequestId，一次只有一条在途；
+服务器 `ALDEconomyDirector::QueueDevTest` 复用 `TLDGrowthRequestStream`（单调序号、64 份回执窗口、冲突/乱序/过期拒绝），
+已接受的命令在 Transactions 阶段与选择、开店、买卖按服务器到达顺序提交（`CommitPendingDevTest`）。
+提交时重查本局与生命：离局为 `LeftMatch`，Life 不等于当前生命为 `OldLife`（旧命令不作用于下一条命）。
+
+| 命令 | 提交 |
+| --- | --- |
+| `GrantExperience` / `GrantGold`（数量 > 0） | 与死亡奖励同一 `CommitRewardParts` 复合提交，账本 cause `DevFixture`、业务键含 LedgerMatch/参赛者/RequestId；可重试拒绝保留待下一阶段 |
+| `RefillResources`（数量 0） | 当前 Alive 身体的 HP/MP 设为已提交上限，不动护盾；非 Alive 为 `Dead` |
+| `ResetCooldowns`（数量 0） | 该参赛者全部冷却轨道（技能与装备、已绑定或未绑定的债）截止时间提前到本边界，身份与绑定不变 |
+
+终态回执在 `PublishGrowth` 的 `SyncOwner` 之后经 `ClientDevTestResult` 送达，受理结果同一通道立即返回。
+普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
+控制台入口 `ld.Dev.XP <数量>`、`ld.Dev.Gold <数量>`、`ld.Dev.Refill`、`ld.Dev.ResetCooldowns` 只是本地发送者，
+数量只接受不超过 18 位的正十进制整数；结果打 `LD_DEV_TEST_RESULT` 日志并在 HUD 提示行显示。
+`Lockdown.Rules.DemoDevTestCommands` 覆盖形状、开关拒绝、受理流、金币/经验提交、重放不重复提交、旧生命/离局/关局拒绝、
+冷却轨道重置与补满纯规则。尚未覆盖真实拥有连接的发送与回执，也还没有技能/装备的直接配置。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
 在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，

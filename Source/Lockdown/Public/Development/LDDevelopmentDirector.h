@@ -58,7 +58,14 @@ struct FLDPrepareGrowthResult
 // A queued intent of this module, ordered by server arrival for the Transactions dispatch.
 struct FLDPendingGrowthIntent
 {
-    enum class EKind : uint8 { Choice, ShopOpen, ShopCommand };
+    enum class EKind : uint8
+    {
+        Choice, ShopOpen, ShopCommand,
+#if WITH_DEV_AUTOMATION_TESTS
+        // DEV test command of ALDEconomyDirector (LDDevTestProtocol.h).
+        DevTest,
+#endif
+    };
     EKind Kind = EKind::Choice;
     FGuid Contender;
     uint64 Arrival = 0;

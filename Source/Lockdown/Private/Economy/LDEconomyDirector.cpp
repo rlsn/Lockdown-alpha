@@ -575,6 +575,18 @@ bool ALDEconomyDirector::ProcessTransactions(const FLDGameplayWritePermit& Permi
     TArray<FLDPendingGrowthIntent> Pending;
     M->Development->CollectPending(Pending);
     M->Vendor->CollectPending(Pending);
+#if WITH_DEV_AUTOMATION_TESTS
+    for (const TPair<FGuid, FDevTestRecord>& Entry : DevTests)
+    {
+        if (const auto* DevPending = Entry.Value.Stream.GetPending())
+        {
+            FLDPendingGrowthIntent& Intent = Pending.AddDefaulted_GetRef();
+            Intent.Kind = FLDPendingGrowthIntent::EKind::DevTest;
+            Intent.Contender = Entry.Key;
+            Intent.Arrival = DevPending->Arrival;
+        }
+    }
+#endif
     Pending.Sort([](const FLDPendingGrowthIntent& A, const FLDPendingGrowthIntent& B) { return A.Arrival < B.Arrival; });
     for (const FLDPendingGrowthIntent& Intent : Pending)
     {
@@ -590,6 +602,14 @@ bool ALDEconomyDirector::ProcessTransactions(const FLDGameplayWritePermit& Permi
         case FLDPendingGrowthIntent::EKind::ShopCommand:
             bFault = EconomyIsFault(M->Vendor->CommitPendingShopCommand(Intent.Contender, Permit).Header.Reason);
             break;
+#if WITH_DEV_AUTOMATION_TESTS
+        case FLDPendingGrowthIntent::EKind::DevTest:
+            if (!CommitPendingDevTest(Intent.Contender, Permit, Error))
+            {
+                return false;
+            }
+            break;
+#endif
         }
         if (bFault)
         {
@@ -646,6 +666,14 @@ bool ALDEconomyDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FSt
         M->Development->TakeFinalReceipts(Id, ChoiceReceipts);
         M->Vendor->TakeFinalReceipts(Id, ShopReceipts);
         const bool bOpenResult = M->Vendor->TakeOpenResult(Id, OpenResult);
+#if WITH_DEV_AUTOMATION_TESTS
+        TArray<FLDDevTestReceipt> DevReceipts;
+        if (FDevTestRecord* DevRecord = DevTests.Find(Id))
+        {
+            DevReceipts = MoveTemp(DevRecord->Unpublished);
+            DevRecord->Unpublished.Reset();
+        }
+#endif
         ALDPlayerController* const* OwnerController = Owners.Find(Id);
         if (!OwnerController)
         {
@@ -653,6 +681,21 @@ bool ALDEconomyDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FSt
             continue;
         }
         M->SyncOwner(*OwnerController);
+#if WITH_DEV_AUTOMATION_TESTS
+        // Final DEV receipts follow the owner refresh like the choice and shop receipts below.
+        for (const FLDDevTestReceipt& DevReceipt : DevReceipts)
+        {
+            FLDDevTestResult Result;
+            Result.Generation = DevReceipt.Header.Generation;
+            Result.RequestId = DevReceipt.Header.RequestId;
+            Result.Status = ELDAdmissionStatus::Final;
+            Result.Reason = DevReceipt.Header.Reason;
+            Result.bSequenceReserved = true;
+            Result.bHasReceipt = true;
+            Result.Receipt = DevReceipt;
+            (*OwnerController)->ClientDevTestResult(Result);
+        }
+#endif
         for (const FLDChoiceReceipt& Choice : ChoiceReceipts)
         {
             FLDChoiceReceiptQueryResult Result;
@@ -831,6 +874,201 @@ bool ALDEconomyDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, F
             return false;
         }
     }
+    return true;
+}
+
+FLDDevTestResult ALDEconomyDirector::QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command)
+{
+    FString Error;
+    if (!LDDevGrowthFixture::Admit(GetWorld(), Error))
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority, Error);
+    }
+    return AdmitDevTest(ContenderId, Command);
+}
+
+FLDDevTestResult ALDEconomyDirector::AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command)
+{
+    const ELDGrowthReason Shape = LDDevTest::ValidateShape(Command);
+    if (Shape != ELDGrowthReason::None)
+    {
+        return LDDevTest::Refused(Command, Shape, FString::Printf(
+            TEXT("Op %u with amount %lld is not a DEV test command: grants need a positive amount, the other ops none."),
+            uint32(Command.Op), Command.Amount));
+    }
+    ALDGameMode* M = Mode();
+    if (!M || !M->Development || !Ledger.IsInitialized())
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority, TEXT("The growth domain of this match is not initialized."));
+    }
+    if (!Match.IsValid() || Command.Generation != Match.Generation)
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::OldMatch, TEXT("The command names another match."));
+    }
+    if (!Ledger.Account(ContenderId) || !M->Development->FindBuild(ContenderId))
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::NotContender, TEXT("The caller is not a contender of this match."));
+    }
+    FDevTestRecord& Record = DevTests.FindOrAdd(ContenderId);
+    // As for choices: only a request that opens the next sequence takes an arrival number and needs an open match;
+    // replays of an accepted or final request still answer from the stream.
+    const bool bOpensSequence = !Record.Stream.GetPending() && Command.RequestId == Record.Stream.GetFinalizedThrough() + 1;
+    if (bOpensSequence && !M->IsGameplayWriteOpen(Match))
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::MatchClosed, TEXT("The match no longer accepts gameplay writes."));
+    }
+    FLDPendingReceiptInfo Info;
+    Info.OriginalLife = Command.Life;
+    const uint64 Arrival = bOpensSequence ? NextArrival() : 0;
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    const FLDDevTestReceipt* Final = nullptr;
+    bool bReserved = false;
+    FLDDevTestResult Result;
+    Result.Generation = Command.Generation;
+    Result.RequestId = Command.RequestId;
+    Result.Status = Record.Stream.Admit(Command, Command.RequestId, Info, Arrival, Reason, Final, bReserved);
+    Result.Reason = LDGrowthWire::Raw(Reason);
+    Result.bSequenceReserved = bReserved;
+    if (Result.Status == ELDAdmissionStatus::Final && Final)
+    {
+        Result.bHasReceipt = true;
+        Result.Receipt = *Final;
+    }
+    else if (Result.Status == ELDAdmissionStatus::AdmissionRejected)
+    {
+        Result.Detail = LDGrowthWire::ReasonName(Reason);
+    }
+    else if (bOpensSequence)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued test command contender=%s request=%llu op=%s amount=%lld"),
+            *ContenderId.ToString(), Command.RequestId, LDDevTest::OpName(Command.Op), Command.Amount);
+    }
+    return Result;
+}
+
+bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    FDevTestRecord* Record = DevTests.Find(ContenderId);
+    const auto* PendingEntry = Record ? Record->Stream.GetPending() : nullptr;
+    ALDGameMode* M = Mode();
+    if (!PendingEntry || !M || !M->Combat || !M->Development
+        || M->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None
+        || Permit.GetBoundary().Match != Match)
+    {
+        Error = TEXT("A DEV test command commit needs its pending command, the growth domain and the current Transactions permit.");
+        return false;
+    }
+    // A copy: finalizing the stream releases the pending entry.
+    const FLDDevTestCommand Command = PendingEntry->Command;
+    FLDDevTestReceipt Receipt;
+    Receipt.Header.Generation = Command.Generation;
+    Receipt.Header.RequestId = Command.RequestId;
+    Receipt.Header.OriginalLife = Command.Life;
+    Receipt.Header.CommitBatch = Permit.GetBoundary().BatchSerial;
+    Receipt.Op = Command.Op;
+    Receipt.Amount = Command.Amount;
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    FString Detail;
+    FLDContenderLifeRead Life;
+    FString LifeError;
+    if (Command.Generation != Match.Generation)
+    {
+        Reason = ELDGrowthReason::OldMatch;
+    }
+    else if (!M->ReadContenderLife(Match, ContenderId, Life, LifeError))
+    {
+        Reason = ELDGrowthReason::StaleContext;
+        Detail = LifeError;
+    }
+    else if (Life.Phase == ELDLifePhase::Left)
+    {
+        Reason = ELDGrowthReason::LeftMatch;
+    }
+    else if (Command.Life != Life.Life)
+    {
+        // A command of an earlier life never applies to the next one.
+        Reason = ELDGrowthReason::OldLife;
+    }
+    else
+    {
+        switch (Command.Op)
+        {
+        case ELDDevTestOp::GrantExperience:
+        case ELDDevTestOp::GrantGold:
+        {
+            // The command's own business identity: a DevFixture record, never a death key or a fixture ticket.
+            TArray<uint8> KeyBytes;
+            {
+                FMemoryWriter Writer(KeyBytes);
+                FString Tag = TEXT("dev-test-grant");
+                FGuid LedgerMatch = Match.LedgerMatch;
+                FGuid Contender = ContenderId;
+                uint64 RequestId = Command.RequestId;
+                uint8 Op = uint8(Command.Op);
+                int64 Amount = Command.Amount;
+                Writer << Tag << LedgerMatch << Contender << RequestId << Op << Amount;
+            }
+            uint8 GrantTerms[32] = {};
+            Terms(KeyBytes, GrantTerms);
+            LDProgression::FRewardAmounts Amounts;
+            (Command.Op == ELDDevTestOp::GrantGold ? Amounts.Gold : Amounts.XP) = Command.Amount;
+            FLDRewardReceipt Reward;
+            const ELDRewardOutcome Outcome = CommitRewardParts(ContenderId, Amounts, LDEconomy::ECause::DevFixture, KeyBytes,
+                GrantTerms, Permit, Reward, Reason);
+            if (Reason == ELDGrowthReason::AuthorityFault)
+            {
+                Error = TEXT("A DEV test grant found a corrupt ledger inside the Transactions phase.");
+                return false;
+            }
+            if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
+            {
+                // Nothing was installed; the command stays pending for the next Transactions phase.
+                UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
+                    *ContenderId.ToString(), Command.RequestId, LDGrowthWire::ReasonName(Reason));
+                return true;
+            }
+            if (Outcome == ELDRewardOutcome::Granted)
+            {
+                Reason = ELDGrowthReason::None;
+                Detail = FString::Printf(TEXT("level %u->%u, xp +%lld, gold +%lld"), uint32(Reward.LevelBefore),
+                    uint32(Reward.LevelAfter), Reward.XPDelta, Reward.GoldDelta);
+            }
+            else if (Reason == ELDGrowthReason::None)
+            {
+                Reason = ELDGrowthReason::DataInvalid;
+            }
+            break;
+        }
+        case ELDDevTestOp::RefillResources:
+            if (Life.Phase != ELDLifePhase::Alive)
+            {
+                Reason = ELDGrowthReason::Dead;
+            }
+            else if (!M->Combat->DevRefillResources(ContenderId, Permit, Detail))
+            {
+                Reason = ELDGrowthReason::DataInvalid;
+            }
+            break;
+        case ELDDevTestOp::ResetCooldowns:
+            if (!M->Combat->DevResetCooldowns(ContenderId, Permit, Detail))
+            {
+                Reason = ELDGrowthReason::DataInvalid;
+            }
+            break;
+        default:
+            Reason = ELDGrowthReason::InvalidRequest;
+            break;
+        }
+    }
+    Receipt.Header.Outcome = Reason == ELDGrowthReason::None ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected;
+    Receipt.Header.Reason = LDGrowthWire::Raw(Reason);
+    Receipt.Detail = Reason == ELDGrowthReason::None || !Detail.IsEmpty() ? Detail : FString(LDGrowthWire::ReasonName(Reason));
+    Record->Stream.Finalize(Receipt);
+    Record->Unpublished.Add(Receipt);
+    MarkDirty(ContenderId);
+    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu op=%s amount=%lld %s: %s"),
+        *ContenderId.ToString(), Command.RequestId, LDDevTest::OpName(Command.Op), Command.Amount,
+        Reason == ELDGrowthReason::None ? TEXT("applied") : TEXT("rejected"), *Receipt.Detail);
     return true;
 }
 #endif

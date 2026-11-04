@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$PackageRoot,[switch]$Windowed,[ValidateSet('720p','1080p')][string]$Resolution='720p')
+param([Parameter(Mandatory)][string]$PackageRoot,[switch]$Windowed,[ValidateSet('720p','1080p')][string]$Resolution='720p',[switch]$DevTest)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 $package=Resolve-LDPackage $PackageRoot
@@ -9,5 +9,7 @@ $output=New-LDArtifactDirectory 'Packaged-Interactive'
 $window=if(-not $Windowed){''}elseif($Resolution -eq '720p'){'-windowed -ResX=1280 -ResY=720'}else{'-windowed -ResX=1920 -ResY=1080'}
 # Explicitly requested visible interactive game; use native Host/Join buttons.
 $world=(Get-LDDemoMaps)[0]
-Start-Process -FilePath $package.Binary -ArgumentList ('{2} {0} -abslog="{1}"' -f $window,(Join-Path $output 'Game.log'),$world) -WindowStyle Normal
-Write-Host "Packaged frontend opened. Evidence: $output"
+# -DevTest: a Host started this way admits the ld.Dev.* test commands (-LDDevGrowthFixture; the Development package keeps them).
+$dev=if($DevTest){'-LDDevGrowthFixture'}else{''}
+Start-Process -FilePath $package.Binary -ArgumentList ('{2} {0} {3} -abslog="{1}"' -f $window,(Join-Path $output 'Game.log'),$world,$dev) -WindowStyle Normal
+Write-Host ("Packaged frontend opened{0}. Evidence: $output" -f $(if ($DevTest) { ' as a DEV test session' } else { '' }))

@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Development/LDDevGrowthFixture.h"
+#include "Development/LDDevTestProtocol.h"
+#include "Development/LDGrowthRequests.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
 #include "Economy/LDEconomyLedger.h"
@@ -52,6 +54,10 @@ public:
     // with Error when the fixture, match, contender or amounts refuse it.
     uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, int64 Gold, FString& Error);
     ELDDevGrantStatus DevGrantStatus(uint64 Ticket, FString& Detail) const;
+    // DEV test command (LDDevTestProtocol.h) of ContenderId's own owning connection: refused unless the fixture admits
+    // this authority, then admitted into that contender's DEV request stream. The pending command commits in the
+    // Transactions phase in server arrival order (CommitPendingDevTest).
+    FLDDevTestResult QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command);
 #endif
 
     // ---- Module internals ----
@@ -67,6 +73,7 @@ public:
 
 private:
     friend class FLDAccountRetireAwaitsRewardTest;
+    friend class FLDDemoDevTestCommandsTest;
     // Retires the ledger accounts of contenders that left; M is the authority core of this match.
     bool RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error);
     bool CompactLedger(FString& Error);
@@ -92,6 +99,19 @@ private:
     };
     // Every DEV grant of this match in ticket order (ticket = index + 1).
     TArray<FDevGrant> DevGrants;
+
+    // QueueDevTest after the fixture admitted this authority: shape, match, contender and the request stream.
+    FLDDevTestResult AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command);
+    // Commits or rejects this contender's pending DEV test command; false only on an authority fault. A retryable
+    // reward refusal leaves the command pending for the next Transactions phase.
+    bool CommitPendingDevTest(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);
+    struct FDevTestRecord
+    {
+        TLDGrowthRequestStream<FLDDevTestCommand, FLDDevTestReceipt> Stream;
+        TArray<FLDDevTestReceipt> Unpublished;
+    };
+    // DEV test request streams of this match, per contender; a new match spawns a new director and starts empty.
+    TMap<FGuid, FDevTestRecord> DevTests;
 #endif
 
     FLDMatchContext Match;

@@ -76,6 +76,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthOpening",
         "Lockdown.Rules.DemoGrowthPrivacySchema",
         "Lockdown.Rules.DemoGrowthRetireAwaitsReward",
+        "Lockdown.Rules.DemoDevTestCommands",
         "Lockdown.Rules.DemoInputByteIntegrity",
         "Lockdown.Rules.DemoLobbyAuthority",
         "Lockdown.Rules.DemoLobbyReadModel",

@@ -203,6 +203,20 @@ public:
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
     FLDGearBindingPreview PreviewGearBinding(const FLDCombatCaller& Caller, FName EquipmentId) const;
 
+#if WITH_DEV_AUTOMATION_TESTS
+    // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDEconomyDirector inside the Transactions permit.
+    // The contender's current Alive body to its committed HP/MP maxima (the shield is untouched). False with Detail when
+    // the permit, the contender record or a living body is missing; nothing changes then.
+    bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
+    // Every cooldown track of the contender (learned and gear, bound or unbound debt) ready at the permit boundary;
+    // tracks keep their identity and binding. False with Detail when the permit or the contender record is missing.
+    bool DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
+    // Pure parts of the two commands. RefillPool returns whether HP or MP changed; ResetTracks the number of tracks
+    // that were cooling down at NowMs.
+    static bool DevRefillPool(FLDBodyCombatState::FResources& Pool);
+    static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
+#endif
+
     // ---- Camps.
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -213,6 +227,7 @@ private:
     friend class FLDRewardSettlementTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
+    friend class FLDDemoDevTestCommandsTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,

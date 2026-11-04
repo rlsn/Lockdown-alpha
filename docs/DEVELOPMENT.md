@@ -143,6 +143,22 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 同一验证中使用相同产品构建、引擎和内容；连接失败要读取前端反馈和当前输出日志。
 不要把开发者全知实例当作普通远程拥有客户端。
 
+### DEV 测试模式
+
+Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`，或直接给可执行文件加 `-LDDevGrowthFixture`）启动，
+这个房间就是 DEV 测试会话；客户端无需开关。对局中按 `~` 打开控制台：
+
+| 命令 | 作用 |
+| --- | --- |
+| `ld.Dev.XP <数量>` | 给自己加经验，升级与机会按正常奖励结算 |
+| `ld.Dev.Gold <数量>` | 给自己加零花钱 |
+| `ld.Dev.Refill` | 活着时补满生命与法力 |
+| `ld.Dev.ResetCooldowns` | 自己的技能与装备冷却全部就绪 |
+
+命令只作用于发送者自己，经服务器在 Transactions 阶段提交，与正常奖励共用同一提交路径；
+没有开关的 Host、Shipping 构建、旧局或旧生命的请求都会被明确拒绝。
+测试会话的结果是夹具证据，不能当作无作弊完整对局的验收。实现与限制见[库存与事务](systems/INVENTORY_AND_TRANSACTIONS.md)。
+
 ## 最小验证选择
 
 | 改动 | 起点 |
