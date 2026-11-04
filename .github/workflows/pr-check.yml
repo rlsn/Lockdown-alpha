@@ -1,9 +1,11 @@
-# Pull-request gate. Runs only on the maintainer's self-hosted runner while it is switched on (Scripts/CIRunner.ps1);
-# a run queued while it is off waits up to 24 hours. Only ready (non-draft) PRs from branches in this repository run;
-# the runner's job-started hook also refuses fork pull requests.
-# Scripts/CIChangeScope.py picks the gate: any native input (Source, Config, SourceData, Content, PowerShell, or a
-# Python script RunTests.ps1 loads) gets the editor build and native rule tests (AGENTS: BuildEditor.ps1 plus rule
-# tests); a change limited to other Scripts/*.py, workflows or docs gets only the Python tests.
+# Pull-request gate for ready (non-draft) PRs to main, in three jobs:
+# - scope (GitHub-hosted): Scripts/CIChangeScope.py reads the PR merge commit's diff. Any native input (Source,
+#   Config, SourceData, Content, PowerShell, or a Python script RunTests.ps1 loads) needs the native gate.
+# - python (GitHub-hosted Windows): the Scripts Python tests, for every PR. Needs no Unreal and no LFS content.
+# - native (the maintainer's self-hosted runner, only when scope says native and the branch is in this repository):
+#   incremental BuildEditor.ps1 and RunTests.ps1 (AGENTS: every PR passes BuildEditor.ps1 plus rule tests). It runs
+#   only while that runner is switched on (Scripts/CIRunner.ps1); a queued job waits up to 24 hours. The runner's
+#   job-started hook also refuses fork pull requests.
 name: PR check
 
 on:
@@ -23,8 +25,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+  scope:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          # The PR merge commit and its base parent, to diff exactly what the PR changes.
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Choose gate
+        id: scope
+        run: |
+          result=$(python -B ./Scripts/CIChangeScope.py --base HEAD^1 --head HEAD)
+          line=$(printf '%s\n' "$result" | grep -xE 'scope=(native|python)' || true)
+          if [ -z "$line" ] || [ "$(printf '%s\n' "$line" | wc -l)" -ne 1 ]; then
+            echo "CIChangeScope.py printed no single scope: $result"
+            exit 1
+          fi
+          echo "$line" >> "$GITHUB_OUTPUT"
+          if [ "$line" = scope=python ]; then
+            echo 'Python-only change: the native build and rule tests are skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  python:
+    if: ${{ !github.event.pull_request.draft }}
+    # SyncDemoContentData and its tests use Windows file locking (msvcrt).
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Script and data tests
+        shell: pwsh
+        run: |
+          python -B ./Scripts/RunPythonTests.py
+          if ($LASTEXITCODE -ne 0) { throw "Python tests failed with exit code $LASTEXITCODE." }
+
+  native:
+    needs: scope
+    if: needs.scope.outputs.scope == 'native' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Windows, X64, lockdown-ue58]
     timeout-minutes: 120
     defaults:
@@ -35,63 +88,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           lfs: true
-          # The PR merge commit and its base parent, to diff exactly what the PR changes.
-          fetch-depth: 2
           # Keep ignored build output (Binaries, Intermediate) so the build is incremental.
           clean: false
 
       - name: Reset workspace
         run: ./Scripts/CIResetWorkspace.ps1
 
-      - name: Choose gate
-        id: scope
-        run: |
-          $result = python -B ./Scripts/CIChangeScope.py --base HEAD^1 --head HEAD
-          if ($LASTEXITCODE -ne 0) { throw "CIChangeScope.py failed with exit code $LASTEXITCODE." }
-          $line = @($result | Where-Object { $_ -match '^scope=(native|python)$' })
-          if ($line.Count -ne 1) { throw "CIChangeScope.py printed no scope: $result" }
-          $line[0] >> $env:GITHUB_OUTPUT
-          if ($line[0] -eq 'scope=python') { 'Python-only change: editor build and native rule tests skipped.' >> $env:GITHUB_STEP_SUMMARY }
-
-      # The Python tests only read the checkout and write their own temporary folders under Artifacts, so they run
-      # alongside the editor build and rule tests in this same job. The runner ends the process if the job stops early.
-      - name: Start script and data tests
-        id: python
-        run: |
-          New-Item -ItemType Directory -Path Artifacts -Force | Out-Null
-          $log = Join-Path $PWD 'Artifacts/PythonTests.log'
-          $exit = Join-Path $PWD 'Artifacts/PythonTests.exit'
-          $command = "python -B ./Scripts/RunPythonTests.py *> '$log'; Set-Content -LiteralPath '$exit' -Value `$LASTEXITCODE"
-          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-          $process = Start-Process -FilePath pwsh -ArgumentList '-NoProfile', '-EncodedCommand', $encoded -WorkingDirectory $PWD -WindowStyle Hidden -PassThru
-          "pid=$($process.Id)" >> $env:GITHUB_OUTPUT
-
       - name: Build editor
-        if: steps.scope.outputs.scope == 'native'
         run: ./Scripts/BuildEditor.ps1
 
       - name: Rule tests
-        if: steps.scope.outputs.scope == 'native'
         run: ./Scripts/RunTests.ps1
-
-      - name: Script and data tests
-        # Report these even when the build or rule tests failed.
-        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
-        run: |
-          $log = 'Artifacts/PythonTests.log'
-          $exit = 'Artifacts/PythonTests.exit'
-          $deadline = (Get-Date).AddMinutes(30)
-          while (-not (Test-Path $exit)) {
-            if (-not (Get-Process -Id ${{ steps.python.outputs.pid }} -ErrorAction SilentlyContinue) -and -not (Test-Path $exit)) {
-              if (Test-Path $log) { Get-Content $log }
-              throw 'The Python test process ended without recording an exit code.'
-            }
-            if ((Get-Date) -gt $deadline) { throw 'Python tests did not finish within 30 minutes.' }
-            Start-Sleep -Seconds 5
-          }
-          Get-Content $log
-          $code = [int](Get-Content $exit -Raw).Trim()
-          if ($code -ne 0) { throw "Python tests failed with exit code $code." }
 
       - name: Upload evidence on failure
         if: failure()

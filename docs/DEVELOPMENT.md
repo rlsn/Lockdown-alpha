@@ -236,15 +236,15 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 ### PR 检查与每日试玩包
 
 `.github/workflows/pr-check.yml` 在指向 `main` 的非草稿 PR 每次推送（以及转为 Ready for review）时运行，
-失败时上传 Artifacts 证据；同一 PR 的新推送会取消未完成的旧运行。
-`Scripts/CIChangeScope.py` 按 PR 合并提交相对 base 的改动选择门槛：
-改到 `Source`、`Config`、`SourceData`、`Content`、PowerShell 脚本或 `RunTests.ps1` 加载的 Python 脚本
-（及其在 `Scripts` 内的全部 import）时，跑增量 `BuildEditor.ps1`、`RunTests.ps1` 与 Python 测试；
-只改其他 `Scripts/*.py` 或工作流时只跑 Python 测试。
-Python 测试由 `Scripts/RunPythonTests.py` 以最多 4 个进程并行执行（与 `unittest discover` 同一组测试和通过规则，
-带类级夹具的测试类整体留在一个进程里），并在同一任务内与编辑器构建、规则测试同时进行；
-各测试只写自己在 Artifacts 下的临时目录。本地也可直接运行 `python -B .\Scripts\RunPythonTests.py`。
-只改 `docs/**` 或 `*.md` 的推送不触发；草稿 PR 与 fork PR 不在这台 runner 上运行。
+同一 PR 的新推送会取消未完成的旧运行；只改 `docs/**` 或 `*.md` 的推送不触发。它分三个任务：
+- `scope`（GitHub 托管）：`Scripts/CIChangeScope.py` 按 PR 合并提交相对 base 的改动选择门槛。
+  改到 `Source`、`Config`、`SourceData`、`Content`、PowerShell 脚本或 `RunTests.ps1` 加载的 Python 脚本
+  （及其在 `Scripts` 内的全部 import）时需要原生门槛；只改其他 `Scripts/*.py` 或工作流时不需要。
+- `python`（GitHub 托管 Windows，每个 PR 都跑）：`Scripts/RunPythonTests.py` 以最多 4 个进程并行执行
+  `Scripts` 下的 Python 测试（与 `unittest discover` 同一组测试和通过规则，带类级夹具的测试类整体留在一个进程里）。
+  不需要 Unreal 与 LFS 内容；本地也可直接运行 `python -B .\Scripts\RunPythonTests.py`。
+- `native`（维护者本机的自托管 runner，仅在需要原生门槛且分支在本仓库内时）：增量 `BuildEditor.ps1` 与
+  `RunTests.ps1`，失败时上传 Artifacts 证据。runner 关闭时它在 GitHub 上排队；fork PR 不在这台 runner 上运行。
 它覆盖每个 PR 的最低门槛，不代替改到场景时应跑的 `RunDemo*Check`。
 
 `.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行。
