@@ -36,6 +36,7 @@ namespace LDCA
             && A.Target.Kind==B.Target.Kind && A.Target.Observed==B.Target.Observed
             && A.Target.ObservationEpoch==B.Target.ObservationEpoch
             && FVector(A.Target.Direction).Equals(FVector(B.Target.Direction),0.0001)
+            && FVector(A.Target.Point).Equals(FVector(B.Target.Point),0.0001)
             && A.Target.ServerBody==B.Target.ServerBody && A.ExpectedSourceRevision==B.ExpectedSourceRevision;
     }
 
@@ -60,6 +61,8 @@ namespace LDCA
         Hit.DamageType=Term.DamageType;
         Hit.bCritical=false;
         Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.ControlAmpBp=Hit.ControlAmpDurationMs=0;
+        Hit.DisarmDurationMs=Hit.StunDurationMs=Hit.BackstabRatioBp=Hit.BackstabStunMs=0;
+        Hit.bReflect=false;
         Hit.bCleave=Hit.bLifesteal=false;
         Hit.CleaveRatioBp=Hit.LifestealRatioBp=0;
         Hit.CleaveRadiusCm=0;
@@ -71,6 +74,22 @@ namespace LDCA
         OutBp=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->RatioBp : 0;
         OutDurationMs=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->DurationMs : 0;
     }
+    bool ValidPoint(const FVector& Point)
+    { return !Point.ContainsNaN() && FMath::Abs(Point.X)<=1.e6 && FMath::Abs(Point.Y)<=1.e6 && FMath::Abs(Point.Z)<=1.e6; }
+
+    // The authority facing turns to what an accepted action aims at; the rear-arc judgement reads this facing.
+    void FaceToward(ALDCharacter& Actor, const FVector& Point)
+    {
+        const FVector Foot=ALDCombatDirector::FootOf(Actor);
+        const FVector Planar(Point.X-Foot.X,Point.Y-Foot.Y,0);
+        if (!Planar.ContainsNaN() && Planar.SizeSquared()>=1.) { Actor.SetFacing(Planar.Rotation().Yaw); }
+    }
+
+    void FaceAlong(ALDCharacter& Actor, const FVector& Direction)
+    { if (!Direction.ContainsNaN() && !Direction.IsNearlyZero()) { Actor.SetFacing(Direction.Rotation().Yaw); } }
+
+    ELDCombatControlAction EntryControl(ELDCombatEntry Entry)
+    { return Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2 ? ELDCombatControlAction::Gear : ELDCombatControlAction::Cast; }
 }
 
 FLDCombatEntityRecord* ALDCombatDirector::FindRecord(const FGuid& Entity) { return Records.Find(Entity); }
@@ -230,6 +249,10 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     case ELDCombatTargetKind::Direction:
         Shape&=!Camp && LDCA::ValidDirection(Request.Target.Direction) && !Request.Target.ServerBody.IsValid();
         break;
+    case ELDCombatTargetKind::Point:
+        Shape&=!Camp && LDCA::ValidPoint(Request.Target.Point) && !Request.Target.Observed.IsValid()
+            && !Request.Target.ObservationEpoch && !Request.Target.ServerBody.IsValid();
+        break;
     default:
         Shape=false;
     }
@@ -388,6 +411,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     if (Key.Origin!=ELDCombatRequestOrigin::Nav || Key.Entity!=Caller.EntityId || Key.Life!=Body->Victim.Life
         || Key.Generation!=Caller.Match.Generation || Key.Move.Life!=Key.Life || Key.Move.Match!=Key.Generation)
     { return Refuse(ELDCombatReject::InvalidRequest); }
+    if (IsActionBlocked(*Body,ELDCombatControlAction::Basic)) { return Refuse(ELDCombatReject::ControlBlocked); }
     if (Body->Action.IsSet()) { return Refuse(ELDCombatReject::Busy); }
     const int64 Now=Mode->GetAuthorityNowMs();
     if (!LDControl::TauntAllows(Body->Taunt,Now,true,Target)) { return Refuse(ELDCombatReject::ControlBlocked); }
@@ -436,6 +460,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     Body->BasicTiming=Timing.Value.GetValue();
     Body->LastCombatAtMs=Now;
     ++Body->StateRevision;
+    LDCA::FaceToward(*Actor,TargetFoot);
     // The committed cadence survives cancellation, orders, death and respawn; time keeps running.
     Record->NextAttackAtMs=NextAttack;
     // An accepted swing reveals a stealthed attacker before it lands.
@@ -500,6 +525,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (Record.Kind==ELDVictimKind::CampMember)
     {
         // Registered camp basic attack: same body, cadence, range, sight and hit pipeline as contenders.
+        if (IsActionBlocked(*Body,ELDCombatControlAction::Basic)) { return Refuse(ELDCombatReject::ControlBlocked); }
         if (Body->Action.IsSet()) { return Refuse(ELDCombatReject::Busy); }
         if (Now<Body->MonsterNextAttackAtMs) { return Refuse(ELDCombatReject::AttackNotReady); }
         FLDCombatBodyRef TargetRef;
@@ -533,6 +559,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         Body->MonsterNextAttackAtMs=NextAttack;
         Body->LastCombatAtMs=Now;
         ++Body->StateRevision;
+        LDCA::FaceToward(*Actor,TargetFoot);
         Receipt.CombatToken=Action.Token;
         Receipt.Phase=ELDCombatPhase::Accepted;
         Receipt.Reject=ELDCombatReject::None;
@@ -556,9 +583,10 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Gate.ReadyAtMs=Track->ReadyAtMs;
     Gate.MpP2=Body->Resources.MpP2;
     Gate.ManaCostP2=RankDef->ManaCostP2;
-    Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash;
+    Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash || TargetDef->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bTaunted=LDControl::IsTaunted(Body->Taunt,Now);
+    Gate.bControlBlocked=IsActionBlocked(*Body,LDCA::EntryControl(Request.Entry));
+    Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     Gate.bCheckBusy=true;
     Gate.bAbilityInProgress=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
     if (const ELDCombatReject Blocked=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies); Blocked!=ELDCombatReject::None)
@@ -579,17 +607,30 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         break;
     case ELDDemoTargetMode::Unit:
     {
-        FVector TargetFoot;
         ELDCombatReject Reject;
-        if (!ResolveUnitTarget(Record,*Actor,Request.Target,Action.TargetBody,TargetFoot,Reject)) { return Refuse(Reject); }
+        if (!ResolveUnitTarget(Record,*Actor,Request.Target,Action.TargetBody,Action.TargetPoint,Reject)) { return Refuse(Reject); }
         const FVector Foot=FootOf(*Actor);
-        if (FVector::Dist2D(Foot,TargetFoot)>LDCA::ToDouble(TargetDef->RangeCm)) { return Refuse(ELDCombatReject::OutOfRange); }
+        if (FVector::Dist2D(Foot,Action.TargetPoint)>LDCA::ToDouble(TargetDef->RangeCm)) { return Refuse(ELDCombatReject::OutOfRange); }
         bool bFault=false;
-        if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
+        if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,Action.TargetPoint,bFault))
         {
             if (bFault) { Error=TEXT("Ability sight failed on a registered body."); return false; }
             return Refuse(ELDCombatReject::Blocked);
         }
+        break;
+    }
+    case ELDDemoTargetMode::GroundPoint:
+    {
+        // A jump is a displacement: Root and Stun refuse it before any cost; a point beyond range is clamped.
+        if (Request.Target.Kind!=ELDCombatTargetKind::Point || !LDCA::ValidPoint(Request.Target.Point))
+        { return Refuse(ELDCombatReject::InvalidDirection); }
+        if (IsActionBlocked(*Body,ELDCombatControlAction::Displacement)) { return Refuse(ELDCombatReject::ControlBlocked); }
+        double DistanceCm=0;
+        if (!LDCombatControl::PlanJump(FootOf(*Actor),Request.Target.Point,LDCA::ToDouble(TargetDef->RangeCm),Action.Direction,DistanceCm))
+        { return Refuse(ELDCombatReject::InvalidDirection); }
+        auto* Movement=Cast<ULDCharacterMovementComponent>(Actor->GetCharacterMovement());
+        if (DistanceCm>0 && (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm))) { return Refuse(ELDCombatReject::Blocked); }
+        Action.TargetPoint=Request.Target.Point;
         break;
     }
     case ELDDemoTargetMode::DirectionProjectile:
@@ -614,6 +655,8 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Body->Action=Action;
     // Any accepted ability or item activation reveals a stealthed body (a new stealth is applied at its own release).
     RevealStealth(*Body);
+    if (TargetDef->Mode==ELDDemoTargetMode::Unit || TargetDef->Mode==ELDDemoTargetMode::GroundPoint) { LDCA::FaceToward(*Actor,Action.TargetPoint); }
+    else { LDCA::FaceAlong(*Actor,Action.Direction); }
     ++Body->StateRevision;
     MarkViewChanged(Record.Entity);
     Receipt.CombatToken=Action.Token;
@@ -706,6 +749,9 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     const auto* Content=Catalog();
     auto* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record) { Error=TEXT("Basic release lost its core, catalog or entity record."); return false; }
+    // A disarm or stun that landed during the windup ends it without a swing.
+    if (IsActionBlocked(Body,ELDCombatControlAction::Basic))
+    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
     // The windup already spent the cadence; a target lost by now is a committed swing that misses.
     FLDCombatBodyRef TargetRef;
     FVector TargetFoot;
@@ -766,6 +812,34 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     PendingHits.Add(Hit);
     if (Action.bAmbush && Body.AttributeProjection.Ambush.IsSet())
     { PendingHits.Add(LDCA::AmbushHit(Hit,Body.AttributeProjection.Ambush.GetValue())); }
+    // The armed empowerment rides only on a swing that lands (one consumption); a missed or refused swing keeps it.
+    const bool bWasEmpowered=Body.Empower.IsSet();
+    if (const TOptional<FLDCombatEmpower> Bonus=LDCombatControl::ConsumeEmpower(Body.Empower,Mode->GetAuthorityNowMs()))
+    {
+        FLDCombatHit& Extra=PendingHits.AddDefaulted_GetRef();
+        Extra.HitId=FGuid::NewGuid();
+        Extra.EffectId=Bonus->EffectId;
+        Extra.Token=Action.Token;
+        Extra.Target=TargetRef;
+        Extra.SourceBody=Hit.SourceBody;
+        Extra.SourceEntity=Hit.SourceEntity;
+        Extra.CreditOwner=Hit.CreditOwner;
+        Extra.Source.Kind=ELDCombatSourceKind::Learned;
+        Extra.Source.DefinitionId=Bonus->SourceDefinitionId;
+        // An added hit, not the basic itself: it never crits, heals or cleaves.
+        Extra.HitClass=ELDCombatHitClass::Ability;
+        Extra.BaseP2=Bonus->BaseP2;
+        Extra.ADRatioBp=Bonus->ADRatioBp;
+        Extra.APRatioBp=Bonus->APRatioBp;
+        Extra.DamageType=Bonus->DamageType;
+        Extra.SourceADP2=Final.ADP2;
+        Extra.SourceAPP2=Final.APP2;
+    }
+    if (bWasEmpowered)
+    {
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+    }
     FinishAction(Body,ELDCombatReject::None,true);
     return true;
 }
@@ -797,14 +871,16 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     FLDInnateDashTerms Innate;
     if (bInnate && !InnateDashFor(*Record,&Body,Innate,Error)) { return false; }
+    // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
     Gate.ReadyAtMs=Track->ReadyAtMs;
     Gate.MpP2=Body.Resources.MpP2;
     Gate.ManaCostP2=bInnate ? Innate.ManaCostP2 : RankDef->ManaCostP2;
-    Gate.bDash=TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
+    Gate.bDash=TargetDef.Mode==ELDDemoTargetMode::DirectionDash || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body.Roots;
-    Gate.bTaunted=LDControl::IsTaunted(Body.Taunt,Now);
+    Gate.bControlBlocked=IsActionBlocked(Body,LDCA::EntryControl(Action.Entry));
+    Gate.bDisplacementBlocked=IsActionBlocked(Body,ELDCombatControlAction::Displacement);
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
     FLDCombatBodyRef UnitTarget;
@@ -825,26 +901,40 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     auto* Movement=Cast<ULDCharacterMovementComponent>(Actor.GetCharacterMovement());
     const auto* DashEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dash);
+    const auto* JumpEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Jump);
     if (DashEffect && (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm)))
     { Reject=ELDCombatReject::Blocked; return true; }
+    // The jump is planned again from the foot at release; the requested point is clamped to the authored reach.
+    FVector JumpDirection=FVector::ZeroVector;
+    double JumpCm=0;
+    if (JumpEffect)
+    {
+        if (!LDCombatControl::PlanJump(FootOf(Actor),Action.TargetPoint,LDCA::ToDouble(TargetDef.RangeCm),JumpDirection,JumpCm))
+        { Reject=ELDCombatReject::InvalidDirection; return true; }
+        if (JumpCm>0 && (!Movement || !Movement->CanStartDash(JumpDirection,LDCA::DashProbeCm))) { Reject=ELDCombatReject::Blocked; return true; }
+    }
     // Hit effects name their targets before anything is paid: a unit, a projectile, or every legal body in a self area.
+    // A jump's area is named at its landing, around the landing foot.
     const FLDDemoEffectDefinition* DamageEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Damage);
     const FLDDemoEffectDefinition* RootEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Root);
     const FLDDemoEffectDefinition* SlowEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Slow);
+    const FLDDemoEffectDefinition* DisarmEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Disarm);
+    const FLDDemoEffectDefinition* StunEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Stun);
+    const FLDDemoEffectDefinition* BackstabEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Backstab);
     const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::SelfArea);
-    const bool bHostile=DamageEffect || RootEffect || SlowEffect;
-    TArray<FLDCombatBodyRef> AreaTargets;
-    if (bHostile && (TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash))
+    const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect;
+    const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash
+        || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
+    if (bHostile && bAreaMode && !AreaEffect)
     {
-        // The origin is the caster's foot at release, before any dash of the same action moves it.
-        if (!AreaEffect)
-        {
-            Error=TEXT("A self or dash action with hit effects has no self_area to name its targets.");
-            return false;
-        }
-        if (!CollectAreaTargets(FootOf(Actor),LDCA::ToDouble(AreaEffect->RadiusCm),&Body,Body.Victim.EntityId,AreaTargets,Error))
-        { return false; }
+        Error=TEXT("A self, dash or jump action with hit effects has no self_area to name its targets.");
+        return false;
     }
+    TArray<FLDCombatBodyRef> AreaTargets;
+    // The origin is the caster's foot at release, before any dash of the same action moves it.
+    if (bHostile && bAreaMode && !JumpEffect
+        && !CollectAreaTargets(FootOf(Actor),LDCA::ToDouble(AreaEffect->RadiusCm),&Body,Body.Victim.EntityId,AreaTargets,Error))
+    { return false; }
     const auto& AmbushTerm=Body.AttributeProjection.Ambush;
     const bool bAmbush=DamageEffect && AmbushTerm.IsSet() && LDTactical::AmbushReady(Body.LastCombatAtMs,AmbushTerm->DelayMs,Now);
     // The duration is fixed at the actual release moment; later build changes never move this endpoint. The innate
@@ -863,8 +953,18 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     bool bDealsDamage=false;
     bool bTimedBonus=false;
+    FLDCombatLanding Landing;
     for (const auto& Effect : RankDef->Effects)
     {
+        // Every self effect released with a jump resolves at its landing; hit effects travel in the landing's template.
+        if (JumpEffect && Effect.GetOp()!=ELDDemoEffectOp::Jump)
+        {
+            if (Effect.GetOp()==ELDDemoEffectOp::Damage) { bDealsDamage=true; }
+            if (Effect.GetOp()==ELDDemoEffectOp::Shield || Effect.GetOp()==ELDDemoEffectOp::DispelRoot
+                || Effect.GetOp()==ELDDemoEffectOp::RestoreMana)
+            { Landing.Effects.Add(Effect); }
+            continue;
+        }
         switch (Effect.GetOp())
         {
         case ELDDemoEffectOp::Damage:
@@ -882,28 +982,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         }
         case ELDDemoEffectOp::Shield:
-        {
-            if (Effect.APRatioBp<0 || Final.APP2<0 || (Effect.APRatioBp>0 && Final.APP2>MAX_int64/Effect.APRatioBp))
-            { Error=TEXT("Shield scaling overflowed."); return false; }
-            const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000;
-            int64 Expires=0;
-            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Expires,Error)) { return false; }
-            // A weaker barrier is a stated sub-effect outcome, not a failed release.
-            if (LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,
-                FLDCombatShield{EffectId,Body.Victim.EntityId,Expires},Amount,Now))
-            { ++Body.Resources.Revision; }
-            break;
-        }
         case ELDDemoEffectOp::DispelRoot:
-            if (LDTactical::DispelRoots(Body.Roots)>0) { ++Body.StateRevision; }
-            break;
         case ELDDemoEffectOp::RestoreMana:
-        {
-            const int64 Amount=Body.Resources.MaxMpP2/10000*Effect.RatioBp+Body.Resources.MaxMpP2%10000*Effect.RatioBp/10000;
-            Body.Resources.MpP2=FMath::Min(Body.Resources.MaxMpP2,Body.Resources.MpP2+Amount);
-            ++Body.Resources.Revision;
+            if (!ApplySelfEffect(Body,Effect,EffectId,Now,Error)) { return false; }
             break;
-        }
         case ELDDemoEffectOp::Dash:
         {
             const double Seconds=double(Effect.DurationMs)/1000.;
@@ -912,11 +994,33 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
             break;
         }
-        case ELDDemoEffectOp::Root:
-        case ELDDemoEffectOp::Slow:
-        case ELDDemoEffectOp::SelfArea:
-            // Delivered with the hits below.
+        case ELDDemoEffectOp::Jump:
+        {
+            // The same native displacement as a dash, toward the planned point and lasting the airtime; terrain stops
+            // it at the legal front segment, the ground keeps it (no separate layer) and capture reads its positions.
+            if (JumpCm>0 && !Movement->StartDemoDash(JumpDirection,JumpCm,double(Effect.DurationMs)/1000.,Error)) { return false; }
+            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
+            Landing.Body=SelfRef;
+            Landing.EffectId=EffectId;
+            Landing.Token=Action.Token;
+            Landing.Source=Source;
+            Landing.LandAtMs=Body.DashUntilMs;
             break;
+        }
+        case ELDDemoEffectOp::EmpowerBasic:
+        {
+            FLDCombatEmpower Armed;
+            Armed.EffectId=EffectId;
+            Armed.SourceDefinitionId=Source.DefinitionId;
+            Armed.BaseP2=Effect.BaseP2;
+            Armed.ADRatioBp=Effect.ADRatioBp;
+            Armed.APRatioBp=Effect.APRatioBp;
+            Armed.DamageType=Effect.DamageType;
+            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Armed.ExpiresAtMs,Error)) { return false; }
+            // A newer release replaces an unspent one; it never stacks.
+            Body.Empower=Armed;
+            break;
+        }
         case ELDDemoEffectOp::Taunt:
             if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error)) { return false; }
             break;
@@ -931,6 +1035,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             { Error=TEXT("A stealth release has no valid duration, reveal radius or speed penalty."); return false; }
             break;
         }
+        case ELDDemoEffectOp::Root:
+        case ELDDemoEffectOp::Slow:
+        case ELDDemoEffectOp::Disarm:
+        case ELDDemoEffectOp::Stun:
+        case ELDDemoEffectOp::Backstab:
+        case ELDDemoEffectOp::SelfArea:
+            // Delivered with the hits below.
+            break;
         default:
             Error=FString::Printf(TEXT("Active effect opcode %u has no Combat handler."),Effect.Opcode);
             return false;
@@ -956,6 +1068,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
         Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
         Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
+        Template.DisarmDurationMs=DisarmEffect ? DisarmEffect->DurationMs : 0;
+        Template.StunDurationMs=StunEffect ? StunEffect->DurationMs : 0;
+        Template.BackstabRatioBp=BackstabEffect ? BackstabEffect->RatioBp : 0;
+        Template.BackstabStunMs=BackstabEffect ? BackstabEffect->DurationMs : 0;
         LDCA::SnapshotControlAmp(Body.AttributeProjection,Template.ControlAmpBp,Template.ControlAmpDurationMs);
         const auto Deliver=[this,&Template,bAmbush,&AmbushTerm](const FLDCombatBodyRef& Target)
         {
@@ -965,7 +1081,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             PendingHits.Add(Hit);
             if (bAmbush) { PendingHits.Add(LDCA::AmbushHit(Hit,AmbushTerm.GetValue())); }
         };
-        if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
+        if (JumpEffect)
+        {
+            // The landing names its area around the landing foot and delivers this release-time payload.
+            Landing.HitTemplate=Template;
+            Landing.AreaRadiusCm=LDCA::ToDouble(AreaEffect->RadiusCm);
+            if (bAmbush) { Landing.Ambush=AmbushTerm; }
+        }
+        else if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
         {
             FLDCombatProjectile Projectile;
             Projectile.EffectId=EffectId;
@@ -996,6 +1119,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else if (TargetDef.Mode==ELDDemoTargetMode::Unit) { Deliver(UnitTarget); }
         else { for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); } }
     }
+    if (JumpEffect) { Landings.Add(MoveTemp(Landing)); }
     if (bDealsDamage) { Body.LastCombatAtMs=Now; }
     if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     ++Body.StateRevision;
@@ -1003,6 +1127,40 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     return true;
 }
 
+bool ALDCombatDirector::ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FGuid& EffectId,
+    int64 NowMs, FString& Error)
+{
+    const auto& Final=Body.AttributeProjection.Final;
+    switch (Effect.GetOp())
+    {
+    case ELDDemoEffectOp::Shield:
+    {
+        if (Effect.APRatioBp<0 || Final.APP2<0 || (Effect.APRatioBp>0 && Final.APP2>MAX_int64/Effect.APRatioBp))
+        { Error=TEXT("Shield scaling overflowed."); return false; }
+        const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000;
+        int64 Expires=0;
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Effect.DurationMs,Expires,Error)) { return false; }
+        // A weaker barrier is a stated sub-effect outcome, not a failed release.
+        if (LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,
+            FLDCombatShield{EffectId,Body.Victim.EntityId,Expires},Amount,NowMs))
+        { ++Body.Resources.Revision; }
+        return true;
+    }
+    case ELDDemoEffectOp::DispelRoot:
+        if (LDTactical::DispelRoots(Body.Roots)>0) { ++Body.StateRevision; }
+        return true;
+    case ELDDemoEffectOp::RestoreMana:
+    {
+        const int64 Amount=Body.Resources.MaxMpP2/10000*Effect.RatioBp+Body.Resources.MaxMpP2%10000*Effect.RatioBp/10000;
+        Body.Resources.MpP2=FMath::Min(Body.Resources.MaxMpP2,Body.Resources.MpP2+Amount);
+        ++Body.Resources.Revision;
+        return true;
+    }
+    default:
+        Error=FString::Printf(TEXT("Self effect opcode %u has no Combat handler."),Effect.Opcode);
+        return false;
+    }
+}
 bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBodyRead& Out) const
 {
     Out={};
@@ -1025,19 +1183,26 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     const auto* Record=FindRecord(Ref.Victim.EntityId);
     Out.NextAttackAtMs=Ref.Victim.Kind==ELDVictimKind::Contender ? (Record ? Record->NextAttackAtMs : 0) : Body->MonsterNextAttackAtMs;
     Out.AttackRangeCm=LDCA::ToDouble(Body->AttributeProjection.Final.AttackRangeCm);
-    Out.bAttackAllowed=!Body->bPendingDeath;
-    Out.bMovementAllowed=Out.bAttackAllowed && Out.RootedUntilMs==0;
+    Out.bAttackAllowed=!Body->bPendingDeath && !IsActionBlocked(*Body,ELDCombatControlAction::Basic);
+    Out.bMovementAllowed=!Body->bPendingDeath && !IsActionBlocked(*Body,ELDCombatControlAction::Move);
     Out.bBasicAttackReady=Out.bAttackAllowed && !Out.bActionInProgress && Now>=Out.NextAttackAtMs;
     return true;
 }
 
-bool ALDCombatDirector::IsRooted(const ALDCharacter& Actor) const
+bool ALDCombatDirector::IsMoveBlocked(const ALDCharacter& Actor) const
+{
+    const auto* Body=Bodies.Find(const_cast<ALDCharacter*>(&Actor));
+    return Body && IsActionBlocked(*Body,ELDCombatControlAction::Move);
+}
+
+bool ALDCombatDirector::IsActionBlocked(const FLDBodyCombatState& Body, ELDCombatControlAction Action) const
 {
     const auto* Mode=Core();
     const auto* Content=Catalog();
-    const auto* Body=Bodies.Find(const_cast<ALDCharacter*>(&Actor));
-    if (!Mode || !Content || !Body) { return false; }
-    return LDTactical::RootBlocks(Body->Roots,Mode->GetAuthorityNowMs(),Content->Get().Policies,ELDDemoRootBlock::Move);
+    if (!Mode || !Content) { return false; }
+    const int64 Now=Mode->GetAuthorityNowMs();
+    return LDCombatControl::Blocks(Body.Roots,Body.Disarms,Body.Stuns,Now,Content->Get().Policies,Action)
+        || LDControl::TauntBlocks(Body.Taunt,Now,Action);
 }
 
 bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPerSec) const

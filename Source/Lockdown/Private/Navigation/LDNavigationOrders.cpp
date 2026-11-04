@@ -968,8 +968,8 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     if (ActiveOrder && ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround
         && LDPathSteering::AtGoal(*Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
     { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
-    // Rooted bodies get no voluntary input; committed root motion (dashes) still integrates natively.
-    const bool bRooted=Mode->Combat && Mode->Combat->IsRooted(*Body);
+    // Rooted or stunned bodies get no voluntary input; committed root motion (dashes, jumps) still integrates natively.
+    const bool bRooted=Mode->Combat && Mode->Combat->IsMoveBlocked(*Body);
     const FVector Input=ActiveOrder && !bRooted?AuthoritySteering(*Body):FVector::ZeroVector;
     auto* Movement=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
     if (!Movement->AdvanceAuthorityMovement(Step,Ref,Input,Permit,Error)) { return false; }

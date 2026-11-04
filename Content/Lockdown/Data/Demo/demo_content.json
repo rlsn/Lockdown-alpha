@@ -672,6 +672,296 @@
       }
     },
     {
+      "cooldown_family": "cd_lunge",
+      "id": "active_lunge",
+      "kind": "active",
+      "native_id": 78,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 11200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 400,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "dash",
+              "opcode": 8
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "empower_basic",
+              "opcode": 22
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 9600,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 400,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "dash",
+              "opcode": 8
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7500,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "empower_basic",
+              "opcode": 22
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 400,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "dash",
+              "opcode": 8
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 10000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "empower_basic",
+              "opcode": 22
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "DirectionDash"
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown_family": "cd_monkey_peach",
+      "id": "active_monkey_peach",
+      "kind": "active",
+      "native_id": 76,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 9600,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 9000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "disarm",
+              "opcode": 20
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 8800,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 12000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1300,
+                "unit": "ms"
+              },
+              "op": "disarm",
+              "opcode": 20
+            }
+          ],
+          "mana_cost": {
+            "p2": 4500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 15000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1600,
+                "unit": "ms"
+              },
+              "op": "disarm",
+              "opcode": 20
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 250,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_slick_moves",
       "id": "active_slick_moves",
       "kind": "active",
@@ -914,6 +1204,152 @@
       }
     },
     {
+      "cooldown_family": "cd_thousand_year",
+      "id": "active_thousand_year",
+      "kind": "active",
+      "native_id": 77,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 9500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 600,
+                "unit": "ms"
+              },
+              "op": "backstab",
+              "opcode": 25,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 7200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 13000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 700,
+                "unit": "ms"
+              },
+              "op": "backstab",
+              "opcode": 25,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 6400,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 6000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 800,
+                "unit": "ms"
+              },
+              "op": "backstab",
+              "opcode": 25,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 200,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
       "id": "passive_battle_rhythm",
       "kind": "passive",
       "native_id": 65,
@@ -1084,6 +1520,115 @@
                   "unit": "cm"
                 }
               }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "id": "passive_iron_crotch",
+      "kind": "passive",
+      "native_id": 79,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "armor_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 1500,
+                "unit": "points"
+              },
+              "critical_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
+              },
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "thorns",
+              "opcode": 24,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "rear_exempt": true,
+              "trigger": "BasicOrAbility"
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "armor_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2200,
+                "unit": "points"
+              },
+              "critical_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
+              },
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "thorns",
+              "opcode": 24,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "rear_exempt": true,
+              "trigger": "BasicOrAbility"
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "armor_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 3000,
+                "unit": "points"
+              },
+              "critical_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
+              },
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "thorns",
+              "opcode": 24,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "rear_exempt": true,
+              "trigger": "BasicOrAbility"
             }
           ],
           "rank": 3
@@ -1702,6 +2247,24 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_lunge.description",
+      "description_text": "朝指定方向冲出一段距离，碰到阻挡就停下；之后一段时间内的下一次弹脑瓜崩额外造成皮肉伤。被定身时不能冲刺。",
+      "icon_id": "icon_active_lunge",
+      "id": "active_lunge",
+      "name_key": "active_lunge.name",
+      "name_text": "一个箭步",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_monkey_peach.description",
+      "description_text": "对身边一名看得见的敌人造成皮肉伤并让其缴械：期间不能弹脑瓜崩，仍可移动、放技能和用装备。伤害随手劲提高，不会正中要害。",
+      "icon_id": "icon_active_monkey_peach",
+      "id": "active_monkey_peach",
+      "name_key": "active_monkey_peach.name",
+      "name_text": "猴子偷桃",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_slick_moves.description",
       "description_text": "短时间内大幅提高腿速。",
       "icon_id": "icon_active_slick_moves",
@@ -1717,6 +2280,15 @@
       "id": "active_slipper_throw",
       "name_key": "active_slipper_throw.name",
       "name_text": "老妈的拖鞋",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_thousand_year.description",
+      "description_text": "对贴身的一名看得见的敌人造成社死伤害，伤害随手劲和缺德值提高，不会正中要害。从对方背后出手时伤害更高，并让对方原地起飞、眩晕。",
+      "icon_id": "icon_active_thousand_year",
+      "id": "active_thousand_year",
+      "name_key": "active_thousand_year.name",
+      "name_text": "千年杀",
       "namespace": "DemoContent"
     },
     {
@@ -1793,6 +2365,24 @@
       "portrait_icon_id": "portrait_character_demo"
     },
     {
+      "description_key": "disarm.description",
+      "description_text": "不能弹脑瓜崩，但仍可以移动、冲刺、放技能和用装备。",
+      "icon_id": "icon_disarm",
+      "id": "disarm",
+      "name_key": "disarm.name",
+      "name_text": "缴械",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "empowered.description",
+      "description_text": "下一次打中敌人的弹脑瓜崩额外造成伤害；打出或到时间就消失。",
+      "icon_id": "icon_empowered",
+      "id": "empowered",
+      "name_key": "empowered.name",
+      "name_text": "蓄势待发",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "enraged.description",
       "description_text": "急了生效中：面子过低，手劲提高。",
       "icon_id": "icon_enraged",
@@ -1844,6 +2434,15 @@
       "id": "item_iron_plate",
       "name_key": "item_iron_plate.name",
       "name_text": "《五年挨打三年模拟》",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_nail_uniform.description",
+      "description_text": "提高最大面子和抗揍。被动「扎手」：被近处敌人的弹脑瓜崩打中时，让对方受到社死伤害，随抗揍提高；同一人短时间内只触发一次。",
+      "icon_id": "icon_item_nail_uniform",
+      "id": "item_nail_uniform",
+      "name_key": "item_nail_uniform.name",
+      "name_text": "钉子户校服",
       "namespace": "DemoContent"
     },
     {
@@ -1937,6 +2536,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "passive_iron_crotch.description",
+      "description_text": "被近处敌人的弹脑瓜崩或技能打中时，让对方受到社死伤害，随抗揍提高，被正中要害时翻倍。背后来袭不触发，同一人短时间内只触发一次。",
+      "icon_id": "icon_passive_iron_crotch",
+      "id": "passive_iron_crotch",
+      "name_key": "passive_iron_crotch.name",
+      "name_text": "铁裆功",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "passive_lurking.description",
       "description_text": "脱离战斗一段时间后，下一次弹脑瓜崩或伤害技能额外造成社死伤害。伤害随手劲和缺德值提高。",
       "icon_id": "icon_passive_lurking",
@@ -2024,6 +2632,15 @@
       "id": "stealth",
       "name_key": "stealth.name",
       "name_text": "隐身",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "stun.description",
+      "description_text": "不能移动、冲刺、弹脑瓜崩、放技能和用装备；正在准备的动作会被打断。",
+      "icon_id": "icon_stun",
+      "id": "stun",
+      "name_key": "stun.name",
+      "name_text": "眩晕",
       "namespace": "DemoContent"
     },
     {
@@ -2169,6 +2786,56 @@
         },
         "MaxHPFlat": {
           "p2": 18000,
+          "unit": "hp"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 380,
+      "id": "item_nail_uniform",
+      "native_id": 108,
+      "passive": {
+        "effects": [
+          {
+            "armor_ratio": {
+              "bp": 1000,
+              "unit": "ratio"
+            },
+            "base": {
+              "p2": 2000,
+              "unit": "points"
+            },
+            "critical_multiplier": {
+              "bp": 10000,
+              "unit": "ratio"
+            },
+            "damage_type": "Magical",
+            "interval": {
+              "ms": 500,
+              "unit": "ms"
+            },
+            "op": "thorns",
+            "opcode": 24,
+            "radius": {
+              "denominator": 1,
+              "numerator": 300,
+              "unit": "cm"
+            },
+            "rear_exempt": false,
+            "trigger": "Basic"
+          }
+        ],
+        "family": "passive_prickle"
+      },
+      "sell_gold": 247,
+      "stats": {
+        "ArmorFlat": {
+          "p2": 1800,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 15000,
           "unit": "hp"
         }
       }
@@ -2423,6 +3090,11 @@
       "unit": "cm"
     },
     "CHOICE.BaseWeight": 1,
+    "COMBAT.RearArcDeg": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "deg"
+    },
     "LIFE.ProtectionSec": {
       "ms": 3000,
       "unit": "ms"

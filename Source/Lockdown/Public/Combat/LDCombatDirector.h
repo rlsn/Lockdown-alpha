@@ -4,6 +4,7 @@
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDCombatControlRules.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -33,6 +34,7 @@ struct FLDCombatAction
     FLDCombatTarget Target;
     FLDCombatBodyRef TargetBody;
     FVector Direction=FVector::ZeroVector;
+    FVector TargetPoint=FVector::ZeroVector;  // GroundPoint: the requested point (planar use only)
     int64 StartedAtMs=0;
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
@@ -67,6 +69,12 @@ struct FLDBodyCombatState
     TArray<FLDCombatExposure> Exposures;
     // Last published ambush-ready state, so the status changes the owner view exactly when the window opens.
     bool bAmbushReadyShown=false;
+    // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
+    TArray<FLDCombatRoot> Disarms;
+    TArray<FLDCombatRoot> Stuns;
+    // The armed next-basic bonus (one consumption) and this life's thorns repeat windows.
+    TOptional<FLDCombatEmpower> Empower;
+    TArray<FLDThornsMark> ThornsMarks;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatStealth> Stealth;
@@ -145,11 +153,35 @@ struct FLDCombatHit
     int64 SlowBp=0, SlowDurationMs=0;
     // Snapshot of the releasing source's control damage amplification, applied if this hit controls its target.
     int64 ControlAmpBp=0, ControlAmpDurationMs=0;
+    int64 DisarmDurationMs=0;
+    int64 StunDurationMs=0;
+    // Rear strike: applied when the releasing body stands in the target's rear arc at this hit.
+    int64 BackstabRatioBp=0;
+    int64 BackstabStunMs=0;
+    // A reflection never crits, heals, cleaves or triggers another reflection.
+    bool bReflect=false;
     bool bCleave=false;
     int64 CleaveRatioBp=0;
     double CleaveRadiusCm=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
+};
+
+// A released jump: the landing effects resolve at LandAtMs on the same body life, centred on its landing foot.
+struct FLDCombatLanding
+{
+    FLDCombatBodyRef Body;
+    FGuid EffectId;
+    uint64 Token=0;
+    FLDCombatSourceRef Source;
+    int64 LandAtMs=0;
+    // Self effects (shield, root cleanse, mana) applied to the landed body.
+    TArray<FLDDemoEffectDefinition> Effects;
+    // Hit payload snapshotted at release; at landing it is delivered to every legal body within AreaRadiusCm of the
+    // landing foot (the same CollectAreaTargets rule as a self area), with the release's ambush bonus if it was ready.
+    TOptional<FLDCombatHit> HitTemplate;
+    double AreaRadiusCm=0;
+    TOptional<FLDAmbushDamageTerm> Ambush;
 };
 
 // Released straight, non-homing projectile: first legal hostile body or blocking terrain ends it.
@@ -205,7 +237,11 @@ public:
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
     // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());
-    bool IsRooted(const ALDCharacter& Body) const;
+    // Voluntary movement blocked by Root or Stun (LDCombatControl matrix); a taunt forces movement instead.
+    bool IsMoveBlocked(const ALDCharacter& Body) const;
+    // The control matrix for one registered body at the current authority time: Root/Disarm/Stun (LDCombatControl)
+    // and a taunt's ban on abilities, items and displacement (LDControl::TauntBlocks).
+    bool IsActionBlocked(const FLDBodyCombatState& Body, ELDCombatControlAction Action) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
     bool ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBodyRef& OutTaunter) const;
@@ -302,6 +338,13 @@ private:
     // ---- Effects (LDCombatEffects.cpp).
     bool ApplyHit(const FLDCombatHit& Hit, FString& Error);
     bool AdvanceProjectiles(FString& Error);
+    // Disarm/Stun of one committed hit, the rear-strike judgement and the victim's thorns reflections.
+    bool IsSourceBehind(const FLDCombatBodyRef& Source, const ALDCharacter& Target) const;
+    bool QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, FString& Error);
+    // Self effects shared by a release and a jump landing (shield, root cleanse, mana).
+    bool ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FGuid& EffectId,
+        int64 NowMs, FString& Error);
+    bool ResolveLandings(FString& Error);
     void ExpireStatuses(int64 NowMs);
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
     bool RefreshTaunts(FString& Error);
@@ -354,6 +397,7 @@ private:
     TMap<FGuid,FLDCombatEntityRecord> Records;
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
+    TArray<FLDCombatLanding> Landings;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

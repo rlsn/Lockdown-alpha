@@ -558,7 +558,7 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     {
         return false;
     }
-    Input.DamageAmplifyBp = 1600;
+    Input.AmplifyBp = 10000 + 1600;
     if (!CheckDamage(*this, TEXT("A 16% control mark multiplies the pre-resistance amount once"), Input, *Catalog,
         {Amplified, 0, Amplified, 0, HP - Amplified, 0}))
     {
@@ -568,7 +568,7 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.bTargetProtected = true;
     CheckDamage(*this, TEXT("Protection still zeroes an amplified hit"), Input, *Catalog, {0, 0, 0, 0, HP, 0});
     Input.bTargetProtected = false;
-    Input.DamageAmplifyBp = -1;
+    Input.AmplifyBp = -1;
     CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
     return true;
 }

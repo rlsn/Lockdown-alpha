@@ -1,4 +1,6 @@
 #include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDCombatControlRules.h"
+#include "Combat/LDControlRules.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Navigation/LDOrderRules.h"
@@ -300,13 +302,36 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Admission refuses a dash during another ability windup"),
         LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::Busy);
     Gate.bCheckBusy = Gate.bAbilityInProgress = false;
-    Gate.bTaunted = true;
-    TestTrue(TEXT("A taunted body cannot dash"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
+    Gate.bControlBlocked = true;
+    TestTrue(TEXT("A stunned or taunted body cannot dash"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
     Gate.bDash = false;
-    TestTrue(TEXT("A taunted body cannot use any other active either"),
+    TestTrue(TEXT("A blocked entry refuses any other active too"),
         LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
-    Gate.bTaunted = false;
+    Gate.bControlBlocked = false;
+    Gate.bDisplacementBlocked = true;
+    TestTrue(TEXT("A displacement block (Root/Stun/taunt) leaves a non-moving active usable"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
     Gate.bDash = true;
+    TestTrue(TEXT("A displacement block refuses the dash"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
+    Gate.bDisplacementBlocked = false;
+    // The matrix entries the gate reads: a taunt blocks Cast/Gear/Displacement, never Move (forced chase) or Basic
+    // (checked against the taunter); a disarm alone leaves the dash usable.
+    TOptional<FLDCombatTaunt> Taunt;
+    Taunt.Emplace();
+    Taunt->ExpiresAtMs = NowMs + 1000;
+    TestTrue(TEXT("A taunt blocks the D dash (Cast and Displacement)"),
+        LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Cast) && LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Displacement));
+    TestTrue(TEXT("A taunt blocks items"), LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Gear));
+    TestFalse(TEXT("A taunt leaves movement and basic attacks to the forced chase"),
+        LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Move) || LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Basic));
+    TestFalse(TEXT("An ended taunt blocks nothing"), LDControl::TauntBlocks(Taunt, NowMs + 1000, ELDCombatControlAction::Cast));
+    TArray<FLDCombatRoot> NoControl, Disarms;
+    Disarms.Add({FGuid::NewGuid(), FGuid::NewGuid(), NowMs + 500});
+    TestFalse(TEXT("A disarm leaves the dash usable"),
+        LDCombatControl::Blocks(NoControl, Disarms, NoControl, NowMs, Policies, ELDCombatControlAction::Cast)
+        || LDCombatControl::Blocks(NoControl, Disarms, NoControl, NowMs, Policies, ELDCombatControlAction::Displacement));
+    TestTrue(TEXT("A stun blocks the dash"),
+        LDCombatControl::Blocks(NoControl, NoControl, Disarms, NowMs, Policies, ELDCombatControlAction::Displacement));
 
     // Cooldown debt: buying or selling spikes is a build change, which plans only learned and gear tracks; the innate
     // track keeps the absolute end fixed at its release.

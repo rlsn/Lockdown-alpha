@@ -28,6 +28,8 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Slow:
     case ELDDemoStatusId::StatBoost:
     case ELDDemoStatusId::Exposed:
+    case ELDDemoStatusId::Disarm:
+    case ELDDemoStatusId::Stun:
         return true;
     default:
         return false;
@@ -48,6 +50,7 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemEchoMaul:
     case ELDDemoEquipmentId::ItemSlingshot:
     case ELDDemoEquipmentId::ItemPaperBox:
+    case ELDDemoEquipmentId::ItemNailUniform:
         return true;
     default:
         return false;

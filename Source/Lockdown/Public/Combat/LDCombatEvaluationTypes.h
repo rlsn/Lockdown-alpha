@@ -34,13 +34,14 @@ struct FLDDamageEvaluationInput
     // A source attribute may be absent only when its resolved coefficient is zero.
     TOptional<int64> SourceADP2;
     TOptional<int64> SourceAPP2;
-    // Additive amplification of the pre-resistance amount (control damage amplification), basis points >= 0.
-    int64 DamageAmplifyBp = 0;
     // Resistance is the matching armor or magic-resist point value, not a reduction ratio.
     TOptional<int64> TargetResistanceP2;
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
+    // Conditional multiplier of the raw amount before resistance: the product of a control damage amplification
+    // (10000 + mark) and a rear strike (10000 + ratio); 10000 = none.
+    int64 AmplifyBp = 10000;
 };
 
 struct FLDDamageEvaluation

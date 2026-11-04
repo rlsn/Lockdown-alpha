@@ -30,6 +30,9 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
     case ELDDemoStatusId::Taunt: return TEXT("taunt");
     case ELDDemoStatusId::Stealth: return TEXT("stealth");
+    case ELDDemoStatusId::Disarm: return TEXT("disarm");
+    case ELDDemoStatusId::Stun: return TEXT("stun");
+    case ELDDemoStatusId::Empowered: return TEXT("empowered");
     default: return nullptr;
     }
 }
@@ -495,6 +498,22 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Taunt: return TEXT("嘲讽自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人 ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Stealth: return TEXT("隐身 ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
         +TEXT("cm 内的敌人可发现，腿速 -")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::Disarm: return TEXT("缴械 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Stun: return TEXT("眩晕 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Backstab: return TEXT("背后出手：伤害 +")+HudPercent(Effect.RatioBp)+TEXT("，眩晕 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::EmpowerBasic:
+        return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次弹脑瓜崩额外造成")+(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
+    case ELDDemoEffectOp::Jump: return TEXT("跳向指定地点（")+HudSeconds(Effect.DurationMs)+TEXT(" 后落地）");
+    case ELDDemoEffectOp::Thorns:
+    {
+        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+(Effect.bAbilityTrigger?TEXT("cm 内敌人的弹脑瓜崩或技能打中时"):TEXT("cm 内敌人的弹脑瓜崩打中时"))
+            +TEXT("，对方受")+(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudPoints(Effect.BaseP2);
+        if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+TEXT("抗揍");}
+        if(Effect.CriticalMultiplierBp>10000){Text+=TEXT("，被正中要害时变为 ")+HudPercent(Effect.CriticalMultiplierBp);}
+        Text+=TEXT("；同一人 ")+HudSeconds(Effect.IntervalMs)+TEXT(" 内最多一次");
+        if(Effect.bRearExempt){Text+=TEXT("，背后来袭不触发");}
+        return Text;
+    }
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -506,6 +525,7 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
+    case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT("cm");
     default: return TEXT("未知目标方式");
     }
 }

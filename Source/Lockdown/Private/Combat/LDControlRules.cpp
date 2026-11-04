@@ -97,3 +97,9 @@ bool LDControl::MoveSpeedCmPerSec(const FLDAttributeContributions& Row, int64 Pe
     OutCmPerSec=FMath::Clamp(Speed,Min,Max);
     return true;
 }
+
+bool LDControl::TauntBlocks(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs, ELDCombatControlAction Action)
+{
+    return IsTaunted(Taunt, AtMs) && (Action == ELDCombatControlAction::Cast || Action == ELDCombatControlAction::Gear
+        || Action == ELDCombatControlAction::Displacement);
+}

@@ -915,13 +915,15 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
     {
-        float RangeCm=0;bool bDirection=false,bUnitTarget=false;
+        float RangeCm=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
         if(bArmedEntry)
         {
             const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
             RangeCm=Source?float(Source->RangeCm):0.f;
             bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
             bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
+            // A ground point previews where the jump would land: the pointer, clamped to the reach.
+            bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
         const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
@@ -950,7 +952,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             FVector Planar=Origin+Direction*Along-Feet;Planar.Z=0;
             if(Along>0&&!Planar.IsNearlyZero())
             {
-                const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*RangeCm:Planar);
+                const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
                 FVector2D From,To;
                 if(Project(Feet,From)&&Project(End,To)){Lines({From,To},Preview,3.f);}
             }

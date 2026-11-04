@@ -89,7 +89,8 @@
     "AI.RetryPolicy.InitialBackoffSec": {"unit": "s", "value": 0.25},
     "AI.RetryPolicy.MaxBackoffSec": {"unit": "s", "value": 0.50},
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
-    "AI.EngagementBudgetSec": {"unit": "s", "value": 40}
+    "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
+    "COMBAT.RearArcDeg": {"unit": "deg", "value": 120}
   },
   "formulas": {
     "StatProjection": "AddFlatThenAdditivePercent",
@@ -281,6 +282,50 @@
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 140}}}]},
         {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 200}}}]}
       ]
+    },
+    {
+      "id": "active_monkey_peach", "kind": "active", "cooldown_family": "cd_monkey_peach",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 250}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 90}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.0}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 45}, "cooldown": {"unit": "s", "value": 8.8},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 120}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 150}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.6}}]}
+      ]
+    },
+    {
+      "id": "active_thousand_year", "kind": "active", "cooldown_family": "cd_thousand_year",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 200}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 95}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.6}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 7.2},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 130}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.7}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 6.4},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 165}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.8}}]}
+      ]
+    },
+    {
+      "id": "active_lunge", "kind": "active", "cooldown_family": "cd_lunge",
+      "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 50}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]}
+      ]
+    },
+    {
+      "id": "passive_iron_crotch", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 15}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
+        {"rank": 2, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 22}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
+        {"rank": 3, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 30}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]}
+      ]
     }
   ],
   "attributes": [
@@ -308,7 +353,9 @@
     {"id": "item_paper_box", "buy_price": 400, "stats": {"APFlat": {"unit": "points", "value": 20}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.08}}, "passive": null,
      "active": {"target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_paper_box",
                 "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 45},
-                         "effects": [{"op": "stealth", "duration": {"unit": "s", "value": 3}, "reveal_radius": {"unit": "cm", "value": 250}, "move_speed_penalty": {"unit": "ratio", "value": 0.10}}]}}}
+                         "effects": [{"op": "stealth", "duration": {"unit": "s", "value": 3}, "reveal_radius": {"unit": "cm", "value": 250}, "move_speed_penalty": {"unit": "ratio", "value": 0.10}}]}}},
+    {"id": "item_nail_uniform", "buy_price": 380, "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 18}}, "active": null,
+     "passive": {"family": "passive_prickle", "effects": [{"op": "thorns", "base": {"unit": "points", "value": 20}, "armor_ratio": {"unit": "ratio", "value": 0.10}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}]}}
   ],
   "camps": {
     "monsters": [
@@ -365,6 +412,10 @@
     {"id": "passive_lurking", "namespace": "DemoContent", "name_key": "passive_lurking.name", "name_text": "暗中观察", "description_key": "passive_lurking.description", "description_text": "脱离战斗一段时间后，下一次弹脑瓜崩或伤害技能额外造成社死伤害。伤害随手劲和缺德值提高。", "icon_id": "icon_passive_lurking"},
     {"id": "passive_public_shame", "namespace": "DemoContent", "name_key": "passive_public_shame.name", "name_text": "社死现场", "description_key": "passive_public_shame.description", "description_text": "被你定身的敌人，之后一段时间内受到你的伤害提高。", "icon_id": "icon_passive_public_shame"},
     {"id": "passive_eagle_eye", "namespace": "DemoContent", "name_key": "passive_eagle_eye.name", "name_text": "视力5.0", "description_key": "passive_eagle_eye.description", "description_text": "学会后提高弹脑瓜崩的攻击距离。", "icon_id": "icon_passive_eagle_eye"},
+    {"id": "active_monkey_peach", "namespace": "DemoContent", "name_key": "active_monkey_peach.name", "name_text": "猴子偷桃", "description_key": "active_monkey_peach.description", "description_text": "对身边一名看得见的敌人造成皮肉伤并让其缴械：期间不能弹脑瓜崩，仍可移动、放技能和用装备。伤害随手劲提高，不会正中要害。", "icon_id": "icon_active_monkey_peach"},
+    {"id": "active_thousand_year", "namespace": "DemoContent", "name_key": "active_thousand_year.name", "name_text": "千年杀", "description_key": "active_thousand_year.description", "description_text": "对贴身的一名看得见的敌人造成社死伤害，伤害随手劲和缺德值提高，不会正中要害。从对方背后出手时伤害更高，并让对方原地起飞、眩晕。", "icon_id": "icon_active_thousand_year"},
+    {"id": "active_lunge", "namespace": "DemoContent", "name_key": "active_lunge.name", "name_text": "一个箭步", "description_key": "active_lunge.description", "description_text": "朝指定方向冲出一段距离，碰到阻挡就停下；之后一段时间内的下一次弹脑瓜崩额外造成皮肉伤。被定身时不能冲刺。", "icon_id": "icon_active_lunge"},
+    {"id": "passive_iron_crotch", "namespace": "DemoContent", "name_key": "passive_iron_crotch.name", "name_text": "铁裆功", "description_key": "passive_iron_crotch.description", "description_text": "被近处敌人的弹脑瓜崩或技能打中时，让对方受到社死伤害，随抗揍提高，被正中要害时翻倍。背后来袭不触发，同一人短时间内只触发一次。", "icon_id": "icon_passive_iron_crotch"},
     {"id": "attr_might", "namespace": "DemoContent", "name_key": "attr_might.name", "name_text": "举铁", "description_key": "attr_might.description", "description_text": "本局永久提高手劲。", "icon_id": "icon_attr_might"},
     {"id": "attr_focus", "namespace": "DemoContent", "name_key": "attr_focus.name", "name_text": "刷整蛊视频", "description_key": "attr_focus.description", "description_text": "本局永久提高缺德值。", "icon_id": "icon_attr_focus"},
     {"id": "attr_vitality", "namespace": "DemoContent", "name_key": "attr_vitality.name", "name_text": "食堂加餐", "description_key": "attr_vitality.description", "description_text": "本局永久提高最大面子，当前面子按比例一起涨。", "icon_id": "icon_attr_vitality"},
@@ -376,6 +427,7 @@
     {"id": "item_siphon_emblem", "namespace": "DemoContent", "name_key": "item_siphon_emblem.name", "name_text": "老爸的皮带", "description_key": "item_siphon_emblem.description", "description_text": "提高手劲和脸皮。被动「长脸」：弹脑瓜崩让对方实际丢掉的面子，按比例回到自己身上。", "icon_id": "icon_item_siphon_emblem"},
     {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。被动「助跑」：穿着时冲刺的冷却缩短、冲得更远；两双同款只算一次。", "icon_id": "icon_item_phase_anchor"},
     {"id": "item_arcane_battery", "namespace": "DemoContent", "name_key": "item_arcane_battery.name", "name_text": "保温杯", "description_key": "item_arcane_battery.description", "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。", "icon_id": "icon_item_arcane_battery"},
+    {"id": "item_nail_uniform", "namespace": "DemoContent", "name_key": "item_nail_uniform.name", "name_text": "钉子户校服", "description_key": "item_nail_uniform.description", "description_text": "提高最大面子和抗揍。被动「扎手」：被近处敌人的弹脑瓜崩打中时，让对方受到社死伤害，随抗揍提高；同一人短时间内只触发一次。", "icon_id": "icon_item_nail_uniform"},
     {"id": "item_echo_maul", "namespace": "DemoContent", "name_key": "item_echo_maul.name", "name_text": "值日扫帚", "description_key": "item_echo_maul.description", "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。", "icon_id": "icon_item_echo_maul"},
     {"id": "item_slingshot", "namespace": "DemoContent", "name_key": "item_slingshot.name", "name_text": "弹弓", "description_key": "item_slingshot.description", "description_text": "提高攻击距离和手速。", "icon_id": "icon_item_slingshot"},
     {"id": "item_paper_box", "namespace": "DemoContent", "name_key": "item_paper_box.name", "name_text": "纸箱", "description_key": "item_paper_box.description", "description_text": "提高缺德值和腿速。主动「纸箱潜行」：钻进纸箱隐身一小会儿，腿速略降；离得很近的敌人仍能发现你，弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_item_paper_box"},
@@ -391,6 +443,9 @@
     {"id": "ambush_ready", "namespace": "DemoContent", "name_key": "ambush_ready.name", "name_text": "伺机而动", "description_key": "ambush_ready.description", "description_text": "暗中观察已就绪：下一次弹脑瓜崩或伤害技能额外造成社死伤害。", "icon_id": "icon_ambush_ready"},
     {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "当众出丑", "description_key": "exposed.description", "description_text": "刚被定身，一段时间内受到对方的伤害提高。", "icon_id": "icon_exposed"},
     {"id": "taunt", "namespace": "DemoContent", "name_key": "taunt.name", "name_text": "被嘲讽", "description_key": "taunt.description", "description_text": "只能追着嘲讽你的人弹脑瓜崩，不能放技能、用装备、冲刺或自己下令；对方社死、离开或不在视野里时立刻解除。", "icon_id": "icon_taunt"},
-    {"id": "stealth", "namespace": "DemoContent", "name_key": "stealth.name", "name_text": "隐身", "description_key": "stealth.description", "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被发现。弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_stealth"}
+    {"id": "stealth", "namespace": "DemoContent", "name_key": "stealth.name", "name_text": "隐身", "description_key": "stealth.description", "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被发现。弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_stealth"},
+    {"id": "disarm", "namespace": "DemoContent", "name_key": "disarm.name", "name_text": "缴械", "description_key": "disarm.description", "description_text": "不能弹脑瓜崩，但仍可以移动、冲刺、放技能和用装备。", "icon_id": "icon_disarm"},
+    {"id": "stun", "namespace": "DemoContent", "name_key": "stun.name", "name_text": "眩晕", "description_key": "stun.description", "description_text": "不能移动、冲刺、弹脑瓜崩、放技能和用装备；正在准备的动作会被打断。", "icon_id": "icon_stun"},
+    {"id": "empowered", "namespace": "DemoContent", "name_key": "empowered.name", "name_text": "蓄势待发", "description_key": "empowered.description", "description_text": "下一次打中敌人的弹脑瓜崩额外造成伤害；打出或到时间就消失。", "icon_id": "icon_empowered"}
   ]
 }

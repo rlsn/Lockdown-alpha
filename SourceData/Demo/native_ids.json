@@ -21,7 +21,11 @@
     "passive_cornered": 72,
     "passive_lurking": 73,
     "passive_public_shame": 74,
-    "passive_eagle_eye": 75
+    "passive_eagle_eye": 75,
+    "active_monkey_peach": 76,
+    "active_thousand_year": 77,
+    "active_lunge": 78,
+    "passive_iron_crotch": 79
   },
   "attributes": {
     "attr_might": 1,
@@ -39,7 +43,8 @@
     "item_arcane_battery": 104,
     "item_echo_maul": 105,
     "item_slingshot": 106,
-    "item_paper_box": 107
+    "item_paper_box": 107,
+    "item_nail_uniform": 108
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -56,7 +61,10 @@
     "ambush_ready": 8,
     "exposed": 9,
     "taunt": 10,
-    "stealth": 11
+    "stealth": 11,
+    "disarm": 12,
+    "stun": 13,
+    "empowered": 14
   },
   "effect_ops": {
     "damage": 1,
@@ -77,6 +85,12 @@
     "ambush_damage": 16,
     "control_damage_amp": 17,
     "taunt": 18,
-    "stealth": 19
+    "stealth": 19,
+    "disarm": 20,
+    "stun": 21,
+    "empower_basic": 22,
+    "jump": 23,
+    "thorns": 24,
+    "backstab": 25
   }
 }

@@ -29,6 +29,10 @@ const FNativeId NativeIds[] =
     DEMO_ID("abilities", "passive_lurking", ELDDemoAbilityId, PassiveLurking),
     DEMO_ID("abilities", "passive_public_shame", ELDDemoAbilityId, PassivePublicShame),
     DEMO_ID("abilities", "passive_eagle_eye", ELDDemoAbilityId, PassiveEagleEye),
+    DEMO_ID("abilities", "active_monkey_peach", ELDDemoAbilityId, ActiveMonkeyPeach),
+    DEMO_ID("abilities", "active_thousand_year", ELDDemoAbilityId, ActiveThousandYear),
+    DEMO_ID("abilities", "active_lunge", ELDDemoAbilityId, ActiveLunge),
+    DEMO_ID("abilities", "passive_iron_crotch", ELDDemoAbilityId, PassiveIronCrotch),
     DEMO_ID("attributes", "attr_might", ELDDemoAttributeId, AttrMight),
     DEMO_ID("attributes", "attr_focus", ELDDemoAttributeId, AttrFocus),
     DEMO_ID("attributes", "attr_vitality", ELDDemoAttributeId, AttrVitality),
@@ -43,6 +47,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("equipment", "item_echo_maul", ELDDemoEquipmentId, ItemEchoMaul),
     DEMO_ID("equipment", "item_slingshot", ELDDemoEquipmentId, ItemSlingshot),
     DEMO_ID("equipment", "item_paper_box", ELDDemoEquipmentId, ItemPaperBox),
+    DEMO_ID("equipment", "item_nail_uniform", ELDDemoEquipmentId, ItemNailUniform),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
@@ -56,6 +61,9 @@ const FNativeId NativeIds[] =
     DEMO_ID("statuses", "exposed", ELDDemoStatusId, Exposed),
     DEMO_ID("statuses", "taunt", ELDDemoStatusId, Taunt),
     DEMO_ID("statuses", "stealth", ELDDemoStatusId, Stealth),
+    DEMO_ID("statuses", "disarm", ELDDemoStatusId, Disarm),
+    DEMO_ID("statuses", "stun", ELDDemoStatusId, Stun),
+    DEMO_ID("statuses", "empowered", ELDDemoStatusId, Empowered),
     DEMO_ID("effect_ops", "damage", ELDDemoEffectOp, Damage),
     DEMO_ID("effect_ops", "shield", ELDDemoEffectOp, Shield),
     DEMO_ID("effect_ops", "dispel_root", ELDDemoEffectOp, DispelRoot),
@@ -75,6 +83,12 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "control_damage_amp", ELDDemoEffectOp, ControlDamageAmp),
     DEMO_ID("effect_ops", "taunt", ELDDemoEffectOp, Taunt),
     DEMO_ID("effect_ops", "stealth", ELDDemoEffectOp, Stealth),
+    DEMO_ID("effect_ops", "disarm", ELDDemoEffectOp, Disarm),
+    DEMO_ID("effect_ops", "stun", ELDDemoEffectOp, Stun),
+    DEMO_ID("effect_ops", "empower_basic", ELDDemoEffectOp, EmpowerBasic),
+    DEMO_ID("effect_ops", "jump", ELDDemoEffectOp, Jump),
+    DEMO_ID("effect_ops", "thorns", ELDDemoEffectOp, Thorns),
+    DEMO_ID("effect_ops", "backstab", ELDDemoEffectOp, Backstab),
 };
 #undef DEMO_ID
 
@@ -245,6 +259,13 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {
             return false;
         }
+    }
+    if (!F.Fraction(TEXT("COMBAT.RearArcDeg"), TEXT("deg"), P.RearArcDeg, true)
+        || !Check.Require(P.RearArcDeg.Numerator > 0
+            && (P.RearArcDeg.Denominator > MAX_int64 / 360 || P.RearArcDeg.Numerator < 360 * P.RearArcDeg.Denominator),
+            F.Path, TEXT("the rear arc must be a proper, non-empty sector")))
+    {
+        return false;
     }
     struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
     for (const auto& Field : {
@@ -459,9 +480,12 @@ bool Target(const FValue& Value, FLDDemoTargetDefinition& Out, FCheck& Check, co
     {
         Out.Mode = ELDDemoTargetMode::DirectionDash;
     }
-    else if (Mode.Equals(TEXT("Unit"), ESearchCase::CaseSensitive) || Mode.Equals(TEXT("DirectionProjectile"), ESearchCase::CaseSensitive))
+    else if (Mode.Equals(TEXT("Unit"), ESearchCase::CaseSensitive) || Mode.Equals(TEXT("DirectionProjectile"), ESearchCase::CaseSensitive)
+        || Mode.Equals(TEXT("GroundPoint"), ESearchCase::CaseSensitive))
     {
-        Out.Mode = Mode.Equals(TEXT("Unit"), ESearchCase::CaseSensitive) ? ELDDemoTargetMode::Unit : ELDDemoTargetMode::DirectionProjectile;
+        Out.Mode = Mode.Equals(TEXT("Unit"), ESearchCase::CaseSensitive) ? ELDDemoTargetMode::Unit
+            : Mode.Equals(TEXT("GroundPoint"), ESearchCase::CaseSensitive) ? ELDDemoTargetMode::GroundPoint
+            : ELDDemoTargetMode::DirectionProjectile;
         if (!F.Fraction(TEXT("range"), TEXT("cm"), Out.RangeCm, true))
         {
             return false;
@@ -636,6 +660,61 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             return false;
         }
         break;
+    case ELDDemoEffectOp::Disarm:
+    case ELDDemoEffectOp::Stun:
+    case ELDDemoEffectOp::Jump:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::Backstab:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::EmpowerBasic:
+    case ELDDemoEffectOp::Thorns:
+    {
+        const bool Empower = Out.GetOp() == ELDDemoEffectOp::EmpowerBasic;
+        FString Type;
+        if (!F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+            || !F.Text(TEXT("damage_type"), Type)
+            || !Check.Require(Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive)
+                || Type.Equals(TEXT("Magical"), ESearchCase::CaseSensitive), Path, TEXT("unknown damage type")))
+        {
+            return false;
+        }
+        Out.DamageType = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
+        if (Empower)
+        {
+            if (!F.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+                || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+                || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+                || !Check.Require(Out.BaseP2 > 0 || Out.ADRatioBp > 0 || Out.APRatioBp > 0, Path, TEXT("ineffective effect")))
+            {
+                return false;
+            }
+            break;
+        }
+        FString Trigger;
+        if (!F.Fixed(TEXT("armor_ratio"), TEXT("ratio"), TEXT("bp"), Out.ArmorRatioBp)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !F.Fixed(TEXT("critical_multiplier"), TEXT("ratio"), TEXT("bp"), Out.CriticalMultiplierBp, 10000)
+            || !F.Text(TEXT("trigger"), Trigger)
+            || !Check.Require(Trigger.Equals(TEXT("Basic"), ESearchCase::CaseSensitive)
+                || Trigger.Equals(TEXT("BasicOrAbility"), ESearchCase::CaseSensitive), Path, TEXT("unknown reflection trigger"))
+            || !F.Flag(TEXT("rear_exempt"), Out.bRearExempt)
+            || !Check.Require(Out.BaseP2 > 0 || Out.ArmorRatioBp > 0, Path, TEXT("ineffective effect")))
+        {
+            return false;
+        }
+        Out.bAbilityTrigger = Trigger.Equals(TEXT("BasicOrAbility"), ESearchCase::CaseSensitive);
+        break;
+    }
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -728,6 +807,14 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         ExpectedOps = OpBit(ELDDemoEffectOp::ControlDamageAmp); break;
     case ELDDemoAbilityId::PassiveEagleEye:
         ExpectedOps = OpBit(ELDDemoEffectOp::StatBonus); ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat); break;
+    case ELDDemoAbilityId::ActiveMonkeyPeach:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Disarm); break;
+    case ELDDemoAbilityId::ActiveThousandYear:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Backstab); break;
+    case ELDDemoAbilityId::ActiveLunge:
+        Active = true; Mode = ELDDemoTargetMode::DirectionDash; ExpectedOps = OpBit(ELDDemoEffectOp::Dash) | OpBit(ELDDemoEffectOp::EmpowerBasic); break;
+    case ELDDemoAbilityId::PassiveIronCrotch:
+        ExpectedOps = OpBit(ELDDemoEffectOp::Thorns); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented ability projection"));
     }
@@ -831,6 +918,9 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
     case ELDDemoEquipmentId::ItemPaperBox:
         ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
         ActiveFamily = TEXT("cd_paper_box"); ActiveOps = OpBit(ELDDemoEffectOp::Stealth); break;
+    case ELDDemoEquipmentId::ItemNailUniform:
+        ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::ArmorFlat);
+        PassiveFamily = TEXT("passive_prickle"); PassiveOps = OpBit(ELDDemoEffectOp::Thorns); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented equipment projection"));
     }

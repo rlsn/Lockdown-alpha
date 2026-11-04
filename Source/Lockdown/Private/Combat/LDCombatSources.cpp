@@ -464,11 +464,12 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
 
 ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies)
 {
+    if (Input.bControlBlocked) { return ELDCombatReject::ControlBlocked; }
     if (Input.bCheckBusy && Input.bAbilityInProgress) { return ELDCombatReject::Busy; }
-    if (Input.bTaunted) { return ELDCombatReject::ControlBlocked; }
     if (Input.ReadyAtMs>Input.NowMs) { return ELDCombatReject::Cooldown; }
     if (Input.MpP2<Input.ManaCostP2) { return ELDCombatReject::InsufficientMana; }
-    if (Input.bDash && Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))
+    if (Input.bDash && (Input.bDisplacementBlocked
+        || (Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))))
     { return ELDCombatReject::ControlBlocked; }
     return ELDCombatReject::None;
 }
@@ -698,9 +699,11 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     Gate.ReadyAtMs=View.ReadyAtMs;
     Gate.MpP2=Body->Resources.MpP2;
     Gate.ManaCostP2=View.ManaCostP2;
-    Gate.bDash=Target->Mode==ELDDemoTargetMode::DirectionDash;
+    Gate.bDash=Target->Mode==ELDDemoTargetMode::DirectionDash || Target->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bTaunted=LDControl::IsTaunted(Body->Taunt,NowMs);
+    Gate.bControlBlocked=IsActionBlocked(*Body,Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2
+        ? ELDCombatControlAction::Gear : ELDCombatControlAction::Cast);
+    Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     View.Unavailable=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (View.Unavailable==ELDCombatReject::None && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
     { View.Unavailable=ELDCombatReject::Busy; }
@@ -1022,6 +1025,26 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 RootStatus.ExpiresAtMs=RootedUntilMs;
                 RootStatus.ControlBlocks=LDCombatSourcesDetail::RootControlBlocks(Policies);
             }
+            if (const int64 DisarmedUntilMs=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmedUntilMs>0)
+            {
+                FLDCombatStatusView& DisarmStatus=Out.Statuses.AddDefaulted_GetRef();
+                DisarmStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Disarm);
+                DisarmStatus.ExpiresAtMs=DisarmedUntilMs;
+                DisarmStatus.ControlBlocks=LDCombatControl::DisarmBlockBits();
+            }
+            if (const int64 StunnedUntilMs=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunnedUntilMs>0)
+            {
+                FLDCombatStatusView& StunStatus=Out.Statuses.AddDefaulted_GetRef();
+                StunStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Stun);
+                StunStatus.ExpiresAtMs=StunnedUntilMs;
+                StunStatus.ControlBlocks=LDCombatControl::StunBlockBits();
+            }
+            if (Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs)
+            {
+                FLDCombatStatusView& EmpowerStatus=Out.Statuses.AddDefaulted_GetRef();
+                EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
+                EmpowerStatus.ExpiresAtMs=Body->Empower->ExpiresAtMs;
+            }
             if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
             {
                 FLDCombatStatusView& ShieldStatus=Out.Statuses.AddDefaulted_GetRef();
@@ -1071,7 +1094,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
             Out.Cues=CueFactsOf(*Body);
-            Out.bRooted=LDTactical::RootBlocks(Body->Roots,NowMs,Policies,ELDDemoRootBlock::Move);
+            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move);
             // The passive bonus or the D21 contender recovery (this view is a contender's) is running.
             Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
                 Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);
@@ -1210,6 +1233,9 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Slows.Reset();
     Body->TimedBonuses.Reset();
     Body->Exposures.Reset();
+    Body->Disarms.Reset();
+    Body->Stuns.Reset();
+    Body->Empower.Reset();
     Body->Shield.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;

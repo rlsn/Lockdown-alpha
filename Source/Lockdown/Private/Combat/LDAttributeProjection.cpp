@@ -259,7 +259,7 @@ private:
                 {
                     // Approved equipment passives are combat triggers or innate-dash terms and contribute no attribute terms.
                     if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave
-                        && Effect.GetOp() != ELDDemoEffectOp::DashBoost)
+                        && Effect.GetOp() != ELDDemoEffectOp::DashBoost && Effect.GetOp() != ELDDemoEffectOp::Thorns)
                     {
                         return Refuse(EError::Catalog, Field,
                             Item.Id + TEXT(" has an equipment passive effect without an attribute projection rule"));
@@ -436,6 +436,13 @@ private:
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.RatioBp = Effect.RatioBp;
                     Term.DurationMs = Effect.DurationMs;
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
+                {
+                    // A combat trigger of this exact rank; it contributes no attribute term.
+                    FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
+                    Trigger.AbilityId = Passives[Index]->Id;
+                    Trigger.Rank = Build.LearnedPassives[Index].Rank;
                 }
                 else
                 {
@@ -614,6 +621,8 @@ private:
         Out.Ambush = Ambush;
         Out.ControlAmp = ControlAmp;
         Out.EquipmentPassives = MoveTemp(Families);
+        LearnedTriggers.Sort([](const FLDLearnedTriggerTerm& A, const FLDLearnedTriggerTerm& B) { return A.AbilityId < B.AbilityId; });
+        Out.LearnedTriggers = MoveTemp(LearnedTriggers);
         return true;
     }
 
@@ -634,6 +643,7 @@ private:
     TOptional<FLDLowHPBonusTerm> LowHP;
     TOptional<FLDAmbushDamageTerm> Ambush;
     TOptional<FLDControlDamageAmpTerm> ControlAmp;
+    TArray<FLDLearnedTriggerTerm> LearnedTriggers;
 };
 
 // Exact value of one projected attribute as stored in Final.

@@ -154,18 +154,13 @@ namespace LDTactical
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
-        if (Input.DamageAmplifyBp < 0)
+        if (Input.AmplifyBp < 0)
         {
-            return Fail(EError::Domain, TEXT("DamageAmplifyBp"), TEXT("Damage amplification cannot be negative"));
+            return Fail(EError::Domain, TEXT("AmplifyBp"), TEXT("A damage amplification cannot be negative"));
         }
-        if (Input.DamageAmplifyBp > 0)
+        if (Input.AmplifyBp != 10000)
         {
-            int64 Factor;
-            if (!Numbers.Add64(10000, Input.DamageAmplifyBp, Factor, TEXT("DamageAmplifyBp")))
-            {
-                return Fail(EError::Overflow, TEXT("DamageAmplifyBp"), MathError);
-            }
-            Damage = Numbers.Mul(Damage, Numbers.Value(Factor, 10000));
+            Damage = Numbers.Mul(Damage, Numbers.Value(Input.AmplifyBp, 10000));
         }
         int64 ResistanceDenominatorP2;
         if (!Numbers.Add64(Formulas.ResistanceScaleP2, Input.TargetResistanceP2.GetValue(),
