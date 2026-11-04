@@ -78,6 +78,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextCaptureDueMs());
         // A cleared camp refreshes exactly at its integer deadline, not on the following boundary.
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
+        // D26: an airdrop is announced and lands on its exact boundary.
+        Consider(Mode->NextAirdropDueMs());
     }
     return Due;
 }
@@ -161,7 +163,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
-                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error);
+                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error)
+                    && Mode->AdvanceAirdrop(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {

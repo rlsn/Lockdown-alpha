@@ -66,7 +66,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Shops = 0, Captures = 0, Dorms = 0;
+    int32 Shops = 0, Captures = 0, Dorms = 0, Airdrops = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -104,6 +104,12 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             bApproved = true;
             ++Dorms;
             break;
+        case ELDDemoWorldAnchorKind::Airdrop:
+            // D26: a public drop point; whether it holds the current drop is the public match view's business.
+            POI.Kind = ELDOpponentPOIKind::Airdrop;
+            bApproved = true;
+            ++Airdrops;
+            break;
         default:
             break;
         }
@@ -120,10 +126,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != 1 || Captures != 1 || Dorms != 2)
+    if (Shops != 1 || Captures != 1 || Dorms != 2 || Airdrops != 3)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose exactly one shop, one capture place and two dorms."));
+        return Fail(Error, TEXT("The public world must expose exactly one shop, one capture place, two dorms and three airdrop points."));
     }
     Error.Reset();
     return true;

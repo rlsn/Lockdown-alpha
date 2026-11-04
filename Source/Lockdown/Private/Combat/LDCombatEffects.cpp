@@ -745,6 +745,18 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
     return RegenerateBodies(Recovery,NowMs,Error,&Dorm,&Mode->GetDormZones());
 }
 
+void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& Out) const
+{
+    Out.Reset();
+    for (const auto& Pair : Bodies)
+    {
+        const FLDBodyCombatState& Body=Pair.Value;
+        const ALDCharacter* Actor=Pair.Key.Get();
+        if (!Actor || Body.bPendingDeath || Body.Resources.HpP2<=0 || Body.Victim.Kind!=ELDVictimKind::Contender) { continue; }
+        Out.Add({Body.Victim.EntityId,FootOf(*Actor)});
+    }
+}
+
 bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
     const LDTactical::FOutOfCombatRecovery* DormRecovery, const FLDDormZones* Dorms)
 {

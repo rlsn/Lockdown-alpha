@@ -920,13 +920,19 @@ bool RunProjections(FAutomationTestBase& Test)
     FLDDemoWorldGeometry World;
     World.Anchors = {Anchor(TEXT("capture"), ELDDemoWorldAnchorKind::Capture, 0, 3000),
         Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
+        Anchor(TEXT("airdrop_ne"), ELDDemoWorldAnchorKind::Airdrop, 1940, 2670),
+        Anchor(TEXT("airdrop_nw"), ELDDemoWorldAnchorKind::Airdrop, -1940, 2670),
+        Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
         Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
         Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
         Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2),
         Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
-        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 10);
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 13);
+    const auto* DropPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("airdrop_s"); });
+    bGood &= Test.TestTrue(TEXT("D26: each airdrop point is a public place"),
+        DropPOI && DropPOI->Kind == ELDOpponentPOIKind::Airdrop && DropPOI->FootCm.Equals(FVector(0, -3300, 0)));
     const auto* DormPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("dorm_se"); });
     bGood &= Test.TestTrue(TEXT("D21: each dorm is public recovery ground"),
         DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
@@ -940,6 +946,9 @@ bool RunProjections(FAutomationTestBase& Test)
     auto OneDorm = World;
     OneDorm.Anchors.RemoveAt(OneDorm.Anchors.Num() - 1);
     bGood &= Test.TestFalse(TEXT("A world without both dorms is refused"), LDOpponentFrame::ReadPublicPOIs(OneDorm, C, POIs, Error));
+    auto TwoDrops = World;
+    TwoDrops.Anchors.RemoveAt(3);
+    bGood &= Test.TestFalse(TEXT("A world without all three airdrop points is refused"), LDOpponentFrame::ReadPublicPOIs(TwoDrops, C, POIs, Error));
     auto Unplaced = World;
     Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));
     bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
@@ -1804,7 +1813,82 @@ bool RunDormRecovery(FAutomationTestBase& Test)
         LDOpponentPolicy::Decide(Frame, C, Threatened), EMode::Disengage, EBody::MoveGround);
     return bGood;
 }
+
+bool RunAirdrop(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.Self.FootCm = FVector(500, -500, 0);
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Farmer;
+    bool bGood = Expect(Test, TEXT("Without a public drop the healthy body farms"),
+        LDOpponentPolicy::Decide(Frame, C, Farmer), EMode::Farm, EBody::MoveGround);
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    FLDOpponentPolicyState Runner;
+    const auto Run = LDOpponentPolicy::Decide(Frame, C, Runner);
+    bGood &= Expect(Test, TEXT("D26: an announced drop draws a healthy body to its public point"), Run, EMode::Contest,
+        EBody::MoveGround, TEXT("airdrop_s"))
+        && Test.TestTrue(TEXT("Going for the drop is its own reason"), Run.Reason == ELDOpponentReason::ContestAirdrop);
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("airdrop_s");
+    bGood &= Expect(Test, TEXT("The walk to the drop keeps its order"), LDOpponentPolicy::Decide(Frame, C, Runner),
+        EMode::Contest, EBody::Keep, TEXT("airdrop_s"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.FootCm = FVector(20, -3300, 0);
+    FLDOpponentPolicyState Waiter;
+    bGood &= Expect(Test, TEXT("On the point the body waits for the landing instead of re-ordering the walk"),
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Contest, EBody::None);
+    Frame.Public.bAirdropLanded = true;
+    bGood &= Expect(Test, TEXT("A landed drop under the body is held the same way until the authority grants it"),
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Contest, EBody::None);
+
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    FLDOpponentPolicyState Buyer;
+    bGood &= Expect(Test, TEXT("An affordable improvement is still bought first"),
+        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestTrue(TEXT("A recovering body does not go for the drop"),
+        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason != ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = Frame.Self.ContenderId;
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.Self.FootCm = FVector(0, 3000, 0);
+    FLDOpponentPolicyState Holder;
+    bGood &= Expect(Test, TEXT("Holding the circle alone outranks the drop"),
+        LDOpponentPolicy::Decide(Frame, C, Holder), EMode::DefendOrHold, EBody::None);
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("unknown_point");
+    FLDOpponentPolicyState Stray;
+    bGood &= Test.TestTrue(TEXT("A drop that names no public airdrop point is ignored"),
+        LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentAirdropTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunAirdrop(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",

@@ -3521,6 +3521,25 @@
       "ms": 500,
       "unit": "ms"
     },
+    "AIRDROP.AnnounceLeadSec": {
+      "ms": 15000,
+      "unit": "ms"
+    },
+    "AIRDROP.FirstLandSec": {
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "AIRDROP.IntervalSec": {
+      "ms": 75000,
+      "unit": "ms"
+    },
+    "AIRDROP.PickupRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "AIRDROP.RewardGold": 150,
+    "AIRDROP.RewardXP": 200,
     "CAMP.ResetArrivalRadiusCm": {
       "denominator": 1,
       "numerator": 100,

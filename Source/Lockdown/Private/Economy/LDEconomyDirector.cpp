@@ -373,6 +373,32 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     return Receipt;
 }
 
+ELDRewardOutcome ALDEconomyDirector::CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
+    int64 Gold, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
+{
+    Reason = ELDGrowthReason::None;
+    if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || Gold < 0 || (XP == 0 && Gold == 0))
+    {
+        Reason = ELDGrowthReason::DataInvalid;
+        return ELDRewardOutcome::PermanentlyRejected;
+    }
+    TArray<uint8> KeyBytes;
+    {
+        FMemoryWriter Writer(KeyBytes);
+        FString Tag = TEXT("map-event-reward");
+        FString EventName = Event.ToString();
+        FGuid LedgerMatch = Match.LedgerMatch;
+        FGuid Contender = Recipient;
+        Writer << Tag << LedgerMatch << EventName << Serial << Contender << XP << Gold;
+    }
+    uint8 EventTerms[32] = {};
+    Terms(KeyBytes, EventTerms);
+    LDProgression::FRewardAmounts Amounts;
+    Amounts.XP = XP;
+    Amounts.Gold = Gold;
+    return CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::MapEventReward, KeyBytes, EventTerms, Permit, Receipt, Reason);
+}
+
 ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
     LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
     const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)

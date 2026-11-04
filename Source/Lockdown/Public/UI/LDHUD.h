@@ -96,6 +96,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
+    UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;

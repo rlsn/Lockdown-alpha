@@ -132,6 +132,7 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
     switch (T.Cause)
     {
     case ECause::DeathReward:
+    case ECause::MapEventReward:
         bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
         break;
     case ECause::Buy:
@@ -650,6 +651,7 @@ const TCHAR* LedgerJsonCause(LDEconomy::ECause Cause)
     case LDEconomy::ECause::Buy: return TEXT("Buy");
     case LDEconomy::ECause::Sell: return TEXT("Sell");
     case LDEconomy::ECause::AccountRetire: return TEXT("AccountRetire");
+    case LDEconomy::ECause::MapEventReward: return TEXT("MapEventReward");
     case LDEconomy::ECause::DevFixture: return TEXT("DevFixture");
     case LDEconomy::ECause::DevReset: return TEXT("DevReset");
     case LDEconomy::ECause::None: break;

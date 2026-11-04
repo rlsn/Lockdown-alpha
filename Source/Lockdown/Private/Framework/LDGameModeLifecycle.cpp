@@ -100,6 +100,12 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // D26 (#79): the airdrop schedule from this match's start.
+    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, Airdrop, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     bAuthorityInitialized = true;
     if (!PublishAuthorityClock(Error))
     {
@@ -120,6 +126,7 @@ void ALDGameMode::RetireMatchDomains()
     CaptureReducer.Reset();
     CaptureCircle={};
     DormZones={};
+    Airdrop={};
     CaptureTracks.Reset();
     PendingCapture.Reset();
     bAuthorityInitialized=false;

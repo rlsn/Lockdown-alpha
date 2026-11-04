@@ -49,6 +49,8 @@ namespace LDEconomy
     enum class ECause : uint8
     {
         None, DeathReward, Buy, Sell, AccountRetire,
+        // D26 (#79): a map event payout (airdrop pickup) minted to one account, never a death or a trade.
+        MapEventReward,
 #if WITH_DEV_AUTOMATION_TESTS
         // DEV growth fixture grant (-LDDevGrowthFixture only): Mint to one account, never a death or a trade.
         DevFixture,

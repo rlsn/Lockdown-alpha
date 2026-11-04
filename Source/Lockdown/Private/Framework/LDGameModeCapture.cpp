@@ -511,6 +511,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
     }
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
+    View.Airdrop = Airdrop.View();
     return View;
 }
 

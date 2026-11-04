@@ -366,6 +366,11 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 （`DemoOpponentPolicy.DormRecovery`）。宿舍判定与权威一致：本人脚点在公开 `DORM.RadiusCm` 圆内。
 自保/治疗能力必须真的持有、可用且走同一 Combat 提交。
 
+空投（D26）读取公开对局视图中当前空投的落点（只有已公开或已落地时才有），与真人看到的相同。
+没有恢复需求、没有可负担的改善购物、不在交战中的营地里时，走向该公开落点，站上点后原地等待落地；
+它排在回防、独占和圈内争夺之后、普通争圈与打野之前，原因 `ContestAirdrop`（`DemoOpponentPolicy.Airdrop`）。
+拾取由权威按脚点判定，AI 不另行提交请求。
+
 ### 6.3 普攻与每一个主动来源
 
 持续普攻只由 Nav AttackUnit/AttackMove 的 AttackCycle 驱动。

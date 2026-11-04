@@ -57,7 +57,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-十 Spawn、五 Camp、一 Shop、一 Capture、两 Dorm 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
+十 Spawn、五 Camp、一 Shop、一 Capture、两 Dorm、三 Airdrop 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
 **不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后

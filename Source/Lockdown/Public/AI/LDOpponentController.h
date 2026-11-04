@@ -27,6 +27,8 @@ struct FLDOpponentRequestTally
     uint32 DashesLanded = 0;
     // D21 evidence: times this adapter's living body stepped into a dorm, read from its own owner view.
     uint32 DormEntries = 0;
+    // D26 evidence: public airdrops this adapter's contender claimed, read from the public match view.
+    uint32 AirdropClaims = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;
     uint32 Trades = 0;
@@ -124,6 +126,8 @@ private:
         FLDCombatCaller CombatCaller;
         FLDCombatOwnerView Combat;
         FLDShopOpenResult Shop;
+        // D26: serial of the public airdrop this contender holds as claimed, zero when none.
+        uint64 ClaimedAirdrop = 0;
     };
 
     bool BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& Reads, FLDOpponentDecisionFrame& Frame, FString& Error) const;
@@ -168,6 +172,7 @@ private:
     bool bRetiring = false;
     bool bTallyReported = false;
     bool bWasInDorm = false;
+    uint64 LastClaimedAirdrop = 0;
     FLDOpponentRequestTally Tally;
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

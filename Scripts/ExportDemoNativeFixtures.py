@@ -74,7 +74,7 @@ def expected_world_projection(compilation):
                         for row in world["connections"]],
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
-            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm").index(row["kind"]),
+            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -180,13 +180,15 @@ def parameter_projection(parameters):
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
         ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"),
+        ("AIRDROP.FirstLandSec", "AirdropFirstLandMs"), ("AIRDROP.IntervalSec", "AirdropIntervalMs"),
+        ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
         ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
-        ("DORM.RadiusCm", "DormRadiusCm"),
+        ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
@@ -195,6 +197,7 @@ def parameter_projection(parameters):
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
         ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"),
+        ("AIRDROP.RewardXP", "AirdropRewardXP"), ("AIRDROP.RewardGold", "AirdropRewardGold"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}

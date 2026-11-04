@@ -15,6 +15,25 @@ enum class ELDMatchEndReason : uint8 { None, CaptureCompleted, HostEnded };
 UENUM()
 enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned };
 
+// D26 (#79): the public phase of the current airdrop.
+UENUM()
+enum class ELDAirdropPhase : uint8 { None, Announced, Landed, Claimed };
+
+// D26 (#79): the current airdrop, public to every connection: point, landing instant and claimer. None before the
+// first announcement. The next announcement replaces it.
+USTRUCT()
+struct FLDAirdropView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() ELDAirdropPhase Phase = ELDAirdropPhase::None;
+    UPROPERTY() FName PointId;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() int64 LandAtMs = 0;
+    UPROPERTY() FGuid ClaimedBy;
+    UPROPERTY() int64 ClaimedAtMs = 0;
+};
+
 // Whole-room capture state. It names at most the single occupier and never lists bodies in the
 // circle, hidden positions, protection or private build data. Live time comes from DemoClock.
 USTRUCT()
@@ -39,6 +58,7 @@ struct FLDPublicMatchView
     // Contested with a holder only: his progress frozen by the contest.
     UPROPERTY() int64 PausedProgressMs = 0;
     UPROPERTY() FGuid ResultId;
+    UPROPERTY() FLDAirdropView Airdrop;
 };
 
 USTRUCT()

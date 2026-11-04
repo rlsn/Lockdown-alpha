@@ -84,6 +84,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("CAMP.ReturnDeadEndSec", "ms", "6"),
+            ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "75"),
+            ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -96,7 +98,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOP.StartingGold", 320), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
-            ("CAMP.ReturnDeadEndPlans", 3),
+            ("CAMP.ReturnDeadEndPlans", 3), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))
@@ -509,6 +511,7 @@ class ApprovedDemoData(unittest.TestCase):
             "s05": (-4400, 0), "s06": (-3560, -2586), "s07": (-1360, -4185), "s08": (1360, -4185), "s09": (3560, -2586),
             "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
             "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
+            "airdrop_ne": (1940, 2670), "airdrop_nw": (-1940, 2670), "airdrop_s": (0, -3300),
         }
         self.assertEqual(set(self.anchors), set(expected))
         for identity, xy in expected.items():
@@ -556,7 +559,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("g162", ("midwall_126", "midwall_198"), "l2"), ("g234", ("midwall_198", "midwall_270"), "h2"),
             ("g306", ("midwall_270", "midwall_342"), "l3")])
         self.assertEqual(self.world.world["parameter_refs"], (
-            "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
+            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
 
     def test_published_route_lengths_and_whole_ground_budget(self):

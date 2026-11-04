@@ -8,8 +8,10 @@
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
+#include "World/LDAirdrop.h"
 #include "World/LDDormZones.h"
 #include "World/LDDormMarker.h"
+#include "World/LDAirdropMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "LDGameMode.generated.h"
 
@@ -42,6 +44,8 @@ public:
     const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
     // Local presentation only: the dorm boundaries of the current match (D21, #79), never replicated.
     TArray<const ALDDormMarker*> GetDormMarkers() const;
+    // Local presentation only: the current public airdrop (D26, #79), never replicated.
+    const ALDAirdropMarker* GetAirdropMarker() const { return AirdropMarker.Get(); }
 private:
     // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
     void SyncCaptureMarker();
@@ -52,6 +56,10 @@ private:
     void ClearDormMarkers();
     TArray<TWeakObjectPtr<ALDDormMarker>> DormMarkers;
     uint32 DormMarkerFailedGeneration = 0;
+    // The airdrop ring and crate, rebuilt for each drop serial.
+    void SyncAirdropMarker();
+    TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
+    uint32 AirdropMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;
@@ -133,6 +141,13 @@ public:
     int64 NextCaptureDueMs() const;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.
     const FLDDormZones& GetDormZones() const { return DormZones; }
+    // D26 (#79): the current airdrop of this match; inactive outside a running match.
+    const FLDAirdropState& GetAirdrop() const { return Airdrop; }
+    // RespawnsAndWorld: announces and lands the scheduled drop, then lets the first living contender inside the pickup
+    // disk claim it through the growth reward composite. False only on an authority fault.
+    bool AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
+    int64 NextAirdropDueMs() const;
     // Right after Motion: whether this step's motion completes a capture segment strictly before the step's
     // end (a paused holder sole again). If so the driver skips the later gameplay phases of the step, retries
     // owed rewards, and Capture/Close lock the result at that earlier instant.
@@ -333,6 +348,7 @@ private:
     FLDCaptureReducer CaptureReducer;
     FLDCaptureCircle CaptureCircle;
     FLDDormZones DormZones;
+    FLDAirdropState Airdrop;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
     TSet<FLDDeathKey> CountedDeaths;

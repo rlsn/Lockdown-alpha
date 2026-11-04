@@ -210,6 +210,7 @@ struct FContext
     const FLDOpponentPOI* Shop = nullptr;
     double CaptureRadiusCm = 0;
     double DormRadiusCm = 0;
+    double AirdropRadiusCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
     double VisionRadiusCm = 0;
@@ -228,10 +229,11 @@ struct FContext
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
+        AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !Capture || !Shop)
         {
             return false;
         }
@@ -295,6 +297,12 @@ struct FContext
                 || (Distance(POI.FootCm) == Distance(Best->FootCm) && POI.Id.Compare(Best->Id) < 0)) { Best = &POI; }
         }
         return Best;
+    }
+    // D26: the public point of the current airdrop when its walk is not suppressed by failure memory, or nullptr.
+    const FLDOpponentPOI* AirdropTarget() const
+    {
+        const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
+        return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
     bool NeedProtection() const { return !Threats.IsEmpty() && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ResumeFarmHPBp); }
@@ -1543,6 +1551,15 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         auto Activation = PickActivation(C, Need);
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));
         return Finish(EMode::Disengage, EReason::Recover);
+    }
+    // D26 (#79): a healthy body goes for a public airdrop that is announced or on the ground; first come, first served.
+    // It stays below defending, holding and an active contest of the circle, and does not leave a camp fight it began.
+    // On the point it waits for the landing instead of re-ordering the same walk.
+    if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+        return Finish(EMode::Contest, EReason::ContestAirdrop);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

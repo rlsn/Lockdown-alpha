@@ -48,8 +48,9 @@ struct FLDDemoWorldMemberHome
 };
 
 UENUM()
-// D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; it adds no collision, navigation or sight blocking.
-enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Shop, Capture, Dorm };
+// D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
+// pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
+enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Shop, Capture, Dorm, Airdrop };
 
 USTRUCT()
 struct FLDDemoWorldAnchor

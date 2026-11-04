@@ -22,7 +22,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed
+    AwaitReceipt, TargetSuppressed, ContestAirdrop
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
@@ -105,6 +105,9 @@ struct FLDOpponentPublicMatch
     FGuid Occupier;
     // Real expiry of the holder's remaining progress while Solo; zero while Contested.
     int64 DueAtMs = 0;
+    // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
+    FName AirdropPOI;
+    bool bAirdropLanded = false;
 };
 
 enum class ELDOpponentUnitKind : uint8 { Contender, CampMember };
@@ -125,7 +128,7 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture, Dorm };
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture, Dorm, Airdrop };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI

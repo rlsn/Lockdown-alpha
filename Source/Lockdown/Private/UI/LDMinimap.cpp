@@ -2,6 +2,7 @@
 #include "UI/LDHUDModel.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -209,6 +210,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
             for(int32 Step=0;Step<32;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/32.;Zone.Cm.Add(Site.Cm+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*DormRadiusCm);}
             if(Keep(Zone)){Cache.Areas.Insert(MoveTemp(Zone),0);}
         }
+        // D26 (#79): an airdrop point is drawn only while it holds the current public drop (see NativePaint).
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
@@ -405,6 +408,18 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 // Dorm: a small bed, a white pillow on a blue frame.
                 case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
                 }
+            }
+        }
+        // D26: the current public airdrop, a crate on an orange plate (outlined while it is only announced).
+        if(const auto* Public=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr)
+        {
+            const FLDAirdropView& Drop=Public->PublicMatch.Airdrop;
+            if(Public->PublicMatch.Generation==Own.Match&&(Drop.Phase==ELDAirdropPhase::Announced||Drop.Phase==ELDAirdropPhase::Landed))
+            {
+                const FVector2f At=Spot(Drop.PositionCm);const FLinearColor Orange=ALDAirdropMarker::Color();
+                Box(5,At-FVector2f(7.f,7.f),FVector2f(14.f,14.f),Ink);Box(6,At-FVector2f(6.f,6.f),FVector2f(12.f,12.f),Orange);
+                if(Drop.Phase==ELDAirdropPhase::Landed){Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.55f,.36f,.16f));Box(7,At-FVector2f(4.f,.75f),FVector2f(8.f,1.5f),Ink);}
+                else{Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Ink);}
             }
         }
         if(Frame)

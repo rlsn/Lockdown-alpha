@@ -125,6 +125,13 @@ struct FLDDemoContentParameters
     // while free to move, resets where it stands instead of retrying forever.
     UPROPERTY() int64 CampReturnDeadEndPlans = 0;
     UPROPERTY() int64 CampReturnDeadEndMs = 0;
+    // D26 (#79) airdrop: landings at FirstLand + n * Interval from the match start, each public AnnounceLead earlier.
+    UPROPERTY() int64 AirdropFirstLandMs = 0;
+    UPROPERTY() int64 AirdropIntervalMs = 0;
+    UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
+    UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
+    UPROPERTY() int64 AirdropRewardXP = 0;
+    UPROPERTY() int64 AirdropRewardGold = 0;
     // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
     UPROPERTY() FLDDemoRational RearArcDeg;
     UPROPERTY() int64 XPBaseToNext = 0;

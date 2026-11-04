@@ -48,6 +48,14 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         || (Paused ? (View.PausedProgressMs <= 0 || View.PausedProgressMs > View.ServerNowMs - View.OpenAtMs)
                    : View.PausedProgressMs != 0))
     { return FailCaptureView(Error, TEXT("Capture occupier and progress do not match the circle state.")); }
+    const FLDAirdropView& Drop = View.Airdrop;
+    const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
+    if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Claimed) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
+        || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= View.StartedAtMs : Drop.LandAtMs != 0)
+        || (Drop.Phase == ELDAirdropPhase::Claimed) != Drop.ClaimedBy.IsValid()
+        || (Drop.Phase == ELDAirdropPhase::Claimed ? Drop.ClaimedAtMs < Drop.LandAtMs : Drop.ClaimedAtMs != 0)
+        || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
+    { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
     switch (View.Phase)
     {
     case ELDMatchPhase::Development:
@@ -63,7 +71,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         break;
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
-            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch)
+            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop)
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no capture state.")); }
         break;
     }

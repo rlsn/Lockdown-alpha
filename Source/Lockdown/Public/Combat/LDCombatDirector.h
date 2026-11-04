@@ -10,6 +10,7 @@
 #include "LDCombatDirector.generated.h"
 
 struct FLDDormZones;
+namespace LDAirdrop { struct FCandidate; }
 
 class ALDCharacter;
 class ALDGameMode;
@@ -225,6 +226,8 @@ public:
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const;
     // Authority footpoint: capsule centre minus scaled half-height (same as Vision).
     static FVector FootOf(const ALDCharacter& Body);
+    // D26 (#79): the current foot of every registered living contender body (no pending death), for the airdrop pickup.
+    void ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& Out) const;
     // The sole authority driver: advances native steps and runs every commit phase in order.
     bool AdvanceAuthority(const FLDMatchContext& Match,int64 ThroughMs,FString& Error);
 

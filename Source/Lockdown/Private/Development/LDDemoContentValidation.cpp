@@ -259,6 +259,13 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
+    // D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
+    if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
+        && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),
+        TEXT("the announcement lead must fit before the first landing and inside one interval")))
+    {
+        return false;
+    }
     // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
     for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
     {

@@ -49,6 +49,51 @@ void ALDGameState::OnRep_PublicMatch()
     }
     SyncCaptureMarker();
     SyncDormMarkers();
+    SyncAirdropMarker();
+}
+
+void ALDGameState::SyncAirdropMarker()
+{
+    UWorld* World=GetWorld();
+    const FLDAirdropView& Drop=PublicMatch.Airdrop;
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+        ||PublicMatch.Phase==ELDMatchPhase::Results;
+    const bool bShow=bActive&&Drop.Phase!=ELDAirdropPhase::None&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    ALDAirdropMarker* Marker=AirdropMarker.Get();
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation||Marker->GetSerial()!=Drop.Serial))
+    {
+        Marker->Destroy();
+        AirdropMarker.Reset();
+        Marker=nullptr;
+    }
+    if (!bShow) { return; }
+    if (Marker)
+    {
+        Marker->ShowPhase(Drop.Phase);
+        return;
+    }
+    if (AirdropMarkerFailedGeneration==PublicMatch.Generation) { return; }
+    FString Error;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    double Radius=0;
+    if (LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
+    {
+        const FLDDemoRational& Approved=Content->Get().Parameters.AirdropPickupRadiusCm;
+        Radius=Approved.Denominator>0?double(Approved.Numerator)/double(Approved.Denominator):0.;
+    }
+    FActorSpawnParameters Spawn;
+    Spawn.ObjectFlags|=RF_Transient;
+    Marker=Content?World->SpawnActor<ALDAirdropMarker>(Spawn):nullptr;
+    if (!Marker||!Marker->Build(Drop,Radius,PublicMatch.Generation,Error))
+    {
+        if (Marker) { Marker->Destroy(); }
+        if (Error.IsEmpty()) { Error=TEXT("The airdrop marker actor could not be spawned."); }
+        AirdropMarkerFailedGeneration=PublicMatch.Generation;
+        UE_LOG(LogTemp,Error,TEXT("LD_AIRDROP_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+        return;
+    }
+    AirdropMarker=Marker;
 }
 
 TArray<const ALDDormMarker*> ALDGameState::GetDormMarkers() const

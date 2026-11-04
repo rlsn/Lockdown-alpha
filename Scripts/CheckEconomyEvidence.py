@@ -21,7 +21,7 @@ INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 UINT32_MAX, UINT64_MAX = 2**32 - 1, 2**64 - 1
 EQUIPMENT_SLOTS = 2
 JOURNAL_TAIL_CAPACITY = 64
-CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire")
+CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire", "MapEventReward")
 DEV_FIXTURE = "DevFixture"
 DEV_RESET = "DevReset"
 DEFINITION = re.compile(r"[a-z][a-z0-9_]{0,62}")
@@ -202,7 +202,7 @@ def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
     burn = i64(field(entry, "burn"), "burn", 0)
     gold, create, consume, retire = (optional(entry, name) for name in ("gold", "create", "consume", "retire"))
     delta = i64(field(gold, "delta"), "gold delta") if gold is not None else None
-    if cause in ("DeathReward", DEV_FIXTURE):
+    if cause in ("DeathReward", "MapEventReward", DEV_FIXTURE):
         shape = gold is not None and create is None and consume is None and retire is None and delta > 0 and mint == delta and burn == 0
     elif cause == "Buy":
         shape = (gold is not None and create is not None and consume is None and retire is None and delta < 0

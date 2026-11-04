@@ -208,6 +208,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
         auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(360);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
         CircleBox->AddChildToVerticalBox(CircleBarSize)->SetPadding(FMargin(0,6,0,0));
+        // D26: the public airdrop line, in the airdrop marker's orange.
+        AirdropText=OneLine(TEXT(""),15,520);AirdropText->SetJustification(ETextJustify::Center);
+        AirdropText->SetColorAndOpacity(FSlateColor(ALDAirdropMarker::Color()));AirdropText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(AirdropText)->SetHorizontalAlignment(HAlign_Center);
         // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
         NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
@@ -516,6 +520,8 @@ void ULDHUD::RefreshReadModel()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
     HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
+    HudSetText(AirdropText,LDHUD::AirdropLine(Public.Airdrop,O.ContenderId,LDHUD::RosterName(Lobby,Public.Airdrop.ClaimedBy),bClock,NowMs));
+    HudSetShown(AirdropText,!AirdropText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshKillFeed(*GS,O.ContenderId,Content,bClock,NowMs);

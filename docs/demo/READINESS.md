@@ -74,7 +74,7 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | #82 追加 | 属性卡：食堂加餐 +100→+60 面子，穿秋裤双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡（举铁、长臂猿、穿秋裤、食堂加餐，不含刷整蛊视频）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
-| D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
+| D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 空投已实现：45 s 起每 75 s、三处公开落点、首个进入 150 cm 者得 200 经验 + 150 金币，AI 会争夺，App Spec §4.1 已改（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)，规则 `DemoAirdrop.Rules`、`DemoOpponentPolicy.Airdrop`；真人拥有连接场景未覆盖）；Boss 未实现 |
 | D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
 | D28 | 胜利条件不变 | 无需改动 |
 | D29 | 整蛊表现：被扒裤衩、被千年杀等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
@@ -176,7 +176,7 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 | D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
 | 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
 | 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
-| 地图事件：空投、教导主任 Boss、通报批评（D26、D27）及 AI 应对；宿舍（D21）与营地回位无路收尾（#28，规则 `DemoCamp.ReturnDeadEnd`，原生场景未注入无路情形）已实现 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| 地图事件：教导主任 Boss、通报批评（D26、D27）及 AI 应对；宿舍（D21）、空投（D26）与营地回位无路收尾（#28，规则 `DemoCamp.ReturnDeadEnd`，原生场景未注入无路情形）已实现 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
 | AI 使用全部新技能与装备；Opponent 满员场景的严格门槛稳定通过 | [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) |
 | 地图布局与野怪重新设计（D30） | [#97](https://github.com/rlsn/Lockdown-alpha/issues/97) |
 | 打击感与核心手感：命中反馈、前后摇、移动和冲刺的手感 | [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |

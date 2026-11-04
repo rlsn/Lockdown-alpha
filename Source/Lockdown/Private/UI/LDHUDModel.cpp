@@ -247,6 +247,22 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         return View;
     }
 }
+FString LDHUD::AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs)
+{
+    // Presentation only: how long the claim notice stays on screen.
+    constexpr int64 ClaimNoticeMs=5000;
+    switch(Drop.Phase)
+    {
+    case ELDAirdropPhase::Announced:
+        return bClock?TEXT("空投 ")+Clock(Drop.LandAtMs-NowMs)+TEXT(" 后落地 · 小地图橙色标记"):FString(TEXT("空投即将落地 · 小地图橙色标记"));
+    case ELDAirdropPhase::Landed: return TEXT("空投已落地 · 先到先得");
+    case ELDAirdropPhase::Claimed:
+        if(bClock&&NowMs-Drop.ClaimedAtMs>ClaimNoticeMs){return FString();}
+        if(Self.IsValid()&&Drop.ClaimedBy==Self){return TEXT("你抢到了空投！");}
+        return (ClaimerName.IsEmpty()?FString(TEXT("未列名参赛者")):ClaimerName)+TEXT(" 抢到了空投");
+    default: return FString();
+    }
+}
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;

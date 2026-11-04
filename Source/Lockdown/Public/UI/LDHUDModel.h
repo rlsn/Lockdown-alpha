@@ -89,6 +89,9 @@ namespace LDHUD
     // farming. Own projections, the public match and approved prices only; never a hidden unit or another wallet.
     // Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
+    // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
+    // seconds who claimed it. Empty when there is no drop to show.
+    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
     struct FKillFeedLineView

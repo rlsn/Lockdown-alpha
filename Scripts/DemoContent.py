@@ -758,7 +758,8 @@ def validate_numbers(data):
                 "StatBounds", prefix, "base must be within positive bounds")
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
-    for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm"):
+    for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
+                "AIRDROP.PickupRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     require(0 < p("COMBAT.RearArcDeg") < 360, "InvalidGeometry", "COMBAT.RearArcDeg",
             "the rear arc must be a proper, non-empty sector")
@@ -786,6 +787,10 @@ def validate_numbers(data):
             "InvalidPolicy", "AI", "camp reserve thresholds are inconsistent")
     require(p("AI.RetryPolicy.InitialBackoffSec") <= p("AI.RetryPolicy.MaxBackoffSec"),
             "InvalidTiming", "AI.RetryPolicy", "backoff interval exceeds its cap")
+    # D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
+    require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
+            and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
+            "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
 
     thresholds = [0]
     for level in range(1, 10):
