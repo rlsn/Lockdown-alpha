@@ -1468,6 +1468,19 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(Halt(C));
         return Finish(EMode::Stopped, EReason::ProviderUnavailable);
     }
+    if (State.bRecovering)
+    {
+        // §6.1 P2 above P6: an escape under way finishes its walk before any shopping, also once the pursuer has
+        // dropped out of sight. Otherwise every glimpse at the edge of sight flips the body between the shop and
+        // the escape, and it never reaches either (#79).
+        const auto& Order = Frame.Order;
+        const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
+        if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
+        {
+            Body(MoveTo(C, *Retreat));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
+    }
     const FLDOpponentRetryKey ShopKey = FContext::ShopKey(C.Shop->Id);
     if (Plan.IsSet() && C.CanAttempt(ShopKey) && C.CanAttempt(FContext::PathKey(C.Shop->Id)))
     {
@@ -1489,15 +1502,8 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     if (State.bRecovering)
     {
-        // No free healing zone exists: wait on genuine regeneration, but still answer defence and shopping above.
-        // An escape under way finishes its walk instead of stopping as soon as the pursuer drops out of sight.
-        const auto& Order = Frame.Order;
-        const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
-        if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
-        {
-            Body(MoveTo(C, *Retreat));
-            return Finish(EMode::Disengage, EReason::Recover);
-        }
+        // No free healing zone exists: once the escape has arrived, wait on genuine regeneration, but still answer
+        // defence and shopping above.
         FActivationNeed Need;
         auto Activation = PickActivation(C, Need);
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));

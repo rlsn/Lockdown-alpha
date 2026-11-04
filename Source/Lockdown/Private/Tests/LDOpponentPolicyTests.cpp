@@ -1677,7 +1677,61 @@ bool RunInnateDash(FAutomationTestBase& Test)
         IsDash(LDOpponentPolicy::Decide(Frame, C, Calm)));
     return bGood;
 }
+
+// #79: §6.1 P2 outranks P6. A recovering body that can afford an improvement finishes its escape before it turns to
+// the shop, however often the pursuer slips in and out of sight, and only then shops.
+bool RunEscapeBeforeShop(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(Test, C, Frame)) { return false; }
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    const FLDOpponentUnit Pursuer = Unit(2, ELDOpponentUnitKind::Contender, 300, 0);
+    FLDOpponentPolicyState State;
+    Frame.Units = {Pursuer};
+    const auto Fled = LDOpponentPolicy::Decide(Frame, C, State);
+    bool bGood = Expect(Test, TEXT("Below the retreat line with the approved starting gold, a visible threat still comes first"),
+        Fled, EMode::Disengage, EBody::MoveGround, TEXT("l3"));
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = Fled.Body.POI;
+    bool bKept = true;
+    for (int32 Glimpse = 0; Glimpse < 6; ++Glimpse)
+    {
+        Frame.Units.Reset();
+        if (Glimpse % 2) { Frame.Units.Add(Pursuer); }
+        const auto Step = LDOpponentPolicy::Decide(Frame, C, State);
+        bKept &= Expect(Test, FString::Printf(TEXT("Glimpse %d: the escape under way keeps walking instead of turning to the shop"),
+            Glimpse), Step, EMode::Disengage, EBody::Keep, TEXT("l3"));
+    }
+    bGood &= bKept;
+    Frame.Units.Reset();
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    const auto Arrived = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Expect(Test, TEXT("Arrived and unseen, a recovering body with an affordable improvement goes shopping"), Arrived,
+        EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame.Order.Kind = ELDOpponentOrderKind::ApproachShop;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("shop");
+    Frame.Units = {Pursuer};
+    bGood &= Expect(Test, TEXT("A threat seen on the way to the shop starts a new escape"),
+        LDOpponentPolicy::Decide(Frame, C, State), EMode::Disengage, EBody::MoveGround);
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEscapeBeforeShopTest, "Lockdown.Rules.DemoOpponentPolicy.EscapeBeforeShop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentEscapeBeforeShopTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunEscapeBeforeShop(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",

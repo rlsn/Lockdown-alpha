@@ -22,6 +22,9 @@ struct FLDOpponentRequestTally
     uint32 Stops = 0;
     uint32 Actions = 0;
     uint32 ActionsRefused = 0;
+    // D19 evidence: innate dash activations among Actions, and those Combat finished (the body really moved).
+    uint32 Dashes = 0;
+    uint32 DashesLanded = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;
     uint32 Trades = 0;

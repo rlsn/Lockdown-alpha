@@ -196,11 +196,11 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("actions_refused=%u dashes=%u/%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds, Tally.PausedHoldsKept,
-        Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks);
+        Tally.Dashes, Tally.DashesLanded, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
+        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -510,6 +510,7 @@ void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& 
         Settle = ELDOpponentSettle::Failed;
     }
     Action.bFinal = true;
+    Tally.DashesLanded += Settle == ELDOpponentSettle::Succeeded && Action.Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;
     Learn(Action.Intent.Key, Settle, Self, NowMs);
 }
 
@@ -689,6 +690,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         }
         DirectSequence = Request.DirectSequence;
         ++Tally.Actions;
+        Tally.Dashes += Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;
         const ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Mode.Combat->SubmitAction(Reads.CombatCaller, Request));
         Action = FActionTrack();
         Action.bHas = true;
