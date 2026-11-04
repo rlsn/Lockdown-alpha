@@ -57,6 +57,9 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     TArray<FPlaceKeepOut> KeepOuts;
     for (const FLDDemoWorldAnchor& Anchor : World.Anchors)
     {
+        // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
+        // nor hides one, and the dorm's own ring marks it.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;

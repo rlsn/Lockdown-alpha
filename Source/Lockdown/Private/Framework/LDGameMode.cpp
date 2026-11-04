@@ -48,6 +48,69 @@ void ALDGameState::OnRep_PublicMatch()
         { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
     }
     SyncCaptureMarker();
+    SyncDormMarkers();
+}
+
+TArray<const ALDDormMarker*> ALDGameState::GetDormMarkers() const
+{
+    TArray<const ALDDormMarker*> Out;
+    for (const TWeakObjectPtr<ALDDormMarker>& Marker : DormMarkers)
+    {
+        if (const ALDDormMarker* Live=Marker.Get()) { Out.Add(Live); }
+    }
+    return Out;
+}
+
+void ALDGameState::ClearDormMarkers()
+{
+    for (const TWeakObjectPtr<ALDDormMarker>& Marker : DormMarkers)
+    {
+        if (ALDDormMarker* Live=Marker.Get()) { Live->Destroy(); }
+    }
+    DormMarkers.Reset();
+}
+
+void ALDGameState::SyncDormMarkers()
+{
+    UWorld* World=GetWorld();
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+        ||PublicMatch.Phase==ELDMatchPhase::Results;
+    // Like the flagpole boundary: Demo world presentation only, rebuilt for each match generation.
+    const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    const bool bStale=DormMarkers.ContainsByPredicate([this](const TWeakObjectPtr<ALDDormMarker>& Marker)
+        { return !Marker.IsValid()||Marker->GetGeneration()!=PublicMatch.Generation; });
+    if (!bShow||bStale) { ClearDormMarkers(); }
+    if (!bShow||!DormMarkers.IsEmpty()||DormMarkerFailedGeneration==PublicMatch.Generation) { return; }
+    FString Error;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    const auto* Registry=World->GetSubsystem<ULDMapRegistry>();
+    FLDDormZones Zones;
+    if (!Registry||!Registry->Enabled()) { Error=TEXT("The Demo world registry is not loaded."); }
+    else if (LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content) { LDDormZones::Resolve(*Registry,*Content,Zones,Error); }
+    bool bBuilt=Zones.IsValid();
+    for (const FLDDormZones::FDorm& Dorm : Zones.Dorms)
+    {
+        if (!bBuilt) { break; }
+        FActorSpawnParameters Spawn;
+        Spawn.ObjectFlags|=RF_Transient;
+        ALDDormMarker* Marker=World->SpawnActor<ALDDormMarker>(Spawn);
+        const FLDMapBinding* Binding=Registry->Resolve(Dorm.Id,Registry->Generation);
+        if (!Marker||!Binding||!Marker->Build(Dorm.Id,Binding->Position,Zones.RadiusCm,PublicMatch.Generation,Error))
+        {
+            if (Marker) { Marker->Destroy(); }
+            if (Error.IsEmpty()) { Error=TEXT("A dorm boundary actor could not be spawned."); }
+            bBuilt=false;
+            break;
+        }
+        DormMarkers.Add(Marker);
+    }
+    if (!bBuilt)
+    {
+        ClearDormMarkers();
+        DormMarkerFailedGeneration=PublicMatch.Generation;
+        UE_LOG(LogTemp,Error,TEXT("LD_DORM_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+    }
 }
 
 void ALDGameState::SyncCaptureMarker()

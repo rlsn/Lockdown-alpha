@@ -1121,6 +1121,9 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.bOutOfCombatRegenActive|=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
                     Projection.OutOfCombatHPRegen->DelayMs,NowMs);
             }
+            Out.bInDorm=Body->bInDorm;
+            Out.bDormRegenActive=Body->bInDorm
+                && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
         }
     }
     else

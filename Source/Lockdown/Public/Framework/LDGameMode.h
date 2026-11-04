@@ -8,6 +8,8 @@
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
+#include "World/LDDormZones.h"
+#include "World/LDDormMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "LDGameMode.generated.h"
 
@@ -38,11 +40,18 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     // Local presentation only: the visible flagpole boundary of the current match, never replicated.
     const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
+    // Local presentation only: the dorm boundaries of the current match (D21, #79), never replicated.
+    TArray<const ALDDormMarker*> GetDormMarkers() const;
 private:
     // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
     void SyncCaptureMarker();
     TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
     uint32 CaptureMarkerFailedGeneration = 0;
+    // The same for every dorm ring.
+    void SyncDormMarkers();
+    void ClearDormMarkers();
+    TArray<TWeakObjectPtr<ALDDormMarker>> DormMarkers;
+    uint32 DormMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;
@@ -122,6 +131,8 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
+    // D21 (#79): the public dorm disks of this match; empty outside a running match.
+    const FLDDormZones& GetDormZones() const { return DormZones; }
     // Right after Motion: whether this step's motion completes a capture segment strictly before the step's
     // end (a paused holder sole again). If so the driver skips the later gameplay phases of the step, retries
     // owed rewards, and Capture/Close lock the result at that earlier instant.
@@ -321,6 +332,7 @@ private:
     };
     FLDCaptureReducer CaptureReducer;
     FLDCaptureCircle CaptureCircle;
+    FLDDormZones DormZones;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
     TSet<FLDDeathKey> CountedDeaths;

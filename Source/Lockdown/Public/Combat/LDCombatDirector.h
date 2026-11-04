@@ -9,6 +9,8 @@
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
 
+struct FLDDormZones;
+
 class ALDCharacter;
 class ALDGameMode;
 class ALDPlayerController;
@@ -82,6 +84,8 @@ struct FLDBodyCombatState
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
     int64 RegenThroughMs=0;
+    // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
+    bool bInDorm=false;
     int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
     int64 MonsterNextAttackAtMs=0;         // contenders keep their cadence on the persistent record
     int64 DashUntilMs=0;
@@ -317,6 +321,7 @@ private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
     friend class FLDCombatRecoveryTest;
+    friend class FLDCombatDormRecoveryTest;
     friend class FLDDemoDevTestCommandsTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
@@ -394,8 +399,11 @@ private:
     // Stealth ends at an accepted attack/ability/item or a positive hit.
     void RevealStealth(FLDBodyCombatState& Body);
     bool Regenerate(int64 NowMs, FString& Error);
-    // Settles every living body through NowMs; only contender bodies receive the D21 Recovery.
-    bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error);
+    // Settles every living body through NowMs; only contender bodies receive the D21 Recovery, and a contender whose
+    // foot stands inside one of Dorms at this settle also receives DormRecovery for the interval (#79).
+    bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
+        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr);
+
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
     // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
     // excluding protected contenders and Excluded; sorted by entity. Shared by cleave and self-origin areas.

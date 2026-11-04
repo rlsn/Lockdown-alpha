@@ -92,6 +92,14 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // D21 (#79): the public dorm disks that Combat's recovery reads for this match.
+    const ULDMapRegistry* DormRegistry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!DemoContent || !DormRegistry || !LDDormZones::Resolve(*DormRegistry, *DemoContent, DormZones, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Dorm initialization requires the approved content and the Demo world registry."); }
+        RetireMatchDomains();
+        return false;
+    }
     bAuthorityInitialized = true;
     if (!PublishAuthorityClock(Error))
     {
@@ -111,6 +119,7 @@ void ALDGameMode::RetireMatchDomains()
     ALDEconomyDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
+    DormZones={};
     CaptureTracks.Reset();
     PendingCapture.Reset();
     bAuthorityInitialized=false;

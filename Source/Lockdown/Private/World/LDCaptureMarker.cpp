@@ -14,15 +14,11 @@ namespace
     constexpr double LDCaptureMarkerJointOverlap = 1.04;
 }
 
-ALDCaptureMarker::ALDCaptureMarker()
+UInstancedStaticMeshComponent* LDGroundRing::Create(AActor& Owner, FName Name)
 {
-    bReplicates = false;
-    PrimaryActorTick.bCanEverTick = false;
-    SetCanBeDamaged(false);
     // The cooked engine cube the generated world and the humanoid visuals already use.
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube"));
-    Ring = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Ring"));
-    RootComponent = Ring;
+    UInstancedStaticMeshComponent* Ring = Owner.CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
     Ring->SetMobility(EComponentMobility::Movable);
     Ring->SetStaticMesh(Cube.Object);
     Ring->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -30,28 +26,12 @@ ALDCaptureMarker::ALDCaptureMarker()
     Ring->SetGenerateOverlapEvents(false);
     Ring->SetCanEverAffectNavigation(false);
     Ring->SetCastShadow(false);
+    return Ring;
 }
 
-bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error)
+bool LDGroundRing::Lay(UInstancedStaticMeshComponent* Ring, double RadiusCm)
 {
-    if (!Ring || !Ring->GetStaticMesh() || !InGeneration || CenterCm.ContainsNaN()
-        || !FMath::IsFinite(RadiusCm) || RadiusCm <= LDCaptureMarkerWidthCm)
-    {
-        Error = TEXT("The flagpole boundary needs the cooked ring mesh, the match generation and a positive approved radius.");
-        return false;
-    }
-    UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
-    if (!Base)
-    {
-        Error = TEXT("The generated tint material is missing; rerun asset bootstrap.");
-        return false;
-    }
-    Paint = UMaterialInstanceDynamic::Create(Base, this);
-    Ring->SetMaterial(0, Paint);
-    Center = CenterCm;
-    Radius = RadiusCm;
-    Generation = InGeneration;
-    SetActorLocationAndRotation(CenterCm, FRotator::ZeroRotator);
+    if (!Ring || !Ring->GetStaticMesh() || !FMath::IsFinite(RadiusCm) || RadiusCm <= LDCaptureMarkerWidthCm) { return false; }
     Ring->ClearInstances();
     // Chords whose ends lie on the approved circle; each joint overlaps slightly so the line reads as closed.
     const double Step = UE_DOUBLE_TWO_PI / LDCaptureMarkerSegments;
@@ -64,6 +44,53 @@ bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 In
         const FVector Scale(Chord * LDCaptureMarkerJointOverlap / 100., LDCaptureMarkerWidthCm / 100., LDCaptureMarkerHeightCm / 100.);
         Ring->AddInstance(FTransform(FRotator(0., FMath::RadiansToDegrees(Angle) + 90., 0.), Local, Scale));
     }
+    return true;
+}
+
+bool LDGroundRing::Paint(AActor& Owner, UInstancedStaticMeshComponent& Ring, UMaterialInstanceDynamic*& OutPaint, FString& Error)
+{
+    UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
+    if (!Base)
+    {
+        Error = TEXT("The generated tint material is missing; rerun asset bootstrap.");
+        return false;
+    }
+    OutPaint = UMaterialInstanceDynamic::Create(Base, &Owner);
+    Ring.SetMaterial(0, OutPaint);
+    return true;
+}
+
+bool LDGroundRing::IsPresentationOnly(const UInstancedStaticMeshComponent* Ring)
+{
+    return Ring && Ring->GetCollisionEnabled() == ECollisionEnabled::NoCollision && !Ring->GetGenerateOverlapEvents()
+        && !Ring->CanEverAffectNavigation();
+}
+
+ALDCaptureMarker::ALDCaptureMarker()
+{
+    bReplicates = false;
+    PrimaryActorTick.bCanEverTick = false;
+    SetCanBeDamaged(false);
+    Ring = LDGroundRing::Create(*this, TEXT("Ring"));
+    RootComponent = Ring;
+}
+
+bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error)
+{
+    if (!Ring || !Ring->GetStaticMesh() || !InGeneration || CenterCm.ContainsNaN()
+        || !FMath::IsFinite(RadiusCm) || RadiusCm <= LDCaptureMarkerWidthCm)
+    {
+        Error = TEXT("The flagpole boundary needs the cooked ring mesh, the match generation and a positive approved radius.");
+        return false;
+    }
+    UMaterialInstanceDynamic* NewPaint = nullptr;
+    if (!LDGroundRing::Paint(*this, *Ring, NewPaint, Error)) { return false; }
+    Paint = NewPaint;
+    Center = CenterCm;
+    Radius = RadiusCm;
+    Generation = InGeneration;
+    SetActorLocationAndRotation(CenterCm, FRotator::ZeroRotator);
+    LDGroundRing::Lay(Ring, RadiusCm);
     ShowState(ELDCircleState::NotOpen);
     Error.Reset();
     return true;
@@ -93,6 +120,5 @@ int32 ALDCaptureMarker::GetSegmentCount() const
 
 bool ALDCaptureMarker::IsPresentationOnly() const
 {
-    return Ring && Ring->GetCollisionEnabled() == ECollisionEnabled::NoCollision && !Ring->GetGenerateOverlapEvents()
-        && !Ring->CanEverAffectNavigation();
+    return LDGroundRing::IsPresentationOnly(Ring);
 }

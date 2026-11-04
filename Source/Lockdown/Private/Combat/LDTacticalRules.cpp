@@ -497,7 +497,8 @@ namespace LDTactical
     }
 
     bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error)
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error,
+        const FOutOfCombatRecovery* Dorm)
     {
         if (NowMs < FromMs)
         {
@@ -543,12 +544,13 @@ namespace LDTactical
                 return false;
             }
         }
-        if (Recovery)
+        for (const FOutOfCombatRecovery* Term : {Recovery, Dorm})
         {
+            if (!Term) { continue; }
             int64 StartMs = NowMs;
             FLDDemoRational HPRate, MPRate;
-            if (!TermStart(Recovery->DelayMs, StartMs) || !Share(InOut.MaxHpP2, Recovery->MaxHPBpPerSec, HPRate)
-                || !Share(InOut.MaxMpP2, Recovery->MaxMPBpPerSec, MPRate)
+            if (!TermStart(Term->DelayMs, StartMs) || !Share(InOut.MaxHpP2, Term->MaxHPBpPerSec, HPRate)
+                || !Share(InOut.MaxMpP2, Term->MaxMPBpPerSec, MPRate)
                 || !IntegrateRegen(HPRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
                 || !IntegrateRegen(MPRate, NowMs - StartMs, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
             {

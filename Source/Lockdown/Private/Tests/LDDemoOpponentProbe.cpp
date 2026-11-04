@@ -407,7 +407,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
     bool Moved = true, WinnerGrew = false, Bought = true, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
     bool OpeningPicks = true, DevGrowth = true;
-    uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0, DashesLanded = 0;
+    uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0, DashesLanded = 0, DormEntries = 0;
     uint32 PausedHolds = 0, PausedHoldsKept = 0, PausedHoldsBroken = 0, Challenges = 0, ChallengesKept = 0, ChallengesBroken = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
@@ -434,6 +434,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         // The approved starting gold already affords the cheapest item: an AI that never buys is a defect, not pacing (#79).
         Bought &= Track.MaxItems > 0;
         DashesLanded += T.DashesLanded;
+        DormEntries += T.DormEntries;
         RespawnsOnTime &= Track.bRespawnsValid;
         Respawns += Track.Respawns;
         RespawnsChecked += Track.RespawnsChecked;
@@ -478,6 +479,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("actions_refused"), T.ActionsRefused);
         Value->SetNumberField(TEXT("dashes"), T.Dashes);
         Value->SetNumberField(TEXT("dashes_landed"), T.DashesLanded);
+        Value->SetNumberField(TEXT("dorm_entries"), T.DormEntries);
         Value->SetNumberField(TEXT("shop_opens"), T.ShopOpens);
         Value->SetNumberField(TEXT("choice_requests"), T.Choices);
         Value->SetNumberField(TEXT("trades"), T.Trades);
@@ -498,6 +500,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Check(Bought, TEXT("Every AI bought equipment through the shop"));
     // D19: chases, escapes and urgent defences of a full room give the innate dash its moments.
     Check(DashesLanded > 0, TEXT("D19: at least one AI landed an innate dash"));
+    // D21: an AI walks to a dorm only while recovering with nothing to buy, which a match may never produce.
+    Record(DormEntries ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D21: an AI stepped into a dorm"));
     // A late or missing respawn fails even when no respawn completed; a match where none was due only did not exercise it.
     Record(!RespawnsOnTime ? ELDOpponentProbeCheck::Failed
         : Respawns ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,

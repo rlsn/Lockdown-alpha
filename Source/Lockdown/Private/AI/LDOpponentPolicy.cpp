@@ -209,6 +209,7 @@ struct FContext
     const FLDOpponentPOI* Capture = nullptr;
     const FLDOpponentPOI* Shop = nullptr;
     double CaptureRadiusCm = 0;
+    double DormRadiusCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
     double VisionRadiusCm = 0;
@@ -226,10 +227,11 @@ struct FContext
             if (POI.Kind == ELDOpponentPOIKind::Shop && !Shop) { Shop = &POI; }
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
+        DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !Capture || !Shop)
         {
             return false;
         }
@@ -276,6 +278,24 @@ struct FContext
     }
 
     double Distance(const FVector& Point) const { return FVector::Dist2D(Self.FootCm, Point); }
+    // D21: the public dorm this body's foot stands in (closed disk, as the authority judges it), or nullptr.
+    const FLDOpponentPOI* DormAt() const
+    {
+        return Frame.POIs.FindByPredicate([this](const FLDOpponentPOI& POI)
+            { return POI.Kind == ELDOpponentPOIKind::Dorm && Distance(POI.FootCm) <= DormRadiusCm; });
+    }
+    // The nearest public dorm whose walk is not suppressed by failure memory; ties by stable id.
+    const FLDOpponentPOI* NearestDorm() const
+    {
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind != ELDOpponentPOIKind::Dorm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)
+                || (Distance(POI.FootCm) == Distance(Best->FootCm) && POI.Id.Compare(Best->Id) < 0)) { Best = &POI; }
+        }
+        return Best;
+    }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
     bool NeedProtection() const { return !Threats.IsEmpty() && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ResumeFarmHPBp); }
 
@@ -1381,8 +1401,9 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     const bool bActionLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action;
 
     const bool bWasRecovering = State.bRecovering;
+    // D21: a recovering body that reached a dorm stays until full instead of leaving at the resume line.
     State.bRecovering = bWasRecovering
-        ? !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.ResumeFarmHPBp)
+        ? !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.DormAt() ? 10000 : C.AI.ResumeFarmHPBp)
         : !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp);
     if (State.bRecovering && !bWasRecovering)
     {
@@ -1480,6 +1501,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(MoveTo(C, *Retreat));
             return Finish(EMode::Disengage, EReason::Recover);
         }
+        // D21: inside a dorm the fast recovery comes before shopping; a visible threat above still sends it away.
+        if (C.DormAt())
+        {
+            Body(Halt(C));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
     }
     const FLDOpponentRetryKey ShopKey = FContext::ShopKey(C.Shop->Id);
     if (Plan.IsSet() && C.CanAttempt(ShopKey) && C.CanAttempt(FContext::PathKey(C.Shop->Id)))
@@ -1502,8 +1529,16 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     if (State.bRecovering)
     {
-        // No free healing zone exists: once the escape has arrived, wait on genuine regeneration, but still answer
-        // defence and shopping above.
+        // D21: with nothing to buy, walk to the nearest dorm for its fast recovery; it is not a safe zone, so defence,
+        // threats and shopping above still come first. While a rival holds the circle alone the body stays within its
+        // defence reach instead: walking off to a corner would flip the public urgency on and off at every step.
+        // Without a reachable dorm, wait on genuine regeneration.
+        const bool bRivalHolds = C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo;
+        if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
+        {
+            Body(MoveTo(C, *Dorm));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
         FActivationNeed Need;
         auto Activation = PickActivation(C, Need);
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));

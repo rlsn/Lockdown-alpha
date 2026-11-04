@@ -466,6 +466,9 @@ struct FLDCombatOwnerView
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
     UPROPERTY() bool bOutOfCombatRegenActive=false;
+    // D21 (#79): the own body stands in a dorm, and the dorm's fast recovery is running.
+    UPROPERTY() bool bInDorm=false;
+    UPROPERTY() bool bDormRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;
 };

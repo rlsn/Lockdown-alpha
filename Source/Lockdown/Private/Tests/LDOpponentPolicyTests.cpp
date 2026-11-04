@@ -922,10 +922,14 @@ bool RunProjections(FAutomationTestBase& Test)
         Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
         Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
         Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
-        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2)};
+        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2),
+        Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
-        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 8);
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 10);
+    const auto* DormPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("dorm_se"); });
+    bGood &= Test.TestTrue(TEXT("D21: each dorm is public recovery ground"),
+        DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
     const auto* High = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("h1"); });
     const auto* Low = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("l2"); });
     const auto* Spawn = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("s00"); });
@@ -933,11 +937,14 @@ bool RunProjections(FAutomationTestBase& Test)
         High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
+    auto OneDorm = World;
+    OneDorm.Anchors.RemoveAt(OneDorm.Anchors.Num() - 1);
+    bGood &= Test.TestFalse(TEXT("A world without both dorms is refused"), LDOpponentFrame::ReadPublicPOIs(OneDorm, C, POIs, Error));
     auto Unplaced = World;
     Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));
     bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
     auto MissingCamp = World;
-    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 1);
+    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 3);
     bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"), LDOpponentFrame::ReadPublicPOIs(MissingCamp, C, POIs, Error));
     auto NoShop = World;
     NoShop.Anchors.RemoveAt(1);
@@ -1723,7 +1730,89 @@ bool RunEscapeBeforeShop(FAutomationTestBase& Test)
         LDOpponentPolicy::Decide(Frame, C, State), EMode::Disengage, EBody::MoveGround);
     return bGood;
 }
+
+// D21 (#79): a recovering body uses the public dorms. With nothing to buy it walks to the nearest one; inside it waits
+// for the fast recovery before shopping and stays until full; the dorm is not a safe zone, so a threat still sends it off.
+bool RunDormRecovery(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("dorm_nw"), ELDOpponentPOIKind::Dorm, -4000, 4000));
+    Base.POIs.Add(POI(TEXT("dorm_se"), ELDOpponentPOIKind::Dorm, 4000, -4000));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    Base.Self.HpP2 = Base.Self.MaxHpP2 / 5;
+    const FVector InDorm(4100, -4000, 0);
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Walk;
+    bool bGood = Expect(Test, TEXT("Recovering with nothing to buy, the body walks to the nearest dorm"),
+        LDOpponentPolicy::Decide(Frame, C, Walk), EMode::Disengage, EBody::MoveGround, TEXT("dorm_se"));
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("dorm_se");
+    bGood &= Expect(Test, TEXT("The walk to the dorm keeps its order"), LDOpponentPolicy::Decide(Frame, C, Walk),
+        EMode::Disengage, EBody::Keep, TEXT("dorm_se"));
+
+    Frame = Base;
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    FLDOpponentPolicyState Buyer;
+    bGood &= Expect(Test, TEXT("Outside a dorm an affordable improvement is still bought first"),
+        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame.Self.FootCm = InDorm;
+    FLDOpponentPolicyState Rester;
+    const auto Resting = LDOpponentPolicy::Decide(Frame, C, Rester);
+    bGood &= Expect(Test, TEXT("Inside a dorm the fast recovery comes before shopping"), Resting, EMode::Disengage, EBody::None)
+        && Test.TestTrue(TEXT("Resting is a recovery decision"), Resting.Reason == ELDOpponentReason::Recover);
+
+    // Past the resume line a body in a dorm stays until full; elsewhere it resumes at once.
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 7 / 10;
+    bGood &= Expect(Test, TEXT("Above the resume line a recovering body in a dorm stays"),
+        LDOpponentPolicy::Decide(Frame, C, Rester), EMode::Disengage, EBody::None);
+    auto Away = Frame;
+    Away.Self.FootCm = Base.Self.FootCm;
+    Away.Self.Gold = 150;
+    FLDOpponentPolicyState Resumed = Rester;
+    bGood &= Expect(Test, TEXT("Above the resume line outside a dorm the body farms again"),
+        LDOpponentPolicy::Decide(Away, C, Resumed), EMode::Farm, EBody::MoveGround);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    bGood &= Test.TestTrue(TEXT("Full in a dorm, recovery ends and the body moves on"),
+        LDOpponentPolicy::Decide(Frame, C, Rester).Mode != EMode::Disengage && !Rester.bRecovering);
+
+    // While a rival holds the circle alone, a recovering body does not walk off to a corner dorm.
+    Frame = Base;
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.CapturePathCm = 600.;
+    FLDOpponentPolicyState Held;
+    const auto Waiting = LDOpponentPolicy::Decide(Frame, C, Held);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A rival's solo hold keeps the recovering body from a corner dorm (mode %u body %u poi %s)"),
+        uint8(Waiting.Mode), uint8(Waiting.Body.Kind), *Waiting.Body.POI.ToString()),
+        Waiting.Body.POI != TEXT("dorm_se") && Waiting.Body.POI != TEXT("dorm_nw"));
+
+    Frame = Base;
+    Frame.Self.FootCm = InDorm;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 4400, -4000)};
+    FLDOpponentPolicyState Threatened;
+    bGood &= Expect(Test, TEXT("A visible threat in the dorm sends the body away: it is not a safe zone"),
+        LDOpponentPolicy::Decide(Frame, C, Threatened), EMode::Disengage, EBody::MoveGround);
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentDormRecoveryTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunDormRecovery(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEscapeBeforeShopTest, "Lockdown.Rules.DemoOpponentPolicy.EscapeBeforeShop",

@@ -32,6 +32,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     const auto Consider=[&Due,NowMs](int64 At) { if (At>NowMs && At<Due) { Due=At; } };
     const FLDDemoContentSnapshot* Content=Catalog();
     const int64 RecoveryDelayMs=Content ? Content->Get().Parameters.OutOfCombatRegenDelayMs : -1;
+    const int64 DormDelayMs=Content ? Content->Get().Parameters.DormRegenDelayMs : -1;
     for (const auto& Pair : Bodies)
     {
         const auto& Body=Pair.Value;
@@ -51,6 +52,9 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // D21: a contender's out-of-combat recovery starts on its own exact boundary.
         if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
         { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
+        // D21 (#79): so does the dorm's fast recovery of a contender standing in a dorm.
+        if (Body.bInDorm && DormDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-DormDelayMs)
+        { Consider(Body.LastCombatAtMs+DormDelayMs); }
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }

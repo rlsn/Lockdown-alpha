@@ -6,7 +6,7 @@
   "geometry_revision": 1,
   "approval": {
     "status": "approved",
-    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim."
+    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 D21 dorms (two opposite corners, 400 cm). First implementation/playtest baseline, not a balance-validation claim."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -88,7 +88,7 @@
     {"id": "g306", "wall_ids": ["midwall_270", "midwall_342"], "camp_id": "l3"}
   ],
   "parameter_refs": [
-    "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "SHOP.InteractRadiusCm",
+    "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
     "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
     "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"
   ],
@@ -124,6 +124,8 @@
       "members": [{"id": "l3_0", "position_cm": {"x": 1589, "y": -2059, "z": 0}}, {"id": "l3_1", "position_cm": {"x": 1467, "y": -2147, "z": 0}}]
     },
     {"id": "shop", "kind": "Shop", "surface_id": "demo_ground", "position_cm": {"x": 778, "y": 778, "z": 0}},
-    {"id": "capture", "kind": "Capture", "surface_id": "demo_ground", "position_cm": {"x": 0, "y": 0, "z": 0}}
+    {"id": "capture", "kind": "Capture", "surface_id": "demo_ground", "position_cm": {"x": 0, "y": 0, "z": 0}},
+    {"id": "dorm_nw", "kind": "Dorm", "surface_id": "demo_ground", "position_cm": {"x": -4400, "y": 4400, "z": 0}},
+    {"id": "dorm_se", "kind": "Dorm", "surface_id": "demo_ground", "position_cm": {"x": 4400, "y": -4400, "z": 0}}
   ]
 }

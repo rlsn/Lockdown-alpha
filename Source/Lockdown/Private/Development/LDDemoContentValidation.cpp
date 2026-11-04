@@ -259,6 +259,15 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
+    // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
+    for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
+    {
+        if (!Check.Require(P.DormRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("DORM"),
+            TEXT("dorm recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))
+        {
+            return false;
+        }
+    }
     const FLDDemoProgressionDefinition& Opening = D.Progression;
     int32 Passives = 0;
     for (const auto& Ability : D.Abilities) { Passives += Ability.Kind == ELDDemoAbilityKind::Passive ? 1 : 0; }

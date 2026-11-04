@@ -108,6 +108,9 @@ FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 Now
         Lines.Add(MoveTemp(Line));
     }
     if(Combat->bOutOfCombatRegenActive){Lines.Add(TEXT("脱战回复生效中"));}
+    // D21 (#79): the dorm's fast recovery, or the reminder that it starts once out of combat.
+    if(Combat->bDormRegenActive){Lines.Add(TEXT("宿舍快回生效中"));}
+    else if(Combat->bInDorm){Lines.Add(TEXT("在宿舍 · 脱战后快速回复"));}
     return AttrPanelLines(Lines);
 }
 }

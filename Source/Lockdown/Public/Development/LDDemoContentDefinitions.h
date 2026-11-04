@@ -112,6 +112,11 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
     UPROPERTY() int64 OutOfCombatMaxHPRegenBp = 0;
     UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
+    // D21 (#79): fast recovery for a contender whose foot stands inside a public dorm disk once this long without combat.
+    UPROPERTY() FLDDemoRational DormRadiusCm;
+    UPROPERTY() int64 DormRegenDelayMs = 0;
+    UPROPERTY() int64 DormMaxHPRegenBp = 0;
+    UPROPERTY() int64 DormMaxMPRegenBp = 0;
     UPROPERTY() int64 StartingGold = 0;
     UPROPERTY() int64 SellRatioBp = 0;
     UPROPERTY() int64 ChoiceBaseWeight = 0;

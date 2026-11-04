@@ -80,6 +80,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
+            ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
+            ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
@@ -504,7 +506,7 @@ class ApprovedDemoData(unittest.TestCase):
             "s00": (4400, 0), "s01": (3560, 2586), "s02": (1360, 4185), "s03": (-1360, 4185), "s04": (-3560, 2586),
             "s05": (-4400, 0), "s06": (-3560, -2586), "s07": (-1360, -4185), "s08": (1360, -4185), "s09": (3560, -2586),
             "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
-            "shop": (778, 778), "capture": (0, 0),
+            "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
         }
         self.assertEqual(set(self.anchors), set(expected))
         for identity, xy in expected.items():
@@ -552,7 +554,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("g162", ("midwall_126", "midwall_198"), "l2"), ("g234", ("midwall_198", "midwall_270"), "h2"),
             ("g306", ("midwall_270", "midwall_342"), "l3")])
         self.assertEqual(self.world.world["parameter_refs"], (
-            "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
+            "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
 
     def test_published_route_lengths_and_whole_ground_budget(self):

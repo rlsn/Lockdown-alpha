@@ -74,7 +74,7 @@ def expected_world_projection(compilation):
                         for row in world["connections"]],
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
-            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture").index(row["kind"]),
+            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -177,12 +177,15 @@ def parameter_projection(parameters):
         ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
+        ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
+        ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
         ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
+        ("DORM.RadiusCm", "DormRadiusCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (

@@ -20,6 +20,44 @@
       "surface_id": "demo_ground"
     },
     {
+      "id": "dorm_nw",
+      "kind": "Dorm",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -4400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "dorm_se",
+      "kind": "Dorm",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
       "id": "h1",
       "kind": "Camp",
       "members": [
@@ -471,10 +509,10 @@
     }
   ],
   "approval": {
-    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim.",
+    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 D21 dorms (two opposite corners, 400 cm). First implementation/playtest baseline, not a balance-validation claim.",
     "status": "approved"
   },
-  "author_schema_sha256": "7dde48916b230f72f6c73b487ed6f958eb8313f4a9a656addc3ffd732524727d",
+  "author_schema_sha256": "a8054830f90d55af9a242c3a9b88b1c6d324ad4bbfcc2521ddafc3d7450bbb5f",
   "connections": [
     {
       "camp_id": "l1",
@@ -1248,6 +1286,7 @@
   "parameter_refs": [
     "CAMP.ResetArrivalRadiusCm",
     "CAPTURE.RadiusCm",
+    "DORM.RadiusCm",
     "SHOP.InteractRadiusCm",
     "TIMING.DefendRouteBudgetSec",
     "UNIT.BasicAttackRangeCm",
@@ -1363,5 +1402,5 @@
   },
   "projection_revision": 2,
   "schema_version": 2,
-  "source_sha256": "d769d49c61c4debb12150212b2b753e3bf395b069afc8576f86c0d11aa1398ea"
+  "source_sha256": "317c0d009dc72185db0dbb6017885a6c10a8bb0c948fa96fa8f8f891595a740b"
 }

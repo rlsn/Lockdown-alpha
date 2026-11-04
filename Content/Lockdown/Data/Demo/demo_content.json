@@ -3468,7 +3468,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim.",
+      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 D21 dorms (two opposite corners, 400 cm). First implementation/playtest baseline, not a balance-validation claim.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -3540,6 +3540,23 @@
       "denominator": 1,
       "numerator": 120,
       "unit": "deg"
+    },
+    "DORM.MaxHPRatioPerSec": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "DORM.MaxMPRatioPerSec": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "DORM.OutOfCombatDelaySec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "DORM.RadiusCm": {
+      "denominator": 1,
+      "numerator": 400,
+      "unit": "cm"
     },
     "LIFE.ProtectionSec": {
       "ms": 3000,

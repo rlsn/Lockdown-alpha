@@ -78,10 +78,12 @@ namespace LDTactical
     };
 
     // FORMULA.Regen over [FromMs, NowMs) of one living body: the always-on rates of Attributes, its passive
-    // out-of-combat bonus and, when given, the contender Recovery. Each out-of-combat term runs exactly from
-    // LastCombatAtMs + its own delay; the maxima are the ones held over the whole interval (a change settles first).
+    // out-of-combat bonus and, when given, the contender Recovery and the dorm's fast Dorm recovery (D21, #79).
+    // Each out-of-combat term runs exactly from LastCombatAtMs + its own delay and they all stack; the maxima are
+    // the ones held over the whole interval (a change settles first).
     LOCKDOWN_API bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error);
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error,
+        const FOutOfCombatRecovery* Dorm = nullptr);
     // Whether an out-of-combat term with DelayMs is running at NowMs.
     LOCKDOWN_API bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs);
 }

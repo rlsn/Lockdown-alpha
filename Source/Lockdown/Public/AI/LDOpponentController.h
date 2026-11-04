@@ -25,6 +25,8 @@ struct FLDOpponentRequestTally
     // D19 evidence: innate dash activations among Actions, and those Combat finished (the body really moved).
     uint32 Dashes = 0;
     uint32 DashesLanded = 0;
+    // D21 evidence: times this adapter's living body stepped into a dorm, read from its own owner view.
+    uint32 DormEntries = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;
     uint32 Trades = 0;
@@ -165,6 +167,7 @@ private:
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
+    bool bWasInDorm = false;
     FLDOpponentRequestTally Tally;
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

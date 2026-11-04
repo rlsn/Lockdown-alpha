@@ -775,7 +775,8 @@ def validate_numbers(data):
     require(0 < params["UNIT.BasicAttackWindupSec"]["ms"] < interval,
             "InvalidTiming", "basic_attack", "windup must be shorter than attack interval")
     data["character"]["basic_attack"]["interval_ms"] = interval
-    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec"):
+    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
+                "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec"):
         # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.
         require(params[key]["bp"] > 0 and params[key]["bp"] % 10 == 0, "NumericDomain", key,
                 "out-of-combat recovery must be a positive multiple of 0.001 of the maximum per second")

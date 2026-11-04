@@ -731,10 +731,22 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
     Recovery.DelayMs=Parameters.OutOfCombatRegenDelayMs;
     Recovery.MaxHPBpPerSec=Parameters.OutOfCombatMaxHPRegenBp;
     Recovery.MaxMPBpPerSec=Parameters.OutOfCombatMaxMPRegenBp;
-    return RegenerateBodies(Recovery,NowMs,Error);
+    // D21 (#79): the dorm's fast recovery stacks on top for a contender standing in a dorm.
+    const ALDGameMode* Mode=Core();
+    if (!Mode || !Mode->GetDormZones().IsValid())
+    {
+        Error=TEXT("Regeneration requires the resolved dorms of this match.");
+        return false;
+    }
+    LDTactical::FOutOfCombatRecovery Dorm;
+    Dorm.DelayMs=Parameters.DormRegenDelayMs;
+    Dorm.MaxHPBpPerSec=Parameters.DormMaxHPRegenBp;
+    Dorm.MaxMPBpPerSec=Parameters.DormMaxMPRegenBp;
+    return RegenerateBodies(Recovery,NowMs,Error,&Dorm,&Mode->GetDormZones());
 }
 
-bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error)
+bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
+    const LDTactical::FOutOfCombatRecovery* DormRecovery, const FLDDormZones* Dorms)
 {
     for (auto& Pair : Bodies)
     {
@@ -758,8 +770,16 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
         Pools.MpMicroP2=Body.MpRegenMicroP2;
         // D21: every contender recovers out of combat; camp members heal only by their reset.
         const bool bContender=Body.Victim.Kind==ELDVictimKind::Contender;
+        // The foot at this settle decides the dorm term for the elapsed interval (at most one authority step late).
+        const ALDCharacter* Actor=Pair.Key.Get();
+        const bool bInDorm=bContender && DormRecovery && Dorms && Actor && Dorms->Find(FootOf(*Actor));
+        if (Body.bInDorm!=bInDorm)
+        {
+            Body.bInDorm=bInDorm;
+            MarkViewChanged(Body.Victim.EntityId);
+        }
         if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &Recovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
-            Pools,Error))
+            Pools,Error,bInDorm ? DormRecovery : nullptr))
         {
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;

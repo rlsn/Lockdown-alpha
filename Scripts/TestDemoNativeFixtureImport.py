@@ -123,7 +123,7 @@ class DemoNativeFixturesTest(unittest.TestCase):
                                          Path("Source", "Lockdown", "Public", "Region", "LDMapGeometry.h"))
         self.assertEqual(native.flatten(expected), json.loads((self.root / "base" / "native_world_expected.json").read_bytes()))
         self.assertEqual(len(expected["Blockers"]), 10)
-        self.assertEqual(len(expected["Anchors"]), 17)
+        self.assertEqual(len(expected["Anchors"]), 19)
         self.assertEqual(len(expected["SpawnOffsetsCm"]), 7)
         self.assertEqual(len(expected["Connections"]), 5)
 

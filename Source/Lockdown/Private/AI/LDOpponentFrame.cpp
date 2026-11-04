@@ -66,7 +66,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Shops = 0, Captures = 0;
+    int32 Shops = 0, Captures = 0, Dorms = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -98,6 +98,12 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             bApproved = Anchor.Id.Equals(References.CaptureId, ESearchCase::CaseSensitive);
             ++Captures;
             break;
+        case ELDDemoWorldAnchorKind::Dorm:
+            // D21: public recovery ground; the world import has already required its two canonical identities.
+            POI.Kind = ELDOpponentPOIKind::Dorm;
+            bApproved = true;
+            ++Dorms;
+            break;
         default:
             break;
         }
@@ -114,10 +120,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != 1 || Captures != 1)
+    if (Shops != 1 || Captures != 1 || Dorms != 2)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose exactly one shop and one capture place."));
+        return Fail(Error, TEXT("The public world must expose exactly one shop, one capture place and two dorms."));
     }
     Error.Reset();
     return true;

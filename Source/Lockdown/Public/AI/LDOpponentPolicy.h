@@ -125,7 +125,7 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture };
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture, Dorm };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
