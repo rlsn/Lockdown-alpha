@@ -2,9 +2,9 @@
   "author_schema_sha256": "4fa02557aae47a31bbfd1f35aa6ec6cf38baaceba23f2df295a1b7f05a91f265",
   "content": {
     "file": "demo_content.json",
-    "sha256": "2b44ba2578fb986499b04a6707c043326dc0d195037af0a65f645aa3b2a24d15"
+    "sha256": "1c16eb317a0f389172ac573b5cfbd74bf3dc34ae37926ff3278defe301dad65b"
   },
-  "display_sha256": "362c1e8c8eaad9515db1c69d8022160844c6621b9e0de98b060c291a36660307",
+  "display_sha256": "29da8b64cffc9524713e9e223ee8fb18aac2e94a62f97b627670b40bd3823a8f",
   "format": "lockdown-demo-content",
   "handler_revision": 1,
   "native_contract_sha256": "cc0b9069a0a9bba4a622a253d74a0243435c995ea3dad8c6415a813e4215eb41",

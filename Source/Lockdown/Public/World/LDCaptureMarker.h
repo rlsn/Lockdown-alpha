@@ -8,7 +8,7 @@
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
-// Local presentation of the single capture circle (升旗台): a flat painted ring on the registered ground at the
+// Local presentation of the single capture circle: a flat painted ring on the registered ground at the
 // approved radius around the capture anchor. Each machine builds it from its own world data and only mirrors the
 // accepted public circle state; it is never replicated and has no collision, navigation, sight or height effect.
 UCLASS(NotPlaceable, Transient)

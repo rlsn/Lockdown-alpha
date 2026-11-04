@@ -1,5 +1,6 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -293,7 +294,7 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(PC->IsFrontend()){return false;}
     // Death keeps camera operations (UI 4); a ground order still needs the controller's world-command gate.
-    if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(TEXT("社死中只能移动镜头，不能下达移动"));}return false;}
+    if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(FString(LDTerms::Dead)+TEXT("，只能移动镜头，不能下达移动"));}return false;}
     FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
     const LDMinimap::FView View=MinimapLiveView(*PC,MinimapCache(StaticMap),GetWorld(),Ground,FrameSize);
     if(!View.IsValid()){PC->PostIntentNotice(TEXT("小地图不可用：尚未完成布局"));return false;}

@@ -11,8 +11,8 @@
 | `Vision\LDViewTypes` | 冻结的 `FLDWorldView` 观测帧、隐藏通知与终结通知的线缆格式和校验；保存与加载都会校验 |
 | `Vision\LDWorldViewRelay` | 每个拥有连接一个 relay：接收游标、超时清除、代理与迷雾表现 |
 | `ALDObservedEntityProxy` | 客户端非复制的人形表现，无碰撞，不参与权威战斗或资源所有权；参赛者按名册座位着色，营地 NPC 用独立外观；动作与状态经共用的 cue 字节呈现，动作年龄取样本自带年龄加上呈现时钟越过该样本的时间；授权的观察死亡（`ObservedDeath`）先留下 Combat 的客户端倒地副本 `ALDBodyPuppet::SpawnFall` 再移除代理，离开视野、超时与复位只移除 |
-| `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（粉笔头，+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾：从粉笔尾端起 14 个白色粉团由约 20 cm 渐细到 8 cm，间距随近期速度、最多 11 cm，1600 cm/s 时约 1.5 m 长、前半段连成一条实线，静止时不显示；布局为纯函数 `LDFlightTrail::Layout`，由 `Lockdown.Rules.DemoVision.FlightTrail` 覆盖，`RunDemoCombatCheck.ps1` 的 `HostSees-ChalkFlight.png` 只在拖尾已绘制时截取），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
-| `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`，目前只有升旗台旗杆）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或因装饰无碰撞而穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给每个淡化材质设 `LDFadeStrength` = `FadedStrength`（1），所以完全淡化时旗杆消失，而不是留下一条抖动网点柱；淡化期间关闭投影。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化 |
+| `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（天外飞瓶，美术仍是现有粉笔；+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾：从粉笔尾端起 14 个白色粉团由约 20 cm 渐细到 8 cm，间距随近期速度、最多 11 cm，1600 cm/s 时约 1.5 m 长、前半段连成一条实线，静止时不显示；布局为纯函数 `LDFlightTrail::Layout`，由 `Lockdown.Rules.DemoVision.FlightTrail` 覆盖，`RunDemoCombatCheck.ps1` 的 `HostSees-ChalkFlight.png` 只在拖尾已绘制时截取），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
+| `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`，目前只有旗杆）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或因装饰无碰撞而穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给每个淡化材质设 `LDFadeStrength` = `FadedStrength`（1），所以完全淡化时旗杆消失，而不是留下一条抖动网点柱；淡化期间关闭投影。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化 |
 | `ALDOwnBodyMarker` | 只在本机生成、挂在本机存活身体脚下的光圈，用于一眼认出自己；死亡或无身体时隐藏 |
 
 导演只读核心的身体、生命和资源，不另存 HP、Life 或身体表。
@@ -25,7 +25,7 @@
 ## 谁可以看到什么
 
 - 观察者唯一的来源是自己的存活身体。半径取批准内容的 `VISION.RadiusCm`（含边界）。
-- 隐身（纸箱「纸箱潜行」，Combat 的 `stealth` 效果）是同一授权规则的一部分，不是外观处理：
+- 隐身（路人甲 T 恤「泯然众人」，Combat 的 `stealth` 效果）是同一授权规则的一部分，不是外观处理：
   `LDObservation::ConcealedSight` 让隐身身体只在观察者脚点平面距离 `reveal_radius`（含边界）内为 Visible，
   其外按普通 `OutOfRange` 处理。采样（`GatherTargets` 记录 `ConcealBeyondCm`）、`ResolveObservedUnit`、`BindObservedOrder`、
   死亡见证与野怪感知（`TraceObservation`）都走它，因此进入隐身后的下一次采样即以可靠隐藏通知撤销句柄、
@@ -48,11 +48,11 @@
   展示字段变化只推进该单位的 `StateRevision`，姿态变化不推进。
 - 参赛者的 `Presentation` 是锁定名册座位 0..5（由 Combat 写入身体，跨命不变），codec 拒绝 6 及以上；
   六个座位色由 `ULDHumanoidVisualComponent::ContenderTint` 唯一定义，身体、头像和小地图共用。
-  营地 NPC 不用座位色：低档纪律委员带袖章和夹板，高档体育老师带帽子和哨子（`ApplyMonsterLook`）。
+  营地 NPC 不用座位色：低档已读不回的 HR 带袖章和夹板，高档追着办卡的私教带帽子和哨子（`ApplyMonsterLook`）。
 - 动作提示 `ActionCue` 为 `Attack/Cast/Hit`：Combat 在核心 `ReadObservedPublicFacts` 里给出当前提示及其开始的权威时刻，
   线缆只带提示与 `ActionCueAgeMs`（无提示时为 0），开始时刻晚于当前时刻时发布失败关闭（`LD_OBSERVATION_ACTION_CUE_INVALID`）。
   代理与本人身体经 `ALDCharacter::PresentationCue` 得到同一个 cue 字节：低 4 位是动作姿势，
-  定身、回岗、淡定、复活保护各有独立形状（脚下圆环并锁腿、背后标牌、头顶光环、竖直光柱），不只靠颜色区分。
+  定身、回工位、心理防线、复活保护各有独立形状（脚下圆环并锁腿、背后标牌、头顶光环、竖直光柱），不只靠颜色区分。
 - `Cast` 提示可带该次施法的唯一来源（`ActionAbility` 技能原生 id 或 `ActionEquipment` 装备原生 id，另一个为 0；
   其他提示两者都为 0），由 Combat 在同一公开事实里给出；接收端只接受批准内容中的 id。这是用户批准的 CB-P10/SC-07 例外：
   只用于在施法那一刻于可见施法者旁显示技能或装备名（`ULDWorldFeedback`），不进目标卡，不保留技能列表，不含等级或冷却。
@@ -95,23 +95,28 @@
 
 ## UI 只读模型
 
+玩家可见的世界观术语与带梗短句（资源与属性名、米/流量、大比兜、润、旗杆与阶段文案、击杀与结算文案等）只在
+`Source\Lockdown\Public\UI\LDTerms.h` 定义一次，HUD、前端、面板、飘字、订单提示与测试都引用它；技能、装备、野怪与状态的条目名
+仍由内容显示行提供。系统文案直接点名的几个状态名（心理防线、提裤子、腿软、瞅你咋地、查无此人、捂裆、CPU 干烧了、免死金牌）
+在术语表里另有一份，由 `Lockdown.Rules.HUDTermsGlossary` 核对与批准目录的显示名一致。
+
 | 信息 | 允许来源 |
 | --- | --- |
 | 自身血蓝、护盾、临时状态与被动 | Combat 的仅本人复制 `ALDPlayerController::CombatView`（同 Match/Life 才使用；没有身体时退回 Lives 投影的血蓝）；`LDHUD::SelfStatusLine/PassiveLine` 只格式化，被动按装备来源各显示一次 |
 | 自身资源条每秒回复 | Combat 仅本人投影 `HPRegenPerSec/MPRegenPerSec`，由 `LDTactical::RegenRates` 从当前属性、被动及参赛者脱战回复的同一条件推导；只用于显示，不参与资源结算。`PublishOwnerViews` 在满资源下的回复率变化也推进修订；HUD 经 `LDHUD::RegenText` 拒绝别局/别命、死亡、无身体及无效资源投影，条内右侧显示 `+X.X/s`，中央保留资源/护盾读数。满资源显示回复能力，不估计资源差值或展示他人私有属性 |
-| 自身等级、经验、零花钱、装备与待选 | Growth 的 `ReadOwnProgression/ReadOwnEquipment`（`FLDOwnerState.Growth`）；满级显示 MAX，缺失显示“同步中” |
+| 自身等级、经验、米、装备与待选 | Growth 的 `ReadOwnProgression/ReadOwnEquipment`（`FLDOwnerState.Growth`）；满级显示 MAX，缺失显示“同步中” |
 | 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“同步中”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护 |
-| Q/W 与 1/2 | `CombatView.Entries` 经 `LDHUD::ActionInput/Action` 把意图可提交性（本人当前 Match/Life、对局进行中、存活、`IsWorldInputSuppressed()` 为假即未被菜单/设置、子确认或文字编辑占用且无残留按键）与执行限制（空槽、无主动、冷却、胆量、控制、服务器原因）分开；图标与热键同走 `ActivateCombatEntry`，限制只置灰说明，不吞掉显式激活；本人战斗投影缺失时显示“未同步”且不发送。准备态读 `ReadArmedCombatEntry/IsAttackMoveArmed`，回执日志 `CombatReceipts`（`FLDCombatReceiptLog`，按到达序号保留最近 32 条）由 HUD 用自己的游标逐条读取，同一帧到达的多条回执各自提示一次：`LDHUD::CombatReceiptsNotice` 按到达顺序把不同的“未执行”与“复活保护已解除”合成一行，按下的槽位各自显示原因 |
+| Q/W 与 1/2 | `CombatView.Entries` 经 `LDHUD::ActionInput/Action` 把意图可提交性（本人当前 Match/Life、对局进行中、存活、`IsWorldInputSuppressed()` 为假即未被菜单/设置、子确认或文字编辑占用且无残留按键）与执行限制（空槽、无主动、冷却、电量、控制、服务器原因）分开；图标与热键同走 `ActivateCombatEntry`，限制只置灰说明，不吞掉显式激活；本人战斗投影缺失时显示“未同步”且不发送。准备态读 `ReadArmedCombatEntry/IsAttackMoveArmed`，回执日志 `CombatReceipts`（`FLDCombatReceiptLog`，按到达序号保留最近 32 条）由 HUD 用自己的游标逐条读取，同一帧到达的多条回执各自提示一次：`LDHUD::CombatReceiptsNotice` 按到达顺序把不同的“未执行”与“免死金牌没了”合成一行，按下的槽位各自显示原因 |
 | 射程与目标预览 | `ULDHUD::NativePaint`：本人同局同命存活且未武装时，在脚下画一圈淡白的普攻射程（`CombatView.AttackRangeCm`，射程成长立即反映）；武装单位技能或攻击移动时，射程圈改为强调色，并对指针下的单位（`ObservedUnderPointer` + `ReadUnit`，与点击同一选取、只取当前授权帧）画目标框：脚点 2D 距离不超过射程为绿、否则为红；方向技能另画朝光标方向、长度为射程的指示线。只是预览，是否命中由服务器裁决 |
-| 下一步提示 | `LDHUD::NextStep` 在公共圈状态下方给一行强调色文字，只在发育期/开放期、同代次投影上计算，优先级：有待选 → “选择成长 ×N”；开放期 → 本人独占时“坚持住”，否则“去中心抢圈”；有空装备槽且零花钱够买时 → 买得起的最贵装备；1 级 → 去打附近的野怪；都不适用时不显示。技能栏上方另有金色可点击的“可选成长 ×N · 点击选择”，次数增加后轻微脉动 |
+| 下一步提示 | `LDHUD::NextStep` 在公共圈状态下方给一行强调色文字，只在发育期/开放期、同代次投影上计算，优先级：有待选 → “开盲盒 ×N（点技能栏上方的金色提示）”；开放期 → 本人独占时“稳住：你正在旗杆底下装”，否则“旗杆开放了，冲！去中心插旗”；有空装备槽且米够买时 → “米够买「X」了，去砍一刀小摊”（X 为买得起的最贵装备）；1 级 → “去打附近的野怪搞米、涨流量（右键攻击）”；都不适用时不显示。技能栏上方另有金色可点击的“开盲盒 ×N · 点击选择”，次数增加后轻微脉动 |
 | 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedCard/ObservedUnit` 只显示白名单 |
-| 可见单位头顶的名字、等级、血条与状态 | `ULDWorldLabels`（`LDUIRoot` 世界层，最底层、不命中测试、不取焦点）：只在本人存活、帧为同局同命的当前帧且 HUD 显示时，为 `ReadPresentedLocation` 返回的单位绘制；参赛者名来自公开名册（查不到就不显示名字），野怪名来自内容显示文本，状态行与检视卡片同源（复活保护剩余时间向上取整到 0.1 s），各状态按身体标记的颜色书写（定身品红、淡定亮青、复活保护白金，其余用普通状态色），文字本身仍写出状态名。白名单子集为名字、等级（参赛者，画在座位色徽章里）、HP 比例条（参赛者红、营地橙，最大值未知不画）、是否有淡定（条上方浅蓝线）与公开状态；不显示胆量、装备、技能、冷却或金币。字号：参赛者名 16 粗体、野怪名 16、状态 14，随文字缩放 |
-| 本人头顶血蓝与技能就绪点 | 同一层：本人同局同命存活且有身体、`CombatView` 同代同命且最大面子已知时，在本人身体上方画面子条（淡定接在其后，合计超出时按比例收进整条）与胆量条；其下 Q/W/1/2 四个就绪点只读 `LDHUD::Action` 的 `ExecutionBlocks/CooldownRemainingMs`（冷却、受控、胆量不足、可用各一色，空槽/无主动/未同步不画），文字说明仍在底部动作栏。不画本人名字 |
-| 画面回馈（浮动数字、奖励、击败、升级） | `ULDWorldFeedback`（与头顶标签同层同显隐）由纯值 `LDWorldFeedback::FTracker` 比较相邻样本得出事件，第一次样本、换局、换命或视图失效只重设基线，不补发历史。本人：`CombatView` 同代同命相邻修订的面子差（回血按 25 点/秒 × 间隔 + 1 的容差不飘字，最大面子变化不算伤害或治疗）与淡定差（增加、被打掉；自然到期不飘）；可见单位：相邻当前帧中同一 Handle/Epoch、同一最大值的面子差（营地无回血，容差 1 点），按帧的采样时刻等呈现时钟到达再显示，单位不再呈现即丢弃；施法名：可见施法者的新 `Cast` 提示带 `ActionAbility/ActionEquipment` 时，在其身旁飘一次技能或装备显示名（`LDHUD::AbilityName`/内容表），不含等级、冷却，首见样本只建基线、无来源不显示（D16，CB-P10/SC-07 白名单例外）；奖励：同一次成长发布里 `CumulativeXP` 增加才飘“+经验”，金币同时增加才飘“+零花钱”，买卖只改金币不飘；击败：公开击杀通知中击杀者是本人且新鲜（6 s 规则）才出“击败 某某！”；升级：等级上升出“升到 N 级！”横幅与本人脚下光环、光柱，新获得三选一时加副行。不读其他身体 Actor 或他人投影 |
-| 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、小卖部、升旗台圈、两档营地标记；当前覆盖与当前可见单位（参赛者用座位色圆点，位置取代理的呈现位置，不可呈现时退回帧内脚点）；不画探索层或出生点。朝向按本地设置 `MinimapOrientation`（跟随镜头/跟随角色朝向/固定正北），三种都是真实俯视的旋转加统一缩放，不镜像；`LDMinimap::MakeView/ToFrame/ToWorld` 是绘制、镜头框与拖图/右键移动共用的唯一换算，旋转模式只显示不超过地面内切圆的圆形视窗（框角用框体底色遮住，避免露出地面外的深色角），并在圆边内侧标出“北”（世界 −Y） |
+| 可见单位头顶的名字、等级、血条与状态 | `ULDWorldLabels`（`LDUIRoot` 世界层，最底层、不命中测试、不取焦点）：只在本人存活、帧为同局同命的当前帧且 HUD 显示时，为 `ReadPresentedLocation` 返回的单位绘制；参赛者名来自公开名册（查不到就不显示名字），野怪名来自内容显示文本，状态行与检视卡片同源（复活保护剩余时间向上取整到 0.1 s），各状态按身体标记的颜色书写（定身品红、心理防线亮青、复活保护白金，其余用普通状态色），文字本身仍写出状态名。白名单子集为名字、等级（参赛者，画在座位色徽章里）、HP 比例条（参赛者红、营地橙，最大值未知不画）、是否有心理防线（条上方浅蓝线）与公开状态；不显示电量、装备、技能、冷却或金币。字号：参赛者名 16 粗体、野怪名 16、状态 14，随文字缩放 |
+| 本人头顶血蓝与技能就绪点 | 同一层：本人同局同命存活且有身体、`CombatView` 同代同命且精神状态上限已知时，在本人身体上方画精神状态条（心理防线接在其后，合计超出时按比例收进整条）与电量条；其下 Q/W/1/2 四个就绪点只读 `LDHUD::Action` 的 `ExecutionBlocks/CooldownRemainingMs`（冷却、受控、电量不足、可用各一色，空槽/无主动/未同步不画），文字说明仍在底部动作栏。不画本人名字 |
+| 画面回馈（浮动数字、奖励、击败、升级） | `ULDWorldFeedback`（与头顶标签同层同显隐）由纯值 `LDWorldFeedback::FTracker` 比较相邻样本得出事件，第一次样本、换局、换命或视图失效只重设基线，不补发历史。本人：`CombatView` 同代同命相邻修订的精神状态差（回血按 25 点/秒 × 间隔 + 1 的容差不飘字，精神状态上限变化不算伤害或治疗）与心理防线差（增加、被打掉；自然到期不飘）；可见单位：相邻当前帧中同一 Handle/Epoch、同一最大值的精神状态差（营地无回血，容差 1 点），按帧的采样时刻等呈现时钟到达再显示，单位不再呈现即丢弃；施法名：可见施法者的新 `Cast` 提示带 `ActionAbility/ActionEquipment` 时，在其身旁飘一次技能或装备显示名（`LDHUD::AbilityName`/内容表），不含等级、冷却，首见样本只建基线、无来源不显示（D16，CB-P10/SC-07 白名单例外）；奖励：同一次成长发布里 `CumulativeXP` 增加才飘“+流量”，金币同时增加才飘“+米”，买卖只改金币不飘；击败：公开击杀通知中击杀者是本人且新鲜（6 s 规则）才出“淫了 某某！”；升级：等级上升出“涨粉了！LvN”横幅与本人脚下光环、光柱，新获得三选一时加副行“获得一次开盲盒机会”。不读其他身体 Actor 或他人投影 |
+| 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、砍一刀小摊、旗杆圈、两档营地标记；当前覆盖与当前可见单位（参赛者用座位色圆点，位置取代理的呈现位置，不可呈现时退回帧内脚点）；不画探索层或出生点。朝向按本地设置 `MinimapOrientation`（跟随镜头/跟随角色朝向/固定正北），三种都是真实俯视的旋转加统一缩放，不镜像；`LDMinimap::MakeView/ToFrame/ToWorld` 是绘制、镜头框与拖图/右键移动共用的唯一换算，旋转模式只显示不超过地面内切圆的圆形视窗（框角用框体底色遮住，避免露出地面外的深色角），并在圆边内侧标出“北”（世界 −Y） |
 | 属性 P | `ULDAttributesPanel` 只格式化 `CombatView.Attributes` 的各来源与最终值、已学被动、装备被动和临时状态；行固定，刷新不重置滚动 |
-| 三选一 | `ULDChoicesPanel` 读当前 Offer 的三张固定卡，命令带 OfferId/OptionId/各修订；Q/W 已满时进入替换子确认，不默认槽位；同一机会的修订刷新保留原选项。面板停靠在小地图下方的右侧窄列（宽 340u，半透明底板，三卡纵排；卡列与替换子确认共用最高 440u 的滚动区），对局不暂停，不遮挡画面中央的本人及周围。开局 Offer（第 1 次机会、尚未消费）为真人自动打开一次：等 Growth 发布该 Offer 后用 `ShowMainPanel` 打开，Root 尚在离开 Lobby 时最多重试 5 s，超时记录 `LD_HUD_OPENING_CHOICE_NOT_SHOWN`；玩家已开自己的面板或输入被捕获时放弃这一次，不覆盖玩家的 UI，也不替玩家选择。面板仍盖住右侧约 1/5 的世界，由 `LDHUD::FChoicesFold` 决定自动收起回金色待选提示（只隐藏，机会、Offer、选中卡与在途请求不变）：自动打开的面板 6 s（`AutoOpenSeconds`）内玩家没有点选卡片、进入替换子确认或提交请求则收起，操作过即不再计时；本人受击（HUD 用与世界飘字同一 `LDWorldFeedback::FTracker` 的本人掉面子/淡定被吸收事件，只读本人投影）时，未在操作的打开面板收起，受击收起后玩家下一次手动打开不再因受击收起直到关闭 |
-| 小卖部 | `ULDShopPanel` 读当前 Opened 会话报价（`ReadOwnShop`）与本人两槽装备；只有 `OnShopOpenResult` 的 Opened 与 Combat 的 `ReadShopInteraction` 同代次、同生命、同小卖部时才开页，迟到或旧交互结果不弹出；远端客户端在下一次成长发布前先用 Opened 自带的报价。买卖命令带所显示的会话、报价与修订，卖出需子确认；死亡、换命、换局或会话结束自动关闭，受伤不关闭 |
+| 三选一 | `ULDChoicesPanel` 读当前 Offer 的三张固定卡，命令带 OfferId/OptionId/各修订；Q/W 已满时进入替换子确认，不默认槽位；同一机会的修订刷新保留原选项。面板停靠在小地图下方的右侧窄列（宽 340u，半透明底板，三卡纵排；卡列与替换子确认共用最高 440u 的滚动区），对局不暂停，不遮挡画面中央的本人及周围。开局 Offer（第 1 次机会、尚未消费）为真人自动打开一次：等 Growth 发布该 Offer 后用 `ShowMainPanel` 打开，Root 尚在离开 Lobby 时最多重试 5 s，超时记录 `LD_HUD_OPENING_CHOICE_NOT_SHOWN`；玩家已开自己的面板或输入被捕获时放弃这一次，不覆盖玩家的 UI，也不替玩家选择。面板仍盖住右侧约 1/5 的世界，由 `LDHUD::FChoicesFold` 决定自动收起回金色待选提示（只隐藏，机会、Offer、选中卡与在途请求不变）：自动打开的面板 6 s（`AutoOpenSeconds`）内玩家没有点选卡片、进入替换子确认或提交请求则收起，操作过即不再计时；本人受击（HUD 用与世界飘字同一 `LDWorldFeedback::FTracker` 的本人精神状态下降/心理防线被吸收事件，只读本人投影）时，未在操作的打开面板收起，受击收起后玩家下一次手动打开不再因受击收起直到关闭 |
+| 砍一刀小摊 | `ULDShopPanel` 读当前 Opened 会话报价（`ReadOwnShop`）与本人两槽装备；只有 `OnShopOpenResult` 的 Opened 与 Combat 的 `ReadShopInteraction` 同代次、同生命、同砍一刀小摊时才开页，迟到或旧交互结果不弹出；远端客户端在下一次成长发布前先用 Opened 自带的报价。买卖命令带所显示的会话、报价与修订，卖出需子确认；死亡、换命、换局或会话结束自动关闭，受伤不关闭 |
 | 公共圈、击杀通知与结果 | `ALDGameState::PublicMatch`（唯一阶段来源，校验代次）、`KillFeed`（按序号去重，只含参赛者死亡）、`MatchResult`（与 `PublicMatch.ResultId` 一致才显示，缺失时“结算同步中”而非零表）；倒计时到零只等待权威状态，不宣布开放或胜利 |
 | 命中、失败与进度 | 经裁剪的自身反馈，而非完整服务器日志 |
 
@@ -123,7 +128,7 @@ Final/过期回执）解除等待。
 技能、装备、野怪和状态的中文名经 `LDHUD::ContentText` 从 `DemoContent` 字符串表读取；
 表或键缺失时显示稳定 Id 并记录 `LD_HUD_DISPLAY_TEXT_MISSING`，不猜名称。
 `LDHUDModel`、`LDHUD`、`LDMinimap`、`LDUIRoot` 及各 Panel 是主要 UMG/Slate 入口。
-属性、三选一、小卖部三个普通主面板由 `LDHUD` 创建并停靠在自身画布上（命中测试只算面板本体），
+属性、三选一、砍一刀小摊三个普通主面板由 `LDHUD` 创建并停靠在自身画布上（命中测试只算面板本体），
 并向 `ULDUIRoot::RegisterMainPanel` 登记；同一时刻只开一个，权威事件用 `ShowMainPanel` 打开，
 不会顶掉玩家随后打开的菜单或设置。
 
@@ -159,15 +164,15 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
 | 音效 | 唯一来源 | 只响一次的规则 |
 | --- | --- | --- |
-| 击杀通知 | `KillFeed` 新序号，与横幅相同的 6 秒新鲜度；本人是受害者时由社死音效代替 | 按代次与序号 |
+| 击杀通知 | `KillFeed` 新序号，与横幅相同的 6 秒新鲜度；本人是受害者时由本人死亡音效代替 | 按代次与序号 |
 | 开圈 / 开始占领或换人 / 争夺 | `PublicMatch` 的开放状态与 `CaptureEpoch`（只在 CaptureOpen 阶段） | 每个 epoch 一次；占领类提示 1 秒内最多一次 |
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
-| 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中面子下降且上限未降；致死一击交给社死音效 | 0.2 秒内最多一次 |
-| 本人淡定吸收（`SelfShieldHit`） | 同一投影中面子未降而淡定减少，且淡定状态仍在或在其列出的到期前消失（与
+| 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中精神状态下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
+| 本人心理防线吸收（`SelfShieldHit`） | 同一投影中精神状态未降而心理防线减少，且心理防线状态仍在或在其列出的到期前消失（与
 | 本人技能、装备主动或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
-| 购买或出售成功 / 交易被拒 | 本人小卖部提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
+| 购买或出售成功 / 交易被拒 | 本人砍一刀小摊提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
-| 本人社死 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
+| 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
 | 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |
 
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
@@ -177,13 +182,13 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
-一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如淡定吸收复用受击的 `impactGeneric_light_000.ogg`；
+一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如心理防线吸收复用受击的 `impactGeneric_light_000.ogg`；
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
 BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
 结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
-复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（淡定吸收为 -6 dB，音量约为受击的一半）；被复用的文件只计一次中位数。
+复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（心理防线吸收为 -6 dB，音量约为受击的一半）；被复用的文件只计一次中位数。
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
 很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
@@ -196,13 +201,15 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   `Lockdown.Rules.DemoControl.StealthObservation` 覆盖隐身的观察授权、撤销与近距离发现。
 - `Lockdown.Rules.DemoVision.ActionCues` 覆盖动作提示与提示龄的线缆规则、六个名册座位与身体色（座位互不相同、营地 NPC 不用座位色）；
   `Lockdown.Rules.DemoVision.Projectiles` 覆盖飞行物线缆上限与句柄冲突、同一视线规则的近者优先选择、逐观察者句柄寿命，以及接收端隐藏与超时清除。
-- `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“弹脑瓜崩”文案与头像/身体共用的六色。
+- `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“大比兜”文案与头像/身体共用的六色；
+  `HUDTermsGlossary` 核对术语表里重复的状态名与批准目录一致、系统术语不为空不重复且不与条目名相同。
+  HUD 与头顶标签测试的条目名从 `LDDemoContentFixtures` 的 approved_base 读取（`LDTestApprovedDisplay`），世界观术语引用 `LDTerms`，不逐字重复。
 - `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars,ReadinessPips}`（`LDWorldLabelsTests`）
-  覆盖头顶名字、状态行、只显示白名单（胆量、装备、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与淡定收比，以及就绪点分类。
+  覆盖头顶名字、状态行、只显示白名单（电量、装备、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与心理防线收比，以及就绪点分类。
 - `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`HUDNextStep` 覆盖下一步提示的优先级与别局投影不提示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值。
 - `Lockdown.Rules.DemoVision.Presentation` 覆盖呈现时钟：样本间线性插值、最新样本之后保持不外推、跳变样本不扫过、朝向走短弧，以及时钟偏移的下调、限速上调与重设。
 - `Lockdown.Rules.WorldFeedback.{Priming,OwnDamageAndHeal,Shield,VisibleUnits,RewardsAndLevel,Kill,Text}`（`LDWorldFeedbackTests`）
-  覆盖画面回馈事件：首样本与换代只重设基线、回血容差与最大值变化不飘字、淡定增减与自然到期、可见单位相邻帧差与重现不补发、
+  覆盖画面回馈事件：首样本与换代只重设基线、回血容差与最大值变化不飘字、心理防线增减与自然到期、可见单位相邻帧差与重现不补发、
   奖励只在经验增加时出现且买卖不飘、本人新鲜击败与他人击杀/过期通知不出、以及显示文本。
 - `HUDObservationBoundary`（`LDHUDRulesTests`）覆盖检视器白名单和地图换算。
 - `HUDLifeStatus`（`LDHUDRulesTests`）覆盖自身生命行：权威时刻缺失时显示不可用，倒计时在截止前不显示 0，死亡不显示金币损失。
@@ -210,7 +217,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
   覆盖本人资源与等级、Q/W/1/2/D 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
 - `HUDCooldownText`、`HUDActionStates`、`HUDDeathCause`、`HUDKillFeedSelf`（`LDHUDRulesTests`）覆盖冷却秒数文字（不提前显示 0）、
-  动作格的冷却/胆量不足/受控/空槽/准备态分类与胆量消耗文字、本命之后的死因取值，以及击杀通知里本人写作“你”。
+  动作格的冷却/电量不足/受控/空槽/准备态分类与电量消耗文字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
   首样本基线与去重、别局/别命/迟到回执不响、目录完整性，以及实际 `DA_DemoAudio` 资产可解析；
   它们不证明实际听感或打包后的设备输出。
@@ -218,8 +225,8 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `RunDemoVisionCheck.ps1`（`Tests\LDDemoVisionProbe`）：参赛且渲染的 Listen Host 与两个拥有客户端经正常大厅开局，
   三具身体走到公共占领锚点后，检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、
   单连接丢帧（引擎网络模拟，非 Shipping）后的超时清除与无 LastSeen，以及客户端断开后 Host 不再呈现离开者。
-  之后的纸箱隐身段（`#ST`/`#STH`）在四轮里分别隐身两个受限客户端与 Listen Host，逐帧核对揭示半径外不呈现、
+  之后的路人甲 T 恤隐身段（`#ST`/`#STH`）在四轮里分别隐身两个受限客户端与 Listen Host，逐帧核对揭示半径外不呈现、
   旧句柄不再出现或解析、不留代理、Host 不绘制原生身体，失视野取消锁定与追击，重新发现换新句柄，
-  以及攻击、施法、受伤、受控四种现身后远处观察者在到期前重新看到；它只用 DEV 成长夹具发放买纸箱的零花钱与预置开局选项。
+  以及攻击、施法、受伤、受控四种现身后远处观察者在到期前重新看到；它只用 DEV 成长夹具发放买路人甲 T 恤的米与预置开局选项。
   正常开局门禁打开前它无法运行；未实际运行不算通过。
 - 必须观察真正受限的客户端及其可访问记录，包括 Listen Host 上非本地原生身体是否隐藏；不能只看服务器全知视图或一张截图。

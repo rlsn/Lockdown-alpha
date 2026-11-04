@@ -1,6 +1,7 @@
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDTerms.h"
 #include "UI/LDAttributesPanel.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDShopPanel.h"
@@ -139,7 +140,7 @@ FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
 // Camp tiers are named after their approved creature, never a guessed or hidden attacker.
 void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High)
 {
-    Low=TEXT("低档野怪");High=TEXT("高档野怪");
+    Low=LDTerms::CampLow;High=LDTerms::CampHigh;
     if(Content){for(const FLDDemoMonsterDefinition& Monster:Content->Monsters){(Monster.Tier==ELDDemoCampTier::Low?Low:High)=LDHUD::ContentName(Content,Monster.Id);}}
 }
 }
@@ -556,18 +557,18 @@ void ULDHUD::RefreshReadModel()
     LDHUD::FResourceView Health,Mana;double ShieldPoints=0;
     if(OwnCombat&&OwnCombat->bHasBody)
     {
-        Health=LDHUD::ResourceP2(TEXT("面子"),OwnCombat->HPP2,OwnCombat->MaxHPP2,true);
-        Mana=LDHUD::ResourceP2(TEXT("胆量"),OwnCombat->MPP2,OwnCombat->MaxMPP2,false);
+        Health=LDHUD::ResourceP2(LDTerms::Health,OwnCombat->HPP2,OwnCombat->MaxHPP2,true);
+        Mana=LDHUD::ResourceP2(LDTerms::Mana,OwnCombat->MPP2,OwnCombat->MaxMPP2,false);
         ShieldPoints=double(OwnCombat->ShieldP2)/100.;
     }
     else
     {
-        Health=LDHUD::Resource(TEXT("面子"),O.Hp,O.MaxHp,true);
-        Mana=LDHUD::Resource(TEXT("胆量"),O.Mp,O.MaxMp,false);
+        Health=LDHUD::Resource(LDTerms::Health,O.Hp,O.MaxHp,true);
+        Mana=LDHUD::Resource(LDTerms::Mana,O.Mp,O.MaxMp,false);
         ShieldPoints=O.Barrier;
     }
     FString HealthLine=Health.Text;
-    if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · 淡定 %.0f"),FMath::CeilToDouble(ShieldPoints));}
+    if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · %s %.0f"),LDTerms::Shield,FMath::CeilToDouble(ShieldPoints));}
     HealthBar->SetPercent(Health.Fraction);HudSetText(HealthText,HealthLine);
     ManaBar->SetPercent(Mana.Fraction);HudSetText(ManaText,Mana.Text);
     HudSetText(HealthRegenText,LDHUD::RegenText(O,OwnCombat,true));
@@ -579,7 +580,7 @@ void ULDHUD::RefreshReadModel()
     LevelBar->SetPercent(Level.Fraction);HudSetText(LevelText,Level.Level+TEXT(" · ")+Level.Experience);
     const bool bLevelKnown=Progression&&Progression->Level>=1&&Progression->Level<=Progression->MaxLevel;
     HudSetText(LevelBadgeText,bLevelKnown?FString::FromInt(Progression->Level):FString(TEXT("—")));
-    HudSetText(GoldText,Equipment?LDHUD::Gold(Equipment->Gold):FString(TEXT("零花钱 同步中")));
+    HudSetText(GoldText,Equipment?LDHUD::Gold(Equipment->Gold):FString(LDTerms::Gold)+TEXT(" 同步中"));
     HudSetText(SelfStatusText,OwnCombat?LDHUD::SelfStatusLine(*OwnCombat,bClock,NowMs,Content):FString());
     HudSetShown(SelfStatusText,!SelfStatusText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     // A missing projection still reads as syncing; known projections without any passive leave the line out.
@@ -659,7 +660,7 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(PendingPrompt,Pending>0,ESlateVisibility::SelfHitTestInvisible);
     if(Pending>0)
     {
-        HudSetText(PromptText,FString::Printf(TEXT("可选成长 ×%d · 点击选择"),Pending));
+        HudSetText(PromptText,FString::Printf(TEXT("%s ×%d · 点击选择"),LDTerms::Choice,Pending));
         const double PulseAge=UiNow-PromptPulseAt;
         const float Wave=PromptPulseAt>=0&&PulseAge<HudPulseSeconds?.5f-.5f*FMath::Cos(2.f*UE_PI*float(PulseAge)):0.f;
         if(AppliedPromptWave!=Wave){AppliedPromptWave=Wave;const float Scale=1.f+.05f*Wave;PendingPrompt->SetRenderScale(FVector2D(Scale,Scale));PendingPrompt->SetRenderOpacity(1.f-.25f*Wave);}
@@ -755,7 +756,7 @@ void ULDHUD::RefreshReadModel()
     const FLDObservedFrameRead Frame=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
     const bool bSightCurrent=Frame.Frame&&Frame.Status==ELDObservedViewStatus::Current;
     // The map already shows a normal current view; only a syncing, stale or dead view needs words under it.
-    HudSetText(SightText,!bAlive?FString(TEXT("社死：仅显示静态地图与公开信息"))
+    HudSetText(SightText,!bAlive?FString(LDTerms::Dead)+TEXT("：仅显示静态地图与公开信息")
         :bSightCurrent?FString::Printf(TEXT("视野：当前可见 %d 个单位"),Frame.Frame->Units.Num())
         :Frame.Status==ELDObservedViewStatus::Stale?FString(TEXT("视野：已过期，等待刷新")):FString(TEXT("视野：同步中")));
     HudSetShown(SightText,!bAlive||!bSightCurrent,ESlateVisibility::HitTestInvisible);
@@ -838,20 +839,20 @@ void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
     if(!PC->ReadShopInteraction(ShopId,Life)||Result.Generation!=PC->OwnerState.Match||Result.Life!=Life||Result.ShopId!=ShopId){return;}
     switch(Result.OpenStatus)
     {
-    case ELDShopOpenStatus::Pending: ShowToast(TEXT("小卖部：等待开店结果…"));return;
+    case ELDShopOpenStatus::Pending: ShowToast(FString(LDTerms::Shop)+TEXT("：等待开张结果…"));return;
     case ELDShopOpenStatus::Rejected:
     {
         const FString Why=LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason));
-        ShowToast(TEXT("小卖部没有打开：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));return;
+        ShowToast(FString(LDTerms::Shop)+TEXT("没有打开：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));return;
     }
     case ELDShopOpenStatus::Opened:
         if(!Result.bHasView||!Result.View.SessionId.IsValid())
         {
             UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
-            ShowToast(TEXT("小卖部结果缺少报价，没有打开"));return;
+            ShowToast(FString(LDTerms::Shop)+TEXT("结果缺少报价，没有打开"));return;
         }
         OpenedShop=Result;OpenedShopPublish=PC->OwnerState.Growth.PublishRevision;bOpenedShop=true;
-        if(!PC->RootUI||!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Shop)){ShowToast(TEXT("小卖部已开门：关闭当前界面后再次右键小卖部即可打开"));}
+        if(!PC->RootUI||!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Shop)){ShowToast(FString(LDTerms::Shop)+TEXT("已开张：关闭当前界面后再次右键")+LDTerms::Shop+TEXT("即可打开"));}
         return;
     default:
         UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
@@ -916,15 +917,15 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Level,const FString& Mark)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,80));Line->AddChildToHorizontalBox(Cell(Deaths,80));
+        Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,90));Line->AddChildToHorizontalBox(Cell(Deaths,90));
         Line->AddChildToHorizontalBox(Cell(Level,100));Line->AddChildToHorizontalBox(Cell(Mark,80));
         ResultRows->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4));
     };
-    Row(TEXT("名称"),TEXT("击杀"),TEXT("社死"),TEXT("最终等级"),FString());
+    Row(TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,TEXT("最终等级"),FString());
     for(const FLDResultRow& Entry:Result.Rows)
     {
         const LDHUD::FResultRowView View=LDHUD::ResultRow(Entry,Result.Winner,PC.OwnerState.ContenderId);
-        Row(View.Name,View.Kills,View.Deaths,View.Level,View.bWinner?FString(TEXT("阴人王")):FString());
+        Row(View.Name,View.Kills,View.Deaths,View.Level,View.bWinner?FString(LDTerms::Winner):FString());
     }
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
@@ -959,7 +960,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     const bool bOwnCombat=Self&&Own.Life!=0&&PC->CombatView.bHasBody&&PC->CombatView.Generation==Own.Match&&PC->CombatView.Life==Own.Life;
     if(bOwnCombat&&!bArmedEntry&&!PC->IsAttackMoveArmed()&&PC->CombatView.AttackRangeCm>0)
     {
-        // A faint standing ring of the own 弹脑瓜崩 reach (the projected attack range, so range growth shows at once).
+        // A faint standing ring of the own basic attack reach (the projected attack range, so range growth shows at once).
         const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         RangeRing(Feet,PC->CombatView.AttackRangeCm,FLinearColor(1.f,1.f,1.f,.22f),1.2f);
     }
