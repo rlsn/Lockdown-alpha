@@ -6,6 +6,11 @@ bool LDCombatPreInput::IsDirectEntry(ELDCombatEntry Entry)
         || Entry == ELDCombatEntry::Dash;
 }
 
+bool LDCombatPreInput::FiresOnPress(ELDCombatEntry Entry)
+{
+    return Entry == ELDCombatEntry::Dash;
+}
+
 bool LDCombatPreInput::IsWindingUp(const FLDCombatOwnerView& View, int64 NowMs)
 {
     if (!View.bHasBody || View.ActionPhase != ELDCombatPhase::Accepted || !IsDirectEntry(View.ActionEntry)) { return false; }

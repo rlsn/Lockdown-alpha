@@ -34,6 +34,12 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     {
         bAttackMoveArmed=false;
         ArmedEntry=Entry;
+        // The D dash goes toward the pointer at once; without ground under the pointer the server refuses it explicitly.
+        if (LDCombatPreInput::FiresOnPress(Entry))
+        {
+            ConfirmArmedCombat();
+            return;
+        }
         // Quick cast (local setting): fires at the pointer at once when it already names the aim; a unit skill without
         // a visible unit under the pointer stays armed for the ordinary left-click confirmation.
         if (Controls && Controls->GetQuickCast())

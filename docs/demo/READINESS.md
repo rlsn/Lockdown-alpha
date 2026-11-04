@@ -60,12 +60,13 @@
 | #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
 | #82 追加 | 属性卡：食堂加餐 +100→+60 面子，穿秋裤双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡（举铁、长臂猿、穿秋裤、食堂加餐，不含刷整蛊视频）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
-| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值待用户批准（[内容报告 §15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与待批数值7781)），未做平衡测试与拥有连接场景验证；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
 | D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
 | D28 | 胜利条件不变 | 无需改动 |
 | D29 | 整蛊表现：被扒裤衩、被千年杀等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
 | D30 | 地图布局与野怪可以重新设计；数量不变（1 个占领点、10 个出生点、5 组 2 档野怪、1 个商店） | 已决定，未实现（[#97](https://github.com/rlsn/Lockdown-alpha/issues/97)）；App Spec §6.1 随实现修改 |
+| D31 | 2026-11-04 用户批准全部待批数值与规则（构筑扩展 A/B、纸箱与嘲讽细则、泰山压顶与你过来啊），并采纳“按 D 立即朝指针冲刺” | 已进入运行输入，作为试玩输入，未经平衡测试；D 冲刺按下即朝指针方向发出、不再左键确认、与快速施法无关（规则 `DemoControlFeel.PreInput`）。原话：“全部批准，并采纳‘按 D 立即朝指针冲刺’” |
 
 ## 已确认的实施方向
 

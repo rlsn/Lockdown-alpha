@@ -55,6 +55,9 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
         IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W) && IsDirectEntry(ELDCombatEntry::Item1)
         && IsDirectEntry(ELDCombatEntry::Item2) && IsDirectEntry(ELDCombatEntry::Dash)
         && !IsDirectEntry(ELDCombatEntry::Basic) && !IsDirectEntry(ELDCombatEntry::None));
+    TestTrue(TEXT("The D dash fires toward the pointer on the press; Q/W/1/2 still arm"),
+        FiresOnPress(ELDCombatEntry::Dash) && !FiresOnPress(ELDCombatEntry::Q) && !FiresOnPress(ELDCombatEntry::W)
+        && !FiresOnPress(ELDCombatEntry::Item1) && !FiresOnPress(ELDCombatEntry::Item2) && !FiresOnPress(ELDCombatEntry::Basic));
     TestTrue(TEXT("A held press lives at most a second"), HoldSeconds == 1.0);
     return true;
 }

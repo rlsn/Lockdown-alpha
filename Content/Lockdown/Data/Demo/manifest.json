@@ -2,7 +2,7 @@
   "author_schema_sha256": "67ebfaba4e3b9c252f651feb5a42ba2e988587761ccc6e3a312336ca6e9a3180",
   "content": {
     "file": "demo_content.json",
-    "sha256": "8a17173f79f191a0b73d4853ffcd31b27516ffa31c8aed9eeeec1e9c4ff6de86"
+    "sha256": "253381d18766391268881795ca3be8feb0046a5fc84a1f5f0bf5b9f5f29d1e8e"
   },
   "display_sha256": "293056e2cd4378160dd9c2aabd5c72574b48c6ca8057de9b3df6111611a3d856",
   "format": "lockdown-demo-content",
@@ -15,9 +15,9 @@
     "contract": {
       "projection_revision": 2,
       "schema_version": 2,
-      "sha256": "d9460a310023537b062adec1ac618774cb7c164e56a84f905f3d6a804c03b742"
+      "sha256": "3f0a068e5043cd1a905d6ef4f06ee6f01cd3502f2f1211c49bc4b00ce56411a6"
     },
     "file": "world.json",
-    "sha256": "9f2787a69abcd11bceed5ee5b8536f2521a35f9e5301b2c6bc5f2d5db4ec0f0f"
+    "sha256": "8c5e16fc2e945c18f0ce0120bdf73bbc85936ce8a3abccf839f17122d7941d89"
   }
 }

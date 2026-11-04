@@ -181,7 +181,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
         {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
-        {TEXT("Dash"),TEXT("冲刺"),EKeys::D},
+        {TEXT("Dash"),TEXT("冲刺（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},

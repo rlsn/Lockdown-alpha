@@ -36,7 +36,7 @@ class ApprovedDemoData(unittest.TestCase):
         approval = self.data["identity"]["approval"]
         self.assertEqual(approval["status"], "approved")
         self.assertEqual(approval, self.world.world["approval"])
-        for text in ("2026-11-02", "D01", "D02", "D03", "playtest", "not a balance"):
+        for text in ("2026-11-02", "D01", "D02", "D03", "2026-11-04", "#82", "15.7-15.9", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
@@ -242,7 +242,7 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(row["cooldown"]["ms"], cooldown)
 
     def test_build_expansion_a_entries(self):
-        # #77/#81 pending-approval proposal (CONTENT_AND_BALANCE 15.3/15.4).
+        # #77/#81 entries approved by the user on 2026-11-04 as playtest input (CONTENT_AND_BALANCE 15.7).
         slipper = self.catalog.definition("active_slipper_throw")
         self.assertEqual((slipper["target"]["mode"], amount(slipper["target"]["range"]), slipper["windup"]["ms"]), ("Unit", 600, 200))
         for row, base, slow, cooldown in zip(slipper["ranks"], (95, 125, 155), (2500, 3000, 3500), (9600, 8800, 8000)):
@@ -374,7 +374,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.catalog.definition("item_siphon_emblem")["passive"]["effects"][0]["ratio"]["bp"], 1500)
         cleave = self.catalog.definition("item_echo_maul")["passive"]["effects"][0]
         self.assertEqual((cleave["ratio"]["bp"], amount(cleave["radius"])), (3500, 180))
-        # Proposed (pending user approval): box mana cost 40; the other box terms follow CONTENT_AND_BALANCE 15.4.
+        # Approved on 2026-11-04: box mana cost 40; the other box terms follow CONTENT_AND_BALANCE 15.4.
         box = self.catalog.definition("item_paper_box")["active"]
         self.assertEqual((box["target"]["mode"], box["windup"]["ms"], box["cooldown_family"]), ("Self", 0, "cd_paper_box"))
         self.assertEqual((box["rank"]["mana_cost"]["p2"], box["rank"]["cooldown"]["ms"]), (4000, 45000))
@@ -383,7 +383,7 @@ class ApprovedDemoData(unittest.TestCase):
                           stealth["move_speed_penalty"]["bp"]), ("stealth", 3000, 250, 1000))
 
     def test_build_expansion_b_pending_proposal_values(self):
-        # CONTENT_AND_BALANCE 15.7 proposal (pending user approval): mechanics need these exact shapes to run.
+        # CONTENT_AND_BALANCE 15.8 values, approved on 2026-11-04 as playtest input.
         peach = self.catalog.definition("active_monkey_peach")
         self.assertEqual((peach["target"]["mode"], amount(peach["target"]["range"]), peach["windup"]["ms"]), ("Unit", 250, 200))
         for row, damage, disarm, mana, cooldown in zip(peach["ranks"], (90, 120, 150), (1000, 1300, 1600), (40, 45, 50), (9600, 8800, 8000)):
@@ -419,7 +419,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(amount(self.catalog.parameter("COMBAT.RearArcDeg")), 120)
 
     def test_cross_batch_entries_pending_proposal_values(self):
-        # CONTENT_AND_BALANCE 15.9 proposal (pending user approval): the jump/area/slow and taunt/timed-bonus assemblies.
+        # CONTENT_AND_BALANCE 15.9 values, approved on 2026-11-04: the jump/area/slow and taunt/timed-bonus assemblies.
         slam = self.catalog.definition("active_body_slam")
         self.assertEqual((slam["target"]["mode"], amount(slam["target"]["range"]), slam["windup"]["ms"], slam["cooldown_family"]),
                          ("GroundPoint", 400, 0, "cd_body_slam"))
