@@ -135,6 +135,17 @@ namespace LDProgression
     // Weighted draw of three distinct options without replacement; deterministic in Seed.
     LOCKDOWN_API ELDGrowthReason DrawThree(const TArray<FLegalOption>& Pool, int64 Weight, uint64 Seed,
         TArray<FLegalOption>& Out);
+    // D24 opening composition over Pool: indices of the attribute cards named by OpeningAttributeIds and of the new
+    // passives (whatever passives the catalog holds). DataInvalid when the counts are malformed or a group is short.
+    LOCKDOWN_API ELDGrowthReason OpeningCandidates(const FLDDemoProgressionDefinition& Progression,
+        const TArray<FLegalOption>& Pool, TArray<int32>& OutAttributes, TArray<int32>& OutPassives);
+    // D24 opening offer: OpeningAttributeCount distinct opening attribute cards and OpeningPassiveCount distinct new
+    // passives, each uniform within its group, in shuffled positions; deterministic in Seed.
+    LOCKDOWN_API ELDGrowthReason DrawOpening(const FLDDemoProgressionDefinition& Progression,
+        const TArray<FLegalOption>& Pool, int64 Weight, uint64 Seed, TArray<FLegalOption>& Out);
+    // Opportunity 1 is the opening offer (DrawOpening); every later opportunity draws from the whole pool (DrawThree).
+    LOCKDOWN_API ELDGrowthReason DrawOffer(const FLDDemoProgressionDefinition& Progression,
+        const TArray<FLegalOption>& Pool, uint8 Ordinal, int64 Weight, uint64 Seed, TArray<FLegalOption>& Out);
     // Private per-opportunity random material; a retry of the same ordinal reuses it.
     LOCKDOWN_API uint64 OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
     LOCKDOWN_API bool OptionStillLegal(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,

@@ -247,6 +247,7 @@ void ALDPlayerController::V05Pressed(FName Action)
     else if (Action==TEXT("Skill2")) { ActivateCombatEntry(ELDCombatEntry::W); }
     else if (Action==TEXT("Item1")) { ActivateCombatEntry(ELDCombatEntry::Item1); }
     else if (Action==TEXT("Item2")) { ActivateCombatEntry(ELDCombatEntry::Item2); }
+    else if (Action==TEXT("Dash")) { ActivateCombatEntry(ELDCombatEntry::Dash); }
 }
 
 void ALDPlayerController::V05Released(FName Action)

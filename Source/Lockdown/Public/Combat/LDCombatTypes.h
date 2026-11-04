@@ -11,20 +11,21 @@ class AController;
 
 // ---------------------------------------------------------------- sources and entries
 
+// Innate: the D dash every contender has (D19); it is no learned or gear source and is never sold or forgotten.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear };
+enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear, Innate };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
-// Navigation-derived contender attacks and from registered camp members.
+// Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
 UENUM()
-enum class ELDCombatEntry : uint8 { None, Basic, Q, W, Item1, Item2 };
+enum class ELDCombatEntry : uint8 { None, Basic, Q, W, Item1, Item2, Dash };
 
 USTRUCT()
 struct FLDCombatSourceRef
 {
     GENERATED_BODY()
     UPROPERTY() ELDCombatSourceKind Kind=ELDCombatSourceKind::None;
-    UPROPERTY() FName DefinitionId;   // ability or equipment id; None for Basic
+    UPROPERTY() FName DefinitionId;   // ability or equipment id; None for Basic; LDCombatSourceRules::InnateDashId for Innate
     UPROPERTY() FGuid ItemInstance;   // Gear only
     bool operator==(const FLDCombatSourceRef& Other) const
     { return Kind==Other.Kind && DefinitionId==Other.DefinitionId && ItemInstance==Other.ItemInstance; }
@@ -43,7 +44,7 @@ struct FLDCombatCaller
 // ---------------------------------------------------------------- action requests
 
 UENUM()
-enum class ELDCombatTargetKind : uint8 { Missing, Self, Unit, Direction };
+enum class ELDCombatTargetKind : uint8 { Missing, Self, Unit, Direction, Point };
 
 USTRUCT()
 struct FLDCombatTarget
@@ -53,10 +54,11 @@ struct FLDCombatTarget
     UPROPERTY() FGuid Observed;                    // Unit, contender callers: observer-local handle
     UPROPERTY() uint32 ObservationEpoch=0;
     UPROPERTY() FVector_NetQuantizeNormal Direction=FVector::ZeroVector; // Direction: planar unit vector
+    UPROPERTY() FVector_NetQuantize Point=FVector::ZeroVector;           // Point: requested ground point (GroundPoint skills)
     FLDCombatBodyRef ServerBody;                   // Unit from a registered camp member only; never replicated
 };
 
-// Direct request; DirectSequence is monotonic per contender (Q/W/1/2 share it) or per camp member.
+// Direct request; DirectSequence is monotonic per contender (Q/W/1/2/D share it) or per camp member.
 USTRUCT()
 struct FLDCombatActionRequest
 {
@@ -352,8 +354,8 @@ struct FLDCombatBodyRead
     bool bActionInProgress=false;
     int64 NextAttackAtMs=0;
     double AttackRangeCm=0;
-    bool bMovementAllowed=false;         // alive, not pending death, not rooted
-    bool bAttackAllowed=false;           // alive, not pending death; Root does not block attacks
+    bool bMovementAllowed=false;         // alive, not pending death, neither rooted nor stunned
+    bool bAttackAllowed=false;           // alive, not pending death, neither disarmed nor stunned; Root does not block attacks
     bool bBasicAttackReady=false;        // attack allowed, no action in progress and now >= NextAttackAtMs
 };
 
@@ -406,7 +408,9 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Choices;
     UPROPERTY() FLDDemoRational Passives;
     UPROPERTY() FLDDemoRational Equipment;
-    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms
+    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build
+    UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
+    UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };
@@ -443,13 +447,14 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 MaxMPP2=0;
     UPROPERTY() int64 ShieldP2=0;
     UPROPERTY() uint64 SourceRevision=0;
-    UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Item1, Item2
+    UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Item1, Item2, Dash
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
     UPROPERTY() int64 NextAttackAtMs=0;
     UPROPERTY() ELDCombatEntry ActionEntry=ELDCombatEntry::None;
     UPROPERTY() ELDCombatPhase ActionPhase=ELDCombatPhase::Finished; // Accepted while a windup is pending
     UPROPERTY() uint64 ActionToken=0;
     UPROPERTY() int64 ActionReleaseAtMs=0;
+    // Voluntary movement is blocked (Root or Stun); the client movement prediction reads it.
     UPROPERTY() bool bRooted=false;
     UPROPERTY() float MoveSpeedCmPerSec=0;
     UPROPERTY() float AttackRangeCm=0;

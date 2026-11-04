@@ -61,6 +61,10 @@ public:
     uint64 AuthorityIntegrationCount=0, RejectedAuthorityMoves=0, NetworkBookkeepingMoves=0, SuppressedNetworkSimulationMoves=0;
     double AuthorityIntegratedSeconds=0;
 protected:
+    // The dash root motion itself (no authority or Demo-world gate): a planar override force covering DistanceCm in
+    // DurationSeconds that stops against blocking geometry and ends with zero velocity. Only StartDemoDash and the
+    // isolated native probes call it.
+    bool ApplyDashRootMotion(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error);
     virtual bool MoveUpdatedComponentImpl(const FVector& Delta, const FQuat& Rotation, bool Sweep,
         FHitResult* Hit=nullptr, ETeleportType Teleport=ETeleportType::None) override;
 #if WITH_DEV_AUTOMATION_TESTS

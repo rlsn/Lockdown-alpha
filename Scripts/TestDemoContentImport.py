@@ -391,7 +391,8 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"].update({"CAMP.Low.AggroRadiusCm": {"unit": "cm", "value": 0}}),
             lambda data: data["abilities"][0]["ranks"][0].update(extra=1),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(hidden_legacy_fallback=True),
-            lambda data: data["equipment"][4]["active"].update(range={"unit": "cm", "value": 120}),
+            lambda data: data["equipment"][5]["active"].update(range={"unit": "cm", "value": 120}),
+            lambda data: data["character"]["dash"].update(windup={"unit": "s", "value": 0}),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -417,7 +418,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"].update(active_arc_bolt=True),
             lambda data: data["abilities"].update(active_arc_bolt=61),
             lambda data: data["abilities"].update(active_arc_bolt=63),
-            lambda data: data["abilities"].update(active_arc_bolt=68),
+            lambda data: data["abilities"].update(active_arc_bolt=200),
             lambda data: data["retired_ranges"].update(abilities=[0, 60]),
             lambda data: data["effect_ops"].pop("shield"),
         ):
@@ -426,7 +427,8 @@ class DemoContentImport(unittest.TestCase):
                 self.assert_refused(mutation, relative=demo.IDS_SOURCE)
         (self.root / demo.IDS_SOURCE).write_bytes(original)
         path = self.root / demo.NATIVE_IDS
-        path.write_bytes(path.read_bytes().replace(b"ActiveArcBolt=62", b"ActiveArcBolt=68"))
+        # An unused number: a renumbering, not a collision with another declared identity.
+        path.write_bytes(path.read_bytes().replace(b"ActiveArcBolt=62", b"ActiveArcBolt=200"))
         with self.assertRaisesRegex(ValueError, "NativeId"):
             demo.compile_content(self.root)
 
@@ -436,7 +438,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0]["ranks"].reverse(),
             lambda data: data["abilities"][0]["ranks"][1].update(rank=1),
             lambda data: data["abilities"][0]["ranks"][2].pop("mana_cost"),
-            lambda data: data["equipment"][4]["active"]["rank"].update(rank=2),
+            lambda data: data["equipment"][5]["active"]["rank"].update(rank=2),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -448,8 +450,16 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0].update(cooldown_family="unknown_family"),
             lambda data: data["equipment"][3]["passive"].update(family="passive_cleave"),
             lambda data: data["abilities"][3]["ranks"][0]["effects"][0].update(stats={"ADFlat": {"unit": "points", "value": 1}}),
-            lambda data: data["equipment"][4].update(active=None),
-            lambda data: data["equipment"][0].update(active=deepcopy(data["equipment"][4]["active"])),
+            lambda data: data["equipment"][5].update(active=None),
+            lambda data: data["equipment"][0].update(active=deepcopy(data["equipment"][5]["active"])),
+            lambda data: data["equipment"][4].update(passive=None),
+            lambda data: data["equipment"][4]["passive"].update(family="passive_cleave"),
+            lambda data: data["equipment"][4]["passive"]["effects"][0].update(cooldown_ratio={"unit": "ratio", "value": 0}),
+            lambda data: data["equipment"][4]["passive"]["effects"][0].update(
+                cooldown_ratio={"unit": "ratio", "value": 1}, distance_bonus={"unit": "ratio", "value": 0}),
+            lambda data: data["character"].pop("dash"),
+            lambda data: data["character"]["dash"].update(distance={"unit": "cm", "value": 0}),
+            lambda data: data["character"]["dash"].update(duration=deepcopy(data["character"]["dash"]["cooldown"])),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -466,6 +476,31 @@ class DemoContentImport(unittest.TestCase):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation, "UnknownField|BuildEnvelope")
+
+    def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
+        for mutation, code in (
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_unknown"), "InvalidReference|OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].reverse(), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].append("attr_might"), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=3), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=0, passive_count=3), None),
+            (lambda data: data["progression"]["opening_offer"].pop("passive_count"), "MissingField"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                if code is None:
+                    # Three passives exist in the fixture, so an all-passive opening is a valid composition.
+                    changed = deepcopy(self.author)
+                    mutation(changed)
+                    (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
+                    demo.compile_author(self.root)
+                else:
+                    self.assert_refused(mutation, code)
 
     def test_build_bounds_zero_gain_arbitrage_and_xp_consistency_refuse(self):
         for mutation in (

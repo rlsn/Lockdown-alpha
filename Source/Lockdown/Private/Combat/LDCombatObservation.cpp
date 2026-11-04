@@ -51,6 +51,8 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     const bool bActing=State->Action.IsSet() && State->Action->Kind!=ELDCombatActionKind::Basic
         && State->Action->StartedAtMs==Cue.AtMs;
     const FLDCombatSourceRef& Source=bActing ? State->Action->Source : State->ReleasedSource;
+    // The innate dash is movement shared by every contender: its cast shows no ability or gear name.
+    if (Source.Kind==ELDCombatSourceKind::Innate) { return true; }
     const FLDDemoContentSnapshot* Content=Catalog();
     FString Error;
     if (Content && Source.Kind==ELDCombatSourceKind::Learned)

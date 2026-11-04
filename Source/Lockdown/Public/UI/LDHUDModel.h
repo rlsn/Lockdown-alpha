@@ -114,7 +114,7 @@ namespace LDHUD
     // One frozen row in locked roster order; statistics are display only and never decide the winner.
     LOCKDOWN_API FResultRowView ResultRow(const FLDResultRow& Row,const FGuid& Winner,const FGuid& Self);
 
-    enum class EActionSlot : uint8 { Q, W, Item1, Item2 };
+    enum class EActionSlot : uint8 { Q, W, Item1, Item2, Dash };
     enum EActionBlock : uint32
     {
         ActionUnsynced=1<<0, ActionEmpty=1<<1, ActionNoActive=1<<2, ActionCooldown=1<<3, ActionMana=1<<4,
@@ -131,6 +131,7 @@ namespace LDHUD
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
         int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
+        int32 RangeCm=0;          // the active's current reach (the dash distance for D)
         bool bControlled=false;   // an own control status forbids this entry kind
         FString ServerBlock;      // display text of the server's current reason; empty when none
     };
@@ -237,7 +238,7 @@ namespace LDHUD
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
-    // The same execution failure for the pressed Q/W/1/2 slot, which already names its entry: the reason only. Empty for
+    // The same execution failure for the pressed Q/W/1/2/D slot, which already names its entry: the reason only. Empty for
     // other entries and for anything CombatReceiptNotice would not report as a failure.
     LOCKDOWN_API FString CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt);
     // The toast line for every own receipt that arrived since the last frame, oldest first: each distinct notice once, in

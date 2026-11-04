@@ -14,7 +14,7 @@
 → CharacterMovement**。真人通过拥有连接的 RPC 提交意图；对手 AI（`ALDOpponentController`）
 在服务器上直接调用同一组 `SubmitOrder/CancelOrder/QueryOrder` 与 Combat 入口，不伪造 LocalPlayer 或 RPC。
 
-本模块负责右键移动/追击/前往小卖部、A 攻击移动、Q/W 与 1/2 的准备与确认、S 停止、Esc 返回、
+本模块负责右键移动/追击/前往小卖部、A 攻击移动、Q/W、1/2 与 D 冲刺的准备与确认、S 停止、Esc 返回、
 镜头和可保存绑定。战斗域负责动作、资源、节拍、命中与效果；世界域负责地面/路径查询与观察权限；
 生命周期域负责身体、真实时间步、保护与占领。没有连招、指令队列、多单位框选、编队、
 团队命令或自由旋转镜头。
@@ -27,7 +27,7 @@
 | 路径跟随 | `Source\Lockdown\Public\Navigation\LDPathSteering.h`、`Source\Lockdown\Private\Navigation\LDPathSteering.cpp` | `PlanStart`、`PlanRoute`（`EGoal::Ground/Body`）、`Steering`、`AtGoal`、`HaltLocomotion`。 |
 | 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记与悬停圈。 |
 | 输入映射与按键分派 | `Source\Lockdown\Public\Framework\LDPlayerController.h`、`Source\Lockdown\Private\Framework\LDPlayerInput.cpp` | 动态映射、按下/释放分派、Esc 返回、缩放、指针下单位拾取、检查对象。 |
-| 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/1/2 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
+| 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/1/2/D 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
 | 本地设置 | `Source\Lockdown\Public\UI\LDControlSettings.h`、`Source\Lockdown\Private\UI\LDControlSettings.cpp`、`Source\Lockdown\Private\UI\LDControlsPanel.cpp` | 唯一动作注册表、重绑、镜头/文字/音量/小地图/快速施法偏好与保存。 |
 | 身体与运动 | `Source\Lockdown\Private\Character\LDCharacter.cpp`、`Source\Lockdown\Public\Character\LDCharacterMovementComponent.h` | SpringArm 镜头、缩放夹限、加减速、瞬时转向；权威运动与原生运动捕获。 |
 
@@ -52,6 +52,7 @@
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
 | Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝。 |
 | 1/2 | 同 Q/W，来源为对应装备实例的主动 | 无主动的装备同样发送并被明确拒绝，不回退到角色技能。 |
+| D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
 | 方向键/屏幕边缘 | 沿固定俯视平面平移镜头 | 不移动角色、不改变视野或订单。 |
 | Space | 按住期间镜头跟住自己，松开恢复原跟随/自由状态 | 不改持久跟随偏好、不停止订单。 |
@@ -60,7 +61,7 @@
 | 小地图左键/拖动、右键 | 左键/拖动把镜头平移到该点；右键对该点发 `MoveGround` | 与世界右键地面使用同一订单入口。 |
 | Esc | 子确认/模态 → 准备态 → 普通主面板 → 菜单，每次只处理一层 | 不 Stop 已接受订单、不发世界命令。 |
 
-**鼠标取消规则：** 已有准备态（Q/W/1/2 或 A）时，右键只取消准备并消费这次点击，不移动、
+**鼠标取消规则：** 已有准备态（Q/W/1/2/D 或 A）时，右键只取消准备并消费这次点击，不移动、
 不攻击、不前往小卖部；再次右键才走普通分派（`ALDPlayerController::V05Pressed`）。
 右键分派顺序为：指针下的当前可见单位 → 小卖部交互范围 → 地面（`ULDNavigationComponent::ClickMove`）；
 一次点击只产生一个类别的订单，被拒绝时不改发另一类订单。
@@ -72,7 +73,7 @@
 - 自己的 `AttackUnit` 目标：红色收拢圈。
 - 悬停：右键此刻会攻击的可见单位脚下显示红色悬停圈（与攻击标记同色，带近黑描边）。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
-- 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/A 准备态时为
+- 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/D/A 准备态时为
   Crosshairs；在小卖部交互范围内为 Hand；其他为默认。
 - `ULDNavigationComponent::ReadHovered` 返回当前悬停单位；`PointerPosition` 与 `GroundUnderPointer`
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
@@ -95,7 +96,7 @@
 Unit 技能在指针下已有可见单位时、方向技能在指针下有地面时，按键当下即经 `ConfirmArmedCombat` 发送；
 否则仍保持准备，等待普通左键确认。
 
-**预输入**（`LDCombatPreInput`）：自己的 Q/W/1/2 正在前摇时再按一次 Q/W/1/2，
+**预输入**（`LDCombatPreInput`）：自己的 Q/W/1/2 正在前摇时再按一次 Q/W/1/2/D，
 控制器只保留最新一次按键，前摇结束后作为普通 Direct 请求发送，而不是先到服务器被判忙。
 S、新生命或新局、输入被抑制或保留超过 1 s 时丢弃；超时会提示“前一个技能未结束，预输入已取消”。
 普攻不需要预输入：攻击订单本来就在服务器等待身体空闲。
@@ -156,7 +157,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 
 - 方向键与边缘平移的速度为本地设置 `CameraPanCmPerSec`；手动平移转为自由镜头。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
-  小地图拖动和 Q/W/1/2/A 准备态时关闭。
+  小地图拖动和 Q/W/1/2/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
 - 滚轮每格改变 80 cm 臂长并夹在 1100–1700 cm（`ALDCharacter::ZoomedArmLength`），
   结果保存为本地设置 `Zoom`；这是固定的原生常量，没有可调的缩放步长或范围设置。
@@ -255,6 +256,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
   回执仍携带 `bProtectionRemoved` 与 `LifeRevision`。待受理时已被更新请求替换的攻击类请求，
   在下一次激活时补做一次解除。
 - Q/W/1/2：Combat 在处理 Direct 请求时以同一入口解除（`LDCombatActions.cpp`），空来源或缺省目标也算尝试。
+  D 冲刺是移动，不解除保护（App Spec §7.1“保护期间可以移动”）。
 - 攻击移动确认在指针下没有地面时仍发送缺省目的地，由服务器拒绝，保护照样解除。
   重复请求只重放回执，不再次解除。
 
@@ -293,7 +295,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 
 普攻没有单独的动作交接或结果回调：Navigation 每个 Actions 阶段读取 Combat 的身体状态，
 在就绪且在射程内时以新的 `AttackCycle` 申请下一次普攻；Combat 自己分配动作身份。
-Q/W/1/2 的 Direct 请求不替换当前空间订单。
+Q/W/1/2/D 的 Direct 请求不替换当前空间订单。
 
 ### 5.3 命令、版本、结果与去重
 
@@ -350,7 +352,8 @@ Direct 与 Nav 两种序号域互不比较。
 `ALDCharacter`（`Source\Lockdown\Private\Character\LDCharacter.cpp`）的 CharacterMovement
 `MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，`bOrientRotationToMovement` 关闭；
 朝向由 `SetFacing` 瞬时设置为移动方向。最大速度来自 Combat 的移动速度投影。
-冲刺类位移经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion source，不逐帧传送；
+D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion source，不逐帧传送，遇阻挡由原生 CMC 停在最远合法位置
+（`Lockdown.Rules.DemoMotionProbe.DashStopsAtWall`）；起步方向立即被静态几何挡住时 `CanStartDash` 拒绝；
 定身只停自愿转向，不停重力与已提交的 root motion。
 
 ### 7.2 世界接口，操作层不得复制实现
@@ -403,7 +406,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。圈判定、�
 | `TARGET.AttackMoveAcquireRadiusCm` | A 搜敌半径（内容公式按视野半径与当前射程计算）。 |
 | `VISION.RadiusCm` | 视野服务与 A 搜敌半径公式。 |
 | `SHOP.InteractRadiusCm` | 右键是否落在小卖部范围、`QueryShopReach` 判定。 |
-| 各 `ABILITY.*` / `ITEM.*.Active` 的 `TargetMode` 等字段 | 决定 Q/W/1/2 的目标模式与几何；无主动的装备明确不可用。 |
+| 各 `ABILITY.*` / `ITEM.*.Active` 的 `TargetMode` 等字段 | 决定 Q/W/1/2 的目标模式与几何；无主动的装备明确不可用。D 冲刺读 `character.dash` 与装备被动 `dash_boost`。 |
 
 **本地设置**（`ULDControlSettings`，只影响本机呈现，不影响世界距离、视野或角色速度）：
 
@@ -436,7 +439,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。圈判定、�
 ### 9.2 输入、战斗意图与设置
 
 `Source\Lockdown\Private\Framework\LDPlayerInput.cpp`（映射、按键、Esc、缩放、单位拾取、检查）、
-`LDPlayerOrders.cpp`（Q/W/1/2、A、S、快速施法、预输入、提示）；
+`LDPlayerOrders.cpp`（Q/W/1/2/D、A、S、快速施法、预输入、提示）；
 `Source\Lockdown\Public\Combat\LDCombatPreInput.h`；
 `Source\Lockdown\Private\UI\LDControlSettings.cpp`、`LDControlsPanel.cpp`、`LDMinimap.cpp`。
 
@@ -449,7 +452,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。圈判定、�
 ### 9.4 不存在的旧部分
 
 当前代码没有：静态 IA/IMC 输入资产与 Bootstrap 输入生成、控制设置 profile 或 Tactical/Hybrid 默认集、
-冲刺、Skill3+/Item3+ 槽、左键开店或拾取、方向普攻式的 A、“接近但不追击”的旧订单、
+按住加速的旧 Sprint、Skill3+/Item3+ 槽、左键开店或拾取、方向普攻式的 A、“接近但不追击”的旧订单、
 以地面点为目标的能力、单独的订单视图类型或动作结果回调。退役范围以
 [架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束) 为准，不得恢复。
 

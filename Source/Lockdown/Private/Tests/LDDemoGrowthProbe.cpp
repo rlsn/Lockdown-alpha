@@ -1512,8 +1512,11 @@ public:
             FString::Printf(TEXT("gold %lld->%lld account rev %llu inventory rev %llu, first match held %d items"), FirstEquipment.Gold,
                 Equipment.Gold, Equipment.AccountRevision, Equipment.InventoryRevision,
                 FirstEquipment.Slots.FilterByPredicate([](const FLDEquipmentSlotView& SlotRow) { return SlotRow.bOccupied; }).Num()));
+        // The innate D dash is every contender's source: it is held from the start, but a fresh match issues it a fresh,
+        // ready track (no duration issued yet), never the first match's debt.
         const bool bNoSource = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& EntryRow)
         {
+            if (EntryRow.Entry == ELDCombatEntry::Dash) { return EntryRow.ReadyAtMs > Own.AsOfMs || EntryRow.CooldownMs != 0; }
             return !EntryRow.DefinitionId.IsNone() || EntryRow.ItemInstance.IsValid() || EntryRow.IssuedCooldownId.IsValid()
                 || EntryRow.ReadyAtMs > Own.AsOfMs;
         });

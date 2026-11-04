@@ -23,6 +23,16 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Shield: return TEXT("shield");
     case ELDDemoStatusId::CampReturning: return TEXT("camp_returning");
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
+    case ELDDemoStatusId::Slow: return TEXT("slow");
+    case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");
+    case ELDDemoStatusId::Enraged: return TEXT("enraged");
+    case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
+    case ELDDemoStatusId::Exposed: return TEXT("exposed");
+    case ELDDemoStatusId::Taunt: return TEXT("taunt");
+    case ELDDemoStatusId::Stealth: return TEXT("stealth");
+    case ELDDemoStatusId::Disarm: return TEXT("disarm");
+    case ELDDemoStatusId::Stun: return TEXT("stun");
+    case ELDDemoStatusId::Empowered: return TEXT("empowered");
     default: return nullptr;
     }
 }
@@ -307,8 +317,9 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     FActionView View;
     View.Slot=Input.Slot;View.Key=Context.KeyLabel;
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W;
-    View.Kind=bLearned?TEXT("角色主动"):TEXT("装备主动");
-    View.Name=!Input.bHasSource?FString(bLearned?TEXT("空槽"):TEXT("无装备"))
+    const bool bDash=Input.Slot==EActionSlot::Dash;
+    View.Kind=bLearned?TEXT("角色主动"):bDash?TEXT("通用冲刺"):TEXT("装备主动");
+    View.Name=!Input.bHasSource?FString(bLearned?TEXT("空槽"):bDash?TEXT("冲刺不可用"):TEXT("无装备"))
         :bLearned&&Input.Rank>0?FString::Printf(TEXT("%s %d级"),*Input.Name,Input.Rank):Input.Name;
     // Only a current own context may send; a predicted execution failure never suppresses the intent itself.
     View.bCanSubmitIntent=Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
@@ -337,7 +348,8 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("胆量 %lld"),HudWholePoints(Input.ManaCostP2,false));}
     View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
     if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n胆量消耗 %lld"),HudWholePoints(Input.ManaCostP2,false));}
-    if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
+    if(bDash&&Input.bHasSource){View.Tooltip+=FString::Printf(TEXT("\n朝方向冲出 %dcm，碰到阻挡就停下；被定身时不能冲刺；释放后的冷却不因换装改变"),Input.RangeCm);}
+    else if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
     if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
 }
@@ -422,6 +434,7 @@ const TCHAR* HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::AttackSpeedBonusRatio: return TEXT("手速");
     case ELDDemoBonusStat::MoveSpeedBonusRatio: return TEXT("腿速");
     case ELDDemoBonusStat::CritChanceBonusRatio: return TEXT("正中要害率");
+    case ELDDemoBonusStat::ADBonusRatio: return TEXT("手劲");
     default: return nullptr;
     }
 }
@@ -430,6 +443,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     FString Text=HudPoints(Effect.BaseP2);
     if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+TEXT("手劲");}
     if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+TEXT("缺德值");}
+    if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身最大面子");}
     return Text;
 }
 }
@@ -441,6 +455,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return FString(Name)+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
+    case ELDDemoBonusStat::ADBonusRatio:
         return FString(Name)+TEXT(" +")+HudPercent(Stat.Amount);
     default: return FString(Name)+TEXT(" +")+HudPoints(Stat.Amount);
     }
@@ -462,7 +477,44 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Lifesteal: return TEXT("弹脑瓜崩造成的面子损失的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" 最大胆量");
+    case ELDDemoEffectOp::DashBoost:
+        return TEXT("冲刺冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，冲刺距离 +")+HudPercent(Effect.DistanceBonusBp);
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
+    case ELDDemoEffectOp::Slow: return TEXT("减速：腿速 -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::TimedStatBonus:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        return Text+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    }
+    case ELDDemoEffectOp::SelfArea: return TEXT("范围：出手位置周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
+    case ELDDemoEffectOp::LowHpStatBonus:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        return TEXT("面子低于 ")+HudPercent(Effect.RatioBp)+TEXT(" 时：")+Text;
+    }
+    case ELDDemoEffectOp::AmbushDamage:
+        return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次弹脑瓜崩或伤害技能额外造成")
+            +(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
+    case ELDDemoEffectOp::ControlDamageAmp: return TEXT("定身敌人后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内，对其伤害 +")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::Taunt: return TEXT("嘲讽自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Stealth: return TEXT("隐身 ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
+        +TEXT("cm 内的敌人可发现，腿速 -")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::Disarm: return TEXT("缴械 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Stun: return TEXT("眩晕 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Backstab: return TEXT("背后出手：伤害 +")+HudPercent(Effect.RatioBp)+TEXT("，眩晕 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::EmpowerBasic:
+        return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次弹脑瓜崩额外造成")+(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
+    case ELDDemoEffectOp::Jump: return TEXT("跳向指定地点（")+HudSeconds(Effect.DurationMs)+TEXT(" 后落地）");
+    case ELDDemoEffectOp::Thorns:
+    {
+        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+(Effect.bAbilityTrigger?TEXT("cm 内敌人的弹脑瓜崩或技能打中时"):TEXT("cm 内敌人的弹脑瓜崩打中时"))
+            +TEXT("，对方受")+(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudPoints(Effect.BaseP2);
+        if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+TEXT("抗揍");}
+        if(Effect.CriticalMultiplierBp>10000){Text+=TEXT("，被正中要害时变为 ")+HudPercent(Effect.CriticalMultiplierBp);}
+        Text+=TEXT("；同一人 ")+HudSeconds(Effect.IntervalMs)+TEXT(" 内最多一次");
+        if(Effect.bRearExempt){Text+=TEXT("，背后来袭不触发");}
+        return Text;
+    }
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -474,6 +526,7 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
+    case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT("cm");
     default: return TEXT("未知目标方式");
     }
 }
@@ -562,6 +615,12 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
         +TEXT(" · 装备 ")+Value(Row.Equipment);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
+    if(Row.Temporary.Denominator>0&&Row.Temporary.Numerator!=0){View.Breakdown+=TEXT(" · 临时 +")+Value(Row.Temporary);}
+    if(Row.TemporaryPercent.Denominator>0&&Row.TemporaryPercent.Numerator!=0)
+    {
+        const double Percent=100.*double(Row.TemporaryPercent.Numerator)/double(Row.TemporaryPercent.Denominator);
+        View.Breakdown+=TEXT(" · 临时百分比 ")+FString(Percent>0?TEXT("+"):TEXT(""))+HudDecimal(Percent)+TEXT("%");
+    }
     return View;
 }
 FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
@@ -656,7 +715,9 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     FActionInput Input;
     Input.Slot=Slot;Input.bProjected=true;
     Input.bHasSource=!Entry.DefinitionId.IsNone();
-    if(Input.bHasSource){Input.Name=ContentName(Content,Entry.DefinitionId.ToString());}
+    // The innate dash is no content definition with display text; its slot names the action itself.
+    if(Input.bHasSource){Input.Name=Slot==EActionSlot::Dash?FString(TEXT("冲刺")):ContentName(Content,Entry.DefinitionId.ToString());}
+    Input.RangeCm=Entry.RangeCm;
     Input.Rank=Entry.Rank;Input.bHasActive=Entry.bHasActive;Input.ManaCostP2=Entry.ManaCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
@@ -711,6 +772,7 @@ FString LDHUD::EntryLabel(ELDCombatEntry Entry)
     case ELDCombatEntry::W: return TEXT("角色技能 2");
     case ELDCombatEntry::Item1: return TEXT("装备 1");
     case ELDCombatEntry::Item2: return TEXT("装备 2");
+    case ELDCombatEntry::Dash: return TEXT("冲刺");
     default: return TEXT("动作");
     }
 }
@@ -727,7 +789,8 @@ FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
 }
 FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
 {
-    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2;
+    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2
+        ||Receipt.Entry==ELDCombatEntry::Dash;
     if(!bSlot||Receipt.Phase!=ELDCombatPhase::Rejected||Receipt.Origin!=ELDCombatRequestOrigin::Direct
         ||Receipt.Reject==ELDCombatReject::None||Receipt.Reject==ELDCombatReject::Cancelled){return FString();}
     return CombatRejectText(Receipt.Reject);

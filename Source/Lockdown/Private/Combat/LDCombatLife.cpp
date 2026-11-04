@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -31,6 +32,19 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     { Out.Add({uint8(ELDDemoStatusId::Root),1,RootUntil}); }
     if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
     { Out.Add({uint8(ELDDemoStatusId::Shield),1,Body->Shield->ExpiresAtMs}); }
+    // A slow shows its strongest instance; timed bonuses and control marks show one cue each with the latest deadline.
+    if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
+    int64 BoostUntil=0, ExposedUntil=0;
+    for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
+    for (const auto& Exposure : Body->Exposures) { if (Exposure.ExpiresAtMs>NowMs) { ExposedUntil=FMath::Max(ExposedUntil,Exposure.ExpiresAtMs); } }
+    if (BoostUntil>0) { Out.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
+    if (ExposedUntil>0) { Out.Add({uint8(ELDDemoStatusId::Exposed),1,ExposedUntil}); }
+    // Disarm and stun are public control cues like Root (latest remaining deadline); the empowerment stays private.
+    if (const int64 DisarmUntil=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Disarm),1,DisarmUntil}); }
+    if (const int64 StunUntil=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Stun),1,StunUntil}); }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -106,6 +120,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     State.Resources.MpP2=State.Resources.MaxMpP2=Attributes.MaxMPP2;
     State.Resources.Revision=1;
     State.BasicTiming=Timing.Value.GetValue();
+    State.BuildProjection=Projection;
     State.AttributeProjection=MoveTemp(Projection);
     State.AttributeRevision=1;
     State.PublicFacts=MoveTemp(Facts);
@@ -159,6 +174,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     Final.MPRegenPerSec=Monster->MPRegenPerSec;
     Final.CritChanceBp=Monster->CritChanceBp;
     Final.CooldownHasteP2=0;
+    State.BuildProjection=State.AttributeProjection;
     State.Resources.HpP2=State.Resources.MaxHpP2=Monster->HPP2;
     State.Resources.MpP2=State.Resources.MaxMpP2=Monster->MaxMPP2;
     State.Resources.Revision=1;
@@ -201,6 +217,12 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
         {
             Record.Build.Level=1;
             Record.Projection=Prepared.AttributeProjection;
+            // D19: the one persistent innate dash track, ready at match start and kept for the whole match.
+            FLDCombatTrack& Dash=Record.Tracks.AddDefaulted_GetRef();
+            Dash.IssuedCooldownId=FGuid::NewGuid();
+            Dash.Kind=ELDCombatSourceKind::Innate;
+            Dash.DefinitionId=LDCombatSourceRules::InnateDashId();
+            Dash.bBound=true;
         }
         Records.Add(Record.Entity,MoveTemp(Record));
     }
@@ -240,10 +262,20 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     // Leaving cancels every unsettled effect of the entity; already committed damage and receipts stay.
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
+    Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
-        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; });
+        const auto FromEntity=[&Entity](const FLDCombatRoot& Instance) { return Instance.SourceEntity==Entity; };
+        // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
+        int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
+            + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
+            + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; });
+        if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
+        {
+            Body.Taunt.Reset();
+            ++Removed;
+        }
         if (Removed>0)
         {
             ++Body.StateRevision;

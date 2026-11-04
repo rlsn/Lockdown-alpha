@@ -1,0 +1,123 @@
+#include "Combat/LDCombatControlRules.h"
+#include "Combat/LDCombatTypes.h"
+#include "Combat/LDTacticalRules.h"
+#include "Development/LDDemoContentDefinitions.h"
+
+namespace LDCombatControl
+{
+    bool Blocks(const TArray<FLDCombatRoot>& Roots, const TArray<FLDCombatRoot>& Disarms, const TArray<FLDCombatRoot>& Stuns,
+        int64 AtMs, const FLDDemoPolicies& Policies, ELDCombatControlAction Action)
+    {
+        if (LDTactical::HasActiveRoot(Stuns, AtMs)) { return true; }
+        switch (Action)
+        {
+        case ELDCombatControlAction::Move: return LDTactical::RootBlocks(Roots, AtMs, Policies, ELDDemoRootBlock::Move);
+        case ELDCombatControlAction::Displacement: return LDTactical::RootBlocks(Roots, AtMs, Policies, ELDDemoRootBlock::Dash);
+        case ELDCombatControlAction::Basic: return LDTactical::HasActiveRoot(Disarms, AtMs);
+        default: return false;
+        }
+    }
+
+    uint8 DisarmBlockBits() { return uint8(ELDCombatControlBlock::Basic); }
+
+    uint8 StunBlockBits()
+    {
+        return uint8(uint8(ELDCombatControlBlock::Move) | uint8(ELDCombatControlBlock::Basic) | uint8(ELDCombatControlBlock::Cast)
+            | uint8(ELDCombatControlBlock::Gear) | uint8(ELDCombatControlBlock::Displacement));
+    }
+
+    bool Apply(TArray<FLDCombatRoot>& Instances, const FLDCombatRoot& Instance, int64 AtMs)
+    { return LDTactical::ApplyRoot(Instances, Instance, AtMs); }
+
+    bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs)
+    {
+        const auto Ended=[AtMs](const FLDCombatRoot& Instance) { return Instance.ExpiresAtMs <= AtMs; };
+        const int32 Removed = Disarms.RemoveAll(Ended) + Stuns.RemoveAll(Ended);
+        return Removed > 0;
+    }
+
+    bool IsBehind(const FVector& TargetFoot, double TargetYawDeg, const FVector& SourceFoot, const FLDDemoRational& RearArcDeg)
+    {
+        if (RearArcDeg.Denominator <= 0 || RearArcDeg.Numerator <= 0 || !FMath::IsFinite(TargetYawDeg)) { return false; }
+        const FVector2D ToSource(SourceFoot.X - TargetFoot.X, SourceFoot.Y - TargetFoot.Y);
+        if (ToSource.SizeSquared() < 1.) { return false; }
+        const double Radians = FMath::DegreesToRadians(TargetYawDeg);
+        const FVector2D Back(-FMath::Cos(Radians), -FMath::Sin(Radians));
+        const double HalfArc = FMath::DegreesToRadians(double(RearArcDeg.Numerator) / double(RearArcDeg.Denominator) * .5);
+        // Inclusive at the sector edge; the dot product of unit vectors avoids an acos.
+        return FVector2D::DotProduct(Back, ToSource.GetSafeNormal()) >= FMath::Cos(HalfArc) - UE_KINDA_SMALL_NUMBER;
+    }
+
+    TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs)
+    {
+        TOptional<FLDCombatEmpower> Taken;
+        if (Armed.IsSet() && Armed->ExpiresAtMs > AtMs) { Taken = Armed; }
+        Armed.Reset();
+        return Taken;
+    }
+
+    bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
+        const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs)
+    {
+        if (Thorns.GetOp() != ELDDemoEffectOp::Thorns || Contact.bReflected || Contact.DamageP2 <= 0 || !Attacker.IsValid()) { return false; }
+        const bool bClass = Contact.HitClass == ELDCombatHitClass::BasicPrimary
+            || (Thorns.bAbilityTrigger && Contact.HitClass == ELDCombatHitClass::Ability);
+        const double Reach = Thorns.RadiusCm.Denominator > 0 ? double(Thorns.RadiusCm.Numerator) / double(Thorns.RadiusCm.Denominator) : 0.;
+        if (!bClass || !FMath::IsFinite(Contact.DistanceCm) || Contact.DistanceCm > Reach || (Thorns.bRearExempt && Contact.bFromBehind))
+        {
+            return false;
+        }
+        const FLDThornsMark* Last = Marks.FindByPredicate([&SourceKey, &Attacker](const FLDThornsMark& Mark)
+        { return Mark.Attacker == Attacker && Mark.SourceKey == SourceKey; });
+        return !Last || Thorns.IntervalMs <= 0 || AtMs - Last->AtMs >= Thorns.IntervalMs;
+    }
+
+    bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, bool bCritical, int64& OutP2, FString& Error)
+    {
+        OutP2 = 0;
+        const int64 Critical = bCritical ? Thorns.CriticalMultiplierBp : 10000;
+        if (Thorns.BaseP2 < 0 || Thorns.ArmorRatioBp < 0 || OwnerArmorP2 < 0 || Critical < 10000
+            || Thorns.BaseP2 > MAX_int64 / 10000 || (Thorns.ArmorRatioBp > 0 && OwnerArmorP2 > MAX_int64 / Thorns.ArmorRatioBp))
+        {
+            Error = TEXT("Thorns scaling is outside the checked numeric domain.");
+            return false;
+        }
+        const int64 ScaledBase = Thorns.BaseP2 * 10000;
+        const int64 ScaledArmor = OwnerArmorP2 * Thorns.ArmorRatioBp;
+        if (ScaledBase > MAX_int64 - ScaledArmor)
+        {
+            Error = TEXT("Thorns scaling overflowed.");
+            return false;
+        }
+        const int64 Plain = (ScaledBase + ScaledArmor) / 10000;
+        if (Plain > MAX_int64 / Critical)
+        {
+            Error = TEXT("Thorns critical scaling overflowed.");
+            return false;
+        }
+        OutP2 = Plain * Critical / 10000;
+        Error.Reset();
+        return true;
+    }
+
+    void MarkThorns(TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs, int64 IntervalMs)
+    {
+        Marks.RemoveAll([AtMs, IntervalMs, &SourceKey, &Attacker](const FLDThornsMark& Mark)
+        { return (Mark.SourceKey == SourceKey && Mark.Attacker == Attacker) || AtMs - Mark.AtMs >= IntervalMs; });
+        Marks.Add({SourceKey, Attacker, AtMs});
+    }
+
+    bool PlanJump(const FVector& Foot, const FVector& Point, double RangeCm, FVector& OutDirection, double& OutDistanceCm)
+    {
+        OutDirection = FVector::ZeroVector;
+        OutDistanceCm = 0;
+        if (Foot.ContainsNaN() || Point.ContainsNaN() || !FMath::IsFinite(RangeCm) || RangeCm <= 0) { return false; }
+        const FVector Planar(Point.X - Foot.X, Point.Y - Foot.Y, 0);
+        const double Length = Planar.Size();
+        if (!FMath::IsFinite(Length)) { return false; }
+        if (Length < 1.) { return true; }
+        OutDirection = Planar / Length;
+        OutDistanceCm = FMath::Min(Length, RangeCm);
+        return true;
+    }
+}

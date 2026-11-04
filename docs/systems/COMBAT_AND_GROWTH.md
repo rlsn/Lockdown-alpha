@@ -11,6 +11,7 @@
 | `Combat\LDCombatDriver.cpp` | 唯一权威 driver：按真实到期点切步，按契约顺序执行各阶段，步后发布视野与本人 `CombatView` |
 | `Combat\LDCombatActions/Effects/Sources/Life.cpp` | 准入/释放/回执；命中、投射物、状态到期、回复与致死锁存；构筑安装、来源绑定与可用性读模型；身体准备/安装/退役 |
 | `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming` / `CooldownDurationMs`，以及 Root/屏障/净化/定点回复纯规则；不提交资源或产生效果 |
+| `Combat\LDControlRules`、`Combat\LDCombatControl.cpp` | 嘲讽与隐身（`taunt`/`stealth` 效果）的纯规则与在 Combat 身体记录上的应用；见下文“嘲讽与隐身” |
 | `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
 | `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
@@ -33,14 +34,30 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
 已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
 
-普攻、Q/W 与装备 1/2 经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
+普攻、Q/W、装备 1/2 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
 本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
 未准入不付费，已解除的保护不恢复。释放时重验来源与目标，成功才扣蓝并按 `FORMULA.CooldownMs`
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
+冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
+D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
+`ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`；它不是进攻意图，不解除保护。
+每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
+释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）计算距离与冷却：
+`dash_boost` 乘冷却比例、加距离比例，时长不变，冷却不吃鬼点子；结束时刻写成绝对 ReadyAt，之后换装不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
 不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
+嘲讽与隐身：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
+且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制，隐身的受控者立即现身（`LDControl::TauntVictim`）。被嘲讽期间
+Q/W/装备 1/2 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
+已在前摇、被嘲讽所禁止的动作当场放弃。每个 Actions 阶段开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局、
+或被嘲讽者已观察不到嘲讽者（视线、距离或隐身）的嘲讽；离局另由 `CancelEntityEffects` 清除。
+订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
+`stealth` 效果给施放者一段隐身：敌方（参赛者、对手 AI、野怪）只能在 `reveal_radius` 内观察到它，规则走
+Vision 的同一观察链；隐身期间腿速按 `FORMULA.MoveSpeed` 多一项负的加成比例（`move_speed_penalty`）。
+普攻开始、任何 Q/W/装备主动被准入、或受到正伤害（含被淡定全部吸收）/控制时立即现身；重复释放重新计时。
+嘲讽与隐身只出现在本人 `CombatView` 的状态里（`Taunt`/`Stealth` 及到期），不进入他人可见的公开状态。
 同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
 拥有客户端的预输入（`LDCombatPreInput`）只在本地暂存前摇期间的一次按键并在前摇结束后作为普通 Direct 请求发出，
 服务器规则不因此改变；快速施法同样只是本地确认方式，见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)。
@@ -84,7 +101,8 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
 提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法来源的原生 id，
-分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动，含冲刺），两者至多一个非 0，其他提示均为 0；
+分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动），两者至多一个非 0，其他提示均为 0；
+D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不飘名称）；
 来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
 身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地两档各用自己的模型；
@@ -99,6 +117,42 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 （本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；粉笔头飞行由 `ULDFlightTrailComponent` 拖出粉尘。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
+
+临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
+`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、急了一类的条件增益与最强一个减速
+（负比例），点数类向下取整并夹紧到目录上下限；最大面子/胆量不接受临时项。`RefreshAllTemporary` 在 Actions
+（回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
+减速、限时增益和控制标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`ApplyTimedBonus`、`ApplyExposure`、`TemporaryTerms`）。
+伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者最大面子，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带最大面子系数。技能命中载荷在释放时快照（含施放者 AD/AP/最大面子）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+的逐目标合法性与视线检查）各得一份；减速随命中施加，定身随命中经 `MarkControlled` 打开施放者的控制增伤标记，
+之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。暗中观察的附加伤害是独立的技能伤害实例：
+普攻在开始挥击时、伤害技能在释放时判定脱战窗口。施放者离局时 `CancelEntityEffects` 一并移除其减速与标记，
+营地回岗清空全部临时项。
+
+### 控制、背后判定、强化下一击、反伤与跳跃
+
+纯规则在 `Combat\LDCombatControlRules`（`LDCombatControl`），Combat 的准入、释放、命中与读模型都只经它判断：
+
+- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺、跳跃）；缴械禁普攻；眩晕禁移动、位移、普攻、
+  技能与装备主动。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
+  同一效果不续期，换命即消失，营地回位与离局清除。命中时眩晕放弃任何未出手的动作、缴械放弃未出手的普攻（回执 `ControlBlocked`，
+  不付费也不退节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
+  `bAttackAllowed`/`bMovementAllowed` 同步关闭，导航攻击指令因此原地等待而不重复提交；出手时再判一次。
+  本人视图给出 Disarm/Stun/Empowered 状态及其 `ControlBlocks`，`bRooted` 表示“移动被禁”（定身或眩晕）；
+  观察者看到公开的缴械、眩晕。
+- **背后判定**（`IsBehind`）：以命中时刻目标的服务器朝向与双方脚点为准，攻击者落在 `COMBAT.RearArcDeg` 的后方扇形内即为背后。
+  身体的服务器朝向是最近的移动方向，普攻或技能被接受时转向其目标/方向/落点。`backstab` 让同一条目的伤害在背后命中时
+  按 `RatioBp` 放大（`FLDDamageEvaluationInput::AmplifyBp`，在抗性之前）并附加眩晕。
+- **强化下一击**（`empower_basic`）：释放时武装一次（替换不叠加），由下一次已提交命中的普攻消费（`ConsumeEmpower`），
+  额外伤害是独立的技能类命中（不暴击、不吸血、不横扫）；到期在 Effects 阶段移除。
+- **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（只记录等级，不产生属性项），装备被动按同名家族一次。
+  命中后持有者仍存活、伤害为正、命中类别符合（主普攻，或允许时的技能命中）、距离不超过半径、非免疫的背后来袭，
+  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+抗揍×比例（被暴击时乘
+  `CriticalMultiplierBp`），走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤。
+- **跳到指定点**（目标 `GroundPoint`、效果 `jump`）：请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），
+  距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与占领照常由运动链计算）；
+  同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，暗中观察就绪时各附一次附加伤害（泰山压顶），
+  死亡或换命丢弃落地。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
@@ -122,11 +176,14 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 检查入口
 
-`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
+`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
-攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
+低血线/暗中观察窗口与控制增伤标记的纯规则，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
+`DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
-`DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；成长与商店的纯规则是
+`DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
+强制目标与恢复，以及隐身的观察授权与撤销、近距离发现、现身与腿速；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：

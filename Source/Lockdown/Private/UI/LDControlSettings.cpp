@@ -28,6 +28,9 @@ namespace
     constexpr uint32 PanlessSchema = 7;
     constexpr uint32 OrientationlessSchema = 8;
     constexpr uint32 QuickCastlessSchema = 9;
+    // Schema 10 has every current preference but predates the innate D dash binding.
+    constexpr uint32 DashlessSchema = 10;
+    const FName DashAction(TEXT("Dash"));
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -178,6 +181,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
         {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
+        {TEXT("Dash"),TEXT("冲刺（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
@@ -470,7 +474,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
     const bool Migrating = Magic == LocalSettingsMagic
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
-            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema);
+            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -486,12 +490,14 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     // Schema 6 added the player name, schema 7 the master volume, schema 8 the camera pan speed and schema 9 the minimap
     // orientation, each between the preferences and the binding list; an older layout leaves every later field at its default.
     if (SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema
-        || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
-    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema)
+        || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
+    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema
+        || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema)
     { Reader << Settings->MasterVolume; }
-    if (SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
-    if (SavedSchema == QuickCastlessSchema || SavedSchema == CurrentSchema) { Reader << Orientation; }
-    if (SavedSchema == CurrentSchema) { Reader << Quick; }
+    if (SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
+        || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
+    if (SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << Orientation; }
+    if (SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << Quick; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -528,6 +534,18 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         Message += PreferencesValid ? TEXT("有效的镜头与文字偏好已保留。") : TEXT("其镜头或文字偏好也无效，未保留。");
         return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, PreferencesValid ? Settings : nullptr, Message };
     }
+    // Every migrated layout predates the D dash: a missing Dash binding takes its default key when no other action holds it;
+    // otherwise the binding stays missing and the file is refused below like any other incomplete key list.
+    FString DashDefault;
+    if (Migrating && !Settings->Bindings.Contains(DashAction))
+    {
+        const FLDControlBinding* Dash = Definitions().FindByPredicate([](const FLDControlBinding& B) { return B.Action == DashAction; });
+        if (Dash && !Settings->Bindings.FindKey(Dash->Key))
+        {
+            Settings->Bindings.Add(DashAction, Dash->Key);
+            DashDefault = TEXT("新增的冲刺键使用默认值 ") + Dash->Key.GetDisplayName().ToString() + TEXT("。");
+        }
+    }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
     if (!Settings->ValidatePreferences(Error))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Origin + Error + TEXT("文件未被替换。") }; }
@@ -539,7 +557,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–9 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–10 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -554,8 +572,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == OrientationlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度）、文字与主音量偏好已保留，") + OrientationDefault
                 + TEXT("，下次保存时写入新格式。")
-            : TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。");
-        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message };
+            : SavedSchema == QuickCastlessSchema
+            ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
+            : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
     return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };

@@ -25,6 +25,12 @@
 ## 谁可以看到什么
 
 - 观察者唯一的来源是自己的存活身体。半径取批准内容的 `VISION.RadiusCm`（含边界）。
+- 隐身（纸箱「纸箱潜行」，Combat 的 `stealth` 效果）是同一授权规则的一部分，不是外观处理：
+  `LDObservation::ConcealedSight` 让隐身身体只在观察者脚点平面距离 `reveal_radius`（含边界）内为 Visible，
+  其外按普通 `OutOfRange` 处理。采样（`GatherTargets` 记录 `ConcealBeyondCm`）、`ResolveObservedUnit`、`BindObservedOrder`、
+  死亡见证与野怪感知（`TraceObservation`）都走它，因此进入隐身后的下一次采样即以可靠隐藏通知撤销句柄、
+  命令时刻的解析与锁定按失去视野失败、已有追击/锁定按失视野规则取消；重新发现总是新句柄与 epoch。
+  隐身从不穿透遮挡，也不把故障变成目标消失。隐身本身不进公开状态，只在本人 `CombatView` 显示。
 - 遮挡只来自注册世界中 `BlocksSight` 的凸多边形：线段触到边或角即算遮挡，世界只有一层。
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
@@ -157,7 +163,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中面子下降且上限未降；致死一击交给社死音效 | 0.2 秒内最多一次 |
 | 本人淡定吸收（`SelfShieldHit`） | 同一投影中面子未降而淡定减少，且淡定状态仍在或在其列出的到期前消失（与
-| 本人技能或装备主动释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
+| 本人技能、装备主动或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
 | 购买或出售成功 / 交易被拒 | 本人小卖部提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人社死 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
@@ -185,7 +191,8 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 
 ## 检查入口
 
-- `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何。
+- `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何；
+  `Lockdown.Rules.DemoControl.StealthObservation` 覆盖隐身的观察授权、撤销与近距离发现。
 - `Lockdown.Rules.DemoVision.ActionCues` 覆盖动作提示与提示龄的线缆规则、六个名册座位与身体色（座位互不相同、营地 NPC 不用座位色）；
   `Lockdown.Rules.DemoVision.Projectiles` 覆盖飞行物线缆上限与句柄冲突、同一视线规则的近者优先选择、逐观察者句柄寿命，以及接收端隐藏与超时清除。
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“弹脑瓜崩”文案与头像/身体共用的六色。
@@ -199,7 +206,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDObservationBoundary`（`LDHUDRulesTests`）覆盖检视器白名单和地图换算。
 - `HUDLifeStatus`（`LDHUDRulesTests`）覆盖自身生命行：权威时刻缺失时显示不可用，倒计时在截止前不显示 0，死亡不显示金币损失。
 - `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
-  覆盖本人资源与等级、Q/W/1/2 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
+  覆盖本人资源与等级、Q/W/1/2/D 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
 - `HUDCooldownText`、`HUDActionStates`、`HUDDeathCause`、`HUDKillFeedSelf`（`LDHUDRulesTests`）覆盖冷却秒数文字（不提前显示 0）、
   动作格的冷却/胆量不足/受控/空槽/准备态分类与胆量消耗文字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、

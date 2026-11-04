@@ -32,9 +32,9 @@ POLICIES = (
 )
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
-    "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
+    "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
 )
-TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash")
+TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -106,23 +106,31 @@ def target(value=None):
 
 def effect(value):
     result = {
-        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "DamageType": 0,
+        "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "HPPerSec": rational(), "RatioBp": 0,
-        "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
+        "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
+        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
     }
     for source, dest in (
-        ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
-        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"),
+        ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
+        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
+        ("move_speed_penalty", "RatioBp"), ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
+        ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
-    for source, dest in (("rate", "HPPerSec"), ("distance", "DistanceCm"), ("radius", "RadiusCm")):
+    for source, dest in (("rate", "HPPerSec"), ("distance", "DistanceCm"), ("radius", "RadiusCm"),
+                         ("reveal_radius", "RadiusCm")):
         if source in value:
             result[dest] = rational(value[source])
     if "damage_type" in value:
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
         result["Stats"] = stats(value["stats"])
+    if "trigger" in value:
+        result["bAbilityTrigger"] = ("Basic", "BasicOrAbility").index(value["trigger"]) == 1
+    if "rear_exempt" in value:
+        result["bRearExempt"] = value["rear_exempt"]
     return result
 
 
@@ -166,13 +174,15 @@ def parameter_projection(parameters):
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.HoldSec", "CaptureHoldMs"), ("TIMING.DefendRouteBudgetSec", "DefendRouteBudgetMs"),
         ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("SHOP.SellRatio", "SellRatioBp"),
+        ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
+        ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
+        ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
-        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
+        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
@@ -219,11 +229,16 @@ def expected_projection(compilation):
                 [("Move", "Dash").index(entry) for entry in value] if type(value) is list else value
                 for key, value in data["policies"].items()}
     character = data["character"]
+    dash = character["dash"]
+    dash_opcode = json.loads(compilation.inputs[demo.IDS_SOURCE])["effect_ops"]["dash"]
+    innate_dash = active({"target": {"mode": "DirectionDash"}, "rank": {
+        "rank": 1, "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
+        "effects": [{"opcode": dash_opcode, "distance": dash["distance"], "duration": dash["duration"]}]}})
     result = {
         "Identity": identity, "Parameters": parameter_projection(data["parameters"]), "Formulas": formulas, "Policies": policies,
         "Character": {"Id": character["id"], "NativeId": character["native_id"], "BasicTarget": 1, "BasicDamageType": 0,
                       "BasicADRatioBp": scalar(character["basic_attack"]["ad_ratio"]),
-                      "BasicIntervalMs": character["basic_attack"]["interval_ms"]},
+                      "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Kind": ("active", "passive").index(row["kind"]),
             "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
@@ -238,11 +253,14 @@ def expected_projection(compilation):
                         "Effects": [effect(item) for item in row["passive"]["effects"]] if row["passive"] else []},
         } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
-        "Progression": {dest: data["progression"][source] for source, dest in (
+        "Progression": {**{dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("max_choices", "MaxChoices"), ("max_skill_rank", "MaxSkillRank"),
             ("active_slots", "ActiveSlots"), ("equipment_slots", "EquipmentSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
-        )},
+        )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
+            ("attribute_ids", "OpeningAttributeIds"), ("attribute_count", "OpeningAttributeCount"),
+            ("passive_count", "OpeningPassiveCount"),
+        )}},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_id", "ShopId"), ("capture_id", "CaptureId"),
         )},
@@ -479,10 +497,21 @@ def _export(output, *, rank_mutations):
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")
     bad_content("build_envelope", lambda d: d["attributes"][0]["stats"]["APFlat"].update({"p2": d["parameters"]["STAT.AP.Max"]["p2"]}), "build")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
+    bad_content("unknown_opening_attribute", lambda d: d["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_absent"), "opening offer")
+    bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"attribute_count": 3}), "opening offer")
+    bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_active", lambda d: d["equipment"][0].update({"active": None}), "presence")
     bad_content("bad_passive_stat", lambda d: d["abilities"][3]["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
+            "duration": {"unit": "ms", "ms": 1500}}
+    bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
+    bad_content("full_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+        {**deepcopy(slow), "ratio": {"unit": "ratio", "bp": 10000}}), "integer outside")
+    bad_content("timed_resource_bonus", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+        {"op": "timed_stat_bonus", "opcode": ids_data["effect_ops"]["timed_stat_bonus"],
+         "stats": {"MaxHPFlat": {"unit": "hp", "p2": 100}}, "duration": {"unit": "ms", "ms": 1000}}), "resource maxima")
     bad_content("nonreduced_rational", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"numerator": 1000, "denominator": 2}), "not reduced")
     bad_content("zero_denominator", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"denominator": 0}), "integer outside")
     bad_content("wrong_monster", lambda d: d["camps"]["placements"][0].update({"monster_id": "monster_missing"}), "camp/monster")

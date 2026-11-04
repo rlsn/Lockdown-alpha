@@ -76,12 +76,12 @@ namespace LDTactical
         {
             return Fail(EError::Definition, TEXT("HitClass"), TEXT("A resolved hit classification is required"));
         }
-        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0)
+        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0 || Definition.MaxHPRatioBp < 0)
         {
             return Fail(EError::Domain, TEXT("Definition"), TEXT("Damage points and R4 coefficients must be nonnegative"));
         }
         if (Input.HitClass != ELDCombatHitClass::Ability
-            && (Definition.APRatioBp != 0 || Definition.DamageType != ELDDemoDamageType::Physical))
+            && (Definition.APRatioBp != 0 || Definition.MaxHPRatioBp != 0 || Definition.DamageType != ELDDemoDamageType::Physical))
         {
             return Fail(EError::Definition, TEXT("Definition"), TEXT("Basic hits must be physical and cannot scale with AP"));
         }
@@ -108,6 +108,14 @@ namespace LDTactical
         if (Input.SourceAPP2.IsSet() && !WithinP2Bounds(Input.SourceAPP2.GetValue(), Parameters.AP))
         {
             return Fail(EError::Domain, TEXT("SourceAPP2"), TEXT("AP is outside the catalog point domain"));
+        }
+        if (Definition.MaxHPRatioBp != 0 && !Input.SourceMaxHPP2.IsSet())
+        {
+            return Fail(EError::Numeric, TEXT("SourceMaxHPP2"), TEXT("Max HP is required by the resolved coefficient"));
+        }
+        if (Input.SourceMaxHPP2.IsSet() && !WithinP2Bounds(Input.SourceMaxHPP2.GetValue(), Parameters.MaxHP))
+        {
+            return Fail(EError::Domain, TEXT("SourceMaxHPP2"), TEXT("Max HP is outside the catalog point domain"));
         }
         if (!Input.TargetResistanceP2.IsSet())
         {
@@ -150,9 +158,22 @@ namespace LDTactical
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceAPP2.GetValue()),
                 Numbers.Value(Definition.APRatioBp, 10000)));
         }
+        if (Definition.MaxHPRatioBp != 0)
+        {
+            Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
+                Numbers.Value(Definition.MaxHPRatioBp, 10000)));
+        }
         if (Input.bCritical.GetValue())
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
+        }
+        if (Input.AmplifyBp < 0)
+        {
+            return Fail(EError::Domain, TEXT("AmplifyBp"), TEXT("A damage amplification cannot be negative"));
+        }
+        if (Input.AmplifyBp != 10000)
+        {
+            Damage = Numbers.Mul(Damage, Numbers.Value(Input.AmplifyBp, 10000));
         }
         int64 ResistanceDenominatorP2;
         if (!Numbers.Add64(Formulas.ResistanceScaleP2, Input.TargetResistanceP2.GetValue(),
@@ -323,6 +344,93 @@ namespace LDTactical
         return Result;
     }
 
+    bool ApplySlow(TArray<FLDCombatSlow>& Slows, const FLDCombatSlow& Instance, int64 AtMs)
+    {
+        if (!Instance.EffectId.IsValid() || Instance.ExpiresAtMs <= AtMs || Instance.RatioBp <= 0 || Instance.RatioBp >= 10000
+            || Slows.ContainsByPredicate([&Instance](const FLDCombatSlow& Slow) { return Slow.EffectId == Instance.EffectId; }))
+        {
+            return false;
+        }
+        Slows.Add(Instance);
+        return true;
+    }
+
+    int64 StrongestSlowBp(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        int64 Strongest = 0;
+        for (const auto& Slow : Slows)
+        {
+            if (Slow.ExpiresAtMs > AtMs) { Strongest = FMath::Max(Strongest, Slow.RatioBp); }
+        }
+        return Strongest;
+    }
+
+    int64 StrongestSlowUntilMs(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        const int64 Strongest = StrongestSlowBp(Slows, AtMs);
+        int64 Until = 0;
+        for (const auto& Slow : Slows)
+        {
+            if (Strongest > 0 && Slow.ExpiresAtMs > AtMs && Slow.RatioBp == Strongest) { Until = FMath::Max(Until, Slow.ExpiresAtMs); }
+        }
+        return Until;
+    }
+
+    void ApplyTimedBonus(TArray<FLDCombatTimedBonus>& Bonuses, const FLDCombatTimedBonus& Bonus)
+    {
+        Bonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Existing) { return Existing.SourceDefinition == Bonus.SourceDefinition; });
+        Bonuses.Add(Bonus);
+    }
+
+    void ApplyExposure(TArray<FLDCombatExposure>& Exposures, const FLDCombatExposure& Exposure)
+    {
+        Exposures.RemoveAll([&Exposure](const FLDCombatExposure& Existing) { return Existing.SourceEntity == Exposure.SourceEntity; });
+        Exposures.Add(Exposure);
+    }
+
+    int64 ExposureBp(const TArray<FLDCombatExposure>& Exposures, const FGuid& Source, int64 AtMs)
+    {
+        for (const auto& Exposure : Exposures)
+        {
+            if (Source.IsValid() && Exposure.SourceEntity == Source && Exposure.ExpiresAtMs > AtMs) { return Exposure.AmplifyBp; }
+        }
+        return 0;
+    }
+
+    bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
+        TArray<FLDCombatExposure>& Exposures, int64 AtMs)
+    {
+        const int32 Removed = Slows.RemoveAll([AtMs](const FLDCombatSlow& Slow) { return Slow.ExpiresAtMs <= AtMs; })
+            + Bonuses.RemoveAll([AtMs](const FLDCombatTimedBonus& Bonus) { return Bonus.ExpiresAtMs <= AtMs; })
+            + Exposures.RemoveAll([AtMs](const FLDCombatExposure& Exposure) { return Exposure.ExpiresAtMs <= AtMs; });
+        return Removed > 0;
+    }
+
+    bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp)
+    {
+        if (HPP2 <= 0 || MaxHPP2 <= 0 || ThresholdBp <= 0 || ThresholdBp >= 10000
+            || HPP2 > MAX_int64 / 10000 || MaxHPP2 > MAX_int64 / ThresholdBp) { return false; }
+        return HPP2 * 10000 < MaxHPP2 * ThresholdBp;
+    }
+
+    bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs)
+    {
+        return DelayMs > 0 && LastCombatAtMs <= MAX_int64 - DelayMs && AtMs >= LastCombatAtMs + DelayMs;
+    }
+
+    FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses, const TArray<FLDCombatSlow>& Slows,
+        const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs)
+    {
+        FLDTemporaryAttributeTerms Terms;
+        for (const auto& Bonus : Bonuses)
+        {
+            if (Bonus.ExpiresAtMs > AtMs) { Terms.Bonuses.Append(Bonus.Stats); }
+        }
+        if (LowHP.IsSet() && BelowHPThreshold(HPP2, MaxHPP2, LowHP->ThresholdBp)) { Terms.Bonuses.Append(LowHP->Stats); }
+        Terms.MoveSlowBp = StrongestSlowBp(Slows, AtMs);
+        return Terms;
+    }
+
     bool IntegrateRegen(const FLDDemoRational& RatePerSec, int64 ElapsedMs, int64 MaxP2,
         int64& InOutP2, int64& InOutRemainderMicroP2, FString& Error)
     {
@@ -378,6 +486,74 @@ namespace LDTactical
         {
             InOutP2 += Gain;
             InOutRemainderMicroP2 = Total % MicroPerP2;
+        }
+        Error.Reset();
+        return true;
+    }
+
+    bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs)
+    {
+        return DelayMs >= 0 && LastCombatAtMs <= MAX_int64 - DelayMs && NowMs >= LastCombatAtMs + DelayMs;
+    }
+
+    bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error)
+    {
+        if (NowMs < FromMs)
+        {
+            Error = TEXT("Regeneration cannot settle a reversed interval.");
+            return false;
+        }
+        // An out-of-combat term starts exactly at LastCombatAt + Delay; the part of the interval before it is combat time.
+        const auto TermStart = [LastCombatAtMs, FromMs, NowMs, &Error](int64 DelayMs, int64& OutMs)
+        {
+            if (DelayMs < 0 || LastCombatAtMs > MAX_int64 - DelayMs)
+            {
+                Error = TEXT("An out-of-combat regeneration term has no representable start.");
+                return false;
+            }
+            OutMs = FMath::Clamp(LastCombatAtMs + DelayMs, FromMs, NowMs);
+            return true;
+        };
+        // MaxP2 x Bp / 1e6 points per second; a whole 0.001 share (Bp % 10 == 0) is always exact per millisecond.
+        const auto Share = [&Error](int64 MaxP2, int64 Bp, FLDDemoRational& Out)
+        {
+            if (MaxP2 < 0 || Bp < 0 || Bp > 10000 || (Bp != 0 && MaxP2 > MAX_int64 / Bp))
+            {
+                Error = TEXT("Out-of-combat recovery share is outside its numeric domain.");
+                return false;
+            }
+            Out.Numerator = MaxP2 * Bp;
+            Out.Denominator = 1000000;
+            return true;
+        };
+        const int64 Elapsed = NowMs - FromMs;
+        if (!IntegrateRegen(Attributes.Final.HPRegenPerSec, Elapsed, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
+            || !IntegrateRegen(Attributes.Final.MPRegenPerSec, Elapsed, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+        {
+            return false;
+        }
+        if (Attributes.OutOfCombatHPRegen.IsSet())
+        {
+            int64 StartMs = NowMs;
+            if (!TermStart(Attributes.OutOfCombatHPRegen->DelayMs, StartMs)
+                || !IntegrateRegen(Attributes.OutOfCombatHPRegen->HPPerSec, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2,
+                    InOut.HpMicroP2, Error))
+            {
+                return false;
+            }
+        }
+        if (Recovery)
+        {
+            int64 StartMs = NowMs;
+            FLDDemoRational HPRate, MPRate;
+            if (!TermStart(Recovery->DelayMs, StartMs) || !Share(InOut.MaxHpP2, Recovery->MaxHPBpPerSec, HPRate)
+                || !Share(InOut.MaxMpP2, Recovery->MaxMPBpPerSec, MPRate)
+                || !IntegrateRegen(HPRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
+                || !IntegrateRegen(MPRate, NowMs - StartMs, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+            {
+                return false;
+            }
         }
         Error.Reset();
         return true;

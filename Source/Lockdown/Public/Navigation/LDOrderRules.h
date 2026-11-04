@@ -44,4 +44,20 @@ namespace LDOrderRules
     constexpr double HeldMoveShiftCm = 40.;
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
+
+    // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
+    // forced chase of an earlier taunter), Keep advances the forced chase, End returns control when the taunt is gone
+    // (the replaced order is not resumed), None leaves ordinary orders alone. While taunted every own order is refused.
+    enum class EForcedOrder : uint8 { None, Begin, Keep, End };
+    LOCKDOWN_API EForcedOrder ForcedOrderStep(bool bTaunted, bool bActiveForced, bool bSameTaunter);
+
+    // A forced chase that ended by itself is re-created only after RetryAt, on the match-relative authority clock. That
+    // clock restarts at 0 every match while the order component persists, so a new match must clear it.
+    struct FForcedRetry
+    {
+        double RetryAtSeconds = 0;
+        void Hold(double NowSeconds, double IntervalSeconds) { RetryAtSeconds = NowSeconds + IntervalSeconds; }
+        bool IsDue(double NowSeconds) const { return NowSeconds >= RetryAtSeconds; }
+        void ResetMatch() { RetryAtSeconds = 0; }
+    };
 }

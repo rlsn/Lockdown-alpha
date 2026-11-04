@@ -50,20 +50,23 @@
 | D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 由 D18、D21 取代 |
 | D13 | 校园补给箱 | 由 D26 的空投取代 |
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
-| D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D19 | D 键通用冲刺，AI 也会用 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D20 | 跑道钉鞋改为强化冲刺的被动 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)、[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
-| D22 | 发育期 120 秒，复活 15 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D24 | 开局三选一：2 张随机基础属性卡加 1 个随机被动；升级三选一保持完全随机 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；4 张基础属性卡的范围待确认 |
-| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已决定，未实现（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：基础物攻 70、攻速 0.90，离线复算约 11.4 秒 |
+| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：粉笔头、扒裤衩加手劲加成并降冷却 20%；粉笔头改为皮肉伤（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 胆量，不受鬼点子影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 尚未运行；拥有连接场景未运行；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
+| D20 | 跑道钉鞋改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「助跑」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 尚未运行 |
+| D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；宿舍快回未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
+| D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒不变 |
+| D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始零花钱 320 |
+| #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
+| #82 追加 | 属性卡：食堂加餐 +100→+60 面子，穿秋裤双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D24 | 开局三选一：2 张随机基础属性卡（举铁、长臂猿、穿秋裤、食堂加餐，不含刷整蛊视频）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
+| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
 | D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
 | D28 | 胜利条件不变 | 无需改动 |
 | D29 | 整蛊表现：被扒裤衩、被千年杀等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
 | D30 | 地图布局与野怪可以重新设计；数量不变（1 个占领点、10 个出生点、5 组 2 档野怪、1 个商店） | 已决定，未实现（[#97](https://github.com/rlsn/Lockdown-alpha/issues/97)）；App Spec §6.1 随实现修改 |
+| D31 | 2026-11-04 用户批准全部待批数值与规则（构筑扩展 A/B、纸箱与嘲讽细则、泰山压顶与你过来啊），并采纳“按 D 立即朝指针冲刺” | 已进入运行输入，作为试玩输入，未经平衡测试；D 冲刺按下即朝指针方向发出、不再左键确认、与快速施法无关（规则 `DemoControlFeel.PreInput`）。原话：“全部批准，并采纳‘按 D 立即朝指针冲刺’” |
 
 ## 已确认的实施方向
 
@@ -119,7 +122,7 @@
 | 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
 | 上限变化 | 场景 Growth：死亡期间选择最大面子属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
 | 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
-| 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | 方向冲刺等其他装备主动没有拥有连接场景 |
+| 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | D 键冲刺与钉鞋加成没有拥有连接场景 |
 | 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 零花钱 / +X 经验”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)） |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
 | 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |
@@ -134,7 +137,7 @@
 
 - **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#90](https://github.com/rlsn/Lockdown-alpha/issues/90)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
-  D17–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
+  D19–D21、D24–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
 - **未运行**：跨机器局域网与公网直连（[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；人类试玩与数值平衡（[#88](https://github.com/rlsn/Lockdown-alpha/issues/88)）；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
   真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#87](https://github.com/rlsn/Lockdown-alpha/issues/87)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
@@ -157,7 +160,7 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 
 | 缺少的内容 | Issue |
 | --- | --- |
-| 按 D17、D18、D22、D23 重算核心数值；D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24） | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
+| D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
 | 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
 | 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
 | 地图事件：宿舍、空投、教导主任 Boss、通报批评（D21、D26、D27）；营地回位无路时的收尾；AI 使用全部新内容并应对各类事件 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |

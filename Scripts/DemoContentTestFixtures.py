@@ -37,13 +37,15 @@ def content_fixture():
         ("SHOP.InteractRadiusCm", "cm", 200), ("CAPTURE.RadiusCm", "cm", 300),
         ("CAPTURE.HoldSec", "s", 20), ("TIMING.DefendRouteBudgetSec", "s", 20),
         ("MATCH.DevelopmentSec", "s", 90), ("LIFE.RespawnSec", "s", 22), ("LIFE.ProtectionSec", "s", 2),
+        ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
+        ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
         ("AI.DecisionIntervalSec", "s", 0.125), ("AI.RetryPolicy.InitialBackoffSec", "s", 0.125),
         ("AI.RetryPolicy.MaxBackoffSec", "s", 0.375), ("AI.ExploreRevisitIntervalSec", "s", 12),
-        ("AI.EngagementBudgetSec", "s", 30),
+        ("AI.EngagementBudgetSec", "s", 30), ("COMBAT.RearArcDeg", "deg", 90),
     ):
         parameters[key] = q(unit, value)
     parameters.update({
@@ -80,7 +82,7 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
                 "effects": [{"op": "damage", "base": q("points", 8 * rank), "ad_ratio": q("ratio", 0),
-                             "ap_ratio": q("ratio", 0.125 * rank), "damage_type": "Magical"}],
+                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}],
             } for rank in range(1, 4)],
         },
         {
@@ -97,7 +99,7 @@ def content_fixture():
             "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
-                "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "damage_type": "Magical"},
+                "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
                             {"op": "root", "duration": q("s", 0.25 * rank)}],
             } for rank in range(1, 4)],
         },
@@ -130,10 +132,8 @@ def content_fixture():
         {"id": "item_runic_focus", "buy_price": 53, "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None, "passive": None},
         {"id": "item_siphon_emblem", "buy_price": 54, "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)}, "active": None,
          "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}]}},
-        {"id": "item_phase_anchor", "buy_price": 55, "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)}, "passive": None,
-         "active": {"target": {"mode": "DirectionDash"}, "windup": q("s", 0), "cooldown_family": "cd_phase_anchor",
-                    "rank": {"rank": 1, "mana_cost": q("mp", 7), "cooldown": q("s", 10),
-                             "effects": [{"op": "dash", "distance": q("cm", 120), "duration": q("s", 0.125)}]}}},
+        {"id": "item_phase_anchor", "buy_price": 55, "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+         "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": q("ratio", 0.5), "distance_bonus": q("ratio", 0.25)}]}},
         {"id": "item_arcane_battery", "buy_price": 56, "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None,
          "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_arcane_battery",
                     "rank": {"rank": 1, "mana_cost": q("mp", 0), "cooldown": q("s", 12),
@@ -141,6 +141,11 @@ def content_fixture():
                                          {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]}}},
         {"id": "item_echo_maul", "buy_price": 57, "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
          "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
+        {"id": "item_paper_box", "buy_price": 58, "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
+         "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_paper_box",
+                    "rank": {"rank": 1, "mana_cost": q("mp", 6), "cooldown": q("s", 11),
+                             "effects": [{"op": "stealth", "duration": q("s", 0.75), "reveal_radius": q("cm", 60),
+                                          "move_speed_penalty": q("ratio", 0.05)}]}}},
     ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
@@ -162,7 +167,9 @@ def content_fixture():
         "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_guardian"}
                        for identity in ("l1", "h1", "l2", "h2", "l3")],
     }
-    identities = ["character_demo", "root", "shield", "camp_returning", "respawn_protection"]
+    # Every native status needs one display row; read them so new statuses need no fixture edit.
+    statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
+    identities = ["character_demo", *statuses]
     identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
@@ -173,10 +180,13 @@ def content_fixture():
         "identity": {"schema_version": 1, "handler_revision": 1, "projection_revision": 3,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
-        "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)}},
+        "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
+                      "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
         "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps,
         "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
-                        "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810]},
+                        "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810],
+                        "opening_offer": {"attribute_ids": ["attr_focus", "attr_might", "attr_vitality"],
+                                          "attribute_count": 2, "passive_count": 1}},
         "world": {"map_id": "demo_world", "spawn_ids": [f"s{index:02d}" for index in range(10)],
                   "camp_ids": ["l1", "h1", "l2", "h2", "l3"], "shop_id": "shop", "capture_id": "capture"},
         "display": display,

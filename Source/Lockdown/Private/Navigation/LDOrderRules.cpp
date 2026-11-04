@@ -22,6 +22,12 @@ int32 LDOrderRules::NearestCandidate(const TArray<FLDObservedUnitView>& Units, c
     return Best;
 }
 
+LDOrderRules::EForcedOrder LDOrderRules::ForcedOrderStep(bool bTaunted, bool bActiveForced, bool bSameTaunter)
+{
+    if (!bTaunted) { return bActiveForced ? EForcedOrder::End : EForcedOrder::None; }
+    return bActiveForced && bSameTaunter ? EForcedOrder::Keep : EForcedOrder::Begin;
+}
+
 bool LDOrderRules::ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
     const FVector& GroundCm)
 {

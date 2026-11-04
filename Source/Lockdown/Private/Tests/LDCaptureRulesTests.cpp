@@ -484,13 +484,13 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Open.Generation = 2;
     Open.PublicRevision = 5;
     Open.Phase = ELDMatchPhase::CaptureOpen;
-    Open.ServerNowMs = 190000;
-    Open.OpenAtMs = 180000;
+    Open.ServerNowMs = 130000;
+    Open.OpenAtMs = 120000;
     Open.CircleState = ELDCircleState::Solo;
     Open.Occupier = FGuid::NewGuid();
     Open.CaptureEpoch = 3;
-    Open.SoloSinceMs = 185000;
-    Open.DueAtMs = 210000;
+    Open.SoloSinceMs = 125000;
+    Open.DueAtMs = 150000;
     TestEqual(TEXT("A coherent public circle is accepted"),
         LDCapture::AcceptPublicMatchView(Open, Latest, Error), ELDLobbyProjectionResult::Accepted);
     TestEqual(TEXT("Repeated public revisions are stale"),
@@ -541,8 +541,8 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Result.Reason = ELDMatchEndReason::CaptureCompleted;
     Result.Winner = Open.Occupier;
     Result.StartedAtMs = 0;
-    Result.EndedAtMs = 210000;
-    Result.DurationMs = 210000;
+    Result.EndedAtMs = 150000;
+    Result.DurationMs = 150000;
     Result.Rows.Add({Open.Occupier, TEXT("Host"), ELDContenderKind::Human, false, 2, 1, 6});
     Result.Rows.Add({FGuid::NewGuid(), TEXT("Guest"), ELDContenderKind::Human, true, 0, 3, 3});
     Result.Rows.Add({FGuid::NewGuid(), TEXT("AI 对手 1"), ELDContenderKind::OpponentAI, false, 1, 0, 5});
@@ -700,7 +700,7 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
 
     // A running match without native bodies: only the core gate, clock and reducer matter here.
     Mode->MatchPhase = ELDMatchPhase::Development;
-    TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(180000, 25000, Error));
+    TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(120000, 25000, Error));
     FLDSessionRequest Request;
     Request.Key = {Generation, 1};
     Request.Command = ELDSessionCommand::EndMatch;
