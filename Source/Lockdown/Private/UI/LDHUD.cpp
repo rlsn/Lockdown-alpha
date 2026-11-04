@@ -163,7 +163,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         };
         auto Place=[&](UWidget* Widget,FAnchors Anchors,FVector2D Alignment,FVector2D Position)
         {auto* S=Canvas->AddChildToCanvas(Widget);S->SetAnchors(Anchors);S->SetAlignment(Alignment);S->SetPosition(Position);S->SetAutoSize(true);};
-        auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height)
+        auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height,TObjectPtr<UTextBlock>* OutRegen=nullptr)
         {
             auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetHeightOverride(Height);
             auto* Stack=WidgetTree->ConstructWidget<UOverlay>();Box->SetContent(Stack);
@@ -172,6 +172,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // Values cross bright fills and the dark track alike: bold white with a dark outline reads on both.
             OutText=OneLine(TEXT(""),15,0);OutText->SetJustification(ETextJustify::Center);HudFace(OutText,true,2);
             auto* TextSlot=Stack->AddChildToOverlay(OutText);TextSlot->SetHorizontalAlignment(HAlign_Center);TextSlot->SetVerticalAlignment(VAlign_Center);
+            if(OutRegen)
+            {
+                auto* Regen=OneLine(TEXT(""),14,0);HudFace(Regen,true,2);
+                auto* RegenSlot=Stack->AddChildToOverlay(Regen);RegenSlot->SetHorizontalAlignment(HAlign_Right);
+                RegenSlot->SetVerticalAlignment(VAlign_Center);RegenSlot->SetPadding(FMargin(0,0,10,0));
+                *OutRegen=Regen;
+                // Reserve equal space on both sides so the current/max value stays centred and cannot overlap regen.
+                TextSlot->SetHorizontalAlignment(HAlign_Fill);TextSlot->SetPadding(FMargin(150,0));
+            }
             return Box;
         };
         auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph)
@@ -281,8 +290,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetVerticalAlignment(VAlign_Fill);
         Divider();
         auto* Centre=WidgetTree->ConstructWidget<UVerticalBox>();
-        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::OwnHealth,B,T,HudCentreWidth,24));HealthBar=B;HealthText=T;
-        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::Mana,B,T,HudCentreWidth,22))->SetPadding(FMargin(0,3,0,0));ManaBar=B;ManaText=T;
+        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::OwnHealth,B,T,HudCentreWidth,24,&HealthRegenText));HealthBar=B;HealthText=T;
+        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::Mana,B,T,HudCentreWidth,22,&ManaRegenText))->SetPadding(FMargin(0,3,0,0));ManaBar=B;ManaText=T;
         LevelBar=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(LevelBar,LDHUDStyle::Experience);LevelBar->SetPercent(0);
         auto* LevelStrip=WidgetTree->ConstructWidget<USizeBox>();LevelStrip->SetHeightOverride(8);LevelStrip->SetContent(LevelBar);
         Centre->AddChildToVerticalBox(LevelStrip)->SetPadding(FMargin(0,4,0,0));
@@ -561,6 +570,8 @@ void ULDHUD::RefreshReadModel()
     if(Health.bKnown&&ShieldPoints>0){HealthLine+=FString::Printf(TEXT(" · 淡定 %.0f"),FMath::CeilToDouble(ShieldPoints));}
     HealthBar->SetPercent(Health.Fraction);HudSetText(HealthText,HealthLine);
     ManaBar->SetPercent(Mana.Fraction);HudSetText(ManaText,Mana.Text);
+    HudSetText(HealthRegenText,LDHUD::RegenText(O,OwnCombat,true));
+    HudSetText(ManaRegenText,LDHUD::RegenText(O,OwnCombat,false));
     LDHUD::FLevelView Level;
     if(Progression)
     {Level=LDHUD::Level(Progression->Level,Progression->MaxLevel,Progression->CumulativeXP,Progression->LevelThresholdXP,Progression->bHasNextThreshold,Progression->NextThresholdXP);}
