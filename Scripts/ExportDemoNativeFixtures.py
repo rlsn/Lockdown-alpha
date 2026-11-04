@@ -437,6 +437,9 @@ def export(output, *, rank_mutations=True):
     if rank_mutations:
         author = fixtures.content_fixture()
         paths = [path for path, _ in _quantities(author) if "ranks" in path or ("equipment" in path and "rank" in path)]
+        # A projectile never snapshots its caster's max HP, so that coefficient is not a legal valid mutation there.
+        paths = [path for path in paths if not (path[-1] == "max_hp_ratio" and path[0] == "abilities"
+                                                 and author["abilities"][path[1]]["target"]["mode"] == "DirectionProjectile")]
         for index_number, path in enumerate(paths):
             changed = deepcopy(author)
             quantity = _at(changed, path)
