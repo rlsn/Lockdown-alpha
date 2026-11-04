@@ -39,11 +39,12 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 .\Scripts\Preflight.ps1          # 核对引擎版本与工具链
 .\Scripts\BuildEditor.ps1        # 编辑器目标
 .\Scripts\BuildGame.ps1          # 游戏目标
-.\Scripts\OpenStandalone.ps1     # 打开前端；加 -HostRoom 直接以 Host 进入 Demo 地图
+.\Scripts\OpenStandalone.ps1     # 以无边框全屏打开前端；加 -HostRoom 直接以 Host 进入 Demo 地图
 .\Scripts\OpenEditor.ps1         # 打开编辑器
 ```
 
-同机试玩可以开多个 `OpenStandalone.ps1`，一个建房，其余用回环地址加入。
+游戏固定以无边框全屏、桌面分辨率运行。同机多开时给每个 `OpenStandalone.ps1` 加 `-Windowed`（1280×720 窗口），
+一个建房，其余用回环地址加入；窗口模式下指针离开窗口就无法边缘平移，正式试玩不要用。
 
 ## 测试与打包
 

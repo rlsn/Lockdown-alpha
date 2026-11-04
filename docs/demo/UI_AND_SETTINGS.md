@@ -429,10 +429,10 @@ IssuedCooldownId/ItemInstance 为 FGuid；观察 wire 修订仍沿世界的独�
 | 本人死亡仍留局 | 清身体相关目标/拖拽/Armed和旧交易资格；未释放动作取消 | 等级/经验/金币/技能/装备/原 Offer/CD 保留；已释放独立效果仍由 Combat 结算；可死时选卡/看属性/静态拖图 | 旧 Alive 阶段选择拒绝但不丢卡；UI 不清域冷却、不治疗/复活。 |
 | 复活新 Life | 清旧身体回包/观察/相机目标，接本人新身体 | 同局持久数据、原 CD 截止保留；服务器满血蓝与清临时控制/保护投影 | 旧请求不能操作新身体；选择重读当前 Life/阶段，不能把旧确认自动重发。 |
 | 对手 conceal / stale / epoch 改变 | §5.3 全部敏感呈现、锁定和该追击订单清除 | 只剩静态地图与明确公共圈/事件 | 不留 LastSeen，不把 public identity 重新解析成隐藏 Actor。 |
-| 终局 | 先权威关写闸，UI 收合法 Result 后按 §8 取消未确认显示试用，再关闭主面板/确认、清实时观察和战斗输入 | 一份冻结结果；仍可设置、合法回执查询、Host 回 Lobby、离开 | 边界前已提交业务保留真实结果，之后未提交拒绝；toast 不重复、旧回包不恢复玩法，关闭设置不是确认试用。 |
+| 终局 | 先权威关写闸，UI 收合法 Result 后关闭主面板/确认、清实时观察和战斗输入 | 一份冻结结果；仍可设置、合法回执查询、Host 回 Lobby、离开 | 边界前已提交业务保留真实结果，之后未提交拒绝；toast 不重复、旧回包不恢复玩法，关闭设置不应用未应用的显示草稿。 |
 | 普通正式离局/断线 | 服务器立即移除身体及其未结束独立效果；客户端清代理/附件/面板/缓存/delegate | 他人继续对局，不自动胜；最终统计由域保留，不保留可操作身体 | 离局不是死亡；失效 request/observer 不能重建幽灵 UI/效果。 |
 | Host 结束本局 / 离开房间 | EndMatch 产生无赢家结果；Leave/HostLost 清整个会话 | 前者可同房间回 Lobby；后者回主菜单并说明原因 | 未收到最终统计的断线不能伪造结果；旧 attempt 失败不能退出新房间。 |
-| 回 Lobby / 新局 | 旅行前按 §8 收尾显示试用；核心统一推进代次并清旧 Offer/quote/target/result/receipt 执行权；UI 等新合法投影 | 仅名称及已确认应用的本地设置保留；不短暂闪回旧金币/技能/CD | generation、ledger match 映射归核心；不靠 Widget 清数组或世界 checkpoint 假装完成新局，旧显示确认回调也不能确认新试用。 |
+| 回 Lobby / 新局 | 旅行前按 §8 保存已应用的本地值；核心统一推进代次并清旧 Offer/quote/target/result/receipt 执行权；UI 等新合法投影 | 仅名称及已确认应用的本地设置保留；不短暂闪回旧金币/技能/CD | generation、ledger match 映射归核心；不靠 Widget 清数组或世界 checkpoint 假装完成新局。 |
 
 ## 8. SC-09 D：最小本地设置及保存
 
@@ -441,7 +441,7 @@ IssuedCooldownId/ItemInstance 为 FGuid；观察 wire 修订仍沿世界的独�
 `LDControlSettings` / `LDControlsPanel` / `LDGameInstance` 文件：
 `LoadLocalSettings / ValidateLocalSettings / SaveLocalSettings / ResetLocalDefaults`，
 `GetLocalControlSettings / ApplyLocalSettings / FlushLocalSettings`，
-以及 GameInstance 的 `BeginDisplayTrial / ConfirmDisplayTrial / CancelDisplayTrial`。
+以及 GameInstance 的 `ReadDisplaySettings / ApplyDisplaySettings / RetryDisplaySave`。
 它们的结果区分 Loaded/Missing/UnsupportedSchema/Corrupt/ReadFailed、
 Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对象伪装成功。
 
@@ -450,41 +450,31 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | 名称 / `ULDControlSettings` | `PlayerName`，显示使用会话域规范化后的公共名称 | Start 编辑，本机保存；房间公开名称由服务器验证。恢复游戏设置不隐式删名称；不保存 join 密钥、比赛数据或新增账号页。 |
 | 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。删除 Profile/Hybrid/Tactical 迁移和旧运行槽选择。 |
 | 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，边缘带 viewport 比例，TextScale 倍率。`CameraPanCmPerSec` 已实现为本地设置：镜头键盘/边缘平移速度 cm/s，合法域为 900–3600 的有限值，默认 1800 为协调决定（非平衡测试值）；设置页以 300 cm/s 步进、确认即应用。`MinimapOrientation` 已实现为本地设置：跟随镜头（默认，用户决定；地图上方即屏幕上方）、跟随角色朝向（本人存活身体的朝向朝上，无身体时同跟随镜头）、固定正北（世界 −Y 朝上、+X 朝右，与编辑器顶视图一致）；三种都只是真实俯视的旋转加统一缩放，不镜像。`bQuickCast` 快速施法默认关闭（按键后左键确认），打开后由 Combat 直接对光标下单位或光标方向施放。当前 schema 10 保存，schema 5–9 显式迁移（缺失的平移速度取默认 1800、朝向取跟随镜头、快速施法关闭），越界的朝向或开关值按损坏拒绝。其余有限值/上下界关系沿操作域唯一定义，不从旧 1400/8px 当批准默认。镜头不授予视野。 |
-| 显示/画质 / `UGameUserSettings` | 实际支持分辨率、窗口模式、VSync、整体画质预设 | 只有分辨率/窗口模式进入 trial。一起编辑的 VSync/画质留在草稿，确认模式后才应用；单独改后两者用明确 Apply。不建庞大高级渲染中心，游戏仍不暂停。 |
+| 显示/画质 / `UGameUserSettings` | VSync、整体画质预设 | 游戏只以无边框全屏、桌面分辨率运行（#98，用户决定：“remove window display settings at all and make it full screen only”，选定无边框桌面分辨率），设置页没有窗口模式、分辨率或保留/回滚试用。VSync/画质留在草稿，明确 Apply 后立即应用并保存。不建庞大高级渲染中心，游戏仍不暂停。 |
 | 音量 / 本地偏好 + Engine 声音分组 | 单一 `MasterVolume`，无量纲 0..1 | 本 Demo 声音统一经 Master SoundClass/SoundMix 生效，不修改共享 CDO；应用后实际音频响应。没有音频消费者时不把滑条当完成。 |
-| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 已实现：确认前列出全部范围，不清本局进度、身份或姓名。确认后先应用并保存本地偏好默认值，再把显示草稿设为产品默认（临时对象 `SetToDefaults` 的窗口模式与整体画质，未设分辨率及无边框取桌面尺寸，VSync 取 `r.VSync` 引擎默认）；分辨率/窗口模式不同则走同一试用/回滚，VSync/画质随这次显示应用（渲染比例同时回到项目默认，不需重启），已是默认则说明且不试用；已有试用或恢复进行时不恢复任何项。取消试用只回滚显示。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
+| 恢复默认 | 显示/画质、音量、按键、镜头/文字全部当前定义 | 已实现：确认前列出全部范围，不清本局进度、身份或姓名。确认后先应用并保存本地偏好默认值，再把显示草稿设为产品默认（临时对象 `SetToDefaults` 的整体画质，VSync 取 `r.VSync` 引擎默认）并随即应用（渲染比例同时回到项目默认，不需重启），已是默认则说明且不应用。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
 
-本地操作明确区分 **EditingDraft → DisplayTrial → ConfirmedApplied → PersistenceVerified**；
-不涉及模式改变的本地设置可在明确 Apply 后直接进入 ConfirmedApplied。
+本地操作明确区分 **EditingDraft → ConfirmedApplied → PersistenceVerified**；
+本地设置在明确 Apply 后直接进入 ConfirmedApplied。
 草稿不修改已应用偏好，不随通用 dirty flush 落盘；普通返回遇到未应用草稿时提供
-“应用并返回 / 放弃草稿 / 继续编辑”。显示 trial 的取消只回滚显示试用及丢弃其未确认显示草稿，
-不回滚期间已经明确应用的按键/音量/镜头偏好；尤其不覆盖最后一次合法 zoom/follow。
+“应用并返回 / 放弃草稿 / 继续编辑”。确认行显示时再按返回或 Esc 视为放弃草稿并返回，返回不会循环（#99）；
+“应用并返回”失败时在确认行说明失败，默认焦点是“放弃草稿并返回”。
+被拒绝的同一份草稿在修改前不能再次应用，提示说明可修改草稿或放弃，不让玩家反复重试同一个失败。
+放弃显示草稿不回滚已经明确应用的按键/音量/镜头偏好；尤其不覆盖最后一次合法 zoom/follow。
 
-GameInstance 持有一个短期 `DisplayTrialId`、已确认分辨率/窗口模式恢复快照及本地单调截止时间，
-均不序列化为另一份设置存档。试用只调用 `ApplyResolutionSettings`；
-VSync/ScalabilityQuality 在确认前不写入 `UGameUserSettings`，也不调用非分辨率应用。
-确认当前 TrialId 后才 `ConfirmVideoMode`，应用草稿中的 VSync/画质并 Save；
-取消/超时以 `RevertVideoMode` 和实际 apply 恢复模式，其他显示字段仍为原已应用值。
-**Confirm/RevertVideoMode 只管窗口模式和分辨率，不宣称它们能回滚 VSync/画质。**
-`ApplySettings` 会持久化，不能在试用期间使用。
-
-取消、Esc、主面板强制关闭、终局、HostLost、离局/旅行及正常销毁统一先调用
-`CancelDisplayTrial`：失效 TrialId/旧回调 → 恢复未确认模式 → 再拆 UI 和 flush。
-超时由 GameInstance 管理的本地生命周期回调/单调时钟检查，不依赖将被关闭的 Widget 或旧 World timer；
-意外 Widget 销毁也走同一幂等收尾。正常进程退出在设置 flush 前收尾，
-异常硬退出不能执行回调时，未确认试用也从未写盘，下次只加载最后已验证配置。
-旧 TrialId 的确认/超时不能操作新试用；恢复失败明确报错并保留最后确认磁盘值，绝不把试用写成成功。
+窗口不是设置：GameInstance 在引擎创建窗口前把窗口固定为无边框桌面分辨率，启动参数覆盖只用于自动化和同机多开，
+Alt+Enter/F11 不切换全屏。
 
 `SaveSettings` 返回 void，不能包装成 `true`；
 窄 adapter 从实际目标配置文件重新读盘核对相关字段，非再次读 GConfig 内存，
 无法确认则显示“已应用，本地保存未确认/失败”，保留 dirty 和重试入口，不写第二份显示存档。
-显示回滚计时是本地 UX 安全计时而非玩法时钟；保存回读与退出写盘由 `Lockdown.Rules.LocalDisplay*` 规则覆盖。
+保存回读与退出写盘由 `Lockdown.Rules.LocalDisplay*` 规则覆盖。
 
 保存失败时明确提示“未保存”（[LDControlSettings.cpp](../../Source/Lockdown/Private/UI/LDControlSettings.cpp) 的本地偏好、
 [LDGameInstance.cpp](../../Source/Lockdown/Private/Framework/LDGameInstance.cpp) 的显示设置结果），不把失败写成成功。
 小型本地偏好先复用同步 Save；明确 Apply/离开/旅行/退出只 flush 最后一份
-**ConfirmedApplied 且尚未验证持久化**的合格值，不保存 EditingDraft/DisplayTrial。
-flush 必须在未确认试用收尾后执行，保留已明确应用的镜头偏好，不依赖滚轮后延迟 tick 恰好触发。
+**ConfirmedApplied 且尚未验证持久化**的合格值，不保存 EditingDraft。
+flush 保留已明确应用的镜头偏好，不依赖滚轮后延迟 tick 恰好触发。
 若后续以 hitch 证据改异步，必须单写入串行/合并并按本地修订
 接受回调，旧回调不能把新 dirty 值标已存。读损坏或不支持 schema 要提示恢复，
 不是静默回默认并覆盖；首次缺文件与损坏不是同一情形。
@@ -558,8 +548,8 @@ UI 闭包的删除（架构 D01–D32）已在集成分支完成；退役范围�
 | 死亡/离局 | 死亡自由静态平移/缩放/公共圈、选卡；已释放独立效果继续 | 无新 Footprint/隐藏跟随/游戏移动；离局立即去身体/未结束效果，旧 FX 不重生。离局不增加死亡/击杀、不使他人自动胜。 |
 | 终局/新局 | 连续独占唯一结果，全员 Name/K/D/FinalLevel+winner/reason/duration；HostEnd无winner，回Lobby新局 | 统计不判胜，正常局不发布全员表；终局后无新交易/选择/战斗提交，旧包只读重放；新局无旧 Offer/财产/CD/结果闪回，合法缺数据先同步而非填旧值。 |
 | 本地保存 | 隔离存储下应用、重新启动、旅行前最后一次 zoom、恢复默认 | Missing/损坏/不支持schema/非法键/NaN/越界/写失败各自反馈；无真实槽 fallback；没有局内数据入 SaveGame；失败不宣称持久成功。 |
-| 显示试用 | 同时编辑模式/分辨率及 VSync/画质，分别确认、取消、超时；另测只改 VSync/画质 | 确认前后两者不应用，取消/超时恢复原模式且四项均为原已应用值；确认后才共同应用并验证保存。不能把 RevertVideoMode 当全设置回滚器。 |
-| 试用中断/保存 | trial 中终局、HostLost、旅行/Widget 销毁、正常退出；期间另有已明确应用的 zoom/follow | 旧试用先收尾不落盘，旧确认/超时不能确认新 TrialId；flush 排除草稿/trial，保留最后合法镜头值。异常硬退出后从最后已验证配置启动；回滚/写失败不宣称成功。 |
+| 显示/画质 | `-windowed` 启动的前端编辑 VSync 草稿后返回、再返回；再应用 VSync | 设置页没有窗口模式/分辨率；第二次返回放弃草稿并关闭；应用后立即生效并从磁盘回读；窗口始终保持无边框（自动化覆盖除外）。 |
+| 中断/保存 | 终局、HostLost、旅行/Widget 销毁、正常退出；期间另有已明确应用的 zoom/follow | flush 排除草稿，保留最后合法镜头值。异常硬退出后从最后已验证配置启动；写失败不宣称成功。 |
 | 声音/布局 | 实际渲染有声包，Master静音恢复；小/大窗口、DPI、长名/长卡/多被动 | 全部关键按钮/原因可读有焦点，不仅靠颜色；未应用草稿普通返回可选择应用/放弃/继续编辑。nullrhi/nosound/offscreen均不能替代相应证据。 |
 | 删除/资产 | 当前 Editor/Game/UHT、Blueprint、Bootstrap Validate、唯一包加载 | 旧 UI/RPC/IA/IMC/profile/探针无存活消费，生成不会复活它们；缺 WBP/必要材质/定义明确失败，不用兼容 UI 或旧值兜底。 |
 

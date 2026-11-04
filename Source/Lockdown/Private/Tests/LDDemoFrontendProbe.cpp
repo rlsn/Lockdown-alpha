@@ -88,7 +88,7 @@ namespace
             if (!Error.IsEmpty()) { Check(false, Error); }
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
-            Report->SetStringField(TEXT("scope"), TEXT("Windowed RHI frontend/UMG synthetic delegate clicks, isolated control save and UserDir, text-scale apply/readback and un-applied VSync draft discard. No OS input, resolution/fullscreen changes, or display trial acceptance claim."));
+            Report->SetStringField(TEXT("scope"), TEXT("Windowed RHI frontend/UMG synthetic delegate clicks, isolated control save and UserDir, text-scale apply/readback, borderless-only display settings under a -windowed launch, Back on the un-applied VSync draft prompt discards, and a VSync apply saves and reads back. No OS input or display-mode change."));
             Report->SetStringField(TEXT("rhi"), RHIName);
             Report->SetStringField(TEXT("control_file"), Storage.Filename());
             Report->SetStringField(TEXT("game_user_settings"), PhysicalSettings);
@@ -156,6 +156,10 @@ namespace
                 if (!Check(PC->ControlsUI && PC->ControlsUI->IsOpen(), TEXT("The production Settings button opens the actual UMG panel"))) { return Finish(); }
                 auto* Apply = FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"));
                 if (!Check(Apply && OnScreen(PC->ControlsUI, Apply) && !Apply->GetIsEnabled(), TEXT("Display Apply is unavailable before a draft changes"))) { return Finish(); }
+                Check(!FindButton(PC->ControlsUI, TEXT("WindowModeDraft")) && !FindButton(PC->ControlsUI, TEXT("ResolutionDraft"))
+                    && !FindButton(PC->ControlsUI, TEXT("KeepDisplayMode")), TEXT("Settings offer no window mode, resolution or display trial"));
+                Check(GEngine->GetGameUserSettings()->GetFullscreenMode() == EWindowMode::WindowedFullscreen && !Viewport->Viewport->IsFullscreen(),
+                    TEXT("The game holds borderless; this fixture's -windowed launch only overrides its own window"));
                 Capture(TEXT("Settings-100"));
             }
             else if (Stage == 3) { Reveal(FindButton(PC->ControlsUI, TEXT("ApplyTextScale"))); }
@@ -184,13 +188,30 @@ namespace
                 Check(PC->ControlsUI->HasChildConfirmation(), TEXT("The unapplied-draft prompt is a child confirmation for Back routing"));
                 Capture(TEXT("DiscardDisplayDraft"));
             }
-            else if (Stage == 10) { if (!Click(PC->ControlsUI, TEXT("DiscardDisplayDraft"))) { return Finish(); } }
+            // Issue #99: Back again on the prompt leaves without the draft instead of toggling the prompt away and back.
+            else if (Stage == 10) { if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); } }
+            else if (Stage == 11)
+            {
+                Check(!PC->ControlsUI->IsOpen() && !PC->ControlsUI->HasChildConfirmation(), TEXT("Back on the unapplied-draft prompt discards and closes the panel"));
+                Check(FLDDisplaySettings::Read(*GEngine->GetGameUserSettings()) == OriginalDisplay && !Viewport->Viewport->IsFullscreen(),
+                    TEXT("The discarded draft leaves quality and VSync unchanged"));
+                if (!Click(PC->RootUI, TEXT("Settings"))) { return Finish(); }
+            }
+            else if (Stage == 12) { Reveal(FindButton(PC->ControlsUI, TEXT("VSyncDraft"))); }
+            else if (Stage == 13)
+            {
+                if (!Click(PC->ControlsUI, TEXT("VSyncDraft")) || !Click(PC->ControlsUI, TEXT("ApplyDisplayDraft"))) { return Finish(); }
+                const auto Applied = FLDDisplaySettings::Read(*GEngine->GetGameUserSettings());
+                Check(Instance->GetDisplaySettingsResult().Status == ELDDisplaySettingsStatus::PersistenceVerified && !Instance->AreDisplaySettingsDirty(),
+                    TEXT("A VSync apply is saved and read back from disk even though the launch overrides the window"));
+                Check(Applied.bVSync != OriginalDisplay.bVSync && Applied.Quality == OriginalDisplay.Quality, TEXT("Only the drafted VSync changed"));
+                auto* Apply = FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"));
+                Check(Apply && !Apply->GetIsEnabled(), TEXT("An applied draft leaves nothing to apply"));
+            }
+            else if (Stage == 14) { if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); } }
             else
             {
-                Check(!PC->ControlsUI->IsOpen() && !Instance->GetDisplayTrialId() && !Instance->IsDisplayRestorePending(),
-                    TEXT("Discard closes the panel without starting a display trial"));
-                Check(FLDDisplaySettings::Read(*GEngine->GetGameUserSettings()) == OriginalDisplay && !Viewport->Viewport->IsFullscreen(),
-                    TEXT("Display mode, resolution, quality and VSync remain unchanged"));
+                Check(!PC->ControlsUI->IsOpen(), TEXT("With the draft applied, Back closes the panel at once"));
                 return Finish();
             }
             ++Stage;

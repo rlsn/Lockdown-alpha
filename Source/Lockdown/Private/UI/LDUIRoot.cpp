@@ -414,7 +414,7 @@ FString ULDUIRoot::LocalSettingsProblem(const ALDPlayerController& PC) const
     const auto* Instance=GetGameInstance<ULDGameInstance>();
     if(!Instance){return FString();}
     const FLDDisplaySettingsResult& Display=Instance->GetDisplaySettingsResult();
-    if(Display.Status==ELDDisplaySettingsStatus::RestoreFailed||Display.Status==ELDDisplaySettingsStatus::PersistenceFailed
+    if(Display.Status==ELDDisplaySettingsStatus::PersistenceFailed
         ||Display.Status==ELDDisplaySettingsStatus::ApplyFailed)
     {return TEXT("显示设置：")+Display.Message;}
     if(!PC.Controls||PC.Controls->NeedsRecovery()){return TEXT("本地设置：")+Instance->GetLocalSettingsMessage();}

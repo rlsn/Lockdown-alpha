@@ -1,7 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
-#include "GenericPlatform/GenericWindow.h"
 #include "InputCoreTypes.h"
 #include "Scalability.h"
 #include "LDControlSettings.generated.h"
@@ -10,20 +9,6 @@ class ULDControlSettings;
 class UGameUserSettings;
 class FConfigCacheIni;
 class IConsoleVariable;
-
-class LOCKDOWN_API FLDDisplayConfigWriteGuard
-{
-public:
-    FLDDisplayConfigWriteGuard() = default;
-    FLDDisplayConfigWriteGuard(const FLDDisplayConfigWriteGuard&) = delete;
-    FLDDisplayConfigWriteGuard& operator=(const FLDDisplayConfigWriteGuard&) = delete;
-    bool Begin(FConfigCacheIni& Cache, const FString& SettingsFile, const FString& QualityFile,
-        const FString& SettingsSection, FString& Error);
-    bool Release(FConfigCacheIni& Cache, FString& Error);
-    bool IsActive() const { return Data.IsValid(); }
-private:
-    TSharedPtr<struct FLDDisplayConfigGuardData> Data;
-};
 
 // Migrated: an older schema was converted explicitly; its values are applied but not yet saved in the current schema.
 enum class ELDLocalSettingsLoadStatus : uint8
@@ -67,54 +52,31 @@ struct FLDLocalSettingsSaveResult
     bool IsSaved() const { return Status == ELDLocalSettingsSaveStatus::Saved; }
 };
 
+// The player-editable display values. The window itself is not a setting: the game always runs borderless at the
+// desktop resolution (ULDGameInstance::Init), so VSync and overall quality are applied with a plain Apply.
 struct LOCKDOWN_API FLDDisplaySettings
 {
-    FIntPoint Resolution = FIntPoint::ZeroValue;
-    EWindowMode::Type WindowMode = EWindowMode::Windowed;
-    EWindowMode::Type PreferredFullscreenMode = EWindowMode::WindowedFullscreen;
     bool bVSync = false;
     Scalability::FQualityLevels Quality;
 
     static FLDDisplaySettings Read(const UGameUserSettings& Settings);
-    // Product defaults for "restore defaults" (UI_AND_SETTINGS 8): SetToDefaults on a transient object of the live
-    // settings class, never ResetToCurrentSettings, which only copies the present window state. An unset default
-    // resolution and borderless mode use Desktop, as on a first run; VSync is the engine's r.VSync default because
-    // SetToDefaults leaves it unchanged; the fullscreen-shortcut preference stays the live one. Live is not modified.
-    static bool ProductDefaults(const UGameUserSettings& Live, const FIntPoint& Desktop, FLDDisplaySettings& Out, FString& Error);
-    bool SameMode(const FLDDisplaySettings& Other) const;
+    // Product defaults for "restore defaults" (UI_AND_SETTINGS 8): the overall quality of SetToDefaults on a transient
+    // object of the live settings class, and the engine's r.VSync default because SetToDefaults leaves VSync unchanged.
+    // Live is not modified.
+    static bool ProductDefaults(const UGameUserSettings& Live, FLDDisplaySettings& Out, FString& Error);
     bool operator==(const FLDDisplaySettings& Other) const;
     bool IsValid() const;
 };
 
 enum class ELDDisplaySettingsStatus : uint8
 {
-    Loaded, TrialStarted, Applied, PersistenceVerified, Cancelled, NoTrial,
-    Invalid, Unavailable, Busy, StaleTrial, ApplyPending, ApplyFailed,
-    PersistenceFailed, RestorePending, RestoreFailed
+    Loaded, PersistenceVerified, Invalid, Unavailable, ApplyFailed, PersistenceFailed
 };
 
 struct FLDDisplaySettingsResult
 {
     ELDDisplaySettingsStatus Status = ELDDisplaySettingsStatus::Unavailable;
-    uint64 TrialId = 0;
     FString Message;
-};
-
-struct LOCKDOWN_API FLDDisplayTrialState
-{
-    uint64 Begin(const FLDDisplaySettings& Confirmed, const FLDDisplaySettings& Draft, double Now, double Duration);
-    bool IsCurrent(uint64 Id) const { return Id != 0 && Id == ActiveId; }
-    bool IsExpired(double Now) const;
-    bool Invalidate(uint64 Id);
-    uint64 Id() const { return ActiveId; }
-    double Remaining(double Now) const;
-    const FLDDisplaySettings& Baseline() const { return Before; }
-    const FLDDisplaySettings& Candidate() const { return Pending; }
-private:
-    uint64 Sequence = 0;
-    uint64 ActiveId = 0;
-    double Deadline = 0;
-    FLDDisplaySettings Before, Pending;
 };
 
 namespace LDLocalSettings
@@ -132,6 +94,9 @@ namespace LDLocalSettings
     // drops the scalability-priority value of ScreenPercentage so the project default under it applies at once; other
     // values are applied by the engine. False when a scalability render scale is still in force for 0.
     LOCKDOWN_API bool ApplyRenderScale(IConsoleVariable& ScreenPercentage, float ResolutionQuality);
+    // The only window the game uses: borderless at the desktop resolution, held as the confirmed mode. Only the fields
+    // change (quality is kept, though the engine setters may adjust it); the caller applies the window.
+    LOCKDOWN_API void HoldBorderlessDesktop(UGameUserSettings& Settings);
 }
 
 struct FLDControlBinding
