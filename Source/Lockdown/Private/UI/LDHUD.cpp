@@ -917,7 +917,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Level,const FString& Mark)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,80));Line->AddChildToHorizontalBox(Cell(Deaths,80));
+        Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,90));Line->AddChildToHorizontalBox(Cell(Deaths,90));
         Line->AddChildToHorizontalBox(Cell(Level,100));Line->AddChildToHorizontalBox(Cell(Mark,80));
         ResultRows->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4));
     };

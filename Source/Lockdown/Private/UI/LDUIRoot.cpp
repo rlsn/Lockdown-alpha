@@ -125,7 +125,7 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     UTextBlock* Title=Label(LDTerms::Title,40,TitleColor);
     Title->SetJustification(ETextJustify::Center);
     Add(MainMenu,Title,10);
-    UTextBlock* Tagline=Label(LDTerms::Tagline,18,MutedColor);
+    UTextBlock* Tagline=Label(FString(LDTerms::Tagline).Replace(TEXT(" · "),TEXT("\n")),18,MutedColor);
     Tagline->SetJustification(ETextJustify::Center);
     Add(MainMenu,Tagline,4);
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},22);
@@ -180,14 +180,10 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?TEXT("版本 ")+Version:TEXT("版本读取失败：")+VersionError,15,MutedColor);
     VersionLine->SetJustification(ETextJustify::Center);
     Add(Content,VersionLine,10);
-    // The slang note stays in the frontend's corner (#111) so the title's slang is never read as anything else.
+    // The slang note stays under the front page (#111) so the title's slang is never read as anything else.
     UTextBlock* SlangNote=Label(LDTerms::SlangNote,14,MutedColor);
-    SlangNote->SetVisibility(ESlateVisibility::HitTestInvisible);
-    UCanvasPanelSlot* SlangSlot=Canvas.AddChildToCanvas(SlangNote);
-    SlangSlot->SetAnchors(FAnchors(0.f,1.f));
-    SlangSlot->SetAlignment(FVector2D(0.f,1.f));
-    SlangSlot->SetAutoSize(true);
-    SlangSlot->SetPosition(FVector2D(24.f,-18.f));
+    SlangNote->SetJustification(ETextJustify::Center);
+    Add(Content,SlangNote,2);
     bMenuOpen=true;
     SetFrontendPage(Draft&&Draft->bStartPage);
 }
