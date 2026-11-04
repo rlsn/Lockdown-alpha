@@ -134,6 +134,11 @@ switch ($Action) {
         # One runner takes one job at a time, so a single listener per machine caps CI at one job at a time.
         $others = @(Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'")
         if ($others.Count) { throw "Another Actions runner is already running on this machine ($($others.ExecutablePath -join ', ')). Stop it first; only one CI job may run here at a time." }
+        # The runner writes diagnostic logs for every job and never prunes them.
+        $diag = Join-Path $root '_diag'
+        if (Test-Path -LiteralPath $diag) {
+            Get-ChildItem -LiteralPath $diag -Recurse -File | Where-Object LastWriteTime -lt (Get-Date).AddDays(-14) | Remove-Item -Force
+        }
         # Refresh the job guard from this checkout so allowlist changes apply without reinstalling.
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CIJobGuard.ps1') -Destination (Join-Path $root 'CIJobGuard.ps1') -Force
         # BELOWNORMAL is inherited by the listener, the job and every build tool it starts.

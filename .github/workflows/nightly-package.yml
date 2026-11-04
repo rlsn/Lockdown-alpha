@@ -51,12 +51,7 @@ jobs:
 
       - name: Reset workspace
         if: steps.gate.outputs.skip != 'true'
-        run: |
-          git clean -ffd
-          if ($LASTEXITCODE -ne 0) { throw 'git clean failed.' }
-          # Previous runs' outputs are already uploaded; this folder belongs to the runner workspace only.
-          if (Test-Path Artifacts) { Get-ChildItem Artifacts -Force | Remove-Item -Recurse -Force }
-          if (-not $env:LD_UE_ROOT) { throw 'LD_UE_ROOT is not set in the runner .env (Scripts/CIRunner.ps1 Install writes it).' }
+        run: ./Scripts/CIResetWorkspace.ps1
 
       - name: Preflight
         if: steps.gate.outputs.skip != 'true'

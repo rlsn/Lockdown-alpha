@@ -256,6 +256,10 @@ Python 测试由 `Scripts/RunPythonTests.py` 以最多 4 个进程并行执行�
 runner 不装成服务，只在手动打开期间接任务；关闭期间排队的运行在 GitHub 上最多等待 24 小时。
 一台 runner 同时只跑一个任务，Start 在本机已有任何 runner 进程时拒绝启动，
 所以这台机器上同一时间最多一个 CI 任务，其余在 GitHub 上排队。
+所有任务共用 runner 目录下的同一个工作区。每个任务开始时 `Scripts/CIResetWorkspace.ps1` 清掉未跟踪文件、
+上次的 Artifacts、`Saved` 下的日志、崩溃转储、自动保存与暂存包；`Binaries` 与 `Intermediate` 保留用于增量构建，
+合计超过 12 GB 时整体删除并从头构建；所在盘可用空间不足 10 GB 时任务直接失败。
+Start 会删除 runner `_diag` 中超过 14 天的日志。
 
 ```powershell
 .\Scripts\CIRunner.ps1 Install -RunnerRoot <runner 目录>   # 每台机器一次，需要仓库管理员的 gh 登录
