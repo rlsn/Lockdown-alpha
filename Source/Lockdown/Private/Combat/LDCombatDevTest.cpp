@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Development/LDGrowthProtocol.h"
 #include "Framework/LDGameMode.h"
 
 namespace
@@ -89,5 +90,106 @@ bool ALDCombatDirector::DevResetCooldowns(const FGuid& Contender, const FLDGamep
     }
     Detail = FString::Printf(TEXT("%d of %d cooldown tracks were cooling down"), Reset, Record->Tracks.Num());
     return true;
+}
+
+bool ALDCombatDirector::DevApplyAttribute(TArray<FLDDemoStatBonus>& Bonuses, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount)
+{
+    if (bClearAll)
+    {
+        const bool bChanged = !Bonuses.IsEmpty();
+        Bonuses.Reset();
+        return bChanged;
+    }
+    const bool bRange = Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+    const int32 Index = Bonuses.IndexOfByPredicate([Stat](const FLDDemoStatBonus& Bonus) { return Bonus.Stat == Stat; });
+    if (Amount == 0)
+    {
+        if (Index == INDEX_NONE)
+        {
+            return false;
+        }
+        Bonuses.RemoveAt(Index);
+        return true;
+    }
+    FLDDemoStatBonus Term;
+    Term.Stat = Stat;
+    // Range is authored as a Cm rational; every other stat as an integer in its storage unit.
+    if (bRange)
+    {
+        Term.Cm.Numerator = Amount;
+        Term.Cm.Denominator = 1;
+    }
+    else
+    {
+        Term.Amount = Amount;
+    }
+    if (Index != INDEX_NONE)
+    {
+        FLDDemoStatBonus& Existing = Bonuses[Index];
+        const bool bChanged = Existing.Amount != Term.Amount || Existing.Cm.Numerator != Term.Cm.Numerator
+            || Existing.Cm.Denominator != Term.Cm.Denominator;
+        Existing = Term;
+        return bChanged;
+    }
+    const int32 At = Bonuses.IndexOfByPredicate([Stat](const FLDDemoStatBonus& Bonus) { return uint8(Bonus.Stat) > uint8(Stat); });
+    Bonuses.Insert(Term, At == INDEX_NONE ? Bonuses.Num() : At);
+    return true;
+}
+
+ELDGrowthReason ALDCombatDirector::DevSetAttribute(const FGuid& Contender, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount,
+    const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    ALDGameMode* Mode = Core();
+    const FLDDemoContentSnapshot* Content = Catalog();
+    if (!CombatDevPermitValid(Mode, Permit, Detail) || !Content)
+    {
+        if (Detail.IsEmpty())
+        {
+            Detail = TEXT("A DEV attribute change needs the approved Demo content.");
+        }
+        return ELDGrowthReason::AuthorityFault;
+    }
+    FLDCombatEntityRecord* Record = FindRecord(Contender);
+    if (!Record || Record->Kind != ELDVictimKind::Contender)
+    {
+        Detail = TEXT("The contender has no combat record yet (its first life has not spawned).");
+        return ELDGrowthReason::DataInvalid;
+    }
+    FLDBuildProjectionInput Input = Record->Build;
+    const auto Describe = [](const TArray<FLDDemoStatBonus>& Bonuses)
+    {
+        FString Text;
+        for (const FLDDemoStatBonus& Bonus : Bonuses)
+        {
+            const FString Name = StaticEnum<ELDDemoBonusStat>()->GetNameStringByValue(int64(Bonus.Stat));
+            Text += FString::Printf(TEXT("%s%s=%lld"), Text.IsEmpty() ? TEXT("") : TEXT(", "), *Name,
+                Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat ? Bonus.Cm.Numerator : Bonus.Amount);
+        }
+        return Text.IsEmpty() ? FString(TEXT("empty")) : Text;
+    };
+    if (!DevApplyAttribute(Input.DevBonuses, bClearAll, Stat, Amount))
+    {
+        Detail = TEXT("dev layer unchanged: ") + Describe(Input.DevBonuses);
+        return ELDGrowthReason::None;
+    }
+    FLDCombatPrepareResult Prepared = PrepareProjected(*Mode, *Content, *Record, Contender, Input, Record->Installed);
+    if (!Prepared.IsSuccess())
+    {
+        Detail = Prepared.Message;
+        return ELDGrowthReason::NumericDomain;
+    }
+    const uint64 SourceBefore = Record->SourceRevision;
+    ApplyBuildChange(MoveTemp(Prepared.Value.GetValue()), Permit);
+    if (Record->SourceRevision == SourceBefore)
+    {
+        Detail = TEXT("The DEV attribute install drifted inside its permit scope.");
+        return ELDGrowthReason::AuthorityFault;
+    }
+    const FLDProjectedAttributes& Final = Record->Projection.Final;
+    Detail = FString::Printf(TEXT("dev layer: %s; max hp %lld, max mp %lld, ad %lld, ap %lld, armor %lld, mr %lld P2"),
+        *Describe(Record->Build.DevBonuses), Final.MaxHPP2, Final.MaxMPP2, Final.ADP2, Final.APP2, Final.ArmorP2,
+        Final.MagicResistP2);
+    return ELDGrowthReason::None;
 }
 #endif

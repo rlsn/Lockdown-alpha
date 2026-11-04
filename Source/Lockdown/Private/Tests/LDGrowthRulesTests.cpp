@@ -2330,7 +2330,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     GrowthTestReason(*this, TEXT("Request id 0 is refused"),
         LDDevTest::ValidateShape(Command(1, 1, 0, ELDDevTestOp::GrantGold, 5)), ELDGrowthReason::InvalidRequest);
     GrowthTestReason(*this, TEXT("An unknown op is refused, not mapped to a neighbour"),
-        LDDevTest::ValidateShape(Command(1, 1, 1, static_cast<ELDDevTestOp>(9), 0)), ELDGrowthReason::InvalidRequest);
+        LDDevTest::ValidateShape(Command(1, 1, 1, static_cast<ELDDevTestOp>(99), 0)), ELDGrowthReason::InvalidRequest);
     GrowthTestReason(*this, TEXT("A zero grant is refused"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantGold, 0)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("A negative grant is refused"),
@@ -2341,6 +2341,27 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::ResetCooldowns, 0)), ELDGrowthReason::None);
     TestFalse(TEXT("Commands that differ only in amount have different terms"),
         Command(1, 1, 1, ELDDevTestOp::GrantGold, 5).SameTerms(Command(1, 1, 1, ELDDevTestOp::GrantGold, 6)));
+    const auto Attribute = [&Command](uint64 RequestId, ELDDemoBonusStat Stat, int64 Amount, uint32 Generation = 1)
+    {
+        FLDDevTestCommand Out = Command(Generation, 1, RequestId, ELDDevTestOp::SetAttribute, Amount);
+        Out.Stat = uint8(Stat);
+        return Out;
+    };
+    GrowthTestReason(*this, TEXT("A DEV attribute term of 0 (removal) is a valid shape"),
+        LDDevTest::ValidateShape(Attribute(1, ELDDemoBonusStat::CritChanceBonusRatio, 0)), ELDGrowthReason::None);
+    GrowthTestReason(*this, TEXT("A negative DEV attribute term is refused"),
+        LDDevTest::ValidateShape(Attribute(1, ELDDemoBonusStat::ADFlat, -1)), ELDGrowthReason::NumericDomain);
+    GrowthTestReason(*this, TEXT("The timed-only ADBonusRatio is no DEV attribute stat"),
+        LDDevTest::ValidateShape(Attribute(1, ELDDemoBonusStat::ADBonusRatio, 100)), ELDGrowthReason::InvalidRequest);
+    GrowthTestReason(*this, TEXT("A stat outside the enum is refused"),
+        LDDevTest::ValidateShape(Attribute(1, static_cast<ELDDemoBonusStat>(40), 100)), ELDGrowthReason::InvalidRequest);
+    FLDDevTestCommand ClearNamed = Command(1, 1, 1, ELDDevTestOp::ClearAttributes, 0);
+    ClearNamed.Stat = uint8(ELDDemoBonusStat::APFlat);
+    GrowthTestReason(*this, TEXT("Only SetAttribute names a stat"), LDDevTest::ValidateShape(ClearNamed), ELDGrowthReason::InvalidRequest);
+    GrowthTestReason(*this, TEXT("A clear with an amount is refused"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::ClearAttributes, 5)), ELDGrowthReason::NumericDomain);
+    TestFalse(TEXT("Commands that differ only in stat have different terms"),
+        Attribute(1, ELDDemoBonusStat::ADFlat, 5).SameTerms(Attribute(1, ELDDemoBonusStat::APFlat, 5)));
 
     // ---- Pure combat parts ----
     FLDBodyCombatState::FResources Pool;
@@ -2370,6 +2391,76 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Tracks[0].ReadyAtMs == 1000 && Tracks[0].IssuedCooldownId == FGuid(0xD7, 0, 0, 1) && Tracks[0].bBound
         && Tracks[0].BoundInstance == FGuid(0xD7, 0, 0, 9) && Tracks[0].LastDurationMs == 8000);
     TestEqual(TEXT("A track already ready keeps its earlier end"), Tracks[1].ReadyAtMs, int64(500));
+    TArray<FLDDemoStatBonus> Layer;
+    TestTrue(TEXT("A first DEV term is a change"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::MoveSpeedBonusRatio, 500));
+    TestTrue(TEXT("A second DEV term is a change"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::ADFlat, 2000));
+    TestTrue(TEXT("Range travels as whole cm"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::AttackRangeCmFlat, 50));
+    TestTrue(TEXT("DEV terms stay sorted by stat, range as a Cm rational with no Amount"),
+        Layer.Num() == 3 && Layer[0].Stat == ELDDemoBonusStat::ADFlat && Layer[0].Amount == 2000
+        && Layer[1].Stat == ELDDemoBonusStat::AttackRangeCmFlat && Layer[1].Amount == 0 && Layer[1].Cm.Numerator == 50
+        && Layer[1].Cm.Denominator == 1 && Layer[2].Stat == ELDDemoBonusStat::MoveSpeedBonusRatio);
+    TestFalse(TEXT("The same term again is no change"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::ADFlat, 2000));
+    TestTrue(TEXT("A new amount replaces the stat's term"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::ADFlat, 300)
+        && Layer.Num() == 3 && Layer[0].Amount == 300);
+    TestTrue(TEXT("Amount 0 removes only that stat's term"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::ADFlat, 0)
+        && Layer.Num() == 2 && Layer[0].Stat == ELDDemoBonusStat::AttackRangeCmFlat);
+    TestFalse(TEXT("Removing an absent term is no change"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::APFlat, 0));
+    TestTrue(TEXT("A clear empties the layer"), ALDCombatDirector::DevApplyAttribute(Layer, true, ELDDemoBonusStat::ADFlat, 0) && Layer.IsEmpty());
+    TestFalse(TEXT("Clearing an empty layer is no change"), ALDCombatDirector::DevApplyAttribute(Layer, true, ELDDemoBonusStat::ADFlat, 0));
+
+    // ---- Pure projection: the DEV layer is its own additive row ----
+    const auto DevTerm = [](ELDDemoBonusStat Stat, int64 Amount)
+    {
+        FLDDemoStatBonus Out;
+        Out.Stat = Stat;
+        if (Stat == ELDDemoBonusStat::AttackRangeCmFlat) { Out.Cm.Numerator = Amount; Out.Cm.Denominator = 1; }
+        else { Out.Amount = Amount; }
+        return Out;
+    };
+    const auto ProjectWith = [&Catalog](TArray<FLDDemoStatBonus> Dev, TArray<FLDAttributeCardValue> Cards = {})
+    {
+        FLDAttributeBuildValues Values(1, {}, MoveTemp(Cards), {});
+        Values.DevBonuses = MoveTemp(Dev);
+        return LDAttributeProjection::Project(Values, *Catalog);
+    };
+    const FLDAttributeProjectionResult Plain = ProjectWith({});
+    const FLDAttributeProjectionResult WithDev = ProjectWith({DevTerm(ELDDemoBonusStat::ADFlat, 2000),
+        DevTerm(ELDDemoBonusStat::AttackSpeedBonusRatio, 2500)});
+    if (!TestTrue(TEXT("Level-1 projections with and without a DEV layer succeed"), Plain.IsSuccess() && WithDev.IsSuccess()))
+    {
+        return false;
+    }
+    const FLDAttributeProjection& PlainValue = Plain.Value.GetValue();
+    const FLDAttributeProjection& DevValue = WithDev.Value.GetValue();
+    const FLDAttributeContributions& DevAD = DevValue.Contributions[int32(ELDProjectedAttribute::AD)];
+    TestTrue(TEXT("DEV AD +20 points adds exactly 2000 P2 and shows as the Dev row, not as a build source"),
+        DevValue.Final.ADP2 == PlainValue.Final.ADP2 + 2000 && DevAD.Dev.Flat.Numerator == 20 && DevAD.Dev.Flat.Denominator == 1
+        && DevAD.Equipment.Flat.Numerator == 0 && DevAD.PermanentChoices.Flat.Numerator == 0);
+    const FLDAttributeContributions& DevSpeed = DevValue.Contributions[int32(ELDProjectedAttribute::AttackSpeed)];
+    TestTrue(TEXT("A DEV ratio is an additive ratio of the Dev row"),
+        DevSpeed.Dev.AdditiveRatio.Numerator * 4 == DevSpeed.Dev.AdditiveRatio.Denominator
+        && DevValue.Final.MaxHPP2 == PlainValue.Final.MaxHPP2);
+    FLDTemporaryAttributeTerms Timed;
+    FLDDemoStatBonus TimedAD;
+    TimedAD.Stat = ELDDemoBonusStat::ADFlat;
+    TimedAD.Amount = 100;
+    Timed.Bonuses.Add(TimedAD);
+    const FLDAttributeProjectionResult TimedDev = LDAttributeProjection::ApplyTemporary(DevValue, Timed, *Catalog);
+    TestTrue(TEXT("Temporary terms stack on top of the DEV row"),
+        TimedDev.IsSuccess() && TimedDev.Value->Final.ADP2 == DevValue.Final.ADP2 + 100);
+    const auto ProjectionError = [this](const TCHAR* What, const FLDAttributeProjectionResult& Result, ELDAttributeProjectionError Expected)
+    {
+        TestEqual(What, int32(Result.Error.Code), int32(Expected));
+    };
+    ProjectionError(TEXT("A stat named twice in the DEV layer"),
+        ProjectWith({DevTerm(ELDDemoBonusStat::ADFlat, 1), DevTerm(ELDDemoBonusStat::ADFlat, 2)}), ELDAttributeProjectionError::DuplicateSource);
+    ProjectionError(TEXT("ADBonusRatio in the DEV layer"), ProjectWith({DevTerm(ELDDemoBonusStat::ADBonusRatio, 100)}),
+        ELDAttributeProjectionError::InputDomain);
+    ProjectionError(TEXT("A negative DEV term"), ProjectWith({DevTerm(ELDDemoBonusStat::APFlat, -100)}),
+        ELDAttributeProjectionError::InputDomain);
+    const FLDDemoContentParameters& Bounds = Catalog->Get().Parameters;
+    ProjectionError(TEXT("A DEV term past the catalog maximum refuses rather than clamps"),
+        ProjectWith({DevTerm(ELDDemoBonusStat::MaxHPFlat, Bounds.MaxHP.MaxP2)}), ELDAttributeProjectionError::OutOfBounds);
 
     // ---- Authority: isolated match with the growth domain ----
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
@@ -2420,6 +2511,8 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     FLDCombatEntityRecord& CombatRecord = Driver->Records.Add(Tester);
     CombatRecord.Kind = ELDVictimKind::Contender;
     CombatRecord.Entity = Tester;
+    CombatRecord.Build.Level = 1;
+    CombatRecord.Projection = PlainValue;
     FLDCombatTrack& Learned = CombatRecord.Tracks.AddDefaulted_GetRef();
     Learned.IssuedCooldownId = FGuid(0xD7, 0, 1, 1);
     Learned.Kind = ELDCombatSourceKind::Learned;
@@ -2601,7 +2694,37 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     { return false; }
     if (!Commit(TEXT("Request 8: replacing an empty Q"), Learn(8, TEXT("attr_might"), 1), ELDGrowthReason::ReplacementMismatch))
     { return false; }
-    const FLDDevTestReceipt* LearnedReceipt = Commit(TEXT("Request 9: an attribute card while dead"), Learn(9, TEXT("attr_might"), 0),
+
+    // ---- DEV attribute layer: Combat's installed build, without a growth or inventory revision ----
+    const FLDCombatEntityRecord& Fighter = Driver->Records.FindChecked(Tester);
+    const FLDExpectedBuildVersions InstalledBefore = Fighter.Installed;
+    const uint64 GrowthRevisionBefore = Development->FindBuild(Tester)->Revision;
+    const FLDDevTestReceipt* AttrReceipt = Commit(TEXT("Request 9: DEV AD +20 while dead"),
+        Attribute(9, ELDDemoBonusStat::ADFlat, 2000, Gen), ELDGrowthReason::None);
+    if (!AttrReceipt) { return false; }
+    TestTrue(TEXT("The receipt names the stat and amount"), AttrReceipt->Stat == uint8(ELDDemoBonusStat::ADFlat) && AttrReceipt->Amount == 2000);
+    TestTrue(TEXT("The persistent build holds the DEV term and its projection shows it as the Dev row"),
+        Fighter.Build.DevBonuses.Num() == 1 && Fighter.Build.DevBonuses[0].Amount == 2000
+        && Fighter.Projection.Final.ADP2 == PlainValue.Final.ADP2 + 2000
+        && Fighter.Projection.Contributions[int32(ELDProjectedAttribute::AD)].Dev.Flat.Numerator == 20);
+    TestTrue(TEXT("Neither Combat's installed revisions nor the growth build revision move"),
+        Fighter.Installed.BuildRevision == InstalledBefore.BuildRevision
+        && Fighter.Installed.InventoryRevision == InstalledBefore.InventoryRevision
+        && Development->FindBuild(Tester)->Revision == GrowthRevisionBefore);
+    const FLDDevTestReceipt* TooMuch = Commit(TEXT("Request 10: DEV max HP past the catalog maximum"),
+        Attribute(10, ELDDemoBonusStat::MaxHPFlat, Bounds.MaxHP.MaxP2, Gen), ELDGrowthReason::NumericDomain);
+    TestTrue(TEXT("The refusal explains the bound and the layer is unchanged"), TooMuch && TooMuch->Detail.Contains(TEXT("MaxHP"))
+        && Fighter.Build.DevBonuses.Num() == 1 && Fighter.Projection.Final.MaxHPP2 == PlainValue.Final.MaxHPP2);
+    FLDCombatCaller GrowthCaller;
+    GrowthCaller.Match = Mode->GetMatchContext();
+    GrowthCaller.Kind = ELDVictimKind::Contender;
+    GrowthCaller.EntityId = Tester;
+    FLDBuildProjectionInput Smuggled = Fighter.Build;
+    Smuggled.ResultBuildRevision = Fighter.Installed.BuildRevision + 1;
+    TestEqual(TEXT("A Growth build change that names a DEV layer"),
+        int32(Driver->PrepareBuildChange(GrowthCaller, Smuggled, Fighter.Installed).Error), int32(ELDCombatPrepareError::InvalidInput));
+
+    const FLDDevTestReceipt* LearnedReceipt = Commit(TEXT("Request 11: an attribute card while dead"), Learn(11, TEXT("attr_might"), 0),
         ELDGrowthReason::None);
     if (!LearnedReceipt) { return false; }
     TestTrue(TEXT("The receipt names the learned definition"), LearnedReceipt->Definition == FName(TEXT("attr_might")));
@@ -2612,16 +2735,25 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         && AfterLearn->Cards[0].Count == 1 && ProgressionAfter && ProgressionAfter->ConsumedThrough == ConsumedBefore + 1
         && ProgressionAfter->Records.Num() == 1);
     TestTrue(TEXT("Combat installed the new build"), Driver->Records.FindChecked(Tester).Installed.BuildRevision == AfterLearn->Revision);
-    const FLDDevTestReceipt* NoOpportunity = Commit(TEXT("Request 10: learn with no opportunity left"),
-        Learn(10, TEXT("attr_focus"), 0), ELDGrowthReason::NoOffer);
+    const FLDAttributeProjectionResult CardOnly = ProjectWith({}, {FLDAttributeCardValue(TEXT("attr_might"), 1)});
+    TestTrue(TEXT("The real build change keeps the installed DEV term on top of the new card"),
+        CardOnly.IsSuccess() && Fighter.Build.DevBonuses.Num() == 1 && Fighter.Build.AttributeCards.Num() == 1
+        && Fighter.Projection.Final.ADP2 == CardOnly.Value->Final.ADP2 + 2000);
+    const FLDDevTestReceipt* NoOpportunity = Commit(TEXT("Request 12: learn with no opportunity left"),
+        Learn(12, TEXT("attr_focus"), 0), ELDGrowthReason::NoOffer);
     TestTrue(TEXT("The refusal says to raise the level first"), NoOpportunity && NoOpportunity->Detail.Contains(TEXT("raise the level")));
     TestTrue(TEXT("Nothing more was learned"), Development->FindBuild(Tester)->Cards.Num() == 1);
+    if (!Commit(TEXT("Request 13: clear the DEV layer"), Command(Gen, 1, 13, ELDDevTestOp::ClearAttributes, 0), ELDGrowthReason::None))
+    { return false; }
+    TestTrue(TEXT("A clear removes only the DEV term; the learned card stays"),
+        Fighter.Build.DevBonuses.IsEmpty() && Fighter.Build.AttributeCards.Num() == 1
+        && Fighter.Projection.Final.ADP2 == CardOnly.Value->Final.ADP2);
 
     // Trades need a living body; a dead contender is refused before any ledger change.
-    FLDDevTestCommand Buy = Command(Gen, 1, 11, ELDDevTestOp::BuyItem, 0);
+    FLDDevTestCommand Buy = Command(Gen, 1, 14, ELDDevTestOp::BuyItem, 0);
     FLDDefinitionWire::Encode(FName(TEXT("item_edge_blade")), Buy.Definition);
     const int64 GoldBeforeBuy = Gold(Tester);
-    if (!Commit(TEXT("Request 11: buy while dead"), Buy, ELDGrowthReason::Dead)) { return false; }
+    if (!Commit(TEXT("Request 14: buy while dead"), Buy, ELDGrowthReason::Dead)) { return false; }
     TestEqual(TEXT("A refused buy spends nothing"), Gold(Tester), GoldBeforeBuy);
     TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
     Economy->Ledger.OwnerItems(Tester, Owned);
@@ -2629,7 +2761,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
 
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 12, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 15, ELDDevTestOp::GrantGold, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
     Status(TEXT("A replay after the match closed"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);

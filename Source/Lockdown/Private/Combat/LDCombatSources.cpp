@@ -136,8 +136,9 @@ namespace LDCombatSourcesDetail
             Refused.Error.Message=TEXT("Equipment must occupy distinct Item1/Item2 entries");
             return Refused;
         }
-        return LDAttributeProjection::Project(
-            FLDAttributeBuildValues(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped)),Content);
+        FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
+        Values.DevBonuses=Build.DevBonuses;
+        return LDAttributeProjection::Project(Values,Content);
     }
 
     bool ProjectedBasicTiming(const FLDAttributeProjection& Projection, const FLDDemoContentSnapshot& Content,
@@ -736,9 +737,26 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
             TEXT("StaleBuild: expected %llu/%llu but Combat installed %llu/%llu."),Expected.BuildRevision,
             Expected.InventoryRevision,Record->Installed.BuildRevision,Record->Installed.InventoryRevision));
     }
+    // Growth never names the DEV test layer; the installed one rides along with every build change.
+    if (!Input.DevBonuses.IsEmpty())
+    { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,TEXT("InvalidInput: only Combat holds the DEV test layer.")); }
+    FLDBuildProjectionInput Effective=Input;
+    Effective.DevBonuses=Record->Build.DevBonuses;
     FString Reason;
-    if (!LDCombatSourcesDetail::ValidateBuildInput(Input,Record->Installed,*Content,Reason))
+    if (!LDCombatSourcesDetail::ValidateBuildInput(Effective,Record->Installed,*Content,Reason))
     { return LDCombatSourcesDetail::PrepareFailure(EPrepare::InvalidInput,Reason); }
+    return PrepareProjected(*Mode,*Content,*Record,Caller.EntityId,Effective,Expected);
+}
+
+FLDCombatPrepareResult ALDCombatDirector::PrepareProjected(const ALDGameMode& ModeRef, const FLDDemoContentSnapshot& ContentRef,
+    const FLDCombatEntityRecord& RecordRef, const FGuid& Contender, const FLDBuildProjectionInput& Input,
+    const FLDExpectedBuildVersions& Expected) const
+{
+    using EPrepare=ELDCombatPrepareError;
+    const ALDGameMode* Mode=&ModeRef;
+    const FLDDemoContentSnapshot* Content=&ContentRef;
+    const FLDCombatEntityRecord* Record=&RecordRef;
+    FString Reason;
     const FLDAttributeProjectionResult Projected=LDCombatSourcesDetail::ProjectInput(Input,*Content);
     if (!Projected.IsSuccess())
     {
@@ -757,7 +775,7 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
     if (!LDCombatSourceRules::PlanTrackBindings(*Record,Input,Mode->GetAuthorityNowMs(),*Content,Plan,Code,Reason))
     { return LDCombatSourcesDetail::PrepareFailure(Code,Reason); }
     FLDPreparedCombatProjection Prepared;
-    const FLDBodyCombatState* Body=FindEntityBody(Caller.EntityId);
+    const FLDBodyCombatState* Body=FindEntityBody(Contender);
     if (Body && !Body->bPendingDeath)
     {
         // One final-maximum conversion per pool; a dead contender changes only the persistent build.
@@ -789,7 +807,7 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
         Prepared.NewMaxMPP2=Projection.Final.MaxMPP2;
     }
     Prepared.Match=Mode->GetMatchContext();
-    Prepared.Contender=Caller.EntityId;
+    Prepared.Contender=Contender;
     Prepared.Expected=Expected;
     Prepared.Input=Input;
     Prepared.Projection=Projection;
@@ -1126,6 +1144,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Choices=Row.PermanentChoices.Flat;
         RowView.Passives=Row.Passives.Flat;
         RowView.Equipment=Row.Equipment.Flat;
+        RowView.Dev=Row.Dev.Flat;
+        RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
         RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
         RowView.Final=Row.Final;

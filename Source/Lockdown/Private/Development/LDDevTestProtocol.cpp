@@ -1,9 +1,11 @@
 #include "Development/LDDevTestProtocol.h"
 
+#include "Development/LDDemoContentDefinitions.h"
+
 bool FLDDevTestCommand::SameTerms(const FLDDevTestCommand& Other) const
 {
     return Generation == Other.Generation && Life == Other.Life && RequestId == Other.RequestId && Op == Other.Op
-        && Amount == Other.Amount && Definition == Other.Definition && Slot == Other.Slot;
+        && Amount == Other.Amount && Definition == Other.Definition && Slot == Other.Slot && Stat == Other.Stat;
 }
 
 bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
@@ -17,6 +19,8 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::LearnOption:
     case ELDDevTestOp::BuyItem:
     case ELDDevTestOp::SellItem:
+    case ELDDevTestOp::SetAttribute:
+    case ELDDevTestOp::ClearAttributes:
         return true;
     default:
         return false;
@@ -34,6 +38,8 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::LearnOption: return TEXT("LearnOption");
     case ELDDevTestOp::BuyItem: return TEXT("BuyItem");
     case ELDDevTestOp::SellItem: return TEXT("SellItem");
+    case ELDDevTestOp::SetAttribute: return TEXT("SetAttribute");
+    case ELDDevTestOp::ClearAttributes: return TEXT("ClearAttributes");
     default: return TEXT("Unknown");
     }
 }
@@ -45,9 +51,15 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
         return ELDGrowthReason::InvalidRequest;
     }
     const bool bGrant = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::GrantGold;
-    if (bGrant ? Command.Amount <= 0 : Command.Amount != 0)
+    const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
+    if (bGrant ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0 : Command.Amount != 0))
     {
         return ELDGrowthReason::NumericDomain;
+    }
+    // ADBonusRatio is a timed/conditional-only stat, so the permanent DEV layer ends at CritChanceBonusRatio.
+    if (bSetAttribute ? Command.Stat > uint8(ELDDemoBonusStat::CritChanceBonusRatio) : Command.Stat != 0)
+    {
+        return ELDGrowthReason::InvalidRequest;
     }
     const bool bNamesDefinition = Command.Op == ELDDevTestOp::LearnOption || Command.Op == ELDDevTestOp::BuyItem;
     FName Decoded;

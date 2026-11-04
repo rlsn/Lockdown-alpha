@@ -82,6 +82,7 @@ struct FAttributeSum
     FTermSum Choices;
     FTermSum Passives;
     FTermSum Equipment;
+    FTermSum Dev;
 };
 
 class FProjector
@@ -234,6 +235,29 @@ private:
                 return Refuse(EError::UnknownDefinition, FString::Printf(TEXT("EquippedItems[%d]"), Index), LookupError);
             }
             Items.Add(Item);
+        }
+        for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
+        {
+            const FLDDemoStatBonus& Bonus = Build.DevBonuses[Index];
+            const FString Field = FString::Printf(TEXT("DevBonuses[%d]"), Index);
+            EAttribute Attribute = EAttribute::Count;
+            bool bRatio = false, bBasisPoints = false;
+            const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+            if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio)
+            {
+                return Refuse(EError::InputDomain, Field, TEXT("A DEV term must name a permanent build stat"));
+            }
+            if (bRange ? (Bonus.Amount != 0 || !NonnegativeRational(Bonus.Cm)) : Bonus.Amount < 0)
+            {
+                return Refuse(EError::InputDomain, Field, TEXT("A DEV term must be nonnegative in its stat's unit"));
+            }
+            for (int32 Earlier = 0; Earlier < Index; ++Earlier)
+            {
+                if (Build.DevBonuses[Earlier].Stat == Bonus.Stat)
+                {
+                    return Refuse(EError::DuplicateSource, Field, TEXT("A DEV term names a stat more than once"));
+                }
+            }
         }
         return true;
     }
@@ -461,6 +485,13 @@ private:
                 }
             }
         }
+        for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
+        {
+            if (!AddBonus(Build.DevBonuses[Index], &FAttributeSum::Dev, One, FString::Printf(TEXT("DevBonuses[%d]"), Index)))
+            {
+                return false;
+            }
+        }
         return Check.Good || ArithmeticFailure(TEXT("Accumulate"));
     }
 
@@ -560,10 +591,10 @@ private:
             const EAttribute Attribute = static_cast<EAttribute>(Index);
             const FString Field = AttributeName(Attribute);
             const FAttributeSum& Sum = Sums[Index];
-            const FExact Flat = Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
-                Numbers.Add(Sum.Passives.Flat, Sum.Equipment.Flat));
-            const FExact Ratio = Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
-                Numbers.Add(Sum.Passives.Ratio, Sum.Equipment.Ratio));
+            const FExact Flat = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
+                Numbers.Add(Sum.Passives.Flat, Sum.Equipment.Flat)), Sum.Dev.Flat);
+            const FExact Ratio = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
+                Numbers.Add(Sum.Passives.Ratio, Sum.Equipment.Ratio)), Sum.Dev.Ratio);
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
             bool bClamped = false;
             if (Attribute == EAttribute::AttackSpeed || Attribute == EAttribute::MoveSpeed)
@@ -603,6 +634,8 @@ private:
                 && ToRational(Sum.Passives.Ratio, Row.Passives.AdditiveRatio, Field)
                 && ToRational(Sum.Equipment.Flat, Row.Equipment.Flat, Field)
                 && ToRational(Sum.Equipment.Ratio, Row.Equipment.AdditiveRatio, Field)
+                && ToRational(Sum.Dev.Flat, Row.Dev.Flat, Field)
+                && ToRational(Sum.Dev.Ratio, Row.Dev.AdditiveRatio, Field)
                 && ToRational(Value, Row.Final, Field);
             if (!bRowStored)
             {
@@ -788,7 +821,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         {
             const FLDAttributeContributions& Row = Build.Contributions[Index];
             Base = N.Value(Row.Base);
-            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Equipment})
+            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Equipment, &Row.Dev})
             {
                 Flat = N.Add(Flat, N.Value(Terms2->Flat));
                 Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));

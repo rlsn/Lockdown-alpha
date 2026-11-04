@@ -32,6 +32,11 @@ enum class ELDDevTestOp : uint8
     BuyItem = 6,
     // Slot 1/2, no Definition: one Sell of the item in that equipment slot at the catalog price.
     SellItem = 7,
+    // Stat = an ELDDemoBonusStat other than ADBonusRatio, Amount >= 0 in that stat's unit (P2 points, basis points,
+    // whole cm for range): the caller's DEV attribute term for that stat; 0 removes it. Alive, Dead or Unspawned.
+    SetAttribute = 8,
+    // Amount == 0, Stat 0: removes every DEV attribute term; base, growth, passives and equipment stay.
+    ClearAttributes = 9,
 };
 
 USTRUCT()
@@ -46,6 +51,8 @@ struct LOCKDOWN_API FLDDevTestCommand
     UPROPERTY() int64 Amount = 0;
     UPROPERTY() FLDDefinitionWire Definition;
     UPROPERTY() uint8 Slot = 0;
+    // SetAttribute only: the ELDDemoBonusStat value; every other op 0.
+    UPROPERTY() uint8 Stat = 0;
 
     bool SameTerms(const FLDDevTestCommand& Other) const;
 };
@@ -74,6 +81,7 @@ struct LOCKDOWN_API FLDDevTestReceipt
     UPROPERTY() int64 Amount = 0;
     UPROPERTY() FName Definition;
     UPROPERTY() uint8 Slot = 0;
+    UPROPERTY() uint8 Stat = 0;
     // Human-readable committed result or refusal, for the DEV console and log only.
     UPROPERTY() FString Detail;
 };
@@ -104,7 +112,7 @@ namespace LDDevTest
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
     // Request shape only: a known op, a non-zero request id and the op's domain: grants an amount > 0 and nothing else;
     // LearnOption a definition and slot 0..2; BuyItem a definition and slot 0; SellItem slot 1..2 and no definition;
-    // refill and reset nothing.
+    // SetAttribute a permanent build stat and an amount >= 0; refill, reset and clear nothing.
     // Context (match, life, permit) is checked by admission and the commit.
     LOCKDOWN_API ELDGrowthReason ValidateShape(const FLDDevTestCommand& Command);
     // Admission answer for a command refused before it reached a request stream.

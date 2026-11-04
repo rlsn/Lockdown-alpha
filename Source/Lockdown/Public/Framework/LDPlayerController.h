@@ -79,7 +79,7 @@ public:
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
     // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
     uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
-        uint8 Slot = 0);
+        uint8 Slot = 0, uint8 Stat = 0);
     FLDOnDevTestResult OnDevTestResult;
     UFUNCTION(Server,Reliable) void ServerDevTestCommand(const FLDDevTestCommand& Command);
     UFUNCTION(Client,Reliable) void ClientDevTestResult(const FLDDevTestResult& Result);

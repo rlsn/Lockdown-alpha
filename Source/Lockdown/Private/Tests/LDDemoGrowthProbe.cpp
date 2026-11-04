@@ -230,6 +230,8 @@ constexpr int64 GrowthProbeHostGrantGold = 120;
 // in the owner view (terminal result plus the replicated owner state).
 constexpr int64 GrowthProbeHostDevGold = 7;
 constexpr double GrowthProbeDevSettleSeconds = 15.0;
+// Probe-only DEV attribute term: +12 AD points (P2), an arbitrary visible value, not a product number.
+constexpr int64 GrowthProbeDevADP2 = 1200;
 // Approved melee approach of low camp L1 (WORLD_CAMPS_AND_VISION §2.5, shared with the camp scenario), its two
 // scavengers within the target search radius of that point.
 const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
@@ -503,6 +505,8 @@ public:
         int32 ResultMark = 0;
         double SentAt = 0;
         int64 GoldBefore = 0;
+        // The owner's projected AD in P2 when the command was sent; -1 when the view had no exact AD row.
+        int64 ADBeforeP2 = -1;
     };
     FDevCall Dev;
     int32 DevStep = 0;
@@ -1603,8 +1607,21 @@ public:
 
     enum class EDevWait : uint8 { Waiting, Done, Failed };
 
+    // The owner's own combat view row of one attribute, or null.
+    static const FLDCombatAttributeRowView* OwnAttribute(const ALDPlayerController& PC, ELDProjectedAttribute Attribute)
+    {
+        return PC.CombatView.Attributes.FindByPredicate([Attribute](const FLDCombatAttributeRowView& Row)
+            { return Row.Attribute == uint8(Attribute); });
+    }
+
+    // An exact P2 value of a rational, or -1 when it has none.
+    static int64 ExactP2(const FLDDemoRational& Value)
+    {
+        return Value.Denominator > 0 && (Value.Numerator * 100) % Value.Denominator == 0 ? Value.Numerator * 100 / Value.Denominator : -1;
+    }
+
     bool SendDev(double Now, ALDPlayerController& PC, const FString& Name, ELDDevTestOp Op, int64 Amount,
-        FName Definition = NAME_None, uint8 Slot = 0)
+        FName Definition = NAME_None, uint8 Slot = 0, uint8 Stat = 0)
     {
         const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
         Dev = FDevCall();
@@ -1612,8 +1629,10 @@ public:
         Dev.ResultMark = DevResults.Num();
         Dev.SentAt = Now;
         Dev.GoldBefore = Equip ? Equip->Gold : -1;
+        const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
+        Dev.ADBeforeP2 = AD ? ExactP2(AD->Final) : -1;
         ELDGrowthReason Local = ELDGrowthReason::None;
-        const uint64 RequestId = PC.SubmitDevTest(Op, Amount, Local, Definition, Slot);
+        const uint64 RequestId = PC.SubmitDevTest(Op, Amount, Local, Definition, Slot, Stat);
         if (!Check(RequestId != 0, TEXT("DevTest"), Name + TEXT(" is sent through SubmitDevTest"), LDGrowthWire::ReasonName(Local)))
         {
             return Finish();
@@ -1624,6 +1643,7 @@ public:
         Dev.Sent.Op = Op;
         Dev.Sent.Amount = Amount;
         Dev.Sent.Slot = Slot;
+        Dev.Sent.Stat = Stat;
         if (!Definition.IsNone())
         {
             FLDDefinitionWire::Encode(Definition, Dev.Sent.Definition);
@@ -1827,6 +1847,28 @@ public:
             }
             return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Rejected, ELDGrowthReason::NoOffer,
                 [&] { return CardCount(DevCardId) == 1; }));
+        case 10:
+            if (!Dev.bSent)
+            {
+                const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
+                if (!Check(AD && ExactP2(AD->Final) > 0 && AD->Dev.Numerator == 0, TEXT("DevTest"),
+                    TEXT("The owner's combat view has an exact AD row and no DEV term before the DEV attribute step"))) { return Finish(); }
+                return SendDev(Now, PC, TEXT("A DEV AD term is installed on the owner's build and shown as its own Dev row"),
+                    ELDDevTestOp::SetAttribute, LDDemoGrowthScenario::GrowthProbeDevADP2, NAME_None, 0, uint8(ELDDemoBonusStat::ADFlat));
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
+                    return AD && ExactP2(AD->Dev) == LDDemoGrowthScenario::GrowthProbeDevADP2
+                        && ExactP2(AD->Final) == Dev.ADBeforeP2 + LDDemoGrowthScenario::GrowthProbeDevADP2; }));
+        case 11:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV clear removes only the DEV term"), ELDDevTestOp::ClearAttributes, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
+                    return AD && AD->Dev.Numerator == 0
+                        && ExactP2(AD->Final) == Dev.ADBeforeP2 - LDDemoGrowthScenario::GrowthProbeDevADP2; }));
         default:
             if (Passed) { Mark(TEXT("Client1DevDone.json")); }
             return Finish();

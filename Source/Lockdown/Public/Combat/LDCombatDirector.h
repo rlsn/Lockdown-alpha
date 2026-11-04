@@ -13,6 +13,7 @@ class ALDCharacter;
 class ALDGameMode;
 class ALDPlayerController;
 class FLDDemoContentSnapshot;
+enum class ELDGrowthReason : uint16;
 struct FLDDemoAbilityDefinition;
 struct FLDDemoEquipmentDefinition;
 struct FLDDemoRankDefinition;
@@ -284,6 +285,16 @@ public:
     // that were cooling down at NowMs.
     static bool DevRefillPool(FLDBodyCombatState::FResources& Pool);
     static int32 DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
+    // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
+    // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through
+    // PrepareProjected/ApplyBuildChange (resource maxima keep their ratio, a living body keeps its temporary terms)
+    // without a build or inventory revision, so Growth's in-flight requests stay valid; a dead contender changes only
+    // the persistent build of its next life. NumericDomain with Detail when the projection refuses (a final value
+    // outside its catalog bound), nothing changes then.
+    ELDGrowthReason DevSetAttribute(const FGuid& Contender, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount,
+        const FLDGameplayWritePermit& Permit, FString& Detail);
+    // Pure part: whether Bonuses changed. Terms stay sorted by stat.
+    static bool DevApplyAttribute(TArray<FLDDemoStatBonus>& Bonuses, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount);
 #endif
 
     // ---- Camps.
@@ -394,6 +405,11 @@ private:
 
     // ---- Sources (LDCombatSources.cpp).
     bool ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const;
+    // PrepareBuildChange after its caller, version and shape checks: projection, timing, bindings and the one
+    // resource-maximum conversion of a living body. Input is the complete build to install, DEV layer included.
+    FLDCombatPrepareResult PrepareProjected(const ALDGameMode& Mode, const FLDDemoContentSnapshot& Content,
+        const FLDCombatEntityRecord& Record, const FGuid& Contender, const FLDBuildProjectionInput& Input,
+        const FLDExpectedBuildVersions& Expected) const;
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,

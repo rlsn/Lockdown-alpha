@@ -123,19 +123,25 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 | `ResetCooldowns`（数量 0） | 该参赛者全部冷却轨道（技能与装备、已绑定或未绑定的债）截止时间提前到本边界，身份与绑定不变 |
 | `LearnOption`（定义 id，槽 0/1/2） | `ALDDevelopmentDirector::DevChooseOption`：定义须在当前构筑的 `LegalPool` 中，作为队首机会的结果消费它，与 `CommitPendingChoice` 共用 `InstallOption`（ApplyOption、修订、下一组的池、Combat 投影、抽下一组）；槽 1/2 以该槽当前技能确认替换；没有机会为 `NoOffer`；Alive 或 Dead |
 | `BuyItem`（定义 id）/ `SellItem`（槽 1/2） | `ALDVendorDirector::DevTrade`：以当前版本与目录价格合成一条商店命令，与 `CommitPendingShopCommand` 共用 `CommitTrade`（账本 Buy/Sell、构筑修订、Combat 投影），只跳过商店会话、报价与距离；满槽、余额不足照常拒绝；业务键带 `dev-test-trade` 标签；只限 Alive |
+| `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑或库存修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
 
 终态回执在 `PublishGrowth` 的 `SyncOwner` 之后经 `ClientDevTestResult` 送达，受理结果同一通道立即返回。
 普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
+测试层只由 Combat 持有：成长域的 `PrepareBuildChange` 输入不得带它（`InvalidInput`），Combat 把已安装的测试层带进每次真实构筑变更；
+投影把它作为单独的 `FLDAttributeContributions::Dev` 行（本人属性视图的 `Dev`/`DevPercent`、HUD 来源“测试”），
+最终值与临时项、隐身腿速一样把它计入加和；测试层与真实构筑合计越界时，那次真实选择或买卖同样按投影拒绝；新局重建 Combat 记录，测试层不带入下一局。
 控制台入口 `ld.Dev.XP <数量>`、`ld.Dev.Gold <数量>`、`ld.Dev.Refill`、`ld.Dev.ResetCooldowns`、`ld.Dev.Learn <id> [Q|W]`、
-`ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>` 只是本地发送者（`ld.Dev.List` 打印本进程已加载的批准目录），
-数量只接受不超过 18 位的正十进制整数；结果打 `LD_DEV_TEST_RESULT` 日志并在 HUD 提示行显示。
+`ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>`、`ld.Dev.Attr <属性> <数值>`、`ld.Dev.ClearAttr` 只是本地发送者（`ld.Dev.List` 打印本进程已加载的批准目录），
+经验与金币只接受不超过 18 位的正十进制整数，测试属性按显示单位精确换算（点数与百分比至多两位小数，射程整厘米），不四舍五入；结果打 `LD_DEV_TEST_RESULT` 日志并在 HUD 提示行显示。
 `Lockdown.Rules.DemoDevTestCommands` 覆盖形状、开关拒绝、受理流、金币/经验提交、重放不重复提交、旧生命/离局/关局拒绝、
-冷却轨道重置、学习（阶段、非法 id、空槽替换、成功安装与 Combat 投影、无机会拒绝）、死亡时买入被拒与补满纯规则。
+冷却轨道重置、学习（阶段、非法 id、空槽替换、成功安装与 Combat 投影、无机会拒绝）、死亡时买入被拒与补满纯规则，
+以及测试属性：形状、纯层操作、单独的 Dev 投影行与临时项叠加、重复/负值/`ADBonusRatio`/越界拒绝、
+死亡时设置不推进任何修订、越界命令不改状态、成长输入夹带测试层被拒、真实学习保留测试层、清除只去掉测试层。
 `RunDemoGrowthCheck.ps1` 在第二局导出干净账本之后再跑 DEV 段：买方经远程拥有连接发送旧局（`OldMatch`）、
 重放（原回执、不重复提交）、同号异条款（`RequestConflict`）、加金币、离店买入与卖出、重置冷却、补满、
-在开局机会上学习、无机会学习（`NoOffer`），Listen Host 经本地拥有 RPC 给自己加金币；
+在开局机会上学习、无机会学习（`NoOffer`）、设置测试 AD（本人视图的 Dev 行与最终值）与清除，Listen Host 经本地拥有 RPC 给自己加金币；
 随后导出的第三份账本以 `--dev-fixture` 复算，必须恰好列出两人各自的 DEV 铸币，并与买方本人投影一致。
-属性覆盖、清除测试配置和面板尚未实现。
+重置到开局、刷怪/跳阶段与测试面板尚未实现。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
 在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，

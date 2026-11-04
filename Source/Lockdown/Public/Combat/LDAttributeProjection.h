@@ -51,6 +51,11 @@ struct FLDAttributeBuildValues
     TArray<FLDAttributeCardValue> AttributeCards;
     // Occupied equipment slots in slot order; the same definition may appear twice.
     TArray<FString> EquippedItems;
+    // DEV test layer (#78): one extra additive term per stat on top of base, growth, passives and equipment, reported
+    // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
+    // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value outside its catalog
+    // bound refuses the projection exactly like any other source.
+    TArray<FLDDemoStatBonus> DevBonuses;
 };
 
 enum class ELDProjectedAttribute : uint8
@@ -94,6 +99,8 @@ struct FLDAttributeContributions
     FLDAttributeTerms PermanentChoices;
     FLDAttributeTerms Passives;
     FLDAttributeTerms Equipment;
+    // The DEV test layer (FLDAttributeBuildValues::DevBonuses); zero outside a DEV test session.
+    FLDAttributeTerms Dev;
     // Timed self bonuses, active conditional passives and the strongest slow (a negative ratio); zero in a build projection.
     FLDAttributeTerms Temporary;
     // (Base + every Flat) x (1 + every AdditiveRatio), exact; only attack and move speed clamp.

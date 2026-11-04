@@ -188,7 +188,7 @@ try {
         @($third.current.items | Where-Object { $_.owner -eq $buyer.entity }).Count -ne 0 -or @($buyer.final_items).Count -ne 0) {
         throw "The DEV-stage ledger and the buyer's own projection disagree after its DEV buy and sell: $output"
     }
-    if (@($buyer.dev_test).Count -ne 10 -or @($hostReport.dev_test).Count -ne 1) {
+    if (@($buyer.dev_test).Count -ne 12 -or @($hostReport.dev_test).Count -ne 1) {
         throw "A DEV test step is missing from the reports: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
@@ -214,7 +214,8 @@ try {
         "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, quoted no inherited cooldown " +
         "and opened a fresh ledger under a new LedgerMatch (replayed). DEV test commands: the buyer through its remote owner RPC " +
         "(stale match, replay and conflict refused or answered without a second commit; gold grant, buy and sell away from the shop, " +
-        "cooldown reset, refill, learn on the open opportunity, learn without one refused) and the Host through its own as Listen " +
+        "cooldown reset, refill, learn on the open opportunity, learn without one refused, a DEV AD term shown as its own row " +
+        "and cleared) and the Host through its own as Listen " +
         "Host; the DEV-stage ledger replayed with --dev-fixture lists exactly both owners' grants. " +
         "Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }

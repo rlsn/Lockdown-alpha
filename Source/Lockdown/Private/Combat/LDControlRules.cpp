@@ -90,10 +90,11 @@ bool LDControl::MoveSpeedCmPerSec(const FLDAttributeContributions& Row, int64 Pe
     // The same FORMULA.MoveSpeed rows as the projection, temporary terms (timed boosts, the strongest slow) included,
     // with the stealth penalty as one more additive ratio.
     const double Flat=ControlRational(Row.Base)+ControlRational(Row.LevelGrowth.Flat)+ControlRational(Row.PermanentChoices.Flat)
-        +ControlRational(Row.Passives.Flat)+ControlRational(Row.Equipment.Flat)+ControlRational(Row.Temporary.Flat);
+        +ControlRational(Row.Passives.Flat)+ControlRational(Row.Equipment.Flat)+ControlRational(Row.Dev.Flat)
+        +ControlRational(Row.Temporary.Flat);
     const double Ratio=ControlRational(Row.LevelGrowth.AdditiveRatio)+ControlRational(Row.PermanentChoices.AdditiveRatio)
         +ControlRational(Row.Passives.AdditiveRatio)+ControlRational(Row.Equipment.AdditiveRatio)
-        +ControlRational(Row.Temporary.AdditiveRatio)-double(PenaltyBp)/10000.;
+        +ControlRational(Row.Dev.AdditiveRatio)+ControlRational(Row.Temporary.AdditiveRatio)-double(PenaltyBp)/10000.;
     const double Min=ControlRational(Bounds.Min), Max=ControlRational(Bounds.Max);
     const double Speed=Flat*(1.+Ratio);
     if (!FMath::IsFinite(Speed) || !FMath::IsFinite(Min) || !FMath::IsFinite(Max) || !(Min>0) || Max<Min) { return false; }

@@ -968,6 +968,7 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
     Receipt.Op = Command.Op;
     Receipt.Amount = Command.Amount;
     Receipt.Slot = Command.Slot;
+    Receipt.Stat = Command.Stat;
     // The shape was proven at admission: a learn or buy names a valid definition, every other op none.
     FName Definition;
     Command.Definition.Decode(Definition);
@@ -1073,6 +1074,12 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
                 ? M->Vendor->DevTrade(ContenderId, Command.Op == ELDDevTestOp::BuyItem, Definition, Command.Slot,
                     Command.RequestId, Permit, Detail)
                 : ELDGrowthReason::Dead;
+            break;
+        case ELDDevTestOp::SetAttribute:
+        case ELDDevTestOp::ClearAttributes:
+            // A persistent build term: Combat installs it on the living body or keeps it for the next life.
+            Reason = M->Combat->DevSetAttribute(ContenderId, Command.Op == ELDDevTestOp::ClearAttributes,
+                ELDDemoBonusStat(Command.Stat), Command.Amount, Permit, Detail);
             break;
         default:
             Reason = ELDGrowthReason::InvalidRequest;
