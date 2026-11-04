@@ -125,6 +125,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> ManaText;
+    UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
+    UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     UPROPERTY() TObjectPtr<UTextBlock> LevelText;
     UPROPERTY() TObjectPtr<UTextBlock> GoldText;

@@ -496,6 +496,22 @@ namespace LDTactical
         return DelayMs >= 0 && LastCombatAtMs <= MAX_int64 - DelayMs && NowMs >= LastCombatAtMs + DelayMs;
     }
 
+    FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
+        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs)
+    {
+        const auto Value=[](const FLDDemoRational& Rate){return double(Rate.Numerator)/double(Rate.Denominator);};
+        FRegenRates Rates{Value(Attributes.Final.HPRegenPerSec),Value(Attributes.Final.MPRegenPerSec)};
+        if (Attributes.OutOfCombatHPRegen.IsSet()
+            && OutOfCombatAt(LastCombatAtMs,Attributes.OutOfCombatHPRegen->DelayMs,NowMs))
+        { Rates.HP+=Value(Attributes.OutOfCombatHPRegen->HPPerSec); }
+        if (Recovery && OutOfCombatAt(LastCombatAtMs,Recovery->DelayMs,NowMs))
+        {
+            Rates.HP+=double(MaxHpP2)*double(Recovery->MaxHPBpPerSec)/1000000.;
+            Rates.MP+=double(MaxMpP2)*double(Recovery->MaxMPBpPerSec)/1000000.;
+        }
+        return Rates;
+    }
+
     bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
         int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error)
     {

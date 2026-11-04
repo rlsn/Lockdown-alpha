@@ -118,6 +118,31 @@ bool FLDHUDLifeStatusTest::RunTest(const FString& Parameters)
     Own.LifePhase=static_cast<ELDLifePhase>(200);TestEqualSensitive(TEXT("An unknown phase is reported, not shown alive"),LDHUD::LifeStatus(Own,true,0),FString(TEXT("生命状态未知")));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDRegenDisplayTest,"Lockdown.Rules.HUDRegenDisplay",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDRegenDisplayTest::RunTest(const FString& Parameters)
+{
+    FLDOwnerState Own;Own.Match=2;Own.Life=3;Own.LifePhase=ELDLifePhase::Alive;
+    FLDCombatOwnerView View;View.Generation=2;View.Life=3;View.bHasBody=true;
+    View.HPP2=View.MaxHPP2=62000;View.MPP2=View.MaxMPP2=30000;
+    View.HPRegenPerSec=2.5;View.MPRegenPerSec=1.2;
+    TestEqualSensitive(TEXT("Full HP still displays regen capacity"),LDHUD::RegenText(Own,&View,true),FString(TEXT("+2.5/s")));
+    TestEqualSensitive(TEXT("MP has its own rate"),LDHUD::RegenText(Own,&View,false),FString(TEXT("+1.2/s")));
+    View.HPP2=100;View.HPRegenPerSec=12.345;
+    TestEqualSensitive(TEXT("Rate changes render to one decimal independent of HP deltas"),LDHUD::RegenText(Own,&View,true),FString(TEXT("+12.3/s")));
+    View.MPRegenPerSec=0;
+    TestEqualSensitive(TEXT("A known zero is explicit"),LDHUD::RegenText(Own,&View,false),FString(TEXT("+0.0/s")));
+    TestTrue(TEXT("Missing projection does not invent zero"),LDHUD::RegenText(Own,nullptr,true).IsEmpty());
+    View.Generation=1;TestTrue(TEXT("Old match is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.Generation=2;
+    View.Life=2;TestTrue(TEXT("Old life is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.Life=3;
+    Own.LifePhase=ELDLifePhase::Dead;TestTrue(TEXT("Death hides regen even with a lingering live view"),LDHUD::RegenText(Own,&View,true).IsEmpty());Own.LifePhase=ELDLifePhase::Alive;
+    View.bHasBody=false;TestTrue(TEXT("Absent body hides regen"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.bHasBody=true;
+    View.HPP2=0;TestTrue(TEXT("Pending death hides regen"),LDHUD::RegenText(Own,&View,true).IsEmpty());View.HPP2=100;
+    View.MPP2=-1;TestTrue(TEXT("Invalid MP resource hides regen"),LDHUD::RegenText(Own,&View,false).IsEmpty());View.MPP2=0;
+    View.MaxMPP2=0;TestTrue(TEXT("Unknown MP maximum hides regen"),LDHUD::RegenText(Own,&View,false).IsEmpty());
+    View.HPRegenPerSec=std::numeric_limits<double>::quiet_NaN();TestTrue(TEXT("Nonfinite rate is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());
+    View.HPRegenPerSec=-1;TestTrue(TEXT("Malformed negative rate is hidden"),LDHUD::RegenText(Own,&View,true).IsEmpty());
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDOwnResourcesTest,"Lockdown.Rules.HUDOwnResources",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDOwnResourcesTest::RunTest(const FString& Parameters)
 {

@@ -42,6 +42,15 @@ int64 HudWholePoints(int64 P2,bool bRoundUp)
 }
 }
 
+FString LDHUD::RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Combat,bool bHealth)
+{
+    if(!Combat||Own.Match==0||Own.Life==0||Own.LifePhase!=ELDLifePhase::Alive
+        ||Combat->Generation!=Own.Match||Combat->Life!=Own.Life||!Combat->bHasBody||Combat->HPP2<=0
+        ||(bHealth?Combat->MaxHPP2:Combat->MaxMPP2)<=0||(!bHealth&&Combat->MPP2<0)){return FString();}
+    const double Rate=bHealth?Combat->HPRegenPerSec:Combat->MPRegenPerSec;
+    return FMath::IsFinite(Rate)&&Rate>=0?FString::Printf(TEXT("+%.1f/s"),Rate):FString();
+}
+
 bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out)
 {
     Out=ContentId;
